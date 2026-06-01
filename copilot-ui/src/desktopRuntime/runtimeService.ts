@@ -3,7 +3,6 @@ import { spawn as defaultSpawn, type ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
-import type { DesktopCliManagerState, EvaluateDesktopCliManagerStateOptions } from './cliManager';
 import type { WorkflowSidecarManager } from '../workflowSidecar';
 
 const DESKTOP_UI_ACCESS_QUERY_PARAM = 'desktop-ui-token';
@@ -89,10 +88,6 @@ export interface BundledChildEntryPointOptions {
 }
 
 export interface DesktopRuntimeServiceDependencies {
-  ensureSdkBridgeDefaultEnabled: (env: NodeJS.ProcessEnv) => void;
-  evaluateDesktopCliManagerState: (
-    options: EvaluateDesktopCliManagerStateOptions,
-  ) => Promise<DesktopCliManagerState>;
   startWorkflowSidecar: (options: {
     runtimeRoot: string;
     processExecPath: string;
@@ -441,20 +436,6 @@ export function createDesktopRuntimeService(
     const explicitPlanningDatabaseUrl = String(options.env.INSTRUCTION_ENGINE_PLANNING_DB_URL || '').trim();
     const desktopUiToken = createRandomHex(32);
 
-    bootLog('ensuring SDK bridge enabled');
-    dependencies.ensureSdkBridgeDefaultEnabled(options.env);
-    bootLog('evaluating CLI manager state');
-    await dependencies.evaluateDesktopCliManagerState({
-      runtimeRoot: options.paths.runtimeRoot,
-      copilotHome: options.paths.copilotHome,
-      isPackaged: options.isPackaged,
-      appVersion: options.appVersion,
-      appPath: options.appPath,
-      currentDirname: options.currentDirname,
-      env: options.env,
-      platform: options.platform,
-      logger,
-    });
     bootLog('ensuring default gateway config');
     ensureDefaultGatewayConfig(options.paths, runtimeFs);
     bootLog('ensuring planning authority env');

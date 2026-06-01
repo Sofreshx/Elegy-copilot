@@ -60,8 +60,10 @@ async function main() {
       assert.strictEqual(firstSummary.generatedRoles, 0, 'Codex install should not generate engine role wrappers');
 
       const configToml = fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8');
-      assert.ok(configToml.includes('review_model = "gpt-5.4"'));
+      assert.ok(configToml.includes('review_model = "deepseek-v4-pro"'));
       assert.ok(configToml.includes('[profiles.instruction_engine_plan_review]'));
+      assert.ok(configToml.includes('model = "mimo-v2-pro"'));
+      assert.ok(configToml.includes('model_provider = "opencode-go"'));
 
       const secondSummary = installer.runInstall({
         codexHome,

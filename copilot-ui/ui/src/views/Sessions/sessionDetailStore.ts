@@ -10,14 +10,8 @@ import {
   listSessionsWorkspace,
   getSessionEvents,
   getSessionPlanById,
-  sendSdkMessage,
-  createSdkStreamUrl,
-  answerSdkQuestion,
-  cancelExecutorJob,
-  deleteSdkSession,
 } from '../../lib/api';
 import { notificationStore } from '../../stores/notificationStore';
-import { questionBadgeStore } from '../../stores/questionBadgeStore';
 import type {
   SessionStructuredStateResponse,
   SessionOrchestrationProjection,
@@ -447,320 +441,13 @@ function createSessionDetailStore() {
   }
 
   function attachStream(sessionId: string): void {
-    detachStream();
+    // SDK bridge removed — no live stream available
+    store.setState((s) => ({ ...s, sdkStreamStatus: 'disconnected' }));
+  }
 
-    store.setState((s) => ({ ...s, sdkStreamStatus: 'connecting' }));
-
-    let reconnectAttempts = 0;
-    const MAX_RECONNECT_ATTEMPTS = 5;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-
-    // ── Shared SSE handler ──────────────────────────────────────────
-    // Defined at the attachStream level since it doesn't depend on `es`.
-    function handleSseData(data: Record<string, unknown>): void {
-      // When paused, buffer events instead of applying them
-      if (store.getState().streamPaused) {
-        pauseBuffer.push(data);
-        return;
-      }
-
-      const eventType = (data.type ?? (data.event as Record<string, unknown> | undefined)?.type) as string | undefined;
-      const eventData = ((data.event as Record<string, unknown> | undefined)?.data ??
-        (data.event as Record<string, unknown> | undefined) ??
-        data) as Record<string, unknown>;
-
-      if (eventData.content !== undefined || eventData.reasoning !== undefined) {
-        store.setState((s) => ({
-          ...s,
-          sdkPendingContent:
-            eventData.content !== undefined
-              ? String(eventData.content)
-              : s.sdkPendingContent,
-          sdkPendingReasoning:
-            eventData.reasoning !== undefined
-              ? String(eventData.reasoning)
-              : s.sdkPendingReasoning,
-        }));
-      }
-
-      if (eventData.id && eventData.role) {
-        const entry: SdkMessageEntry = {
-          id: String(eventData.id),
-          role: normalizeSdkMessageRole(eventData.role),
-          content: String(eventData.content ?? ''),
-          reasoning: eventData.reasoning ? String(eventData.reasoning) : undefined,
-          createdAtMs:
-            typeof eventData.createdAtMs === 'number'
-              ? eventData.createdAtMs
-              : Date.now(),
-          status: normalizeSdkMessageStatus(eventData.status),
-          eventType: eventData.eventType as string | undefined,
-        };
-
-        store.setState((s) => {
-          const existing = s.sdkMessages.findIndex(
-            (m) => m.id === entry.id
-          );
-          const messages =
-            existing >= 0
-              ? s.sdkMessages.map((m, i) => (i === existing ? entry : m))
-              : [...s.sdkMessages, entry];
-
-          return {
-            ...s,
-            sdkMessages: messages,
-            sdkPendingContent: '',
-            sdkPendingReasoning: '',
-          };
-        });
-      }
-
-      // Handle tool.executing events
-      if (eventType === 'tool.executing' && eventData.toolCallId) {
-        const block: ToolCallBlock = {
-          toolCallId: String(eventData.toolCallId),
-          toolName: String(eventData.toolName ?? 'unknown'),
-          arguments: asRecordOrUndefined(eventData.arguments),
-          status: 'executing',
-          startedAtMs: typeof eventData.startedAtMs === 'number'
-            ? eventData.startedAtMs
-            : Date.now(),
-        };
-
-        store.setState((s) => {
-          const exists = s.toolCalls.some(
-            (tc) => tc.toolCallId === block.toolCallId
-          );
-          return {
-            ...s,
-            toolCalls: exists ? s.toolCalls : [...s.toolCalls, block],
-          };
-        });
-      }
-
-      // Handle tool.completed events
-      if (eventType === 'tool.completed' && eventData.toolCallId) {
-        const toolCallId = String(eventData.toolCallId);
-        const output = eventData.output !== undefined
-          ? String(eventData.output)
-          : undefined;
-        const completedAtMs = typeof eventData.completedAtMs === 'number'
-          ? eventData.completedAtMs
-          : Date.now();
-
-        store.setState((s) => {
-          const idx = s.toolCalls.findIndex(
-            (tc) => tc.toolCallId === toolCallId
-          );
-          if (idx < 0) {
-            return {
-              ...s,
-              toolCalls: [
-                ...s.toolCalls,
-                {
-                  toolCallId,
-                  toolName: String(eventData.toolName ?? 'unknown'),
-                  arguments: asRecordOrUndefined(eventData.arguments),
-                  output,
-                  status: 'completed' as const,
-                  startedAtMs: completedAtMs,
-                  completedAtMs,
-                },
-              ],
-            };
-          }
-          return {
-            ...s,
-            toolCalls: s.toolCalls.map((tc, i) =>
-              i === idx
-                ? { ...tc, status: 'completed' as const, output, completedAtMs }
-                : tc
-            ),
-          };
-        });
-      }
-
-      // Handle question.asked events
-      if (eventType === 'question.asked') {
-        const pq: PendingQuestion = {
-          questionId: String(eventData.toolCallId || `q-${Date.now()}`),
-          toolCallId: String(eventData.toolCallId || ''),
-          question: String(eventData.question || ''),
-          options: Array.isArray(eventData.options)
-            ? eventData.options.filter((option): option is PendingQuestionOption => {
-                return Boolean(
-                  option
-                  && typeof option === 'object'
-                  && typeof (option as { label?: unknown }).label === 'string'
-                  && typeof (option as { value?: unknown }).value === 'string'
-                );
-              })
-            : undefined,
-          askedAtMs: Date.now(),
-          answered: false,
-        };
-
-        store.setState((s) => ({
-          ...s,
-          pendingQuestions: [...s.pendingQuestions, pq],
-        }));
-
-        // Report to global badge store
-        const sid = store.getState().sessionId;
-        if (sid) {
-          const unansweredCount = store.getState().pendingQuestions.filter((q) => !q.answered).length;
-          questionBadgeStore.reportQuestion(sid, unansweredCount);
-        }
-
-        // Toast notification so user notices even when on another view
-        notificationStore.warning('Model needs input', {
-          message: String(eventData.question || 'A session is waiting for your answer'),
-          duration: null,
-        });
-      }
-
-      // Handle question.answered events
-      if (eventType === 'question.answered') {
-        const toolCallId = String(eventData.toolCallId || '');
-        store.setState((s) => ({
-          ...s,
-          pendingQuestions: s.pendingQuestions.map((q) =>
-            q.toolCallId === toolCallId
-              ? { ...q, answered: true, answeredValue: String(eventData.answer || '') }
-              : q
-          ),
-        }));
-
-        // Update global badge store
-        const sid2 = store.getState().sessionId;
-        if (sid2) {
-          const unansweredCount = store.getState().pendingQuestions.filter((q) => !q.answered).length;
-          questionBadgeStore.reportQuestion(sid2, unansweredCount);
-        }
-      }
-
-      // Handle remote session events
-      if (eventType === 'session.remote_status' || eventType === 'session.info') {
-        const url = eventData.remoteUrl ?? eventData.url;
-        if (url) {
-          store.setState((s) => ({
-            ...s,
-            isRemote: true,
-            remoteUrl: String(url),
-          }));
-        }
-        if (eventData.isRemote !== undefined) {
-          store.setState((s) => ({
-            ...s,
-            isRemote: Boolean(eventData.isRemote),
-          }));
-        }
-      }
-
-      if (eventType === 'session.handoff') {
-        const remoteSessionId = eventData.remoteSessionId ?? eventData.taskId;
-        if (remoteSessionId) {
-          store.setState((s) => ({
-            ...s,
-            remoteSessionId: String(remoteSessionId),
-          }));
-        }
-      }
-
-      if (eventType === 'session.warning') {
-        const message = String(eventData.message || eventData.reason || 'Remote session warning');
-        notificationStore.warning('Remote Session Warning', {
-          message,
-          duration: 8000,
-        });
-      }
-    }
-
-    function parseSsePayload(raw: string): Record<string, unknown> | null {
-      try {
-        return JSON.parse(raw) as Record<string, unknown>;
-      } catch {
-        return null;
-      }
-    }
-
-    function connect() {
-      const url = createSdkStreamUrl(sessionId);
-      const es = new EventSource(url);
-      activeEventSource = es;
-
-      es.onopen = () => {
-        reconnectAttempts = 0;
-        store.setState((s) => ({ ...s, sdkStreamStatus: 'connected' }));
-      };
-
-      es.addEventListener('connected', () => {
-        store.setState((s) => ({ ...s, sdkStreamStatus: 'connected' }));
-      });
-
-      const namedEvents = [
-        'assistant.message_delta',
-        'assistant.reasoning_delta',
-        'assistant.message',
-        'assistant.reasoning',
-        'session.idle',
-        'session.error',
-        'session.info',
-        'session.handoff',
-        'session.warning',
-        'session.remote_status',
-        'tool.executing',
-        'tool.completed',
-        'question.asked',
-        'question.answered',
-      ] as const;
-
-      for (const eventName of namedEvents) {
-        es.addEventListener(eventName, (nativeEvent) => {
-          const payload = parseSsePayload((nativeEvent as MessageEvent<string>).data);
-          if (!payload) return;
-          handleSseData(payload);
-        });
-      }
-
-      // Fallback: catch any unnamed/generic events that lack an `event:` field
-      es.onmessage = (event) => {
-        const payload = parseSsePayload(event.data);
-        if (!payload) return;
-        handleSseData(payload);
-      };
-
-      es.onerror = () => {
-        if (es.readyState === EventSource.CLOSED) {
-          // Permanently closed — attempt manual reconnect with exponential backoff
-          if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-            reconnectAttempts++;
-            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000);
-            store.setState((s) => ({ ...s, sdkStreamStatus: 'reconnecting' }));
-            reconnectTimer = setTimeout(() => {
-              if (activeEventSource === es) {
-                connect();
-              }
-            }, delay);
-          } else {
-            store.setState((s) => ({ ...s, sdkStreamStatus: 'error' }));
-          }
-        } else {
-          // CONNECTING — EventSource is auto-reconnecting per spec
-          store.setState((s) => ({ ...s, sdkStreamStatus: 'reconnecting' }));
-        }
-      };
-    }
-
-    connect();
-
-    // Store cleanup ref so detachStream can clear pending reconnect timers
-    activeReconnectTimer = () => {
-      if (reconnectTimer !== null) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
-    };
+  // attachStream_DISABLED: SDK bridge removed. Original implementation deleted.
+  function attachStream_DISABLED(sessionId: string): void {
+    // Dead code — SDK bridge no longer available
   }
 
   function detachStream(): void {
@@ -841,33 +528,15 @@ function createSessionDetailStore() {
       composerPrompt: '',
     }));
 
-    try {
-      await sendSdkMessage({ sessionId, prompt: prompt.trim() });
-    } catch (err) {
-      store.setState((s) => ({
-        ...s,
-        sendError: `Send failed: ${err instanceof Error ? err.message : String(err)}`,
-        lastFailedPrompt: prompt.trim(),
-        lastFailedMessageId: messageId,
-      }));
-    }
+    // SDK bridge removed — sending messages is no longer supported
+    store.setState((s) => ({
+      ...s,
+      sendError: 'SDK bridge is no longer available. Session detail is read-only.',
+    }));
   }
 
   function retrySend(): void {
-    const { lastFailedPrompt, lastFailedMessageId } = store.getState();
-    if (lastFailedPrompt) {
-      // Remove the failed optimistic message so sendMessage can re-add it
-      store.setState((s) => ({
-        ...s,
-        sendError: null,
-        lastFailedPrompt: null,
-        lastFailedMessageId: null,
-        sdkMessages: lastFailedMessageId
-          ? s.sdkMessages.filter((m) => m.id !== lastFailedMessageId)
-          : s.sdkMessages,
-      }));
-      void sendMessage(lastFailedPrompt);
-    }
+    // SDK bridge removed — retry not supported
   }
 
   function dismissSendError(): void {
@@ -893,63 +562,19 @@ function createSessionDetailStore() {
   }
 
   async function answerQuestion(toolCallId: string, answer: string): Promise<void> {
-    const { sessionId } = store.getState();
-    if (!sessionId || !toolCallId) return;
-
-    try {
-      await answerSdkQuestion({ sessionId, toolCallId, answer });
-
-      // Only mark answered after the API call succeeds
-      store.setState((s) => ({
-        ...s,
-        pendingQuestions: s.pendingQuestions.map((q) =>
-          q.toolCallId === toolCallId
-            ? { ...q, answered: true, answeredValue: answer }
-            : q
-        ),
-      }));
-    } catch (err) {
-      console.error('Failed to answer question:', err);
-      // Don't mark as answered — user can retry
-      store.setState((s) => ({
-        ...s,
-        error: `Answer failed: ${err instanceof Error ? err.message : String(err)}`,
-      }));
-    }
+    // SDK bridge removed — answering questions is no longer supported
+    store.setState((s) => ({
+      ...s,
+      error: 'SDK bridge is no longer available. Cannot answer questions.',
+    }));
   }
 
   async function stopSession(): Promise<void> {
-    const { sessionId } = store.getState();
-    if (!sessionId) return;
-
-    store.setState((s) => ({ ...s, stopping: true, error: null }));
-
-    try {
-      try {
-        await cancelExecutorJob(sessionId);
-      } catch {
-        // Executor job might not exist — that's OK
-      }
-
-      await deleteSdkSession(sessionId);
-
-      detachStream();
-      store.setState((s) => ({
-        ...s,
-        stopping: false,
-        sdkStreamStatus: 'disconnected',
-      }));
-
-      notificationStore.success('Session stopped', {
-        message: `Session ${sessionId} has been stopped.`,
-      });
-    } catch (err) {
-      store.setState((s) => ({
-        ...s,
-        stopping: false,
-        error: `Stop failed: ${err instanceof Error ? err.message : String(err)}`,
-      }));
-    }
+    // SDK bridge removed — stopping sessions is no longer supported
+    store.setState((s) => ({
+      ...s,
+      error: 'SDK bridge is no longer available. Cannot stop sessions.',
+    }));
   }
 
   async function refreshSession(): Promise<void> {

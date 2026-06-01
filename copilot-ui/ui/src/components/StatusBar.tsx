@@ -1,10 +1,6 @@
 import HealthDot from './HealthDot';
 
 interface StatusBarProps {
-  sdkHealthClassName: string;
-  sdkHealthSummary: string;
-  managedCliTone: string;
-  managedCliSummary: string;
   desktopUpdaterTone: string;
   desktopUpdaterSummary: string;
   canDownload: boolean;
@@ -23,10 +19,6 @@ function mapToHealthTone(className: string): 'ok' | 'warn' | 'error' | 'loading'
 }
 
 export default function StatusBar({
-  sdkHealthClassName,
-  sdkHealthSummary,
-  managedCliTone,
-  managedCliSummary,
   desktopUpdaterTone,
   desktopUpdaterSummary,
   canDownload,
@@ -38,22 +30,6 @@ export default function StatusBar({
   return (
     <header className="status-bar" data-testid={testId}>
       <div className="status-bar-indicators">
-        <span className="status-bar-item" data-testid="status-bar-sdk">
-          <HealthDot tone={mapToHealthTone(sdkHealthClassName)} />
-          <span className="status-bar-label">SDK</span>
-          <span className="status-bar-value">{sdkHealthSummary}</span>
-        </span>
-
-        <span className="status-bar-divider" aria-hidden="true" />
-
-        <span className="status-bar-item" data-testid="status-bar-cli">
-          <HealthDot tone={mapToHealthTone(managedCliTone)} />
-          <span className="status-bar-label">CLI</span>
-          <span className="status-bar-value">{managedCliSummary}</span>
-        </span>
-
-        <span className="status-bar-divider" aria-hidden="true" />
-
         <span className="status-bar-item" data-testid="status-bar-updater">
           <HealthDot tone={mapToHealthTone(desktopUpdaterTone)} />
           <span className="status-bar-label">Update</span>

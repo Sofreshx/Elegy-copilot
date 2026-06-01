@@ -4685,52 +4685,6 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
   sendJson(res, 404, { error: 'Not found' });
 }
 
-function isSdkBridgeEnabled(env) {
-  const source = env && typeof env === 'object' ? env : process.env;
-  return String(source.COPILOT_SDK_BRIDGE || '').trim() === '1';
-}
-
-async function initializeSdkBridge({ engineRoot, copilotHome, env, policyPreflightFn }) {
-  const sourceEnv = env && typeof env === 'object' ? env : process.env;
-  if (!isSdkBridgeEnabled(sourceEnv)) {
-    return null;
-  }
-
-  const bridgeModulePath = pathToFileURL(path.join(__dirname, 'lib', 'copilot-bridge', 'index.mjs')).href;
-  const bridgeModule = await import(bridgeModulePath);
-
-  if (!bridgeModule || typeof bridgeModule.SdkBridgeService !== 'function') {
-    throw new Error('SdkBridgeService export not found in copilot bridge module');
-  }
-
-  if (typeof bridgeModule.resolveBridgeConfig !== 'function') {
-    throw new Error('resolveBridgeConfig export not found in copilot bridge module');
-  }
-
-  const bridgeConfig = bridgeModule.resolveBridgeConfig(sourceEnv, {
-    enabled: true,
-    cwd: engineRoot,
-    copilotHome,
-    policyPreflightFn,
-  });
-
-  const sdkBridge = new bridgeModule.SdkBridgeService(bridgeConfig);
-  await sdkBridge.init();
-  return sdkBridge;
-}
-
-async function shutdownSdkBridgeSafely(sdkBridge) {
-  if (!sdkBridge || typeof sdkBridge.shutdown !== 'function') {
-    return;
-  }
-
-  try {
-    await sdkBridge.shutdown();
-  } catch {
-    // Best-effort shutdown on server close/error.
-  }
-}
-
 async function shutdownExecutorServiceSafely(executorService) {
   if (!executorService || typeof executorService.shutdown !== 'function') {
     return;
@@ -4976,35 +4930,15 @@ async function startServer(options = {}) {
       desktopUpdaterController.close();
     }
   }
-  const sdkBridgeEnabled = isSdkBridgeEnabled(env);
-  let sdkBridge = null;
   let executorService = null;
   let workflowLayerService = null;
-
-  if (sdkBridgeEnabled) {
-    try {
-        sdkBridge = await initializeSdkBridge({
-          engineRoot,
-          copilotHome,
-          env,
-          policyPreflightFn: () => getPolicyPreflight(engineRoot),
-        });
-    } catch (error) {
-      stopDesktopUpdaterBackgroundWork();
-      changeTracker.close();
-      const detail = String(error && error.message ? error.message : error);
-      throw new Error(`SDK bridge startup failed with COPILOT_SDK_BRIDGE=1: ${detail}`);
-    }
-  }
 
   try {
     executorService = await createExecutorService({
       copilotHome,
-      sdkBridge,
     }).init();
   } catch (error) {
     stopDesktopUpdaterBackgroundWork();
-    await shutdownSdkBridgeSafely(sdkBridge);
     changeTracker.close();
     await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
     const detail = String(error && error.message ? error.message : error);
@@ -5020,7 +4954,6 @@ async function startServer(options = {}) {
   } catch (error) {
     stopDesktopUpdaterBackgroundWork();
     await shutdownExecutorServiceSafely(executorService);
-    await shutdownSdkBridgeSafely(sdkBridge);
     changeTracker.close();
     await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
     const detail = String(error && error.message ? error.message : error);
@@ -5167,7 +5100,6 @@ async function startServer(options = {}) {
       readRoadmapWorkflowArtifact,
       listRoadmapWorkflowArtifacts,
       desktopUpdaterController,
-      sdkBridge,
       executorService,
       workflowLayerService,
       uiRuntimeOverlayService,
@@ -5176,7 +5108,6 @@ async function startServer(options = {}) {
     stopDesktopUpdaterBackgroundWork();
     await shutdownWorkflowLayerServiceSafely(workflowLayerService);
     await shutdownExecutorServiceSafely(executorService);
-    await shutdownSdkBridgeSafely(sdkBridge);
     changeTracker.close();
     await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
     throw error;
@@ -5247,7 +5178,6 @@ async function startServer(options = {}) {
         .then(() => stopDesktopUpdaterBackgroundWork())
         .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
         .then(() => shutdownExecutorServiceSafely(executorService))
-        .then(() => shutdownSdkBridgeSafely(sdkBridge))
         .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
         .finally(() => {
           changeTracker.close();
@@ -5267,7 +5197,6 @@ async function startServer(options = {}) {
         console.log(`sandboxesHome:  ${sandboxesHome}`);
         console.log(`engineRoot:     ${engineRoot}`);
         console.log(`trackerUrl:     ${trackerUrl}`);
-        if (sdkBridgeEnabled) console.log('sdkBridge:      enabled');
         if (trackerToken) console.log(`trackerAuth:    configured (${trackerTokenResolution.source})`);
         if (token) {
           console.log('auth token:     configured (redacted)');
@@ -5309,7 +5238,6 @@ async function startServer(options = {}) {
             .then(() => stopDesktopUpdaterBackgroundWork())
             .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
             .then(() => shutdownExecutorServiceSafely(executorService))
-            .then(() => shutdownSdkBridgeSafely(sdkBridge))
             .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
             .finally(() => {
               changeTracker.close();

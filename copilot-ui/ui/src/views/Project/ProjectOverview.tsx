@@ -153,14 +153,6 @@ export default function ProjectOverview() {
         >
           ← Back to Projects
         </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          testId="project-new-session-btn"
-          onClick={() => navigationStore.openWizard('session')}
-        >
-          + New Session
-        </Button>
       </Toolbar>
 
       {/* Sub-tab bar */}

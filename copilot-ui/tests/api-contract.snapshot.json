@@ -70,20 +70,20 @@
     ]
   },
   "GET /api/planning/live/roadmaps": {
-    "status": 503,
+    "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "code",
       "contractVersion",
+      "count",
       "deterministic",
-      "error",
       "kind",
-      "reason"
+      "repo",
+      "roadmaps"
     ]
   },
   "GET /api/planning/live/roadmaps/RM-demo": {
-    "status": 503,
+    "status": 404,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
@@ -96,7 +96,7 @@
     ]
   },
   "GET /api/planning/live/goals/GOAL-demo": {
-    "status": 503,
+    "status": 404,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
@@ -109,20 +109,21 @@
     ]
   },
   "GET /api/planning/live/plans": {
-    "status": 503,
+    "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "code",
       "contractVersion",
+      "count",
       "deterministic",
-      "error",
+      "filters",
       "kind",
-      "reason"
+      "plans",
+      "repo"
     ]
   },
   "GET /api/planning/live/plans/PLAN-demo": {
-    "status": 503,
+    "status": 404,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
@@ -135,16 +136,17 @@
     ]
   },
   "GET /api/planning/live/todos": {
-    "status": 503,
+    "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "code",
       "contractVersion",
+      "count",
       "deterministic",
-      "error",
+      "filters",
       "kind",
-      "reason"
+      "repo",
+      "todos"
     ]
   },
   "POST /api/planning/persistence/init": {
@@ -1441,97 +1443,80 @@
       "statePath"
     ]
   },
-  "GET /api/sdk/health": {
+  "GET /api/tooling-updates/status": {
     "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "cliManager",
-      "connected",
-      "enabled",
-      "error",
-      "mode",
-      "reason",
-      "sessionCount",
-      "state"
+      "checkedAtMs",
+      "elegyPlanningCli",
+      "elegySkillsAssets"
     ]
   },
-  "GET /api/sdk/models": {
+  "POST /api/tooling-updates/check": {
     "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "models"
+      "checkedAtMs",
+      "elegyPlanningCli",
+      "elegySkillsAssets"
     ]
   },
-  "POST /api/sdk/session": {
-    "status": 503,
+  "POST /api/tooling-updates/update/elegy-planning": {
+    "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "code",
-      "error",
-      "reason"
+      "downloadedPath",
+      "ok",
+      "status"
     ]
   },
-  "GET /api/sdk/sessions": {
-    "status": 503,
+  "POST /api/tooling-updates/update/elegy-skills": {
+    "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "code",
-      "error",
-      "reason"
+      "ok",
+      "status",
+      "syncResult"
     ]
   },
-  "DELETE /api/sdk/session/test-session-id": {
-    "status": 503,
+  "GET /api/config/opencode-agents": {
+    "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "code",
-      "error",
-      "reason"
+      "availableModels",
+      "configPath",
+      "exploreModel",
+      "isCustom",
+      "lastAppliedAt",
+      "opencodeHome",
+      "scoutModel"
     ]
   },
-  "POST /api/sdk/session/test-session-id/enable-remote": {
-    "status": 503,
+  "PUT /api/config/opencode-agents": {
+    "status": 400,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "code",
-      "error",
-      "reason"
+      "error"
     ]
   },
-  "POST /api/sdk/send": {
-    "status": 503,
+  "POST /api/config/opencode-agents/reset": {
+    "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "code",
-      "error",
-      "reason"
-    ]
-  },
-  "POST /api/sdk/answer": {
-    "status": 503,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "error",
-      "reason"
-    ]
-  },
-  "GET /api/sdk/stream/test-session-id": {
-    "status": 503,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "error",
-      "reason"
+      "availableModels",
+      "configPath",
+      "exploreModel",
+      "isCustom",
+      "lastAppliedAt",
+      "opencodeHome",
+      "scoutModel"
     ]
   },
   "GET /api/executor/health": {
@@ -1583,63 +1568,6 @@
   },
   "GET /api/executor/runs/test-run-id": {
     "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error"
-    ]
-  },
-  "POST /api/executor/jobs": {
-    "status": 503,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error"
-    ]
-  },
-  "POST /api/executor/worktrees/resolve": {
-    "status": 400,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error"
-    ]
-  },
-  "POST /api/executor/jobs/test-job-id/trigger": {
-    "status": 503,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error"
-    ]
-  },
-  "POST /api/executor/jobs/test-job-id/cancel": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error"
-    ]
-  },
-  "GET /api/hooks/rules": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "rules",
-      "schemaVersion"
-    ]
-  },
-  "PATCH /api/hooks/rules/sample-rule": {
-    "status": 400,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error"
-    ]
-  },
-  "POST /api/hooks/rules/batch": {
-    "status": 400,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [

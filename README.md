@@ -217,7 +217,7 @@ persisted artifacts.
 
 A local UI and control plane for viewing sessions, managing assets, and operating your `~/.copilot`
 installation. The default/recommended runtime is the packaged desktop app: it starts the local runtime
-for you, points the window at that local backend, and keeps the SDK/gateway wiring in one place.
+for you, points the window at that local backend, and keeps the gateway wiring in one place.
 `copilot-ui` can still run from the raw Node.js server when you are developing or debugging the backend.
 `copilot-ui` is also the **catalog control plane** for the delivered asset system: it owns the
 authoritative local catalog/search/audit APIs, repo inventory, projection refresh, and mutation
@@ -238,17 +238,11 @@ scripts/cli-ui.ps1          # Windows
 Packaged desktop behavior:
 
 - uses `~/.copilot` as the runtime home for session state, installed assets, repo-state, and gateway config
-- default-enables the Copilot SDK bridge unless `INSTRUCTION_ENGINE_DISABLE_SDK_BRIDGE=1`
 - starts the messaging gateway dependency automatically, rehomes legacy gateway config into `~/.copilot`, and keeps the desktop-only disconnected bootstrap config env-scoped instead of writing a non-canonical platformless file
 - starts the same local backend on `127.0.0.1`
 - provisions an embedded planning database in packaged mode, stored under `~/.copilot/planning-db`, so planning persistence is available by default without a separate local database install
 - keeps orchestration local-only and is the intended surface for the visible task board backed by `~/.copilot/repo-state/<repoId>/tasks/`
-- manages Copilot CLI ensure/install/update for the active channel; stable desktop builds pair with stable SDK/CLI lanes, prerelease builds pair with prerelease SDK/CLI lanes
-- current bounded MVP slice is fail-closed: the desktop app only approves a bundled CLI payload or a seeded managed install under `~/.copilot/managed-cli/<channel>/`; it no longer silently falls back to PATH or desktop `cliUrl` overrides
 - bundles workflow-layer runtime assets for packaged parity checks, but keeps the workflow sidecar default-disabled unless explicitly enabled; packaged smoke now treats any default-on sidecar activation as drift
-
-Use `scripts/cli-ui.ps1 --sdk` or `./scripts/cli-ui.sh --sdk` only when you intentionally want the raw
-server path with the SDK bridge forced on.
 
 Desktop UI delivery is now desktop-only for normal use. The Tauri shell bootstraps a per-startup
 local UI session and is the supported dashboard runtime on the active Windows desktop path. A plain
@@ -466,7 +460,6 @@ Quick reminders:
 - [Copilot CLI Playbook](docs/system/copilot-cli-playbook.md)
 - [Agents vs Skills](docs/system/agents-vs-skills.md)
 - [Agent Architecture Simplicity](docs/system/agent-architecture-simplicity.md)
-- [Agent Hooks](docs/system/agent-hooks.md)
 - [Skills Governance](docs/system/skills-governance.md)
 - [MCP Workflow](docs/system/mcp-workflow.md)
 - [Security Model](docs/system/security-model.md)

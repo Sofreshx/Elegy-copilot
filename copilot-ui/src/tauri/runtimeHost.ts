@@ -8,10 +8,6 @@ import {
   resolveDefaultWorkspaceRoot,
   type DesktopRuntimeService,
 } from '../desktopRuntime/runtimeService';
-import {
-  ensureSdkBridgeDefaultEnabled,
-  evaluateDesktopCliManagerState,
-} from '../desktopRuntime/cliManager';
 import { startWorkflowSidecar } from '../workflowSidecar';
 
 const READY_PREFIX = 'TAURI_RUNTIME_READY ';
@@ -122,8 +118,6 @@ async function main(): Promise<void> {
       },
     },
     {
-      ensureSdkBridgeDefaultEnabled,
-      evaluateDesktopCliManagerState,
       startWorkflowSidecar,
       startDesktopPlanningPersistence,
       startServer,

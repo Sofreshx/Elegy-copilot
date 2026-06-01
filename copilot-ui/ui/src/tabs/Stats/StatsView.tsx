@@ -205,7 +205,6 @@ export default function StatsView() {
     };
   }, []);
 
-  const sdkSummary = summarizeSdkHealth(statsState.sdkHealth, statsState.sdkHealthError);
   const sourceCoverage = useMemo(
     () => buildSourceCoverage(statsState.sessions as Record<string, unknown>[]),
     [statsState.sessions]
@@ -303,11 +302,6 @@ export default function StatsView() {
               <p className="state-card-title">Catalog Projection</p>
               <p className="workspace-section-label">{catalogStatus}</p>
               <p className="state-card-copy">{catalogDetail}</p>
-            </article>
-            <article className="state-card">
-              <p className="state-card-title">SDK Bridge</p>
-              <p className="workspace-section-label">{sdkSummary.status}</p>
-              <p className="state-card-copy">{sdkSummary.detail}</p>
             </article>
             <article className="state-card">
               <p className="state-card-title">Executor</p>

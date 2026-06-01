@@ -3,7 +3,6 @@ import { Button, HealthDot, Panel } from '../../components';
 import { getDesktopUpdaterPresentation } from '../../lib/desktopUpdaterPresentation';
 import { useStoreValue } from '../../lib/store';
 import { desktopUpdaterStore } from '../../stores/desktopUpdaterStore';
-import { sdkHealthStore } from '../../stores/sdkHealthStore';
 import { toolingUpdatesStore } from '../../stores/toolingUpdatesStore';
 
 interface ActiveSessionWarningProps {
@@ -72,116 +71,6 @@ function AppUpdateCard() {
         </dl>
         {updaterState.message ? (
           <p className="updates-card-message" data-testid="updates-app-message">{updaterState.message}</p>
-        ) : null}
-      </div>
-    </Panel>
-  );
-}
-
-function SdkUpdateCard() {
-  const { health, loading, error } = useStoreValue(sdkHealthStore);
-
-  const tone = error ? 'error' : loading ? 'loading' : health?.connected ? 'ok' : 'warn';
-
-  return (
-    <Panel
-      title="SDK Bridge"
-      subtitle="SDK connection health"
-      testId="updates-sdk-card"
-      actions={
-        <Button
-          variant="secondary"
-          size="sm"
-          testId="updates-sdk-refresh"
-          onClick={() => void sdkHealthStore.refresh()}
-        >
-          Refresh
-        </Button>
-      }
-    >
-      <div className="updates-card-body">
-        <HealthDot
-          tone={tone}
-          label={error || (health?.connected ? 'Connected' : 'Disconnected')}
-          testId="updates-sdk-health"
-        />
-        <dl className="updates-card-details">
-          <dt>Connection</dt>
-          <dd data-testid="updates-sdk-connected">{health?.connected ? 'Connected' : 'Disconnected'}</dd>
-          <dt>State</dt>
-          <dd data-testid="updates-sdk-state">{health?.state ?? 'unknown'}</dd>
-          {health?.cliVersion ? (
-            <>
-              <dt>SDK Version</dt>
-              <dd data-testid="updates-sdk-version">{health.cliVersion}</dd>
-            </>
-          ) : null}
-        </dl>
-        {error ? (
-          <p className="updates-card-message updates-card-error" data-testid="updates-sdk-error">{error}</p>
-        ) : null}
-      </div>
-    </Panel>
-  );
-}
-
-function CliUpdateCard() {
-  const { health, loading, error } = useStoreValue(sdkHealthStore);
-  const cli = health?.cliManager ?? null;
-
-  const tone = error
-    ? 'error'
-    : loading
-      ? 'loading'
-      : cli?.approved
-        ? 'ok'
-        : cli?.approved === false
-          ? 'warn'
-          : 'loading';
-
-  return (
-    <Panel
-      title="CLI Manager"
-      subtitle="Managed Copilot CLI"
-      testId="updates-cli-card"
-      actions={
-        <Button
-          variant="secondary"
-          size="sm"
-          testId="updates-cli-refresh"
-          onClick={() => void sdkHealthStore.refresh()}
-        >
-          Refresh
-        </Button>
-      }
-    >
-      <div className="updates-card-body">
-        <HealthDot
-          tone={tone}
-          label={cli?.status ?? (loading ? 'Checking…' : 'Unknown')}
-          testId="updates-cli-health"
-        />
-        <dl className="updates-card-details">
-          {cli?.cliVersion ? (
-            <>
-              <dt>CLI Version</dt>
-              <dd data-testid="updates-cli-version">{cli.cliVersion}</dd>
-            </>
-          ) : null}
-          <dt>Approved</dt>
-          <dd data-testid="updates-cli-approved">{cli?.approved == null ? '—' : cli.approved ? 'Yes' : 'No'}</dd>
-          {cli?.status ? (
-            <>
-              <dt>Status</dt>
-              <dd data-testid="updates-cli-status">{cli.status}</dd>
-            </>
-          ) : null}
-        </dl>
-        {cli?.message ? (
-          <p className="updates-card-message" data-testid="updates-cli-message">{cli.message}</p>
-        ) : null}
-        {error ? (
-          <p className="updates-card-message updates-card-error" data-testid="updates-cli-error">{error}</p>
         ) : null}
       </div>
     </Panel>
@@ -351,8 +240,6 @@ export default function UpdatesSection() {
     <div className="updates-section" data-testid="updates-section">
       <ActiveSessionWarning count={activeSessionCount} />
       <AppUpdateCard />
-      <SdkUpdateCard />
-      <CliUpdateCard />
       <ElegyPlanningUpdateCard />
       <ElegySkillsUpdateCard />
     </div>

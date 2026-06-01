@@ -277,7 +277,7 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/release' },
   { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/executor-job' },
 
-  // Desktop + Dashboard + Config (6)
+  // Desktop + Dashboard + Config (13)
   { method: 'GET', path: '/api/desktop-updater' },
   { method: 'POST', path: '/api/desktop-updater/check' },
   { method: 'POST', path: '/api/desktop-updater/download' },
@@ -287,35 +287,24 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/config/codex-provider' },
   { method: 'PUT', path: '/api/config/codex-provider' },
   { method: 'POST', path: '/api/config/codex-provider/reset' },
+  { method: 'GET', path: '/api/tooling-updates/status' },
+  { method: 'POST', path: '/api/tooling-updates/check' },
+  { method: 'POST', path: '/api/tooling-updates/update/elegy-planning' },
+  { method: 'POST', path: '/api/tooling-updates/update/elegy-skills' },
+  { method: 'GET', path: '/api/config/opencode-agents' },
+  { method: 'PUT', path: '/api/config/opencode-agents' },
+  { method: 'POST', path: '/api/config/opencode-agents/reset' },
 
-  // SDK bridge (9)
-  { method: 'GET', path: '/api/sdk/health' },
-  { method: 'GET', path: '/api/sdk/models' },
-  { method: 'POST', path: '/api/sdk/session' },
-  { method: 'GET', path: '/api/sdk/sessions' },
-  { method: 'DELETE', path: '/api/sdk/session/test-session-id' },
-  { method: 'POST', path: '/api/sdk/session/test-session-id/enable-remote' },
-  { method: 'POST', path: '/api/sdk/send' },
-  { method: 'POST', path: '/api/sdk/answer' },
-  { method: 'GET', path: '/api/sdk/stream/test-session-id' },
-
-  // Executor (12)
+  // Executor (5)
   { method: 'GET', path: '/api/executor/health' },
   { method: 'GET', path: '/api/executor/jobs' },
   { method: 'GET', path: '/api/executor/worktrees' },
   { method: 'GET', path: '/api/executor/runs' },
   { method: 'GET', path: '/api/executor/runs/test-run-id' },
-  { method: 'POST', path: '/api/executor/jobs' },
-  { method: 'POST', path: '/api/executor/worktrees/resolve' },
-  { method: 'POST', path: '/api/executor/jobs/test-job-id/trigger' },
-  { method: 'POST', path: '/api/executor/jobs/test-job-id/cancel' },
 
   // Workflows (16)
 
-  // Hooks + Git (9)
-  { method: 'GET', path: '/api/hooks/rules' },
-  { method: 'PATCH', path: '/api/hooks/rules/sample-rule' },
-  { method: 'POST', path: '/api/hooks/rules/batch' },
+  // Git (6)
   { method: 'GET', path: '/api/git/status' },
   { method: 'GET', path: '/api/git/diff' },
   { method: 'GET', path: '/api/git/log' },
@@ -491,7 +480,7 @@ async function run() {
 
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 160, `Expected 160 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 151, `Expected 151 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

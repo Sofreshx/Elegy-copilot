@@ -1,23 +1,7 @@
 'use strict';
 
-const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const { sendJson: defaultSendJson } = require('./_helpers');
 const { SESSION_ORCHESTRATION_CONTRACT_VERSION } = require('../lib/runtimeContracts');
-
-function toErrorPayload(error, fallbackStatusCode = 500) {
-  if (!error || typeof error !== 'object') {
-    return {
-      statusCode: fallbackStatusCode,
-      body: { error: String(error || 'Unknown error') },
-    };
-  }
-
-  return {
-    statusCode: typeof error.statusCode === 'number' ? error.statusCode : fallbackStatusCode,
-    body: {
-      error: String(error.message || error),
-    },
-  };
-}
 
 function requireExecutor(res, deps) {
   if (deps.executorService) {
@@ -68,19 +52,6 @@ function handleGetRun(ctx, deps) {
   deps.sendJson(ctx.res, 200, run);
 }
 
-function handleCreateJob(ctx, deps) {
-  const executor = requireExecutor(ctx.res, deps);
-  if (!executor) return;
-
-  deps.readJsonBody(ctx.req)
-    .then((body) => executor.createJob(body && typeof body === 'object' ? body : {}))
-    .then((result) => deps.sendJson(ctx.res, 201, result))
-    .catch((error) => {
-      const failure = toErrorPayload(error);
-      deps.sendJson(ctx.res, failure.statusCode, failure.body);
-    });
-}
-
 function handleListWorktrees(ctx, deps) {
   const executor = requireExecutor(ctx.res, deps);
   if (!executor) return;
@@ -93,54 +64,9 @@ function handleListWorktrees(ctx, deps) {
   });
 }
 
-function handleResolveWorktree(ctx, deps) {
-  const executor = requireExecutor(ctx.res, deps);
-  if (!executor) return;
-
-  deps.readJsonBody(ctx.req)
-    .then((body) => executor.resolveWorktree(body && typeof body === 'object' ? body : {}))
-    .then((result) => deps.sendJson(ctx.res, 200, {
-      ...result,
-      orchestrationContractVersion: SESSION_ORCHESTRATION_CONTRACT_VERSION,
-    }))
-    .catch((error) => {
-      const failure = toErrorPayload(error);
-      deps.sendJson(ctx.res, failure.statusCode, failure.body);
-    });
-}
-
-function handleTriggerJob(ctx, deps) {
-  const executor = requireExecutor(ctx.res, deps);
-  if (!executor) return;
-  const jobId = decodeURIComponent(ctx.match[1] || '').trim();
-
-  Promise.resolve()
-    .then(() => executor.triggerJob(jobId, { source: 'manual' }))
-    .then((run) => deps.sendJson(ctx.res, 200, { run }))
-    .catch((error) => {
-      const failure = toErrorPayload(error);
-      deps.sendJson(ctx.res, failure.statusCode, failure.body);
-    });
-}
-
-function handleCancelJob(ctx, deps) {
-  const executor = requireExecutor(ctx.res, deps);
-  if (!executor) return;
-  const jobId = decodeURIComponent(ctx.match[1] || '').trim();
-
-  Promise.resolve()
-    .then(() => executor.cancelJob(jobId))
-    .then((result) => deps.sendJson(ctx.res, 200, result))
-    .catch((error) => {
-      const failure = toErrorPayload(error);
-      deps.sendJson(ctx.res, failure.statusCode, failure.body);
-    });
-}
-
 function register(deps = {}) {
   const resolvedDeps = {
     sendJson: deps.sendJson || defaultSendJson,
-    readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     executorService: deps.executorService || null,
     workflowLayerService: deps.workflowLayerService || null,
   };
@@ -170,26 +96,6 @@ function register(deps = {}) {
       method: 'GET',
       path: /^\/api\/executor\/runs\/([^/]+)$/,
       handler: (ctx) => handleGetRun(ctx, resolvedDeps),
-    },
-    {
-      method: 'POST',
-      path: '/api/executor/jobs',
-      handler: (ctx) => handleCreateJob(ctx, resolvedDeps),
-    },
-    {
-      method: 'POST',
-      path: '/api/executor/worktrees/resolve',
-      handler: (ctx) => handleResolveWorktree(ctx, resolvedDeps),
-    },
-    {
-      method: 'POST',
-      path: /^\/api\/executor\/jobs\/([^/]+)\/trigger$/,
-      handler: (ctx) => handleTriggerJob(ctx, resolvedDeps),
-    },
-    {
-      method: 'POST',
-      path: /^\/api\/executor\/jobs\/([^/]+)\/cancel$/,
-      handler: (ctx) => handleCancelJob(ctx, resolvedDeps),
     },
   ];
 }

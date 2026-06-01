@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-05-25
+updated: 2026-06-01
 category: system
 status: current
 doc_kind: node
@@ -10,6 +10,21 @@ tags: [changelog]
 ---
 
 # Instruction Changelog
+
+## 2026-06-01 - elegy-copilot harness meta-cleanup
+
+Retired features that no longer fit the meta-harness model:
+
+- **Hook rules system** removed entirely: `hookRulesService`, `routes/hooks.js`, `hookRulesStore`, `data/hook-rules.json`, `scripts/enable-agent-hooks.{ps1,sh}`, `scripts/hooks/**`, `.github/templates/hooks.*.json`. The hook rules API (`/api/hooks/rules`) is gone. `docs/system/agent-hooks.md` retired.
+- **Admin mode** removed from sidebar and settings. `navigation.adminMode` and `toggleAdmin` gone from navigation store.
+- **New session creation** removed everywhere: sidebar "New Session" button, Dashboard "New Session" button + QuickStart grid + empty-state CTA, SessionWizard + steps + sessionWizardStore, `Ctrl+N` keyboard shortcut. The Dashboard now shows harness sessions inventory only.
+- **SDK bridge** removed: `@github/copilot-sdk` dependency, `copilot-bridge/` ESM bridge package, all `/api/sdk/*` routes, `sdkHealthStore`, `SdkMessageList`, `sdkSessionsStore`. `docs/system/copilot-sdk-integration-adr.md` retired.
+- **Managed CLI** removed: `cliManager.mjs`, `resources/copilot-cli/`, managed-CLI channel tracking in the desktop updater.
+- **StatusBar** simplified: SDK and CLI indicators removed; only the Update slot remains. The desktop updater 404 case now degrades to "up to date" (neutral dot) instead of a red error.
+- **Executor POST routes** removed: `POST /api/executor/jobs`, `POST /api/executor/jobs/:id/trigger`, `POST /api/executor/jobs/:id/cancel`, `POST /api/executor/worktrees/resolve`. The executor is now read-only.
+- **Harness catalog** updated to use a flat peer-harness schema (`home` instead of `homeKey` indirection).
+
+The `copilot` harness is now a peer alongside `codex`, `opencode`, `antigravity`, and `gemini-cli` — no special SDK/CLI treatment.
 
 ## 2026-05-25 - Progressive constraint narrowing and ADR governance across installed harnesses
 

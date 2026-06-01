@@ -1,13 +1,13 @@
 ---
 created: 2024-01-15
-updated: 2026-05-26
+updated: 2026-06-01
 category: system
 status: current
 doc_kind: node
 id: copilot-cli-playbook
 summary: Default operating model for adopting Copilot CLI, including plan/fleet workflows, safety, and testing guidance.
 tags: [copilot-cli, adoption, workflow, playbook, fleet, remote-control]
-related: [agent-hooks, mcp-workflow, security-model]
+related: [mcp-workflow, security-model]
 ---
 
 # Copilot CLI Adoption Playbook

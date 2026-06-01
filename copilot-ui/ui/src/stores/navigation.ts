@@ -22,7 +22,7 @@ export type SidebarItemId = (typeof SIDEBAR_IDS)[number];
 export type ProjectSubView = 'overview' | 'sessions' | 'tasks' | 'git' | 'config';
 export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | 'git' | 'usage';
 export type MaintenanceSection = 'updates' | 'sandboxes' | 'diagnostics';
-export type WizardType = 'session' | 'project' | 'asset' | null;
+export type WizardType = 'project' | 'asset' | null;
 
 export interface SelectedSessionContext {
   source?: string | null;
@@ -54,7 +54,6 @@ export type NavigationState = {
   selectedSessionContext: SelectedSessionContext | null;
   sessionDetailTab: SessionDetailTab;
   maintenanceSection: MaintenanceSection;
-  adminMode: boolean;
   wizardOpen: WizardType;
 };
 
@@ -67,7 +66,6 @@ const INITIAL_STATE: NavigationState = {
   selectedSessionContext: null,
   sessionDetailTab: 'activity',
   maintenanceSection: 'updates',
-  adminMode: false,
   wizardOpen: null,
 };
 
@@ -136,13 +134,6 @@ function createNavigationStore() {
     }));
   }
 
-  function toggleAdmin(): void {
-    store.setState((state) => ({
-      ...state,
-      adminMode: !state.adminMode,
-    }));
-  }
-
   function reset(): void {
     store.setState(INITIAL_STATE);
   }
@@ -157,7 +148,6 @@ function createNavigationStore() {
     setMaintenanceSection,
     openWizard,
     closeWizard,
-    toggleAdmin,
     reset,
   };
 }

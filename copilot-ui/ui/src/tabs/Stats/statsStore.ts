@@ -3,7 +3,6 @@ import {
   getExecutorHealth,
   getHealth,
   getRuntimeCatalogHealth,
-  getSdkHealth,
   getSessionAgentUsage,
   listSessions,
 } from '../../lib/api';
@@ -14,7 +13,6 @@ import type {
   ExecutorHealthResponse,
   HealthResponse,
   RuntimeCatalogHealthResponse,
-  SdkHealthResponse,
   SessionAgentUsageResponse,
   SessionSummary,
 } from '../../lib/types';
@@ -36,8 +34,6 @@ export interface StatsState {
   catalogHealthError: string | null;
   analytics: CatalogAssetAuditAnalytics | null;
   analyticsError: string | null;
-  sdkHealth: SdkHealthResponse | null;
-  sdkHealthError: string | null;
   executorHealth: ExecutorHealthResponse | null;
   executorHealthError: string | null;
   sessions: SessionSummary[];
@@ -55,8 +51,6 @@ const INITIAL_STATE: StatsState = {
   catalogHealthError: null,
   analytics: null,
   analyticsError: null,
-  sdkHealth: null,
-  sdkHealthError: null,
   executorHealth: null,
   executorHealthError: null,
   sessions: [],
@@ -139,14 +133,12 @@ function createStatsStore() {
       healthResult,
       catalogHealthResult,
       analyticsResult,
-      sdkHealthResult,
       executorHealthResult,
       sessionsResult,
     ] = await Promise.allSettled([
       getHealth(),
       getRuntimeCatalogHealth(),
       getCatalogAssetAnalytics(),
-      getSdkHealth(),
       getExecutorHealth(),
       listSessions(undefined, { source: 'all', dedupe: 'on' }),
     ]);
@@ -201,11 +193,6 @@ function createStatsStore() {
       analyticsError:
         analyticsResult.status === 'rejected'
           ? toErrorMessage(analyticsResult.reason, 'Unable to load catalog telemetry.')
-          : null,
-      sdkHealth: sdkHealthResult.status === 'fulfilled' ? sdkHealthResult.value : state.sdkHealth,
-      sdkHealthError:
-        sdkHealthResult.status === 'rejected'
-          ? toErrorMessage(sdkHealthResult.reason, 'Unable to load SDK health.')
           : null,
       executorHealth:
         executorHealthResult.status === 'fulfilled' ? executorHealthResult.value : state.executorHealth,

@@ -877,24 +877,7 @@ export interface SdkHealthResponse {
   reason?: string;
   mode?: string;
   sessionCount?: number;
-  cliVersion?: string;
   error?: string;
-  cliManager?: {
-    channel?: string;
-    sdkChannel?: string;
-    cliChannel?: string;
-    acquisition?: string;
-    status?: string;
-    approved?: boolean;
-    reason?: string;
-    message?: string;
-    source?: string;
-    cliPath?: string | null;
-    cliVersion?: string | null;
-    sdkVersion?: string | null;
-    lastCheckedAtMs?: number;
-    [key: string]: unknown;
-  } | null;
   [key: string]: unknown;
 }
 

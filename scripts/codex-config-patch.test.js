@@ -42,7 +42,7 @@ async function main() {
 
     const patched = fs.readFileSync(configPath, 'utf8');
     assert.ok(patched.includes('personality = "friendly"'));
-    assert.ok(patched.includes('review_model = "gpt-5.4"'));
+    assert.ok(patched.includes('review_model = "deepseek-v4-pro"'));
     assert.ok(patched.includes('[profiles.instruction_engine_plan_review]'));
     assert.ok(patched.includes('plan_mode_reasoning_effort = "xhigh"'));
   });
@@ -54,6 +54,8 @@ async function main() {
     fs.writeFileSync(
       configPath,
       [
+        'model = "gpt-5.5"',
+        'model_provider = "openai"',
         'review_model = "gpt-5.4-mini"',
         '',
         '[profiles.instruction_engine_plan_review]',
@@ -68,13 +70,13 @@ async function main() {
         'name = "OpenCode Zen Chat"',
         'base_url = "https://opencode.ai/zen/v1"',
         'env_key = "OPENCODE_API_KEY"',
-        'wire_api = "chat"',
+        'wire_api = "responses"',
         '',
         '[model_providers.opencode-go]',
         'name = "OpenCode Go"',
         'base_url = "https://opencode.ai/zen/go/v1"',
         'env_key = "OPENCODE_API_KEY"',
-        'wire_api = "chat"',
+        'wire_api = "responses"',
       ].join('\n'),
       'utf8',
     );
@@ -119,7 +121,7 @@ async function main() {
 
     const current = fs.readFileSync(configPath, 'utf8');
     assert.strictEqual(current, 'personality = "pragmatic"\n');
-    assert.ok(result.content.includes('review_model = "gpt-5.4"'));
+    assert.ok(result.content.includes('review_model = "deepseek-v4-pro"'));
   });
   });
 
@@ -135,7 +137,7 @@ async function main() {
     assert.ok(patched.includes('[model_providers.opencode]'), patched);
     assert.ok(patched.includes('[model_providers.opencode-chat]'), patched);
     assert.ok(patched.includes('[model_providers.opencode-go]'), patched);
-    assert.ok(patched.includes('wire_api = "chat"'), patched);
+    assert.ok(patched.includes('wire_api = "responses"'), patched);
   });
   });
 
@@ -148,8 +150,8 @@ async function main() {
     assert.strictEqual(result.changed, true);
 
     const patched = fs.readFileSync(configPath, 'utf8');
-    assert.ok(patched.includes('review_model = "gpt-5.4"'), patched);
-    assert.ok(!patched.includes('model_providers'), patched);
+    assert.ok(patched.includes('review_model = "deepseek-v4-pro"'), patched);
+    assert.ok(!patched.includes('[model_providers.'), patched);
   });
   });
 

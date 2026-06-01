@@ -4,10 +4,12 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-export const DEFAULT_REVIEW_MODEL = 'gpt-5.4';
+export const DEFAULT_REVIEW_MODEL = 'deepseek-v4-pro';
 export const DEFAULT_PROFILE_NAME = 'instruction_engine_plan_review';
 export const MANAGED_BLOCK_START = '# BEGIN instruction-engine managed codex defaults';
 export const MANAGED_BLOCK_END = '# END instruction-engine managed codex defaults';
+export const DEFAULT_PROVIDER_ID = 'opencode-go';
+export const DEFAULT_MODEL = 'mimo-v2-pro';
 
 export const EXTERNAL_PROVIDERS = [
   {
@@ -21,14 +23,14 @@ export const EXTERNAL_PROVIDERS = [
     name: 'OpenCode Zen Chat',
     baseUrl: 'https://opencode.ai/zen/v1',
     envKey: 'OPENCODE_API_KEY',
-    wireApi: 'chat',
+    wireApi: 'responses',
   },
   {
     id: 'opencode-go',
     name: 'OpenCode Go',
     baseUrl: 'https://opencode.ai/zen/go/v1',
     envKey: 'OPENCODE_API_KEY',
-    wireApi: 'chat',
+    wireApi: 'responses',
   },
 ];
 
@@ -154,8 +156,18 @@ function buildProviderTable(provider) {
   return lines.join('\n');
 }
 
-function buildManagedBlock({ needsReviewModel, reviewModel, needsProfile, profileName, enableExternalProviders, existingProviders }) {
+function buildManagedBlock({ needsModel, needsProvider, needsReviewModel, reviewModel, needsProfile, profileName, enableExternalProviders, existingProviders }) {
   const lines = [MANAGED_BLOCK_START];
+
+  if (needsModel) {
+    lines.push(`model = "${DEFAULT_MODEL}"`);
+    lines.push('');
+  }
+
+  if (needsProvider) {
+    lines.push(`model_provider = "${DEFAULT_PROVIDER_ID}"`);
+    lines.push('');
+  }
 
   if (needsReviewModel) {
     lines.push(`review_model = "${reviewModel}"`);
@@ -164,6 +176,8 @@ function buildManagedBlock({ needsReviewModel, reviewModel, needsProfile, profil
 
   if (needsProfile) {
     lines.push(`[profiles.${profileName}]`);
+    lines.push(`model_provider = "${DEFAULT_PROVIDER_ID}"`);
+    lines.push(`model = "${DEFAULT_MODEL}"`);
     lines.push('personality = "pragmatic"');
     lines.push('model_reasoning_effort = "high"');
     lines.push('plan_mode_reasoning_effort = "xhigh"');
@@ -192,6 +206,8 @@ export function patchCodexConfig(originalText, options = {}) {
   const profileName = options.profileName || DEFAULT_PROFILE_NAME;
   const enableExternalProviders = options.enableExternalProviders !== false;
   const stripped = stripManagedBlock(originalText);
+  const needsModel = !hasTopLevelKey(stripped, 'model');
+  const needsProvider = !hasTopLevelKey(stripped, 'model_provider');
   const needsReviewModel = !hasTopLevelKey(stripped, 'review_model');
   const needsProfile = !hasProfile(stripped, profileName);
 
@@ -206,11 +222,13 @@ export function patchCodexConfig(originalText, options = {}) {
 
   const needsProviders = enableExternalProviders && existingProviders.size < EXTERNAL_PROVIDERS.length;
 
-  if (!needsReviewModel && !needsProfile && !needsProviders) {
+  if (!needsModel && !needsProvider && !needsReviewModel && !needsProfile && !needsProviders) {
     return ensureTrailingNewline(stripped || '');
   }
 
   const block = buildManagedBlock({
+    needsModel,
+    needsProvider,
     needsReviewModel,
     reviewModel,
     needsProfile,

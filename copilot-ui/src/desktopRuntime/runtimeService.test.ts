@@ -5,7 +5,6 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { GATEWAY_CHILD_FLAG, stripGatewayChildFlag } from '../gatewayChildMode';
-import type { DesktopCliManagerState } from './cliManager';
 import { createDesktopRuntimeService, runBundledChildEntryPoint } from './runtimeService';
 
 class FakeChildProcess extends EventEmitter {
@@ -32,25 +31,6 @@ interface CapturedServerOptions {
   desktopUiToken?: string;
   engineRoot?: string;
   env?: NodeJS.ProcessEnv;
-}
-
-function createCliManagerState(): DesktopCliManagerState {
-  return {
-    channel: 'stable',
-    sdkChannel: 'stable',
-    cliChannel: 'stable',
-    requestedChannel: null,
-    acquisition: 'bundle_or_seeded_install_only',
-    status: 'ready',
-    approved: true,
-    reason: null,
-    message: null,
-    source: 'bundle',
-    cliPath: 'C:\\cli\\copilot.exe',
-    cliVersion: '1.2.3',
-    sdkVersion: '0.1.9',
-    lastCheckedAtMs: Date.now(),
-  };
 }
 
 test('desktop runtime service starts the extracted runtime orchestration and shuts it down cleanly', async () => {
@@ -94,11 +74,6 @@ test('desktop runtime service starts the extracted runtime orchestration and shu
       },
     },
     {
-      ensureSdkBridgeDefaultEnabled: (env) => {
-        lifecycle.push('sdk-bridge:default');
-        env.COPILOT_SDK_BRIDGE = '1';
-      },
-      evaluateDesktopCliManagerState: async () => createCliManagerState(),
       startWorkflowSidecar: async () => ({
         getPublicState: () => ({
           contractVersion: '1',
@@ -183,7 +158,6 @@ test('desktop runtime service starts the extracted runtime orchestration and shu
   await service.stop();
 
   assert.deepEqual(lifecycle, [
-    'sdk-bridge:default',
     'gateway:start',
     'server:stop',
     'planning:stop',
@@ -231,10 +205,6 @@ test('desktop runtime service discovers packaged elegy-planning authority and fo
       },
     },
     {
-      ensureSdkBridgeDefaultEnabled: (runtimeEnv) => {
-        runtimeEnv.COPILOT_SDK_BRIDGE = '1';
-      },
-      evaluateDesktopCliManagerState: async () => createCliManagerState(),
       startWorkflowSidecar: async () => ({
         getPublicState: () => ({
           contractVersion: '1',
@@ -346,10 +316,6 @@ test('desktop runtime service defers planning DISABLED decision when no CLI is d
       },
     },
     {
-      ensureSdkBridgeDefaultEnabled: (runtimeEnv) => {
-        runtimeEnv.COPILOT_SDK_BRIDGE = '1';
-      },
-      evaluateDesktopCliManagerState: async () => createCliManagerState(),
       startWorkflowSidecar: async () => ({
         getPublicState: () => ({
           contractVersion: '1',
@@ -449,10 +415,6 @@ test('desktop runtime service cleans up partially started dependencies when star
       },
     },
     {
-      ensureSdkBridgeDefaultEnabled: (env) => {
-        env.COPILOT_SDK_BRIDGE = '1';
-      },
-      evaluateDesktopCliManagerState: async () => createCliManagerState(),
       startWorkflowSidecar: async () => ({
         getPublicState: () => ({
           contractVersion: '1',

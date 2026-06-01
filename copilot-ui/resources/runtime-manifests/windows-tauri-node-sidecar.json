@@ -123,7 +123,6 @@
     "requiredRuntimePackages": [
       "@electric-sql/pglite",
       "@elegy-copilot/contracts",
-      "@github/copilot-sdk",
       "pg",
       "toml"
     ]

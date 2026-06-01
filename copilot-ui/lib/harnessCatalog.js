@@ -1,12 +1,11 @@
 'use strict';
 
 const GLOBAL_HARNESSES = Object.freeze([
-  { id: 'copilot', title: 'Copilot', homeKey: 'copilotHomeAbs', skillsHomeKey: null, supportsMcp: false },
-  { id: 'codex', title: 'Codex', homeKey: 'codexHome', skillsHomeKey: 'codexSkillsHome', supportsMcp: true },
-  { id: 'opencode', title: 'OpenCode', homeKey: 'opencodeHome', skillsHomeKey: 'opencodeSkillsHome', supportsMcp: true },
-  { id: 'antigravity', title: 'Antigravity', homeKey: 'antigravityHome', skillsHomeKey: 'antigravitySkillsHome', supportsMcp: false },
-  { id: 'gemini-cli', title: 'Antigravity CLI', homeKey: 'geminiHome', skillsHomeKey: null, supportsMcp: true },
-  { id: 'host', title: 'Host CLI', homeKey: null, skillsHomeKey: null, supportsMcp: false },
+  { id: 'copilot', title: 'Copilot', home: '~/.copilot', skillsHome: '~/.copilot/skills', supportsMcp: false },
+  { id: 'codex', title: 'Codex', home: '~/.codex', skillsHome: '~/.codex/skills', supportsMcp: true },
+  { id: 'opencode', title: 'OpenCode', home: '~/.config/opencode', skillsHome: '~/.config/opencode/skills', supportsMcp: true },
+  { id: 'antigravity', title: 'Antigravity', home: '~/.gemini/antigravity', skillsHome: '~/.gemini/antigravity/skills', supportsMcp: false },
+  { id: 'gemini-cli', title: 'Antigravity CLI', home: '~/.gemini', skillsHome: null, supportsMcp: true },
 ]);
 
 function normalizeHarnessId(value) {

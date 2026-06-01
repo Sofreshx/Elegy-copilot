@@ -107,42 +107,9 @@ async function run() {
         launch: { blocked: false, reason: null },
       }];
     },
-    resolveWorktree(payload) {
-      calls.push(`resolve-worktree:${payload.repoId || 'none'}`);
-      return {
-        repo: {
-          repoId: payload.repoId || 'repo-1',
-          repoPath: payload.repoPath || '/repo-1',
-        },
-        cwd: payload.repoPath || '/repo-1',
-        worktree: {
-          worktreeId: 'wt-1',
-          repoId: payload.repoId || 'repo-1',
-          repoPath: payload.repoPath || '/repo-1',
-          mode: payload.mode || 'shared',
-          status: payload.mode === 'dedicated' ? 'pending_preparation' : 'shared',
-          launch: {
-            blocked: payload.mode === 'dedicated',
-            reason: payload.mode === 'dedicated' ? 'Prepare the dedicated worktree first.' : null,
-          },
-        },
-      };
-    },
     getRun(runId) {
       calls.push(`run:${runId}`);
       return { id: runId, jobId: 'job-1', status: 'succeeded', attemptCount: 1, maxAttempts: 3, createdAt: '2026-03-20T00:00:00.000Z', updatedAt: '2026-03-20T00:00:00.000Z', events: [] };
-    },
-    async createJob(payload) {
-      calls.push(`create:${payload.prompt}`);
-      return { job: { id: 'job-2', title: 'job-2', prompt: payload.prompt, retryPolicy: { enabled: true, maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 1, backoffMultiplier: 1, jitterRatio: 0 }, status: 'idle', createdAt: '2026-03-20T00:00:00.000Z', updatedAt: '2026-03-20T00:00:00.000Z' }, run: null };
-    },
-    async triggerJob(jobId) {
-      calls.push(`trigger:${jobId}`);
-      return { id: 'run-2', jobId, status: 'running', attemptCount: 1, maxAttempts: 3, createdAt: '2026-03-20T00:00:00.000Z', updatedAt: '2026-03-20T00:00:00.000Z', events: [] };
-    },
-    async cancelJob(jobId) {
-      calls.push(`cancel:${jobId}`);
-      return { job: { id: jobId, title: jobId, prompt: 'test', retryPolicy: { enabled: true, maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 1, backoffMultiplier: 1, jitterRatio: 0 }, status: 'idle', createdAt: '2026-03-20T00:00:00.000Z', updatedAt: '2026-03-20T00:00:00.000Z' }, run: null };
     },
   };
 
@@ -170,23 +137,6 @@ async function run() {
     assert.equal(runs.res.statusCode, 200);
     assert.equal(run.res.statusCode, 200);
     assert.equal(run.res.body.id, 'run-1');
-  });
-
-  await test('POST executor routes create, resolve worktrees, trigger, and cancel jobs', async () => {
-    const created = await invoke(routes, 'POST', '/api/executor/jobs', { prompt: 'ship it' });
-    const resolved = await invoke(routes, 'POST', '/api/executor/worktrees/resolve', { repoId: 'repo-1', mode: 'dedicated' });
-    const triggered = await invoke(routes, 'POST', '/api/executor/jobs/job-1/trigger', {});
-    const cancelled = await invoke(routes, 'POST', '/api/executor/jobs/job-1/cancel', {});
-
-    assert.equal(created.res.statusCode, 201);
-    assert.equal(resolved.res.statusCode, 200);
-    assert.equal(resolved.res.body.worktree.worktreeId, 'wt-1');
-    assert.equal(resolved.res.body.worktree.launch.blocked, true);
-    assert.equal(triggered.res.statusCode, 200);
-    assert.equal(cancelled.res.statusCode, 200);
-    assert.equal(created.res.body.job.prompt, 'ship it');
-    assert.equal(triggered.res.body.run.jobId, 'job-1');
-    assert.equal(cancelled.res.body.job.id, 'job-1');
   });
 
   console.log(`\n  ${passed} passed, ${process.exitCode ? 'some failed' : '0 failed'}\n`);

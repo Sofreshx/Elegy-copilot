@@ -491,6 +491,10 @@ function createGitHubReleaseUpdaterClient(options = {}) {
         signal: abortController.signal,
       });
       if (!response.ok) {
+        // 404 means no published releases on this channel — treat as empty, not error
+        if (response.status === 404) {
+          return [];
+        }
         throw new Error(`GitHub release request failed with HTTP ${response.status}.`);
       }
       return await response.json();

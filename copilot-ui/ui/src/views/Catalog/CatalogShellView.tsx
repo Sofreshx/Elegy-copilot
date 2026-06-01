@@ -62,9 +62,6 @@ export default function CatalogShellView() {
       <Toolbar testId="catalog-shell-toolbar">
         <div className="catalog-shell-title-group">
           <h2 className="catalog-shell-title">Catalog</h2>
-          {navigationState.adminMode ? (
-            <Badge tone="accent" testId="catalog-shell-admin-badge">Admin mode</Badge>
-          ) : null}
         </div>
 
         <input

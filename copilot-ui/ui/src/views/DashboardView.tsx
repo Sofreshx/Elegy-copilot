@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Panel } from '../components';
 import HealthDot from '../components/HealthDot';
-import { STOCK_SESSIONS } from '../constants/stockSessions';
-import type { StockSession } from '../constants/stockSessions';
 import { navigationStore } from '../stores/navigation';
-import PlanFromBacklogPanel from './Dashboard/PlanFromBacklogPanel';
-import { sessionWizardStore } from './Sessions/sessionWizardStore';
 
 interface DashboardHarnessSession {
   sessionId: string;
@@ -84,20 +80,6 @@ export default function DashboardView() {
   const [selectedHarnessId, setSelectedHarnessId] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [backlogPanelOpen, setBacklogPanelOpen] = useState(false);
-
-  function handleStockSession(preset: StockSession) {
-    if (preset.usesBacklogFlow) {
-      setBacklogPanelOpen(true);
-      return;
-    }
-    sessionWizardStore.reset();
-    sessionWizardStore.setAgentId(preset.agentId);
-    if (preset.defaultModel) sessionWizardStore.setModel(preset.defaultModel);
-    if (preset.objectiveTemplate) sessionWizardStore.setObjective(preset.objectiveTemplate);
-    if (preset.opensToObjective) sessionWizardStore.setStep(1);
-    navigationStore.openWizard('session');
-  }
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -167,36 +149,7 @@ export default function DashboardView() {
             </span>
           ) : null}
         </div>
-        <button
-          className="button button-primary"
-          data-testid="execution-hub-new-session"
-          onClick={() => navigationStore.openWizard('session')}
-          type="button"
-        >
-          + New Session
-        </button>
       </div>
-
-      <div className="execution-hub-quick-start" data-testid="execution-hub-quick-start">
-        <span className="execution-hub-quick-start-label">Quick Start</span>
-        <div className="execution-hub-quick-start-grid" data-testid="execution-hub-quick-start-grid">
-          {STOCK_SESSIONS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              className="execution-hub-stock-card"
-              data-testid={`execution-hub-stock-${preset.id}`}
-              onClick={() => handleStockSession(preset)}
-            >
-              <span className="execution-hub-stock-icon">{preset.icon}</span>
-              <span className="execution-hub-stock-label">{preset.label}</span>
-              <span className="execution-hub-stock-desc">{preset.description}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {backlogPanelOpen ? <PlanFromBacklogPanel onClose={() => setBacklogPanelOpen(false)} /> : null}
 
       <Panel
         title={`Harness Sessions (${harnesses.length})`}
@@ -208,15 +161,7 @@ export default function DashboardView() {
         ) : harnesses.length === 0 ? (
           <div className="execution-hub-empty-state" data-testid="execution-hub-empty-state">
             <p style={{ fontSize: '1.1rem', marginBottom: 8 }}>No sessions yet</p>
-            <p style={{ opacity: 0.7, marginBottom: 16 }}>Create your first session to get started.</p>
-            <button
-              className="button button-primary"
-              data-testid="execution-hub-empty-cta"
-              onClick={() => navigationStore.openWizard('session')}
-              type="button"
-            >
-              + Create First Session
-            </button>
+            <p style={{ opacity: 0.7, marginBottom: 16 }}>Sessions will appear here once you run code in a supported harness.</p>
           </div>
         ) : (
           <div className="execution-hub-harness-layout">

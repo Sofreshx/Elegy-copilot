@@ -11,8 +11,6 @@ import {
   type SidebarItemId,
 } from './stores/navigation';
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
-import { questionBadgeStore } from './stores/questionBadgeStore';
-import { sdkHealthStore } from './stores/sdkHealthStore';
 import { toolingUpdatesStore } from './stores/toolingUpdatesStore';
 import PlanningAuthorityView from './tabs/Planning/PlanningAuthorityView';
 import CatalogShellView from './views/Catalog/CatalogShellView';
@@ -22,34 +20,26 @@ import AddProjectWizard from './views/Project/AddProjectWizard';
 import ProjectOverview from './views/Project/ProjectOverview';
 import ProjectsListView from './views/Project/ProjectsListView';
 import SessionDetailView from './views/Sessions/SessionDetailView';
-import SessionWizard from './views/Sessions/SessionWizard';
 import SettingsView from './views/Settings/SettingsView';
 import AssetCreationWizard from './views/Catalog/AssetCreationWizard';
 
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
-  const sdkHealthState = useStoreValue(sdkHealthStore);
   const desktopUpdaterState = useStoreValue(desktopUpdaterStore);
 
   useEffect(() => {
-    sdkHealthStore.startPolling();
     desktopUpdaterStore.startListening();
-    questionBadgeStore.startPolling();
     toolingUpdatesStore.startPolling();
     return () => {
-      sdkHealthStore.stopPolling();
       desktopUpdaterStore.stopListening();
-      questionBadgeStore.stopPolling();
       toolingUpdatesStore.stopPolling();
     };
   }, []);
 
   const handleKeyboard = useCallback((e: KeyboardEvent) => {
-    // Ignore when typing in inputs
     const tag = (e.target as HTMLElement)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
-    // Escape — close wizards/detail views
     if (e.key === 'Escape') {
       if (navigationStore.getState().wizardOpen) {
         navigationStore.closeWizard();
@@ -63,14 +53,6 @@ export default function App() {
 
     if (!e.ctrlKey && !e.metaKey) return;
 
-    // Ctrl+N — new session wizard
-    if (e.key === 'n') {
-      e.preventDefault();
-      navigationStore.openWizard('session');
-      return;
-    }
-
-    // Ctrl+1-6 — sidebar navigation
     const digit = parseInt(e.key, 10);
     if (digit >= 1 && digit <= SIDEBAR_NAV_ITEMS.length) {
       e.preventDefault();
@@ -83,42 +65,9 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyboard);
   }, [handleKeyboard]);
 
-  const sdkHealthClassName = sdkHealthState.error
-    ? 'error'
-    : sdkHealthState.health?.connected
-      ? 'ok'
-      : sdkHealthState.loading
-        ? 'loading'
-        : 'warn';
-
-  const sdkHealthSummary = sdkHealthState.error
-    ? sdkHealthState.error
-    : sdkHealthState.health
-      ? sdkHealthState.health.connected
-        ? `${sdkHealthState.health.state}${Number.isFinite(sdkHealthState.health.sessionCount)
-          ? `, sessions=${sdkHealthState.health.sessionCount}`
-          : ''}`
-        : sdkHealthState.health.error?.trim()
-          || sdkHealthState.health.cliManager?.message?.trim()
-          || sdkHealthState.health.reason
-          || sdkHealthState.health.state
-      : 'awaiting first poll';
-  const managedCliState = sdkHealthState.health?.cliManager || null;
-  const managedCliTone = managedCliState?.approved
-    ? 'ok'
-    : managedCliState?.status === 'blocked'
-      ? 'warn'
-      : 'loading';
-  const managedCliSummary = managedCliState?.message?.trim()
-    || 'Waiting for desktop Copilot CLI status.';
-
   const desktopUpdaterPresentation = getDesktopUpdaterPresentation(desktopUpdaterState);
 
   function renderContent() {
-    // Wizards take priority when open
-    if (navigationState.wizardOpen === 'session') {
-      return <SessionWizard />;
-    }
     if (navigationState.wizardOpen === 'project') {
       return <AddProjectWizard />;
     }
@@ -126,7 +75,6 @@ export default function App() {
       return <AssetCreationWizard />;
     }
 
-    // Session detail takes priority when a session is selected
     if (navigationState.selectedSessionId) {
       return <SessionDetailView />;
     }
@@ -157,10 +105,6 @@ export default function App() {
       <AppLayout
       statusBar={
         <StatusBar
-          sdkHealthClassName={sdkHealthClassName}
-          sdkHealthSummary={sdkHealthSummary}
-          managedCliTone={managedCliTone}
-          managedCliSummary={managedCliSummary}
           desktopUpdaterTone={desktopUpdaterPresentation.tone}
           desktopUpdaterSummary={desktopUpdaterPresentation.summary}
           canDownload={desktopUpdaterState.canDownload}
@@ -174,9 +118,6 @@ export default function App() {
           items={SIDEBAR_NAV_ITEMS}
           activeItem={navigationState.activeSidebarItem}
           onNavigate={(id: SidebarItemId) => navigationStore.navigate(id)}
-          adminMode={navigationState.adminMode}
-          onToggleAdmin={() => navigationStore.toggleAdmin()}
-          onNewSession={() => navigationStore.openWizard('session')}
         />
       }
     >

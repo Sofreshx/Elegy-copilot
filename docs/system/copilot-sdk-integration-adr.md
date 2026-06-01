@@ -1,16 +1,23 @@
 ---
 created: 2026-03-01
-updated: 2026-05-25
+updated: 2026-06-01
 category: system
-status: current
+status: retired
 doc_kind: node
 id: copilot-sdk-integration-adr
-summary: ADR for initial copilot-ui integration of @github/copilot-sdk using an ESM bridge and additive session artifacts.
-tags: [adr, copilot-sdk, copilot-ui, architecture]
+summary: Retired. ADR for initial copilot-ui integration of @github/copilot-sdk using an ESM bridge and additive session artifacts.
+tags: [adr, copilot-sdk, copilot-ui, architecture, retired]
 related: [copilot-sdk-spike, copilot-sdk-auth-strategy, copilot-sdk-artifact-layout, adr-governance]
 ---
 
-# Copilot SDK Integration ADR
+# Copilot SDK Integration ADR (retired)
+
+The SDK bridge and managed-CLI lane have been retired as of 2026-06-01 as part of the
+elegy-copilot harness meta-cleanup. elegy-copilot is now a meta-harness that installs skills
+and assets across many harnesses; it does not operate a Copilot SDK bridge or manage the
+Copilot CLI lifecycle.
+
+The `@github/copilot-sdk` dependency and the `copilot-bridge/` ESM bridge have been removed.
 
 ## Context
 

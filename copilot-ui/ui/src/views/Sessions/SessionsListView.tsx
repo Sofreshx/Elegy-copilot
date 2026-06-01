@@ -215,14 +215,6 @@ export default function SessionsListView() {
           >
             Refresh
           </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            testId="sessions-new"
-            onClick={() => navigationStore.openWizard('session')}
-          >
-            + New Session
-          </Button>
         </div>
       </Toolbar>
 

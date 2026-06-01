@@ -1,12 +1,9 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { navigationStore } from '../ui/src/stores/navigation';
-import { sessionWizardStore } from '../ui/src/views/Sessions/sessionWizardStore';
-
 describe('DashboardView', () => {
   beforeEach(() => {
     navigationStore.reset();
-    sessionWizardStore.reset();
 
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

@@ -15,26 +15,8 @@ const updaterStoreMock = vi.hoisted(() => ({
   restartToUpdate: vi.fn(),
 }));
 
-const sdkHealthState = vi.hoisted(() => ({
-  value: {
-    health: null,
-    loading: false,
-    error: null as string | null,
-  },
-}));
-
-const sdkHealthStoreMock = vi.hoisted(() => ({
-  getState: vi.fn(() => sdkHealthState.value),
-  subscribe: vi.fn(() => () => {}),
-  refresh: vi.fn(),
-}));
-
 vi.mock('../ui/src/stores/desktopUpdaterStore', () => ({
   desktopUpdaterStore: updaterStoreMock,
-}));
-
-vi.mock('../ui/src/stores/sdkHealthStore', () => ({
-  sdkHealthStore: sdkHealthStoreMock,
 }));
 
 function createUpdaterState(overrides: Partial<DesktopUpdaterState> = {}): DesktopUpdaterState {
@@ -69,10 +51,6 @@ describe('desktop updater UI affordances', () => {
 
     render(
       <StatusBar
-        sdkHealthClassName="ok"
-        sdkHealthSummary="Connected"
-        managedCliTone="ok"
-        managedCliSummary="Ready"
         desktopUpdaterTone="warn"
         desktopUpdaterSummary="New version available."
         canDownload
