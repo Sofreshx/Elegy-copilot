@@ -10,3 +10,4 @@ export * from './gateway';
 export * from './git';
 export * from './projects';
 export * from './toolingUpdates';
+export * from './opencode';

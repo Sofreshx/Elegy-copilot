@@ -4,7 +4,7 @@ updated: 2026-03-16
 category: meta
 status: archived
 doc_kind: redirect
-redirect_to: docs/system/orchestrator/user-guide.md
+redirect_to: docs/system/mocs/orchestration-and-agents.md
 ---
 
 This historical stub is retained for compatibility with older links.

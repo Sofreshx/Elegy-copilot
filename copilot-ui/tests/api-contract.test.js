@@ -291,9 +291,13 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/tooling-updates/check' },
   { method: 'POST', path: '/api/tooling-updates/update/elegy-planning' },
   { method: 'POST', path: '/api/tooling-updates/update/elegy-skills' },
-  { method: 'GET', path: '/api/config/opencode-agents' },
-  { method: 'PUT', path: '/api/config/opencode-agents' },
-  { method: 'POST', path: '/api/config/opencode-agents/reset' },
+
+  // OpenCode (5)
+  { method: 'GET', path: '/api/opencode/status' },
+  { method: 'POST', path: '/api/opencode/config' },
+  { method: 'POST', path: '/api/opencode/config/reset' },
+  { method: 'POST', path: '/api/opencode/assets/install' },
+  { method: 'POST', path: '/api/opencode/tooling/install' },
 
   // Executor (5)
   { method: 'GET', path: '/api/executor/health' },
@@ -480,7 +484,7 @@ async function run() {
 
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 151, `Expected 151 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 153, `Expected 153 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

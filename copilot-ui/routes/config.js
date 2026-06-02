@@ -2,7 +2,6 @@
 
 const copilotConfigDefault = require('../lib/copilotConfig');
 const codexConfigDefault = require('../lib/codexConfig');
-const opencodeConfigDefault = require('../lib/opencodeConfig');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 
 const DEFAULT_CODEX_PROVIDER_PREFLIGHT_TIMEOUT_MS = 1500;
@@ -22,7 +21,6 @@ function register(deps = {}) {
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     copilotConfig: deps.copilotConfig || copilotConfigDefault,
     codexConfig: deps.codexConfig || codexConfigDefault,
-    opencodeConfig: deps.opencodeConfig || opencodeConfigDefault,
     env: deps.env || process.env,
     probeCodexGatewayReachability: deps.probeCodexGatewayReachability
       || ((baseUrl) => probeCodexGatewayReachability(baseUrl, {
@@ -56,21 +54,6 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/config/codex-provider/reset',
       handler: (ctx) => handleResetCodexProvider(ctx, resolvedDeps),
-    },
-    {
-      method: 'GET',
-      path: '/api/config/opencode-agents',
-      handler: (ctx) => handleGetOpenCodeAgents(ctx, resolvedDeps),
-    },
-    {
-      method: 'PUT',
-      path: '/api/config/opencode-agents',
-      handler: (ctx) => handleSetOpenCodeAgents(ctx, resolvedDeps),
-    },
-    {
-      method: 'POST',
-      path: '/api/config/opencode-agents/reset',
-      handler: (ctx) => handleResetOpenCodeAgents(ctx, resolvedDeps),
     },
   ];
 }
@@ -237,56 +220,6 @@ async function handleResetCodexProvider(ctx, deps) {
         ? err.message
         : 'Failed to reset Codex provider config',
       details: shouldExpose ? undefined : err.message,
-    });
-  }
-}
-
-function handleGetOpenCodeAgents(ctx, deps) {
-  try {
-    const status = deps.opencodeConfig.getStatus(ctx.opencodeHome);
-    deps.sendJson(ctx.res, 200, status);
-  } catch (err) {
-    deps.sendJson(ctx.res, 500, {
-      error: 'Failed to read OpenCode agent config',
-      details: err.message,
-    });
-  }
-}
-
-async function handleSetOpenCodeAgents(ctx, deps) {
-  try {
-    const body = await deps.readJsonBody(ctx.req);
-    const exploreModel = typeof body.exploreModel === 'string' ? body.exploreModel : null;
-    const scoutModel = typeof body.scoutModel === 'string' ? body.scoutModel : null;
-
-    if (!exploreModel && !scoutModel) {
-      deps.sendJson(ctx.res, 400, {
-        error: 'At least one of exploreModel or scoutModel must be provided',
-      });
-      return;
-    }
-
-    const result = deps.opencodeConfig.setAgentModels(ctx.opencodeHome, exploreModel, scoutModel);
-    deps.sendJson(ctx.res, 200, result);
-  } catch (err) {
-    const statusCode = err.statusCode || 500;
-    deps.sendJson(ctx.res, statusCode, {
-      error: statusCode >= 400 && statusCode < 500
-        ? err.message
-        : 'Failed to update OpenCode agent config',
-      details: statusCode >= 500 ? err.message : undefined,
-    });
-  }
-}
-
-async function handleResetOpenCodeAgents(ctx, deps) {
-  try {
-    const result = deps.opencodeConfig.resetConfig(ctx.opencodeHome);
-    deps.sendJson(ctx.res, 200, result);
-  } catch (err) {
-    deps.sendJson(ctx.res, 500, {
-      error: 'Failed to reset OpenCode agent config',
-      details: err.message,
     });
   }
 }

@@ -125,7 +125,6 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     'copilot-ui-routes',
     'copilot-ui-ui-dist',
     'copilot-ui-package-json',
-    'copilot-cli',
     'engine-assets',
     'cli-policy',
     'local-tracker-dist',
@@ -251,7 +250,6 @@ function validateTauriBundleConfig(options = {}) {
   const expectedMappings = {
     'gen/resources/node': 'node',
     'gen/resources/copilot-ui': 'copilot-ui',
-    'gen/resources/copilot-cli': 'copilot-cli',
     'gen/resources/runtime-manifests': 'runtime-manifests',
     'gen/resources/.cli': '.cli',
     'gen/resources/engine-assets': 'engine-assets',

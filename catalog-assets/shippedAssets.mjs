@@ -43,6 +43,7 @@ export const SHIPPED_ASSETS = [
   skill('skill-elegy-skills-discovery', 'catalog-assets/shared-skills/elegy-skills-discovery', {
     loadMode: 'always',
   }),
+  skill('skill-elegy-obsidian', 'catalog-assets/shared-skills/elegy-obsidian', { loadMode: 'on-demand' }),
   skill('skill-implementation-handoff', 'catalog-assets/shared-skills/implementation-handoff', {
     loadMode: 'on-demand',
   }),

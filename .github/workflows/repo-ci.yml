@@ -11,15 +11,20 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: repo-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.1.0
         with:
           node-version: '20.x'
           cache: npm
@@ -40,6 +45,9 @@ jobs:
           node scripts/generate-cli-manifest.mjs
           node scripts/generate-policy-lockfiles.js
 
+      - name: Validate policy lockfiles
+        run: node scripts/validate-policy-lockfiles.js
+
       - name: Validate manifest
         run: node scripts/validate-manifest.js
 
@@ -51,6 +59,9 @@ jobs:
 
       - name: Build local-tracker (produces dist for sidecar validation)
         run: npm --prefix local-tracker run build
+
+      - name: Tauri config preflight (Linux)
+        run: npm --prefix copilot-ui run tauri:check
 
       - name: Validate Tauri sidecar layout
         run: npm --prefix copilot-ui run validate:tauri-node-sidecar-layout
@@ -67,12 +78,13 @@ jobs:
   desktop-tauri-preview:
     needs: build
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.1.0
         with:
           node-version: '20.x'
           cache: npm

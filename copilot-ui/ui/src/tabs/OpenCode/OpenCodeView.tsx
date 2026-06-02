@@ -1,0 +1,450 @@
+import { useEffect, useState } from 'react';
+import { Badge, Button, Panel, Toolbar } from '../../components';
+import { useStoreValue } from '../../lib/store';
+import type {
+  OpenCodeLane,
+  OpenCodeLaneNode,
+  OpenCodeProfile,
+  OpenCodeSetupCheck,
+  OpenCodeStatusResponse,
+  OpenCodeTabSectionId,
+  OpenCodeWarning,
+} from '../../lib/types';
+import { opencodeStore } from '../../stores/opencodeStore';
+
+const TAB_SECTIONS: Array<{ id: OpenCodeTabSectionId; label: string }> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'lanes', label: 'Lanes' },
+  { id: 'profiles', label: 'Profiles' },
+  { id: 'setup', label: 'Setup' },
+];
+
+function StatusDot({ status }: { status: string }) {
+  const className = status === 'ok' ? 'health-dot health-dot-ok'
+    : status === 'warning' ? 'health-dot health-dot-warn'
+    : status === 'blocked' || status === 'critical' ? 'health-dot health-dot-error'
+    : 'health-dot health-dot-neutral';
+  return (
+    <span className={className}>
+      <span className="health-dot-pip" aria-hidden="true" />
+    </span>
+  );
+}
+
+function OverviewSection({ status }: { status: OpenCodeStatusResponse }) {
+  const overallBadge = status.overallStatus === 'ready' ? 'success'
+    : status.overallStatus === 'degraded' ? 'accent'
+    : 'danger';
+
+  return (
+    <div className="opencode-section" data-testid="opencode-overview">
+      <Panel title="Readiness Dashboard" testId="opencode-readiness">
+        <div className="opencode-readiness-cards">
+          <div className="opencode-readiness-card">
+            <span className="opencode-readiness-label">Overall Status</span>
+            <Badge tone={overallBadge} testId="opencode-overall-status">
+              {status.overallStatus.toUpperCase()}
+            </Badge>
+          </div>
+          <div className="opencode-readiness-card">
+            <span className="opencode-readiness-label">OpenCode Home</span>
+            <code className="opencode-readiness-value">{status.opencodeHome}</code>
+          </div>
+          <div className="opencode-readiness-card">
+            <span className="opencode-readiness-label">Config Path</span>
+            <code className="opencode-readiness-value">{status.configPath}</code>
+          </div>
+          <div className="opencode-readiness-card">
+            <span className="opencode-readiness-label">Active Profile</span>
+            <Badge tone="brand">{status.activeProfileId}</Badge>
+          </div>
+          <div className="opencode-readiness-card">
+            <span className="opencode-readiness-label">Small Model</span>
+            <code className="opencode-readiness-value">{status.smallModel}</code>
+          </div>
+          <div className="opencode-readiness-card">
+            <span className="opencode-readiness-label">Big Model</span>
+            <code className="opencode-readiness-value">{status.bigModel}</code>
+          </div>
+          <div className="opencode-readiness-card">
+            <span className="opencode-readiness-label">Elegy Planning CLI</span>
+            <StatusDot status={status.elegyPlanningCli.cliPath ? 'ok' : 'warning'} />
+            <span className="opencode-readiness-value">
+              {status.elegyPlanningCli.cliPath ? status.elegyPlanningCli.currentVersion || 'detected' : 'Not detected'}
+            </span>
+          </div>
+          <div className="opencode-readiness-card">
+            <span className="opencode-readiness-label">Elegy Skills</span>
+            <StatusDot status={status.elegySkillsAssets.trackedCount > 0 ? 'ok' : 'warning'} />
+            <span className="opencode-readiness-value">
+              {status.elegySkillsAssets.trackedCount} tracked
+              {status.elegySkillsAssets.outdatedCount > 0 ? `, ${status.elegySkillsAssets.outdatedCount} outdated` : ''}
+            </span>
+          </div>
+          <div className="opencode-readiness-card">
+            <span className="opencode-readiness-label">Planning Live Authority</span>
+            <StatusDot status={status.planningLiveAuthority.ready ? 'ok' : 'warning'} />
+            <span className="opencode-readiness-value">
+              {status.planningLiveAuthority.ready ? 'Ready' : 'Not ready'}
+            </span>
+          </div>
+          <div className="opencode-readiness-card">
+            <span className="opencode-readiness-label">Warnings</span>
+            <Badge tone={status.warnings.length > 0 ? 'accent' : 'success'}>
+              {status.warnings.length > 0 ? `${status.warnings.length} active` : 'None'}
+            </Badge>
+          </div>
+        </div>
+      </Panel>
+
+      {status.warnings.length > 0 ? (
+        <Panel title="Active Warnings" testId="opencode-warnings">
+          {status.warnings.map((w: OpenCodeWarning) => (
+            <div key={w.id} className="opencode-warning-row" data-testid={`opencode-warning-${w.id}`}>
+              <StatusDot status={w.severity} />
+              <div className="opencode-warning-content">
+                <strong>{w.title}</strong>
+                <p>{w.detail}</p>
+              </div>
+            </div>
+          ))}
+        </Panel>
+      ) : null}
+    </div>
+  );
+}
+
+function LaneNodeElement({ node, state }: { node: OpenCodeLaneNode; state: 'available' | 'optional' | 'warning' | 'blocked' }) {
+  const cls = state === 'blocked' ? 'opencode-lane-node-blocked'
+    : state === 'warning' ? 'opencode-lane-node-warning'
+    : state === 'optional' ? 'opencode-lane-node-optional'
+    : 'opencode-lane-node-available';
+  return (
+    <div className={`opencode-lane-node ${cls}`} title={`${node.label} (${node.kind})`}>
+      <span className="opencode-lane-node-label">{node.label}</span>
+      <span className="opencode-lane-node-kind">{node.kind}</span>
+    </div>
+  );
+}
+
+function LaneDetailPanel({ lane }: { lane: OpenCodeLane }) {
+  return (
+    <div className="opencode-lane-detail" data-testid={`opencode-lane-detail-${lane.id}`}>
+      <h4>Model Policy</h4>
+      <dl className="opencode-detail-list">
+        <dt>Small Model</dt>
+        <dd>{lane.modelPolicy.small || '—'}</dd>
+        <dt>Big Model</dt>
+        <dd>{lane.modelPolicy.big || '—'}</dd>
+        <dt>Review Model</dt>
+        <dd>{lane.modelPolicy.review || '—'}</dd>
+      </dl>
+      <h4>Required Setup</h4>
+      <ul className="opencode-detail-list">
+        {lane.requiredSetup.map((s) => <li key={s}>{s}</li>)}
+      </ul>
+      {lane.clarificationGates.length > 0 ? (
+        <>
+          <h4>Clarification Gates</h4>
+          <ul className="opencode-detail-list">
+            {lane.clarificationGates.map((g) => <li key={g}>{g}</li>)}
+          </ul>
+        </>
+      ) : null}
+      {lane.worktreeBehavior ? (
+        <>
+          <h4>Worktree Behavior</h4>
+          <p>{lane.worktreeBehavior}</p>
+        </>
+      ) : null}
+      {lane.escalationTriggers.length > 0 ? (
+        <>
+          <h4>Escalation Triggers</h4>
+          <ul className="opencode-detail-list">
+            {lane.escalationTriggers.map((t) => <li key={t}>{t}</li>)}
+          </ul>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function LaneSection({ status, selectedLaneId }: { status: OpenCodeStatusResponse; selectedLaneId: string | null }) {
+  const selectedLane = selectedLaneId
+    ? status.lanes.find((l: OpenCodeLane) => l.id === selectedLaneId)
+    : null;
+
+  return (
+    <div className="opencode-section" data-testid="opencode-lanes">
+      <div className="opencode-lane-map" data-testid="opencode-lane-map">
+        {status.lanes.map((lane: OpenCodeLane) => (
+          <div
+            key={lane.id}
+            className={`opencode-lane-card${selectedLaneId === lane.id ? ' opencode-lane-card-active' : ''}`}
+            data-testid={`opencode-lane-${lane.id}`}
+            onClick={() => opencodeStore.setSelectedLaneId(lane.id === selectedLaneId ? null : lane.id)}
+          >
+            <h3 className="opencode-lane-card-title">{lane.label}</h3>
+            <p className="opencode-lane-card-desc">{lane.description}</p>
+            <div className="opencode-lane-flow">
+              {lane.nodes.map((node, i) => (
+                <span key={node.id}>
+                  <span className={`opencode-lane-flow-node opencode-lane-node-${node.kind}`}>
+                    {node.label}
+                  </span>
+                  {i < lane.nodes.length - 1 ? (
+                    <span className="opencode-lane-flow-arrow">→</span>
+                  ) : null}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {selectedLane ? (
+        <LaneDetailPanel lane={selectedLane} />
+      ) : (
+        <p className="opencode-hint">Click a lane above to see details.</p>
+      )}
+    </div>
+  );
+}
+
+function ProfilesSection({ status, saving }: { status: OpenCodeStatusResponse; selectedLaneId: string | null; saving: boolean }) {
+  const [smallModel, setSmallModel] = useState<string>(status.smallModel);
+  const [bigModel, setBigModel] = useState<string>(status.bigModel);
+  const [reviewModel] = useState<string>('DeepSeek V4 Pro High');
+  const [modelsDirty, setModelsDirty] = useState<boolean>(false);
+
+  useEffect(() => {
+    setSmallModel(status.smallModel);
+    setBigModel(status.bigModel);
+    setModelsDirty(false);
+  }, [status.smallModel, status.bigModel]);
+
+  const handleRouteChange = (profileId: string) => {
+    void opencodeStore.saveConfig({ profileRoute: profileId });
+  };
+
+  const handleSaveModels = () => {
+    void opencodeStore.saveConfig({ smallModel, bigModel });
+  };
+
+  return (
+    <div className="opencode-section" data-testid="opencode-profiles">
+      <Panel title="Provider Routing" testId="opencode-provider-routing">
+        <div className="opencode-profiles-list">
+          {status.profiles.map((profile: OpenCodeProfile) => (
+            <div
+              key={profile.id}
+              className={`opencode-profile-card${profile.id === status.activeProfileId ? ' opencode-profile-card-active' : ''}`}
+              data-testid={`opencode-profile-${profile.id}`}
+            >
+              <div className="opencode-profile-header">
+                <h3>{profile.label}</h3>
+                {profile.id === status.activeProfileId ? (
+                  <Badge tone="brand" testId={`opencode-profile-badge-${profile.id}`}>Active</Badge>
+                ) : null}
+              </div>
+              <p className="opencode-profile-desc">{profile.description}</p>
+              <dl className="opencode-detail-list">
+                <dt>Route</dt>
+                <dd><code>{profile.route}</code></dd>
+                <dt>Small Model</dt>
+                <dd>{profile.smallModel}</dd>
+                <dt>Big Model</dt>
+                <dd>{profile.bigModel}</dd>
+                <dt>Review Model</dt>
+                <dd>{profile.reviewModel}</dd>
+              </dl>
+              {profile.id !== status.activeProfileId ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  testId={`opencode-profile-activate-${profile.id}`}
+                  disabled={saving}
+                  onClick={() => handleRouteChange(profile.id)}
+                >
+                  {saving ? 'Saving…' : 'Activate'}
+                </Button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      <Panel title="Model Selection" testId="opencode-model-selection">
+        <div className="opencode-model-form">
+          <div className="opencode-model-row">
+            <label className="opencode-model-label" htmlFor="opencode-small-model">Small Model</label>
+            <input
+              id="opencode-small-model"
+              className="opencode-model-input"
+              type="text"
+              value={smallModel}
+              data-testid="opencode-small-model-input"
+              onChange={(e) => { setSmallModel(e.target.value); setModelsDirty(true); }}
+            />
+          </div>
+          <div className="opencode-model-row">
+            <label className="opencode-model-label" htmlFor="opencode-big-model">Big Model</label>
+            <input
+              id="opencode-big-model"
+              className="opencode-model-input"
+              type="text"
+              value={bigModel}
+              data-testid="opencode-big-model-input"
+              onChange={(e) => { setBigModel(e.target.value); setModelsDirty(true); }}
+            />
+          </div>
+          <div className="opencode-model-row">
+            <label className="opencode-model-label" htmlFor="opencode-review-model">Review Model (display only)</label>
+            <input
+              id="opencode-review-model"
+              className="opencode-model-input"
+              type="text"
+              value={reviewModel}
+              data-testid="opencode-review-model-input"
+              readOnly
+            />
+          </div>
+          <div className="opencode-model-actions">
+            <Button
+              variant="primary"
+              size="sm"
+              testId="opencode-models-save"
+              disabled={!modelsDirty || saving}
+              onClick={handleSaveModels}
+            >
+              {saving ? 'Saving…' : 'Save models'}
+            </Button>
+          </div>
+        </div>
+      </Panel>
+
+      {status.configPreview ? (
+        <Panel title="Config Preview" testId="opencode-config-preview">
+          <pre className="opencode-config-preview">{JSON.stringify(status.configPreview, null, 2)}</pre>
+        </Panel>
+      ) : null}
+    </div>
+  );
+}
+
+function SetupSection({ status, toolingInstalling, saving }: { status: OpenCodeStatusResponse; selectedLaneId: string | null; toolingInstalling: boolean; saving: boolean }) {
+  const handleAction = (check: OpenCodeSetupCheck) => {
+    if (!check.action) return;
+    const actionKind = check.action.kind;
+    if (actionKind === 'install' || actionKind === 'update') {
+      if (check.id === 'elegy-planning-cli') {
+        void opencodeStore.installTooling({ kind: 'elegy-planning-cli' });
+      } else if (check.id === 'elegy-skills') {
+        void opencodeStore.installTooling({ kind: 'elegy-skills', force: actionKind === 'update' });
+      } else {
+        void opencodeStore.installAssets(actionKind === 'update');
+      }
+    }
+  };
+
+  const isRowBusy = (id: string, actionKind: string | undefined) => {
+    if (id === 'elegy-planning-cli' || id === 'elegy-skills') return toolingInstalling;
+    if (actionKind === 'install' || actionKind === 'update') return saving;
+    return false;
+  };
+
+  return (
+    <div className="opencode-section" data-testid="opencode-setup">
+      <Panel title="Setup Checklist" testId="opencode-setup-checklist">
+        {status.setupChecks.map((check: OpenCodeSetupCheck) => {
+          const busy = isRowBusy(check.id, check.action?.kind);
+          return (
+            <div key={check.id} className="opencode-setup-row" data-testid={`opencode-setup-${check.id}`}>
+              <StatusDot status={check.status} />
+              <div className="opencode-setup-content">
+                <strong>{check.label}</strong>
+                <p>{check.detail}</p>
+              </div>
+              <div className="opencode-setup-action">
+                {check.action && check.status !== 'ok' ? (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    testId={`opencode-setup-action-${check.id}`}
+                    disabled={busy}
+                    onClick={() => handleAction(check)}
+                  >
+                    {busy ? 'Working…' : check.action.label}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </Panel>
+    </div>
+  );
+}
+
+type LaneSectionProps = { status: OpenCodeStatusResponse; selectedLaneId: string | null };
+type SectionProps = { status: OpenCodeStatusResponse; selectedLaneId: string | null };
+
+const SECTION_COMPONENTS: Record<OpenCodeTabSectionId, React.FC<SectionProps>> = {
+  overview: OverviewSection as unknown as React.FC<SectionProps>,
+  lanes: LaneSection,
+  profiles: ProfilesSection as unknown as React.FC<SectionProps>,
+  setup: SetupSection as unknown as React.FC<SectionProps>,
+};
+
+export default function OpenCodeView() {
+  const state = useStoreValue(opencodeStore);
+
+  useEffect(() => {
+    void opencodeStore.load();
+    return () => {
+      opencodeStore.resetState();
+    };
+  }, []);
+
+  const SectionComponent = SECTION_COMPONENTS[state.activeSection];
+
+  return (
+    <div className="opencode-view" data-testid="opencode-view">
+      <Toolbar testId="opencode-toolbar">
+        <h2>OpenCode Workspace</h2>
+      </Toolbar>
+
+      <div className="opencode-tabs" role="tablist" data-testid="opencode-tabs">
+        {TAB_SECTIONS.map((tab) => (
+          <button
+            key={tab.id}
+            role="tab"
+            className={`opencode-tab${state.activeSection === tab.id ? ' opencode-tab-active' : ''}`}
+            data-testid={`opencode-tab-${tab.id}`}
+            onClick={() => opencodeStore.setActiveSection(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="opencode-content" role="tabpanel">
+        {state.loading && !state.status ? (
+          <p className="opencode-loading" data-testid="opencode-loading">Loading OpenCode workspace...</p>
+        ) : null}
+
+        {state.error ? (
+          <p className="opencode-error" data-testid="opencode-error">{state.error}</p>
+        ) : null}
+
+        {state.message ? (
+          <p className="opencode-message" data-testid="opencode-message">{state.message}</p>
+        ) : null}
+
+        {state.status ? (
+          <SectionComponent status={state.status} selectedLaneId={state.selectedLaneId} />
+        ) : null}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "skill": "elegy-obsidian",
+      "name": "elegy-obsidian",
+      "description": "Foundation skill for read/write/search operations against a local Obsidian vault via the official Obsidian Desktop CLI (v1.12+). Non-authoritative convenience layer; durable planning state continues to flow through elegy-planning and SQLite.",
+      "triggersOn": [
+        "obsidian",
+        "vault",
+        "notes",
+        "daily",
+        "tag",
+        "search",
+        "task",
+        "non-authoritative-mirror",
+        "elegy"
+      ],
+      "manifest": {
+        "id": "opencode-elegy-obsidian-skill",
+        "loadMode": "on-demand"
+      }
+    }
+  ]
+}

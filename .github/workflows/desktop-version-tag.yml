@@ -17,41 +17,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
         with:
-          fetch-depth: 0
-          fetch-tags: true
           ref: ${{ inputs.ref }}
+          fetch-depth: 0
 
-      - name: Validate publish-repo topology (fail closed)
-        shell: bash
-        run: |
-          set -euo pipefail
-          expected_repo="$(python - <<'PY'
-          import json
-          import pathlib
-
-          package_json = json.loads(pathlib.Path('copilot-ui/package.json').read_text(encoding='utf-8'))
-          publish_repository = ((package_json.get('desktopRelease') or {}).get('publishRepository') or '').strip()
-          if not publish_repository:
-              raise SystemExit('Could not resolve desktopRelease.publishRepository from copilot-ui/package.json')
-          print(publish_repository)
-          PY
-          )"
-          if [[ "${expected_repo}" != "${GITHUB_REPOSITORY}" ]]; then
-            echo "Desktop version tags must be created from ${expected_repo}; current repository is ${GITHUB_REPOSITORY}." >&2
-            exit 1
-          fi
+      - name: CI lockfile preflight
+        run: node scripts/validate-ci-lockfiles.js
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.1.0
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '20.x'
+          cache: npm
           cache-dependency-path: |
             package-lock.json
             copilot-ui/package-lock.json
             local-tracker/package-lock.json
+            scripts/package-lock.json
 
       - name: CI lockfile preflight
         run: node scripts/validate-ci-lockfiles.js

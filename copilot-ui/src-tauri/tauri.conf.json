@@ -15,7 +15,6 @@
     "resources": {
       "gen/resources/node": "node",
       "gen/resources/copilot-ui": "copilot-ui",
-      "gen/resources/copilot-cli": "copilot-cli",
       "gen/resources/runtime-manifests": "runtime-manifests",
       "gen/resources/.cli": ".cli",
       "gen/resources/engine-assets": "engine-assets",

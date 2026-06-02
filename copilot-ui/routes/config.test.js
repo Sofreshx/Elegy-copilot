@@ -25,30 +25,11 @@ function makeMocks(overrides = {}) {
     setMode: overrides.setCodexMode || ((_home, mode) => ({ activeMode: mode, providerId: mode === 'elegy-routed' ? 'elegy' : 'openai' })),
     hardReset: overrides.hardResetCodex || (() => ({ activeMode: 'native', providerId: 'openai', action: 'hard-reset' })),
   };
-  const opencodeConfig = {
-    getStatus: overrides.getOpenCodeStatus || (() => ({
-      exploreModel: 'deepseek/deepseek-v4-flash',
-      scoutModel: 'deepseek/deepseek-v4-flash',
-      isCustom: false,
-      availableModels: ['deepseek/deepseek-v4-flash'],
-    })),
-    setAgentModels: overrides.setOpenCodeAgentModels || ((_home, explore, scout) => ({
-      exploreModel: explore || 'deepseek/deepseek-v4-flash',
-      scoutModel: scout || 'deepseek/deepseek-v4-flash',
-      isCustom: true,
-    })),
-    resetConfig: overrides.resetOpenCodeConfig || (() => ({
-      exploreModel: 'deepseek/deepseek-v4-flash',
-      scoutModel: 'deepseek/deepseek-v4-flash',
-      isCustom: false,
-    })),
-  };
   return {
     sendJson,
     readJsonBody,
     copilotConfig,
     codexConfig,
-    opencodeConfig,
     sent,
     env: overrides.env || { OPENCODE_GO_API_KEY: 'demo-key' },
     probeCodexGatewayReachability: overrides.probeCodexGatewayReachability || (async () => {}),
@@ -58,7 +39,7 @@ function makeMocks(overrides = {}) {
 describe('config routes', () => {
   it('register returns GET and PUT routes', () => {
     const routes = register();
-    assert.equal(routes.length, 8);
+    assert.equal(routes.length, 5);
     assert.equal(routes[0].method, 'GET');
     assert.equal(routes[0].path, '/api/config/remote-sessions');
     assert.equal(routes[1].method, 'PUT');
@@ -66,9 +47,6 @@ describe('config routes', () => {
     assert.equal(routes[2].path, '/api/config/codex-provider');
     assert.equal(routes[3].path, '/api/config/codex-provider');
     assert.equal(routes[4].path, '/api/config/codex-provider/reset');
-    assert.equal(routes[5].path, '/api/config/opencode-agents');
-    assert.equal(routes[6].path, '/api/config/opencode-agents');
-    assert.equal(routes[7].path, '/api/config/opencode-agents/reset');
   });
 
   it('GET returns current remote preference', () => {
@@ -235,63 +213,5 @@ describe('config routes', () => {
     assert.equal(hardResetCalled, true);
     assert.equal(mocks.sent[0].code, 200);
     assert.equal(mocks.sent[0].obj.action, 'hard-reset');
-  });
-
-  it('GET /api/config/opencode-agents returns current agent config', () => {
-    const mocks = makeMocks({
-      getOpenCodeStatus: () => ({
-        exploreModel: 'custom/explore',
-        scoutModel: 'custom/scout',
-        isCustom: true,
-        availableModels: ['custom/explore', 'custom/scout'],
-      }),
-    });
-    const routes = register(mocks);
-    routes[5].handler({ opencodeHome: '/tmp/opencode', res: {} });
-    assert.equal(mocks.sent[0].code, 200);
-    assert.equal(mocks.sent[0].obj.exploreModel, 'custom/explore');
-    assert.equal(mocks.sent[0].obj.scoutModel, 'custom/scout');
-    assert.equal(mocks.sent[0].obj.isCustom, true);
-  });
-
-  it('PUT /api/config/opencode-agents updates agent models', async () => {
-    let savedExplore;
-    let savedScout;
-    const mocks = makeMocks({
-      body: { exploreModel: 'new/explore', scoutModel: 'new/scout' },
-      setOpenCodeAgentModels: (_home, explore, scout) => {
-        savedExplore = explore;
-        savedScout = scout;
-        return { exploreModel: explore, scoutModel: scout, isCustom: true };
-      },
-    });
-    const routes = register(mocks);
-    await routes[6].handler({ opencodeHome: '/tmp/opencode', req: {}, res: {} });
-    assert.equal(savedExplore, 'new/explore');
-    assert.equal(savedScout, 'new/scout');
-    assert.equal(mocks.sent[0].code, 200);
-    assert.equal(mocks.sent[0].obj.isCustom, true);
-  });
-
-  it('PUT /api/config/opencode-agents rejects when no models provided', async () => {
-    const mocks = makeMocks({ body: {} });
-    const routes = register(mocks);
-    await routes[6].handler({ opencodeHome: '/tmp/opencode', req: {}, res: {} });
-    assert.equal(mocks.sent[0].code, 400);
-  });
-
-  it('POST /api/config/opencode-agents/reset resets to defaults', async () => {
-    let resetCalled = false;
-    const mocks = makeMocks({
-      resetOpenCodeConfig: () => {
-        resetCalled = true;
-        return { exploreModel: 'deepseek/deepseek-v4-flash', scoutModel: 'deepseek/deepseek-v4-flash', isCustom: false };
-      },
-    });
-    const routes = register(mocks);
-    await routes[7].handler({ opencodeHome: '/tmp/opencode', req: {}, res: {} });
-    assert.equal(resetCalled, true);
-    assert.equal(mocks.sent[0].code, 200);
-    assert.equal(mocks.sent[0].obj.isCustom, false);
   });
 });

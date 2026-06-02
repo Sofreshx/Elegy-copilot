@@ -255,9 +255,11 @@ function readTextFileSafe(absPath, maxBytes) {
   }
 }
 
-function loadManifest(engineRoot) {
+function loadManifest(engineRoot, manifestRelPath) {
   const rootAbs = path.resolve(engineRoot);
-  const manifestPath = path.join(rootAbs, 'engine-assets', 'manifest.json');
+  const manifestPath = manifestRelPath
+    ? path.resolve(rootAbs, manifestRelPath)
+    : path.join(rootAbs, 'engine-assets', 'manifest.json');
   const raw = fs.readFileSync(manifestPath, 'utf8');
   const manifest = JSON.parse(raw);
 
@@ -1105,8 +1107,8 @@ function recordManagedAssetAuditEvent(destinationHome, asset, eventType, details
   }
 }
 
-function getManagedAssetStatuses(engineRoot, destinationHome) {
-  const manifest = loadManifest(engineRoot);
+function getManagedAssetStatuses(engineRoot, destinationHome, manifestRelPath) {
+  const manifest = loadManifest(engineRoot, manifestRelPath);
   return manifest.assets.map((asset) => {
     const { sourceAbs, destinationAbs, sourceRel } = getAssetPaths(engineRoot, destinationHome, asset);
     const sourceHash = sha256PathHex(sourceAbs);
@@ -1284,7 +1286,7 @@ function syncAll(engineRoot, destinationHome, opts) {
 }
 
 function syncManagedInstall(engineRoot, destinationHome, opts) {
-  const manifest = filterManifestAssets(loadManifest(engineRoot), opts && opts.assetFilter);
+  const manifest = filterManifestAssets(loadManifest(engineRoot, opts && opts.manifestPath), opts && opts.assetFilter);
   const previousState = readInstallState(destinationHome);
   const synced = manifest.assets
     .map((a) => syncAsset(engineRoot, destinationHome, a.id, opts))

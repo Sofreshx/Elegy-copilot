@@ -203,6 +203,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-skill-discovery-skill', { sourceAssetId: 'skill-discovery' }),
       route('opencode-elegy-skills-discovery-skill', { sourceAssetId: 'skill-elegy-skills-discovery' }),
       route('opencode-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning' }),
+      route('opencode-elegy-obsidian-skill', { sourceAssetId: 'skill-elegy-obsidian' }),
       route('opencode-rubberduck-plan-review-skill', { sourceAssetId: 'skill-rubberduck-plan-review' }),
       route('opencode-roadmap-planning-skill', { sourceAssetId: 'skill-roadmap-planning' }),
       route('opencode-implementation-review-skill', { sourceAssetId: 'skill-implementation-review' }),

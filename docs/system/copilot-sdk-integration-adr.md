@@ -2,7 +2,7 @@
 created: 2026-03-01
 updated: 2026-06-01
 category: system
-status: retired
+status: archived
 doc_kind: node
 id: copilot-sdk-integration-adr
 summary: Retired. ADR for initial copilot-ui integration of @github/copilot-sdk using an ESM bridge and additive session artifacts.

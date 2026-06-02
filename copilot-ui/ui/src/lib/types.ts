@@ -3252,13 +3252,141 @@ export interface ActivityStreamEntry {
   question?: PendingQuestion;
 }
 
-export interface OpenCodeAgentStatusResponse {
+export interface OpenCodeLaneNode {
+  id: string;
+  label: string;
+  kind: 'start' | 'decision' | 'action' | 'gate' | 'optional' | 'escalation';
+}
+
+export interface OpenCodeLaneEdge {
+  from: string;
+  to: string;
+  label: string;
+}
+
+export interface OpenCodeLane {
+  id: string;
+  label: string;
+  description: string;
+  nodes: OpenCodeLaneNode[];
+  edges: OpenCodeLaneEdge[];
+  modelPolicy: {
+    small: string | null;
+    big: string | null;
+    review: string | null;
+  };
+  requiredSetup: string[];
+  clarificationGates: string[];
+  worktreeBehavior: string | null;
+  escalationTriggers: string[];
+}
+
+export interface OpenCodeProfile {
+  id: string;
+  label: string;
+  description: string;
+  route: string;
+  smallModel: string;
+  bigModel: string;
+  reviewModel: string;
+}
+
+export interface OpenCodeSetupCheck {
+  id: string;
+  label: string;
+  status: 'ok' | 'warning' | 'blocked';
+  detail: string;
+  action: {
+    kind: string;
+    label: string;
+    target?: string;
+  } | null;
+}
+
+export interface OpenCodeWarning {
+  id: string;
+  severity: 'warning' | 'critical';
+  title: string;
+  detail: string;
+  action: OpenCodeSetupCheck['action'];
+}
+
+export interface OpenCodeElegyPlanningCli {
+  cliPath: string | null;
+  currentVersion: string | null;
+  canUpdate: boolean;
+}
+
+export interface OpenCodeElegySkillsAssets {
+  trackedCount: number;
+  outdatedCount: number;
+  updateAvailable: boolean;
+  canUpdate: boolean;
+  assets: Array<{
+    id: string;
+    upToDate: boolean;
+    installed: boolean;
+    source: string;
+    destination: string;
+  }>;
+}
+
+export interface OpenCodePlanningLiveAuthority {
+  ready: boolean;
+  state: Record<string, unknown> | null;
+}
+
+export interface OpenCodeStatusResponse {
+  overallStatus: 'ready' | 'degraded' | 'blocked';
+  warnings: OpenCodeWarning[];
+  setupChecks: OpenCodeSetupCheck[];
+  activeProfileId: string;
+  profiles: OpenCodeProfile[];
+  availableRoutes: string[];
+  lanes: OpenCodeLane[];
+  configPreview: Record<string, unknown> | null;
   opencodeHome: string;
   configPath: string;
-  exploreModel: string;
-  scoutModel: string;
-  isCustom: boolean;
-  availableModels: string[];
-  lastAppliedAt?: string | null;
-  [key: string]: unknown;
+  smallModel: string;
+  bigModel: string;
+  isCustomConfig: boolean;
+  elegyPlanningCli: OpenCodeElegyPlanningCli;
+  elegySkillsAssets: OpenCodeElegySkillsAssets;
+  planningLiveAuthority: OpenCodePlanningLiveAuthority;
 }
+
+export interface OpenCodeConfigPayload {
+  profileRoute?: string;
+  smallModel?: string;
+  bigModel?: string;
+}
+
+export interface OpenCodeConfigResponse {
+  ok: boolean;
+  status: OpenCodeStatusResponse;
+}
+
+export interface OpenCodeAssetsInstallResponse {
+  ok: boolean;
+  syncResult?: unknown;
+  status?: OpenCodeStatusResponse;
+  error?: string;
+}
+
+export type OpenCodeToolingInstallKind = 'elegy-planning-cli' | 'elegy-skills';
+
+export interface OpenCodeToolingInstallPayload {
+  kind: OpenCodeToolingInstallKind;
+  force?: boolean;
+}
+
+export interface OpenCodeToolingInstallResponse {
+  ok: boolean;
+  kind?: OpenCodeToolingInstallKind;
+  downloadedPath?: string;
+  syncResult?: unknown;
+  status?: OpenCodeStatusResponse;
+  error?: string;
+}
+
+export type OpenCodeTabSectionId = 'overview' | 'lanes' | 'profiles' | 'setup';

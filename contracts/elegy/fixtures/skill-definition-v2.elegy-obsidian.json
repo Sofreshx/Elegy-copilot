@@ -1,0 +1,61 @@
+{
+  "id": "elegy-obsidian",
+  "name": "elegy-obsidian",
+  "description": "Foundation skill for read/write/search operations against a local Obsidian vault via the official Obsidian Desktop CLI (v1.12+). Non-authoritative convenience layer; durable planning state continues to flow through elegy-planning and SQLite.",
+  "triggers": [
+    {
+      "pattern": "obsidian",
+      "description": "Obsidian Desktop CLI operations"
+    },
+    {
+      "pattern": "vault",
+      "description": "Read, list, and search notes inside an Obsidian vault"
+    },
+    {
+      "pattern": "notes",
+      "description": "Append, patch, create, or move notes inside an Obsidian vault"
+    },
+    {
+      "pattern": "daily",
+      "description": "Read or append the daily note in an Obsidian vault"
+    },
+    {
+      "pattern": "tag",
+      "description": "List Obsidian vault tags and the notes that carry them"
+    },
+    {
+      "pattern": "search",
+      "description": "Search note text inside an Obsidian vault"
+    },
+    {
+      "pattern": "task",
+      "description": "List Obsidian vault tasks and toggle task completion"
+    },
+    {
+      "pattern": "non-authoritative-mirror",
+      "description": "Treats Obsidian as a non-canonical mirror for downstream consumption"
+    },
+    {
+      "pattern": "elegy",
+      "description": "Elegy CLI surface reserved for the future elegy-planning obsidian mirror/attach/resolve/list subcommands"
+    }
+  ],
+  "constraints": [
+    {
+      "constraintId": "external-binary-dependency",
+      "description": "Requires the official `obsidian` CLI shipped with Obsidian Desktop 1.12+. The skill does not ship a binary and does not replace the CLI.",
+      "required": true
+    },
+    {
+      "constraintId": "non-authoritative-vault",
+      "description": "Obsidian is treated as a non-authoritative mirror. Durable planning state continues to flow through elegy-planning and SQLite. Do not write into paths that would shadow planning authority.",
+      "required": true
+    },
+    {
+      "constraintId": "no-projection-of-authority",
+      "description": "This skill must not invent or expose a vault-backed planning authority, task ledger, or schema for goal/roadmap/plan entities. Those stay in elegy-planning.",
+      "required": true
+    }
+  ],
+  "lifecycleState": "draft"
+}
