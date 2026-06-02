@@ -13,6 +13,7 @@ import {
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
 import { toolingUpdatesStore } from './stores/toolingUpdatesStore';
 import PlanningAuthorityView from './tabs/Planning/PlanningAuthorityView';
+import OpenCodeView from './tabs/OpenCode/OpenCodeView';
 import CatalogShellView from './views/Catalog/CatalogShellView';
 import DashboardView from './views/DashboardView';
 import MaintenanceView from './views/Maintenance/MaintenanceView';
@@ -90,6 +91,8 @@ export default function App() {
         return <CatalogShellView />;
       case 'planning':
         return <PlanningAuthorityView />;
+      case 'opencode':
+        return <OpenCodeView />;
       case 'maintenance':
         return <MaintenanceView />;
       case 'settings':

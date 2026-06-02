@@ -7,7 +7,7 @@ doc_kind: node
 id: validation-governance
 summary: Canonical validation-governance rules for mandatory unit, integration, and E2E coverage; browser-tooling split; and closure confidence handling.
 tags: [validation, testing, e2e, governance]
-related: [testing-and-e2e, testing-quality-governance, e2e-setup-guide, planpack-spec, session-state-artifacts, orchestrator-user-guide]
+related: [testing-and-e2e, testing-quality-governance, e2e-setup-guide, planpack-spec, session-state-artifacts, orchestration-and-agents]
 ---
 
 # Validation Governance

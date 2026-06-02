@@ -53,12 +53,6 @@
       "target": "copilot-ui/package.json"
     },
     {
-      "id": "copilot-cli",
-      "kind": "directory",
-      "source": "resources/copilot-cli",
-      "target": "copilot-cli"
-    },
-    {
       "id": "engine-assets",
       "kind": "directory",
       "source": "../engine-assets",

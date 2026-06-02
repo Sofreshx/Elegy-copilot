@@ -13,8 +13,7 @@ related: [copilot-ui-guide, copilot-ui-information-architecture-freeze, e2e-setu
 # UI Runtime Overlay Research
 
 This is a historical research note, not the current-state authority. For current runtime and overlay
-behavior, use [docs/system/copilot-ui-guide.md](../system/copilot-ui-guide.md). For active delivery
-sequencing, use [docs/roadmaps/ui-runtime-overlay.md](../roadmaps/ui-runtime-overlay.md).
+behavior, use [docs/system/copilot-ui-guide.md](../system/copilot-ui-guide.md). The repo-local roadmap for this work has been removed — these are old non-accurate goals. Canonical planning lives at `~/.copilot/backlogs/`.
 
 This note is **research, not canonical design**. It turns the original broader idea into a more realistic v1 shape based on the repo's current runtime, planning, and evidence contracts.
 

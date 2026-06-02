@@ -76,6 +76,13 @@
       "loadMode": "always"
     },
     {
+      "id": "opencode-elegy-obsidian-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/elegy-obsidian",
+      "destination": "skills/elegy-obsidian",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "opencode-rubberduck-plan-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",
@@ -128,25 +135,29 @@
       "id": "opencode-code-review-skill",
       "type": "skill",
       "source": "opencode-assets/skills/code-review",
-      "destination": "skills/code-review"
+      "destination": "skills/code-review",
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-security-skill",
       "type": "skill",
       "source": "opencode-assets/skills/security",
-      "destination": "skills/security"
+      "destination": "skills/security",
+      "loadMode": "always"
     },
     {
       "id": "opencode-project-conventions-governance-skill",
       "type": "skill",
       "source": "opencode-assets/skills/project-conventions-governance",
-      "destination": "skills/project-conventions-governance"
+      "destination": "skills/project-conventions-governance",
+      "loadMode": "always"
     },
     {
       "id": "opencode-stack-detector-skill",
       "type": "skill",
       "source": "opencode-assets/skills/stack-detector",
-      "destination": "skills/stack-detector"
+      "destination": "skills/stack-detector",
+      "loadMode": "always"
     },
     {
       "id": "opencode-worktree-plugin",
@@ -158,7 +169,36 @@
       "id": "opencode-worktree-skill",
       "type": "skill",
       "source": "opencode-assets/skills/worktree",
-      "destination": "skills/worktree"
+      "destination": "skills/worktree",
+      "loadMode": "always"
+    },
+    {
+      "id": "opencode-lane-quick-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/lane-quick",
+      "destination": "skills/lane-quick",
+      "loadMode": "always"
+    },
+    {
+      "id": "opencode-lane-standard-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/lane-standard",
+      "destination": "skills/lane-standard",
+      "loadMode": "always"
+    },
+    {
+      "id": "opencode-lane-spec-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/lane-spec",
+      "destination": "skills/lane-spec",
+      "loadMode": "always"
+    },
+    {
+      "id": "opencode-lane-project-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/lane-project",
+      "destination": "skills/lane-project",
+      "loadMode": "always"
     }
   ],
   "sourcePatterns": []

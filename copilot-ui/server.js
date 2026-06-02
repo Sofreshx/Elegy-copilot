@@ -284,6 +284,7 @@ function runStartupManagedAssetSync(engineRoot, homes, options = {}) {
       const result = assets.syncManagedInstall(engineRoot, home, {
         force,
         pointerMode: options.pointerMode !== false,
+        manifestPath: options.manifestPath,
       });
       const summary = {
         home,
@@ -4752,6 +4753,7 @@ async function startServer(options = {}) {
   const copilotHome = resolveCopilotHome(args);
   const vscodeHome = resolveVscodeHome(args);
   const sandboxesHome = resolveSandboxesHome(args);
+  const opencodeHome = resolveOpenCodeHomeFromEnv(process.env);
   const autonomousDecisionLog = createAutonomousDecisionLog(copilotHome);
   const trackerUrl = resolveTrackerUrl(args);
   const trackerTokenResolution = await resolveTrackerToken(args);
@@ -4884,10 +4886,17 @@ async function startServer(options = {}) {
   };
   const startupManagedAssetSyncRunAt = new Date().toISOString();
   const managedAssetSyncSummary = managedAssetSyncOnStart
-    ? runStartupManagedAssetSync(engineRoot, [copilotHome, vscodeHome], {
-      pointerMode: true,
-      quiet,
-    })
+    ? [
+      ...runStartupManagedAssetSync(engineRoot, [copilotHome, vscodeHome], {
+        pointerMode: true,
+        quiet,
+      }),
+      ...runStartupManagedAssetSync(engineRoot, [opencodeHome], {
+        pointerMode: true,
+        quiet,
+        manifestPath: 'opencode-assets/manifest.json',
+      }),
+    ]
     : [];
   let startupManagedAssetSync = summarizeStartupManagedAssetSync(managedAssetSyncSummary, {
     ran: managedAssetSyncOnStart,

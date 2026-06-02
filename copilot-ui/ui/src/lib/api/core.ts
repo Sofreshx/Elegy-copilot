@@ -14,7 +14,6 @@ import type {
   CatalogRefreshResponse,
   CatalogSearchRequest,
   CodexProviderStatusResponse,
-  OpenCodeAgentStatusResponse,
   CatalogSearchSelectionPayload,
   CatalogSearchSelectionResponse,
   CatalogSearchResponse,
@@ -2574,24 +2573,6 @@ export function normalizeCodexProviderStatusResponse(payload: unknown): CodexPro
   };
 }
 
-export function normalizeOpenCodeAgentStatusResponse(payload: unknown): OpenCodeAgentStatusResponse {
-  const record = asRecord(payload);
-
-  return {
-    ...record,
-    opencodeHome: asString(record.opencodeHome),
-    configPath: asString(record.configPath),
-    exploreModel: asTrimmedString(record.exploreModel) || 'deepseek/deepseek-v4-flash',
-    scoutModel: asTrimmedString(record.scoutModel) || 'deepseek/deepseek-v4-flash',
-    isCustom: asBoolean(record.isCustom, false),
-    availableModels: asArray(record.availableModels)
-      .map((entry) => asTrimmedString(entry))
-      .filter((entry) => entry.length > 0),
-    lastAppliedAt: typeof record.lastAppliedAt === 'string' || record.lastAppliedAt === null
-      ? (record.lastAppliedAt as string | null)
-      : null,
-  };
-}
 
 export function normalizeGatewaySaveConfigResponse(payload: unknown): GatewaySaveConfigResponse {
   const record = asRecord(payload);

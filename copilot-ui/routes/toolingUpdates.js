@@ -108,7 +108,7 @@ async function buildToolingStatus(ctx, deps) {
       && compareVersions(planningLatestVersion, planningCurrentVersion) > 0,
   );
 
-  const managedStatuses = deps.assets.getManagedAssetStatuses(ctx.engineRoot, ctx.copilotHomeAbs);
+  const managedStatuses = deps.assets.getManagedAssetStatuses(ctx.engineRoot, ctx.opencodeHome, 'opencode-assets/manifest.json');
   const trackedSkills = filterElegySkillAssets(managedStatuses);
   const outdatedSkills = trackedSkills.filter((asset) => asset.upToDate !== true);
 
@@ -126,7 +126,7 @@ async function buildToolingStatus(ctx, deps) {
       trackedCount: trackedSkills.length,
       outdatedCount: outdatedSkills.length,
       updateAvailable: outdatedSkills.length > 0,
-      canUpdate: Boolean(ctx.engineRoot && ctx.copilotHomeAbs),
+      canUpdate: Boolean(ctx.engineRoot && ctx.opencodeHome),
       assets: trackedSkills.map(mapManagedSkillAsset),
       lastError: null,
     },
@@ -202,10 +202,11 @@ function register(deps = {}) {
         try {
           const body = await resolvedDeps.readJsonBody(ctx.req);
           const force = Boolean(body.force);
-          const syncResult = resolvedDeps.assets.syncAll(ctx.engineRoot, ctx.copilotHomeAbs, {
+          const syncResult = resolvedDeps.assets.syncAll(ctx.engineRoot, ctx.opencodeHome, {
             dryRun: false,
             force,
             pointerMode: true,
+            manifestPath: 'opencode-assets/manifest.json',
             assetFilter: isElegySkillAsset,
           });
 

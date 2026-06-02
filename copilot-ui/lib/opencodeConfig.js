@@ -159,7 +159,16 @@ function readConfig(opencodeHome) {
 
 function writeConfig(opencodeHome, config) {
   const configPath = resolveConfigPath(opencodeHome);
-  const json = JSON.stringify(config, null, 2) + '\n';
+  const cleaned = { ...config };
+  if (cleaned.provider && typeof cleaned.provider === 'object' && !Array.isArray(cleaned.provider)) {
+    const { route: _removed, ...rest } = cleaned.provider;
+    if (Object.keys(rest).length > 0) {
+      cleaned.provider = rest;
+    } else {
+      delete cleaned.provider;
+    }
+  }
+  const json = JSON.stringify(cleaned, null, 2) + '\n';
   writeTextAtomic(configPath, json);
 }
 
@@ -173,6 +182,36 @@ function readState(opencodeHome) {
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
+  }
+}
+
+function getActiveProfileRoute(opencodeHome) {
+  const state = readState(opencodeHome);
+  if (typeof state.activeProfileRoute === 'string' && state.activeProfileRoute) {
+    return state.activeProfileRoute;
+  }
+  return 'opencode-go';
+}
+
+function setActiveProfileRoute(opencodeHome, route) {
+  const state = readState(opencodeHome);
+  state.activeProfileRoute = route;
+  state.updatedAt = new Date().toISOString();
+  writeState(opencodeHome, state);
+}
+
+function removeActiveProfileRoute(opencodeHome) {
+  const state = readState(opencodeHome);
+  delete state.activeProfileRoute;
+  state.updatedAt = new Date().toISOString();
+  writeState(opencodeHome, state);
+}
+
+function updateStateProfileRoute(opencodeHome, route) {
+  if (typeof route === 'string' && route) {
+    setActiveProfileRoute(opencodeHome, route);
+  } else {
+    removeActiveProfileRoute(opencodeHome);
   }
 }
 
@@ -318,4 +357,8 @@ module.exports = {
   getStatus,
   setAgentModels,
   resetConfig,
+  getActiveProfileRoute,
+  setActiveProfileRoute,
+  removeActiveProfileRoute,
+  updateStateProfileRoute,
 };

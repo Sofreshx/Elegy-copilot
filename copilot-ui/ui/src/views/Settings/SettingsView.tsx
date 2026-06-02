@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Panel, Toolbar } from '../../components';
+import { SIDEBAR_NAV_ITEMS } from '../../stores/navigation';
 import CodexProviderPanel from './CodexProviderPanel';
-import OpenCodeAgentPanel from './OpenCodeAgentPanel';
 
 const BRAND_ICON_SRC = '/elegy-copilot-icon.svg';
 
@@ -51,11 +51,9 @@ export default function SettingsView() {
       <div className="settings-content">
         <CodexProviderPanel />
 
-        <OpenCodeAgentPanel />
-
         <Panel title="Keyboard Shortcuts" subtitle="Navigation and actions" testId="settings-shortcuts">
           <dl className="settings-shortcuts-list">
-            <dt><kbd>Ctrl+1</kbd> – <kbd>Ctrl+6</kbd></dt>
+            <dt><kbd>Ctrl+1</kbd> – <kbd>Ctrl+{SIDEBAR_NAV_ITEMS.length}</kbd></dt>
             <dd>Switch sidebar sections</dd>
             <dt><kbd>Escape</kbd></dt>
             <dd>Back from detail view</dd>

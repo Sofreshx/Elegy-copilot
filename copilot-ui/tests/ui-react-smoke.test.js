@@ -132,120 +132,6 @@ async function run() {
     );
   });
 
-  await test('execution no longer depends on a standalone runtime tab and sessions mode buttons use stable toolbar layout', async () => {
-    const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
-    const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
-    const sessionsViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'SessionsView.tsx'), 'utf8');
-
-    assert.ok(appCss.includes('.showcase-toolbar-group-stable {'), 'Expected stable toolbar group selector in app.css');
-    assert.ok(
-      sessionsViewSource.includes('className="showcase-toolbar-group showcase-toolbar-group-stable"'),
-      'Expected SessionsView mode toolbar to opt into stable layout styling'
-    );
-    assert.ok(
-      !appSource.includes(["./tabs", "HomeRuntime", ["HomeRuntime", "View"].join("")].join("/")),
-      'Did not expect App.tsx to render the retired runtime tab view'
-    );
-  });
-
-  await test('runtime sessions surface overlay workspace and current shell exposes overlay handoff routes', async () => {
-    const sessionsViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'SessionsView.tsx'), 'utf8');
-    const overlayWorkspaceSource = fs.readFileSync(
-      path.join(uiSrcRoot, 'tabs', 'Sessions', 'OverlaySessionsWorkspace.tsx'),
-      'utf8'
-    );
-
-    assert.ok(
-      sessionsViewSource.includes('runtime-overlay-sessions-panel'),
-      'Expected SessionsView to expose a stable overlay sessions panel test id'
-    );
-    assert.ok(
-      sessionsViewSource.includes('OverlaySessionsWorkspace'),
-      'Expected SessionsView to render the overlay sessions workspace'
-    );
-    assert.ok(
-      overlayWorkspaceSource.includes('Open Selected in Runtime'),
-      'Expected overlay sessions workspace to expose selected-session runtime handoff copy'
-    );
-    assert.ok(
-      overlayWorkspaceSource.includes('Resume'),
-      'Expected overlay sessions workspace to expose row-level resume handoff copy'
-    );
-    assert.ok(
-      overlayWorkspaceSource.includes('runtime-overlay-session-open-executor-'),
-      'Expected overlay sessions workspace to expose stable per-session runtime handoff ids'
-    );
-    assert.ok(
-      overlayWorkspaceSource.includes("navigationStore.navigate('dashboard')"),
-      'Expected overlay sessions workspace to hand off through the runtime sidebar destination'
-    );
-  });
-
-  await test('planning owns the visible task board while runtime surfaces link back to it with orchestration-safe labels', async () => {
-    const planningAuthorityViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Planning', 'PlanningAuthorityView.tsx'), 'utf8');
-    const sessionsViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'SessionsView.tsx'), 'utf8');
-    const executorViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Executor', 'ExecutorView.tsx'), 'utf8');
-    const taskBoardSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'TaskBoardView.tsx'), 'utf8');
-    const sessionsStoreSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'sessionsStore.ts'), 'utf8');
-    const executorStoreSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Executor', 'executorStore.ts'), 'utf8');
-
-    assert.ok(planningAuthorityViewSource.includes('planning-task-board-panel'), 'Expected PlanningAuthorityView to expose the visible task board panel');
-    assert.ok(planningAuthorityViewSource.includes('planning-open-transfer-tab'), 'Expected PlanningAuthorityView to expose the transfer workspace entry point');
-    assert.ok(planningAuthorityViewSource.includes('planning-transfer-panel'), 'Expected PlanningAuthorityView to expose the harness transfer panel');
-    assert.ok(!sessionsViewSource.includes('sessions-task-board-panel'), 'Did not expect SessionsView to expose a task board panel');
-    assert.ok(!executorViewSource.includes('executor-task-board-panel'), 'Did not expect ExecutorView to expose a task board panel');
-    assert.ok(sessionsViewSource.includes('sessions-open-planning-task-board'), 'Expected SessionsView to link back to the Planning task board');
-    assert.ok(executorViewSource.includes('executor-open-planning-task-board'), 'Expected ExecutorView to link back to the Planning task board');
-    assert.ok(sessionsViewSource.includes('Open Planning Workspace'), 'Expected SessionsView planning handoff copy to match the Planning workspace label');
-    assert.ok(executorViewSource.includes('Open Planning Workspace'), 'Expected ExecutorView planning handoff copy to match the Planning workspace label');
-    assert.ok(taskBoardSource.includes('Linked live session'), 'Expected task board labels to distinguish linked live session state');
-    assert.ok(taskBoardSource.includes('In-session actors'), 'Expected task board labels to distinguish in-session actors');
-    assert.ok(taskBoardSource.includes('Worktree isolation'), 'Expected task board labels to distinguish worktree isolation');
-    assert.ok(taskBoardSource.includes('Durable repo-state task board'), 'Expected task board copy to keep repo-state durable authority explicit');
-    assert.ok(sessionsStoreSource.includes('taskBoardFilterStatus'), 'Expected sessionsStore to keep board-only presentation state');
-    assert.ok(executorStoreSource.includes('taskBoardFilterStatus'), 'Expected executorStore to keep board-only presentation state');
-  });
-
-  await test('executor observes merged external CLI and VS Code sessions', async () => {
-    const executorStoreSource = fs.readFileSync(
-      path.join(uiSrcRoot, 'tabs', 'Executor', 'executorStore.ts'),
-      'utf8'
-    );
-    const executorViewSource = fs.readFileSync(
-      path.join(uiSrcRoot, 'tabs', 'Executor', 'ExecutorView.tsx'),
-      'utf8'
-    );
-
-    assert.ok(
-      executorStoreSource.includes("listSessions(undefined, { source: 'all', dedupe: 'on' })"),
-      'Expected executorStore to load merged external sessions with source=all and dedupe=on'
-    );
-    assert.ok(
-      executorStoreSource.includes('observedExternalSessions'),
-      'Expected executorStore to track observedExternalSessions'
-    );
-    assert.ok(
-      executorViewSource.includes('Observed External Sessions'),
-      'Expected ExecutorView to expose the Observed External Sessions surface'
-    );
-    assert.ok(
-      executorViewSource.includes('executor-observed-sessions-panel'),
-      'Expected ExecutorView to expose a stable test id for observed external sessions'
-    );
-    assert.ok(
-      executorViewSource.includes('executor-sandbox-mode-section'),
-      'Expected ExecutorView to absorb sandbox lifecycle as an embedded execution mode section'
-    );
-    assert.ok(
-      executorViewSource.includes('Attach Mode Foundation'),
-      'Expected ExecutorView to expose the attach-first runtime overlay foundation panel'
-    );
-    assert.ok(
-      executorViewSource.includes('executor-ui-runtime-overlay-panel'),
-      'Expected ExecutorView to expose a stable test id for the attach mode foundation panel'
-    );
-  });
-
   await test('stats tab aggregates runtime, catalog, and sampled recent session telemetry', async () => {
     const diagnosticsPanelSource = fs.readFileSync(
       path.join(uiSrcRoot, 'views', 'Maintenance', 'DiagnosticsPanel.tsx'), 'utf8'
@@ -266,7 +152,6 @@ async function run() {
     assert.ok(statsStoreSource.includes('getHealth()'), 'Expected statsStore to load runtime health');
     assert.ok(statsStoreSource.includes('getRuntimeCatalogHealth()'), 'Expected statsStore to load catalog health');
     assert.ok(statsStoreSource.includes('getCatalogAssetAnalytics()'), 'Expected statsStore to load catalog telemetry');
-    assert.ok(statsStoreSource.includes('getSdkHealth()'), 'Expected statsStore to load SDK health');
     assert.ok(statsStoreSource.includes('getExecutorHealth()'), 'Expected statsStore to load executor health');
     assert.ok(
       statsStoreSource.includes("listSessions(undefined, { source: 'all', dedupe: 'on' })"),

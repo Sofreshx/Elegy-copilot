@@ -33,7 +33,7 @@ bash scripts/opencode-install.sh
 ## Operating Model
 
 - Built-in agents stay primary: `Build`, `Plan`, `Explore`, `Scout`, `General`.
-- Primary skills: `skill-discovery`, `rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, `stack-detector`, `worktree`.
+- Primary skills: `skill-discovery`, `rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, `stack-detector`, `worktree`, `lane-quick`, `lane-standard`, `lane-spec`, `lane-project`, `elegy-obsidian`.
 - Planning, review, and spec skills are installed by default under `~/.config/opencode/skills/`; load them with the skill tool only when they materially improve the current step.
 - Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`.
 - Shared installed planning and review behavior now narrows constraints to the minimum active set and treats ADRs as key-decision records rather than default documentation for every non-trivial change.
@@ -43,13 +43,39 @@ bash scripts/opencode-install.sh
 - Use OpenCode `/init` only when repo-local guidance actually needs to be created or refreshed.
 - Prefer the installer-based `spec-driven` profile for repeatable repo-local spec scaffolding instead of inventing a separate OpenCode-specific bootstrap path.
 
+## Agentic Lanes
+
+OpenCode provides four public lanes for matching effort to task scope. Load the lane skill before starting work:
+
+- **quick** (lane-quick): Small UI tweaks and tiny bug fixes; Flash only; no spec or roadmap
+- **standard** (lane-standard): Scoped features and normal bug fixes; Flash for execution, Pro at gates
+- **spec** (lane-spec): Contract/API/user-facing behavior; spec-first workflow; Pro for spec review
+- **project** (lane-project): Multi-session roadmap work; Elegy Planning, worktree, evidence, review
+
+See `opencode-assets/home/AGENTS.md` (installed to `~/.config/opencode/AGENTS.md`) for the full OpenCode Method specification.
+
+### Provider Profiles
+
+Profiles configure model routing across lanes. Both DeepSeek V4 Pro Max and V4 Flash Max use max reasoning effort at all times.
+
+| Field | Default | Description |
+|---|---|---|
+| `small` | DeepSeek V4 Flash Max | Cheap model for exploration/implementation |
+| `big` | DeepSeek V4 Pro Max | Capable model for gates and review |
+| `review` | DeepSeek V4 Pro High | Model for spec/plan/review gates |
+| `route` | `opencode-go` | Provider route (opencode-go or deepseek-direct) |
+
+Default route is OpenCode Go; direct DeepSeek is a configurable fallback. Use `/connect` in OpenCode TUI to set provider credentials.
+
+Max reasoning is set in `opencode.jsonc` with `reasoningEffort: "high"` on all agent configs that use DeepSeek models (build, plan, explore, scout, elegy-plan). This pass-through option maps to the DeepSeek API `reasoning_effort` parameter.
+
 ## Worktree Plugin
 
 The worktree plugin provides isolated git workspaces for feature work. It registers three tools:
 
 - `worktree_create(branch, baseBranch?)` — Creates a git worktree with automatic project setup
 - `worktree_list()` — Lists all worktrees for the current project
-- `worktree_delete(branch, force?)` — Removes a worktree (auto-commits uncommitted changes)
+- `worktree_delete(branch, force?, commitBeforeDelete?)` — Removes a worktree (does NOT auto-commit by default; use `commitBeforeDelete: true` to commit before removal)
 
 Worktrees are created under `~/.local/share/opencode/worktree/<project>/<branch>`.
 

@@ -7,7 +7,7 @@ doc_kind: node
 id: calibrated-questioning-and-depth-governance
 summary: Canonical shared policy for evidence-bound questioning and depth calibration across planning and review.
 tags: [governance, questioning, depth, planning, review]
-related: [search-execute-workflow, orchestrator-user-guide, reviewer-lane-governance, follow-up-discovery-governance, planning-backlog-roadmap-contract, planpack-spec, progressive-constraint-narrowing, adr-governance, skills-governance, model-capability-profile]
+related: [search-execute-workflow, orchestration-and-agents, reviewer-lane-governance, follow-up-discovery-governance, planning-backlog-roadmap-contract, planpack-spec, progressive-constraint-narrowing, adr-governance, skills-governance, model-capability-profile]
 ---
 
 # Calibrated Questioning and Depth Governance

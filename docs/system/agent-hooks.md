@@ -2,7 +2,7 @@
 created: 2026-02-23
 updated: 2026-06-01
 category: system
-status: retired
+status: archived
 doc_kind: node
 id: agent-hooks
 summary: Retired. How to use opt-in Copilot agent hooks in this repo, including safety and hang-prevention policies.

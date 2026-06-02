@@ -177,10 +177,11 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
       }),
 
       worktree_delete: tool({
-        description: "Remove a git worktree. Auto-commits any uncommitted changes before removal. Use this to clean up after finishing work in an isolated worktree.",
+        description: "Remove a git worktree. By default does NOT auto-commit; use commitBeforeDelete=true to commit pending changes before removal. Use this to clean up after finishing work in an isolated worktree.",
         args: {
           branch: tool.schema.string().describe("Branch name of the worktree to remove"),
           force: tool.schema.boolean().optional().describe("Force removal even with uncommitted changes"),
+          commitBeforeDelete: tool.schema.boolean().optional().describe("If true, auto-commit pending changes before removal (default: false)"),
         },
         async execute(args, ctx) {
           const branch = args.branch.replace(/[^a-zA-Z0-9_/-]/g, "-");
@@ -190,19 +191,21 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
             return "No worktree found at " + worktreePath;
           }
 
-          try {
-            const status = await runGit(["status", "--porcelain"], worktreePath);
-            if (status) {
-              ctx.metadata({ title: "Auto-committing changes before removal" });
-              await runGit(["add", "-A"], worktreePath);
-              try {
-                await runGit(["-c", "user.name=opencode-worktree", "-c", "user.email=opencode@local", "commit", "-m", "auto-commit: worktree cleanup for " + branch], worktreePath);
-              } catch (commitErr) {
-                // commit failed (empty tree or config issue), skip
+          if (args.commitBeforeDelete) {
+            try {
+              const status = await runGit(["status", "--porcelain"], worktreePath);
+              if (status) {
+                ctx.metadata({ title: "Auto-committing changes before removal" });
+                await runGit(["add", "-A"], worktreePath);
+                try {
+                  await runGit(["-c", "user.name=opencode-worktree", "-c", "user.email=opencode@local", "commit", "-m", "auto-commit: worktree cleanup for " + branch], worktreePath);
+                } catch (commitErr) {
+                  // commit failed (empty tree or config issue), skip
+                }
               }
+            } catch {
+              // no changes or git error, continue with removal
             }
-          } catch {
-            // no changes or git error, continue with removal
           }
 
           try {

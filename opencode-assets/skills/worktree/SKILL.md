@@ -39,11 +39,22 @@ Lists all git worktrees for the current project. No parameters needed.
 
 ### worktree_delete
 
-Removes a git worktree. Auto-commits uncommitted changes before removal.
+Removes a git worktree. Does NOT auto-commit by default; use `commitBeforeDelete: true` to commit pending changes before removal.
 
 **Parameters:**
 - `branch` (required): Branch name of the worktree to remove
 - `force` (optional): Force removal even with uncommitted changes
+- `commitBeforeDelete` (optional): If true, auto-commit pending changes before removal (default: false)
+
+**Example — clean removal (recommended for project lane):**
+```
+worktree_delete(branch: "feature/my-feature")
+```
+
+**Example — auto-commit pending changes before removal:**
+```
+worktree_delete(branch: "feature/my-feature", commitBeforeDelete: true)
+```
 
 ## Workflow
 
@@ -72,8 +83,11 @@ When done with the worktree:
 # List worktrees to find the one to remove
 worktree_list()
 
-# Remove the worktree (auto-commits uncommitted changes)
+# Remove the worktree (no auto-commit by default)
 worktree_delete(branch: "feature/my-feature")
+
+# If you want to commit pending changes before removal:
+worktree_delete(branch: "feature/my-feature", commitBeforeDelete: true)
 ```
 
 ## Configuration
@@ -101,7 +115,7 @@ The worktree plugin injects these env vars into all shell commands:
 
 - Worktrees are created under `~/.local/share/opencode/worktree/<project>/`
 - Each worktree gets its own branch
-- Uncommitted changes are auto-committed before deletion
+- Uncommitted changes are NOT auto-committed before deletion by default; use `commitBeforeDelete: true` if you want auto-commit
 - The main checkout is never modified
 
 ## Common Mistakes

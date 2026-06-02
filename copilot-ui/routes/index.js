@@ -95,6 +95,7 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./dashboard'), context);
 
   registry.registerModule(require('./config'), context);
+  registry.registerModule(require('./opencode'), context);
   registry.registerModule(require('./executor'), context);
   registry.registerModule(require('./git'), context);
 

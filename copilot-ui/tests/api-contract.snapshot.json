@@ -1483,40 +1483,64 @@
       "syncResult"
     ]
   },
-  "GET /api/config/opencode-agents": {
+  "GET /api/opencode/status": {
     "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "availableModels",
+      "activeProfileId",
+      "availableRoutes",
+      "bigModel",
       "configPath",
-      "exploreModel",
-      "isCustom",
-      "lastAppliedAt",
+      "configPreview",
+      "elegyPlanningCli",
+      "elegySkillsAssets",
+      "isCustomConfig",
+      "lanes",
       "opencodeHome",
-      "scoutModel"
+      "overallStatus",
+      "planningLiveAuthority",
+      "profiles",
+      "setupChecks",
+      "smallModel",
+      "warnings"
     ]
   },
-  "PUT /api/config/opencode-agents": {
+  "POST /api/opencode/config": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "ok",
+      "status"
+    ]
+  },
+  "POST /api/opencode/config/reset": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "ok",
+      "status"
+    ]
+  },
+  "POST /api/opencode/assets/install": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "ok",
+      "status",
+      "syncResult"
+    ]
+  },
+  "POST /api/opencode/tooling/install": {
     "status": 400,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "error"
-    ]
-  },
-  "POST /api/config/opencode-agents/reset": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "availableModels",
-      "configPath",
-      "exploreModel",
-      "isCustom",
-      "lastAppliedAt",
-      "opencodeHome",
-      "scoutModel"
+      "error",
+      "ok"
     ]
   },
   "GET /api/executor/health": {
