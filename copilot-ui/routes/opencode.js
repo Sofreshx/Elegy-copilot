@@ -10,6 +10,7 @@ const {
   downloadElegyPlanningCli,
 } = require('../lib/elegyPlanningCliResolver');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const codexConfig = require('../lib/codexConfig');
 
 const TOOLING_INSTALL_KINDS = new Set(['elegy-planning-cli', 'elegy-skills']);
 
@@ -232,7 +233,7 @@ function buildProfiles(opencodeConfig, opencodeHome) {
   };
 }
 
-function buildSetupChecks(opencodeHome, copilotHomeAbs, engineRoot, assets, ctx, opencodeConfigLib) {
+function buildSetupChecks(opencodeHome, copilotHomeAbs, engineRoot, assets, ctx, opencodeConfigLib, codexHome) {
   const checks = [];
   const ocLib = opencodeConfigLib || opencodeConfigDefault;
 
@@ -341,6 +342,37 @@ function buildSetupChecks(opencodeHome, copilotHomeAbs, engineRoot, assets, ctx,
     detail: `Provider route is set to ${providerRoute}`,
     action: null,
   });
+
+  // Codex elegy-planning check (only when codexHome is available)
+  if (codexHome) {
+    try {
+      const planningSkillStatus = codexConfig.getPlanningSkillStatus(codexHome);
+      const cliPath = resolveElegyPlanningCliPath({
+        cliPath: process.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
+        runtimeRoot: engineRoot,
+        copilotHome: copilotHomeAbs,
+        env: process.env,
+      });
+      const ready = planningSkillStatus.installed && Boolean(cliPath);
+      checks.push({
+        id: 'codex-elegy-planning',
+        label: 'Codex Elegy Planning',
+        status: ready ? 'ok' : 'warning',
+        detail: ready
+          ? `Codex planning skill installed at ${planningSkillStatus.skillDir}`
+          : 'Install elegy-planning skill for Codex to enable planning-first work.',
+        action: ready ? undefined : { kind: 'install-codex-planning', label: 'Install Codex Planning' },
+      });
+    } catch (_) {
+      checks.push({
+        id: 'codex-elegy-planning',
+        label: 'Codex Elegy Planning',
+        status: 'warning',
+        detail: 'Unable to check Codex planning status. Install elegy-planning skill for Codex.',
+        action: { kind: 'install-codex-planning', label: 'Install Codex Planning' },
+      });
+    }
+  }
 
   const projectLaneReady = checks.filter((c) => c.id === 'elegy-planning-cli' || c.id === 'elegy-planning-live' || c.id === 'elegy-skills' || c.id === 'worktree-plugin' || c.id === 'opencode-config');
   const projectLaneBlockers = projectLaneReady.filter((c) => c.status !== 'ok');
@@ -495,6 +527,7 @@ async function buildOpenCodeStatus(ctx, deps) {
     bigModel: configStatus.scoutModel,
   };
 
+  const codexHome = ctx.codexHome || path.join(require('os').homedir(), '.codex');
   const setupChecks = buildSetupChecks(
     opencodeHome,
     copilotHomeAbs,
@@ -502,6 +535,7 @@ async function buildOpenCodeStatus(ctx, deps) {
     assets,
     augmentedContext,
     opencodeConfig,
+    codexHome,
   );
 
   const overallStatus = resolveOverallStatus(setupChecks);
@@ -715,6 +749,32 @@ function register(deps = {}) {
           resolvedDeps.sendJson(ctx.res, 500, {
             error: error instanceof Error ? error.message : String(error),
           });
+        }
+      },
+    },
+    {
+      method: 'GET',
+      path: '/api/codex-planning-status',
+      handler: async (ctx) => {
+        try {
+          const codexHome = ctx.codexHome || path.join(require('os').homedir(), '.codex');
+          const codexConfig = require('../lib/codexConfig');
+          const planningSkillStatus = codexConfig.getPlanningSkillStatus(codexHome);
+          const cliPath = resolveElegyPlanningCliPath({
+            cliPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
+            runtimeRoot: ctx.engineRoot,
+            copilotHome: ctx.copilotHomeAbs,
+            env: ctx.env,
+          });
+          resolvedDeps.sendJson(ctx.res, 200, {
+            codexHome,
+            planningSkill: planningSkillStatus,
+            planningCliPath: cliPath || null,
+            planningDbPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH || null,
+            ready: planningSkillStatus.installed && Boolean(cliPath),
+          });
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, 500, { error: error instanceof Error ? error.message : String(error) });
         }
       },
     },

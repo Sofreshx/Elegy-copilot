@@ -430,6 +430,18 @@ function hardReset(codexHome) {
   };
 }
 
+function getPlanningSkillStatus(codexHome) {
+  const resolvedHome = resolveCodexHome(codexHome);
+  const skillDir = path.join(resolvedHome, 'skills', 'elegy-planning');
+  const skillFile = path.join(skillDir, 'SKILL.md');
+  return {
+    codexHome: resolvedHome,
+    skillDir,
+    skillFile,
+    installed: fs.existsSync(skillFile),
+  };
+}
+
 module.exports = {
   ROUTED_PROVIDER_ID,
   ROUTED_MODEL,
@@ -444,6 +456,7 @@ module.exports = {
   stripManagedBlock,
   appendManagedBlock,
   applySoftReset,
+  getPlanningSkillStatus,
   getStatus,
   setMode,
   hardReset,

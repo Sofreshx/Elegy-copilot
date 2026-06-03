@@ -6,6 +6,7 @@ import type {
   OpenCodeToolingInstallPayload,
   OpenCodeToolingInstallResponse,
   OpenCodeRequestLogsResponse,
+  ToolingUpdateActionResponse,
 } from '../types';
 import { apiRequest } from './core';
 
@@ -54,6 +55,18 @@ export function installOpenCodeTooling(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+  });
+}
+
+export function installCodexPlanning(
+  force = false,
+  baseUrl?: string,
+): Promise<ToolingUpdateActionResponse> {
+  return apiRequest<ToolingUpdateActionResponse>('/api/tooling-updates/update/elegy-skills-codex', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ force }),
   });
 }
 

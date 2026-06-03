@@ -3373,7 +3373,7 @@ export interface OpenCodeAssetsInstallResponse {
   error?: string;
 }
 
-export type OpenCodeToolingInstallKind = 'elegy-planning-cli' | 'elegy-skills';
+export type OpenCodeToolingInstallKind = 'elegy-planning-cli' | 'elegy-skills' | 'install-codex-planning';
 
 export interface OpenCodeToolingInstallPayload {
   kind: OpenCodeToolingInstallKind;

@@ -44,6 +44,43 @@ Narrow candidate constraints to the minimum hard constraints needed for the acti
 - If validation is skipped or blocked, say why and identify the remaining risk.
 - Treat passing tests as evidence, not proof; still inspect edge cases and diff scope.
 
+## Skills
+
+Instruction Engine installs curated skills under Codex. Skills are loaded on-demand
+and should be used only when they materially improve the result.
+
+Primary skills available:
+- `elegy-planning` — Durable planning authority via Elegy CLI. Use for goals, roadmaps,
+  plans, todos, issues, review points, and validation backed by SQLite. Prefer
+  `elegy-planning` over `roadmap-planning` markdown roadmaps when the CLI is available.
+- `roadmap-planning` — Durable multi-session roadmap work under
+  `docs/roadmaps/<roadmap-slug>.md`. Fall back to this only when `elegy-planning`
+  CLI is not available.
+- `skill-discovery` — Skill resolver for on-demand capability routing.
+- `rubberduck-plan-review` — Adversarial plan review before complex implementation work.
+- `implementation-review` — Post-edit review before handoff.
+- `implementation-handoff` — Executor-ready brief for another session or model.
+- `spec-dev` — Spec-driven router for spec-first and spec-anchored work.
+- `spec-authoring` — Durable spec authoring under `specs/<spec-slug>/spec.md`.
+- `spec-review` — Adversarial spec review before implementation planning.
+- `stack-detector` — Automatic tech stack detection.
+
+### elegy-planning Availability
+
+Before starting planning work, check whether `elegy-planning` is available on PATH.
+If the binary is found, prefer it for durable planning state (goals, roadmaps, plans).
+The shared planning database is located at the path in the
+`INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH` environment variable (defaults to
+`~/.elegy/planning.db`).
+
+To initialize a Codex-side planning session:
+```
+elegy-planning session init
+```
+
+If `elegy-planning` is not available, fall back to `$roadmap-planning` for markdown
+roadmap work.
+
 ## Native Codex Tools
 
 - To install or refresh the shared Codex agents and skills from this repo, run:
@@ -57,7 +94,7 @@ Narrow candidate constraints to the minimum hard constraints needed for the acti
 - Use `/fork` to branch a conversation without losing the original thread.
 - Use `/resume` to continue prior work instead of rebuilding context from scratch.
 - Use `PLANS.md` only for long-horizon work that must survive compaction or handoff. Do not create a file-backed plan by default.
-- Use `$roadmap-planning` for persisted multi-session goals under `docs/roadmaps/<roadmap-slug>.md`; update the roadmap lightly after completing a slice.
+- Use `$elegy-planning` for persisted multi-session goals, roadmaps, and plans backed by SQLite; fall back to `$roadmap-planning` (markdown roadmaps under `docs/roadmaps/<roadmap-slug>.md`) only when the elegy-planning CLI is not available.
 - Use `$spec-dev` when the task needs spec-first clarification, a durable repo spec under `specs/<spec-slug>/spec.md`, or a narrow spec-as-source flow.
 - Use `$spec-authoring` to create or refine durable specs under `specs/`, then `$spec-review` before implementation planning when the spec will drive the work.
 - Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Do not create ADRs for ordinary local implementation choices.

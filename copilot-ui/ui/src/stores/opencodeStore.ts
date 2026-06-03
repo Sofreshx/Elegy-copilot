@@ -4,6 +4,7 @@ import {
   resetOpenCodeConfig,
   installOpenCodeAssets,
   installOpenCodeTooling,
+  installCodexPlanning as installCodexPlanningApi,
   getOpenCodeRequestLogs,
 } from '../lib/api/opencode';
 import { createStore } from '../lib/store';
@@ -163,6 +164,32 @@ function createOpenCodeStore() {
     }
   }
 
+  async function installCodexPlanning(): Promise<void> {
+    store.setState((state) => ({ ...state, toolingInstalling: true, error: null, message: null }));
+    try {
+      const response = await installCodexPlanningApi();
+      if (response.ok) {
+        store.setState((state) => ({
+          ...state,
+          toolingInstalling: false,
+          message: 'Codex elegy-planning skill installed.',
+        }));
+      } else {
+        store.setState((state) => ({
+          ...state,
+          toolingInstalling: false,
+          error: response.error || 'Failed to install Codex planning skill.',
+        }));
+      }
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        toolingInstalling: false,
+        error: toErrorMessage(error),
+      }));
+    }
+  }
+
   async function loadRequestLogs(params?: { limit?: number; since?: string }): Promise<void> {
     store.setState((state) => ({ ...state, requestLogsLoading: true }));
     try {
@@ -203,6 +230,7 @@ function createOpenCodeStore() {
     resetConfig,
     installAssets,
     installTooling,
+    installCodexPlanning,
     loadRequestLogs,
     setActiveSection,
     setSelectedLaneId,

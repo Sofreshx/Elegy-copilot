@@ -135,6 +135,13 @@
       "source": "catalog-assets/shared-skills/spec-review",
       "destination": "skills/spec-review",
       "loadMode": "on-demand"
+    },
+    {
+      "id": "codex-elegy-planning-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/elegy-planning",
+      "destination": "skills/elegy-planning",
+      "loadMode": "always"
     }
   ],
   "sourcePatterns": []

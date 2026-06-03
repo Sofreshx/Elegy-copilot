@@ -83,7 +83,7 @@ function isElegySkillAsset(asset) {
     || id.includes('elegy-skills');
 }
 
-async function buildToolingStatus(ctx, deps) {
+async function buildToolingStatus(ctx, deps, codexHome) {
   const checkedAtMs = Date.now();
   const cliPath = resolveElegyPlanningCliPath({
     cliPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
@@ -112,6 +112,24 @@ async function buildToolingStatus(ctx, deps) {
   const trackedSkills = filterElegySkillAssets(managedStatuses);
   const outdatedSkills = trackedSkills.filter((asset) => asset.upToDate !== true);
 
+  let codexStatus = null;
+  if (codexHome && typeof deps.assets.getManagedAssetStatuses === 'function') {
+    try {
+      const codexManagedStatuses = deps.assets.getManagedAssetStatuses(ctx.engineRoot, codexHome, 'codex-assets/manifest.json');
+      const codexTrackedSkills = filterElegySkillAssets(codexManagedStatuses);
+      const codexOutdatedSkills = codexTrackedSkills.filter((asset) => asset.upToDate !== true);
+      codexStatus = {
+        trackedCount: codexTrackedSkills.length,
+        outdatedCount: codexOutdatedSkills.length,
+        updateAvailable: codexOutdatedSkills.length > 0,
+        canUpdate: Boolean(ctx.engineRoot && codexHome),
+        assets: codexTrackedSkills.map(mapManagedSkillAsset),
+      };
+    } catch {
+      codexStatus = { error: 'Unable to check Codex skill status' };
+    }
+  }
+
   return {
     checkedAtMs,
     elegyPlanningCli: {
@@ -130,6 +148,7 @@ async function buildToolingStatus(ctx, deps) {
       assets: trackedSkills.map(mapManagedSkillAsset),
       lastError: null,
     },
+    codexSkillsAssets: codexStatus,
   };
 }
 
@@ -149,7 +168,7 @@ function register(deps = {}) {
       path: '/api/tooling-updates/status',
       handler: async (ctx) => {
         try {
-          const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps);
+          const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps, ctx.codexHome);
           resolvedDeps.sendJson(ctx.res, 200, status);
         } catch (error) {
           resolvedDeps.sendJson(ctx.res, 500, {
@@ -163,7 +182,7 @@ function register(deps = {}) {
       path: '/api/tooling-updates/check',
       handler: async (ctx) => {
         try {
-          const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps);
+          const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps, ctx.codexHome);
           resolvedDeps.sendJson(ctx.res, 200, status);
         } catch (error) {
           resolvedDeps.sendJson(ctx.res, 500, {
@@ -181,7 +200,7 @@ function register(deps = {}) {
             copilotHome: ctx.copilotHomeAbs,
             fetchImpl: resolvedDeps.fetchImpl,
           });
-          const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps);
+          const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps, ctx.codexHome);
           resolvedDeps.sendJson(ctx.res, 200, {
             ok: true,
             downloadedPath,
@@ -210,7 +229,36 @@ function register(deps = {}) {
             assetFilter: isElegySkillAsset,
           });
 
-          const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps);
+          const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps, ctx.codexHome);
+          resolvedDeps.sendJson(ctx.res, 200, {
+            ok: true,
+            syncResult,
+            status,
+          });
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, 500, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/tooling-updates/update/elegy-skills-codex',
+      handler: async (ctx) => {
+        try {
+          const body = await resolvedDeps.readJsonBody(ctx.req);
+          const force = Boolean(body.force);
+          const syncResult = resolvedDeps.assets.syncAll(ctx.engineRoot, ctx.codexHome, {
+            dryRun: false,
+            force,
+            pointerMode: true,
+            manifestPath: 'codex-assets/manifest.json',
+            assetFilter: isElegySkillAsset,
+          });
+
+          const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps, ctx.codexHome);
           resolvedDeps.sendJson(ctx.res, 200, {
             ok: true,
             syncResult,

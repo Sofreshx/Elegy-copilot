@@ -179,6 +179,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-spec-dev-skill', { sourceAssetId: 'skill-spec-dev' }),
       route('codex-spec-authoring-skill', { sourceAssetId: 'skill-spec-authoring' }),
       route('codex-spec-review-skill', { sourceAssetId: 'skill-spec-review' }),
+      route('codex-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning' }),
     ],
   },
   {
