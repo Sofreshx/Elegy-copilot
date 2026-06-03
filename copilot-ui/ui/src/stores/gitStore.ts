@@ -44,6 +44,10 @@ export interface GitState {
   newBranchName: string;
   pullRequestTitle: string;
   pullRequestBody: string;
+  checkResults: import('../lib/api/git').GitCheckResults | null;
+  checkFailed: boolean;
+  unsafeOverrideReason: string;
+  showOverrideInput: boolean;
 }
 
 const INITIAL_STATE: GitState = {
@@ -67,6 +71,10 @@ const INITIAL_STATE: GitState = {
   newBranchName: '',
   pullRequestTitle: '',
   pullRequestBody: '',
+  checkResults: null,
+  checkFailed: false,
+  unsafeOverrideReason: '',
+  showOverrideInput: false,
 };
 
 function createGitStore() {
@@ -163,18 +171,40 @@ function createGitStore() {
   }
 
   async function commit(): Promise<void> {
-    const { repoPath, commitMessage } = store.getState();
+    const { repoPath, commitMessage, unsafeOverrideReason: reason } = store.getState();
     if (!repoPath || !commitMessage.trim()) return;
-    store.setState((s) => ({ ...s, committing: true, error: null }));
+    store.setState((s) => ({ ...s, committing: true, error: null, checkFailed: false }));
     try {
-      await commitGit(repoPath, commitMessage.trim());
-      store.setState((s) => ({ ...s, commitMessage: '', committing: false }));
+      const override = reason.trim() ? { reason: reason.trim() } : undefined;
+      const response = await commitGit(repoPath, commitMessage, override);
+      
+      // Check if pre-action checks failed
+      if (response.requiresOverride) {
+        store.setState((s) => ({ 
+          ...s,
+          committing: false, 
+          checkFailed: true, 
+          checkResults: response.checkResults || null,
+          showOverrideInput: true,
+        }));
+        return;
+      }
+      
+      store.setState((s) => ({ 
+        ...s,
+        commitMessage: '', 
+        committing: false, 
+        checkResults: response.checkResults || null,
+        checkFailed: false,
+        unsafeOverrideReason: '',
+        showOverrideInput: false,
+      }));
       await loadRepoState(repoPath);
-    } catch (err) {
+    } catch (e: any) {
       store.setState((s) => ({
         ...s,
+        error: e?.message || 'Commit failed',
         committing: false,
-        error: err instanceof Error ? err.message : String(err),
       }));
     }
   }
@@ -197,19 +227,39 @@ function createGitStore() {
   }
 
   async function push(): Promise<void> {
-    const { repoPath, status } = store.getState();
+    const { repoPath, unsafeOverrideReason: reason } = store.getState();
     if (!repoPath) return;
-    store.setState((s) => ({ ...s, syncing: true, error: null }));
+    store.setState((s) => ({ ...s, syncing: true, error: null, checkFailed: false }));
     try {
-      await pushGit(repoPath, { setUpstream: !status?.upstream });
+      const override = reason.trim() ? { reason: reason.trim() } : undefined;
+      const response = await pushGit(repoPath, false, override);
+      
+      if (response.requiresOverride) {
+        store.setState((s) => ({ 
+          ...s,
+          syncing: false, 
+          checkFailed: true, 
+          checkResults: response.checkResults || null,
+          showOverrideInput: true,
+        }));
+        return;
+      }
+      
+      store.setState((s) => ({ 
+        ...s,
+        syncing: false, 
+        checkResults: response.checkResults || null,
+        checkFailed: false,
+        unsafeOverrideReason: '',
+        showOverrideInput: false,
+      }));
       await loadRepoState(repoPath);
-    } catch (err) {
+    } catch (e: any) {
       store.setState((s) => ({
         ...s,
-        error: err instanceof Error ? err.message : String(err),
+        error: e?.message || 'Push failed',
+        syncing: false,
       }));
-    } finally {
-      store.setState((s) => ({ ...s, syncing: false }));
     }
   }
 
@@ -237,16 +287,12 @@ function createGitStore() {
   }
 
   async function createPullRequest(): Promise<void> {
-    const { repoPath, pullRequestTitle, pullRequestBody, status } = store.getState();
+    const { repoPath, pullRequestTitle, pullRequestBody } = store.getState();
     if (!repoPath) return;
 
     store.setState((s) => ({ ...s, creatingPullRequest: true, error: null }));
     try {
-      await createGitPullRequest(repoPath, {
-        title: pullRequestTitle.trim() || undefined,
-        body: pullRequestBody.trim() || undefined,
-        head: status?.branch || undefined,
-      });
+      await createGitPullRequest(repoPath, pullRequestTitle.trim(), pullRequestBody.trim());
       store.setState((s) => ({ ...s, pullRequestTitle: '', pullRequestBody: '' }));
       await loadRepoState(repoPath);
     } catch (err) {
@@ -283,6 +329,14 @@ function createGitStore() {
     store.setState((s) => ({ ...s, pullRequestBody }));
   }
 
+  function setUnsafeOverrideReason(reason: string): void {
+    store.setState((s) => ({ ...s, unsafeOverrideReason: reason }));
+  }
+
+  function clearCheckState(): void {
+    store.setState((s) => ({ ...s, checkFailed: false, checkResults: null, showOverrideInput: false, unsafeOverrideReason: '' }));
+  }
+
   function reset(): void {
     requestVersion++;
     store.setState(INITIAL_STATE);
@@ -306,6 +360,8 @@ function createGitStore() {
     setNewBranchName,
     setPullRequestTitle,
     setPullRequestBody,
+    setUnsafeOverrideReason,
+    clearCheckState,
     reset,
   };
 }

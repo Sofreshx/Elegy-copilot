@@ -118,6 +118,43 @@ export default function RepositoryGitPanel({ repoPath, mode = 'project' }: Repos
           <div className="git-panel-error" data-testid="git-panel-error">{state.error}</div>
         ) : null}
 
+        {/* Check results warning */}
+        {state.checkFailed && state.checkResults && (
+          <div className="git-panel-warning">
+            <div className="git-panel-warning-header">
+              ⚠️ Pre-action checks failed ({state.checkResults.checksFailed} of {state.checkResults.checksRun})
+            </div>
+            <ul className="git-panel-check-list">
+              {state.checkResults.results.filter(r => !r.passed).map((r, i) => (
+                <li key={i}>
+                  <strong>{r.checkName}</strong>: {r.error || 'Check failed'}
+                  {r.output && <pre className="git-check-output">{r.output.slice(0, 500)}</pre>}
+                </li>
+              ))}
+            </ul>
+            {state.showOverrideInput && (
+              <div className="git-override-section">
+                <label>
+                  Override reason (required for unsafe action):
+                  <input
+                    type="text"
+                    className="git-override-input"
+                    value={state.unsafeOverrideReason}
+                    onChange={(e) => gitStore.setUnsafeOverrideReason(e.target.value)}
+                    placeholder="e.g., Hotfix for production issue PROD-123"
+                  />
+                </label>
+                <div className="git-override-warning">
+                  ⚠️ Proceeding with failed checks. This action will be recorded.
+                </div>
+              </div>
+            )}
+            <div className="git-panel-warning-actions">
+              <button onClick={() => gitStore.clearCheckState()}>Cancel</button>
+            </div>
+          </div>
+        )}
+
         <div className="git-summary-grid" data-testid="git-summary-grid">
           <div className="git-summary-card">
             <span className="git-summary-label">Changes</span>
@@ -161,9 +198,9 @@ export default function RepositoryGitPanel({ repoPath, mode = 'project' }: Repos
             size="sm"
             testId="git-panel-push"
             onClick={() => void gitStore.push()}
-            disabled={state.syncing || !summary?.branch}
+            disabled={state.syncing || !summary?.branch || (state.checkFailed && !state.unsafeOverrideReason.trim())}
           >
-            Push
+            {state.syncing ? 'Syncing…' : 'Push'}
           </Button>
           <Button
             variant="ghost"
@@ -306,10 +343,10 @@ export default function RepositoryGitPanel({ repoPath, mode = 'project' }: Repos
             variant="primary"
             size="sm"
             testId="git-panel-commit-button"
-            disabled={state.committing || !state.commitMessage.trim()}
+            disabled={state.committing || !state.commitMessage.trim() || (state.checkFailed && !state.unsafeOverrideReason.trim())}
             onClick={() => void gitStore.commit()}
           >
-            {state.committing ? 'Committing…' : 'Commit'}
+            {state.committing ? 'Committing…' : 'Commit changes'}
           </Button>
         </div>
 

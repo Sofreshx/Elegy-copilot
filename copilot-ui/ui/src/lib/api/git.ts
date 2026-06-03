@@ -110,12 +110,51 @@ export async function unstageGitFiles(repoPath: string, files?: string[], baseUr
   });
 }
 
-export async function commitGit(repoPath: string, message: string, baseUrl?: string): Promise<{ committed: boolean; output: string }> {
-  return apiRequest<{ committed: boolean; output: string }>('/api/git/commit', {
-    baseUrl,
+export interface GitCheckResult {
+  checkName: string;
+  passed: boolean;
+  error?: string;
+  output?: string;
+}
+
+export interface GitCheckResults {
+  repoRoot: string;
+  checkedAt: string;
+  checksAvailable: number;
+  checksRun: number;
+  checksPassed: number;
+  checksFailed: number;
+  allPassed: boolean;
+  results: GitCheckResult[];
+  message: string;
+}
+
+export interface GitActionResponse {
+  checkResults?: GitCheckResults | null;
+  overrideApplied?: boolean;
+  overrideReason?: string | null;
+  committed?: boolean;
+  pushed?: boolean;
+  created?: boolean;
+  output?: string;
+  pullRequest?: any;
+  error?: string;
+  requiresOverride?: boolean;
+}
+
+export async function commitGit(
+  repoPath: string,
+  message: string,
+  unsafeOverride?: { reason: string }
+): Promise<GitActionResponse> {
+  return apiRequest<GitActionResponse>('/api/git/commit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ repoPath, message }),
+    body: JSON.stringify({
+      repoPath,
+      message,
+      unsafeOverride: unsafeOverride || undefined,
+    }),
   });
 }
 
@@ -143,26 +182,34 @@ export async function pullGit(repoPath: string, baseUrl?: string): Promise<{ pul
 
 export async function pushGit(
   repoPath: string,
-  payload: { setUpstream?: boolean } = {},
-  baseUrl?: string,
-): Promise<{ pushed: boolean; output: string }> {
-  return apiRequest<{ pushed: boolean; output: string }>('/api/git/push', {
-    baseUrl,
+  setUpstream: boolean,
+  unsafeOverride?: { reason: string }
+): Promise<GitActionResponse> {
+  return apiRequest<GitActionResponse>('/api/git/push', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ repoPath, ...payload }),
+    body: JSON.stringify({
+      repoPath,
+      setUpstream,
+      unsafeOverride: unsafeOverride || undefined,
+    }),
   });
 }
 
 export async function createGitPullRequest(
   repoPath: string,
-  payload: { title?: string; body?: string; base?: string; head?: string },
-  baseUrl?: string,
-): Promise<{ created: boolean; pullRequest: { number: number; url: string; state: string } }> {
-  return apiRequest<{ created: boolean; pullRequest: { number: number; url: string; state: string } }>('/api/git/pull-request', {
-    baseUrl,
+  title: string,
+  body: string,
+  unsafeOverride?: { reason: string }
+): Promise<GitActionResponse> {
+  return apiRequest<GitActionResponse>('/api/git/pull-request', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ repoPath, ...payload }),
+    body: JSON.stringify({
+      repoPath,
+      title,
+      body,
+      unsafeOverride: unsafeOverride || undefined,
+    }),
   });
 }
