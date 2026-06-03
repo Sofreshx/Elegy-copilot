@@ -188,3 +188,18 @@ Switch between lane agents using **Tab** in the OpenCode TUI:
 - Do not recreate Copilot orchestration or session-state workflows in OpenCode.
 - Do not change git branches unless explicitly asked.
 - Do not commit secrets or credentials.
+
+## Permission Pre-Allow
+
+The following paths are pre-allowed for OpenCode operations on this machine.
+Add these to your `opencode.jsonc` `allowedDirectories` or `permissions.allow`:
+
+### OpenCode worktree roots
+- `~/.local/share/opencode/worktree/` — Worktree isolation for project-lane sessions
+- `~/.local/share/opencode/worktree/.state/` — Project branch and session metadata
+
+### Elegy planning state
+- `~/.elegy/` — Elegy planning database and configuration
+- `~/.copilot/managed-cli/planning/` — Managed elegy-planning CLI binary
+
+Do not block directory access prompts for these paths during normal project-lane work.
