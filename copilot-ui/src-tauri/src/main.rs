@@ -755,6 +755,12 @@ fn main() {
         Ok(app) => {
             boot_log!("tauri build succeeded, starting event loop");
             app.run(|app, event| match event {
+                RunEvent::ExitRequested { api, .. } => {
+                    // Prevent app exit — secondary windows (planning graph) may
+                    // still be open. The runtime host keeps running until the
+                    // Tauri process is explicitly terminated.
+                    api.prevent_exit();
+                }
                 RunEvent::Exit => shutdown_runtime(app),
                 _ => {}
             });

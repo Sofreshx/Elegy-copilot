@@ -685,6 +685,63 @@
   align-content: start;
 }
 
+/* ---- Planning Graph View ---- */
+
+.planning-graph-workspace {
+  display: grid;
+  gap: var(--space-sm);
+  min-width: 0;
+  min-height: 500px;
+  height: calc(100vh - 320px);
+}
+
+.planning-graph-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) 0;
+  flex-wrap: wrap;
+}
+
+.planning-graph-breadcrumb-separator {
+  color: var(--color-ink-400);
+  font-size: 0.85rem;
+}
+
+.planning-graph-breadcrumb-title {
+  color: var(--color-ink-950);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.planning-graph-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  gap: var(--space-md);
+  text-align: center;
+}
+
+.planning-detail-panel {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-300) transparent;
+}
+
+.planning-detail-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.planning-detail-panel::-webkit-scrollbar-thumb {
+  background: var(--color-ink-300);
+  border-radius: 3px;
+}
+
+.planning-detail-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .planning-authority-status {
   display: flex;
   align-items: flex-start;
@@ -6505,4 +6562,472 @@ textarea:focus-visible,
 
 .opencode-setup-action {
   flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Planning Explorer View                                              */
+/* ------------------------------------------------------------------ */
+
+.planning-explorer-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  height: 100%;
+  overflow-y: auto;
+}
+
+.planning-explorer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.planning-explorer-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.planning-explorer-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.planning-explorer-filter-label {
+  font-size: 0.85rem;
+  color: var(--color-ink-500);
+  margin-right: var(--space-xs);
+}
+
+.planning-explorer-sort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.planning-explorer-sort-select {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-1);
+  color: var(--color-ink-800);
+  font-size: 0.85rem;
+}
+
+.planning-explorer-warning {
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-700);
+  font-size: 0.85rem;
+}
+
+.planning-explorer-error {
+  color: var(--color-danger-600);
+  padding: var(--space-sm) 0;
+}
+
+.planning-explorer-empty {
+  color: var(--color-ink-400);
+  font-size: 0.9rem;
+  padding: var(--space-lg) 0;
+  text-align: center;
+}
+
+.planning-explorer-list {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.planning-explorer-card {
+  display: block;
+  width: 100%;
+  padding: var(--space-md);
+  border: 1px solid var(--color-ink-150);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-1);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--duration-fast) var(--ease-standard),
+              background var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard);
+}
+
+.planning-explorer-card:hover {
+  border-color: var(--color-brand-400);
+  background: var(--color-brand-50);
+  transform: translateY(-1px);
+}
+
+.planning-explorer-card:focus-visible {
+  border-color: var(--color-brand-500);
+  box-shadow: var(--shadow-sm);
+}
+
+.planning-explorer-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.planning-explorer-card-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-ink-900);
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.planning-explorer-card-repo {
+  font-size: 0.8rem;
+  color: var(--color-ink-500);
+  margin: var(--space-xs) 0 0;
+}
+
+.planning-explorer-card-summary {
+  font-size: 0.85rem;
+  color: var(--color-ink-600);
+  margin: var(--space-xs) 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.planning-explorer-card-date {
+  font-size: 0.75rem;
+  color: var(--color-ink-400);
+  margin: var(--space-xs) 0 0;
+}
+
+/* Standalone graph window */
+
+.standalone-graph-error {
+  padding: 2rem;
+  text-align: center;
+}
+
+/* ========================================================================
+   Lexicon View
+   ======================================================================== */
+
+.lexicon-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  height: 100%;
+  padding: var(--space-md);
+}
+
+.lexicon-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lexicon-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  max-width: 28rem;
+  width: 100%;
+  margin-left: auto;
+}
+
+.lexicon-search-icon {
+  position: absolute;
+  left: var(--space-xs);
+  font-size: var(--text-sm);
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.lexicon-search-input {
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  padding-left: calc(var(--space-lg) + var(--space-2xs));
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-default);
+  color: var(--fg-default);
+  font: inherit;
+  font-size: var(--text-sm);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.lexicon-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus-ring);
+}
+
+.lexicon-search-input::placeholder {
+  color: var(--fg-muted);
+}
+
+.lexicon-search-clear {
+  position: absolute;
+  right: var(--space-2xs);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  padding: var(--space-2xs);
+  line-height: 1;
+  border-radius: var(--radius-sm);
+}
+
+.lexicon-search-clear:hover {
+  color: var(--fg-default);
+  background: var(--bg-subtle);
+}
+
+.lexicon-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+  align-items: center;
+}
+
+.lexicon-chip {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  background: var(--bg-default);
+  color: var(--fg-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-xs);
+  padding: 0.3rem 0.6rem;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  white-space: nowrap;
+}
+
+.lexicon-chip:hover {
+  border-color: var(--accent);
+  background: var(--bg-tertiary);
+  color: var(--fg-default);
+}
+
+.lexicon-chip-active {
+  border-color: var(--accent);
+  background: var(--bg-tertiary);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.lexicon-chip-icon {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.lexicon-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.lexicon-loading {
+  padding: var(--space-xl);
+  text-align: center;
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
+.lexicon-summary {
+  padding: var(--space-xs) 0;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.lexicon-summary strong {
+  color: var(--fg-default);
+}
+
+.lexicon-result-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.lexicon-result-item {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-default);
+  padding: var(--space-sm);
+  display: grid;
+  gap: var(--space-2xs);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.lexicon-result-item:hover {
+  border-color: var(--color-border-100);
+  background: var(--color-surface-2);
+}
+
+.lexicon-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.lexicon-result-term {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.lexicon-result-category {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.lexicon-result-definition {
+  font-size: var(--text-sm);
+  color: var(--color-ink-700);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.lexicon-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+}
+
+.lexicon-tag {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-50);
+  color: var(--color-brand-500);
+}
+
+.lexicon-tag-highlighted {
+  background: var(--color-brand-100);
+  color: var(--color-brand-600);
+  font-weight: 500;
+}
+
+.lexicon-highlight {
+  background: rgba(110, 175, 168, 0.22);
+  color: var(--color-brand-500);
+  font-weight: 500;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.lexicon-inline-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--accent);
+  font: inherit;
+  font-size: inherit;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.lexicon-inline-link:hover {
+  color: var(--color-brand-400);
+}
+
+.lexicon-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-sm);
+}
+
+.lexicon-category-card {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-default);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.lexicon-category-card:hover {
+  border-color: var(--accent);
+  background: var(--color-surface-2);
+}
+
+.lexicon-category-card-icon {
+  font-size: 1.1rem;
+}
+
+.lexicon-category-card-label {
+  font-size: var(--text-md);
+  font-weight: 500;
+  color: var(--fg-default);
+}
+
+.lexicon-category-term-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.lexicon-category-term-item {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-default);
+  padding: var(--space-sm);
+  display: grid;
+  gap: var(--space-2xs);
+}
+
+.lexicon-category-term-item:hover {
+  border-color: var(--color-border-100);
+  background: var(--color-surface-2);
+}
+
+.lexicon-term-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--fg-default);
+  text-align: left;
+  padding: 0;
+}
+
+.lexicon-term-link:hover {
+  color: var(--accent);
+}
+
+.lexicon-term-definition {
+  font-size: var(--text-sm);
+  color: var(--color-ink-700);
+  margin: 0;
+  line-height: 1.4;
 }

@@ -3,6 +3,7 @@
 const path = require('path');
 const fs = require('fs');
 const opencodeConfigDefault = require('../lib/opencodeConfig');
+const opencodeLogReaderDefault = require('../lib/opencodeLogReader');
 const assetsLib = require('../lib/assets');
 const {
   resolveElegyPlanningCliPath,
@@ -353,11 +354,28 @@ function buildSetupChecks(opencodeHome, copilotHomeAbs, engineRoot, assets, ctx,
     action: projectLaneBlockers.length === 0 ? null : { kind: 'info', label: 'Resolve blockers', target: '#setup' },
   });
 
+  // Spec lane: requires opencode-config + provider-route (elegy-planning is recommended but optional)
+  const specLaneRequired = checks.filter((c) => c.id === 'opencode-config' || c.id === 'provider-route');
+  const specLaneBlockers = specLaneRequired.filter((c) => c.status !== 'ok');
+  const specLaneElegyMissing = checks.filter((c) => c.id === 'elegy-planning-cli' || c.id === 'elegy-skills').filter((c) => c.status !== 'ok');
+  const specLaneAdvisoryDetail = specLaneElegyMissing.length > 0
+    ? ` (${specLaneElegyMissing.length} advisory: elegy-planning not detected — spec work can proceed but durable planning state sync is unavailable)`
+    : '';
+  checks.push({
+    id: 'spec-lane',
+    label: 'Spec lane ready',
+    status: specLaneBlockers.length === 0 ? 'ok' : (specLaneBlockers.length === 1 ? 'warning' : 'blocked'),
+    detail: specLaneBlockers.length === 0
+      ? `All spec lane dependencies are satisfied${specLaneAdvisoryDetail}`
+      : `Blocked by ${specLaneBlockers.length} missing check(s): ${specLaneBlockers.map((c) => c.id).join(', ')}${specLaneAdvisoryDetail}`,
+    action: specLaneBlockers.length === 0 ? null : { kind: 'info', label: 'Resolve blockers', target: '#setup' },
+  });
+
   return checks;
 }
 
 function resolveOverallStatus(setupChecks) {
-  const criticalSystemChecks = setupChecks.filter((c) => c.id !== 'project-lane');
+  const criticalSystemChecks = setupChecks.filter((c) => c.id !== 'project-lane' && c.id !== 'spec-lane');
   const blocked = criticalSystemChecks.some((c) => c.status === 'blocked');
   const degraded = setupChecks.some((c) => c.status !== 'ok');
   if (blocked) return 'blocked';
@@ -441,11 +459,11 @@ function computeToolingStatus(ctx, deps, managedStatusesOverride) {
   };
 }
 
-function resolvePlanningLiveAuthorityState(ctx) {
-  if (ctx.roadmapWorkflowPlanningBridge && typeof ctx.roadmapWorkflowPlanningBridge.getState === 'function') {
+function resolvePlanningLiveAuthorityState(roadmapWorkflowPlanningBridge) {
+  if (roadmapWorkflowPlanningBridge && typeof roadmapWorkflowPlanningBridge.getStatus === 'function') {
     try {
-      const state = ctx.roadmapWorkflowPlanningBridge.getState();
-      return { ready: Boolean(state && state.ready), state: state || null };
+      const status = roadmapWorkflowPlanningBridge.getStatus();
+      return { ready: Boolean(status && status.ready), state: status || null };
     } catch {
       return { ready: false, state: null };
     }
@@ -465,7 +483,7 @@ async function buildOpenCodeStatus(ctx, deps) {
   const profiles = buildProfiles(opencodeConfig, opencodeHome);
   const lanes = buildLanes();
   const toolingStatus = computeToolingStatus(ctx, deps, managedAssetStatuses);
-  const planningLiveAuthority = resolvePlanningLiveAuthorityState(ctx);
+  const planningLiveAuthority = resolvePlanningLiveAuthorityState(deps.roadmapWorkflowPlanningBridge);
 
   const augmentedContext = {
     ...ctx,
@@ -514,10 +532,12 @@ function register(deps = {}) {
     sendJson: deps.sendJson || defaultSendJson,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     opencodeConfig: deps.opencodeConfig || opencodeConfigDefault,
+    opencodeLogReader: deps.opencodeLogReader || opencodeLogReaderDefault,
     assets: deps.assets || assetsLib,
     childProcess: deps.childProcess || require('node:child_process'),
     fs: deps.fs || fs,
     path: deps.path || path,
+    roadmapWorkflowPlanningBridge: deps.roadmapWorkflowPlanningBridge || null,
   };
 
   return [
@@ -545,6 +565,7 @@ function register(deps = {}) {
           const profileRoute = asTrimmedString(body.profileRoute);
           const smallModel = asTrimmedString(body.smallModel);
           const bigModel = asTrimmedString(body.bigModel);
+          const reviewModel = asTrimmedString(body.reviewModel);
 
           if (profileRoute) {
             resolvedDeps.opencodeConfig.updateStateProfileRoute
@@ -552,12 +573,13 @@ function register(deps = {}) {
               : null;
           }
 
-          if (smallModel || bigModel) {
-            const exploreModel = smallModel || undefined;
-            const scoutModel = bigModel || undefined;
-            if (exploreModel || scoutModel) {
-              resolvedDeps.opencodeConfig.setAgentModels(opencodeHome, exploreModel, scoutModel);
-            }
+          if (smallModel || bigModel || reviewModel) {
+            resolvedDeps.opencodeConfig.setAgentModels(
+              opencodeHome,
+              smallModel || undefined,
+              bigModel || undefined,
+              reviewModel || undefined,
+            );
           }
 
           const status = await buildOpenCodeStatus(ctx, resolvedDeps);
@@ -675,6 +697,22 @@ function register(deps = {}) {
         } catch (error) {
           resolvedDeps.sendJson(ctx.res, 500, {
             ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'GET',
+      path: '/api/opencode/logs/requests',
+      handler: async (ctx) => {
+        try {
+          const limit = asNumber(ctx.query && ctx.query.limit, resolvedDeps.opencodeLogReader.DEFAULT_LIMIT);
+          const since = asTrimmedString(ctx.query && ctx.query.since);
+          const result = resolvedDeps.opencodeLogReader.readRequestLogs({ limit, since });
+          resolvedDeps.sendJson(ctx.res, 200, result);
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, 500, {
             error: error instanceof Error ? error.message : String(error),
           });
         }

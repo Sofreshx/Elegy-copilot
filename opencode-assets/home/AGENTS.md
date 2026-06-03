@@ -142,11 +142,11 @@ Contract, workflow, API, or user-facing behavior changes. Spec-first workflow wi
 - **Skills:** Load `spec-dev`, `spec-authoring`, `spec-review`, `elegy-planning`
 
 ### Lane Project
-Multi-session roadmap work. Orchestrator that coordinates elegy-planning goal/roadmap/work point, leases, worktrees, evidence chains, and review gates.
+Multi-session roadmap work. Orchestrator that coordinates elegy-planning goal/roadmap/plan, worktrees, evidence chains, and review gates.
 
 - **Model:** `big` (DeepSeek V4 Pro)
-- **Gates:** `reviewer` subagent at each work point: plan review, implementation review, evidence review
-- **Spec required:** Yes (per work point)
+- **Gates:** `reviewer` subagent at each plan: plan review, implementation review, evidence review
+- **Spec required:** Yes (per plan)
 - **Worktree required:** Yes — use `worktree_create`, manual commit, `worktree_delete`
 - **Validation:** Full evidence chain: expectations → results → review
 - **Skills:** Load `elegy-planning`, `roadmap-planning`, `worktree`, `implementation-review`, `rubberduck-plan-review`

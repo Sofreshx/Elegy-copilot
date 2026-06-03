@@ -5,6 +5,7 @@ import type {
   OpenCodeAssetsInstallResponse,
   OpenCodeToolingInstallPayload,
   OpenCodeToolingInstallResponse,
+  OpenCodeRequestLogsResponse,
 } from '../types';
 import { apiRequest } from './core';
 
@@ -54,4 +55,18 @@ export function installOpenCodeTooling(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+}
+
+export function getOpenCodeRequestLogs(
+  params?: { limit?: number; since?: string },
+  baseUrl?: string,
+): Promise<OpenCodeRequestLogsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  if (params?.since) searchParams.set('since', params.since);
+  const qs = searchParams.toString();
+  return apiRequest<OpenCodeRequestLogsResponse>(
+    `/api/opencode/logs/requests${qs ? `?${qs}` : ''}`,
+    { baseUrl },
+  );
 }

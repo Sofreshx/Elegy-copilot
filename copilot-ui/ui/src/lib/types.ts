@@ -3389,4 +3389,21 @@ export interface OpenCodeToolingInstallResponse {
   error?: string;
 }
 
-export type OpenCodeTabSectionId = 'overview' | 'lanes' | 'profiles' | 'setup';
+export type OpenCodeTabSectionId = 'overview' | 'lanes' | 'profiles' | 'setup' | 'logs';
+
+export interface OpenCodeRequestLogEntry {
+  timestamp: string;
+  level: string;
+  provider: string;
+  model: string;
+  agent: string;
+  mode: string;
+  sessionId: string;
+  small: boolean;
+}
+
+export interface OpenCodeRequestLogsResponse {
+  requests: OpenCodeRequestLogEntry[];
+  total: number;
+  logFiles: number;
+}

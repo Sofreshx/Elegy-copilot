@@ -12,7 +12,8 @@ import {
 } from './stores/navigation';
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
 import { toolingUpdatesStore } from './stores/toolingUpdatesStore';
-import PlanningAuthorityView from './tabs/Planning/PlanningAuthorityView';
+import PlanningExplorerView from './tabs/Planning/PlanningExplorerView';
+import StandaloneGraphWindow from './tabs/Planning/StandaloneGraphWindow';
 import OpenCodeView from './tabs/OpenCode/OpenCodeView';
 import CatalogShellView from './views/Catalog/CatalogShellView';
 import DashboardView from './views/DashboardView';
@@ -22,6 +23,7 @@ import ProjectOverview from './views/Project/ProjectOverview';
 import ProjectsListView from './views/Project/ProjectsListView';
 import SessionDetailView from './views/Sessions/SessionDetailView';
 import SettingsView from './views/Settings/SettingsView';
+import LexiconView from './tabs/Lexicon/LexiconView';
 import AssetCreationWizard from './views/Catalog/AssetCreationWizard';
 
 export default function App() {
@@ -90,15 +92,31 @@ export default function App() {
       case 'catalog':
         return <CatalogShellView />;
       case 'planning':
-        return <PlanningAuthorityView />;
+        return <PlanningExplorerView />;
       case 'opencode':
         return <OpenCodeView />;
+      case 'lexicon':
+        return <LexiconView />;
       case 'maintenance':
         return <MaintenanceView />;
       case 'settings':
         return <SettingsView />;
       default:
         return <DashboardView />;
+    }
+  }
+
+  // R4: Standalone graph window via URL params — render without AppLayout/Sidebar/StatusBar
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const roadmapId = params.get('roadmapId');
+    if (roadmapId) {
+      return (
+        <>
+          <ToastContainer />
+          <StandaloneGraphWindow />
+        </>
+      );
     }
   }
 

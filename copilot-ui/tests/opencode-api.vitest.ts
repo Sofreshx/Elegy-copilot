@@ -103,19 +103,19 @@ describe('opencode route - register', () => {
 
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
 
+    const mockBridge = { getStatus: () => ({ ready: true }) };
     const routes = register({
       sendJson,
       assets,
       opencodeConfig,
       childProcess: { spawnSync: () => ({ stdout: '1.0.0', stderr: '' }) },
+      roadmapWorkflowPlanningBridge: mockBridge,
     });
     const statusRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'GET' && r.path === '/api/opencode/status',
     );
 
-    const ctx = createMockCtx({
-      roadmapWorkflowPlanningBridge: { getState: () => ({ ready: true }) },
-    });
+    const ctx = createMockCtx();
     await statusRoute.handler(ctx);
 
     const statusCode = sendJson.mock.calls[0][1];

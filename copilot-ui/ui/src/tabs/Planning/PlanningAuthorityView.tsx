@@ -3,35 +3,27 @@ import { Button, Panel, Toolbar } from '../../components';
 import {
   ApiError,
   getGatewayState,
-  getPlanningLiveGoal,
-  getPlanningLivePlan,
-  getPlanningLiveRoadmap,
-  getPlanningTaskBoard,
   getSessionContinuationPackage,
-  listPlanningLivePlans,
   listPlanningLiveRoadmaps,
   listPlanningLiveTodos,
   listSessions,
 } from '../../lib/api';
-import { humanizeToken, resolveSessionStatus } from '../../lib/stateDiagnostics';
+import { humanizeToken, resolveSessionStatus, formatGatewaySegmentSummary } from '../../lib/stateDiagnostics';
 import { useStoreValue } from '../../lib/store';
 import type {
   GatewayStateResponse,
-  PlanningLiveGoal,
-  PlanningLivePlanResponse,
-  PlanningLivePlanSummary,
-  PlanningLiveRoadmapResponse,
   PlanningLiveRoadmapSummary,
   PlanningLiveTodo,
-  PlanningLiveWorkPoint,
-  SessionOrchestrationProjection,
   SessionSummary,
 } from '../../lib/types';
 import { navigationStore } from '../../stores/navigation';
 import { notificationStore } from '../../stores/notificationStore';
-import TaskBoardView, { type TaskBoardGroupBy } from '../Sessions/TaskBoardView';
 import { catalogWorkspaceStore } from '../Assets/catalogWorkspaceStore';
-import { formatGatewaySegmentSummary } from '../../lib/stateDiagnostics';
+import PlanningGraphView from './PlanningGraphView';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 type WorkspaceTab = 'roadmaps' | 'transfer';
 type TransferTargetHarness = 'copilot' | 'codex' | 'opencode' | 'antigravity';
@@ -51,6 +43,10 @@ const TRANSFER_TARGETS: ReadonlyArray<{ id: TransferTargetHarness; label: string
   { id: 'antigravity', label: 'Antigravity' },
 ];
 
+// ---------------------------------------------------------------------------
+// Helper functions
+// ---------------------------------------------------------------------------
+
 function normalizeCatalogRepoEntry(repo: unknown): CatalogRepoChoice | null {
   if (!repo || typeof repo !== 'object') {
     return null;
@@ -68,12 +64,7 @@ function normalizeCatalogRepoEntry(repo: unknown): CatalogRepoChoice | null {
     return null;
   }
 
-  return {
-    repoId,
-    repoPath,
-    repoLabel,
-    sources,
-  };
+  return { repoId, repoPath, repoLabel, sources };
 }
 
 function resolveCatalogRepoContext(catalogState: ReturnType<typeof catalogWorkspaceStore.getState>) {
@@ -112,51 +103,6 @@ function toErrorMessage(error: unknown, fallback: string): string {
     return error.message;
   }
   return fallback;
-}
-
-function getProjectionTasks(projection: SessionOrchestrationProjection | null): Array<Record<string, unknown>> {
-  const taskBoard = asRecord(projection?.taskBoard);
-  return Array.isArray(taskBoard.items)
-    ? taskBoard.items.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item)))
-    : [];
-}
-
-function buildPlanningTaskBoardSessionSummary(
-  projection: SessionOrchestrationProjection | null,
-  sessions: SessionSummary[],
-) {
-  const linkedSessionIds = Array.from(new Set(
-    getProjectionTasks(projection)
-      .map((task) => asString(task.ownerSessionId))
-      .filter((sessionId): sessionId is string => Boolean(sessionId)),
-  ));
-  const linkedSessions = sessions.filter((session) => linkedSessionIds.includes(session.id));
-  const liveSessions = linkedSessions.filter((session) => resolveSessionStatus(session) === 'active');
-
-  if (liveSessions.length > 0) {
-    return {
-      title: 'Linked live sessions',
-      status: 'active',
-      detail: `${liveSessions.length} linked session(s) currently report live runtime evidence.`,
-      helper: liveSessions.map((session) => session.id).join(' | '),
-    };
-  }
-
-  if (linkedSessionIds.length > 0) {
-    return {
-      title: 'Linked live sessions',
-      status: 'unknown',
-      detail: `${linkedSessionIds.length} linked session reference(s) exist, but none currently show confirmed live runtime status.`,
-      helper: linkedSessionIds.join(' | '),
-    };
-  }
-
-  return {
-    title: 'Linked live sessions',
-    status: 'idle',
-    detail: 'No durable task in this repo is linked to a live session yet.',
-    helper: 'Launch or resume runtime work from the sidebar when a durable task is ready.',
-  };
 }
 
 function countStatuses(items: Array<{ status?: string | null }>): Record<string, number> {
@@ -354,42 +300,39 @@ function resolvePlanningAuthorityTone(
   return code ? 'error' : 'warning';
 }
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export default function PlanningAuthorityView() {
   const catalogState = useStoreValue(catalogWorkspaceStore);
+
+  // ---- Tab navigation ----
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('roadmaps');
+
+  // ---- Graph view ----
+  const [selectedGraphRoadmapId, setSelectedGraphRoadmapId] = useState<string | null>(null);
+
+  // ---- Planning authority (gateway state) ----
   const [gatewayState, setGatewayState] = useState<GatewayStateResponse | null>(null);
   const [planningAuthorityLoading, setPlanningAuthorityLoading] = useState(false);
   const [planningAuthorityError, setPlanningAuthorityError] = useState<string | null>(null);
+
+  // ---- Roadmaps & todos (sidebar + metrics) ----
   const [roadmaps, setRoadmaps] = useState<PlanningLiveRoadmapSummary[]>([]);
   const [repoTodos, setRepoTodos] = useState<PlanningLiveTodo[]>([]);
   const [roadmapsLoading, setRoadmapsLoading] = useState(false);
   const [roadmapsError, setRoadmapsError] = useState<string | null>(null);
-  const [roadmapDetail, setRoadmapDetail] = useState<PlanningLiveRoadmapResponse | null>(null);
-  const [roadmapPlans, setRoadmapPlans] = useState<PlanningLivePlanSummary[]>([]);
-  const [roadmapTodos, setRoadmapTodos] = useState<PlanningLiveTodo[]>([]);
-  const [goalDetail, setGoalDetail] = useState<PlanningLiveGoal | null>(null);
-  const [roadmapDetailLoading, setRoadmapDetailLoading] = useState(false);
-  const [roadmapDetailError, setRoadmapDetailError] = useState<string | null>(null);
-  const [selectedRoadmapId, setSelectedRoadmapId] = useState<string | null>(null);
-  const [selectedWorkPointId, setSelectedWorkPointId] = useState<string | null>(null);
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const [selectedPlanDetail, setSelectedPlanDetail] = useState<PlanningLivePlanResponse | null>(null);
-  const [selectedPlanLoading, setSelectedPlanLoading] = useState(false);
-  const [selectedPlanError, setSelectedPlanError] = useState<string | null>(null);
-  const [taskBoardProjection, setTaskBoardProjection] = useState<SessionOrchestrationProjection | null>(null);
-  const [taskBoardLoading, setTaskBoardLoading] = useState(false);
-  const [taskBoardError, setTaskBoardError] = useState<string | null>(null);
-  const [taskBoardFilterStatus, setTaskBoardFilterStatus] = useState('all');
-  const [taskBoardGroupBy, setTaskBoardGroupBy] = useState<TaskBoardGroupBy>('status');
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  // ---- Transfer ----
   const [observedSessions, setObservedSessions] = useState<SessionSummary[]>([]);
   const [transferSessionsLoading, setTransferSessionsLoading] = useState(false);
   const [transferError, setTransferError] = useState<string | null>(null);
   const [selectedTransferSessionId, setSelectedTransferSessionId] = useState<string | null>(null);
   const [transferTargetHarness, setTransferTargetHarness] = useState<TransferTargetHarness>('opencode');
   const [continuationActionKey, setContinuationActionKey] = useState<string | null>(null);
-  const [planningRefreshToken, setPlanningRefreshToken] = useState(0);
 
+  // ---- Derived state ----
   const selectedCatalogRepo = useMemo(() => resolveCatalogRepoContext(catalogState), [catalogState]);
   const knownCatalogRepos = useMemo(() => {
     const repos = Array.isArray(catalogState.repoInventory?.repos) ? catalogState.repoInventory.repos : [];
@@ -402,10 +345,49 @@ export default function PlanningAuthorityView() {
     repoPath: selectedCatalogRepo?.repoPath || undefined,
     repoLabel: selectedCatalogRepo?.repoLabel || undefined,
   }), [selectedCatalogRepo?.repoId, selectedCatalogRepo?.repoLabel, selectedCatalogRepo?.repoPath]);
+  const graphRepoQuery = useMemo(() => repoQuery, [repoQuery]);
   const selectedCatalogRepoValue = selectedCatalogRepo ? buildCatalogRepoChoiceValue(selectedCatalogRepo) : '';
   const repoScopeAvailable = hasPlanningRepoScope(repoQuery);
   const repoScopeKey = [repoQuery.repoId || '', repoQuery.repoPath || '', repoQuery.repoLabel || ''].join('|');
+  const roadmapStatusCounts = useMemo(() => countStatuses(roadmaps), [roadmaps]);
+  const repoTodoCounts = useMemo(() => countStatuses(repoTodos), [repoTodos]);
+  const planningAuthority = gatewayState?.planningAuthority ?? null;
+  const planningAuthorityTone = resolvePlanningAuthorityTone(planningAuthority, planningAuthorityLoading, planningAuthorityError);
+  const planningAuthoritySummary = formatGatewaySegmentSummary(
+    planningAuthority && typeof planningAuthority === 'object' ? planningAuthority as Record<string, unknown> : null,
+    planningAuthorityLoading ? 'checking' : 'unknown',
+  );
+  const planningAuthorityErrorRecord = asRecord(planningAuthority?.error);
+  const planningAuthorityCode = asString(planningAuthorityErrorRecord.reason) || asString(planningAuthorityErrorRecord.code);
+  const planningAuthorityMessage = planningAuthorityLoading
+    ? 'Loading live planning authority state...'
+    : planningAuthorityError
+      ? planningAuthorityError
+      : asString(planningAuthorityErrorRecord.message)
+        || (planningAuthority?.ready === true
+          ? 'elegy-planning authority is ready for live roadmap reads.'
+          : 'Live planning authority is not ready for repo-scoped roadmap reads.');
+  const activeRepoLabel = selectedCatalogRepo?.repoLabel || selectedCatalogRepo?.repoId || selectedCatalogRepo?.repoPath || 'No tracked repo selected';
+  const activeRepoValue = selectedCatalogRepo?.repoId || selectedCatalogRepo?.repoPath || '(global transfer scope)';
+  const repoScopedTransfer = Boolean(selectedCatalogRepo && hasPlanningRepoScope(selectedCatalogRepo));
+  const selectedGraphRoadmap = useMemo(
+    () => roadmaps.find((r) => r.id === selectedGraphRoadmapId) ?? null,
+    [roadmaps, selectedGraphRoadmapId],
+  );
+  const refreshDisabled = planningAuthorityLoading || roadmapsLoading;
 
+  // ---- Transfer derived state ----
+  const transferSessions = useMemo(
+    () => observedSessions.filter((session) => sessionMatchesCatalogRepo(session, selectedCatalogRepo)),
+    [observedSessions, selectedCatalogRepo],
+  );
+  const selectedTransferSession = useMemo(
+    () => transferSessions.find((session) => session.id === selectedTransferSessionId) ?? null,
+    [selectedTransferSessionId, transferSessions],
+  );
+  const continuationBusy = Boolean(continuationActionKey);
+
+  // ---- Auto-load catalog workspace ----
   useEffect(() => {
     if (catalogState.repoInventory || catalogState.repoInventoryLoading || catalogState.loading) {
       return;
@@ -414,6 +396,7 @@ export default function PlanningAuthorityView() {
     void catalogWorkspaceStore.loadWorkspace();
   }, [catalogState.repoInventory, catalogState.repoInventoryLoading, catalogState.loading]);
 
+  // ---- Load planning authority ----
   useEffect(() => {
     let cancelled = false;
 
@@ -443,8 +426,9 @@ export default function PlanningAuthorityView() {
     return () => {
       cancelled = true;
     };
-  }, [planningRefreshToken]);
+  }, []);
 
+  // ---- Load sessions for transfer ----
   useEffect(() => {
     let cancelled = false;
     setTransferSessionsLoading(true);
@@ -474,18 +458,12 @@ export default function PlanningAuthorityView() {
     };
   }, []);
 
+  // ---- Clear graph selection when repo scope changes ----
   useEffect(() => {
-    setSelectedRoadmapId(null);
-    setSelectedPlanId(null);
-    setSelectedWorkPointId(null);
-    setRoadmapDetail(null);
-    setGoalDetail(null);
-    setRoadmapPlans([]);
-    setRoadmapTodos([]);
-    setSelectedPlanDetail(null);
-    setSelectedPlanError(null);
+    setSelectedGraphRoadmapId(null);
   }, [repoScopeKey]);
 
+  // ---- Load roadmaps & todos for sidebar and metrics ----
   useEffect(() => {
     let cancelled = false;
 
@@ -494,10 +472,6 @@ export default function PlanningAuthorityView() {
       setRepoTodos([]);
       setRoadmapsError(null);
       setRoadmapsLoading(false);
-      setTaskBoardProjection(null);
-      setTaskBoardError(null);
-      setTaskBoardLoading(false);
-      setSelectedTaskId(null);
       return () => {
         cancelled = true;
       };
@@ -505,22 +479,12 @@ export default function PlanningAuthorityView() {
 
     setRoadmapsLoading(true);
     setRoadmapsError(null);
-    setTaskBoardLoading(true);
-    setTaskBoardError(null);
-    setSelectedTaskId(null);
 
     void Promise.allSettled([
       listPlanningLiveRoadmaps(repoQuery),
       listPlanningLiveTodos(repoQuery),
-      repoQuery.repoId
-        ? getPlanningTaskBoard({
-            repoId: repoQuery.repoId,
-            repoPath: repoQuery.repoPath,
-            repoLabel: repoQuery.repoLabel,
-          })
-        : Promise.resolve(null),
     ])
-      .then(([roadmapsResult, todosResult, taskBoardResult]) => {
+      .then(([roadmapsResult, todosResult]) => {
         if (cancelled) {
           return;
         }
@@ -539,156 +503,15 @@ export default function PlanningAuthorityView() {
             : [],
         );
 
-        if (!repoQuery.repoId) {
-          setTaskBoardProjection(null);
-          setTaskBoardError(null);
-        } else if (taskBoardResult.status === 'fulfilled' && taskBoardResult.value) {
-          setTaskBoardProjection(taskBoardResult.value.projection ?? null);
-          setTaskBoardError(null);
-        } else {
-          setTaskBoardProjection(null);
-          setTaskBoardError(
-            taskBoardResult.status === 'fulfilled'
-              ? null
-              : buildPlanningViewErrorMessage(taskBoardResult.reason, 'Unable to load the durable task board.'),
-          );
-        }
-
         setRoadmapsLoading(false);
-        setTaskBoardLoading(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [planningRefreshToken, repoQuery.repoId, repoQuery.repoLabel, repoQuery.repoPath, repoScopeAvailable]);
+  }, [repoQuery.repoId, repoQuery.repoLabel, repoQuery.repoPath, repoScopeAvailable]);
 
-  useEffect(() => {
-    if (!selectedRoadmapId) {
-      return;
-    }
-    if (roadmaps.some((roadmap) => roadmap.id === selectedRoadmapId)) {
-      return;
-    }
-
-    setSelectedRoadmapId(null);
-    setSelectedPlanId(null);
-    setSelectedWorkPointId(null);
-  }, [roadmaps, selectedRoadmapId]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!repoScopeAvailable || !selectedRoadmapId) {
-      setRoadmapDetail(null);
-      setGoalDetail(null);
-      setRoadmapPlans([]);
-      setRoadmapTodos([]);
-      setRoadmapDetailError(null);
-      setRoadmapDetailLoading(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setRoadmapDetailLoading(true);
-    setRoadmapDetailError(null);
-
-    void getPlanningLiveRoadmap(selectedRoadmapId, repoQuery)
-      .then(async (roadmapResponse) => {
-        const goalId = roadmapResponse.roadmap?.goalId || '';
-        const [goalResult, plansResult, todosResult] = await Promise.allSettled([
-          goalId ? getPlanningLiveGoal(goalId, repoQuery) : Promise.resolve(null),
-          listPlanningLivePlans({ ...repoQuery, roadmapId: selectedRoadmapId }),
-          listPlanningLiveTodos({ ...repoQuery, roadmapId: selectedRoadmapId }),
-        ]);
-
-        if (cancelled) {
-          return;
-        }
-
-        setRoadmapDetail(roadmapResponse);
-        setGoalDetail(
-          goalResult.status === 'fulfilled' && goalResult.value
-            ? goalResult.value.goal
-            : null,
-        );
-        setRoadmapPlans(
-          plansResult.status === 'fulfilled' && Array.isArray(plansResult.value.plans)
-            ? plansResult.value.plans
-            : [],
-        );
-        setRoadmapTodos(
-          todosResult.status === 'fulfilled' && Array.isArray(todosResult.value.todos)
-            ? todosResult.value.todos
-            : [],
-        );
-        setRoadmapDetailError(null);
-        setRoadmapDetailLoading(false);
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return;
-        }
-
-        setRoadmapDetail(null);
-        setGoalDetail(null);
-        setRoadmapPlans([]);
-        setRoadmapTodos([]);
-        setRoadmapDetailError(buildPlanningViewErrorMessage(error, 'Unable to load live roadmap detail.'));
-        setRoadmapDetailLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [planningRefreshToken, repoScopeAvailable, repoQuery.repoId, repoQuery.repoLabel, repoQuery.repoPath, selectedRoadmapId]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!repoScopeAvailable || !selectedPlanId) {
-      setSelectedPlanDetail(null);
-      setSelectedPlanError(null);
-      setSelectedPlanLoading(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setSelectedPlanLoading(true);
-    setSelectedPlanError(null);
-
-    void getPlanningLivePlan(selectedPlanId, repoQuery)
-      .then((response) => {
-        if (cancelled) {
-          return;
-        }
-
-        setSelectedPlanDetail(response);
-        setSelectedPlanError(null);
-        setSelectedPlanLoading(false);
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return;
-        }
-
-        setSelectedPlanDetail(null);
-        setSelectedPlanError(buildPlanningViewErrorMessage(error, 'Unable to load live plan detail.'));
-        setSelectedPlanLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [planningRefreshToken, repoScopeAvailable, repoQuery.repoId, repoQuery.repoLabel, repoQuery.repoPath, selectedPlanId]);
-
-  const transferSessions = useMemo(
-    () => observedSessions.filter((session) => sessionMatchesCatalogRepo(session, selectedCatalogRepo)),
-    [observedSessions, selectedCatalogRepo],
-  );
-
+  // ---- Auto-select first transfer session ----
   useEffect(() => {
     if (transferSessions.length === 0) {
       setSelectedTransferSessionId(null);
@@ -700,101 +523,7 @@ export default function PlanningAuthorityView() {
     }
   }, [selectedTransferSessionId, transferSessions]);
 
-  const selectedTransferSession = useMemo(
-    () => transferSessions.find((session) => session.id === selectedTransferSessionId) ?? null,
-    [selectedTransferSessionId, transferSessions],
-  );
-  const taskBoardSessionSummary = useMemo(
-    () => buildPlanningTaskBoardSessionSummary(taskBoardProjection, observedSessions),
-    [observedSessions, taskBoardProjection],
-  );
-  const selectedRoadmap = roadmapDetail?.roadmap ?? roadmaps.find((roadmap) => roadmap.id === selectedRoadmapId) ?? null;
-  const selectedWorkPoint = useMemo<PlanningLiveWorkPoint | null>(
-    () => roadmapDetail?.workPoints.find((workPoint) => workPoint.id === selectedWorkPointId) ?? null,
-    [roadmapDetail?.workPoints, selectedWorkPointId],
-  );
-  const selectedWorkPointTodos = useMemo(
-    () => selectedWorkPoint ? roadmapTodos.filter((todo) => todo.workPointId === selectedWorkPoint.id) : [],
-    [roadmapTodos, selectedWorkPoint],
-  );
-  const selectedWorkPointPlans = useMemo(
-    () => selectedWorkPoint
-      ? roadmapPlans.filter((plan) => plan.targetedWorkPointIds.includes(selectedWorkPoint.id))
-      : [],
-    [roadmapPlans, selectedWorkPoint],
-  );
-  const repoTaskCount = useMemo(() => getProjectionTasks(taskBoardProjection).length, [taskBoardProjection]);
-  const roadmapStatusCounts = useMemo(() => countStatuses(roadmaps), [roadmaps]);
-  const repoTodoCounts = useMemo(() => countStatuses(repoTodos), [repoTodos]);
-  const continuationBusy = Boolean(continuationActionKey);
-  const selectedPlan = selectedPlanDetail?.plan ?? roadmapPlans.find((plan) => plan.id === selectedPlanId) ?? null;
-  const planningAuthority = gatewayState?.planningAuthority ?? null;
-  const planningAuthorityTone = resolvePlanningAuthorityTone(planningAuthority, planningAuthorityLoading, planningAuthorityError);
-  const planningAuthoritySummary = formatGatewaySegmentSummary(
-    planningAuthority && typeof planningAuthority === 'object' ? planningAuthority as Record<string, unknown> : null,
-    planningAuthorityLoading ? 'checking' : 'unknown',
-  );
-  const planningAuthorityErrorRecord = asRecord(planningAuthority?.error);
-  const planningAuthorityCode = asString(planningAuthorityErrorRecord.reason) || asString(planningAuthorityErrorRecord.code);
-  const planningAuthorityMessage = planningAuthorityLoading
-    ? 'Loading live planning authority state...'
-    : planningAuthorityError
-      ? planningAuthorityError
-      : asString(planningAuthorityErrorRecord.message)
-        || (planningAuthority?.ready === true
-          ? 'elegy-planning authority is ready for live roadmap reads.'
-          : 'Live planning authority is not ready for repo-scoped roadmap reads.');
-  const activeRepoLabel = selectedCatalogRepo?.repoLabel || selectedCatalogRepo?.repoId || selectedCatalogRepo?.repoPath || 'No tracked repo selected';
-  const activeRepoValue = selectedCatalogRepo?.repoId || selectedCatalogRepo?.repoPath || '(global transfer scope)';
-  const repoScopedTransfer = Boolean(selectedCatalogRepo && hasPlanningRepoScope(selectedCatalogRepo));
-  const canLoadTaskBoard = Boolean(repoQuery.repoId);
-  const taskBoardEmptyCopy = !repoScopeAvailable
-    ? 'Select a tracked repo to load its durable repo-state task board.'
-    : canLoadTaskBoard
-      ? 'No durable repo-state tasks were found for this repo yet.'
-      : 'This tracked repo is missing a durable repo id, so the repo-state task board cannot be projected yet.';
-  const detailSelectionLabel = selectedPlanId
-    ? 'Plan detail'
-    : selectedWorkPointId
-      ? 'Work point detail'
-      : selectedRoadmapId
-        ? 'Roadmap detail'
-        : 'Explorer';
-
-  const openRoadmap = (roadmapId: string) => {
-    setSelectedRoadmapId(roadmapId);
-    setSelectedPlanId(null);
-    setSelectedWorkPointId(null);
-  };
-
-  const clearExplorerSelection = () => {
-    setSelectedRoadmapId(null);
-    setSelectedPlanId(null);
-    setSelectedWorkPointId(null);
-  };
-
-  const openPlan = (planId: string) => {
-    setSelectedPlanId(planId);
-    setSelectedWorkPointId(null);
-  };
-
-  const openWorkPoint = (workPointId: string) => {
-    setSelectedWorkPointId(workPointId);
-    setSelectedPlanId(null);
-  };
-
-  const refreshPlanningWorkspace = () => {
-    setPlanningRefreshToken((current) => current + 1);
-  };
-
-  const detailWorkspaceTestId = selectedPlanId
-    ? 'planning-plan-detail-workspace'
-    : selectedWorkPointId
-      ? 'planning-work-point-detail-workspace'
-      : selectedRoadmapId
-        ? 'planning-roadmap-detail-workspace'
-        : null;
-
+  // ---- Transfer action handlers ----
   async function copyContinuationPrompt(targetHarness: TransferTargetHarness): Promise<void> {
     if (!selectedTransferSession) {
       notificationStore.error('Continuation copy failed', {
@@ -872,6 +601,49 @@ export default function PlanningAuthorityView() {
     }
   }
 
+  // ---- Refresh handler ----
+  function refreshPlanningWorkspace(): void {
+    // Re-fetches roadmaps, todos, and planning authority
+    setPlanningAuthorityLoading(true);
+    setPlanningAuthorityError(null);
+    setRoadmapsLoading(true);
+    setRoadmapsError(null);
+
+    void Promise.allSettled([
+      getGatewayState(),
+      listPlanningLiveRoadmaps(repoQuery),
+      listPlanningLiveTodos(repoQuery),
+    ]).then(([gatewayResult, roadmapsResult, todosResult]) => {
+      if (gatewayResult.status === 'fulfilled') {
+        setGatewayState(gatewayResult.value);
+        setPlanningAuthorityError(null);
+      } else {
+        setGatewayState(null);
+        setPlanningAuthorityError(buildPlanningViewErrorMessage(gatewayResult.reason, 'Unable to load planning authority state.'));
+      }
+      setPlanningAuthorityLoading(false);
+
+      if (roadmapsResult.status === 'fulfilled') {
+        setRoadmaps(Array.isArray(roadmapsResult.value.roadmaps) ? roadmapsResult.value.roadmaps : []);
+        setRoadmapsError(null);
+      } else {
+        setRoadmaps([]);
+        setRoadmapsError(buildPlanningViewErrorMessage(roadmapsResult.reason, 'Unable to load live roadmaps.'));
+      }
+
+      setRepoTodos(
+        todosResult.status === 'fulfilled' && Array.isArray(todosResult.value.todos)
+          ? todosResult.value.todos
+          : [],
+      );
+      setRoadmapsLoading(false);
+    });
+  }
+
+  // -----------------------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------------------
+
   return (
     <section className="planning-view" data-testid="planning-view">
       <Toolbar testId="planning-view-toolbar">
@@ -914,7 +686,10 @@ export default function PlanningAuthorityView() {
 
           <div className="planning-actions">
             <Button
-              onClick={() => setWorkspaceTab('roadmaps')}
+              onClick={() => {
+                setWorkspaceTab('roadmaps');
+                setSelectedGraphRoadmapId(null);
+              }}
               testId="planning-roadmaps-tab"
               variant={workspaceTab === 'roadmaps' ? 'primary' : 'secondary'}
             >
@@ -934,6 +709,7 @@ export default function PlanningAuthorityView() {
         </div>
       </Toolbar>
 
+      {/* ---- Metric grid ---- */}
       <div className="planning-metric-grid" data-testid="planning-context-summary">
         <div className="planning-metric-card">
           <p className="planning-metric-label">Active repo</p>
@@ -973,13 +749,19 @@ export default function PlanningAuthorityView() {
         </div>
       </div>
 
+      {/* ---- Planning Authority panel ---- */}
       <Panel
         subtitle="Live planning reads depend on the packaged elegy-planning authority being explicitly configured at runtime."
         testId="planning-authority-panel"
         title="Planning Authority"
         actions={(
           <div className="planning-actions">
-            <Button onClick={refreshPlanningWorkspace} testId="planning-refresh-authority" variant="secondary">
+            <Button
+              disabled={refreshDisabled}
+              onClick={refreshPlanningWorkspace}
+              testId="planning-refresh-authority"
+              variant="secondary"
+            >
               Refresh
             </Button>
             <Button onClick={() => navigationStore.setMaintenanceSection('diagnostics')} testId="planning-open-diagnostics" variant="ghost">
@@ -1025,7 +807,9 @@ export default function PlanningAuthorityView() {
         </div>
       </Panel>
 
+      {/* ---- Workspace content ---- */}
       {workspaceTab === 'transfer' ? (
+        /* ---- Transfer tab (unchanged) ---- */
         <div className="planning-grid" data-testid="planning-transfer-workspace">
           <Panel
             subtitle="Move portable session context between harnesses without reopening discovery from scratch."
@@ -1144,7 +928,7 @@ export default function PlanningAuthorityView() {
                       : 'Download Package'}
                   </Button>
                   <Button
-                    onClick={() => setWorkspaceTab('roadmaps')}
+                    onClick={() => { setWorkspaceTab('roadmaps'); setSelectedGraphRoadmapId(null); }}
                     testId="planning-transfer-back-to-roadmaps"
                     variant="ghost"
                   >
@@ -1161,596 +945,139 @@ export default function PlanningAuthorityView() {
             )}
           </Panel>
         </div>
-      ) : (
-        <>
-          <div className="planning-explorer-layout" data-testid="planning-roadmap-root-workspace">
-            <div className="planning-explorer-sidebar">
-              <Panel
-                subtitle="Browse live roadmaps for the selected tracked repo, then keep this explorer open while inspecting roadmap, plan, or work-point detail."
-                testId="planning-live-roadmaps-panel"
-                title="Live Roadmaps"
-                actions={(
-                  <div className="planning-actions">
-                    <Button onClick={refreshPlanningWorkspace} testId="planning-refresh-roadmaps" variant="secondary">
-                      Refresh
-                    </Button>
-                    <Button onClick={() => setWorkspaceTab('transfer')} testId="planning-open-transfer-tab" variant="secondary">
-                      Transfer Session Context
-                    </Button>
-                    {(selectedRoadmapId || selectedPlanId || selectedWorkPointId) ? (
-                      <Button onClick={clearExplorerSelection} testId="planning-clear-selection" variant="ghost">
-                        Clear Selection
-                      </Button>
-                    ) : null}
-                  </div>
-                )}
-              >
-                {!repoScopeAvailable ? (
-                  <p className="state-message">Select a tracked repo to load its live roadmaps from `elegy-planning`.</p>
-                ) : roadmapsLoading ? (
-                  <p className="state-message">Loading live roadmaps...</p>
-                ) : roadmapsError ? (
-                  <p className="planning-error" role="alert">{roadmapsError}</p>
-                ) : roadmaps.length === 0 ? (
-                  <p className="state-message">No live roadmaps are tagged for this tracked repo yet.</p>
-                ) : (
-                  <div className="planning-entity-list">
-                    {roadmaps.map((roadmap) => {
-                      const isSelected = roadmap.id === selectedRoadmapId;
-                      return (
-                        <button
-                          key={roadmap.id}
-                          className={`planning-entity-card${isSelected ? ' planning-entity-card-active' : ''}`}
-                          data-testid={`planning-roadmap-open-${roadmap.id}`}
-                          onClick={() => openRoadmap(roadmap.id)}
-                          type="button"
-                        >
-                          <div className="planning-entity-heading">
-                            <p className="planning-item-title">{roadmap.title || roadmap.id}</p>
-                            <span className="planning-chip">{humanizeToken(roadmap.status)}</span>
-                          </div>
-                          <p className="planning-item-copy">{roadmap.summary || 'No roadmap summary yet.'}</p>
-                          <p className="planning-item-copy">
-                            {[roadmap.goalId || 'No goal', formatTimestamp(roadmap.updatedAt)].filter(Boolean).join(' | ')}
-                          </p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </Panel>
-            </div>
-
-            <div className="planning-explorer-main" data-testid={detailWorkspaceTestId || 'planning-explorer-detail-workspace'}>
-              {!repoScopeAvailable ? (
-                <Panel
-                  subtitle="Planning exploration starts once a tracked repo provides at least a repo id or repo path."
-                  testId="planning-explorer-detail-panel"
-                  title="Explorer Detail"
-                >
-                  <p className="state-message">Pick a tracked repo from the toolbar to inspect live roadmap authority, roadmap detail, and durable task-board context.</p>
-                </Panel>
-              ) : selectedPlanId ? (
-                <div className="planning-section-stack">
-                  <Panel
-                    subtitle="Plan detail stays anchored to the selected roadmap and can drill back into targeted work points."
-                    testId="planning-plan-detail-panel"
-                    title={selectedPlan?.title || selectedPlan?.id || 'Live Plan'}
-                    actions={(
-                      <div className="planning-actions">
-                        <Button onClick={() => setSelectedPlanId(null)} testId="planning-plan-back" variant="secondary">
-                          Back to Roadmap
-                        </Button>
-                        <Button onClick={() => setWorkspaceTab('transfer')} testId="planning-plan-open-transfer" variant="ghost">
-                          Transfer Session Context
-                        </Button>
-                      </div>
-                    )}
-                  >
-                    {selectedPlanLoading ? (
-                      <p className="state-message">Loading live plan detail...</p>
-                    ) : selectedPlanError ? (
-                      <p className="planning-error" role="alert">{selectedPlanError}</p>
-                    ) : selectedPlanDetail?.plan ? (
-                      <>
-                        <dl className="planning-definition-grid">
-                          <div>
-                            <dt>Status</dt>
-                            <dd>{humanizeToken(selectedPlanDetail.plan.status)}</dd>
-                          </div>
-                          <div>
-                            <dt>Scope</dt>
-                            <dd>{humanizeToken(selectedPlanDetail.plan.scope)}</dd>
-                          </div>
-                          <div>
-                            <dt>Roadmap</dt>
-                            <dd>{selectedPlanDetail.plan.roadmapId || 'Unscoped'}</dd>
-                          </div>
-                          <div>
-                            <dt>Validation</dt>
-                            <dd>{humanizeToken(selectedPlanDetail.validation?.status, 'Unknown')}</dd>
-                          </div>
-                          <div>
-                            <dt>Updated</dt>
-                            <dd>{formatTimestamp(selectedPlanDetail.plan.updatedAt)}</dd>
-                          </div>
-                          <div>
-                            <dt>Todos</dt>
-                            <dd>{selectedPlanDetail.todos.length}</dd>
-                          </div>
-                        </dl>
-
-                        {selectedPlanDetail.plan.summary ? <p className="planning-copy">{selectedPlanDetail.plan.summary}</p> : null}
-
-                        {selectedPlanDetail.plan.tags.length > 0 ? (
-                          <div className="planning-chip-row">
-                            {selectedPlanDetail.plan.tags.map((tag) => (
-                              <span key={tag} className="planning-chip">{tag}</span>
-                            ))}
-                          </div>
-                        ) : null}
-
-                        {selectedPlanDetail.plan.targetedWorkPointIds.length > 0 ? (
-                          <div className="planning-controls">
-                            <p className="planning-metric-label">Targeted work points</p>
-                            <div className="planning-actions">
-                              {selectedPlanDetail.plan.targetedWorkPointIds.map((workPointId) => (
-                                <Button
-                                  key={workPointId}
-                                  onClick={() => {
-                                    setSelectedPlanId(null);
-                                    setSelectedWorkPointId(workPointId);
-                                  }}
-                                  testId={`planning-plan-open-work-point-${workPointId}`}
-                                  variant="secondary"
-                                >
-                                  {workPointId}
-                                </Button>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {selectedPlanDetail.plan.validationSteps.length > 0 ? (
-                          <div>
-                            <p className="planning-metric-label">Validation steps</p>
-                            <ul className="planning-guidance-list">
-                              {selectedPlanDetail.plan.validationSteps.map((step) => (
-                                <li key={step}>{step}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null}
-                      </>
-                    ) : (
-                      <p className="state-message">Select a plan from the roadmap detail view.</p>
-                    )}
-                  </Panel>
-
-                  <Panel subtitle="Execution-oriented todos attached directly to the selected live plan." testId="planning-plan-todos-panel" title="Plan Todos">
-                    {selectedPlanDetail && selectedPlanDetail.todos.length > 0 ? (
-                      <div className="planning-entity-list">
-                        {selectedPlanDetail.todos.map((todo) => (
-                          <div key={todo.id} className="planning-static-card">
-                            <div className="planning-entity-heading">
-                              <p className="planning-item-title">{todo.title || todo.id}</p>
-                              <span className="planning-chip">{humanizeToken(todo.status)}</span>
-                            </div>
-                            <p className="planning-item-copy">{todo.summary || 'No todo summary yet.'}</p>
-                            <p className="planning-item-copy">
-                              {[todo.priority ? humanizeToken(todo.priority) : '', todo.workPointId || 'No work point'].filter(Boolean).join(' | ')}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="state-message">No live todos are attached to this plan yet.</p>
-                    )}
-                  </Panel>
-
-                  <Panel subtitle="Review points and validation findings attached to the selected plan." testId="planning-plan-review-points-panel" title="Review And Validation">
-                    {selectedPlanDetail?.reviewPoints.length ? (
-                      <ul className="planning-guidance-list">
-                        {selectedPlanDetail.reviewPoints.map((reviewPoint) => (
-                          <li key={reviewPoint.id}>{reviewPoint.id}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="state-message">No live review points are attached to this plan yet.</p>
-                    )}
-
-                    {selectedPlanDetail?.validation?.findings.length ? (
-                      <ul className="planning-guidance-list">
-                        {selectedPlanDetail.validation.findings.map((finding, index) => (
-                          <li key={finding.findingId || `${finding.code || 'finding'}-${index}`}>
-                            {[finding.code, finding.message].filter(Boolean).join(' | ') || 'Validation finding'}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </Panel>
-                </div>
-              ) : selectedWorkPointId ? (
-                <div className="planning-section-stack">
-                  <Panel
-                    subtitle="Work-point detail narrows the roadmap into one execution slice without losing its parent roadmap context."
-                    testId="planning-work-point-detail-panel"
-                    title={selectedWorkPoint?.title || selectedWorkPoint?.id || 'Work Point'}
-                    actions={(
-                      <div className="planning-actions">
-                        <Button onClick={() => setSelectedWorkPointId(null)} testId="planning-work-point-back" variant="secondary">
-                          Back to Roadmap
-                        </Button>
-                        <Button onClick={() => setWorkspaceTab('transfer')} testId="planning-work-point-open-transfer" variant="ghost">
-                          Transfer Session Context
-                        </Button>
-                      </div>
-                    )}
-                  >
-                    {selectedWorkPoint ? (
-                      <>
-                        <dl className="planning-definition-grid">
-                          <div>
-                            <dt>Status</dt>
-                            <dd>{humanizeToken(selectedWorkPoint.status)}</dd>
-                          </div>
-                          <div>
-                            <dt>Ordering</dt>
-                            <dd>{selectedWorkPoint.ordering ?? 'Unordered'}</dd>
-                          </div>
-                          <div>
-                            <dt>Roadmap</dt>
-                            <dd>{selectedWorkPoint.roadmapId || selectedRoadmap?.id || 'Unknown'}</dd>
-                          </div>
-                          <div>
-                            <dt>Todos</dt>
-                            <dd>{selectedWorkPointTodos.length}</dd>
-                          </div>
-                        </dl>
-
-                        <p className="planning-copy">{selectedWorkPoint.summary || 'No work-point summary yet.'}</p>
-
-                        {selectedWorkPoint.validationExpectations.length > 0 ? (
-                          <div>
-                            <p className="planning-metric-label">Validation expectations</p>
-                            <ul className="planning-guidance-list">
-                              {selectedWorkPoint.validationExpectations.map((expectation) => (
-                                <li key={expectation}>{expectation}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null}
-
-                        {selectedWorkPoint.tags.length > 0 ? (
-                          <div className="planning-chip-row">
-                            {selectedWorkPoint.tags.map((tag) => (
-                              <span key={tag} className="planning-chip">{tag}</span>
-                            ))}
-                          </div>
-                        ) : null}
-                      </>
-                    ) : (
-                      <p className="state-message">Select a work point from the roadmap detail view.</p>
-                    )}
-                  </Panel>
-
-                  <Panel subtitle="Todos derived for this specific roadmap slice." testId="planning-work-point-todos-panel" title="Slice Todos">
-                    {selectedWorkPointTodos.length > 0 ? (
-                      <div className="planning-entity-list">
-                        {selectedWorkPointTodos.map((todo) => (
-                          <div key={todo.id} className="planning-static-card">
-                            <div className="planning-entity-heading">
-                              <p className="planning-item-title">{todo.title || todo.id}</p>
-                              <span className="planning-chip">{humanizeToken(todo.status)}</span>
-                            </div>
-                            <p className="planning-item-copy">{todo.summary || 'No todo summary yet.'}</p>
-                            <p className="planning-item-copy">{todo.planId || 'Standalone todo'}</p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="state-message">No live todos are attached to this work point yet.</p>
-                    )}
-                  </Panel>
-
-                  <Panel subtitle="Plans that explicitly target this roadmap slice." testId="planning-work-point-plans-panel" title="Related Plans">
-                    {selectedWorkPointPlans.length > 0 ? (
-                      <div className="planning-entity-list">
-                        {selectedWorkPointPlans.map((plan) => (
-                          <button
-                            key={plan.id}
-                            className="planning-entity-card"
-                            data-testid={`planning-work-point-open-plan-${plan.id}`}
-                            onClick={() => openPlan(plan.id)}
-                            type="button"
-                          >
-                            <div className="planning-entity-heading">
-                              <p className="planning-item-title">{plan.title || plan.id}</p>
-                              <span className="planning-chip">{humanizeToken(plan.status)}</span>
-                            </div>
-                            <p className="planning-item-copy">{plan.summary || 'No plan summary yet.'}</p>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="state-message">No live plans target this work point yet.</p>
-                    )}
-                  </Panel>
-                </div>
-              ) : selectedRoadmapId ? (
-                <div className="planning-section-stack">
-                  <Panel
-                    subtitle="Roadmap detail expands the selected live roadmap into goal context, work points, plans, and execution-facing todos."
-                    testId="planning-roadmap-detail-panel"
-                    title={selectedRoadmap?.title || selectedRoadmap?.id || 'Live Roadmap'}
-                    actions={(
-                      <div className="planning-actions">
-                        <Button onClick={clearExplorerSelection} testId="planning-roadmap-back" variant="secondary">
-                          Back to Roadmaps
-                        </Button>
-                        <Button onClick={() => setWorkspaceTab('transfer')} testId="planning-roadmap-open-transfer" variant="ghost">
-                          Transfer Session Context
-                        </Button>
-                      </div>
-                    )}
-                  >
-                    {roadmapDetailLoading ? (
-                      <p className="state-message">Loading live roadmap detail...</p>
-                    ) : roadmapDetailError ? (
-                      <p className="planning-error" role="alert">{roadmapDetailError}</p>
-                    ) : selectedRoadmap ? (
-                      <>
-                        <dl className="planning-definition-grid">
-                          <div>
-                            <dt>Status</dt>
-                            <dd>{humanizeToken(selectedRoadmap.status)}</dd>
-                          </div>
-                          <div>
-                            <dt>Goal</dt>
-                            <dd>{goalDetail?.title || selectedRoadmap.goalId || 'Unlinked'}</dd>
-                          </div>
-                          <div>
-                            <dt>Work points</dt>
-                            <dd>{roadmapDetail?.workPoints.length ?? 0}</dd>
-                          </div>
-                          <div>
-                            <dt>Plans</dt>
-                            <dd>{roadmapPlans.length}</dd>
-                          </div>
-                          <div>
-                            <dt>Todos</dt>
-                            <dd>{roadmapTodos.length}</dd>
-                          </div>
-                          <div>
-                            <dt>Validation</dt>
-                            <dd>{humanizeToken(roadmapDetail?.validation?.status, 'Unknown')}</dd>
-                          </div>
-                          <div>
-                            <dt>Updated</dt>
-                            <dd>{formatTimestamp(selectedRoadmap.updatedAt)}</dd>
-                          </div>
-                        </dl>
-
-                        {selectedRoadmap.summary ? <p className="planning-copy">{selectedRoadmap.summary}</p> : null}
-
-                        {selectedRoadmap.tags.length > 0 ? (
-                          <div className="planning-chip-row">
-                            {selectedRoadmap.tags.map((tag) => (
-                              <span key={tag} className="planning-chip">{tag}</span>
-                            ))}
-                          </div>
-                        ) : null}
-                      </>
-                    ) : (
-                      <p className="state-message">Select a live roadmap to inspect its detail.</p>
-                    )}
-                  </Panel>
-
-                  {goalDetail ? (
-                    <Panel subtitle="Every live roadmap remains anchored to a durable parent goal." testId="planning-roadmap-goal-panel" title="Parent Goal">
-                      <p className="planning-item-title">{goalDetail.title || goalDetail.id}</p>
-                      <p className="planning-copy">{goalDetail.description || 'No goal description yet.'}</p>
-                      {goalDetail.acceptanceCriteria.length > 0 ? (
-                        <div>
-                          <p className="planning-metric-label">Acceptance criteria</p>
-                          <ul className="planning-guidance-list">
-                            {goalDetail.acceptanceCriteria.map((criterion) => (
-                              <li key={criterion}>{criterion}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-                    </Panel>
-                  ) : null}
-
-                  <Panel subtitle="Open a work point to focus the roadmap down to one durable execution slice." testId="planning-roadmap-work-points-panel" title="Work Points">
-                    {roadmapDetail && roadmapDetail.workPoints.length > 0 ? (
-                      <div className="planning-entity-list">
-                        {roadmapDetail.workPoints.map((workPoint) => (
-                          <button
-                            key={workPoint.id}
-                            className="planning-entity-card"
-                            data-testid={`planning-roadmap-open-work-point-${workPoint.id}`}
-                            onClick={() => openWorkPoint(workPoint.id)}
-                            type="button"
-                          >
-                            <div className="planning-entity-heading">
-                              <p className="planning-item-title">{workPoint.title || workPoint.id}</p>
-                              <span className="planning-chip">{humanizeToken(workPoint.status)}</span>
-                            </div>
-                            <p className="planning-item-copy">{workPoint.summary || 'No work-point summary yet.'}</p>
-                            <p className="planning-item-copy">
-                              {[`Order ${workPoint.ordering ?? 'n/a'}`, `${workPoint.validationExpectations.length} validation step(s)`].join(' | ')}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="state-message">No live work points are attached to this roadmap yet.</p>
-                    )}
-                  </Panel>
-
-                  <Panel subtitle="Open a plan to inspect its dedicated todos, validation guidance, and review points." testId="planning-roadmap-plans-panel" title="Plans">
-                    {roadmapPlans.length > 0 ? (
-                      <div className="planning-entity-list">
-                        {roadmapPlans.map((plan) => (
-                          <button
-                            key={plan.id}
-                            className="planning-entity-card"
-                            data-testid={`planning-roadmap-open-plan-${plan.id}`}
-                            onClick={() => openPlan(plan.id)}
-                            type="button"
-                          >
-                            <div className="planning-entity-heading">
-                              <p className="planning-item-title">{plan.title || plan.id}</p>
-                              <span className="planning-chip">{humanizeToken(plan.status)}</span>
-                            </div>
-                            <p className="planning-item-copy">{plan.summary || 'No plan summary yet.'}</p>
-                            <p className="planning-item-copy">
-                              {[humanizeToken(plan.scope), `${plan.targetedWorkPointIds.length} targeted slice(s)`].join(' | ')}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="state-message">No live plans target this roadmap yet.</p>
-                    )}
-                  </Panel>
-
-                  <Panel subtitle="Roadmap-linked todos keep execution pressure visible without becoming the canonical roadmap authority." testId="planning-roadmap-todos-panel" title="Roadmap Todos">
-                    {roadmapTodos.length > 0 ? (
-                      <div className="planning-entity-list">
-                        {roadmapTodos.map((todo) => (
-                          <div key={todo.id} className="planning-static-card">
-                            <div className="planning-entity-heading">
-                              <p className="planning-item-title">{todo.title || todo.id}</p>
-                              <span className="planning-chip">{humanizeToken(todo.status)}</span>
-                            </div>
-                            <p className="planning-item-copy">{todo.summary || 'No todo summary yet.'}</p>
-                            <p className="planning-item-copy">
-                              {[todo.planId || 'Standalone todo', todo.workPointId || 'No slice', todo.priority ? humanizeToken(todo.priority) : ''].filter(Boolean).join(' | ')}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="state-message">No live todos are attached to this roadmap yet.</p>
-                    )}
-                  </Panel>
-                </div>
-              ) : (
-                <div className="planning-section-stack">
-                  <Panel
-                    subtitle="Select a roadmap from the explorer to inspect its goal, work points, plans, and execution-facing todos without leaving the repo workspace."
-                    testId="planning-explorer-detail-panel"
-                    title={detailSelectionLabel}
-                    actions={(
-                      <div className="planning-actions">
-                        <Button onClick={() => setWorkspaceTab('transfer')} testId="planning-explorer-open-transfer" variant="ghost">
-                          Transfer Session Context
-                        </Button>
-                      </div>
-                    )}
-                  >
-                    <dl className="planning-definition-grid">
-                      <div>
-                        <dt>Repo</dt>
-                        <dd>{activeRepoLabel}</dd>
-                      </div>
-                      <div>
-                        <dt>Scope key</dt>
-                        <dd>{activeRepoValue}</dd>
-                      </div>
-                      <div>
-                        <dt>Live roadmaps</dt>
-                        <dd>{roadmaps.length}</dd>
-                      </div>
-                      <div>
-                        <dt>Tracked todos</dt>
-                        <dd>{repoTodos.length}</dd>
-                      </div>
-                      <div>
-                        <dt>Authority</dt>
-                        <dd>{planningAuthoritySummary.statusLabel}</dd>
-                      </div>
-                      <div>
-                        <dt>Task board</dt>
-                        <dd>{canLoadTaskBoard ? `${repoTaskCount} durable task(s)` : 'Repo id required'}</dd>
-                      </div>
-                    </dl>
-
-                    <p className="planning-copy">
-                      {roadmaps.length > 0
-                        ? 'Choose a roadmap from the left explorer to inspect its durable goal context, work points, plans, and roadmap-linked todos.'
-                        : 'This repo scope has no visible live roadmaps yet. The authority panel above shows whether the runtime is wired correctly.'}
-                    </p>
-
-                    {!canLoadTaskBoard ? (
-                      <p className="planning-warning">
-                        This tracked repo can still load live planning data by repo path or label, but the durable repo-state task board cannot load until the repo has a durable repo id.
-                      </p>
-                    ) : null}
-                  </Panel>
-
-                  <Panel subtitle="Repo-scoped todo pressure remains visible before drilling into a single roadmap." testId="planning-repo-todos-panel" title="Repo Todos">
-                    {repoTodos.length > 0 ? (
-                      <div className="planning-entity-list">
-                        {repoTodos.map((todo) => (
-                          <div key={todo.id} className="planning-static-card">
-                            <div className="planning-entity-heading">
-                              <p className="planning-item-title">{todo.title || todo.id}</p>
-                              <span className="planning-chip">{humanizeToken(todo.status)}</span>
-                            </div>
-                            <p className="planning-item-copy">{todo.summary || 'No todo summary yet.'}</p>
-                            <p className="planning-item-copy">
-                              {[todo.planId || 'Standalone todo', todo.workPointId || 'No work point', todo.priority ? humanizeToken(todo.priority) : ''].filter(Boolean).join(' | ')}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="state-message">No repo-scoped live todos are visible yet.</p>
-                    )}
-                  </Panel>
-                </div>
-              )}
-            </div>
+      ) : workspaceTab === 'roadmaps' && selectedGraphRoadmapId ? (
+        /* ---- Graph view (full width) ---- */
+        <div data-testid="planning-graph-workspace">
+          <div className="planning-graph-breadcrumb">
+            <Button
+              onClick={() => setSelectedGraphRoadmapId(null)}
+              testId="planning-graph-back-to-roadmaps"
+              variant="ghost"
+              size="sm"
+            >
+              &larr; Back to Roadmaps
+            </Button>
+            <span className="planning-graph-breadcrumb-separator"> | </span>
+            <span className="planning-graph-breadcrumb-title">
+              {selectedGraphRoadmap?.title || selectedGraphRoadmapId}
+            </span>
           </div>
 
-          <Panel
-            subtitle="Durable repo-state tasks remain the execution board, while the live roadmap authority stays explorable above in the same workspace."
-            testId="planning-task-board-panel"
-            title="Durable Task Board"
-          >
-            <TaskBoardView
-              emptyCopy={taskBoardEmptyCopy}
-              error={taskBoardError}
-              filterStatus={taskBoardFilterStatus}
-              groupBy={taskBoardGroupBy}
-              loading={canLoadTaskBoard ? taskBoardLoading : false}
-              onFilterStatusChange={(status) => {
-                setTaskBoardFilterStatus(status);
-                setSelectedTaskId(null);
-              }}
-              onGroupByChange={(value) => setTaskBoardGroupBy(value)}
-              onSelectTask={(taskId) => setSelectedTaskId(taskId)}
-              projection={taskBoardProjection}
-              selectedTaskId={selectedTaskId}
-              sessionSummary={taskBoardSessionSummary}
-              subtitle="Repo-state tasks remain canonical durable execution authority, while live roadmaps stay inside elegy-planning."
-              testId="planning-task-board-view"
-              title="Repo Task Board"
-            />
+          <PlanningGraphView
+            roadmapId={selectedGraphRoadmapId}
+            repoQuery={graphRepoQuery}
+            onBack={() => setSelectedGraphRoadmapId(null)}
+            onRefreshNeeded={refreshPlanningWorkspace}
+          />
+        </div>
+      ) : (
+        /* ---- Roadmap browser + welcome panel ---- */
+        <div className="planning-explorer-layout" data-testid="planning-roadmap-root-workspace">
+          <div className="planning-explorer-sidebar">
+            <Panel
+              subtitle="Browse live roadmaps for the selected tracked repo. Click a roadmap to visualize its graph."
+              testId="planning-live-roadmaps-panel"
+              title="Live Roadmaps"
+              actions={(
+                <div className="planning-actions">
+                  <Button
+                    disabled={roadmapsLoading}
+                    onClick={refreshPlanningWorkspace}
+                    testId="planning-refresh-roadmaps"
+                    variant="secondary"
+                  >
+                    Refresh
+                  </Button>
+                  <Button onClick={() => setWorkspaceTab('transfer')} testId="planning-open-transfer-tab" variant="secondary">
+                    Transfer Session Context
+                  </Button>
+                </div>
+              )}
+            >
+              {!repoScopeAvailable ? (
+                <p className="state-message">Select a tracked repo to load its live roadmaps from `elegy-planning`.</p>
+              ) : roadmapsLoading ? (
+                <p className="state-message">Loading live roadmaps...</p>
+              ) : roadmapsError ? (
+                <p className="planning-error" role="alert">{roadmapsError}</p>
+              ) : roadmaps.length === 0 ? (
+                <p className="state-message">No live roadmaps are tagged for this tracked repo yet.</p>
+              ) : (
+                <div className="planning-entity-list">
+                  {roadmaps.map((roadmap) => (
+                    <button
+                      key={roadmap.id}
+                      className="planning-entity-card"
+                      data-testid={`planning-roadmap-open-${roadmap.id}`}
+                      onClick={() => setSelectedGraphRoadmapId(roadmap.id)}
+                      type="button"
+                    >
+                      <div className="planning-entity-heading">
+                        <p className="planning-item-title">{roadmap.title || roadmap.id}</p>
+                        <span className="planning-chip">{humanizeToken(roadmap.status)}</span>
+                      </div>
+                      <p className="planning-item-copy">{roadmap.summary || 'No roadmap summary yet.'}</p>
+                      <p className="planning-item-copy">
+                        {[roadmap.goalId || 'No goal', formatTimestamp(roadmap.updatedAt)].filter(Boolean).join(' | ')}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Panel>
+          </div>
 
-            <p className="planning-copy">
-              {!repoScopeAvailable
-                ? 'Pick a tracked repo to project its durable task board into this workspace.'
-                : canLoadTaskBoard
-                  ? `${repoTaskCount} durable task(s) currently project into the visible board for ${selectedCatalogRepo?.repoLabel || repoQuery.repoId}.`
-                  : 'This tracked repo can be explored through live planning authority, but durable repo-state task projection still requires a repo id.'}
-            </p>
-          </Panel>
-        </>
+          <div className="planning-explorer-main" data-testid="planning-explorer-detail-workspace">
+            <Panel
+              subtitle="Select a roadmap from the sidebar to open its interactive graph visualization."
+              testId="planning-explorer-detail-panel"
+              title="Explorer"
+            >
+              {!repoScopeAvailable ? (
+                <p className="state-message">
+                  Pick a tracked repo from the toolbar to inspect live roadmap authority and graph visualization.
+                </p>
+              ) : roadmapsLoading ? (
+                <p className="state-message">Loading live roadmaps...</p>
+              ) : roadmapsError ? (
+                <p className="planning-error" role="alert">{roadmapsError}</p>
+              ) : roadmaps.length === 0 ? (
+                <p className="state-message">
+                  No live roadmaps are tagged for this tracked repo yet. The authority panel above shows whether the runtime is wired correctly.
+                </p>
+              ) : (
+                <>
+                  <dl className="planning-definition-grid">
+                    <div>
+                      <dt>Repo</dt>
+                      <dd>{activeRepoLabel}</dd>
+                    </div>
+                    <div>
+                      <dt>Scope key</dt>
+                      <dd>{activeRepoValue}</dd>
+                    </div>
+                    <div>
+                      <dt>Live roadmaps</dt>
+                      <dd>{roadmaps.length}</dd>
+                    </div>
+                    <div>
+                      <dt>Tracked todos</dt>
+                      <dd>{repoTodos.length}</dd>
+                    </div>
+                    <div>
+                      <dt>Authority</dt>
+                      <dd>{planningAuthoritySummary.statusLabel}</dd>
+                    </div>
+                  </dl>
+
+                  <p className="planning-copy">
+                    Click a roadmap card in the sidebar to open its interactive graph view showing goals, work points, plans, and todos.
+                  </p>
+                </>
+              )}
+            </Panel>
+          </div>
+        </div>
       )}
     </section>
   );

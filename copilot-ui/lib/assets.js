@@ -1112,11 +1112,21 @@ function getManagedAssetStatuses(engineRoot, destinationHome, manifestRelPath) {
   return manifest.assets.map((asset) => {
     const { sourceAbs, destinationAbs, sourceRel } = getAssetPaths(engineRoot, destinationHome, asset);
     const sourceHash = sha256PathHex(sourceAbs);
-    const installed = fs.existsSync(destinationAbs);
-    const destinationHash = installed ? sha256PathHex(destinationAbs) : null;
+    let resolvedDestAbs = destinationAbs;
+    let installed = fs.existsSync(destinationAbs);
+
+    if (!installed && asset.type === 'skill') {
+      const vaultPath = path.join(getVaultDir(destinationHome), path.basename(asset.destination));
+      if (fs.existsSync(vaultPath)) {
+        resolvedDestAbs = vaultPath;
+        installed = true;
+      }
+    }
+
+    const destinationHash = installed ? sha256PathHex(resolvedDestAbs) : null;
     const upToDate = Boolean(installed && sourceHash && destinationHash && sourceHash === destinationHash);
 
-    return buildManagedAssetResult(asset, sourceRel, sourceAbs, destinationAbs, {
+    return buildManagedAssetResult(asset, sourceRel, sourceAbs, resolvedDestAbs, {
       installed,
       upToDate,
       sourceAvailable: Boolean(sourceHash),
@@ -1128,7 +1138,8 @@ function getManagedAssetStatuses(engineRoot, destinationHome, manifestRelPath) {
 
 function syncAsset(engineRoot, destinationHome, assetId, opts) {
   const { dryRun = false, force = false, pointerMode = true } = opts || {};
-  const manifest = loadManifest(engineRoot);
+  const manifestPath = (opts && opts.manifestPath) || undefined;
+  const manifest = loadManifest(engineRoot, manifestPath);
   const asset = manifest.assets.find((a) => a.id === assetId);
   if (!asset) throw new Error(`Unknown assetId: ${assetId}`);
 

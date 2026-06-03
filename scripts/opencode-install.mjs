@@ -3,6 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
 import { updateAgentModel } from './frontmatter-utils.mjs';
 import {
@@ -19,6 +20,8 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
+const require = createRequire(import.meta.url);
+const { readConfig, writeConfig } = require('../copilot-ui/lib/opencodeConfig.js');
 const opencodeAssetsRoot = path.join(repoRoot, 'opencode-assets');
 const manifestPath = path.join(opencodeAssetsRoot, 'manifest.json');
 const managedInventoryFileName = '.instruction-engine-opencode-managed.json';
@@ -420,6 +423,28 @@ export function runInstall(args = {}) {
               profileInjectionResults.push(result);
             }
           }
+        }
+
+        try {
+          const config = readConfig(opencodeHome);
+          if (!config.agent || typeof config.agent !== 'object') {
+            config.agent = {};
+          }
+          let configUpdated = 0;
+          for (const [agentName, roleKey] of Object.entries(agentRoles)) {
+            const modelValue = profile[roleKey];
+            if (!modelValue) continue;
+            if (!config.agent[agentName] || typeof config.agent[agentName] !== 'object') {
+              config.agent[agentName] = {};
+            }
+            config.agent[agentName].model = modelValue;
+            configUpdated += 1;
+          }
+          if (configUpdated > 0) {
+            writeConfig(opencodeHome, config);
+          }
+        } catch (err) {
+          console.log(`[WARN] Could not sync opencode.jsonc: ${err.message}`);
         }
       }
     }

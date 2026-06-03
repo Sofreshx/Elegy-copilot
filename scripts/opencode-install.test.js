@@ -3,6 +3,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const { pathToFileURL } = require('url');
 const { createTestElegyCliShim, withWorkingDirectory } = require('./test-elegy-cli-shim.js');
 
@@ -39,6 +40,7 @@ async function main() {
     withTempDir((root) => {
       const opencodeHome = path.join(root, '.config', 'opencode');
       const skillsHome = path.join(opencodeHome, 'skills');
+      const agentsDir = path.join(opencodeHome, 'agents');
 
       const firstSummary = installer.runInstall({
         force: true,
@@ -60,6 +62,15 @@ async function main() {
       assert.ok(fs.existsSync(path.join(skillsHome, 'stack-detector', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(opencodeHome, '.instruction-engine-opencode-managed.json')));
       assert.ok(firstSummary.counts.created > 0);
+
+      // R8: verify all 4 lane agents are installed
+      for (const agent of ['quick', 'standard', 'spec', 'project']) {
+        assert.ok(fs.existsSync(path.join(agentsDir, `${agent}.md`)), `lane agent ${agent}.md should exist`);
+      }
+      // R8: verify all 3 required subagents are installed
+      for (const subagent of ['impl', 'reviewer', 'explorer']) {
+        assert.ok(fs.existsSync(path.join(agentsDir, `${subagent}.md`)), `subagent ${subagent}.md should exist`);
+      }
 
       const secondSummary = installer.runInstall({
         opencodeHome,
@@ -196,6 +207,35 @@ async function main() {
         process.env.INSTRUCTION_ENGINE_OPENCODE_SKILLS_HOME = previousSkillsHome;
       }
     }
+  });
+
+  // R8: lane quality validators pass against source files (run as subprocess)
+  await test('lane doc refs validator passes', async () => {
+    execFileSync('node', ['scripts/validate-lane-doc-refs.js'], {
+      cwd: path.resolve(__dirname, '..'),
+      stdio: 'pipe',
+    });
+  });
+
+  await test('lane prompt sections validator passes', async () => {
+    execFileSync('node', ['scripts/validate-lane-prompt-sections.js'], {
+      cwd: path.resolve(__dirname, '..'),
+      stdio: 'pipe',
+    });
+  });
+
+  await test('profile role coverage validator passes', async () => {
+    execFileSync('node', ['scripts/validate-profile-role-coverage.js'], {
+      cwd: path.resolve(__dirname, '..'),
+      stdio: 'pipe',
+    });
+  });
+
+  await test('elegy command refs validator passes', async () => {
+    execFileSync('node', ['scripts/validate-elegy-command-refs.js'], {
+      cwd: path.resolve(__dirname, '..'),
+      stdio: 'pipe',
+    });
   });
 
   console.log(`\n${passed} tests passed`);

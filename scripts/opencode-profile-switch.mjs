@@ -3,12 +3,15 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import { updateAgentModel } from './frontmatter-utils.mjs';
 import { getUserHome } from './install-surface-utils.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
+const require = createRequire(import.meta.url);
+const { readConfig, writeConfig } = require('../copilot-ui/lib/opencodeConfig.js');
 
 function resolveOpenCodeHome() {
   if (process.env.OPENCODE_HOME) return path.resolve(process.env.OPENCODE_HOME);
@@ -95,15 +98,50 @@ function main() {
     }
   }
 
+  const configSyncResults = [];
+  try {
+    const config = readConfig(opencodeHome);
+    if (!config.agent || typeof config.agent !== 'object') {
+      config.agent = {};
+    }
+    let configUpdated = 0;
+    for (const [agentName, roleKey] of Object.entries(agentRoles)) {
+      const modelValue = profile[roleKey];
+      if (!modelValue) continue;
+      const prevModel = config.agent[agentName]?.model;
+      if (!config.agent[agentName] || typeof config.agent[agentName] !== 'object') {
+        config.agent[agentName] = {};
+      }
+      config.agent[agentName].model = modelValue;
+      configSyncResults.push({ agent: agentName, role: roleKey, oldModel: prevModel || 'none', newModel: modelValue });
+      configUpdated += 1;
+    }
+    if (configUpdated > 0) {
+      writeConfig(opencodeHome, config);
+    }
+  } catch (err) {
+    console.log(`[WARN] Could not sync opencode.jsonc: ${err.message}`);
+  }
+
   profilesConfig.activeProfile = targetProfile;
   fs.writeFileSync(profilesPath, `${JSON.stringify(profilesConfig, null, 2)}\n`, 'utf8');
 
   console.log(`Switched to profile: ${targetProfile}`);
   console.log('');
-  for (const r of results) {
-    console.log(`  ${r.agent.padEnd(12)} ${r.role.padEnd(8)} ${r.oldModel} → ${r.newModel}`);
+  if (results.length > 0) {
+    console.log('Agent frontmatter updated:');
+    for (const r of results) {
+      console.log(`  ${r.agent.padEnd(12)} ${r.role.padEnd(8)} ${r.oldModel} → ${r.newModel}`);
+    }
+    console.log('');
   }
-  console.log('');
+  if (configSyncResults.length > 0) {
+    console.log('opencode.jsonc synced:');
+    for (const r of configSyncResults) {
+      console.log(`  agent.${r.agent.padEnd(11)} ${r.role.padEnd(8)} ${r.oldModel} → ${r.newModel}`);
+    }
+    console.log('');
+  }
   console.log(`${updated} agents updated. Restart OpenCode for changes to take effect.`);
 }
 

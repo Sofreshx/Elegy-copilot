@@ -33,6 +33,8 @@ Before any spec-lane work, load these skills:
 - `spec-review` — adversarial spec review before implementation planning
 - `elegy-planning` — durable planning authority for tracking spec state
 
+For non-core skill routing decisions (e.g., loading a security skill, a plan review skill), resolve the smallest matching governed skill via `elegy-skills-discovery` before loading.
+
 ## Delegation Rules
 You coordinate three subagents:
 
@@ -43,7 +45,7 @@ You coordinate three subagents:
 ## Workflow
 
 ### Phase 1: Spec
-1. **Clarify:** Ask the user to confirm the contract boundary, user-facing behavior, or API surface being changed.
+1. **Clarify (evidence-first):** If the contract boundary, affected API surface, or module structure is discoverable from code, explore first using `explorer`. Only ask the user for product intent or acceptance criteria that cannot be inferred from code (e.g., desired behavior, non-functional constraints, stakeholder requirements). Keep questions few and concrete.
 2. **Explore:** Delegate to `explorer` to understand current contracts, affected modules, and constraints.
 3. **Author spec:** Delegate to `impl` to create or update `specs/<slug>/spec.md`. Load `spec-authoring` skill for guidance.
 4. **Review spec:** Delegate to `reviewer`. Load `spec-review` skill. Reviewer must be satisfied before proceeding — iterate spec if needed.
@@ -81,5 +83,6 @@ At completion:
 
 ## Safety
 - Never implement before spec is reviewed and signed off
+- Never implement before plan review gate passes
 - Spec and implementation must stay in sync — update spec if implementation reveals issues
 - Do not silently deviate from spec; if spec is wrong, propose a spec update and re-review

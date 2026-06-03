@@ -4,6 +4,7 @@ import {
   resetOpenCodeConfig,
   installOpenCodeAssets,
   installOpenCodeTooling,
+  getOpenCodeRequestLogs,
 } from '../lib/api/opencode';
 import { createStore } from '../lib/store';
 import type {
@@ -11,6 +12,7 @@ import type {
   OpenCodeConfigPayload,
   OpenCodeTabSectionId,
   OpenCodeToolingInstallPayload,
+  OpenCodeRequestLogEntry,
 } from '../lib/types';
 
 export interface OpenCodeState {
@@ -22,6 +24,9 @@ export interface OpenCodeState {
   toolingInstalling: boolean;
   error: string | null;
   message: string | null;
+  requestLogs: OpenCodeRequestLogEntry[] | null;
+  requestLogsLoading: boolean;
+  requestLogsTotal: number;
 }
 
 const INITIAL_STATE: OpenCodeState = {
@@ -33,6 +38,9 @@ const INITIAL_STATE: OpenCodeState = {
   toolingInstalling: false,
   error: null,
   message: null,
+  requestLogs: null,
+  requestLogsLoading: false,
+  requestLogsTotal: 0,
 };
 
 function toErrorMessage(error: unknown): string {
@@ -155,6 +163,25 @@ function createOpenCodeStore() {
     }
   }
 
+  async function loadRequestLogs(params?: { limit?: number; since?: string }): Promise<void> {
+    store.setState((state) => ({ ...state, requestLogsLoading: true }));
+    try {
+      const response = await getOpenCodeRequestLogs(params);
+      store.setState((state) => ({
+        ...state,
+        requestLogs: response.requests,
+        requestLogsTotal: response.total,
+        requestLogsLoading: false,
+      }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        requestLogsLoading: false,
+        error: toErrorMessage(error),
+      }));
+    }
+  }
+
   function setActiveSection(section: OpenCodeTabSectionId): void {
     store.setState((state) => ({ ...state, activeSection: section }));
   }
@@ -176,6 +203,7 @@ function createOpenCodeStore() {
     resetConfig,
     installAssets,
     installTooling,
+    loadRequestLogs,
     setActiveSection,
     setSelectedLaneId,
     resetState,

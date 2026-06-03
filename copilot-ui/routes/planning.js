@@ -8,6 +8,8 @@ const {
 } = require('@elegy-copilot/contracts');
 const { buildSessionOrchestrationProjection } = require('../lib/runtimeContracts');
 const continuationPackagesLib = require('../lib/continuationPackages');
+const path = require('path');
+const fs = require('fs');
 
 function normalizeOptionalString(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -74,7 +76,38 @@ function getPlanningEntityTags(entity) {
   return normalizeStringList(entity && entity.tags);
 }
 
-function planningEntityMatchesRepoSelection(entity, repo) {
+function resolveWorktreeParentRepo(repo) {
+  if (!repo || !repo.repoPath) return null;
+
+  const gitPath = path.join(repo.repoPath, '.git');
+  try {
+    const stat = fs.statSync(gitPath);
+    if (!stat.isFile()) return null;
+
+    const content = fs.readFileSync(gitPath, 'utf8').trim();
+    const match = content.match(/^gitdir:\s*(.+)$/im);
+    if (!match) return null;
+
+    const gitDir = path.resolve(repo.repoPath, match[1].trim());
+    const worktreeIdx = gitDir.replace(/\\/g, '/').lastIndexOf('/worktrees/');
+    if (worktreeIdx === -1) return null;
+
+    const parentGitDir = gitDir.substring(0, worktreeIdx);
+    const parentRepoRoot = path.resolve(parentGitDir, '..');
+    const normalized = parentRepoRoot.replace(/\\/g, '/').toLowerCase();
+    const hash = require('crypto').createHash('sha256').update(normalized, 'utf8').digest('hex');
+
+    return {
+      repoId: hash.slice(0, 12),
+      repoPath: parentRepoRoot,
+      repoLabel: path.basename(parentRepoRoot),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function planningEntityMatchesRepoSelection(entity, repo, parentRepo) {
   const selection = repo && typeof repo === 'object' ? repo : null;
   const repoId = normalizeOptionalString(selection && selection.repoId);
   const repoPath = normalizePathForPlanningComparison(selection && selection.repoPath);
@@ -110,6 +143,11 @@ function planningEntityMatchesRepoSelection(entity, repo) {
     return true;
   }
 
+  // Also check against the parent repo if this repo is a worktree checkout
+  if (parentRepo) {
+    return planningEntityMatchesRepoSelection(entity, parentRepo, null);
+  }
+
   return false;
 }
 
@@ -117,17 +155,25 @@ function planningEntityMatchesRepo(entity, repoId) {
   return planningEntityMatchesRepoSelection(entity, buildPlanningRepoSelection(repoId, '', ''));
 }
 
+function resolveRepoParentWorktree(repo) {
+  if (!repo || !repo.repoPath) return null;
+  const parent = resolveWorktreeParentRepo(repo);
+  return parent ? buildPlanningRepoSelection(parent.repoId, parent.repoPath, parent.repoLabel) : null;
+}
+
 function filterPlanningLiveRoadmaps(roadmaps, repo) {
-  return (Array.isArray(roadmaps) ? roadmaps : []).filter((roadmap) => planningEntityMatchesRepoSelection(roadmap, repo));
+  const parentRepo = resolveRepoParentWorktree(repo);
+  return (Array.isArray(roadmaps) ? roadmaps : []).filter((roadmap) => planningEntityMatchesRepoSelection(roadmap, repo, parentRepo));
 }
 
 function filterPlanningLivePlans(plans, filters = {}) {
   const repo = buildPlanningRepoSelection(filters.repoId, filters.repoPath, filters.repoLabel);
+  const parentRepo = resolveRepoParentWorktree(repo);
   const goalId = normalizeOptionalString(filters.goalId);
   const roadmapId = normalizeOptionalString(filters.roadmapId);
 
   return (Array.isArray(plans) ? plans : []).filter((plan) => {
-    if (!planningEntityMatchesRepoSelection(plan, repo)) {
+    if (!planningEntityMatchesRepoSelection(plan, repo, parentRepo)) {
       return false;
     }
     if (goalId && normalizeOptionalString(plan && plan.goalId) !== goalId) {
@@ -142,12 +188,13 @@ function filterPlanningLivePlans(plans, filters = {}) {
 
 function filterPlanningLiveTodos(todos, filters = {}) {
   const repo = buildPlanningRepoSelection(filters.repoId, filters.repoPath, filters.repoLabel);
+  const parentRepo = resolveRepoParentWorktree(repo);
   const planId = normalizeOptionalString(filters.planId);
   const workPointId = normalizeOptionalString(filters.workPointId);
   const allowedPlanIds = filters.allowedPlanIds instanceof Set ? filters.allowedPlanIds : null;
 
   return (Array.isArray(todos) ? todos : []).filter((todo) => {
-    if (!planningEntityMatchesRepoSelection(todo, repo)) {
+    if (!planningEntityMatchesRepoSelection(todo, repo, parentRepo)) {
       return false;
     }
 

@@ -13,6 +13,15 @@ const KNOWN_DEFAULT_SCOUT_MODEL = 'deepseek/deepseek-v4-flash';
 
 const AGENT_KEYS = ['explore', 'scout'];
 
+const LANE_SMALL_AGENT_KEYS = ['explore', 'quick', 'impl', 'explorer'];
+const LANE_BIG_AGENT_KEYS = ['scout', 'standard', 'spec', 'project'];
+const LANE_REVIEW_AGENT_KEYS = ['reviewer'];
+const ALL_LANE_AGENT_KEYS = [
+  ...LANE_SMALL_AGENT_KEYS,
+  ...LANE_BIG_AGENT_KEYS,
+  ...LANE_REVIEW_AGENT_KEYS,
+];
+
 function resolveOpenCodeHome(opencodeHome) {
   return path.resolve(opencodeHome || DEFAULT_OPENCODE_HOME);
 }
@@ -229,16 +238,19 @@ function removeState(opencodeHome) {
   }
 }
 
+function resolveAgentModel(agentSection, key) {
+  if (!agentSection || typeof agentSection !== 'object') return null;
+  const entry = agentSection[key];
+  return typeof entry === 'object' && typeof entry.model === 'string' ? entry.model : null;
+}
+
 function getAgentModels(config) {
   const agent = config.agent && typeof config.agent === 'object' ? config.agent : {};
-  return {
-    explore: typeof agent.explore === 'object' && typeof agent.explore.model === 'string'
-      ? agent.explore.model
-      : null,
-    scout: typeof agent.scout === 'object' && typeof agent.scout.model === 'string'
-      ? agent.scout.model
-      : null,
-  };
+  const models = {};
+  for (const key of ALL_LANE_AGENT_KEYS) {
+    models[key] = resolveAgentModel(agent, key);
+  }
+  return models;
 }
 
 function listAvailableModels(config) {
@@ -267,20 +279,21 @@ function getStatus(opencodeHome) {
   const state = readState(resolvedHome);
   const models = getAgentModels(config);
   const availableModels = listAvailableModels(config);
-  const isCustom = models.explore !== null || models.scout !== null;
+  const isCustom = Object.values(models).some((m) => m !== null);
 
   return {
     opencodeHome: resolvedHome,
     configPath: resolveConfigPath(resolvedHome),
     exploreModel: models.explore || KNOWN_DEFAULT_EXPLORE_MODEL,
     scoutModel: models.scout || KNOWN_DEFAULT_SCOUT_MODEL,
+    agentModels: models,
     isCustom,
     availableModels,
     lastAppliedAt: typeof state.lastAppliedAt === 'string' ? state.lastAppliedAt : null,
   };
 }
 
-function setAgentModels(opencodeHome, exploreModel, scoutModel) {
+function setAgentModels(opencodeHome, smallModel, bigModel, reviewModel) {
   const resolvedHome = resolveOpenCodeHome(opencodeHome);
   const config = readConfig(resolvedHome);
   const previousModels = getAgentModels(config);
@@ -289,19 +302,23 @@ function setAgentModels(opencodeHome, exploreModel, scoutModel) {
     config.agent = {};
   }
 
-  if (typeof exploreModel === 'string' && exploreModel.trim()) {
-    if (!config.agent.explore || typeof config.agent.explore !== 'object') {
-      config.agent.explore = {};
+  function ensureAgentEntry(name) {
+    if (!config.agent[name] || typeof config.agent[name] !== 'object') {
+      config.agent[name] = {};
     }
-    config.agent.explore.model = exploreModel.trim();
   }
 
-  if (typeof scoutModel === 'string' && scoutModel.trim()) {
-    if (!config.agent.scout || typeof config.agent.scout !== 'object') {
-      config.agent.scout = {};
+  function applyModel(targetKeys, modelValue) {
+    if (typeof modelValue !== 'string' || !modelValue.trim()) return;
+    for (const key of targetKeys) {
+      ensureAgentEntry(key);
+      config.agent[key].model = modelValue.trim();
     }
-    config.agent.scout.model = scoutModel.trim();
   }
+
+  applyModel(LANE_SMALL_AGENT_KEYS, smallModel);
+  applyModel(LANE_BIG_AGENT_KEYS, bigModel);
+  applyModel(LANE_REVIEW_AGENT_KEYS, reviewModel);
 
   writeConfig(resolvedHome, config);
   writeState(resolvedHome, {
@@ -319,16 +336,12 @@ function resetConfig(opencodeHome) {
   const config = readConfig(resolvedHome);
 
   if (config.agent && typeof config.agent === 'object') {
-    if (config.agent.explore && typeof config.agent.explore === 'object') {
-      delete config.agent.explore.model;
-      if (Object.keys(config.agent.explore).length === 0) {
-        delete config.agent.explore;
-      }
-    }
-    if (config.agent.scout && typeof config.agent.scout === 'object') {
-      delete config.agent.scout.model;
-      if (Object.keys(config.agent.scout).length === 0) {
-        delete config.agent.scout;
+    for (const key of ALL_LANE_AGENT_KEYS) {
+      if (config.agent[key] && typeof config.agent[key] === 'object') {
+        delete config.agent[key].model;
+        if (Object.keys(config.agent[key]).length === 0) {
+          delete config.agent[key];
+        }
       }
     }
     if (Object.keys(config.agent).length === 0) {
@@ -346,6 +359,10 @@ module.exports = {
   KNOWN_DEFAULT_EXPLORE_MODEL,
   KNOWN_DEFAULT_SCOUT_MODEL,
   AGENT_KEYS,
+  LANE_SMALL_AGENT_KEYS,
+  LANE_BIG_AGENT_KEYS,
+  LANE_REVIEW_AGENT_KEYS,
+  ALL_LANE_AGENT_KEYS,
   resolveOpenCodeHome,
   resolveConfigPath,
   resolveStatePath,

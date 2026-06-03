@@ -33,7 +33,7 @@ bash scripts/opencode-install.sh
 ## Operating Model
 
 - Built-in agents stay primary: `Build`, `Plan`, `Explore`, `Scout`, `General`.
-- Primary skills: `skill-discovery`, `rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, `stack-detector`, `worktree`, `lane-quick`, `lane-standard`, `lane-spec`, `lane-project`, `elegy-obsidian`.
+- Primary skills: `skill-discovery`, `rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, `stack-detector`, `worktree`, `elegy-obsidian`.
 - Planning, review, and spec skills are installed by default under `~/.config/opencode/skills/`; load them with the skill tool only when they materially improve the current step.
 - Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`.
 - Shared installed planning and review behavior now narrows constraints to the minimum active set and treats ADRs as key-decision records rather than default documentation for every non-trivial change.
@@ -45,12 +45,12 @@ bash scripts/opencode-install.sh
 
 ## Agentic Lanes
 
-OpenCode provides four public lanes for matching effort to task scope. Load the lane skill before starting work:
+OpenCode provides four public lane agents for matching effort to task scope. Select the agent via Tab cycling in OpenCode:
 
-- **quick** (lane-quick): Small UI tweaks and tiny bug fixes; Flash only; no spec or roadmap
-- **standard** (lane-standard): Scoped features and normal bug fixes; Flash for execution, Pro at gates
-- **spec** (lane-spec): Contract/API/user-facing behavior; spec-first workflow; Pro for spec review
-- **project** (lane-project): Multi-session roadmap work; Elegy Planning, worktree, evidence, review
+- **quick**: Small UI tweaks and tiny bug fixes; Flash only; no spec or roadmap
+- **standard**: Scoped features and normal bug fixes; Flash for execution, Pro at gates
+- **spec**: Contract/API/user-facing behavior; spec-first workflow; Pro for spec review
+- **project**: Multi-session roadmap work; Elegy Planning, worktree, evidence, review
 
 See `opencode-assets/home/AGENTS.md` (installed to `~/.config/opencode/AGENTS.md`) for the full OpenCode Method specification.
 
@@ -67,7 +67,7 @@ Profiles configure model routing across lanes. Both DeepSeek V4 Pro Max and V4 F
 
 Default route is OpenCode Go; direct DeepSeek is a configurable fallback. Use `/connect` in OpenCode TUI to set provider credentials.
 
-Max reasoning is set in `opencode.jsonc` with `reasoningEffort: "high"` on all agent configs that use DeepSeek models (build, plan, explore, scout, elegy-plan). This pass-through option maps to the DeepSeek API `reasoning_effort` parameter.
+Max reasoning is set in `opencode.jsonc` with `reasoningEffort: "high"` on all agent configs that use DeepSeek models (build, plan, explore, scout). This pass-through option maps to the DeepSeek API `reasoning_effort` parameter.
 
 ## Worktree Plugin
 

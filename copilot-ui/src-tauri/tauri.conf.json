@@ -7,6 +7,7 @@
     "frontendDist": "bootstrap"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": []
   },
   "bundle": {

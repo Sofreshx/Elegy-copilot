@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Badge, Button, Panel, Toolbar } from '../../components';
+import { Badge, Button, LogViewer, Panel, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import type {
   OpenCodeLane,
   OpenCodeLaneNode,
   OpenCodeProfile,
+  OpenCodeRequestLogEntry,
   OpenCodeSetupCheck,
   OpenCodeStatusResponse,
   OpenCodeTabSectionId,
@@ -17,6 +18,7 @@ const TAB_SECTIONS: Array<{ id: OpenCodeTabSectionId; label: string }> = [
   { id: 'lanes', label: 'Lanes' },
   { id: 'profiles', label: 'Profiles' },
   { id: 'setup', label: 'Setup' },
+  { id: 'logs', label: 'Request Log' },
 ];
 
 function StatusDot({ status }: { status: string }) {
@@ -386,6 +388,51 @@ function SetupSection({ status, toolingInstalling, saving }: { status: OpenCodeS
   );
 }
 
+function RequestLogSection() {
+  const state = useStoreValue(opencodeStore);
+
+  useEffect(() => {
+    void opencodeStore.loadRequestLogs({ limit: 100 });
+  }, []);
+
+  const lines = (state.requestLogs || []).map((entry: OpenCodeRequestLogEntry) => ({
+    timestamp: entry.timestamp,
+    level: entry.level === 'ERROR'
+      ? 'error' as const
+      : entry.mode === 'subagent'
+        ? 'info' as const
+        : 'success' as const,
+    message: `[${entry.agent.padEnd(10)}] ${entry.provider}/${entry.model}  (${entry.mode})`,
+  }));
+
+  return (
+    <div className="opencode-section" data-testid="opencode-logs">
+      <div className="opencode-section-header">
+        <h3>Request Log</h3>
+        <Button
+          variant="secondary"
+          size="sm"
+          testId="opencode-logs-refresh"
+          disabled={state.requestLogsLoading}
+          onClick={() => void opencodeStore.loadRequestLogs({ limit: 100 })}
+        >
+          {state.requestLogsLoading ? 'Loading...' : 'Refresh'}
+        </Button>
+      </div>
+      <div className="opencode-content">
+        {state.requestLogsTotal > 0 ? (
+          <p className="opencode-meta" data-testid="opencode-logs-count">
+            Showing {state.requestLogs?.length || 0} of {state.requestLogsTotal} requests across log files
+          </p>
+        ) : state.requestLogsLoading ? null : (
+          <p className="opencode-hint">No request logs found. OpenCode log files may not be available.</p>
+        )}
+        <LogViewer lines={lines} />
+      </div>
+    </div>
+  );
+}
+
 type LaneSectionProps = { status: OpenCodeStatusResponse; selectedLaneId: string | null };
 type SectionProps = { status: OpenCodeStatusResponse; selectedLaneId: string | null };
 
@@ -394,6 +441,7 @@ const SECTION_COMPONENTS: Record<OpenCodeTabSectionId, React.FC<SectionProps>> =
   lanes: LaneSection,
   profiles: ProfilesSection as unknown as React.FC<SectionProps>,
   setup: SetupSection as unknown as React.FC<SectionProps>,
+  logs: RequestLogSection as unknown as React.FC<SectionProps>,
 };
 
 export default function OpenCodeView() {

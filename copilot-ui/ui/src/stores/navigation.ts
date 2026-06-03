@@ -14,6 +14,7 @@ export const SIDEBAR_IDS = [
   'catalog',
   'planning',
   'opencode',
+  'lexicon',
   'maintenance',
   'settings',
 ] as const;
@@ -43,6 +44,7 @@ export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
   { id: 'catalog', label: 'Catalog', icon: '▤', description: 'Asset workspace, installs, and skill discovery' },
   { id: 'planning', label: 'Planning', icon: '☑', description: 'Live roadmaps, durable task boards, and transfer per repository' },
   { id: 'opencode', label: 'OpenCode', icon: '⊞', description: 'OpenCode agent system configuration, lanes, profiles, and setup' },
+  { id: 'lexicon', label: 'Lexicon', icon: '◈', description: 'Searchable vocabulary reference for UI, design, architecture, and software engineering terms' },
   { id: 'maintenance', label: 'Maintenance', icon: '⚙', description: 'Updates, sandboxes, diagnostics' },
   { id: 'settings', label: 'Settings', icon: '☰', description: 'App configuration and preferences' },
 ];
