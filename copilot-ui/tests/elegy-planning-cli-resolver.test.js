@@ -7,6 +7,10 @@ const path = require('path');
 
 const {
   resolveElegyPlanningCliPath,
+  buildElegyPlanningCliFromSource,
+  syncElegySkillAssetsFromGitHub,
+  readInstallMetadata,
+  readElegyAssetsMetadata,
   commandExistsOnPath,
   isPathLikeCommand,
 } = require('../lib/elegyPlanningCliResolver');
@@ -111,6 +115,94 @@ async function run() {
       });
 
       assert.strictEqual(resolved, '');
+    });
+
+    await test('buildElegyPlanningCliFromSource builds and installs managed binary metadata', async () => {
+      const elegyRoot = path.join(tmpRoot, 'source-elegy');
+      const copilotHome = path.join(tmpRoot, 'copilot-home');
+      const rustRoot = path.join(elegyRoot, 'rust');
+      const crateRoot = path.join(rustRoot, 'crates', 'elegy-planning');
+      fs.mkdirSync(crateRoot, { recursive: true });
+      fs.writeFileSync(path.join(rustRoot, 'Cargo.toml'), '[workspace]', 'utf8');
+      fs.writeFileSync(path.join(crateRoot, 'Cargo.toml'), '[package]', 'utf8');
+
+      const builtBinary = path.join(
+        rustRoot,
+        'target',
+        'release',
+        process.platform === 'win32' ? 'elegy-planning.exe' : 'elegy-planning',
+      );
+
+      const result = await buildElegyPlanningCliFromSource({
+        copilotHome,
+        elegyRepoPath: elegyRoot,
+        childProcess: {
+          execFile(command, args, options, callback) {
+            assert.strictEqual(command, 'cargo');
+            assert.deepStrictEqual(args, ['build', '-p', 'elegy-planning', '--bin', 'elegy-planning', '--release']);
+            assert.strictEqual(options.cwd, rustRoot);
+            fs.mkdirSync(path.dirname(builtBinary), { recursive: true });
+            fs.writeFileSync(builtBinary, 'binary', 'utf8');
+            callback(null, '', '');
+          },
+        },
+        spawnSyncImpl(command, args) {
+          assert.strictEqual(command, 'git');
+          assert.deepStrictEqual(args.slice(0, 3), ['-C', elegyRoot, 'rev-parse']);
+          return { status: 0, stdout: 'abc123\n' };
+        },
+      });
+
+      assert.ok(fs.existsSync(result.installedPath));
+      assert.strictEqual(result.metadata.source, 'github-source');
+      assert.strictEqual(result.metadata.sourceGitHead, 'abc123');
+      const metadata = readInstallMetadata(copilotHome);
+      assert.strictEqual(metadata.source, 'github-source');
+      assert.strictEqual(metadata.sourceGitHead, 'abc123');
+    });
+
+    await test('syncElegySkillAssetsFromGitHub installs skills from managed GitHub checkout', async () => {
+      const copilotHome = path.join(tmpRoot, 'asset-copilot-home');
+      const targetHome = path.join(tmpRoot, 'asset-target-home');
+      const sourceRoot = path.join(copilotHome, 'managed-cli', 'planning', 'source', 'Elegy');
+
+      const result = await syncElegySkillAssetsFromGitHub({
+        copilotHome,
+        targetHome,
+        childProcess: {
+          execFile(command, args, options, callback) {
+            assert.strictEqual(command, 'git');
+            assert.strictEqual(args[0], 'clone');
+            const destination = args[args.length - 1];
+            fs.mkdirSync(path.join(destination, 'rust', 'crates', 'elegy-planning'), { recursive: true });
+            fs.writeFileSync(path.join(destination, 'rust', 'Cargo.toml'), '[workspace]', 'utf8');
+            fs.writeFileSync(path.join(destination, 'rust', 'crates', 'elegy-planning', 'Cargo.toml'), '[package]', 'utf8');
+            for (const rel of [
+              path.join('src', 'Elegy-planning', 'skills', 'elegy-planning'),
+              path.join('src', 'Elegy-skills', 'skills', 'elegy-skills'),
+              path.join('skills', 'elegy-obsidian'),
+            ]) {
+              fs.mkdirSync(path.join(destination, rel), { recursive: true });
+              fs.writeFileSync(path.join(destination, rel, 'SKILL.md'), `# ${rel}`, 'utf8');
+            }
+            callback(null, '', '');
+          },
+        },
+        spawnSyncImpl(command, args) {
+          assert.strictEqual(command, 'git');
+          assert.deepStrictEqual(args.slice(0, 3), ['-C', sourceRoot, 'rev-parse']);
+          return { status: 0, stdout: 'asset-head\n' };
+        },
+      });
+
+      assert.strictEqual(result.source, 'github-source');
+      assert.strictEqual(result.installed.length, 3);
+      assert.ok(fs.existsSync(path.join(targetHome, 'skills', 'elegy-planning', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(targetHome, 'skills', 'elegy-skills', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(targetHome, 'skills', 'elegy-obsidian', 'SKILL.md')));
+      const metadata = readElegyAssetsMetadata(targetHome);
+      assert.strictEqual(metadata.source, 'github-source');
+      assert.strictEqual(metadata.sourceGitHead, 'asset-head');
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });

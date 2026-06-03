@@ -24,11 +24,11 @@ When first needed, it will be downloaded from GitHub releases at:
    - Windows: `elegy-planning.exe`
    - macOS/Linux: `elegy-planning`
 3. Add to your PATH or place in a directory that's on PATH
-4. Verify installation: `elegy-planning --version`
+4. Verify installation: `elegy-planning health --json`
 
 ### Environment Variables
 - `INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH`: Custom SQLite database path
-- Default location: `~/.elegy/planning.db` (or `~/.copilot/elegy-planning.db`)
+- Default location: `~/.copilot/elegy-planning.db` (legacy: `~/.elegy/planning.db`)
 
 ### First-Time Setup
 After installation, initialize the session context:

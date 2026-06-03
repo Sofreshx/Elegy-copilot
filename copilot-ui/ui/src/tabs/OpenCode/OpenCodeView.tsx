@@ -338,13 +338,16 @@ function SetupSection({ status, toolingInstalling, saving }: { status: OpenCodeS
   const handleAction = (check: OpenCodeSetupCheck) => {
     if (!check.action) return;
     const actionKind = check.action.kind;
+    // R4: Check install-codex-planning BEFORE the narrowed type guard to avoid TS2367
+    if (check.id === 'codex-elegy-planning' || actionKind === 'install-codex-planning') {
+      void opencodeStore.installCodexPlanning();
+      return;
+    }
     if (actionKind === 'install' || actionKind === 'update') {
       if (check.id === 'elegy-planning-cli') {
         void opencodeStore.installTooling({ kind: 'elegy-planning-cli' });
       } else if (check.id === 'elegy-skills') {
         void opencodeStore.installTooling({ kind: 'elegy-skills', force: actionKind === 'update' });
-      } else if (check.id === 'codex-elegy-planning' || actionKind === 'install-codex-planning') {
-        void opencodeStore.installCodexPlanning();
       } else {
         void opencodeStore.installAssets(actionKind === 'update');
       }

@@ -162,8 +162,10 @@ function resolveRepoParentWorktree(repo) {
 }
 
 function filterPlanningLiveRoadmaps(roadmaps, repo) {
+  const items = Array.isArray(roadmaps) ? roadmaps : [];
+  if (items.length === 0) return [];
   const parentRepo = resolveRepoParentWorktree(repo);
-  return (Array.isArray(roadmaps) ? roadmaps : []).filter((roadmap) => planningEntityMatchesRepoSelection(roadmap, repo, parentRepo));
+  return items.filter((roadmap) => planningEntityMatchesRepoSelection(roadmap, repo, parentRepo));
 }
 
 function filterPlanningLivePlans(plans, filters = {}) {

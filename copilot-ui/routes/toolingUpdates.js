@@ -2,11 +2,18 @@
 
 const {
   resolveElegyPlanningCliPath,
-  downloadElegyPlanningCli,
+  installLatestElegyPlanningCli,
   fetchLatestReleaseInfo,
+  buildManagedSourceDir,
+  readInstallMetadata,
+  readElegyAssetsMetadata,
+  resolveGitHead,
+  syncElegySkillAssetsFromGitHub,
+  GITHUB_ELEGY_SKILL_ASSETS,
 } = require('../lib/elegyPlanningCliResolver');
 const assetsLib = require('../lib/assets');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const { resolvePlanningHealth, resolvePlanningFeatureStatus } = require('../lib/elegyPlanningHealth');
 
 function parseVersion(value) {
   const normalized = typeof value === 'string' ? value.trim() : '';
@@ -30,57 +37,53 @@ function compareVersions(left, right) {
 }
 
 function resolvePlanningVersion(cliPath, deps) {
-  const command = typeof cliPath === 'string' ? cliPath.trim() : '';
-  if (!command) {
-    return null;
-  }
-  const childProcess = deps.childProcess;
-  if (!childProcess || typeof childProcess.spawnSync !== 'function') {
-    return null;
-  }
-
-  try {
-    const result = childProcess.spawnSync(command, ['--version'], {
-      windowsHide: true,
-      stdio: 'pipe',
-      shell: false,
-      encoding: 'utf8',
-      env: deps.env,
-    });
-    const output = `${result.stdout || ''} ${result.stderr || ''}`.trim();
-    const match = output.match(/(\d+\.\d+\.\d+)/);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
+  const childProcess = deps ? deps.childProcess : null;
+  const health = resolvePlanningHealth(cliPath, childProcess);
+  return health.version;
 }
 
-function mapManagedSkillAsset(asset) {
-  return {
-    id: asset.id,
-    upToDate: asset.upToDate === true,
-    installed: asset.installed === true,
-    source: asset.source,
-    destination: asset.destination,
-  };
-}
-
-function filterElegySkillAssets(assets) {
-  return (Array.isArray(assets) ? assets : []).filter((asset) => {
-    const source = typeof asset.source === 'string' ? asset.source.toLowerCase() : '';
-    const id = typeof asset.id === 'string' ? asset.id.toLowerCase() : '';
-    return source.includes('catalog-assets/shared-skills/elegy-')
-      || id.includes('elegy-planning')
-      || id.includes('elegy-skills');
+function buildElegySkillAssetsStatus(targetHome, sourceRepoRoot, sourceGitHead) {
+  const metadata = targetHome ? readElegyAssetsMetadata(targetHome) : null;
+  const installedAssets = Array.isArray(metadata?.assets) ? metadata.assets : [];
+  const installedById = new Map(installedAssets.map((asset) => [asset.id, asset]));
+  const assets = GITHUB_ELEGY_SKILL_ASSETS.map((asset) => {
+    const installed = installedById.get(asset.id);
+    const destinationPath = installed?.destinationPath || (targetHome ? `${targetHome}/${asset.destination}` : null);
+    return {
+      id: asset.id,
+      upToDate: Boolean(
+        installed
+          && metadata?.source === 'github-source'
+          && metadata?.sourceGitHead
+          && sourceGitHead
+          && metadata.sourceGitHead === sourceGitHead
+      ),
+      installed: Boolean(installed),
+      source: `github:${asset.source}`,
+      destination: asset.destination,
+      destinationPath,
+    };
   });
-}
+  const outdated = assets.filter((asset) => asset.upToDate !== true);
 
-function isElegySkillAsset(asset) {
-  const source = typeof asset?.source === 'string' ? asset.source.toLowerCase() : '';
-  const id = typeof asset?.id === 'string' ? asset.id.toLowerCase() : '';
-  return source.includes('catalog-assets/shared-skills/elegy-')
-    || id.includes('elegy-planning')
-    || id.includes('elegy-skills');
+  return {
+    trackedCount: assets.length,
+    outdatedCount: outdated.length,
+    updateAvailable: outdated.length > 0,
+    canUpdate: Boolean(targetHome),
+    source: 'github-source',
+    sourceRemote: 'https://github.com/Sofreshx/Elegy.git',
+    managedSource: {
+      repoRoot: sourceRepoRoot || metadata?.sourceRepoRoot || null,
+      gitHead: sourceGitHead || null,
+      installedGitHead: metadata?.sourceGitHead || null,
+      updateAvailable: outdated.length > 0,
+      kind: metadata?.source || null,
+      remote: metadata?.sourceRemote || null,
+    },
+    assets,
+    lastError: null,
+  };
 }
 
 async function buildToolingStatus(ctx, deps, codexHome) {
@@ -93,6 +96,7 @@ async function buildToolingStatus(ctx, deps, codexHome) {
   });
 
   const planningCurrentVersion = resolvePlanningVersion(cliPath, deps);
+  const planningFeatures = resolvePlanningFeatureStatus(cliPath, deps.childProcess);
   let planningLatestVersion = null;
   let planningLatestError = null;
   try {
@@ -103,28 +107,43 @@ async function buildToolingStatus(ctx, deps, codexHome) {
   }
 
   const planningUpdateAvailable = Boolean(
-    planningCurrentVersion
+    planningFeatures.complete !== true
+      || (
+        planningCurrentVersion
       && planningLatestVersion
-      && compareVersions(planningLatestVersion, planningCurrentVersion) > 0,
+      && compareVersions(planningLatestVersion, planningCurrentVersion) > 0
+      ),
   );
 
-  const managedStatuses = deps.assets.getManagedAssetStatuses(ctx.engineRoot, ctx.opencodeHome, 'opencode-assets/manifest.json');
-  const trackedSkills = filterElegySkillAssets(managedStatuses);
-  const outdatedSkills = trackedSkills.filter((asset) => asset.upToDate !== true);
+  const installedMetadata = ctx.copilotHomeAbs ? readInstallMetadata(ctx.copilotHomeAbs) : null;
+  const managedSourceRoot = ctx.copilotHomeAbs ? buildManagedSourceDir(ctx.copilotHomeAbs) : '';
+  const sourceRepoRoot = typeof installedMetadata?.sourceRepoRoot === 'string'
+    ? installedMetadata.sourceRepoRoot
+    : managedSourceRoot;
+  const sourceGitHead = sourceRepoRoot
+    ? resolveGitHead(sourceRepoRoot, {
+        env: ctx.env,
+        spawnSyncImpl: deps.childProcess && deps.childProcess.spawnSync,
+      })
+    : null;
+  const installedSourceGitHead = installedMetadata && typeof installedMetadata.sourceGitHead === 'string'
+    ? installedMetadata.sourceGitHead
+    : null;
+  const managedSourceUpdateAvailable = Boolean(
+    sourceRepoRoot
+      && (
+        installedMetadata?.source !== 'github-source'
+        || (sourceGitHead && installedSourceGitHead && sourceGitHead !== installedSourceGitHead)
+        || (sourceGitHead && !installedSourceGitHead)
+      ),
+  );
+
+  const elegySkillsStatus = buildElegySkillAssetsStatus(ctx.opencodeHome, sourceRepoRoot, sourceGitHead);
 
   let codexStatus = null;
-  if (codexHome && typeof deps.assets.getManagedAssetStatuses === 'function') {
+  if (codexHome) {
     try {
-      const codexManagedStatuses = deps.assets.getManagedAssetStatuses(ctx.engineRoot, codexHome, 'codex-assets/manifest.json');
-      const codexTrackedSkills = filterElegySkillAssets(codexManagedStatuses);
-      const codexOutdatedSkills = codexTrackedSkills.filter((asset) => asset.upToDate !== true);
-      codexStatus = {
-        trackedCount: codexTrackedSkills.length,
-        outdatedCount: codexOutdatedSkills.length,
-        updateAvailable: codexOutdatedSkills.length > 0,
-        canUpdate: Boolean(ctx.engineRoot && codexHome),
-        assets: codexTrackedSkills.map(mapManagedSkillAsset),
-      };
+      codexStatus = buildElegySkillAssetsStatus(codexHome, sourceRepoRoot, sourceGitHead);
     } catch {
       codexStatus = { error: 'Unable to check Codex skill status' };
     }
@@ -134,20 +153,23 @@ async function buildToolingStatus(ctx, deps, codexHome) {
     checkedAtMs,
     elegyPlanningCli: {
       cliPath: cliPath || null,
-      currentVersion: planningCurrentVersion,
+      currentVersion: planningCurrentVersion || (installedSourceGitHead ? `source:${installedSourceGitHead.slice(0, 12)}` : null),
       latestVersion: planningLatestVersion,
-      updateAvailable: planningUpdateAvailable,
+      updateAvailable: planningUpdateAvailable || managedSourceUpdateAvailable,
       canUpdate: Boolean(ctx.copilotHomeAbs),
       lastError: planningLatestError,
+      features: planningFeatures,
+      managedSource: {
+        repoRoot: sourceRepoRoot || null,
+        gitHead: sourceGitHead,
+        installedGitHead: installedSourceGitHead,
+        updateAvailable: managedSourceUpdateAvailable,
+        kind: installedMetadata?.source || null,
+        remote: installedMetadata?.sourceRemote || null,
+      },
+      installMetadata: installedMetadata,
     },
-    elegySkillsAssets: {
-      trackedCount: trackedSkills.length,
-      outdatedCount: outdatedSkills.length,
-      updateAvailable: outdatedSkills.length > 0,
-      canUpdate: Boolean(ctx.engineRoot && ctx.opencodeHome),
-      assets: trackedSkills.map(mapManagedSkillAsset),
-      lastError: null,
-    },
+    elegySkillsAssets: elegySkillsStatus,
     codexSkillsAssets: codexStatus,
   };
 }
@@ -196,14 +218,18 @@ function register(deps = {}) {
       path: '/api/tooling-updates/update/elegy-planning',
       handler: async (ctx) => {
         try {
-          const downloadedPath = await downloadElegyPlanningCli({
+          const installResult = await installLatestElegyPlanningCli({
             copilotHome: ctx.copilotHomeAbs,
+            runtimeRoot: ctx.engineRoot,
+            env: resolvedDeps.env,
             fetchImpl: resolvedDeps.fetchImpl,
+            childProcess: resolvedDeps.childProcess,
           });
           const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps, ctx.codexHome);
           resolvedDeps.sendJson(ctx.res, 200, {
             ok: true,
-            downloadedPath,
+            downloadedPath: installResult.installedPath,
+            installMetadata: installResult.metadata,
             status,
           });
         } catch (error) {
@@ -220,13 +246,12 @@ function register(deps = {}) {
       handler: async (ctx) => {
         try {
           const body = await resolvedDeps.readJsonBody(ctx.req);
-          const force = Boolean(body.force);
-          const syncResult = resolvedDeps.assets.syncAll(ctx.engineRoot, ctx.opencodeHome, {
-            dryRun: false,
-            force,
-            pointerMode: true,
-            manifestPath: 'opencode-assets/manifest.json',
-            assetFilter: isElegySkillAsset,
+          const syncResult = await syncElegySkillAssetsFromGitHub({
+            copilotHome: ctx.copilotHomeAbs,
+            targetHome: ctx.opencodeHome,
+            env: resolvedDeps.env,
+            childProcess: resolvedDeps.childProcess,
+            force: Boolean(body.force),
           });
 
           const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps, ctx.codexHome);
@@ -249,13 +274,12 @@ function register(deps = {}) {
       handler: async (ctx) => {
         try {
           const body = await resolvedDeps.readJsonBody(ctx.req);
-          const force = Boolean(body.force);
-          const syncResult = resolvedDeps.assets.syncAll(ctx.engineRoot, ctx.codexHome, {
-            dryRun: false,
-            force,
-            pointerMode: true,
-            manifestPath: 'codex-assets/manifest.json',
-            assetFilter: isElegySkillAsset,
+          const syncResult = await syncElegySkillAssetsFromGitHub({
+            copilotHome: ctx.copilotHomeAbs,
+            targetHome: ctx.codexHome,
+            env: resolvedDeps.env,
+            childProcess: resolvedDeps.childProcess,
+            force: Boolean(body.force),
           });
 
           const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps, ctx.codexHome);

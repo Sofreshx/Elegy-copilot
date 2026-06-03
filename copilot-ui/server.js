@@ -116,7 +116,7 @@ const {
 const { createRuntimeHealthResolver } = require('./lib/server/runtimeHealth');
 const { createRoadmapWorkflowMemoryBridge } = require('./lib/roadmapWorkflowMemoryBridge');
 const { createRoadmapWorkflowPlanningBridge } = require('./lib/roadmapWorkflowPlanningBridge');
-const { resolveElegyPlanningCliPath, downloadElegyPlanningCli } = require('./lib/elegyPlanningCliResolver');
+const { resolveElegyPlanningCliPath, installLatestElegyPlanningCli } = require('./lib/elegyPlanningCliResolver');
 const {
   resolveTrackerUrl,
   resolveTrackerToken,
@@ -274,6 +274,18 @@ function getUniqueManagedAssetHomes(homes) {
   return uniqueHomes;
 }
 
+const GITHUB_MANAGED_ELEGY_SKILL_NAMES = ['elegy-planning', 'elegy-skills', 'elegy-obsidian'];
+
+function isLegacyElegyManifestAsset(asset) {
+  if (!asset || typeof asset !== 'object') return false;
+  const id = typeof asset.id === 'string' ? asset.id.toLowerCase() : '';
+  const source = typeof asset.source === 'string' ? asset.source.toLowerCase() : '';
+  const destination = typeof asset.destination === 'string' ? asset.destination.toLowerCase() : '';
+  return id.includes('elegy-')
+    || source.includes('catalog-assets/shared-skills/elegy-')
+    || destination.includes('skills/elegy-');
+}
+
 function runStartupManagedAssetSync(engineRoot, homes, options = {}) {
   const quiet = options.quiet === true;
   const force = options.force === true;
@@ -285,6 +297,8 @@ function runStartupManagedAssetSync(engineRoot, homes, options = {}) {
         force,
         pointerMode: options.pointerMode !== false,
         manifestPath: options.manifestPath,
+        assetFilter: options.assetFilter,
+        preserveManagedSkillNames: options.preserveManagedSkillNames,
       });
       const summary = {
         home,
@@ -4895,6 +4909,8 @@ async function startServer(options = {}) {
         pointerMode: true,
         quiet,
         manifestPath: 'opencode-assets/manifest.json',
+        assetFilter: (asset) => !isLegacyElegyManifestAsset(asset),
+        preserveManagedSkillNames: GITHUB_MANAGED_ELEGY_SKILL_NAMES,
       }),
     ]
     : [];
@@ -4994,14 +5010,19 @@ async function startServer(options = {}) {
       delete env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED;
     } else {
       try {
-        logger('elegy-planning CLI not found locally, attempting download from GitHub releases...');
-        const downloadedPath = await downloadElegyPlanningCli({ copilotHome, logger });
-        env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH = downloadedPath;
+        logger('elegy-planning CLI not found locally, attempting managed install...');
+        const installResult = await installLatestElegyPlanningCli({
+          copilotHome,
+          runtimeRoot: engineRoot,
+          env,
+          logger,
+        });
+        env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH = installResult.installedPath;
         env.INSTRUCTION_ENGINE_ELEGY_PLANNING_ENABLED = '1';
         delete env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED;
-        logger(`elegy-planning CLI downloaded to: ${downloadedPath}`);
+        logger(`elegy-planning CLI installed to: ${installResult.installedPath}`);
       } catch (downloadError) {
-        logger(`elegy-planning CLI download failed: ${downloadError.message}`);
+        logger(`elegy-planning CLI managed install failed: ${downloadError.message}`);
       }
     }
   }

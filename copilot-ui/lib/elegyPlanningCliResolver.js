@@ -7,7 +7,27 @@ const path = require('node:path');
 
 const GITHUB_REPO = 'Sofreshx/Elegy';
 const GITHUB_RELEASE_TAG = 'latest';
+const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}.git`;
 const BINARY_NAME = 'elegy-planning';
+const INSTALL_METADATA_NAME = 'elegy-planning.install.json';
+const ELEGY_ASSETS_METADATA_NAME = 'elegy-assets.install.json';
+const GITHUB_ELEGY_SKILL_ASSETS = [
+  {
+    id: 'elegy-planning',
+    source: 'src/Elegy-planning/skills/elegy-planning',
+    destination: 'skills/elegy-planning',
+  },
+  {
+    id: 'elegy-skills',
+    source: 'src/Elegy-skills/skills/elegy-skills',
+    destination: 'skills/elegy-skills',
+  },
+  {
+    id: 'elegy-obsidian',
+    source: 'skills/elegy-obsidian',
+    destination: 'skills/elegy-obsidian',
+  },
+];
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -107,6 +127,303 @@ function buildDownloadDir(copilotHome) {
 
 function buildDownloadPath(copilotHome) {
   return path.join(buildDownloadDir(copilotHome), binaryName());
+}
+
+function buildManagedSourceDir(copilotHome) {
+  return path.join(buildDownloadDir(copilotHome), 'source', 'Elegy');
+}
+
+function buildInstallMetadataPath(copilotHome) {
+  return path.join(buildDownloadDir(copilotHome), INSTALL_METADATA_NAME);
+}
+
+function buildElegyAssetsMetadataPath(targetHome) {
+  return path.join(targetHome, ELEGY_ASSETS_METADATA_NAME);
+}
+
+function isElegyRustWorkspace(candidate) {
+  const normalized = normalizeString(candidate);
+  if (!normalized) {
+    return false;
+  }
+
+  return fs.existsSync(path.join(normalized, 'rust', 'Cargo.toml'))
+    && fs.existsSync(path.join(normalized, 'rust', 'crates', 'elegy-planning', 'Cargo.toml'));
+}
+
+async function syncGitHubElegySource(options = {}) {
+  const copilotHome = normalizeString(options.copilotHome);
+  if (!copilotHome) {
+    throw new Error('copilotHome is required to sync Elegy source from GitHub.');
+  }
+
+  const sourceDir = normalizeString(options.sourceDir) || buildManagedSourceDir(copilotHome);
+  const childProcessModule = options.childProcess || childProcess;
+  const execFile = typeof childProcessModule.execFile === 'function'
+    ? childProcessModule.execFile.bind(childProcessModule)
+    : childProcess.execFile;
+  const logger = typeof options.logger === 'function' ? options.logger : () => {};
+
+  await fs.promises.mkdir(path.dirname(sourceDir), { recursive: true });
+
+  const runGit = (args, cwd) => new Promise((resolve, reject) => {
+    execFile(
+      'git',
+      args,
+      {
+        cwd,
+        env: options.env,
+        windowsHide: true,
+        timeout: options.gitTimeoutMs || 180_000,
+        maxBuffer: 1024 * 1024 * 8,
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`git ${args.join(' ')} failed: ${error.message}\n${stderr || stdout || ''}`.trim()));
+          return;
+        }
+        resolve({ stdout: String(stdout || ''), stderr: String(stderr || '') });
+      },
+    );
+  });
+
+  if (fs.existsSync(path.join(sourceDir, '.git'))) {
+    logger(`Refreshing Elegy source from GitHub: ${sourceDir}`);
+    await runGit(['fetch', '--depth', '1', 'origin', 'main'], sourceDir);
+    await runGit(['checkout', '--force', 'FETCH_HEAD'], sourceDir);
+  } else {
+    safeRmSync(sourceDir);
+    logger(`Cloning Elegy source from GitHub: ${GITHUB_REPO_URL}`);
+    await runGit(['clone', '--depth', '1', '--branch', 'main', GITHUB_REPO_URL, sourceDir], path.dirname(sourceDir));
+  }
+
+  if (!isElegyRustWorkspace(sourceDir)) {
+    throw new Error(`GitHub Elegy checkout is missing the elegy-planning Rust workspace: ${sourceDir}`);
+  }
+
+  return sourceDir;
+}
+
+function resolveSourceBinaryPath(elegyRepoRoot, release = true) {
+  const profile = release ? 'release' : 'debug';
+  return path.join(elegyRepoRoot, 'rust', 'target', profile, binaryName());
+}
+
+function readJsonFile(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function readInstallMetadata(copilotHome) {
+  return readJsonFile(buildInstallMetadataPath(copilotHome));
+}
+
+function readElegyAssetsMetadata(targetHome) {
+  return readJsonFile(buildElegyAssetsMetadataPath(targetHome));
+}
+
+function writeInstallMetadata(copilotHome, metadata) {
+  const metadataPath = buildInstallMetadataPath(copilotHome);
+  fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
+  fs.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, 'utf8');
+  return metadataPath;
+}
+
+function writeElegyAssetsMetadata(targetHome, metadata) {
+  const metadataPath = buildElegyAssetsMetadataPath(targetHome);
+  fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
+  fs.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, 'utf8');
+  return metadataPath;
+}
+
+function resolveGitHead(repoRoot, options = {}) {
+  const spawnSyncImpl = typeof options.spawnSyncImpl === 'function'
+    ? options.spawnSyncImpl
+    : childProcess.spawnSync;
+
+  try {
+    const result = spawnSyncImpl('git', ['-C', repoRoot, 'rev-parse', 'HEAD'], {
+      windowsHide: true,
+      stdio: 'pipe',
+      encoding: 'utf8',
+      env: options.env,
+    });
+    if (Number(result && result.status) !== 0) {
+      return null;
+    }
+    return normalizeString(result.stdout);
+  } catch {
+    return null;
+  }
+}
+
+function copyBinaryToManagedPath(sourcePath, copilotHome) {
+  const destinationPath = buildDownloadPath(copilotHome);
+  fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+  fs.copyFileSync(sourcePath, destinationPath);
+
+  if (!isWindows()) {
+    try {
+      fs.chmodSync(destinationPath, 0o755);
+    } catch {
+      // best-effort
+    }
+  }
+
+  return destinationPath;
+}
+
+function copyDirectorySync(sourceDir, destinationDir) {
+  safeRmSync(destinationDir);
+  fs.mkdirSync(path.dirname(destinationDir), { recursive: true });
+  fs.cpSync(sourceDir, destinationDir, { recursive: true });
+}
+
+function resolveGitHubElegySkillAssets(sourceRoot) {
+  return GITHUB_ELEGY_SKILL_ASSETS.map((asset) => ({
+    ...asset,
+    sourcePath: path.join(sourceRoot, ...asset.source.split('/')),
+  }));
+}
+
+async function syncElegySkillAssetsFromGitHub(options = {}) {
+  const targetHome = normalizeString(options.targetHome);
+  if (!targetHome) {
+    throw new Error('targetHome is required to sync Elegy skill assets from GitHub.');
+  }
+
+  const sourceRoot = await syncGitHubElegySource(options);
+  const sourceGitHead = resolveGitHead(sourceRoot, {
+    env: options.env,
+    spawnSyncImpl: options.spawnSyncImpl || (options.childProcess && options.childProcess.spawnSync),
+  });
+  const logger = typeof options.logger === 'function' ? options.logger : () => {};
+  const requestedIds = Array.isArray(options.assetIds) && options.assetIds.length > 0
+    ? new Set(options.assetIds.map((id) => normalizeString(id)).filter(Boolean))
+    : null;
+  const assets = resolveGitHubElegySkillAssets(sourceRoot)
+    .filter((asset) => !requestedIds || requestedIds.has(asset.id));
+  const installed = [];
+
+  for (const asset of assets) {
+    if (!fs.existsSync(asset.sourcePath)) {
+      throw new Error(`GitHub Elegy checkout is missing required skill asset ${asset.id}: ${asset.sourcePath}`);
+    }
+    const destinationPath = path.join(targetHome, ...asset.destination.split('/'));
+    logger(`Installing Elegy skill asset ${asset.id} from GitHub source.`);
+    copyDirectorySync(asset.sourcePath, destinationPath);
+    installed.push({
+      id: asset.id,
+      source: asset.source,
+      destination: asset.destination,
+      sourcePath: asset.sourcePath,
+      destinationPath,
+      installed: true,
+      upToDate: true,
+    });
+  }
+
+  const metadata = {
+    source: 'github-source',
+    sourceRepoRoot: sourceRoot,
+    sourceGitHead,
+    sourceRemote: GITHUB_REPO_URL,
+    installedAt: new Date().toISOString(),
+    assets: installed.map((asset) => ({
+      id: asset.id,
+      source: asset.source,
+      destination: asset.destination,
+      destinationPath: asset.destinationPath,
+    })),
+  };
+  writeElegyAssetsMetadata(targetHome, metadata);
+
+  return {
+    ok: true,
+    source: 'github-source',
+    sourceRepoRoot: sourceRoot,
+    sourceGitHead,
+    sourceRemote: GITHUB_REPO_URL,
+    targetHome,
+    installed,
+  };
+}
+
+async function buildElegyPlanningCliFromSource(options = {}) {
+  const copilotHome = normalizeString(options.copilotHome);
+  if (!copilotHome) {
+    throw new Error('copilotHome is required to install elegy-planning from source.');
+  }
+
+  const elegyRepoRoot = normalizeString(options.elegyRepoPath || options.sourceRoot);
+  if (!elegyRepoRoot || !isElegyRustWorkspace(elegyRepoRoot)) {
+    throw new Error('GitHub Elegy source checkout is required to build elegy-planning.');
+  }
+
+  const childProcessModule = options.childProcess || childProcess;
+  const execFile = typeof childProcessModule.execFile === 'function'
+    ? childProcessModule.execFile.bind(childProcessModule)
+    : childProcess.execFile;
+  const logger = typeof options.logger === 'function' ? options.logger : () => {};
+  const release = options.release !== false;
+  const rustRoot = path.join(elegyRepoRoot, 'rust');
+  const args = ['build', '-p', 'elegy-planning', '--bin', 'elegy-planning'];
+  if (release) {
+    args.push('--release');
+  }
+
+  logger(`Building elegy-planning from source: ${elegyRepoRoot}`);
+
+  await new Promise((resolve, reject) => {
+    execFile(
+      'cargo',
+      args,
+      {
+        cwd: rustRoot,
+        env: options.env,
+        windowsHide: true,
+        timeout: options.timeoutMs || 300_000,
+        maxBuffer: 1024 * 1024 * 8,
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`cargo ${args.join(' ')} failed: ${error.message}\n${stderr || stdout || ''}`.trim()));
+          return;
+        }
+        resolve();
+      },
+    );
+  });
+
+  const sourceBinary = resolveSourceBinaryPath(elegyRepoRoot, release);
+  if (!fs.existsSync(sourceBinary)) {
+    throw new Error(`cargo build completed but binary was not found at ${sourceBinary}.`);
+  }
+
+  const installedPath = copyBinaryToManagedPath(sourceBinary, copilotHome);
+  const sourceGitHead = resolveGitHead(elegyRepoRoot, {
+    env: options.env,
+    spawnSyncImpl: options.spawnSyncImpl || childProcessModule.spawnSync,
+  });
+  const metadata = {
+    source: options.sourceKind || 'github-source',
+    sourceRepoRoot: elegyRepoRoot,
+    sourceGitHead,
+    sourceRemote: options.sourceRemote || null,
+    installedPath,
+    installedAt: new Date().toISOString(),
+    binarySha256: hashFileSha256Sync(installedPath),
+  };
+  writeInstallMetadata(copilotHome, metadata);
+  logger(`elegy-planning installed to: ${installedPath}`);
+
+  return {
+    installedPath,
+    metadata,
+  };
 }
 
 function buildGitHubReleaseUrl() {
@@ -382,7 +699,25 @@ async function downloadElegyPlanningCli(options = {}) {
   }
 
   logger(`elegy-planning installed to: ${downloadPath}`);
+  writeInstallMetadata(copilotHome, {
+    source: 'github-release',
+    releaseVersion: release.version,
+    releaseTag: release.releaseTag,
+    installedPath: downloadPath,
+    installedAt: new Date().toISOString(),
+    binarySha256: hashFileSha256Sync(downloadPath),
+  });
   return downloadPath;
+}
+
+async function installLatestElegyPlanningCli(options = {}) {
+  const sourceDir = await syncGitHubElegySource(options);
+  return buildElegyPlanningCliFromSource({
+    ...options,
+    elegyRepoPath: sourceDir,
+    sourceKind: 'github-source',
+    sourceRemote: GITHUB_REPO_URL,
+  });
 }
 
 function resolveElegyPlanningCliPath(options = {}) {
@@ -435,11 +770,22 @@ function resolveElegyPlanningCliPath(options = {}) {
 module.exports = {
   resolveElegyPlanningCliPath,
   downloadElegyPlanningCli,
+  installLatestElegyPlanningCli,
+  buildElegyPlanningCliFromSource,
   fetchLatestReleaseInfo,
   findExistingBinary,
   candidatePaths,
   buildDownloadPath,
   buildDownloadDir,
+  buildManagedSourceDir,
+  buildInstallMetadataPath,
+  buildElegyAssetsMetadataPath,
+  syncGitHubElegySource,
+  syncElegySkillAssetsFromGitHub,
+  readInstallMetadata,
+  readElegyAssetsMetadata,
+  resolveGitHead,
+  GITHUB_ELEGY_SKILL_ASSETS,
   buildTargetTriple,
   extractZipTo,
   binaryName,

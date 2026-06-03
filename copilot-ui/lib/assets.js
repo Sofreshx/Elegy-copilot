@@ -534,6 +534,7 @@ function pruneManagedSkillInstall(home, currentState, previousState, options = {
   const resolvedHome = path.resolve(home);
   const currentAlways = new Set(normalizeInstallStateItems(currentState.alwaysLoadedSkills));
   const currentVault = new Set(normalizeInstallStateItems(currentState.vaultSkills));
+  const preservedSkillNames = new Set(normalizeInstallStateItems(options.preserveManagedSkillNames));
   const previousManaged = normalizeInstallStateItems(previousState && previousState.managedSkills);
   const previousVault = previousState && Array.isArray(previousState.vaultSkills)
     ? normalizeInstallStateItems(previousState.vaultSkills)
@@ -547,6 +548,10 @@ function pruneManagedSkillInstall(home, currentState, previousState, options = {
   const removed = [];
 
   for (const skillName of pruneCandidates) {
+    if (preservedSkillNames.has(skillName)) {
+      continue;
+    }
+
     if (!currentAlways.has(skillName)) {
       const skillDir = path.join(resolvedHome, 'skills', skillName);
       const pointerFile = path.join(resolvedHome, 'skills', `${skillName}.md`);

@@ -13,6 +13,7 @@ import {
   filterBySelectedRepos,
   sortRoadmaps,
 } from './planningExplorerContracts';
+import PlanningGraphView from './PlanningGraphView';
 
 function formatTimestamp(value: string | null | undefined): string {
   if (!value) return 'Unknown';
@@ -37,6 +38,9 @@ export default function PlanningExplorerView() {
   const [sortBy, setSortBy] = useState<'updated' | 'created'>('updated');
   // Compound key: `${repoPath}|${repoId}`
   const [selectedRepoKeys, setSelectedRepoKeys] = useState<Set<string>>(new Set());
+
+  // ---- Inline graph state ----
+  const [selectedRoadmap, setSelectedRoadmap] = useState<AugmentedRoadmap | null>(null);
 
   // ---- Derived: normalised repos ----
   const repos = useMemo(() => {
@@ -81,8 +85,25 @@ export default function PlanningExplorerView() {
           repoLabel: repo.repoLabel || undefined,
         }),
       );
+      // Also query globally (no repo params) to catch roadmaps without repo tags
+      promises.push(listPlanningLiveRoadmaps());
       const results = await Promise.allSettled(promises);
-      const merged = mergeRepoRoadmaps(results, repos);
+
+      // Merge per-repo results normally (last result is the global query)
+      const perRepoResults = results.slice(0, repos.length);
+      const globalResult = results[repos.length];
+      const merged = mergeRepoRoadmaps(perRepoResults, repos);
+
+      // Add global (unscoped) roadmaps that didn't appear in any per-repo result
+      if (globalResult.status === 'fulfilled' && Array.isArray(globalResult.value?.roadmaps)) {
+        const existingIds = new Set(merged.roadmaps.map((r: AugmentedRoadmap) => r.id));
+        for (const roadmap of globalResult.value.roadmaps) {
+          if (!existingIds.has(roadmap.id)) {
+            merged.roadmaps.push({ ...roadmap, _repoSource: { repoId: '', repoPath: '', repoLabel: '(unscoped)' } });
+          }
+        }
+      }
+
       setRoadmaps(merged.roadmaps);
       setFailedRepos(merged.failedRepos);
 
@@ -103,45 +124,53 @@ export default function PlanningExplorerView() {
     void fetchRoadmaps();
   }, [fetchRoadmaps]);
 
-  // ---- Open detail window ----
-  async function openRoadmapDetail(roadmap: AugmentedRoadmap) {
+  // ---- Open inline graph ----
+  function selectRoadmap(roadmap: AugmentedRoadmap) {
+    setSelectedRoadmap(roadmap);
+  }
+
+  function closeRoadmap() {
+    setSelectedRoadmap(null);
+  }
+
+  // ---- Open in separate window ----
+  function openInSeparateWindow(roadmap: AugmentedRoadmap) {
     const params = new URLSearchParams();
     params.set('roadmapId', roadmap.id);
     if (roadmap._repoSource.repoId) params.set('repoId', roadmap._repoSource.repoId);
     if (roadmap._repoSource.repoPath) params.set('repoPath', roadmap._repoSource.repoPath);
     if (roadmap._repoSource.repoLabel) params.set('repoLabel', roadmap._repoSource.repoLabel);
 
-    // In Tauri desktop shell: create a separate OS window via the WebviewWindow API.
-    // Falls back to same-window navigation if the Tauri API is unavailable.
+    // In Tauri: try creating a proper OS window via WebviewWindow
     if (window.instructionEngineDesktop?.shell === 'tauri') {
       const currentParams = new URLSearchParams(window.location.search);
       const token = currentParams.get('desktop-ui-token');
       if (token) params.set('desktop-ui-token', token);
 
-      // Attempt creating a proper Tauri-managed OS window using the async
-      // factory method (WebviewWindow.create) so errors are caught by await.
       if (window.__TAURI__) {
+        const label = `roadmap-detail-${roadmap.id}-${Date.now()}`;
         try {
-          const label = `roadmap-detail-${roadmap.id}-${Date.now()}`;
-          await window.__TAURI__.webviewWindow.WebviewWindow.create(label, {
+          const ww = new window.__TAURI__.webviewWindow.WebviewWindow(label, {
             url: `${window.location.origin}/?${params.toString()}`,
             title: roadmap.title || roadmap.id,
             width: 1200,
             height: 800,
             visible: true,
           });
+          ww.once('tauri://error', () => {
+            window.open(`${window.location.origin}/?${params.toString()}`);
+          });
           return;
         } catch {
-          // WebviewWindow creation failed — fall through to same-window navigation
+          // fall through to fallback
         }
       }
-
-      // Reliable fallback: navigate within the same webview
-      window.location.assign(`${window.location.pathname}?${params.toString()}`);
+      // Fallback: open in browser
+      window.open(`${window.location.origin}/?${params.toString()}`);
       return;
     }
 
-    // Browser context: open the standalone graph in a new tab/window.
+    // Browser context
     window.open(`${window.location.origin}/?${params.toString()}`);
   }
 
@@ -163,6 +192,54 @@ export default function PlanningExplorerView() {
     return `${repo.repoPath}|${repo.repoId}`;
   }
 
+  // ---- Build repo query for PlanningGraphView ----
+  const selectedRepoQuery = useMemo(() => {
+    if (!selectedRoadmap) return undefined;
+    return {
+      repoId: selectedRoadmap._repoSource.repoId || undefined,
+      repoPath: selectedRoadmap._repoSource.repoPath || undefined,
+      repoLabel: selectedRoadmap._repoSource.repoLabel || undefined,
+    };
+  }, [selectedRoadmap]);
+
+  // ---- Render: Inline Graph View ----
+  if (selectedRoadmap) {
+    return (
+      <section className="planning-explorer-view" data-testid="planning-explorer-view">
+        <div className="planning-explorer-header">
+          <h2>Planning Explorer</h2>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Button
+              onClick={closeRoadmap}
+              testId="planning-explorer-back-to-list"
+              variant="secondary"
+              size="sm"
+            >
+              ← Back to roadmaps
+            </Button>
+            <Button
+              onClick={() => openInSeparateWindow(selectedRoadmap)}
+              testId="planning-explorer-open-window"
+              variant="secondary"
+              size="sm"
+            >
+              ▢ Open in window
+            </Button>
+          </div>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          <PlanningGraphView
+            roadmapId={selectedRoadmap.id}
+            repoQuery={selectedRepoQuery ?? {}}
+            onBack={closeRoadmap}
+            onRefreshNeeded={() => void fetchRoadmaps()}
+          />
+        </div>
+      </section>
+    );
+  }
+
+  // ---- Render: Roadmap List ----
   return (
     <section className="planning-explorer-view" data-testid="planning-explorer-view">
       {/* ---- Header ---- */}
@@ -250,7 +327,7 @@ export default function PlanningExplorerView() {
                 key={`${roadmap._repoSource.repoPath}|${roadmap._repoSource.repoId}|${roadmap.id}`}
                 className="planning-explorer-card"
                 data-testid={`planning-explorer-roadmap-${roadmap.id}`}
-                onClick={() => openRoadmapDetail(roadmap)}
+                onClick={() => selectRoadmap(roadmap)}
                 type="button"
               >
                 <div className="planning-explorer-card-heading">

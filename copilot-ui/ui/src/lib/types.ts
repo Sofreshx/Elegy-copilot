@@ -1131,6 +1131,7 @@ export interface ToolingManagedSkillAsset {
   installed: boolean;
   source: string;
   destination: string;
+  destinationPath?: string | null;
 }
 
 export interface ToolingPlanningCliStatus {
@@ -1140,6 +1141,20 @@ export interface ToolingPlanningCliStatus {
   updateAvailable: boolean;
   canUpdate: boolean;
   lastError: string | null;
+  features?: {
+    required: string[];
+    missing: string[];
+    complete: boolean;
+  };
+  managedSource?: {
+    repoRoot: string | null;
+    gitHead: string | null;
+    installedGitHead: string | null;
+    updateAvailable: boolean;
+    kind?: string | null;
+    remote?: string | null;
+  };
+  installMetadata?: Record<string, unknown> | null;
 }
 
 export interface ToolingSkillsAssetsStatus {
@@ -1147,6 +1162,16 @@ export interface ToolingSkillsAssetsStatus {
   outdatedCount: number;
   updateAvailable: boolean;
   canUpdate: boolean;
+  source?: string | null;
+  sourceRemote?: string | null;
+  managedSource?: {
+    repoRoot: string | null;
+    gitHead: string | null;
+    installedGitHead: string | null;
+    updateAvailable: boolean;
+    kind?: string | null;
+    remote?: string | null;
+  };
   assets: ToolingManagedSkillAsset[];
   lastError: string | null;
 }
@@ -1155,12 +1180,14 @@ export interface ToolingUpdatesStatusResponse {
   checkedAtMs: number;
   elegyPlanningCli: ToolingPlanningCliStatus;
   elegySkillsAssets: ToolingSkillsAssetsStatus;
+  codexSkillsAssets?: ToolingSkillsAssetsStatus | { error: string } | null;
 }
 
 export interface ToolingUpdateActionResponse {
   ok: boolean;
   status?: ToolingUpdatesStatusResponse;
   downloadedPath?: string;
+  installMetadata?: unknown;
   syncResult?: unknown;
   surfaceResults?: unknown[];
   error?: string;

@@ -92,7 +92,11 @@ function ElegyPlanningUpdateCard() {
     : checking || updatingPlanning
       ? 'Checking for updates…'
       : planning?.updateAvailable
-        ? `Update available (${planning.latestVersion ?? 'latest'})`
+        ? planning.features?.complete === false
+          ? `Update required (${planning.features.missing.length} missing feature${planning.features.missing.length === 1 ? '' : 's'})`
+          : planning.managedSource?.updateAvailable
+            ? 'Managed GitHub source is newer'
+            : `Update available (${planning.latestVersion ?? 'latest'})`
         : 'Up to date';
 
   return (
@@ -131,6 +135,24 @@ function ElegyPlanningUpdateCard() {
           <dd data-testid="updates-elegy-planning-current">{planning?.currentVersion ?? 'unknown'}</dd>
           <dt>Latest Version</dt>
           <dd data-testid="updates-elegy-planning-latest">{planning?.latestVersion ?? 'unknown'}</dd>
+          <dt>Feature Surface</dt>
+          <dd data-testid="updates-elegy-planning-features">
+            {planning?.features?.complete
+              ? 'complete'
+              : planning?.features?.missing?.length
+                ? `missing ${planning.features.missing.join(', ')}`
+                : 'unknown'}
+          </dd>
+          <dt>Managed Source</dt>
+          <dd data-testid="updates-elegy-planning-source">
+            {planning?.managedSource?.repoRoot
+              ? planning.managedSource.updateAvailable
+                ? 'newer GitHub source available'
+                : planning.managedSource.kind === 'github-source'
+                  ? 'GitHub source tracked'
+                  : 'source tracked'
+              : 'not detected'}
+          </dd>
           <dt>CLI Path</dt>
           <dd data-testid="updates-elegy-planning-path">{planning?.cliPath ?? 'not detected'}</dd>
         </dl>
@@ -198,6 +220,14 @@ function ElegySkillsUpdateCard() {
           <dd data-testid="updates-elegy-skills-tracked">{skills?.trackedCount ?? 0}</dd>
           <dt>Outdated Assets</dt>
           <dd data-testid="updates-elegy-skills-outdated">{skills?.outdatedCount ?? 0}</dd>
+          <dt>Source</dt>
+          <dd data-testid="updates-elegy-skills-source">
+            {skills?.source === 'github-source'
+              ? skills.managedSource?.updateAvailable
+                ? 'newer GitHub source available'
+                : 'GitHub source tracked'
+              : 'not detected'}
+          </dd>
           <dt>Checked</dt>
           <dd data-testid="updates-elegy-skills-checked">
             {status?.checkedAtMs ? new Date(status.checkedAtMs).toLocaleString() : 'never'}

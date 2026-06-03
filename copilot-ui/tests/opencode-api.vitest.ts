@@ -1,7 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
 const { register } = await vi.importActual<{ register: Function }>('../routes/opencode');
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function createMockSendJson() {
   return vi.fn();
@@ -95,11 +101,35 @@ describe('opencode route - register', () => {
 
     const opencodeConfig = createMockOpenCodeConfig();
     const assets = createMockAssets([
-      { id: 'catalog-assets/shared-skills/elegy-planning', upToDate: true, installed: true, source: 's', destination: 'd' },
+      { id: 'elegy-planning', upToDate: true, installed: true, source: 'github:src/Elegy-planning/skills/elegy-planning', destination: 'skills/elegy-planning' },
       { id: 'opencode-skill-discovery-skill', upToDate: true, installed: true, source: 's', destination: 'd' },
       { id: 'opencode-worktree-plugin', upToDate: true, installed: true, source: 's', destination: 'd' },
       { id: 'opencode-global-instructions', upToDate: true, installed: true, source: 's', destination: 'd' },
     ]);
+
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-opencode-ready-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const opencodeHome = path.join(tmpRoot, '.opencode');
+    const sourceRepoRoot = path.join(copilotHome, 'managed-cli', 'planning', 'source', 'Elegy');
+    fs.mkdirSync(path.join(copilotHome, 'managed-cli', 'planning'), { recursive: true });
+    fs.mkdirSync(opencodeHome, { recursive: true });
+    fs.writeFileSync(path.join(copilotHome, 'managed-cli', 'planning', 'elegy-planning.install.json'), JSON.stringify({
+      source: 'github-source',
+      sourceRepoRoot,
+      sourceGitHead: '1.0.0',
+      sourceRemote: 'https://github.com/Sofreshx/Elegy.git',
+    }), 'utf8');
+    fs.writeFileSync(path.join(opencodeHome, 'elegy-assets.install.json'), JSON.stringify({
+      source: 'github-source',
+      sourceRepoRoot,
+      sourceGitHead: '1.0.0',
+      sourceRemote: 'https://github.com/Sofreshx/Elegy.git',
+      assets: [
+        { id: 'elegy-planning', destination: 'skills/elegy-planning' },
+        { id: 'elegy-skills', destination: 'skills/elegy-skills' },
+        { id: 'elegy-obsidian', destination: 'skills/elegy-obsidian' },
+      ],
+    }), 'utf8');
 
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
 
@@ -108,14 +138,14 @@ describe('opencode route - register', () => {
       sendJson,
       assets,
       opencodeConfig,
-      childProcess: { spawnSync: () => ({ stdout: '1.0.0', stderr: '' }) },
+      childProcess: { spawnSync: () => ({ status: 0, stdout: '1.0.0', stderr: '' }) },
       roadmapWorkflowPlanningBridge: mockBridge,
     });
     const statusRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'GET' && r.path === '/api/opencode/status',
     );
 
-    const ctx = createMockCtx();
+    const ctx = createMockCtx({ copilotHomeAbs: copilotHome, opencodeHome });
     await statusRoute.handler(ctx);
 
     const statusCode = sendJson.mock.calls[0][1];
@@ -241,6 +271,7 @@ describe('opencode route - register', () => {
       ctx.opencodeHome,
       'DeepSeek V4 Flash Max',
       'DeepSeek V4 Pro Max',
+      undefined,
     );
     expect(sendJson).toHaveBeenCalledWith(ctx.res, 200, expect.objectContaining({ ok: true }));
   });
@@ -371,34 +402,63 @@ describe('opencode route - register', () => {
     expect(sendJson).toHaveBeenCalledWith(ctx.res, 400, expect.objectContaining({ ok: false }));
   });
 
-  it('POST /api/opencode/tooling/install with elegy-skills filters to elegy assets and passes engineRoot', async () => {
+  it('POST /api/opencode/tooling/install with elegy-skills installs from managed GitHub source', async () => {
     const sendJson = createMockSendJson();
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-opencode-github-skills-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const opencodeHome = path.join(tmpRoot, '.opencode');
     const assets = createMockAssets();
     const routes = register({
       sendJson,
       readJsonBody: createReadJsonBody({ kind: 'elegy-skills', force: true }),
       assets,
       opencodeConfig: createMockOpenCodeConfig(),
+      childProcess: {
+        execFile(command: string, args: string[], _options: unknown, callback: Function) {
+          expect(command).toBe('git');
+          expect(args[0]).toBe('clone');
+          const destination = args[args.length - 1];
+          fs.mkdirSync(path.join(destination, 'rust', 'crates', 'elegy-planning'), { recursive: true });
+          fs.writeFileSync(path.join(destination, 'rust', 'Cargo.toml'), '[workspace]', 'utf8');
+          fs.writeFileSync(path.join(destination, 'rust', 'crates', 'elegy-planning', 'Cargo.toml'), '[package]', 'utf8');
+          for (const rel of [
+            path.join('src', 'Elegy-planning', 'skills', 'elegy-planning'),
+            path.join('src', 'Elegy-skills', 'skills', 'elegy-skills'),
+            path.join('skills', 'elegy-obsidian'),
+          ]) {
+            fs.mkdirSync(path.join(destination, rel), { recursive: true });
+            fs.writeFileSync(path.join(destination, rel, 'SKILL.md'), `# ${rel}`, 'utf8');
+          }
+          callback(null, '', '');
+        },
+        spawnSync() {
+          return { status: 0, stdout: 'asset-head\n', stderr: '' };
+        },
+      },
     });
     const installRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/tooling/install',
     );
 
-    const ctx = createMockCtx();
+    const ctx = createMockCtx({ copilotHomeAbs: copilotHome, opencodeHome });
     await installRoute.handler(ctx);
 
-    expect(assets.syncAll).toHaveBeenCalledWith(
-      ctx.engineRoot,
-      ctx.opencodeHome,
-      expect.objectContaining({ force: true, pointerMode: true, assetFilter: expect.any(Function) }),
-    );
-    const filterFn = assets.syncAll.mock.calls[0][2].assetFilter;
-    expect(filterFn({ id: 'elegy-planning-cli', source: 'github' })).toBe(true);
-    expect(filterFn({ id: 'opencode-plugin', source: 'github' })).toBe(false);
+    expect(assets.syncAll).not.toHaveBeenCalled();
     expect(sendJson).toHaveBeenCalledWith(
       ctx.res,
       200,
-      expect.objectContaining({ ok: true, kind: 'elegy-skills', syncResult: expect.any(Object) }),
+      expect.objectContaining({
+        ok: true,
+        kind: 'elegy-skills',
+        syncResult: expect.objectContaining({
+          source: 'github-source',
+          installed: expect.arrayContaining([
+            expect.objectContaining({ id: 'elegy-planning' }),
+            expect.objectContaining({ id: 'elegy-skills' }),
+            expect.objectContaining({ id: 'elegy-obsidian' }),
+          ]),
+        }),
+      }),
     );
   });
 });

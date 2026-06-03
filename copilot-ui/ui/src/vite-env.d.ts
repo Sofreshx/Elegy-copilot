@@ -20,43 +20,25 @@ declare global {
 				invoke: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 			};
 			webviewWindow: {
-				WebviewWindow: {
-					new (
-						label: string,
-						options: {
-							url: string;
-							title?: string;
-							width?: number;
-							height?: number;
-							minWidth?: number;
-							minHeight?: number;
-							resizable?: boolean;
-							visible?: boolean;
-							center?: boolean;
-							decorations?: boolean;
-						},
-					): {
-						label: string;
-						close: () => Promise<void>;
-					};
-					create: (
-						label: string,
-						options: {
-							url: string;
-							title?: string;
-							width?: number;
-							height?: number;
-							minWidth?: number;
-							minHeight?: number;
-							resizable?: boolean;
-							visible?: boolean;
-							center?: boolean;
-							decorations?: boolean;
-						},
-					) => Promise<{
-						label: string;
-						close: () => Promise<void>;
-					}>;
+				WebviewWindow: new (
+					label: string,
+					options: {
+						url: string;
+						title?: string;
+						width?: number;
+						height?: number;
+						minWidth?: number;
+						minHeight?: number;
+						resizable?: boolean;
+						visible?: boolean;
+						center?: boolean;
+						decorations?: boolean;
+					},
+				) => {
+					label: string;
+					close: () => Promise<void>;
+					once: (event: string, handler: (...args: unknown[]) => void) => void;
+					listen: (event: string, handler: (...args: unknown[]) => void) => Promise<() => void>;
 				};
 			};
 		};

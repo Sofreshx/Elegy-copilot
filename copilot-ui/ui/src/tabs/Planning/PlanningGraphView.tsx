@@ -16,6 +16,16 @@ import type {
 import { humanizeToken } from '../../lib/stateDiagnostics';
 
 // ---------------------------------------------------------------------------
+// Zoom / pan constants
+// ---------------------------------------------------------------------------
+
+const ZOOM_MIN = 0.3;
+const ZOOM_MAX = 2.0;
+const ZOOM_WHEEL_FACTOR = 1.08;
+const ZOOM_BUTTON_FACTOR = 1.2;
+const PAN_ARROW_STEP = 50;
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -649,6 +659,58 @@ export default function PlanningGraphView(props: PlanningGraphViewProps) {
     setZoomNodeId(null);
   }, [roadmapId]);
 
+  // ---- Keyboard shortcuts ----
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case '=':
+          case '+':
+            e.preventDefault();
+            setScale((s) => Math.min(ZOOM_MAX, s * ZOOM_BUTTON_FACTOR));
+            return;
+          case '-':
+          case '_':
+            e.preventDefault();
+            setScale((s) => Math.max(ZOOM_MIN, s / ZOOM_BUTTON_FACTOR));
+            return;
+          case '0':
+            e.preventDefault();
+            setScale(1);
+            setTranslateX(0);
+            setTranslateY(0);
+            setZoomNodeId(null);
+            return;
+        }
+      }
+
+      switch (e.key) {
+        case 'Escape':
+          setSelectedNodeId(null);
+          return;
+        case 'ArrowUp':
+          e.preventDefault();
+          setTranslateY((ty) => ty + PAN_ARROW_STEP);
+          return;
+        case 'ArrowDown':
+          e.preventDefault();
+          setTranslateY((ty) => ty - PAN_ARROW_STEP);
+          return;
+        case 'ArrowLeft':
+          e.preventDefault();
+          setTranslateX((tx) => tx + PAN_ARROW_STEP);
+          return;
+        case 'ArrowRight':
+          e.preventDefault();
+          setTranslateX((tx) => tx - PAN_ARROW_STEP);
+          return;
+      }
+    }
+
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, []);
+
   // ---- Graph construction (memoised) ----
 
   const rootNode = useMemo<GraphNode | null>(
@@ -743,8 +805,8 @@ export default function PlanningGraphView(props: PlanningGraphViewProps) {
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
       e.preventDefault();
-      const factor = e.deltaY < 0 ? 1.1 : 0.9;
-      setScale((prev) => Math.min(2.0, Math.max(0.3, prev * factor)));
+      const factor = e.deltaY < 0 ? ZOOM_WHEEL_FACTOR : 1 / ZOOM_WHEEL_FACTOR;
+      setScale((prev) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, prev * factor)));
     },
     [],
   );
@@ -1071,7 +1133,7 @@ export default function PlanningGraphView(props: PlanningGraphViewProps) {
         </div>
         <div style={controlsRowStyle}>
           <Button
-            onClick={() => setScale((s) => Math.min(2.0, s * 1.25))}
+            onClick={() => setScale((s) => Math.min(ZOOM_MAX, s * ZOOM_BUTTON_FACTOR))}
             testId="planning-graph-zoom-in"
             variant="ghost"
             size="sm"
@@ -1080,7 +1142,7 @@ export default function PlanningGraphView(props: PlanningGraphViewProps) {
           </Button>
           <span style={scaleIndicatorStyle}>{scalePercent}%</span>
           <Button
-            onClick={() => setScale((s) => Math.max(0.3, s / 1.25))}
+            onClick={() => setScale((s) => Math.max(ZOOM_MIN, s / ZOOM_BUTTON_FACTOR))}
             testId="planning-graph-zoom-out"
             variant="ghost"
             size="sm"
@@ -1100,6 +1162,8 @@ export default function PlanningGraphView(props: PlanningGraphViewProps) {
           >
             Reset
           </Button>
+          <span style={shortcutHintStyle}>Ctrl+ − + 0</span>
+          <span style={shortcutHintStyle}>↑↓←→</span>
         </div>
       </div>
 
@@ -1195,4 +1259,12 @@ const closeButtonStyle: React.CSSProperties = {
   padding: '4px 8px',
   borderRadius: 4,
   lineHeight: 1,
+};
+
+const shortcutHintStyle: React.CSSProperties = {
+  color: 'var(--color-ink-400)',
+  fontSize: '0.7rem',
+  fontFamily: 'monospace',
+  padding: '0 4px',
+  opacity: 0.75,
 };

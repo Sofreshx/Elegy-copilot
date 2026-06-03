@@ -7,18 +7,35 @@ const opencodeLogReaderDefault = require('../lib/opencodeLogReader');
 const assetsLib = require('../lib/assets');
 const {
   resolveElegyPlanningCliPath,
-  downloadElegyPlanningCli,
+  installLatestElegyPlanningCli,
+  syncElegySkillAssetsFromGitHub,
+  readElegyAssetsMetadata,
+  readInstallMetadata,
+  buildManagedSourceDir,
+  resolveGitHead,
+  GITHUB_ELEGY_SKILL_ASSETS,
 } = require('../lib/elegyPlanningCliResolver');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 const codexConfig = require('../lib/codexConfig');
+const { resolvePlanningHealth, resolvePlanningFeatureStatus } = require('../lib/elegyPlanningHealth');
 
-const TOOLING_INSTALL_KINDS = new Set(['elegy-planning-cli', 'elegy-skills']);
+const TOOLING_INSTALL_KINDS = new Set(['elegy-planning-cli', 'elegy-skills', 'install-codex-planning']);
+
+function isLegacyElegyManifestAsset(asset) {
+  if (!asset || typeof asset !== 'object') return false;
+  const id = asTrimmedString(asset.id).toLowerCase();
+  const source = asTrimmedString(asset.source).toLowerCase();
+  const destination = asTrimmedString(asset.destination).toLowerCase();
+  return id.includes('elegy-')
+    || source.includes('catalog-assets/shared-skills/elegy-')
+    || destination.includes('skills/elegy-');
+}
 
 function isElegySkillAsset(asset) {
   if (!asset || typeof asset !== 'object') return false;
-  const id = typeof asset.id === 'string' ? asset.id.toLowerCase() : '';
-  const source = typeof asset.source === 'string' ? asset.source.toLowerCase() : '';
-  return id.includes('elegy-') || source.includes('catalog-assets/shared-skills/elegy-');
+  const id = asTrimmedString(asset.id).toLowerCase();
+  return id.includes('elegy-')
+    || id.includes('codex-elegy-planning');
 }
 
 function isTruthy(value) {
@@ -49,7 +66,7 @@ function asNumber(value, fallback = 0) {
 function filterOpenCodeAssets(assets) {
   return toArray(assets).filter((a) => {
     const id = asTrimmedString(a.id).toLowerCase();
-    return id.startsWith('opencode-');
+    return id.startsWith('opencode-') && !isLegacyElegyManifestAsset(a);
   });
 }
 
@@ -348,10 +365,10 @@ function buildSetupChecks(opencodeHome, copilotHomeAbs, engineRoot, assets, ctx,
     try {
       const planningSkillStatus = codexConfig.getPlanningSkillStatus(codexHome);
       const cliPath = resolveElegyPlanningCliPath({
-        cliPath: process.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
+        cliPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
         runtimeRoot: engineRoot,
         copilotHome: copilotHomeAbs,
-        env: process.env,
+        env: ctx.env,
       });
       const ready = planningSkillStatus.installed && Boolean(cliPath);
       checks.push({
@@ -428,22 +445,56 @@ function buildWarnings(setupChecks) {
 }
 
 function resolvePlanningVersion(cliPath, childProcess) {
-  const command = typeof cliPath === 'string' ? cliPath.trim() : '';
-  if (!command) return null;
-  if (!childProcess || typeof childProcess.spawnSync !== 'function') return null;
-  try {
-    const result = childProcess.spawnSync(command, ['--version'], {
-      windowsHide: true,
-      stdio: 'pipe',
-      shell: false,
-      encoding: 'utf8',
-    });
-    const output = `${result.stdout || ''} ${result.stderr || ''}`.trim();
-    const match = output.match(/(\d+\.\d+\.\d+)/);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
+  const health = resolvePlanningHealth(cliPath, childProcess);
+  return health.version;
+}
+
+function buildGitHubElegySkillAssetsStatus(targetHome, copilotHomeAbs, env, childProcess) {
+  const installMetadata = copilotHomeAbs ? readInstallMetadata(copilotHomeAbs) : null;
+  const sourceRepoRoot = installMetadata?.sourceRepoRoot || (copilotHomeAbs ? buildManagedSourceDir(copilotHomeAbs) : '');
+  const sourceGitHead = sourceRepoRoot
+    ? resolveGitHead(sourceRepoRoot, {
+        env,
+        spawnSyncImpl: childProcess && childProcess.spawnSync,
+      })
+    : null;
+  const metadata = targetHome ? readElegyAssetsMetadata(targetHome) : null;
+  const installedAssets = Array.isArray(metadata?.assets) ? metadata.assets : [];
+  const installedById = new Map(installedAssets.map((asset) => [asset.id, asset]));
+  const assets = GITHUB_ELEGY_SKILL_ASSETS.map((asset) => {
+    const installed = installedById.get(asset.id);
+    return {
+      id: asset.id,
+      upToDate: Boolean(
+        installed
+          && metadata?.source === 'github-source'
+          && metadata?.sourceGitHead
+          && sourceGitHead
+          && metadata.sourceGitHead === sourceGitHead
+      ),
+      installed: Boolean(installed),
+      source: `github:${asset.source}`,
+      destination: asset.destination,
+    };
+  });
+  const outdated = assets.filter((asset) => asset.upToDate !== true);
+  return {
+    trackedCount: assets.length,
+    outdatedCount: outdated.length,
+    updateAvailable: outdated.length > 0,
+    canUpdate: Boolean(targetHome && copilotHomeAbs),
+    source: 'github-source',
+    sourceRemote: 'https://github.com/Sofreshx/Elegy.git',
+    managedSource: {
+      repoRoot: sourceRepoRoot || metadata?.sourceRepoRoot || null,
+      gitHead: sourceGitHead,
+      installedGitHead: metadata?.sourceGitHead || null,
+      updateAvailable: outdated.length > 0,
+      kind: metadata?.source || null,
+      remote: metadata?.sourceRemote || null,
+    },
+    assets,
+  };
 }
 
 function computeToolingStatus(ctx, deps, managedStatusesOverride) {
@@ -454,40 +505,31 @@ function computeToolingStatus(ctx, deps, managedStatusesOverride) {
     env: ctx.env,
   });
 
-  const planningVersion = resolvePlanningVersion(cliPath, deps.childProcess);
+  const planningHealth = resolvePlanningHealth(cliPath, deps.childProcess);
+  const planningVersion = planningHealth.version;
+  // R2.3: readiness based on health --json (preferred), with feature-check fallback
+  let cliReady = planningHealth.ready;
+  if (!cliReady && cliPath) {
+    // Fallback: if health --json failed, check subcommand availability
+    const features = resolvePlanningFeatureStatus(cliPath, deps.childProcess);
+    cliReady = features.complete;
+  }
 
-  const managedStatuses = managedStatusesOverride
-    || (deps.assets && ctx.engineRoot && ctx.opencodeHome
-      ? deps.assets.getManagedAssetStatuses(ctx.engineRoot, ctx.opencodeHome, 'opencode-assets/manifest.json')
-      : []);
-  const trackedSkills = (Array.isArray(managedStatuses) ? managedStatuses : []).filter((asset) => {
-    const source = typeof asset.source === 'string' ? asset.source.toLowerCase() : '';
-    const id = typeof asset.id === 'string' ? asset.id.toLowerCase() : '';
-    return source.includes('catalog-assets/shared-skills/elegy-')
-      || id.includes('elegy-planning')
-      || id.includes('elegy-skills');
-  });
-  const outdatedSkills = trackedSkills.filter((asset) => asset.upToDate !== true);
+  void managedStatusesOverride;
 
   return {
     elegyPlanningCli: {
       cliPath: cliPath || null,
       currentVersion: planningVersion,
+      ready: cliReady,
       canUpdate: Boolean(ctx.copilotHomeAbs),
     },
-    elegySkillsAssets: {
-      trackedCount: trackedSkills.length,
-      outdatedCount: outdatedSkills.length,
-      updateAvailable: outdatedSkills.length > 0,
-      canUpdate: Boolean(ctx.engineRoot && ctx.opencodeHome),
-      assets: trackedSkills.map((a) => ({
-        id: a.id,
-        upToDate: a.upToDate === true,
-        installed: a.installed === true,
-        source: a.source,
-        destination: a.destination,
-      })),
-    },
+    elegySkillsAssets: buildGitHubElegySkillAssetsStatus(
+      ctx.opencodeHome,
+      ctx.copilotHomeAbs,
+      ctx.env,
+      deps.childProcess,
+    ),
   };
 }
 
@@ -664,7 +706,7 @@ function register(deps = {}) {
             manifestPath: 'opencode-assets/manifest.json',
             assetFilter: (asset) => {
               const id = asTrimmedString(asset.id).toLowerCase();
-              return id.startsWith('opencode-');
+              return id.startsWith('opencode-') && !isLegacyElegyManifestAsset(asset);
             },
           });
 
@@ -706,21 +748,46 @@ function register(deps = {}) {
               return;
             }
             const fetchImpl = resolvedDeps.fetchImpl || (typeof globalThis.fetch === 'function' ? globalThis.fetch.bind(globalThis) : null);
-            const downloadedPath = await downloadElegyPlanningCli({ copilotHome: copilotHomeAbs, fetchImpl });
-            result = { downloadedPath };
+            const installResult = await installLatestElegyPlanningCli({
+              copilotHome: copilotHomeAbs,
+              runtimeRoot: engineRoot,
+              fetchImpl,
+              childProcess: resolvedDeps.childProcess,
+            });
+            result = {
+              downloadedPath: installResult.installedPath,
+              installMetadata: installResult.metadata,
+            };
           } else if (kind === 'elegy-skills') {
-            if (!engineRoot || !opencodeHome) {
+            if (!copilotHomeAbs || !opencodeHome) {
               resolvedDeps.sendJson(ctx.res, 400, {
                 ok: false,
-                error: 'engineRoot and opencodeHome are required to install Elegy skills.',
+                error: 'copilotHome and opencodeHome are required to install Elegy skills from GitHub.',
               });
               return;
             }
-            const syncResult = resolvedDeps.assets.syncAll(engineRoot, opencodeHome, {
+            const syncResult = await syncElegySkillAssetsFromGitHub({
+              copilotHome: copilotHomeAbs,
+              targetHome: opencodeHome,
+              env: ctx.env,
+              childProcess: resolvedDeps.childProcess,
+              force,
+            });
+            result = { syncResult };
+          } else if (kind === 'install-codex-planning') {
+            const codexHome = ctx.codexHome || path.join(require('os').homedir(), '.codex');
+            if (!codexHome) {
+              resolvedDeps.sendJson(ctx.res, 400, {
+                ok: false,
+                error: 'codexHome is required for Codex planning skill install.',
+              });
+              return;
+            }
+            const syncResult = resolvedDeps.assets.syncAll(engineRoot, codexHome, {
               dryRun: false,
               force,
               pointerMode: true,
-              manifestPath: 'opencode-assets/manifest.json',
+              manifestPath: 'codex-assets/manifest.json',
               assetFilter: isElegySkillAsset,
             });
             result = { syncResult };
