@@ -1,11 +1,49 @@
 import { tool } from "@opencode-ai/plugin/tool";
-import { mkdir, rm, readFile, readdir, stat } from "node:fs/promises";
+import { mkdir, rm, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
 
 const WORKTREE_BASE = process.env.OPENCODE_WORKTREE_BASE
   || join(process.env.HOME || process.env.USERPROFILE || "~", ".local", "share", "opencode", "worktree");
+
+const STATE_DIR = join(WORKTREE_BASE, ".state");
+
+// Windows long-path helper: prepend \\?\ for paths ≥260 chars
+function safePath(p) {
+  if (process.platform !== "win32") return p;
+  const normalized = p.replace(/\//g, "\\");
+  return normalized.length >= 260 ? "\\\\?\\" + normalized : normalized;
+}
+
+function safeExists(p) {
+  try {
+    const sp = safePath(p);
+    // On Windows, try the safe path first, then fall back to original
+    return existsSync(sp) || existsSync(p);
+  } catch {
+    return false;
+  }
+}
+
+function projectStatePath(projectId) {
+  return join(STATE_DIR, projectId + ".json");
+}
+
+async function readProjectState(projectId) {
+  try {
+    const raw = await readFile(projectStatePath(projectId), "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+async function writeProjectState(projectId, state) {
+  await mkdir(STATE_DIR, { recursive: true });
+  const path = projectStatePath(projectId);
+  await writeFile(path, JSON.stringify(state, null, 2), "utf8");
+}
 
 function projectIdFromPath(projectPath) {
   const normalized = projectPath.replace(/\\/g, "/");
@@ -24,11 +62,11 @@ function runGit(args, cwd) {
 
 async function detectSetup(worktreePath) {
   const setup = [];
-  if (existsSync(join(worktreePath, "package.json"))) setup.push("npm install");
-  if (existsSync(join(worktreePath, "Cargo.toml"))) setup.push("cargo build");
-  if (existsSync(join(worktreePath, "go.mod"))) setup.push("go mod download");
-  if (existsSync(join(worktreePath, "requirements.txt"))) setup.push("pip install -r requirements.txt");
-  if (existsSync(join(worktreePath, "pyproject.toml"))) setup.push("poetry install");
+  if (safeExists(join(worktreePath, "package.json"))) setup.push("npm install");
+  if (safeExists(join(worktreePath, "Cargo.toml"))) setup.push("cargo build");
+  if (safeExists(join(worktreePath, "go.mod"))) setup.push("go mod download");
+  if (safeExists(join(worktreePath, "requirements.txt"))) setup.push("pip install -r requirements.txt");
+  if (safeExists(join(worktreePath, "pyproject.toml"))) setup.push("poetry install");
   return setup;
 }
 
@@ -45,7 +83,7 @@ async function syncFiles(fromDir, toDir, patterns) {
   if (!patterns || !Array.isArray(patterns) || patterns.length === 0) return;
   for (const pattern of patterns) {
     const src = join(fromDir, pattern);
-    if (existsSync(src)) {
+    if (safeExists(src)) {
       try {
         const srcStat = await stat(src);
         const dest = join(toDir, pattern);
@@ -85,17 +123,26 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
         },
         async execute(args, ctx) {
           const branch = args.branch.replace(/[^a-zA-Z0-9_/-]/g, "-");
-          const baseBranch = args.baseBranch || "HEAD";
+          // Use project branch from state if it exists and no explicit baseBranch given
+          let resolvedBase = args.baseBranch;
+          if (!resolvedBase) {
+            const state = await readProjectState(projectId);
+            if (state.projectBranch) {
+              resolvedBase = state.projectBranch;
+            } else {
+              resolvedBase = "HEAD";
+            }
+          }
           const worktreePath = join(WORKTREE_BASE, projectId, branch);
 
-          if (existsSync(worktreePath)) {
+          if (safeExists(worktreePath)) {
             return "Worktree already exists at " + worktreePath + ". Use worktree_delete first if you want to recreate it.";
           }
 
           await mkdir(worktreePath, { recursive: true });
 
           try {
-            await runGit(["worktree", "add", "-b", branch, worktreePath, baseBranch], projectPath);
+            await runGit(["worktree", "add", "-b", branch, worktreePath, resolvedBase], projectPath);
           } catch (err) {
             try {
               await runGit(["worktree", "add", worktreePath, branch], projectPath);
@@ -122,12 +169,24 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
             }
           }
 
+          // Persist project branch for future worktree reuse
+          const state = await readProjectState(projectId);
+          // NOTE: projectBranch is set to the worktree's own branch so that
+          // subsequent worktree_create calls (without explicit baseBranch)
+          // branch from the previous worktree, preserving session continuity.
+          state.projectBranch = branch;
+          state.lastCreatedAt = new Date().toISOString();
+          if (!state.sessionId) {
+            state.sessionId = process.env.OPENCODE_SESSION_ID || "unknown";
+          }
+          await writeProjectState(projectId, state);
+
           return {
-            output: "Worktree created at " + worktreePath + "\nBranch: " + branch + "\nBase: " + baseBranch,
+            output: "Worktree created at " + worktreePath + "\nBranch: " + branch + "\nBase: " + resolvedBase,
             metadata: {
               worktreePath: worktreePath,
               branch: branch,
-              baseBranch: baseBranch,
+              baseBranch: resolvedBase,
               projectId: projectId,
             },
           };
@@ -135,7 +194,7 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
       }),
 
       worktree_list: tool({
-        description: "List all git worktrees for the current project. Shows path, branch, and status for each worktree.",
+        description: "List all git worktrees for the current project. Shows path, branch, status, project branch metadata, path existence, and cleanup readiness.",
         args: {},
         async execute() {
           try {
@@ -161,15 +220,58 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
 
             if (entries.length === 0) return "No worktrees found.";
 
+            // Read project state for metadata
+            let projectState = {};
+            try {
+              projectState = await readProjectState(projectId);
+            } catch {
+              // state unreadable, continue without metadata
+            }
+
             const formatted = entries.map(function(e) {
               const parts = ["  " + e.path];
               if (e.branch) parts.push("[" + e.branch + "]");
               if (e.detached) parts.push("[detached]");
               if (e.bare) parts.push("[bare]");
+              
+              // Project branch marker
+              if (projectState.projectBranch && e.branch === projectState.projectBranch) {
+                parts.push("← project branch");
+              }
+
+              // Path existence check
+              try {
+                if (!existsSync(e.path)) {
+                  parts.push("[path missing]");
+                }
+              } catch {
+                parts.push("[path check failed]");
+              }
+
+              // Cleanup readiness: no active session attached
+              if (e.branch && e.branch !== projectState.projectBranch && !e.detached) {
+                parts.push("[cleanup-ready]");
+              }
+
               return parts.join(" ");
             });
 
-            return "Worktrees for " + basename(projectPath) + ":\n" + formatted.join("\n");
+            let result = "Worktrees for " + basename(projectPath) + ":\n" + formatted.join("\n");
+
+            // Add project branch summary
+            if (projectState.projectBranch) {
+              result += "\n\nProject branch: " + projectState.projectBranch;
+              if (projectState.lastCreatedAt) {
+                result += " (last created: " + projectState.lastCreatedAt + ")";
+              }
+              if (projectState.sessionId) {
+                result += "\nSession: " + projectState.sessionId;
+              }
+            } else {
+              result += "\n\nNo project branch set. Use worktree_create to establish one.";
+            }
+
+            return result;
           } catch (err) {
             return "Failed to list worktrees: " + err.message;
           }
@@ -187,7 +289,9 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
           const branch = args.branch.replace(/[^a-zA-Z0-9_/-]/g, "-");
           const worktreePath = join(WORKTREE_BASE, projectId, branch);
 
-          if (!existsSync(worktreePath)) {
+          // Existence checked below with safeExists (Windows long-path aware)
+
+          if (!safeExists(worktreePath)) {
             return "No worktree found at " + worktreePath;
           }
 
@@ -224,8 +328,39 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
               // non-critical
             }
 
+            // If this was the project branch, clear it from state
+            const projState = await readProjectState(projectId);
+            if (projState.projectBranch === branch) {
+              delete projState.projectBranch;
+              delete projState.lastCreatedAt;
+              delete projState.sessionId;
+              await writeProjectState(projectId, projState);
+            }
+
             return "Worktree " + branch + " removed successfully.";
           } catch (err) {
+            // Windows fallback: try direct directory removal if git worktree remove fails
+            if (process.platform === "win32") {
+              try {
+                // Force-remove via git with long-path tolerant approach
+                await runGit(["worktree", "remove", "--force", worktreePath], projectPath);
+                return "Worktree " + branch + " removed (force via long-path).";
+              } catch {
+                // Final fallback: try direct filesystem removal
+                try {
+                  await rm(worktreePath, { recursive: true, force: true });
+                  // Also prune the git worktree metadata
+                  try {
+                    await runGit(["worktree", "prune"], projectPath);
+                  } catch {
+                    // prune failure is non-fatal
+                  }
+                  return "Worktree " + branch + " removed (filesystem fallback). Run 'git worktree prune' to clean metadata.";
+                } catch (fsErr) {
+                  return "Failed to remove worktree: " + fsErr.message + ". Try manual removal of " + worktreePath;
+                }
+              }
+            }
             return "Failed to remove worktree: " + err.message + ". Use force=true if needed.";
           }
         },

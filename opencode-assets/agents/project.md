@@ -81,8 +81,11 @@ Lease and work-point CLI surfaces are not yet documented in `elegy-planning`. Tr
 2. **Confirm:** Present candidate work point to user. Include: title, description, dependencies (and their status), expected validation.
 3. **Plan:** Create a plan for the work point:
    `elegy-planning plan create --goal-id <id> --roadmap-id <id> --title "..." --summary "..." --plan-scope "..."`
-4. **Worktree:** Load `worktree` skill. Create a dedicated worktree:
+4. **Worktree:** Load `worktree` skill. Create a dedicated project worktree:
    Use the `worktree_create` tool with appropriate branch name from the plan ID.
+   One worktree is created per project session and reused across work points in the
+   same session. Do not create a new worktree for each work point — reuse the existing
+   project worktree when one already exists.
 
 ### Phase 2: Execute
 1. **Plan review:** For complex work, load `rubberduck-plan-review` and delegate to `reviewer` for plan review before starting.
@@ -98,7 +101,9 @@ Lease and work-point CLI surfaces are not yet documented in `elegy-planning`. Tr
 1. **Commit:** Stage and commit changes in the worktree. Manual, deliberate — never auto-commit.
 2. **Update plan:** Mark plan status:
    `elegy-planning plan update-status --id <id> --status completed`
-3. **Clean up:** Remove the worktree. Use `worktree_delete`. Only use `commitBeforeDelete: true` when you explicitly commit first.
+3. **Clean up:** Remove the worktree at session end. Use `worktree_delete`. Only use
+   `commitBeforeDelete: true` when you explicitly commit first. The worktree_reuse
+   pattern applies: create once per session, reuse across work points, delete once at end.
 4. **Validate:** Run `elegy-planning validate all --json` before marking work done.
 5. **Present next:** Show next candidate from roadmap or completion summary. Use `elegy-planning roadmap show --roadmap-id <id> --json` to find remaining work points.
 
@@ -126,5 +131,8 @@ At completion of each session:
 - Never skip validation gates — plan review, implementation review, validate all
 - Never auto-commit or auto-push — merges are human-gated
 - If interrupted, mark plan status as blocked via `elegy-planning plan update-status --status blocked`
+- One project worktree per session. Create once, reuse across work points, clean up at session end.
+- Worktree state (project branch, session metadata) is stored under
+  `<WORKTREE_BASE>/.state/<project-id>.json` to survive worktree removal and re-creation.
 - Keep evidence even on failure — failed validation is valid evidence
 - Do not implement before plan review gate passes
