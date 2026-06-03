@@ -99,13 +99,19 @@ Lease and work-point CLI surfaces are not yet documented in `elegy-planning`. Tr
 
 ### Phase 3: Complete
 1. **Commit:** Stage and commit changes in the worktree. Manual, deliberate — never auto-commit.
-2. **Update plan:** Mark plan status:
+2. **Merge back:** Merge the topic branch into the user's active branch (the branch they
+   were on when the session started). This is the default — merge topic → active branch
+   after each work point completes. Use `git checkout <active-branch> && git merge <topic>`.
+   This is NOT the same as promoting to protected branches (roro/dev/main); promotion
+   is human-gated and should only happen when the user explicitly asks.
+3. **Update plan:** Mark plan status:
    `elegy-planning plan update-status --id <id> --status completed`
-3. **Clean up:** Remove the worktree at session end. Use `worktree_delete`. Only use
+4. **Clean up:** Remove the worktree at session end. Use `worktree_delete`. Only use
    `commitBeforeDelete: true` when you explicitly commit first. The worktree_reuse
    pattern applies: create once per session, reuse across work points, delete once at end.
-4. **Validate:** Run `elegy-planning validate all --json` before marking work done.
-5. **Present next:** Show next candidate from roadmap or completion summary. Use `elegy-planning roadmap show --roadmap-id <id> --json` to find remaining work points.
+   Delete the merged topic branch after merging: `git branch -d <topic>`.
+5. **Validate:** Run `elegy-planning validate all --json` before marking work done.
+6. **Present next:** Show next candidate from roadmap or completion summary. Use `elegy-planning roadmap show --roadmap-id <id> --json` to find remaining work points.
 
 ## Validation Standard
 Full evidence chain required per plan:
@@ -129,7 +135,9 @@ At completion of each session:
 ## Safety
 - Never claim a work point that has incomplete dependencies — check roadmap before planning
 - Never skip validation gates — plan review, implementation review, validate all
-- Never auto-commit or auto-push — merges are human-gated
+- Never auto-commit or auto-push. Merging topic branches back into the active branch is
+  automatic (Phase 3, step 2). Promoting through protected branches (e.g., roro → dev →
+  main) is human-gated — only do it when the user explicitly asks.
 - If interrupted, mark plan status as blocked via `elegy-planning plan update-status --status blocked`
 - One project worktree per session. Create once, reuse across work points, clean up at session end.
 - Worktree state (project branch, session metadata) is stored under
