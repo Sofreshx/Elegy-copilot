@@ -2,6 +2,7 @@
 
 const childProcess = require('node:child_process');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const { gateGitAction } = require('../lib/gitCheckRunner');
 
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -397,30 +398,14 @@ function handleGitStage(ctx, deps) {
 }
 
 function handleGitCommit(ctx, deps) {
-  const { req, res } = ctx;
-  const { sendJson, readJsonBody } = deps;
-
-  return readJsonBody(req)
-    .then(async (body) => {
-      const payload = body && typeof body === 'object' ? body : {};
-      const repoPath = isNonEmptyString(payload.repoPath) ? payload.repoPath.trim() : '';
-      const message = isNonEmptyString(payload.message) ? payload.message.trim() : '';
-
-      if (!repoPath) {
-        throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
-      }
-      if (!message) {
-        throw Object.assign(new Error('message is required'), { statusCode: 400 });
-      }
-
-      const result = await runGit(deps.childProcess, ['commit', '-m', message], repoPath);
-      return { committed: true, output: result.stdout.trim() };
-    })
-    .then((result) => sendJson(res, 200, result))
-    .catch((error) => {
-      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
-      sendJson(res, statusCode, { error: String(error.message || error) });
-    });
+  return handleGitActionWithGate(ctx, deps, 'commit', async (repoPath, body) => {
+    const message = isNonEmptyString(body.message) ? body.message.trim() : '';
+    if (!message) {
+      throw Object.assign(new Error('message is required'), { statusCode: 400 });
+    }
+    const result = await runGit(deps.childProcess, ['commit', '-m', message], repoPath);
+    return { committed: true, output: result.stdout.trim() };
+  });
 }
 
 function handleGitUnstage(ctx, deps) {
@@ -506,30 +491,15 @@ function handleGitPull(ctx, deps) {
 }
 
 function handleGitPush(ctx, deps) {
-  const { req, res } = ctx;
-  const { sendJson, readJsonBody } = deps;
-
-  return readJsonBody(req)
-    .then(async (body) => {
-      const payload = body && typeof body === 'object' ? body : {};
-      const repoPath = isNonEmptyString(payload.repoPath) ? payload.repoPath.trim() : '';
-      const setUpstream = payload.setUpstream === true;
-      if (!repoPath) {
-        throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
-      }
-
-      const branch = (await runGit(deps.childProcess, ['branch', '--show-current'], repoPath)).stdout.trim();
-      const args = setUpstream
-        ? ['push', '-u', 'origin', branch]
-        : ['push'];
-      const result = await runGit(deps.childProcess, args, repoPath, 30000);
-      return { pushed: true, output: `${result.stdout}${result.stderr}`.trim() };
-    })
-    .then((result) => sendJson(res, 200, result))
-    .catch((error) => {
-      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
-      sendJson(res, statusCode, { error: String(error.message || error) });
-    });
+  return handleGitActionWithGate(ctx, deps, 'push', async (repoPath, body) => {
+    const setUpstream = body?.setUpstream === true;
+    const branch = (await runGit(deps.childProcess, ['branch', '--show-current'], repoPath)).stdout.trim();
+    const args = setUpstream
+      ? ['push', '-u', 'origin', branch]
+      : ['push'];
+    const result = await runGit(deps.childProcess, args, repoPath, 30000);
+    return { pushed: true, output: `${result.stdout}${result.stderr}`.trim() };
+  });
 }
 
 function handleGitPullRequest(ctx, deps) {
@@ -552,42 +522,82 @@ function handleGitPullRequest(ctx, deps) {
     return;
   }
 
-  return readJsonBody(req)
+  return handleGitActionWithGate(ctx, deps, 'pull-request', async (repoPath, body) => {
+    const args = ['pr', 'create', '--fill'];
+    if (isNonEmptyString(body.title)) {
+      args.push('--title', body.title.trim());
+    }
+    if (isNonEmptyString(body.body)) {
+      args.push('--body', body.body.trim());
+    }
+    if (isNonEmptyString(body.base)) {
+      args.push('--base', body.base.trim());
+    }
+    if (isNonEmptyString(body.head)) {
+      args.push('--head', body.head.trim());
+    }
+
+    await runCommand(deps.childProcess, 'gh', args, repoPath, 30000);
+    const prResult = await resolvePullRequest(deps.childProcess, repoPath);
+    if (!prResult.pullRequest) {
+      throw Object.assign(new Error('Failed to determine created pull request'), { statusCode: 502 });
+    }
+    return {
+      created: true,
+      pullRequest: prResult.pullRequest,
+      output: prResult.pullRequest.url || '',
+    };
+  });
+}
+
+/**
+ * Gate a git action through pre-action validation checks.
+ * Supports unsafe override via request body { unsafeOverride: { reason: "..." } }
+ */
+function handleGitActionWithGate(ctx, deps, action, executeAction) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+
+  return Promise.resolve()
+    .then(() => readJsonBody(req))
     .then(async (body) => {
-      const payload = body && typeof body === 'object' ? body : {};
-      const repoPath = isNonEmptyString(payload.repoPath) ? payload.repoPath.trim() : '';
+      const repoPath = String(body.repoPath || '').trim();
       if (!repoPath) {
-        throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+        const error = new Error('repoPath is required');
+        error.statusCode = 400;
+        throw error;
       }
 
-      const args = ['pr', 'create', '--fill'];
-      if (isNonEmptyString(payload.title)) {
-        args.push('--title', payload.title.trim());
-      }
-      if (isNonEmptyString(payload.body)) {
-        args.push('--body', payload.body.trim());
-      }
-      if (isNonEmptyString(payload.base)) {
-        args.push('--base', payload.base.trim());
-      }
-      if (isNonEmptyString(payload.head)) {
-        args.push('--head', payload.head.trim());
+      // Gate through checks
+      const gate = await gateGitAction(repoPath, action, body.unsafeOverride);
+      
+      if (!gate.allowed) {
+        // Checks failed and no override — return 422 with check results
+        return sendJson(res, 422, {
+          error: 'Pre-action checks failed',
+          checkResults: gate.checkResults,
+          message: gate.message,
+          requiresOverride: true,
+          action,
+        });
       }
 
-      await runCommand(deps.childProcess, 'gh', args, repoPath, 30000);
-      const pullRequest = await resolvePullRequest(deps.childProcess, repoPath);
-      if (!pullRequest.pullRequest) {
-        throw Object.assign(new Error('Failed to determine created pull request'), { statusCode: 502 });
-      }
-      return {
-        created: true,
-        pullRequest: pullRequest.pullRequest,
-      };
+      // Execute the actual git action
+      const result = await executeAction(repoPath, body);
+
+      return sendJson(res, 200, {
+        ...result,
+        checkResults: gate.checkResults,
+        overrideApplied: gate.skipped || false,
+        overrideReason: gate.overrideReason || null,
+      });
     })
-    .then((result) => sendJson(res, 200, result))
     .catch((error) => {
       const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
-      sendJson(res, statusCode, { error: String(error.message || error) });
+      sendJson(res, statusCode, {
+        error: String(error.message || error),
+        action,
+      });
     });
 }
 
