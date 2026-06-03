@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
+import { updateAgentModel } from './frontmatter-utils.mjs';
 import {
   dirHash,
   ensureDir,
@@ -398,6 +399,34 @@ export function runInstall(args = {}) {
 
   const previousInventory = readManagedInventory(inventoryPath);
   const desiredInventory = buildManagedInventory(assetResults);
+
+  const profileInjectionResults = [];
+  try {
+    const profilesPath = path.join(repoRoot, 'opencode-assets', 'profiles.json');
+    if (fs.existsSync(profilesPath)) {
+      const profilesConfig = JSON.parse(fs.readFileSync(profilesPath, 'utf8'));
+      const activeProfile = profilesConfig.activeProfile || 'opencode-go';
+      const profile = profilesConfig.profiles && profilesConfig.profiles[activeProfile];
+      const agentRoles = profilesConfig.agentRoles || {};
+
+      if (profile) {
+        const agentsDir = path.join(opencodeHome, 'agents');
+        if (fs.existsSync(agentsDir)) {
+          for (const entry of fs.readdirSync(agentsDir)) {
+            if (!entry.endsWith('.md')) continue;
+            const agentPath = path.join(agentsDir, entry);
+            const result = updateAgentModel(agentPath, profile, agentRoles);
+            if (result) {
+              profileInjectionResults.push(result);
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.log(`[WARN] Profile injection failed: ${err.message}`);
+  }
+
   const pruneResults = [
     ...pruneManagedEntries(path.join(opencodeHome, 'agents'), previousInventory.agents, desiredInventory.agents, 'agent', shaFile, args),
     ...pruneManagedEntries(skillsHome, previousInventory.skills, desiredInventory.skills, 'skill', dirHash, args),
@@ -435,6 +464,7 @@ export function runInstall(args = {}) {
       inventory: inventoryResult,
       pruneResults,
     },
+    profileInjection: profileInjectionResults.length > 0 ? profileInjectionResults : undefined,
     repoSetup,
   };
 
@@ -442,19 +472,19 @@ export function runInstall(args = {}) {
   console.log('');
   console.log('Next steps:');
   console.log(`  1. Ensure your OpenCode config exists at ${path.join(opencodeHome, 'opencode.json')}`);
-  console.log('  2. Configure your provider and preferred models for the built-in OpenCode agents:');
+  console.log('  2. Configure your provider and preferred models for lane agents:');
   console.log('     Run /connect in OpenCode TUI and select DeepSeek');
-  console.log('  3. Restart OpenCode to pick up new agents, skills, and worktree plugin');
-  console.log('  4. Try: use Plan for a non-trivial task, Explore for code discovery, Scout for docs, and rubberduck-plan-review for risky plans');
-  console.log('  5. Worktree: use worktree_create tool to create isolated workspaces for feature work');
+  console.log('  3. Select a lane agent via Tab cycling: quick, standard, spec, project');
+  console.log('  4. To switch provider profiles, run: node scripts/opencode-profile-switch.mjs <profile>');
+  console.log('  5. Try: use standard for scoped features, spec for API/contract work, project for multi-session roadmap work');
   console.log('');
-  console.log('For native-first model overrides, add to opencode.json:');
-  console.log('  "agent": {');
-  console.log('    "plan": { "model": "anthropic/claude-sonnet-4-5" },');
-  console.log('    "explore": { "model": "deepseek/deepseek-chat" },');
-  console.log('    "scout": { "model": "deepseek/deepseek-chat" }');
-  console.log('  }');
-  console.log('');
+  if (profileInjectionResults.length > 0) {
+    console.log('Profile injection applied:');
+    for (const r of profileInjectionResults) {
+      console.log(`  ${r.agent}: ${r.oldModel} → ${r.newModel} (role: ${r.role})`);
+    }
+    console.log('');
+  }
   console.log('Worktree plugin config (optional): create .opencode/worktree.json in your project:');
   console.log('  { "syncFiles": [".env", ".env.local", "config/local.json"] }');
 

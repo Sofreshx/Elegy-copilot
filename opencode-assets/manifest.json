@@ -173,32 +173,46 @@
       "loadMode": "always"
     },
     {
-      "id": "opencode-lane-quick-skill",
-      "type": "skill",
-      "source": "opencode-assets/skills/lane-quick",
-      "destination": "skills/lane-quick",
-      "loadMode": "always"
+      "id": "opencode-agent-quick",
+      "type": "agent",
+      "source": "opencode-assets/agents/quick.md",
+      "destination": "agents/quick.md"
     },
     {
-      "id": "opencode-lane-standard-skill",
-      "type": "skill",
-      "source": "opencode-assets/skills/lane-standard",
-      "destination": "skills/lane-standard",
-      "loadMode": "always"
+      "id": "opencode-agent-standard",
+      "type": "agent",
+      "source": "opencode-assets/agents/standard.md",
+      "destination": "agents/standard.md"
     },
     {
-      "id": "opencode-lane-spec-skill",
-      "type": "skill",
-      "source": "opencode-assets/skills/lane-spec",
-      "destination": "skills/lane-spec",
-      "loadMode": "always"
+      "id": "opencode-agent-spec",
+      "type": "agent",
+      "source": "opencode-assets/agents/spec.md",
+      "destination": "agents/spec.md"
     },
     {
-      "id": "opencode-lane-project-skill",
-      "type": "skill",
-      "source": "opencode-assets/skills/lane-project",
-      "destination": "skills/lane-project",
-      "loadMode": "always"
+      "id": "opencode-agent-project",
+      "type": "agent",
+      "source": "opencode-assets/agents/project.md",
+      "destination": "agents/project.md"
+    },
+    {
+      "id": "opencode-agent-impl",
+      "type": "agent",
+      "source": "opencode-assets/agents/impl.md",
+      "destination": "agents/impl.md"
+    },
+    {
+      "id": "opencode-agent-reviewer",
+      "type": "agent",
+      "source": "opencode-assets/agents/reviewer.md",
+      "destination": "agents/reviewer.md"
+    },
+    {
+      "id": "opencode-agent-explorer",
+      "type": "agent",
+      "source": "opencode-assets/agents/explorer.md",
+      "destination": "agents/explorer.md"
     }
   ],
   "sourcePatterns": []

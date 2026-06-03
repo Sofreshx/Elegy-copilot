@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-05-26
+updated: 2026-06-03
 category: system
 status: current
 doc_kind: node
@@ -43,6 +43,7 @@ Agents are still useful, but they’re more likely to diverge (tools, UX, capabi
 | Deployment checks (pre-flight checks and canary runs) | Agent | Orchestration across steps with state and decision points. |
 | Read-only discovery (list buckets, inventory) | Skill | Simple queries that should be idempotent. |
 | Emergency incident recovery (runbook rollback) | Agent | High impact, requires sequencing and approval gating. |
+| Lane workflow (quick/standard/spec/project) | Agent | Multi-phase workflow with mandatory gates, handoffs, and enforcement. Skills are advisory; agents ensure phases are followed. |
 
 ## Rule of Thumb
 

@@ -66,13 +66,9 @@ Primary skills available:
 - `security` — Security review and vulnerability detection
 - `project-conventions-governance` — Repo conventions and governance
 - `stack-detector` — Automatic tech stack detection
-- `lane-quick` — Quick lane: small UI tweaks and tiny bug fixes
-- `lane-standard` — Standard lane: scoped features and normal bug fixes
-- `lane-spec` — Spec lane: contract/API/user-facing behavior with spec-first workflow
-- `lane-project` — Project lane: multi-session roadmap work with Elegy Planning
 - `elegy-obsidian` — Foundation skill for read/write/search operations against a local Obsidian vault via the official Obsidian Desktop CLI (v1.12+). Non-authoritative mirror; durable planning state stays in `elegy-planning`.
 
-See the [OpenCode Method](#opencode-method-agentic-lanes) section for lane selection, provider profiles, and escalation rules.
+See the [Lane Agents](#lane-agents) section for lane selection, agent profiles, and escalation rules.
 
 Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Do not create ADRs for ordinary local implementation choices.
 
@@ -94,131 +90,95 @@ Compatibility-only skills:
 
 Use the skill tool when domain guidance changes the outcome, not just because a skill exists.
 
-## OpenCode Method (Agentic Lanes)
+## Lane Agents
 
-The OpenCode Method provides four public lanes for matching effort to task scope. Each lane sets a default model role, optional gates, and workflow expectations.
+Instruction Engine ships four primary lane agents and three supporting subagents. Lane agents are selected via **Tab cycling** in OpenCode, just like the built-in Build and Plan agents. They enforce workflow phases and delegate to subagents for implementation, review, and exploration.
+
+### Primary Lane Agents
+
+| Agent | Model | Spec | elegy-planning | Description |
+|-------|-------|------|----------------|-------------|
+| `quick` | small (Flash) | No | No | <5 min, 1-2 files, no ambiguity |
+| `standard` | big (Pro) | No | No | Scoped features, normal bug fixes |
+| `spec` | big (Pro) | Yes | Yes | Contract/API/user-facing, spec-first |
+| `project` | big (Pro) | Yes (per WP) | Yes | Multi-session roadmap work, orchestrator |
+
+### Subagents (invoked by lane primaries)
+
+| Agent | Model | Access | Description |
+|-------|-------|--------|-------------|
+| `impl` | small (Flash) | Write-capable | Build replacement — file edits, commands, validation |
+| `reviewer` | big (Pro) | Read-only | Review gate — code, spec, plan, and evidence review |
+| `explorer` | small (Flash) | Read-only | Codebase discovery — patterns, traces, dependencies |
+
+Subagents are hidden from user autocomplete. Only lane primary agents invoke them via the Task tool.
 
 ### Lane Quick
-
 Small UI tweaks and tiny bug fixes. Flash only; no spec or roadmap required.
 
-- **Default model role:** `small` (DeepSeek V4 Flash)
-- **Escalation:** Not needed; if scope exceeds lane bounds, recommend `standard` lane
+- **Model:** `small` (DeepSeek V4 Flash)
+- **Escalation:** Not needed; if scope exceeds lane bounds, tell user to switch to `standard`
 - **Spec required:** No
 - **Worktree required:** No
 - **Validation:** Narrowest relevant lint/test
-- **Prerequisites:** Load `lane-quick` skill
 
 ### Lane Standard
+Scoped feature or normal bug fix. Pro for implementation; reviewer subagent for gates.
 
-Scoped feature or normal bug fix. Flash for exploration and implementation; Pro only for ambiguity, architectural choices, or final review.
-
-- **Default model role:** `small` (DeepSeek V4 Flash)
-- **Escalation:** `big` (DeepSeek V4 Pro) for design ambiguity, architecture decisions, and final review
+- **Model:** `big` (DeepSeek V4 Pro)
+- **Escalation:** Delegate to `reviewer` subagent for design ambiguity, architecture decisions, and final review
 - **Spec required:** No (but recommended for anything that touches user-facing behavior)
 - **Worktree required:** No
 - **Validation:** Focused tests, lint, typecheck
-- **Prerequisites:** Load `lane-standard` skill
 
 ### Lane Spec
+Contract, workflow, API, or user-facing behavior changes. Spec-first workflow with mandatory review gates. Uses elegy-planning for state tracking.
 
-Contract, workflow, API, or user-facing behavior changes. Requires spec-first or spec-anchored workflow. Pro for spec review and implementation plan.
-
-- **Default model role:** `small` for implementation; `big` for spec review and planning
-- **Escalation:** `review` role (defaults to `big`) gates spec review before implementation starts
+- **Model:** `big` (DeepSeek V4 Pro)
+- **Gates:** `reviewer` subagent for spec review (before implementation) and plan review
 - **Spec required:** Yes — durable spec under `specs/<slug>/spec.md`
 - **Worktree required:** No
-- **Validation:** spec validation + focused tests
-- **Prerequisites:** Load `lane-spec` skill and relevant spec-dev/spec-authoring skills
+- **Validation:** Spec validation + focused tests
+- **Skills:** Load `spec-dev`, `spec-authoring`, `spec-review`, `elegy-planning`
 
 ### Lane Project
+Multi-session roadmap work. Orchestrator that coordinates elegy-planning goal/roadmap/work point, leases, worktrees, evidence chains, and review gates.
 
-Multi-session roadmap work. Requires Elegy Planning goal/roadmap/work point, dedicated worktree, claim/lease, evidence, and review.
-
-- **Default model role:** `small` for exploration and execution; `big` for gates and review
-- **Escalation:** `review` role gates each work point handoff
+- **Model:** `big` (DeepSeek V4 Pro)
+- **Gates:** `reviewer` subagent at each work point: plan review, implementation review, evidence review
 - **Spec required:** Yes (per work point)
-- **Worktree required:** Yes — use `worktree_create` with `commitBeforeDelete: true` only when explicitly committing
-- **Validation:** Full evidence chain: validation expectations -> run results -> review
-- **Prerequisites:** Load `lane-project` skill, Elegy Planning skills, and worktree skill
+- **Worktree required:** Yes — use `worktree_create`, manual commit, `worktree_delete`
+- **Validation:** Full evidence chain: expectations → results → review
+- **Skills:** Load `elegy-planning`, `roadmap-planning`, `worktree`, `implementation-review`, `rubberduck-plan-review`
 
 ### Provider Profiles
 
-Provider profiles define model routing across lanes. Both models use max reasoning effort at all times.
+Profiles define model+provider routing for all lane agents and subagents. Profiles are configured in `opencode-assets/profiles.json` and applied at install time or via the profile switch command.
 
 | Profile field | Default | Description |
 |---|---|---|
-| `small` | `DeepSeek V4 Flash` | Cheap model for exploration, implementation, and quick work |
-| `big` | `DeepSeek V4 Pro` | Capable model for design review, architecture, and gates |
-| `review` | `big` (same as above) | Model used for spec review, plan review, and final validation gates |
-| `route` | `opencode-go` | Provider route: `opencode-go` (native) or `deepseek-direct` |
+| `small` | `deepseek/deepseek-v4-flash` | Cheap model for exploration and implementation (quick, impl, explorer) |
+| `big` | `deepseek/deepseek-v4-pro` | Capable model for primary lanes (standard, spec, project) |
+| `review` | `deepseek/deepseek-v4-pro` | Model for review gates (reviewer subagent) |
+| `reasoningEffort` | `high` | Max reasoning effort on all DeepSeek models |
 
-#### Max reasoning
+**Available profiles:**
+- `opencode-go` — DeepSeek models via OpenCode Go (native provider)
+- `deepseek-direct` — DeepSeek models via direct API (fallback route)
 
-Both DeepSeek V4 Pro and DeepSeek V4 Flash should always use maximum reasoning effort. The `reasoningEffort` option on any agent using a DeepSeek model must be set to `"high"`.
-
-This is configured in `opencode.json` by adding `reasoningEffort` to the relevant agent configs:
-
-```jsonc
-{
-  "agent": {
-    "build": { "reasoningEffort": "high" },
-    "plan": { "reasoningEffort": "high" },
-    "explore": { "reasoningEffort": "high" },
-    "scout": { "reasoningEffort": "high" }
-  }
-}
+Switch profiles:
+```
+node scripts/opencode-profile-switch.mjs deepseek-direct
 ```
 
-Any custom agent using a DeepSeek model should also include `"reasoningEffort": "high"`. The Copilot UI config preview validates that this option is present on all DeepSeek-configured agents.
+Profile definitions live in `opencode-assets/profiles.json`. The install script applies the active profile. Profile switching updates the model fields in all installed agent files under `~/.config/opencode/agents/`.
 
-(Note: `profiles` and `lanes` in the plan spec are a conceptual contract for the UI — they are NOT top-level keys in `opencode.json`. The actual OpenCode config uses `model`, `small_model`, and per-agent overrides with the `reasoningEffort` pass-through option.)
-
-#### Recommended defaults
-
-- **Default profile:** OpenCode Go route
-- **Fallback profile:** Direct DeepSeek route
-- **Lane-to-role mapping:**
-  - `quick` → `small` only
-  - `standard` → `small` (default), `big` on escalation triggers
-  - `spec` → `small` (implementation), `review` at spec/plan gates
-  - `project` → `small` (execution), `review` at each work point gate
-
-#### Config example
-
-In `opencode.json` (user-local, managed via `/connect`):
-
-```jsonc
-{
-  "model": "deepseek/deepseek-v4-pro",
-  "small_model": "deepseek/deepseek-v4-flash",
-  "agent": {
-    "build": { "reasoningEffort": "high" },
-    "plan": { "reasoningEffort": "high" },
-    "explore": {
-      "model": "deepseek/deepseek-v4-flash",
-      "reasoningEffort": "high"
-    },
-    "scout": {
-      "model": "deepseek/deepseek-v4-flash",
-      "reasoningEffort": "high"
-    }
-  }
-}
-```
-
-Use `/connect` in OpenCode TUI to set provider credentials. The UI stores provider/model IDs and profile metadata, not API keys.
-
-### Lane Skill Loading
-
-Load the lane skill matching your intent before starting work:
-
-- `lane-quick` — Quick fixes and small UI tweaks
-- `lane-standard` — Scoped features and normal bug fixes
-- `lane-spec` — Spec-driven contract/API work
-- `lane-project` — Multi-session roadmap work with Elegy Planning
-
-Each lane skill validates prerequisites, sets workflow expectations, and provides execution prompts tailored to the lane.
+### Lane Agent Selection
+Switch between lane agents using **Tab** in the OpenCode TUI:
+- `quick` — Quick fixes and small UI tweaks
+- `standard` — Scoped features and normal bug fixes
+- `spec` — Spec-driven contract/API work
+- `project` — Multi-session roadmap work with Elegy Planning
 
 ## Boundaries
 
