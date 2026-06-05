@@ -25,6 +25,10 @@ const {
   saveDeepseekSettings,
   getBootstrapState,
   saveBootstrapState,
+  IE_MANAGED_BLOCK_START,
+  IE_MANAGED_BLOCK_END,
+  hasInstructionEngineManagedBlock,
+  stripInstructionEngineManagedBlock,
 } = require('./codexConfig');
 
 describe('codexConfig', () => {
@@ -160,6 +164,86 @@ describe('codexConfig', () => {
       );
       assert.ok(fs.existsSync(resolveBackupPath(tmpDir)));
       assert.ok(fs.existsSync(configPath));
+    });
+
+    it('getStatus detects instruction-engine managed block as elegy-routed', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      const block = [
+        IE_MANAGED_BLOCK_START,
+        'model = "mimo-v2-pro"',
+        'model_provider = "opencode-go"',
+        '',
+        '[model_providers.opencode-go]',
+        'name = "OpenCode Go"',
+        'base_url = "https://opencode.ai/zen/go/v1"',
+        IE_MANAGED_BLOCK_END,
+      ].join('\n');
+      fs.writeFileSync(configPath, `approval_policy = "on-request"\n\n${block}\n`, 'utf8');
+      const status = getStatus(tmpDir);
+      assert.equal(status.activeMode, 'elegy-routed');
+      assert.equal(status.hasManagedBlock, true);
+    });
+
+    it('stripInstructionEngineManagedBlock removes only the IE managed block', () => {
+      const text = [
+        'personality = "friendly"',
+        '',
+        IE_MANAGED_BLOCK_START,
+        'model = "mimo-v2-pro"',
+        '[model_providers.opencode-go]',
+        IE_MANAGED_BLOCK_END,
+      ].join('\n');
+      const stripped = stripInstructionEngineManagedBlock(text);
+      assert.ok(!stripped.includes(IE_MANAGED_BLOCK_START));
+      assert.ok(stripped.includes('personality'));
+      assert.ok(!stripped.includes('[model_providers.opencode-go]'));
+    });
+
+    it('setMode native strips instruction-engine managed blocks and reports native', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      // Simulate a config created by the install-time patcher (IE markers only, no Elegy markers)
+      const block = [
+        IE_MANAGED_BLOCK_START,
+        'model = "mimo-v2-pro"',
+        'model_provider = "opencode-go"',
+        '',
+        '[model_providers.opencode-go]',
+        'name = "OpenCode Go"',
+        'base_url = "https://opencode.ai/zen/go/v1"',
+        IE_MANAGED_BLOCK_END,
+      ].join('\n');
+      fs.writeFileSync(configPath, `approval_policy = "on-request"\n\n${block}\n`, 'utf8');
+
+      // Verify initial state: IE block is detected as elegy-routed
+      const initialStatus = getStatus(tmpDir);
+      assert.equal(initialStatus.activeMode, 'elegy-routed');
+
+      // Switch to native
+      const result = setMode(tmpDir, 'native');
+      const config = fs.readFileSync(configPath, 'utf8');
+
+      assert.equal(result.activeMode, 'native');
+      assert.ok(!config.includes(IE_MANAGED_BLOCK_START), 'IE managed block must be stripped');
+      assert.ok(!config.includes('[model_providers.opencode-go]'), 'IE managed provider table must be stripped');
+      assert.ok(config.includes('approval_policy = "on-request"'), 'user settings preserved');
+    });
+
+    it('setMode elegy-routed strips instruction-engine managed block', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      const block = [
+        IE_MANAGED_BLOCK_START,
+        'model = "mimo-v2-pro"',
+        'model_provider = "opencode-go"',
+        IE_MANAGED_BLOCK_END,
+      ].join('\n');
+      fs.writeFileSync(configPath, `approval_policy = "on-request"\n\n${block}\n`, 'utf8');
+
+      setMode(tmpDir, 'elegy-routed');
+      const config = fs.readFileSync(configPath, 'utf8');
+
+      assert.ok(!config.includes(IE_MANAGED_BLOCK_START));
+      assert.ok(config.includes(MANAGED_BLOCK_START));
+      assert.ok(config.includes('instruction_engine_elegy'));
     });
   });
 
@@ -368,6 +452,34 @@ describe('codexConfig', () => {
       assert.ok(status.bootstrap);
       assert.equal(status.bootstrap.installRoot, '/root');
       assert.equal(status.bootstrap.goAvailable, false);
+    });
+
+    it('setMode elegy-routed preserves unrelated config tables when migrating from IE block', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      const configText = [
+        'approval_policy = "on-request"',
+        '',
+        '[windows]',
+        'shell = "pwsh"',
+        '',
+        IE_MANAGED_BLOCK_START,
+        'model = "mimo-v2-pro"',
+        'model_provider = "opencode-go"',
+        IE_MANAGED_BLOCK_END,
+      ].join('\n');
+      fs.writeFileSync(configPath, configText, 'utf8');
+
+      setMode(tmpDir, 'elegy-routed');
+      const config = fs.readFileSync(configPath, 'utf8');
+
+      assert.ok(config.includes('[windows]'));
+      assert.ok(config.includes('shell = "pwsh"'));
+      assert.ok(!config.includes(IE_MANAGED_BLOCK_START));
+      assert.ok(config.includes(MANAGED_BLOCK_START));
+      // Root model_provider must appear before [windows]
+      const elegyProviderIndex = config.indexOf('model_provider = "instruction_engine_elegy"');
+      const windowsTableIndex = config.indexOf('[windows]');
+      assert.ok(elegyProviderIndex < windowsTableIndex, 'root model_provider must appear before [windows] table');
     });
   });
 });

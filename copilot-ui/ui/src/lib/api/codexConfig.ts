@@ -58,8 +58,8 @@ export async function saveDeepseekSettings(
   return payload;
 }
 
-export async function startDeepseekBridge(baseUrl?: string): Promise<{ bridgeRunning: boolean; message: string }> {
-  const payload = await apiRequest<{ bridgeRunning: boolean; message: string }>(
+export async function startDeepseekBridge(baseUrl?: string): Promise<CodexProviderDeepseekStatus & { bridgeRunning: boolean; message: string }> {
+  const payload = await apiRequest<CodexProviderDeepseekStatus & { bridgeRunning: boolean; message: string }>(
     '/api/config/codex-provider/deepseek/start',
     { baseUrl, method: 'POST' },
   );

@@ -169,6 +169,159 @@ async function main() {
   });
   });
 
+  await test('patcher places root-level keys before the first TOML table', async () => {
+  withTempDir((root) => {
+    const configPath = path.join(root, 'config.toml');
+    const configText = [
+      'approval_policy = "on-request"',
+      '',
+      '[windows]',
+      'shell = "pwsh"',
+      '',
+      '[projects."my-project"]',
+      'trust_level = "trusted"',
+    ].join('\n');
+    fs.writeFileSync(configPath, configText, 'utf8');
+
+    const result = patcher.patchConfigFile(configPath);
+    assert.strictEqual(result.changed, true);
+
+    const patched = fs.readFileSync(configPath, 'utf8');
+
+    // Root-level keys (model, model_provider, review_model) must appear before the first table header
+    const firstTableIndex = Math.min(
+      patched.indexOf('[windows]'),
+      patched.indexOf('[projects.'),
+      patched.indexOf('[profiles.'),
+      patched.indexOf('[model_providers.'),
+    );
+
+    const modelIndex = patched.indexOf('model = "');
+    const providerIndex = patched.indexOf('model_provider = "');
+    const reviewIndex = patched.indexOf('review_model = "');
+
+    // At least some root keys should be present (model_provider or review_model)
+    assert.ok(modelIndex >= 0 || providerIndex >= 0 || reviewIndex >= 0, 'expected root keys in output');
+
+    // Each root key we find must appear before the first table
+    if (modelIndex >= 0) {
+      assert.ok(modelIndex < firstTableIndex, `model = must appear before first table; model at ${modelIndex}, first table at ${firstTableIndex}`);
+    }
+    if (providerIndex >= 0) {
+      assert.ok(providerIndex < firstTableIndex, `model_provider = must appear before first table; provider at ${providerIndex}, first table at ${firstTableIndex}`);
+    }
+    if (reviewIndex >= 0) {
+      assert.ok(reviewIndex < firstTableIndex, `review_model = must appear before first table; review at ${reviewIndex}, first table at ${firstTableIndex}`);
+    }
+
+    // Original tables must be preserved
+    assert.ok(patched.includes('[windows]'), patched);
+    assert.ok(patched.includes('shell = "pwsh"'), patched);
+    assert.ok(patched.includes('[projects."my-project"]'), patched);
+  });
+  });
+
+  await test('patcher is idempotent on config with existing TOML tables', async () => {
+  withTempDir((root) => {
+    const configPath = path.join(root, 'config.toml');
+    const configText = [
+      'personality = "pragmatic"',
+      '',
+      '[windows]',
+      'shell = "pwsh"',
+    ].join('\n');
+    fs.writeFileSync(configPath, configText, 'utf8');
+
+    const first = patcher.patchConfigFile(configPath);
+    assert.strictEqual(first.changed, true);
+    const once = fs.readFileSync(configPath, 'utf8');
+
+    const second = patcher.patchConfigFile(configPath);
+    assert.strictEqual(second.changed, false);
+    const twice = fs.readFileSync(configPath, 'utf8');
+
+    assert.strictEqual(twice, once);
+    assert.ok(twice.includes('review_model = "deepseek-v4-pro"'));
+    assert.ok(twice.includes('[windows]'));
+  });
+  });
+
+  await test('patcher preserves unrelated config tables without duplicating managed defaults', async () => {
+  withTempDir((root) => {
+    const configPath = path.join(root, 'config.toml');
+    const configText = [
+      'approval_policy = "on-request"',
+      '',
+      '[plugin.markdown]',
+      'enabled = true',
+      '',
+      '[mcp_servers.my-server]',
+      'command = "node"',
+    ].join('\n');
+    fs.writeFileSync(configPath, configText, 'utf8');
+
+    const result = patcher.patchConfigFile(configPath);
+    const patched = fs.readFileSync(configPath, 'utf8');
+
+    assert.ok(patched.includes('approval_policy = "on-request"'));
+    assert.ok(patched.includes('[plugin.markdown]'));
+    assert.ok(patched.includes('[mcp_servers.my-server]'));
+    assert.ok(patched.includes('review_model = "deepseek-v4-pro"'));
+
+    // Verify the managed block END marker exists
+    assert.ok(patched.includes('# END instruction-engine managed codex defaults'), patched);
+
+    // Verify no duplicate managed blocks
+    const beginCount = (patched.match(/# BEGIN instruction-engine managed codex defaults/g) || []).length;
+    assert.strictEqual(beginCount, 1);
+  });
+  });
+
+  await test('patcher migrates existing instruction-engine block to correct positions', async () => {
+  withTempDir((root) => {
+    const configPath = path.join(root, 'config.toml');
+    // Simulate a config with the old-style managed block (root keys inside the managed block)
+    const configText = [
+      'approval_policy = "on-request"',
+      '',
+      '[windows]',
+      'shell = "pwsh"',
+      '',
+      '# BEGIN instruction-engine managed codex defaults',
+      'model = "mimo-v2-pro"',
+      '',
+      'model_provider = "opencode-go"',
+      '',
+      '[profiles.instruction_engine_plan_review]',
+      'model_provider = "opencode-go"',
+      'model = "mimo-v2-pro"',
+      '# END instruction-engine managed codex defaults',
+    ].join('\n');
+    fs.writeFileSync(configPath, configText, 'utf8');
+
+    const result = patcher.patchConfigFile(configPath);
+    const patched = fs.readFileSync(configPath, 'utf8');
+
+    // After migration, the old style should be gone (managed block only contains tables now)
+    const beginMarkers = (patched.match(/# BEGIN instruction-engine managed codex defaults/g) || []);
+    assert.strictEqual(beginMarkers.length, 1, 'exactly one managed block');
+
+    // Root keys must be before first table header
+    const firstTableIdx = Math.min(
+      patched.indexOf('[windows]'),
+      patched.indexOf('[profiles.'),
+      patched.indexOf('[model_providers.'),
+    );
+    const providerIdx = patched.indexOf('model_provider = "');
+    assert.ok(providerIdx < firstTableIdx, 'model_provider must appear before first table');
+
+    // Original user config preserved
+    assert.ok(patched.includes('[windows]'), patched);
+    assert.ok(patched.includes('shell = "pwsh"'), patched);
+    assert.ok(patched.includes('approval_policy = "on-request"'), patched);
+  });
+  });
+
   console.log(`\n${passed} tests passed`);
   if (process.exitCode) {
     console.error('Some tests FAILED');

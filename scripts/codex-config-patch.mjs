@@ -132,6 +132,23 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function isTableHeaderLine(line) {
+  return /^\s*\[\[?[^\]]+\]?\]\s*(?:#.*)?$/.test(String(line || '').trim());
+}
+
+function splitRootPreamble(text) {
+  const normalized = normalizeText(text);
+  const lines = normalized.split('\n');
+  const tableHeaderIndex = lines.findIndex((line) => isTableHeaderLine(line));
+  if (tableHeaderIndex === -1) {
+    return { preambleLines: lines, bodyText: '' };
+  }
+  return {
+    preambleLines: lines.slice(0, tableHeaderIndex),
+    bodyText: lines.slice(tableHeaderIndex).join('\n').trim(),
+  };
+}
+
 function hasTopLevelKey(text, key) {
   return new RegExp(`^\\s*${escapeRegExp(key)}\\s*=`, 'm').test(text);
 }
@@ -156,23 +173,24 @@ function buildProviderTable(provider) {
   return lines.join('\n');
 }
 
-function buildManagedBlock({ needsModel, needsProvider, needsReviewModel, reviewModel, needsProfile, profileName, enableExternalProviders, existingProviders }) {
-  const lines = [MANAGED_BLOCK_START];
-
+// Build only the root-level keys that need to go BEFORE any TOML tables
+function buildRootKeyLines({ needsModel, needsProvider, needsReviewModel, reviewModel }) {
+  const lines = [];
   if (needsModel) {
     lines.push(`model = "${DEFAULT_MODEL}"`);
-    lines.push('');
   }
-
   if (needsProvider) {
     lines.push(`model_provider = "${DEFAULT_PROVIDER_ID}"`);
-    lines.push('');
   }
-
   if (needsReviewModel) {
     lines.push(`review_model = "${reviewModel}"`);
-    lines.push('');
   }
+  return lines;
+}
+
+// Build only the TOML tables portion of the managed block (no root keys)
+function buildManagedBlock({ needsProfile, profileName, enableExternalProviders, existingProviders }) {
+  const lines = [MANAGED_BLOCK_START];
 
   if (needsProfile) {
     lines.push(`[profiles.${profileName}]`);
@@ -194,7 +212,8 @@ function buildManagedBlock({ needsModel, needsProvider, needsReviewModel, review
     }
   }
 
-  if (lines[lines.length - 1] === '') {
+  // Remove trailing blank line before END marker
+  if (lines.length > 1 && lines[lines.length - 1] === '') {
     lines.pop();
   }
   lines.push(MANAGED_BLOCK_END);
@@ -206,9 +225,12 @@ export function patchCodexConfig(originalText, options = {}) {
   const profileName = options.profileName || DEFAULT_PROFILE_NAME;
   const enableExternalProviders = options.enableExternalProviders !== false;
   const stripped = stripManagedBlock(originalText);
-  const needsModel = !hasTopLevelKey(stripped, 'model');
-  const needsProvider = !hasTopLevelKey(stripped, 'model_provider');
-  const needsReviewModel = !hasTopLevelKey(stripped, 'review_model');
+  // Only check the preamble (before first table header) for root keys.
+  // Keys inside [profiles.*] or [model_providers.*] sections are NOT root-level defaults.
+  const rootPreambleText = splitRootPreamble(stripped).preambleLines.join('\n');
+  const needsModel = !hasTopLevelKey(rootPreambleText, 'model');
+  const needsProvider = !hasTopLevelKey(rootPreambleText, 'model_provider');
+  const needsReviewModel = !hasTopLevelKey(rootPreambleText, 'review_model');
   const needsProfile = !hasProfile(stripped, profileName);
 
   const existingProviders = new Set();
@@ -226,22 +248,56 @@ export function patchCodexConfig(originalText, options = {}) {
     return ensureTrailingNewline(stripped || '');
   }
 
+  // Build root-level keys to insert BEFORE the first TOML table
+  const rootKeyLines = buildRootKeyLines({ needsModel, needsProvider, needsReviewModel, reviewModel });
+
+  // Build the managed block containing only TOML tables (no root keys)
   const block = buildManagedBlock({
-    needsModel,
-    needsProvider,
-    needsReviewModel,
-    reviewModel,
     needsProfile,
     profileName,
     enableExternalProviders,
     existingProviders,
   });
 
-  if (!stripped.trim()) {
-    return ensureTrailingNewline(block);
+  // Split the stripped text into preamble (before first table) and body (tables)
+  const { preambleLines, bodyText } = splitRootPreamble(stripped);
+
+  // Insert root keys into the preamble
+  const rootKeysNeeded = rootKeyLines.length > 0;
+  let nextPreambleLines = [...preambleLines];
+
+  if (rootKeysNeeded) {
+    // Remove any existing root key lines for the keys we're adding to avoid duplication
+    const rootKeysToCheck = [];
+    if (needsModel) rootKeysToCheck.push('model');
+    if (needsProvider) rootKeysToCheck.push('model_provider');
+    if (needsReviewModel) rootKeysToCheck.push('review_model');
+
+    nextPreambleLines = nextPreambleLines.filter((line) => {
+      for (const key of rootKeysToCheck) {
+        if (new RegExp(`^\\s*${escapeRegExp(key)}\\s*=`).test(String(line || ''))) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    // Add root keys at the end of preamble
+    nextPreambleLines = nextPreambleLines.concat(rootKeyLines);
   }
 
-  return ensureTrailingNewline(`${stripped}\n\n${block}`);
+  // Reassemble: preamble + body + managed block tables
+  const preambleText = nextPreambleLines.join('\n').trimEnd();
+  const sections = [];
+  if (preambleText) sections.push(preambleText);
+  if (bodyText) sections.push(bodyText);
+  if (block) sections.push(block);
+
+  if (sections.length === 0) {
+    return '';
+  }
+
+  return ensureTrailingNewline(sections.join('\n\n'));
 }
 
 export function patchConfigFile(configPath, options = {}) {

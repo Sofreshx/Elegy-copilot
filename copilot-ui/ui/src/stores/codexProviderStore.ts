@@ -44,11 +44,12 @@ function createCodexProviderStore() {
   async function load(): Promise<void> {
     store.setState((state) => ({ ...state, loading: true, error: null }));
     try {
-      const [status, dsStatus] = await Promise.all([
+      const [status, dsStatus, bootstrapStatus] = await Promise.all([
         getCodexProviderStatus(),
         getDeepseekStatus().catch(() => null),
+        getBootstrapStatus().catch(() => null),
       ]);
-      store.setState((state) => ({ ...state, status, deepseekStatus: dsStatus, loading: false }));
+      store.setState((state) => ({ ...state, status, deepseekStatus: dsStatus, bootstrapStatus, loading: false }));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load Codex provider status';
       store.setState((state) => ({ ...state, loading: false, error: message }));
@@ -116,8 +117,8 @@ function createCodexProviderStore() {
       store.setState((state) => ({
         ...state,
         deepseekStatus: state.deepseekStatus
-          ? { ...state.deepseekStatus, bridgeRunning: result.bridgeRunning }
-          : null,
+          ? { ...state.deepseekStatus, ...result }
+          : result,
         bridgeLoading: false,
         message: result.message,
       }));

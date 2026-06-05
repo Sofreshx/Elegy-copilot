@@ -241,9 +241,21 @@ async function assertCodexProviderActivationPreflight(ctx, deps) {
     const status = deps.codexConfig.getStatus(ctx.codexHome);
     const ds = status.deepseek || {};
 
-    if (!ds.bridgePath || !require('fs').existsSync(ds.bridgePath)) {
+    let resolvedBridgePath = ds.bridgePath;
+
+    // Fall back to managed Moon Bridge binary when persisted path is missing
+    if (!resolvedBridgePath || !require('fs').existsSync(resolvedBridgePath)) {
+      const copilotHome = ctx.copilotHome || require('path').join(require('os').homedir(), '.copilot');
+      const managedRoot = deps.moonBridgeBootstrap.resolveManagedMoonBridgeRoot(copilotHome);
+      const managedBinary = deps.moonBridgeBootstrap.resolveBinaryPath(managedRoot);
+      if (require('fs').existsSync(managedBinary)) {
+        resolvedBridgePath = managedBinary;
+      }
+    }
+
+    if (!resolvedBridgePath || !require('fs').existsSync(resolvedBridgePath)) {
       throw Object.assign(
-        new Error('Moon Bridge executable path is not configured or not found. Set the bridge path in DeepSeek settings.'),
+        new Error('Moon Bridge executable path is not configured or not found. Install Moon Bridge or check the path in settings.'),
         { statusCode: 503 },
       );
     }
@@ -255,7 +267,9 @@ async function assertCodexProviderActivationPreflight(ctx, deps) {
       );
     }
 
-    if (!ds.bridgeBinaryAvailable) {
+    // If resolvedBridgePath exists (whether from state or managed fallback), treat as binary available
+    const binaryIsAvailable = ds.bridgeBinaryAvailable || (resolvedBridgePath && require('fs').existsSync(resolvedBridgePath));
+    if (!binaryIsAvailable) {
       throw Object.assign(
         new Error('Moon Bridge binary is not available at the configured path. Install Moon Bridge or check the path.'),
         { statusCode: 503 },
@@ -415,9 +429,19 @@ async function handleSaveDeepseek(ctx, deps) {
 
     if (body.keyConfigured === true) {
       const fs = require('fs');
-      const configPath = typeof body.bridgeConfigPath === 'string' && body.bridgeConfigPath.trim()
+      let configPath = typeof body.bridgeConfigPath === 'string' && body.bridgeConfigPath.trim()
         ? body.bridgeConfigPath.trim()
         : settings.bridgeConfigPath;
+
+      // When no config path is explicitly configured, use the managed Moon Bridge config path
+      if (!configPath) {
+        const copilotHome = ctx.copilotHome || require('path').join(require('os').homedir(), '.copilot');
+        const managedRoot = deps.moonBridgeBootstrap.resolveManagedMoonBridgeRoot(copilotHome);
+        configPath = deps.moonBridgeBootstrap.resolveConfigPath(managedRoot);
+        // Persist the fallback path so the UI shows it on reload
+        settings.bridgeConfigPath = configPath;
+      }
+
       const apiKey = typeof body.apiKey === 'string' && body.apiKey.trim() ? body.apiKey.trim() : null;
 
       if (apiKey && configPath) {
@@ -509,8 +533,18 @@ async function handleStartDeepseekBridge(ctx, deps) {
     const ds = status.deepseek || {};
     let bridgePath = ds.bridgePath;
 
+    // When no explicit bridgePath is set, try the managed Moon Bridge install
     if (!bridgePath || !require('fs').existsSync(bridgePath)) {
-      deps.sendJson(ctx.res, 400, { error: 'Moon Bridge executable path is not configured or not found.' });
+      const copilotHome = ctx.copilotHome || require('path').join(require('os').homedir(), '.copilot');
+      const managedRoot = deps.moonBridgeBootstrap.resolveManagedMoonBridgeRoot(copilotHome);
+      const managedBinary = deps.moonBridgeBootstrap.resolveBinaryPath(managedRoot);
+      if (require('fs').existsSync(managedBinary)) {
+        bridgePath = managedBinary;
+      }
+    }
+
+    if (!bridgePath || !require('fs').existsSync(bridgePath)) {
+      deps.sendJson(ctx.res, 400, { error: 'Moon Bridge executable path is not configured or not found. Install Moon Bridge first.' });
       return;
     }
 
@@ -639,6 +673,7 @@ async function handleCheckDeepseekBridge(ctx, deps) {
     let modelsVisible = false;
     let modelIds = [];
 
+    let probeError = null;
     try {
       const probeResult = await probeDeepseekBridgeReachability(bridgeUrl, {
         fetchImpl: globalThis.fetch,
@@ -651,7 +686,8 @@ async function handleCheckDeepseekBridge(ctx, deps) {
       if (probeResult && Array.isArray(probeResult.modelIds)) {
         modelIds = probeResult.modelIds;
       }
-    } catch {
+    } catch (err) {
+      probeError = err && typeof err === 'object' && err.message ? err.message : String(err || '');
       bridgeReachable = false;
       modelsVisible = false;
       modelIds = [];
@@ -667,7 +703,7 @@ async function handleCheckDeepseekBridge(ctx, deps) {
       modelsVisible,
       modelIds,
       bridgeRunning,
-      probeError: null,
+      probeError,
     });
   } catch (err) {
     deps.sendJson(ctx.res, 500, { error: 'Failed to check Moon Bridge status', details: err.message });
@@ -706,6 +742,10 @@ async function handleBootstrapMoonBridge(ctx, deps) {
     deps.codexConfig.saveBootstrapState(codexHome, result.status);
 
     if (result.success) {
+      // Persist the managed config path so API key saving works without manual path entry
+      if (result.status && typeof result.status.configPath === 'string') {
+        deps.codexConfig.saveDeepseekSettings(codexHome, { bridgeConfigPath: result.status.configPath });
+      }
       deps.sendJson(ctx.res, 200, {
         success: true,
         message: 'Moon Bridge installed and built successfully.',

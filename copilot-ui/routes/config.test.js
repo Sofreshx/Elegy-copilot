@@ -55,6 +55,9 @@ function makeMocks(overrides = {}) {
       status: { installed: true, built: true, gitAvailable: true, goAvailable: true },
       error: null,
     })),
+    resolveManagedMoonBridgeRoot: overrides.resolveManagedMoonBridgeRoot || ((copilotHome) => '/managed-cli/moon-bridge'),
+    resolveBinaryPath: overrides.resolveBinaryPath || ((root) => '/managed-cli/moon-bridge/bin/moon-bridge.exe'),
+    resolveConfigPath: overrides.resolveConfigPath || ((root) => '/managed-cli/moon-bridge/config.yaml'),
   };
   return {
     sendJson,
@@ -387,6 +390,68 @@ describe('config routes', () => {
       assert.equal(mocks.sent[0].obj.success, false);
       assert.ok(mocks.sent[0].obj.error.includes('git is not available'));
       assert.ok(savedState, 'expected saveBootstrapState to be called even on failure');
+    });
+
+    it('POST bootstrap persists bridgeConfigPath on success', async () => {
+      let savedDeepseekSettings;
+      let savedBootstrapState;
+      const mocks = makeMocks({
+        readJsonBody: async () => ({}),
+        saveDeepseekSettings: (_home, settings) => {
+          savedDeepseekSettings = settings;
+          return { bridgeConfigPath: settings.bridgeConfigPath };
+        },
+        saveBootstrapState: (_home, state) => { savedBootstrapState = state; },
+        bootstrapMoonBridge: () => ({
+          success: true,
+          status: {
+            installRoot: '/root',
+            sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
+            binaryPath: '/root/bin/moon-bridge.exe',
+            configPath: '/root/config.yaml',
+            gitAvailable: true,
+            goAvailable: true,
+            installed: true,
+            built: true,
+            lastBootstrapAt: '2025-06-05T00:00:00.000Z',
+            lastError: null,
+          },
+        }),
+      });
+      const routes = register(mocks);
+      await routes[11].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      assert.equal(mocks.sent[0].code, 200);
+      assert.equal(mocks.sent[0].obj.success, true);
+      assert.ok(savedBootstrapState, 'expected saveBootstrapState to be called');
+      assert.ok(savedDeepseekSettings, 'expected saveDeepseekSettings to be called');
+      assert.equal(savedDeepseekSettings.bridgeConfigPath, '/root/config.yaml');
+    });
+
+    it('POST check status preserves probeError on failure', async () => {
+      let probeCallCount = 0;
+      const mocks = makeMocks({
+        getCodexStatus: () => ({
+          activeMode: 'deepseek-bridge',
+          deepseek: {
+            bridgePath: '/path/to/bridge',
+            bridgeUrl: 'http://127.0.0.1:38440/v1',
+            keyConfigured: true,
+          },
+        }),
+        probeCodexGatewayReachability: async () => {
+          probeCallCount += 1;
+        },
+      });
+      const routes = register(mocks);
+      // The check-status handler calls probeDeepseekBridgeReachability, 
+      // which will naturally fail since there's no real server.
+      // We just need to verify it doesn't crash and probeError is set.
+      await routes[9].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      assert.equal(mocks.sent[0].code, 200);
+      // probeError should be a string (error message) not null
+      assert.ok(typeof mocks.sent[0].obj.probeError === 'string', 'probeError should be a string error message, got: ' + JSON.stringify(mocks.sent[0].obj.probeError));
+      assert.ok(mocks.sent[0].obj.probeError.length > 0, 'probeError should not be empty');
+      assert.equal(mocks.sent[0].obj.bridgeReachable, false);
     });
   });
 });

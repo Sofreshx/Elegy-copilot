@@ -15,6 +15,8 @@ const MANAGED_BLOCK_START = '# BEGIN elegy managed codex provider';
 const MANAGED_BLOCK_END = '# END elegy managed codex provider';
 const MANAGED_DEEPSEEK_BLOCK_START = '# BEGIN elegy managed deepseek provider';
 const MANAGED_DEEPSEEK_BLOCK_END = '# END elegy managed deepseek provider';
+const IE_MANAGED_BLOCK_START = '# BEGIN instruction-engine managed codex defaults';
+const IE_MANAGED_BLOCK_END = '# END instruction-engine managed codex defaults';
 const ROUTED_PROVIDER_ID = 'instruction_engine_elegy';
 const ROUTED_PROVIDER_NAME = 'Elegy Routed';
 const ROUTED_MODEL = 'opencode-go';
@@ -365,6 +367,19 @@ function hasDeepseekManagedBlock(text) {
   return text.includes(MANAGED_DEEPSEEK_BLOCK_START);
 }
 
+function hasInstructionEngineManagedBlock(text) {
+  return text.includes(IE_MANAGED_BLOCK_START);
+}
+
+function stripInstructionEngineManagedBlock(text) {
+  const normalized = normalizeNewlines(text);
+  const pattern = new RegExp(
+    `\\n?${escapeRegExp(IE_MANAGED_BLOCK_START)}[\\s\\S]*?${escapeRegExp(IE_MANAGED_BLOCK_END)}\\n?`,
+    'g',
+  );
+  return normalized.replace(pattern, '\n').replace(/\n{3,}/g, '\n\n').trimEnd();
+}
+
 function appendDeepseekManagedBlock(text, codexHome) {
   const stripped = stripDeepseekManagedBlock(text);
   if (hasProviderTable(stripped, DEEPSEEK_PROVIDER_ID)) {
@@ -553,7 +568,7 @@ function getStatus(codexHome) {
   let activeMode = 'native';
   if (configText.includes(MANAGED_DEEPSEEK_BLOCK_START)) {
     activeMode = 'deepseek-bridge';
-  } else if (configText.includes(MANAGED_BLOCK_START)) {
+  } else if (configText.includes(MANAGED_BLOCK_START) || configText.includes(IE_MANAGED_BLOCK_START)) {
     activeMode = 'elegy-routed';
   }
 
@@ -567,7 +582,7 @@ function getStatus(codexHome) {
     providerId: activeMode === 'elegy-routed' ? ROUTED_PROVIDER_ID
       : activeMode === 'deepseek-bridge' ? DEEPSEEK_PROVIDER_ID
       : 'openai',
-    hasManagedBlock: configText.includes(MANAGED_BLOCK_START) || configText.includes(MANAGED_DEEPSEEK_BLOCK_START),
+    hasManagedBlock: configText.includes(MANAGED_BLOCK_START) || configText.includes(MANAGED_DEEPSEEK_BLOCK_START) || configText.includes(IE_MANAGED_BLOCK_START),
     hasBackup: hasBackup(resolvedHome),
     lastAppliedAt: typeof state.lastAppliedAt === 'string' ? state.lastAppliedAt : null,
     lastResetAt: typeof state.lastResetAt === 'string' ? state.lastResetAt : null,
@@ -602,9 +617,10 @@ function setMode(codexHome, mode) {
   const existing = readTextIfExists(configPath);
   const previousState = readState(resolvedHome);
   const isDeepseekActive = hasDeepseekManagedBlock(existing);
-  const isElegyActive = existing.includes(MANAGED_BLOCK_START);
+  const isElegyActive = existing.includes(MANAGED_BLOCK_START) || existing.includes(IE_MANAGED_BLOCK_START);
 
-  if (normalizedMode === 'elegy-routed' && isElegyActive) {
+  // Only short-circuit for the standard managed block; IE blocks are legacy and need migration
+  if (normalizedMode === 'elegy-routed' && existing.includes(MANAGED_BLOCK_START)) {
     return {
       ...getStatus(resolvedHome),
       changed: false,
@@ -623,22 +639,24 @@ function setMode(codexHome, mode) {
   let action;
 
   if (normalizedMode === 'elegy-routed') {
-    const stripped = stripDeepseekManagedBlock(existing);
+    const stripped = stripInstructionEngineManagedBlock(stripDeepseekManagedBlock(existing));
     const { preambleLines, bodyText } = splitRootPreamble(stripped);
     const cleanedPreamble = removeRootKeyLines(preambleLines, 'model_catalog_json');
     const cleanedText = composeConfigText(cleanedPreamble, bodyText, '');
     nextTextResult = appendManagedBlock(cleanedText);
     action = 'activate';
   } else if (normalizedMode === 'deepseek-bridge') {
-    const stripped = stripManagedBlock(existing);
+    const stripped = stripInstructionEngineManagedBlock(stripManagedBlock(existing));
     nextTextResult = appendDeepseekManagedBlock(stripped, resolvedHome);
     action = 'activate';
   } else {
+    // Strip any instruction-engine managed block first, then apply mode-specific reset
+    const ieStripped = stripInstructionEngineManagedBlock(existing);
     if (isDeepseekActive) {
-      nextTextResult = { nextText: applyDeepseekSoftReset(existing, previousState) };
+      nextTextResult = { nextText: applyDeepseekSoftReset(ieStripped, previousState) };
       action = 'soft-reset';
     } else {
-      nextTextResult = { nextText: applySoftReset(existing, previousState) };
+      nextTextResult = { nextText: applySoftReset(ieStripped, previousState) };
       action = 'soft-reset';
     }
   }
@@ -778,6 +796,8 @@ module.exports = {
   MANAGED_BLOCK_END,
   MANAGED_DEEPSEEK_BLOCK_START,
   MANAGED_DEEPSEEK_BLOCK_END,
+  IE_MANAGED_BLOCK_START,
+  IE_MANAGED_BLOCK_END,
   resolveCodexHome,
   resolveConfigPath,
   resolveStatePath,
@@ -786,6 +806,8 @@ module.exports = {
   resolveDeepseekCatalogPath,
   stripManagedBlock,
   stripDeepseekManagedBlock,
+  hasInstructionEngineManagedBlock,
+  stripInstructionEngineManagedBlock,
   appendManagedBlock,
   appendDeepseekManagedBlock,
   applySoftReset,
