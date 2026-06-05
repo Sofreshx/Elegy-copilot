@@ -1,8 +1,8 @@
 ---
 spec_id: align-elegy-db-assets
 title: Align Elegy Planning DB, Assets, and OpenCode/Codex Status
-status: proposed
-type: fix
+status: draft
+type: workflow
 updated: 2026-06-03
 ---
 
@@ -60,8 +60,6 @@ The goal `GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603` and its 5 roadmaps MUST
 - Recreate the goal and roadmaps in the Copilot DB using the `elegy-planning` CLI
 - `elegy-planning --db $COPHOME/elegy-planning.db goal show --goal-id GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603 --json` returns the goal with 5 roadmaps
 - `elegy-planning --db $COPHOME/elegy-planning.db health --json` reports the goal count increment
-
-**Non-goal:** Do NOT make `~/.elegy/planning.db` authoritative. The legacy DB is migration source only.
 
 **Migration procedure:**
 1. Back up both DBs to `~/.copilot/backups/` with timestamps
@@ -144,6 +142,54 @@ The typecheck error at `OpenCodeView.tsx:346` MUST be resolved.
 **Acceptance:**
 - `tsc -p copilot-ui/ui/tsconfig.json --noEmit` exits with zero errors
 - The `install-codex-planning` button in the OpenCode Setup tab remains functional (calls `opencodeStore.installCodexPlanning()`)
+
+## Non-Goals
+
+- Do NOT make `~/.elegy/planning.db` authoritative. The legacy DB is migration source only.
+- No changes to the Elegy Planning CLI itself.
+- No changes to the Copilot UI routing structure beyond the specific fixes listed.
+
+## Acceptance Checks
+
+- Goal and 5 roadmaps exist in Copilot DB after migration.
+  → verify: `elegy-planning --db ~/.copilot/elegy-planning.db goal show --goal-id GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603 --json`
+- Backups of both DBs exist before migration.
+  → verify: pending — manual verification of backup files in `~/.copilot/backups/`
+- OpenCode status endpoint returns correct CLI path.
+  → verify: `curl -s http://localhost:PORT/api/opencode/status | jq .elegyPlanningCli.cliPath`
+- No `process.env` references remain in elegy-planning code paths.
+  → verify: `Select-String -Path copilot-ui/routes/opencode.js -Pattern "process\.env"` returns no matches in elegy-planning-related functions
+- `install-codex-planning` is in `TOOLING_INSTALL_KINDS`.
+  → verify: `Select-String -Path copilot-ui/routes/opencode.js -Pattern "install-codex-planning"`
+- `elegy-planning --version` no longer called in opencode.js.
+  → verify: `Select-String -Path copilot-ui/routes/opencode.js -Pattern "--version"` returns no matches in resolvePlanningVersion
+- `elegy-planning --version` no longer called in toolingUpdates.js.
+  → verify: `Select-String -Path copilot-ui/routes/toolingUpdates.js -Pattern "--version"` returns no matches in resolvePlanningVersion
+- `~/.codex/skills/elegy-planning/SKILL.md` exists.
+  → verify: `Test-Path ~/.codex/skills/elegy-planning/SKILL.md`
+- OpenCode managed asset status reports all assets up to date.
+  → verify: pending — requires running dashboard UI check
+- Codex planning status reports `planningSkill.installed === true`.
+  → verify: `curl -s http://localhost:PORT/api/codex-planning-status | jq .planningSkill.installed`
+- TypeScript typecheck passes with zero errors.
+  → verify: `tsc -p copilot-ui/ui/tsconfig.json --noEmit`
+
+## Implementation Links
+
+- `copilot-ui/routes/opencode.js`
+- `copilot-ui/routes/toolingUpdates.js`
+- `copilot-ui/lib/elegyPlanningCliResolver.js`
+- `catalog-assets/shared-skills/elegy-planning/SKILL.md`
+- `codex-assets/home/AGENTS.md`
+- `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx`
+
+## Validation Evidence
+
+- Pending implementation.
+
+## Drift Notes
+
+- None.
 
 ## Test Plan
 

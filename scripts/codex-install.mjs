@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
+import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { DEFAULT_PROFILE_NAME, DEFAULT_REVIEW_MODEL, patchConfigFile } from './codex-config-patch.mjs';
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
@@ -250,6 +252,7 @@ export function parseArgs(argv) {
     profileName: DEFAULT_PROFILE_NAME,
     setupProfile: '',
     enableExternalProviders: true,
+    printEnvOnly: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -354,7 +357,11 @@ export function parseArgs(argv) {
       args.enableExternalProviders = false;
       continue;
     }
-    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --codex-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --review-model <model>, --profile-name <name>, --setup-profile <key>, --enable-external-providers, --disable-external-providers)`);
+    if (value === '--print-env-only') {
+      args.printEnvOnly = true;
+      continue;
+    }
+    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --codex-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --review-model <model>, --profile-name <name>, --setup-profile <key>, --enable-external-providers, --disable-external-providers, --print-env-only)`);
   }
 
   if (args.repoRoot && !args.setupProfile) {
@@ -486,13 +493,49 @@ export function runInstall(args = {}) {
     repoSetup,
   };
 
+  // Set INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH on Windows when
+  // targeting the default Copilot home directory.
+  if (process.platform === 'win32' && path.resolve(codexHome) === path.resolve('C:\\Users\\lolzi\\.copilot')) {
+    const sessionPath = path.join(codexHome, 'planning-session.json');
+    process.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH = sessionPath;
+    console.log(`[ENV] INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=${sessionPath}`);
+
+    // Mirror the sidecar from the CLI's default location to the override path
+    try {
+      const _require = createRequire(import.meta.url);
+      const { mirrorSessionSidecar } = _require('../copilot-ui/lib/planningSession.js');
+      const defaultSource = path.join(os.homedir(), '.elegy', 'planning-session.json');
+      const result = mirrorSessionSidecar({
+        resolvedPath: sessionPath,
+        defaultSourcePath: defaultSource,
+        homedir: os.homedir(),
+      });
+      if (result) {
+        console.log(`[SESSION] Mirrored sidecar: ${result.copiedFrom} → ${result.copiedTo}`);
+      } else {
+        console.log('[SESSION] No sidecar mirror needed (already present or source missing).');
+      }
+    } catch (err) {
+      console.warn(`[SESSION] Mirror skipped: ${err.message}`);
+    }
+  }
+
   console.log('Done.');
   return summary;
 }
 
 try {
   if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-    runInstall(parseArgs(process.argv.slice(2)));
+    const args = parseArgs(process.argv.slice(2));
+    if (args.printEnvOnly) {
+      const copilotHome = resolveCodexHome(args.codexHome);
+      if (process.platform === 'win32' && path.resolve(copilotHome) === path.resolve('C:\\Users\\lolzi\\.copilot')) {
+        const sessionPath = path.join(copilotHome, 'planning-session.json');
+        console.log(`INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=${sessionPath}`);
+      }
+      process.exit(0);
+    }
+    runInstall(args);
   }
 } catch (error) {
   console.error(error.message || String(error));

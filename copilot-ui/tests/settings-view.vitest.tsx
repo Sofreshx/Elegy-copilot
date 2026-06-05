@@ -1,13 +1,17 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { navigationStore } from '../ui/src/stores/navigation';
-import { remotePreferenceStore } from '../ui/src/stores/remotePreferenceStore';
 import { codexProviderStore } from '../ui/src/stores/codexProviderStore';
 
 const apiMocks = vi.hoisted(() => ({
   getCodexProviderStatus: vi.fn(),
   setCodexProviderMode: vi.fn(),
   resetCodexProvider: vi.fn(),
+  getDeepseekStatus: vi.fn(),
+  saveDeepseekSettings: vi.fn(),
+  startDeepseekBridge: vi.fn(),
+  stopDeepseekBridge: vi.fn(),
+  checkDeepseekBridge: vi.fn(),
   getRemotePreference: vi.fn(),
   setRemotePreference: vi.fn(),
 }));
@@ -19,6 +23,11 @@ vi.mock('../ui/src/lib/api/codexConfig', async () => {
     getCodexProviderStatus: apiMocks.getCodexProviderStatus,
     setCodexProviderMode: apiMocks.setCodexProviderMode,
     resetCodexProvider: apiMocks.resetCodexProvider,
+    getDeepseekStatus: apiMocks.getDeepseekStatus,
+    saveDeepseekSettings: apiMocks.saveDeepseekSettings,
+    startDeepseekBridge: apiMocks.startDeepseekBridge,
+    stopDeepseekBridge: apiMocks.stopDeepseekBridge,
+    checkDeepseekBridge: apiMocks.checkDeepseekBridge,
   };
 });
 
@@ -34,13 +43,6 @@ vi.mock('../ui/src/lib/api/sdk', async () => {
 describe('SettingsView', () => {
   beforeEach(() => {
     navigationStore.reset();
-    remotePreferenceStore.setState(() => ({
-      enabled: false,
-      loading: false,
-      saving: false,
-      error: null,
-      warning: null,
-    }));
     codexProviderStore.resetState();
     Object.values(apiMocks).forEach((mock) => mock.mockReset());
 
@@ -60,6 +62,24 @@ describe('SettingsView', () => {
         baseUrl: 'http://127.0.0.1:4318/v1',
         envKey: 'OPENCODE_GO_API_KEY',
       },
+      deepseek: {
+        bridgePath: null,
+        bridgeConfigPath: null,
+        bridgeUrl: 'http://127.0.0.1:38440/v1',
+        keyConfigured: false,
+        bridgeReachable: false,
+        modelsVisible: false,
+        bridgeBinaryAvailable: false,
+      },
+    });
+    apiMocks.getDeepseekStatus.mockResolvedValue({
+      bridgePath: null,
+      bridgeConfigPath: null,
+      bridgeUrl: 'http://127.0.0.1:38440/v1',
+      keyConfigured: false,
+      bridgeReachable: false,
+      modelsVisible: false,
+      bridgeBinaryAvailable: false,
     });
     apiMocks.setCodexProviderMode.mockResolvedValue({
       codexHome: 'C:/Users/demo/.codex',
@@ -76,6 +96,15 @@ describe('SettingsView', () => {
         model: 'opencode-go',
         baseUrl: 'http://127.0.0.1:4318/v1',
         envKey: 'OPENCODE_GO_API_KEY',
+      },
+      deepseek: {
+        bridgePath: null,
+        bridgeConfigPath: null,
+        bridgeUrl: 'http://127.0.0.1:38440/v1',
+        keyConfigured: false,
+        bridgeReachable: false,
+        modelsVisible: false,
+        bridgeBinaryAvailable: false,
       },
     });
     apiMocks.resetCodexProvider.mockResolvedValue({
@@ -94,6 +123,34 @@ describe('SettingsView', () => {
         baseUrl: 'http://127.0.0.1:4318/v1',
         envKey: 'OPENCODE_GO_API_KEY',
       },
+      deepseek: {
+        bridgePath: null,
+        bridgeConfigPath: null,
+        bridgeUrl: 'http://127.0.0.1:38440/v1',
+        keyConfigured: false,
+        bridgeReachable: false,
+        modelsVisible: false,
+        bridgeBinaryAvailable: false,
+      },
+    });
+    apiMocks.saveDeepseekSettings.mockResolvedValue({
+      bridgePath: '/path/to/bridge.exe',
+      bridgeUrl: 'http://127.0.0.1:38440/v1',
+      keyConfigured: true,
+      bridgeReachable: false,
+      modelsVisible: false,
+      bridgeBinaryAvailable: true,
+    });
+    apiMocks.startDeepseekBridge.mockResolvedValue({ bridgeRunning: true, message: 'Moon Bridge started.' });
+    apiMocks.stopDeepseekBridge.mockResolvedValue({ bridgeRunning: false, message: 'Moon Bridge stopped.' });
+    apiMocks.checkDeepseekBridge.mockResolvedValue({
+      bridgeUrl: 'http://127.0.0.1:38440/v1',
+      keyConfigured: true,
+      bridgeReachable: true,
+      modelsVisible: true,
+      bridgeBinaryAvailable: true,
+      bridgeRunning: true,
+      modelIds: ['deepseek-v4-pro', 'deepseek-v4-flash'],
     });
     apiMocks.getRemotePreference.mockResolvedValue({ enabled: false });
     apiMocks.setRemotePreference.mockResolvedValue({ enabled: true });
@@ -104,7 +161,7 @@ describe('SettingsView', () => {
     }));
   });
 
-  it('renders Codex provider controls and switches to Elegy routed mode', async () => {
+  it('renders Codex provider controls with three mode buttons', async () => {
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
 
     render(<SettingsView />);
@@ -116,14 +173,51 @@ describe('SettingsView', () => {
       expect(screen.getByTestId('codex-provider-mode-badge')).toHaveTextContent('Native Codex');
     });
 
-    fireEvent.click(screen.getByTestId('codex-provider-elegy'));
+    expect(screen.getByTestId('codex-provider-native')).toBeInTheDocument();
+    expect(screen.getByTestId('codex-provider-elegy')).toBeInTheDocument();
+    expect(screen.getByTestId('codex-provider-deepseek')).toBeInTheDocument();
+  });
+
+  it('renders DeepSeek fields when deepseek-bridge mode is active', async () => {
+    apiMocks.getCodexProviderStatus.mockResolvedValue({
+      codexHome: 'C:/Users/demo/.codex',
+      configPath: 'C:/Users/demo/.codex/config.toml',
+      statePath: 'C:/Users/demo/.codex/.elegy-codex-provider-state.json',
+      backupPath: 'C:/Users/demo/.codex/.elegy-codex-provider-backup.toml',
+      exists: true,
+      activeMode: 'deepseek-bridge',
+      providerId: 'instruction_engine_deepseek',
+      hasManagedBlock: true,
+      hasBackup: true,
+      gateway: {
+        providerId: 'instruction_engine_deepseek',
+        model: 'deepseek-v4-pro',
+        baseUrl: 'http://127.0.0.1:38440/v1',
+        envKey: 'MOON_BRIDGE_DEEPSEEK_TOKEN',
+      },
+      deepseek: {
+        bridgePath: '/path/to/bridge.exe',
+        bridgeUrl: 'http://127.0.0.1:38440/v1',
+        keyConfigured: true,
+        bridgeReachable: true,
+        modelsVisible: true,
+        bridgeBinaryAvailable: true,
+      },
+    });
+
+    const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
+
+    render(<SettingsView />);
 
     await waitFor(() => {
-      expect(apiMocks.setCodexProviderMode).toHaveBeenCalledWith('elegy-routed');
+      expect(screen.getByTestId('codex-provider-mode-badge')).toHaveTextContent('DeepSeek V4');
     });
-    await waitFor(() => {
-      expect(screen.getByTestId('codex-provider-mode-badge')).toHaveTextContent('Elegy Routed');
-    });
+
+    expect(screen.getByTestId('deepseek-bridge-path')).toBeInTheDocument();
+    expect(screen.getByTestId('deepseek-save-settings')).toBeInTheDocument();
+    expect(screen.getByTestId('deepseek-start-bridge')).toBeInTheDocument();
+    expect(screen.getByTestId('deepseek-stop-bridge')).toBeInTheDocument();
+    expect(screen.getByTestId('deepseek-check-status')).toBeInTheDocument();
   });
 
   it('enables hard restore when a backup exists', async () => {

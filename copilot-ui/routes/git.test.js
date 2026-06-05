@@ -89,9 +89,9 @@ function registerWithMocks({ execResponses = [], body = {} } = {}) {
 async function run() {
   console.log('\nGit Route Tests\n');
 
-  await test('register returns 13 route descriptors', async () => {
+  await test('register returns 14 route descriptors', async () => {
     const routes = registerWithMocks();
-    assert.equal(routes.length, 13);
+    assert.equal(routes.length, 14);
   });
 
   await test('GET /api/git/status returns branch, counts, and files', async () => {
@@ -184,6 +184,20 @@ async function run() {
     const { res, body } = await invoke(routes, 'POST', '/api/git/push');
     assert.equal(res.statusCode, 200);
     assert.equal(body.pushed, true);
+  });
+
+  await test('GET /api/git/branches handles malformed branch rows without crashing', async () => {
+    const routes = registerWithMocks({
+      execResponses: [
+        { stdout: 'main\n' },
+        { stdout: '*\tlocal\tmain\torigin/main\n \tlocal\t\t\n \tremote\torigin/dev\t\n' },
+      ],
+    });
+    const { res, body } = await invoke(routes, 'GET', '/api/git/branches?repoPath=C%3A%5Crepo');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.currentBranch, 'main');
+    assert.ok(body.branches.length >= 1);
+    assert.equal(body.branches[0].name, 'main');
   });
 
   await test('GET /api/git/pull-request degrades cleanly when gh is unavailable', async () => {

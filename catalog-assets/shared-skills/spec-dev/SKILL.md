@@ -52,6 +52,7 @@ Do not use `spec-as-source` for general product code or broad implementation not
 2. Will the repo benefit from a durable spec under `specs/`?
 3. Is the spec meant to drive generated or declarative artifacts?
 4. Would a normal plan or roadmap already cover the problem without a durable spec?
+5. **Does this spec need a sibling `plan.md`?** Yes if the spec has 5+ requirements, 2+ implementation phases, or involves 2+ owners. Place `plan.md` in `specs/<slug>/plan.md` alongside `spec.md`.
 
 ## Next-Step Routing
 

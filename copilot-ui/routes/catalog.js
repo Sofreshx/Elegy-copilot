@@ -31,6 +31,8 @@ const {
   searchSkills,
 } = require('../lib/skillSearchService');
 const { sendJson: defaultSendJson, sendText: defaultSendText, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const installLedgerLib = require('../lib/installLedger');
+const { installSurfaces: defaultInstallSurfaces } = require('../lib/installSurfaces');
 
 const MAX_AUDIT_BYTES = 2 * 1024 * 1024;
 const DEFAULT_AUDIT_LIMIT = 50;
@@ -1121,6 +1123,7 @@ function buildManifestInventory(ctx) {
     agent: [],
     mcp: [],
   };
+  const ledger = ctx.copilotHomeAbs ? installLedgerLib.readInstallLedger(ctx.copilotHomeAbs) : null;
 
   for (const manifestSource of manifests) {
     const manifestScan = loadManifestDocument(ctx.engineRoot, manifestSource.fileName);
@@ -1133,10 +1136,11 @@ function buildManifestInventory(ctx) {
       const sourcePath = normalizeString(asset?.source);
       const sourceAbs = sourcePath ? path.join(path.resolve(ctx.engineRoot), sourcePath) : '';
       const conceptualKey = buildManifestConceptualCatalogKey(asset);
+      const assetId = normalizeString(asset?.id);
       const installedPaths = buildInstalledPathCandidatesForManifestAsset(ctx, manifestSource.source, asset)
         .filter((candidate) => candidate && safeStat(candidate, fs));
       grouped[kind].push({
-        itemId: normalizeString(asset?.id) || `${manifestSource.harnessId}-${kind}-${grouped[kind].length + 1}`,
+        itemId: assetId || `${manifestSource.harnessId}-${kind}-${grouped[kind].length + 1}`,
         conceptualKey,
         itemKey: normalizeString(asset?.destination || asset?.id) || `${manifestSource.harnessId}-${kind}`,
         kind,
@@ -1170,7 +1174,7 @@ function buildManifestInventory(ctx) {
             harnessId: harness.harnessId,
             kind,
             installedPaths,
-            expected: true,
+            expected: installLedgerLib.isAssetExpectedForUser(assetId, manifestSource.harnessId, ledger),
             canInstall: INSTALL_SURFACE_HARNESSES.has(harness.harnessId),
             canSync: INSTALL_SURFACE_HARNESSES.has(harness.harnessId),
             detail: {
@@ -1529,8 +1533,14 @@ function buildGlobalCatalogInventory(summary, externalSourcesSummary, ctx) {
     };
   });
 
+  const ledger = ctx.copilotHomeAbs ? installLedgerLib.readInstallLedger(ctx.copilotHomeAbs) : null;
+  const harnesses = listHarnessRows(ctx).map((row) => ({
+    ...row,
+    optedIn: ledger ? Boolean(ledger.harnesses?.[row.harnessId]?.optedInAt) : false,
+  }));
+
   return {
-    harnesses: listHarnessRows(ctx),
+    harnesses,
     sections,
   };
 }
@@ -3076,6 +3086,71 @@ function sendJsonError(res, sendJson, statusCode, kind, error) {
   });
 }
 
+function collectManifestAssetIdsForHarness(engineRoot, harnessId) {
+  const MANIFEST_FILE_BY_HARNESS = {
+    codex: 'codex-assets/manifest.json',
+    opencode: 'opencode-assets/manifest.json',
+    antigravity: 'antigravity-assets/manifest.json',
+  };
+  const fileName = MANIFEST_FILE_BY_HARNESS[harnessId];
+  if (!fileName) return [];
+  const manifestScan = loadManifestDocument(engineRoot, fileName);
+  const assets = expandManifestAssets(engineRoot, manifestScan.document);
+  return assets
+    .map((asset) => normalizeString(asset?.id))
+    .filter(Boolean);
+}
+
+function handleHarnessOptIn(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then(async (body) => {
+      const target = normalizeString(body?.target).toLowerCase();
+      const optIn = body?.optIn === true;
+      if (!['codex', 'opencode', 'antigravity'].includes(target)) {
+        throw Object.assign(new Error('target must be codex, opencode, or antigravity'), { statusCode: 400 });
+      }
+
+      if (optIn) {
+        const installOptions = {
+          target,
+          dryRun: false,
+          force: false,
+          pointerMode: body?.pointerMode !== false,
+          engineRoot: deps.engineRoot || ctx.engineRoot,
+          codexHome: ctx.codexHome,
+          codexSkillsHome: ctx.codexSkillsHome,
+          geminiHome: ctx.geminiHome,
+          antigravityHome: ctx.antigravityHome,
+          antigravitySkillsHome: ctx.antigravitySkillsHome,
+          opencodeHome: ctx.opencodeHome,
+          opencodeSkillsHome: ctx.opencodeSkillsHome,
+        };
+        await deps.installSurfaces(installOptions);
+        const managedAssetIds = collectManifestAssetIdsForHarness(deps.engineRoot || ctx.engineRoot, target);
+        installLedgerLib.setHarnessOptIn(ctx.copilotHomeAbs, target, managedAssetIds);
+      } else {
+        installLedgerLib.removeHarnessOptIn(ctx.copilotHomeAbs, target);
+      }
+
+      rebuildProjection(ctx, deps, {}, 'harness_opt_in');
+
+      deps.sendJson(ctx.res, 200, {
+        kind: 'catalog.harness_opt_in',
+        deterministic: true,
+        target,
+        optedIn: optIn,
+        assetCount: optIn ? collectManifestAssetIdsForHarness(deps.engineRoot || ctx.engineRoot, target).length : 0,
+      });
+    })
+    .catch((error) => sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'catalog.harness_opt_in',
+      String(error.message || error),
+    ));
+}
+
 function register(deps = {}) {
   const resolvedDeps = {
     childProcess: deps.childProcess || childProcess,
@@ -3096,6 +3171,7 @@ function register(deps = {}) {
     sendText: deps.sendText || defaultSendText,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     catalogRuntimeState: deps.catalogRuntimeState || createCatalogRuntimeState(),
+    installSurfaces: deps.installSurfaces || defaultInstallSurfaces,
   };
 
   return [
@@ -3208,6 +3284,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/tools/spec-kit/bootstrap',
       handler: (ctx) => handleCatalogSpecKitBootstrap(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/harness-opt-in',
+      handler: (ctx) => handleHarnessOptIn(ctx, resolvedDeps),
     },
     {
       method: 'POST',

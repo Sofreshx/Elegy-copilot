@@ -7,7 +7,7 @@ doc_kind: node
 id: planning-backlog-roadmap-contract
 summary: Canonical planning authority contract after the live cutover to `elegy-planning`, including entity semantics, route-selection fields, and retired repo-file boundaries.
 tags: [planning, authority, roadmap, contracts]
-related: [copilot-ui-guide, session-state-artifacts, workflow-planning-contract, orchestration-and-agents, goal-contract-governance]
+related: [copilot-ui-guide, session-state-artifacts, workflow-planning-contract, orchestration-and-agents, goal-contract-governance, direct-sqlite-repair-for-planning-tags-adr]
 ---
 
 # Planning Authority Contract

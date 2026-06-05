@@ -1,3 +1,14 @@
+---
+created: 2026-06-03
+updated: 2026-06-04
+category: lexicon
+status: current
+doc_kind: node
+id: networking-api-glossary
+summary: Glossary of networking protocols, API styles, and communication patterns.
+tags: [lexicon, networking, api]
+---
+
 # Networking & APIs
 
 ## Protocols

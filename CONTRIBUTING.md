@@ -18,11 +18,20 @@ npm run build:contracts
 Common local commands:
 
 ```powershell
+# Run the full Repo CI build job locally (all validators + builds + tests)
+npm run ci:local
+
+# Same plus Tauri check + docs build (needs Rust toolchain)
+npm run ci:local:full
+
 # Run all workspace tests that define a test script
 npm run test:all
 
 # Validate canonical docs links/graph when touching docs/system
 node scripts/validate-doc-graph.js
+
+# Check for dead intra-doc markdown links
+npm run docs:check:links
 
 # Validate shipped asset metadata when touching engine-assets or .cli manifests
 node scripts/validate-manifest.js
@@ -32,6 +41,9 @@ node scripts/validate-codex-assets.js
 # Build the dashboard UI
 npm --prefix copilot-ui run ui:build
 ```
+
+For deeper CI conventions, dependency troubleshooting, and the full local
+validation matrix, see [docs/system/ci-conventions.md](docs/system/ci-conventions.md).
 
 ## Working in this repo
 

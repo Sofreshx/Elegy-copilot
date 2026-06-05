@@ -2546,6 +2546,7 @@ export function normalizeCodexProviderStatusResponse(payload: unknown): CodexPro
   const record = asRecord(payload);
   const gateway = asRecord(record.gateway);
   const providerId = asTrimmedString(record.providerId) || 'openai';
+  const deepseek = asRecord(record.deepseek);
 
   return {
     ...record,
@@ -2570,6 +2571,20 @@ export function normalizeCodexProviderStatusResponse(payload: unknown): CodexPro
       baseUrl: asTrimmedString(gateway.baseUrl) || '',
       envKey: asTrimmedString(gateway.envKey) || '',
     },
+    deepseek: Object.keys(deepseek).length > 0 ? {
+      bridgePath: typeof deepseek.bridgePath === 'string' ? deepseek.bridgePath : null,
+      bridgeConfigPath: typeof deepseek.bridgeConfigPath === 'string' ? deepseek.bridgeConfigPath : null,
+      bridgeUrl: asTrimmedString(deepseek.bridgeUrl) || '',
+      keyConfigured: asBoolean(deepseek.keyConfigured, false),
+      bridgeReachable: asBoolean(deepseek.bridgeReachable, false),
+      modelsVisible: asBoolean(deepseek.modelsVisible, false),
+      bridgeBinaryAvailable: asBoolean(deepseek.bridgeBinaryAvailable, false),
+      bridgeCheckoutAvailable: asBoolean(deepseek.bridgeCheckoutAvailable, false),
+      envKeyConfigured: asBoolean(deepseek.envKeyConfigured, false),
+      bridgeRunning: asBoolean(deepseek.bridgeRunning, false),
+      modelIds: Array.isArray(deepseek.modelIds) ? deepseek.modelIds as string[] : undefined,
+      probeError: typeof deepseek.probeError === 'string' ? deepseek.probeError : null,
+    } : undefined,
   };
 }
 

@@ -116,7 +116,9 @@ Define the durable product and implementation contract for session refresh behav
 ## Acceptance Checks
 
 - Expired access tokens refresh without forcing re-login when the refresh token is valid.
+  → verify: `npm test -- --grep "session refresh"`
 - Invalid refresh tokens force the existing signed-out path.
+  → verify: `npm test -- --grep "invalid refresh token"`
 
 ## Implementation Links
 
@@ -131,6 +133,55 @@ Define the durable product and implementation contract for session refresh behav
 
 - None.
 ```
+
+## Spec Lifecycle
+
+Durable specs follow a predictable lifecycle. The `status` field is the primary lifecycle indicator; optional date keys provide timestamps for transitions.
+
+| Status | Meaning | Typical next status | Required metadata |
+|---|---|---|---|
+| `draft` | Spec is being authored, content is provisional | `approved` or superseded by another spec | Required frontmatter only |
+| `approved` | Spec has passed review and is ready to anchor planning | `implemented` or `superseded` | `approved_at` recommended |
+| `implemented` | Requirements have been met, acceptance checks pass | `superseded` (if replaced) or remains | `implemented_at` recommended; `Validation Evidence` must be non-empty |
+| `superseded` | Spec is replaced by a newer spec | terminal | `superseded_by` required; `superseded_at` recommended |
+
+Optional date keys (`created`, `approved_at`, `implemented_at`, `superseded_at`) are validated as ISO-8601 dates when present but are not required for structural compliance. The validator will warn if they are present with invalid format.
+
+## Spec Relationships
+
+Specs can declare relationships via frontmatter keys:
+
+- `supersedes: <spec_id>` — this spec replaces another spec. Use when a new spec renders an existing spec obsolete.
+- `superseded_by: <spec_id>` — this spec is replaced by another spec. **Required** when `status: superseded`.
+
+Rules:
+- Do not set both `supersedes` and `superseded_by` in the same spec (validator enforces).
+- The referenced spec ID should match the `spec_id` of another spec in the repo.
+- For non-authoritative relationships (related but not superseding), use `Drift Notes` or `Context Evidence` prose.
+
+## Spec Freshness Policy
+
+Specs should be reviewed periodically to prevent drift:
+
+- **Draft specs** older than 90 days without status change should be reviewed for staleness. Consider promoting to `approved`, moving to `superseded` (if the work is no longer planned), or updating the content.
+- **Implemented specs** older than 180 days should be reviewed to confirm their `Implementation Links` and `Context Evidence` paths still resolve. Use `node scripts/validate-specs.js --strict` for the automated check.
+- Freshness is advisory, not structural. The validator does not enforce time limits.
+
+## When to Write a plan.md
+
+Not every spec needs a sibling `plan.md`. Write one when:
+
+- The spec has 5 or more requirements.
+- The implementation requires 2 or more phases.
+- The work involves 2 or more owners.
+
+The `plan.md` lives alongside `spec.md` at `specs/<slug>/plan.md` and contains the execution plan (implementation order, risk assessment, validation steps). See existing examples in the `specs/` directory.
+
+## ADR Promotion
+
+If a spec describes a key architectural decision, workflow-authority boundary, trust model, or long-lived contract change, promote that decision into an ADR under `docs/adr/` rather than leaving it only inside the spec. ADRs are the permanent record for architecture decisions; specs are the permanent record for requirements.
+
+Link from the spec's `Context Evidence` to the ADR file. The spec-review skill checks for this when the spec's scope warrants it.
 
 ## Operating Model
 

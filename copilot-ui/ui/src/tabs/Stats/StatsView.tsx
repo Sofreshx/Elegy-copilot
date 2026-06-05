@@ -127,7 +127,7 @@ function buildTopAgents(samples: StatsSessionUsageSample[]): CountEntry[] {
 
   return Array.from(totals.entries())
     .map(([label, count]) => ({ label, count }))
-    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
+    .sort((left, right) => right.count - left.count || String(left.label || '').localeCompare(String(right.label || '')))
     .slice(0, 5);
 }
 
@@ -160,7 +160,7 @@ function buildTopSkills(samples: StatsSessionUsageSample[]): CountEntry[] {
       count: value.count,
       detail: value.kind ? `${value.kind}` : undefined,
     }))
-    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
+    .sort((left, right) => right.count - left.count || String(left.label || '').localeCompare(String(right.label || '')))
     .slice(0, 5);
 }
 
@@ -191,7 +191,7 @@ function buildTopAssets(assets: CatalogAuditAssetSummary[]): CountEntry[] {
       };
     })
     .filter((entry) => entry.count > 0)
-    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
+    .sort((left, right) => right.count - left.count || String(left.label || '').localeCompare(String(right.label || '')))
     .slice(0, 5);
 }
 

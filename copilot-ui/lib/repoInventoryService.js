@@ -175,7 +175,7 @@ function loadRepoInventoryState(copilotHome) {
     ? raw.manualRepos
       .map((entry) => normalizeManualRepoEntry(entry))
       .filter(Boolean)
-      .sort((left, right) => left.repoPath.localeCompare(right.repoPath))
+      .sort((left, right) => String(left.repoPath || '').localeCompare(String(right.repoPath || '')))
     : [];
   return state;
 }
@@ -190,7 +190,7 @@ function saveRepoInventoryState(copilotHome, state) {
     ? state.manualRepos
       .map((entry) => normalizeManualRepoEntry(entry))
       .filter(Boolean)
-      .sort((left, right) => left.repoPath.localeCompare(right.repoPath))
+      .sort((left, right) => String(left.repoPath || '').localeCompare(String(right.repoPath || '')))
     : [];
   writeJsonAtomic(inventoryPath, normalized);
   return normalized;

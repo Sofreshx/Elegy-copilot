@@ -107,7 +107,7 @@ function resolveWorktreeParentRepo(repo) {
   }
 }
 
-function planningEntityMatchesRepoSelection(entity, repo, parentRepo) {
+function planningEntityMatchesRepoSelection(entity, repo, parentRepo, parentTags) {
   const selection = repo && typeof repo === 'object' ? repo : null;
   const repoId = normalizeOptionalString(selection && selection.repoId);
   const repoPath = normalizePathForPlanningComparison(selection && selection.repoPath);
@@ -143,9 +143,18 @@ function planningEntityMatchesRepoSelection(entity, repo, parentRepo) {
     return true;
   }
 
-  // Also check against the parent repo if this repo is a worktree checkout
+  if (parentTags) {
+    const inheritedLower = new Set(Array.isArray(parentTags) ? parentTags.map((t) => String(t).toLowerCase()) : []);
+    if (repoId && inheritedLower.has(`repo:${repoId}`.toLowerCase())) {
+      return true;
+    }
+    if (repoLabel && inheritedLower.has(`repo:${repoLabel}`.toLowerCase())) {
+      return true;
+    }
+  }
+
   if (parentRepo) {
-    return planningEntityMatchesRepoSelection(entity, parentRepo, null);
+    return planningEntityMatchesRepoSelection(entity, parentRepo, null, null);
   }
 
   return false;
@@ -161,11 +170,83 @@ function resolveRepoParentWorktree(repo) {
   return parent ? buildPlanningRepoSelection(parent.repoId, parent.repoPath, parent.repoLabel) : null;
 }
 
-function filterPlanningLiveRoadmaps(roadmaps, repo) {
+async function loadGoalTagsForRoadmaps(roadmaps, bridge) {
+  const items = Array.isArray(roadmaps) ? roadmaps : [];
+  if (items.length === 0 || !bridge || typeof bridge.showGoal !== 'function') {
+    return new Map();
+  }
+
+  const uniqueGoalIds = new Set(
+    items.map((r) => normalizeOptionalString(r && r.goalId)).filter(Boolean),
+  );
+
+  const goalTagCache = new Map();
+  const goalPromises = [];
+
+  for (const goalId of uniqueGoalIds) {
+    goalPromises.push(
+      bridge.showGoal({ goalId, requestId: `planning-inherit-${goalId}` })
+        .catch(() => null),
+    );
+  }
+
+  const results = await Promise.all(goalPromises);
+  const goalIds = Array.from(uniqueGoalIds);
+  for (let i = 0; i < goalIds.length; i++) {
+    const goalId = goalIds[i];
+    const response = results[i];
+    const goal = response && response.goal;
+    const tags = goal && Array.isArray(goal.tags) ? goal.tags : [];
+    goalTagCache.set(goalId, tags.length ? tags : null);
+  }
+
+  const roadmapTagMap = new Map();
+  for (const roadmap of items) {
+    const goalId = normalizeOptionalString(roadmap.goalId);
+    const parentTags = goalId ? goalTagCache.get(goalId) : null;
+    if (parentTags) {
+      roadmapTagMap.set(roadmap.id, parentTags);
+    }
+  }
+
+  return roadmapTagMap;
+}
+
+const ROADMAP_INHERIT_GOAL_SCOPE_ACTIVE =
+  process.env.PLANNING_ROADMAP_INHERIT_GOAL_SCOPE !== 'false';
+
+function filterPlanningLiveRoadmaps(roadmaps, repo, opts = {}) {
   const items = Array.isArray(roadmaps) ? roadmaps : [];
   if (items.length === 0) return [];
   const parentRepo = resolveRepoParentWorktree(repo);
-  return items.filter((roadmap) => planningEntityMatchesRepoSelection(roadmap, repo, parentRepo));
+  const parentTagsMap = opts && opts.parentTagsMap instanceof Map ? opts.parentTagsMap : null;
+  const includeUnscoped = opts && opts.includeUnscoped === true;
+
+  return items.filter((roadmap) => {
+    // Direct match: roadmap's own tags worktree parent
+    if (planningEntityMatchesRepoSelection(roadmap, repo, parentRepo, null)) {
+      return true;
+    }
+
+    // Inherited match: parent goal tags
+    if (ROADMAP_INHERIT_GOAL_SCOPE_ACTIVE && parentTagsMap) {
+      const goalTags = parentTagsMap.get(roadmap.id);
+      if (goalTags && planningEntityMatchesRepoSelection(roadmap, repo, null, goalTags)) {
+        return true;
+      }
+    }
+
+    // includeUnscoped: roadmaps with no repo tags pass through
+    if (includeUnscoped) {
+      const tags = getPlanningEntityTags(roadmap).map((t) => t.toLowerCase());
+      const hasRepoTags = tags.some((t) => t.startsWith('repo:'));
+      if (!hasRepoTags) {
+        return true;
+      }
+    }
+
+    return false;
+  });
 }
 
 function filterPlanningLivePlans(plans, filters = {}) {
@@ -173,9 +254,10 @@ function filterPlanningLivePlans(plans, filters = {}) {
   const parentRepo = resolveRepoParentWorktree(repo);
   const goalId = normalizeOptionalString(filters.goalId);
   const roadmapId = normalizeOptionalString(filters.roadmapId);
+  const parentTags = Array.isArray(filters.parentTags) ? filters.parentTags : null;
 
   return (Array.isArray(plans) ? plans : []).filter((plan) => {
-    if (!planningEntityMatchesRepoSelection(plan, repo, parentRepo)) {
+    if (!planningEntityMatchesRepoSelection(plan, repo, parentRepo, parentTags)) {
       return false;
     }
     if (goalId && normalizeOptionalString(plan && plan.goalId) !== goalId) {
@@ -194,9 +276,10 @@ function filterPlanningLiveTodos(todos, filters = {}) {
   const planId = normalizeOptionalString(filters.planId);
   const workPointId = normalizeOptionalString(filters.workPointId);
   const allowedPlanIds = filters.allowedPlanIds instanceof Set ? filters.allowedPlanIds : null;
+  const parentTags = Array.isArray(filters.parentTags) ? filters.parentTags : null;
 
   return (Array.isArray(todos) ? todos : []).filter((todo) => {
-    if (!planningEntityMatchesRepoSelection(todo, repo, parentRepo)) {
+    if (!planningEntityMatchesRepoSelection(todo, repo, parentRepo, parentTags)) {
       return false;
     }
 
@@ -252,8 +335,8 @@ function requirePlanningLiveAuthorityBridge(bridge) {
   return bridge;
 }
 
-function assertPlanningEntityInRepo(entity, repo, entityLabel) {
-  if (planningEntityMatchesRepoSelection(entity, repo)) {
+function assertPlanningEntityInRepo(entity, repo, entityLabel, parentTags) {
+  if (planningEntityMatchesRepoSelection(entity, repo, null, parentTags)) {
     return;
   }
 
@@ -417,7 +500,13 @@ function handlePlanningLiveRoadmapsList(ctx, deps) {
           (repo && (repo.repoId || repo.repoPath || repo.repoLabel)) || 'planning-live-roadmaps',
         ),
       });
-      const roadmaps = filterPlanningLiveRoadmaps(response && response.roadmaps, repo);
+      const includeUnscoped = String(u.searchParams.get('includeUnscoped') || '').toLowerCase() === 'true';
+      const rawRoadmaps = response && response.roadmaps;
+      const goalTagMap = await loadGoalTagsForRoadmaps(rawRoadmaps, bridge);
+      const roadmaps = filterPlanningLiveRoadmaps(rawRoadmaps, repo, {
+        parentTagsMap: goalTagMap,
+        includeUnscoped,
+      });
 
       sendJson(res, 200, {
         contractVersion: PLANNING_API_CONTRACT_VERSION,
@@ -2565,6 +2654,220 @@ function handlePlanningWorkflowArtifactContinuationPackage(ctx, deps) {
     }));
 }
 
+function handlePlanningSessionRead(ctx, deps) {
+  const { req, res, u } = ctx;
+  const {
+    sendJson,
+    PLANNING_API_CONTRACT_VERSION,
+    roadmapWorkflowPlanningBridge,
+  } = deps;
+
+  Promise.resolve()
+    .then(() => {
+      const planningSession = require('../lib/planningSession');
+      const env = process.env;
+      const dbPath = env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH
+        || path.join(require('os').homedir(), '.copilot', 'elegy-planning.db');
+      const homedir = require('os').homedir && require('os').homedir() || require('os').tmpdir();
+
+      const resolved = planningSession.readPlanningSession(env, { homedir, dbPath });
+      const resolvedPath = planningSession.resolveSessionSidecarPath(env, homedir, dbPath);
+
+      const ready = resolved.exists
+        || (() => {
+            try {
+              const parentDir = path.dirname(resolvedPath);
+              return fs.existsSync(parentDir) && fs.accessSync(parentDir, fs.constants.W_OK) === undefined;
+            } catch {
+              return false;
+            }
+          })();
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.session',
+        deterministic: true,
+        ready,
+        sidecarPath: resolvedPath,
+        exists: resolved.exists,
+        sidecar: resolved.sidecar,
+        lastChecked: new Date().toISOString(),
+        correlationId: 'planning-session-check',
+        availableAt: resolved.candidatePaths,
+      });
+    })
+    .catch((error) => {
+      sendJson(res, 503, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.session',
+        deterministic: true,
+        ready: false,
+        sidecarPath: null,
+        exists: false,
+        sidecar: null,
+        lastChecked: new Date().toISOString(),
+        correlationId: 'planning-session-check',
+        availableAt: [],
+        error: String(error && error.message ? error.message : error),
+      });
+    });
+}
+
+async function handlePlanningExplorerSearch(ctx, deps) {
+  const { req, res, u } = ctx;
+  const {
+    sendJson,
+    roadmapWorkflowPlanningBridge,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+
+  Promise.resolve()
+    .then(async () => {
+      const bridge = requirePlanningLiveAuthorityBridge(roadmapWorkflowPlanningBridge);
+
+      const entityTypeFilter = normalizeOptionalString(u.searchParams.get('entityType'));
+      const repoId = normalizeOptionalString(u.searchParams.get('repoId'));
+      const repoLabel = normalizeOptionalString(u.searchParams.get('repoLabel'));
+      const statusFilter = normalizeOptionalString(u.searchParams.get('status'));
+      const tagFilter = normalizeOptionalString(u.searchParams.get('tag'));
+      const sourceFilter = normalizeOptionalString(u.searchParams.get('source'));
+      const parentGoalId = normalizeOptionalString(u.searchParams.get('parentGoalId'));
+      const q = normalizeOptionalString(u.searchParams.get('q'));
+      const includeUnscoped = String(u.searchParams.get('includeUnscoped') || '').toLowerCase() === 'true';
+      const limit = parseInt(u.searchParams.get('limit') || '100', 10);
+
+      const repo = buildPlanningRepoSelection(repoId, undefined, repoLabel);
+
+      const results = [];
+      const filterWarnings = [];
+
+      const collectEntity = (entityType, collection) => {
+        if (!Array.isArray(collection)) return;
+        for (const entity of collection) {
+          if (entityTypeFilter && entityTypeFilter !== entityType) continue;
+          const tags = getPlanningEntityTags(entity);
+          const tagsLower = tags.map((t) => t.toLowerCase());
+
+          if (statusFilter) {
+            const entityStatus = normalizeOptionalString(entity.status);
+            if (entityStatus !== statusFilter) continue;
+          }
+          if (tagFilter && !tagsLower.includes(tagFilter.toLowerCase())) continue;
+          if (sourceFilter) {
+            const hasSource = tagsLower.some((t) => t === `source:${sourceFilter}`.toLowerCase());
+            if (!hasSource) continue;
+          }
+          if (parentGoalId && entity.goalId !== parentGoalId) continue;
+          if (q) {
+            const searchText = [
+              entity.title, entity.summary, entity.description,
+              'id:' + entity.id,
+            ].filter(Boolean).join(' ').toLowerCase();
+            if (!searchText.includes(q.toLowerCase())) continue;
+          }
+
+          const hasRepoTags = tagsLower.some((t) => t.startsWith('repo:'));
+          if (!hasRepoTags) {
+            filterWarnings.push({
+              entityType,
+              entityId: entity.id,
+              bucket: 'unscoped',
+              reason: 'Entity has no repo:* tags',
+            });
+            if (!includeUnscoped) continue;
+          }
+
+          const entry = {
+            entityType,
+            entityId: entity.id,
+            title: entity.title || entity.id,
+            summary: entity.summary || null,
+            status: entity.status || null,
+            tags: tags,
+            repoScope: {
+              direct: tags.filter((t) => t.startsWith('repo:')),
+              inherited: [],
+            },
+            parentChain: {
+              goalId: entity.goalId || null,
+              roadmapId: entity.roadmapId || null,
+              planId: entity.planId || null,
+            },
+            createdAt: entity.createdAt || entity.created_at || null,
+            updatedAt: entity.updatedAt || entity.updated_at || null,
+            raw: entity,
+          };
+
+          results.push(entry);
+        }
+      };
+
+      // Fetch all entity types from the bridge
+      try {
+        if (bridge.listGoals) {
+          const goalsResp = await bridge.listGoals({ requestId: 'planning-explorer-goals' });
+          collectEntity('goal', goalsResp && goalsResp.goals);
+        }
+      } catch {}
+
+      try {
+        if (bridge.listRoadmaps) {
+          const roadmapsResp = await bridge.listRoadmaps({ requestId: 'planning-explorer-roadmaps' });
+          collectEntity('roadmap', roadmapsResp && roadmapsResp.roadmaps);
+        }
+      } catch {}
+
+      try {
+        if (bridge.listPlans) {
+          const plansResp = await bridge.listPlans({ requestId: 'planning-explorer-plans' });
+          collectEntity('plan', plansResp && plansResp.plans);
+        }
+      } catch {}
+
+      try {
+        if (bridge.listTodos) {
+          const todosResp = await bridge.listTodos({ requestId: 'planning-explorer-todos' });
+          collectEntity('todo', todosResp && todosResp.todos);
+        }
+      } catch {}
+
+      // Apply limit
+      const sliced = results.slice(0, Math.min(limit, 200));
+
+      const summary = {
+        byType: {},
+        byRepoScope: { direct: 0, inherited: 0 },
+        byBucket: {
+          unscoped: filterWarnings.filter((w) => w.bucket === 'unscoped').length,
+        },
+      };
+      for (const r of sliced) {
+        summary.byType[r.entityType] = (summary.byType[r.entityType] || 0) + 1;
+        if (r.repoScope.direct.length > 0) summary.byRepoScope.direct++;
+        if (r.repoScope.inherited.length > 0) summary.byRepoScope.inherited++;
+      }
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.explorer',
+        deterministic: false,
+        entities: sliced,
+        total: results.length,
+        filterWarnings: filterWarnings.slice(0, 50),
+        summary,
+      });
+    })
+    .catch((error) => {
+      const failure = buildPlanningLiveReadFailure(
+        error,
+        PLANNING_API_CONTRACT_VERSION,
+        'planning.explorer',
+        'Unable to load planning explorer data from elegy-planning.',
+      );
+      sendJson(res, failure.statusCode, failure.body);
+    });
+}
+
 function register(deps = {}) {
   const resolvedDeps = {
     ...deps,
@@ -2702,6 +3005,16 @@ function register(deps = {}) {
       method: 'GET',
       path: '/api/planning/workflow-artifacts/continuation-package',
       handler: (ctx) => handlePlanningWorkflowArtifactContinuationPackage(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/planning/session',
+      handler: (ctx) => handlePlanningSessionRead(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/planning/explorer',
+      handler: (ctx) => handlePlanningExplorerSearch(ctx, resolvedDeps),
     },
   ];
 }

@@ -1,0 +1,4 @@
+# Obsidian — repo-backed vault (workspace state is personal, not shared)
+.obsidian/workspace*.json
+.obsidian/workspace.json
+.trash/

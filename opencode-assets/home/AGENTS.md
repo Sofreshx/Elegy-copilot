@@ -45,8 +45,7 @@ OpenCode's built-in agents stay primary:
 - `Scout` — external docs and dependency research
 - `General` — bounded delegated multi-step work
 
-The custom `@code-explorer` and `@web-searcher` subagents remain compatibility aliases during the transition, but they are not the primary recommended path.
-Prefer the built-in `Explore` and `Scout` agents.
+Prefer the built-in `Explore` and `Scout` agents for code discovery and external docs research.
 
 ## Skills
 
@@ -196,7 +195,10 @@ Add these to your `opencode.jsonc` `allowedDirectories` or `permissions.allow`:
 
 ### OpenCode worktree roots
 - `~/.local/share/opencode/worktree/` — Worktree isolation for project-lane sessions
-- `~/.local/share/opencode/worktree/.state/` — Project branch and session metadata
+- `~/.local/share/opencode/worktree/.state/` — Plugin-local auxiliary state (not the durable authority)
+
+### Shared worktree registry (Elegy Copilot authority)
+- `~/.copilot/repo-state/` — Durable worktree records for dashboard, executor, and session coordination
 
 ### Elegy planning state
 - `~/.elegy/` — Elegy planning database and configuration

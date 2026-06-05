@@ -75,7 +75,9 @@ import type {
   PlanningUpdatePayload,
 } from './core';
 
-export interface PlanningLiveRoadmapsQuery extends PlanningRepoDocRefOptions {}
+export interface PlanningLiveRoadmapsQuery extends PlanningRepoDocRefOptions {
+  includeUnscoped?: boolean;
+}
 
 export interface PlanningLiveGoalQuery extends PlanningRepoDocRefOptions {}
 
@@ -544,6 +546,7 @@ export async function listPlanningLiveRoadmaps(
       repoId: asTrimmedString(query.repoId) || undefined,
       repoPath: asTrimmedString(query.repoPath) || undefined,
       repoLabel: asTrimmedString(query.repoLabel) || undefined,
+      includeUnscoped: query.includeUnscoped ? 'true' : undefined,
     },
   });
 
@@ -752,4 +755,157 @@ export async function getPlanningWorkflowArtifactContinuationPackage(
       targetHarness: query.targetHarness,
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Planning session
+// ---------------------------------------------------------------------------
+
+export interface PlanningSessionResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  ready: boolean;
+  sidecarPath: string | null;
+  exists: boolean;
+  sidecar: Record<string, unknown> | null;
+  lastChecked: string | null;
+  correlationId: string | null;
+  availableAt: Array<{ path: string; exists: boolean; priority: number }>;
+}
+
+export async function getPlanningSession(baseUrl?: string): Promise<PlanningSessionResponse> {
+  const payload = await apiRequest<unknown>('/api/planning/session', { baseUrl });
+  const record = asRecord(payload);
+  return {
+    ...record,
+    ready: asBoolean(record.ready, false),
+    sidecarPath: asTrimmedString(record.sidecarPath) || null,
+    exists: asBoolean(record.exists, false),
+    sidecar: record.sidecar && typeof record.sidecar === 'object' ? record.sidecar as Record<string, unknown> : null,
+    lastChecked: asTrimmedString(record.lastChecked) || null,
+    correlationId: asTrimmedString(record.correlationId) || null,
+    availableAt: asArray(record.availableAt).map((entry: unknown) => {
+      const r = asRecord(entry);
+      return {
+        path: asTrimmedString(r.path) || '',
+        exists: asBoolean(r.exists, false),
+        priority: asNumber(r.priority, 0),
+      };
+    }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Planning explorer
+// ---------------------------------------------------------------------------
+
+export interface PlanningExplorerQuery {
+  entityType?: string;
+  repoId?: string;
+  repoLabel?: string;
+  status?: string;
+  tag?: string;
+  source?: string;
+  parentGoalId?: string;
+  q?: string;
+  includeUnscoped?: boolean;
+  limit?: number;
+}
+
+export interface PlanningExplorerEntity {
+  entityType: string;
+  entityId: string;
+  title: string;
+  summary: string | null;
+  status: string | null;
+  tags: string[];
+  repoScope: { direct: string[]; inherited: string[] };
+  parentChain: { goalId: string | null; roadmapId: string | null; planId: string | null };
+  createdAt: string | null;
+  updatedAt: string | null;
+  raw: Record<string, unknown>;
+}
+
+export interface PlanningExplorerResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  entities: PlanningExplorerEntity[];
+  total: number;
+  filterWarnings: Array<{ entityType: string; entityId: string; bucket: string; reason: string }>;
+  summary: {
+    byType: Record<string, number>;
+    byRepoScope: { direct: number; inherited: number };
+    byBucket: Record<string, number>;
+  };
+}
+
+export async function searchPlanningExplorer(
+  query: PlanningExplorerQuery = {},
+  baseUrl?: string,
+): Promise<PlanningExplorerResponse> {
+  const queryParams: Record<string, string | undefined> = {
+    entityType: asTrimmedString(query.entityType) || undefined,
+    repoId: asTrimmedString(query.repoId) || undefined,
+    repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    status: asTrimmedString(query.status) || undefined,
+    tag: asTrimmedString(query.tag) || undefined,
+    source: asTrimmedString(query.source) || undefined,
+    parentGoalId: asTrimmedString(query.parentGoalId) || undefined,
+    q: asTrimmedString(query.q) || undefined,
+    includeUnscoped: query.includeUnscoped ? 'true' : undefined,
+    limit: Number.isFinite(query.limit) ? String(query.limit) : undefined,
+  };
+
+  const payload = await apiRequest<unknown>('/api/planning/explorer', {
+    baseUrl,
+    query: queryParams,
+  });
+
+  const record = asRecord(payload);
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, false),
+    entities: asArray(record.entities).map((entry: unknown) => {
+      const e = asRecord(entry);
+      return {
+        entityType: asTrimmedString(e.entityType) || 'unknown',
+        entityId: asTrimmedString(e.entityId) || '',
+        title: asTrimmedString(e.title) || '',
+        summary: asTrimmedString(e.summary) || null,
+        status: asTrimmedString(e.status) || null,
+        tags: asStringList(e.tags),
+        repoScope: {
+          direct: asStringList(asRecord(e.repoScope).direct),
+          inherited: asStringList(asRecord(e.repoScope).inherited),
+        },
+        parentChain: {
+          goalId: asTrimmedString(asRecord(e.parentChain).goalId) || null,
+          roadmapId: asTrimmedString(asRecord(e.parentChain).roadmapId) || null,
+          planId: asTrimmedString(asRecord(e.parentChain).planId) || null,
+        },
+        createdAt: asTrimmedString(e.createdAt) || null,
+        updatedAt: asTrimmedString(e.updatedAt) || null,
+        raw: e,
+      };
+    }),
+    total: asNumber(record.total, 0),
+    filterWarnings: asArray(record.filterWarnings).map((entry: unknown) => {
+      const w = asRecord(entry);
+      return {
+        entityType: asTrimmedString(w.entityType) || '',
+        entityId: asTrimmedString(w.entityId) || '',
+        bucket: asTrimmedString(w.bucket) || '',
+        reason: asTrimmedString(w.reason) || '',
+      };
+    }),
+    summary: {
+      byType: asRecord(asRecord(record.summary).byType) as Record<string, number>,
+      byRepoScope: asRecord(asRecord(record.summary).byRepoScope) as unknown as { direct: number; inherited: number },
+      byBucket: asRecord(asRecord(record.summary).byBucket) as Record<string, number>,
+    },
+  };
 }

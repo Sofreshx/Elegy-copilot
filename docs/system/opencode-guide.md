@@ -75,7 +75,7 @@ The worktree plugin provides isolated git workspaces for feature work. It regist
 
 - `worktree_create(branch, baseBranch?)` — Creates a git worktree with automatic project setup
 - `worktree_list()` — Lists all worktrees for the current project
-- `worktree_delete(branch, force?, commitBeforeDelete?)` — Removes a worktree (does NOT auto-commit by default; use `commitBeforeDelete: true` to commit before removal)
+- `worktree_delete(branch, force?)` — Removes a worktree. Dirty worktrees require `force: true` (discards changes). Does NOT auto-commit.
 
 Worktrees are created under `~/.local/share/opencode/worktree/<project>/<branch>`.
 

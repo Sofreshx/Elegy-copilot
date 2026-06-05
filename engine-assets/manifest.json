@@ -230,6 +230,34 @@
       ]
     },
     {
+      "id": "commit-validation-governance",
+      "title": "Commit Validation Governance Skill",
+      "description": "Shared commit-validation governance guidance for detecting, configuring, and running umbrella pre-commit checks in target repos.",
+      "assetIds": [
+        "skill-commit-validation-governance"
+      ],
+      "installTarget": "user-global",
+      "activationScope": "global",
+      "materialization": "on-demand",
+      "classification": "workflow",
+      "targeting": {
+        "tags": [
+          "commit-validation",
+          "governance",
+          "audit",
+          "testing"
+        ]
+      },
+      "tags": [
+        "commit-validation",
+        "governance",
+        "audit",
+        "testing"
+      ],
+      "defaultRecommended": false,
+      "dependsOn": []
+    },
+    {
       "id": "spec-driven-development-lane",
       "title": "Spec-Driven Development Skills",
       "description": "Repo-local spec routing, authoring, and adversarial review skills for durable specs under specs/ without creating a separate planner fleet.",
@@ -439,6 +467,13 @@
       "source": "engine-assets/skills/stack-detector",
       "destination": "skills/stack-detector",
       "loadMode": "always"
+    },
+    {
+      "id": "skill-commit-validation-governance",
+      "type": "skill",
+      "source": "engine-assets/skills/commit-validation-governance",
+      "destination": "skills/commit-validation-governance",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": []

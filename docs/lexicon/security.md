@@ -1,3 +1,14 @@
+---
+created: 2026-06-03
+updated: 2026-06-04
+category: lexicon
+status: current
+doc_kind: node
+id: security-glossary
+summary: Glossary of security concepts, authentication, authorization, and threat models.
+tags: [lexicon, security]
+---
+
 # Security
 
 ## Authentication & Authorization

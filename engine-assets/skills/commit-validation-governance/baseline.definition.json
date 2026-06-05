@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "baselineKey": "commit-validation-governance",
+  "baselineVersion": "1.0.0",
+  "mode": "audit-propose-only",
+  "authority": {
+    "canonicalDocPath": "docs/system/commit-validation-governance.md",
+    "definitionPath": "engine-assets/skills/commit-validation-governance/baseline.definition.json",
+    "projectionPath": "engine-assets/skills/commit-validation-governance/baseline.json"
+  },
+  "normativeLaneSet": {
+    "required": ["test", "lint", "format", "typecheck"],
+    "recommended": ["coverage"]
+  },
+  "defaultWeights": {
+    "test": 0.40,
+    "coverage": 0.30,
+    "lint": 0.15,
+    "format": 0.15
+  },
+  "defaultGates": ["typecheck"],
+  "defaultThreshold": 70,
+  "detectableLanguages": ["typescript", "rust"],
+  "detectionRules": {
+    "typescript": {
+      "packageJsonIndicators": true,
+      "configFileIndicators": ["tsconfig.json", ".eslintrc*", "eslint.config.*", ".prettierrc*", "jest.config.*", "vitest.config.*"]
+    },
+    "rust": {
+      "cargoTomlIndicators": true,
+      "workspaceMembers": true
+    }
+  }
+}

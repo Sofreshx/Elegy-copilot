@@ -1,4 +1,4 @@
-import type { CodexProviderStatusResponse } from '../types';
+import type { CodexProviderDeepseekStatus, CodexProviderStatusResponse } from '../types';
 import { apiRequest, normalizeCodexProviderStatusResponse } from './core';
 
 export async function getCodexProviderStatus(baseUrl?: string): Promise<CodexProviderStatusResponse> {
@@ -7,7 +7,7 @@ export async function getCodexProviderStatus(baseUrl?: string): Promise<CodexPro
 }
 
 export async function setCodexProviderMode(
-  mode: 'native' | 'elegy-routed',
+  mode: 'native' | 'elegy-routed' | 'deepseek-bridge',
   baseUrl?: string,
 ): Promise<CodexProviderStatusResponse> {
   const payload = await apiRequest<unknown>('/api/config/codex-provider', {
@@ -30,4 +30,54 @@ export async function resetCodexProvider(
     body: JSON.stringify({ hard }),
   });
   return normalizeCodexProviderStatusResponse(payload);
+}
+
+export interface DeepseekSettingsPayload {
+  bridgePath?: string;
+  bridgeConfigPath?: string;
+  bridgeUrl?: string;
+  keyConfigured?: boolean;
+  apiKey?: string;
+}
+
+export async function getDeepseekStatus(baseUrl?: string): Promise<CodexProviderDeepseekStatus> {
+  const payload = await apiRequest<CodexProviderDeepseekStatus>('/api/config/codex-provider/deepseek', { baseUrl });
+  return payload;
+}
+
+export async function saveDeepseekSettings(
+  settings: DeepseekSettingsPayload,
+  baseUrl?: string,
+): Promise<CodexProviderDeepseekStatus> {
+  const payload = await apiRequest<CodexProviderDeepseekStatus>('/api/config/codex-provider/deepseek', {
+    baseUrl,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+  return payload;
+}
+
+export async function startDeepseekBridge(baseUrl?: string): Promise<{ bridgeRunning: boolean; message: string }> {
+  const payload = await apiRequest<{ bridgeRunning: boolean; message: string }>(
+    '/api/config/codex-provider/deepseek/start',
+    { baseUrl, method: 'POST' },
+  );
+  return payload;
+}
+
+export async function stopDeepseekBridge(baseUrl?: string): Promise<{ bridgeRunning: boolean; message: string }> {
+  const payload = await apiRequest<{ bridgeRunning: boolean; message: string }>(
+    '/api/config/codex-provider/deepseek/stop',
+    { baseUrl, method: 'POST' },
+  );
+  return payload;
+}
+
+export async function checkDeepseekBridge(baseUrl?: string): Promise<CodexProviderDeepseekStatus> {
+  const payload = await apiRequest<CodexProviderDeepseekStatus>(
+    '/api/config/codex-provider/deepseek/status',
+    { baseUrl, method: 'POST' },
+  );
+  return payload;
 }

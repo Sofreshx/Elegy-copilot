@@ -91,10 +91,9 @@ async function run() {
   await test('App.tsx references the current sidebar-driven shell views', async () => {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
 
-    assert.ok(appSource.includes("./tabs/Planning/PlanningAuthorityView"), 'Expected PlanningAuthorityView import in App.tsx');
-    assert.ok(appSource.includes("./views/Maintenance/MaintenanceView"), 'Expected MaintenanceView import in App.tsx');
-    assert.ok(appSource.includes("./views/Catalog/CatalogShellView"), 'Expected CatalogShellView import in App.tsx');
-    assert.ok(appSource.includes("./views/DashboardView"), 'Expected DashboardView import in App.tsx');
+    assert.ok(appSource.includes("./views/Workspace/WorkspaceView"), 'Expected WorkspaceView import in App.tsx');
+    assert.ok(appSource.includes("./tabs/Lexicon/LexiconView"), 'Expected LexiconView import in App.tsx');
+    assert.ok(appSource.includes("./views/Settings/SettingsView"), 'Expected SettingsView import in App.tsx');
     assert.ok(!appSource.includes(["./views", "Workflows", ["Workflows", "Hub"].join("")].join("/")), 'Did not expect standalone workflows hub import in App.tsx');
     assert.ok(!appSource.includes("./views/Workflows/WorkflowExecutionView"), 'Did not expect standalone workflow execution import in App.tsx');
     assert.ok(!appSource.includes("./views/Workflows/WorkflowTemplateEditor"), 'Did not expect standalone workflow editor import in App.tsx');
@@ -271,6 +270,51 @@ async function run() {
     assert.ok(templatesSource.includes('code-review'), 'Expected code-review template');
     assert.ok(templatesSource.includes('feature-impl'), 'Expected feature-impl template');
 
+  });
+
+  await test('Repositories card components exist with expected exports', async () => {
+    const reposDir = path.join(uiSrcRoot, 'views', 'Repositories');
+    const cardFiles = [
+      'BranchCard.tsx',
+      'ChangesCard.tsx',
+      'CommitPushCard.tsx',
+      'DiffCard.tsx',
+      'RecentCommitsCard.tsx',
+      'RepoDocsCard.tsx',
+      'verification.ts',
+    ];
+    for (const file of cardFiles) {
+      assert.ok(fs.existsSync(path.join(reposDir, file)), `Expected ${file} to exist`);
+    }
+  });
+
+  await test('verification.ts exports computeVerificationState', async () => {
+    const source = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Repositories', 'verification.ts'), 'utf8');
+    assert.ok(source.includes('computeVerificationState'), 'Expected computeVerificationState export');
+    assert.ok(source.includes('verificationLabel'), 'Expected verificationLabel export');
+    assert.ok(source.includes('verificationTone'), 'Expected verificationTone export');
+    assert.ok(source.includes('VerificationState'), 'Expected VerificationState type');
+  });
+
+  await test('RepositoriesView uses new card layout', async () => {
+    const source = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Repositories', 'RepositoriesView.tsx'), 'utf8');
+    assert.ok(source.includes('repos-cards-layout'), 'Expected repos-cards-layout class');
+    assert.ok(source.includes('BranchCard'), 'Expected BranchCard import');
+    assert.ok(source.includes('ChangesCard'), 'Expected ChangesCard import');
+    assert.ok(source.includes('CommitPushCard'), 'Expected CommitPushCard import');
+    assert.ok(source.includes('RepoDocsCard'), 'Expected RepoDocsCard import');
+  });
+
+  await test('repoDocs API client exists', async () => {
+    const source = fs.readFileSync(path.join(uiSrcRoot, 'lib', 'api', 'repoDocs.ts'), 'utf8');
+    assert.ok(source.includes('listRepoDocs'), 'Expected listRepoDocs function');
+    assert.ok(source.includes('readRepoDoc'), 'Expected readRepoDoc function');
+  });
+
+  await test('git API client includes checks endpoints', async () => {
+    const source = fs.readFileSync(path.join(uiSrcRoot, 'lib', 'api', 'git.ts'), 'utf8');
+    assert.ok(source.includes('discoverGitChecks'), 'Expected discoverGitChecks function');
+    assert.ok(source.includes('runGitChecks'), 'Expected runGitChecks function');
   });
 
   console.log(`\n  ${passed} passed, ${failed} failed (${passed + failed} total)\n`);

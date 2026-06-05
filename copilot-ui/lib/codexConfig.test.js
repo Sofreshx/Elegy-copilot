@@ -8,14 +8,21 @@ const os = require('os');
 
 const {
   MANAGED_BLOCK_START,
+  MANAGED_DEEPSEEK_BLOCK_START,
   appendManagedBlock,
   applySoftReset,
   getStatus,
   hardReset,
   resolveBackupPath,
   resolveConfigPath,
+  resolveDeepseekCatalogPath,
   setMode,
   stripManagedBlock,
+  stripDeepseekManagedBlock,
+  appendDeepseekManagedBlock,
+  applyDeepseekSoftReset,
+  getDeepseekStatus,
+  saveDeepseekSettings,
 } = require('./codexConfig');
 
 describe('codexConfig', () => {
@@ -29,126 +36,274 @@ describe('codexConfig', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('appendManagedBlock adds an Elegy-managed provider block', () => {
-    const next = appendManagedBlock('model = "gpt-5.4"\n');
-    assert.ok(next.nextText.includes(MANAGED_BLOCK_START));
-    assert.ok(next.nextText.includes('model_provider = "instruction_engine_elegy"'));
+  describe('elegy-routed', () => {
+    it('appendManagedBlock adds an Elegy-managed provider block', () => {
+      const next = appendManagedBlock('model = "gpt-5.4"\n');
+      assert.ok(next.nextText.includes(MANAGED_BLOCK_START));
+      assert.ok(next.nextText.includes('model_provider = "instruction_engine_elegy"'));
+    });
+
+    it('stripManagedBlock removes only the managed block', () => {
+      const text = appendManagedBlock('approval_policy = "on-request"\n').nextText;
+      const stripped = stripManagedBlock(text);
+      assert.ok(!stripped.includes(MANAGED_BLOCK_START));
+      assert.ok(stripped.includes('approval_policy = "on-request"'));
+    });
+
+    it('applySoftReset removes the managed block and preserves unrelated text', () => {
+      const text = appendManagedBlock('approval_policy = "on-request"\n').nextText;
+      const reset = applySoftReset(text);
+      assert.equal(reset, 'approval_policy = "on-request"\n');
+    });
+
+    it('setMode writes a backup and activates the Elegy provider', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'approval_policy = "on-request"\n', 'utf8');
+
+      const result = setMode(tmpDir, 'elegy-routed');
+      const config = fs.readFileSync(configPath, 'utf8');
+
+      assert.equal(result.activeMode, 'elegy-routed');
+      assert.ok(config.includes('model_provider = "instruction_engine_elegy"'));
+      assert.ok(fs.existsSync(resolveBackupPath(tmpDir)));
+    });
+
+    it('setMode native performs a soft reset without removing the backup', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'approval_policy = "on-request"\n', 'utf8');
+      setMode(tmpDir, 'elegy-routed');
+
+      const result = setMode(tmpDir, 'native');
+      const config = fs.readFileSync(configPath, 'utf8');
+
+      assert.equal(result.activeMode, 'native');
+      assert.ok(!config.includes(MANAGED_BLOCK_START));
+      assert.ok(fs.existsSync(resolveBackupPath(tmpDir)));
+    });
+
+    it('hardReset restores the backup snapshot and removes state', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'approval_policy = "never"\n', 'utf8');
+      setMode(tmpDir, 'elegy-routed');
+      fs.writeFileSync(configPath, appendManagedBlock('approval_policy = "on-request"\n').nextText, 'utf8');
+
+      const result = hardReset(tmpDir);
+      const restored = fs.readFileSync(configPath, 'utf8');
+
+      assert.equal(result.activeMode, 'native');
+      assert.equal(restored, 'approval_policy = "never"\n');
+      assert.equal(fs.existsSync(resolveBackupPath(tmpDir)), false);
+    });
+
+    it('getStatus reports native mode when no managed block is present', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'model = "gpt-5.4"\n', 'utf8');
+      const status = getStatus(tmpDir);
+      assert.equal(status.activeMode, 'native');
+      assert.equal(status.providerId, 'openai');
+    });
+
+    it('activation replaces existing root model keys instead of duplicating them', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'model = "gpt-5.4"\nmodel_provider = "openai"\n\n[profiles.demo]\nmodel = "gpt-5.4-mini"\n', 'utf8');
+
+      setMode(tmpDir, 'elegy-routed');
+      const config = fs.readFileSync(configPath, 'utf8');
+      const rootSection = config.split('\n[profiles.demo]')[0] || config;
+
+      assert.equal((rootSection.match(/^model\s*=/gm) || []).length, 1);
+      assert.equal((rootSection.match(/^model_provider\s*=/gm) || []).length, 1);
+      assert.ok(config.includes('[profiles.demo]'));
+    });
+
+    it('soft reset restores previous root model keys', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'model = "gpt-5.4"\nmodel_provider = "openai"\n', 'utf8');
+
+      setMode(tmpDir, 'elegy-routed');
+      setMode(tmpDir, 'native');
+      const config = fs.readFileSync(configPath, 'utf8');
+
+      assert.ok(config.includes('model = "gpt-5.4"'));
+      assert.ok(config.includes('model_provider = "openai"'));
+      assert.ok(!config.includes('instruction_engine_elegy'));
+    });
+
+    it('hard reset removes config.toml when Elegy created it from scratch', () => {
+      setMode(tmpDir, 'elegy-routed');
+      hardReset(tmpDir);
+
+      assert.equal(fs.existsSync(resolveConfigPath(tmpDir)), false);
+    });
+
+    it('setMode rejects changes that would produce invalid TOML', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'approval_policy = "on-request"\n[profiles.demo\nmodel = "gpt-5.4"\n', 'utf8');
+
+      assert.throws(
+        () => setMode(tmpDir, 'elegy-routed'),
+        /Codex config TOML validation failed after enabling Elegy Routed/,
+      );
+    });
+
+    it('hard reset rejects invalid backup TOML before writing it back', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'approval_policy = "never"\n', 'utf8');
+      setMode(tmpDir, 'elegy-routed');
+      fs.writeFileSync(resolveBackupPath(tmpDir), 'approval_policy = "never"\n[profiles.demo\n', 'utf8');
+
+      assert.throws(
+        () => hardReset(tmpDir),
+        /Codex config TOML validation failed before hard restore/,
+      );
+      assert.ok(fs.existsSync(resolveBackupPath(tmpDir)));
+      assert.ok(fs.existsSync(configPath));
+    });
   });
 
-  it('stripManagedBlock removes only the managed block', () => {
-    const text = appendManagedBlock('approval_policy = "on-request"\n').nextText;
-    const stripped = stripManagedBlock(text);
-    assert.ok(!stripped.includes(MANAGED_BLOCK_START));
-    assert.ok(stripped.includes('approval_policy = "on-request"'));
-  });
+  describe('deepseek-bridge', () => {
+    it('appendDeepseekManagedBlock adds a DeepSeek managed block', () => {
+      const next = appendDeepseekManagedBlock('model = "gpt-5.4"\n', tmpDir);
+      assert.ok(next.nextText.includes(MANAGED_DEEPSEEK_BLOCK_START));
+      assert.ok(next.nextText.includes('model_provider = "instruction_engine_deepseek"'));
+      assert.ok(next.nextText.includes('deepseek-v4-pro'));
+    });
 
-  it('applySoftReset removes the managed block and preserves unrelated text', () => {
-    const text = appendManagedBlock('approval_policy = "on-request"\n').nextText;
-    const reset = applySoftReset(text);
-    assert.equal(reset, 'approval_policy = "on-request"\n');
-  });
+    it('stripDeepseekManagedBlock removes only the deepseek block', () => {
+      const text = appendDeepseekManagedBlock('approval_policy = "on-request"\n', tmpDir).nextText;
+      const stripped = stripDeepseekManagedBlock(text);
+      assert.ok(!stripped.includes(MANAGED_DEEPSEEK_BLOCK_START));
+      assert.ok(stripped.includes('approval_policy = "on-request"'));
+    });
 
-  it('setMode writes a backup and activates the Elegy provider', () => {
-    const configPath = resolveConfigPath(tmpDir);
-    fs.writeFileSync(configPath, 'approval_policy = "on-request"\n', 'utf8');
+    it('applyDeepseekSoftReset removes the deepseek block and preserves unrelated text', () => {
+      const text = appendDeepseekManagedBlock('approval_policy = "on-request"\n', tmpDir).nextText;
+      const reset = applyDeepseekSoftReset(text);
+      assert.equal(reset, 'approval_policy = "on-request"\n');
+    });
 
-    const result = setMode(tmpDir, 'elegy-routed');
-    const config = fs.readFileSync(configPath, 'utf8');
+    it('setMode deepseek-bridge activates DeepSeek and writes catalog', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'approval_policy = "on-request"\n', 'utf8');
 
-    assert.equal(result.activeMode, 'elegy-routed');
-    assert.ok(config.includes('model_provider = "instruction_engine_elegy"'));
-    assert.ok(fs.existsSync(resolveBackupPath(tmpDir)));
-  });
+      const result = setMode(tmpDir, 'deepseek-bridge');
+      const config = fs.readFileSync(configPath, 'utf8');
 
-  it('setMode native performs a soft reset without removing the backup', () => {
-    const configPath = resolveConfigPath(tmpDir);
-    fs.writeFileSync(configPath, 'approval_policy = "on-request"\n', 'utf8');
-    setMode(tmpDir, 'elegy-routed');
+      assert.equal(result.activeMode, 'deepseek-bridge');
+      assert.ok(config.includes('model_provider = "instruction_engine_deepseek"'));
+      assert.ok(config.includes('deepseek-v4-pro'));
+      assert.ok(fs.existsSync(resolveBackupPath(tmpDir)));
 
-    const result = setMode(tmpDir, 'native');
-    const config = fs.readFileSync(configPath, 'utf8');
+      const catalogPath = resolveDeepseekCatalogPath(tmpDir);
+      assert.ok(fs.existsSync(catalogPath));
+      const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+      assert.ok(Array.isArray(catalog.models));
+      assert.equal(catalog.models.length, 2);
+      const pro = catalog.models.find((m) => m.slug === 'deepseek-v4-pro');
+      const flash = catalog.models.find((m) => m.slug === 'deepseek-v4-flash');
+      assert.ok(pro);
+      assert.equal(pro.default_reasoning_level, 'high');
+      assert.equal(pro.context_window, 262144);
+      assert.ok(pro.supported_reasoning_levels);
+      assert.ok(Array.isArray(pro.supported_reasoning_levels));
+      assert.ok(flash);
+      assert.equal(flash.default_reasoning_level, 'medium');
+    });
 
-    assert.equal(result.activeMode, 'native');
-    assert.ok(!config.includes(MANAGED_BLOCK_START));
-    assert.ok(fs.existsSync(resolveBackupPath(tmpDir)));
-  });
+    it('setMode native deactivates DeepSeek and restores previous state', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'model = "gpt-5.4"\nmodel_provider = "openai"\n', 'utf8');
+      setMode(tmpDir, 'deepseek-bridge');
+      setMode(tmpDir, 'native');
+      const config = fs.readFileSync(configPath, 'utf8');
 
-  it('hardReset restores the backup snapshot and removes state', () => {
-    const configPath = resolveConfigPath(tmpDir);
-    fs.writeFileSync(configPath, 'approval_policy = "never"\n', 'utf8');
-    setMode(tmpDir, 'elegy-routed');
-    fs.writeFileSync(configPath, appendManagedBlock('approval_policy = "on-request"\n').nextText, 'utf8');
+      assert.ok(config.includes('model = "gpt-5.4"'));
+      assert.ok(config.includes('model_provider = "openai"'));
+      assert.ok(!config.includes('instruction_engine_deepseek'));
+      assert.ok(!config.includes(MANAGED_DEEPSEEK_BLOCK_START));
+    });
 
-    const result = hardReset(tmpDir);
-    const restored = fs.readFileSync(configPath, 'utf8');
+    it('switching from deepseek to elegy-routed strips deepseek block', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'model = "gpt-5.4"\n', 'utf8');
+      setMode(tmpDir, 'deepseek-bridge');
+      const deepseekConfig = fs.readFileSync(configPath, 'utf8');
+      assert.ok(deepseekConfig.includes('model_catalog_json'));
+      setMode(tmpDir, 'elegy-routed');
+      const config = fs.readFileSync(configPath, 'utf8');
 
-    assert.equal(result.activeMode, 'native');
-    assert.equal(restored, 'approval_policy = "never"\n');
-    assert.equal(fs.existsSync(resolveBackupPath(tmpDir)), false);
-  });
+      assert.ok(config.includes(MANAGED_BLOCK_START));
+      assert.ok(!config.includes(MANAGED_DEEPSEEK_BLOCK_START));
+      assert.ok(!config.includes('model_catalog_json'));
+    });
 
-  it('getStatus reports native mode when no managed block is present', () => {
-    const configPath = resolveConfigPath(tmpDir);
-    fs.writeFileSync(configPath, 'model = "gpt-5.4"\n', 'utf8');
-    const status = getStatus(tmpDir);
-    assert.equal(status.activeMode, 'native');
-    assert.equal(status.providerId, 'openai');
-  });
+    it('switching from elegy to deepseek-bridge strips elegy block', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'model = "gpt-5.4"\n', 'utf8');
+      setMode(tmpDir, 'elegy-routed');
+      setMode(tmpDir, 'deepseek-bridge');
+      const config = fs.readFileSync(configPath, 'utf8');
 
-  it('activation replaces existing root model keys instead of duplicating them', () => {
-    const configPath = resolveConfigPath(tmpDir);
-    fs.writeFileSync(configPath, 'model = "gpt-5.4"\nmodel_provider = "openai"\n\n[profiles.demo]\nmodel = "gpt-5.4-mini"\n', 'utf8');
+      assert.ok(config.includes(MANAGED_DEEPSEEK_BLOCK_START));
+      assert.ok(!config.includes(MANAGED_BLOCK_START));
+    });
 
-    setMode(tmpDir, 'elegy-routed');
-    const config = fs.readFileSync(configPath, 'utf8');
-    const rootSection = config.split('\n[profiles.demo]')[0] || config;
+    it('getStatus reports deepseek-bridge mode when deepseek managed block is present', () => {
+      setMode(tmpDir, 'deepseek-bridge');
+      const status = getStatus(tmpDir);
+      assert.equal(status.activeMode, 'deepseek-bridge');
+      assert.equal(status.providerId, 'instruction_engine_deepseek');
+      assert.ok(status.deepseek);
+    });
 
-    assert.equal((rootSection.match(/^model\s*=/gm) || []).length, 1);
-    assert.equal((rootSection.match(/^model_provider\s*=/gm) || []).length, 1);
-    assert.ok(config.includes('[profiles.demo]'));
-  });
+    it('deepseek activation does not duplicate root keys', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'model = "gpt-5.4"\nmodel_provider = "openai"\n', 'utf8');
+      setMode(tmpDir, 'deepseek-bridge');
+      const config = fs.readFileSync(configPath, 'utf8');
 
-  it('soft reset restores previous root model keys', () => {
-    const configPath = resolveConfigPath(tmpDir);
-    fs.writeFileSync(configPath, 'model = "gpt-5.4"\nmodel_provider = "openai"\n', 'utf8');
+      assert.equal((config.match(/^model\s*=/gm) || []).length, 1);
+      assert.equal((config.match(/^model_provider\s*=/gm) || []).length, 1);
+      assert.equal((config.match(/^model_catalog_json\s*=/gm) || []).length, 1);
+    });
 
-    setMode(tmpDir, 'elegy-routed');
-    setMode(tmpDir, 'native');
-    const config = fs.readFileSync(configPath, 'utf8');
+    it('soft reset from deepseek restores previous root keys', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'model = "gpt-5.4"\nmodel_provider = "openai"\nmodel_catalog_json = "/old/catalog.json"\n', 'utf8');
+      setMode(tmpDir, 'deepseek-bridge');
+      setMode(tmpDir, 'native');
+      const config = fs.readFileSync(configPath, 'utf8');
 
-    assert.ok(config.includes('model = "gpt-5.4"'));
-    assert.ok(config.includes('model_provider = "openai"'));
-    assert.ok(!config.includes('instruction_engine_elegy'));
-  });
+      assert.ok(config.includes('model = "gpt-5.4"'));
+      assert.ok(config.includes('model_provider = "openai"'));
+      assert.ok(config.includes('/old/catalog.json'));
+    });
 
-  it('hard reset removes config.toml when Elegy created it from scratch', () => {
-    setMode(tmpDir, 'elegy-routed');
-    hardReset(tmpDir);
+    it('setMode rejects invalid mode strings', () => {
+      assert.throws(
+        () => setMode(tmpDir, 'invalid-mode'),
+        /mode must be/,
+      );
+    });
 
-    assert.equal(fs.existsSync(resolveConfigPath(tmpDir)), false);
-  });
+    it('saveDeepseekSettings persists bridgePath and keyConfigured', () => {
+      saveDeepseekSettings(tmpDir, { bridgePath: '/path/to/bridge.exe', keyConfigured: true });
+      const status = getDeepseekStatus(tmpDir);
+      assert.equal(status.bridgePath, '/path/to/bridge.exe');
+      assert.equal(status.keyConfigured, true);
+    });
 
-  it('setMode rejects changes that would produce invalid TOML', () => {
-    const configPath = resolveConfigPath(tmpDir);
-    fs.writeFileSync(configPath, 'approval_policy = "on-request"\n[profiles.demo\nmodel = "gpt-5.4"\n', 'utf8');
+    it('hardReset removes deepseek state and catalog', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'approval_policy = "never"\n', 'utf8');
+      setMode(tmpDir, 'deepseek-bridge');
+      saveDeepseekSettings(tmpDir, { bridgePath: '/path/to/bridge.exe', keyConfigured: true });
+      hardReset(tmpDir);
+      const status = getStatus(tmpDir);
 
-    assert.throws(
-      () => setMode(tmpDir, 'elegy-routed'),
-      /Codex config TOML validation failed after enabling Elegy Routed/,
-    );
-  });
-
-  it('hard reset rejects invalid backup TOML before writing it back', () => {
-    const configPath = resolveConfigPath(tmpDir);
-    fs.writeFileSync(configPath, 'approval_policy = "never"\n', 'utf8');
-    setMode(tmpDir, 'elegy-routed');
-    fs.writeFileSync(resolveBackupPath(tmpDir), 'approval_policy = "never"\n[profiles.demo\n', 'utf8');
-
-    assert.throws(
-      () => hardReset(tmpDir),
-      /Codex config TOML validation failed before hard restore/,
-    );
-    assert.ok(fs.existsSync(resolveBackupPath(tmpDir)));
-    assert.ok(fs.existsSync(configPath));
+      assert.equal(status.activeMode, 'native');
+      assert.equal(status.deepseek.bridgePath, null);
+      assert.equal(status.deepseek.keyConfigured, false);
+    });
   });
 });

@@ -1,3 +1,14 @@
+---
+created: 2026-06-03
+updated: 2026-06-04
+category: lexicon
+status: current
+doc_kind: node
+id: concurrency-glossary
+summary: Glossary of concurrency models, synchronization primitives, and performance concepts.
+tags: [lexicon, concurrency, performance]
+---
+
 # Concurrency & Performance
 
 ## Concurrency Models

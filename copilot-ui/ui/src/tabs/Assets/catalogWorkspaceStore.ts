@@ -30,6 +30,7 @@ import {
   searchCatalogAssets,
   selectCatalogRepo,
   syncInstallVerifyCatalogSource,
+  setHarnessOptIn,
   installSurfaces,
   unregisterCatalogRepo,
   updateCatalogAsset,
@@ -78,6 +79,15 @@ export interface CatalogWorkspaceState {
   repoInventoryError: string | null;
   bundlesError: string | null;
   installMessage: string | null;
+  installWarning: string | null;
+  lastInstallResults: Array<{
+    target: string;
+    total: number;
+    created: number;
+    updated: number;
+    skipped: number;
+    skippedConflict: number;
+  }>;
   repoPathInput: string;
   activeRepoPath: string;
   activeRepoId: string;
@@ -132,6 +142,8 @@ const INITIAL_STATE: CatalogWorkspaceState = {
   repoInventoryError: null,
   bundlesError: null,
   installMessage: null,
+  installWarning: null,
+  lastInstallResults: [],
   repoPathInput: '',
   activeRepoPath: '',
   activeRepoId: '',
@@ -907,6 +919,8 @@ function createCatalogWorkspaceStore() {
       ...state,
       installing: true,
       error: null,
+      installWarning: null,
+      lastInstallResults: [],
       installMessage: force
         ? `Force reinstalling ${label}...`
         : `Installing/updating ${label}...`,
@@ -915,10 +929,24 @@ function createCatalogWorkspaceStore() {
     try {
       const response = await installSurfaces(target, force);
       const surfaces = Array.isArray(response?.surfaces) ? response.surfaces : [];
+      const lastInstallResults = surfaces.map((s) => ({
+        target: s.surface || target,
+        total: (s.counts?.total || 0) + (s.counts?.created || 0) + (s.counts?.updated || 0),
+        created: s.counts?.created || 0,
+        updated: s.counts?.updated || 0,
+        skipped: s.counts?.skipped || 0,
+        skippedConflict: s.counts?.skippedConflict || 0,
+      }));
+      const skippedCount = lastInstallResults.reduce((sum, r) => sum + r.skipped + r.skippedConflict, 0);
+      const installWarning = skippedCount > 0
+        ? `${skippedCount} asset(s) were skipped during install. Check the install surface detail for more information.`
+        : null;
       await loadWorkspace();
       store.setState((state) => ({
         ...state,
         installing: false,
+        installWarning,
+        lastInstallResults,
         installMessage: target === 'all'
           ? `${force ? 'Force reinstall' : 'Install/update'} completed for ${surfaces.length} surface(s).`
           : `${force ? 'Force reinstall' : 'Install/update'} completed for ${label}.`,
@@ -936,6 +964,39 @@ function createCatalogWorkspaceStore() {
 
   async function installAll(force = false): Promise<void> {
     await installSurface('all', force);
+  }
+
+  async function toggleHarnessOptIn(target: 'codex' | 'opencode' | 'antigravity', optIn: boolean): Promise<void> {
+    const harnessLabel = getInstallSurfaceLabel(target);
+    store.setState((state) => ({
+      ...state,
+      mutating: true,
+      error: null,
+      installWarning: null,
+      installMessage: optIn
+        ? `Opting into ${harnessLabel}...`
+        : `Removing ${harnessLabel} opt-in...`,
+    }));
+
+    try {
+      const response = await setHarnessOptIn({ target, optIn });
+      await loadWorkspace();
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+        installMessage: optIn
+          ? `Opted into ${harnessLabel}. ${response.assetCount} manifest asset(s) are now managed.`
+          : `Removed opt-in for ${harnessLabel}.`,
+      }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+        error: toErrorMessage(error, 'Unable to update harness opt-in.'),
+        installMessage: `Failed to ${optIn ? 'opt into' : 'remove opt-in for'} ${harnessLabel}.`,
+      }));
+      throw error;
+    }
   }
 
   async function installBundle(bundleId: string): Promise<void> {
@@ -1879,6 +1940,7 @@ function createCatalogWorkspaceStore() {
     loadWorkspace,
     refreshWorkspace,
     installSurface,
+    toggleHarnessOptIn,
     installAll,
     installBundle,
     uninstallBundle,

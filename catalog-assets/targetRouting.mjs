@@ -180,6 +180,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-spec-authoring-skill', { sourceAssetId: 'skill-spec-authoring' }),
       route('codex-spec-review-skill', { sourceAssetId: 'skill-spec-review' }),
       route('codex-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning' }),
+      route('codex-repo-backed-obsidian-docs-skill', { sourceAssetId: 'skill-repo-backed-obsidian-docs' }),
     ],
   },
   {
@@ -205,6 +206,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-elegy-skills-discovery-skill', { sourceAssetId: 'skill-elegy-skills-discovery' }),
       route('opencode-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning' }),
       route('opencode-elegy-obsidian-skill', { sourceAssetId: 'skill-elegy-obsidian' }),
+      route('opencode-repo-backed-obsidian-docs-skill', { sourceAssetId: 'skill-repo-backed-obsidian-docs' }),
       route('opencode-rubberduck-plan-review-skill', { sourceAssetId: 'skill-rubberduck-plan-review' }),
       route('opencode-roadmap-planning-skill', { sourceAssetId: 'skill-roadmap-planning' }),
       route('opencode-implementation-review-skill', { sourceAssetId: 'skill-implementation-review' }),

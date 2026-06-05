@@ -12,19 +12,13 @@ import {
 } from './stores/navigation';
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
 import { toolingUpdatesStore } from './stores/toolingUpdatesStore';
-import PlanningExplorerView from './tabs/Planning/PlanningExplorerView';
 import StandaloneGraphWindow from './tabs/Planning/StandaloneGraphWindow';
-import OpenCodeView from './tabs/OpenCode/OpenCodeView';
-import CatalogShellView from './views/Catalog/CatalogShellView';
-import DashboardView from './views/DashboardView';
-import MaintenanceView from './views/Maintenance/MaintenanceView';
-import AddProjectWizard from './views/Project/AddProjectWizard';
-import ProjectOverview from './views/Project/ProjectOverview';
-import ProjectsListView from './views/Project/ProjectsListView';
 import SessionDetailView from './views/Sessions/SessionDetailView';
 import SettingsView from './views/Settings/SettingsView';
 import LexiconView from './tabs/Lexicon/LexiconView';
 import AssetCreationWizard from './views/Catalog/AssetCreationWizard';
+import AddProjectWizard from './views/Project/AddProjectWizard';
+import WorkspaceView from './views/Workspace/WorkspaceView';
 
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
@@ -49,6 +43,9 @@ export default function App() {
         e.preventDefault();
       } else if (navigationStore.getState().selectedSessionId) {
         navigationStore.selectSession(null);
+        e.preventDefault();
+      } else if (navigationStore.getState().workspaceCenterMode === 'planning-session') {
+        navigationStore.closePlanningSession();
         e.preventDefault();
       }
       return;
@@ -83,30 +80,18 @@ export default function App() {
     }
 
     switch (navigationState.activeSidebarItem) {
-      case 'dashboard':
-        return <DashboardView />;
-      case 'projects':
-        return navigationState.selectedProjectId
-          ? <ProjectOverview />
-          : <ProjectsListView />;
-      case 'catalog':
-        return <CatalogShellView />;
-      case 'planning':
-        return <PlanningExplorerView />;
-      case 'opencode':
-        return <OpenCodeView />;
+      case 'workspace':
+        return <WorkspaceView />;
       case 'lexicon':
         return <LexiconView />;
-      case 'maintenance':
-        return <MaintenanceView />;
       case 'settings':
         return <SettingsView />;
       default:
-        return <DashboardView />;
+        return <WorkspaceView />;
     }
   }
 
-  // R4: Standalone graph window via URL params — render without AppLayout/Sidebar/StatusBar
+  // Standalone graph window via URL params
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
     const roadmapId = params.get('roadmapId');

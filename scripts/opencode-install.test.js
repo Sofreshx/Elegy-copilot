@@ -72,6 +72,11 @@ async function main() {
         assert.ok(fs.existsSync(path.join(agentsDir, `${subagent}.md`)), `subagent ${subagent}.md should exist`);
       }
 
+      // R9: verify agent count is exactly 4 primary lanes + 3 hidden subagents = 7 total
+      const agentFiles = fs.readdirSync(agentsDir).filter(f => f.endsWith('.md'));
+      assert.strictEqual(agentFiles.length, 7, 
+        `agent count should be exactly 7 (4 lanes + 3 subagents), found ${agentFiles.length}: ${agentFiles.join(', ')}`);
+
       const secondSummary = installer.runInstall({
         opencodeHome,
         skillsHome,
@@ -236,6 +241,107 @@ async function main() {
       cwd: path.resolve(__dirname, '..'),
       stdio: 'pipe',
     });
+  });
+
+  // R9: installed agents match manifest and profiles agent-level validation
+  await test('installed agents match manifest count and every agentRole has model', async () => {
+    withTempDir((root) => {
+      const opencodeHome = path.join(root, '.config', 'opencode');
+      const skillsHome = path.join(opencodeHome, 'skills');
+      const agentsDir = path.join(opencodeHome, 'agents');
+
+      installer.runInstall({
+        force: true,
+        opencodeHome,
+        skillsHome,
+      });
+
+      // Verify agent count = manifest count (7)
+      const manifestPath = path.resolve(__dirname, '..', 'opencode-assets', 'manifest.json');
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      const manifestAgentCount = manifest.assets.filter(a => a.type === 'agent').length;
+      const installedAgentCount = fs.readdirSync(agentsDir).filter(f => f.endsWith('.md')).length;
+      assert.strictEqual(installedAgentCount, manifestAgentCount,
+        `installed agents (${installedAgentCount}) should match manifest count (${manifestAgentCount})`);
+
+      // Verify every agentRoles key has model + reasoningEffort in installed agent file
+      const profilesPath = path.resolve(__dirname, '..', 'opencode-assets', 'profiles.json');
+      const profilesConfig = JSON.parse(fs.readFileSync(profilesPath, 'utf8'));
+      const agentRoles = profilesConfig.agentRoles || {};
+
+      // Parse simple YAML frontmatter
+      function parseFrontmatter(fileContent) {
+        const match = String(fileContent).match(/^---\r?\n([\s\S]*?)\r?\n---/);
+        if (!match) return {};
+        const meta = {};
+        for (const line of match[1].split(/\r?\n/)) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx > 0) {
+            const key = line.slice(0, colonIdx).trim();
+            let val = line.slice(colonIdx + 1).trim();
+            val = val.replace(/^['"]|['"]$/g, '');
+            meta[key] = val;
+          }
+        }
+        return meta;
+      }
+
+      for (const [agentName, roleKey] of Object.entries(agentRoles)) {
+        const agentPath = path.join(agentsDir, `${agentName}.md`);
+        assert.ok(fs.existsSync(agentPath), `agentRole '${agentName}' has installed file ${agentName}.md`);
+
+        const agentContent = fs.readFileSync(agentPath, 'utf8');
+        const frontmatter = parseFrontmatter(agentContent);
+        
+        assert.ok(frontmatter.model, 
+          `agentRole '${agentName}' (${agentName}.md) must have 'model' in frontmatter (role: ${roleKey})`);
+        assert.ok(frontmatter.reasoningEffort,
+          `agentRole '${agentName}' (${agentName}.md) must have 'reasoningEffort' in frontmatter (role: ${roleKey})`);
+      }
+    });
+  });
+
+  // R10: alias-surface validator passes
+  await test('opencode alias surface validator passes', async () => {
+    execFileSync('node', ['scripts/validate-opencode-alias-surface.js'], {
+      cwd: path.resolve(__dirname, '..'),
+      stdio: 'pipe',
+    });
+  });
+
+  // R11: worktree plugin is loadable and exports expected structure
+  await test('worktree plugin loads and exports expected tools', async () => {
+    const pluginSourcePath = path.resolve(__dirname, '..', 'opencode-assets', 'plugins', 'worktree.js');
+    assert.ok(fs.existsSync(pluginSourcePath), 'plugin source file should exist');
+
+    // Dynamic import from .opencode dir where node_modules are available
+    const opencodeDir = path.resolve(__dirname, '..', '.opencode');
+    const { pathToFileURL } = require('url');
+    const pluginUrl = pathToFileURL(pluginSourcePath).href;
+
+    // Set OPENCODE_WORKTREE_BASE to a temp dir to avoid side effects
+    const wtBase = path.join(os.tmpdir(), 'ie-plugin-smoke-' + Date.now());
+    const prevBase = process.env.OPENCODE_WORKTREE_BASE;
+    process.env.OPENCODE_WORKTREE_BASE = wtBase;
+    try {
+      const mod = await import(pluginUrl);
+      assert.strictEqual(typeof mod.WorktreePlugin, 'function', 'WorktreePlugin should be a function');
+
+      const plugin = await mod.WorktreePlugin({ project: { path: path.resolve(__dirname, '..') } });
+      assert.ok(plugin.tool, 'should have tool property');
+      assert.strictEqual(typeof plugin.tool.worktree_create, 'object', 'worktree_create should be a tool object');
+      assert.strictEqual(typeof plugin.tool.worktree_list, 'object', 'worktree_list should be a tool object');
+      assert.strictEqual(typeof plugin.tool.worktree_delete, 'object', 'worktree_delete should be a tool object');
+      assert.strictEqual(typeof plugin.tool.worktree_create.execute, 'function', 'worktree_create.execute should be a function');
+      assert.strictEqual(typeof plugin['shell.env'], 'function', 'shell.env should be a function');
+    } finally {
+      if (prevBase === undefined) {
+        delete process.env.OPENCODE_WORKTREE_BASE;
+      } else {
+        process.env.OPENCODE_WORKTREE_BASE = prevBase;
+      }
+      try { fs.rmSync(wtBase, { recursive: true, force: true }); } catch {}
+    }
   });
 
   console.log(`\n${passed} tests passed`);

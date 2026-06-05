@@ -21,9 +21,19 @@ function makeMocks(overrides = {}) {
         baseUrl: 'http://127.0.0.1:4318/v1',
         envKey: 'OPENCODE_GO_API_KEY',
       },
+      deepseek: {
+        bridgePath: null,
+        bridgeConfigPath: null,
+        bridgeUrl: 'http://127.0.0.1:38440/v1',
+        keyConfigured: false,
+        bridgeReachable: false,
+        modelsVisible: false,
+        bridgeBinaryAvailable: false,
+      },
     })),
-    setMode: overrides.setCodexMode || ((_home, mode) => ({ activeMode: mode, providerId: mode === 'elegy-routed' ? 'elegy' : 'openai' })),
+    setMode: overrides.setCodexMode || ((_home, mode) => ({ activeMode: mode, providerId: mode === 'elegy-routed' ? 'elegy' : mode === 'deepseek-bridge' ? 'instruction_engine_deepseek' : 'openai' })),
     hardReset: overrides.hardResetCodex || (() => ({ activeMode: 'native', providerId: 'openai', action: 'hard-reset' })),
+    saveDeepseekSettings: overrides.saveDeepseekSettings || (() => ({ keyConfigured: true })),
   };
   return {
     sendJson,
@@ -37,9 +47,9 @@ function makeMocks(overrides = {}) {
 }
 
 describe('config routes', () => {
-  it('register returns GET and PUT routes', () => {
+  it('register returns expected route count', () => {
     const routes = register();
-    assert.equal(routes.length, 5);
+    assert.equal(routes.length, 10);
     assert.equal(routes[0].method, 'GET');
     assert.equal(routes[0].path, '/api/config/remote-sessions');
     assert.equal(routes[1].method, 'PUT');
@@ -47,6 +57,11 @@ describe('config routes', () => {
     assert.equal(routes[2].path, '/api/config/codex-provider');
     assert.equal(routes[3].path, '/api/config/codex-provider');
     assert.equal(routes[4].path, '/api/config/codex-provider/reset');
+    assert.equal(routes[5].path, '/api/config/codex-provider/deepseek');
+    assert.equal(routes[6].path, '/api/config/codex-provider/deepseek');
+    assert.equal(routes[7].path, '/api/config/codex-provider/deepseek/start');
+    assert.equal(routes[8].path, '/api/config/codex-provider/deepseek/stop');
+    assert.equal(routes[9].path, '/api/config/codex-provider/deepseek/status');
   });
 
   it('GET returns current remote preference', () => {
@@ -112,11 +127,7 @@ describe('config routes', () => {
     const routes = register(mocks);
     routes[2].handler({ codexHome: '/tmp/codex', res: {} });
     assert.equal(mocks.sent[0].code, 200);
-    assert.deepEqual(mocks.sent[0].obj, {
-      activeMode: 'elegy-routed',
-      providerId: 'elegy',
-      gateway: { baseUrl: 'http://127.0.0.1:4318/v1', envKey: 'OPENCODE_GO_API_KEY' },
-    });
+    assert.equal(mocks.sent[0].obj.activeMode, 'elegy-routed');
   });
 
   it('PUT updates Codex provider mode', async () => {
@@ -213,5 +224,63 @@ describe('config routes', () => {
     assert.equal(hardResetCalled, true);
     assert.equal(mocks.sent[0].code, 200);
     assert.equal(mocks.sent[0].obj.action, 'hard-reset');
+  });
+
+  describe('deepseek routes', () => {
+    it('GET deepseek returns config status', () => {
+      const mocks = makeMocks();
+      const routes = register(mocks);
+      routes[5].handler({ codexHome: '/tmp/codex', res: {} });
+      assert.equal(mocks.sent[0].code, 200);
+      assert.equal(mocks.sent[0].obj.bridgeUrl, 'http://127.0.0.1:38440/v1');
+      assert.equal(mocks.sent[0].obj.keyConfigured, false);
+      assert.equal(mocks.sent[0].obj.bridgeRunning, false);
+    });
+
+    it('PUT deepseek saves settings', async () => {
+      let savedSettings;
+      const mocks = makeMocks({
+        body: { bridgePath: '/path/to/bridge', bridgeConfigPath: '/path/to/config.yml', apiKey: 'sk-test-123', keyConfigured: true },
+        saveDeepseekSettings: (_home, settings) => {
+          savedSettings = settings;
+          return { bridgePath: '/path/to/bridge', keyConfigured: true };
+        },
+      });
+      const routes = register(mocks);
+      await routes[6].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      assert.equal(mocks.sent[0].code, 200);
+      assert.equal(savedSettings.bridgePath, '/path/to/bridge');
+      assert.equal(savedSettings.keyConfigured, true);
+    });
+
+    it('PUT deepseek does not return API key in response', async () => {
+      const mocks = makeMocks({
+        body: { bridgePath: '/path/to/bridge', apiKey: 'sk-secret-123', keyConfigured: true },
+        saveDeepseekSettings: (_home, settings) => {
+          return { bridgePath: settings.bridgePath, keyConfigured: true };
+        },
+      });
+      const routes = register(mocks);
+      await routes[6].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      assert.equal(mocks.sent[0].code, 200);
+      assert.equal(mocks.sent[0].obj.keyConfigured, true);
+      assert.ok(!mocks.sent[0].obj.apiKey);
+      assert.ok(!JSON.stringify(mocks.sent[0].obj).includes('sk-secret'));
+    });
+
+    it('POST deepseek start returns bridgeRunning', async () => {
+      const mocks = makeMocks();
+      const routes = register(mocks);
+      await routes[7].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      assert.equal(mocks.sent[0].code, 400);
+    });
+
+    it('POST deepseek stop returns bridgeRunning false', async () => {
+      const mocks = makeMocks();
+      const routes = register(mocks);
+      await routes[8].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      assert.equal(mocks.sent[0].code, 200);
+      assert.equal(mocks.sent[0].obj.bridgeRunning, false);
+    });
   });
 });

@@ -1,3 +1,14 @@
+---
+created: 2026-06-03
+updated: 2026-06-04
+category: lexicon
+status: current
+doc_kind: node
+id: testing-glossary
+summary: Glossary of software testing types, quality concepts, and verification approaches.
+tags: [lexicon, testing, quality]
+---
+
 # Testing & Quality
 
 ## Test Types

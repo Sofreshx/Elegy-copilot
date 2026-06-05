@@ -81,7 +81,7 @@ export default function LexiconView() {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const sortedCategories = useMemo(() => {
-    return Object.entries(state.categories).sort(([, a], [, b]) => a.localeCompare(b));
+    return Object.entries(state.categories).sort(([, a], [, b]) => String(a || '').localeCompare(String(b || '')));
   }, [state.categories]);
 
   const isLoading = state.loading;

@@ -525,7 +525,12 @@ export default function CatalogView() {
                 <div className="catalog-global-harness-card" data-testid={`catalog-global-harness-${harness.harnessId}`} key={harness.harnessId}>
                   <div className="catalog-global-card-header">
                     <h4>{harness.title}</h4>
-                    <Badge tone="accent">{harness.harnessId}</Badge>
+                    <div className="catalog-global-badge-stack">
+                      <Badge tone="accent">{harness.harnessId}</Badge>
+                      {harness.optedIn === true
+                        ? <Badge tone="success">Active</Badge>
+                        : <Badge tone="neutral">Inactive</Badge>}
+                    </div>
                   </div>
                   <p className="catalog-global-path">{harness.homePath || '(home unavailable)'}</p>
                   {harness.skillsHomePath ? <p className="catalog-global-path">Skills: {harness.skillsHomePath}</p> : null}

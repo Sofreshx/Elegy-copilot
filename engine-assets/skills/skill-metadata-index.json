@@ -2,6 +2,32 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "skill": "commit-validation-governance",
+      "name": "commit-validation-governance",
+      "description": "Audit/propose-only governance for setting up umbrella commit-validation checks in a repo. Scans for existing test/lint/format/typecheck/coverage tooling, proposes config, and guides agents to run the umbrella check before commit. Triggers on: commit validation, pre-commit check, umbrella check, commit check setup, commit validation governance, prepare for commit, validate before commit.",
+      "triggersOn": [
+        "commit check setup",
+        "commit validation",
+        "commit validation governance",
+        "pre-commit check",
+        "prepare for commit",
+        "umbrella check",
+        "validate before commit"
+      ],
+      "tags": [
+        "commit",
+        "governance",
+        "pre-commit",
+        "quality",
+        "testing",
+        "validation"
+      ],
+      "manifest": {
+        "id": "skill-commit-validation-governance",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "core-guardrails",
       "name": "core-guardrails",
       "description": "Non-negotiable execution safety guardrails for all tasks. Triggers on: run_in_terminal, terminal command, isBackground, branch switch, instruction conflict, askQuestions.",
@@ -91,7 +117,7 @@
     {
       "skill": "implementation-review",
       "name": "implementation-review",
-      "description": "Implementation review for code, docs, skills, agents, and configuration changes. Use after edits when checking correctness, scope, regressions, and validation sufficiency before handoff.",
+      "description": "",
       "triggersOn": [],
       "manifest": {
         "id": "skill-implementation-review",
@@ -101,7 +127,7 @@
     {
       "skill": "project-conventions-governance",
       "name": "project-conventions-governance",
-      "description": "Governance rules for identifying, auditing, and proposing project conventions with canonical-vs-inferred separation. Triggers on: project conventions, repo conventions, convention audit, convention drift, convention governance, propose conventions.",
+      "description": "",
       "triggersOn": [
         "convention audit",
         "convention drift",
@@ -123,6 +149,31 @@
       "manifest": {
         "id": "skill-project-guidelines",
         "loadMode": "always"
+      }
+    },
+    {
+      "skill": "repo-backed-obsidian-docs",
+      "name": "repo-backed-obsidian-docs",
+      "description": "Teaches agents to document projects through Obsidian while keeping canonical Markdown source in the project repo. Triggers on: obsidian docs, repo docs, doc vault, obsidian vault, documentation vault.",
+      "triggersOn": [
+        "doc vault",
+        "documentation vault",
+        "obsidian docs",
+        "obsidian vault",
+        "repo docs"
+      ],
+      "tags": [
+        "authority",
+        "canonical",
+        "docs",
+        "documentation",
+        "obsidian",
+        "repo",
+        "vault"
+      ],
+      "manifest": {
+        "id": "skill-repo-backed-obsidian-docs",
+        "loadMode": "on-demand"
       }
     },
     {
@@ -169,7 +220,7 @@
     {
       "skill": "roadmap-planning",
       "name": "roadmap-planning",
-      "description": "Persisted repository roadmap workflow. A Roadmap is the durable multi-session planning artifact above active implementation. For the current Planning app/API compatibility surface in this repo, store repo-visible roadmaps in docs/roadmaps/<roadmap-slug>.md. Use when raw mixed instructions need ordering into a coherent roadmap, or when taking the next slice from a roadmap for concrete implementation.",
+      "description": "",
       "triggersOn": [],
       "manifest": {
         "id": "skill-roadmap-planning",
@@ -179,7 +230,7 @@
     {
       "skill": "rubberduck-plan-review",
       "name": "rubberduck-plan-review",
-      "description": "Adversarial Rubberduck plan review. Use before implementing complex plans, migrations, refactors, repo setup changes, or architectural decisions; also use when the user asks to rubberduck, critique, challenge, stress-test, or review a plan.",
+      "description": "",
       "triggersOn": [],
       "manifest": {
         "id": "skill-rubberduck-plan-review",
@@ -189,7 +240,7 @@
     {
       "skill": "security",
       "name": "security",
-      "description": "Security review and vulnerability detection. Checks secure coding practices and exposure risks. Triggers on: security, vulnerability, hardening, secure coding.",
+      "description": "",
       "triggersOn": [
         "hardening",
         "secure coding",
@@ -226,7 +277,7 @@
     {
       "skill": "spec-authoring",
       "name": "spec-authoring",
-      "description": "Create or refine a durable repo spec under specs/<spec-slug>/spec.md using the shared contract. Use when work should be spec-anchored or spec-as-source and needs a concrete spec artifact before implementation planning. Triggers on: author a spec, create a spec, refine spec.md, specs template, specs folder, durable repo spec.",
+      "description": "",
       "triggersOn": [
         "author a spec",
         "create a spec",
@@ -234,12 +285,6 @@
         "refine spec.md",
         "specs folder",
         "specs template"
-      ],
-      "tags": [
-        "authoring",
-        "contracts",
-        "requirements",
-        "specs"
       ],
       "manifest": {
         "id": "skill-spec-authoring",
@@ -249,7 +294,7 @@
     {
       "skill": "spec-dev",
       "name": "spec-dev",
-      "description": "Entrypoint/router for spec-driven development. Decide whether the task should use spec-first clarification, a durable repo spec under specs/, or spec-as-source declarative authoring. Triggers on: spec-driven development, write a spec, refine a spec, spec-first, spec-anchored, spec-as-source, specs folder.",
+      "description": "",
       "triggersOn": [
         "refine a spec",
         "spec-anchored",
@@ -259,12 +304,6 @@
         "specs folder",
         "write a spec"
       ],
-      "tags": [
-        "planning",
-        "requirements",
-        "specs",
-        "validation"
-      ],
       "manifest": {
         "id": "skill-spec-dev",
         "loadMode": "on-demand"
@@ -273,19 +312,13 @@
     {
       "skill": "spec-review",
       "name": "spec-review",
-      "description": "Adversarial review for a durable repo spec before implementation planning. Use after spec authoring to find ambiguity, missing evidence, weak acceptance checks, or source-of-truth drift. Triggers on: review a spec, spec review, critique spec.md, spec readiness, requirements gaps.",
+      "description": "",
       "triggersOn": [
         "critique spec.md",
         "requirements gaps",
         "review a spec",
         "spec readiness",
         "spec review"
-      ],
-      "tags": [
-        "planning",
-        "requirements",
-        "review",
-        "specs"
       ],
       "manifest": {
         "id": "skill-spec-review",
@@ -295,7 +328,7 @@
     {
       "skill": "stack-detector",
       "name": "stack-detector",
-      "description": "Automatic tech stack detection and operational context classification. Scans project files to identify frameworks, libraries, infrastructure, and classify projects as api, desktop, frontend, infra, or unknown. Use this when asked to detect stack, identify technologies, discover frameworks, determine which skills apply, or classify a project's operational context. Triggers on: detect stack, identify tech, framework detection, stack analysis, which skills, target context, operational context.",
+      "description": "",
       "triggersOn": [
         "detect stack",
         "framework detection",
@@ -305,87 +338,8 @@
         "target context",
         "which skills"
       ],
-      "aliasKeys": [
-        "target-context-detector"
-      ],
-      "frameworks": [
-        "angular",
-        "aspire",
-        "orleans",
-        "react",
-        "signalr",
-        "vue"
-      ],
-      "stacks": [
-        "api",
-        "desktop",
-        "frontend",
-        "infra"
-      ],
-      "languages": [
-        "csharp",
-        "go",
-        "javascript",
-        "python",
-        "typescript"
-      ],
-      "tags": [
-        "classification",
-        "detection",
-        "routing",
-        "targeting"
-      ],
       "manifest": {
         "id": "skill-stack-detector",
-        "loadMode": "always"
-      }
-    },
-    {
-      "skill": "elegy-planning",
-      "name": "elegy-planning",
-      "description": "Durable planning authority via Elegy CLI. Use for goals, roadmaps, plans, todos, issues, review points, validation, health checks, and projection rendering backed by SQLite.",
-      "triggersOn": [
-        "planning",
-        "roadmap",
-        "goal",
-        "plan",
-        "todo",
-        "issue",
-        "review point",
-        "sqlite",
-        "elegy"
-      ],
-      "aliasKeys": [
-        "roadmap-planning",
-        "durable-planning"
-      ],
-      "stacks": ["planning"],
-      "tags": ["planning", "goal", "roadmap", "plan", "todo", "issue", "sqlite", "elegy"],
-      "manifest": {
-        "id": "opencode-elegy-planning-skill",
-        "loadMode": "always"
-      }
-    },
-    {
-      "skill": "elegy-skills-discovery",
-      "name": "elegy-skills-discovery",
-      "description": "CLI-based governed skill discovery via Elegy. Use to search, resolve, describe, and validate skills from the governed v2 skill catalog with progressive disclosure.",
-      "triggersOn": [
-        "skill discovery",
-        "elegy skills",
-        "skill catalog",
-        "skill search",
-        "skill validation"
-      ],
-      "aliasKeys": [
-        "skill-discovery",
-        "elegy-skills",
-        "skills"
-      ],
-      "stacks": ["orchestration"],
-      "tags": ["catalog", "discovery", "routing", "skills", "elegy"],
-      "manifest": {
-        "id": "opencode-elegy-skills-discovery-skill",
         "loadMode": "always"
       }
     }

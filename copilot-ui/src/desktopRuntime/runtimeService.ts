@@ -231,6 +231,12 @@ function ensurePlanningAuthorityEnv(
     options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH = configuredDbPath;
   }
 
+  // Set the planning session sidecar override path on Windows so the
+  // Copilot server reads from the override location.
+  if (process.platform === 'win32') {
+    options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH = path.join(options.paths.copilotHome, 'planning-session.json');
+  }
+
   if (configuredCliPath) {
     options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_ENABLED = '1';
     options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH = configuredCliPath;

@@ -55,3 +55,8 @@ IMPL_RESULT
 - Never run destructive commands (rm -rf, force push, etc.) without explicit approval context from the calling agent
 - If a change affects runtime topology, auth, networking, or data stores, flag it
 - Do not commit changes unless the calling agent explicitly instructs you to
+
+## Git Workflow
+- **Small targeted commits:** When instructed to commit, inspect the diff, stage only the intended files, propose a commit message, and wait for approval. Never `git add -A` followed by bulk commit.
+- **Never auto-push, auto-merge, or delete branches** without explicit instruction from the calling agent.
+- **Never promote through protected branches** unless the calling agent explicitly requests it.

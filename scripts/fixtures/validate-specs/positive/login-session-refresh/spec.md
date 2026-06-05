@@ -30,7 +30,9 @@ Define the durable contract for session refresh behavior after access token expi
 ## Acceptance Checks
 
 - Expired access tokens refresh without forcing re-login when the refresh token is valid.
+  → verify: node scripts/validate-session-refresh.js
 - Invalid refresh tokens force the existing signed-out path.
+  → verify: node scripts/validate-session-refresh.js
 
 ## Implementation Links
 

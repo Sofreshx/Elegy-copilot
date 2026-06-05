@@ -159,6 +159,33 @@ export function deactivateCatalogSourceInstallable(
   });
 }
 
+export interface HarnessOptInPayload {
+  target: 'codex' | 'opencode' | 'antigravity';
+  optIn: boolean;
+}
+
+export interface HarnessOptInResponse {
+  kind: string;
+  deterministic: boolean;
+  target: string;
+  optedIn: boolean;
+  assetCount: number;
+}
+
+export function setHarnessOptIn(
+  payload: HarnessOptInPayload,
+  baseUrl?: string
+): Promise<HarnessOptInResponse> {
+  return apiRequest<HarnessOptInResponse>('/api/catalog/harness-opt-in', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function syncInstallVerifyCatalogSource(
   payload: CatalogSourceSyncInstallVerifyPayload,
   baseUrl?: string

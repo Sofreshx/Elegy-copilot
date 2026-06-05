@@ -22,6 +22,7 @@ related: [system-docs-index, testing-quality-governance, validation-governance]
 
 - Testing quality governance: `docs/system/testing-quality-governance.md`
 - Validation governance: `docs/system/validation-governance.md` (single `@test-runner` lane for unit/integration/browser routing)
+- Commit validation governance: `docs/system/commit-validation-governance.md` (umbrella pre-commit check tooling)
 - E2E setup: `docs/system/e2e-setup-guide.md`
 - Workflow planning contract: `docs/system/workflow-planning-contract.md`
 

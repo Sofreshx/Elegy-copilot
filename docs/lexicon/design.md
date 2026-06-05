@@ -1,3 +1,14 @@
+---
+created: 2026-06-03
+updated: 2026-06-04
+category: lexicon
+status: current
+doc_kind: node
+id: design-glossary
+summary: Glossary of design concepts, HCI principles, and visual/interaction patterns.
+tags: [lexicon, design, hci]
+---
+
 # Design Concepts
 
 ## HCI Principles

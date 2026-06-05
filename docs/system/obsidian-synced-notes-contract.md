@@ -38,6 +38,29 @@ They must not:
 - become the canonical execution authority instead of the active session `plan.md`
 - use note bodies or mirror edits as canonical write authority for repo planning docs
 
+### Clarification: Docs Vault vs Planning Mirror
+
+This contract governs the **planning surface** exposed inside
+`copilot-ui` — external, non-canonical Obsidian notes used for backlog
+seeding, mirror generation, and operator context.
+
+It does NOT govern using Obsidian as a viewer/editor over canonical repo
+documentation (`docs/system/**`, `docs/research/**`, `specs/**`). That
+workflow — opening a repo folder directly as an Obsidian vault with the
+repo retaining full authority — is covered by the
+[[repo-backed-obsidian-docs]]
+[docs/system/repo-backed-obsidian-docs.md](docs/system/repo-backed-obsidian-docs.md)
+contract.
+
+The distinction:
+- **Docs vault** ([[repo-backed-obsidian-docs]]
+  [docs/system/repo-backed-obsidian-docs.md](docs/system/repo-backed-obsidian-docs.md)):
+  Obsidian is a local editor/viewer over canonical repo docs. Git is the
+  authority.
+- **Planning mirror** (this contract): Obsidian hosts external,
+  non-canonical planning notes. `copilot-ui` and `~/.copilot/backlogs/`
+  are the authority.
+
 ## Repo context
 
 `copilot-ui` MUST reuse the selected Catalog repo as the repo-context source for this surface.

@@ -56,12 +56,41 @@ Required headings:
 - Keep the spec durable and repo-grounded.
 - Use exact file paths, commands, docs, tests, or runtime evidence in `Context Evidence` when available.
 - Keep `Intent` specific and non-empty.
-- Write at least two observable `Acceptance Checks`.
+- Write at least two `Acceptance Checks`, each with a concrete verification method using the `→ verify:` marker (indented 2 spaces, immediately following the bullet, non-empty content).
 - Keep `Non-Goals` explicit near likely scope-creep edges.
 - Use `Implementation Links` for code, docs, plans, PRs, or tickets that materially connect to the spec.
 - When `status: implemented`, `Validation Evidence` must contain real evidence, not a placeholder.
 - Use `Drift Notes` to record deviations, follow-up reconciliation, or `none`.
 - Do not treat a spec as the permanent home for a key architectural or workflow-authority tradeoff when that decision should be promoted into an ADR.
+- Use the per-type templates under `specs/_templates/` when the default template does not match your `type`.
+
+### Spec Link Conventions
+
+Durable specs can declare relationships via frontmatter keys:
+
+- `supersedes: <spec_id>` — this spec replaces another spec.
+- `superseded_by: <spec_id>` — this spec is replaced by another spec. Required when `status: superseded`.
+- If your spec is related to another but does not supersede or get superseded by it, mention the relationship in `Drift Notes` or `Context Evidence`.
+
+Do not set both `supersedes` and `superseded_by` in the same spec.
+
+### Spec Readiness Checklist
+
+Before handing a spec to `spec-review`, confirm:
+
+- [ ] Frontmatter: all 5 required keys present, valid status and type, valid ISO date.
+- [ ] All 8 required headings present and non-empty.
+- [ ] Intent is a specific, non-empty description of the problem or opportunity.
+- [ ] Context Evidence lists concrete file paths, commands, tests, or runtime data with reasons.
+- [ ] Requirements are unambiguous and testable.
+- [ ] Non-Goals cover likely scope-creep edges.
+- [ ] Each Acceptance Check has a `→ verify:` line with a concrete command or manual step.
+- [ ] Implementation Links list every file, test, or plan that the spec will touch.
+- [ ] Validation Evidence is populated (required for `implemented` status).
+- [ ] Drift Notes captures any deviation or follow-up, or says "None."
+- [ ] Run `node scripts/validate-specs.js specs/<slug>/spec.md` and fix all errors.
+- [ ] Run `node scripts/validate-specs.js --strict specs/<slug>/spec.md` and review any liveness warnings (opt-in gate).
+- [ ] If the spec has 5+ requirements or 2+ phases, create a sibling `plan.md`.
 
 ## Minimal Workflow
 
@@ -103,8 +132,10 @@ updated: YYYY-MM-DD
 
 ## Acceptance Checks
 
-- <observable check>
-- <observable check>
+- <observable behavior>
+  → verify: <test command, script path, or manual steps>
+- <observable behavior>
+  → verify: <test command, script path, or manual steps>
 
 ## Implementation Links
 

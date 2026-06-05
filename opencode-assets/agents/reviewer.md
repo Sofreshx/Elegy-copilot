@@ -27,12 +27,13 @@ Review implementation for:
 - Missing edge cases or error states
 - Security concerns (injection, exposure, auth bypass)
 - Performance problems in hot paths
+- Commit hygiene — are changes small, targeted, and properly scoped? Flag bulk `git add -A` patterns.
 
 ### spec-review
 Review spec documents for:
 - Completeness — are all contract boundaries defined?
 - Clarity — can an implementer unambiguously derive the right implementation?
-- Testability — can the acceptance criteria be validated?
+- Testability — does each acceptance criterion have a concrete verification method (e.g., `→ verify:` line with a test command or script)?
 - Consistency — does this spec conflict with existing contracts or specs?
 
 ### plan-review

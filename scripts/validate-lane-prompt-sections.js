@@ -183,6 +183,163 @@ function validateQuickSpecific(agentsDir) {
   return errors;
 }
 
+function validateQuickExplorationContradiction(agentsDir) {
+  const errors = [];
+  const filePath = path.join(agentsDir, 'quick.md');
+
+  if (!fs.existsSync(filePath)) {
+    errors.push(`quick.md: file not found for exploration-contradiction check`);
+    return errors;
+  }
+
+  const content = readFile(filePath);
+  const lower = content.toLowerCase();
+
+  // Check 1: Does quick.md reject unfamiliar exploration?
+  const rejectsUnfamiliar = 
+    /exploration\s+of\s+unfamiliar/i.test(content) ||
+    /do\s+not\s+explore\s+unfamiliar/i.test(content) ||
+    /escalate\s+to\s+standard.*unfamiliar/i.test(content) ||
+    /escalate\s+to\s+standard.*unknown/i.test(content);
+
+  // Check 2: Does quick.md ALSO instruct exploration without narrow-lookup guard?
+  const instructsExploration = /explore\s+(the\s+)?(relevant\s+)?code\s+using/i.test(content) ||
+    /explorer\s+for\s+(codebase\s+)?discovery\s+when\s+unfamiliar/i.test(content);
+
+  // Check 3: Does quick.md have the narrow-lookup safeguard?
+  const hasNarrowLookupGuard = 
+    /narrow[,]?\s+focused\s+lookup/i.test(content) ||
+    /only\s+when\s+the\s+file\s+and\s+area\s+are/i.test(content) ||
+    /do\s+not\s+use.*explorer.*unfamiliar/i.test(content) ||
+    /only\s+for\s+narrow/i.test(content);
+
+  if (rejectsUnfamiliar && instructsExploration && !hasNarrowLookupGuard) {
+    errors.push(
+      `${toDisplayPath(filePath)}: contradiction detected — quick.md rejects unfamiliar code exploration ` +
+      `but also instructs exploration without a 'narrow lookup only' safeguard. ` +
+      `Add the narrow-lookup distinction or remove the exploration instruction.`
+    );
+  }
+
+  return errors;
+}
+
+function validateProjectNoAutoMutation(agentsDir) {
+  const errors = [];
+  const filePath = path.join(agentsDir, 'project.md');
+
+  if (!fs.existsSync(filePath)) {
+    errors.push(`project.md: file not found for auto-mutation check`);
+    return errors;
+  }
+
+  const content = readFile(filePath);
+  const lower = content.toLowerCase();
+
+  // Patterns that indicate automatic git mutations without approval
+  const autoPatterns = [
+    { regex: /auto(?:-| )(?:commit|merge|push|delete)/i, label: 'auto-commit/merge/push/delete' },
+    { regex: /merging\s+.*\s+is\s+automatic/i, label: 'merge described as automatic' },
+    { regex: /this\s+is\s+the\s+default\s*[–-]\s*merge/i, label: 'default-auto-merge' },
+    { regex: /never\s+auto-commit.*but\s+merge.*is\s+automatic/i, label: 'contradictory auto-merge exception' },
+  ];
+
+  for (const { regex, label } of autoPatterns) {
+    if (regex.test(content)) {
+      // Only flag if there's no explicit approval counter-language in the same section
+      // Note: approval gating check operates on full file content, not just the matched
+      // section. This is deliberate for defense-in-depth — any approval language anywhere
+      // in the file counts as a gate. Future: consider section-scoping for precision.
+      const hasApprovalGating = 
+        /wait\s+for\s+(explicit\s+)?user\s+approval/i.test(content) ||
+        /ask\s+(the\s+)?user\s+before/i.test(content) ||
+        /require.*explicit.*approval/i.test(content) ||
+        /propose.*merge.*wait/i.test(content) ||
+        /all\s+durable\s+git\s+mutations/i.test(content);
+
+      if (!hasApprovalGating) {
+        errors.push(
+          `${toDisplayPath(filePath)}: auto-mutation language detected ('${label}') ` +
+          `without explicit user-approval gating language. Add 'wait for user approval' or equivalent.`
+        );
+      }
+      break; // One error is enough for this check
+    }
+  }
+
+  return errors;
+}
+
+function validateStandardEvidenceRequirement(agentsDir) {
+  const errors = [];
+  const filePath = path.join(agentsDir, 'standard.md');
+
+  if (!fs.existsSync(filePath)) {
+    errors.push(`standard.md: file not found for evidence-requirement check`);
+    return errors;
+  }
+
+  const content = readFile(filePath);
+
+  // Check: standard.md must mention diff inspection by parent before review
+  const hasDiffInspection = /git\s+diff\s+--stat/i.test(content) &&
+    (/inspect\s+relevant\s+diff/i.test(content) || /diff\s+summary/i.test(content));
+
+  // Check: standard.md must mention passing validation evidence to reviewer
+  const hasEvidenceToReviewer = /pass.*(?:complete|full)\s+(?:evidence\s+)?package\s+to\s+reviewer/i.test(content) ||
+    /reviewer.*receive.*(?:evidence|diff|validation)/i.test(content) ||
+    /evidence\s+package/i.test(content);
+
+  if (!hasDiffInspection) {
+    errors.push(
+      `${toDisplayPath(filePath)}: missing requirement for parent lane to run 'git diff --stat' ` +
+      `and inspect relevant diff hunks before final review`
+    );
+  }
+
+  if (!hasEvidenceToReviewer) {
+    errors.push(
+      `${toDisplayPath(filePath)}: missing requirement to pass full evidence package (diff, ` +
+      `validation results, impl evidence) to reviewer for final review`
+    );
+  }
+
+  return errors;
+}
+
+function validateSpecMinorChangeException(agentsDir) {
+  const errors = [];
+  const filePath = path.join(agentsDir, 'spec.md');
+
+  if (!fs.existsSync(filePath)) {
+    errors.push(`spec.md: file not found for minor-change check`);
+    return errors;
+  }
+
+  const content = readFile(filePath);
+  const lower = content.toLowerCase();
+
+  // Check: Does spec.md have a blanket "user-facing behavior" trigger?
+  const hasBlanketUserFacing = /user-?facing\s+behavior/i.test(content) &&
+    !/minor\s+(copy|layout|ui)\s+nits/i.test(content) &&
+    !/do\s+not\s+force\s+spec\s+lane/i.test(content);
+
+  // If there's a blanket trigger but ALSO a minor-change exception, that's fine
+  const hasMinorChangeException = 
+    /minor\s+(copy|layout|ui)\s+nits/i.test(content) ||
+    /do\s+not\s+force\s+spec\s+lane/i.test(content) ||
+    /non-?obvious\s+acceptance/i.test(content);
+
+  if (hasBlanketUserFacing && !hasMinorChangeException) {
+    errors.push(
+      `${toDisplayPath(filePath)}: treats all user-facing behavior changes as spec-required ` +
+      `without a minor-change exception (e.g., 'minor copy/layout/UI nits do not force spec lane')`
+    );
+  }
+
+  return errors;
+}
+
 function main() {
   const agentsDir = path.resolve(process.argv[2] || path.join(process.cwd(), 'opencode-assets', 'agents'));
   const errors = [];
@@ -200,6 +357,18 @@ function main() {
 
   // Quick-specific checks
   errors.push(...validateQuickSpecific(agentsDir));
+
+  // New: Quick exploration contradiction check
+  errors.push(...validateQuickExplorationContradiction(agentsDir));
+
+  // New: Project no-auto-mutation check
+  errors.push(...validateProjectNoAutoMutation(agentsDir));
+
+  // New: Standard evidence requirement check
+  errors.push(...validateStandardEvidenceRequirement(agentsDir));
+
+  // New: Spec minor-change exception check
+  errors.push(...validateSpecMinorChangeException(agentsDir));
 
   if (errors.length > 0) {
     console.error('lane-prompt-sections invalid:');
@@ -226,4 +395,8 @@ module.exports = {
   validateSpecSpecific,
   validateProjectSpecific,
   validateQuickSpecific,
+  validateQuickExplorationContradiction,
+  validateProjectNoAutoMutation,
+  validateStandardEvidenceRequirement,
+  validateSpecMinorChangeException,
 };

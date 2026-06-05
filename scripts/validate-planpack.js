@@ -306,7 +306,7 @@ function parseCliArgs(argv) {
 		maxFutureSkewMinutes: 5,
 		nowIso: '',
 		allowLegacyBestEffort: false,
-		acEnforcement: 'warn',
+		acEnforcement: 'fail',
 	};
 
 	for (let index = 0; index < argv.length; index++) {
@@ -454,7 +454,7 @@ function hasRequiredProgressSection(progressContent, headingPrefix) {
 	return true;
 }
 
-const AC_VAGUE_TOKEN_RE = /\b(quality|good|proper|appropriate|adequate|robust|clean|nice|better|improved|sufficient)\b/i;
+const { AC_VAGUE_TOKEN_RE } = require('./lib/ac-vague-tokens');
 
 function parseAcceptanceCriteriaQuality(lines, wuSubs) {
 	const wuSpecRe = /^###\s+(WU-\d{3})\s+—\s+/;

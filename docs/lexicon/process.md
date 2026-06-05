@@ -1,3 +1,14 @@
+---
+created: 2026-06-03
+updated: 2026-06-04
+category: lexicon
+status: current
+doc_kind: node
+id: process-glossary
+summary: Glossary of software development methodologies, lifecycle models, and process concepts.
+tags: [lexicon, process, methodology]
+---
+
 # Methodologies & Process
 
 ## Development Processes

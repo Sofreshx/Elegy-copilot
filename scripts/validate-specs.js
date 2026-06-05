@@ -3,10 +3,12 @@
 
 const fs = require('fs');
 const path = require('path');
+const { AC_VAGUE_TOKEN_RE } = require('./lib/ac-vague-tokens');
 
 const VALID_STATUS = new Set(['draft', 'approved', 'implemented', 'superseded']);
 const VALID_TYPES = new Set(['feature', 'workflow', 'contract', 'skill', 'agent', 'migration']);
 const REQUIRED_FRONTMATTER_KEYS = ['spec_id', 'title', 'status', 'type', 'updated'];
+const OPTIONAL_DATE_KEYS = ['created', 'approved_at', 'implemented_at', 'superseded_at'];
 const REQUIRED_HEADINGS = [
   'Intent',
   'Context Evidence',
@@ -29,6 +31,8 @@ function toDisplayPath(filePath) {
 function parseArgs(argv) {
   const options = {
     require: false,
+    strict: false,
+    json: false,
     targetPath: path.join(process.cwd(), 'specs'),
   };
 
@@ -40,9 +44,17 @@ function parseArgs(argv) {
       options.require = true;
       continue;
     }
+    if (value === '--strict') {
+      options.strict = true;
+      continue;
+    }
+    if (value === '--json') {
+      options.json = true;
+      continue;
+    }
 
     if (value.startsWith('--')) {
-      throw new Error(`Unknown arg: ${value} (supported: --require [path])`);
+      throw new Error(`Unknown arg: ${value} (supported: --require --strict --json [path])`);
     }
 
     if (explicitPath) {
@@ -193,6 +205,58 @@ function countBulletItems(sectionText) {
     .filter((line) => /^\s*[-*]\s+\S/.test(line)).length;
 }
 
+function parseAcceptanceChecksWithVerify(sectionText) {
+  const lines = String(sectionText || '').split(/\r?\n/);
+  const checks = [];
+  let currentCheck = null;
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const bulletMatch = line.match(/^\s*[-*]\s+(\S.*)/);
+
+    if (bulletMatch) {
+      if (currentCheck) {
+        checks.push(currentCheck);
+      }
+      currentCheck = {
+        bulletLineNumber: index + 1,
+        bulletText: bulletMatch[1].trim(),
+        verifyLines: [],
+      };
+      continue;
+    }
+
+    if (currentCheck) {
+      const verifyMatch = line.match(/^\s+→\s*verify:\s*(.*)/i);
+      if (verifyMatch) {
+        currentCheck.verifyLines.push({
+          lineNumber: index + 1,
+          content: verifyMatch[1].trim(),
+        });
+        continue;
+      }
+
+      if (line.trim() === '') {
+        checks.push(currentCheck);
+        currentCheck = null;
+        continue;
+      }
+
+      if (/^\s*#/.test(line)) {
+        checks.push(currentCheck);
+        currentCheck = null;
+        continue;
+      }
+    }
+  }
+
+  if (currentCheck) {
+    checks.push(currentCheck);
+  }
+
+  return checks;
+}
+
 function hasMeaningfulContent(sectionText) {
   const normalized = String(sectionText || '')
     .replace(/^\s*[-*]\s*/gm, '')
@@ -205,6 +269,98 @@ function hasMeaningfulContent(sectionText) {
   }
 
   return !/^(?:none|n\/a|na|todo|tbd|pending|not yet|placeholder|none yet|fill me in)\.?$/i.test(normalized);
+}
+
+function validateAcceptanceChecksQuality(sectionText) {
+  const errors = [];
+  const checks = parseAcceptanceChecksWithVerify(sectionText);
+
+  for (const check of checks) {
+    if (check.verifyLines.length === 0) {
+      errors.push(
+        `Acceptance check at line ${check.bulletLineNumber} lacks a verification method (→ verify: ...)`
+      );
+    }
+
+    for (const verifyLine of check.verifyLines) {
+      if (!verifyLine.content) {
+        errors.push(
+          `Acceptance check verify line at line ${verifyLine.lineNumber} has empty content`
+        );
+      }
+    }
+
+    const vagueTokenRE = new RegExp(AC_VAGUE_TOKEN_RE.source, 'gi');
+    let vagueMatch;
+    while ((vagueMatch = vagueTokenRE.exec(check.bulletText)) !== null) {
+      errors.push(
+        `Acceptance check at line ${check.bulletLineNumber} contains vague language: '${vagueMatch[1]}'`
+      );
+    }
+  }
+
+  return errors;
+}
+
+const KNOWN_SOURCE_DIRS = new Set([
+  'opencode-assets', 'catalog-assets', 'codex-assets', 'antigravity-assets',
+  'engine-assets', 'scripts', 'docs', 'specs', 'contracts', 'copilot-ui',
+  'local-tracker', 'elegy-assets',
+]);
+
+function looksLikeFilePath(p) {
+  const s = p.trim();
+  if (/^https?:\/\//i.test(s)) return false;
+  if (/^\$/.test(s)) return false;
+  if (/^~/.test(s)) return false;
+  if (/^[A-Z]:\\/i.test(s)) return false;
+  if (/\s/.test(s)) return false;            // spaces → CLI command, not a file
+  if (/^\w+\(/.test(s)) return false;         // function call
+  if (!/[/\\]/.test(s)) return false;         // must have a directory separator
+  if (!/\.[a-zA-Z]\w*$/.test(s)) {            // no file extension
+    const firstSeg = s.split(/[/\\]/)[0];
+    return KNOWN_SOURCE_DIRS.has(firstSeg);    // allow bare dir references
+  }
+  return true;
+}
+
+function normalizePathRef(p) {
+  // Strip line/column annotations like :42 or :42-47
+  return p.replace(/:\d+(-\d+)?$/, '').trim();
+}
+
+function checkLiveness(meta, sections, specFilePath) {
+  const errors = [];
+  const repoRoot = process.cwd();
+
+  for (const heading of ['Context Evidence', 'Implementation Links']) {
+    const text = sections.get(heading) || '';
+    const pathMatches = text.match(/`([^`]+)`/g) || [];
+    for (const raw of pathMatches) {
+      const p = raw.replace(/^`|`$/g, '').trim();
+      if (!p || !looksLikeFilePath(p)) continue;
+      const normalized = normalizePathRef(p);
+      if (!normalized) continue;
+      const resolved = path.resolve(repoRoot, normalized);
+      if (!fs.existsSync(resolved)) {
+        errors.push(`${heading}: referenced path '${p}' not found`);
+      }
+    }
+  }
+
+  const acText = sections.get('Acceptance Checks') || '';
+  const verifyRe = /→\s*verify:\s*`?\s*node\s+(scripts\/[^\s`]+)/gi;
+  let m;
+  while ((m = verifyRe.exec(acText)) !== null) {
+    const scriptPath = m[1].trim().replace(/`+$/, '');
+    if (!scriptPath) continue;
+    const resolved = path.resolve(repoRoot, scriptPath);
+    if (!fs.existsSync(resolved)) {
+      errors.push(`Acceptance Checks: verify script '${scriptPath}' not found`);
+    }
+  }
+
+  return errors;
 }
 
 function collectSpecFiles(targetPath) {
@@ -238,7 +394,7 @@ function collectSpecFiles(targetPath) {
   return files.sort((left, right) => left.localeCompare(right));
 }
 
-function validateSpecFile(filePath) {
+function validateSpecFile(filePath, options) {
   const errors = [];
   const content = fs.readFileSync(filePath, 'utf8');
   const frontmatter = matchFrontmatter(content);
@@ -281,6 +437,24 @@ function validateSpecFile(filePath) {
     errors.push(`invalid updated '${updated}' (expected YYYY-MM-DD)`);
   }
 
+  for (const key of OPTIONAL_DATE_KEYS) {
+    const value = String(meta[key] || '').trim();
+    if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      errors.push(`invalid '${key}' '${value}' (expected YYYY-MM-DD)`);
+    }
+  }
+
+  const supersedes = String(meta.supersedes || '').trim();
+  const supersededBy = String(meta.superseded_by || '').trim();
+
+  if (supersedes && supersededBy) {
+    errors.push(`contradiction: both 'supersedes' and 'superseded_by' are set`);
+  }
+
+  if (status === 'superseded' && !supersededBy) {
+    errors.push(`status is 'superseded' but 'superseded_by' is missing or empty`);
+  }
+
   const body = content.slice(frontmatter.full.length);
   const sections = extractH2Sections(body);
 
@@ -301,9 +475,21 @@ function validateSpecFile(filePath) {
     errors.push(`Acceptance Checks must include at least 2 bullet items (found ${acceptanceCheckCount})`);
   }
 
+  const acceptanceQualityErrors = validateAcceptanceChecksQuality(acceptanceChecks);
+  for (const qualityError of acceptanceQualityErrors) {
+    errors.push(qualityError);
+  }
+
   const validationEvidence = sections.get('Validation Evidence') || '';
   if (status === 'implemented' && !hasMeaningfulContent(validationEvidence)) {
     errors.push('Validation Evidence must be non-empty when status is implemented');
+  }
+
+  if (options && options.strict) {
+    const livenessErrors = checkLiveness(meta, sections, filePath);
+    for (const err of livenessErrors) {
+      errors.push(err);
+    }
   }
 
   return {
@@ -341,7 +527,7 @@ function validateSpecsRoot(options = {}) {
   }
 
   for (const specFile of specFiles) {
-    const result = validateSpecFile(specFile);
+    const result = validateSpecFile(specFile, options);
     for (const error of result.errors) {
       errors.push(`${toDisplayPath(specFile)}: ${error}`);
     }
@@ -364,8 +550,16 @@ function main() {
   }
 
   const result = validateSpecsRoot(options);
-  if (result.errors.length > 0) {
-    console.error(`specs invalid:\n${result.errors.map((error) => `  ${error}`).join('\n')}`);
+  const hasErrors = result.errors.length > 0;
+
+  if (options.json) {
+    console.log(JSON.stringify(result, null, 2));
+    if (hasErrors) process.exit(1);
+    return;
+  }
+
+  if (hasErrors) {
+    console.error(`specs invalid:\n${result.errors.map((e) => `  ${e}`).join('\n')}`);
     process.exit(1);
   }
 
@@ -386,9 +580,13 @@ module.exports = {
   REQUIRED_HEADINGS,
   VALID_STATUS,
   VALID_TYPES,
+  OPTIONAL_DATE_KEYS,
   collectSpecFiles,
   parseArgs,
   parseFrontmatterYaml,
+  validateAcceptanceChecksQuality,
+  checkLiveness,
+  looksLikeFilePath,
   validateSpecFile,
   validateSpecsRoot,
 };

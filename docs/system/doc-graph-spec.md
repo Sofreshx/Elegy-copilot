@@ -66,6 +66,9 @@ keywords: [optional]
 last_validated: YYYY-MM-DD
 expires_after_days: 90
 schema_version: 2
+aliases: [alternate, names]
+publish: true | false
+cssclasses: [list]
 ```
 
 Redirect docs (`doc_kind: redirect`) may additionally include:

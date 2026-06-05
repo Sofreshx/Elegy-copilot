@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
@@ -254,6 +255,7 @@ export function parseArgs(argv) {
     elegyCliPath: '',
     setupProfile: '',
     skillsHome: '',
+    printEnvOnly: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -326,7 +328,11 @@ export function parseArgs(argv) {
       args.setupProfile = argv[i] || '';
       continue;
     }
-    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --opencode-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --setup-profile <key>)`);
+    if (value === '--print-env-only') {
+      args.printEnvOnly = true;
+      continue;
+    }
+    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --opencode-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --setup-profile <key>, --print-env-only)`);
   }
 
   if (args.repoRoot && !args.setupProfile) {
@@ -338,6 +344,64 @@ export function parseArgs(argv) {
   }
 
   return args;
+}
+
+function checkReadiness(opencodeHome, skillsHome, options = {}) {
+  const checks = [];
+  const warnings = [];
+
+  // Skip readiness checks during dry-run to avoid side effects
+  if (options.dryRun) {
+    return { checks, warnings };
+  }
+
+  // Check worktree plugin installed
+  const pluginPath = path.join(opencodeHome, 'plugins', 'worktree.js');
+  if (fs.existsSync(pluginPath)) {
+    checks.push({ name: 'worktree-plugin', ok: true, path: pluginPath });
+    // Smoke test: verify text-level sanity and basic parseability
+    try {
+      const content = fs.readFileSync(pluginPath, 'utf8');
+      if (!content.includes('export') || !content.includes('WorktreePlugin')) {
+        warnings.push(`Worktree plugin at ${pluginPath} may have syntax issues — missing expected exports`);
+      } else {
+        checks.push({ name: 'worktree-plugin-smoke', ok: true });
+      }
+      // Check for common breakage patterns
+      if (content.includes('import { tool }') && !content.includes('@opencode-ai/plugin/tool')) {
+        warnings.push('Plugin imports tool but not from @opencode-ai/plugin/tool');
+      }
+      if (!content.includes('export default WorktreePlugin')) {
+        warnings.push('Plugin missing default export');
+      }
+    } catch (err) {
+      warnings.push(`Worktree plugin smoke test failed: ${err.message}`);
+    }
+  } else {
+    checks.push({ name: 'worktree-plugin', ok: false, path: pluginPath });
+    warnings.push(`Worktree plugin not found at ${pluginPath}`);
+  }
+
+  // Check worktree skill installed
+  const skillPath = path.join(skillsHome, 'worktree', 'SKILL.md');
+  if (fs.existsSync(skillPath)) {
+    checks.push({ name: 'worktree-skill', ok: true, path: skillPath });
+  } else {
+    checks.push({ name: 'worktree-skill', ok: false, path: skillPath });
+    warnings.push(`Worktree skill not found at ${skillPath}`);
+  }
+
+  // Check shared registry path availability (informational)
+  const copilotHome = process.env.ELEGY_COPILOT_HOME || process.env.COPILOT_HOME
+    || path.join(os.homedir(), '.copilot');
+  if (fs.existsSync(copilotHome)) {
+    checks.push({ name: 'shared-registry-home', ok: true, path: copilotHome });
+  } else {
+    checks.push({ name: 'shared-registry-home', ok: false, path: copilotHome });
+    // Not a warning — shared registry is optional for OpenCode-only users
+  }
+
+  return { checks, warnings };
 }
 
 export function runInstall(args = {}) {
@@ -425,7 +489,7 @@ export function runInstall(args = {}) {
           }
         }
 
-        try {
+          try {
           const config = readConfig(opencodeHome);
           if (!config.agent || typeof config.agent !== 'object') {
             config.agent = {};
@@ -440,7 +504,7 @@ export function runInstall(args = {}) {
             config.agent[agentName].model = modelValue;
             configUpdated += 1;
           }
-          if (configUpdated > 0) {
+          if (configUpdated > 0 && !args.dryRun) {
             writeConfig(opencodeHome, config);
           }
         } catch (err) {
@@ -493,6 +557,33 @@ export function runInstall(args = {}) {
     repoSetup,
   };
 
+  // Set INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH on Windows when
+  // targeting the default Copilot home directory.
+  if (process.platform === 'win32' && path.resolve(opencodeHome) === path.resolve('C:\\Users\\lolzi\\.copilot')) {
+    const sessionPath = path.join(opencodeHome, 'planning-session.json');
+    process.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH = sessionPath;
+    console.log(`[ENV] INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=${sessionPath}`);
+
+    // Mirror the sidecar from the CLI's default location to the override path
+    try {
+      const _require = createRequire(import.meta.url);
+      const { mirrorSessionSidecar } = _require('../copilot-ui/lib/planningSession.js');
+      const defaultSource = path.join(os.homedir(), '.elegy', 'planning-session.json');
+      const result = mirrorSessionSidecar({
+        resolvedPath: sessionPath,
+        defaultSourcePath: defaultSource,
+        homedir: os.homedir(),
+      });
+      if (result) {
+        console.log(`[SESSION] Mirrored sidecar: ${result.copiedFrom} → ${result.copiedTo}`);
+      } else {
+        console.log('[SESSION] No sidecar mirror needed (already present or source missing).');
+      }
+    } catch (err) {
+      console.warn(`[SESSION] Mirror skipped: ${err.message}`);
+    }
+  }
+
   console.log('Done.');
   console.log('');
   console.log('Next steps:');
@@ -513,12 +604,34 @@ export function runInstall(args = {}) {
   console.log('Worktree plugin config (optional): create .opencode/worktree.json in your project:');
   console.log('  { "syncFiles": [".env", ".env.local", "config/local.json"] }');
 
+  // Readiness checks
+  const readiness = checkReadiness(opencodeHome, skillsHome, { dryRun: args.dryRun });
+  if (readiness.warnings.length > 0) {
+    console.log('');
+    console.log('Readiness warnings:');
+    for (const w of readiness.warnings) {
+      console.log(`  [WARN] ${w}`);
+    }
+  }
+  if (readiness.checks.length > 0) {
+    summary.readiness = readiness;
+  }
+
   return summary;
 }
 
 try {
   if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-    runInstall(parseArgs(process.argv.slice(2)));
+    const args = parseArgs(process.argv.slice(2));
+    if (args.printEnvOnly) {
+      const copilotHome = resolveOpenCodeHome(args.opencodeHome);
+      if (process.platform === 'win32' && path.resolve(copilotHome) === path.resolve('C:\\Users\\lolzi\\.copilot')) {
+        const sessionPath = path.join(copilotHome, 'planning-session.json');
+        console.log(`INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=${sessionPath}`);
+      }
+      process.exit(0);
+    }
+    runInstall(args);
   }
 } catch (error) {
   console.error(error.message || String(error));

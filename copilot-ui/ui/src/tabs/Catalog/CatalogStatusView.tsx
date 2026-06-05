@@ -354,15 +354,15 @@ function buildExternalInventoryEntries(sources: CatalogExternalSourceProjection[
       });
     })
     .sort((left, right) => {
-      const titleOrder = left.title.localeCompare(right.title);
+      const titleOrder = String(left.title || '').localeCompare(String(right.title || ''));
       if (titleOrder !== 0) {
         return titleOrder;
       }
-      const sourceOrder = left.sourceId.localeCompare(right.sourceId);
+      const sourceOrder = String(left.sourceId || '').localeCompare(String(right.sourceId || ''));
       if (sourceOrder !== 0) {
         return sourceOrder;
       }
-      return left.target.localeCompare(right.target);
+      return String(left.target || '').localeCompare(String(right.target || ''));
     });
 }
 
@@ -639,42 +639,66 @@ export default function CatalogStatusView() {
         </article>
       </div>
 
-      <Panel
+        <Panel
         subtitle="Use the managed installers for each supported harness. Installed and active states for source installables are shown below."
         testId="catalog-status-targets-panel"
         title="Targets & install surfaces"
       >
         <div className="catalog-surface-grid">
-          {INSTALL_SURFACE_CARDS.map((card) => (
-            <article className="catalog-surface-card" key={card.target}>
-              <div className="catalog-surface-card-header">
-                <p className="catalog-surface-title">{card.title}</p>
-                <p className="catalog-item-copy">{card.description}</p>
-              </div>
-              <div className="catalog-action-row">
-                <Button
-                  disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
-                  onClick={() => {
-                    void catalogWorkspaceStore.installSurface(card.target, false);
-                  }}
-                  testId={`catalog-status-install-${card.target}`}
-                  variant="secondary"
-                >
-                  Install {card.title}
-                </Button>
-                <Button
-                  disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
-                  onClick={() => {
-                    void catalogWorkspaceStore.installSurface(card.target, true);
-                  }}
-                  testId={`catalog-status-force-${card.target}`}
-                  variant="ghost"
-                >
-                  Force {card.title}
-                </Button>
-              </div>
-            </article>
-          ))}
+          {INSTALL_SURFACE_CARDS.map((card) => {
+            const harnessInfo = (catalogState.summary?.globalInventory?.harnesses || [])
+              .find((h) => h.harnessId === card.target);
+            const optedIn = harnessInfo?.optedIn === true;
+            return (
+              <article className="catalog-surface-card" key={card.target}>
+                <div className="catalog-surface-card-header">
+                  <p className="catalog-surface-title">{card.title}</p>
+                  <p className="catalog-item-copy">{card.description}</p>
+                </div>
+                {optedIn ? (
+                  <p className="catalog-inline-note" data-testid={`catalog-status-optin-${card.target}`}>Active — click to manage assets for this harness.</p>
+                ) : (
+                  <p className="catalog-inline-note" data-testid={`catalog-status-optin-${card.target}`}>Not in use — turn on to manage assets for {card.title} here.</p>
+                )}
+                <div className="catalog-action-row">
+                  <Button
+                    disabled={catalogState.loading || catalogState.installing || catalogState.mutating || catalogState.refreshing}
+                    onClick={() => {
+                      void catalogWorkspaceStore.toggleHarnessOptIn(card.target as 'codex' | 'opencode' | 'antigravity', !optedIn);
+                    }}
+                    testId={`catalog-status-optin-toggle-${card.target}`}
+                    variant={optedIn ? 'primary' : 'secondary'}
+                  >
+                    {optedIn ? 'Deactivate' : 'Activate'}
+                  </Button>
+                  {optedIn ? (
+                    <>
+                      <Button
+                        disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
+                        onClick={() => {
+                          void catalogWorkspaceStore.installSurface(card.target, false);
+                        }}
+                        testId={`catalog-status-install-${card.target}`}
+                        variant="secondary"
+                      >
+                        Install {card.title}
+                      </Button>
+                      <Button
+                        disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
+                        onClick={() => {
+                          void catalogWorkspaceStore.installSurface(card.target, true);
+                        }}
+                        testId={`catalog-status-force-${card.target}`}
+                        variant="ghost"
+                      >
+                        Force {card.title}
+                      </Button>
+                    </>
+                  ) : null}
+                </div>
+              </article>
+            );
+          })}
         </div>
       </Panel>
 

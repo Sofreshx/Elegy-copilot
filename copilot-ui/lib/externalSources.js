@@ -1009,7 +1009,7 @@ function mergeSources(shippedDocument, userDocument) {
   for (const entry of userDocument.sources) {
     bySourceId.set(entry.sourceId, { ...entry, editable: true });
   }
-  return Array.from(bySourceId.values()).sort((left, right) => left.sourceId.localeCompare(right.sourceId));
+  return Array.from(bySourceId.values()).sort((left, right) => String(left.sourceId || '').localeCompare(String(right.sourceId || '')));
 }
 
 function parseGitHubSourceInput(payload) {

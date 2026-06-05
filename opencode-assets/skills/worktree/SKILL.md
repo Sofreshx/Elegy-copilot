@@ -26,34 +26,39 @@ Creates a new git worktree for isolated work.
 
 **Parameters:**
 - `branch` (required): Branch name for the worktree (e.g. `feature/auth`)
-- `baseBranch` (optional): Base branch to create from (defaults to current branch)
+- `baseBranch` (optional): Base branch to create from (defaults to current checkout HEAD)
+- `runSetup` (optional): If true, run detected setup commands (npm install, etc.). Default: false — only detect and report.
 
-**Example:** Create a worktree for auth feature work:
+**Example:** Create a worktree branching from current HEAD:
 ```
 worktree_create(branch: "feature/auth")
 ```
 
+**Example:** Create a worktree from a specific base:
+```
+worktree_create(branch: "feature/auth", baseBranch: "main")
+```
+
 ### worktree_list
 
-Lists all git worktrees for the current project. No parameters needed.
+Lists all git worktrees for the current project. Shows active worktree branch, base branch, path existence, and cleanup readiness. No parameters needed.
 
 ### worktree_delete
 
-Removes a git worktree. Does NOT auto-commit by default; use `commitBeforeDelete: true` to commit pending changes before removal.
+Removes a git worktree. Does NOT auto-commit. Dirty worktrees require `force: true`. Stage and commit changes manually before deletion if needed.
 
 **Parameters:**
 - `branch` (required): Branch name of the worktree to remove
-- `force` (optional): Force removal even with uncommitted changes
-- `commitBeforeDelete` (optional): If true, auto-commit pending changes before removal (default: false)
+- `force` (optional): Force removal even with uncommitted changes — discards changes (default: false)
 
-**Example — clean removal (recommended for project lane):**
+**Example — clean removal:**
 ```
 worktree_delete(branch: "feature/my-feature")
 ```
 
-**Example — auto-commit pending changes before removal:**
+**Example — force removal of dirty worktree (discards changes):**
 ```
-worktree_delete(branch: "feature/my-feature", commitBeforeDelete: true)
+worktree_delete(branch: "feature/my-feature", force: true)
 ```
 
 ## Workflow
@@ -67,13 +72,18 @@ worktree_create(branch: "feature/my-feature")
 
 The tool will:
 - Create a git worktree at `~/.local/share/opencode/worktree/<project>/<branch>`
-- Create a new branch from the current HEAD
-- Copy any files listed in `.opencode/worktree.json` (syncFiles config)
-- Auto-detect and run project setup (npm install, cargo build, etc.)
+- Create a new branch from the current checkout HEAD (or explicit baseBranch)
+- Copy any files listed in `.opencode/worktree.json` (syncFiles config) using Node filesystem APIs
+- Detect setup commands (npm install, cargo build, etc.) and report them — does NOT run them by default
+- Write a compatible record into the shared Elegy Copilot worktree registry (when discoverable)
 
 ### 2. Work in Isolation
 
 All changes in the worktree are isolated from your main checkout. The worktree shares the same git history but has its own working directory.
+
+**Git workflow in the worktree:**
+- Make small, targeted commits: inspect diff, stage intended files only, propose commit message, wait for approval
+- Never auto-push, auto-merge, or delete branches without explicit user approval
 
 ### 3. Clean Up
 
@@ -83,11 +93,14 @@ When done with the worktree:
 # List worktrees to find the one to remove
 worktree_list()
 
-# Remove the worktree (no auto-commit by default)
+# Remove a clean worktree
 worktree_delete(branch: "feature/my-feature")
 
-# If you want to commit pending changes before removal:
-worktree_delete(branch: "feature/my-feature", commitBeforeDelete: true)
+# If worktree has uncommitted changes, commit or stash first, then:
+worktree_delete(branch: "feature/my-feature")
+
+# Or force removal to discard uncommitted changes:
+worktree_delete(branch: "feature/my-feature", force: true)
 ```
 
 ## Configuration
@@ -100,7 +113,7 @@ Create `.opencode/worktree.json` in your project root to customize behavior:
 }
 ```
 
-Files listed in `syncFiles` will be copied from the main checkout to new worktrees.
+Files listed in `syncFiles` will be copied from the main checkout to new worktrees using Node filesystem copy APIs (cross-platform, no shell commands).
 
 ## Environment Variables
 
@@ -111,12 +124,20 @@ The worktree plugin injects these env vars into all shell commands:
 - `OPENCODE_WORKTREE_PATH`: Current worktree path (when in a worktree)
 - `OPENCODE_WORKTREE_ROOT`: Same as WORKTREE_PATH
 
+## Shared Registry
+
+The plugin writes compatible records into the Elegy Copilot shared worktree registry at `<copilotHome>/repo-state/<repoId>/worktrees/` when the Elegy Copilot home directory is discoverable. This provides durable visibility for the dashboard, executor, and session coordination.
+
+The plugin-local state at `<WORKTREE_BASE>/.state/<project-id>.json` is auxiliary only — it caches branch and session metadata for the OpenCode plugin. The shared registry is the durable authority.
+
 ## Safety
 
 - Worktrees are created under `~/.local/share/opencode/worktree/<project>/`
-- Each worktree gets its own branch
-- Uncommitted changes are NOT auto-committed before deletion by default; use `commitBeforeDelete: true` if you want auto-commit
+- Each worktree branches from current checkout HEAD by default (not from a previous feature branch)
+- Uncommitted changes are NOT auto-committed before deletion by default
+- Dirty worktrees require `force: true` for removal (discards changes)
 - The main checkout is never modified
+- Setup commands are detected but not run by default
 
 ## Common Mistakes
 

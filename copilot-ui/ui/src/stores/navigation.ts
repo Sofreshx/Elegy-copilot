@@ -9,13 +9,8 @@ export const CATALOG_SECTION_IDS = [
 export type CatalogSectionId = (typeof CATALOG_SECTION_IDS)[number];
 
 export const SIDEBAR_IDS = [
-  'dashboard',
-  'projects',
-  'catalog',
-  'planning',
-  'opencode',
+  'workspace',
   'lexicon',
-  'maintenance',
   'settings',
 ] as const;
 
@@ -25,6 +20,10 @@ export type ProjectSubView = 'overview' | 'sessions' | 'tasks' | 'git' | 'config
 export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | 'git' | 'usage';
 export type MaintenanceSection = 'updates' | 'sandboxes' | 'diagnostics';
 export type WizardType = 'project' | 'asset' | null;
+
+export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'maintenance' | 'runtime' | 'codex';
+
+export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal';
 
 export interface SelectedSessionContext {
   source?: string | null;
@@ -39,13 +38,8 @@ export type SidebarNavItem = {
 };
 
 export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
-  { id: 'dashboard', label: 'Runtime', icon: '▶', description: 'Active sessions, runtime output, and quick launch' },
-  { id: 'projects', label: 'Projects', icon: '◆', description: 'Registered repositories and project views' },
-  { id: 'catalog', label: 'Catalog', icon: '▤', description: 'Asset workspace, installs, and skill discovery' },
-  { id: 'planning', label: 'Planning', icon: '☑', description: 'Live roadmaps, durable task boards, and transfer per repository' },
-  { id: 'opencode', label: 'OpenCode', icon: '⊞', description: 'OpenCode agent system configuration, lanes, profiles, and setup' },
+  { id: 'workspace', label: 'Workspace', icon: '⎔', description: 'Document-centric repository workspace with docs, planning, and git operations' },
   { id: 'lexicon', label: 'Lexicon', icon: '◈', description: 'Searchable vocabulary reference for UI, design, architecture, and software engineering terms' },
-  { id: 'maintenance', label: 'Maintenance', icon: '⚙', description: 'Updates, sandboxes, diagnostics' },
   { id: 'settings', label: 'Settings', icon: '☰', description: 'App configuration and preferences' },
 ];
 
@@ -59,11 +53,15 @@ export type NavigationState = {
   sessionDetailTab: SessionDetailTab;
   maintenanceSection: MaintenanceSection;
   wizardOpen: WizardType;
+  settingsSection: SettingsSection;
+  workspaceCenterMode: WorkspaceCenterMode;
+  activePlanningSessionId: string | null;
+  activePlanningSessionContext: SelectedSessionContext | null;
 };
 
 const INITIAL_STATE: NavigationState = {
   catalogSectionId: 'global',
-  activeSidebarItem: 'dashboard',
+  activeSidebarItem: 'workspace',
   selectedProjectId: null,
   projectSubView: 'overview',
   selectedSessionId: null,
@@ -71,6 +69,10 @@ const INITIAL_STATE: NavigationState = {
   sessionDetailTab: 'activity',
   maintenanceSection: 'updates',
   wizardOpen: null,
+  settingsSection: 'app',
+  workspaceCenterMode: 'docs',
+  activePlanningSessionId: null,
+  activePlanningSessionContext: null,
 };
 
 function createNavigationStore() {
@@ -79,7 +81,8 @@ function createNavigationStore() {
   function setCatalogSectionId(catalogSectionId: CatalogSectionId): void {
     store.setState((state) => ({
       ...state,
-      activeSidebarItem: 'catalog',
+      activeSidebarItem: 'settings',
+      settingsSection: 'catalog',
       catalogSectionId,
     }));
   }
@@ -91,13 +94,14 @@ function createNavigationStore() {
       selectedSessionId: null,
       selectedSessionContext: null,
       wizardOpen: null,
+      workspaceCenterMode: sidebarItem === 'workspace' ? state.workspaceCenterMode : 'docs',
     }));
   }
 
   function selectProject(projectId: string | null, subView: ProjectSubView = 'overview'): void {
     store.setState((state) => ({
       ...state,
-      activeSidebarItem: 'projects',
+      activeSidebarItem: 'workspace',
       selectedProjectId: projectId,
       projectSubView: subView,
     }));
@@ -119,7 +123,8 @@ function createNavigationStore() {
   function setMaintenanceSection(section: MaintenanceSection): void {
     store.setState((state) => ({
       ...state,
-      activeSidebarItem: 'maintenance',
+      activeSidebarItem: 'settings',
+      settingsSection: 'maintenance',
       maintenanceSection: section,
     }));
   }
@@ -138,6 +143,39 @@ function createNavigationStore() {
     }));
   }
 
+  function setSettingsSection(section: SettingsSection): void {
+    store.setState((state) => ({
+      ...state,
+      activeSidebarItem: 'settings',
+      settingsSection: section,
+    }));
+  }
+
+  function setWorkspaceCenterMode(mode: WorkspaceCenterMode): void {
+    store.setState((state) => ({
+      ...state,
+      workspaceCenterMode: mode,
+    }));
+  }
+
+  function openPlanningSession(sessionId: string, context: SelectedSessionContext | null = null): void {
+    store.setState((state) => ({
+      ...state,
+      workspaceCenterMode: 'planning-session',
+      activePlanningSessionId: sessionId,
+      activePlanningSessionContext: context,
+    }));
+  }
+
+  function closePlanningSession(): void {
+    store.setState((state) => ({
+      ...state,
+      workspaceCenterMode: 'docs',
+      activePlanningSessionId: null,
+      activePlanningSessionContext: null,
+    }));
+  }
+
   function reset(): void {
     store.setState(INITIAL_STATE);
   }
@@ -152,6 +190,10 @@ function createNavigationStore() {
     setMaintenanceSection,
     openWizard,
     closeWizard,
+    setSettingsSection,
+    setWorkspaceCenterMode,
+    openPlanningSession,
+    closePlanningSession,
     reset,
   };
 }

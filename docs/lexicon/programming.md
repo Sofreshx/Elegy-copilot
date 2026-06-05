@@ -1,3 +1,14 @@
+---
+created: 2026-06-03
+updated: 2026-06-04
+category: lexicon
+status: current
+doc_kind: node
+id: programming-glossary
+summary: Glossary of programming paradigms, language concepts, and idioms.
+tags: [lexicon, programming, paradigms]
+---
+
 # Programming & Paradigms
 
 ## Paradigms

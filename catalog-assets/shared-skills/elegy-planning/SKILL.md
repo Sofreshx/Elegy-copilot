@@ -91,3 +91,9 @@ All commands accept `--json` for structured output and `--db <path>` for a custo
 Governed definition: `contracts/elegy/fixtures/skill-definition-v2.elegy-planning.json`
 Discovery index: `contracts/elegy/fixtures/skill-discovery-index.elegy-planning.json`
 CLI source: `rust/crates/elegy-planning`
+
+## Environment Variables
+
+### `INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH`
+
+Override path for the active planning session sidecar file. When set, the Copilot server reads the planning session from this path instead of `~/.elegy/planning-session.json`. The Codex and OpenCode install scripts set this to `~/.copilot/planning-session.json` on Windows when the Copilot home is detected. The file is a one-time mirror from the CLI's default location; re-run the install script to refresh the mirror.

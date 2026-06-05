@@ -35,7 +35,7 @@ Recommended direction:
 - Optional channel module (`whatsapp-channel.mjs`).
 
 ### Instruction Engine inputs reviewed
-- [README.md](../README.md)
+- [README.md](../../README.md)
 - [local-tracker/docs/messaging-gateway.md](../../local-tracker/docs/messaging-gateway.md)
 - [local-tracker/src/messagingGateway/commandRouter.ts](../../local-tracker/src/messagingGateway/commandRouter.ts)
 - [local-tracker/src/messagingGateway/discordPlatform.ts](../../local-tracker/src/messagingGateway/discordPlatform.ts)

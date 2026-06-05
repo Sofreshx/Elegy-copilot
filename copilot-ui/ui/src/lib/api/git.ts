@@ -213,3 +213,23 @@ export async function createGitPullRequest(
     }),
   });
 }
+
+export interface GitChecksDiscoverResponse {
+  repoPath: string;
+  checksAvailable: number;
+  checks: Array<{ name: string; path: string; description: string }>;
+}
+
+export async function discoverGitChecks(repoPath: string, baseUrl?: string): Promise<GitChecksDiscoverResponse> {
+  const url = `/api/git/checks/discover?repoPath=${encodeURIComponent(repoPath)}`;
+  return apiRequest<GitChecksDiscoverResponse>(url, { baseUrl });
+}
+
+export async function runGitChecks(repoPath: string, baseUrl?: string): Promise<GitCheckResults> {
+  return apiRequest<GitCheckResults>('/api/git/checks/run', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath }),
+  });
+}

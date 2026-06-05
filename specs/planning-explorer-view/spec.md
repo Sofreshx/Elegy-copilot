@@ -24,7 +24,7 @@ Replace the current `PlanningAuthorityView` tab with a clean, focused explorer v
 - `copilot-ui/ui/src/lib/stateDiagnostics.ts` — provides `humanizeToken()` for status display.
 - `copilot-ui/ui/src/stores/navigation.ts` — sidebar item index 4 (`'planning'`) routes to `PlanningAuthorityView`.
 - `copilot-ui/ui/src/App.tsx:83-102` — `renderContent()` switch-case dispatches to tab components. Must be modified to support standalone graph window mode via URL params.
-- `copilot-ui/ui/vite.config.ts` — single-entry-point Vite config. No build changes in scope.
+- `copilot-ui/vite.config.ts` — single-entry-point Vite config. No build changes in scope.
 - `docs/system/spec-driven-development.md` — spec contract reference.
 
 ## Requirements
@@ -131,19 +131,33 @@ Where `AugmentedRoadmap` is `PlanningLiveRoadmapSummary & { _repoSource: { repoI
 ## Acceptance Checks
 
 - **AC1 — Replaced tab:** Opening the Planning tab (sidebar item 4 or Ctrl+4) renders the new explorer view. The old metric grid, authority panel, transfer tab, and inline graph view are absent.
+  → verify: pending — manual UI verification after implementation
 - **AC2 — Repo filter loads roadmaps:** With tracked repos configured, roadmaps from all repos appear in the list. Each roadmap card shows its repo label.
+  → verify: pending — manual UI verification after implementation
 - **AC3 — Repo filter toggles:** Deselecting a repo chip hides roadmaps from that repo. Re-selecting it shows them again. Deselecting all repos shows the empty state.
+  → verify: pending — manual UI verification after implementation
 - **AC4 — Sort:** Selecting "Created (newest first)" reorders the list by `createdAt` descending. Selecting "Last updated (newest first)" reorders by `updatedAt` descending. Items with null dates appear last. Ties preserve order.
+  → verify: pending — manual UI verification after implementation
 - **AC5 — Open detail window:** Clicking a roadmap card opens a new browser window/tab.
+  → verify: pending — manual UI verification after implementation
   - AC5a: The window URL contains `?roadmapId=...` and relevant repo params.
+    → verify: pending — inspect URL after clicking a roadmap card
   - AC5b: The window renders `PlanningGraphView` (SVG graph with at least one visible node).
+    → verify: pending — manual UI verification that graph renders in new window
   - AC5c: Clicking a node opens the detail panel with entity information.
+    → verify: pending — manual UI verification of node interaction
   - AC5d: Zoom controls (+/−) change the graph scale.
+    → verify: pending — manual UI verification of zoom controls
   - AC5e: The "Close Window" / back button closes the window.
+    → verify: pending — manual UI verification of close window behavior
 - **AC6 — Multiple windows:** Opening a second roadmap opens a second independent window. Zooming in window A does not affect window B. Closing window A does not close window B. Each displays the correct roadmap title.
-- **AC7 — Empty state:** When no repos are selected, an appropriate empty-state message is shown.
+  → verify: pending — manual UI verification after implementation
+- **AC7 — Empty state:** When no repos are selected, a descriptive empty-state message is shown.
+  → verify: pending — manual UI verification after implementation
 - **AC8 — Refresh:** The refresh button re-fetches roadmaps from all tracked repos and re-applies the current filter and sort. If new repos appeared since last load, they are included.
+  → verify: pending — manual UI verification after implementation
 - **AC9 — Partial API failure:** If one or more repo API calls fail, roadmaps from successful repos are shown, and a non-blocking warning lists the failed repos by label.
+  → verify: pending — manual UI verification after implementation
 
 ## Implementation Links
 

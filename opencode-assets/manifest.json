@@ -87,21 +87,21 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",
       "destination": "skills/rubberduck-plan-review",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "opencode-roadmap-planning-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/roadmap-planning",
       "destination": "skills/roadmap-planning",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "opencode-implementation-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-review",
       "destination": "skills/implementation-review",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "opencode-implementation-handoff-skill",
@@ -115,21 +115,21 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-dev",
       "destination": "skills/spec-dev",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "opencode-spec-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-authoring",
       "destination": "skills/spec-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "opencode-spec-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-review",
       "destination": "skills/spec-review",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "opencode-code-review-skill",

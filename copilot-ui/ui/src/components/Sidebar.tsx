@@ -15,6 +15,9 @@ export default function Sidebar({
   onNavigate,
   testId = 'sidebar',
 }: SidebarProps) {
+  const topItems = items.filter((item) => item.id !== 'settings');
+  const settingsItem = items.find((item) => item.id === 'settings');
+
   return (
     <nav className="sidebar" data-testid={testId} aria-label="Main navigation">
       <div className="sidebar-header">
@@ -30,7 +33,7 @@ export default function Sidebar({
       </div>
 
       <div className="sidebar-nav">
-        {items.map((item) => (
+        {topItems.map((item) => (
           <button
             key={item.id}
             className={`sidebar-item${activeItem === item.id ? ' sidebar-item-active' : ''}`}
@@ -44,6 +47,21 @@ export default function Sidebar({
           </button>
         ))}
       </div>
+
+      {settingsItem ? (
+        <div className="sidebar-footer">
+          <button
+            className={`sidebar-item${activeItem === settingsItem.id ? ' sidebar-item-active' : ''}`}
+            data-testid={`sidebar-item-${settingsItem.id}`}
+            onClick={() => onNavigate(settingsItem.id)}
+            title={settingsItem.description}
+            type="button"
+          >
+            <span className="sidebar-item-icon" aria-hidden="true">{settingsItem.icon}</span>
+            <span className="sidebar-item-label">{settingsItem.label}</span>
+          </button>
+        </div>
+      ) : null}
     </nav>
   );
 }

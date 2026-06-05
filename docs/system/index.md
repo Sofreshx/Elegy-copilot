@@ -28,6 +28,7 @@ Use docs in this order:
 - [[progressive-constraint-narrowing]] [docs/system/progressive-constraint-narrowing.md](docs/system/progressive-constraint-narrowing.md)
 - [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md)
 - [[spec-driven-development]] [docs/system/spec-driven-development.md](docs/system/spec-driven-development.md)
+- [[commit-validation-governance]] [docs/system/commit-validation-governance.md](docs/system/commit-validation-governance.md)
 
 ## MOCs
 

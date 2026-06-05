@@ -5,7 +5,7 @@ const path = require('path');
 
 const defaultRepoRoot = path.resolve(__dirname, '..');
 
-const allowedCategory = new Set(['system', 'research', 'adr', 'meta']);
+const allowedCategory = new Set(['system', 'research', 'adr', 'meta', 'lexicon']);
 const allowedStatus = new Set(['current', 'stale', 'draft', 'archived']);
 const allowedDocKind = new Set(['index', 'moc', 'node', 'redirect']);
 
@@ -21,6 +21,9 @@ const allowlistedNonRedirectKeys = new Set([
 	'last_validated',
 	'expires_after_days',
 	'schema_version',
+	'aliases',
+	'publish',
+	'cssclasses',
 ]);
 const allowlistedRedirectKeys = new Set([...requiredKeys, 'redirect_to']);
 
@@ -297,6 +300,9 @@ function validateDocGraph({ repoRoot = defaultRepoRoot } = {}) {
 		}
 		if (rel.startsWith('docs/research/') && meta.category !== 'research') {
 			errors.push(`${rel}: docs/research/** must have category: research.`);
+		}
+		if (rel.startsWith('docs/lexicon/') && meta.category !== 'lexicon') {
+			errors.push(`${rel}: docs/lexicon/** must have category: lexicon.`);
 		}
 		const isTopLevelDocsFile = rel.startsWith('docs/') && !rel.slice('docs/'.length).includes('/');
 		if (isTopLevelDocsFile && docKind !== 'redirect' && !isRepoBackedPlanningArtifact(rel)) {

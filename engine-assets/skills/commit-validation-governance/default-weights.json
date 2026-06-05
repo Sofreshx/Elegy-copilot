@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "defaults": {
+    "threshold": 70,
+    "weights": {
+      "test": 0.40,
+      "coverage": 0.30,
+      "lint": 0.15,
+      "format": 0.15
+    },
+    "gates": ["typecheck"]
+  }
+}

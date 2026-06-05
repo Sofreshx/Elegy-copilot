@@ -3146,13 +3146,28 @@ export interface CodexProviderGatewayConfig {
   [key: string]: unknown;
 }
 
+export interface CodexProviderDeepseekStatus {
+  bridgePath: string | null;
+  bridgeConfigPath: string | null;
+  bridgeUrl: string;
+  keyConfigured: boolean;
+  bridgeReachable: boolean;
+  modelsVisible: boolean;
+  bridgeBinaryAvailable: boolean;
+  bridgeCheckoutAvailable: boolean;
+  envKeyConfigured: boolean;
+  bridgeRunning?: boolean;
+  probeError?: string | null;
+  modelIds?: string[];
+}
+
 export interface CodexProviderStatusResponse {
   codexHome: string;
   configPath: string;
   statePath: string;
   backupPath: string;
   exists: boolean;
-  activeMode: 'native' | 'elegy-routed' | string;
+  activeMode: 'native' | 'elegy-routed' | 'deepseek-bridge' | string;
   providerId: string;
   hasManagedBlock: boolean;
   hasBackup: boolean;
@@ -3160,6 +3175,7 @@ export interface CodexProviderStatusResponse {
   lastResetAt?: string | null;
   backupCreatedAt?: string | null;
   gateway: CodexProviderGatewayConfig;
+  deepseek?: CodexProviderDeepseekStatus;
   changed?: boolean;
   action?: string;
   [key: string]: unknown;

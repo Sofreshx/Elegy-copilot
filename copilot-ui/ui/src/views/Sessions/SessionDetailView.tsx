@@ -28,24 +28,32 @@ const CONTINUATION_ACTIONS = [
   { target: 'opencode', label: 'OpenCode' },
 ] as const;
 
-export default function SessionDetailView() {
+import type { SelectedSessionContext } from '../../stores/navigation';
+
+interface SessionDetailViewProps {
+  embedded?: boolean;
+  sessionIdOverride?: string;
+  sessionContext?: SelectedSessionContext | null;
+  onBack?: () => void;
+}
+
+export default function SessionDetailView({ embedded = false, sessionIdOverride, sessionContext, onBack }: SessionDetailViewProps = {}) {
   const nav = useStoreValue(navigationStore);
   const state = useStoreValue(sessionDetailStore);
 
-  const sessionId = nav.selectedSessionId;
+  const sessionId = sessionIdOverride ?? nav.selectedSessionId;
   const activeTab = nav.sessionDetailTab;
 
   useEffect(() => {
     if (!sessionId) return;
 
     let cancelled = false;
-    const selectedSessionContext = nav.selectedSessionContext;
+    const ctx = embedded ? sessionContext ?? null : nav.selectedSessionContext;
 
-    // Load historical data first, then attach live SSE
     sessionDetailStore.loadSession(
       sessionId,
-      selectedSessionContext?.source ?? undefined,
-      selectedSessionContext?.sandbox ?? undefined,
+      ctx?.source ?? undefined,
+      ctx?.sandbox ?? undefined,
     ).then(() => {
       if (!cancelled) {
         sessionDetailStore.attachStream(sessionId);
@@ -56,7 +64,7 @@ export default function SessionDetailView() {
       cancelled = true;
       sessionDetailStore.detachStream();
     };
-  }, [sessionId, nav.selectedSessionContext]);
+  }, [sessionId, embedded, sessionContext]);
 
   if (!sessionId) {
     return (
@@ -82,7 +90,11 @@ export default function SessionDetailView() {
   }
 
   function handleBack() {
-    navigationStore.selectSession(null);
+    if (onBack) {
+      onBack();
+    } else {
+      navigationStore.selectSession(null);
+    }
   }
 
   function handleStop() {
@@ -92,7 +104,7 @@ export default function SessionDetailView() {
   }
 
   return (
-    <div className="session-detail-view" data-testid="session-detail-view">
+    <div className={`session-detail-view${embedded ? ' session-detail-embedded' : ''}`} data-testid="session-detail-view">
       <header className="session-detail-header">
         <Toolbar justify="between" testId="session-detail-toolbar">
           <div className="session-detail-title-group">
@@ -102,7 +114,7 @@ export default function SessionDetailView() {
               testId="session-detail-back-button"
               onClick={handleBack}
             >
-              ← Back
+              {embedded ? '← Back to Docs' : '← Back'}
             </Button>
             <h2 className="session-detail-title" data-testid="session-detail-title">
               {title}
@@ -128,7 +140,7 @@ export default function SessionDetailView() {
                     onClick={() => sessionDetailStore.copyContinuationPrompt(action.target)}
                     disabled={continuationBusy}
                   >
-                    {copyBusy ? `Copying ${action.label}…` : `Copy ${action.label}`}
+                    {copyBusy ? `Copying ${action.label}...` : `Copy ${action.label}`}
                   </Button>
                   <Button
                     variant="ghost"
@@ -137,7 +149,7 @@ export default function SessionDetailView() {
                     onClick={() => sessionDetailStore.downloadContinuationPackage(action.target)}
                     disabled={continuationBusy}
                   >
-                    {downloadBusy ? `Exporting ${action.label}…` : `Export ${action.label}`}
+                    {downloadBusy ? `Exporting ${action.label}...` : `Export ${action.label}`}
                   </Button>
                 </Fragment>
               );
@@ -149,7 +161,7 @@ export default function SessionDetailView() {
               onClick={() => sessionDetailStore.refreshSession()}
               disabled={state.refreshing}
             >
-              {state.refreshing ? '↻ Refreshing…' : '↻ Refresh'}
+              {state.refreshing ? '↻ Refreshing...' : '↻ Refresh'}
             </Button>
             {(state.sdkStreamStatus === 'connected' || state.sdkStreamStatus === 'connecting' || state.sdkStreamStatus === 'reconnecting' || status === 'active' || status === 'running') && (
               <Button
@@ -159,14 +171,14 @@ export default function SessionDetailView() {
                 onClick={handleStop}
                 disabled={state.stopping}
               >
-                {state.stopping ? '⏹ Stopping…' : '⏹ Stop'}
+                {state.stopping ? '⏹ Stopping...' : '⏹ Stop'}
               </Button>
             )}
           </div>
         </Toolbar>
       </header>
 
-      <RemoteSessionBanner />
+      {!embedded && <RemoteSessionBanner />}
 
       <nav className="session-detail-tabs" data-testid="session-detail-tabs" role="tablist">
         {TABS.map((tab) => (
@@ -187,7 +199,7 @@ export default function SessionDetailView() {
       <div className="session-detail-content" data-testid="session-detail-content">
         {state.loading && (
           <div className="session-loading-state" data-testid="session-loading">
-            Loading session…
+            Loading session...
           </div>
         )}
 

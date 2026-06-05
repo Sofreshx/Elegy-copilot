@@ -1,3 +1,14 @@
+---
+created: 2026-06-03
+updated: 2026-06-04
+category: lexicon
+status: current
+doc_kind: node
+id: ai-ml-glossary
+summary: Glossary of AI and machine learning concepts, paradigms, and architectures.
+tags: [lexicon, ai, ml]
+---
+
 # AI & Machine Learning
 
 ## ML Concepts

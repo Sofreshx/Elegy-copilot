@@ -9,13 +9,22 @@ const DEFAULT_CODEX_HOME = path.join(os.homedir(), '.codex');
 const CONFIG_FILENAME = 'config.toml';
 const STATE_FILENAME = '.elegy-codex-provider-state.json';
 const BACKUP_FILENAME = '.elegy-codex-provider-backup.toml';
+const DEEPSEEK_STATE_FILENAME = '.elegy-deepseek-state.json';
+const DEEPSEEK_CATALOG_FILENAME = 'models_catalog.deepseek.json';
 const MANAGED_BLOCK_START = '# BEGIN elegy managed codex provider';
 const MANAGED_BLOCK_END = '# END elegy managed codex provider';
+const MANAGED_DEEPSEEK_BLOCK_START = '# BEGIN elegy managed deepseek provider';
+const MANAGED_DEEPSEEK_BLOCK_END = '# END elegy managed deepseek provider';
 const ROUTED_PROVIDER_ID = 'instruction_engine_elegy';
 const ROUTED_PROVIDER_NAME = 'Elegy Routed';
 const ROUTED_MODEL = 'opencode-go';
 const ROUTED_BASE_URL = 'http://127.0.0.1:4318/v1';
 const ROUTED_ENV_KEY = 'OPENCODE_GO_API_KEY';
+const DEEPSEEK_PROVIDER_ID = 'instruction_engine_deepseek';
+const DEEPSEEK_PROVIDER_NAME = 'DeepSeek V4';
+const DEEPSEEK_MODEL = 'deepseek-v4-pro';
+const DEEPSEEK_BASE_URL = 'http://127.0.0.1:38440/v1';
+const DEEPSEEK_ENV_KEY = 'MOON_BRIDGE_DEEPSEEK_TOKEN';
 
 function resolveCodexHome(codexHome) {
   return path.resolve(codexHome || DEFAULT_CODEX_HOME);
@@ -120,6 +129,42 @@ function removeState(codexHome) {
   }
 }
 
+function resolveDeepseekStatePath(codexHome) {
+  return path.join(resolveCodexHome(codexHome), DEEPSEEK_STATE_FILENAME);
+}
+
+function resolveDeepseekCatalogPath(codexHome) {
+  return path.join(resolveCodexHome(codexHome), DEEPSEEK_CATALOG_FILENAME);
+}
+
+function readDeepseekState(codexHome) {
+  const statePath = resolveDeepseekStatePath(codexHome);
+  try {
+    if (!fs.existsSync(statePath)) {
+      return {};
+    }
+    const parsed = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeDeepseekState(codexHome, state) {
+  const statePath = resolveDeepseekStatePath(codexHome);
+  writeTextAtomic(statePath, `${JSON.stringify(state, null, 2)}\n`);
+  return statePath;
+}
+
+function removeDeepseekState(codexHome) {
+  const statePath = resolveDeepseekStatePath(codexHome);
+  try {
+    fs.rmSync(statePath, { force: true });
+  } catch {
+    // Ignore cleanup failures.
+  }
+}
+
 function hasTopLevelKey(text, key) {
   return new RegExp(`^\\s*${escapeRegExp(key)}\\s*=`, 'm').test(text);
 }
@@ -143,6 +188,74 @@ function buildManagedBlock() {
     'wire_api = "responses"',
     MANAGED_BLOCK_END,
   ].join('\n');
+}
+
+function buildDeepseekManagedBlock(codexHome) {
+  const lines = [
+    MANAGED_DEEPSEEK_BLOCK_START,
+    `[model_providers.${DEEPSEEK_PROVIDER_ID}]`,
+    `name = "${DEEPSEEK_PROVIDER_NAME}"`,
+    `base_url = "${DEEPSEEK_BASE_URL}"`,
+  ];
+  if (typeof process !== 'undefined' && process.env && process.env.MOON_BRIDGE_DEEPSEEK_TOKEN) {
+    lines.push(`env_key = "${DEEPSEEK_ENV_KEY}"`);
+  }
+  lines.push('wire_api = "responses"');
+  lines.push(MANAGED_DEEPSEEK_BLOCK_END);
+  return lines.join('\n');
+}
+
+function buildDeepseekModelCatalog() {
+  const REASONING_LEVELS = [
+    { effort: 'low', description: 'Fast responses with lighter reasoning' },
+    { effort: 'medium', description: 'Balanced speed and reasoning depth' },
+    { effort: 'high', description: 'Greater reasoning depth for complex problems' },
+    { effort: 'xhigh', description: 'Maximum reasoning depth for complex problems' },
+  ];
+  return {
+    fetched_at: new Date().toISOString(),
+    models: [
+      {
+        slug: 'deepseek-v4-pro',
+        display_name: 'DeepSeek V4 Pro',
+        description: 'DeepSeek V4 Pro reasoning model via Moon Bridge.',
+        default_reasoning_level: 'high',
+        supported_reasoning_levels: REASONING_LEVELS,
+        visibility: 'list',
+        context_window: 262144,
+        max_context_window: 262144,
+        input_modalities: ['text'],
+        supports_parallel_tool_calls: true,
+      },
+      {
+        slug: 'deepseek-v4-flash',
+        display_name: 'DeepSeek V4 Flash',
+        description: 'DeepSeek V4 Flash fast reasoning model via Moon Bridge.',
+        default_reasoning_level: 'medium',
+        supported_reasoning_levels: REASONING_LEVELS,
+        visibility: 'list',
+        context_window: 262144,
+        max_context_window: 262144,
+        input_modalities: ['text'],
+        supports_parallel_tool_calls: true,
+      },
+    ],
+  };
+}
+
+function writeDeepseekCatalog(codexHome) {
+  const catalogPath = resolveDeepseekCatalogPath(codexHome);
+  writeTextAtomic(catalogPath, `${JSON.stringify(buildDeepseekModelCatalog(), null, 2)}\n`);
+  return catalogPath;
+}
+
+function removeDeepseekCatalog(codexHome) {
+  const catalogPath = resolveDeepseekCatalogPath(codexHome);
+  try {
+    fs.rmSync(catalogPath, { force: true });
+  } catch {
+    // Ignore cleanup failures.
+  }
 }
 
 function writeBackupIfNeeded(codexHome, originalText) {
@@ -239,6 +352,124 @@ function hasProviderTable(text, providerId) {
   return new RegExp(`^\\s*\\[model_providers\\.${escapeRegExp(providerId)}\\]\\s*$`, 'm').test(normalizeNewlines(text));
 }
 
+function stripDeepseekManagedBlock(text) {
+  const normalized = normalizeNewlines(text);
+  const pattern = new RegExp(
+    `\\n?${escapeRegExp(MANAGED_DEEPSEEK_BLOCK_START)}[\\s\\S]*?${escapeRegExp(MANAGED_DEEPSEEK_BLOCK_END)}\\n?`,
+    'g',
+  );
+  return normalized.replace(pattern, '\n').replace(/\n{3,}/g, '\n\n').trimEnd();
+}
+
+function hasDeepseekManagedBlock(text) {
+  return text.includes(MANAGED_DEEPSEEK_BLOCK_START);
+}
+
+function appendDeepseekManagedBlock(text, codexHome) {
+  const stripped = stripDeepseekManagedBlock(text);
+  if (hasProviderTable(stripped, DEEPSEEK_PROVIDER_ID)) {
+    const error = new Error(`Existing Codex config already defines [model_providers.${DEEPSEEK_PROVIDER_ID}].`);
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const { preambleLines, bodyText } = splitRootPreamble(stripped);
+  const providerResult = upsertRootKeyLine(
+    preambleLines,
+    'model_provider',
+    `model_provider = "${DEEPSEEK_PROVIDER_ID}"`,
+  );
+  const modelResult = upsertRootKeyLine(
+    providerResult.lines,
+    'model',
+    `model = "${DEEPSEEK_MODEL}"`,
+  );
+  const catalogResult = upsertRootKeyLine(
+    modelResult.lines,
+    'model_catalog_json',
+    `model_catalog_json = "${resolveDeepseekCatalogPath(codexHome).replace(/\\/g, '\\\\')}"`,
+  );
+
+  return {
+    nextText: composeConfigText(catalogResult.lines, bodyText, buildDeepseekManagedBlock(codexHome)),
+    previousModelLine: modelResult.previousLine,
+    previousModelProviderLine: providerResult.previousLine,
+    previousModelCatalogJsonLine: catalogResult.previousLine,
+  };
+}
+
+function applyDeepseekSoftReset(text, state = {}) {
+  const stripped = stripDeepseekManagedBlock(text);
+  const { preambleLines, bodyText } = splitRootPreamble(stripped);
+  const restoredProviderLines = restoreRootKeyLine(
+    preambleLines,
+    'model_provider',
+    typeof state.previousModelProviderLine === 'string' ? state.previousModelProviderLine : null,
+  );
+  const restoredModelLines = restoreRootKeyLine(
+    restoredProviderLines,
+    'model',
+    typeof state.previousModelLine === 'string' ? state.previousModelLine : null,
+  );
+  const restoredCatalogLines = restoreRootKeyLine(
+    restoredModelLines,
+    'model_catalog_json',
+    typeof state.previousModelCatalogJsonLine === 'string' ? state.previousModelCatalogJsonLine : null,
+  );
+  return composeConfigText(restoredCatalogLines, bodyText, '');
+}
+
+function saveDeepseekSettings(codexHome, settings) {
+  const prev = readDeepseekState(codexHome);
+  const next = { ...prev };
+
+  if (typeof settings.bridgePath === 'string') {
+    next.bridgePath = settings.bridgePath;
+    const pathExists = fs.existsSync(settings.bridgePath);
+    if (pathExists) {
+      const stat = fs.statSync(settings.bridgePath);
+      next.bridgeBinaryAvailable = stat.isFile();
+      next.bridgeCheckoutAvailable = stat.isDirectory();
+    } else {
+      next.bridgeBinaryAvailable = false;
+      next.bridgeCheckoutAvailable = false;
+    }
+  }
+  if (typeof settings.bridgeConfigPath === 'string') {
+    next.bridgeConfigPath = settings.bridgeConfigPath;
+  }
+  if (typeof settings.bridgeUrl === 'string') {
+    next.bridgeUrl = settings.bridgeUrl;
+  }
+  if (typeof settings.keyConfigured === 'boolean') {
+    next.keyConfigured = settings.keyConfigured;
+  }
+  if (typeof settings.bridgeReachable === 'boolean') {
+    next.bridgeReachable = settings.bridgeReachable;
+  }
+  if (typeof settings.modelsVisible === 'boolean') {
+    next.modelsVisible = settings.modelsVisible;
+  }
+
+  writeDeepseekState(codexHome, next);
+  return getDeepseekStatus(codexHome);
+}
+
+function getDeepseekStatus(codexHome) {
+  const dsState = readDeepseekState(codexHome);
+  return {
+    bridgePath: typeof dsState.bridgePath === 'string' ? dsState.bridgePath : null,
+    bridgeConfigPath: typeof dsState.bridgeConfigPath === 'string' ? dsState.bridgeConfigPath : null,
+    bridgeUrl: typeof dsState.bridgeUrl === 'string' ? dsState.bridgeUrl : DEEPSEEK_BASE_URL,
+    keyConfigured: dsState.keyConfigured === true,
+    bridgeReachable: dsState.bridgeReachable === true,
+    modelsVisible: dsState.modelsVisible === true,
+    bridgeBinaryAvailable: dsState.bridgeBinaryAvailable === true,
+    bridgeCheckoutAvailable: dsState.bridgeCheckoutAvailable === true,
+    envKeyConfigured: typeof process !== 'undefined' && process.env && !!process.env.MOON_BRIDGE_DEEPSEEK_TOKEN,
+  };
+}
+
 function appendManagedBlock(text) {
   const stripped = stripManagedBlock(text);
   if (hasProviderTable(stripped, ROUTED_PROVIDER_ID)) {
@@ -293,7 +524,12 @@ function getStatus(codexHome) {
   const backupPath = resolveBackupPath(resolvedHome);
   const configText = readTextIfExists(configPath);
   const state = readState(resolvedHome);
-  const activeMode = configText.includes(MANAGED_BLOCK_START) ? 'elegy-routed' : 'native';
+  let activeMode = 'native';
+  if (configText.includes(MANAGED_DEEPSEEK_BLOCK_START)) {
+    activeMode = 'deepseek-bridge';
+  } else if (configText.includes(MANAGED_BLOCK_START)) {
+    activeMode = 'elegy-routed';
+  }
 
   return {
     codexHome: resolvedHome,
@@ -302,26 +538,36 @@ function getStatus(codexHome) {
     backupPath,
     exists: fs.existsSync(configPath),
     activeMode,
-    providerId: activeMode === 'elegy-routed' ? ROUTED_PROVIDER_ID : 'openai',
-    hasManagedBlock: configText.includes(MANAGED_BLOCK_START),
+    providerId: activeMode === 'elegy-routed' ? ROUTED_PROVIDER_ID
+      : activeMode === 'deepseek-bridge' ? DEEPSEEK_PROVIDER_ID
+      : 'openai',
+    hasManagedBlock: configText.includes(MANAGED_BLOCK_START) || configText.includes(MANAGED_DEEPSEEK_BLOCK_START),
     hasBackup: hasBackup(resolvedHome),
     lastAppliedAt: typeof state.lastAppliedAt === 'string' ? state.lastAppliedAt : null,
     lastResetAt: typeof state.lastResetAt === 'string' ? state.lastResetAt : null,
     backupCreatedAt: typeof state.backupCreatedAt === 'string' ? state.backupCreatedAt : null,
-    gateway: {
-      providerId: ROUTED_PROVIDER_ID,
-      model: ROUTED_MODEL,
-      baseUrl: ROUTED_BASE_URL,
-      envKey: ROUTED_ENV_KEY,
-    },
+    gateway: activeMode === 'deepseek-bridge'
+      ? {
+        providerId: DEEPSEEK_PROVIDER_ID,
+        model: DEEPSEEK_MODEL,
+        baseUrl: DEEPSEEK_BASE_URL,
+        envKey: DEEPSEEK_ENV_KEY,
+      }
+      : {
+        providerId: ROUTED_PROVIDER_ID,
+        model: ROUTED_MODEL,
+        baseUrl: ROUTED_BASE_URL,
+        envKey: ROUTED_ENV_KEY,
+      },
+    deepseek: getDeepseekStatus(resolvedHome),
   };
 }
 
 function setMode(codexHome, mode) {
   const resolvedHome = resolveCodexHome(codexHome);
   const normalizedMode = String(mode || '').trim().toLowerCase();
-  if (normalizedMode !== 'native' && normalizedMode !== 'elegy-routed') {
-    const error = new Error('mode must be "native" or "elegy-routed"');
+  if (normalizedMode !== 'native' && normalizedMode !== 'elegy-routed' && normalizedMode !== 'deepseek-bridge') {
+    const error = new Error('mode must be "native", "elegy-routed", or "deepseek-bridge"');
     error.statusCode = 400;
     throw error;
   }
@@ -329,39 +575,88 @@ function setMode(codexHome, mode) {
   const configPath = resolveConfigPath(resolvedHome);
   const existing = readTextIfExists(configPath);
   const previousState = readState(resolvedHome);
-  const alreadyActive = existing.includes(MANAGED_BLOCK_START);
-  if (normalizedMode === 'elegy-routed' && alreadyActive) {
+  const isDeepseekActive = hasDeepseekManagedBlock(existing);
+  const isElegyActive = existing.includes(MANAGED_BLOCK_START);
+
+  if (normalizedMode === 'elegy-routed' && isElegyActive) {
     return {
       ...getStatus(resolvedHome),
       changed: false,
       action: 'activate',
     };
   }
-  const nextText = normalizedMode === 'elegy-routed'
-    ? appendManagedBlock(existing)
-    : { nextText: applySoftReset(existing, previousState) };
-  const changed = normalizeNewlines(existing) !== normalizeNewlines(nextText.nextText);
+  if (normalizedMode === 'deepseek-bridge' && isDeepseekActive) {
+    return {
+      ...getStatus(resolvedHome),
+      changed: false,
+      action: 'activate',
+    };
+  }
 
-  if (changed && nextText.nextText) {
-    validateConfigToml(
-      nextText.nextText,
-      normalizedMode === 'elegy-routed' ? 'after enabling Elegy Routed' : 'after restoring native mode',
-    );
+  let nextTextResult;
+  let action;
+
+  if (normalizedMode === 'elegy-routed') {
+    const stripped = stripDeepseekManagedBlock(existing);
+    const { preambleLines, bodyText } = splitRootPreamble(stripped);
+    const cleanedPreamble = removeRootKeyLines(preambleLines, 'model_catalog_json');
+    const cleanedText = composeConfigText(cleanedPreamble, bodyText, '');
+    nextTextResult = appendManagedBlock(cleanedText);
+    action = 'activate';
+  } else if (normalizedMode === 'deepseek-bridge') {
+    const stripped = stripManagedBlock(existing);
+    nextTextResult = appendDeepseekManagedBlock(stripped, resolvedHome);
+    action = 'activate';
+  } else {
+    if (isDeepseekActive) {
+      nextTextResult = { nextText: applyDeepseekSoftReset(existing, previousState) };
+      action = 'soft-reset';
+    } else {
+      nextTextResult = { nextText: applySoftReset(existing, previousState) };
+      action = 'soft-reset';
+    }
+  }
+
+  const changed = normalizeNewlines(existing) !== normalizeNewlines(nextTextResult.nextText);
+
+  if (changed && nextTextResult.nextText) {
+    const contextLabel = normalizedMode === 'elegy-routed'
+      ? 'after enabling Elegy Routed'
+      : normalizedMode === 'deepseek-bridge'
+      ? 'after enabling DeepSeek V4'
+      : 'after restoring native mode';
+    validateConfigToml(nextTextResult.nextText, contextLabel);
   }
 
   if (normalizedMode === 'elegy-routed') {
     const backupPath = writeBackupIfNeeded(resolvedHome, existing);
+    removeDeepseekCatalog(resolvedHome);
     writeState(resolvedHome, {
       ...previousState,
       backupPath,
       backupCreatedAt: previousState.backupCreatedAt || new Date().toISOString(),
       originalConfigExisted: fs.existsSync(configPath),
-      previousModelLine: nextText.previousModelLine,
-      previousModelProviderLine: nextText.previousModelProviderLine,
+      previousModelLine: nextTextResult.previousModelLine,
+      previousModelProviderLine: nextTextResult.previousModelProviderLine,
+      lastAppliedAt: new Date().toISOString(),
+      activeMode: normalizedMode,
+    });
+  } else if (normalizedMode === 'deepseek-bridge') {
+    const backupPath = writeBackupIfNeeded(resolvedHome, existing);
+    writeDeepseekCatalog(resolvedHome);
+    writeState(resolvedHome, {
+      ...previousState,
+      backupPath,
+      backupCreatedAt: previousState.backupCreatedAt || new Date().toISOString(),
+      originalConfigExisted: fs.existsSync(configPath),
+      previousModelLine: nextTextResult.previousModelLine,
+      previousModelProviderLine: nextTextResult.previousModelProviderLine,
+      previousModelCatalogJsonLine: nextTextResult.previousModelCatalogJsonLine,
       lastAppliedAt: new Date().toISOString(),
       activeMode: normalizedMode,
     });
   } else {
+    removeDeepseekCatalog(resolvedHome);
     writeState(resolvedHome, {
       ...previousState,
       activeMode: normalizedMode,
@@ -370,21 +665,21 @@ function setMode(codexHome, mode) {
   }
 
   if (changed) {
-    if (!nextText.nextText && previousState.originalConfigExisted === false) {
+    if (!nextTextResult.nextText && previousState.originalConfigExisted === false) {
       try {
         fs.rmSync(configPath, { force: true });
       } catch {
         // Ignore deletion failures for soft reset.
       }
     } else {
-      writeTextAtomic(configPath, nextText.nextText);
+      writeTextAtomic(configPath, nextTextResult.nextText);
     }
   }
 
   return {
     ...getStatus(resolvedHome),
     changed,
-    action: normalizedMode === 'elegy-routed' ? 'activate' : 'soft-reset',
+    action,
   };
 }
 
@@ -422,6 +717,8 @@ function hardReset(codexHome) {
     // Ignore backup cleanup failures.
   }
   removeState(resolvedHome);
+  removeDeepseekState(resolvedHome);
+  removeDeepseekCatalog(resolvedHome);
 
   return {
     ...getStatus(resolvedHome),
@@ -447,15 +744,28 @@ module.exports = {
   ROUTED_MODEL,
   ROUTED_BASE_URL,
   ROUTED_ENV_KEY,
+  DEEPSEEK_PROVIDER_ID,
+  DEEPSEEK_MODEL,
+  DEEPSEEK_BASE_URL,
+  DEEPSEEK_ENV_KEY,
   MANAGED_BLOCK_START,
   MANAGED_BLOCK_END,
+  MANAGED_DEEPSEEK_BLOCK_START,
+  MANAGED_DEEPSEEK_BLOCK_END,
   resolveCodexHome,
   resolveConfigPath,
   resolveStatePath,
   resolveBackupPath,
+  resolveDeepseekStatePath,
+  resolveDeepseekCatalogPath,
   stripManagedBlock,
+  stripDeepseekManagedBlock,
   appendManagedBlock,
+  appendDeepseekManagedBlock,
   applySoftReset,
+  applyDeepseekSoftReset,
+  getDeepseekStatus,
+  saveDeepseekSettings,
   getPlanningSkillStatus,
   getStatus,
   setMode,

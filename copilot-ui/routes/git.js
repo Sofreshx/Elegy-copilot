@@ -79,6 +79,10 @@ function parseNumstat(output) {
   return { additions, deletions };
 }
 
+function normalizeBranchName(name) {
+  return typeof name === 'string' && name.trim().length > 0 ? name.trim() : '';
+}
+
 function parseBranches(output) {
   return String(output || '')
     .split('\n')
@@ -90,12 +94,13 @@ function parseBranches(output) {
         ? [second, third]
         : [third, second];
       return {
-        name,
+        name: normalizeBranchName(name),
         current: marker === '*',
         remote: type === 'remote',
         upstream: upstream || null,
       };
     })
+    .filter((branch) => branch.name.length > 0)
     .sort((left, right) => {
       if (left.current !== right.current) {
         return left.current ? -1 : 1;
@@ -502,6 +507,29 @@ function handleGitPush(ctx, deps) {
   });
 }
 
+function handleGitAuthLogin(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const os = require('os');
+
+  const homeDir = os.homedir();
+
+  return Promise.resolve()
+    .then(() => runCommand(deps.childProcess, 'gh', ['auth', 'login', '--web'], homeDir, 60000))
+    .then(() => runCommand(deps.childProcess, 'gh', ['auth', 'status'], homeDir, 15000))
+    .then((result) => {
+      const authenticated = /Logged in/i.test(result.stdout) || /Logged in/i.test(result.stderr);
+      sendJson(res, 200, { authenticated });
+    })
+    .catch((error) => {
+      const message = String(error.stderr || error.message || error).trim();
+      if (/already logged in/i.test(message)) {
+        return sendJson(res, 200, { authenticated: true });
+      }
+      sendJson(res, 500, { authenticated: false, error: message || 'GitHub login failed' });
+    });
+}
+
 function handleGitPullRequest(ctx, deps) {
   const { req, res } = ctx;
   const { sendJson, readJsonBody } = deps;
@@ -519,7 +547,6 @@ function handleGitPullRequest(ctx, deps) {
       .catch((error) => {
         sendJson(res, 500, { error: String(error.message || error) });
       });
-    return;
   }
 
   return handleGitActionWithGate(ctx, deps, 'pull-request', async (repoPath, body) => {
@@ -620,6 +647,7 @@ function register(context = {}) {
     { method: 'POST', path: '/api/git/pull', handler: (ctx) => handleGitPull(ctx, deps) },
     { method: 'POST', path: '/api/git/push', handler: (ctx) => handleGitPush(ctx, deps) },
     { method: 'POST', path: '/api/git/pull-request', handler: (ctx) => handleGitPullRequest(ctx, deps) },
+    { method: 'POST', path: '/api/git/auth/login', handler: (ctx) => handleGitAuthLogin(ctx, deps) },
   ];
 }
 

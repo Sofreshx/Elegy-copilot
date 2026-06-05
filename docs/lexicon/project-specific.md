@@ -1,3 +1,14 @@
+---
+created: 2026-06-03
+updated: 2026-06-04
+category: lexicon
+status: current
+doc_kind: node
+id: project-specific-glossary
+summary: Glossary of project-specific terms for Elegy Copilot and Holon agent taxonomy.
+tags: [lexicon, elegy-copilot, holon]
+---
+
 # Elegy Copilot & Holon
 
 ## Agent Taxonomy

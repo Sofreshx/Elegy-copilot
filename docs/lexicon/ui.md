@@ -1,3 +1,14 @@
+---
+created: 2026-06-03
+updated: 2026-06-04
+category: lexicon
+status: current
+doc_kind: node
+id: ui-glossary
+summary: Glossary of UI and interaction concepts, overlays, and component patterns.
+tags: [lexicon, ui, interaction]
+---
+
 # UI & Interaction
 
 ## Overlays

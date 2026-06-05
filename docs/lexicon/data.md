@@ -1,3 +1,14 @@
+---
+created: 2026-06-03
+updated: 2026-06-04
+category: lexicon
+status: current
+doc_kind: node
+id: data-glossary
+summary: Glossary of data, database, and storage concepts.
+tags: [lexicon, data, storage]
+---
+
 # Data & Storage
 
 ## Database Types

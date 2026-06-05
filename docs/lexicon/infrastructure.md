@@ -1,3 +1,14 @@
+---
+created: 2026-06-03
+updated: 2026-06-04
+category: lexicon
+status: current
+doc_kind: node
+id: infrastructure-glossary
+summary: Glossary of infrastructure, containers, and DevOps concepts.
+tags: [lexicon, infrastructure, devops]
+---
+
 # Infrastructure & DevOps
 
 ## Containers

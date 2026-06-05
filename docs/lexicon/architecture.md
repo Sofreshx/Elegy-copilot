@@ -1,3 +1,14 @@
+---
+created: 2026-06-03
+updated: 2026-06-04
+category: lexicon
+status: current
+doc_kind: node
+id: architecture-glossary
+summary: Glossary of software architecture styles, patterns, and structural decisions.
+tags: [lexicon, architecture]
+---
+
 # Software Architecture
 
 ## Architectural Styles

@@ -25,7 +25,7 @@ related: [system-docs-index]
 
 ## See also
 
-- Orchestrator user guide: `docs/system/orchestrator/user-guide.md`
+- Orchestrator user guide: `docs/system/mocs/orchestration-and-agents.md`
 - System upgrade direction: [[system-upgrade-direction-2026]] [docs/system/system-upgrade-direction-2026.md](docs/system/system-upgrade-direction-2026.md)
 
 ## Depends on

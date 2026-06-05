@@ -1,0 +1,19 @@
+{
+  "name": "elegy-obsidian-docs",
+  "version": "0.1.0",
+  "description": "Repo-backed Obsidian documentation skill, scripts, and validation for Elegy Copilot",
+  "entrypoint": "../../../catalog-assets/shared-skills/repo-backed-obsidian-docs/SKILL.md",
+  "scripts": [
+    "../../../scripts/obsidian-docs-preflight.js",
+    "../../../scripts/obsidian-docs-init.js",
+    "../../../scripts/obsidian-docs-validate.js",
+    "../../../scripts/validate-doc-graph.js"
+  ],
+  "skills": [
+    "repo-backed-obsidian-docs"
+  ],
+  "marketplace": {
+    "category": "docs",
+    "tags": ["obsidian", "documentation", "vault", "validation"]
+  }
+}

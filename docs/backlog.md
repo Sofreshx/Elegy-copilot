@@ -115,7 +115,7 @@ GitHub-hosted and self-hosted note sources.
 Implement the runtime composition, refresh points, and inspection-ready orchestration surfaces for **Session Intent Frame** and **Session Closure Summary** so the summaries become executable and reviewable without becoming new planning authorities.
 
 ### Key Points
-- 2026-03-23: The planning-ready implementation brief already exists at `docs/system/orchestrator/framing-closure-runtime-adoption.md`.
+- 2026-03-23: The planning-ready implementation brief already exists at `docs/system/mocs/orchestration-and-agents.md`.
 - 2026-03-23: Runtime adoption must preserve `plan.md`, Repository Backlog, Roadmap, and repo carryover docs as the canonical authorities and fail closed when persistence or projection is unavailable.
 
 ## RB-007 - Add session summary synthesis and fail-closed projection paths

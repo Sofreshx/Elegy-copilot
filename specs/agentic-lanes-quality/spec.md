@@ -95,17 +95,29 @@ Add tests for:
 ## Acceptance Checks
 
 - `docs/system/opencode-guide.md` does not classify `lane-quick`, `lane-standard`, `lane-spec`, or `lane-project` as skills (they are agents). The validator in R7 enforces this.
+  → verify: `node scripts/validate-lane-doc-refs.js`
 - `node scripts/validate-lane-doc-refs.js` exits 0 and confirms docs reference only shipped agents and skills.
+  → verify: `node scripts/validate-lane-doc-refs.js`
 - `node scripts/validate-lane-prompt-sections.js` exits 0 and confirms all lane agent `.md` files have required sections.
+  → verify: `node scripts/validate-lane-prompt-sections.js`
 - `node scripts/validate-profile-role-coverage.js` exits 0 and confirms every `agentRoles` key maps to an installed agent.
+  → verify: `node scripts/validate-profile-role-coverage.js`
 - `node scripts/validate-elegy-command-refs.js` exits 0 and confirms `project.md` uses only documented Elegy commands.
+  → verify: `node scripts/validate-elegy-command-refs.js`
 - `node scripts/opencode-install.test.js` passes all existing scenarios.
+  → verify: `node scripts/opencode-install.test.js`
 - `node scripts/validate-manifest.js` passes.
+  → verify: `node scripts/validate-manifest.js`
 - New install test confirms all lane agents and subagents are present after install.
+  → verify: `node scripts/opencode-install.test.js`
 - Profile switching test confirms model fields update for all role-mapped agents and `reasoningEffort` is preserved.
+  → verify: `node scripts/opencode-profile-switch.test.js`
 - `quick.md` contains explicit rejection rule for ambiguous/user-facing/API work.
+  → verify: `Select-String -Path opencode-assets/agents/quick.md -Pattern "ambiguous|user-facing|API contract|switch to"`
 - `spec.md` contains "explore first" clarification policy when contract boundary is discoverable.
+  → verify: `Select-String -Path opencode-assets/agents/spec.md -Pattern "explore.*first|discoverable from code|evidence-first"`
 - `project.md` contains zero references to `goal current`, `lease list`, `work-point list`, `evidence add`.
+  → verify: `Select-String -Path opencode-assets/agents/project.md -Pattern "goal current|lease list|work-point list|evidence add" -NotMatch`
 
 ## Implementation Links
 
