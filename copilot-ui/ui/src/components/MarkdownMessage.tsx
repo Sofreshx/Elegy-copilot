@@ -5,6 +5,8 @@ import CopyButton from './CopyButton';
 interface MarkdownMessageProps {
   content: string;
   testId?: string;
+  onNavigateDoc?: (docPath: string) => void;
+  onCommandAction?: (action: 'run' | 'pin' | 'copy', command: string, blockId: string) => void;
 }
 
 interface CodeBlock {
@@ -153,10 +155,24 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
   html = html.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
   html = html.replace(/(?<!_)_([^_]+?)_(?!_)/g, '<em>$1</em>');
 
-  // Links [text](url)
+  // Links [text](url) — with data-doc-link for relative .md links
   html = html.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener">$1</a>',
+    (_match: string, text: string, url: string) => {
+      const isDocLink = /\.md$/i.test(url) && !/^https?:\/\//i.test(url);
+      const docLinkAttr = isDocLink ? ' data-doc-link="true"' : '';
+      return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"${docLinkAttr}>${escapeHtml(text)}</a>`;
+    },
+  );
+
+  // Wiki links [[link]] and [[link|alias]]
+  html = html.replace(
+    /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+    (_match: string, target: string, alias: string) => {
+      const label = alias || target;
+      const href = target;
+      return `<a href="${escapeHtml(href)}" class="wiki-link" data-wiki-link="true">${escapeHtml(label)}</a>`;
+    },
   );
 
   return { html, codeBlocks };
@@ -165,11 +181,36 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
 export default function MarkdownMessage({
   content,
   testId = 'markdown-message',
+  onNavigateDoc,
+  onCommandAction,
 }: MarkdownMessageProps) {
   const { html, codeBlocks } = useMemo(() => markdownToHtml(content), [content]);
 
   // Split HTML on code-block placeholders so we can interleave React nodes
   const parts = html.split('___CODE_BLOCK___');
+
+  function handleClick(e: React.MouseEvent<HTMLDivElement>) {
+    const target = e.target as HTMLElement;
+    const anchor = target.closest('a');
+    if (!anchor) return;
+
+    const href = anchor.getAttribute('href');
+    if (!href) return;
+
+    // Handle wiki links
+    if (anchor.hasAttribute('data-wiki-link')) {
+      e.preventDefault();
+      onNavigateDoc?.(href + '.md');
+      return;
+    }
+
+    // Handle relative doc links
+    if (anchor.hasAttribute('data-doc-link')) {
+      e.preventDefault();
+      onNavigateDoc?.(href);
+      return;
+    }
+  }
 
   const sanitize = (dirty: string) =>
     DOMPurify.sanitize(dirty, {
@@ -179,11 +220,11 @@ export default function MarkdownMessage({
         'ul', 'ol', 'li',
         'blockquote', 'a', 'hr',
       ],
-      ALLOWED_ATTR: ['href', 'target', 'rel'],
+      ALLOWED_ATTR: ['href', 'target', 'rel', 'data-doc-link', 'data-wiki-link', 'class'],
     });
 
   return (
-    <div className="markdown-message" data-testid={testId}>
+    <div className="markdown-message" data-testid={testId} onClick={handleClick}>
       {parts.map((segment, idx) => (
         <React.Fragment key={idx}>
           {/* Render the HTML segment */}

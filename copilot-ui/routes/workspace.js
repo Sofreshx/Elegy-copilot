@@ -5,6 +5,8 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 
+const pinnedCommands = require('../lib/pinnedCommands');
+
 const WORKSPACE_CONFIG_FILE = 'elegy.workspace.json';
 const MAX_COMMANDS = 50;
 const ALLOWED_KINDS = new Set(['dev', 'test', 'check', 'build', 'lint', 'clean', 'deploy', 'custom']);
@@ -197,14 +199,36 @@ async function handleRunCommand(ctx, deps) {
   }
 
   const config = readWorkspaceConfig(root);
-  if (!config) {
-    sendJson(res, 404, { error: 'No elegy.workspace.json found in repository' });
-    return;
+  let command = null;
+  let pinnedCmd = null;
+
+  // Try workspace config first
+  if (config) {
+    command = config.commands.find((c) => c.id === commandId);
   }
 
-  const command = config.commands.find((c) => c.id === commandId);
+  // Fallback: check pinned commands
   if (!command) {
-    sendJson(res, 404, { error: `Command '${commandId}' not found in workspace config` });
+    const repoId = path.basename(root);
+    const pinned = pinnedCommands.listPinnedCommands(repoId);
+    pinnedCmd = pinned.commands.find((c) => c.id === commandId);
+    if (pinnedCmd) {
+      // Normalize pinned command to workspace command shape
+      command = {
+        id: pinnedCmd.id,
+        label: pinnedCmd.label,
+        kind: pinnedCmd.kind,
+        command: pinnedCmd.command,
+        args: pinnedCmd.args,
+        cwd: pinnedCmd.cwd,
+        confirm: pinnedCmd.confirm,
+        longRunning: pinnedCmd.longRunning,
+      };
+    }
+  }
+
+  if (!command) {
+    sendJson(res, 404, { error: `Command '${commandId}' not found in workspace config or pinned commands` });
     return;
   }
 
@@ -246,6 +270,16 @@ async function handleRunCommand(ctx, deps) {
         resolve(code ?? -1);
       });
     });
+
+    // Update pinned command stats if applicable
+    if (pinnedCmd) {
+      const repoId = path.basename(root);
+      pinnedCommands.addPinnedCommand(repoId, {
+        ...pinnedCmd,
+        lastRunAt: new Date().toISOString(),
+        lastExitCode: exitCode,
+      });
+    }
 
     const errorSuffix = exitCode === -2 ? ' (spawn error)' : '';
     sendJson(res, exitCode === -2 ? 500 : 200, {
@@ -409,6 +443,102 @@ async function handleLaunch(ctx, deps) {
   }
 }
 
+function handleGetPinnedCommands(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const { u } = ctx;
+  const repoPath = u.searchParams.get('repoPath');
+
+  if (!isNonEmptyString(repoPath)) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+
+  // Derive repoId from path
+  const repoId = path.basename(repoPath.trim());
+  const result = pinnedCommands.listPinnedCommands(repoId);
+  sendJson(res, 200, result);
+}
+
+async function handleCreatePinnedCommand(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+
+  let body;
+  try {
+    body = await readJsonBody(ctx.req);
+  } catch {
+    sendJson(res, 400, { error: 'Invalid JSON body' });
+    return;
+  }
+
+  const repoPath = normalizeString(body?.repoPath);
+  if (!isNonEmptyString(repoPath)) {
+    sendJson(res, 400, { error: 'repoPath is required' });
+    return;
+  }
+
+  const repoId = path.basename(repoPath.trim());
+  const commandData = body?.command;
+  if (!commandData || typeof commandData !== 'object') {
+    sendJson(res, 400, { error: 'command object is required' });
+    return;
+  }
+
+  // Apply the same validation as workspace commands
+  const cmdValidation = validateCommand(commandData.command, commandData.args);
+  if (!cmdValidation.ok) {
+    sendJson(res, 403, { error: `Command validation failed: ${cmdValidation.error}` });
+    return;
+  }
+
+  const cwdValidation = validateCwd(commandData.cwd, repoPath.trim());
+  if (!cwdValidation.ok) {
+    sendJson(res, 403, { error: `CWD validation failed: ${cwdValidation.error}` });
+    return;
+  }
+
+  const result = pinnedCommands.addPinnedCommand(repoId, commandData);
+  if (!result.ok) {
+    sendJson(res, 400, { error: result.error });
+    return;
+  }
+  sendJson(res, 200, result);
+}
+
+async function handleDeletePinnedCommand(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+
+  let body;
+  try {
+    body = await readJsonBody(ctx.req);
+  } catch {
+    sendJson(res, 400, { error: 'Invalid JSON body' });
+    return;
+  }
+
+  const repoPath = normalizeString(body?.repoPath);
+  const commandId = normalizeString(body?.commandId);
+
+  if (!isNonEmptyString(repoPath)) {
+    sendJson(res, 400, { error: 'repoPath is required' });
+    return;
+  }
+  if (!isNonEmptyString(commandId)) {
+    sendJson(res, 400, { error: 'commandId is required' });
+    return;
+  }
+
+  const repoId = path.basename(repoPath.trim());
+  const result = pinnedCommands.removePinnedCommand(repoId, commandId);
+  if (!result.ok) {
+    sendJson(res, 404, { error: result.error });
+    return;
+  }
+  sendJson(res, 200, result);
+}
+
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const readJsonBody = context.readJsonBody || defaultReadJsonBody;
@@ -419,6 +549,9 @@ function register(context = {}) {
     { method: 'POST', path: '/api/workspace/commands/run', handler: (ctx) => handleRunCommand(ctx, deps) },
     { method: 'GET', path: '/api/workspace/launchers', handler: (ctx) => handleGetLaunchers(ctx, deps) },
     { method: 'POST', path: '/api/workspace/launch', handler: (ctx) => handleLaunch(ctx, deps) },
+    { method: 'GET', path: '/api/workspace/pinned-commands', handler: (ctx) => handleGetPinnedCommands(ctx, deps) },
+    { method: 'POST', path: '/api/workspace/pinned-commands', handler: (ctx) => handleCreatePinnedCommand(ctx, deps) },
+    { method: 'DELETE', path: '/api/workspace/pinned-commands/:id', handler: (ctx) => handleDeletePinnedCommand(ctx, deps) },
   ];
 }
 
@@ -431,6 +564,9 @@ module.exports = {
   handleRunCommand,
   handleGetLaunchers,
   handleLaunch,
+  handleGetPinnedCommands,
+  handleCreatePinnedCommand,
+  handleDeletePinnedCommand,
   readWorkspaceConfig,
   normalizeCommand,
   detectPackageScripts,

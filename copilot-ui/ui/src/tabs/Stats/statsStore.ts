@@ -6,6 +6,8 @@ import {
   getSessionAgentUsage,
   listSessions,
 } from '../../lib/api';
+import { getProviderUsage } from '../../lib/api/stats';
+import type { ProviderUsageResponse as ProviderUsageData } from '../../lib/api/stats';
 import { resolveSessionStartedAt, resolveSessionUpdatedAt } from '../../lib/stateDiagnostics';
 import { createStore } from '../../lib/store';
 import type {
@@ -40,6 +42,8 @@ export interface StatsState {
   sessionsError: string | null;
   recentSessionUsage: StatsSessionUsageSample[];
   usageError: string | null;
+  providerUsage: ProviderUsageData | null;
+  providerUsageError: string | null;
   loading: boolean;
   lastUpdatedAtMs: number | null;
 }
@@ -57,6 +61,8 @@ const INITIAL_STATE: StatsState = {
   sessionsError: null,
   recentSessionUsage: [],
   usageError: null,
+  providerUsage: null,
+  providerUsageError: null,
   loading: false,
   lastUpdatedAtMs: null,
 };
@@ -123,7 +129,6 @@ function createStatsStore() {
       healthError: null,
       catalogHealthError: null,
       analyticsError: null,
-      sdkHealthError: null,
       executorHealthError: null,
       sessionsError: null,
       usageError: null,
@@ -175,6 +180,14 @@ function createStatsStore() {
       usageError = 'Recent sampled session usage refresh was skipped because merged sessions could not be loaded.';
     }
 
+    let providerUsage: ProviderUsageData | null = null;
+    let providerUsageError: string | null = null;
+    try {
+      providerUsage = await getProviderUsage();
+    } catch (error) {
+      providerUsageError = toErrorMessage(error, 'Unable to load provider usage stats.');
+    }
+
     store.setState((state) => ({
       ...state,
       health: healthResult.status === 'fulfilled' ? healthResult.value : state.health,
@@ -207,6 +220,8 @@ function createStatsStore() {
           : null,
       recentSessionUsage: recentSessionUsage ?? state.recentSessionUsage,
       usageError,
+      providerUsage,
+      providerUsageError,
       loading: false,
       lastUpdatedAtMs: Date.now(),
     }));

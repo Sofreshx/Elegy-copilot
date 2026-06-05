@@ -589,6 +589,38 @@ export default function CatalogStatusView() {
     }
   };
 
+  const handleDeactivateAllForSource = async (source: CatalogExternalSourceProjection) => {
+    const activation = source.activation && typeof source.activation === 'object' ? source.activation : {};
+    const promises: Array<Promise<void>> = [];
+
+    for (const [targetKey, targetState] of Object.entries(activation)) {
+      if (!targetState || typeof targetState !== 'object') {
+        continue;
+      }
+
+      const installables = (targetState as Record<string, unknown>).installables;
+      if (!installables || typeof installables !== 'object') {
+        continue;
+      }
+
+      for (const [installableId, entry] of Object.entries(installables as Record<string, Record<string, unknown>>)) {
+        if (entry?.enabled === true) {
+          promises.push(
+            catalogWorkspaceStore.deactivateExternalSourceInstallable({
+              sourceId: source.sourceId,
+              installableId,
+              target: targetKey,
+            }),
+          );
+        }
+      }
+    }
+
+    if (promises.length > 0) {
+      await Promise.all(promises);
+    }
+  };
+
   return (
     <section className="workspace-stack catalog-status-view" data-testid="catalog-status-view">
       <Toolbar testId="catalog-status-toolbar">
@@ -639,7 +671,127 @@ export default function CatalogStatusView() {
         </article>
       </div>
 
-        <Panel
+      {/* External Assets — Featured */}
+      <Panel
+        subtitle="Quick-access cards for Context7 and Caveman. Enable or disable with one click. Full management lives in the Sources panel below."
+        testId="catalog-status-external-assets-panel"
+        title="External Assets"
+      >
+        {(() => {
+          const featuredIds = ['context7', 'caveman'];
+          const featured = externalSources.filter((s) => featuredIds.includes(s.sourceId));
+          const otherShipped = externalSources.filter(
+            (s) => s.sourceId !== 'context7' && s.sourceId !== 'caveman' && !s.editable,
+          );
+
+          if (featured.length === 0 && otherShipped.length === 0) {
+            return <p className="state-message">No shipped external assets found. Add a source below to get started.</p>;
+          }
+
+          return (
+            <div>
+              <div className="state-card-grid">
+                {featured.map((source) => {
+                  const activeCount = countExternalSourceActiveTargets(source);
+                  const installableCount = countVisibleExternalInstallables(source);
+                  const verification = readSourceVerificationSummary(source);
+                  const isActive = activeCount > 0;
+
+                  return (
+                    <article key={source.sourceId} className="state-card catalog-external-asset-card">
+                      <div className="catalog-external-asset-header">
+                        <p className="state-card-title">{source.title || source.sourceId}</p>
+                        <StatusBadge
+                          status={isActive ? 'active' : 'inactive'}
+                          testId={`catalog-external-asset-${source.sourceId}-status`}
+                        />
+                      </div>
+                      <p className="state-card-copy">{source.description || 'No description available.'}</p>
+                      <p className="catalog-inline-note">
+                        {installableCount} installable(s) · {activeCount} active target(s)
+                        {source.sync?.resolvedRef ? ` · ref: ${source.sync.resolvedRef}` : ''}
+                      </p>
+                      {verification.errors.length > 0 && (
+                        <p className="state-message state-error">{verification.errors[0]}</p>
+                      )}
+                      <div className="catalog-action-row">
+                        {isActive ? (
+                          <Button
+                            disabled={catalogState.loading || catalogState.mutating}
+                            onClick={() => {
+                              void handleDeactivateAllForSource(source);
+                            }}
+                            size="sm"
+                            testId={`catalog-external-asset-${source.sourceId}-disable`}
+                            variant="secondary"
+                          >
+                            Disable
+                          </Button>
+                        ) : (
+                          <Button
+                            disabled={catalogState.loading || catalogState.mutating || installableCount === 0}
+                            onClick={() => {
+                              void handleSyncInstallVerifySource(source);
+                            }}
+                            size="sm"
+                            testId={`catalog-external-asset-${source.sourceId}-enable`}
+                            variant="primary"
+                          >
+                            Enable & Install
+                          </Button>
+                        )}
+                        <Button
+                          disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating}
+                          onClick={() => {
+                            void catalogWorkspaceStore.refreshExternalSource(source.sourceId);
+                          }}
+                          size="sm"
+                          testId={`catalog-external-asset-${source.sourceId}-refresh`}
+                          variant="ghost"
+                        >
+                          Refresh
+                        </Button>
+                      </div>
+                    </article>
+                  );
+                })}
+
+                {/* Other shipped sources as compact cards */}
+                {otherShipped.map((source) => {
+                  const activeCount = countExternalSourceActiveTargets(source);
+                  const installableCount = countVisibleExternalInstallables(source);
+                  const isActive = activeCount > 0;
+
+                  return (
+                    <article key={source.sourceId} className="state-card catalog-external-asset-card">
+                      <div className="catalog-external-asset-header">
+                        <p className="state-card-title">{source.title || source.sourceId}</p>
+                        <StatusBadge
+                          status={isActive ? 'active' : 'inactive'}
+                          testId={`catalog-external-asset-${source.sourceId}-status`}
+                        />
+                      </div>
+                      <p className="state-card-copy">{installableCount} installable(s) · {activeCount} active</p>
+                    </article>
+                  );
+                })}
+              </div>
+
+              {/* User-added sources summary */}
+              {externalSources.filter((s) => s.editable).length > 0 && (
+                <div style={{ marginTop: '12px' }}>
+                  <p className="catalog-inline-note">
+                    {externalSources.filter((s) => s.editable).length} user-added source(s) configured. Manage them in
+                    the Sources panel below.
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </Panel>
+
+      <Panel
         subtitle="Use the managed installers for each supported harness. Installed and active states for source installables are shown below."
         testId="catalog-status-targets-panel"
         title="Targets & install surfaces"

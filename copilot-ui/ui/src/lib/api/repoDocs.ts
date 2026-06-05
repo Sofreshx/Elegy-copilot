@@ -5,6 +5,9 @@ export interface RepoDocEntry {
   name: string;
   size: number;
   modifiedAt: string;
+  isSymlink?: boolean;
+  resolvedPath?: string;
+  blockedReason?: string;
 }
 
 export interface RepoDocsListResponse {
@@ -19,6 +22,8 @@ export interface RepoDocReadResponse {
   content: string;
   size: number;
   modifiedAt: string;
+  isSymlink?: boolean;
+  resolvedPath?: string;
 }
 
 export async function listRepoDocs(repoPath: string, baseUrl?: string): Promise<RepoDocsListResponse> {

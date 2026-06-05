@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Button, Panel } from '../../components';
 import { notificationStore } from '../../stores/notificationStore';
-import { getWorkspaceCommands, runWorkspaceCommand } from '../../lib/api/workspace';
-import type { WorkspaceCommand, WorkspaceCommandsResponse } from '../../lib/api/workspace';
+import { getWorkspaceCommands, runWorkspaceCommand, getPinnedCommands, createPinnedCommand, deletePinnedCommand } from '../../lib/api/workspace';
+import type { WorkspaceCommand, WorkspaceCommandsResponse, PinnedCommand } from '../../lib/api/workspace';
 
 interface WorkspaceCommandsCardProps {
   repoPath: string;
@@ -13,6 +13,7 @@ export default function WorkspaceCommandsCard({ repoPath }: WorkspaceCommandsCar
   const [loading, setLoading] = useState(false);
   const [runningId, setRunningId] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<{ commandId: string; exitCode: number; stdout: string; stderr: string } | null>(null);
+  const [pinnedCommands, setPinnedCommands] = useState<PinnedCommand[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,6 +24,14 @@ export default function WorkspaceCommandsCard({ repoPath }: WorkspaceCommandsCar
         if (!cancelled) setData(result);
       } catch {
         // commands are optional
+      }
+
+      // Also load pinned commands
+      try {
+        const pinnedResult = await getPinnedCommands(repoPath);
+        if (!cancelled) setPinnedCommands(pinnedResult.commands || []);
+      } catch {
+        // pinned commands are optional
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -89,6 +98,32 @@ export default function WorkspaceCommandsCard({ repoPath }: WorkspaceCommandsCar
               ) : null}
             </div>
           ))}
+        </div>
+      ) : null}
+
+      {pinnedCommands.length > 0 ? (
+        <div className="workspace-commands-pinned" data-testid="workspace-pinned-commands">
+          <p className="workspace-section-label">Pinned</p>
+          <div className="workspace-commands-list">
+            {pinnedCommands.map((cmd) => (
+              <div key={cmd.id} className="workspace-command-entry">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={runningId !== null}
+                  onClick={() => void handleRun(cmd.id)}
+                  testId={`workspace-pinned-command-${cmd.id}`}
+                >
+                  {runningId === cmd.id ? 'Running...' : cmd.label}
+                </Button>
+                {cmd.sourceDocPath ? (
+                  <span className="workspace-command-source" title={`From: ${cmd.sourceDocPath}`}>
+                    📄
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 
