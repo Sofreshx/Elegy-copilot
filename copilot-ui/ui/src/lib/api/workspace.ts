@@ -31,9 +31,11 @@ export interface WorkspaceCommandRunResponse {
 export interface WorkspaceLauncher {
   id: string;
   label: string;
-  cmd: string;
+  group: string;
+  command: string;
   available: boolean;
   reason?: string;
+  argsPreview?: string;
 }
 
 export interface WorkspaceLaunchersResponse {

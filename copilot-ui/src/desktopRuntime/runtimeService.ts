@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 import type { WorkflowSidecarManager } from '../workflowSidecar';
+import type { RuntimeDiagnostics, RuntimeDiagnosticPayload } from './runtimeDiagnostics';
 
 const DESKTOP_UI_ACCESS_QUERY_PARAM = 'desktop-ui-token';
 const DESKTOP_SMOKE_LOG_WINDOW_URL_ENV = 'INSTRUCTION_ENGINE_DESKTOP_SMOKE_LOG_WINDOW_URL';
@@ -117,6 +118,7 @@ export interface DesktopRuntimeServiceDependencies {
   spawn?: typeof defaultSpawn;
   fs?: DesktopRuntimeFs;
   createRandomHex?: (byteCount: number) => string;
+  diagnostics?: RuntimeDiagnostics;
 }
 
 export interface DesktopRuntimeStartResult {
@@ -391,15 +393,67 @@ export function createDesktopRuntimeService(
   const spawnChildProcess = dependencies.spawn ?? defaultSpawn;
   const createRandomHex = dependencies.createRandomHex ?? defaultRandomHex;
   const logger = resolveLogger(options.logger);
+  const diagnostics = dependencies.diagnostics;
 
   let gatewayProcess: ChildProcess | null = null;
   let workflowSidecarManager: WorkflowSidecarManager | null = null;
   let desktopPlanningPersistenceHandle: DesktopPlanningPersistenceHandle | null = null;
   let serverHandle: DesktopServerHandle | null = null;
   let currentStartResult: DesktopRuntimeStartResult | null = null;
+  let stopping = false;
+
+  function captureChildrenState(): Record<string, { status: string; pid: number | null; lastStderr?: string[] }> {
+    return {
+      gateway: {
+        status: gatewayProcess ? (gatewayProcess.exitCode != null ? 'exited' : 'running') : 'not_started',
+        pid: gatewayProcess?.pid ?? null,
+      },
+      workflow: {
+        status: workflowSidecarManager ? 'running' : 'not_started',
+        pid: null,
+      },
+      planning: {
+        status: desktopPlanningPersistenceHandle ? 'running' : 'not_started',
+        pid: null,
+      },
+      server: {
+        status: serverHandle ? 'running' : 'not_started',
+        pid: null,
+      },
+    };
+  }
+
+  function attachGatewayExitWatcher(child: ChildProcess): void {
+    child.once('exit', (code: number | null, signal: NodeJS.Signals | null) => {
+      if (stopping) {
+        bootLog(`gateway process exited cleanly: code=${code} signal=${signal ?? 'null'}`);
+        return;
+      }
+      bootLog(`gateway process exited unexpectedly: code=${code} signal=${signal ?? 'null'}`);
+      if (!diagnostics) {
+        return;
+      }
+      const payload: RuntimeDiagnosticPayload = {
+        pid: process.pid,
+        platform: process.platform,
+        appVersion: options.appVersion,
+        runtimeRoot: options.paths.runtimeRoot,
+        child: {
+          label: 'gateway',
+          pid: child.pid ?? null,
+          exitCode: code,
+          signal: signal ?? null,
+          lastStderr: [],
+        },
+        childrenState: captureChildrenState(),
+      };
+      void diagnostics.recordEvent('child_unexpected_exit', payload);
+    });
+  }
 
   async function stop(): Promise<void> {
     bootLog('stopping runtime service');
+    stopping = true;
     currentStartResult = null;
 
     if (serverHandle) {
@@ -476,6 +530,9 @@ export function createDesktopRuntimeService(
             runtimeFs,
             spawnChildProcess,
           );
+        if (gatewayProcess) {
+          attachGatewayExitWatcher(gatewayProcess);
+        }
         bootLog(`gateway process spawned: pid=${gatewayProcess?.pid ?? 'null'}`);
       } else {
         bootLog(`local-tracker not found at ${localTrackerRoot}, skipping gateway`);
@@ -541,6 +598,19 @@ export function createDesktopRuntimeService(
       return currentStartResult;
     } catch (error) {
       bootLog(`startup failed: ${error instanceof Error ? error.message : String(error)}`);
+      const detail = error instanceof Error ? error.message : String(error);
+      const stack = error instanceof Error ? error.stack : undefined;
+      if (diagnostics) {
+        const payload: RuntimeDiagnosticPayload = {
+          pid: process.pid,
+          platform: process.platform,
+          appVersion: options.appVersion,
+          runtimeRoot: options.paths.runtimeRoot,
+          error: { name: error instanceof Error ? error.name : 'Error', message: detail, stack },
+          childrenState: captureChildrenState(),
+        };
+        void diagnostics.recordEvent('startup_dep_failed', payload);
+      }
       await stop();
       throw error;
     }

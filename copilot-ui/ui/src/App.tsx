@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import AppLayout from './components/AppLayout';
+import RuntimeDisconnectedBanner from './components/RuntimeDisconnectedBanner';
 import Sidebar from './components/Sidebar';
 import StatusBar from './components/StatusBar';
 import ToastContainer from './components/ToastContainer';
@@ -11,6 +12,7 @@ import {
   type SidebarItemId,
 } from './stores/navigation';
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
+import { runtimeHealthStore } from './stores/runtimeHealthStore';
 import { toolingUpdatesStore } from './stores/toolingUpdatesStore';
 import StandaloneGraphWindow from './tabs/Planning/StandaloneGraphWindow';
 import SessionDetailView from './views/Sessions/SessionDetailView';
@@ -19,6 +21,7 @@ import LexiconView from './tabs/Lexicon/LexiconView';
 import AssetCreationWizard from './views/Catalog/AssetCreationWizard';
 import AddProjectWizard from './views/Project/AddProjectWizard';
 import WorkspaceView from './views/Workspace/WorkspaceView';
+import RepositoriesView from './views/Repositories/RepositoriesView';
 
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
@@ -26,9 +29,11 @@ export default function App() {
 
   useEffect(() => {
     desktopUpdaterStore.startListening();
+    runtimeHealthStore.startWatching();
     toolingUpdatesStore.startPolling();
     return () => {
       desktopUpdaterStore.stopListening();
+      runtimeHealthStore.stopWatching();
       toolingUpdatesStore.stopPolling();
     };
   }, []);
@@ -84,6 +89,8 @@ export default function App() {
         return <WorkspaceView />;
       case 'lexicon':
         return <LexiconView />;
+      case 'repositories':
+        return <RepositoriesView />;
       case 'settings':
         return <SettingsView />;
       default:
@@ -124,6 +131,10 @@ export default function App() {
           items={SIDEBAR_NAV_ITEMS}
           activeItem={navigationState.activeSidebarItem}
           onNavigate={(id: SidebarItemId) => navigationStore.navigate(id)}
+          openWorkspaces={navigationState.openWorkspaces}
+          activeWorkspaceId={navigationState.activeWorkspaceId}
+          onFocusWorkspace={(repoPath) => navigationStore.focusWorkspace(repoPath)}
+          onCloseWorkspace={(repoPath) => navigationStore.closeWorkspace(repoPath)}
         />
       }
     >

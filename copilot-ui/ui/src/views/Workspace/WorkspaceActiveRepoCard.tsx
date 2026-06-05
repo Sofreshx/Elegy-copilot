@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button, Panel } from '../../components';
 import { notificationStore } from '../../stores/notificationStore';
 import type { CatalogRepoInventoryEntry } from '../../lib/types';
@@ -18,6 +18,13 @@ interface WorkspaceActiveRepoCardProps {
   showRepoSelector: boolean;
 }
 
+const GROUP_ORDER = ['ides', 'agents', 'terminals'] as const;
+const GROUP_LABELS: Record<string, string> = {
+  ides: 'IDEs',
+  agents: 'Agent CLIs',
+  terminals: 'Terminals',
+};
+
 export default function WorkspaceActiveRepoCard({
   repo,
   repoPath,
@@ -32,6 +39,8 @@ export default function WorkspaceActiveRepoCard({
   const hasRemote = summary?.hasRemote ?? false;
   const [launchers, setLaunchers] = useState<WorkspaceLauncher[]>([]);
   const [launching, setLaunching] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,8 +56,21 @@ export default function WorkspaceActiveRepoCard({
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
+
   async function handleLaunch(launcherId: string) {
     setLaunching(launcherId);
+    setMenuOpen(false);
     try {
       const result = await launchWorkspace(launcherId, repoPath);
       if (!result.ok) {
@@ -61,24 +83,20 @@ export default function WorkspaceActiveRepoCard({
     }
   }
 
-  const primaryLaunchers = launchers.filter((l) => ['vscode', 'cursor', 'windsurf', 'codium'].includes(l.id));
-  const secondaryLaunchers = launchers.filter((l) => ['terminal', 'opencode', 'codex', 'copilot'].includes(l.id));
+  const grouped = new Map<string, WorkspaceLauncher[]>();
+  for (const l of launchers) {
+    const group = l.group || 'unknown';
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group)!.push(l);
+  }
+
+  const availableLaunchers = launchers.filter((l) => l.available);
 
   return (
     <Panel
       title="Active Repository"
       subtitle={repo?.repoLabel || repoPath}
       testId="workspace-active-card"
-      actions={
-        <Button
-          variant="ghost"
-          size="sm"
-          testId="workspace-switch-repo"
-          onClick={onSwitchRepo}
-        >
-          {showRepoSelector ? 'Hide repos' : 'Switch repo'}
-        </Button>
-      }
     >
       <div className="workspace-active-info">
         <div className="workspace-active-path">{repoPath}</div>
@@ -108,33 +126,43 @@ export default function WorkspaceActiveRepoCard({
           ) : null}
         </div>
       </div>
-      <div className="workspace-launch-actions">
-        {primaryLaunchers.map((launcher) => (
-          <Button
-            key={launcher.id}
-            variant="secondary"
-            size="sm"
-            disabled={!launcher.available || launching === launcher.id}
-            onClick={() => void handleLaunch(launcher.id)}
-            testId={`workspace-launch-${launcher.id}`}
-            title={launcher.available ? undefined : launcher.reason || `${launcher.label} is not available`}
-          >
-            {launching === launcher.id ? 'Opening...' : `Open ${launcher.label}`}
-          </Button>
-        ))}
-        {secondaryLaunchers.map((launcher) => (
-          <Button
-            key={launcher.id}
-            variant="ghost"
-            size="sm"
-            disabled={!launcher.available || launching === launcher.id}
-            onClick={() => void handleLaunch(launcher.id)}
-            testId={`workspace-launch-${launcher.id}`}
-            title={launcher.available ? undefined : launcher.reason || `${launcher.label} is not available`}
-          >
-            {launching === launcher.id ? 'Starting...' : launcher.label}
-          </Button>
-        ))}
+      <div className="workspace-launch-actions" ref={menuRef}>
+        <Button
+          variant="primary"
+          size="sm"
+          testId="workspace-launch-trigger"
+          disabled={availableLaunchers.length === 0}
+          onClick={() => setMenuOpen(!menuOpen)}
+        >
+          {launching ? 'Opening...' : 'Open in...'}
+        </Button>
+        {menuOpen && (
+          <div className="workspace-launch-menu" data-testid="workspace-launch-menu">
+            {GROUP_ORDER.filter((g) => grouped.has(g)).map((group) => (
+              <div key={group} className="workspace-launch-menu-group">
+                <div className="workspace-launch-menu-group-label">{GROUP_LABELS[group] || group}</div>
+                {grouped.get(group)!.map((launcher) => (
+                  <button
+                    key={launcher.id}
+                    className="workspace-launch-menu-item"
+                    type="button"
+                    disabled={!launcher.available || launching === launcher.id}
+                    onClick={() => void handleLaunch(launcher.id)}
+                    data-testid={`workspace-launch-${launcher.id}`}
+                    title={launcher.available ? undefined : launcher.reason || `${launcher.label} is not available`}
+                  >
+                    <span className="workspace-launch-menu-item-label">
+                      {launching === launcher.id ? 'Opening...' : launcher.label}
+                    </span>
+                    {launcher.argsPreview ? (
+                      <span className="workspace-launch-menu-item-args">{launcher.argsPreview}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </Panel>
   );

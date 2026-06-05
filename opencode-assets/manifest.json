@@ -166,6 +166,12 @@
       "destination": "plugins/worktree.js"
     },
     {
+      "id": "opencode-plugins-package-json",
+      "type": "plugin",
+      "source": "opencode-assets/plugins/package.json",
+      "destination": "plugins/package.json"
+    },
+    {
       "id": "opencode-worktree-skill",
       "type": "skill",
       "source": "opencode-assets/skills/worktree",

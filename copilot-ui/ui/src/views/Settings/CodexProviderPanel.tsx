@@ -25,11 +25,13 @@ export default function CodexProviderPanel() {
   const status = state.status;
   const activeMode = status?.activeMode || 'native';
   const dsStatus = state.deepseekStatus;
+  const bsStatus = state.bootstrapStatus;
 
   const [bridgePath, setBridgePath] = useState(dsStatus?.bridgePath || '');
   const [bridgeConfigPath, setBridgeConfigPath] = useState(dsStatus?.bridgeConfigPath || '');
   const [apiKey, setApiKey] = useState('');
   const [bridgeUrl, setBridgeUrl] = useState(dsStatus?.bridgeUrl || 'http://127.0.0.1:38440/v1');
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   useEffect(() => {
     if (dsStatus?.bridgePath) setBridgePath(dsStatus.bridgePath);
@@ -44,13 +46,23 @@ export default function CodexProviderPanel() {
     : 'DeepSeek V4';
 
   const isDeepseekActive = activeMode === 'deepseek-bridge';
-  const bridgeBinaryReady = !!dsStatus?.bridgeBinaryAvailable;
+  const bridgeBinaryReady = !!dsStatus?.bridgeBinaryAvailable || bsStatus?.built === true;
   const bridgeCheckoutReady = !!dsStatus?.bridgeCheckoutAvailable;
   const bridgeAvailable = bridgeBinaryReady || bridgeCheckoutReady;
   const keyReady = !!dsStatus?.keyConfigured;
   const bridgeReachable = !!dsStatus?.bridgeReachable;
   const prereqsMet = bridgeAvailable && keyReady && bridgeReachable;
   const showDeepSeekSection = activeMode !== 'elegy-routed';
+
+  const bootstrapInstalled = bsStatus?.installed === true;
+  const bootstrapBuilt = bsStatus?.built === true;
+  const bootstrapPrereqsMet = bsStatus?.gitAvailable === true && bsStatus?.goAvailable === true;
+
+  const handleBootstrap = () => {
+    void codexProviderStore.bootstrap().then(() => {
+      void codexProviderStore.fetchBootstrapStatus();
+    });
+  };
 
   return (
     <Panel
@@ -125,127 +137,203 @@ export default function CodexProviderPanel() {
         <>
           <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color, #ddd)' }} />
 
-          <div className="settings-row">
+          {/* ---- Managed Moon Bridge setup card ---- */}
+          <div className="settings-row" data-testid="deepseek-bootstrap-status">
             <div className="settings-row-label">
-              <strong>Moon Bridge Executable Path</strong>
-              <span className="settings-row-description">
-                Full path to the Moon Bridge binary or a checkout directory (Go 1.25+ required to build from checkout).
-              </span>
-            </div>
-            <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-              <input
-                type="text"
-                value={bridgePath}
-                onChange={(e) => setBridgePath(e.target.value)}
-                placeholder="C:\Users\...\moon-bridge.exe"
-                style={inputStyle}
-                data-testid="deepseek-bridge-path"
-              />
-            </div>
-          </div>
-
-          <div className="settings-row">
-            <div className="settings-row-label">
-              <strong>Moon Bridge Config Path</strong>
-              <span className="settings-row-description">
-                Path to the Moon Bridge config.yml file.
-              </span>
-            </div>
-            <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-              <input
-                type="text"
-                value={bridgeConfigPath}
-                onChange={(e) => setBridgeConfigPath(e.target.value)}
-                placeholder="C:\Users\...\config.yml"
-                style={inputStyle}
-                data-testid="deepseek-bridge-config-path"
-              />
-            </div>
-          </div>
-
-          <div className="settings-row">
-            <div className="settings-row-label">
-              <strong>Bridge URL</strong>
-              <span className="settings-row-description">
-                Moon Bridge loopback endpoint. Defaults to http://127.0.0.1:38440/v1.
-              </span>
-            </div>
-            <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-              <input
-                type="text"
-                value={bridgeUrl}
-                onChange={(e) => setBridgeUrl(e.target.value)}
-                placeholder="http://127.0.0.1:38440/v1"
-                style={inputStyle}
-                data-testid="deepseek-bridge-url"
-              />
-            </div>
-          </div>
-
-          <div className="settings-row">
-            <div className="settings-row-label">
-              <strong>DeepSeek API Key</strong>
-              <span className="settings-row-description">
-                Saved to the Moon Bridge config only. Key is never returned by the API after saving.
-              </span>
-            </div>
-            <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk-..."
-                style={inputStyle}
-                data-testid="deepseek-api-key"
-              />
-            </div>
-          </div>
-
-          <div className="settings-row">
-            <div className="settings-row-label">
-              <strong>Save Settings</strong>
-              <span className="settings-row-description">
-                Saves bridge paths, URL, and API key (to Moon Bridge config only).
-              </span>
+              <strong>Moon Bridge Setup</strong>
+              <div className="settings-row-description" style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                <span>
+                  <Badge tone={bootstrapPrereqsMet ? 'success' : 'danger'}>
+                    Prerequisites{bootstrapPrereqsMet ? '' : ' missing'}
+                  </Badge>
+                  {bsStatus ? (
+                    <span style={{ marginLeft: 8 }}>
+                      Git: {bsStatus.gitAvailable ? '✓' : '✗'} · Go: {bsStatus.goAvailable ? '✓' : '✗'}
+                    </span>
+                  ) : (
+                    <span style={{ marginLeft: 8 }}>Loading…</span>
+                  )}
+                </span>
+                {bsStatus && (
+                  <>
+                    <span>
+                      <Badge tone={bootstrapInstalled ? 'success' : 'neutral'}>
+                        {bootstrapInstalled ? 'Cloned' : 'Not cloned'}
+                      </Badge>
+                      {bootstrapInstalled && (
+                        <code style={{ marginLeft: 8, fontSize: '0.72rem' }}>{bsStatus.installRoot}</code>
+                      )}
+                    </span>
+                    <span>
+                      <Badge tone={bootstrapBuilt ? 'success' : 'neutral'}>
+                        {bootstrapBuilt ? 'Built' : 'Not built'}
+                      </Badge>
+                      {bootstrapBuilt && (
+                        <code style={{ marginLeft: 8, fontSize: '0.72rem' }}>{bsStatus.binaryPath}</code>
+                      )}
+                    </span>
+                    {bsStatus.lastBootstrapAt && (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--fg-muted, #666)' }}>
+                        Last bootstrap: {new Date(bsStatus.lastBootstrapAt).toLocaleString()}
+                      </span>
+                    )}
+                    {bsStatus.lastError && (
+                      <span style={{ color: 'var(--color-danger-500, #c00)', fontSize: '0.75rem' }}>
+                        {bsStatus.lastError}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
             <div className="settings-row-action">
               <Button
                 variant="primary"
                 size="sm"
-                testId="deepseek-save-settings"
-                disabled={state.saving}
-                onClick={() => codexProviderStore.saveDeepseek({
-                  bridgePath: bridgePath || undefined,
-                  bridgeConfigPath: bridgeConfigPath || undefined,
-                  bridgeUrl: bridgeUrl || undefined,
-                  keyConfigured: apiKey.length > 0 ? true : undefined,
-                  apiKey: apiKey || undefined,
-                })}
+                testId="deepseek-bootstrap-install"
+                disabled={state.bootstrapLoading || !bootstrapPrereqsMet}
+                onClick={handleBootstrap}
               >
-                {state.saving ? 'Saving…' : 'Save Settings'}
+                {state.bootstrapLoading
+                  ? 'Installing…'
+                  : bootstrapBuilt
+                    ? 'Rebuild Moon Bridge'
+                    : 'Install Moon Bridge'}
               </Button>
             </div>
           </div>
 
-          {!bridgeBinaryReady && !bridgeCheckoutReady && (
-            <div className="settings-row">
-              <div className="settings-row-label">
-                <strong>Install Moon Bridge</strong>
-                <span className="settings-row-description">
-                  Moon Bridge is not installed. <strong>Option 1:</strong> Download a release from the Moon Bridge GitHub releases page. <strong>Option 2:</strong> Clone the repo and run <code>go build</code> (Go 1.25+ required), then provide the path to the binary or checkout directory.
-                </span>
-              </div>
+          {/* ---- Advanced manual path configuration ---- */}
+          <div className="settings-row">
+            <div className="settings-row-label">
+              <strong>
+                <button
+                  type="button"
+                  onClick={() => setAdvancedOpen(!advancedOpen)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--accent, inherit)',
+                    font: 'inherit',
+                    padding: 0,
+                    textDecoration: 'underline',
+                  }}
+                  data-testid="deepseek-advanced-toggle"
+                >
+                  {advancedOpen ? '▾' : '▸'} Advanced
+                </button>
+              </strong>
+              <span className="settings-row-description">
+                Manual bridge path, config, and URL overrides. Use only if the managed install cannot be used.
+              </span>
             </div>
-          )}
+          </div>
 
-          {bridgeCheckoutReady && !bridgeBinaryReady && (
-            <div className="settings-row">
-              <div className="settings-row-label">
-                <span className="settings-row-description" style={{ color: 'var(--warning-color, #b45309)' }}>
-                  The configured path is a directory. Build the binary first with <code>go build</code>, then update the path to the built executable.
-                </span>
+          {advancedOpen && (
+            <>
+              <div className="settings-row">
+                <div className="settings-row-label">
+                  <strong>Moon Bridge Executable Path</strong>
+                  <span className="settings-row-description">
+                    Full path to the Moon Bridge binary or a checkout directory.
+                  </span>
+                </div>
+                <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <input
+                    type="text"
+                    value={bridgePath}
+                    onChange={(e) => setBridgePath(e.target.value)}
+                    placeholder="C:\Users\...\moon-bridge.exe"
+                    style={inputStyle}
+                    data-testid="deepseek-bridge-path"
+                  />
+                </div>
               </div>
-            </div>
+
+              <div className="settings-row">
+                <div className="settings-row-label">
+                  <strong>Moon Bridge Config Path</strong>
+                  <span className="settings-row-description">
+                    Path to the Moon Bridge config.yml file.
+                  </span>
+                </div>
+                <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <input
+                    type="text"
+                    value={bridgeConfigPath}
+                    onChange={(e) => setBridgeConfigPath(e.target.value)}
+                    placeholder="C:\Users\...\config.yml"
+                    style={inputStyle}
+                    data-testid="deepseek-bridge-config-path"
+                  />
+                </div>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-row-label">
+                  <strong>Bridge URL</strong>
+                  <span className="settings-row-description">
+                    Moon Bridge loopback endpoint. Defaults to http://127.0.0.1:38440/v1.
+                  </span>
+                </div>
+                <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <input
+                    type="text"
+                    value={bridgeUrl}
+                    onChange={(e) => setBridgeUrl(e.target.value)}
+                    placeholder="http://127.0.0.1:38440/v1"
+                    style={inputStyle}
+                    data-testid="deepseek-bridge-url"
+                  />
+                </div>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-row-label">
+                  <strong>DeepSeek API Key</strong>
+                  <span className="settings-row-description">
+                    Saved to the Moon Bridge config only. Key is never returned by the API after saving.
+                  </span>
+                </div>
+                <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="sk-..."
+                    style={inputStyle}
+                    data-testid="deepseek-api-key"
+                  />
+                </div>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-row-label">
+                  <strong>Save Settings</strong>
+                  <span className="settings-row-description">
+                    Saves bridge paths, URL, and API key (to Moon Bridge config only).
+                  </span>
+                </div>
+                <div className="settings-row-action">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    testId="deepseek-save-settings"
+                    disabled={state.saving}
+                    onClick={() => codexProviderStore.saveDeepseek({
+                      bridgePath: bridgePath || undefined,
+                      bridgeConfigPath: bridgeConfigPath || undefined,
+                      bridgeUrl: bridgeUrl || undefined,
+                      keyConfigured: apiKey.length > 0 ? true : undefined,
+                      apiKey: apiKey || undefined,
+                    })}
+                  >
+                    {state.saving ? 'Saving…' : 'Save Settings'}
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
 
           <div className="settings-row">

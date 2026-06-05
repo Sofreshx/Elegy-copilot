@@ -12,6 +12,8 @@ const apiMocks = vi.hoisted(() => ({
   startDeepseekBridge: vi.fn(),
   stopDeepseekBridge: vi.fn(),
   checkDeepseekBridge: vi.fn(),
+  getBootstrapStatus: vi.fn(),
+  bootstrapMoonBridge: vi.fn(),
   getRemotePreference: vi.fn(),
   setRemotePreference: vi.fn(),
 }));
@@ -28,6 +30,8 @@ vi.mock('../ui/src/lib/api/codexConfig', async () => {
     startDeepseekBridge: apiMocks.startDeepseekBridge,
     stopDeepseekBridge: apiMocks.stopDeepseekBridge,
     checkDeepseekBridge: apiMocks.checkDeepseekBridge,
+    getBootstrapStatus: apiMocks.getBootstrapStatus,
+    bootstrapMoonBridge: apiMocks.bootstrapMoonBridge,
   };
 });
 
@@ -154,6 +158,34 @@ describe('SettingsView', () => {
     });
     apiMocks.getRemotePreference.mockResolvedValue({ enabled: false });
     apiMocks.setRemotePreference.mockResolvedValue({ enabled: true });
+    apiMocks.getBootstrapStatus.mockResolvedValue({
+      installRoot: 'C:/Users/demo/.copilot/managed-cli/moon-bridge',
+      sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
+      binaryPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/bin/moon-bridge.exe',
+      configPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/config.yaml',
+      gitAvailable: true,
+      goAvailable: true,
+      installed: false,
+      built: false,
+      lastBootstrapAt: null,
+      lastError: null,
+    });
+    apiMocks.bootstrapMoonBridge.mockResolvedValue({
+      success: true,
+      message: 'Moon Bridge installed and built successfully.',
+      status: {
+        installRoot: 'C:/Users/demo/.copilot/managed-cli/moon-bridge',
+        sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
+        binaryPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/bin/moon-bridge.exe',
+        configPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/config.yaml',
+        gitAvailable: true,
+        goAvailable: true,
+        installed: true,
+        built: true,
+        lastBootstrapAt: '2025-06-05T00:00:00.000Z',
+        lastError: null,
+      },
+    });
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,

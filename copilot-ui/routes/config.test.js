@@ -34,12 +34,34 @@ function makeMocks(overrides = {}) {
     setMode: overrides.setCodexMode || ((_home, mode) => ({ activeMode: mode, providerId: mode === 'elegy-routed' ? 'elegy' : mode === 'deepseek-bridge' ? 'instruction_engine_deepseek' : 'openai' })),
     hardReset: overrides.hardResetCodex || (() => ({ activeMode: 'native', providerId: 'openai', action: 'hard-reset' })),
     saveDeepseekSettings: overrides.saveDeepseekSettings || (() => ({ keyConfigured: true })),
+    getBootstrapState: overrides.getBootstrapState || (() => null),
+    saveBootstrapState: overrides.saveBootstrapState || (() => null),
+  };
+  const moonBridgeBootstrap = {
+    getBootstrapStatus: overrides.getBootstrapStatus || (() => ({
+      installRoot: '/managed-cli/moon-bridge',
+      sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
+      binaryPath: '/managed-cli/moon-bridge/bin/moon-bridge.exe',
+      configPath: '/managed-cli/moon-bridge/config.yaml',
+      gitAvailable: true,
+      goAvailable: true,
+      installed: false,
+      built: false,
+      lastBootstrapAt: null,
+      lastError: null,
+    })),
+    bootstrapMoonBridge: overrides.bootstrapMoonBridge || (() => ({
+      success: true,
+      status: { installed: true, built: true, gitAvailable: true, goAvailable: true },
+      error: null,
+    })),
   };
   return {
     sendJson,
     readJsonBody,
     copilotConfig,
     codexConfig,
+    moonBridgeBootstrap,
     sent,
     env: overrides.env || { OPENCODE_GO_API_KEY: 'demo-key' },
     probeCodexGatewayReachability: overrides.probeCodexGatewayReachability || (async () => {}),
@@ -49,7 +71,7 @@ function makeMocks(overrides = {}) {
 describe('config routes', () => {
   it('register returns expected route count', () => {
     const routes = register();
-    assert.equal(routes.length, 10);
+    assert.equal(routes.length, 12);
     assert.equal(routes[0].method, 'GET');
     assert.equal(routes[0].path, '/api/config/remote-sessions');
     assert.equal(routes[1].method, 'PUT');
@@ -62,6 +84,8 @@ describe('config routes', () => {
     assert.equal(routes[7].path, '/api/config/codex-provider/deepseek/start');
     assert.equal(routes[8].path, '/api/config/codex-provider/deepseek/stop');
     assert.equal(routes[9].path, '/api/config/codex-provider/deepseek/status');
+    assert.equal(routes[10].path, '/api/config/codex-provider/deepseek/bootstrap');
+    assert.equal(routes[11].path, '/api/config/codex-provider/deepseek/bootstrap');
   });
 
   it('GET returns current remote preference', () => {
@@ -281,6 +305,88 @@ describe('config routes', () => {
       await routes[8].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
       assert.equal(mocks.sent[0].code, 200);
       assert.equal(mocks.sent[0].obj.bridgeRunning, false);
+    });
+
+    it('GET bootstrap returns computed status with prerequisite checks', () => {
+      const mocks = makeMocks({
+        getBootstrapState: () => ({ lastBootstrapAt: '2025-01-01T00:00:00.000Z' }),
+        getBootstrapStatus: () => ({
+          installRoot: '/.copilot/managed-cli/moon-bridge',
+          sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
+          binaryPath: '/.copilot/managed-cli/moon-bridge/bin/moon-bridge.exe',
+          configPath: '/.copilot/managed-cli/moon-bridge/config.yaml',
+          gitAvailable: true,
+          goAvailable: false,
+          installed: false,
+          built: false,
+          lastBootstrapAt: null,
+          lastError: null,
+        }),
+      });
+      const routes = register(mocks);
+      routes[10].handler({ codexHome: '/tmp/codex', res: {} });
+      assert.equal(mocks.sent[0].code, 200);
+      assert.equal(mocks.sent[0].obj.gitAvailable, true);
+      assert.equal(mocks.sent[0].obj.goAvailable, false);
+      assert.equal(mocks.sent[0].obj.installed, false);
+    });
+
+    it('POST bootstrap performs install and returns success', async () => {
+      let savedState;
+      const mocks = makeMocks({
+        readJsonBody: async () => ({}),
+        saveBootstrapState: (_home, state) => { savedState = state; },
+        bootstrapMoonBridge: () => ({
+          success: true,
+          status: {
+            installRoot: '/root',
+            sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
+            binaryPath: '/root/bin/moon-bridge.exe',
+            configPath: '/root/config.yaml',
+            gitAvailable: true,
+            goAvailable: true,
+            installed: true,
+            built: true,
+            lastBootstrapAt: '2025-06-05T00:00:00.000Z',
+            lastError: null,
+          },
+        }),
+      });
+      const routes = register(mocks);
+      await routes[11].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      assert.equal(mocks.sent[0].code, 200);
+      assert.equal(mocks.sent[0].obj.success, true);
+      assert.equal(mocks.sent[0].obj.status.installed, true);
+      assert.equal(mocks.sent[0].obj.status.built, true);
+      assert.ok(savedState, 'expected saveBootstrapState to be called');
+    });
+
+    it('POST bootstrap returns success=false when prerequisites missing', async () => {
+      let savedState;
+      const mocks = makeMocks({
+        readJsonBody: async () => ({}),
+        saveBootstrapState: (_home, state) => { savedState = state; },
+        bootstrapMoonBridge: () => ({
+          success: false,
+          status: {
+            installRoot: '/root',
+            sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
+            gitAvailable: false,
+            goAvailable: true,
+            installed: false,
+            built: false,
+            lastBootstrapAt: null,
+            lastError: 'git is not available on this system.',
+          },
+          error: 'git is not available on this system.',
+        }),
+      });
+      const routes = register(mocks);
+      await routes[11].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      assert.equal(mocks.sent[0].code, 200);
+      assert.equal(mocks.sent[0].obj.success, false);
+      assert.ok(mocks.sent[0].obj.error.includes('git is not available'));
+      assert.ok(savedState, 'expected saveBootstrapState to be called even on failure');
     });
   });
 });

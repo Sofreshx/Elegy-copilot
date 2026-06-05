@@ -2123,7 +2123,7 @@ textarea:focus-visible,
 
 .app-layout {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
@@ -2361,11 +2361,76 @@ textarea:focus-visible,
 }
 
 .sidebar-footer {
-  border-top: 1px solid var(--color-border-100);
-  padding: var(--space-sm) var(--space-xs);
+  border-top: 1px solid var(--color-ink-200);
+  padding: var(--space-xs);
+}
+
+/* ── Sidebar Workspace Tabs ── */
+
+.sidebar-workspace-tabs {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2xs);
+  gap: 2px;
+  padding: var(--space-xs);
+  border-bottom: 1px solid var(--color-ink-200);
+}
+
+.sidebar-workspace-tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-600);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  padding: var(--space-2xs) var(--space-xs);
+  width: 100%;
+  text-align: left;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.sidebar-workspace-tab:hover {
+  background: var(--color-surface-2);
+}
+
+.sidebar-workspace-tab-active {
+  background: var(--color-brand-50);
+  border-color: var(--color-brand-200);
+  color: var(--color-brand-600);
+  font-weight: 600;
+}
+
+.sidebar-workspace-tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-workspace-tab-close {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity var(--duration-fast), background-color var(--duration-fast);
+}
+
+.sidebar-workspace-tab:hover .sidebar-workspace-tab-close,
+.sidebar-workspace-tab-close:focus {
+  opacity: 1;
+}
+
+.sidebar-workspace-tab-close:hover {
+  background: var(--color-danger-100);
+  color: var(--color-danger-500);
 }
 
 .sidebar-action-btn {
@@ -4362,6 +4427,87 @@ textarea:focus-visible,
 @keyframes toast-progress {
   from { transform: scaleX(1); }
   to   { transform: scaleX(0); }
+}
+
+/* ========================================================================
+   RUNTIME DISCONNECTED BANNER
+   ======================================================================== */
+
+.runtime-disconnected-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--color-warning-100);
+  border-bottom: 1px solid var(--color-warning-200);
+  color: var(--fg-warning);
+  font-size: var(--text-sm);
+}
+
+.runtime-disconnected-banner__body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.runtime-disconnected-banner__icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.runtime-disconnected-banner__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.runtime-disconnected-banner__title {
+  font-weight: 600;
+  color: var(--fg-warning);
+}
+
+.runtime-disconnected-banner__message {
+  color: var(--fg-default);
+  opacity: 0.85;
+}
+
+.runtime-disconnected-banner__message code {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  background: var(--color-warning-50);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+.runtime-disconnected-banner__detail {
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+}
+
+.runtime-disconnected-banner__retry {
+  flex-shrink: 0;
+  border: 1px solid var(--color-warning-500);
+  background: transparent;
+  color: var(--fg-warning);
+  padding: var(--space-2xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard),
+              color var(--duration-fast) var(--ease-standard);
+}
+
+.runtime-disconnected-banner__retry:hover:not(:disabled) {
+  background: var(--color-warning-500);
+  color: var(--fg-on-emphasis);
+}
+
+.runtime-disconnected-banner__retry:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* ── Empty state helper ── */
@@ -7887,7 +8033,6 @@ textarea:focus-visible,
   display: grid;
   gap: var(--space-lg);
   min-width: 0;
-  max-width: var(--container-max);
 }
 
 .workspace-layout {
@@ -8039,9 +8184,77 @@ textarea:focus-visible,
 
 .workspace-launch-actions {
   display: flex;
-  flex-wrap: wrap;
   gap: var(--space-xs);
-  margin-top: var(--space-xs);
+  align-items: center;
+  position: relative;
+}
+
+.workspace-launch-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: var(--space-2xs);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  min-width: 16rem;
+  z-index: var(--z-popover);
+  overflow: hidden;
+}
+
+.workspace-launch-menu-group {
+  padding: var(--space-xs) 0;
+}
+
+.workspace-launch-menu-group + .workspace-launch-menu-group {
+  border-top: 1px solid var(--color-ink-200);
+}
+
+.workspace-launch-menu-group-label {
+  padding: var(--space-2xs) var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.workspace-launch-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  background: transparent;
+  border: none;
+  color: var(--fg-default);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  text-align: left;
+  transition: background-color var(--duration-fast);
+}
+
+.workspace-launch-menu-item:hover:not(:disabled) {
+  background: var(--color-brand-50);
+  color: var(--color-brand-600);
+}
+
+.workspace-launch-menu-item:disabled {
+  color: var(--fg-muted);
+  cursor: not-allowed;
+}
+
+.workspace-launch-menu-item-label {
+  min-width: 0;
+}
+
+.workspace-launch-menu-item-args {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  margin-left: var(--space-sm);
 }
 
 /* ── Docs Center ── */

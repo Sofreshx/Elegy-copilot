@@ -3159,6 +3159,20 @@ export interface CodexProviderDeepseekStatus {
   bridgeRunning?: boolean;
   probeError?: string | null;
   modelIds?: string[];
+  bootstrap?: MoonBridgeBootstrapStatus | null;
+}
+
+export interface MoonBridgeBootstrapStatus {
+  installRoot: string;
+  sourceUrl: string;
+  binaryPath: string;
+  configPath: string;
+  gitAvailable: boolean;
+  goAvailable: boolean;
+  installed: boolean;
+  built: boolean;
+  lastBootstrapAt: string | null;
+  lastError: string | null;
 }
 
 export interface CodexProviderStatusResponse {

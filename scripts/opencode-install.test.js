@@ -11,10 +11,18 @@ let passed = 0;
 
 function withTempDir(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-opencode-install-'));
+  function cleanup() {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
+  }
   try {
-    fn(dir);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    const result = fn(dir);
+    if (result && typeof result.then === 'function') {
+      return result.finally(cleanup);
+    }
+    return result;
+  } catch (error) {
+    cleanup();
+    throw error;
   }
 }
 
@@ -37,12 +45,12 @@ async function main() {
   const utils = await import(utilsPath);
 
   await test('installer creates curated OpenCode assets and reruns idempotently', async () => {
-    withTempDir((root) => {
+    await withTempDir(async (root) => {
       const opencodeHome = path.join(root, '.config', 'opencode');
       const skillsHome = path.join(opencodeHome, 'skills');
       const agentsDir = path.join(opencodeHome, 'agents');
 
-      const firstSummary = installer.runInstall({
+      const firstSummary = await installer.runInstall({
         force: true,
         opencodeHome,
         skillsHome,
@@ -74,10 +82,10 @@ async function main() {
 
       // R9: verify agent count is exactly 4 primary lanes + 3 hidden subagents = 7 total
       const agentFiles = fs.readdirSync(agentsDir).filter(f => f.endsWith('.md'));
-      assert.strictEqual(agentFiles.length, 7, 
+      assert.strictEqual(agentFiles.length, 7,
         `agent count should be exactly 7 (4 lanes + 3 subagents), found ${agentFiles.length}: ${agentFiles.join(', ')}`);
 
-      const secondSummary = installer.runInstall({
+      const secondSummary = await installer.runInstall({
         opencodeHome,
         skillsHome,
       });
@@ -86,12 +94,12 @@ async function main() {
   });
 
   await test('installer prunes stale managed assets and preserves diverged files', async () => {
-    withTempDir((root) => {
+    await withTempDir(async (root) => {
       const opencodeHome = path.join(root, '.config', 'opencode');
       const skillsHome = path.join(opencodeHome, 'skills');
       const inventoryPath = path.join(opencodeHome, '.instruction-engine-opencode-managed.json');
 
-      installer.runInstall({
+      await installer.runInstall({
         force: true,
         opencodeHome,
         skillsHome,
@@ -113,7 +121,7 @@ async function main() {
       inventory.skills['legacy-skill'] = utils.dirHash(staleSkillPath);
       fs.writeFileSync(inventoryPath, `${JSON.stringify(inventory, null, 2)}\n`, 'utf8');
 
-      const summary = installer.runInstall({
+      const summary = await installer.runInstall({
         opencodeHome,
         skillsHome,
       });
@@ -128,11 +136,11 @@ async function main() {
   });
 
   await test('installer dry-run resolves explicit homes without creating files', async () => {
-    withTempDir((root) => {
+    await withTempDir(async (root) => {
       const opencodeHome = path.join(root, 'opencode-home');
       const skillsHome = path.join(opencodeHome, 'skills');
 
-      const summary = installer.runInstall({
+      const summary = await installer.runInstall({
         dryRun: true,
         force: true,
         opencodeHome,
@@ -146,7 +154,7 @@ async function main() {
   });
 
   await test('installer bootstraps opt-in spec-driven repo files', async () => {
-    withTempDir((root) => {
+    await withTempDir(async (root) => {
       const shim = createTestElegyCliShim(root);
       const opencodeHome = path.join(root, '.config', 'opencode');
       const skillsHome = path.join(opencodeHome, 'skills');
@@ -158,7 +166,7 @@ async function main() {
       fs.writeFileSync(path.join(repoRoot, 'package.json'), `${JSON.stringify({ name: 'target-repo', scripts: {} }, null, 2)}\n`, 'utf8');
       fs.writeFileSync(path.join(repoRoot, '.github', 'skills', 'repo-helper', 'SKILL.md'), '---\nname: repo-helper\ndescription: Repo helper\n---\n', 'utf8');
 
-      const summary = withWorkingDirectory(shim.shimDir, () => installer.runInstall({
+      const summary = await withWorkingDirectory(shim.shimDir, () => installer.runInstall({
         force: true,
         opencodeHome,
         skillsHome,
@@ -245,12 +253,12 @@ async function main() {
 
   // R9: installed agents match manifest and profiles agent-level validation
   await test('installed agents match manifest count and every agentRole has model', async () => {
-    withTempDir((root) => {
+    await withTempDir(async (root) => {
       const opencodeHome = path.join(root, '.config', 'opencode');
       const skillsHome = path.join(opencodeHome, 'skills');
       const agentsDir = path.join(opencodeHome, 'agents');
 
-      installer.runInstall({
+      await installer.runInstall({
         force: true,
         opencodeHome,
         skillsHome,
@@ -292,8 +300,8 @@ async function main() {
 
         const agentContent = fs.readFileSync(agentPath, 'utf8');
         const frontmatter = parseFrontmatter(agentContent);
-        
-        assert.ok(frontmatter.model, 
+
+        assert.ok(frontmatter.model,
           `agentRole '${agentName}' (${agentName}.md) must have 'model' in frontmatter (role: ${roleKey})`);
         assert.ok(frontmatter.reasoningEffort,
           `agentRole '${agentName}' (${agentName}.md) must have 'reasoningEffort' in frontmatter (role: ${roleKey})`);

@@ -23,6 +23,8 @@ const {
   applyDeepseekSoftReset,
   getDeepseekStatus,
   saveDeepseekSettings,
+  getBootstrapState,
+  saveBootstrapState,
 } = require('./codexConfig');
 
 describe('codexConfig', () => {
@@ -304,6 +306,68 @@ describe('codexConfig', () => {
       assert.equal(status.activeMode, 'native');
       assert.equal(status.deepseek.bridgePath, null);
       assert.equal(status.deepseek.keyConfigured, false);
+    });
+
+    it('saveBootstrapState persists bootstrap fields and getBootstrapState reads them back', () => {
+      const bootstrap = {
+        installRoot: 'C:\\Users\\test\\.copilot\\managed-cli\\moon-bridge',
+        sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
+        binaryPath: 'C:\\Users\\test\\.copilot\\managed-cli\\moon-bridge\\bin\\moon-bridge.exe',
+        configPath: 'C:\\Users\\test\\.copilot\\managed-cli\\moon-bridge\\config.yaml',
+        gitAvailable: true,
+        goAvailable: true,
+        installed: false,
+        built: false,
+        lastBootstrapAt: null,
+        lastError: null,
+      };
+      saveBootstrapState(tmpDir, bootstrap);
+      const state = getBootstrapState(tmpDir);
+      assert.ok(state);
+      assert.equal(state.installRoot, bootstrap.installRoot);
+      assert.equal(state.sourceUrl, bootstrap.sourceUrl);
+      assert.equal(state.binaryPath, bootstrap.binaryPath);
+      assert.equal(state.gitAvailable, true);
+      assert.equal(state.goAvailable, true);
+      assert.equal(state.installed, false);
+      assert.equal(state.built, false);
+    });
+
+    it('getBootstrapState returns null when no bootstrap state has been saved', () => {
+      const state = getBootstrapState(tmpDir);
+      assert.equal(state, null);
+    });
+
+    it('saveBootstrapState merges with existing bootstrap fields', () => {
+      saveBootstrapState(tmpDir, {
+        installRoot: '/initial/root',
+        gitAvailable: false,
+        built: false,
+      });
+      saveBootstrapState(tmpDir, {
+        installed: true,
+        lastBootstrapAt: '2025-06-01T00:00:00.000Z',
+      });
+      const state = getBootstrapState(tmpDir);
+      assert.equal(state.installRoot, '/initial/root');
+      assert.equal(state.gitAvailable, false);
+      assert.equal(state.built, false);
+      assert.equal(state.installed, true);
+      assert.equal(state.lastBootstrapAt, '2025-06-01T00:00:00.000Z');
+    });
+
+    it('getDeepseekStatus includes bootstrap when present', () => {
+      saveBootstrapState(tmpDir, {
+        installRoot: '/root',
+        gitAvailable: true,
+        goAvailable: false,
+        installed: true,
+        built: false,
+      });
+      const status = getDeepseekStatus(tmpDir);
+      assert.ok(status.bootstrap);
+      assert.equal(status.bootstrap.installRoot, '/root');
+      assert.equal(status.bootstrap.goAvailable, false);
     });
   });
 });

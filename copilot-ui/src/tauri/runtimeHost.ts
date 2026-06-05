@@ -8,6 +8,11 @@ import {
   resolveDefaultWorkspaceRoot,
   type DesktopRuntimeService,
 } from '../desktopRuntime/runtimeService';
+import {
+  createRuntimeDiagnostics,
+  type RuntimeDiagnosticPayload,
+  type RuntimeDiagnostics,
+} from '../desktopRuntime/runtimeDiagnostics';
 import { startWorkflowSidecar } from '../workflowSidecar';
 
 const READY_PREFIX = 'TAURI_RUNTIME_READY ';
@@ -84,6 +89,38 @@ async function main(): Promise<void> {
     await runtimeService?.stop();
   };
 
+  const diagnostics: RuntimeDiagnostics = createRuntimeDiagnostics({
+    logsDir: path.join(copilotHome, 'logs'),
+  });
+
+  const installCrashHandlers = (): void => {
+    const buildPayload = (event: 'uncaught_exception' | 'unhandled_rejection', error: unknown): RuntimeDiagnosticPayload => ({
+      pid: process.pid,
+      platform: process.platform,
+      appVersion,
+      runtimeRoot,
+      error: {
+        name: error instanceof Error ? error.name : 'Error',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+      context: { event },
+    });
+
+    process.on('uncaughtException', (error) => {
+      diagnostics.recordEventSync('uncaught_exception', buildPayload('uncaught_exception', error));
+      bootLog(`uncaughtException: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    });
+
+    process.on('unhandledRejection', (reason) => {
+      diagnostics.recordEventSync('unhandled_rejection', buildPayload('unhandled_rejection', reason));
+      bootLog(`unhandledRejection: ${reason instanceof Error ? reason.message : String(reason)}`);
+      process.exit(1);
+    });
+  };
+  installCrashHandlers();
+
   bootLog('creating desktop runtime service');
   runtimeService = createDesktopRuntimeService(
     {
@@ -121,6 +158,7 @@ async function main(): Promise<void> {
       startWorkflowSidecar,
       startDesktopPlanningPersistence,
       startServer,
+      diagnostics,
     },
   );
 

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Button, Panel, StatusBadge } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { repositoriesStore } from './repositoriesStore';
+import { navigationStore } from '../../stores/navigation';
 
 export default function RepoSelectorPanel() {
   const state = useStoreValue(repositoriesStore);
@@ -20,8 +21,14 @@ export default function RepoSelectorPanel() {
   }, [state.repos, query]);
 
   function handleSelect(repo: typeof state.repos[number]) {
-    if (repo.repoPath || repo.repoId) {
-      void repositoriesStore.selectRepo(repo.repoPath ?? '', repo.repoId ?? '');
+    const repoPath = (repo.repoPath || '').trim();
+    const repoId = (repo.repoId || '').trim();
+    if (repoPath || repoId) {
+      void repositoriesStore.selectRepo(repoPath, repoId);
+    }
+    // Open a workspace tab so the repo appears in the sidebar and survives navigation
+    if (repoPath) {
+      navigationStore.openWorkspace(repoPath, repo.repoLabel || repoPath);
     }
   }
 

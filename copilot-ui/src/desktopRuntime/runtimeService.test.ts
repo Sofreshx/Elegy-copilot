@@ -510,3 +510,236 @@ test('bundled child entrypoint strips its dedicated flag while invoking the bund
   assert.deepEqual(observedArgv, [['desktop-shell.exe', '.', '--mode=disconnected']]);
   assert.deepEqual(processState.argv, ['desktop-shell.exe', '.', GATEWAY_CHILD_FLAG, '--mode=disconnected']);
 });
+
+test('runtime service records startup_dep_failed diagnostic when start throws', async () => {
+  const runtimeRoot = 'C:\\runtime';
+  const copilotHome = 'C:\\Users\\tester\\.copilot';
+  const fakeChild = new FakeChildProcess();
+  const events: { name: string; payload: Record<string, unknown> }[] = [];
+  const diagnostics = {
+    recordEvent: async (name: string, payload: Record<string, unknown>) => {
+      events.push({ name, payload });
+    },
+    recordEventSync: (name: string, payload: Record<string, unknown>) => {
+      events.push({ name, payload });
+    },
+    resolveLogPath: (name: string) => `C:/logs/${name}.json`,
+  };
+  const existingPaths = new Set([
+    path.join(runtimeRoot, 'local-tracker'),
+  ]);
+  const service = createDesktopRuntimeService(
+    {
+      paths: {
+        runtimeRoot,
+        workspaceRoot: runtimeRoot,
+        copilotHome,
+        gatewayConfigPath: path.join(copilotHome, 'messaging-gateway.config.json'),
+        legacyGatewayConfigPath: path.join('C:\\Users\\tester\\.instruction-engine', 'messaging-gateway.config.json'),
+      },
+      isPackaged: true,
+      processExecPath: 'C:\\runtime\\elegy-copilot-tauri-shell.exe',
+      appVersion: '1.0.1',
+      appPath: 'C:\\runtime\\copilot-ui',
+      currentDirname: 'C:\\runtime\\copilot-ui\\src-tauri\\target\\release',
+      env: {},
+      platform: 'win32',
+      logger: { log: () => undefined, warn: () => undefined },
+      shellAdapter: {
+        launchPackagedGatewayChild: () => fakeChild as unknown as NodeChildProcess,
+      },
+    },
+    {
+      startWorkflowSidecar: async () => ({
+        getPublicState: () => ({} as never),
+        getDispatchTarget: () => null,
+        stop: async () => undefined,
+      }) as never,
+      startDesktopPlanningPersistence: async () => ({
+        connectionString: 'postgres://planning',
+        queryClient: { query: async () => ({ rows: [] }) },
+        stop: async () => undefined,
+      }),
+      startServer: async () => {
+        throw new Error('server exploded');
+      },
+      fs: {
+        existsSync: (candidate: string) => existingPaths.has(candidate),
+        mkdirSync: () => undefined,
+        renameSync: () => undefined,
+        copyFileSync: () => undefined,
+        unlinkSync: () => undefined,
+      },
+      createRandomHex: (() => () => {
+        return 'token';
+      })(),
+      diagnostics: diagnostics as never,
+    },
+  );
+
+  await assert.rejects(() => service.start(), /server exploded/);
+  const startupFailure = events.find((event) => event.name === 'startup_dep_failed');
+  assert.ok(startupFailure, 'expected a startup_dep_failed diagnostic event');
+  const error = startupFailure.payload.error as { message?: string };
+  assert.equal(error?.message, 'server exploded');
+  const childrenState = startupFailure.payload.childrenState as Record<string, { status: string }>;
+  assert.equal(childrenState.gateway.status, 'running');
+  assert.equal(childrenState.planning.status, 'running');
+  assert.equal(childrenState.workflow.status, 'running');
+  assert.equal(childrenState.server.status, 'not_started');
+});
+
+test('runtime service records child_unexpected_exit when gateway exits outside shutdown', async () => {
+  const runtimeRoot = 'C:\\runtime';
+  const copilotHome = 'C:\\Users\\tester\\.copilot';
+  const fakeChild = new FakeChildProcess();
+  const events: { name: string; payload: Record<string, unknown> }[] = [];
+  const diagnostics = {
+    recordEvent: async (name: string, payload: Record<string, unknown>) => {
+      events.push({ name, payload });
+    },
+    recordEventSync: (name: string, payload: Record<string, unknown>) => {
+      events.push({ name, payload });
+    },
+    resolveLogPath: (name: string) => `C:/logs/${name}.json`,
+  };
+  const existingPaths = new Set([
+    path.join(runtimeRoot, 'local-tracker'),
+  ]);
+  const service = createDesktopRuntimeService(
+    {
+      paths: {
+        runtimeRoot,
+        workspaceRoot: runtimeRoot,
+        copilotHome,
+        gatewayConfigPath: path.join(copilotHome, 'messaging-gateway.config.json'),
+        legacyGatewayConfigPath: path.join('C:\\Users\\tester\\.instruction-engine', 'messaging-gateway.config.json'),
+      },
+      isPackaged: true,
+      processExecPath: 'C:\\runtime\\elegy-copilot-tauri-shell.exe',
+      appVersion: '1.0.1',
+      appPath: 'C:\\runtime\\copilot-ui',
+      currentDirname: 'C:\\runtime\\copilot-ui\\src-tauri\\target\\release',
+      env: {},
+      platform: 'win32',
+      logger: { log: () => undefined, warn: () => undefined },
+      shellAdapter: {
+        launchPackagedGatewayChild: () => fakeChild as unknown as NodeChildProcess,
+      },
+    },
+    {
+      startWorkflowSidecar: async () => ({
+        getPublicState: () => ({} as never),
+        getDispatchTarget: () => null,
+        stop: async () => undefined,
+      }) as never,
+      startDesktopPlanningPersistence: async () => ({
+        connectionString: 'postgres://planning',
+        queryClient: { query: async () => ({ rows: [] }) },
+        stop: async () => undefined,
+      }),
+      startServer: async () => ({
+        host: '127.0.0.1',
+        port: 3210,
+        close: async () => undefined,
+      }),
+      fs: {
+        existsSync: (candidate: string) => existingPaths.has(candidate),
+        mkdirSync: () => undefined,
+        renameSync: () => undefined,
+        copyFileSync: () => undefined,
+        unlinkSync: () => undefined,
+      },
+      createRandomHex: (() => () => 'token')(),
+      diagnostics: diagnostics as never,
+    },
+  );
+
+  await service.start();
+  fakeChild.exitCode = 137;
+  fakeChild.emit('exit', 137, 'SIGKILL');
+
+  const unexpected = events.find((event) => event.name === 'child_unexpected_exit');
+  assert.ok(unexpected, 'expected a child_unexpected_exit diagnostic event');
+  const child = unexpected.payload.child as { label: string; exitCode: number | null; signal: string | null };
+  assert.equal(child.label, 'gateway');
+  assert.equal(child.exitCode, 137);
+  assert.equal(child.signal, 'SIGKILL');
+
+  await service.stop();
+});
+
+test('runtime service does NOT record a diagnostic when the gateway exits during stop()', async () => {
+  const runtimeRoot = 'C:\\runtime';
+  const copilotHome = 'C:\\Users\\tester\\.copilot';
+  const fakeChild = new FakeChildProcess();
+  const events: { name: string; payload: Record<string, unknown> }[] = [];
+  const diagnostics = {
+    recordEvent: async (name: string, payload: Record<string, unknown>) => {
+      events.push({ name, payload });
+    },
+    recordEventSync: (name: string, payload: Record<string, unknown>) => {
+      events.push({ name, payload });
+    },
+    resolveLogPath: (name: string) => `C:/logs/${name}.json`,
+  };
+  const existingPaths = new Set([
+    path.join(runtimeRoot, 'local-tracker'),
+  ]);
+  const service = createDesktopRuntimeService(
+    {
+      paths: {
+        runtimeRoot,
+        workspaceRoot: runtimeRoot,
+        copilotHome,
+        gatewayConfigPath: path.join(copilotHome, 'messaging-gateway.config.json'),
+        legacyGatewayConfigPath: path.join('C:\\Users\\tester\\.instruction-engine', 'messaging-gateway.config.json'),
+      },
+      isPackaged: true,
+      processExecPath: 'C:\\runtime\\elegy-copilot-tauri-shell.exe',
+      appVersion: '1.0.1',
+      appPath: 'C:\\runtime\\copilot-ui',
+      currentDirname: 'C:\\runtime\\copilot-ui\\src-tauri\\target\\release',
+      env: {},
+      platform: 'win32',
+      logger: { log: () => undefined, warn: () => undefined },
+      shellAdapter: {
+        launchPackagedGatewayChild: () => fakeChild as unknown as NodeChildProcess,
+      },
+    },
+    {
+      startWorkflowSidecar: async () => ({
+        getPublicState: () => ({} as never),
+        getDispatchTarget: () => null,
+        stop: async () => undefined,
+      }) as never,
+      startDesktopPlanningPersistence: async () => ({
+        connectionString: 'postgres://planning',
+        queryClient: { query: async () => ({ rows: [] }) },
+        stop: async () => undefined,
+      }),
+      startServer: async () => ({
+        host: '127.0.0.1',
+        port: 3210,
+        close: async () => undefined,
+      }),
+      fs: {
+        existsSync: (candidate: string) => existingPaths.has(candidate),
+        mkdirSync: () => undefined,
+        renameSync: () => undefined,
+        copyFileSync: () => undefined,
+        unlinkSync: () => undefined,
+      },
+      createRandomHex: (() => () => 'token')(),
+      diagnostics: diagnostics as never,
+    },
+  );
+
+  await service.start();
+  await service.stop();
+  fakeChild.exitCode = 0;
+  fakeChild.emit('exit', 0, null);
+
+  const unexpected = events.find((event) => event.name === 'child_unexpected_exit');
+  assert.equal(unexpected, undefined, 'expected no diagnostic on a clean shutdown exit');
+});

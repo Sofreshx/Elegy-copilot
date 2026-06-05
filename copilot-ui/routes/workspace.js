@@ -13,6 +13,13 @@ const ALLOWED_KINDS = new Set(['dev', 'test', 'check', 'build', 'lint', 'clean',
 // Backslash is excluded since Windows paths use \ and shell: false prevents interpretation
 const SHELL_META_RE = /[;&|`$(){}!<>#*\?\[\]]/;
 
+function shellEscapePathPosix(filePath) {
+  // Wrap in single quotes, escaping embedded single quotes.
+  // Safe for cd, args, and other POSIX shell contexts.
+  const escaped = String(filePath).replace(/'/g, "'\\''");
+  return `'${escaped}'`;
+}
+
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -263,13 +270,13 @@ function detectLaunchers() {
   const { execSync } = require('child_process');
   const platform = process.platform;
   const candidates = [
-    { id: 'vscode', label: 'VS Code', cmd: 'code' },
-    { id: 'codium', label: 'VSCodium', cmd: 'codium' },
-    { id: 'cursor', label: 'Cursor', cmd: 'cursor' },
-    { id: 'windsurf', label: 'Windsurf', cmd: 'windsurf' },
-    { id: 'opencode', label: 'OpenCode CLI', cmd: 'opencode' },
-    { id: 'codex', label: 'Codex CLI', cmd: 'codex' },
-    { id: 'copilot', label: 'Copilot CLI', cmd: 'copilot' },
+    { id: 'vscode', label: 'VS Code', cmd: 'code', group: 'ides' },
+    { id: 'codium', label: 'VSCodium', cmd: 'codium', group: 'ides' },
+    { id: 'cursor', label: 'Cursor', cmd: 'cursor', group: 'ides' },
+    { id: 'windsurf', label: 'Windsurf', cmd: 'windsurf', group: 'ides' },
+    { id: 'opencode', label: 'OpenCode CLI', cmd: 'opencode', group: 'agents' },
+    { id: 'codex', label: 'Codex CLI', cmd: 'codex', group: 'agents' },
+    { id: 'copilot', label: 'Copilot CLI', cmd: 'copilot', group: 'agents' },
   ];
 
   const launchers = [];
@@ -285,11 +292,26 @@ function detectLaunchers() {
     } catch {
       available = false;
     }
-    launchers.push({ ...c, available, reason: available ? undefined : `${c.cmd} not found in PATH` });
+    launchers.push({
+      id: c.id,
+      label: c.label,
+      group: c.group,
+      command: c.cmd,
+      available,
+      reason: available ? undefined : `${c.cmd} not found in PATH`,
+      argsPreview: `<repo-path>`,
+    });
   }
 
   // Terminal is always available
-  launchers.push({ id: 'terminal', label: 'Terminal', cmd: 'terminal', available: true });
+  launchers.push({
+    id: 'terminal',
+    label: 'Terminal',
+    group: 'terminals',
+    command: 'terminal',
+    available: true,
+    argsPreview: process.platform === 'win32' ? '-NoExit -WorkingDirectory <repo-path>' : '--working-directory <repo-path>',
+  });
 
   return launchers;
 }
@@ -339,6 +361,8 @@ async function handleLaunch(ctx, deps) {
 
   try {
     let cmd, args;
+    const isAgent = launcher.group === 'agents';
+
     if (launcherId === 'terminal') {
       if (process.platform === 'win32') {
         cmd = 'pwsh';
@@ -350,8 +374,25 @@ async function handleLaunch(ctx, deps) {
         cmd = 'x-terminal-emulator';
         args = ['--working-directory', root];
       }
+    } else if (isAgent) {
+      // Agent CLIs open inside an interactive terminal in the repo directory
+      const agentCommand = launcher.command || launcher.cmd;
+      if (process.platform === 'win32') {
+        cmd = 'pwsh';
+        args = ['-NoExit', '-WorkingDirectory', root, '-Command', `${agentCommand} .`];
+      } else if (process.platform === 'darwin') {
+        // Use osascript to tell Terminal to open a new window with the agent
+        cmd = 'osascript';
+        args = [
+          '-e',
+          `tell application "Terminal" to do script "cd ${shellEscapePathPosix(root)} && ${agentCommand} ."`,
+        ];
+      } else {
+        cmd = 'x-terminal-emulator';
+        args = ['--working-directory', root, '-e', agentCommand];
+      }
     } else {
-      cmd = launcher.cmd;
+      cmd = launcher.command || launcher.cmd;
       args = [root];
     }
 

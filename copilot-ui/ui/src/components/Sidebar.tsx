@@ -1,4 +1,4 @@
-import type { SidebarItemId, SidebarNavItem } from '../stores/navigation';
+import type { OpenWorkspace, SidebarItemId, SidebarNavItem } from '../stores/navigation';
 
 const BRAND_ICON_SRC = '/elegy-copilot-icon.svg';
 
@@ -6,6 +6,10 @@ interface SidebarProps {
   items: readonly SidebarNavItem[];
   activeItem: SidebarItemId;
   onNavigate: (id: SidebarItemId) => void;
+  openWorkspaces?: OpenWorkspace[];
+  activeWorkspaceId?: string | null;
+  onFocusWorkspace?: (repoPath: string) => void;
+  onCloseWorkspace?: (repoPath: string) => void;
   testId?: string;
 }
 
@@ -13,6 +17,10 @@ export default function Sidebar({
   items,
   activeItem,
   onNavigate,
+  openWorkspaces = [],
+  activeWorkspaceId = null,
+  onFocusWorkspace,
+  onCloseWorkspace,
   testId = 'sidebar',
 }: SidebarProps) {
   const topItems = items.filter((item) => item.id !== 'settings');
@@ -31,6 +39,39 @@ export default function Sidebar({
           <span className="sidebar-brand">Elegy Copilot</span>
         </div>
       </div>
+
+      {openWorkspaces.length > 0 && (
+        <div className="sidebar-workspace-tabs" data-testid="sidebar-workspace-tabs">
+          {openWorkspaces.map((ws) => (
+            <button
+              key={ws.repoPath}
+              className={`sidebar-workspace-tab${activeWorkspaceId === ws.repoPath ? ' sidebar-workspace-tab-active' : ''}`}
+              data-testid={`sidebar-workspace-tab-${ws.repoPath}`}
+              title={ws.repoLabel}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onFocusWorkspace?.(ws.repoPath);
+              }}
+            >
+              <span className="sidebar-workspace-tab-label">{ws.repoLabel}</span>
+              <span
+                className="sidebar-workspace-tab-close"
+                data-testid={`sidebar-workspace-tab-close-${ws.repoPath}`}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onCloseWorkspace?.(ws.repoPath); } }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCloseWorkspace?.(ws.repoPath);
+                }}
+              >
+                ×
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="sidebar-nav">
         {topItems.map((item) => (

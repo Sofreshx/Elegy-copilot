@@ -1,5 +1,7 @@
 import { ReactNode } from 'react';
 
+import RuntimeDisconnectedBanner from './RuntimeDisconnectedBanner';
+
 interface AppLayoutProps {
   statusBar: ReactNode;
   sidebar: ReactNode;
@@ -16,6 +18,7 @@ export default function AppLayout({
   return (
     <div className="app-layout" data-testid={testId}>
       {statusBar}
+      <RuntimeDisconnectedBanner />
       <div className="app-layout-body">
         {sidebar}
         <main className="app-layout-content">

@@ -3,7 +3,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { createRequire } from 'module';
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
 import { updateAgentModel } from './frontmatter-utils.mjs';
@@ -346,7 +346,7 @@ export function parseArgs(argv) {
   return args;
 }
 
-function checkReadiness(opencodeHome, skillsHome, options = {}) {
+async function checkReadiness(opencodeHome, skillsHome, options = {}) {
   const checks = [];
   const warnings = [];
 
@@ -359,23 +359,20 @@ function checkReadiness(opencodeHome, skillsHome, options = {}) {
   const pluginPath = path.join(opencodeHome, 'plugins', 'worktree.js');
   if (fs.existsSync(pluginPath)) {
     checks.push({ name: 'worktree-plugin', ok: true, path: pluginPath });
-    // Smoke test: verify text-level sanity and basic parseability
+    // Smoke test: dynamically import the plugin to surface real module
+    // resolution, syntax, and export errors. The dedicated test in
+    // opencode-install.test.js performs full instantiation; the readiness
+    // check stays lightweight so it is safe to run on every install.
     try {
-      const content = fs.readFileSync(pluginPath, 'utf8');
-      if (!content.includes('export') || !content.includes('WorktreePlugin')) {
-        warnings.push(`Worktree plugin at ${pluginPath} may have syntax issues — missing expected exports`);
+      const pluginUrl = pathToFileURL(pluginPath).href;
+      const mod = await import(pluginUrl);
+      if (typeof mod.WorktreePlugin !== 'function') {
+        warnings.push(`Worktree plugin at ${pluginPath} loaded but did not export a WorktreePlugin function`);
       } else {
         checks.push({ name: 'worktree-plugin-smoke', ok: true });
       }
-      // Check for common breakage patterns
-      if (content.includes('import { tool }') && !content.includes('@opencode-ai/plugin/tool')) {
-        warnings.push('Plugin imports tool but not from @opencode-ai/plugin/tool');
-      }
-      if (!content.includes('export default WorktreePlugin')) {
-        warnings.push('Plugin missing default export');
-      }
     } catch (err) {
-      warnings.push(`Worktree plugin smoke test failed: ${err.message}`);
+      warnings.push(`Worktree plugin at ${pluginPath} failed to load: ${err.message}`);
     }
   } else {
     checks.push({ name: 'worktree-plugin', ok: false, path: pluginPath });
@@ -404,7 +401,7 @@ function checkReadiness(opencodeHome, skillsHome, options = {}) {
   return { checks, warnings };
 }
 
-export function runInstall(args = {}) {
+export async function runInstall(args = {}) {
   const opencodeHome = resolveOpenCodeHome(args.opencodeHome);
   const skillsHome = resolveSkillsHome(args.skillsHome, opencodeHome);
   const repoSetupRoot = args.repoRoot ? path.resolve(args.repoRoot) : '';
@@ -605,7 +602,7 @@ export function runInstall(args = {}) {
   console.log('  { "syncFiles": [".env", ".env.local", "config/local.json"] }');
 
   // Readiness checks
-  const readiness = checkReadiness(opencodeHome, skillsHome, { dryRun: args.dryRun });
+  const readiness = await checkReadiness(opencodeHome, skillsHome, { dryRun: args.dryRun });
   if (readiness.warnings.length > 0) {
     console.log('');
     console.log('Readiness warnings:');
@@ -631,7 +628,7 @@ try {
       }
       process.exit(0);
     }
-    runInstall(args);
+    await runInstall(args);
   }
 } catch (error) {
   console.error(error.message || String(error));

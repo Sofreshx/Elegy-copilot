@@ -137,16 +137,19 @@ import type {
   VersionResponse,
   WorktreeBinding,
 } from '../types';
+import { runtimeHealthStore } from '../../stores/runtimeHealthStore';
 
 export class ApiError extends Error {
   readonly status: number;
   readonly payload: unknown;
+  readonly code?: string;
 
-  constructor(message: string, status: number, payload: unknown) {
+  constructor(message: string, status: number, payload: unknown, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.payload = payload;
+    this.code = code;
   }
 }
 
@@ -2849,6 +2852,21 @@ export async function parseResponsePayload(response: Response): Promise<unknown>
   return response.text();
 }
 
+function classifyNetworkError(error: unknown): { code: string; message: string } {
+  if (error && typeof error === 'object') {
+    const name = (error as { name?: unknown }).name;
+    if (name === 'AbortError') {
+      return { code: 'aborted', message: error instanceof Error ? error.message : 'Request aborted' };
+    }
+  }
+  const rawMessage = error instanceof Error ? error.message : 'Network request failed';
+  const lower = rawMessage.toLowerCase();
+  if (lower.includes('failed to fetch') || lower.includes('networkerror') || lower.includes('fetch failed')) {
+    return { code: 'connection_refused', message: rawMessage };
+  }
+  return { code: 'network', message: rawMessage };
+}
+
 export async function apiRequest<T>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
   const { baseUrl, query, headers, ...init } = options;
   const url = createUrl(endpoint, baseUrl, query);
@@ -2865,8 +2883,9 @@ export async function apiRequest<T>(endpoint: string, options: ApiRequestOptions
       headers: mergedHeaders,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Network request failed';
-    throw new ApiError(message, 0, null);
+    const { code, message } = classifyNetworkError(error);
+    notifyApiRequestFailure(endpoint, code, message);
+    throw new ApiError(message, 0, null, code);
   }
 
   const payload = await parseResponsePayload(response);
@@ -2876,10 +2895,33 @@ export async function apiRequest<T>(endpoint: string, options: ApiRequestOptions
       payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string'
         ? payload.error
         : fallbackMessage;
-    throw new ApiError(message, response.status, payload);
+    notifyApiRequestSuccess(endpoint);
+    throw new ApiError(message, response.status, payload, 'http_error');
   }
 
+  notifyApiRequestSuccess(endpoint);
   return payload as T;
+}
+
+function notifyApiRequestFailure(endpoint: string, code: string, message: string): void {
+  if (isHealthEndpoint(endpoint)) {
+    return;
+  }
+  runtimeHealthStore.recordConnectionFailure(endpoint, code as 'connection_refused' | 'aborted' | 'network' | 'http_error' | 'unknown', message);
+}
+
+function notifyApiRequestSuccess(endpoint: string): void {
+  if (isHealthEndpoint(endpoint)) {
+    return;
+  }
+  runtimeHealthStore.recordConnectionSuccess();
+}
+
+function isHealthEndpoint(endpoint: string): boolean {
+  if (endpoint === '/api/health') return true;
+  const queryIndex = endpoint.indexOf('?');
+  const path = queryIndex === -1 ? endpoint : endpoint.slice(0, queryIndex);
+  return path === '/api/health' || path.endsWith('/api/health');
 }
 
 export function normalizeExecutorWorktreeRecord(value: unknown): ExecutorWorktreeRecord | null {

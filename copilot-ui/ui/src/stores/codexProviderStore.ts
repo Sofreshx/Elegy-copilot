@@ -3,6 +3,8 @@ import {
   checkDeepseekBridge,
   getCodexProviderStatus,
   getDeepseekStatus,
+  getBootstrapStatus,
+  bootstrapMoonBridge,
   resetCodexProvider,
   saveDeepseekSettings,
   setCodexProviderMode,
@@ -10,14 +12,16 @@ import {
   stopDeepseekBridge,
   type DeepseekSettingsPayload,
 } from '../lib/api/codexConfig';
-import type { CodexProviderDeepseekStatus, CodexProviderStatusResponse } from '../lib/types';
+import type { CodexProviderDeepseekStatus, CodexProviderStatusResponse, MoonBridgeBootstrapStatus } from '../lib/types';
 
 export interface CodexProviderState {
   status: CodexProviderStatusResponse | null;
   deepseekStatus: CodexProviderDeepseekStatus | null;
+  bootstrapStatus: MoonBridgeBootstrapStatus | null;
   loading: boolean;
   saving: boolean;
   bridgeLoading: boolean;
+  bootstrapLoading: boolean;
   error: string | null;
   message: string | null;
 }
@@ -25,9 +29,11 @@ export interface CodexProviderState {
 const INITIAL_STATE: CodexProviderState = {
   status: null,
   deepseekStatus: null,
+  bootstrapStatus: null,
   loading: false,
   saving: false,
   bridgeLoading: false,
+  bootstrapLoading: false,
   error: null,
   message: null,
 };
@@ -154,6 +160,48 @@ function createCodexProviderStore() {
     }
   }
 
+  async function fetchBootstrapStatus(): Promise<void> {
+    store.setState((state) => ({ ...state, bridgeLoading: true, error: null }));
+    try {
+      const bootstrapStatus = await getBootstrapStatus();
+      store.setState((state) => ({
+        ...state,
+        bootstrapStatus,
+        bridgeLoading: false,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch Moon Bridge bootstrap status';
+      store.setState((state) => ({ ...state, bridgeLoading: false, error: message }));
+    }
+  }
+
+  async function bootstrap(): Promise<void> {
+    store.setState((state) => ({ ...state, bootstrapLoading: true, error: null, message: null }));
+    try {
+      const result = await bootstrapMoonBridge({ forceRebuild: false });
+      store.setState((state) => ({
+        ...state,
+        bootstrapStatus: result.status,
+        bootstrapLoading: false,
+        message: result.success
+          ? result.message || 'Moon Bridge installed and built.'
+          : result.error || 'Moon Bridge bootstrap failed.',
+      }));
+      // Re-read DeepSeek status so bridgeBinaryAvailable reflects the managed binary
+      if (result.success) {
+        try {
+          const dsStatus = await getDeepseekStatus();
+          store.setState((prev) => ({ ...prev, deepseekStatus: dsStatus }));
+        } catch {
+          // best-effort refresh
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to bootstrap Moon Bridge';
+      store.setState((state) => ({ ...state, bootstrapLoading: false, error: message }));
+    }
+  }
+
   function resetState(): void {
     store.setState(() => ({ ...INITIAL_STATE }));
   }
@@ -169,6 +217,8 @@ function createCodexProviderStore() {
     startBridge,
     stopBridge,
     checkBridge,
+    fetchBootstrapStatus,
+    bootstrap,
     resetState,
   };
 }

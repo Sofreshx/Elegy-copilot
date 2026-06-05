@@ -33,7 +33,21 @@ export default function WorkspaceView() {
     };
   }, []);
 
-  const selectedRepoPath = state.selectedRepo?.repoPath ?? null;
+  const selectedRepoPath =
+    navState.activeWorkspaceId
+    || state.selectedRepo?.repoPath
+    || null;
+
+  // When the workspace tab is the source of truth (focusWorkspace sets
+  // activeWorkspaceId but does not touch repositoriesStore), resolve the
+  // display repo from the inventory so the label, repoId, and planning
+  // context stay consistent with the path-driven data.
+  const displayRepo = selectedRepoPath
+    ? (state.repos.find(
+        (r) => (r.repoPath || '').replace(/\\/g, '/').toLowerCase()
+               === selectedRepoPath.replace(/\\/g, '/').toLowerCase(),
+      ) || state.selectedRepo)
+    : null;
 
   useEffect(() => {
     if (selectedRepoPath) {
@@ -92,8 +106,8 @@ export default function WorkspaceView() {
       <Toolbar testId="workspace-toolbar">
         <h2>Workspace</h2>
         <span className="state-copy">
-          {state.selectedRepo
-            ? state.selectedRepo.repoLabel || state.selectedRepo.repoPath || ''
+          {displayRepo
+            ? displayRepo.repoLabel || displayRepo.repoPath || ''
             : 'Select a repository to begin'}
         </span>
       </Toolbar>
@@ -102,7 +116,7 @@ export default function WorkspaceView() {
         <div className="workspace-layout">
           <div className="workspace-active-bar" data-testid="workspace-active-bar">
             <WorkspaceActiveRepoCard
-              repo={state.selectedRepo}
+              repo={displayRepo}
               repoPath={selectedRepoPath}
               summary={gitState.summary}
               pullRequest={gitState.pullRequest?.pullRequest ?? null}
@@ -139,7 +153,7 @@ export default function WorkspaceView() {
             <div className="workspace-right-rail" data-testid="workspace-right-rail">
               <WorkspaceRightRail
                 repoPath={selectedRepoPath}
-                repoId={state.selectedRepo?.repoId ?? null}
+                repoId={displayRepo?.repoId ?? null}
                 summary={gitState.summary}
                 pullRequest={gitState.pullRequest?.pullRequest ?? null}
                 checkResults={checkResults || gitState.checkResults}

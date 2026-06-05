@@ -4,6 +4,7 @@ const { spawn } = require('child_process');
 const yaml = require('js-yaml');
 const copilotConfigDefault = require('../lib/copilotConfig');
 const codexConfigDefault = require('../lib/codexConfig');
+const moonBridgeBootstrapDefault = require('../lib/moonBridgeBootstrap');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 
 const DEFAULT_CODEX_PROVIDER_PREFLIGHT_TIMEOUT_MS = 1500;
@@ -28,6 +29,7 @@ function register(deps = {}) {
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     copilotConfig: deps.copilotConfig || copilotConfigDefault,
     codexConfig: deps.codexConfig || codexConfigDefault,
+    moonBridgeBootstrap: deps.moonBridgeBootstrap || moonBridgeBootstrapDefault,
     env: deps.env || process.env,
     probeCodexGatewayReachability: deps.probeCodexGatewayReachability
       || ((baseUrl) => probeCodexGatewayReachability(baseUrl, {
@@ -86,6 +88,16 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/config/codex-provider/deepseek/status',
       handler: (ctx) => handleCheckDeepseekBridge(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/config/codex-provider/deepseek/bootstrap',
+      handler: (ctx) => handleGetBootstrapStatus(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/config/codex-provider/deepseek/bootstrap',
+      handler: (ctx) => handleBootstrapMoonBridge(ctx, resolvedDeps),
     },
   ];
 }
@@ -624,11 +636,25 @@ async function handleCheckDeepseekBridge(ctx, deps) {
     const bridgeUrl = ds.bridgeUrl || codexConfigDefault.DEEPSEEK_BASE_URL;
 
     let bridgeReachable = false;
+    let modelsVisible = false;
+    let modelIds = [];
+
     try {
-      const statusProbe = await preflightFetch(bridgeModelsUrl(bridgeUrl), { signal: AbortSignal.timeout(preflightTimeoutMs) });
-      bridgeReachable = statusProbe.ok;
+      const probeResult = await probeDeepseekBridgeReachability(bridgeUrl, {
+        fetchImpl: globalThis.fetch,
+        timeoutMs: DEFAULT_CODEX_PROVIDER_PREFLIGHT_TIMEOUT_MS,
+      });
+      bridgeReachable = Boolean(probeResult && probeResult.reachable);
+      if (probeResult && probeResult.modelsVisible === true) {
+        modelsVisible = true;
+      }
+      if (probeResult && Array.isArray(probeResult.modelIds)) {
+        modelIds = probeResult.modelIds;
+      }
     } catch {
       bridgeReachable = false;
+      modelsVisible = false;
+      modelIds = [];
     }
 
     const bridgeRunning = deepseekBridgeProcess != null
@@ -641,10 +667,59 @@ async function handleCheckDeepseekBridge(ctx, deps) {
       modelsVisible,
       modelIds,
       bridgeRunning,
-      probeError,
+      probeError: null,
     });
   } catch (err) {
     deps.sendJson(ctx.res, 500, { error: 'Failed to check Moon Bridge status', details: err.message });
+  }
+}
+
+async function handleGetBootstrapStatus(ctx, deps) {
+  try {
+    const codexHome = ctx.codexHome;
+    const existing = deps.codexConfig.getBootstrapState(codexHome);
+    const copilotHome = ctx.copilotHome || require('path').join(require('os').homedir(), '.copilot');
+
+    const status = deps.moonBridgeBootstrap.getBootstrapStatus({
+      copilotHome,
+      existingBootstrapState: existing || undefined,
+    });
+
+    deps.sendJson(ctx.res, 200, status);
+  } catch (err) {
+    deps.sendJson(ctx.res, 500, { error: 'Failed to get Moon Bridge bootstrap status', details: err.message });
+  }
+}
+
+async function handleBootstrapMoonBridge(ctx, deps) {
+  try {
+    const codexHome = ctx.codexHome;
+    const copilotHome = ctx.copilotHome || require('path').join(require('os').homedir(), '.copilot');
+    const body = await deps.readJsonBody(ctx.req).catch(() => ({}));
+    const forceRebuild = body.forceRebuild === true;
+
+    const result = deps.moonBridgeBootstrap.bootstrapMoonBridge({
+      copilotHome,
+      forceRebuild,
+    });
+
+    deps.codexConfig.saveBootstrapState(codexHome, result.status);
+
+    if (result.success) {
+      deps.sendJson(ctx.res, 200, {
+        success: true,
+        message: 'Moon Bridge installed and built successfully.',
+        status: result.status,
+      });
+    } else {
+      deps.sendJson(ctx.res, 200, {
+        success: false,
+        error: result.error || 'Moon Bridge bootstrap failed.',
+        status: result.status,
+      });
+    }
+  } catch (err) {
+    deps.sendJson(ctx.res, 500, { error: 'Failed to bootstrap Moon Bridge', details: err.message });
   }
 }
 

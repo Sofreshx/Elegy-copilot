@@ -467,7 +467,33 @@ function getDeepseekStatus(codexHome) {
     bridgeBinaryAvailable: dsState.bridgeBinaryAvailable === true,
     bridgeCheckoutAvailable: dsState.bridgeCheckoutAvailable === true,
     envKeyConfigured: typeof process !== 'undefined' && process.env && !!process.env.MOON_BRIDGE_DEEPSEEK_TOKEN,
+    bootstrap: dsState.bootstrap && typeof dsState.bootstrap === 'object' ? dsState.bootstrap : null,
   };
+}
+
+function getBootstrapState(codexHome) {
+  const dsState = readDeepseekState(codexHome);
+  if (dsState.bootstrap && typeof dsState.bootstrap === 'object') {
+    return dsState.bootstrap;
+  }
+  return null;
+}
+
+function saveBootstrapState(codexHome, bootstrapState) {
+  const prev = readDeepseekState(codexHome);
+  const next = { ...prev, bootstrap: { ...(prev.bootstrap || {}), ...bootstrapState } };
+
+  // When the managed bootstrap has a built binary, forward it to bridgePath
+  // so that bridge start/check-status and the activate-prereqs gate recognize
+  // the managed install path without requiring the user to set it manually.
+  if (next.bootstrap && next.bootstrap.built === true && typeof next.bootstrap.binaryPath === 'string') {
+    next.bridgePath = next.bootstrap.binaryPath;
+    next.bridgeBinaryAvailable = true;
+    next.bridgeCheckoutAvailable = false;
+  }
+
+  writeDeepseekState(codexHome, next);
+  return getBootstrapState(codexHome);
 }
 
 function appendManagedBlock(text) {
@@ -766,6 +792,8 @@ module.exports = {
   applyDeepseekSoftReset,
   getDeepseekStatus,
   saveDeepseekSettings,
+  getBootstrapState,
+  saveBootstrapState,
   getPlanningSkillStatus,
   getStatus,
   setMode,

@@ -6,7 +6,10 @@ use std::{
     os::windows::ffi::OsStrExt,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::{mpsc, Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Arc, Mutex,
+    },
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -26,7 +29,259 @@ const MAX_MSGBOX_TEXT_LEN: usize = 4096;
 type StderrCapture = Arc<Mutex<Vec<String>>>;
 
 #[derive(Default)]
-struct RuntimeChildState(Mutex<Option<Child>>);
+struct RuntimeChildState {
+    inner: Mutex<Option<Child>>,
+    cancel: Arc<AtomicBool>,
+    pid: Mutex<Option<u32>>,
+    window_url: Mutex<Option<String>>,
+    stderr_capture: Mutex<Option<StderrCapture>>,
+}
+
+const RUNTIME_DIAGNOSTIC_SCHEMA: &str = "elegy.runtime-host.diagnostic/v1";
+const RUNTIME_DIAGNOSTIC_POLL_INTERVAL: Duration = Duration::from_millis(500);
+const RUNTIME_DIAGNOSTIC_PRUNE_KEEP: usize = 16;
+
+fn runtime_diagnostic_logs_dir() -> PathBuf {
+    std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .map(|home| PathBuf::from(home).join(".copilot").join("logs"))
+        .unwrap_or_else(|_| PathBuf::from("logs"))
+}
+
+fn runtime_diagnostic_timestamp_ms() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or(0)
+}
+
+fn runtime_diagnostic_format_timestamp(timestamp_ms: u128) -> String {
+    let total_seconds = (timestamp_ms / 1000) as u64;
+    let millis = (timestamp_ms % 1000) as u64;
+    let seconds_in_day = total_seconds % 86_400;
+    let hours = seconds_in_day / 3_600;
+    let minutes = (seconds_in_day % 3_600) / 60;
+    let seconds = seconds_in_day % 60;
+    let day_index = total_seconds / 86_400;
+    let mut year: u64 = 1970;
+    let mut remaining_days = day_index;
+    loop {
+        let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+        let days_in_year = if leap { 366 } else { 365 };
+        if remaining_days < days_in_year {
+            break;
+        }
+        remaining_days -= days_in_year;
+        year += 1;
+    }
+    let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    let month_lengths = if leap {
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+    let mut month = 1u64;
+    for length in &month_lengths {
+        if *length as u64 > remaining_days {
+            break;
+        }
+        remaining_days -= *length as u64;
+        month += 1;
+    }
+    let day = remaining_days + 1;
+    format!(
+        "{year:04}{month:02}{day:02}-{hours:02}{minutes:02}{seconds:02}-{millis:03}",
+        year = year,
+        month = month,
+        day = day,
+        hours = hours,
+        minutes = minutes,
+        seconds = seconds,
+        millis = millis,
+    )
+}
+
+fn runtime_diagnostic_filename(event: &str, timestamp_ms: u128) -> PathBuf {
+    runtime_diagnostic_logs_dir().join(format!(
+        "runtime-host-{event}-{}.json",
+        runtime_diagnostic_format_timestamp(timestamp_ms),
+    ))
+}
+
+fn runtime_diagnostic_iso(timestamp_ms: u128) -> String {
+    let seconds = (timestamp_ms / 1000) as i64;
+    let nanos = ((timestamp_ms % 1000) * 1_000_000) as u32;
+    let dt = time_format(seconds, nanos);
+    format!("{dt}Z")
+}
+
+fn time_format(seconds: i64, nanos: u32) -> String {
+    let total_seconds = if seconds < 0 { 0u64 } else { seconds as u64 };
+    let seconds_in_day = total_seconds % 86_400;
+    let hours = seconds_in_day / 3_600;
+    let minutes = (seconds_in_day % 3_600) / 60;
+    let seconds = seconds_in_day % 60;
+    let day_index = total_seconds / 86_400;
+    let mut year: u64 = 1970;
+    let mut remaining_days = day_index;
+    loop {
+        let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+        let days_in_year = if leap { 366 } else { 365 };
+        if remaining_days < days_in_year {
+            break;
+        }
+        remaining_days -= days_in_year;
+        year += 1;
+    }
+    let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    let month_lengths = if leap {
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+    let mut month = 1u64;
+    for length in &month_lengths {
+        if *length as u64 > remaining_days {
+            break;
+        }
+        remaining_days -= *length as u64;
+        month += 1;
+    }
+    let day = remaining_days + 1;
+    format!(
+        "{year:04}-{month:02}-{day:02}T{hours:02}:{minutes:02}:{seconds:02}.{nanos:09}",
+        year = year,
+        month = month,
+        day = day,
+        hours = hours,
+        minutes = minutes,
+        seconds = seconds,
+        nanos = nanos,
+    )
+}
+
+fn runtime_diagnostic_json_field_escape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    for ch in value.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{08}' => out.push_str("\\b"),
+            '\u{0c}' => out.push_str("\\f"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+fn write_runtime_diagnostic(
+    event: &str,
+    pid: Option<u32>,
+    window_url: Option<&str>,
+    exit_code: Option<i32>,
+    signal: Option<&str>,
+    last_stderr: &[String],
+    timestamp_ms: u128,
+) {
+    let logs_dir = runtime_diagnostic_logs_dir();
+    if let Err(error) = std::fs::create_dir_all(&logs_dir) {
+        eprintln!(
+            "[tauri-runtime] failed to create logs dir {}: {error}",
+            logs_dir.display()
+        );
+        return;
+    }
+
+    let path = runtime_diagnostic_filename(event, timestamp_ms);
+    let mut stderr_json = String::from("[");
+    for (index, line) in last_stderr.iter().enumerate() {
+        if index > 0 {
+            stderr_json.push(',');
+        }
+        stderr_json.push('"');
+        stderr_json.push_str(&runtime_diagnostic_json_field_escape(line));
+        stderr_json.push('"');
+    }
+    stderr_json.push(']');
+
+    let pid_value = pid
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "null".to_string());
+    let exit_code_value = exit_code
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "null".to_string());
+    let window_url_value = match window_url {
+        Some(value) => format!("\"{}\"", runtime_diagnostic_json_field_escape(value)),
+        None => "null".to_string(),
+    };
+    let signal_value = match signal {
+        Some(value) => format!("\"{}\"", runtime_diagnostic_json_field_escape(value)),
+        None => "null".to_string(),
+    };
+
+    let json = format!(
+        "{{\n  \"schema\": \"{schema}\",\n  \"event\": \"{event}\",\n  \"timestamp\": \"{timestamp}\",\n  \"pid\": {pid},\n  \"windowUrl\": {window_url},\n  \"exitCode\": {exit_code},\n  \"signal\": {signal},\n  \"lastStderr\": {stderr}\n}}\n",
+        schema = RUNTIME_DIAGNOSTIC_SCHEMA,
+        event = runtime_diagnostic_json_field_escape(event),
+        timestamp = runtime_diagnostic_iso(timestamp_ms),
+        pid = pid_value,
+        window_url = window_url_value,
+        exit_code = exit_code_value,
+        signal = signal_value,
+        stderr = stderr_json,
+    );
+
+    if let Err(error) = std::fs::write(&path, json) {
+        eprintln!(
+            "[tauri-runtime] failed to write diagnostic {}: {error}",
+            path.display()
+        );
+        return;
+    }
+
+    eprintln!(
+        "[tauri-runtime] wrote {} diagnostic to {}",
+        event,
+        path.display()
+    );
+
+    prune_runtime_diagnostics(&logs_dir);
+}
+
+fn prune_runtime_diagnostics(logs_dir: &Path) {
+    let entries = match std::fs::read_dir(logs_dir) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+    let mut files: Vec<(PathBuf, SystemTime)> = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = match path.file_name().and_then(|n| n.to_str()) {
+            Some(name) => name,
+            None => continue,
+        };
+        if !name.starts_with("runtime-host-") || !name.ends_with(".json") {
+            continue;
+        }
+        let modified = entry
+            .metadata()
+            .and_then(|metadata| metadata.modified())
+            .unwrap_or(UNIX_EPOCH);
+        files.push((path, modified));
+    }
+    if files.len() <= RUNTIME_DIAGNOSTIC_PRUNE_KEEP {
+        return;
+    }
+    files.sort_by_key(|(_, modified)| *modified);
+    let to_remove = files.len() - RUNTIME_DIAGNOSTIC_PRUNE_KEEP;
+    for (path, _) in files.iter().take(to_remove) {
+        let _ = std::fs::remove_file(path);
+    }
+}
 
 #[derive(Deserialize)]
 struct RuntimeReadyPayload {
@@ -578,6 +833,98 @@ fn drain_runtime_output(child: &mut Child, stderr_capture: StderrCapture) -> Res
     ))
 }
 
+fn spawn_runtime_watchdog(app: AppHandle, cancel: Arc<AtomicBool>) {
+    thread::spawn(move || {
+        let state = app.state::<RuntimeChildState>();
+        let started_at = Instant::now();
+        loop {
+            if cancel.load(Ordering::SeqCst) {
+                return;
+            }
+
+            thread::sleep(RUNTIME_DIAGNOSTIC_POLL_INTERVAL);
+
+            // Re-check the cancel flag after sleep: shutdown_runtime sets cancel
+            // before killing the child, and the kill can complete during this
+            // thread's sleep window. Skipping the double-check would cause a
+            // false child_unexpected_exit diagnostic on an intentional shutdown.
+            if cancel.load(Ordering::SeqCst) {
+                return;
+            }
+
+            let exit_status = {
+                let mut guard = match state.inner.lock() {
+                    Ok(guard) => guard,
+                    Err(_) => return,
+                };
+                let Some(child) = guard.as_mut() else {
+                    return;
+                };
+                child.try_wait().ok().flatten()
+            };
+
+            let Some(status) = exit_status else {
+                if started_at.elapsed() > Duration::from_secs(60 * 60 * 24) {
+                    return;
+                }
+                continue;
+            };
+
+            // Final cancel check: even if the child exited *after* the
+            // try_wait above, shutdown may still have been requested
+            // concurrently. Do not write a diagnostic for a deliberate stop.
+            if cancel.load(Ordering::SeqCst) {
+                return;
+            }
+
+            let pid_value = state
+                .pid
+                .lock()
+                .ok()
+                .and_then(|guard| *guard);
+            let window_url_value = state
+                .window_url
+                .lock()
+                .ok()
+                .and_then(|guard| guard.clone());
+            let last_stderr = state
+                .stderr_capture
+                .lock()
+                .ok()
+                .and_then(|guard| guard.as_ref().map(|cap| cap.lock().ok().map(|lines| lines.clone())))
+                .flatten()
+                .unwrap_or_default();
+
+            let exit_code = status.code();
+            #[cfg(unix)]
+            let signal_name = {
+                use std::os::unix::process::ExitStatusExt;
+                status.signal().map(|signal| signal.to_string())
+            };
+            #[cfg(not(unix))]
+            let signal_name: Option<String> = None;
+
+            let last_stderr_tail: Vec<String> = if last_stderr.len() > MAX_DIAGNOSTIC_LINES {
+                last_stderr[last_stderr.len() - MAX_DIAGNOSTIC_LINES..].to_vec()
+            } else {
+                last_stderr.clone()
+            };
+
+            write_runtime_diagnostic(
+                "child_unexpected_exit",
+                pid_value,
+                window_url_value.as_deref(),
+                exit_code,
+                signal_name.as_deref(),
+                &last_stderr_tail,
+                runtime_diagnostic_timestamp_ms(),
+            );
+
+            return;
+        }
+    });
+}
+
 fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result<String, String> {
     eprintln!("[tauri-runtime] resolving runtime root");
     let root = runtime_root(app)?;
@@ -586,6 +933,7 @@ fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result
     eprintln!("[tauri-runtime] node executable: {}", node_executable.display());
     let runtime_host = runtime_host_path(&root)?;
     eprintln!("[tauri-runtime] runtime host: {}", runtime_host.display());
+    let stderr_capture_for_watchdog = Arc::clone(&stderr_capture);
     let copilot_ui_root = root.join("copilot-ui");
     let server_entrypoint = copilot_ui_root.join("server.js");
     let gateway_entrypoint = root
@@ -624,22 +972,41 @@ fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result
         .spawn()
         .map_err(|error| format!("Unable to launch Tauri runtime host: {error}"))?;
 
-    let ready_payload = drain_runtime_output(&mut child, stderr_capture)?;
+    let ready_payload = drain_runtime_output(&mut child, stderr_capture_for_watchdog.clone())?;
     let parsed: RuntimeReadyPayload = serde_json::from_str(&ready_payload)
         .map_err(|error| format!("Invalid readiness payload from Tauri runtime host: {error}"))?;
 
-    app.state::<RuntimeChildState>()
-        .0
+    let runtime_state = app.state::<RuntimeChildState>();
+    let child_pid = child.id();
+    {
+        let mut inner_guard = runtime_state
+            .inner
+            .lock()
+            .map_err(|_| "Unable to lock runtime child state.".to_string())?;
+        inner_guard.replace(child);
+    }
+    *runtime_state
+        .pid
         .lock()
-        .map_err(|_| "Unable to lock runtime child state.".to_string())?
-        .replace(child);
+        .map_err(|_| "Unable to lock runtime pid state.".to_string())? = Some(child_pid);
+    *runtime_state
+        .window_url
+        .lock()
+        .map_err(|_| "Unable to lock runtime window url state.".to_string())? = Some(parsed.window_url.clone());
+    *runtime_state
+        .stderr_capture
+        .lock()
+        .map_err(|_| "Unable to lock runtime stderr capture state.".to_string())? = Some(stderr_capture_for_watchdog);
+
+    spawn_runtime_watchdog(app.clone(), runtime_state.cancel.clone());
 
     Ok(parsed.window_url)
 }
 
 fn shutdown_runtime(app: &AppHandle) {
     let runtime_state = app.state::<RuntimeChildState>();
-    let mut runtime_guard = match runtime_state.0.lock() {
+    runtime_state.cancel.store(true, Ordering::SeqCst);
+    let mut runtime_guard = match runtime_state.inner.lock() {
         Ok(guard) => guard,
         Err(_) => return,
     };

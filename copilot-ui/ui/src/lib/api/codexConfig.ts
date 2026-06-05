@@ -1,4 +1,4 @@
-import type { CodexProviderDeepseekStatus, CodexProviderStatusResponse } from '../types';
+import type { CodexProviderDeepseekStatus, CodexProviderStatusResponse, MoonBridgeBootstrapStatus } from '../types';
 import { apiRequest, normalizeCodexProviderStatusResponse } from './core';
 
 export async function getCodexProviderStatus(baseUrl?: string): Promise<CodexProviderStatusResponse> {
@@ -78,6 +78,37 @@ export async function checkDeepseekBridge(baseUrl?: string): Promise<CodexProvid
   const payload = await apiRequest<CodexProviderDeepseekStatus>(
     '/api/config/codex-provider/deepseek/status',
     { baseUrl, method: 'POST' },
+  );
+  return payload;
+}
+
+export async function getBootstrapStatus(baseUrl?: string): Promise<MoonBridgeBootstrapStatus> {
+  const payload = await apiRequest<MoonBridgeBootstrapStatus>(
+    '/api/config/codex-provider/deepseek/bootstrap',
+    { baseUrl },
+  );
+  return payload;
+}
+
+export interface BootstrapMoonBridgeResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+  status: MoonBridgeBootstrapStatus;
+}
+
+export async function bootstrapMoonBridge(
+  options: { forceRebuild?: boolean } = {},
+  baseUrl?: string,
+): Promise<BootstrapMoonBridgeResponse> {
+  const payload = await apiRequest<BootstrapMoonBridgeResponse>(
+    '/api/config/codex-provider/deepseek/bootstrap',
+    {
+      baseUrl,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ forceRebuild: options.forceRebuild }),
+    },
   );
   return payload;
 }
