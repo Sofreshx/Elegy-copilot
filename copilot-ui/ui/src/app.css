@@ -1169,6 +1169,24 @@ button.planning-entity-card:focus-visible {
   min-width: 0;
 }
 
+/* External asset cards in Catalog */
+.catalog-external-asset-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.catalog-external-asset-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.catalog-external-asset-header .state-card-title {
+  margin: 0;
+}
+
 .skills-preview-table th,
 .skills-preview-table td {
   border-bottom: 1px solid var(--color-ink-200);
@@ -8306,6 +8324,34 @@ textarea:focus-visible,
   background: var(--color-brand-50);
   border-color: var(--color-brand-200);
   color: var(--color-brand-600);
+}
+
+.workspace-docs-item-symlink::after {
+  content: " ↗";
+  font-size: 0.75em;
+  opacity: 0.6;
+}
+
+.workspace-docs-item-symlink-indicator {
+  margin-left: 4px;
+  font-size: 0.75em;
+  opacity: 0.6;
+}
+
+.workspace-docs-item-blocked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.workspace-docs-item-blocked:hover {
+  background: transparent;
+}
+
+.workspace-docs-item-warning {
+  display: inline-block;
+  margin-left: 4px;
+  color: var(--elegy-warning, #b45309);
+  font-size: 0.7em;
 }
 
 .workspace-docs-viewer {

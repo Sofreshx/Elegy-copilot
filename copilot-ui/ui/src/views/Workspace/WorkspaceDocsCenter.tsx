@@ -34,6 +34,8 @@ export default function WorkspaceDocsCenter({ repoPath }: WorkspaceDocsCenterPro
   }, [repoPath]);
 
   async function handleSelectFile(file: RepoDocEntry) {
+    // Skip blocked files
+    if (file.blockedReason) return;
     setDocLoading(true);
     setDocError(null);
     setSelectedDoc(null);
@@ -44,6 +46,42 @@ export default function WorkspaceDocsCenter({ repoPath }: WorkspaceDocsCenterPro
       setDocError(err instanceof Error ? err.message : String(err));
     } finally {
       setDocLoading(false);
+    }
+  }
+
+  function handleNavigateDoc(docPath: string) {
+    let targetPath = docPath;
+
+    // Resolve relative path against current doc's directory
+    if (targetPath.startsWith('./') || targetPath.startsWith('../')) {
+      if (selectedDoc?.path) {
+        const currentDir = selectedDoc.path.substring(0, selectedDoc.path.lastIndexOf('/') + 1);
+        targetPath = currentDir + docPath.substring(docPath.startsWith('./') ? 2 : 0);
+        // Normalize ../
+        const parts = targetPath.split('/');
+        const resolved: string[] = [];
+        for (const part of parts) {
+          if (part === '..') {
+            resolved.pop();
+          } else if (part !== '.' && part !== '') {
+            resolved.push(part);
+          }
+        }
+        targetPath = resolved.join('/');
+      }
+    }
+
+    // Find matching file in the list
+    const match = files.find(f => f.path === targetPath || f.path.replace(/\\/g, '/') === targetPath);
+    if (match) {
+      void handleSelectFile(match);
+    } else {
+      // Try case-insensitive match
+      const lowerTarget = targetPath.toLowerCase();
+      const lowerMatch = files.find(f => f.path.toLowerCase() === lowerTarget);
+      if (lowerMatch) {
+        void handleSelectFile(lowerMatch);
+      }
     }
   }
 
@@ -63,11 +101,24 @@ export default function WorkspaceDocsCenter({ repoPath }: WorkspaceDocsCenterPro
                 <li key={file.path}>
                   <button
                     type="button"
-                    className={`workspace-docs-item ${selectedDoc?.path === file.path ? 'workspace-docs-item-active' : ''}`}
+                    className={
+                      `workspace-docs-item` +
+                      (file.blockedReason ? ` workspace-docs-item-blocked` : '') +
+                      (!file.blockedReason && selectedDoc?.path === file.path ? ` workspace-docs-item-active` : '') +
+                      (file.isSymlink && !file.blockedReason ? ` workspace-docs-item-symlink` : '')
+                    }
                     onClick={() => void handleSelectFile(file)}
+                    disabled={!!file.blockedReason}
                     data-testid={`workspace-docs-item-${file.path}`}
+                    title={file.blockedReason || (file.isSymlink ? `Symlink → ${file.resolvedPath}` : file.path)}
                   >
                     <span className="workspace-docs-item-path">{file.path}</span>
+                    {file.isSymlink && !file.blockedReason && (
+                      <span className="workspace-docs-item-symlink-indicator" title={`Resolves to: ${file.resolvedPath}`}>&#x2197;</span>
+                    )}
+                    {file.blockedReason && (
+                      <span className="workspace-docs-item-warning" title={file.blockedReason}>&#x26A0;</span>
+                    )}
                   </button>
                 </li>
               ))}
@@ -87,7 +138,11 @@ export default function WorkspaceDocsCenter({ repoPath }: WorkspaceDocsCenterPro
               <span className="workspace-docs-viewer-path">{selectedDoc.path}</span>
             </div>
             <div className="workspace-docs-viewer-body">
-              <MarkdownMessage content={selectedDoc.content} testId="workspace-docs-markdown" />
+              <MarkdownMessage
+                content={selectedDoc.content}
+                testId="workspace-docs-markdown"
+                onNavigateDoc={handleNavigateDoc}
+              />
             </div>
           </div>
         ) : (

@@ -229,6 +229,7 @@ export default function StatsView() {
     () => statsState.sessions.slice(0, 8),
     [statsState.sessions]
   );
+  const providerUsage = statsState.providerUsage;
 
   const runtimeStatus = statsState.health
     ? (statsState.health.ok ? 'Healthy' : 'Degraded')
@@ -463,6 +464,107 @@ export default function StatsView() {
           {statsState.usageError ? <p className="state-message state-error">{statsState.usageError}</p> : null}
         </Panel>
       </div>
+
+      <Panel
+        subtitle="Aggregates provider, model, and agent usage from OpenCode request logs and Codex session inventory."
+        testId="stats-provider-usage-panel"
+        title="Provider Usage"
+        footer={providerUsage ? (
+          <p className="state-card-detail">
+            Generated {formatOptionalTimestamp(providerUsage.generatedAt)} from {providerUsage.opencode.logFiles} log file(s).
+            {providerUsage.opencode.totalRequests - providerUsage.opencode.sampledRequests > 0
+              ? ` Showing ${providerUsage.opencode.sampledRequests} of ${providerUsage.opencode.totalRequests} total requests.`
+              : ''}
+          </p>
+        ) : null}
+      >
+        {!providerUsage ? (
+          <p className="state-message">Provider usage data is not yet available.</p>
+        ) : (
+          <div className="state-meta-grid">
+            <article className="state-meta-card">
+              <p className="state-card-title">OpenCode Requests</p>
+              <p className="workspace-section-label">{providerUsage.opencode.totalRequests}</p>
+              <p className="state-card-copy">Total LLM requests across {providerUsage.opencode.logFiles} log files.</p>
+            </article>
+            <article className="state-meta-card">
+              <p className="state-card-title">Codex Sessions</p>
+              <p className="workspace-section-label">{providerUsage.codex.sessionCount}</p>
+              <p className="state-card-copy">Sessions found in Codex session index.</p>
+            </article>
+            <article className="state-meta-card">
+              <p className="state-card-title">Top Providers</p>
+              {providerUsage.opencode.providers.length === 0 ? (
+                <p className="state-card-copy">No provider data available.</p>
+              ) : (
+                <ul className="tracker-session-list" data-testid="stats-top-providers-list">
+                  {providerUsage.opencode.providers.slice(0, 5).map((entry) => (
+                    <li key={entry.name}>
+                      <div>
+                        <p className="tracker-item-title">{entry.name}</p>
+                        <p className="tracker-item-copy">{entry.count} requests</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </article>
+            <article className="state-meta-card">
+              <p className="state-card-title">Top Models</p>
+              {providerUsage.opencode.topModels.length === 0 ? (
+                <p className="state-card-copy">No model data available.</p>
+              ) : (
+                <ul className="tracker-session-list" data-testid="stats-top-models-list">
+                  {providerUsage.opencode.topModels.slice(0, 5).map((entry) => (
+                    <li key={entry.name}>
+                      <div>
+                        <p className="tracker-item-title">{entry.name}</p>
+                        <p className="tracker-item-copy">{entry.count} requests · {entry.provider}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </article>
+            <article className="state-meta-card">
+              <p className="state-card-title">Top Agents / Lanes</p>
+              {providerUsage.opencode.topAgents.length === 0 ? (
+                <p className="state-card-copy">No agent data available.</p>
+              ) : (
+                <ul className="tracker-session-list" data-testid="stats-top-agents-list">
+                  {providerUsage.opencode.topAgents.slice(0, 5).map((entry) => (
+                    <li key={entry.name}>
+                      <div>
+                        <p className="tracker-item-title">{entry.name}</p>
+                        <p className="tracker-item-copy">{entry.count} requests</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </article>
+            {providerUsage.codex.sessionCount > 0 ? (
+              <article className="state-meta-card">
+                <p className="state-card-title">Recent Codex Sessions</p>
+                <ul className="tracker-session-list" data-testid="stats-codex-sessions-list">
+                  {providerUsage.codex.recentSessions.slice(0, 5).map((session) => (
+                    <li key={session.id}>
+                      <div>
+                        <p className="tracker-item-title">{session.name || session.id}</p>
+                        <p className="tracker-item-copy">{session.updatedAt ? formatOptionalTimestamp(session.updatedAt) : 'Unknown'}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ) : null}
+          </div>
+        )}
+
+        {statsState.providerUsageError ? (
+          <p className="state-message state-error">{statsState.providerUsageError}</p>
+        ) : null}
+      </Panel>
 
       <Panel
         subtitle="Recent merged sessions, their observed sources, and whether the Stats tab could enrich them with sampled usage data."

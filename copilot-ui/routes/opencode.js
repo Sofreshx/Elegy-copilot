@@ -18,6 +18,7 @@ const {
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 const codexConfig = require('../lib/codexConfig');
 const { resolvePlanningHealth, resolvePlanningFeatureStatus } = require('../lib/elegyPlanningHealth');
+const providerUsageStats = require('../lib/providerUsageStats');
 
 const TOOLING_INSTALL_KINDS = new Set(['elegy-planning-cli', 'elegy-skills', 'install-codex-planning']);
 
@@ -603,6 +604,18 @@ async function buildOpenCodeStatus(ctx, deps) {
   };
 }
 
+function handleProviderUsage(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  
+  try {
+    const data = providerUsageStats.buildProviderUsage();
+    sendJson(res, 200, data);
+  } catch (error) {
+    sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
 function register(deps = {}) {
   const resolvedDeps = {
     sendJson: deps.sendJson || defaultSendJson,
@@ -845,7 +858,12 @@ function register(deps = {}) {
         }
       },
     },
+    {
+      method: 'GET',
+      path: '/api/stats/provider-usage',
+      handler: (ctx) => handleProviderUsage(ctx, resolvedDeps),
+    },
   ];
 }
 
-module.exports = { register };
+module.exports = { register, handleProviderUsage };
