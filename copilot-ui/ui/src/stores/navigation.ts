@@ -22,7 +22,20 @@ export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | '
 export type MaintenanceSection = 'updates' | 'sandboxes' | 'diagnostics';
 export type WizardType = 'project' | 'asset' | null;
 
-export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'maintenance' | 'runtime' | 'codex';
+export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'maintenance' | 'runtime' | 'codex' | 'claude-code';
+
+export interface SettingsNavItem {
+  id: SettingsSection;
+  label: string;
+  icon: string;
+}
+
+export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
+  { id: 'app', label: 'Settings', icon: '☰' },
+  { id: 'codex', label: 'Codex', icon: '◈' },
+  { id: 'claude-code', label: 'Claude Code', icon: '⬡' },
+  { id: 'opencode', label: 'OpenCode', icon: '⊞' },
+];
 
 export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal';
 

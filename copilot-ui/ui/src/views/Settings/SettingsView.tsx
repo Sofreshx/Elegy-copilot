@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Button, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
-import { navigationStore, type SettingsSection } from '../../stores/navigation';
+import { navigationStore, SETTINGS_NAV_ITEMS, type SettingsSection } from '../../stores/navigation';
+import { Panel } from '../../components';
 import CodexProviderPanel from './CodexProviderPanel';
 import CatalogShellView from '../Catalog/CatalogShellView';
 import OpenCodeView from '../../tabs/OpenCode/OpenCodeView';
 import MaintenanceView from '../Maintenance/MaintenanceView';
 import DashboardView from '../DashboardView';
-import { Panel } from '../../components';
+import ClaudeCodeView from '../../tabs/ClaudeCode/ClaudeCodeView';
 
 const BRAND_ICON_SRC = '/elegy-copilot-icon.svg';
 
@@ -16,15 +16,6 @@ interface AppInfo {
   channel?: string;
   routeCount?: number;
 }
-
-const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; icon: string }> = [
-  { id: 'app', label: 'App Settings', icon: '☰' },
-  { id: 'catalog', label: 'Catalog & Assets', icon: '▤' },
-  { id: 'opencode', label: 'OpenCode Setup', icon: '⊞' },
-  { id: 'maintenance', label: 'Maintenance', icon: '⚙' },
-  { id: 'runtime', label: 'Runtime', icon: '▶' },
-  { id: 'codex', label: 'Codex Providers', icon: '◈' },
-];
 
 export default function SettingsView() {
   const navState = useStoreValue(navigationStore);
@@ -59,12 +50,10 @@ export default function SettingsView() {
     return () => { cancelled = true; };
   }, []);
 
-  function handleBack() {
-    navigationStore.navigate('workspace');
-  }
-
   function renderSection() {
     switch (activeSection) {
+      case 'claude-code':
+        return <ClaudeCodeView />;
       case 'catalog':
         return <CatalogShellView />;
       case 'opencode':
@@ -83,33 +72,10 @@ export default function SettingsView() {
 
   return (
     <div className="settings-view" data-testid="settings-view">
-      <Toolbar testId="settings-toolbar">
-        <Button variant="ghost" size="sm" onClick={handleBack} testId="settings-back">
-          Back
-        </Button>
-        <h2>Settings</h2>
-      </Toolbar>
-
-      <div className="settings-layout">
-        <nav className="settings-nav" data-testid="settings-nav">
-          {SETTINGS_SECTIONS.map((section) => (
-            <button
-              key={section.id}
-              className={`settings-nav-item${activeSection === section.id ? ' settings-nav-item-active' : ''}`}
-              onClick={() => navigationStore.setSettingsSection(section.id)}
-              data-testid={`settings-nav-${section.id}`}
-              type="button"
-            >
-              <span className="settings-nav-icon" aria-hidden="true">{section.icon}</span>
-              <span className="settings-nav-label">{section.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="settings-content" data-testid="settings-content">
-          {renderSection()}
-        </div>
-      </div>
+      <h2 className="settings-page-heading">
+        {SETTINGS_NAV_ITEMS.find((s) => s.id === activeSection)?.label || 'Settings'}
+      </h2>
+      {renderSection()}
     </div>
   );
 }

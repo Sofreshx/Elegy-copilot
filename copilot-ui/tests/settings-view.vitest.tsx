@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { navigationStore } from '../ui/src/stores/navigation';
 import { codexProviderStore } from '../ui/src/stores/codexProviderStore';
@@ -207,15 +208,12 @@ describe('SettingsView', () => {
   });
 
   it('renders Codex provider controls with three mode buttons', async () => {
+    navigationStore.setSettingsSection('codex');
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
 
-    render(<SettingsView />);
-
-    // Select Codex Providers nav item (default is 'app')
-    await waitFor(() => {
-      expect(screen.getByTestId('settings-nav-codex')).toBeInTheDocument();
+    await act(async () => {
+      render(<SettingsView />);
     });
-    fireEvent.click(screen.getByTestId('settings-nav-codex'));
 
     await waitFor(() => {
       expect(screen.getByTestId('settings-codex-provider')).toBeInTheDocument();
@@ -230,15 +228,12 @@ describe('SettingsView', () => {
   });
 
   it('renders DeepSeek fields when deepseek-bridge mode is active', async () => {
+    navigationStore.setSettingsSection('codex');
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
 
-    render(<SettingsView />);
-
-    // Select Codex Providers nav item (default is 'app')
-    await waitFor(() => {
-      expect(screen.getByTestId('settings-nav-codex')).toBeInTheDocument();
+    await act(async () => {
+      render(<SettingsView />);
     });
-    fireEvent.click(screen.getByTestId('settings-nav-codex'));
 
     // Start in native mode; click the DeepSeek V4 button to switch to deepseek-bridge mode
     await waitFor(() => {
@@ -260,15 +255,12 @@ describe('SettingsView', () => {
   });
 
   it('enables hard restore when a backup exists', async () => {
+    navigationStore.setSettingsSection('codex');
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
 
-    render(<SettingsView />);
-
-    // Select Codex Providers nav item (default is 'app')
-    await waitFor(() => {
-      expect(screen.getByTestId('settings-nav-codex')).toBeInTheDocument();
+    await act(async () => {
+      render(<SettingsView />);
     });
-    fireEvent.click(screen.getByTestId('settings-nav-codex'));
 
     // Open Advanced section to reveal the hard-reset button
     await waitFor(() => {
@@ -289,15 +281,12 @@ describe('SettingsView', () => {
 
   it('startBridge merges bridgeReachable and modelsVisible so activate enables without Check Status', async () => {
     // Set up native-mode status first, then simulate guided deepseek flow
+    navigationStore.setSettingsSection('codex');
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
 
-    render(<SettingsView />);
-
-    // Navigate to Codex Providers
-    await waitFor(() => {
-      expect(screen.getByTestId('settings-nav-codex')).toBeInTheDocument();
+    await act(async () => {
+      render(<SettingsView />);
     });
-    fireEvent.click(screen.getByTestId('settings-nav-codex'));
 
     // Verify initial state: deepseek section visible, activate not present in native mode
     await waitFor(() => {

@@ -58,10 +58,28 @@ async function run() {
     assert.ok(fs.existsSync(brandIconPath), 'Expected branded svg icon asset in ui/public');
     assert.ok(sidebarSource.includes('sidebar-brand-icon'), 'Expected Sidebar to render the branded icon');
     assert.ok(sidebarSource.includes('/elegy-copilot-icon.svg'), 'Expected Sidebar to use the shared branded svg asset');
+    assert.ok(settingsSource.includes('settings-view'), 'Expected SettingsView to have settings-view data-testid');
+    assert.ok(settingsSource.includes('settings-page-heading'), 'Expected SettingsView to have settings-page-heading element');
     assert.ok(settingsSource.includes('settings-about-brand'), 'Expected Settings about panel to render branded app identity');
     assert.ok(settingsSource.includes('/elegy-copilot-icon.svg'), 'Expected Settings to use the shared branded svg asset');
     assert.ok(bootstrapHtml.includes('boot-mark'), 'Expected Tauri bootstrap shell to render the brand mark');
     assert.ok(bootstrapHtml.includes('Starting workspace...'), 'Expected Tauri bootstrap shell to expose branded startup copy');
+  });
+
+  await test('sidebar brand text is NOT rendered and sidebar UI elements exist', async () => {
+    const sidebarSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'Sidebar.tsx'), 'utf8');
+
+    // Brand TEXT should not appear as static content (icon remains, text should be conditional)
+    assert.ok(
+      !sidebarSource.includes('<span className="sidebar-brand">Elegy Copilot</span>'),
+      'Expected Sidebar NOT to render static brand text; should be conditional on isCollapsed'
+    );
+
+    // Sidebar interactive elements
+    assert.ok(sidebarSource.includes('sidebar-collapse-toggle'), 'Expected sidebar-collapse-toggle in Sidebar.tsx');
+    assert.ok(sidebarSource.includes('sidebar-settings-back'), 'Expected sidebar-settings-back in Sidebar.tsx');
+    assert.ok(sidebarSource.includes('sidebar-collapsed'), 'Expected sidebar-collapsed class reference in Sidebar.tsx');
+    assert.ok(sidebarSource.includes('sidebar-settings-'), 'Expected sidebar-settings- data-testid pattern in Sidebar.tsx');
   });
 
   await test('main.tsx and App.tsx exist', async () => {
@@ -94,12 +112,20 @@ async function run() {
     assert.ok(appSource.includes("./views/Workspace/WorkspaceView"), 'Expected WorkspaceView import in App.tsx');
     assert.ok(appSource.includes("./tabs/Lexicon/LexiconView"), 'Expected LexiconView import in App.tsx');
     assert.ok(appSource.includes("./views/Settings/SettingsView"), 'Expected SettingsView import in App.tsx');
+    assert.ok(appSource.includes('SETTINGS_NAV_ITEMS'), 'Expected SETTINGS_NAV_ITEMS import in App.tsx');
     assert.ok(!appSource.includes(["./views", "Workflows", ["Workflows", "Hub"].join("")].join("/")), 'Did not expect standalone workflows hub import in App.tsx');
     assert.ok(!appSource.includes("./views/Workflows/WorkflowExecutionView"), 'Did not expect standalone workflow execution import in App.tsx');
     assert.ok(!appSource.includes("./views/Workflows/WorkflowTemplateEditor"), 'Did not expect standalone workflow editor import in App.tsx');
     assert.ok(!appSource.includes("./tabs/Sessions/SessionsWorkspaceView"), 'Did not expect legacy SessionsWorkspaceView import in App.tsx');
     assert.ok(!appSource.includes("./tabs/State/StateView"), 'Did not expect retired StateView import in App.tsx');
     assert.ok(!appSource.includes(["./tabs", "Planning", ["Planning", "View"].join("")].join("/")), 'Did not expect legacy planning tab import in App.tsx');
+  });
+
+  await test('navigation.ts exports SETTINGS_NAV_ITEMS and claude-code settings section', async () => {
+    const navigationSource = fs.readFileSync(path.join(uiSrcRoot, 'stores', 'navigation.ts'), 'utf8');
+
+    assert.ok(navigationSource.includes('SETTINGS_NAV_ITEMS'), 'Expected SETTINGS_NAV_ITEMS export in navigation.ts');
+    assert.ok(navigationSource.includes("'claude-code'"), "Expected claude-code settings section in navigation.ts");
   });
 
   await test('responsive breakpoints for 1440px, 1024px, 768px, and 320px exist in app.css', async () => {
@@ -296,13 +322,21 @@ async function run() {
     assert.ok(source.includes('VerificationState'), 'Expected VerificationState type');
   });
 
-  await test('RepositoriesView uses new card layout', async () => {
+  await test('RepositoriesView uses repository-launcher layout with search, list, and register', async () => {
     const source = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Repositories', 'RepositoriesView.tsx'), 'utf8');
-    assert.ok(source.includes('repos-cards-layout'), 'Expected repos-cards-layout class');
-    assert.ok(source.includes('BranchCard'), 'Expected BranchCard import');
-    assert.ok(source.includes('ChangesCard'), 'Expected ChangesCard import');
-    assert.ok(source.includes('CommitPushCard'), 'Expected CommitPushCard import');
-    assert.ok(source.includes('RepoDocsCard'), 'Expected RepoDocsCard import');
+
+    // SourcesConfigPanel is composed into RepositoriesView (panel has its own test IDs)
+    assert.ok(source.includes('SourcesConfigPanel'), 'Expected SourcesConfigPanel import in RepositoriesView');
+    assert.ok(source.includes('<SourcesConfigPanel />'), 'Expected SourcesConfigPanel rendering in RepositoriesView');
+
+    // Search and list
+    assert.ok(source.includes('repos-search-input'), 'Expected repos-search-input test id in RepositoriesView');
+    assert.ok(source.includes('repos-list'), 'Expected repos-list test id in RepositoriesView');
+    assert.ok(source.includes('repos-list-item'), 'Expected repos-list-item test id in RepositoriesView');
+
+    // Count badge and manual register
+    assert.ok(source.includes('repos-count-badge'), 'Expected repos-count-badge class in RepositoriesView');
+    assert.ok(source.includes('repos-manual-register'), 'Expected repos-manual-register test id in RepositoriesView');
   });
 
   await test('repoDocs API client exists', async () => {
