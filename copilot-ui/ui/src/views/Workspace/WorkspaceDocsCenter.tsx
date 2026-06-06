@@ -1,34 +1,25 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Panel, MarkdownMessage } from '../../components';
 import { listRepoDocs, readRepoDoc } from '../../lib/api/repoDocs';
 import type { RepoDocEntry, RepoDocReadResponse } from '../../lib/api/repoDocs';
-import { buildDocTree } from '../../lib/docTree';
-import type { DocTreeNode } from '../../lib/docTree';
 
 interface WorkspaceDocsCenterProps {
   repoPath: string;
   isFocused?: boolean;
-  files?: RepoDocEntry[];
-  externalSelectPath?: string | null;
+  treeVisible?: boolean;
+  onToggleTree?: () => void;
 }
 
-export default function WorkspaceDocsCenter({ repoPath, isFocused = false, files: externalFiles, externalSelectPath }: WorkspaceDocsCenterProps) {
+export default function WorkspaceDocsCenter({ repoPath, isFocused, treeVisible = true, onToggleTree }: WorkspaceDocsCenterProps) {
   const [files, setFiles] = useState<RepoDocEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<RepoDocReadResponse | null>(null);
   const [docLoading, setDocLoading] = useState(false);
   const [docError, setDocError] = useState<string | null>(null);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [treeOverlayVisible, setTreeOverlayVisible] = useState(false);
 
-  // Use external files if provided, otherwise fetch
   useEffect(() => {
-    if (externalFiles) {
-      setFiles(externalFiles);
-      setLoading(false);
-      setError(null);
-      return;
-    }
     let cancelled = false;
     async function load() {
       setLoading(true);
@@ -44,22 +35,7 @@ export default function WorkspaceDocsCenter({ repoPath, isFocused = false, files
     }
     void load();
     return () => { cancelled = true; };
-  }, [repoPath, externalFiles]);
-
-  // Handle external select path (e.g. from graph view)
-  const previousSelectPath = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    if (externalSelectPath && externalSelectPath !== previousSelectPath.current) {
-      previousSelectPath.current = externalSelectPath;
-      const file = files.find(f => f.path === externalSelectPath);
-      if (file) {
-        void handleSelectFile(file);
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [externalSelectPath, files]);
-
-  const docTree = useMemo(() => buildDocTree(files), [files]);
+  }, [repoPath]);
 
   async function handleSelectFile(file: RepoDocEntry) {
     // Skip blocked files
@@ -74,6 +50,8 @@ export default function WorkspaceDocsCenter({ repoPath, isFocused = false, files
       setDocError(err instanceof Error ? err.message : String(err));
     } finally {
       setDocLoading(false);
+      // Auto-minimize tree overlay when a document is selected from the overlay
+      setTreeOverlayVisible(false);
     }
   }
 
@@ -113,123 +91,115 @@ export default function WorkspaceDocsCenter({ repoPath, isFocused = false, files
     }
   }
 
-  function toggleFolder(path: string) {
-    setExpandedFolders(prev => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
-    });
-  }
+  // Shared file list content for both inline tree and overlay
+  const treeContent = (
+    <>
+      {loading ? (
+        <div className="state-message">Loading...</div>
+      ) : error ? (
+        <div className="state-error">{error}</div>
+      ) : files.length === 0 ? (
+        <div className="state-message">No docs or specs found in this repository.</div>
+      ) : (
+        <ul className="workspace-docs-list" data-testid="workspace-docs-list">
+          {files.map((file) => (
+            <li key={file.path}>
+              <button
+                type="button"
+                className={
+                  `workspace-docs-item` +
+                  (file.blockedReason ? ` workspace-docs-item-blocked` : '') +
+                  (!file.blockedReason && selectedDoc?.path === file.path ? ` workspace-docs-item-active` : '') +
+                  (file.isSymlink && !file.blockedReason ? ` workspace-docs-item-symlink` : '')
+                }
+                onClick={() => void handleSelectFile(file)}
+                disabled={!!file.blockedReason}
+                data-testid={`workspace-docs-item-${file.path}`}
+                title={file.blockedReason || (file.isSymlink ? `Symlink → ${file.resolvedPath}` : file.path)}
+              >
+                <span className="workspace-docs-item-path">{file.path}</span>
+                {file.isSymlink && !file.blockedReason && (
+                  <span className="workspace-docs-item-symlink-indicator" title={`Resolves to: ${file.resolvedPath}`}>&#x2197;</span>
+                )}
+                {file.blockedReason && (
+                  <span className="workspace-docs-item-warning" title={file.blockedReason}>&#x26A0;</span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
 
-  /** Recursively count all file descendants in a tree node */
-  function countFilesInNode(node: DocTreeNode): number {
-    let count = 0;
-    for (const child of node.children) {
-      if (child.type === 'file') {
-        count++;
-      } else {
-        count += countFilesInNode(child);
-      }
-    }
-    return count;
-  }
-
-  /** Recursive tree renderer */
-  function renderTreeNodes(nodes: DocTreeNode[]): React.ReactNode {
-    return nodes.map((node) => {
-      if (node.type === 'folder') {
-        const isExpanded = expandedFolders.has(node.path);
-        const fileCount = countFilesInNode(node);
-        return (
-          <div key={node.path}>
-            <button
-              type="button"
-              className="workspace-tree-folder"
-              style={{ paddingLeft: `calc(var(--space-sm) + ${node.depth * 12}px)` }}
-              onClick={() => toggleFolder(node.path)}
-              data-testid={`workspace-tree-folder-${node.path}`}
-              title={node.path}
-            >
-              <span className="workspace-tree-folder-chevron">
-                {isExpanded ? '\u25BC' : '\u25B6'}
-              </span>
-              <span className="workspace-tree-folder-name">{node.name}</span>
-              <span className="workspace-tree-folder-count">({fileCount} files)</span>
-            </button>
-            {isExpanded && (
-              <div className="workspace-tree-children">
-                {renderTreeNodes(node.children)}
-              </div>
-            )}
-          </div>
-        );
-      }
-
-      // File node
-      const file = node.entry!;
-      return (
-        <div key={node.path}>
-          <button
-            type="button"
-            className={
-              `workspace-docs-item` +
-              (file.blockedReason ? ` workspace-docs-item-blocked` : '') +
-              (!file.blockedReason && selectedDoc?.path === file.path ? ` workspace-docs-item-active` : '') +
-              (file.isSymlink && !file.blockedReason ? ` workspace-docs-item-symlink` : '')
-            }
-            style={{ paddingLeft: `calc(var(--space-sm) + ${node.depth * 12}px)` }}
-            onClick={() => void handleSelectFile(file)}
-            disabled={!!file.blockedReason}
-            data-testid={`workspace-docs-item-${file.path}`}
-            title={file.blockedReason || (file.isSymlink ? `Symlink \u2192 ${file.resolvedPath}` : file.path)}
-          >
-            <span className="workspace-docs-item-path">{node.name}</span>
-            {file.isSymlink && !file.blockedReason && (
-              <span className="workspace-docs-item-symlink-indicator" title={`Resolves to: ${file.resolvedPath}`}>&#x2197;</span>
-            )}
-            {file.blockedReason && (
-              <span className="workspace-docs-item-warning" title={file.blockedReason}>&#x26A0;</span>
-            )}
-          </button>
-        </div>
-      );
-    });
-  }
+  const treeHidden = isFocused;
 
   return (
-    <div className="workspace-docs-center" data-testid="workspace-docs-center">
-      {!isFocused && (
+    <div className={`workspace-docs-center${treeHidden ? ' workspace-docs-tree-collapsed' : ''}`} data-testid="workspace-docs-center">
+      {/* Inline tree sidebar */}
+      {treeVisible && !treeHidden && (
         <div className="workspace-docs-tree" data-testid="workspace-docs-tree">
           <Panel title="Docs & Specs" subtitle={`${files.length} files`} testId="workspace-docs-panel">
-            {loading ? (
-              <div className="state-message">Loading...</div>
-            ) : error ? (
-              <div className="state-error">{error}</div>
-            ) : files.length === 0 ? (
-              <div className="state-message">No docs or specs found in this repository.</div>
-            ) : (
-              <div className="workspace-docs-tree-list" data-testid="workspace-docs-list">
-                {renderTreeNodes(docTree)}
-              </div>
-            )}
+            {treeContent}
           </Panel>
+          {onToggleTree && (
+            <button
+              className="workspace-docs-tree-close"
+              onClick={onToggleTree}
+              data-testid="workspace-docs-tree-close"
+              title="Close tree panel"
+            >
+              &times;
+            </button>
+          )}
         </div>
       )}
 
       <div className="workspace-docs-viewer" data-testid="workspace-docs-viewer">
+        {/* Viewer header with tree toggle for collapsed mode */}
+        <div className="workspace-docs-viewer-header">
+          {!treeVisible && !treeHidden && (
+            <div className="workspace-docs-tree-toggle" data-testid="workspace-docs-tree-toggle">
+              <button
+                className="workspace-docs-tree-toggle-btn"
+                onClick={() => setTreeOverlayVisible((v) => !v)}
+                title="Show document tree"
+              >
+                Docs &triangleright;
+              </button>
+              {/* Tree overlay dropdown when collapsed */}
+              {treeOverlayVisible && (
+                <div className="workspace-docs-tree-overlay" data-testid="workspace-docs-tree-overlay">
+                  <div className="workspace-docs-tree-overlay-header">
+                    <span className="workspace-docs-tree-overlay-title">
+                      Docs & Specs ({files.length} files)
+                    </span>
+                    <button
+                      className="workspace-docs-tree-overlay-close"
+                      onClick={() => setTreeOverlayVisible(false)}
+                      title="Close overlay"
+                      data-testid="workspace-docs-tree-overlay-close"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                  {treeContent}
+                </div>
+              )}
+            </div>
+          )}
+          {selectedDoc && (
+            <span className="workspace-docs-viewer-path">{selectedDoc.path}</span>
+          )}
+        </div>
+
+        {/* Content area */}
         {docLoading ? (
           <div className="state-message">Loading document...</div>
         ) : docError ? (
           <div className="state-error">{docError}</div>
         ) : selectedDoc ? (
           <div className="workspace-docs-content">
-            <div className="workspace-docs-viewer-header">
-              <span className="workspace-docs-viewer-path">{selectedDoc.path}</span>
-            </div>
             <div className="workspace-docs-viewer-body">
               <MarkdownMessage
                 content={selectedDoc.content}

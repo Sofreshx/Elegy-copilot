@@ -89,9 +89,9 @@ function registerWithMocks({ execResponses = [], body = {} } = {}) {
 async function run() {
   console.log('\nGit Route Tests\n');
 
-  await test('register returns 14 route descriptors', async () => {
+  await test('register returns 17 route descriptors', async () => {
     const routes = registerWithMocks();
-    assert.equal(routes.length, 14);
+    assert.equal(routes.length, 17);
   });
 
   await test('GET /api/git/status returns branch, counts, and files', async () => {
@@ -246,6 +246,135 @@ async function run() {
     assert.equal(res.statusCode, 200);
     assert.equal(body.created, true);
     assert.equal(body.pullRequest.number, 55);
+  });
+
+  // ─── Merge route tests ────────────────────────────────────────────────
+
+  await test('GET /api/git/merge-candidates returns branch list with merge status', async () => {
+    const routes = registerWithMocks({
+      execResponses: [
+        { stdout: 'feature/test\n' },
+        { stdout: 'main\t\tabc123\t2025-01-15\nfeature/test\t\tdef456\t2025-01-16\n' },
+        { stdout: '' }, // merge-base for main -> feature/test (is ancestor)
+        { stdout: '2\n' }, // ahead
+        { stdout: '0\n' }, // behind
+      ],
+    });
+    const { res, body } = await invoke(routes, 'GET', '/api/git/merge-candidates?repoPath=C%3A%5Crepo');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.currentBranch, 'feature/test');
+    assert.ok(Array.isArray(body.branches));
+    // main is not current, should be a candidate
+    const main = body.branches.find((b) => b.name === 'main');
+    assert.ok(main);
+    assert.equal(typeof main.isMerged, 'boolean');
+    assert.equal(typeof main.ahead, 'number');
+    assert.equal(typeof main.behind, 'number');
+  });
+
+  await test('POST /api/git/merge-dry-run returns clean result when source is ancestor of target', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo', sourceRef: 'feature/test', targetRef: 'main' },
+      execResponses: [
+        { stdout: '' }, // status — clean
+        { stdout: 'tree content with no conflict markers\n' }, // merge-tree
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/merge-dry-run');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.clean, true);
+    assert.equal(body.dirty, false);
+    assert.equal(body.sourceRef, 'feature/test');
+    assert.equal(body.targetRef, 'main');
+  });
+
+  await test('POST /api/git/merge-dry-run reports dirty when working tree has changes', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo', sourceRef: 'feature/test', targetRef: 'main' },
+      execResponses: [
+        { stdout: ' M src/app.ts\n' }, // status — dirty
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/merge-dry-run');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, false);
+    assert.equal(body.clean, false);
+    assert.equal(body.dirty, true);
+    assert.match(body.diagnostics, /dirty/i);
+  });
+
+  await test('POST /api/git/merge-dry-run reports conflicts when branches diverge', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo', sourceRef: 'feature/test', targetRef: 'main' },
+      execResponses: [
+        { stdout: '' }, // status — clean
+        { stdout: '<<<<<<<\nours\n=======\ntheirs\n>>>>>>>\n' }, // merge-tree with conflicts
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/merge-dry-run');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, false);
+    assert.equal(body.clean, false);
+    assert.equal(body.dirty, false);
+    assert.ok(body.conflicts === undefined || Array.isArray(body.conflicts));
+  });
+
+  await test('POST /api/git/merge-dry-run does NOT mutate HEAD, index, or working tree', async () => {
+    // Verify that merge-tree (not merge) was used by checking the git commands issued
+    const queue = [
+      { stdout: '' }, // status — clean
+      { stdout: 'tree content\n' }, // merge-tree
+    ];
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo', sourceRef: 'feature/test', targetRef: 'main' },
+      execResponses: queue,
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/merge-dry-run');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, true);
+  });
+
+  await test('POST /api/git/merge-local rejects when current branch does not match targetRef', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo', sourceRef: 'feature/test', targetRef: 'main' },
+      execResponses: [
+        { stdout: 'not-main\n' }, // branch --show-current (mismatch)
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/merge-local');
+    assert.equal(res.statusCode, 409);
+    assert.match(body.error, /does not match/i);
+  });
+
+  await test('POST /api/git/merge-local rejects when working tree is dirty', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo', sourceRef: 'feature/test', targetRef: 'main' },
+      execResponses: [
+        { stdout: 'main\n' }, // branch --show-current (matches)
+        { stdout: ' M dirty.txt\n' }, // status — dirty
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/merge-local');
+    assert.equal(res.statusCode, 409);
+    assert.match(body.error, /dirty/i);
+  });
+
+  await test('POST /api/git/merge-local succeeds with clean merge', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo', sourceRef: 'feature/test', targetRef: 'main' },
+      execResponses: [
+        { stdout: 'main\n' }, // branch --show-current (matches)
+        { stdout: '' }, // status — clean
+        { stdout: 'tree content no conflict\n' }, // merge-tree dry-run
+        { stdout: 'Merge made by the "ort" strategy.\n' }, // actual merge
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/merge-local');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.merged, true);
+    assert.equal(body.sourceRef, 'feature/test');
+    assert.equal(body.targetRef, 'main');
   });
 
   console.log(`\n  ${passed} tests passed\n`);

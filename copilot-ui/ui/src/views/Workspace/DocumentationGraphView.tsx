@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { readRepoDoc } from '../../lib/api/repoDocs';
-import type { RepoDocEntry } from '../../lib/api/repoDocs';
+import { getRepoDocsGraph } from '../../lib/api/repoDocs';
+import type { RepoDocsGraphResponse } from '../../lib/api/repoDocs';
 
 /* ── Types ── */
 
@@ -28,7 +28,6 @@ export interface GraphData {
 
 interface DocumentationGraphViewProps {
   repoPath: string;
-  files: RepoDocEntry[];
   onSelectDoc: (path: string) => void;
   testId?: string;
 }
@@ -132,12 +131,14 @@ function computeRadialLayout(nodes: GraphNode[], svgW: number, svgH: number): Gr
 
 export default function DocumentationGraphView({
   repoPath,
-  files,
   onSelectDoc,
   testId = 'workspace-docs-graph',
 }: DocumentationGraphViewProps) {
   const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [graphError, setGraphError] = useState<string | null>(null);
+  const [graphErrors, setGraphErrors] = useState<{ path: string; error: string }[] | null>(null);
+  const [graphSkipped, setGraphSkipped] = useState<{ path: string; reason: string }[] | null>(null);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
@@ -150,92 +151,74 @@ export default function DocumentationGraphView({
   const svgW = 800;
   const svgH = 500;
 
-  // Build graph data
+  // Fetch graph data from the batch API
   useEffect(() => {
     let cancelled = false;
 
-    async function buildGraph() {
+    async function fetchGraph() {
       setLoading(true);
       setGraphData(null);
+      setGraphError(null);
+      setGraphErrors(null);
+      setGraphSkipped(null);
 
       try {
-        // Filter out blocked files
-        const validFiles = files.filter((f) => !f.blockedReason);
-        if (validFiles.length === 0) {
-          if (!cancelled) {
-            setGraphData({ nodes: [], edges: [] });
-            setLoading(false);
-          }
+        const response = await getRepoDocsGraph(repoPath);
+
+        if (cancelled) return;
+
+        // Check for empty result
+        if (!response.nodes || response.nodes.length === 0) {
+          setGraphData({ nodes: [], edges: [] });
+          setLoading(false);
           return;
         }
 
-        // Create nodes
-        const nodes: GraphNode[] = validFiles.map((f) => ({
-          id: f.path,
-          label: f.name,
-          path: f.path,
-          x: 0,
-          y: 0,
-          depth: getDepth(f.path),
-        }));
+        // Store partial error/skipped info
+        if (response.errors && response.errors.length > 0) {
+          setGraphErrors(response.errors);
+        }
+        if (response.skipped && response.skipped.length > 0) {
+          setGraphSkipped(response.skipped);
+        }
 
         // Compute initial layout
+        const nodes: GraphNode[] = response.nodes.map((n) => ({
+          id: n.id,
+          label: n.label,
+          path: n.path,
+          x: 0,
+          y: 0,
+          depth: n.depth,
+        }));
+
         const positionedNodes = computeRadialLayout(nodes, svgW, svgH);
         const posMap = new Map<string, { x: number; y: number }>();
         for (const n of positionedNodes) {
           posMap.set(n.id, { x: n.x, y: n.y });
         }
+        setNodePositions(posMap);
+
+        // Map edges to internal format
+        const edges: GraphEdge[] = response.edges.map((e) => ({
+          source: e.source,
+          target: e.target,
+          type: e.type,
+        }));
+
+        setGraphData({ nodes: positionedNodes, edges });
+      } catch (err) {
         if (!cancelled) {
-          setNodePositions(posMap);
+          setGraphError(err instanceof Error ? err.message : String(err));
         }
-
-        // Fetch each doc content and extract links
-        const filePaths = new Set(validFiles.map((f) => f.path));
-        const edges: GraphEdge[] = [];
-        const existingPaths = new Map<string, string>();
-        for (const f of validFiles) {
-          existingPaths.set(f.path.toLowerCase(), f.path);
-        }
-
-        for (const file of validFiles) {
-          if (cancelled) return;
-          try {
-            const doc = await readRepoDoc(repoPath, file.path);
-            const links = extractDocLinks(doc.content);
-            for (const link of links) {
-              // Try exact match first, then case-insensitive
-              let targetPath: string | undefined;
-              if (filePaths.has(link.path)) {
-                targetPath = link.path;
-              } else {
-                targetPath = existingPaths.get(link.path.toLowerCase());
-              }
-              if (targetPath && targetPath !== file.path) {
-                edges.push({
-                  source: file.path,
-                  target: targetPath,
-                  type: link.type,
-                });
-              }
-            }
-          } catch {
-            // Skip files that fail to read
-          }
-        }
-
-        if (!cancelled) {
-          setGraphData({ nodes: positionedNodes, edges });
-        }
-      } catch {
-        // Silently handle errors
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
-    void buildGraph();
+    void fetchGraph();
     return () => { cancelled = true; };
-  }, [repoPath, files, svgW, svgH]);
+  }, [repoPath, svgW, svgH]);
 
   // Currently displayed positions (initial layout + drag updates)
   const currentPositions = useCallback((nodeId: string): { x: number; y: number } => {
@@ -303,6 +286,55 @@ export default function DocumentationGraphView({
 
   const nodeCount = graphData?.nodes.length ?? 0;
   const edgeCount = graphData?.edges.length ?? 0;
+  const partialErrorCount = (graphErrors?.length ?? 0) + (graphSkipped?.length ?? 0);
+
+  // Partial error details state
+  const [showPartialDetails, setShowPartialDetails] = useState(false);
+
+  function renderPartialWarning() {
+    if (partialErrorCount === 0) return null;
+    return (
+      <div className="workspace-docs-graph-warning" data-testid={`${testId}-warning`}>
+        <span className="workspace-docs-graph-warning-text">
+          {graphErrors && graphErrors.length > 0
+            ? `${graphErrors.length} file(s) could not be read`
+            : `${graphSkipped!.length} file(s) skipped`}
+          <button
+            type="button"
+            className="workspace-docs-graph-warning-toggle"
+            onClick={() => setShowPartialDetails((v) => !v)}
+            data-testid={`${testId}-warning-toggle`}
+          >
+            {showPartialDetails ? 'Hide details' : 'Show details'}
+          </button>
+        </span>
+        {showPartialDetails && (
+          <div className="workspace-docs-graph-warning-details" data-testid={`${testId}-warning-details`}>
+            {graphErrors && graphErrors.length > 0 && (
+              <div className="workspace-docs-graph-warning-section">
+                <strong>Read errors:</strong>
+                <ul>
+                  {graphErrors.map((e) => (
+                    <li key={e.path}>{e.path}: {e.error}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {graphSkipped && graphSkipped.length > 0 && (
+              <div className="workspace-docs-graph-warning-section">
+                <strong>Skipped files:</strong>
+                <ul>
+                  {graphSkipped.map((s) => (
+                    <li key={s.path}>{s.path}: {s.reason}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="workspace-docs-graph" data-testid={testId}>
@@ -310,9 +342,11 @@ export default function DocumentationGraphView({
         <span className="workspace-docs-graph-summary" data-testid={`${testId}-summary`}>
           {loading
             ? 'Loading graph...'
-            : graphData
-              ? `${nodeCount} docs, ${edgeCount} links`
-              : ''}
+            : graphError
+              ? 'Error loading graph'
+              : graphData
+                ? `${nodeCount} docs, ${edgeCount} links`
+                : ''}
         </span>
       </div>
 
@@ -322,6 +356,12 @@ export default function DocumentationGraphView({
             Loading graph...
           </div>
         </div>
+      ) : graphError ? (
+        <div className="workspace-docs-graph-svg" data-testid={`${testId}-error`}>
+          <div className="state-error" style={{ padding: '2rem', textAlign: 'center' }}>
+            Failed to load graph: {graphError}
+          </div>
+        </div>
       ) : !graphData || nodeCount === 0 ? (
         <div className="workspace-docs-graph-svg" data-testid={`${testId}-empty`}>
           <div className="state-message" style={{ padding: '2rem', textAlign: 'center' }}>
@@ -329,7 +369,9 @@ export default function DocumentationGraphView({
           </div>
         </div>
       ) : (
-        <div className="workspace-docs-graph-svg" data-testid={`${testId}-svg-container`}>
+        <>
+          {renderPartialWarning()}
+          <div className="workspace-docs-graph-svg" data-testid={`${testId}-svg-container`}>
           <svg
             ref={svgRef}
             viewBox={`0 0 ${svgW} ${svgH}`}
@@ -452,6 +494,7 @@ export default function DocumentationGraphView({
             </g>
           </svg>
         </div>
+        </>
       )}
     </div>
   );

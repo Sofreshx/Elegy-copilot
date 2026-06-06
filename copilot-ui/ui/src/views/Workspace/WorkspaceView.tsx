@@ -1,23 +1,22 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Panel, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { notificationStore } from '../../stores/notificationStore';
 import { navigationStore } from '../../stores/navigation';
 import { repositoriesStore } from '../Repositories/repositoriesStore';
 import { gitStore } from '../../stores/gitStore';
-import { discoverGitChecks, runGitChecks } from '../../lib/api/git';
-import { listRepoDocs } from '../../lib/api/repoDocs';
+import { runGitChecks } from '../../lib/api/git';
 import type { GitCheckResults } from '../../lib/api/git';
-import type { RepoDocEntry } from '../../lib/api/repoDocs';
+import { getWorkspaceLaunchers } from '../../lib/api/workspace';
+import type { WorkspaceLauncher } from '../../lib/api/workspace';
 import RepoSelectorPanel from '../Repositories/RepoSelectorPanel';
 import SourcesConfigPanel from '../Repositories/SourcesConfigPanel';
 import GitHubAuthBanner from '../Repositories/GitHubAuthBanner';
 import { computeVerificationState, type VerificationState } from '../Repositories/verification';
-import WorkspaceActiveRepoCard from './WorkspaceActiveRepoCard';
-import WorkspaceDocsCenter from './WorkspaceDocsCenter';
-import WorkspaceRightRail from './WorkspaceRightRail';
-import SessionDetailView from '../Sessions/SessionDetailView';
-import DocumentationGraphView from './DocumentationGraphView';
+import WorkspaceLocalTabs from './WorkspaceLocalTabs';
+import WorkspaceDocsTab from './WorkspaceDocsTab';
+import WorkspaceGitTab from './WorkspaceGitTab';
+import WorkspacePlanningTab from './WorkspacePlanningTab';
+import WorkspaceExecutionTab from './WorkspaceExecutionTab';
 
 export default function WorkspaceView() {
   const state = useStoreValue(repositoriesStore);
@@ -27,10 +26,20 @@ export default function WorkspaceView() {
   const [verificationState, setVerificationState] = useState<VerificationState>('missing');
   const [checkResults, setCheckResults] = useState<GitCheckResults | null>(null);
   const [runningChecks, setRunningChecks] = useState(false);
+  const [launchers, setLaunchers] = useState<WorkspaceLauncher[]>([]);
   const lastCheckRef = useRef<{ branch: string | null; head: string | null; changeCount: number } | null>(null);
 
-  const [workspaceFiles, setWorkspaceFiles] = useState<RepoDocEntry[]>([]);
-  const [graphSelectedDocPath, setGraphSelectedDocPath] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const data = await getWorkspaceLaunchers();
+        if (!cancelled) setLaunchers(data.launchers);
+      } catch { /* optional */ }
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     void repositoriesStore.loadInventory();
@@ -39,25 +48,10 @@ export default function WorkspaceView() {
     };
   }, []);
 
-  const selectedRepoPath = navState.activeWorkspaceId || null;
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (!selectedRepoPath) {
-        if (!cancelled) setWorkspaceFiles([]);
-        return;
-      }
-      try {
-        const data = await listRepoDocs(selectedRepoPath);
-        if (!cancelled) setWorkspaceFiles(data.files);
-      } catch {
-        if (!cancelled) setWorkspaceFiles([]);
-      }
-    }
-    void load();
-    return () => { cancelled = true; };
-  }, [selectedRepoPath]);
+  const selectedRepoPath =
+    navState.activeWorkspaceId
+    || state.selectedRepo?.repoPath
+    || null;
 
   // When the workspace tab is the source of truth (focusWorkspace sets
   // activeWorkspaceId but does not touch repositoriesStore), resolve the
@@ -67,7 +61,7 @@ export default function WorkspaceView() {
     ? (state.repos.find(
         (r) => (r.repoPath || '').replace(/\\/g, '/').toLowerCase()
                === selectedRepoPath.replace(/\\/g, '/').toLowerCase(),
-      ) || null)
+      ) || state.selectedRepo)
     : null;
 
   useEffect(() => {
@@ -120,85 +114,19 @@ export default function WorkspaceView() {
     }
   }
 
-  function handleGraphSelectDoc(path: string) {
-    setGraphSelectedDocPath(path);
-    navigationStore.closeDocsGraph();
-  }
-
-  const centerMode = navState.workspaceCenterMode;
-
   return (
     <div className="workspace-view" data-testid="workspace-view">
-      <Toolbar testId="workspace-toolbar">
-        <h2>Workspace</h2>
-        <span className="state-copy">
-          {displayRepo
-            ? displayRepo.repoLabel || displayRepo.repoPath || ''
-            : 'Select a repository to begin'}
-        </span>
-      </Toolbar>
-
-      <div className="workspace-toolbar-actions" data-testid="workspace-toolbar-actions">
-        {selectedRepoPath && (
-          <>
-            {(centerMode === 'docs' || centerMode === 'docs-graph') && (
-              <button
-                className="workspace-graph-toggle"
-                data-testid="workspace-graph-toggle"
-                onClick={() =>
-                  centerMode === 'docs-graph'
-                    ? navigationStore.closeDocsGraph()
-                    : navigationStore.openDocsGraph()
-                }
-                type="button"
-                title={centerMode === 'docs-graph' ? 'Show docs list' : 'Show docs graph'}
-              >
-                {centerMode === 'docs-graph' ? '◉ Docs' : '◉ Graph'}
-              </button>
-            )}
-            <button
-              className="workspace-focus-toggle"
-              data-testid="workspace-focus-toggle"
-              onClick={() => navigationStore.toggleWorkspaceCenterFocus()}
-              type="button"
-              title={navState.isWorkspaceCenterFocused ? 'Exit focus mode' : 'Enter focus mode'}
-            >
-              {navState.isWorkspaceCenterFocused ? '□ Unfocus' : '⛶ Focus'}
-            </button>
-          </>
-        )}
-      </div>
-
       {selectedRepoPath ? (
         <div className="workspace-layout">
-          <div className="workspace-active-bar" data-testid="workspace-active-bar">
-            <WorkspaceActiveRepoCard
-              repo={displayRepo}
-              repoPath={selectedRepoPath}
-              summary={gitState.summary}
-              pullRequest={gitState.pullRequest?.pullRequest ?? null}
-              verificationState={verificationState}
-              changeCount={gitState.summary?.changedFiles ?? 0}
-              onSwitchRepo={() => setShowRepoSelector(!showRepoSelector)}
-              showRepoSelector={showRepoSelector}
-              checkResults={checkResults || gitState.checkResults}
-              runningChecks={runningChecks}
-              commitMessage={gitState.commitMessage}
-              committing={gitState.committing}
-              syncing={gitState.syncing}
-              creatingPullRequest={gitState.creatingPullRequest}
-              pullRequestTitle={gitState.pullRequestTitle}
-              pullRequestBody={gitState.pullRequestBody}
-              log={gitState.log}
-              onRunChecks={handleRunChecks}
-              onCommit={() => void gitStore.commit()}
-              onPush={() => void gitStore.push()}
-              onOpenPR={handleOpenPR}
-              onCreatePR={() => void gitStore.createPullRequest()}
-              onSetCommitMessage={(msg: string) => gitStore.setCommitMessage(msg)}
-              onSetPullRequestTitle={(title: string) => gitStore.setPullRequestTitle(title)}
-              onSetPullRequestBody={(body: string) => gitStore.setPullRequestBody(body)}
+          {/* Floating local tab switcher and brand */}
+          <div className="workspace-local-tabs-row" data-testid="workspace-local-tabs-row">
+            <WorkspaceLocalTabs
+              activeTab={navState.activeWorkspaceLocalTab}
+              onTabChange={(tab) => navigationStore.setActiveWorkspaceLocalTab(tab)}
             />
+            <div className="workspace-brand" data-testid="workspace-brand">
+              <img src="/elegy-copilot-icon.svg" alt="Elegy Copilot" className="workspace-brand-icon" />
+            </div>
           </div>
 
           {showRepoSelector ? (
@@ -210,38 +138,42 @@ export default function WorkspaceView() {
 
           <GitHubAuthBanner repoPath={selectedRepoPath} />
 
-          <div className={`workspace-main-layout${navState.isWorkspaceCenterFocused ? ' workspace-main-layout-focused' : ''}`}>
-            <div className="workspace-center" data-testid="workspace-center">
-              {centerMode === 'planning-session' && navState.activePlanningSessionId ? (
-                <SessionDetailView
-                  embedded
-                  sessionIdOverride={navState.activePlanningSessionId}
-                  sessionContext={navState.activePlanningSessionContext}
-                  onBack={() => navigationStore.closePlanningSession()}
-                />
-              ) : centerMode === 'docs-graph' ? (
-                <DocumentationGraphView
-                  repoPath={selectedRepoPath}
-                  files={workspaceFiles}
-                  onSelectDoc={handleGraphSelectDoc}
-                  testId="workspace-docs-graph"
-                />
-              ) : (
-                <WorkspaceDocsCenter
-                  repoPath={selectedRepoPath}
-                  isFocused={navState.isWorkspaceCenterFocused}
-                  files={workspaceFiles}
-                  externalSelectPath={graphSelectedDocPath}
-                />
-              )}
-            </div>
-
-            <div className="workspace-right-rail" data-testid="workspace-right-rail">
-              <WorkspaceRightRail
+          <div className="workspace-tab-content" data-testid="workspace-tab-content">
+            {navState.activeWorkspaceLocalTab === 'docs' && (
+              <WorkspaceDocsTab
+                repoPath={selectedRepoPath}
+                isFocused={navState.isWorkspaceCenterFocused}
+              />
+            )}
+            {navState.activeWorkspaceLocalTab === 'git' && (
+              <WorkspaceGitTab
+                repo={displayRepo}
+                repoPath={selectedRepoPath}
+                repoId={displayRepo?.repoId ?? null}
+                gitState={gitState}
+                verificationState={verificationState}
+                checkResults={checkResults}
+                runningChecks={runningChecks}
+                launchers={launchers}
+                onRunChecks={handleRunChecks}
+                onCommit={() => void gitStore.commit()}
+                onPush={() => void gitStore.push()}
+                onOpenPR={handleOpenPR}
+                onCreatePR={() => void gitStore.createPullRequest()}
+                onSetCommitMessage={(msg: string) => gitStore.setCommitMessage(msg)}
+                onSetPullRequestTitle={(t: string) => gitStore.setPullRequestTitle(t)}
+                onSetPullRequestBody={(b: string) => gitStore.setPullRequestBody(b)}
+              />
+            )}
+            {navState.activeWorkspaceLocalTab === 'planning' && (
+              <WorkspacePlanningTab
                 repoPath={selectedRepoPath}
                 repoId={displayRepo?.repoId ?? null}
               />
-            </div>
+            )}
+            {navState.activeWorkspaceLocalTab === 'execution' && (
+              <WorkspaceExecutionTab repoPath={selectedRepoPath} launchers={launchers} />
+            )}
           </div>
 
           {gitState.error ? (
