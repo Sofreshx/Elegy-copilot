@@ -2,6 +2,10 @@
 
 const { sendJson: defaultSendJson } = require('./_helpers');
 const { SESSION_ORCHESTRATION_CONTRACT_VERSION } = require('../lib/runtimeContracts');
+const {
+  WORKTREE_DISCOVERY_CONTRACT_VERSION,
+  discoverAndMergeWorktrees,
+} = require('../lib/worktreeDiscovery');
 
 function requireExecutor(res, deps) {
   if (deps.executorService) {
@@ -52,16 +56,72 @@ function handleGetRun(ctx, deps) {
   deps.sendJson(ctx.res, 200, run);
 }
 
-function handleListWorktrees(ctx, deps) {
+async function handleListWorktrees(ctx, deps) {
   const executor = requireExecutor(ctx.res, deps);
   if (!executor) return;
 
-  const url = new URL(ctx.pathname || 'http://localhost/api/executor/worktrees', 'http://localhost');
-  const repoId = (url.searchParams.get('repoId') || '').trim();
-  deps.sendJson(ctx.res, 200, {
-    worktrees: executor.listWorktrees({ repoId: repoId || null }),
-    orchestrationContractVersion: SESSION_ORCHESTRATION_CONTRACT_VERSION,
-  });
+  let searchParams;
+  if (ctx.u && typeof ctx.u.searchParams?.get === 'function') {
+    searchParams = ctx.u.searchParams;
+  } else {
+    const url = new URL(ctx.pathname || 'http://localhost/api/executor/worktrees', 'http://localhost');
+    searchParams = url.searchParams;
+  }
+  const repoId = (searchParams.get('repoId') || '').trim() || null;
+  const repoPath = (searchParams.get('repoPath') || '').trim() || null;
+  const includeGit = searchParams.get('includeGit') !== 'false';
+
+  const persisted = executor.listWorktrees({ repoId });
+  if (!includeGit || !repoPath) {
+    deps.sendJson(ctx.res, 200, {
+      worktrees: persisted,
+      orchestrationContractVersion: SESSION_ORCHESTRATION_CONTRACT_VERSION,
+      worktreeDiscovery: {
+        contractVersion: WORKTREE_DISCOVERY_CONTRACT_VERSION,
+        repoId,
+        repoPath: repoPath || null,
+        gitListOk: null,
+        gitListError: null,
+        persistedCount: persisted.length,
+        discoveredCount: 0,
+      },
+    });
+    return;
+  }
+
+  try {
+    const result = await deps.worktreeDiscovery.discoverAndMergeWorktrees({
+      repoPath,
+      persistedRecords: persisted,
+    });
+    deps.sendJson(ctx.res, 200, {
+      worktrees: result.mergedRecords,
+      orchestrationContractVersion: SESSION_ORCHESTRATION_CONTRACT_VERSION,
+      worktreeDiscovery: {
+        contractVersion: WORKTREE_DISCOVERY_CONTRACT_VERSION,
+        repoId,
+        repoPath: result.repoPath || repoPath,
+        gitListOk: result.gitListOk,
+        gitListError: result.gitListError,
+        persistedCount: result.persistedCount,
+        discoveredCount: result.discoveredCount,
+      },
+    });
+  } catch (error) {
+    deps.sendJson(ctx.res, 200, {
+      worktrees: persisted,
+      orchestrationContractVersion: SESSION_ORCHESTRATION_CONTRACT_VERSION,
+      worktreeDiscovery: {
+        contractVersion: WORKTREE_DISCOVERY_CONTRACT_VERSION,
+        repoId,
+        repoPath,
+        gitListOk: false,
+        gitListError: error && error.message ? error.message : String(error),
+        persistedCount: persisted.length,
+        discoveredCount: 0,
+      },
+    });
+  }
 }
 
 function register(deps = {}) {
@@ -69,6 +129,7 @@ function register(deps = {}) {
     sendJson: deps.sendJson || defaultSendJson,
     executorService: deps.executorService || null,
     workflowLayerService: deps.workflowLayerService || null,
+    worktreeDiscovery: deps.worktreeDiscovery || { discoverAndMergeWorktrees },
   };
 
   return [
@@ -100,4 +161,4 @@ function register(deps = {}) {
   ];
 }
 
-module.exports = { register };
+module.exports = { register, handleListWorktrees };

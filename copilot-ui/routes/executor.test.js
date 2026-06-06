@@ -81,8 +81,41 @@ async function invoke(routes, method, pathname, body) {
   throw new Error(`Route not found for ${method} ${pathname}`);
 }
 
+async function invokeWithQuery(routes, method, fullPath, deps) {
+  const req = createRequest(null);
+  const res = createResponse();
+  const queryIndex = fullPath.indexOf('?');
+  const pathname = queryIndex === -1 ? fullPath : fullPath.slice(0, queryIndex);
+  const search = queryIndex === -1 ? '' : fullPath.slice(queryIndex);
+  for (const route of routes) {
+    if (route.method !== method) continue;
+    if (typeof route.path === 'string' && route.path === pathname) {
+      const ctx = {
+        req,
+        res,
+        match: null,
+        pathname: fullPath,
+        u: {
+          pathname,
+          search,
+          searchParams: new URLSearchParams(search.startsWith('?') ? search.slice(1) : search),
+        },
+      };
+      const result = route.handler(ctx, deps);
+      if (result && typeof result.then === 'function') {
+        await result;
+      } else {
+        await sleep(0);
+      }
+      return { req, res };
+    }
+  }
+  throw new Error(`Route not found for ${method} ${fullPath}`);
+}
+
 async function run() {
   const calls = [];
+  const listWorktreesCalls = [];
   const executorService = {
     getHealth() {
       calls.push('health');
@@ -96,13 +129,31 @@ async function run() {
       calls.push('runs');
       return [{ id: 'run-1', jobId: 'job-1', status: 'succeeded', attemptCount: 1, maxAttempts: 3, createdAt: '2026-03-20T00:00:00.000Z', updatedAt: '2026-03-20T00:00:00.000Z', events: [] }];
     },
-    listWorktrees() {
-      calls.push('worktrees');
+    listWorktrees(options) {
+      listWorktreesCalls.push(options);
+      if (options && options.repoId === 'repo-1') {
+        return [{
+          worktreeId: 'wt-1',
+          repoId: 'repo-1',
+          repoPath: '/repo-1',
+          mode: 'dedicated',
+          path: '/repo-1-worktrees/wt-1',
+          source: 'executor',
+          status: 'ready',
+          launch: { blocked: false, reason: null },
+          updatedAt: '2026-03-20T00:00:00.000Z',
+        }];
+      }
+      if (options && options.repoId === 'repo-empty') {
+        return [];
+      }
       return [{
-        worktreeId: 'wt-1',
+        worktreeId: 'wt-all',
         repoId: 'repo-1',
         repoPath: '/repo-1',
         mode: 'dedicated',
+        path: '/repo-1-worktrees/wt-all',
+        source: 'executor',
         status: 'ready',
         launch: { blocked: false, reason: null },
       }];
@@ -113,8 +164,49 @@ async function run() {
     },
   };
 
+  const fakeDiscovery = {
+    async discoverAndMergeWorktrees(input) {
+      return {
+        ok: true,
+        repoPath: input && input.repoPath,
+        gitListOk: true,
+        gitListError: null,
+        persistedCount: (input && input.persistedRecords && input.persistedRecords.length) || 0,
+        discoveredCount: 2,
+        mergedRecords: [
+          ...(input && input.persistedRecords ? input.persistedRecords : []),
+          {
+            worktreeId: 'wt-codex-1',
+            path: '/Users/me/.codex/worktrees/436c/instruction-engine',
+            mode: 'discovered',
+            source: 'codex',
+            status: 'discovered',
+            branch: 'main',
+            git: { head: 'abc', ahead: 0, behind: 0, staged: 0, unstaged: 0, untracked: 0, changed: 0, detached: true },
+            validation: { pathExists: true, gitWorktree: true, checkedAt: '2026-06-01T00:00:00.000Z' },
+            _discovered: true,
+            _discoveredOnly: true,
+          },
+          {
+            worktreeId: 'wt-opencode-1',
+            path: '/Users/me/.local/share/opencode/worktree/proj/branch',
+            mode: 'discovered',
+            source: 'opencode',
+            status: 'discovered',
+            branch: 'feature/x',
+            git: { head: 'def', ahead: 0, behind: 0, staged: 0, unstaged: 1, untracked: 0, changed: 1, detached: false },
+            validation: { pathExists: true, gitWorktree: true, checkedAt: '2026-06-01T00:00:00.000Z' },
+            _discovered: true,
+            _discoveredOnly: true,
+          },
+        ],
+      };
+    },
+  };
+
   const routes = register({
     executorService,
+    worktreeDiscovery: fakeDiscovery,
     sendJson(res, code, payload) {
       res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(payload));
@@ -125,7 +217,12 @@ async function run() {
   await test('GET executor routes return health, jobs, worktrees, runs, and run detail', async () => {
     const health = await invoke(routes, 'GET', '/api/executor/health');
     const jobs = await invoke(routes, 'GET', '/api/executor/jobs');
-    const worktrees = await invoke(routes, 'GET', '/api/executor/worktrees');
+    const worktrees = await invokeWithQuery(
+      routes,
+      'GET',
+      '/api/executor/worktrees?repoId=repo-1',
+      { sendJson(res, code, payload) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(payload)); } },
+    );
     const runs = await invoke(routes, 'GET', '/api/executor/runs');
     const run = await invoke(routes, 'GET', '/api/executor/runs/run-1');
 
@@ -137,6 +234,123 @@ async function run() {
     assert.equal(runs.res.statusCode, 200);
     assert.equal(run.res.statusCode, 200);
     assert.equal(run.res.body.id, 'run-1');
+  });
+
+  await test('GET /api/executor/worktrees filters persisted registry by repoId query', async () => {
+    listWorktreesCalls.length = 0;
+    const response = await invokeWithQuery(
+      routes,
+      'GET',
+      '/api/executor/worktrees?repoId=repo-1',
+      { sendJson(res, code, payload) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(payload)); } },
+    );
+    assert.equal(response.res.statusCode, 200);
+    assert.equal(listWorktreesCalls.length, 1);
+    assert.equal(listWorktreesCalls[0].repoId, 'repo-1');
+    assert.equal(response.res.body.worktrees[0].worktreeId, 'wt-1');
+  });
+
+  await test('GET /api/executor/worktrees returns empty list when registry has no entries for repo', async () => {
+    listWorktreesCalls.length = 0;
+    const response = await invokeWithQuery(
+      routes,
+      'GET',
+      '/api/executor/worktrees?repoId=repo-empty',
+      { sendJson(res, code, payload) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(payload)); } },
+    );
+    assert.equal(response.res.statusCode, 200);
+    assert.equal(response.res.body.worktrees.length, 0);
+    assert.equal(response.res.body.worktreeDiscovery.discoveredCount, 0);
+  });
+
+  await test('GET /api/executor/worktrees merges persisted registry records with git discovery when repoPath is provided', async () => {
+    listWorktreesCalls.length = 0;
+    const response = await invokeWithQuery(
+      routes,
+      'GET',
+      '/api/executor/worktrees?repoId=repo-1&repoPath=/repos/instruction-engine',
+      { sendJson(res, code, payload) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(payload)); } },
+    );
+    assert.equal(response.res.statusCode, 200);
+    assert.equal(listWorktreesCalls.length, 1);
+    assert.equal(listWorktreesCalls[0].repoId, 'repo-1');
+    const worktrees = response.res.body.worktrees;
+    assert.equal(worktrees.length, 3);
+    const persistedRecord = worktrees.find((w) => w.worktreeId === 'wt-1');
+    const codexOnly = worktrees.find((w) => w.worktreeId === 'wt-codex-1');
+    const opencodeOnly = worktrees.find((w) => w.worktreeId === 'wt-opencode-1');
+    assert.ok(persistedRecord);
+    assert.equal(persistedRecord.repoId, 'repo-1');
+    assert.equal(persistedRecord.path, '/repo-1-worktrees/wt-1');
+    assert.ok(codexOnly);
+    assert.equal(codexOnly._discoveredOnly, true);
+    assert.equal(codexOnly.source, 'codex');
+    assert.equal(codexOnly.git.detached, true);
+    assert.ok(opencodeOnly);
+    assert.equal(opencodeOnly.source, 'opencode');
+    assert.equal(opencodeOnly.git.changed, 1);
+    const discovery = response.res.body.worktreeDiscovery;
+    assert.equal(discovery.contractVersion, '1');
+    assert.equal(discovery.repoId, 'repo-1');
+    assert.equal(discovery.gitListOk, true);
+    assert.equal(discovery.discoveredCount, 2);
+    assert.equal(discovery.persistedCount, 1);
+  });
+
+  await test('GET /api/executor/worktrees does not call git discovery when includeGit=false', async () => {
+    listWorktreesCalls.length = 0;
+    let discoveryCalls = 0;
+    const guardedDiscovery = {
+      async discoverAndMergeWorktrees() {
+        discoveryCalls += 1;
+        return { mergedRecords: [], persistedCount: 0, discoveredCount: 0, gitListOk: null };
+      },
+    };
+    const guardedRoutes = register({
+      executorService,
+      worktreeDiscovery: guardedDiscovery,
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+    });
+    const response = await invokeWithQuery(
+      guardedRoutes,
+      'GET',
+      '/api/executor/worktrees?repoId=repo-1&repoPath=/repos/instruction-engine&includeGit=false',
+      { sendJson(res, code, payload) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(payload)); } },
+    );
+    assert.equal(response.res.statusCode, 200);
+    assert.equal(discoveryCalls, 0);
+    assert.equal(response.res.body.worktreeDiscovery.discoveredCount, 0);
+    assert.equal(response.res.body.worktreeDiscovery.gitListOk, null);
+  });
+
+  await test('GET /api/executor/worktrees returns persisted records with gitListError when discovery throws', async () => {
+    listWorktreesCalls.length = 0;
+    const explodingDiscovery = {
+      async discoverAndMergeWorktrees() {
+        throw new Error('git exploded');
+      },
+    };
+    const explodingRoutes = register({
+      executorService,
+      worktreeDiscovery: explodingDiscovery,
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+    });
+    const response = await invokeWithQuery(
+      explodingRoutes,
+      'GET',
+      '/api/executor/worktrees?repoId=repo-1&repoPath=/repos/instruction-engine',
+      { sendJson(res, code, payload) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(payload)); } },
+    );
+    assert.equal(response.res.statusCode, 200);
+    assert.equal(response.res.body.worktrees[0].worktreeId, 'wt-1');
+    assert.equal(response.res.body.worktreeDiscovery.gitListOk, false);
+    assert.match(response.res.body.worktreeDiscovery.gitListError, /git exploded/);
   });
 
   console.log(`\n  ${passed} passed, ${process.exitCode ? 'some failed' : '0 failed'}\n`);

@@ -4,6 +4,7 @@ import type {
   ExecutorRunsResponse,
   ExecutorWorktreeRecord,
   ExecutorWorktreesResponse,
+  ExecutorWorktreeDiscovery,
 } from '../types';
 import {
   apiRequest,
@@ -13,6 +14,7 @@ import {
   normalizeExecutorJobsResponse,
   normalizeExecutorRunsResponse,
   normalizeExecutorWorktreeRecord,
+  normalizeExecutorWorktreeDiscovery,
 } from './core';
 
 export async function getExecutorHealth(baseUrl?: string): Promise<ExecutorHealthResponse> {
@@ -30,11 +32,25 @@ export async function listExecutorRuns(baseUrl?: string): Promise<ExecutorRunsRe
   return normalizeExecutorRunsResponse(payload);
 }
 
-export async function listExecutorWorktrees(baseUrl?: string, repoId?: string): Promise<ExecutorWorktreesResponse> {
+export interface ListExecutorWorktreesOptions {
+  baseUrl?: string;
+  repoId?: string;
+  repoPath?: string;
+  includeGit?: boolean;
+}
+
+export async function listExecutorWorktrees(
+  options: ListExecutorWorktreesOptions | string | undefined = {},
+): Promise<ExecutorWorktreesResponse> {
+  const opts: ListExecutorWorktreesOptions = typeof options === 'string'
+    ? { repoId: options }
+    : (options || {});
   const payload = await apiRequest<unknown>('/api/executor/worktrees', {
-    baseUrl,
+    baseUrl: opts.baseUrl,
     query: {
-      repoId: repoId || undefined,
+      repoId: opts.repoId || undefined,
+      repoPath: opts.repoPath || undefined,
+      includeGit: opts.includeGit === false ? 'false' : undefined,
     },
   });
   const record = asRecord(payload);
@@ -42,5 +58,6 @@ export async function listExecutorWorktrees(baseUrl?: string, repoId?: string): 
     worktrees: asArray(record.worktrees)
       .map((entry) => normalizeExecutorWorktreeRecord(entry))
       .filter((entry): entry is ExecutorWorktreeRecord => entry !== null),
+    worktreeDiscovery: normalizeExecutorWorktreeDiscovery(record.worktreeDiscovery),
   };
 }

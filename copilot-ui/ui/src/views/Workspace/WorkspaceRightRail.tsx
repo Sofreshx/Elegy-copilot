@@ -4,6 +4,7 @@ import { navigationStore } from '../../stores/navigation';
 import { getPlanningRecords } from '../../lib/api/planning';
 import type { PlanningRecordItem } from '../../lib/types';
 import WorkspaceCommandsCard from './WorkspaceCommandsCard';
+import WorkspaceWorktreesCard from './WorkspaceWorktreesCard';
 
 interface WorkspaceRightRailProps {
   repoPath: string;
@@ -70,6 +71,7 @@ export default function WorkspaceRightRail({
         )}
       </Panel>
 
+      <WorkspaceWorktreesCard repoId={repoId} repoPath={repoPath} />
       <WorkspaceCommandsCard repoPath={repoPath} />
     </div>
   );
