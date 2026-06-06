@@ -46,22 +46,49 @@ describe('desktop updater UI affordances', () => {
     updaterStoreMock.restartToUpdate.mockReset();
   });
 
-  it('shows only update actions in the status bar', async () => {
+  it('shows update button when update is available to download', async () => {
     const { default: StatusBar } = await import('../ui/src/components/StatusBar');
-
-    render(
-      <StatusBar
-        desktopUpdaterTone="warn"
-        desktopUpdaterSummary="New version available."
-        canDownload
-        canRestartToUpdate={false}
-        onDownloadUpdate={() => undefined}
-        onRestartToUpdate={() => undefined}
-      />,
-    );
-
-    expect(screen.queryByTestId('desktop-updater-check')).not.toBeInTheDocument();
+    render(<StatusBar
+      desktopUpdaterTone="warn"
+      desktopUpdaterSummary="New version available."
+      canDownload
+      canRestartToUpdate={false}
+      onDownloadUpdate={() => undefined}
+      onRestartToUpdate={() => undefined}
+    />);
+    expect(screen.getByTestId('status-bar-updater')).toBeInTheDocument();
     expect(screen.getByTestId('desktop-updater-download')).toHaveTextContent('Update');
+    expect(screen.queryByTestId('desktop-updater-restart')).not.toBeInTheDocument();
+  });
+
+  it('hides updater content when no actionable update is available', async () => {
+    const { default: StatusBar } = await import('../ui/src/components/StatusBar');
+    render(<StatusBar
+      desktopUpdaterTone="ok"
+      desktopUpdaterSummary="You're on the latest version."
+      canDownload={false}
+      canRestartToUpdate={false}
+      onDownloadUpdate={() => undefined}
+      onRestartToUpdate={() => undefined}
+    />);
+    expect(screen.queryByTestId('status-bar-updater')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('desktop-updater-download')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('desktop-updater-restart')).not.toBeInTheDocument();
+  });
+
+  it('shows install button when update is ready to install', async () => {
+    const { default: StatusBar } = await import('../ui/src/components/StatusBar');
+    render(<StatusBar
+      desktopUpdaterTone="ok"
+      desktopUpdaterSummary="Update is ready."
+      canDownload={false}
+      canRestartToUpdate
+      onDownloadUpdate={() => undefined}
+      onRestartToUpdate={() => undefined}
+    />);
+    expect(screen.getByTestId('status-bar-updater')).toBeInTheDocument();
+    expect(screen.getByTestId('desktop-updater-restart')).toHaveTextContent('Install');
+    expect(screen.queryByTestId('desktop-updater-download')).not.toBeInTheDocument();
   });
 
   it('shows update action only when an update is available on the maintenance card', async () => {

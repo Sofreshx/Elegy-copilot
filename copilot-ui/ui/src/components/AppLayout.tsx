@@ -8,6 +8,7 @@ interface AppLayoutProps {
   children: ReactNode;
   sidebarCollapsed?: boolean;
   testId?: string;
+  appVersion?: string;
 }
 
 export default function AppLayout({
@@ -16,6 +17,7 @@ export default function AppLayout({
   children,
   sidebarCollapsed = false,
   testId = 'app-layout',
+  appVersion,
 }: AppLayoutProps) {
   return (
     <div className="app-layout" data-testid={testId}>
@@ -27,6 +29,11 @@ export default function AppLayout({
           {children}
         </main>
       </div>
+      {appVersion ? (
+        <footer className="app-layout-footer" data-testid="app-version-footer">
+          <span className="app-version">v{appVersion}</span>
+        </footer>
+      ) : null}
     </div>
   );
 }

@@ -30,7 +30,6 @@ const SIDEBAR_COLLAPSED_KEY = 'elegy-copilot-sidebar-collapsed';
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
   const desktopUpdaterState = useStoreValue(desktopUpdaterStore);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     try {
@@ -153,7 +152,8 @@ export default function App() {
     <>
       <ToastContainer />
       <AppLayout
-        sidebarCollapsed={sidebarCollapsed}
+        appVersion={desktopUpdaterState.currentVersion}
+        sidebarCollapsed={isSidebarCollapsed}
         statusBar={
           <StatusBar
             desktopUpdaterTone={desktopUpdaterPresentation.tone}
@@ -166,6 +166,8 @@ export default function App() {
         }
         sidebar={
           <Sidebar
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={handleToggleSidebarCollapse}
             items={SIDEBAR_NAV_ITEMS}
             activeItem={navigationState.activeSidebarItem}
             onNavigate={(id: SidebarItemId) => navigationStore.navigate(id)}
@@ -178,7 +180,6 @@ export default function App() {
             settingsNavItems={SETTINGS_NAV_ITEMS}
             onSettingsNavigate={(section: SettingsSection) => navigationStore.setSettingsSection(section)}
             onBackFromSettings={handleBackFromSettings}
-            onCollapseChange={setSidebarCollapsed}
           />
         }
       >

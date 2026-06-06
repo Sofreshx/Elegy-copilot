@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-05-25
+updated: 2026-06-06
 category: system
 status: current
 doc_kind: node
@@ -222,11 +222,26 @@ DOC_STRUCTURE_GOVERNANCE
 2. load the smallest relevant canonical entrypoint and expand only as needed
 3. verify graph compliance and discoverability
 4. when intended work changes canonical design, behavior, or workflow policy, update the relevant
-  canonical docs in the first execution slice before or alongside implementation
+   canonical docs in the first execution slice before or alongside implementation
 5. surface any material contradiction with current documentation before write-capable work proceeds
 6. propose the smallest structural update
 7. update the canonical node plus the minimal index or MOC links needed
 8. validate with the doc graph validator when available
+
+## Doc Freshness Sync Rule
+
+To minimize drift between documentation and code:
+
+- Any PR that changes a public API, contract shape, workflow policy, or CLI command name MUST also
+  update the `updated` date in the owning canonical doc's frontmatter.
+- When a doc describes a concrete command, script path, or file path (e.g., `node scripts/foo.js`),
+  and the referenced target changes path or contract, the doc MUST be updated in the same commit or
+  an immediately following commit.
+- If the code change lands first (e.g., urgent hotfix), a follow-up documentation issue MUST be
+  created in `~/.copilot/backlogs/{repo-name}/issues/` before the PR is merged, and the doc MUST be
+  updated within 3 business days.
+- Reviewer lanes SHOULD flag missing or stale frontmatter `updated` dates as a `rule_drift` finding
+  when a code change touches the surface that the owning doc describes.
 
 ## References
 

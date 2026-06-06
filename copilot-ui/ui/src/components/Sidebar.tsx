@@ -42,6 +42,8 @@ export default function Sidebar({
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const isSettingsMode = mode === 'settings';
+  const isControlled = typeof onToggleCollapse === 'function';
+  const isEffectivelyCollapsed = isControlled ? isCollapsed : collapsed;
 
   const topItems = items.filter((item) => item.id !== 'settings');
   const settingsItem = items.find((item) => item.id === 'settings');
@@ -63,7 +65,7 @@ export default function Sidebar({
                   onFocusWorkspace?.(ws.repoPath);
                 }}
               >
-                {collapsed ? (
+                {isEffectivelyCollapsed ? (
                   <span className="sidebar-workspace-tab-dot" />
                 ) : (
                   <>
@@ -95,26 +97,26 @@ export default function Sidebar({
               className={`sidebar-item${activeItem === item.id ? ' sidebar-item-active' : ''}`}
               data-testid={`sidebar-item-${item.id}`}
               onClick={() => onNavigate(item.id)}
-              title={!collapsed ? item.description : item.label}
+              title={!isEffectivelyCollapsed ? item.description : item.label}
               type="button"
             >
               <span className="sidebar-item-icon" aria-hidden="true">{item.icon}</span>
-              {!collapsed && <span className="sidebar-item-label">{item.label}</span>}
+              {!isEffectivelyCollapsed && <span className="sidebar-item-label">{item.label}</span>}
             </button>
           ))}
         </div>
 
-        {settingsItem && (
+        {settingsItem && !isControlled && (
           <div className="sidebar-footer">
             <button
               className={`sidebar-item${activeItem === settingsItem.id ? ' sidebar-item-active' : ''}`}
               data-testid={`sidebar-item-${settingsItem.id}`}
+              aria-label={settingsItem.label}
               onClick={() => onNavigate(settingsItem.id)}
-              title={!collapsed ? settingsItem.description : settingsItem.label}
+              title={settingsItem.description}
               type="button"
             >
               <span className="sidebar-item-icon" aria-hidden="true">⚙</span>
-              {!collapsed && <span className="sidebar-item-label">{settingsItem.label}</span>}
             </button>
           </div>
         )}
@@ -135,7 +137,7 @@ export default function Sidebar({
             type="button"
           >
             <span className="sidebar-item-icon" aria-hidden="true">{item.icon}</span>
-            {!collapsed && <span className="sidebar-item-label">{item.label}</span>}
+            {!isEffectivelyCollapsed && <span className="sidebar-item-label">{item.label}</span>}
           </button>
         ))}
       </div>
@@ -144,7 +146,7 @@ export default function Sidebar({
 
   return (
     <nav
-      className={`sidebar${collapsed ? ' sidebar-collapsed' : ''}`}
+      className={`sidebar${isEffectivelyCollapsed ? ' sidebar-collapsed' : ''}`}
       data-testid={testId}
       aria-label={isSettingsMode ? 'Settings navigation' : 'Main navigation'}
     >
@@ -157,7 +159,7 @@ export default function Sidebar({
               className="sidebar-brand-icon"
               src={BRAND_ICON_SRC}
             />
-            {!collapsed && (
+            {!isEffectivelyCollapsed && (
               <button
                 className="sidebar-back-btn"
                 data-testid="sidebar-settings-back"
@@ -171,16 +173,20 @@ export default function Sidebar({
           </>
         ) : (
           <img
-            alt=""
-            aria-hidden="true"
+            alt="Elegy Copilot"
             className="sidebar-brand-icon"
             src={BRAND_ICON_SRC}
+            onError={(e) => {
+              const img = e.currentTarget;
+              img.style.display = 'none';
+            }}
           />
         )}
       </div>
 
       {isSettingsMode ? renderSettingsMode() : renderMainMode()}
 
+      {!isControlled && (
       <div className="sidebar-footer-collapse">
         <button
           className="sidebar-collapse-toggle"
@@ -193,6 +199,34 @@ export default function Sidebar({
           {collapsed ? '▸' : '◂'}
         </button>
       </div>
+      )}
+
+      {isControlled && (
+        <div className="sidebar-footer">
+          {settingsItem && (
+            <button
+              className={`sidebar-item${activeItem === settingsItem.id ? ' sidebar-item-active' : ''}`}
+              data-testid={`sidebar-item-${settingsItem.id}`}
+              aria-label={settingsItem.label}
+              onClick={() => onNavigate(settingsItem.id)}
+              title={settingsItem.description}
+              type="button"
+            >
+              <span className="sidebar-item-icon" aria-hidden="true">{settingsItem.icon}</span>
+            </button>
+          )}
+          <button
+            className="sidebar-collapse-toggle"
+            data-testid="sidebar-collapse-toggle"
+            onClick={onToggleCollapse}
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            type="button"
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? '▶' : '◀'}
+          </button>
+        </div>
+      )}
     </nav>
   );
 }

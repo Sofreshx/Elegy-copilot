@@ -32,11 +32,8 @@ Use this precedence when work touches this repository:
 
 ## Current repo guidance
 
-- Prefer the flagship orchestrators (`@orchestrator-gpt`, `@orchestrator-claude`, and CLI variants) as
-  the main entry points.
-- Keep the shipped subagent surface lean: planning through `@o-planner`, implementation through
-  `@impl`, review through the single `@code-reviewer`, research through `@deep-researcher`, testing
-  through `@test-runner`, and docs/persistence writing through `@doc-writer`.
+- Use OpenCode lane agents (quick/standard/spec/project) as the main entry points for work in this
+  repo. Subagents (impl, reviewer, explorer) handle bounded write, review, and discovery work.
 - For planning surfaces, keep roadmap/backlog/issue artifacts under `~/.copilot/backlogs/{repo-name}/`
   and session execution artifacts under `~/.copilot/session-state/<SESSION_ID>/`.
 - For agent or skill surface changes, update canonical docs, manifests, allowlists, validators, and
@@ -44,3 +41,5 @@ Use this precedence when work touches this repository:
 - For routine shared Copilot or Codex baseline refresh, use the install scripts in `scripts/`; use
   `/init` only when you need to create or refine repo-local guidance such as `guidelines.md` or
   `AGENTS.md`.
+- Run the narrowest relevant validation after every change: lint, format, typecheck, and test. When
+  applicable, use `commit-check-run` as the pre-commit umbrella gate.

@@ -36,8 +36,8 @@ describe('Sidebar - Main Mode', () => {
     expect(settingsBtn).toBeInTheDocument();
     // gear icon should be present: ⚙
     expect(settingsBtn.querySelector('.sidebar-item-icon')?.textContent).toContain('⚙');
-    // label should still be "Settings" when expanded (it's not hidden by collapsed)
-    expect(settingsBtn.querySelector('.sidebar-item-label')?.textContent).toBe('Settings');
+    // Settings should be icon-only in main mode (no visible label)
+    expect(settingsBtn.querySelector('.sidebar-item-label')).not.toBeInTheDocument();
   });
 
   it('does NOT render settings subroutes in main mode', () => {
@@ -222,5 +222,66 @@ describe('Sidebar - Back navigation logic', () => {
     );
     fireEvent.click(screen.getByTestId('sidebar-settings-back'));
     expect(onBack).toHaveBeenCalled();
+  });
+});
+
+describe('Sidebar - Brand and display features', () => {
+  it('renders settings as icon-only with aria-label', () => {
+    render(
+      <Sidebar
+        items={SIDEBAR_NAV_ITEMS}
+        activeItem="repositories"
+        onNavigate={() => {}}
+      />
+    );
+    const settingsBtn = screen.getByTestId('sidebar-item-settings');
+    expect(settingsBtn).toBeInTheDocument();
+    // Should have aria-label
+    expect(settingsBtn).toHaveAttribute('aria-label', 'Settings');
+    // Should NOT have visible text label child
+    expect(settingsBtn.querySelector('.sidebar-item-label')).not.toBeInTheDocument();
+  });
+
+  it('renders brand icon with alt text', () => {
+    render(
+      <Sidebar
+        items={SIDEBAR_NAV_ITEMS}
+        activeItem="repositories"
+        onNavigate={() => {}}
+      />
+    );
+    const brandImg = screen.getByAltText('Elegy Copilot');
+    expect(brandImg).toBeInTheDocument();
+    expect(brandImg.tagName).toBe('IMG');
+    expect(brandImg).toHaveClass('sidebar-brand-icon');
+  });
+
+  it('renders nav items for non-settings routes', () => {
+    render(
+      <Sidebar
+        items={SIDEBAR_NAV_ITEMS}
+        activeItem="repositories"
+        onNavigate={() => {}}
+      />
+    );
+    expect(screen.getByTestId('sidebar-item-repositories')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-item-lexicon')).toBeInTheDocument();
+  });
+
+  it('renders correctly when collapsed', () => {
+    render(
+      <Sidebar
+        items={SIDEBAR_NAV_ITEMS}
+        activeItem="repositories"
+        onNavigate={() => {}}
+        isCollapsed
+        onToggleCollapse={() => {}}
+      />
+    );
+    // Should still render but with collapsed class
+    const nav = screen.getByTestId('sidebar');
+    expect(nav.className).toContain('sidebar-collapsed');
+    // Settings should still be icon-only in collapsed mode too
+    expect(screen.getByTestId('sidebar-item-settings')).toBeInTheDocument();
   });
 });

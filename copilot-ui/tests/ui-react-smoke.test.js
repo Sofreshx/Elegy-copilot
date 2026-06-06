@@ -342,30 +342,32 @@ async function run() {
     assert.ok(source.includes('VerificationState'), 'Expected VerificationState type');
   });
 
-  await test('RepositoriesView uses repository-launcher layout with search, list, SourcesConfigPanel, and manual register', async () => {
+  await test('RepositoriesView uses launcher layout with SourcesConfigPanel and dense launcher classes', async () => {
     const source = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Repositories', 'RepositoriesView.tsx'), 'utf8');
 
-    // SourcesConfigPanel is composed into RepositoriesView (panel has its own test IDs)
+    // SourcesConfigPanel is composed into RepositoriesView
     assert.ok(source.includes('SourcesConfigPanel'), 'Expected SourcesConfigPanel import in RepositoriesView');
     assert.ok(source.includes('<SourcesConfigPanel />'), 'Expected SourcesConfigPanel rendering in RepositoriesView');
 
+    // Dense launcher layout
+    assert.ok(source.includes('repos-launcher-layout'), 'Expected repos-launcher-layout class');
+    assert.ok(source.includes('repos-launcher-list'), 'Expected repos-launcher-list class');
+    assert.ok(source.includes('repos-launcher-row'), 'Expected repos-launcher-row dense row class');
+    assert.ok(source.includes('repos-register-panel'), 'Expected repos-register-panel test id');
+    assert.ok(source.includes('repos-refresh'), 'Expected repos-refresh test id');
+    assert.ok(source.includes('repos-search-input'), 'Expected repos-search-input test id');
+    assert.ok(source.includes('repos-empty'), 'Expected repos-empty test id for empty state');
+    assert.ok(source.includes('repos-no-results'), 'Expected repos-no-results test id for no-match state');
+
     // Navigation store import for workspace tab opening
     assert.ok(source.includes('navigationStore'), 'Expected navigationStore import for workspace tab opening');
-
-    // Search and list
-    assert.ok(source.includes('repos-search-input'), 'Expected repos-search-input test id in RepositoriesView');
-    assert.ok(source.includes('repos-list'), 'Expected repos-list test id in RepositoriesView');
-    assert.ok(source.includes('repos-list-item'), 'Expected repos-list-item test id in RepositoriesView');
-
-    // Count badge and manual register
-    assert.ok(source.includes('repos-count-badge'), 'Expected repos-count-badge class in RepositoriesView');
-    assert.ok(source.includes('repos-manual-register'), 'Expected repos-manual-register test id in RepositoriesView');
 
     // No legacy card patterns
     assert.ok(!source.includes('repos-cards-layout'), 'Did not expect legacy repos-cards-layout class');
     assert.ok(!source.includes('BranchCard'), 'Did not expect BranchCard import in RepositoriesView');
     assert.ok(!source.includes('ChangesCard'), 'Did not expect ChangesCard import in RepositoriesView');
     assert.ok(!source.includes('CommitPushCard'), 'Did not expect CommitPushCard import in RepositoriesView');
+    assert.ok(!source.includes('import { Button, Panel, StatusBadge'), 'Did not expect Panel import in RepositoriesView');
   });
 
   await test('repoDocs API client exists', async () => {

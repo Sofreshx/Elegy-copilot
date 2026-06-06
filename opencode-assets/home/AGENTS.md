@@ -37,7 +37,7 @@ canonical docs.
 
 ## Native Agents
 
-OpenCode's built-in agents stay primary:
+OpenCode's built-in agents stay primary for Tab-selection:
 
 - `Build` — main execution surface
 - `Plan` — planning and critique without edits
@@ -45,7 +45,9 @@ OpenCode's built-in agents stay primary:
 - `Scout` — external docs and dependency research
 - `General` — bounded delegated multi-step work
 
-Prefer the built-in `Explore` and `Scout` agents for code discovery and external docs research.
+These are the OpenCode-native agents available at the TUI level, distinct from the
+same-named subagents in the lane system below. Prefer the built-in `Explore` and `Scout`
+for standalone discovery; use the `explorer` subagent only inside a lane workflow.
 
 ## Skills
 
@@ -187,6 +189,15 @@ Switch between lane agents using **Tab** in the OpenCode TUI:
 - Do not recreate Copilot orchestration or session-state workflows in OpenCode.
 - Do not change git branches unless explicitly asked.
 - Do not commit secrets or credentials.
+
+## Doc Sync Discipline
+
+Canonical docs and code are a shared surface. When code changes a public contract, workflow policy,
+or command path, the owning canonical doc's frontmatter `updated` field MUST be bumped in the same
+commit or an immediately following commit. Reviewer lanes should flag stale or missing `updated`
+dates as `rule_drift` when the code change touches the described surface.
+
+See `docs/system/documentation-structure-governance.md` for the full Doc Freshness Sync Rule.
 
 ## Permission Pre-Allow
 
