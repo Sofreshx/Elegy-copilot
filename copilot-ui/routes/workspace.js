@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const childProcess = require('child_process');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 
 const pinnedCommands = require('../lib/pinnedCommands');
@@ -245,7 +245,7 @@ async function handleRunCommand(ctx, deps) {
   }
 
   try {
-    const child = spawn(command.command, command.args, {
+    const child = childProcess.spawn(command.command, command.args, {
       cwd: cwdValidation.resolved,
       shell: false,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -394,7 +394,7 @@ async function handleLaunch(ctx, deps) {
   }
 
   try {
-    let cmd, args;
+    let cmd, args, spawnEnv = null;
     const isAgent = launcher.group === 'agents';
 
     if (launcherId === 'terminal') {
@@ -430,10 +430,22 @@ async function handleLaunch(ctx, deps) {
       args = [root];
     }
 
-    const child = spawn(cmd, args, {
+    if (launcherId === 'opencode' && deps.resolveOpencodeGoApiKey) {
+      try {
+        const activeKey = await deps.resolveOpencodeGoApiKey();
+        if (activeKey) {
+          spawnEnv = { ...process.env, OPENCODE_GO_API_KEY: String(activeKey).trim() };
+        }
+      } catch {
+        spawnEnv = null;
+      }
+    }
+
+    const child = childProcess.spawn(cmd, args, {
       detached: true,
       stdio: 'ignore',
       shell: false,
+      ...(spawnEnv ? { env: spawnEnv } : {}),
     });
     child.unref();
 
@@ -543,6 +555,9 @@ function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const readJsonBody = context.readJsonBody || defaultReadJsonBody;
   const deps = { sendJson, readJsonBody };
+  if (typeof context.resolveOpencodeGoApiKey === 'function') {
+    deps.resolveOpencodeGoApiKey = context.resolveOpencodeGoApiKey;
+  }
 
   return [
     { method: 'GET', path: '/api/workspace/commands', handler: (ctx) => handleGetCommands(ctx, deps) },
@@ -570,4 +585,5 @@ module.exports = {
   readWorkspaceConfig,
   normalizeCommand,
   detectPackageScripts,
+  detectLaunchers,
 };

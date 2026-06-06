@@ -3437,6 +3437,53 @@ export interface OpenCodeToolingInstallPayload {
   force?: boolean;
 }
 
+export interface OpenCodeGoWorkspace {
+  id: string;
+  label: string;
+  workspaceId: string;
+  keySource: string;
+  keyPresent: boolean;
+  active: boolean;
+  lastValidatedAt: string | null;
+  lastValidatedStatus: string | null;
+  lastValidatedMessage: string | null;
+}
+
+export interface OpenCodeGoWorkspacesResponse {
+  detected: OpenCodeGoWorkspace[];
+  registered: OpenCodeGoWorkspace[];
+  activeId: string | null;
+}
+
+export interface OpenCodeGoWorkspaceCreatePayload {
+  label: string;
+  workspaceId: string;
+  apiKey: string;
+  activate?: boolean;
+}
+
+export interface OpenCodeGoWorkspaceCreateFlowPayload {
+  label: string;
+  workspaceId: string;
+}
+
+export interface OpenCodeGoWorkspaceActionResponse {
+  ok: boolean;
+  error?: string;
+}
+
+export interface OpenCodeGoWorkspaceCreateFlowResponse {
+  ok: boolean;
+  draft: OpenCodeGoWorkspace;
+  consoleUrl: string;
+  authUrl: string;
+}
+
+export interface OpenCodeGoWorkspaceValidateResponse {
+  status: string;
+  message?: string;
+}
+
 export interface OpenCodeToolingInstallResponse {
   ok: boolean;
   kind?: OpenCodeToolingInstallKind;
@@ -3446,7 +3493,7 @@ export interface OpenCodeToolingInstallResponse {
   error?: string;
 }
 
-export type OpenCodeTabSectionId = 'overview' | 'lanes' | 'profiles' | 'setup' | 'logs';
+export type OpenCodeTabSectionId = 'overview' | 'lanes' | 'profiles' | 'setup' | 'logs' | 'go-workspaces';
 
 export interface OpenCodeRequestLogEntry {
   timestamp: string;

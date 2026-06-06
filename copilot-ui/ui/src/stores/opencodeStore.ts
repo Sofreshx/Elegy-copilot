@@ -6,6 +6,12 @@ import {
   installOpenCodeTooling,
   installCodexPlanning as installCodexPlanningApi,
   getOpenCodeRequestLogs,
+  getGoWorkspaces,
+  registerGoWorkspace,
+  createGoWorkspaceFlow,
+  activateGoWorkspace,
+  validateGoWorkspace,
+  deleteGoWorkspace,
 } from '../lib/api/opencode';
 import { createStore } from '../lib/store';
 import type {
@@ -14,6 +20,12 @@ import type {
   OpenCodeTabSectionId,
   OpenCodeToolingInstallPayload,
   OpenCodeRequestLogEntry,
+  OpenCodeGoWorkspacesResponse,
+  OpenCodeGoWorkspaceCreatePayload,
+  OpenCodeGoWorkspaceCreateFlowPayload,
+  OpenCodeGoWorkspaceActionResponse,
+  OpenCodeGoWorkspaceCreateFlowResponse,
+  OpenCodeGoWorkspaceValidateResponse,
 } from '../lib/types';
 
 export interface OpenCodeState {
@@ -28,6 +40,9 @@ export interface OpenCodeState {
   requestLogs: OpenCodeRequestLogEntry[] | null;
   requestLogsLoading: boolean;
   requestLogsTotal: number;
+  goWorkspaces: OpenCodeGoWorkspacesResponse | null;
+  goWorkspacesLoading: boolean;
+  goWorkspacesError: string | null;
 }
 
 const INITIAL_STATE: OpenCodeState = {
@@ -42,6 +57,9 @@ const INITIAL_STATE: OpenCodeState = {
   requestLogs: null,
   requestLogsLoading: false,
   requestLogsTotal: 0,
+  goWorkspaces: null,
+  goWorkspacesLoading: false,
+  goWorkspacesError: null,
 };
 
 function toErrorMessage(error: unknown): string {
@@ -221,6 +239,94 @@ function createOpenCodeStore() {
     store.setState(() => ({ ...INITIAL_STATE }));
   }
 
+  async function loadGoWorkspaces(): Promise<void> {
+    store.setState((state) => ({ ...state, goWorkspacesLoading: true, goWorkspacesError: null }));
+    try {
+      const response = await getGoWorkspaces();
+      store.setState((state) => ({ ...state, goWorkspaces: response, goWorkspacesLoading: false }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        goWorkspacesLoading: false,
+        goWorkspacesError: toErrorMessage(error),
+      }));
+    }
+  }
+
+  async function createGoWorkspace(payload: OpenCodeGoWorkspaceCreatePayload): Promise<void> {
+    store.setState((state) => ({ ...state, goWorkspacesLoading: true, goWorkspacesError: null }));
+    try {
+      const response = await registerGoWorkspace(payload);
+      store.setState((state) => ({ ...state, goWorkspaces: response, goWorkspacesLoading: false }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        goWorkspacesLoading: false,
+        goWorkspacesError: toErrorMessage(error),
+      }));
+    }
+  }
+
+  async function activateGoWorkspaceAction(id: string): Promise<void> {
+    store.setState((state) => ({ ...state, goWorkspacesLoading: true, goWorkspacesError: null }));
+    try {
+      const response = await activateGoWorkspace(id);
+      store.setState((state) => ({ ...state, goWorkspaces: response, goWorkspacesLoading: false }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        goWorkspacesLoading: false,
+        goWorkspacesError: toErrorMessage(error),
+      }));
+    }
+  }
+
+  async function validateGoWorkspaceAction(id: string): Promise<void> {
+    store.setState((state) => ({ ...state, goWorkspacesLoading: true, goWorkspacesError: null }));
+    try {
+      await validateGoWorkspace(id);
+      // After validation, reload full workspace list to get updated validation status
+      const updated = await getGoWorkspaces();
+      store.setState((state) => ({ ...state, goWorkspaces: updated, goWorkspacesLoading: false }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        goWorkspacesLoading: false,
+        goWorkspacesError: toErrorMessage(error),
+      }));
+    }
+  }
+
+  async function deleteGoWorkspaceAction(id: string): Promise<void> {
+    store.setState((state) => ({ ...state, goWorkspacesLoading: true, goWorkspacesError: null }));
+    try {
+      const response = await deleteGoWorkspace(id);
+      store.setState((state) => ({ ...state, goWorkspaces: response, goWorkspacesLoading: false }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        goWorkspacesLoading: false,
+        goWorkspacesError: toErrorMessage(error),
+      }));
+    }
+  }
+
+  async function createGoWorkspaceFlowAction(payload: OpenCodeGoWorkspaceCreateFlowPayload): Promise<OpenCodeGoWorkspaceCreateFlowResponse> {
+    store.setState((state) => ({ ...state, goWorkspacesLoading: true, goWorkspacesError: null }));
+    try {
+      const response = await createGoWorkspaceFlow(payload);
+      store.setState((state) => ({ ...state, goWorkspacesLoading: false }));
+      return response;
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        goWorkspacesLoading: false,
+        goWorkspacesError: toErrorMessage(error),
+      }));
+      throw error;
+    }
+  }
+
   return {
     getState: store.getState,
     subscribe: store.subscribe,
@@ -235,6 +341,12 @@ function createOpenCodeStore() {
     setActiveSection,
     setSelectedLaneId,
     resetState,
+    loadGoWorkspaces,
+    createGoWorkspace,
+    activateGoWorkspaceAction,
+    validateGoWorkspaceAction,
+    deleteGoWorkspaceAction,
+    createGoWorkspaceFlowAction,
   };
 }
 

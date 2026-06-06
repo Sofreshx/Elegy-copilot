@@ -153,6 +153,7 @@ export interface CodexResponsesBridgeServerOptions {
   port?: number;
   fetchImpl?: FetchLike;
   defaultModel?: string;
+  resolveOpencodeGoApiKey?: () => Promise<string | null> | string | null;
 }
 
 export class CodexResponsesBridgeServer {
@@ -161,6 +162,7 @@ export class CodexResponsesBridgeServer {
   private readonly port: number;
   private readonly fetchImpl: FetchLike;
   private readonly defaultModel: string;
+  private readonly resolveOpencodeGoApiKey: () => Promise<string | null> | string | null;
   private readonly responseStates = new Map<string, ResponseState>();
 
   constructor(options: CodexResponsesBridgeServerOptions = {}) {
@@ -168,6 +170,7 @@ export class CodexResponsesBridgeServer {
     this.port = options.port ?? DEFAULT_CODEX_RESPONSES_BRIDGE_PORT;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.defaultModel = resolveDefaultOpenCodeGoModel(options.defaultModel);
+    this.resolveOpencodeGoApiKey = options.resolveOpencodeGoApiKey ?? (() => null);
   }
 
   async start(): Promise<void> {
@@ -252,7 +255,9 @@ export class CodexResponsesBridgeServer {
       throw withStatusCode(new Error('Request body must be a JSON object.'), 400);
     }
 
-    const apiKey = readAuthorizationBearerToken(req) || String(process.env.OPENCODE_GO_API_KEY || '').trim();
+    const bearerToken = readAuthorizationBearerToken(req);
+    const fallbackApiKey = await this.resolveApiKeyFallback();
+    const apiKey = bearerToken || fallbackApiKey;
     if (!apiKey) {
       throw withStatusCode(new Error('Missing Authorization bearer token for OpenCode Go.'), 401);
     }
@@ -267,6 +272,23 @@ export class CodexResponsesBridgeServer {
     }
 
     this.sendJson(res, 200, response);
+  }
+
+  private async resolveApiKeyFallback(): Promise<string> {
+    try {
+      const resolved = await this.resolveopencodeGoApiKeySafe();
+      if (resolved) return resolved;
+    } catch {
+      // swallow resolver errors and fall through to env
+    }
+    return String(process.env.OPENCODE_GO_API_KEY || '').trim();
+  }
+
+  private async resolveopencodeGoApiKeySafe(): Promise<string | null> {
+    const result = this.resolveOpencodeGoApiKey();
+    if (!result) return null;
+    const value = await Promise.resolve(result);
+    return value ? String(value).trim() || null : null;
   }
 
   private translateRequest(body: Record<string, unknown>): TranslatedResponseRequest {

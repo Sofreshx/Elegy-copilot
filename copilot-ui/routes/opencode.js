@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const opencodeConfigDefault = require('../lib/opencodeConfig');
 const opencodeLogReaderDefault = require('../lib/opencodeLogReader');
+const opencodeGoWorkspacesDefault = require('../lib/opencodeGoWorkspaces');
 const assetsLib = require('../lib/assets');
 const {
   resolveElegyPlanningCliPath,
@@ -607,13 +608,210 @@ async function buildOpenCodeStatus(ctx, deps) {
 function handleProviderUsage(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
-  
+
   try {
     const data = providerUsageStats.buildProviderUsage();
     sendJson(res, 200, data);
   } catch (error) {
     sendJson(res, 500, { error: String(error.message || error) });
   }
+}
+
+function resolveOpencodeGoWorkspacesStore(deps) {
+  if (!deps.opencodeGoWorkspaces) {
+    return opencodeGoWorkspacesDefault.createOpenCodeGoWorkspaces({
+      env: deps.env || process.env,
+    });
+  }
+  if (typeof deps.opencodeGoWorkspaces.listWorkspaces === 'function') {
+    return deps.opencodeGoWorkspaces;
+  }
+  if (typeof deps.opencodeGoWorkspaces === 'function') {
+    return deps.opencodeGoWorkspaces({ env: deps.env || process.env });
+  }
+  return opencodeGoWorkspacesDefault.createOpenCodeGoWorkspaces({
+    env: deps.env || process.env,
+  });
+}
+
+function buildGoWorkspacesListResponse(ctx, deps) {
+  const store = resolveOpencodeGoWorkspacesStore(deps);
+  return store.listWorkspaces(ctx.opencodeHome);
+}
+
+function asPathParams(ctx) {
+  if (ctx && ctx.match && Array.isArray(ctx.match)) {
+    return ctx.match;
+  }
+  if (ctx && ctx.params && typeof ctx.params === 'object') {
+    return [ctx.params.id, ctx.params.workspaceId];
+  }
+  return [];
+}
+
+function getPathParam(ctx, name) {
+  if (ctx && ctx.params && typeof ctx.params === 'object' && ctx.params[name]) {
+    return ctx.params[name];
+  }
+  const params = asPathParams(ctx);
+  if (name === 'id' && typeof params[1] === 'string') {
+    return params[1];
+  }
+  return null;
+}
+
+function registerGoWorkspacesRoutes(deps) {
+  return [
+    {
+      method: 'GET',
+      path: /^\/api\/opencode\/go-workspaces\/?$/,
+      handler: async (ctx) => {
+        try {
+          const data = await buildGoWorkspacesListResponse(ctx, deps);
+          deps.sendJson(ctx.res, 200, data);
+        } catch (error) {
+          deps.sendJson(ctx.res, 500, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: /^\/api\/opencode\/go-workspaces\/?$/,
+      handler: async (ctx) => {
+        try {
+          const body = await deps.readJsonBody(ctx.req);
+          const store = resolveOpencodeGoWorkspacesStore(deps);
+          const data = await store.registerWorkspace(ctx.opencodeHome, body || {});
+          deps.sendJson(ctx.res, 200, { ok: true, ...data });
+        } catch (error) {
+          const status = isValidationError(error) ? 400 : 500;
+          deps.sendJson(ctx.res, status, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: /^\/api\/opencode\/go-workspaces\/(create-flow)\/?$/,
+      handler: async (ctx) => {
+        try {
+          const body = await deps.readJsonBody(ctx.req).catch(() => ({}));
+          const store = resolveOpencodeGoWorkspacesStore(deps);
+          const draft = store.createDraftProfile(body || {});
+          deps.sendJson(ctx.res, 200, {
+            ok: true,
+            draft,
+            consoleUrl: draft.consoleUrl || 'https://opencode.ai/workspace/new/go',
+            authUrl: 'https://opencode.ai/connect',
+          });
+        } catch (error) {
+          deps.sendJson(ctx.res, 500, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: /^\/api\/opencode\/go-workspaces\/([^/]+)\/activate\/?$/,
+      handler: async (ctx) => {
+        const id = getPathParam(ctx, 'id');
+        if (!id) {
+          deps.sendJson(ctx.res, 400, { ok: false, error: 'id path param is required.' });
+          return;
+        }
+        try {
+          const store = resolveOpencodeGoWorkspacesStore(deps);
+          const data = await store.activateWorkspace(ctx.opencodeHome, id);
+          deps.sendJson(ctx.res, 200, { ok: true, ...data });
+        } catch (error) {
+          const status = isValidationError(error) ? 400 : 500;
+          deps.sendJson(ctx.res, status, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: /^\/api\/opencode\/go-workspaces\/([^/]+)\/validate\/?$/,
+      handler: async (ctx) => {
+        const id = getPathParam(ctx, 'id');
+        if (!id) {
+          deps.sendJson(ctx.res, 400, { ok: false, error: 'id path param is required.' });
+          return;
+        }
+        try {
+          const store = resolveOpencodeGoWorkspacesStore(deps);
+          const data = await store.validateWorkspace(ctx.opencodeHome, id);
+          deps.sendJson(ctx.res, 200, { ok: data.status === 'ok', ...data });
+        } catch (error) {
+          const status = isValidationError(error) ? 400 : 500;
+          deps.sendJson(ctx.res, status, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'PUT',
+      path: /^\/api\/opencode\/go-workspaces\/([^/]+)\/?$/,
+      handler: async (ctx) => {
+        const id = getPathParam(ctx, 'id');
+        if (!id) {
+          deps.sendJson(ctx.res, 400, { ok: false, error: 'id path param is required.' });
+          return;
+        }
+        try {
+          const body = await deps.readJsonBody(ctx.req);
+          const store = resolveOpencodeGoWorkspacesStore(deps);
+          const data = await store.updateWorkspace(ctx.opencodeHome, id, body || {});
+          deps.sendJson(ctx.res, 200, { ok: true, ...data });
+        } catch (error) {
+          const status = isValidationError(error) ? 400 : 500;
+          deps.sendJson(ctx.res, status, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'DELETE',
+      path: /^\/api\/opencode\/go-workspaces\/([^/]+)\/?$/,
+      handler: async (ctx) => {
+        const id = getPathParam(ctx, 'id');
+        if (!id) {
+          deps.sendJson(ctx.res, 400, { ok: false, error: 'id path param is required.' });
+          return;
+        }
+        try {
+          const store = resolveOpencodeGoWorkspacesStore(deps);
+          const data = await store.deleteWorkspace(ctx.opencodeHome, id);
+          deps.sendJson(ctx.res, 200, { ok: true, ...data });
+        } catch (error) {
+          const status = isValidationError(error) ? 400 : 500;
+          deps.sendJson(ctx.res, status, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+  ];
+}
+
+function isValidationError(error) {
+  if (!(error instanceof Error)) return false;
+  const message = String(error.message || '');
+  return /is required|must match|Unknown/.test(message);
 }
 
 function register(deps = {}) {
@@ -623,13 +821,15 @@ function register(deps = {}) {
     opencodeConfig: deps.opencodeConfig || opencodeConfigDefault,
     opencodeLogReader: deps.opencodeLogReader || opencodeLogReaderDefault,
     assets: deps.assets || assetsLib,
+    opencodeGoWorkspaces: deps.opencodeGoWorkspaces || null,
+    env: deps.env || process.env,
     childProcess: deps.childProcess || require('node:child_process'),
     fs: deps.fs || fs,
     path: deps.path || path,
     roadmapWorkflowPlanningBridge: deps.roadmapWorkflowPlanningBridge || null,
   };
 
-  return [
+  const baseRoutes = [
     {
       method: 'GET',
       path: '/api/opencode/status',
@@ -864,6 +1064,14 @@ function register(deps = {}) {
       handler: (ctx) => handleProviderUsage(ctx, resolvedDeps),
     },
   ];
+
+  return baseRoutes.concat(registerGoWorkspacesRoutes(resolvedDeps));
 }
 
-module.exports = { register, handleProviderUsage };
+module.exports = {
+  register,
+  handleProviderUsage,
+  registerGoWorkspacesRoutes,
+  buildGoWorkspacesListResponse,
+  resolveOpencodeGoWorkspacesStore,
+};
