@@ -19,7 +19,7 @@ export interface GitDiffResponse {
 }
 
 export interface GitLogResponse {
-  commits: Array<{ hash: string; message: string; author?: string | null; authoredAt?: string | null }>;
+  commits: Array<{ hash: string; fullHash?: string | null; message: string; author?: string | null; authoredAt?: string | null }>;
 }
 
 export interface GitBranchEntry {
@@ -58,6 +58,7 @@ export interface GitSummaryResponse {
   upstream: string | null;
   remoteName: string | null;
   remoteLabel: string | null;
+  remoteUrl: string | null;
   hasRemote: boolean;
   pullRequest: GitPullRequestResponse['pullRequest'];
 }

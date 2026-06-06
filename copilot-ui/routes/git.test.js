@@ -149,6 +149,27 @@ async function run() {
     assert.equal(body.deletions, 4);
     assert.equal(body.pullRequest.number, 12);
     assert.equal(body.remoteLabel, 'owner/repo');
+    assert.equal(body.remoteUrl, 'https://github.com/owner/repo');
+  });
+
+  await test('GET /api/git/summary normalizes HTTPS remote to browser URL', async () => {
+    const routes = registerWithMocks({
+      execResponses: [
+        { stdout: ' M src/app.ts\n' },
+        { stdout: 'main\n' },
+        { stdout: '# branch.ab +1 -0\n' },
+        { stdout: 'origin/main\n' },
+        { stdout: '/repo\n' },
+        { stdout: '5\t3\tsrc/app.ts\n' },
+        { stdout: 'https://github.com/owner/repo.git\n' },
+        { stdout: 'Logged in to github.com as demo\n' },
+        { stdout: '{"number":42,"url":"https://github.com/owner/repo/pull/42","state":"OPEN"}\n' },
+      ],
+    });
+    const { res, body } = await invoke(routes, 'GET', '/api/git/summary?repoPath=C%3A%5Crepo');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.remoteLabel, 'owner/repo');
+    assert.equal(body.remoteUrl, 'https://github.com/owner/repo');
   });
 
   await test('POST /api/git/checkout checks out a branch', async () => {

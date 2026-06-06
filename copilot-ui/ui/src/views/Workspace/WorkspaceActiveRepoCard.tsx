@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button, Panel } from '../../components';
 import { notificationStore } from '../../stores/notificationStore';
 import type { CatalogRepoInventoryEntry } from '../../lib/types';
-import type { GitSummaryResponse, GitPullRequestResponse } from '../../lib/api/git';
+import type { GitSummaryResponse, GitPullRequestResponse, GitLogResponse, GitCheckResults } from '../../lib/api/git';
 import type { VerificationState } from '../Repositories/verification';
 import { getWorkspaceLaunchers, launchWorkspace } from '../../lib/api/workspace';
 import type { WorkspaceLauncher } from '../../lib/api/workspace';
@@ -16,6 +16,23 @@ interface WorkspaceActiveRepoCardProps {
   changeCount: number;
   onSwitchRepo: () => void;
   showRepoSelector: boolean;
+  checkResults: GitCheckResults | null;
+  runningChecks: boolean;
+  commitMessage: string;
+  committing: boolean;
+  syncing: boolean;
+  creatingPullRequest: boolean;
+  pullRequestTitle: string;
+  pullRequestBody: string;
+  log: GitLogResponse | null;
+  onRunChecks: () => void;
+  onCommit: () => void;
+  onPush: () => void;
+  onOpenPR: () => void;
+  onCreatePR: () => void;
+  onSetCommitMessage: (msg: string) => void;
+  onSetPullRequestTitle: (title: string) => void;
+  onSetPullRequestBody: (body: string) => void;
 }
 
 const GROUP_ORDER = ['ides', 'agents', 'terminals'] as const;
@@ -34,12 +51,30 @@ export default function WorkspaceActiveRepoCard({
   changeCount,
   onSwitchRepo,
   showRepoSelector,
+  checkResults,
+  runningChecks,
+  commitMessage,
+  committing,
+  syncing,
+  creatingPullRequest,
+  pullRequestTitle,
+  pullRequestBody,
+  log,
+  onRunChecks,
+  onCommit,
+  onPush,
+  onOpenPR,
+  onCreatePR,
+  onSetCommitMessage,
+  onSetPullRequestTitle,
+  onSetPullRequestBody,
 }: WorkspaceActiveRepoCardProps) {
   const branch = summary?.branch ?? null;
   const hasRemote = summary?.hasRemote ?? false;
   const [launchers, setLaunchers] = useState<WorkspaceLauncher[]>([]);
   const [launching, setLaunching] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [expandedCommit, setExpandedCommit] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -94,7 +129,7 @@ export default function WorkspaceActiveRepoCard({
 
   return (
     <Panel
-      title="Active Repository"
+      title="Git"
       subtitle={repo?.repoLabel || repoPath}
       testId="workspace-active-card"
     >
@@ -114,16 +149,22 @@ export default function WorkspaceActiveRepoCard({
               {changeCount} change{changeCount !== 1 ? 's' : ''}
             </span>
           ) : null}
-          {hasRemote && pullRequest ? (
-            <a
-              className="workspace-pr-link"
-              href={pullRequest.url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              PR #{pullRequest.number}
+          {(summary?.ahead ?? 0) > 0 ? <span className="workspace-ahead">+{summary?.ahead} ahead</span> : null}
+          {(summary?.behind ?? 0) > 0 ? <span className="workspace-behind">-{summary?.behind} behind</span> : null}
+          {summary?.remoteLabel ? <span className="workspace-remote-label">{summary.remoteLabel}</span> : null}
+          {summary?.remoteUrl ? (
+            <a className="workspace-repo-link" href={summary.remoteUrl} target="_blank" rel="noopener noreferrer" data-testid="workspace-repo-link">
+              Repo
             </a>
           ) : null}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onSwitchRepo}
+            testId="workspace-switch-repo"
+          >
+            Switch repo
+          </Button>
         </div>
       </div>
       <div className="workspace-launch-actions" ref={menuRef}>
@@ -164,6 +205,138 @@ export default function WorkspaceActiveRepoCard({
           </div>
         )}
       </div>
+      <div className="workspace-git-actions" data-testid="workspace-git-actions">
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={runningChecks}
+          onClick={onRunChecks}
+          testId="workspace-run-checks"
+        >
+          {runningChecks ? 'Running...' : 'Run checks'}
+        </Button>
+        <input
+          className="form-input-field"
+          type="text"
+          placeholder="Commit message..."
+          value={commitMessage}
+          onChange={(e) => onSetCommitMessage(e.target.value)}
+          disabled={committing}
+        />
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={!commitMessage.trim() || committing}
+          onClick={onCommit}
+          testId="workspace-commit"
+        >
+          {committing ? 'Committing...' : 'Commit'}
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!hasRemote || syncing}
+          onClick={onPush}
+          testId="workspace-push"
+        >
+          {syncing ? 'Pushing...' : 'Push'}
+        </Button>
+      </div>
+      {checkResults ? (
+        <div className={`workspace-checks-result ${checkResults.allPassed ? 'workspace-checks-passed' : 'workspace-checks-failed'}`} data-testid="workspace-checks-result">
+          {checkResults.allPassed ? 'All checks passed' : 'Some checks failed'}
+        </div>
+      ) : null}
+      {verificationState !== 'verified' && changeCount > 0 ? (
+        <div className="workspace-commit-warning" data-testid="workspace-commit-warning">
+          Checks are not verified. Run checks before pushing.
+        </div>
+      ) : null}
+      {hasRemote ? (
+        pullRequest ? (
+          <div className="workspace-pr-existing">
+            <a href={pullRequest.url} target="_blank" rel="noopener noreferrer" className="workspace-git-pr-link">
+              PR #{pullRequest.number} ({pullRequest.state})
+            </a>
+            <Button variant="ghost" size="sm" onClick={onOpenPR} testId="workspace-open-pr">
+              Open PR
+            </Button>
+          </div>
+        ) : (
+          <div className="workspace-pr-create" data-testid="workspace-pr-create">
+            <input
+              className="form-input-field"
+              type="text"
+              placeholder="PR title..."
+              value={pullRequestTitle}
+              onChange={(e) => onSetPullRequestTitle(e.target.value)}
+              disabled={creatingPullRequest}
+            />
+            <input
+              className="form-input-field"
+              type="text"
+              placeholder="PR body (optional)..."
+              value={pullRequestBody}
+              onChange={(e) => onSetPullRequestBody(e.target.value)}
+              disabled={creatingPullRequest}
+            />
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!pullRequestTitle.trim() || creatingPullRequest}
+              onClick={onCreatePR}
+              testId="workspace-create-pr"
+            >
+              {creatingPullRequest ? 'Creating...' : 'Create pull request'}
+            </Button>
+          </div>
+        )
+      ) : null}
+      {log && log.commits.length > 0 ? (
+        <div className="workspace-commit-log" data-testid="workspace-commit-log">
+          {log.commits.slice(0, 5).map((commit, index) => (
+            <div key={commit.hash}>
+              <button
+                type="button"
+                className="workspace-commit-entry workspace-commit-entry-clickable"
+                onClick={() => setExpandedCommit(expandedCommit === index ? null : index)}
+                data-testid={`workspace-commit-entry-${index}`}
+              >
+                <span className="workspace-commit-hash">{commit.hash.slice(0, 7)}</span>
+                <span className="workspace-commit-msg">{commit.message}</span>
+              </button>
+              {expandedCommit === index ? (
+                <div className="workspace-commit-detail" data-testid={`workspace-commit-detail-${index}`}>
+                  <div className="workspace-commit-detail-row">
+                    <span className="workspace-commit-detail-label">Hash</span>
+                    <span className="workspace-commit-detail-value">{commit.hash}</span>
+                  </div>
+                  {commit.fullHash ? (
+                    <div className="workspace-commit-detail-row">
+                      <span className="workspace-commit-detail-label">Full hash</span>
+                      <span className="workspace-commit-detail-value">{commit.fullHash}</span>
+                    </div>
+                  ) : null}
+                  <div className="workspace-commit-detail-row">
+                    <span className="workspace-commit-detail-label">Message</span>
+                    <span className="workspace-commit-detail-value">{commit.message}</span>
+                  </div>
+                  <div className="workspace-commit-detail-row">
+                    <span className="workspace-commit-detail-label">Author</span>
+                    <span className="workspace-commit-detail-value">{commit.author || 'Unknown author'}</span>
+                  </div>
+                  <div className="workspace-commit-detail-row">
+                    <span className="workspace-commit-detail-label">Date</span>
+                    <span className="workspace-commit-detail-value">{commit.authoredAt || 'Unknown date'}</span>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="state-message">No commits found.</div>
+      )}
     </Panel>
   );
 }

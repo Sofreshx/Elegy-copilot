@@ -227,6 +227,19 @@ async function resolveGitSummary(childProcessImpl, repoPath) {
   const remoteLabel = remoteUrl
     ? remoteUrl.replace(/^.*github.com[:/]/i, '').replace(/\.git$/i, '')
     : null;
+
+  // Normalize remote URL to a browser-friendly URL for GitHub remotes
+  let normalizedRemoteUrl = null;
+  if (remoteUrl) {
+    const httpsMatch = remoteUrl.match(/^https:\/\/github\.com\/(.+?)(\.git)?$/i);
+    const sshMatch = remoteUrl.match(/^git@github\.com:(.+?)(\.git)?$/i);
+    if (httpsMatch) {
+      normalizedRemoteUrl = `https://github.com/${httpsMatch[1]}`;
+    } else if (sshMatch) {
+      normalizedRemoteUrl = `https://github.com/${sshMatch[1]}`;
+    }
+  }
+
   const { additions, deletions } = parseNumstat(numstatResult.stdout);
 
   return {
@@ -241,6 +254,7 @@ async function resolveGitSummary(childProcessImpl, repoPath) {
     upstream: status.upstream || null,
     remoteName: status.remoteName || null,
     remoteLabel,
+    remoteUrl: normalizedRemoteUrl,
     hasRemote: Boolean(status.remoteName || remoteUrl),
     pullRequest: pullRequestResult.pullRequest,
   };
@@ -304,7 +318,7 @@ function handleGitLog(ctx, deps) {
       const result = await runGit(
         deps.childProcess,
         [
-          'log', '--pretty=format:%h\t%s\t%an\t%aI', '--no-decorate', '-20',
+          'log', '--pretty=format:%h\t%H\t%s\t%an\t%aI', '--no-decorate', '-20',
         ],
         repoPath,
       );
@@ -313,9 +327,10 @@ function handleGitLog(ctx, deps) {
         .split('\n')
         .filter((line) => line.trim())
         .map((line) => {
-          const [hash, message, author, authoredAt] = line.split('\t');
+          const [hash, fullHash, message, author, authoredAt] = line.split('\t');
           return {
             hash: hash || line,
+            fullHash: fullHash || null,
             message: message || '',
             author: author || null,
             authoredAt: authoredAt || null,

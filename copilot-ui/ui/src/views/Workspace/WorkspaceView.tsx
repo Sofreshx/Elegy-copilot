@@ -124,6 +124,23 @@ export default function WorkspaceView() {
               changeCount={gitState.summary?.changedFiles ?? 0}
               onSwitchRepo={() => setShowRepoSelector(!showRepoSelector)}
               showRepoSelector={showRepoSelector}
+              checkResults={checkResults || gitState.checkResults}
+              runningChecks={runningChecks}
+              commitMessage={gitState.commitMessage}
+              committing={gitState.committing}
+              syncing={gitState.syncing}
+              creatingPullRequest={gitState.creatingPullRequest}
+              pullRequestTitle={gitState.pullRequestTitle}
+              pullRequestBody={gitState.pullRequestBody}
+              log={gitState.log}
+              onRunChecks={handleRunChecks}
+              onCommit={() => void gitStore.commit()}
+              onPush={() => void gitStore.push()}
+              onOpenPR={handleOpenPR}
+              onCreatePR={() => void gitStore.createPullRequest()}
+              onSetCommitMessage={(msg: string) => gitStore.setCommitMessage(msg)}
+              onSetPullRequestTitle={(title: string) => gitStore.setPullRequestTitle(title)}
+              onSetPullRequestBody={(body: string) => gitStore.setPullRequestBody(body)}
             />
           </div>
 
@@ -154,19 +171,6 @@ export default function WorkspaceView() {
               <WorkspaceRightRail
                 repoPath={selectedRepoPath}
                 repoId={displayRepo?.repoId ?? null}
-                summary={gitState.summary}
-                pullRequest={gitState.pullRequest?.pullRequest ?? null}
-                checkResults={checkResults || gitState.checkResults}
-                verificationState={verificationState}
-                runningChecks={runningChecks}
-                commitMessage={gitState.commitMessage}
-                committing={gitState.committing}
-                syncing={gitState.syncing}
-                log={gitState.log}
-                onRunChecks={handleRunChecks}
-                onCommit={() => void gitStore.commit()}
-                onPush={() => void gitStore.push()}
-                onOpenPR={handleOpenPR}
               />
             </div>
           </div>
