@@ -633,6 +633,23 @@ fn build_init_script(app: &AppHandle) -> Result<String, String> {
         window.instructionEngineDesktop = Object.freeze({
           platform: 'win32',
           shell: 'tauri',
+          windowControls: Object.freeze({
+            minimize: () => {
+              try {
+                const invoke = window.__TAURI_INTERNALS__?.invoke;
+                if (invoke) { invoke('plugin:window|minimize').catch(() => {}); }
+              } catch {}
+            },
+            toggleMaximize: () => {
+              try {
+                const invoke = window.__TAURI_INTERNALS__?.invoke;
+                if (invoke) { invoke('plugin:window|toggle_maximize').catch(() => {}); }
+              } catch {}
+            },
+            close: () => {
+              window.close();
+            },
+          }),
                     updater: Object.freeze({
                         getState: () => pollUpdaterState(),
                         checkForUpdates: () => syncUpdaterState('/api/desktop-updater/check', { method: 'POST' }),
@@ -736,6 +753,7 @@ fn create_main_window(app: &AppHandle, window_url: &str) -> Result<(), String> {
         .title("Elegy Copilot")
         .inner_size(1360.0, 900.0)
         .min_inner_size(1100.0, 720.0)
+        .decorations(false)
         .initialization_script(&init_script)
         .on_navigation(move |url| {
             if is_loopback_runtime_url(url) {

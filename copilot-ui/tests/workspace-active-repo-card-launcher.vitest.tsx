@@ -45,6 +45,7 @@ describe('WorkspaceActiveRepoCard launcher UI', () => {
     vi.clearAllMocks();
     mockGetWorkspaceLaunchers.mockResolvedValue({ launchers: sampleLaunchers });
     mockLaunchWorkspace.mockResolvedValue({ ok: true, launcherId: 'opencode', repoPath });
+    localStorage.removeItem('elegy-copilot-last-workspace-launcher');
   });
 
   it('renders the launch trigger as an icon button with accessible name and title', async () => {
@@ -197,5 +198,34 @@ describe('WorkspaceActiveRepoCard launcher UI', () => {
     // OpenCode should show its argsPreview
     const opencodeItem = screen.getByTestId('workspace-launch-opencode');
     expect(opencodeItem.querySelector('.workspace-launch-menu-item-args')).toHaveTextContent('opencode .');
+  });
+
+  it('shows first available launcher icon as default trigger icon', async () => {
+    const { default: WorkspaceActiveRepoCard } = await import('../ui/src/views/Workspace/WorkspaceActiveRepoCard');
+    render(<WorkspaceActiveRepoCard {...defaultProps} />);
+    // Wait for launchers to be fetched AND component to re-render
+    await waitFor(() => {
+      const trigger = screen.getByTestId('workspace-launch-trigger');
+      const icon = trigger.querySelector('.workspace-launch-trigger-icon');
+      expect(icon).toBeInTheDocument();
+      // First available launcher is 'vscode' (group: ides → ◈ icon)
+      expect(icon!.textContent).toContain('\u25C8');
+    });
+  });
+
+  it('persists last successful launcher ID in localStorage', async () => {
+    // Clear any existing persisted launcher
+    localStorage.removeItem('elegy-copilot-last-workspace-launcher');
+    const { default: WorkspaceActiveRepoCard } = await import('../ui/src/views/Workspace/WorkspaceActiveRepoCard');
+    const { unmount } = render(<WorkspaceActiveRepoCard {...defaultProps} />);
+    await waitFor(() => { expect(mockGetWorkspaceLaunchers).toHaveBeenCalled(); });
+    
+    // Launch 'terminal' launcher
+    fireEvent.click(screen.getByTestId('workspace-launch-trigger'));
+    fireEvent.click(screen.getByTestId('workspace-launch-terminal'));
+    await waitFor(() => { expect(mockLaunchWorkspace).toHaveBeenCalledWith('terminal', repoPath); });
+    
+    expect(localStorage.getItem('elegy-copilot-last-workspace-launcher')).toBe('terminal');
+    unmount();
   });
 });

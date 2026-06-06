@@ -1,27 +1,44 @@
 import { ReactNode } from 'react';
-
 import RuntimeDisconnectedBanner from './RuntimeDisconnectedBanner';
+import WindowControls from './WindowControls';
+import DesktopUpdaterShellAction from './DesktopUpdaterShellAction';
 
 interface AppLayoutProps {
-  statusBar: ReactNode;
   sidebar: ReactNode;
   children: ReactNode;
   sidebarCollapsed?: boolean;
   testId?: string;
   appVersion?: string;
+  canDownload?: boolean;
+  canRestartToUpdate?: boolean;
+  onDownloadUpdate?: () => void;
+  onRestartToUpdate?: () => void;
 }
 
 export default function AppLayout({
-  statusBar,
   sidebar,
   children,
   sidebarCollapsed = false,
   testId = 'app-layout',
   appVersion,
+  canDownload = false,
+  canRestartToUpdate = false,
+  onDownloadUpdate,
+  onRestartToUpdate,
 }: AppLayoutProps) {
   return (
     <div className="app-layout" data-testid={testId}>
-      {statusBar}
+      <header className="app-titlebar" data-tauri-drag-region>
+        <span className="app-titlebar-label">Elegy Copilot</span>
+        <span className="app-titlebar-spacer" />
+        <DesktopUpdaterShellAction
+          canDownload={canDownload}
+          canRestartToUpdate={canRestartToUpdate}
+          onDownloadUpdate={onDownloadUpdate}
+          onRestartToUpdate={onRestartToUpdate}
+        />
+        <WindowControls />
+      </header>
       <RuntimeDisconnectedBanner />
       <div className={`app-layout-body${sidebarCollapsed ? ' app-layout-body-collapsed' : ''}`}>
         {sidebar}
@@ -29,11 +46,9 @@ export default function AppLayout({
           {children}
         </main>
       </div>
-      {appVersion ? (
-        <footer className="app-layout-footer" data-testid="app-version-footer">
-          <span className="app-version">v{appVersion}</span>
-        </footer>
-      ) : null}
+      <footer className="app-layout-footer" data-testid="app-version-footer">
+        <span className="app-version">v{appVersion || '0.0.0'}</span>
+      </footer>
     </div>
   );
 }

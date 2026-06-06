@@ -83,6 +83,13 @@ export default function WorkspaceActiveRepoCard({
   const [expandedCommit, setExpandedCommit] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const LAST_WORKSPACE_LAUNCHER_KEY = 'elegy-copilot-last-workspace-launcher';
+
+  const [lastLauncherId, setLastLauncherId] = useState<string | null>(() => {
+    try { return localStorage.getItem(LAST_WORKSPACE_LAUNCHER_KEY); }
+    catch { return null; }
+  });
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -116,6 +123,9 @@ export default function WorkspaceActiveRepoCard({
       const result = await launchWorkspace(launcherId, repoPath);
       if (!result.ok) {
         notificationStore.error('Launch failed', { message: `Failed to open ${launcherId}` });
+      } else {
+        setLastLauncherId(launcherId);
+        try { localStorage.setItem(LAST_WORKSPACE_LAUNCHER_KEY, launcherId); } catch {}
       }
     } catch (err) {
       notificationStore.error('Launch failed', { message: err instanceof Error ? err.message : String(err) });
@@ -132,6 +142,20 @@ export default function WorkspaceActiveRepoCard({
   }
 
   const availableLaunchers = launchers.filter((l) => l.available);
+
+  function resolveTriggerIcon(): string {
+    if (lastLauncherId) {
+      const match = launchers.find(l => l.id === lastLauncherId);
+      if (match) return LAUNCHER_ICONS[match.group] || LAUNCHER_ICONS.ides;
+    }
+    const first = launchers.find(l => l.available);
+    if (first) return LAUNCHER_ICONS[first.group] || LAUNCHER_ICONS.ides;
+    const firstAny = launchers[0];
+    if (firstAny) return LAUNCHER_ICONS[firstAny.group] || LAUNCHER_ICONS.ides;
+    return '>_';
+  }
+
+  const triggerIcon = resolveTriggerIcon();
 
   return (
     <Panel
@@ -183,7 +207,7 @@ export default function WorkspaceActiveRepoCard({
           disabled={availableLaunchers.length === 0}
           onClick={() => setMenuOpen(!menuOpen)}
         >
-          <span className="workspace-launch-trigger-icon">&gt;_</span>
+          <span className="workspace-launch-trigger-icon">{triggerIcon}</span>
           <span className="workspace-launch-trigger-chevron">&#9660;</span>
         </button>
         {menuOpen && (
