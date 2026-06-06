@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, HealthDot, Panel } from '../../components';
 import { getDesktopUpdaterPresentation } from '../../lib/desktopUpdaterPresentation';
 import { useStoreValue } from '../../lib/store';
+import { cliToolingStore } from '../../stores/cliToolingStore';
 import { desktopUpdaterStore } from '../../stores/desktopUpdaterStore';
 import { toolingUpdatesStore } from '../../stores/toolingUpdatesStore';
 
@@ -243,6 +244,88 @@ function ElegySkillsUpdateCard() {
   );
 }
 
+function CliToolingCard({ tool, installing }: { tool: import('../../lib/types').CliToolingTool; installing: boolean }) {
+  const tone = tool.installed ? 'ok' : tool.lastError ? 'error' : 'warn';
+  const summary = tool.installed
+    ? `Installed${tool.version ? ` (${tool.version})` : ''}`
+    : tool.lastError
+      ? tool.lastError
+      : 'Not installed';
+
+  return (
+    <Panel
+      title={tool.title || tool.id}
+      subtitle={tool.path || 'npm package'}
+      testId={`updates-cli-${tool.id}-card`}
+      actions={
+        <>
+          {!tool.installed ? (
+            <Button
+              variant="primary"
+              size="sm"
+              testId={`updates-cli-${tool.id}-install`}
+              onClick={() => void cliToolingStore.install(tool.id)}
+              disabled={installing}
+            >
+              {installing ? 'Installing…' : 'Install'}
+            </Button>
+          ) : null}
+        </>
+      }
+    >
+      <div className="updates-card-body">
+        <HealthDot tone={tone} label={summary} testId={`updates-cli-${tool.id}-health`} />
+        <dl className="updates-card-details">
+          <dt>Version</dt>
+          <dd data-testid={`updates-cli-${tool.id}-version`}>{tool.version || 'not detected'}</dd>
+          <dt>Package</dt>
+          <dd data-testid={`updates-cli-${tool.id}-path`}>{tool.path || 'unknown'}</dd>
+        </dl>
+        {tool.lastError && tool.installed ? null : tool.lastError ? (
+          <p className="updates-card-message updates-card-error" data-testid={`updates-cli-${tool.id}-error`}>
+            {tool.lastError}
+          </p>
+        ) : null}
+      </div>
+    </Panel>
+  );
+}
+
+function CliToolingSection() {
+  const { status, loading, installing, error } = useStoreValue(cliToolingStore);
+
+  useEffect(() => {
+    void cliToolingStore.refresh();
+  }, []);
+
+  if (loading && !status) {
+    return (
+      <div className="updates-section-loading" data-testid="updates-cli-section-loading">
+        Loading CLI tooling status…
+      </div>
+    );
+  }
+
+  const tools = (status?.tools && Array.isArray(status.tools)) ? status.tools : [];
+
+  return (
+    <div className="updates-section" data-testid="updates-cli-section">
+      {error ? (
+        <div className="updates-section-error" data-testid="updates-cli-error">
+          {error}
+        </div>
+      ) : null}
+      {tools.map((tool) => (
+        <CliToolingCard
+          key={tool.id}
+          tool={tool}
+          installing={installing?.[tool.id] || false}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function UpdatesSection() {
   const [activeSessionCount, setActiveSessionCount] = useState(0);
 
@@ -272,6 +355,7 @@ export default function UpdatesSection() {
       <AppUpdateCard />
       <ElegyPlanningUpdateCard />
       <ElegySkillsUpdateCard />
+      <CliToolingSection />
     </div>
   );
 }

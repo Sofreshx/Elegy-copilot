@@ -6,6 +6,7 @@ const GLOBAL_HARNESSES = Object.freeze([
   { id: 'opencode', title: 'OpenCode', home: '~/.config/opencode', skillsHome: '~/.config/opencode/skills', supportsMcp: true },
   { id: 'antigravity', title: 'Antigravity', home: '~/.gemini/antigravity', skillsHome: '~/.gemini/antigravity/skills', supportsMcp: false },
   { id: 'gemini-cli', title: 'Antigravity CLI', home: '~/.gemini', skillsHome: null, supportsMcp: true },
+  { id: 'claude-code', title: 'Claude Code', home: '~/.claude', skillsHome: '~/.claude/skills', supportsMcp: false },
 ]);
 
 function normalizeHarnessId(value) {
