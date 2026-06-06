@@ -7601,6 +7601,27 @@ textarea:focus-visible,
   overflow-wrap: anywhere;
 }
 
+/* Repository launcher layout */
+.repos-launcher-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  overflow-y: auto;
+}
+
+.repos-launcher-controls {
+  display: flex;
+  justify-content: flex-start;
+  gap: var(--space-sm);
+}
+
+.repos-launcher-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-xs);
+}
+
 /* ── GitHub Auth Banner ── */
 
 .github-auth-banner {

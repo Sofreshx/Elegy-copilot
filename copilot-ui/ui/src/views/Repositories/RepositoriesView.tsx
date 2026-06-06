@@ -1,33 +1,20 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { Button, Panel, Toolbar } from '../../components';
+import { useEffect, useState, useMemo } from 'react';
+import { Button, Panel, StatusBadge, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { notificationStore } from '../../stores/notificationStore';
+import { navigationStore } from '../../stores/navigation';
 import { repositoriesStore } from './repositoriesStore';
-import { gitStore } from '../../stores/gitStore';
-import { discoverGitChecks, runGitChecks } from '../../lib/api/git';
-import type { GitCheckResults } from '../../lib/api/git';
 import SourcesConfigPanel from './SourcesConfigPanel';
-import RepoSelectorPanel from './RepoSelectorPanel';
-import GitHubAuthBanner from './GitHubAuthBanner';
-import { BranchCard } from './BranchCard';
-import { ChangesCard } from './ChangesCard';
-import { CommitPushCard } from './CommitPushCard';
-import { DiffCard } from './DiffCard';
-import { RecentCommitsCard } from './RecentCommitsCard';
-import { RepoDocsCard } from './RepoDocsCard';
-import {
-  computeVerificationState,
-  type VerificationState,
-} from './verification';
+
+function normalizePath(p: string): string {
+  return p.replace(/\\/g, '/').toLowerCase();
+}
 
 export default function RepositoriesView() {
   const state = useStoreValue(repositoriesStore);
-  const gitState = useStoreValue(gitStore);
-  const [showSidebar, setShowSidebar] = useState(false);
-  const [verificationState, setVerificationState] = useState<VerificationState>('missing');
-  const [checkResults, setCheckResults] = useState<GitCheckResults | null>(null);
-  const [runningChecks, setRunningChecks] = useState(false);
-  const lastCheckRef = useRef<{ branch: string | null; head: string | null; changeCount: number } | null>(null);
+  const [registerPath, setRegisterPath] = useState('');
+  const [registerLabel, setRegisterLabel] = useState('');
+  const [registering, setRegistering] = useState(false);
 
   useEffect(() => {
     void repositoriesStore.loadInventory();
@@ -36,148 +23,193 @@ export default function RepositoriesView() {
     };
   }, []);
 
-  const selectedRepoPath = state.selectedRepo?.repoPath ?? null;
+  const query = state.searchQuery.trim().toLowerCase();
 
-  const updateVerification = useCallback(() => {
-    const hasRun = lastCheckRef.current !== null;
-    const result = computeVerificationState({
-      hasCheckRun: hasRun,
-      checkPassed: hasRun ? (checkResults?.allPassed ?? false) : false,
-      branch: gitState.summary?.branch ?? null,
-      headAtRun: lastCheckRef.current?.head ?? null,
-      currentHead: null,
-      changeCountAtRun: lastCheckRef.current?.changeCount ?? 0,
-      currentChangeCount: gitState.summary?.changedFiles ?? 0,
-      ciStatus: 'unavailable',
-    });
-    setVerificationState(result);
-  }, [checkResults, gitState.summary]);
+  const filtered = useMemo(() => {
+    let list = state.repos;
+    if (query) {
+      list = list.filter(
+        (r) =>
+          (r.repoLabel || '').toLowerCase().includes(query) ||
+          (r.repoPath || '').toLowerCase().includes(query)
+      );
+    }
+    return list;
+  }, [state.repos, query]);
 
-  useEffect(() => {
-    updateVerification();
-  }, [updateVerification]);
+  function handleOpen(repo: typeof state.repos[number]) {
+    const repoPath = (repo.repoPath || '').trim();
+    const repoLabel = repo.repoLabel || repoPath;
+    if (repoPath) {
+      navigationStore.openWorkspace(repoPath, repoLabel);
+    }
+  }
 
-  async function handleRunChecks() {
-    if (!selectedRepoPath) return;
-    setRunningChecks(true);
+  async function handleRegister() {
+    const repoPath = registerPath.trim();
+    if (!repoPath) return;
+    setRegistering(true);
     try {
-      const results = await runGitChecks(selectedRepoPath);
-      setCheckResults(results);
-      lastCheckRef.current = {
-        branch: gitState.summary?.branch ?? null,
-        head: null,
-        changeCount: gitState.summary?.changedFiles ?? 0,
-      };
+      await repositoriesStore.registerRepo(repoPath, registerLabel.trim() || undefined);
+      setRegisterPath('');
+      setRegisterLabel('');
+      notificationStore.success('Repository registered', { message: repoPath });
     } catch (err) {
-      notificationStore.error('Check run failed', { message: err instanceof Error ? err.message : String(err) });
+      notificationStore.error('Registration failed', { message: err instanceof Error ? err.message : String(err) });
     } finally {
-      setRunningChecks(false);
+      setRegistering(false);
     }
   }
 
-  function handleOpenPR() {
-    const pr = gitState.pullRequest?.pullRequest;
-    if (pr?.url) {
-      window.open(pr.url, '_blank', 'noopener,noreferrer');
-    }
-  }
+  const navState = useStoreValue(navigationStore);
+  const openWorkspacePaths = useMemo(() => {
+    return new Set(navState.openWorkspaces.map((w) => normalizePath(w.repoPath)));
+  }, [navState.openWorkspaces]);
 
   return (
     <div className="repos-view" data-testid="repositories-view">
       <Toolbar testId="repos-toolbar">
         <h2>Repositories</h2>
         <span className="state-copy">
-          {state.selectedRepo
-            ? `${state.selectedRepo.repoLabel || state.selectedRepo.repoPath || ''}`
-            : 'Select a repository to manage'}
+          {state.repos.length} known repo{state.repos.length !== 1 ? 's' : ''}
         </span>
       </Toolbar>
 
-      {selectedRepoPath ? (
-        <div className="repos-cards-layout">
-          <div className="repos-active-bar" data-testid="repos-active-bar">
-            <Panel
-              title="Active Repository"
-              subtitle={state.selectedRepo?.repoLabel || selectedRepoPath}
-              testId="repos-active-card"
-              actions={(
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  testId="repos-toggle-sidebar"
-                  onClick={() => setShowSidebar(!showSidebar)}
-                >
-                  {showSidebar ? 'Hide repos' : 'Switch repo'}
-                </Button>
-              )}
+      <div className="repos-launcher-layout" data-testid="repos-launcher-layout">
+        {/* Search */}
+        <input
+          className="form-input-field"
+          type="text"
+          placeholder="Search repositories\u2026"
+          value={state.searchQuery}
+          onChange={(e) => repositoriesStore.setSearchQuery(e.target.value)}
+          data-testid="repos-search-input"
+        />
+
+        {/* Error */}
+        {state.error ? (
+          <p className="state-message state-error" role="alert" data-testid="repos-error">
+            {state.error}
+          </p>
+        ) : null}
+
+        {/* Loading */}
+        {state.loading && state.repos.length === 0 ? (
+          <p className="state-message">Loading known repos\u2026</p>
+        ) : null}
+
+        {/* Empty */}
+        {!state.loading && state.repos.length === 0 ? (
+          <p className="state-message">
+            No repositories found. Add scan roots or register a repository below.
+          </p>
+        ) : null}
+
+        {/* No results */}
+        {filtered.length === 0 && state.repos.length > 0 ? (
+          <p className="state-message">No repositories match your search.</p>
+        ) : null}
+
+        {/* Repo list */}
+        <ul className="repos-selector-list" data-testid="repos-launcher-list">
+          {filtered.map((repo) => {
+            const repoPath = (repo.repoPath || '').trim();
+            const isOpen = openWorkspacePaths.has(normalizePath(repoPath));
+            return (
+              <li
+                key={repo.repoId || repo.repoPath || ''}
+                className={`repos-selector-item${isOpen ? ' is-selected' : ''}`}
+                data-testid={`repos-launcher-item-${repoPath}`}
+              >
+                <div className="repos-selector-item-header">
+                  <span className="repos-selector-item-label">
+                    {repo.repoLabel || repo.repoPath || 'Unknown'}
+                  </span>
+                  <div className="catalog-badge-row">
+                    <StatusBadge status={repo.scanStatus || 'unknown'} />
+                    {repo.registered ? <StatusBadge status="registered" /> : null}
+                    {isOpen ? <StatusBadge status="open" /> : null}
+                  </div>
+                </div>
+                {repo.repoPath ? (
+                  <p className="repos-selector-item-path">{repo.repoPath}</p>
+                ) : null}
+                {repoPath ? (
+                  <div className="repos-launcher-actions">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      testId={`repos-open-${repoPath}`}
+                      onClick={() => handleOpen(repo)}
+                    >
+                      {isOpen ? 'Focus' : 'Open'}
+                    </Button>
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* Refresh */}
+        <div className="repos-launcher-controls">
+          <Button
+            variant="ghost"
+            size="sm"
+            testId="repos-refresh"
+            disabled={state.loading}
+            onClick={() => void repositoriesStore.loadInventory()}
+          >
+            {state.loading ? 'Loading\u2026' : 'Refresh inventory'}
+          </Button>
+        </div>
+
+        {/* Register section */}
+        <Panel
+          title="Register Repository"
+          subtitle="Add a repository not discovered by scan"
+          testId="repos-register-panel"
+        >
+          <label className="form-label" htmlFor="repos-register-path">
+            Repository path
+          </label>
+          <input
+            id="repos-register-path"
+            className="form-input-field"
+            type="text"
+            placeholder="C:\Users\you\Documents\GitHub\my-project"
+            value={registerPath}
+            onChange={(e) => setRegisterPath(e.target.value)}
+            data-testid="repos-register-path-input"
+          />
+          <label className="form-label" htmlFor="repos-register-label">
+            Display label (optional)
+          </label>
+          <input
+            id="repos-register-label"
+            className="form-input-field"
+            type="text"
+            placeholder="My Project"
+            value={registerLabel}
+            onChange={(e) => setRegisterLabel(e.target.value)}
+            data-testid="repos-register-label-input"
+          />
+          <div className="catalog-action-row">
+            <Button
+              variant="secondary"
+              size="sm"
+              testId="repos-register-btn"
+              disabled={registering || !registerPath.trim()}
+              onClick={handleRegister}
             >
-              <div className="repos-active-path">{selectedRepoPath}</div>
-            </Panel>
+              {registering ? 'Registering\u2026' : 'Register'}
+            </Button>
           </div>
+        </Panel>
 
-          {showSidebar ? (
-            <div className="repos-sidebar-collapsible" data-testid="repos-sidebar-collapsible">
-              <SourcesConfigPanel />
-              <RepoSelectorPanel />
-            </div>
-          ) : null}
-
-          <GitHubAuthBanner repoPath={selectedRepoPath} />
-
-          <div className="repos-cards-grid">
-            <BranchCard
-              summary={gitState.summary}
-              pullRequest={gitState.pullRequest?.pullRequest ?? null}
-              loading={gitState.loading}
-              onRefresh={() => void gitStore.loadStatus(selectedRepoPath)}
-              onOpenPR={handleOpenPR}
-            />
-            <ChangesCard
-              status={gitState.status}
-              summary={gitState.summary}
-              staging={gitState.staging}
-            />
-            <CommitPushCard
-              verificationState={verificationState}
-              checkResults={checkResults || gitState.checkResults}
-              commitMessage={gitState.commitMessage}
-              committing={gitState.committing}
-              syncing={gitState.syncing}
-              hasBranch={Boolean(gitState.summary?.branch)}
-              hasRemote={Boolean(gitState.summary?.hasRemote)}
-              showOverrideInput={gitState.showOverrideInput}
-              unsafeOverrideReason={gitState.unsafeOverrideReason}
-              onCommit={() => void gitStore.commit()}
-              onPush={() => void gitStore.push()}
-              onRunChecks={handleRunChecks}
-            />
-          </div>
-
-          <div className="repos-detail-cards">
-            <DiffCard diff={gitState.diff} diffView={gitState.diffView} />
-            <RecentCommitsCard log={gitState.log} />
-            <RepoDocsCard repoPath={selectedRepoPath} />
-          </div>
-
-          {gitState.error ? (
-            <div className="repos-error" data-testid="repos-error">{gitState.error}</div>
-          ) : null}
-        </div>
-      ) : (
-        <div className="repos-master-detail">
-          <div className="repos-sidebar">
-            <SourcesConfigPanel />
-            <RepoSelectorPanel />
-          </div>
-          <div className="repos-main">
-            <div className="repos-empty" data-testid="repos-empty">
-              <p className="state-message">
-                Select a repository from the list or configure scan roots to discover repositories.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+        {/* Scan roots config */}
+        <SourcesConfigPanel />
+      </div>
     </div>
   );
 }

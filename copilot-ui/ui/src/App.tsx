@@ -111,7 +111,9 @@ export default function App() {
 
     switch (navigationState.activeSidebarItem) {
       case 'workspace':
-        return <WorkspaceView />;
+        return navigationState.activeWorkspaceId
+          ? <WorkspaceView />
+          : <RepositoriesView />;
       case 'lexicon':
         return <LexiconView />;
       case 'repositories':
@@ -119,7 +121,7 @@ export default function App() {
       case 'settings':
         return <SettingsView />;
       default:
-        return <WorkspaceView />;
+        return <RepositoriesView />;
     }
   }
 

@@ -102,6 +102,25 @@ async function run() {
     assert.ok(!appSource.includes(["./tabs", "Planning", ["Planning", "View"].join("")].join("/")), 'Did not expect legacy planning tab import in App.tsx');
   });
 
+  await test('Sidebar nav items no longer include static Workspace item and Repositories is first', async () => {
+    const navSource = fs.readFileSync(path.join(uiSrcRoot, 'stores', 'navigation.ts'), 'utf8');
+    const reposIdx = navSource.indexOf("id: 'repositories'");
+    const lexiconIdx = navSource.indexOf("id: 'lexicon'");
+    const settingsIdx = navSource.indexOf("id: 'settings'");
+    assert.ok(reposIdx >= 0, 'Expected repositories sidebar item');
+    assert.ok(lexiconIdx >= 0, 'Expected lexicon sidebar item');
+    assert.ok(settingsIdx >= 0, 'Expected settings sidebar item');
+    // Repositories should come before lexicon
+    assert.ok(reposIdx < lexiconIdx, 'Expected repositories before lexicon in sidebar nav');
+    // The static workspace item should not be in SIDEBAR_NAV_ITEMS
+    const navItemsStart = navSource.indexOf('SIDEBAR_NAV_ITEMS');
+    const navItemsEnd = navSource.indexOf('];', navItemsStart);
+    const navItemsBlock = navSource.slice(navItemsStart, navItemsEnd);
+    assert.ok(!navItemsBlock.includes("id: 'workspace'"), 'Did not expect static workspace item in SIDEBAR_NAV_ITEMS');
+    // Default activeSidebarItem should be 'repositories'
+    assert.ok(navSource.includes("activeSidebarItem: 'repositories'"), 'Expected default activeSidebarItem to be repositories');
+  });
+
   await test('responsive breakpoints for 1440px, 1024px, 768px, and 320px exist in app.css', async () => {
     const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
 
@@ -296,13 +315,18 @@ async function run() {
     assert.ok(source.includes('VerificationState'), 'Expected VerificationState type');
   });
 
-  await test('RepositoriesView uses new card layout', async () => {
+  await test('RepositoriesView uses repository-launcher layout', async () => {
     const source = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Repositories', 'RepositoriesView.tsx'), 'utf8');
-    assert.ok(source.includes('repos-cards-layout'), 'Expected repos-cards-layout class');
-    assert.ok(source.includes('BranchCard'), 'Expected BranchCard import');
-    assert.ok(source.includes('ChangesCard'), 'Expected ChangesCard import');
-    assert.ok(source.includes('CommitPushCard'), 'Expected CommitPushCard import');
-    assert.ok(source.includes('RepoDocsCard'), 'Expected RepoDocsCard import');
+    assert.ok(source.includes('repos-launcher-layout'), 'Expected repos-launcher-layout class');
+    assert.ok(source.includes('repos-launcher-list'), 'Expected repos-launcher-list test id');
+    assert.ok(source.includes('repos-register-panel'), 'Expected repos-register-panel test id');
+    assert.ok(source.includes('repos-refresh'), 'Expected repos-refresh test id');
+    assert.ok(source.includes('repos-search-input'), 'Expected repos-search-input test id');
+    assert.ok(source.includes('navigationStore'), 'Expected navigationStore import for workspace tab opening');
+    assert.ok(!source.includes('repos-cards-layout'), 'Did not expect legacy repos-cards-layout class');
+    assert.ok(!source.includes('BranchCard'), 'Did not expect BranchCard import in RepositoriesView');
+    assert.ok(!source.includes('ChangesCard'), 'Did not expect ChangesCard import in RepositoriesView');
+    assert.ok(!source.includes('CommitPushCard'), 'Did not expect CommitPushCard import in RepositoriesView');
   });
 
   await test('repoDocs API client exists', async () => {

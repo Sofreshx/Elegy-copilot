@@ -39,10 +39,7 @@ export default function WorkspaceView() {
     };
   }, []);
 
-  const selectedRepoPath =
-    navState.activeWorkspaceId
-    || state.selectedRepo?.repoPath
-    || null;
+  const selectedRepoPath = navState.activeWorkspaceId || null;
 
   useEffect(() => {
     let cancelled = false;
@@ -70,7 +67,7 @@ export default function WorkspaceView() {
     ? (state.repos.find(
         (r) => (r.repoPath || '').replace(/\\/g, '/').toLowerCase()
                === selectedRepoPath.replace(/\\/g, '/').toLowerCase(),
-      ) || state.selectedRepo)
+      ) || null)
     : null;
 
   useEffect(() => {
