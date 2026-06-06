@@ -3846,6 +3846,15 @@ function resolveOpenCodeHomeFromEnv(env) {
   return path.resolve(path.join(configHome, 'opencode'));
 }
 
+function resolveOpenCodeDataHomeFromEnv(env) {
+  const source = env && typeof env === 'object' ? env : process.env;
+  if (source.OPENCODE_DATA_HOME) {
+    return path.resolve(String(source.OPENCODE_DATA_HOME));
+  }
+  const dataHome = source.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
+  return path.resolve(path.join(dataHome, 'opencode'));
+}
+
 function resolveOpenCodeSkillsHomeFromEnv(env, opencodeHome) {
   const source = env && typeof env === 'object' ? env : process.env;
   return path.resolve(String(source.INSTRUCTION_ENGINE_OPENCODE_SKILLS_HOME || path.join(opencodeHome, 'skills')));
@@ -4583,6 +4592,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
   const antigravitySkillsHome = resolveAntigravitySkillsHomeFromEnv(process.env, antigravityHome);
   const opencodeHome = resolveOpenCodeHomeFromEnv(process.env);
   const opencodeSkillsHome = resolveOpenCodeSkillsHomeFromEnv(process.env, opencodeHome);
+  const opencodeDataHome = resolveOpenCodeDataHomeFromEnv(process.env);
   const activePlanningDurabilityDependencyGate = planningDurabilityDependencyGate
     && typeof planningDurabilityDependencyGate === 'object'
     ? planningDurabilityDependencyGate
@@ -4684,6 +4694,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     antigravitySkillsHome,
     opencodeHome,
     opencodeSkillsHome,
+    opencodeDataHome,
     planningDurabilityDependencyGate: activePlanningDurabilityDependencyGate,
     activePlanningDurabilityDependencyGate,
     planningPersistenceConfig,

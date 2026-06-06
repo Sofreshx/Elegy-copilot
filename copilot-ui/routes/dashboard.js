@@ -18,6 +18,7 @@ function loadHarnessSessionsInventory(ctx, deps) {
     sandboxesHome: ctx.sandboxesHome,
     codexHome: ctx.codexHome,
     opencodeHome: ctx.opencodeHome,
+    opencodeDataHome: ctx.opencodeDataHome,
     antigravityHome: ctx.antigravityHome,
     geminiHome: ctx.geminiHome,
     sessionAggregation: deps._sessionAggregationOverride !== undefined

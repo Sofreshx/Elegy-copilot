@@ -74,6 +74,15 @@ describe('DashboardView', () => {
                 latestUpdatedAtMs: null,
                 sessions: [],
               },
+              {
+                harnessId: 'claude-code',
+                title: 'Claude Code',
+                inventoryAvailable: false,
+                inventoryReason: 'inventory_not_supported',
+                sessionCount: 0,
+                latestUpdatedAtMs: null,
+                sessions: [],
+              },
             ],
             inventorySummary: {
               availableHarnessCount: 2,
@@ -140,5 +149,23 @@ describe('DashboardView', () => {
         'Session inventory is not available for OpenCode yet.',
       );
     });
+  });
+
+  it('renders Claude Code harness card without breaking existing harnesses', async () => {
+    const { default: DashboardView } = await import('../ui/src/views/DashboardView');
+
+    render(<DashboardView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('execution-hub-harness-list')).toBeInTheDocument();
+    });
+
+    // Claude Code should appear among the harness entries
+    expect(screen.getByTestId('execution-hub-harness-claude-code')).toHaveTextContent('Claude Code');
+
+    // Existing harnesses should still render
+    expect(screen.getByTestId('execution-hub-harness-copilot')).toHaveTextContent('Copilot');
+    expect(screen.getByTestId('execution-hub-harness-codex')).toHaveTextContent('3 sessions');
+    expect(screen.getByTestId('execution-hub-harness-opencode')).toBeInTheDocument();
   });
 });

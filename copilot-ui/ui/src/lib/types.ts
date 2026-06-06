@@ -1238,6 +1238,33 @@ export interface ToolingUpdateActionResponse {
   error?: string;
 }
 
+export interface CliToolingTool {
+  id: string;
+  title: string | null;
+  installed: boolean;
+  path: string | null;
+  version: string | null;
+  lastError: string | null;
+  error?: string;
+}
+
+export interface CliToolingStatusResponse {
+  ok: boolean;
+  tools: CliToolingTool[];
+  checkedAt: string;
+}
+
+export interface CliToolingInstallResponse {
+  ok: boolean;
+  toolId: string;
+  title: string;
+  npmPackage: string;
+  command?: string;
+  output?: string;
+  dryRun?: boolean;
+  error?: string;
+}
+
 export interface InstalledAgent {
   assetId?: string;
   name: string;

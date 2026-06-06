@@ -20,7 +20,7 @@ const codexConfig = require('../lib/codexConfig');
 const { resolvePlanningHealth, resolvePlanningFeatureStatus } = require('../lib/elegyPlanningHealth');
 const providerUsageStats = require('../lib/providerUsageStats');
 
-const TOOLING_INSTALL_KINDS = new Set(['elegy-planning-cli', 'elegy-skills', 'install-codex-planning']);
+const TOOLING_INSTALL_KINDS = new Set(['elegy-planning-cli', 'elegy-skills', 'install-codex-planning', 'worktree-permission-profile']);
 
 function isLegacyElegyManifestAsset(asset) {
   if (!asset || typeof asset !== 'object') return false;
@@ -352,6 +352,34 @@ function buildSetupChecks(opencodeHome, copilotHomeAbs, engineRoot, assets, ctx,
     action: worktreePlugin ? null : { kind: 'install', label: 'Install OpenCode assets' },
   });
 
+  let worktreePermissionStatus = null;
+  try {
+    worktreePermissionStatus = ocLib.getWorktreePermissionProfileStatus
+      ? ocLib.getWorktreePermissionProfileStatus(opencodeHome)
+      : null;
+  } catch {
+    worktreePermissionStatus = null;
+  }
+  if (worktreePermissionStatus) {
+    const { applied, worktreeBase, missingExternalDirectoryPatterns, missingBashPatterns } = worktreePermissionStatus;
+    const missingParts = [];
+    if (missingExternalDirectoryPatterns.length > 0) {
+      missingParts.push(`${missingExternalDirectoryPatterns.length} external_directory pattern(s)`);
+    }
+    if (missingBashPatterns.length > 0) {
+      missingParts.push(`${missingBashPatterns.length} bash rule(s)`);
+    }
+    checks.push({
+      id: 'worktree-permission-profile',
+      label: 'OpenCode worktree permission profile',
+      status: applied ? 'ok' : 'warning',
+      detail: applied
+        ? `Permission profile applied for ${worktreeBase}`
+        : `Permission profile not applied: missing ${missingParts.join(' + ')} for ${worktreeBase}`,
+      action: applied ? null : { kind: 'worktree-permission-profile', label: 'Apply worktree permission profile' },
+    });
+  }
+
   const providerRoute = asTrimmedString(ctx.activeProviderRoute || 'opencode-go');
   checks.push({
     id: 'provider-route',
@@ -584,6 +612,15 @@ async function buildOpenCodeStatus(ctx, deps) {
   const overallStatus = resolveOverallStatus(setupChecks);
   const warnings = buildWarnings(setupChecks);
 
+  let worktreePermissionStatus = null;
+  if (opencodeConfig && typeof opencodeConfig.getWorktreePermissionProfileStatus === 'function') {
+    try {
+      worktreePermissionStatus = opencodeConfig.getWorktreePermissionProfileStatus(opencodeHome) || null;
+    } catch {
+      worktreePermissionStatus = null;
+    }
+  }
+
   return {
     overallStatus,
     warnings,
@@ -601,6 +638,7 @@ async function buildOpenCodeStatus(ctx, deps) {
     elegyPlanningCli: toolingStatus.elegyPlanningCli,
     elegySkillsAssets: toolingStatus.elegySkillsAssets,
     planningLiveAuthority,
+    worktreePermissionProfile: worktreePermissionStatus,
   };
 }
 
@@ -804,6 +842,29 @@ function register(deps = {}) {
               assetFilter: isElegySkillAsset,
             });
             result = { syncResult };
+          } else if (kind === 'worktree-permission-profile') {
+            if (!opencodeHome) {
+              resolvedDeps.sendJson(ctx.res, 400, {
+                ok: false,
+                error: 'opencodeHome is required to apply the worktree permission profile.',
+              });
+              return;
+            }
+            if (!resolvedDeps.opencodeConfig.applyWorktreePermissionProfile) {
+              resolvedDeps.sendJson(ctx.res, 500, {
+                ok: false,
+                error: 'opencodeConfig.applyWorktreePermissionProfile is not available.',
+              });
+              return;
+            }
+            const applyResult = resolvedDeps.opencodeConfig.applyWorktreePermissionProfile(opencodeHome, {
+              dryRun: false,
+            });
+            result = {
+              configPath: applyResult.configPath,
+              profile: applyResult.profile,
+              changed: applyResult.changed,
+            };
           }
 
           const status = await buildOpenCodeStatus(ctx, resolvedDeps);

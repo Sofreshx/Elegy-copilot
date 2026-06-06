@@ -5,8 +5,11 @@ const path = require('path');
 const os = require('os');
 
 const DEFAULT_OPENCODE_HOME = path.join(os.homedir(), '.config', 'opencode');
+const DEFAULT_WORKTREE_BASE = path.join(os.homedir(), '.local', 'share', 'opencode', 'worktree');
 const CONFIG_FILENAME = 'opencode.jsonc';
 const STATE_FILENAME = '.elegy-opencode-agent-state.json';
+const WORKTREE_PERMISSION_PROFILE_VERSION = 1;
+const WORKTREE_PERMISSION_PROFILE_MARKER = 'instruction-engine-worktree-permission-profile';
 
 const KNOWN_DEFAULT_EXPLORE_MODEL = 'deepseek/deepseek-v4-flash';
 const KNOWN_DEFAULT_SCOUT_MODEL = 'deepseek/deepseek-v4-flash';
@@ -355,10 +358,157 @@ function resetConfig(opencodeHome) {
   return getStatus(resolvedHome);
 }
 
+function resolveWorktreeBase(explicit) {
+  if (typeof explicit === 'string' && explicit.trim()) {
+    return path.resolve(explicit);
+  }
+  if (typeof process !== 'undefined' && process.env && process.env.OPENCODE_WORKTREE_BASE) {
+    return path.resolve(process.env.OPENCODE_WORKTREE_BASE);
+  }
+  return DEFAULT_WORKTREE_BASE;
+}
+
+function normalizePatternList(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+    .filter(Boolean);
+}
+
+function buildWorktreePermissionProfile(worktreeBase) {
+  const resolvedBase = resolveWorktreeBase(worktreeBase);
+  const baseWithGlob = process.platform === 'win32' ? resolvedBase.replace(/\\/g, '/') : resolvedBase;
+  const patterns = [`${baseWithGlob}/**`, `${baseWithGlob}`, '~/.local/share/opencode/worktree/**'];
+  return {
+    version: WORKTREE_PERMISSION_PROFILE_VERSION,
+    marker: WORKTREE_PERMISSION_PROFILE_MARKER,
+    worktreeBase: resolvedBase,
+    externalDirectory: { patterns, action: 'allow' },
+    bash: {
+      'git status': 'allow',
+      'git status *': 'allow',
+      'git worktree list': 'allow',
+      'git worktree list *': 'allow',
+      'git worktree add *': 'allow',
+      'git worktree remove *': 'allow',
+      'git worktree prune': 'allow',
+      'git worktree prune *': 'allow',
+    },
+  };
+}
+
+function ensureWorktreePermissionProfile(config, worktreeBase) {
+  const profile = buildWorktreePermissionProfile(worktreeBase);
+  const target = config && typeof config === 'object' && !Array.isArray(config) ? { ...config } : {};
+  const existingPermission = target.permission && typeof target.permission === 'object' && !Array.isArray(target.permission)
+    ? { ...target.permission }
+    : {};
+
+  const existingExternal = existingPermission.external_directory;
+  const existingPatterns = normalizePatternList(
+    existingExternal && typeof existingExternal === 'object' && !Array.isArray(existingExternal)
+      ? existingExternal.patterns
+      : (typeof existingExternal === 'string' ? [existingExternal] : []),
+  );
+  const newPatterns = Array.from(new Set([...existingPatterns, ...profile.externalDirectory.patterns]));
+  existingPermission.external_directory = {
+    patterns: newPatterns,
+    action: 'allow',
+  };
+
+  const existingBash = existingPermission.bash && typeof existingPermission.bash === 'object' && !Array.isArray(existingPermission.bash)
+    ? { ...existingPermission.bash }
+    : {};
+
+  existingPermission.bash = { ...existingBash, ...profile.bash };
+
+  const previousMarker = existingPermission[WORKTREE_PERMISSION_PROFILE_MARKER]
+    && typeof existingPermission[WORKTREE_PERMISSION_PROFILE_MARKER] === 'object'
+    ? existingPermission[WORKTREE_PERMISSION_PROFILE_MARKER]
+    : null;
+  existingPermission[WORKTREE_PERMISSION_PROFILE_MARKER] = {
+    version: profile.version,
+    worktreeBase: profile.worktreeBase,
+    appliedAt: previousMarker && Number(previousMarker.version) === profile.version && previousMarker.worktreeBase === profile.worktreeBase
+      ? previousMarker.appliedAt
+      : new Date().toISOString(),
+  };
+
+  target.permission = existingPermission;
+  return { config: target, profile };
+}
+
+function applyWorktreePermissionProfile(opencodeHome, options = {}) {
+  const resolvedHome = resolveOpenCodeHome(opencodeHome);
+  const configPath = resolveConfigPath(resolvedHome);
+  const config = readConfig(resolvedHome);
+  const { config: nextConfig, profile } = ensureWorktreePermissionProfile(config, options.worktreeBase);
+
+  let changed = false;
+  const previousJson = JSON.stringify(config || {}, null, 2);
+  const nextJson = JSON.stringify(nextConfig, null, 2);
+  if (previousJson !== nextJson) {
+    changed = true;
+    if (!options.dryRun) {
+      writeConfig(resolvedHome, nextConfig);
+    }
+  }
+
+  return {
+    configPath,
+    opencodeHome: resolvedHome,
+    profile,
+    changed,
+    dryRun: Boolean(options.dryRun),
+  };
+}
+
+function getWorktreePermissionProfileStatus(opencodeHome, worktreeBase) {
+  const resolvedHome = resolveOpenCodeHome(opencodeHome);
+  const config = readConfig(resolvedHome);
+  const profile = buildWorktreePermissionProfile(worktreeBase);
+  const permission = config && typeof config.permission === 'object' && !Array.isArray(config.permission)
+    ? config.permission
+    : null;
+  const marker = permission && typeof permission[WORKTREE_PERMISSION_PROFILE_MARKER] === 'object'
+    ? permission[WORKTREE_PERMISSION_PROFILE_MARKER]
+    : null;
+  const external = permission && permission.external_directory && typeof permission.external_directory === 'object'
+    ? permission.external_directory
+    : null;
+  const externalPatterns = external ? normalizePatternList(external.patterns) : [];
+  const missingPatterns = profile.externalDirectory.patterns.filter((pattern) => !externalPatterns.includes(pattern));
+  const bashRules = (permission && permission.bash && typeof permission.bash === 'object' && !Array.isArray(permission.bash))
+    ? permission.bash
+    : {};
+  const missingBash = Object.entries(profile.bash)
+    .filter(([pattern, action]) => bashRules[pattern] !== action)
+    .map(([pattern]) => pattern);
+  const applied = Boolean(marker)
+    && missingPatterns.length === 0
+    && missingBash.length === 0;
+
+  return {
+    worktreeBase: profile.worktreeBase,
+    configPath: resolveConfigPath(resolvedHome),
+    applied,
+    version: marker && Number(marker.version) === profile.version ? profile.version : null,
+    expectedVersion: profile.version,
+    marker,
+    expectedExternalDirectoryPatterns: profile.externalDirectory.patterns,
+    actualExternalDirectoryPatterns: externalPatterns,
+    missingExternalDirectoryPatterns: missingPatterns,
+    expectedBashPatterns: Object.keys(profile.bash),
+    missingBashPatterns: missingBash,
+  };
+}
+
 module.exports = {
   KNOWN_DEFAULT_EXPLORE_MODEL,
   KNOWN_DEFAULT_SCOUT_MODEL,
   AGENT_KEYS,
+  DEFAULT_OPENCODE_HOME,
+  DEFAULT_WORKTREE_BASE,
   LANE_SMALL_AGENT_KEYS,
   LANE_BIG_AGENT_KEYS,
   LANE_REVIEW_AGENT_KEYS,
@@ -378,4 +528,11 @@ module.exports = {
   setActiveProfileRoute,
   removeActiveProfileRoute,
   updateStateProfileRoute,
+  resolveWorktreeBase,
+  buildWorktreePermissionProfile,
+  ensureWorktreePermissionProfile,
+  applyWorktreePermissionProfile,
+  getWorktreePermissionProfileStatus,
+  WORKTREE_PERMISSION_PROFILE_MARKER,
+  WORKTREE_PERMISSION_PROFILE_VERSION,
 };

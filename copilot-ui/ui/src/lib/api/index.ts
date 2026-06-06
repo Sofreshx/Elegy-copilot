@@ -11,6 +11,7 @@ export * from './git';
 export * from './repoDocs';
 export * from './projects';
 export * from './toolingUpdates';
+export * from './cliTooling';
 export * from './opencode';
 export * from './lexicon';
 export * from './workspace';
