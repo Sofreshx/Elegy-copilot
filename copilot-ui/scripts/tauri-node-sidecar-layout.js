@@ -178,6 +178,12 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     assert(!path.isAbsolute(resource.target), `Expected ${manifestPath} resourceCopies.${resource.id}.target to stay relative: ${resource.target}`);
 
     const sourcePath = path.resolve(activeWorkspaceRoot, resource.source);
+    if (resource.id === 'moon-bridge-binary') {
+      // Moon Bridge binary is an optional bundled resource — runtime falls back to git+go build
+      if (!fs.existsSync(sourcePath)) {
+        continue;
+      }
+    }
     if (resource.kind === 'file') {
       requireFile(`Tauri sidecar model source ${resource.id}`, sourcePath);
     } else {

@@ -238,6 +238,10 @@ function prepareTauriWindowsBundle(options = {}) {
     const targetPath = path.join(stagedResourcesRoot, resource.target);
     logger(`[tauri-win-bundle] copying ${resource.id} (${resource.kind}) -> ${resource.target}`);
     if (resource.kind === 'file') {
+      if (resource.id === 'moon-bridge-binary' && !fs.existsSync(sourcePath)) {
+        logger(`[tauri-win-bundle] skipping moon-bridge-binary: source not found at ${sourcePath} (runtime will fall back to git+go build)`);
+        continue;
+      }
       copyFile(sourcePath, targetPath);
       copiedResourceCount += 1;
       if (resource.id === 'moon-bridge-binary') {
@@ -255,6 +259,13 @@ function prepareTauriWindowsBundle(options = {}) {
       logger(`[tauri-win-bundle] WARNING: moon-bridge-binary was declared in manifest but not found at staged target: ${stagedMoonBridgePath}`);
     } else {
       logger(`[tauri-win-bundle] moon-bridge-binary staged successfully at ${stagedMoonBridgePath}`);
+    }
+  } else {
+    // Ensure the moon-bridge resource directory exists (Tauri expects it per tauri.conf.json)
+    const moonBridgeDir = path.join(stagedResourcesRoot, 'moon-bridge');
+    if (!fs.existsSync(moonBridgeDir)) {
+      fs.mkdirSync(moonBridgeDir, { recursive: true });
+      logger(`[tauri-win-bundle] created empty moon-bridge resource directory (binary not staged; runtime will fall back to git+go build)`);
     }
   }
 
