@@ -141,6 +141,24 @@ function createRepositoriesStore() {
     }
   }
 
+  async function registerRepo(repoPath: string, repoLabel?: string): Promise<void> {
+    store.setState((s) => ({ ...s, error: null }));
+    try {
+      await apiRequest<{ success: boolean }>('/api/catalog/repos/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repoPath, repoLabel }),
+      });
+      await loadInventory();
+    } catch (err) {
+      store.setState((s) => ({
+        ...s,
+        error: err instanceof Error ? err.message : String(err),
+      }));
+      throw err;
+    }
+  }
+
   function setSearchQuery(searchQuery: string): void {
     store.setState((s) => ({ ...s, searchQuery }));
   }
@@ -159,6 +177,7 @@ function createRepositoriesStore() {
     loadInventory,
     selectRepo,
     saveScanRoots,
+    registerRepo,
     checkGitHubAuth,
     loginGitHub,
     setSearchQuery,

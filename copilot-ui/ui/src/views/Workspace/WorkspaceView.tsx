@@ -33,10 +33,7 @@ export default function WorkspaceView() {
     };
   }, []);
 
-  const selectedRepoPath =
-    navState.activeWorkspaceId
-    || state.selectedRepo?.repoPath
-    || null;
+  const selectedRepoPath = navState.activeWorkspaceId || null;
 
   // When the workspace tab is the source of truth (focusWorkspace sets
   // activeWorkspaceId but does not touch repositoriesStore), resolve the
@@ -46,7 +43,7 @@ export default function WorkspaceView() {
     ? (state.repos.find(
         (r) => (r.repoPath || '').replace(/\\/g, '/').toLowerCase()
                === selectedRepoPath.replace(/\\/g, '/').toLowerCase(),
-      ) || state.selectedRepo)
+      ) || null)
     : null;
 
   useEffect(() => {

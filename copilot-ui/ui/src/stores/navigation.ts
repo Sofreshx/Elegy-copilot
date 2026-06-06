@@ -32,6 +32,10 @@ export interface OpenWorkspace {
   openedAt: number;
 }
 
+function normalizeRepoPath(p: string): string {
+  return p.replace(/\\/g, '/').toLowerCase();
+}
+
 export const WORKSPACE_TABS_STORAGE_KEY = 'elegy-copilot-workspace-tabs';
 const ACTIVE_WORKSPACE_STORAGE_KEY = 'elegy-copilot-active-workspace';
 
@@ -48,9 +52,8 @@ export type SidebarNavItem = {
 };
 
 export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
-  { id: 'workspace', label: 'Workspace', icon: '⎔', description: 'Document-centric repository workspace with docs, planning, and git operations' },
+  { id: 'repositories', label: 'Repositories', icon: '␀', description: 'Browse and open registered repositories' },
   { id: 'lexicon', label: 'Lexicon', icon: '◈', description: 'Searchable vocabulary reference for UI, design, architecture, and software engineering terms' },
-  { id: 'repositories', label: 'Repositories', icon: '␀', description: 'Manage registered repositories and sources' },
   { id: 'settings', label: 'Settings', icon: '☰', description: 'App configuration and preferences' },
 ];
 
@@ -74,7 +77,7 @@ export type NavigationState = {
 
 const INITIAL_STATE: NavigationState = {
   catalogSectionId: 'global',
-  activeSidebarItem: 'workspace',
+  activeSidebarItem: 'repositories',
   selectedProjectId: null,
   projectSubView: 'overview',
   selectedSessionId: null,
@@ -199,10 +202,13 @@ function createNavigationStore() {
   }
 
   function openWorkspace(repoPath: string, repoLabel: string): void {
-    const existing = store.getState().openWorkspaces.find((w) => w.repoPath === repoPath);
+    const normalized = normalizeRepoPath(repoPath);
+    const existing = store.getState().openWorkspaces.find(
+      (w) => normalizeRepoPath(w.repoPath) === normalized,
+    );
     if (existing) {
-      persistActiveWorkspaceId(repoPath);
-      store.setState((state) => ({ ...state, activeWorkspaceId: repoPath, activeSidebarItem: 'workspace' as const }));
+      persistActiveWorkspaceId(existing.repoPath);
+      store.setState((state) => ({ ...state, activeWorkspaceId: existing.repoPath, activeSidebarItem: 'workspace' as const }));
       return;
     }
     store.setState((state) => {
@@ -219,23 +225,32 @@ function createNavigationStore() {
   }
 
   function focusWorkspace(repoPath: string): void {
-    persistActiveWorkspaceId(repoPath);
+    const normalized = normalizeRepoPath(repoPath);
+    const existing = store.getState().openWorkspaces.find(
+      (w) => normalizeRepoPath(w.repoPath) === normalized,
+    );
+    const resolvedPath = existing ? existing.repoPath : repoPath;
+    persistActiveWorkspaceId(resolvedPath);
     store.setState((state) => ({
       ...state,
-      activeWorkspaceId: repoPath,
+      activeWorkspaceId: resolvedPath,
       activeSidebarItem: 'workspace' as const,
     }));
   }
 
   function closeWorkspace(repoPath: string): void {
+    const normalized = normalizeRepoPath(repoPath);
     store.setState((state) => {
-      const openWorkspaces = state.openWorkspaces.filter((w) => w.repoPath !== repoPath);
+      const openWorkspaces = state.openWorkspaces.filter(
+        (w) => normalizeRepoPath(w.repoPath) !== normalized,
+      );
       persistWorkspaceTabs(openWorkspaces);
-      const nextActiveId = state.activeWorkspaceId === repoPath
+      const nextActiveId = state.activeWorkspaceId && normalizeRepoPath(state.activeWorkspaceId) === normalized
         ? (openWorkspaces.length > 0 ? openWorkspaces[openWorkspaces.length - 1].repoPath : null)
         : state.activeWorkspaceId;
       persistActiveWorkspaceId(nextActiveId);
-      return { ...state, openWorkspaces, activeWorkspaceId: nextActiveId };
+      const redirectedSidebarItem = nextActiveId ? state.activeSidebarItem : ('repositories' as const);
+      return { ...state, openWorkspaces, activeWorkspaceId: nextActiveId, activeSidebarItem: redirectedSidebarItem };
     });
   }
 
