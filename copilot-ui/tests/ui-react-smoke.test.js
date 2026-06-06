@@ -58,10 +58,28 @@ async function run() {
     assert.ok(fs.existsSync(brandIconPath), 'Expected branded svg icon asset in ui/public');
     assert.ok(sidebarSource.includes('sidebar-brand-icon'), 'Expected Sidebar to render the branded icon');
     assert.ok(sidebarSource.includes('/elegy-copilot-icon.svg'), 'Expected Sidebar to use the shared branded svg asset');
+    assert.ok(settingsSource.includes('settings-view'), 'Expected SettingsView to have settings-view data-testid');
+    assert.ok(settingsSource.includes('settings-page-heading'), 'Expected SettingsView to have settings-page-heading element');
     assert.ok(settingsSource.includes('settings-about-brand'), 'Expected Settings about panel to render branded app identity');
     assert.ok(settingsSource.includes('/elegy-copilot-icon.svg'), 'Expected Settings to use the shared branded svg asset');
     assert.ok(bootstrapHtml.includes('boot-mark'), 'Expected Tauri bootstrap shell to render the brand mark');
     assert.ok(bootstrapHtml.includes('Starting workspace...'), 'Expected Tauri bootstrap shell to expose branded startup copy');
+  });
+
+  await test('sidebar brand text is NOT rendered and sidebar UI elements exist', async () => {
+    const sidebarSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'Sidebar.tsx'), 'utf8');
+
+    // Brand TEXT should not appear as static content (icon remains, text should be conditional)
+    assert.ok(
+      !sidebarSource.includes('<span className="sidebar-brand">Elegy Copilot</span>'),
+      'Expected Sidebar NOT to render static brand text; should be conditional on isCollapsed'
+    );
+
+    // Sidebar interactive elements
+    assert.ok(sidebarSource.includes('sidebar-collapse-toggle'), 'Expected sidebar-collapse-toggle in Sidebar.tsx');
+    assert.ok(sidebarSource.includes('sidebar-settings-back'), 'Expected sidebar-settings-back in Sidebar.tsx');
+    assert.ok(sidebarSource.includes('sidebar-collapsed'), 'Expected sidebar-collapsed class reference in Sidebar.tsx');
+    assert.ok(sidebarSource.includes('sidebar-settings-'), 'Expected sidebar-settings- data-testid pattern in Sidebar.tsx');
   });
 
   await test('main.tsx and App.tsx exist', async () => {
@@ -94,6 +112,7 @@ async function run() {
     assert.ok(appSource.includes("./views/Workspace/WorkspaceView"), 'Expected WorkspaceView import in App.tsx');
     assert.ok(appSource.includes("./tabs/Lexicon/LexiconView"), 'Expected LexiconView import in App.tsx');
     assert.ok(appSource.includes("./views/Settings/SettingsView"), 'Expected SettingsView import in App.tsx');
+    assert.ok(appSource.includes('SETTINGS_NAV_ITEMS'), 'Expected SETTINGS_NAV_ITEMS import in App.tsx');
     assert.ok(!appSource.includes(["./views", "Workflows", ["Workflows", "Hub"].join("")].join("/")), 'Did not expect standalone workflows hub import in App.tsx');
     assert.ok(!appSource.includes("./views/Workflows/WorkflowExecutionView"), 'Did not expect standalone workflow execution import in App.tsx');
     assert.ok(!appSource.includes("./views/Workflows/WorkflowTemplateEditor"), 'Did not expect standalone workflow editor import in App.tsx');
@@ -102,21 +121,29 @@ async function run() {
     assert.ok(!appSource.includes(["./tabs", "Planning", ["Planning", "View"].join("")].join("/")), 'Did not expect legacy planning tab import in App.tsx');
   });
 
-  await test('Sidebar nav items no longer include static Workspace item and Repositories is first', async () => {
+  await test('navigation.ts exports SETTINGS_NAV_ITEMS, SettingsNavItem, claude-code section, and correct sidebar ordering', async () => {
     const navSource = fs.readFileSync(path.join(uiSrcRoot, 'stores', 'navigation.ts'), 'utf8');
+
+    // Feature additions
+    assert.ok(navSource.includes('SETTINGS_NAV_ITEMS'), 'Expected SETTINGS_NAV_ITEMS export in navigation.ts');
+    assert.ok(navSource.includes("'claude-code'"), "Expected claude-code settings section in navigation.ts");
+    assert.ok(navSource.includes('SettingsNavItem'), 'Expected SettingsNavItem interface in navigation.ts');
+
+    // Sidebar nav ordering
     const reposIdx = navSource.indexOf("id: 'repositories'");
     const lexiconIdx = navSource.indexOf("id: 'lexicon'");
     const settingsIdx = navSource.indexOf("id: 'settings'");
     assert.ok(reposIdx >= 0, 'Expected repositories sidebar item');
     assert.ok(lexiconIdx >= 0, 'Expected lexicon sidebar item');
     assert.ok(settingsIdx >= 0, 'Expected settings sidebar item');
-    // Repositories should come before lexicon
     assert.ok(reposIdx < lexiconIdx, 'Expected repositories before lexicon in sidebar nav');
-    // The static workspace item should not be in SIDEBAR_NAV_ITEMS
+
+    // No static workspace item in SIDEBAR_NAV_ITEMS
     const navItemsStart = navSource.indexOf('SIDEBAR_NAV_ITEMS');
     const navItemsEnd = navSource.indexOf('];', navItemsStart);
     const navItemsBlock = navSource.slice(navItemsStart, navItemsEnd);
     assert.ok(!navItemsBlock.includes("id: 'workspace'"), 'Did not expect static workspace item in SIDEBAR_NAV_ITEMS');
+
     // Default activeSidebarItem should be 'repositories'
     assert.ok(navSource.includes("activeSidebarItem: 'repositories'"), 'Expected default activeSidebarItem to be repositories');
   });
@@ -315,14 +342,26 @@ async function run() {
     assert.ok(source.includes('VerificationState'), 'Expected VerificationState type');
   });
 
-  await test('RepositoriesView uses repository-launcher layout', async () => {
+  await test('RepositoriesView uses repository-launcher layout with search, list, SourcesConfigPanel, and manual register', async () => {
     const source = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Repositories', 'RepositoriesView.tsx'), 'utf8');
-    assert.ok(source.includes('repos-launcher-layout'), 'Expected repos-launcher-layout class');
-    assert.ok(source.includes('repos-launcher-list'), 'Expected repos-launcher-list test id');
-    assert.ok(source.includes('repos-register-panel'), 'Expected repos-register-panel test id');
-    assert.ok(source.includes('repos-refresh'), 'Expected repos-refresh test id');
-    assert.ok(source.includes('repos-search-input'), 'Expected repos-search-input test id');
+
+    // SourcesConfigPanel is composed into RepositoriesView (panel has its own test IDs)
+    assert.ok(source.includes('SourcesConfigPanel'), 'Expected SourcesConfigPanel import in RepositoriesView');
+    assert.ok(source.includes('<SourcesConfigPanel />'), 'Expected SourcesConfigPanel rendering in RepositoriesView');
+
+    // Navigation store import for workspace tab opening
     assert.ok(source.includes('navigationStore'), 'Expected navigationStore import for workspace tab opening');
+
+    // Search and list
+    assert.ok(source.includes('repos-search-input'), 'Expected repos-search-input test id in RepositoriesView');
+    assert.ok(source.includes('repos-list'), 'Expected repos-list test id in RepositoriesView');
+    assert.ok(source.includes('repos-list-item'), 'Expected repos-list-item test id in RepositoriesView');
+
+    // Count badge and manual register
+    assert.ok(source.includes('repos-count-badge'), 'Expected repos-count-badge class in RepositoriesView');
+    assert.ok(source.includes('repos-manual-register'), 'Expected repos-manual-register test id in RepositoriesView');
+
+    // No legacy card patterns
     assert.ok(!source.includes('repos-cards-layout'), 'Did not expect legacy repos-cards-layout class');
     assert.ok(!source.includes('BranchCard'), 'Did not expect BranchCard import in RepositoriesView');
     assert.ok(!source.includes('ChangesCard'), 'Did not expect ChangesCard import in RepositoriesView');

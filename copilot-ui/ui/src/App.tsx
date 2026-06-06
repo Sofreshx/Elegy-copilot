@@ -9,7 +9,9 @@ import { useStoreValue } from './lib/store';
 import {
   navigationStore,
   SIDEBAR_NAV_ITEMS,
+  SETTINGS_NAV_ITEMS,
   type SidebarItemId,
+  type SettingsSection,
 } from './stores/navigation';
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
 import { runtimeHealthStore } from './stores/runtimeHealthStore';
@@ -28,6 +30,7 @@ const SIDEBAR_COLLAPSED_KEY = 'elegy-copilot-sidebar-collapsed';
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
   const desktopUpdaterState = useStoreValue(desktopUpdaterStore);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     try {
@@ -97,6 +100,15 @@ export default function App() {
 
   const desktopUpdaterPresentation = getDesktopUpdaterPresentation(desktopUpdaterState);
 
+  function handleBackFromSettings() {
+    const state = navigationStore.getState();
+    if (state.openWorkspaces.length > 0) {
+      navigationStore.navigate('workspace');
+    } else {
+      navigationStore.navigate('repositories');
+    }
+  }
+
   function renderContent() {
     if (navigationState.wizardOpen === 'project') {
       return <AddProjectWizard />;
@@ -111,9 +123,7 @@ export default function App() {
 
     switch (navigationState.activeSidebarItem) {
       case 'workspace':
-        return navigationState.activeWorkspaceId
-          ? <WorkspaceView />
-          : <RepositoriesView />;
+        return navigationState.activeWorkspaceId ? <WorkspaceView /> : <RepositoriesView />;
       case 'lexicon':
         return <LexiconView />;
       case 'repositories':
@@ -143,32 +153,36 @@ export default function App() {
     <>
       <ToastContainer />
       <AppLayout
-      sidebarCollapsed={isSidebarCollapsed}
-      statusBar={
-        <StatusBar
-          desktopUpdaterTone={desktopUpdaterPresentation.tone}
-          desktopUpdaterSummary={desktopUpdaterPresentation.summary}
-          canDownload={desktopUpdaterState.canDownload}
-          canRestartToUpdate={desktopUpdaterState.canRestartToUpdate}
-          onDownloadUpdate={() => void desktopUpdaterStore.downloadUpdate()}
-          onRestartToUpdate={() => void desktopUpdaterStore.restartToUpdate()}
-        />
-      }
-      sidebar={
-        <Sidebar
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={handleToggleSidebarCollapse}
-          items={SIDEBAR_NAV_ITEMS}
-          activeItem={navigationState.activeSidebarItem}
-          onNavigate={(id: SidebarItemId) => navigationStore.navigate(id)}
-          openWorkspaces={navigationState.openWorkspaces}
-          activeWorkspaceId={navigationState.activeWorkspaceId}
-          onFocusWorkspace={(repoPath) => navigationStore.focusWorkspace(repoPath)}
-          onCloseWorkspace={(repoPath) => navigationStore.closeWorkspace(repoPath)}
-        />
-      }
-    >
-      {renderContent()}
+        sidebarCollapsed={sidebarCollapsed}
+        statusBar={
+          <StatusBar
+            desktopUpdaterTone={desktopUpdaterPresentation.tone}
+            desktopUpdaterSummary={desktopUpdaterPresentation.summary}
+            canDownload={desktopUpdaterState.canDownload}
+            canRestartToUpdate={desktopUpdaterState.canRestartToUpdate}
+            onDownloadUpdate={() => void desktopUpdaterStore.downloadUpdate()}
+            onRestartToUpdate={() => void desktopUpdaterStore.restartToUpdate()}
+          />
+        }
+        sidebar={
+          <Sidebar
+            items={SIDEBAR_NAV_ITEMS}
+            activeItem={navigationState.activeSidebarItem}
+            onNavigate={(id: SidebarItemId) => navigationStore.navigate(id)}
+            openWorkspaces={navigationState.openWorkspaces}
+            activeWorkspaceId={navigationState.activeWorkspaceId}
+            onFocusWorkspace={(repoPath) => navigationStore.focusWorkspace(repoPath)}
+            onCloseWorkspace={(repoPath) => navigationStore.closeWorkspace(repoPath)}
+            mode={navigationState.activeSidebarItem === 'settings' ? 'settings' : 'main'}
+            settingsSection={navigationState.settingsSection}
+            settingsNavItems={SETTINGS_NAV_ITEMS}
+            onSettingsNavigate={(section: SettingsSection) => navigationStore.setSettingsSection(section)}
+            onBackFromSettings={handleBackFromSettings}
+            onCollapseChange={setSidebarCollapsed}
+          />
+        }
+      >
+        {renderContent()}
       </AppLayout>
     </>
   );

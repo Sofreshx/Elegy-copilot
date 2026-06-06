@@ -24,6 +24,19 @@ export type WizardType = 'project' | 'asset' | null;
 
 export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'maintenance' | 'runtime' | 'codex' | 'claude-code';
 
+export interface SettingsNavItem {
+  id: SettingsSection;
+  label: string;
+  icon: string;
+}
+
+export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
+  { id: 'app', label: 'Settings', icon: '☰' },
+  { id: 'codex', label: 'Codex', icon: '◈' },
+  { id: 'claude-code', label: 'Claude Code', icon: '⬡' },
+  { id: 'opencode', label: 'OpenCode', icon: '⊞' },
+];
+
 export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal' | 'docs-graph';
 
 export type WorkspaceLocalTab = 'docs' | 'git' | 'planning' | 'execution';
@@ -78,7 +91,6 @@ export type NavigationState = {
   activePlanningSessionContext: SelectedSessionContext | null;
   openWorkspaces: OpenWorkspace[];
   activeWorkspaceId: string | null;
-  isWorkspaceCenterFocused: boolean;
 };
 
 const INITIAL_STATE: NavigationState = {
@@ -99,7 +111,6 @@ const INITIAL_STATE: NavigationState = {
   activePlanningSessionContext: null,
   openWorkspaces: [],
   activeWorkspaceId: null,
-  isWorkspaceCenterFocused: false,
 };
 
 function createNavigationStore() {
@@ -199,13 +210,6 @@ function createNavigationStore() {
     store.setState((state) => ({
       ...state,
       activeWorkspaceLocalTab: tab,
-    }));
-  }
-
-  function toggleWorkspaceCenterFocus(): void {
-    store.setState((state) => ({
-      ...state,
-      isWorkspaceCenterFocused: !state.isWorkspaceCenterFocused,
     }));
   }
 
@@ -387,7 +391,6 @@ function createNavigationStore() {
     closePlanningSession,
     openDocsGraph,
     closeDocsGraph,
-    toggleWorkspaceCenterFocus,
     openWorkspace,
     focusWorkspace,
     closeWorkspace,

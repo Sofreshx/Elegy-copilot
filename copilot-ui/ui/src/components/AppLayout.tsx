@@ -6,16 +6,16 @@ interface AppLayoutProps {
   statusBar: ReactNode;
   sidebar: ReactNode;
   children: ReactNode;
-  testId?: string;
   sidebarCollapsed?: boolean;
+  testId?: string;
 }
 
 export default function AppLayout({
   statusBar,
   sidebar,
   children,
-  testId = 'app-layout',
   sidebarCollapsed = false,
+  testId = 'app-layout',
 }: AppLayoutProps) {
   return (
     <div className="app-layout" data-testid={testId}>

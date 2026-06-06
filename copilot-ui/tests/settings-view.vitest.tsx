@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { navigationStore } from '../ui/src/stores/navigation';
 import { codexProviderStore } from '../ui/src/stores/codexProviderStore';
@@ -90,23 +91,23 @@ describe('SettingsView', () => {
       statePath: 'C:/Users/demo/.codex/.elegy-codex-provider-state.json',
       backupPath: 'C:/Users/demo/.codex/.elegy-codex-provider-backup.toml',
       exists: true,
-      activeMode: 'elegy-routed',
-      providerId: 'elegy',
+      activeMode: 'deepseek-bridge',
+      providerId: 'instruction_engine_deepseek',
       hasManagedBlock: true,
       hasBackup: true,
       gateway: {
-        providerId: 'elegy',
-        model: 'opencode-go',
-        baseUrl: 'http://127.0.0.1:4318/v1',
+        providerId: 'instruction_engine_deepseek',
+        model: 'deepseek-v4-pro',
+        baseUrl: 'http://127.0.0.1:38440/v1',
       },
       deepseek: {
-        bridgePath: null,
+        bridgePath: '/path/to/bridge.exe',
         bridgeConfigPath: null,
         bridgeUrl: 'http://127.0.0.1:38440/v1',
-        keyConfigured: false,
-        bridgeReachable: false,
-        modelsVisible: false,
-        bridgeBinaryAvailable: false,
+        keyConfigured: true,
+        bridgeReachable: true,
+        modelsVisible: true,
+        bridgeBinaryAvailable: true,
       },
     });
     apiMocks.resetCodexProvider.mockResolvedValue({
@@ -142,7 +143,7 @@ describe('SettingsView', () => {
       modelsVisible: false,
       bridgeBinaryAvailable: true,
     });
-    apiMocks.startDeepseekBridge.mockResolvedValue({ bridgeRunning: true, message: 'Moon Bridge started.' });
+    apiMocks.startDeepseekBridge.mockResolvedValue({ bridgeRunning: true, bridgeReachable: true, modelsVisible: true, bridgeBinaryAvailable: true, keyConfigured: true, message: 'Moon Bridge started.' });
     apiMocks.stopDeepseekBridge.mockResolvedValue({ bridgeRunning: false, message: 'Moon Bridge stopped.' });
     apiMocks.checkDeepseekBridge.mockResolvedValue({
       bridgeUrl: 'http://127.0.0.1:38440/v1',
@@ -190,10 +191,13 @@ describe('SettingsView', () => {
     }));
   });
 
-  it('renders Codex provider controls with native and DeepSeek mode buttons', async () => {
+  it('renders Codex provider controls with three mode buttons', async () => {
+    navigationStore.setSettingsSection('codex');
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
 
-    render(<SettingsView />);
+    await act(async () => {
+      render(<SettingsView />);
+    });
 
     await waitFor(() => {
       expect(screen.getByTestId('settings-codex-provider')).toBeInTheDocument();
@@ -207,38 +211,27 @@ describe('SettingsView', () => {
   });
 
   it('renders DeepSeek fields when deepseek-bridge mode is active', async () => {
-    apiMocks.getCodexProviderStatus.mockResolvedValue({
-      codexHome: 'C:/Users/demo/.codex',
-      configPath: 'C:/Users/demo/.codex/config.toml',
-      statePath: 'C:/Users/demo/.codex/.elegy-codex-provider-state.json',
-      backupPath: 'C:/Users/demo/.codex/.elegy-codex-provider-backup.toml',
-      exists: true,
-      activeMode: 'deepseek-bridge',
-      providerId: 'instruction_engine_deepseek',
-      hasManagedBlock: true,
-      hasBackup: true,
-      gateway: {
-        providerId: 'instruction_engine_deepseek',
-        model: 'deepseek-v4-pro',
-        baseUrl: 'http://127.0.0.1:38440/v1',
-      },
-      deepseek: {
-        bridgePath: '/path/to/bridge.exe',
-        bridgeUrl: 'http://127.0.0.1:38440/v1',
-        keyConfigured: true,
-        bridgeReachable: true,
-        modelsVisible: true,
-        bridgeBinaryAvailable: true,
-      },
-    });
-
+    navigationStore.setSettingsSection('codex');
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
 
-    render(<SettingsView />);
+    await act(async () => {
+      render(<SettingsView />);
+    });
 
+    // Start in native mode; click the DeepSeek V4 button to switch to deepseek-bridge mode
+    await waitFor(() => {
+      expect(screen.getByTestId('codex-provider-mode-badge')).toHaveTextContent('Native Codex');
+    });
+    fireEvent.click(screen.getByTestId('codex-provider-deepseek'));
     await waitFor(() => {
       expect(screen.getByTestId('codex-provider-mode-badge')).toHaveTextContent('DeepSeek V4');
     });
+
+    // Open Advanced section to reveal bridge path and save settings
+    await waitFor(() => {
+      expect(screen.getByTestId('deepseek-advanced-toggle')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('deepseek-advanced-toggle'));
 
     expect(screen.getByTestId('deepseek-bridge-path')).toBeInTheDocument();
     expect(screen.getByTestId('deepseek-save-settings')).toBeInTheDocument();
@@ -248,9 +241,18 @@ describe('SettingsView', () => {
   });
 
   it('enables hard restore when a backup exists', async () => {
+    navigationStore.setSettingsSection('codex');
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
 
-    render(<SettingsView />);
+    await act(async () => {
+      render(<SettingsView />);
+    });
+
+    // Open Advanced section to reveal the hard-reset button
+    await waitFor(() => {
+      expect(screen.getByTestId('deepseek-advanced-toggle')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('deepseek-advanced-toggle'));
 
     await waitFor(() => {
       expect(screen.getByTestId('codex-provider-hard-reset')).not.toBeDisabled();
@@ -260,6 +262,36 @@ describe('SettingsView', () => {
 
     await waitFor(() => {
       expect(apiMocks.resetCodexProvider).toHaveBeenCalledWith(true);
+    });
+  });
+  it('startBridge merges bridgeReachable and modelsVisible so activate enables without Check Status', async () => {
+    // Set up native-mode status first, then simulate guided deepseek flow
+    navigationStore.setSettingsSection('codex');
+    const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
+
+    await act(async () => {
+      render(<SettingsView />);
+    });
+
+    // Verify initial state: deepseek section visible, activate not present in native mode
+    await waitFor(() => {
+      expect(screen.getByTestId('codex-provider-mode-badge')).toHaveTextContent('Native Codex');
+    });
+
+    // Click Start Bridge — the mock returns bridgeReachable: true, modelsVisible: true
+    fireEvent.click(screen.getByTestId('deepseek-start-bridge'));
+
+    // After start, the store should have merged bridgeReachable and modelsVisible
+    // into deepseekStatus. The mock also returns bridgeBinaryAvailable: true, keyConfigured: true.
+    await waitFor(() => {
+      expect(apiMocks.startDeepseekBridge).toHaveBeenCalled();
+    });
+
+    // The activate button should become enabled because prereqsMet now includes
+    // bridgeRunning, bridgeReachable, and modelsVisible from the start response.
+    await waitFor(() => {
+      const activateBtn = screen.getByTestId('deepseek-activate');
+      expect(activateBtn).not.toBeDisabled();
     });
   });
 });
