@@ -7,7 +7,7 @@ export async function getCodexProviderStatus(baseUrl?: string): Promise<CodexPro
 }
 
 export async function setCodexProviderMode(
-  mode: 'native' | 'elegy-routed' | 'deepseek-bridge',
+  mode: 'native' | 'deepseek-bridge',
   baseUrl?: string,
 ): Promise<CodexProviderStatusResponse> {
   const payload = await apiRequest<unknown>('/api/config/codex-provider', {

@@ -20,7 +20,8 @@
       "gen/resources/.cli": ".cli",
       "gen/resources/engine-assets": "engine-assets",
       "gen/resources/local-tracker": "local-tracker",
-      "gen/resources/scripts": "scripts"
+      "gen/resources/scripts": "scripts",
+      "gen/resources/moon-bridge": "moon-bridge"
     }
   }
 }

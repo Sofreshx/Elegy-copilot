@@ -55,7 +55,7 @@ function createCodexProviderStore() {
     }
   }
 
-  async function setMode(mode: 'native' | 'elegy-routed' | 'deepseek-bridge'): Promise<void> {
+  async function setMode(mode: 'native' | 'deepseek-bridge'): Promise<void> {
     store.setState((state) => ({ ...state, saving: true, error: null, message: null }));
     try {
       const status = await setCodexProviderMode(mode);
@@ -63,9 +63,7 @@ function createCodexProviderStore() {
         ...state,
         status,
         saving: false,
-        message: mode === 'elegy-routed'
-          ? 'Codex now defaults to Elegy Routed for new local sessions.'
-          : mode === 'deepseek-bridge'
+        message: mode === 'deepseek-bridge'
           ? 'Codex now defaults to DeepSeek V4 via Moon Bridge.'
           : 'Codex provider returned to native defaults.',
       }));
@@ -85,7 +83,7 @@ function createCodexProviderStore() {
         saving: false,
         message: hard
           ? 'Codex config restored from the pre-Elegy backup snapshot.'
-          : 'Removed Elegy-managed Codex provider settings.',
+          : 'Removed Elegy-managed Codex provider settings from config.',
       }));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to reset Codex provider';
