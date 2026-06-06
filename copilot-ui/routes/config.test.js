@@ -1,9 +1,11 @@
 'use strict';
 
-const { describe, it } = require('node:test');
+const { describe, it, mock } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
 
-const { register } = require('./config');
+const configModule = require('./config');
+const { register } = configModule;
 
 function makeMocks(overrides = {}) {
   const sent = [];
@@ -42,7 +44,7 @@ function makeMocks(overrides = {}) {
       installRoot: '/managed-cli/moon-bridge',
       sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
       binaryPath: '/managed-cli/moon-bridge/bin/moon-bridge.exe',
-      configPath: '/managed-cli/moon-bridge/config.yaml',
+      configPath: '/managed-cli/moon-bridge/config.yml',
       gitAvailable: true,
       goAvailable: true,
       installed: false,
@@ -63,8 +65,7 @@ function makeMocks(overrides = {}) {
     codexConfig,
     moonBridgeBootstrap,
     sent,
-    env: overrides.env || { OPENCODE_GO_API_KEY: 'demo-key' },
-    probeCodexGatewayReachability: overrides.probeCodexGatewayReachability || (async () => {}),
+    env: overrides.env || {},
   };
 }
 
@@ -116,6 +117,46 @@ describe('config routes', () => {
     assert.equal(mocks.sent[0].code, 400);
   });
 
+  it('PUT activates deepseek-bridge mode', async () => {
+    let savedMode;
+    const mocks = makeMocks({
+      body: { mode: 'deepseek-bridge' },
+      getCodexStatus: () => ({
+        activeMode: 'native',
+        providerId: 'openai',
+        gateway: { baseUrl: '', model: '' },
+        deepseek: {
+          bridgePath: '/path/to/bridge.exe',
+          keyConfigured: true,
+          bridgeBinaryAvailable: true,
+          bridgeReachable: true,
+          bridgeUrl: 'http://127.0.0.1:38440/v1',
+        },
+      }),
+      setCodexMode: (_home, mode) => {
+        savedMode = mode;
+        return { activeMode: mode, providerId: 'instruction_engine_deepseek' };
+      },
+    });
+
+    // Satisfy assertCodexProviderActivationPreflight checks
+    mock.method(fs, 'existsSync', () => true);
+    configModule._testBridgeProcess = { exitCode: null, signalCode: null, on: () => {}, once: () => {} };
+    mock.method(globalThis, 'fetch', async () => ({
+      ok: true,
+      json: async () => ({ data: [{ id: 'deepseek-v4-pro' }, { id: 'deepseek-v4-flash' }] }),
+    }));
+
+    try {
+      const routes = register(mocks);
+      await routes[3].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      assert.equal(savedMode, 'deepseek-bridge');
+      assert.equal(mocks.sent[0].code, 200);
+    } finally {
+      configModule._testBridgeProcess = null;
+    }
+  });
+
   it('PUT triggers base client restart when available', async () => {
     let restarted = false;
     const mocks = makeMocks({ body: { enabled: true } });
@@ -144,95 +185,7 @@ describe('config routes', () => {
     assert.ok(mocks.sent[0].obj.warning.includes('oops'));
   });
 
-  it('GET returns current Codex provider status', () => {
-    const mocks = makeMocks({
-      getCodexStatus: () => ({ activeMode: 'elegy-routed', providerId: 'elegy', gateway: { baseUrl: 'http://127.0.0.1:4318/v1', envKey: 'OPENCODE_GO_API_KEY' } }),
-    });
-    const routes = register(mocks);
-    routes[2].handler({ codexHome: '/tmp/codex', res: {} });
-    assert.equal(mocks.sent[0].code, 200);
-    assert.equal(mocks.sent[0].obj.activeMode, 'elegy-routed');
-  });
 
-  it('PUT updates Codex provider mode', async () => {
-    let savedMode;
-    let probedBaseUrl;
-    const mocks = makeMocks({
-      body: { mode: 'elegy-routed' },
-      probeCodexGatewayReachability: async (baseUrl) => {
-        probedBaseUrl = baseUrl;
-      },
-      setCodexMode: (_home, mode) => {
-        savedMode = mode;
-        return { activeMode: mode, providerId: 'elegy' };
-      },
-    });
-    const routes = register(mocks);
-    await routes[3].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
-    assert.equal(savedMode, 'elegy-routed');
-    assert.equal(probedBaseUrl, 'http://127.0.0.1:4318/v1');
-    assert.equal(mocks.sent[0].code, 200);
-    assert.equal(mocks.sent[0].obj.providerId, 'elegy');
-  });
-
-  it('PUT rejects Elegy routed mode when API key env var is missing', async () => {
-    let setModeCalled = false;
-    const mocks = makeMocks({
-      body: { mode: 'elegy-routed' },
-      env: {},
-      setCodexMode: () => {
-        setModeCalled = true;
-        return { activeMode: 'elegy-routed', providerId: 'elegy' };
-      },
-    });
-    const routes = register(mocks);
-
-    await routes[3].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
-
-    assert.equal(setModeCalled, false);
-    assert.equal(mocks.sent[0].code, 503);
-    assert.equal(mocks.sent[0].obj.error, 'Set OPENCODE_GO_API_KEY before enabling Elegy Routed.');
-  });
-
-  it('PUT rejects Elegy routed mode when gateway probe fails', async () => {
-    let setModeCalled = false;
-    const mocks = makeMocks({
-      body: { mode: 'elegy-routed' },
-      probeCodexGatewayReachability: async () => {
-        throw Object.assign(new Error('Elegy gateway is unavailable at http://127.0.0.1:4318/v1. Start the local gateway and try again.'), {
-          statusCode: 503,
-        });
-      },
-      setCodexMode: () => {
-        setModeCalled = true;
-        return { activeMode: 'elegy-routed', providerId: 'elegy' };
-      },
-    });
-    const routes = register(mocks);
-
-    await routes[3].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
-
-    assert.equal(setModeCalled, false);
-    assert.equal(mocks.sent[0].code, 503);
-    assert.equal(mocks.sent[0].obj.error, 'Elegy gateway is unavailable at http://127.0.0.1:4318/v1. Start the local gateway and try again.');
-  });
-
-  it('PUT exposes existing managed provider conflicts', async () => {
-    const mocks = makeMocks({
-      body: { mode: 'elegy-routed' },
-      setCodexMode: () => {
-        throw Object.assign(new Error('Existing Codex config already defines [model_providers.instruction_engine_elegy].'), {
-          statusCode: 409,
-        });
-      },
-    });
-    const routes = register(mocks);
-
-    await routes[3].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
-
-    assert.equal(mocks.sent[0].code, 409);
-    assert.equal(mocks.sent[0].obj.error, 'Existing Codex config already defines [model_providers.instruction_engine_elegy].');
-  });
 
   it('POST reset performs hard restore when requested', async () => {
     let hardResetCalled = false;
@@ -314,7 +267,7 @@ describe('config routes', () => {
           installRoot: '/.copilot/managed-cli/moon-bridge',
           sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
           binaryPath: '/.copilot/managed-cli/moon-bridge/bin/moon-bridge.exe',
-          configPath: '/.copilot/managed-cli/moon-bridge/config.yaml',
+          configPath: '/.copilot/managed-cli/moon-bridge/config.yml',
           gitAvailable: true,
           goAvailable: false,
           installed: false,
@@ -342,7 +295,7 @@ describe('config routes', () => {
             installRoot: '/root',
             sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
             binaryPath: '/root/bin/moon-bridge.exe',
-            configPath: '/root/config.yaml',
+            configPath: '/root/config.yml',
             gitAvailable: true,
             goAvailable: true,
             installed: true,

@@ -64,7 +64,6 @@ describe('SettingsView', () => {
         providerId: 'elegy',
         model: 'opencode-go',
         baseUrl: 'http://127.0.0.1:4318/v1',
-        envKey: 'OPENCODE_GO_API_KEY',
       },
       deepseek: {
         bridgePath: null,
@@ -99,7 +98,6 @@ describe('SettingsView', () => {
         providerId: 'elegy',
         model: 'opencode-go',
         baseUrl: 'http://127.0.0.1:4318/v1',
-        envKey: 'OPENCODE_GO_API_KEY',
       },
       deepseek: {
         bridgePath: null,
@@ -125,7 +123,6 @@ describe('SettingsView', () => {
         providerId: 'elegy',
         model: 'opencode-go',
         baseUrl: 'http://127.0.0.1:4318/v1',
-        envKey: 'OPENCODE_GO_API_KEY',
       },
       deepseek: {
         bridgePath: null,
@@ -162,7 +159,7 @@ describe('SettingsView', () => {
       installRoot: 'C:/Users/demo/.copilot/managed-cli/moon-bridge',
       sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
       binaryPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/bin/moon-bridge.exe',
-      configPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/config.yaml',
+      configPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/config.yml',
       gitAvailable: true,
       goAvailable: true,
       installed: false,
@@ -177,7 +174,7 @@ describe('SettingsView', () => {
         installRoot: 'C:/Users/demo/.copilot/managed-cli/moon-bridge',
         sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
         binaryPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/bin/moon-bridge.exe',
-        configPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/config.yaml',
+        configPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/config.yml',
         gitAvailable: true,
         goAvailable: true,
         installed: true,
@@ -193,7 +190,7 @@ describe('SettingsView', () => {
     }));
   });
 
-  it('renders Codex provider controls with three mode buttons', async () => {
+  it('renders Codex provider controls with native and DeepSeek mode buttons', async () => {
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
 
     render(<SettingsView />);
@@ -206,7 +203,6 @@ describe('SettingsView', () => {
     });
 
     expect(screen.getByTestId('codex-provider-native')).toBeInTheDocument();
-    expect(screen.getByTestId('codex-provider-elegy')).toBeInTheDocument();
     expect(screen.getByTestId('codex-provider-deepseek')).toBeInTheDocument();
   });
 
@@ -225,7 +221,6 @@ describe('SettingsView', () => {
         providerId: 'instruction_engine_deepseek',
         model: 'deepseek-v4-pro',
         baseUrl: 'http://127.0.0.1:38440/v1',
-        envKey: 'MOON_BRIDGE_DEEPSEEK_TOKEN',
       },
       deepseek: {
         bridgePath: '/path/to/bridge.exe',

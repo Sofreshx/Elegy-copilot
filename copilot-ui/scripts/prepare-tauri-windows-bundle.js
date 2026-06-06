@@ -232,6 +232,7 @@ function prepareTauriWindowsBundle(options = {}) {
   ensureCleanDir(stagedResourcesRoot);
 
   let copiedResourceCount = 0;
+  let moonBridgeStaged = false;
   for (const resource of manifest.resourceCopies) {
     const sourcePath = path.resolve(activeWorkspaceRoot, resource.source);
     const targetPath = path.join(stagedResourcesRoot, resource.target);
@@ -239,10 +240,22 @@ function prepareTauriWindowsBundle(options = {}) {
     if (resource.kind === 'file') {
       copyFile(sourcePath, targetPath);
       copiedResourceCount += 1;
+      if (resource.id === 'moon-bridge-binary') {
+        moonBridgeStaged = true;
+      }
       continue;
     }
 
     copiedResourceCount += copyDirectory(sourcePath, targetPath, resource.filter);
+  }
+
+  if (moonBridgeStaged) {
+    const stagedMoonBridgePath = path.join(stagedResourcesRoot, 'moon-bridge', 'moon-bridge.exe');
+    if (!fs.existsSync(stagedMoonBridgePath)) {
+      logger(`[tauri-win-bundle] WARNING: moon-bridge-binary was declared in manifest but not found at staged target: ${stagedMoonBridgePath}`);
+    } else {
+      logger(`[tauri-win-bundle] moon-bridge-binary staged successfully at ${stagedMoonBridgePath}`);
+    }
   }
 
   const nodeExecutablePath = resolveNodeExecutable();

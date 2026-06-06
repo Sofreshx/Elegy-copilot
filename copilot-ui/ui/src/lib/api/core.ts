@@ -2561,6 +2561,7 @@ export function normalizeCodexProviderStatusResponse(payload: unknown): CodexPro
     activeMode: asTrimmedString(record.activeMode) || 'native',
     providerId,
     hasManagedBlock: asBoolean(record.hasManagedBlock, false),
+    hasLegacyBlock: asBoolean(record.hasLegacyBlock, false),
     hasBackup: asBoolean(record.hasBackup, false),
     lastAppliedAt: asTrimmedString(record.lastAppliedAt) || null,
     lastResetAt: asTrimmedString(record.lastResetAt) || null,
@@ -2572,7 +2573,6 @@ export function normalizeCodexProviderStatusResponse(payload: unknown): CodexPro
       providerId: asTrimmedString(gateway.providerId) || providerId,
       model: asTrimmedString(gateway.model) || '',
       baseUrl: asTrimmedString(gateway.baseUrl) || '',
-      envKey: asTrimmedString(gateway.envKey) || '',
     },
     deepseek: Object.keys(deepseek).length > 0 ? {
       bridgePath: typeof deepseek.bridgePath === 'string' ? deepseek.bridgePath : null,
@@ -2583,7 +2583,6 @@ export function normalizeCodexProviderStatusResponse(payload: unknown): CodexPro
       modelsVisible: asBoolean(deepseek.modelsVisible, false),
       bridgeBinaryAvailable: asBoolean(deepseek.bridgeBinaryAvailable, false),
       bridgeCheckoutAvailable: asBoolean(deepseek.bridgeCheckoutAvailable, false),
-      envKeyConfigured: asBoolean(deepseek.envKeyConfigured, false),
       bridgeRunning: asBoolean(deepseek.bridgeRunning, false),
       modelIds: Array.isArray(deepseek.modelIds) ? deepseek.modelIds as string[] : undefined,
       probeError: typeof deepseek.probeError === 'string' ? deepseek.probeError : null,

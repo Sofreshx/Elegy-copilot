@@ -39,11 +39,7 @@ export default function CodexProviderPanel() {
     if (dsStatus?.bridgeUrl) setBridgeUrl(dsStatus.bridgeUrl);
   }, [dsStatus?.bridgePath, dsStatus?.bridgeConfigPath, dsStatus?.bridgeUrl]);
 
-  const currentModeLabel = activeMode === 'native'
-    ? 'Native Codex'
-    : activeMode === 'elegy-routed'
-    ? 'Elegy Routed'
-    : 'DeepSeek V4';
+  const currentModeLabel = activeMode === 'deepseek-bridge' ? 'DeepSeek V4' : 'Native Codex';
 
   const isDeepseekActive = activeMode === 'deepseek-bridge';
   const bridgeBinaryReady = !!dsStatus?.bridgeBinaryAvailable || bsStatus?.built === true;
@@ -52,7 +48,6 @@ export default function CodexProviderPanel() {
   const keyReady = !!dsStatus?.keyConfigured;
   const bridgeReachable = !!dsStatus?.bridgeReachable;
   const prereqsMet = bridgeAvailable && keyReady && bridgeReachable;
-  const showDeepSeekSection = activeMode !== 'elegy-routed';
 
   const bootstrapInstalled = bsStatus?.installed === true;
   const bootstrapBuilt = bsStatus?.built === true;
@@ -67,7 +62,7 @@ export default function CodexProviderPanel() {
   return (
     <Panel
       title="Codex Configuration"
-      subtitle="Switch local Codex between native defaults, Elegy routing, and DeepSeek V4 via Moon Bridge"
+      subtitle="Switch local Codex between native OpenAI defaults and DeepSeek V4 via Moon Bridge"
       testId="settings-codex-provider"
       actions={
         <>
@@ -79,15 +74,6 @@ export default function CodexProviderPanel() {
             onClick={() => codexProviderStore.setMode('native')}
           >
             {state.saving && activeMode !== 'native' ? 'Saving…' : 'Native Codex'}
-          </Button>
-          <Button
-            variant={activeMode === 'elegy-routed' ? 'primary' : 'secondary'}
-            size="sm"
-            testId="codex-provider-elegy"
-            disabled={state.loading || state.saving}
-            onClick={() => codexProviderStore.setMode('elegy-routed')}
-          >
-            {state.saving && activeMode !== 'elegy-routed' ? 'Saving…' : 'Elegy Routed'}
           </Button>
           <Button
             variant={isDeepseekActive ? 'primary' : 'secondary'}
@@ -109,7 +95,7 @@ export default function CodexProviderPanel() {
           </span>
         </div>
         <div className="settings-row-action">
-          <Badge tone={activeMode === 'native' ? 'neutral' : activeMode === 'elegy-routed' ? 'accent' : 'brand'} testId="codex-provider-mode-badge">
+          <Badge tone={isDeepseekActive ? 'brand' : 'neutral'} testId="codex-provider-mode-badge">
             {currentModeLabel}
           </Badge>
         </div>
@@ -133,9 +119,8 @@ export default function CodexProviderPanel() {
         </div>
       )}
 
-      {showDeepSeekSection && (
-        <>
-          <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color, #ddd)' }} />
+      <>
+        <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color, #ddd)' }} />
 
           {/* ---- Managed Moon Bridge setup card ---- */}
           <div className="settings-row" data-testid="deepseek-bootstrap-status">
@@ -386,9 +371,6 @@ export default function CodexProviderPanel() {
                   Key configured: <Badge tone={keyReady ? 'success' : 'neutral'}>{keyReady ? 'Yes' : 'No'}</Badge>
                 </span>
                 <span className="settings-row-description">
-                  Env var (MOON_BRIDGE_DEEPSEEK_TOKEN): <Badge tone={dsStatus.envKeyConfigured ? 'success' : 'neutral'}>{dsStatus.envKeyConfigured ? 'Set' : 'Not set'}</Badge>
-                </span>
-                <span className="settings-row-description">
                   Bridge running: <Badge tone={dsStatus.bridgeRunning ? 'success' : 'neutral'}>{dsStatus.bridgeRunning ? 'Running' : 'Stopped'}</Badge>
                 </span>
                 <span className="settings-row-description">
@@ -438,8 +420,16 @@ export default function CodexProviderPanel() {
               </div>
             </div>
           )}
+          {isDeepseekActive && (
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <span className="settings-row-description" style={{ color: 'var(--color-info-500, #2563eb)', fontSize: '0.8rem' }}>
+                  DeepSeek is configured as Codex&apos;s active model. Codex Desktop may show it as Custom until its model picker displays local catalog models.
+                </span>
+              </div>
+            </div>
+          )}
         </>
-      )}
 
       <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color, #ddd)' }} />
 
@@ -447,7 +437,7 @@ export default function CodexProviderPanel() {
         <div className="settings-row-label">
           <strong>Recovery</strong>
           <span className="settings-row-description">
-            Soft reset removes only Elegy-managed provider settings. Hard restore writes back the pre-Elegy backup snapshot.
+            Soft reset removes only Elegy-managed Codex provider settings from the config. Hard restore writes back the pre-Elegy backup snapshot.
           </span>
         </div>
         <div className="settings-row-action">
