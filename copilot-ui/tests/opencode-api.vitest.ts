@@ -146,6 +146,21 @@ describe('opencode route - register', () => {
 
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
 
+    const toolCliInstallers = {
+      getCliToolStatus: () => ({
+        id: 'opencode-cli',
+        label: 'OpenCode CLI',
+        command: 'opencode',
+        packageName: 'opencode-ai',
+        installed: true,
+        version: '1.0.0',
+        installCommand: 'npm install -g opencode-ai',
+        lastError: null,
+      }),
+      installCliTool: () => ({ ok: true, toolId: 'opencode-cli', version: '1.0.0', error: null }),
+    };
+    opencodeConfig.ensureWorktreePermissions = () => ({ patched: true, rulesAdded: 4 });
+
     const mockBridge = { getStatus: () => ({ ready: true }) };
     const routes = register({
       sendJson,
@@ -153,6 +168,7 @@ describe('opencode route - register', () => {
       opencodeConfig,
       childProcess: { spawnSync: () => ({ status: 0, stdout: '1.0.0', stderr: '' }) },
       roadmapWorkflowPlanningBridge: mockBridge,
+      toolCliInstallers,
     });
     const statusRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'GET' && r.path === '/api/opencode/status',

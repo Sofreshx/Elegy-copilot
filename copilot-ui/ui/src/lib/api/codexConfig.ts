@@ -112,3 +112,15 @@ export async function bootstrapMoonBridge(
   );
   return payload;
 }
+
+export function getCodexCliStatus(baseUrl?: string): Promise<{ codexHome: string; cli: { installed: boolean; version: string | null; installCommand: string; lastError: string | null } }> {
+  return apiRequest('/api/codex/cli/status', { baseUrl });
+}
+
+export function installCodexCli(baseUrl?: string): Promise<{ ok: boolean; version?: string | null; error?: string | null; cli?: unknown }> {
+  return apiRequest('/api/codex/cli/install', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+}

@@ -5,6 +5,7 @@ import {
   installOpenCodeAssets,
   installOpenCodeTooling,
   installCodexPlanning as installCodexPlanningApi,
+  installOpenCodeCli as installOpenCodeCliApi,
   getOpenCodeRequestLogs,
 } from '../lib/api/opencode';
 import { createStore } from '../lib/store';
@@ -23,6 +24,8 @@ export interface OpenCodeState {
   loading: boolean;
   saving: boolean;
   toolingInstalling: boolean;
+  installingCli: boolean;
+  permissionsInstalling: boolean;
   error: string | null;
   message: string | null;
   requestLogs: OpenCodeRequestLogEntry[] | null;
@@ -37,6 +40,8 @@ const INITIAL_STATE: OpenCodeState = {
   loading: false,
   saving: false,
   toolingInstalling: false,
+  installingCli: false,
+  permissionsInstalling: false,
   error: null,
   message: null,
   requestLogs: null,
@@ -190,6 +195,63 @@ function createOpenCodeStore() {
     }
   }
 
+  async function installOpenCodeCli(): Promise<void> {
+    store.setState((state) => ({ ...state, installingCli: true, error: null, message: null }));
+    try {
+      const response = await installOpenCodeCliApi();
+      if (response.ok) {
+        store.setState((state) => ({
+          ...state,
+          installingCli: false,
+          message: 'OpenCode CLI install completed.',
+        }));
+      } else {
+        store.setState((state) => ({
+          ...state,
+          installingCli: false,
+          error: response.error || 'Failed to install OpenCode CLI.',
+        }));
+      }
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        installingCli: false,
+        error: toErrorMessage(error),
+      }));
+    }
+  }
+
+  async function installWorktreePermissions(): Promise<void> {
+    store.setState((state) => ({ ...state, permissionsInstalling: true, error: null, message: null }));
+    try {
+      const { apiRequest } = await import('../lib/api/core');
+      const response = await apiRequest<{ ok: boolean; patched?: boolean; error?: string; status?: OpenCodeStatusResponse }>(
+        '/api/opencode/permissions/worktree',
+        { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+      );
+      if (response.ok && response.patched) {
+        store.setState((state) => ({
+          ...state,
+          status: response.status || state.status,
+          permissionsInstalling: false,
+          message: 'Worktree permissions installed.',
+        }));
+      } else {
+        store.setState((state) => ({
+          ...state,
+          permissionsInstalling: false,
+          error: response.error || 'Failed to install worktree permissions.',
+        }));
+      }
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        permissionsInstalling: false,
+        error: toErrorMessage(error),
+      }));
+    }
+  }
+
   async function loadRequestLogs(params?: { limit?: number; since?: string }): Promise<void> {
     store.setState((state) => ({ ...state, requestLogsLoading: true }));
     try {
@@ -231,6 +293,8 @@ function createOpenCodeStore() {
     installAssets,
     installTooling,
     installCodexPlanning,
+    installOpenCodeCli,
+    installWorktreePermissions,
     loadRequestLogs,
     setActiveSection,
     setSelectedLaneId,

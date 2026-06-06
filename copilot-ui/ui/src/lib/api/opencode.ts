@@ -70,6 +70,14 @@ export function installCodexPlanning(
   });
 }
 
+export function installOpenCodeCli(baseUrl?: string): Promise<{ ok: boolean; error?: string }> {
+  return apiRequest<{ ok: boolean; error?: string }>('/api/opencode/cli/install', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 export function getOpenCodeRequestLogs(
   params?: { limit?: number; since?: string },
   baseUrl?: string,
