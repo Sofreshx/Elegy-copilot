@@ -317,6 +317,113 @@ async function run() {
     assert.ok(source.includes('runGitChecks'), 'Expected runGitChecks function');
   });
 
+  await test('Sidebar supports collapsible icon rail with collapse toggle', async () => {
+    const sidebarSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'Sidebar.tsx'), 'utf8');
+    assert.ok(sidebarSource.includes('isCollapsed'), 'Expected Sidebar to accept isCollapsed prop');
+    assert.ok(sidebarSource.includes('sidebar-collapse-toggle'), 'Expected sidebar-collapse-toggle testId');
+    assert.ok(sidebarSource.includes('sidebar-collapsed'), 'Expected sidebar-collapsed className in collapsed mode');
+  });
+
+  await test('AppLayout supports sidebarCollapsed prop for narrow grid', async () => {
+    const layoutSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'AppLayout.tsx'), 'utf8');
+    assert.ok(layoutSource.includes('sidebarCollapsed'), 'Expected AppLayout to accept sidebarCollapsed prop');
+    assert.ok(layoutSource.includes('app-layout-body-collapsed'), 'Expected app-layout-body-collapsed class');
+  });
+
+  await test('App.tsx persists sidebar collapse state to localStorage', async () => {
+    const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
+    assert.ok(appSource.includes('elegy-copilot-sidebar-collapsed'), 'Expected sidebar collapse localStorage key');
+    assert.ok(appSource.includes('handleToggleSidebarCollapse'), 'Expected sidebar collapse toggle handler');
+  });
+
+  await test('Workspace focus mode toggle exists with expected testId', async () => {
+    const workspaceSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceView.tsx'), 'utf8');
+    assert.ok(workspaceSource.includes('workspace-focus-toggle'), 'Expected focus toggle testId');
+    assert.ok(workspaceSource.includes('isWorkspaceCenterFocused'), 'Expected focus state check');
+    assert.ok(workspaceSource.includes('workspace-main-layout-focused'), 'Expected focused layout class');
+  });
+
+  await test('Navigation store includes workspace focus and docs-graph mode', async () => {
+    const navSource = fs.readFileSync(path.join(uiSrcRoot, 'stores', 'navigation.ts'), 'utf8');
+    assert.ok(navSource.includes('isWorkspaceCenterFocused'), 'Expected isWorkspaceCenterFocused in navigation state');
+    assert.ok(navSource.includes("'docs-graph'"), "Expected docs-graph WorkspaceCenterMode");
+    assert.ok(navSource.includes('openDocsGraph'), 'Expected openDocsGraph method');
+    assert.ok(navSource.includes('closeDocsGraph'), 'Expected closeDocsGraph method');
+  });
+
+  await test('WorkspaceDocsCenter accepts isFocused and files props', async () => {
+    const docsSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceDocsCenter.tsx'), 'utf8');
+    assert.ok(docsSource.includes('isFocused'), 'Expected isFocused prop in WorkspaceDocsCenter');
+    assert.ok(docsSource.includes('buildDocTree'), 'Expected docTree import in WorkspaceDocsCenter');
+  });
+
+  await test('DocumentationGraphView component exists with graph rendering', async () => {
+    const graphPath = path.join(uiSrcRoot, 'views', 'Workspace', 'DocumentationGraphView.tsx');
+    assert.ok(fs.existsSync(graphPath), 'Expected DocumentationGraphView.tsx to exist');
+    const graphSource = fs.readFileSync(graphPath, 'utf8');
+    assert.ok(graphSource.includes('extractDocLinks'), 'Expected extractDocLinks helper export');
+    assert.ok(graphSource.includes('normalizePath'), 'Expected normalizePath helper export');
+    assert.ok(graphSource.includes('DocumentationGraphView'), 'Expected DocumentationGraphView component');
+  });
+
+  await test('docTree helper module exports tree building functions', async () => {
+    const treePath = path.join(uiSrcRoot, 'lib', 'docTree.ts');
+    assert.ok(fs.existsSync(treePath), 'Expected docTree.ts to exist');
+    const treeSource = fs.readFileSync(treePath, 'utf8');
+    assert.ok(treeSource.includes('buildDocTree'), 'Expected buildDocTree function export');
+    assert.ok(treeSource.includes('DocTreeNode'), 'Expected DocTreeNode interface');
+  });
+
+  await test('MarkdownMessage enhanced with headings, tables, task lists, and callouts', async () => {
+    const mdSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'MarkdownMessage.tsx'), 'utf8');
+    assert.ok(mdSource.includes('markdown-frontmatter'), 'Expected frontmatter rendering');
+    assert.ok(mdSource.includes('task-list'), 'Expected task list rendering');
+    assert.ok(mdSource.includes('markdown-callout'), 'Expected callout blockquote rendering');
+    assert.ok(mdSource.includes('markdown-tag'), 'Expected inline tag rendering');
+    assert.ok(mdSource.includes('markdown-table-wrapper'), 'Expected table rendering wrapper');
+    // Verify h1/h2 are now allowed (previously only h3-h5)
+    assert.ok(mdSource.includes("'h1'"), "Expected h1 tag in DOMPurify allowlist");
+    assert.ok(mdSource.includes("'h2'"), "Expected h2 tag in DOMPurify allowlist");
+    assert.ok(mdSource.includes("'h4'"), "Expected h4 tag in DOMPurify allowlist");
+  });
+
+  await test('Workspace center includes graph toggle for docs-graph mode', async () => {
+    const workspaceSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceView.tsx'), 'utf8');
+    assert.ok(workspaceSource.includes('workspace-graph-toggle'), 'Expected graph toggle testId');
+    assert.ok(workspaceSource.includes("'docs-graph'"), 'Expected docs-graph mode reference');
+    assert.ok(workspaceSource.includes('DocumentationGraphView'), 'Expected DocumentationGraphView component usage');
+  });
+
+  await test('Enhanced markdown CSS includes new heading, table, callout, and tag styles', async () => {
+    const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
+    assert.ok(appCss.includes('.markdown-message h1'), 'Expected h1 CSS in markdown');
+    assert.ok(appCss.includes('.markdown-message h2'), 'Expected h2 CSS in markdown');
+    assert.ok(appCss.includes('.markdown-table-wrapper'), 'Expected table wrapper CSS');
+    assert.ok(appCss.includes('.markdown-callout'), 'Expected callout CSS');
+    assert.ok(appCss.includes('.markdown-tag {'), 'Expected tag CSS');
+    assert.ok(appCss.includes('.task-list'), 'Expected task list CSS');
+  });
+
+  await test('Folder tree CSS replaces flat list with expandable tree styles', async () => {
+    const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
+    assert.ok(appCss.includes('.workspace-docs-tree-list'), 'Expected tree list CSS');
+    assert.ok(appCss.includes('.workspace-tree-folder'), 'Expected folder CSS');
+    assert.ok(appCss.includes('.workspace-tree-children'), 'Expected tree children CSS');
+  });
+
+  await test('Graph view CSS includes node and edge styling', async () => {
+    const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
+    assert.ok(appCss.includes('.workspace-docs-graph'), 'Expected graph container CSS');
+    assert.ok(appCss.includes('.graph-node-circle'), 'Expected graph node CSS');
+    assert.ok(appCss.includes('.graph-edge-line'), 'Expected graph edge CSS');
+  });
+
+  await test('App.tsx Escape handler closes docs-graph mode', async () => {
+    const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
+    assert.ok(appSource.includes("'docs-graph'"), 'Expected docs-graph check in Escape handler');
+    assert.ok(appSource.includes('closeDocsGraph'), 'Expected closeDocsGraph call in Escape handler');
+  });
+
   console.log(`\n  ${passed} passed, ${failed} failed (${passed + failed} total)\n`);
 }
 

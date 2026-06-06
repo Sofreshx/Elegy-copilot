@@ -11,6 +11,8 @@ interface SidebarProps {
   onFocusWorkspace?: (repoPath: string) => void;
   onCloseWorkspace?: (repoPath: string) => void;
   testId?: string;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export default function Sidebar({
@@ -22,12 +24,18 @@ export default function Sidebar({
   onFocusWorkspace,
   onCloseWorkspace,
   testId = 'sidebar',
+  isCollapsed = false,
+  onToggleCollapse,
 }: SidebarProps) {
   const topItems = items.filter((item) => item.id !== 'settings');
   const settingsItem = items.find((item) => item.id === 'settings');
 
   return (
-    <nav className="sidebar" data-testid={testId} aria-label="Main navigation">
+    <nav
+      className={`sidebar${isCollapsed ? ' sidebar-collapsed' : ''}`}
+      data-testid={testId}
+      aria-label="Main navigation"
+    >
       <div className="sidebar-header">
         <div className="sidebar-brand-lockup">
           <img
@@ -36,7 +44,7 @@ export default function Sidebar({
             className="sidebar-brand-icon"
             src={BRAND_ICON_SRC}
           />
-          <span className="sidebar-brand">Elegy Copilot</span>
+          {!isCollapsed && <span className="sidebar-brand">Elegy Copilot</span>}
         </div>
       </div>
 
@@ -47,27 +55,33 @@ export default function Sidebar({
               key={ws.repoPath}
               className={`sidebar-workspace-tab${activeWorkspaceId === ws.repoPath ? ' sidebar-workspace-tab-active' : ''}`}
               data-testid={`sidebar-workspace-tab-${ws.repoPath}`}
-              title={ws.repoLabel}
+              title={isCollapsed ? ws.repoLabel : undefined}
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onFocusWorkspace?.(ws.repoPath);
               }}
             >
-              <span className="sidebar-workspace-tab-label">{ws.repoLabel}</span>
-              <span
-                className="sidebar-workspace-tab-close"
-                data-testid={`sidebar-workspace-tab-close-${ws.repoPath}`}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onCloseWorkspace?.(ws.repoPath); } }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCloseWorkspace?.(ws.repoPath);
-                }}
-              >
-                ×
-              </span>
+              {isCollapsed ? (
+                <span className="sidebar-workspace-tab-dot" />
+              ) : (
+                <span className="sidebar-workspace-tab-label">{ws.repoLabel}</span>
+              )}
+              {!isCollapsed && (
+                <span
+                  className="sidebar-workspace-tab-close"
+                  data-testid={`sidebar-workspace-tab-close-${ws.repoPath}`}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onCloseWorkspace?.(ws.repoPath); } }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCloseWorkspace?.(ws.repoPath);
+                  }}
+                >
+                  ×
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -80,11 +94,11 @@ export default function Sidebar({
             className={`sidebar-item${activeItem === item.id ? ' sidebar-item-active' : ''}`}
             data-testid={`sidebar-item-${item.id}`}
             onClick={() => onNavigate(item.id)}
-            title={item.description}
+            title={isCollapsed ? item.label : item.description}
             type="button"
           >
             <span className="sidebar-item-icon" aria-hidden="true">{item.icon}</span>
-            <span className="sidebar-item-label">{item.label}</span>
+            {!isCollapsed && <span className="sidebar-item-label">{item.label}</span>}
           </button>
         ))}
       </div>
@@ -95,11 +109,36 @@ export default function Sidebar({
             className={`sidebar-item${activeItem === settingsItem.id ? ' sidebar-item-active' : ''}`}
             data-testid={`sidebar-item-${settingsItem.id}`}
             onClick={() => onNavigate(settingsItem.id)}
-            title={settingsItem.description}
+            title={isCollapsed ? settingsItem.label : settingsItem.description}
             type="button"
           >
             <span className="sidebar-item-icon" aria-hidden="true">{settingsItem.icon}</span>
-            <span className="sidebar-item-label">{settingsItem.label}</span>
+            {!isCollapsed && <span className="sidebar-item-label">{settingsItem.label}</span>}
+          </button>
+          {onToggleCollapse && (
+            <button
+              className="sidebar-collapse-toggle"
+              data-testid="sidebar-collapse-toggle"
+              onClick={onToggleCollapse}
+              title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              type="button"
+              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {isCollapsed ? '▶' : '◀'}
+            </button>
+          )}
+        </div>
+      ) : onToggleCollapse ? (
+        <div className="sidebar-footer">
+          <button
+            className="sidebar-collapse-toggle"
+            data-testid="sidebar-collapse-toggle"
+            onClick={onToggleCollapse}
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            type="button"
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? '▶' : '◀'}
           </button>
         </div>
       ) : null}

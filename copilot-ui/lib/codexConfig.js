@@ -11,22 +11,14 @@ const STATE_FILENAME = '.elegy-codex-provider-state.json';
 const BACKUP_FILENAME = '.elegy-codex-provider-backup.toml';
 const DEEPSEEK_STATE_FILENAME = '.elegy-deepseek-state.json';
 const DEEPSEEK_CATALOG_FILENAME = 'models_catalog.deepseek.json';
-const MANAGED_BLOCK_START = '# BEGIN elegy managed codex provider';
-const MANAGED_BLOCK_END = '# END elegy managed codex provider';
 const MANAGED_DEEPSEEK_BLOCK_START = '# BEGIN elegy managed deepseek provider';
 const MANAGED_DEEPSEEK_BLOCK_END = '# END elegy managed deepseek provider';
 const IE_MANAGED_BLOCK_START = '# BEGIN instruction-engine managed codex defaults';
 const IE_MANAGED_BLOCK_END = '# END instruction-engine managed codex defaults';
-const ROUTED_PROVIDER_ID = 'instruction_engine_elegy';
-const ROUTED_PROVIDER_NAME = 'Elegy Routed';
-const ROUTED_MODEL = 'opencode-go';
-const ROUTED_BASE_URL = 'http://127.0.0.1:4318/v1';
-const ROUTED_ENV_KEY = 'OPENCODE_GO_API_KEY';
 const DEEPSEEK_PROVIDER_ID = 'instruction_engine_deepseek';
-const DEEPSEEK_PROVIDER_NAME = 'DeepSeek V4';
+const DEEPSEEK_PROVIDER_NAME = 'DeepSeek V4 via Moon Bridge';
 const DEEPSEEK_MODEL = 'deepseek-v4-pro';
 const DEEPSEEK_BASE_URL = 'http://127.0.0.1:38440/v1';
-const DEEPSEEK_ENV_KEY = 'MOON_BRIDGE_DEEPSEEK_TOKEN';
 
 function resolveCodexHome(codexHome) {
   return path.resolve(codexHome || DEFAULT_CODEX_HOME);
@@ -171,40 +163,15 @@ function hasTopLevelKey(text, key) {
   return new RegExp(`^\\s*${escapeRegExp(key)}\\s*=`, 'm').test(text);
 }
 
-function stripManagedBlock(text) {
-  const normalized = normalizeNewlines(text);
-  const pattern = new RegExp(
-    `\\n?${escapeRegExp(MANAGED_BLOCK_START)}[\\s\\S]*?${escapeRegExp(MANAGED_BLOCK_END)}\\n?`,
-    'g',
-  );
-  return normalized.replace(pattern, '\n').replace(/\n{3,}/g, '\n\n').trimEnd();
-}
-
-function buildManagedBlock() {
-  return [
-    MANAGED_BLOCK_START,
-    `[model_providers.${ROUTED_PROVIDER_ID}]`,
-    `name = "${ROUTED_PROVIDER_NAME}"`,
-    `base_url = "${ROUTED_BASE_URL}"`,
-    `env_key = "${ROUTED_ENV_KEY}"`,
-    'wire_api = "responses"',
-    MANAGED_BLOCK_END,
-  ].join('\n');
-}
-
 function buildDeepseekManagedBlock(codexHome) {
-  const lines = [
+  return [
     MANAGED_DEEPSEEK_BLOCK_START,
     `[model_providers.${DEEPSEEK_PROVIDER_ID}]`,
     `name = "${DEEPSEEK_PROVIDER_NAME}"`,
     `base_url = "${DEEPSEEK_BASE_URL}"`,
-  ];
-  if (typeof process !== 'undefined' && process.env && process.env.MOON_BRIDGE_DEEPSEEK_TOKEN) {
-    lines.push(`env_key = "${DEEPSEEK_ENV_KEY}"`);
-  }
-  lines.push('wire_api = "responses"');
-  lines.push(MANAGED_DEEPSEEK_BLOCK_END);
-  return lines.join('\n');
+    'wire_api = "responses"',
+    MANAGED_DEEPSEEK_BLOCK_END,
+  ].join('\n');
 }
 
 function buildDeepseekModelCatalog() {
@@ -511,49 +478,6 @@ function saveBootstrapState(codexHome, bootstrapState) {
   return getBootstrapState(codexHome);
 }
 
-function appendManagedBlock(text) {
-  const stripped = stripManagedBlock(text);
-  if (hasProviderTable(stripped, ROUTED_PROVIDER_ID)) {
-    const error = new Error(`Existing Codex config already defines [model_providers.${ROUTED_PROVIDER_ID}].`);
-    error.statusCode = 409;
-    throw error;
-  }
-
-  const { preambleLines, bodyText } = splitRootPreamble(stripped);
-  const providerResult = upsertRootKeyLine(
-    preambleLines,
-    'model_provider',
-    `model_provider = "${ROUTED_PROVIDER_ID}"`,
-  );
-  const modelResult = upsertRootKeyLine(
-    providerResult.lines,
-    'model',
-    `model = "${ROUTED_MODEL}"`,
-  );
-
-  return {
-    nextText: composeConfigText(modelResult.lines, bodyText, buildManagedBlock()),
-    previousModelLine: modelResult.previousLine,
-    previousModelProviderLine: providerResult.previousLine,
-  };
-}
-
-function applySoftReset(text, state = {}) {
-  const stripped = stripManagedBlock(text);
-  const { preambleLines, bodyText } = splitRootPreamble(stripped);
-  const restoredProviderLines = restoreRootKeyLine(
-    preambleLines,
-    'model_provider',
-    typeof state.previousModelProviderLine === 'string' ? state.previousModelProviderLine : null,
-  );
-  const restoredModelLines = restoreRootKeyLine(
-    restoredProviderLines,
-    'model',
-    typeof state.previousModelLine === 'string' ? state.previousModelLine : null,
-  );
-  return composeConfigText(restoredModelLines, bodyText, '');
-}
-
 function hasBackup(codexHome) {
   return fs.existsSync(resolveBackupPath(codexHome));
 }
@@ -568,9 +492,9 @@ function getStatus(codexHome) {
   let activeMode = 'native';
   if (configText.includes(MANAGED_DEEPSEEK_BLOCK_START)) {
     activeMode = 'deepseek-bridge';
-  } else if (configText.includes(MANAGED_BLOCK_START) || configText.includes(IE_MANAGED_BLOCK_START)) {
-    activeMode = 'elegy-routed';
   }
+  const hasLegacyBlock = configText.includes('# BEGIN elegy managed codex provider')
+    || configText.includes(IE_MANAGED_BLOCK_START);
 
   return {
     codexHome: resolvedHome,
@@ -579,10 +503,9 @@ function getStatus(codexHome) {
     backupPath,
     exists: fs.existsSync(configPath),
     activeMode,
-    providerId: activeMode === 'elegy-routed' ? ROUTED_PROVIDER_ID
-      : activeMode === 'deepseek-bridge' ? DEEPSEEK_PROVIDER_ID
-      : 'openai',
-    hasManagedBlock: configText.includes(MANAGED_BLOCK_START) || configText.includes(MANAGED_DEEPSEEK_BLOCK_START) || configText.includes(IE_MANAGED_BLOCK_START),
+    providerId: activeMode === 'deepseek-bridge' ? DEEPSEEK_PROVIDER_ID : 'openai',
+    hasManagedBlock: configText.includes(MANAGED_DEEPSEEK_BLOCK_START),
+    hasLegacyBlock,
     hasBackup: hasBackup(resolvedHome),
     lastAppliedAt: typeof state.lastAppliedAt === 'string' ? state.lastAppliedAt : null,
     lastResetAt: typeof state.lastResetAt === 'string' ? state.lastResetAt : null,
@@ -592,13 +515,11 @@ function getStatus(codexHome) {
         providerId: DEEPSEEK_PROVIDER_ID,
         model: DEEPSEEK_MODEL,
         baseUrl: DEEPSEEK_BASE_URL,
-        envKey: DEEPSEEK_ENV_KEY,
       }
       : {
-        providerId: ROUTED_PROVIDER_ID,
-        model: ROUTED_MODEL,
-        baseUrl: ROUTED_BASE_URL,
-        envKey: ROUTED_ENV_KEY,
+        providerId: 'openai',
+        model: 'gpt-5.4',
+        baseUrl: '',
       },
     deepseek: getDeepseekStatus(resolvedHome),
   };
@@ -607,26 +528,30 @@ function getStatus(codexHome) {
 function setMode(codexHome, mode) {
   const resolvedHome = resolveCodexHome(codexHome);
   const normalizedMode = String(mode || '').trim().toLowerCase();
-  if (normalizedMode !== 'native' && normalizedMode !== 'elegy-routed' && normalizedMode !== 'deepseek-bridge') {
-    const error = new Error('mode must be "native", "elegy-routed", or "deepseek-bridge"');
+  if (normalizedMode !== 'native' && normalizedMode !== 'deepseek-bridge') {
+    const error = new Error('mode must be "native" or "deepseek-bridge"');
     error.statusCode = 400;
     throw error;
   }
 
   const configPath = resolveConfigPath(resolvedHome);
-  const existing = readTextIfExists(configPath);
+  let existing = readTextIfExists(configPath);
   const previousState = readState(resolvedHome);
-  const isDeepseekActive = hasDeepseekManagedBlock(existing);
-  const isElegyActive = existing.includes(MANAGED_BLOCK_START) || existing.includes(IE_MANAGED_BLOCK_START);
 
-  // Only short-circuit for the standard managed block; IE blocks are legacy and need migration
-  if (normalizedMode === 'elegy-routed' && existing.includes(MANAGED_BLOCK_START)) {
-    return {
-      ...getStatus(resolvedHome),
-      changed: false,
-      action: 'activate',
-    };
+  // Always strip legacy blocks first
+  if (hasInstructionEngineManagedBlock(existing)) {
+    existing = stripInstructionEngineManagedBlock(existing);
   }
+  // Also strip legacy elegy managed codex provider block
+  if (existing.includes('# BEGIN elegy managed codex provider')) {
+    existing = existing.replace(
+      new RegExp(`\\n?# BEGIN elegy managed codex provider[\\s\\S]*?# END elegy managed codex provider\\n?`, 'g'),
+      '\n'
+    ).replace(/\n{3,}/g, '\n\n').trimEnd();
+  }
+
+  const isDeepseekActive = hasDeepseekManagedBlock(existing);
+
   if (normalizedMode === 'deepseek-bridge' && isDeepseekActive) {
     return {
       ...getStatus(resolvedHome),
@@ -638,54 +563,32 @@ function setMode(codexHome, mode) {
   let nextTextResult;
   let action;
 
-  if (normalizedMode === 'elegy-routed') {
-    const stripped = stripInstructionEngineManagedBlock(stripDeepseekManagedBlock(existing));
-    const { preambleLines, bodyText } = splitRootPreamble(stripped);
-    const cleanedPreamble = removeRootKeyLines(preambleLines, 'model_catalog_json');
-    const cleanedText = composeConfigText(cleanedPreamble, bodyText, '');
-    nextTextResult = appendManagedBlock(cleanedText);
-    action = 'activate';
-  } else if (normalizedMode === 'deepseek-bridge') {
-    const stripped = stripInstructionEngineManagedBlock(stripManagedBlock(existing));
-    nextTextResult = appendDeepseekManagedBlock(stripped, resolvedHome);
+  if (normalizedMode === 'deepseek-bridge') {
+    nextTextResult = appendDeepseekManagedBlock(existing, resolvedHome);
     action = 'activate';
   } else {
-    // Strip any instruction-engine managed block first, then apply mode-specific reset
-    const ieStripped = stripInstructionEngineManagedBlock(existing);
     if (isDeepseekActive) {
-      nextTextResult = { nextText: applyDeepseekSoftReset(ieStripped, previousState) };
+      nextTextResult = { nextText: applyDeepseekSoftReset(existing, previousState) };
       action = 'soft-reset';
     } else {
-      nextTextResult = { nextText: applySoftReset(ieStripped, previousState) };
+      // For native mode when no deepseek block is active, just strip any legacy blocks
+      nextTextResult = { nextText: existing, previousModelLine: null, previousModelProviderLine: null, previousModelCatalogJsonLine: null };
       action = 'soft-reset';
     }
   }
 
-  const changed = normalizeNewlines(existing) !== normalizeNewlines(nextTextResult.nextText);
+  // For the native case, need to compare against original pre-strip text
+  const originalText = readTextIfExists(configPath);
+  const changed = normalizeNewlines(originalText) !== normalizeNewlines(nextTextResult.nextText);
 
   if (changed && nextTextResult.nextText) {
-    const contextLabel = normalizedMode === 'elegy-routed'
-      ? 'after enabling Elegy Routed'
-      : normalizedMode === 'deepseek-bridge'
+    const contextLabel = normalizedMode === 'deepseek-bridge'
       ? 'after enabling DeepSeek V4'
       : 'after restoring native mode';
     validateConfigToml(nextTextResult.nextText, contextLabel);
   }
 
-  if (normalizedMode === 'elegy-routed') {
-    const backupPath = writeBackupIfNeeded(resolvedHome, existing);
-    removeDeepseekCatalog(resolvedHome);
-    writeState(resolvedHome, {
-      ...previousState,
-      backupPath,
-      backupCreatedAt: previousState.backupCreatedAt || new Date().toISOString(),
-      originalConfigExisted: fs.existsSync(configPath),
-      previousModelLine: nextTextResult.previousModelLine,
-      previousModelProviderLine: nextTextResult.previousModelProviderLine,
-      lastAppliedAt: new Date().toISOString(),
-      activeMode: normalizedMode,
-    });
-  } else if (normalizedMode === 'deepseek-bridge') {
+  if (normalizedMode === 'deepseek-bridge') {
     const backupPath = writeBackupIfNeeded(resolvedHome, existing);
     writeDeepseekCatalog(resolvedHome);
     writeState(resolvedHome, {
@@ -740,8 +643,13 @@ function hardReset(codexHome) {
   }
 
   const backupText = readTextIfExists(backupPath);
-  const existing = readTextIfExists(configPath);
-  const nextText = previousState.originalConfigExisted === false ? '' : normalizeNewlines(backupText);
+  let existing = readTextIfExists(configPath);
+  // Strip legacy blocks from the backup text too
+  let cleanBackup = normalizeNewlines(backupText);
+  if (hasInstructionEngineManagedBlock(cleanBackup)) {
+    cleanBackup = stripInstructionEngineManagedBlock(cleanBackup);
+  }
+  const nextText = previousState.originalConfigExisted === false ? '' : cleanBackup;
   const changed = normalizeNewlines(existing) !== normalizeNewlines(nextText);
   if (changed && nextText) {
     validateConfigToml(nextText, 'before hard restore');
@@ -784,33 +692,19 @@ function getPlanningSkillStatus(codexHome) {
 }
 
 module.exports = {
-  ROUTED_PROVIDER_ID,
-  ROUTED_MODEL,
-  ROUTED_BASE_URL,
-  ROUTED_ENV_KEY,
   DEEPSEEK_PROVIDER_ID,
   DEEPSEEK_MODEL,
   DEEPSEEK_BASE_URL,
-  DEEPSEEK_ENV_KEY,
-  MANAGED_BLOCK_START,
-  MANAGED_BLOCK_END,
   MANAGED_DEEPSEEK_BLOCK_START,
   MANAGED_DEEPSEEK_BLOCK_END,
-  IE_MANAGED_BLOCK_START,
-  IE_MANAGED_BLOCK_END,
   resolveCodexHome,
   resolveConfigPath,
   resolveStatePath,
   resolveBackupPath,
   resolveDeepseekStatePath,
   resolveDeepseekCatalogPath,
-  stripManagedBlock,
   stripDeepseekManagedBlock,
-  hasInstructionEngineManagedBlock,
-  stripInstructionEngineManagedBlock,
-  appendManagedBlock,
   appendDeepseekManagedBlock,
-  applySoftReset,
   applyDeepseekSoftReset,
   getDeepseekStatus,
   saveDeepseekSettings,

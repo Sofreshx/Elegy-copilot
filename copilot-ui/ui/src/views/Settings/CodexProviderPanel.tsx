@@ -15,21 +15,6 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
-const stepNumberStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: 22,
-  height: 22,
-  borderRadius: '50%',
-  background: 'var(--accent, #6c5ce7)',
-  color: '#fff',
-  fontSize: '12px',
-  fontWeight: 700,
-  marginRight: 8,
-  flexShrink: 0,
-};
-
 export default function CodexProviderPanel() {
   const state: CodexProviderState = useStoreValue(codexProviderStore);
 
@@ -54,11 +39,7 @@ export default function CodexProviderPanel() {
     if (dsStatus?.bridgeUrl) setBridgeUrl(dsStatus.bridgeUrl);
   }, [dsStatus?.bridgePath, dsStatus?.bridgeConfigPath, dsStatus?.bridgeUrl]);
 
-  const currentModeLabel = activeMode === 'native'
-    ? 'Native Codex'
-    : activeMode === 'elegy-routed'
-    ? 'Elegy Routed'
-    : 'DeepSeek V4';
+  const currentModeLabel = activeMode === 'deepseek-bridge' ? 'DeepSeek V4' : 'Native Codex';
 
   const isDeepseekActive = activeMode === 'deepseek-bridge';
   const bridgeBinaryReady = !!dsStatus?.bridgeBinaryAvailable || bsStatus?.built === true;
@@ -66,9 +47,7 @@ export default function CodexProviderPanel() {
   const bridgeAvailable = bridgeBinaryReady || bridgeCheckoutReady;
   const keyReady = !!dsStatus?.keyConfigured;
   const bridgeReachable = !!dsStatus?.bridgeReachable;
-  const bridgeRunning = !!dsStatus?.bridgeRunning;
-  const prereqsMet = bridgeAvailable && keyReady && bridgeRunning && bridgeReachable;
-  const showDeepSeekSection = activeMode !== 'elegy-routed';
+  const prereqsMet = bridgeAvailable && keyReady && bridgeReachable;
 
   const bootstrapInstalled = bsStatus?.installed === true;
   const bootstrapBuilt = bsStatus?.built === true;
@@ -83,7 +62,7 @@ export default function CodexProviderPanel() {
   return (
     <Panel
       title="Codex Configuration"
-      subtitle="Switch local Codex between native defaults, Elegy routing, and DeepSeek V4 via Moon Bridge"
+      subtitle="Switch local Codex between native OpenAI defaults and DeepSeek V4 via Moon Bridge"
       testId="settings-codex-provider"
       actions={
         <>
@@ -97,15 +76,6 @@ export default function CodexProviderPanel() {
             {state.saving && activeMode !== 'native' ? 'Saving…' : 'Native Codex'}
           </Button>
           <Button
-            variant={activeMode === 'elegy-routed' ? 'primary' : 'secondary'}
-            size="sm"
-            testId="codex-provider-elegy"
-            disabled={state.loading || state.saving}
-            onClick={() => codexProviderStore.setMode('elegy-routed')}
-          >
-            {state.saving && activeMode !== 'elegy-routed' ? 'Saving…' : 'Elegy Routed'}
-          </Button>
-          <Button
             variant={isDeepseekActive ? 'primary' : 'secondary'}
             size="sm"
             testId="codex-provider-deepseek"
@@ -117,7 +87,6 @@ export default function CodexProviderPanel() {
         </>
       }
     >
-      {/* Current mode badge + config info */}
       <div className="settings-row">
         <div className="settings-row-label">
           <strong>Current local default</strong>
@@ -126,7 +95,7 @@ export default function CodexProviderPanel() {
           </span>
         </div>
         <div className="settings-row-action">
-          <Badge tone={activeMode === 'native' ? 'neutral' : activeMode === 'elegy-routed' ? 'accent' : 'brand'} testId="codex-provider-mode-badge">
+          <Badge tone={isDeepseekActive ? 'brand' : 'neutral'} testId="codex-provider-mode-badge">
             {currentModeLabel}
           </Badge>
         </div>
@@ -150,19 +119,14 @@ export default function CodexProviderPanel() {
         </div>
       )}
 
-      {/* ---- Guided DeepSeek Setup (only when not Elegy Routed) ---- */}
-      {showDeepSeekSection && (
-        <>
-          <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color, #ddd)' }} />
+      <>
+        <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color, #ddd)' }} />
 
-          {/* Step 1: Install / Build Moon Bridge */}
+          {/* ---- Managed Moon Bridge setup card ---- */}
           <div className="settings-row" data-testid="deepseek-bootstrap-status">
             <div className="settings-row-label">
-              <strong>
-                <span style={stepNumberStyle}>1</span>
-                Install Moon Bridge
-              </strong>
-              <div className="settings-row-description" style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, marginLeft: 30 }}>
+              <strong>Moon Bridge Setup</strong>
+              <div className="settings-row-description" style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
                 <span>
                   <Badge tone={bootstrapPrereqsMet ? 'success' : 'danger'}>
                     Prerequisites{bootstrapPrereqsMet ? '' : ' missing'}
@@ -171,7 +135,9 @@ export default function CodexProviderPanel() {
                     <span style={{ marginLeft: 8 }}>
                       Git: {bsStatus.gitAvailable ? '✓' : '✗'} · Go: {bsStatus.goAvailable ? '✓' : '✗'}
                     </span>
-                  ) : null}
+                  ) : (
+                    <span style={{ marginLeft: 8 }}>Loading…</span>
+                  )}
                 </span>
                 {bsStatus && (
                   <>
@@ -222,160 +188,7 @@ export default function CodexProviderPanel() {
             </div>
           </div>
 
-          {/* Step 2: Add DeepSeek API Key (primary path, not hidden in Advanced) */}
-          <div className="settings-row">
-            <div className="settings-row-label">
-              <strong>
-                <span style={stepNumberStyle}>2</span>
-                Add DeepSeek API Key
-              </strong>
-              <span className="settings-row-description" style={{ marginLeft: 30 }}>
-                Saved to the managed Moon Bridge config. Key is never returned by the API after saving.
-              </span>
-            </div>
-            <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk-..."
-                style={inputStyle}
-                data-testid="deepseek-api-key"
-              />
-              <Badge tone={keyReady ? 'success' : 'neutral'} testId="deepseek-key-status">
-                {keyReady ? 'Key saved' : 'No key'}
-              </Badge>
-            </div>
-          </div>
-
-          <div className="settings-row">
-            <div className="settings-row-label" />
-            <div className="settings-row-action">
-              <Button
-                variant="primary"
-                size="sm"
-                testId="deepseek-save-settings"
-                disabled={state.saving || apiKey.length === 0}
-                onClick={() => codexProviderStore.saveDeepseek({
-                  keyConfigured: true,
-                  apiKey: apiKey,
-                })}
-              >
-                {state.saving ? 'Saving…' : 'Save API Key'}
-              </Button>
-            </div>
-          </div>
-
-          {/* Step 3: Start and Verify Bridge */}
-          <div className="settings-row">
-            <div className="settings-row-label">
-              <strong>
-                <span style={stepNumberStyle}>3</span>
-                Start and Verify Bridge
-              </strong>
-              <span className="settings-row-description" style={{ marginLeft: 30 }}>
-                Start the Moon Bridge process and check connectivity and model availability.
-              </span>
-              {dsStatus && (
-                <div className="settings-row-description" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4, marginLeft: 30 }}>
-                  <span>
-                    Bridge running: <Badge tone={dsStatus.bridgeRunning ? 'success' : 'neutral'}>{dsStatus.bridgeRunning ? 'Running' : 'Stopped'}</Badge>
-                  </span>
-                  <span>
-                    Reachable: <Badge tone={bridgeReachable ? 'success' : 'danger'}>{bridgeReachable ? 'Yes' : 'No'}</Badge>
-                  </span>
-                  <span>
-                    Models visible: <Badge tone={dsStatus.modelsVisible ? 'success' : 'danger'}>{dsStatus.modelsVisible ? 'Yes' : 'No'}</Badge>
-                  </span>
-                  {dsStatus.probeError ? (
-                    <span style={{ color: 'var(--danger-color, #c00)', fontSize: '0.75rem', width: '100%' }}>
-                      {dsStatus.probeError}
-                    </span>
-                  ) : null}
-                </div>
-              )}
-            </div>
-            <div className="settings-row-action" style={{ display: 'flex', gap: 4 }}>
-              <Button
-                variant="secondary"
-                size="sm"
-                testId="deepseek-start-bridge"
-                disabled={state.bridgeLoading}
-                onClick={() => codexProviderStore.startBridge()}
-              >
-                {state.bridgeLoading ? '…' : 'Start Bridge'}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                testId="deepseek-stop-bridge"
-                disabled={state.bridgeLoading}
-                onClick={() => codexProviderStore.stopBridge()}
-              >
-                Stop Bridge
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                testId="deepseek-check-status"
-                disabled={state.bridgeLoading}
-                onClick={() => codexProviderStore.checkBridge()}
-              >
-                Check Status
-              </Button>
-            </div>
-          </div>
-
-          {/* Step 4: Activate DeepSeek in Codex */}
-          <div className="settings-row">
-            <div className="settings-row-label">
-              <strong>
-                <span style={stepNumberStyle}>4</span>
-                Activate DeepSeek in Codex
-              </strong>
-              <div className="settings-row-description" style={{ marginLeft: 30, marginTop: 4 }}>
-                <span>
-                  {bridgeAvailable ? '\u2705' : '\u274C'} Moon Bridge binary or checkout available
-                </span>
-                <br />
-                <span>
-                  {keyReady ? '\u2705' : '\u274C'} DeepSeek API key configured
-                </span>
-                <br />
-                <span>
-                  {dsStatus?.bridgeRunning ? '\u2705' : '\u274C'} Bridge process running
-                </span>
-                <br />
-                <span>
-                  {bridgeReachable ? '\u2705' : '\u274C'} Bridge endpoint reachable
-                </span>
-                {!prereqsMet && (
-                  <span style={{ display: 'block', marginTop: 4 }}>
-                    Complete steps 1-3 before activating. Ensure the bridge is built, key is saved, and bridge is running.
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="settings-row-action">
-              {isDeepseekActive ? (
-                <Badge tone="success" testId="deepseek-active-badge">Active</Badge>
-              ) : (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  testId="deepseek-activate"
-                  disabled={state.saving || !prereqsMet}
-                  onClick={() => codexProviderStore.setMode('deepseek-bridge')}
-                >
-                  {state.saving ? 'Activating…' : 'Activate DeepSeek in Codex'}
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Advanced: manual paths, URL, recovery/reset, raw diagnostics (collapsed) */}
-          <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color, #ddd)' }} />
-
+          {/* ---- Advanced manual path configuration ---- */}
           <div className="settings-row">
             <div className="settings-row-label">
               <strong>
@@ -397,7 +210,7 @@ export default function CodexProviderPanel() {
                 </button>
               </strong>
               <span className="settings-row-description">
-                Manual bridge paths, URL overrides, recovery, and raw diagnostics.
+                Manual bridge path, config, and URL overrides. Use only if the managed install cannot be used.
               </span>
             </div>
           </div>
@@ -408,7 +221,7 @@ export default function CodexProviderPanel() {
                 <div className="settings-row-label">
                   <strong>Moon Bridge Executable Path</strong>
                   <span className="settings-row-description">
-                    Full path to the Moon Bridge binary or a checkout directory. Leave empty for managed install.
+                    Full path to the Moon Bridge binary or a checkout directory.
                   </span>
                 </div>
                 <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
@@ -427,7 +240,7 @@ export default function CodexProviderPanel() {
                 <div className="settings-row-label">
                   <strong>Moon Bridge Config Path</strong>
                   <span className="settings-row-description">
-                    Path to the Moon Bridge config.yml file. Leave empty for managed install.
+                    Path to the Moon Bridge config.yml file.
                   </span>
                 </div>
                 <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
@@ -463,125 +276,191 @@ export default function CodexProviderPanel() {
 
               <div className="settings-row">
                 <div className="settings-row-label">
-                  <strong>Save Manual Settings</strong>
+                  <strong>DeepSeek API Key</strong>
                   <span className="settings-row-description">
-                    Saves manual bridge paths and URL overrides.
+                    Saved to the Moon Bridge config only. Key is never returned by the API after saving.
+                  </span>
+                </div>
+                <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="sk-..."
+                    style={inputStyle}
+                    data-testid="deepseek-api-key"
+                  />
+                </div>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-row-label">
+                  <strong>Save Settings</strong>
+                  <span className="settings-row-description">
+                    Saves bridge paths, URL, and API key (to Moon Bridge config only).
                   </span>
                 </div>
                 <div className="settings-row-action">
                   <Button
-                    variant="secondary"
+                    variant="primary"
                     size="sm"
-                    testId="deepseek-save-advanced"
+                    testId="deepseek-save-settings"
                     disabled={state.saving}
                     onClick={() => codexProviderStore.saveDeepseek({
                       bridgePath: bridgePath || undefined,
                       bridgeConfigPath: bridgeConfigPath || undefined,
                       bridgeUrl: bridgeUrl || undefined,
+                      keyConfigured: apiKey.length > 0 ? true : undefined,
+                      apiKey: apiKey || undefined,
                     })}
                   >
-                    {state.saving ? 'Saving…' : 'Save Paths & URL'}
-                  </Button>
-                </div>
-              </div>
-
-              {dsStatus && (
-                <div className="settings-row">
-                  <div className="settings-row-label">
-                    <strong>Raw Diagnostics</strong>
-                    <div className="settings-row-description" style={{ marginTop: 4 }}>
-                      <span>Bridge path: <Badge tone={bridgeBinaryReady ? 'success' : bridgeCheckoutReady ? 'brand' : 'danger'}>{bridgeBinaryReady ? 'Binary found' : bridgeCheckoutReady ? 'Needs build' : 'Missing'}</Badge></span>
-                      <br />
-                      <span>Key configured: <Badge tone={keyReady ? 'success' : 'neutral'}>{keyReady ? 'Yes' : 'No'}</Badge></span>
-                      <br />
-                      <span>Env var (MOON_BRIDGE_DEEPSEEK_TOKEN): <Badge tone={dsStatus.envKeyConfigured ? 'success' : 'neutral'}>{dsStatus.envKeyConfigured ? 'Set' : 'Not set'}</Badge></span>
-                      {dsStatus.modelIds && dsStatus.modelIds.length > 0 && (
-                        <>
-                          <br />
-                          <span>Model IDs: <code style={{ fontSize: '0.72rem' }}>{dsStatus.modelIds.join(', ')}</code></span>
-                        </>
-                      )}
-                      {dsStatus.probeError ? (
-                        <>
-                          <br />
-                          <span style={{ color: 'var(--danger-color, #c00)' }}>Probe error: {dsStatus.probeError}</span>
-                        </>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color, #ddd)' }} />
-
-              <div className="settings-row">
-                <div className="settings-row-label">
-                  <strong>Recovery</strong>
-                  <span className="settings-row-description">
-                    Soft reset removes only Elegy-managed provider settings. Hard restore writes back the pre-Elegy backup snapshot.
-                  </span>
-                </div>
-                <div className="settings-row-action">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    testId="codex-provider-soft-reset"
-                    disabled={state.loading || state.saving}
-                    onClick={() => codexProviderStore.reset(false)}
-                  >
-                    Soft Reset
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    testId="codex-provider-hard-reset"
-                    disabled={state.loading || state.saving || !status?.hasBackup}
-                    onClick={() => codexProviderStore.reset(true)}
-                  >
-                    Hard Restore
+                    {state.saving ? 'Saving…' : 'Save Settings'}
                   </Button>
                 </div>
               </div>
             </>
           )}
-        </>
-      )}
-
-      {/* Recovery (shown even when Elegy Routed is active) */}
-      {!showDeepSeekSection && (
-        <>
-          <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color, #ddd)' }} />
 
           <div className="settings-row">
             <div className="settings-row-label">
-              <strong>Recovery</strong>
+              <strong>Bridge Control</strong>
               <span className="settings-row-description">
-                Soft reset removes only Elegy-managed provider settings. Hard restore writes back the pre-Elegy backup snapshot.
+                Start or stop the Moon Bridge process. Check status to verify connectivity and model availability.
               </span>
             </div>
             <div className="settings-row-action">
               <Button
                 variant="secondary"
                 size="sm"
-                testId="codex-provider-soft-reset"
-                disabled={state.loading || state.saving}
-                onClick={() => codexProviderStore.reset(false)}
+                testId="deepseek-start-bridge"
+                disabled={state.bridgeLoading}
+                onClick={() => codexProviderStore.startBridge()}
               >
-                Soft Reset
+                {state.bridgeLoading ? '…' : 'Start Bridge'}
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                testId="codex-provider-hard-reset"
-                disabled={state.loading || state.saving || !status?.hasBackup}
-                onClick={() => codexProviderStore.reset(true)}
+                testId="deepseek-stop-bridge"
+                disabled={state.bridgeLoading}
+                onClick={() => codexProviderStore.stopBridge()}
               >
-                Hard Restore
+                Stop Bridge
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                testId="deepseek-check-status"
+                disabled={state.bridgeLoading}
+                onClick={() => codexProviderStore.checkBridge()}
+              >
+                Check Status
               </Button>
             </div>
           </div>
+
+          {dsStatus && (
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <span className="settings-row-description">
+                  Bridge path: {dsStatus.bridgePath
+                    ? <Badge tone={bridgeBinaryReady ? 'success' : bridgeCheckoutReady ? 'brand' : 'danger'}>{bridgeBinaryReady ? 'Binary found' : bridgeCheckoutReady ? 'Needs build' : 'Missing'}</Badge>
+                    : <Badge tone="neutral">Not set</Badge>}
+                </span>
+                <span className="settings-row-description">
+                  Key configured: <Badge tone={keyReady ? 'success' : 'neutral'}>{keyReady ? 'Yes' : 'No'}</Badge>
+                </span>
+                <span className="settings-row-description">
+                  Bridge running: <Badge tone={dsStatus.bridgeRunning ? 'success' : 'neutral'}>{dsStatus.bridgeRunning ? 'Running' : 'Stopped'}</Badge>
+                </span>
+                <span className="settings-row-description">
+                  Bridge reachable: <Badge tone={bridgeReachable ? 'success' : 'danger'}>{bridgeReachable ? 'Yes' : 'No'}</Badge>
+                </span>
+                <span className="settings-row-description">
+                  Models visible: <Badge tone={dsStatus.modelsVisible ? 'success' : 'danger'}>{dsStatus.modelsVisible ? 'Yes' : 'No'}</Badge>
+                </span>
+                {dsStatus.probeError ? (
+                  <span className="settings-row-description" style={{ color: 'var(--danger-color, #c00)' }}>
+                    {dsStatus.probeError}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          )}
+
+          {!isDeepseekActive && (
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <strong>Prerequisites</strong>
+                <span className="settings-row-description">
+                  {bridgeAvailable ? '\u2705' : '\u274C'} Moon Bridge binary or checkout available
+                </span>
+                <span className="settings-row-description">
+                  {keyReady ? '\u2705' : '\u274C'} DeepSeek API key configured
+                </span>
+                <span className="settings-row-description">
+                  {bridgeReachable ? '\u2705' : '\u274C'} Bridge endpoint reachable
+                </span>
+                {!prereqsMet && (
+                  <span className="settings-row-description">
+                    Save settings, start the bridge, and ensure it is reachable before activating.
+                  </span>
+                )}
+              </div>
+              <div className="settings-row-action">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  testId="deepseek-activate"
+                  disabled={state.saving || !prereqsMet}
+                  onClick={() => codexProviderStore.setMode('deepseek-bridge')}
+                >
+                  {state.saving ? 'Activating…' : 'Activate DeepSeek in Codex'}
+                </Button>
+              </div>
+            </div>
+          )}
+          {isDeepseekActive && (
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <span className="settings-row-description" style={{ color: 'var(--color-info-500, #2563eb)', fontSize: '0.8rem' }}>
+                  DeepSeek is configured as Codex&apos;s active model. Codex Desktop may show it as Custom until its model picker displays local catalog models.
+                </span>
+              </div>
+            </div>
+          )}
         </>
-      )}
+
+      <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color, #ddd)' }} />
+
+      <div className="settings-row">
+        <div className="settings-row-label">
+          <strong>Recovery</strong>
+          <span className="settings-row-description">
+            Soft reset removes only Elegy-managed Codex provider settings from the config. Hard restore writes back the pre-Elegy backup snapshot.
+          </span>
+        </div>
+        <div className="settings-row-action">
+          <Button
+            variant="secondary"
+            size="sm"
+            testId="codex-provider-soft-reset"
+            disabled={state.loading || state.saving}
+            onClick={() => codexProviderStore.reset(false)}
+          >
+            Soft Reset
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            testId="codex-provider-hard-reset"
+            disabled={state.loading || state.saving || !status?.hasBackup}
+            onClick={() => codexProviderStore.reset(true)}
+          >
+            Hard Restore
+          </Button>
+        </div>
+      </div>
 
       {state.message ? (
         <p className="settings-row-description" data-testid="codex-provider-message">

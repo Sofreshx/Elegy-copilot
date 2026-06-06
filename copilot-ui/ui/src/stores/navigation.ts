@@ -24,7 +24,7 @@ export type WizardType = 'project' | 'asset' | null;
 
 export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'maintenance' | 'runtime' | 'codex';
 
-export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal';
+export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal' | 'docs-graph';
 
 export interface OpenWorkspace {
   repoPath: string;
@@ -34,6 +34,7 @@ export interface OpenWorkspace {
 
 export const WORKSPACE_TABS_STORAGE_KEY = 'elegy-copilot-workspace-tabs';
 const ACTIVE_WORKSPACE_STORAGE_KEY = 'elegy-copilot-active-workspace';
+export const WORKSPACE_CENTER_FOCUS_KEY = 'elegy-copilot-workspace-center-focused';
 
 export interface SelectedSessionContext {
   source?: string | null;
@@ -70,6 +71,7 @@ export type NavigationState = {
   activePlanningSessionContext: SelectedSessionContext | null;
   openWorkspaces: OpenWorkspace[];
   activeWorkspaceId: string | null;
+  isWorkspaceCenterFocused: boolean;
 };
 
 const INITIAL_STATE: NavigationState = {
@@ -88,15 +90,18 @@ const INITIAL_STATE: NavigationState = {
   activePlanningSessionContext: null,
   openWorkspaces: [],
   activeWorkspaceId: null,
+  isWorkspaceCenterFocused: false,
 };
 
 function createNavigationStore() {
   const persistedTabs = loadPersistedWorkspaceTabs();
   const persistedActiveId = loadPersistedActiveWorkspaceId();
+  const persistedFocus = loadPersistedWorkspaceCenterFocused();
   const initialState = {
     ...INITIAL_STATE,
     openWorkspaces: persistedTabs,
     activeWorkspaceId: persistedActiveId || (persistedTabs.length > 0 ? persistedTabs[0].repoPath : null),
+    isWorkspaceCenterFocused: persistedFocus,
   };
   const store = createStore<NavigationState>(initialState);
 
@@ -198,6 +203,14 @@ function createNavigationStore() {
     }));
   }
 
+  function toggleWorkspaceCenterFocus(): void {
+    store.setState((state) => {
+      const next = !state.isWorkspaceCenterFocused;
+      persistWorkspaceCenterFocused(next);
+      return { ...state, isWorkspaceCenterFocused: next };
+    });
+  }
+
   function openWorkspace(repoPath: string, repoLabel: string): void {
     const existing = store.getState().openWorkspaces.find((w) => w.repoPath === repoPath);
     if (existing) {
@@ -284,6 +297,30 @@ function createNavigationStore() {
     }
   }
 
+  function loadPersistedWorkspaceCenterFocused(): boolean {
+    try {
+      return localStorage.getItem(WORKSPACE_CENTER_FOCUS_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  function persistWorkspaceCenterFocused(focused: boolean): void {
+    try {
+      localStorage.setItem(WORKSPACE_CENTER_FOCUS_KEY, String(focused));
+    } catch {
+      // localStorage may be unavailable
+    }
+  }
+
+  function openDocsGraph(): void {
+    store.setState((state) => ({ ...state, workspaceCenterMode: 'docs-graph' }));
+  }
+
+  function closeDocsGraph(): void {
+    store.setState((state) => ({ ...state, workspaceCenterMode: 'docs' }));
+  }
+
   function reset(): void {
     try {
       localStorage.removeItem(WORKSPACE_TABS_STORAGE_KEY);
@@ -308,6 +345,9 @@ function createNavigationStore() {
     setWorkspaceCenterMode,
     openPlanningSession,
     closePlanningSession,
+    openDocsGraph,
+    closeDocsGraph,
+    toggleWorkspaceCenterFocus,
     openWorkspace,
     focusWorkspace,
     closeWorkspace,

@@ -11,31 +11,62 @@ const DEFAULT_CODEX_PROVIDER_PREFLIGHT_TIMEOUT_MS = 1500;
 const DEEPSEEK_BRIDGE_READINESS_TIMEOUT_MS = 15000;
 const DEEPSEEK_BRIDGE_PROBE_INTERVAL_MS = 500;
 
+function resolveBundledMoonBridgeSource() {
+  // In a Tauri-packaged app, bundled resources are extracted to a platform-specific
+  // directory. This path is resolved relative to the app resource directory.
+  // The caller can override via process.env.
+  const envPath = process.env.INSTRUCTION_ENGINE_MOON_BRIDGE_BUNDLED_PATH;
+  if (envPath && require('fs').existsSync(envPath)) {
+    return envPath;
+  }
+
+  // Default Tauri resource path for bundled binaries
+  const path = require('path');
+  const fs = require('fs');
+
+  // Check common Tauri resource paths
+  const candidates = [];
+  if (process.resourcesPath) {
+    candidates.push(path.join(process.resourcesPath, 'moon-bridge', 'moon-bridge.exe'));
+  }
+  // Check relative to the app directory
+  const appDir = path.dirname(process.execPath);
+  candidates.push(path.join(appDir, 'resources', 'moon-bridge', 'moon-bridge.exe'));
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  // Development fallback: check relative to workspace
+  try {
+    const localDev = path.join(__dirname, '..', 'resources', 'moon-bridge', 'moon-bridge.exe');
+    if (fs.existsSync(localDev)) {
+      return localDev;
+    }
+  } catch {
+    // ignore
+  }
+
+  return '';
+}
+
 let deepseekBridgeProcess = null;
 let deepseekBridgeStopping = false;
 
 function bridgeModelsUrl(bridgeUrl) {
-  const base = String(bridgeUrl || DEEPSEEK_BASE_URL).replace(/\/v1\/?$/, '');
+  const base = String(bridgeUrl || codexConfigDefault.DEEPSEEK_BASE_URL).replace(/\/v1\/?$/, '');
   return `${base}/v1/models`;
 }
 
 function register(deps = {}) {
-  const preflightFetch = deps.fetch || globalThis.fetch;
-  const preflightTimeoutMs = Number.isFinite(deps.codexProviderPreflightTimeoutMs)
-    ? deps.codexProviderPreflightTimeoutMs
-    : DEFAULT_CODEX_PROVIDER_PREFLIGHT_TIMEOUT_MS;
   const resolvedDeps = {
     sendJson: deps.sendJson || defaultSendJson,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     copilotConfig: deps.copilotConfig || copilotConfigDefault,
     codexConfig: deps.codexConfig || codexConfigDefault,
     moonBridgeBootstrap: deps.moonBridgeBootstrap || moonBridgeBootstrapDefault,
-    env: deps.env || process.env,
-    probeCodexGatewayReachability: deps.probeCodexGatewayReachability
-      || ((baseUrl) => probeCodexGatewayReachability(baseUrl, {
-        fetchImpl: preflightFetch,
-        timeoutMs: preflightTimeoutMs,
-      })),
   };
 
   return [
@@ -104,61 +135,6 @@ function register(deps = {}) {
 
 function isUserFacingCodexConfigError(statusCode) {
   return (statusCode >= 400 && statusCode < 500) || statusCode === 503;
-}
-
-function getCodexProviderGatewayConfig(codexHome, deps) {
-  const status = deps.codexConfig.getStatus(codexHome);
-  const gateway = status && typeof status.gateway === 'object' ? status.gateway : null;
-  return {
-    baseUrl: gateway && typeof gateway.baseUrl === 'string' ? gateway.baseUrl.trim() : '',
-    envKey: gateway && typeof gateway.envKey === 'string' ? gateway.envKey.trim() : '',
-  };
-}
-
-async function probeCodexGatewayReachability(baseUrl, options = {}) {
-  const normalizedBaseUrl = typeof baseUrl === 'string' ? baseUrl.trim() : '';
-  if (!normalizedBaseUrl) {
-    throw Object.assign(new Error('Elegy gateway base URL is not configured.'), { statusCode: 500 });
-  }
-
-  let parsedUrl;
-  try {
-    parsedUrl = new URL(normalizedBaseUrl);
-  } catch {
-    throw Object.assign(new Error(`Elegy gateway base URL is invalid: ${normalizedBaseUrl}`), { statusCode: 500 });
-  }
-
-  const fetchImpl = options.fetchImpl || globalThis.fetch;
-  if (typeof fetchImpl !== 'function') {
-    throw Object.assign(new Error('Fetch is unavailable for Codex provider preflight.'), { statusCode: 500 });
-  }
-
-  const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
-    ? options.timeoutMs
-    : DEFAULT_CODEX_PROVIDER_PREFLIGHT_TIMEOUT_MS;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
-
-  try {
-    await fetchImpl(parsedUrl.toString(), {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json, text/plain;q=0.9, */*;q=0.8',
-      },
-      redirect: 'manual',
-      signal: controller.signal,
-    });
-  } catch (error) {
-    const isTimeout = error && typeof error === 'object' && error.name === 'AbortError';
-    const message = isTimeout
-      ? `Elegy gateway did not respond at ${parsedUrl.toString()} within ${timeoutMs}ms. Start the local gateway and try again.`
-      : `Elegy gateway is unavailable at ${parsedUrl.toString()}. Start the local gateway and try again.`;
-    throw Object.assign(new Error(message), { statusCode: 503, cause: error });
-  } finally {
-    clearTimeout(timeoutId);
-  }
 }
 
 function wait(delayMs) {
@@ -235,73 +211,41 @@ async function probeDeepseekBridgeReachability(baseUrl, options = {}) {
 }
 
 async function assertCodexProviderActivationPreflight(ctx, deps) {
-  const mode = ctx.bodyMode || 'elegy-routed';
+  const status = deps.codexConfig.getStatus(ctx.codexHome);
+  const ds = status.deepseek || {};
 
-  if (mode === 'deepseek-bridge') {
-    const status = deps.codexConfig.getStatus(ctx.codexHome);
-    const ds = status.deepseek || {};
-
-    let resolvedBridgePath = ds.bridgePath;
-
-    // Fall back to managed Moon Bridge binary when persisted path is missing
-    if (!resolvedBridgePath || !require('fs').existsSync(resolvedBridgePath)) {
-      const copilotHome = ctx.copilotHome || require('path').join(require('os').homedir(), '.copilot');
-      const managedRoot = deps.moonBridgeBootstrap.resolveManagedMoonBridgeRoot(copilotHome);
-      const managedBinary = deps.moonBridgeBootstrap.resolveBinaryPath(managedRoot);
-      if (require('fs').existsSync(managedBinary)) {
-        resolvedBridgePath = managedBinary;
-      }
-    }
-
-    if (!resolvedBridgePath || !require('fs').existsSync(resolvedBridgePath)) {
-      throw Object.assign(
-        new Error('Moon Bridge executable path is not configured or not found. Install Moon Bridge or check the path in settings.'),
-        { statusCode: 503 },
-      );
-    }
-
-    if (!ds.keyConfigured) {
-      throw Object.assign(
-        new Error('DeepSeek API key is not configured. Save a key in the Moon Bridge config before activating.'),
-        { statusCode: 503 },
-      );
-    }
-
-    // If resolvedBridgePath exists (whether from state or managed fallback), treat as binary available
-    const binaryIsAvailable = ds.bridgeBinaryAvailable || (resolvedBridgePath && require('fs').existsSync(resolvedBridgePath));
-    if (!binaryIsAvailable) {
-      throw Object.assign(
-        new Error('Moon Bridge binary is not available at the configured path. Install Moon Bridge or check the path.'),
-        { statusCode: 503 },
-      );
-    }
-
-    if (!deepseekBridgeProcess || deepseekBridgeProcess.exitCode != null || deepseekBridgeProcess.signalCode != null) {
-      throw Object.assign(
-        new Error('Moon Bridge is not running. Start the bridge before activating DeepSeek.'),
-        { statusCode: 503 },
-      );
-    }
-
-    await probeDeepseekBridgeReachability(ds.bridgeUrl || codexConfigDefault.DEEPSEEK_BASE_URL, {
-      fetchImpl: deps.env && typeof deps.env === 'object' ? globalThis.fetch : undefined,
-      timeoutMs: DEFAULT_CODEX_PROVIDER_PREFLIGHT_TIMEOUT_MS,
-    });
-
-    return;
+  if (!ds.bridgePath || !require('fs').existsSync(ds.bridgePath)) {
+    throw Object.assign(
+      new Error('Moon Bridge executable path is not configured or not found. Set the bridge path in DeepSeek settings.'),
+      { statusCode: 503 },
+    );
   }
 
-  const gateway = getCodexProviderGatewayConfig(ctx.codexHome, deps);
-  if (!gateway.envKey) {
-    throw Object.assign(new Error('Elegy gateway API key env var is not configured.'), { statusCode: 500 });
+  if (!ds.keyConfigured) {
+    throw Object.assign(
+      new Error('DeepSeek API key is not configured. Save a key in the Moon Bridge config before activating.'),
+      { statusCode: 503 },
+    );
   }
 
-  const envValue = deps.env && typeof deps.env === 'object' ? deps.env[gateway.envKey] : undefined;
-  if (!String(envValue || '').trim()) {
-    throw Object.assign(new Error(`Set ${gateway.envKey} before enabling Elegy Routed.`), { statusCode: 503 });
+  if (!ds.bridgeBinaryAvailable) {
+    throw Object.assign(
+      new Error('Moon Bridge binary is not available at the configured path. Install Moon Bridge or check the path.'),
+      { statusCode: 503 },
+    );
   }
 
-  await deps.probeCodexGatewayReachability(gateway.baseUrl);
+  if (!deepseekBridgeProcess || deepseekBridgeProcess.exitCode != null || deepseekBridgeProcess.signalCode != null) {
+    throw Object.assign(
+      new Error('Moon Bridge is not running. Start the bridge before activating DeepSeek.'),
+      { statusCode: 503 },
+    );
+  }
+
+  await probeDeepseekBridgeReachability(ds.bridgeUrl || codexConfigDefault.DEEPSEEK_BASE_URL, {
+    fetchImpl: deps.env && typeof deps.env === 'object' ? globalThis.fetch : undefined,
+    timeoutMs: DEFAULT_CODEX_PROVIDER_PREFLIGHT_TIMEOUT_MS,
+  });
 }
 
 function handleGetRemoteSessions(ctx, deps) {
@@ -360,7 +304,7 @@ async function handleSetCodexProvider(ctx, deps) {
     const body = await deps.readJsonBody(ctx.req);
     const mode = typeof body.mode === 'string' ? body.mode : '';
     ctx.bodyMode = mode;
-    if (mode === 'elegy-routed' || mode === 'deepseek-bridge') {
+    if (mode === 'deepseek-bridge') {
       await assertCodexProviderActivationPreflight(ctx, deps);
     }
     const result = deps.codexConfig.setMode(ctx.codexHome, mode);
@@ -429,47 +373,49 @@ async function handleSaveDeepseek(ctx, deps) {
 
     if (body.keyConfigured === true) {
       const fs = require('fs');
-      let configPath = typeof body.bridgeConfigPath === 'string' && body.bridgeConfigPath.trim()
+      const path = require('path');
+      const configPath = typeof body.bridgeConfigPath === 'string' && body.bridgeConfigPath.trim()
         ? body.bridgeConfigPath.trim()
         : settings.bridgeConfigPath;
-
-      // When no config path is explicitly configured, use the managed Moon Bridge config path
-      if (!configPath) {
-        const copilotHome = ctx.copilotHome || require('path').join(require('os').homedir(), '.copilot');
-        const managedRoot = deps.moonBridgeBootstrap.resolveManagedMoonBridgeRoot(copilotHome);
-        configPath = deps.moonBridgeBootstrap.resolveConfigPath(managedRoot);
-        // Persist the fallback path so the UI shows it on reload
-        settings.bridgeConfigPath = configPath;
-      }
-
       const apiKey = typeof body.apiKey === 'string' && body.apiKey.trim() ? body.apiKey.trim() : null;
 
       if (apiKey && configPath) {
-        const dir = require('path').dirname(configPath);
+        const dir = path.dirname(configPath);
         if (!fs.existsSync(dir)) {
           fs.mkdirSync(dir, { recursive: true });
         }
 
-        let configText = '';
-        if (fs.existsSync(configPath)) {
-          configText = fs.readFileSync(configPath, 'utf8');
-        }
+        // Generate full Moon Bridge config.yml
+        const config = {
+          server: {
+            addr: '127.0.0.1:38440',
+          },
+          mode: 'Transform',
+          providers: [
+            {
+              provider: 'deepseek',
+              api_key: apiKey,
+            },
+          ],
+          models: [
+            {
+              model: 'deepseek-v4-pro',
+              provider: 'deepseek',
+              context_window: 262144,
+            },
+            {
+              model: 'deepseek-v4-flash',
+              provider: 'deepseek',
+              context_window: 262144,
+            },
+          ],
+          routes: [
+            { model: 'deepseek-v4-pro', provider: 'deepseek' },
+            { model: 'deepseek-v4-flash', provider: 'deepseek' },
+          ],
+        };
 
-        let doc = {};
-        try {
-          doc = yaml.load(configText) || {};
-        } catch {
-          doc = {};
-        }
-        if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) {
-          doc = {};
-        }
-        if (!doc.deepseek || typeof doc.deepseek !== 'object') {
-          doc.deepseek = {};
-        }
-        doc.deepseek.api_key = apiKey;
-
-        const nextText = yaml.dump(doc, { lineWidth: 120, noRefs: true, quotingType: '"', forceQuotes: false });
+        const nextText = yaml.dump(config, { lineWidth: 120, noRefs: true, quotingType: '"', forceQuotes: false });
         fs.writeFileSync(configPath, nextText, 'utf8');
         settings.keyConfigured = true;
       }
@@ -533,18 +479,8 @@ async function handleStartDeepseekBridge(ctx, deps) {
     const ds = status.deepseek || {};
     let bridgePath = ds.bridgePath;
 
-    // When no explicit bridgePath is set, try the managed Moon Bridge install
     if (!bridgePath || !require('fs').existsSync(bridgePath)) {
-      const copilotHome = ctx.copilotHome || require('path').join(require('os').homedir(), '.copilot');
-      const managedRoot = deps.moonBridgeBootstrap.resolveManagedMoonBridgeRoot(copilotHome);
-      const managedBinary = deps.moonBridgeBootstrap.resolveBinaryPath(managedRoot);
-      if (require('fs').existsSync(managedBinary)) {
-        bridgePath = managedBinary;
-      }
-    }
-
-    if (!bridgePath || !require('fs').existsSync(bridgePath)) {
-      deps.sendJson(ctx.res, 400, { error: 'Moon Bridge executable path is not configured or not found. Install Moon Bridge first.' });
+      deps.sendJson(ctx.res, 400, { error: 'Moon Bridge executable path is not configured or not found.' });
       return;
     }
 
@@ -570,7 +506,7 @@ async function handleStartDeepseekBridge(ctx, deps) {
     const bridgeConfigPath = ds.bridgeConfigPath || null;
     const args = [];
     if (bridgeConfigPath) {
-      args.push('--config', bridgeConfigPath);
+      args.push('-config', bridgeConfigPath);
     }
 
     deepseekBridgeStopping = false;
@@ -673,7 +609,6 @@ async function handleCheckDeepseekBridge(ctx, deps) {
     let modelsVisible = false;
     let modelIds = [];
 
-    let probeError = null;
     try {
       const probeResult = await probeDeepseekBridgeReachability(bridgeUrl, {
         fetchImpl: globalThis.fetch,
@@ -686,8 +621,7 @@ async function handleCheckDeepseekBridge(ctx, deps) {
       if (probeResult && Array.isArray(probeResult.modelIds)) {
         modelIds = probeResult.modelIds;
       }
-    } catch (err) {
-      probeError = err && typeof err === 'object' && err.message ? err.message : String(err || '');
+    } catch {
       bridgeReachable = false;
       modelsVisible = false;
       modelIds = [];
@@ -703,7 +637,7 @@ async function handleCheckDeepseekBridge(ctx, deps) {
       modelsVisible,
       modelIds,
       bridgeRunning,
-      probeError,
+      probeError: null,
     });
   } catch (err) {
     deps.sendJson(ctx.res, 500, { error: 'Failed to check Moon Bridge status', details: err.message });
@@ -716,9 +650,11 @@ async function handleGetBootstrapStatus(ctx, deps) {
     const existing = deps.codexConfig.getBootstrapState(codexHome);
     const copilotHome = ctx.copilotHome || require('path').join(require('os').homedir(), '.copilot');
 
+    const bundledSource = resolveBundledMoonBridgeSource();
     const status = deps.moonBridgeBootstrap.getBootstrapStatus({
       copilotHome,
       existingBootstrapState: existing || undefined,
+      bundledSource: bundledSource || undefined,
     });
 
     deps.sendJson(ctx.res, 200, status);
@@ -734,18 +670,16 @@ async function handleBootstrapMoonBridge(ctx, deps) {
     const body = await deps.readJsonBody(ctx.req).catch(() => ({}));
     const forceRebuild = body.forceRebuild === true;
 
+    const bundledSource = resolveBundledMoonBridgeSource();
     const result = deps.moonBridgeBootstrap.bootstrapMoonBridge({
       copilotHome,
       forceRebuild,
+      bundledSource: bundledSource || undefined,
     });
 
     deps.codexConfig.saveBootstrapState(codexHome, result.status);
 
     if (result.success) {
-      // Persist the managed config path so API key saving works without manual path entry
-      if (result.status && typeof result.status.configPath === 'string') {
-        deps.codexConfig.saveDeepseekSettings(codexHome, { bridgeConfigPath: result.status.configPath });
-      }
       deps.sendJson(ctx.res, 200, {
         success: true,
         message: 'Moon Bridge installed and built successfully.',
@@ -764,3 +698,12 @@ async function handleBootstrapMoonBridge(ctx, deps) {
 }
 
 module.exports = { register };
+
+// Test-only accessor for the module-scoped bridge process variable.
+// Tests can set this to a mock child process object to satisfy preflight checks.
+Object.defineProperty(module.exports, '_testBridgeProcess', {
+  get: () => deepseekBridgeProcess,
+  set: (v) => { deepseekBridgeProcess = v; },
+  enumerable: false,
+  configurable: true,
+});

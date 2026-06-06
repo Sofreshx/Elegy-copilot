@@ -131,6 +131,7 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     'local-tracker-node-modules',
     'local-tracker-package-json',
     'scripts',
+    'moon-bridge-binary',
     'runtime-manifests',
   ];
 
@@ -255,6 +256,7 @@ function validateTauriBundleConfig(options = {}) {
     'gen/resources/engine-assets': 'engine-assets',
     'gen/resources/local-tracker': 'local-tracker',
     'gen/resources/scripts': 'scripts',
+    'gen/resources/moon-bridge': 'moon-bridge',
   };
 
   for (const [fromPath, toPath] of Object.entries(expectedMappings)) {

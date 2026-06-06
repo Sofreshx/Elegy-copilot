@@ -11,8 +11,10 @@ const {
   resolveManagedMoonBridgeRoot,
   resolveBinaryPath,
   resolveConfigPath,
+  resolveBundledMetadataPath,
   getBootstrapStatus,
   bootstrapMoonBridge,
+  installFromBundledBinary,
 } = require('./moonBridgeBootstrap');
 
 describe('moonBridgeBootstrap', () => {
@@ -36,6 +38,10 @@ describe('moonBridgeBootstrap', () => {
       },
       writeFileSync(filePath, data) {
         fakeFs._files.set(filePath, String(data));
+      },
+      readFileSync(filePath) {
+        if (fakeFs._files.has(filePath)) return fakeFs._files.get(filePath);
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
       },
       statSync(filePath) {
         if (fakeFs._files.has(filePath)) return { isFile: () => true, isDirectory: () => false };
@@ -86,9 +92,9 @@ describe('moonBridgeBootstrap', () => {
     assert.ok(binary.endsWith('moon-bridge'));
   });
 
-  it('resolveConfigPath returns config.yaml under the install root', () => {
+  it('resolveConfigPath returns config.yml under the install root', () => {
     const cfg = resolveConfigPath('/root');
-    assert.ok(cfg.endsWith('config.yaml'));
+    assert.ok(cfg.endsWith('config.yml'));
   });
 
   // ---- getBootstrapStatus ----
@@ -118,6 +124,8 @@ describe('moonBridgeBootstrap', () => {
     assert.equal(status.built, false);
     assert.equal(status.lastBootstrapAt, null);
     assert.equal(status.lastError, null);
+    assert.equal(status.bundledSourceAvailable, false);
+    assert.equal(status.bundledInstalled, false);
   });
 
   it('getBootstrapStatus reports gitAvailable=false when git check throws', () => {
@@ -188,6 +196,7 @@ describe('moonBridgeBootstrap', () => {
       execImpl: fakeExec,
     });
     assert.equal(status.built, true);
+    assert.equal(status.bundledInstalled, false);
   });
 
   // ---- bootstrapMoonBridge ----
@@ -222,7 +231,7 @@ describe('moonBridgeBootstrap', () => {
       spawnImpl: fakeSpawn,
     });
     assert.equal(result.success, false);
-    assert.match(result.error, /go is not available/);
+    assert.match(result.error, /go 1\.25\+ is not available/);
     assert.equal(result.status.goAvailable, false);
   });
 
@@ -355,5 +364,178 @@ describe('moonBridgeBootstrap', () => {
     assert.match(result.status.lastError, /go build failed/);
     assert.equal(result.status.installed, true);
     assert.equal(result.status.built, false);
+  });
+
+  // ---- bundled binary install ----
+
+  it('installFromBundledBinary copies binary and writes metadata', () => {
+    const copilotHome = path.join(tmpDir, '.copilot');
+    const bundledSource = path.join(tmpDir, 'bundled', 'moon-bridge.exe');
+    fakeFs._dirs.add(path.dirname(bundledSource));
+    fakeFs._files.set(bundledSource, 'fake-binary-content');
+
+    const fakeCrypto = {
+      createHash() {
+        return {
+          update() { return this; },
+          digest() { return 'abc123def456'; },
+        };
+      },
+    };
+
+    const result = installFromBundledBinary({
+      copilotHome,
+      platform: 'win32',
+      bundledSource,
+      fsImpl: fakeFs,
+      cryptoImpl: fakeCrypto,
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.status.bundledInstalled, true);
+    assert.equal(result.status.built, true);
+
+    const binaryPath = resolveBinaryPath(resolveManagedMoonBridgeRoot(copilotHome), 'win32');
+    assert.ok(fakeFs._files.has(binaryPath), 'binary should be installed');
+
+    const metadataPath = resolveBundledMetadataPath(resolveManagedMoonBridgeRoot(copilotHome));
+    assert.ok(fakeFs._files.has(metadataPath), 'metadata should be written');
+    const metadata = JSON.parse(fakeFs._files.get(metadataPath));
+    assert.equal(metadata.method, 'bundled');
+    assert.equal(metadata.source, bundledSource);
+    assert.equal(metadata.sha256, 'abc123def456');
+  });
+
+  it('installFromBundledBinary fails when bundled source is missing', () => {
+    const result = installFromBundledBinary({
+      copilotHome: tmpDir,
+      platform: 'win32',
+      bundledSource: '/nonexistent/binary.exe',
+      fsImpl: fakeFs,
+    });
+
+    assert.equal(result.success, false);
+    assert.match(result.error, /not available/);
+  });
+
+  it('bootstrapMoonBridge uses bundled binary when bundledSource is provided', () => {
+    const copilotHome = path.join(tmpDir, '.copilot');
+    const bundledSource = path.join(tmpDir, 'bundled', 'moon-bridge.exe');
+    fakeFs._dirs.add(path.dirname(bundledSource));
+    fakeFs._files.set(bundledSource, 'fake-binary-content');
+
+    const fakeCrypto = {
+      createHash() {
+        return {
+          update() { return this; },
+          digest() { return 'sha256hash'; },
+        };
+      },
+    };
+
+    const result = bootstrapMoonBridge({
+      copilotHome,
+      platform: 'win32',
+      bundledSource,
+      fsImpl: fakeFs,
+      execImpl: fakeExec,
+      spawnImpl: fakeSpawn,
+      cryptoImpl: fakeCrypto,
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.status.bundledInstalled, true);
+    // git clone should NOT be called
+    const cloneCommands = fakeExec._commands.filter((c) => c.cmd.startsWith('git clone'));
+    assert.equal(cloneCommands.length, 0, 'expected no git clone when using bundled binary');
+    // go build should NOT be called
+    const buildCommands = fakeSpawn._commands.filter((c) => c.cmd === 'go');
+    assert.equal(buildCommands.length, 0, 'expected no go build when using bundled binary');
+  });
+
+  it('bootstrapMoonBridge skips bundled install when binary already exists', () => {
+    const copilotHome = path.join(tmpDir, '.copilot');
+    const installRoot = resolveManagedMoonBridgeRoot(copilotHome);
+    const bundledSource = path.join(tmpDir, 'bundled', 'moon-bridge.exe');
+    fakeFs._dirs.add(path.dirname(bundledSource));
+    fakeFs._files.set(bundledSource, 'fake-binary-content');
+    fakeFs._files.set(resolveBinaryPath(installRoot, 'win32'), 'existing-binary');
+
+    const result = bootstrapMoonBridge({
+      copilotHome,
+      platform: 'win32',
+      bundledSource,
+      fsImpl: fakeFs,
+      execImpl: fakeExec,
+      spawnImpl: fakeSpawn,
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.status.built, true);
+  });
+
+  it('bootstrapMoonBridge falls back to source build when no bundledSource', () => {
+    const copilotHome = path.join(tmpDir, '.copilot');
+    const installRoot = resolveManagedMoonBridgeRoot(copilotHome);
+
+    fakeExec.execSync = (cmd, opts) => {
+      fakeExec._commands.push({ cmd, opts });
+      fakeFs._dirs.add(path.join(installRoot, '.git'));
+      fakeFs._dirs.add(path.join(installRoot, 'bin'));
+    };
+    fakeSpawn.spawnSync = (cmd, args, opts) => {
+      fakeSpawn._commands.push({ cmd, args, opts });
+      fakeFs._files.set(resolveBinaryPath(installRoot, 'win32'), 'binary');
+      return { status: 0 };
+    };
+
+    const result = bootstrapMoonBridge({
+      copilotHome,
+      platform: 'win32',
+      fsImpl: fakeFs,
+      execImpl: fakeExec,
+      spawnImpl: fakeSpawn,
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.status.installed, true);
+    assert.equal(result.status.built, true);
+  });
+
+  it('getBootstrapStatus includes bundledInstalled and bundledSourceAvailable', () => {
+    const copilotHome = path.join(tmpDir, '.copilot');
+    const bundledSource = path.join(tmpDir, 'bundled', 'moon-bridge.exe');
+    fakeFs._files.set(bundledSource, 'binary');
+
+    const status = getBootstrapStatus({
+      copilotHome,
+      platform: 'win32',
+      fsImpl: fakeFs,
+      execImpl: fakeExec,
+      bundledSource,
+    });
+
+    assert.equal(status.bundledSourceAvailable, true);
+    assert.equal(status.bundledInstalled, false);
+    assert.equal(status.metadataPath, resolveBundledMetadataPath(resolveManagedMoonBridgeRoot(copilotHome)));
+  });
+
+  it('getBootstrapStatus reports bundledInstalled when metadata and binary exist', () => {
+    const copilotHome = path.join(tmpDir, '.copilot');
+    const installRoot = resolveManagedMoonBridgeRoot(copilotHome);
+    const binaryPath = resolveBinaryPath(installRoot, 'win32');
+    const metadataPath = resolveBundledMetadataPath(installRoot);
+    fakeFs._files.set(binaryPath, 'binary');
+    fakeFs._files.set(metadataPath, '{"method":"bundled"}');
+
+    const status = getBootstrapStatus({
+      copilotHome,
+      platform: 'win32',
+      fsImpl: fakeFs,
+      execImpl: fakeExec,
+    });
+
+    assert.equal(status.bundledInstalled, true);
+    assert.equal(status.built, true);
   });
 });

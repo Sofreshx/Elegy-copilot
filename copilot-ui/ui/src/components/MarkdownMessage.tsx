@@ -32,6 +32,29 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
   const codeBlocks: CodeBlock[] = [];
   const BLOCK_PLACEHOLDER = '___CODE_BLOCK___';
 
+  // Extract YAML frontmatter (if present at the start)
+  let frontmatterHtml = '';
+  if (source.startsWith('---\n')) {
+    const endIdx = source.indexOf('\n---\n', 4);
+    if (endIdx !== -1) {
+      const fmLines = source.slice(4, endIdx).split('\n');
+      const fmPairs: string[] = [];
+      for (const fmLine of fmLines) {
+        const sepIdx = fmLine.indexOf(':');
+        if (sepIdx !== -1) {
+          const key = escapeHtml(fmLine.slice(0, sepIdx).trim());
+          const val = escapeHtml(fmLine.slice(sepIdx + 1).trim());
+          fmPairs.push(`<dt>${key}</dt><dd>${val}</dd>`);
+        }
+      }
+      if (fmPairs.length > 0) {
+        frontmatterHtml = `<div class="markdown-frontmatter"><dl>${fmPairs.join('')}</dl></div>`;
+      }
+      // Remove frontmatter from source (including the closing ---)
+      source = source.slice(endIdx + 5);
+    }
+  }
+
   // 1. Extract fenced code blocks first so inner content is not processed
   let text = source.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang: string, code: string) => {
     const id = `cb-${codeBlocks.length}`;
@@ -44,11 +67,17 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
   const out: string[] = [];
   let inList: 'ul' | 'ol' | null = null;
   let inBlockquote = false;
+  let inTaskList = false;
+  let inTable: 'none' | 'header' | 'body' = 'none';
 
   function closeList() {
     if (inList) {
       out.push(inList === 'ul' ? '</ul>' : '</ol>');
       inList = null;
+    }
+    if (inTaskList) {
+      out.push('</ul>');
+      inTaskList = false;
     }
   }
 
@@ -59,6 +88,14 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
     }
   }
 
+  function closeTable() {
+    if (inTable !== 'none') {
+      if (inTable === 'body') out.push('</tbody>');
+      out.push('</table></div>');
+      inTable = 'none';
+    }
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
@@ -66,8 +103,60 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
     if (line.trim() === BLOCK_PLACEHOLDER) {
       closeList();
       closeBlockquote();
+      closeTable();
       out.push(BLOCK_PLACEHOLDER);
       continue;
+    }
+
+    // Close table if current line is not a table row
+    if (inTable !== 'none' && !line.match(/^\|.+\|$/)) {
+      closeTable();
+    }
+
+    // Table row detection
+    const tableRowMatch = line.match(/^\|(.+)\|$/);
+    if (tableRowMatch) {
+      const cells = tableRowMatch[1].split('|').map(c => c.trim());
+      const isSeparator = cells.length > 0 && cells.every(c => /^-+\s*$/.test(c));
+
+      if (inTable === 'none') {
+        closeList();
+        closeBlockquote();
+        if (isSeparator) {
+          // Separator without header — treat as regular text, fall through
+        } else {
+          out.push('<div class="markdown-table-wrapper"><table><thead><tr>');
+          for (const cell of cells) {
+            out.push(`<th>${escapeHtml(cell)}</th>`);
+          }
+          out.push('</tr></thead>');
+          inTable = 'header';
+          continue;
+        }
+      } else if (inTable === 'header') {
+        if (isSeparator) {
+          // Skip separator row, move to body
+          inTable = 'body';
+          continue;
+        } else {
+          // Transition to body (no separator row)
+          out.push('<tbody><tr>');
+          for (const cell of cells) {
+            out.push(`<td>${escapeHtml(cell)}</td>`);
+          }
+          out.push('</tr>');
+          inTable = 'body';
+          continue;
+        }
+      } else {
+        // inTable === 'body'
+        out.push('<tr>');
+        for (const cell of cells) {
+          out.push(`<td>${escapeHtml(cell)}</td>`);
+        }
+        out.push('</tr>');
+        continue;
+      }
     }
 
     // Horizontal rule
@@ -78,28 +167,69 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
       continue;
     }
 
-    // Headers (# → h3, ## → h4, ### → h5)
-    const headerMatch = line.match(/^(#{1,3})\s+(.+)$/);
+    // Headers (h1-h4)
+    const headerMatch = line.match(/^(#{1,4})\s+(.+)$/);
     if (headerMatch) {
       closeList();
       closeBlockquote();
-      const level = headerMatch[1].length + 2; // 1→h3, 2→h4, 3→h5
+      closeTable();
+      const level = headerMatch[1].length; // 1→h1, 2→h2, 3→h3, 4→h4
       out.push(`<h${level}>${escapeHtml(headerMatch[2])}</h${level}>`);
       continue;
     }
 
-    // Blockquote
+    // Blockquote (with callout support)
     const bqMatch = line.match(/^>\s?(.*)$/);
     if (bqMatch) {
       closeList();
+      const bqContent = bqMatch[1];
       if (!inBlockquote) {
         inBlockquote = true;
-        out.push('<blockquote>');
+        // Check for callout marker at start of content
+        const calloutMatch = bqContent.match(/^\[!(NOTE|WARNING|TIP|IMPORTANT|CAUTION|INFO)\]\s*/i);
+        if (calloutMatch) {
+          const calloutType = calloutMatch[1].toLowerCase();
+          const calloutIcons: Record<string, string> = {
+            note: '\u2139\uFE0F',
+            warning: '\u26A0\uFE0F',
+            tip: '\uD83D\uDCA1',
+            important: '\u2757',
+            caution: '\uD83D\uDD25',
+            info: '\u2139\uFE0F',
+          };
+          const icon = calloutIcons[calloutType] || '';
+          out.push(`<blockquote class="markdown-callout markdown-callout-${calloutType}">`);
+          out.push(`<span class="markdown-callout-label">${icon} ${calloutMatch[1]}</span>`);
+          // Strip the callout marker from the content
+          const rest = bqContent.replace(calloutMatch[0], '').trim();
+          if (rest) {
+            out.push(escapeHtml(rest));
+          }
+        } else {
+          out.push('<blockquote>');
+          out.push(escapeHtml(bqContent));
+        }
+      } else {
+        out.push(escapeHtml(bqContent));
       }
-      out.push(escapeHtml(bqMatch[1]));
       continue;
     } else if (inBlockquote) {
       closeBlockquote();
+    }
+
+    // Task list items
+    const taskMatch = line.match(/^(\s*)[-*]\s+\[([ xX])\]\s+(.+)$/);
+    if (taskMatch) {
+      const checked = taskMatch[2].toLowerCase() === 'x';
+      const text = taskMatch[3];
+      closeBlockquote();
+      if (!inTaskList) {
+        closeList();
+        inTaskList = true;
+        out.push('<ul class="task-list">');
+      }
+      out.push(`<li class="task-list-item"><input type="checkbox" disabled${checked ? ' checked' : ''}><label>${escapeHtml(text)}</label></li>`);
+      continue;
     }
 
     // Unordered list
@@ -126,8 +256,9 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
       continue;
     }
 
-    // Not a list item — close any open list
+    // Not a list item — close any open list or table
     closeList();
+    closeTable();
 
     // Blank line → paragraph break
     if (line.trim() === '') {
@@ -141,6 +272,7 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
 
   closeList();
   closeBlockquote();
+  closeTable();
 
   // 3. Apply inline formatting to the assembled HTML
   let html = out.join('\n');
@@ -175,7 +307,33 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
     },
   );
 
-  return { html, codeBlocks };
+  // 4. Inline tags (#tag) and status words outside code/pre elements
+  // Protect existing code/pre elements so we don't modify their contents
+  const protectedHtml: string[] = [];
+  html = html.replace(/(<code[^>]*>[\s\S]*?<\/code>|<pre[^>]*>[\s\S]*?<\/pre>)/g, (match) => {
+    protectedHtml.push(match);
+    return `___PROTECTED_${protectedHtml.length - 1}___`;
+  });
+
+  // Inline tags: #tagName (word starting with #)
+  html = html.replace(/(?<!\w)(#\w+)/g, '<span class="markdown-tag">$1</span>');
+
+  // Status words at start of paragraph content
+  html = html.replace(
+    /(<p>)\s*(Status|Priority|Type):\s*(.+?)(<\/p>)/gi,
+    (_match: string, openP: string, label: string, value: string, closeP: string) => {
+      // Avoid double-wrapping
+      if (value.includes('markdown-status')) return _match;
+      return `${openP}${label}: <span class="markdown-status">${value}</span>${closeP}`;
+    },
+  );
+
+  // Restore protected code/pre elements
+  html = html.replace(/___PROTECTED_(\d+)___/g, (_match: string, index: string) => {
+    return protectedHtml[parseInt(index, 10)];
+  });
+
+  return { html: frontmatterHtml + html, codeBlocks };
 }
 
 export default function MarkdownMessage({
@@ -216,11 +374,17 @@ export default function MarkdownMessage({
     DOMPurify.sanitize(dirty, {
       ALLOWED_TAGS: [
         'p', 'br', 'strong', 'em', 'code', 'pre',
-        'h3', 'h4', 'h5',
+        'h1', 'h2', 'h3', 'h4', 'h5',
         'ul', 'ol', 'li',
         'blockquote', 'a', 'hr',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'dl', 'dt', 'dd',
+        'input', 'label', 'span', 'div',
       ],
-      ALLOWED_ATTR: ['href', 'target', 'rel', 'data-doc-link', 'data-wiki-link', 'class'],
+      ALLOWED_ATTR: [
+        'href', 'target', 'rel', 'data-doc-link', 'data-wiki-link', 'class',
+        'type', 'disabled', 'checked',
+      ],
     });
 
   return (

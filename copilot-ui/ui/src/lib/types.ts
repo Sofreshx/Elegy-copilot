@@ -3142,7 +3142,6 @@ export interface CodexProviderGatewayConfig {
   providerId: string;
   model: string;
   baseUrl: string;
-  envKey: string;
   [key: string]: unknown;
 }
 
@@ -3155,7 +3154,6 @@ export interface CodexProviderDeepseekStatus {
   modelsVisible: boolean;
   bridgeBinaryAvailable: boolean;
   bridgeCheckoutAvailable: boolean;
-  envKeyConfigured: boolean;
   bridgeRunning?: boolean;
   probeError?: string | null;
   modelIds?: string[];
@@ -3167,10 +3165,13 @@ export interface MoonBridgeBootstrapStatus {
   sourceUrl: string;
   binaryPath: string;
   configPath: string;
+  metadataPath: string;
   gitAvailable: boolean;
   goAvailable: boolean;
   installed: boolean;
   built: boolean;
+  bundledInstalled: boolean;
+  bundledSourceAvailable: boolean;
   lastBootstrapAt: string | null;
   lastError: string | null;
 }
@@ -3181,9 +3182,10 @@ export interface CodexProviderStatusResponse {
   statePath: string;
   backupPath: string;
   exists: boolean;
-  activeMode: 'native' | 'elegy-routed' | 'deepseek-bridge' | string;
+  activeMode: 'native' | 'deepseek-bridge' | string;
   providerId: string;
   hasManagedBlock: boolean;
+  hasLegacyBlock?: boolean;
   hasBackup: boolean;
   lastAppliedAt?: string | null;
   lastResetAt?: string | null;
