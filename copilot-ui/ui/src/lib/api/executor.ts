@@ -61,3 +61,77 @@ export async function listExecutorWorktrees(
     worktreeDiscovery: normalizeExecutorWorktreeDiscovery(record.worktreeDiscovery),
   };
 }
+
+// ─── Cleanup endpoints ──────────────────────────────────────────────────────
+
+export interface WorktreeCleanupAnalyzeResponse {
+  eligible: boolean;
+  reason: string;
+  dirty: boolean;
+  dirtyFiles: number;
+  missing: boolean;
+  assigned: boolean;
+  mergedIntoCurrentOrDefault: boolean;
+  conflicts: boolean;
+  conflictFiles: string[];
+  diagnostics: string[];
+  branch: string;
+  repoPath: string;
+  worktreePath: string;
+}
+
+export interface WorktreeCleanupRemoveResponse {
+  removed: boolean;
+  worktreePath: string;
+  repoPath: string;
+  output?: string;
+  error?: string;
+}
+
+export interface WorktreePruneResponse {
+  pruned: boolean;
+  repoPath: string;
+  output?: string;
+  diagnostics?: string[];
+  error?: string;
+}
+
+export async function analyzeWorktreeCleanup(
+  repoPath: string,
+  worktreePath: string,
+  branch?: string | null,
+  baseUrl?: string,
+): Promise<WorktreeCleanupAnalyzeResponse> {
+  return apiRequest<WorktreeCleanupAnalyzeResponse>('/api/executor/worktrees/cleanup/analyze', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, worktreePath, branch }),
+  });
+}
+
+export async function removeWorktree(
+  repoPath: string,
+  worktreePath: string,
+  force?: boolean,
+  baseUrl?: string,
+): Promise<WorktreeCleanupRemoveResponse> {
+  return apiRequest<WorktreeCleanupRemoveResponse>('/api/executor/worktrees/cleanup/remove', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, worktreePath, force: force || false }),
+  });
+}
+
+export async function pruneWorktrees(
+  repoPath: string,
+  baseUrl?: string,
+): Promise<WorktreePruneResponse> {
+  return apiRequest<WorktreePruneResponse>('/api/executor/worktrees/prune', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath }),
+  });
+}

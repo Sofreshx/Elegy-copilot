@@ -25,9 +25,9 @@ export default function WorkspaceLocalTabs({ activeTab, onTabChange }: Workspace
           role="tab"
           aria-selected={activeTab === tab.id}
           data-testid={`workspace-local-tab-${tab.id}`}
+          title={tab.label}
         >
           <span className="workspace-local-tab-icon">{tab.icon}</span>
-          <span className="workspace-local-tab-label">{tab.label}</span>
         </button>
       ))}
     </div>

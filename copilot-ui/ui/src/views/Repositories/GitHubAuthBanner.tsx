@@ -22,18 +22,12 @@ export default function GitHubAuthBanner({ repoPath }: GitHubAuthBannerProps) {
 
   if (!repoPath) return null;
 
+  if (state.githubAuthenticated) return null;
+
   if (state.githubAuthChecking) {
     return (
       <div className="github-auth-banner github-auth-banner-checking" data-testid="github-auth-checking">
         Checking GitHub authentication\u2026
-      </div>
-    );
-  }
-
-  if (state.githubAuthenticated) {
-    return (
-      <div className="github-auth-banner github-auth-banner-authenticated" data-testid="github-auth-authenticated">
-        \u2705 GitHub CLI authenticated
       </div>
     );
   }

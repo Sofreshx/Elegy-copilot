@@ -6,7 +6,7 @@ import { repositoriesStore } from '../Repositories/repositoriesStore';
 import { gitStore } from '../../stores/gitStore';
 import { runGitChecks } from '../../lib/api/git';
 import type { GitCheckResults } from '../../lib/api/git';
-import { getWorkspaceLaunchers } from '../../lib/api/workspace';
+import { getWorkspaceLaunchers, launchWorkspace } from '../../lib/api/workspace';
 import type { WorkspaceLauncher } from '../../lib/api/workspace';
 import RepoSelectorPanel from '../Repositories/RepoSelectorPanel';
 import SourcesConfigPanel from '../Repositories/SourcesConfigPanel';
@@ -27,7 +27,17 @@ export default function WorkspaceView() {
   const [checkResults, setCheckResults] = useState<GitCheckResults | null>(null);
   const [runningChecks, setRunningChecks] = useState(false);
   const [launchers, setLaunchers] = useState<WorkspaceLauncher[]>([]);
+  const [launching, setLaunching] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const lastCheckRef = useRef<{ branch: string | null; head: string | null; changeCount: number } | null>(null);
+
+  const GROUP_ORDER = ['ides', 'agents', 'terminals'] as const;
+  const GROUP_LABELS: Record<string, string> = {
+    ides: 'IDEs',
+    agents: 'Agent CLIs',
+    terminals: 'Terminals',
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -114,6 +124,50 @@ export default function WorkspaceView() {
     }
   }
 
+  // ─── Group launchers ─────────────────────────────────────────────────────
+  const grouped = new Map<string, WorkspaceLauncher[]>();
+  for (const l of launchers) {
+    const group = l.group || 'unknown';
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group)!.push(l);
+  }
+  const availableLaunchers = launchers.filter((l) => l.available);
+
+  // ─── Launch handler ──────────────────────────────────────────────────────
+  async function handleLaunch(launcherId: string) {
+    if (!selectedRepoPath) return;
+    setLaunching(launcherId);
+    setMenuOpen(false);
+    try {
+      const result = await launchWorkspace(launcherId, selectedRepoPath);
+      if (!result.ok) {
+        notificationStore.error('Launch failed', { message: `Failed to open ${launcherId}` });
+      }
+    } catch (err) {
+      notificationStore.error('Launch failed', { message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setLaunching(null);
+    }
+  }
+
+  // ─── Stabilized callbacks ───────────────────────────────────────────────
+  const handleCommit = useCallback(() => { void gitStore.commit(); }, []);
+  const handlePush = useCallback(() => { void gitStore.push(); }, []);
+  const handleCreatePR = useCallback(() => { void gitStore.createPullRequest(); }, []);
+
+  // ─── Close menu on outside click ─────────────────────────────────────────
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
+
   return (
     <div className="workspace-view" data-testid="workspace-view">
       {selectedRepoPath ? (
@@ -126,6 +180,45 @@ export default function WorkspaceView() {
             />
             <div className="workspace-brand" data-testid="workspace-brand">
               <img src="/elegy-copilot-icon.svg" alt="Elegy Copilot" className="workspace-brand-icon" />
+            </div>
+            <div className="workspace-launch-actions" ref={menuRef}>
+              <button
+                className="workspace-launch-trigger"
+                onClick={() => setMenuOpen(!menuOpen)}
+                aria-label="Open in..."
+                title="Open in..."
+                disabled={availableLaunchers.length === 0}
+                type="button"
+              >
+                <span className="workspace-launch-trigger-icon">{launching ? '\u23F3' : '\u25B6'}</span>
+              </button>
+              {menuOpen && (
+                <div className="workspace-launch-menu" data-testid="workspace-launch-menu">
+                  {GROUP_ORDER.filter((g) => grouped.has(g)).map((group) => (
+                    <div key={group} className="workspace-launch-menu-group">
+                      <div className="workspace-launch-menu-group-label">{GROUP_LABELS[group] || group}</div>
+                      {grouped.get(group)!.map((launcher) => (
+                        <button
+                          key={launcher.id}
+                          className="workspace-launch-menu-item"
+                          type="button"
+                          disabled={!launcher.available || launching === launcher.id}
+                          onClick={() => void handleLaunch(launcher.id)}
+                          data-testid={`workspace-launch-${launcher.id}`}
+                          title={launcher.available ? undefined : launcher.reason || `${launcher.label} is not available`}
+                        >
+                          <span className="workspace-launch-menu-item-label">
+                            {launching === launcher.id ? 'Opening...' : launcher.label}
+                          </span>
+                          {launcher.argsPreview ? (
+                            <span className="workspace-launch-menu-item-args">{launcher.argsPreview}</span>
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -154,12 +247,11 @@ export default function WorkspaceView() {
                 verificationState={verificationState}
                 checkResults={checkResults}
                 runningChecks={runningChecks}
-                launchers={launchers}
                 onRunChecks={handleRunChecks}
-                onCommit={() => void gitStore.commit()}
-                onPush={() => void gitStore.push()}
+                onCommit={handleCommit}
+                onPush={handlePush}
                 onOpenPR={handleOpenPR}
-                onCreatePR={() => void gitStore.createPullRequest()}
+                onCreatePR={handleCreatePR}
                 onSetCommitMessage={(msg: string) => gitStore.setCommitMessage(msg)}
                 onSetPullRequestTitle={(t: string) => gitStore.setPullRequestTitle(t)}
                 onSetPullRequestBody={(b: string) => gitStore.setPullRequestBody(b)}
