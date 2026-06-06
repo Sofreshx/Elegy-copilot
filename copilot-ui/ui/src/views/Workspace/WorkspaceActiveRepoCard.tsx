@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button, Panel } from '../../components';
+import { Panel } from '../../components';
 import { notificationStore } from '../../stores/notificationStore';
 import type { CatalogRepoInventoryEntry } from '../../lib/types';
 import type { GitSummaryResponse, GitPullRequestResponse } from '../../lib/api/git';
@@ -23,6 +23,12 @@ const GROUP_LABELS: Record<string, string> = {
   ides: 'IDEs',
   agents: 'Agent CLIs',
   terminals: 'Terminals',
+};
+
+const LAUNCHER_ICONS: Record<string, string> = {
+  ides: '\u25C8',   // ◈ (window/editor)
+  agents: '\u26A1', // ⚡ (agent/automation)
+  terminals: '\u003E\u005F', // >_ (terminal prompt)
 };
 
 export default function WorkspaceActiveRepoCard({
@@ -127,15 +133,18 @@ export default function WorkspaceActiveRepoCard({
         </div>
       </div>
       <div className="workspace-launch-actions" ref={menuRef}>
-        <Button
-          variant="primary"
-          size="sm"
-          testId="workspace-launch-trigger"
+        <button
+          className="workspace-launch-trigger"
+          type="button"
+          data-testid="workspace-launch-trigger"
+          aria-label="Open in"
+          title="Open in"
           disabled={availableLaunchers.length === 0}
           onClick={() => setMenuOpen(!menuOpen)}
         >
-          {launching ? 'Opening...' : 'Open in...'}
-        </Button>
+          <span className="workspace-launch-trigger-icon">&gt;_</span>
+          <span className="workspace-launch-trigger-chevron">&#9660;</span>
+        </button>
         {menuOpen && (
           <div className="workspace-launch-menu" data-testid="workspace-launch-menu">
             {GROUP_ORDER.filter((g) => grouped.has(g)).map((group) => (
@@ -151,6 +160,9 @@ export default function WorkspaceActiveRepoCard({
                     data-testid={`workspace-launch-${launcher.id}`}
                     title={launcher.available ? undefined : launcher.reason || `${launcher.label} is not available`}
                   >
+                    <span className="workspace-launch-menu-item-icon" aria-hidden="true">
+                      {LAUNCHER_ICONS[launcher.group] || LAUNCHER_ICONS.ides}
+                    </span>
                     <span className="workspace-launch-menu-item-label">
                       {launching === launcher.id ? 'Opening...' : launcher.label}
                     </span>

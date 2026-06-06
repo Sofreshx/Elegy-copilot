@@ -15,13 +15,6 @@ const ALLOWED_KINDS = new Set(['dev', 'test', 'check', 'build', 'lint', 'clean',
 // Backslash is excluded since Windows paths use \ and shell: false prevents interpretation
 const SHELL_META_RE = /[;&|`$(){}!<>#*\?\[\]]/;
 
-function shellEscapePathPosix(filePath) {
-  // Wrap in single quotes, escaping embedded single quotes.
-  // Safe for cd, args, and other POSIX shell contexts.
-  const escaped = String(filePath).replace(/'/g, "'\\''");
-  return `'${escaped}'`;
-}
-
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -350,6 +343,88 @@ function detectLaunchers() {
   return launchers;
 }
 
+function detectTerminal() {
+  const platform = process.platform;
+  if (platform !== 'win32') return null;
+
+  const { execSync } = require('child_process');
+  const candidates = [
+    { cmd: 'wt.exe', type: 'wt' },
+    { cmd: 'pwsh.exe', type: 'pwsh' },
+    { cmd: 'powershell.exe', type: 'powershell' },
+  ];
+
+  for (const c of candidates) {
+    try {
+      execSync(`where ${c.cmd}`, { stdio: 'ignore', timeout: 3000 });
+      return c;
+    } catch { /* try next */ }
+  }
+
+  return { cmd: 'pwsh.exe', type: 'pwsh' };
+}
+
+function buildLauncherCommand(launcher, repoPath, platform, terminalInfo) {
+  const isAgent = launcher.group === 'agents';
+  const isTerminalObj = launcher.id === 'terminal';
+
+  if (platform === 'win32') {
+    // --- Terminal launcher ---
+    if (isTerminalObj) {
+      if (terminalInfo && terminalInfo.type === 'wt') {
+        return { cmd: 'wt.exe', args: ['-d', repoPath, 'pwsh', '-NoExit'] };
+      }
+      const termCmd = terminalInfo ? terminalInfo.cmd : 'pwsh.exe';
+      return { cmd: termCmd, args: ['-NoExit', '-Command', `Set-Location -LiteralPath '${repoPath}'`] };
+    }
+
+    // --- Agent CLI launcher ---
+    if (isAgent) {
+      // Map launcher id to its subcommand
+      const agentSubCommand = launcher.id === 'opencode' ? 'opencode .' :
+                              launcher.id === 'codex' ? 'codex' :
+                              launcher.id === 'copilot' ? 'copilot' :
+                              `${launcher.command} .`;
+
+      if (terminalInfo && terminalInfo.type === 'wt') {
+        return { cmd: 'wt.exe', args: ['-d', repoPath, 'pwsh', '-NoExit', '-Command', agentSubCommand] };
+      }
+      const termCmd = terminalInfo ? terminalInfo.cmd : 'pwsh.exe';
+      return { cmd: termCmd, args: ['-NoExit', '-Command', `Set-Location -LiteralPath '${repoPath}'; ${agentSubCommand}`] };
+    }
+
+    // --- IDE launcher ---
+    return { cmd: launcher.command, args: [repoPath] };
+  }
+
+  // --- macOS ---
+  if (platform === 'darwin') {
+    if (isTerminalObj) {
+      return { cmd: 'open', args: ['-a', 'Terminal', repoPath] };
+    }
+    if (isAgent) {
+      const agentCommand = launcher.command;
+      return {
+        cmd: 'osascript',
+        args: [
+          '-e',
+          `tell application "Terminal" to do script "cd '${repoPath.replace(/'/g, "'\\''")}' && ${agentCommand} ."`,
+        ],
+      };
+    }
+    return { cmd: launcher.command, args: [repoPath] };
+  }
+
+  // --- Linux ---
+  if (isTerminalObj) {
+    return { cmd: 'x-terminal-emulator', args: ['--working-directory', repoPath] };
+  }
+  if (isAgent) {
+    return { cmd: 'x-terminal-emulator', args: ['--working-directory', repoPath, '-e', launcher.command] };
+  }
+  return { cmd: launcher.command, args: [repoPath] };
+}
+
 async function handleLaunch(ctx, deps) {
   const { res } = ctx;
   const { sendJson, readJsonBody } = deps;
@@ -394,43 +469,16 @@ async function handleLaunch(ctx, deps) {
   }
 
   try {
-    let cmd, args;
-    const isAgent = launcher.group === 'agents';
+    const platform = process.platform;
+    const terminalInfo = detectTerminal();
+    const launchCmd = buildLauncherCommand(launcher, root, platform, terminalInfo);
 
-    if (launcherId === 'terminal') {
-      if (process.platform === 'win32') {
-        cmd = 'pwsh';
-        args = ['-NoExit', '-WorkingDirectory', root];
-      } else if (process.platform === 'darwin') {
-        cmd = 'open';
-        args = ['-a', 'Terminal', root];
-      } else {
-        cmd = 'x-terminal-emulator';
-        args = ['--working-directory', root];
-      }
-    } else if (isAgent) {
-      // Agent CLIs open inside an interactive terminal in the repo directory
-      const agentCommand = launcher.command || launcher.cmd;
-      if (process.platform === 'win32') {
-        cmd = 'pwsh';
-        args = ['-NoExit', '-WorkingDirectory', root, '-Command', `${agentCommand} .`];
-      } else if (process.platform === 'darwin') {
-        // Use osascript to tell Terminal to open a new window with the agent
-        cmd = 'osascript';
-        args = [
-          '-e',
-          `tell application "Terminal" to do script "cd ${shellEscapePathPosix(root)} && ${agentCommand} ."`,
-        ];
-      } else {
-        cmd = 'x-terminal-emulator';
-        args = ['--working-directory', root, '-e', agentCommand];
-      }
-    } else {
-      cmd = launcher.command || launcher.cmd;
-      args = [root];
+    if (!launchCmd) {
+      sendJson(res, 500, { error: `Unsupported launcher: ${launcher.id}` });
+      return;
     }
 
-    const child = spawn(cmd, args, {
+    const child = spawn(launchCmd.cmd, launchCmd.args, {
       detached: true,
       stdio: 'ignore',
       shell: false,
@@ -570,4 +618,6 @@ module.exports = {
   readWorkspaceConfig,
   normalizeCommand,
   detectPackageScripts,
+  buildLauncherCommand,
+  detectTerminal,
 };

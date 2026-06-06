@@ -16,6 +16,8 @@ const {
   readWorkspaceConfig,
   normalizeCommand,
   detectPackageScripts,
+  buildLauncherCommand,
+  detectTerminal,
 } = require('./workspace');
 
 function createMockCtx(queryParams = {}) {
@@ -375,6 +377,155 @@ describe('workspace route handlers', () => {
       } finally {
         fs.rmSync(tmpDir, { recursive: true, force: true });
       }
+    });
+  });
+
+  describe('buildLauncherCommand', () => {
+    const repoPath = 'C:\\Users\\test\\my-repo';
+
+    function makeLauncher(overrides = {}) {
+      return {
+        id: 'opencode',
+        label: 'OpenCode CLI',
+        group: 'agents',
+        command: 'opencode',
+        available: true,
+        argsPreview: '<repo-path>',
+        ...overrides,
+      };
+    }
+
+    describe('Windows (win32)', () => {
+      const platform = 'win32';
+
+      it('uses wt.exe when available for agent CLI (OpenCode)', () => {
+        const launcher = makeLauncher();
+        const terminal = { cmd: 'wt.exe', type: 'wt' };
+        const result = buildLauncherCommand(launcher, repoPath, platform, terminal);
+        assert.equal(result.cmd, 'wt.exe');
+        assert.deepEqual(result.args, ['-d', repoPath, 'pwsh', '-NoExit', '-Command', 'opencode .']);
+      });
+
+      it('uses wt.exe when available for agent CLI (Codex)', () => {
+        const launcher = makeLauncher({ id: 'codex', label: 'Codex CLI', command: 'codex' });
+        const terminal = { cmd: 'wt.exe', type: 'wt' };
+        const result = buildLauncherCommand(launcher, repoPath, platform, terminal);
+        assert.equal(result.cmd, 'wt.exe');
+        assert.deepEqual(result.args, ['-d', repoPath, 'pwsh', '-NoExit', '-Command', 'codex']);
+      });
+
+      it('uses wt.exe when available for agent CLI (Copilot)', () => {
+        const launcher = makeLauncher({ id: 'copilot', label: 'Copilot CLI', command: 'copilot' });
+        const terminal = { cmd: 'wt.exe', type: 'wt' };
+        const result = buildLauncherCommand(launcher, repoPath, platform, terminal);
+        assert.equal(result.cmd, 'wt.exe');
+        assert.deepEqual(result.args, ['-d', repoPath, 'pwsh', '-NoExit', '-Command', 'copilot']);
+      });
+
+      it('falls back to pwsh.exe for agent CLI when wt.exe unavailable', () => {
+        const launcher = makeLauncher();
+        const terminal = { cmd: 'pwsh.exe', type: 'pwsh' };
+        const result = buildLauncherCommand(launcher, repoPath, platform, terminal);
+        assert.equal(result.cmd, 'pwsh.exe');
+        assert.equal(result.args[0], '-NoExit');
+        assert.equal(result.args[1], '-Command');
+        assert.ok(result.args[2].includes('Set-Location'));
+        assert.ok(result.args[2].includes(repoPath));
+        assert.ok(result.args[2].includes('opencode .'));
+      });
+
+      it('falls back to powershell.exe for agent CLI', () => {
+        const launcher = makeLauncher();
+        const terminal = { cmd: 'powershell.exe', type: 'powershell' };
+        const result = buildLauncherCommand(launcher, repoPath, platform, terminal);
+        assert.equal(result.cmd, 'powershell.exe');
+        assert.equal(result.args[0], '-NoExit');
+        assert.equal(result.args[1], '-Command');
+        assert.ok(result.args[2].includes('Set-Location'));
+        assert.ok(result.args[2].includes('opencode .'));
+      });
+
+      it('uses wt.exe for terminal launcher', () => {
+        const launcher = makeLauncher({ id: 'terminal', label: 'Terminal', group: 'terminals', command: 'terminal' });
+        const terminal = { cmd: 'wt.exe', type: 'wt' };
+        const result = buildLauncherCommand(launcher, repoPath, platform, terminal);
+        assert.equal(result.cmd, 'wt.exe');
+        assert.deepEqual(result.args, ['-d', repoPath, 'pwsh', '-NoExit']);
+      });
+
+      it('falls back to pwsh.exe for terminal launcher', () => {
+        const launcher = makeLauncher({ id: 'terminal', label: 'Terminal', group: 'terminals', command: 'terminal' });
+        const terminal = { cmd: 'pwsh.exe', type: 'pwsh' };
+        const result = buildLauncherCommand(launcher, repoPath, platform, terminal);
+        assert.equal(result.cmd, 'pwsh.exe');
+        assert.equal(result.args[0], '-NoExit');
+        assert.equal(result.args[1], '-Command');
+        assert.ok(result.args[2].includes('Set-Location'));
+        assert.ok(result.args[2].includes(repoPath));
+        // Terminal: should NOT include an agent command
+        assert.ok(!result.args[2].includes('opencode'));
+        assert.ok(!result.args[2].includes('codex'));
+      });
+
+      it('IDE launcher passes repo path directly on Windows', () => {
+        const launcher = makeLauncher({ id: 'vscode', label: 'VS Code', group: 'ides', command: 'code' });
+        const terminal = { cmd: 'wt.exe', type: 'wt' };
+        const result = buildLauncherCommand(launcher, repoPath, platform, terminal);
+        assert.equal(result.cmd, 'code');
+        assert.deepEqual(result.args, [repoPath]);
+      });
+    });
+
+    describe('macOS (darwin)', () => {
+      const platform = 'darwin';
+
+      it('IDE launcher passes repo path directly on macOS', () => {
+        const launcher = makeLauncher({ id: 'cursor', label: 'Cursor', group: 'ides', command: 'cursor' });
+        const result = buildLauncherCommand(launcher, repoPath, platform, null);
+        assert.equal(result.cmd, 'cursor');
+        assert.deepEqual(result.args, [repoPath]);
+      });
+
+      it('terminal launcher uses open -a Terminal on macOS', () => {
+        const launcher = makeLauncher({ id: 'terminal', label: 'Terminal', group: 'terminals', command: 'terminal' });
+        const result = buildLauncherCommand(launcher, repoPath, platform, null);
+        assert.equal(result.cmd, 'open');
+        assert.deepEqual(result.args, ['-a', 'Terminal', repoPath]);
+      });
+
+      it('agent CLI uses osascript on macOS', () => {
+        const launcher = makeLauncher();
+        const result = buildLauncherCommand(launcher, repoPath, platform, null);
+        assert.equal(result.cmd, 'osascript');
+        assert.equal(result.args[0], '-e');
+        assert.ok(result.args[1].includes('Terminal'));
+        assert.ok(result.args[1].includes('opencode'));
+      });
+    });
+
+    describe('Linux', () => {
+      const platform = 'linux';
+
+      it('IDE launcher passes repo path directly on Linux', () => {
+        const launcher = makeLauncher({ id: 'codium', label: 'VSCodium', group: 'ides', command: 'codium' });
+        const result = buildLauncherCommand(launcher, repoPath, platform, null);
+        assert.equal(result.cmd, 'codium');
+        assert.deepEqual(result.args, [repoPath]);
+      });
+
+      it('terminal launcher uses x-terminal-emulator on Linux', () => {
+        const launcher = makeLauncher({ id: 'terminal', label: 'Terminal', group: 'terminals', command: 'terminal' });
+        const result = buildLauncherCommand(launcher, repoPath, platform, null);
+        assert.equal(result.cmd, 'x-terminal-emulator');
+        assert.deepEqual(result.args, ['--working-directory', repoPath]);
+      });
+
+      it('agent CLI uses x-terminal-emulator -e on Linux', () => {
+        const launcher = makeLauncher();
+        const result = buildLauncherCommand(launcher, repoPath, platform, null);
+        assert.equal(result.cmd, 'x-terminal-emulator');
+        assert.deepEqual(result.args, ['--working-directory', repoPath, '-e', 'opencode']);
+      });
     });
   });
 
