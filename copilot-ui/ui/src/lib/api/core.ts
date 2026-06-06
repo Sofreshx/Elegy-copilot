@@ -2930,11 +2930,69 @@ export function normalizeExecutorWorktreeRecord(value: unknown): ExecutorWorktre
     return null;
   }
   const record = asRecord(value);
+  const gitRecord = asRecord(record.git);
+  const pathValue = asTrimmedString(record.path || record.worktreePath) || null;
+  const branchValue = asTrimmedString(record.branch) || null;
+  const sourceValue = asTrimmedString(record.source) || null;
+  const modeValue = asTrimmedString(record.mode) || null;
+  const statusValue = asTrimmedString(record.status) || null;
+  const headValue = asTrimmedString(record.head) || null;
+  const git: ExecutorWorktreeRecord['git'] = Object.keys(gitRecord).length > 0
+    ? {
+        head: asTrimmedString(gitRecord.head) || null,
+        detached: asBoolean(gitRecord.detached, false),
+        bare: asBoolean(gitRecord.bare, false),
+        locked: asTrimmedString(gitRecord.locked) || null,
+        prunable: asTrimmedString(gitRecord.prunable) || null,
+        guid: asTrimmedString(gitRecord.guid) || null,
+        branch: asTrimmedString(gitRecord.branch) || null,
+        ahead: asNumber(gitRecord.ahead, 0),
+        behind: asNumber(gitRecord.behind, 0),
+        staged: asNumber(gitRecord.staged, 0),
+        unstaged: asNumber(gitRecord.unstaged, 0),
+        untracked: asNumber(gitRecord.untracked, 0),
+        changed: asNumber(gitRecord.changed, 0),
+        probeError: asTrimmedString(gitRecord.probeError) || null,
+        mtimeMs: typeof gitRecord.mtimeMs === 'number' && Number.isFinite(gitRecord.mtimeMs) ? gitRecord.mtimeMs : null,
+      }
+    : null;
   return {
     ...worktree,
     repoId: asTrimmedString(record.repoId) || null,
     repoPath: asTrimmedString(record.repoPath) || null,
     repoLabel: asTrimmedString(record.repoLabel) || null,
     updatedAt: asTrimmedString(record.updatedAt) || null,
+    path: pathValue,
+    worktreePath: pathValue,
+    source: sourceValue,
+    mode: modeValue,
+    branch: branchValue,
+    status: statusValue,
+    head: headValue,
+    detached: typeof record.detached === 'boolean' ? record.detached : (git ? git.detached : null),
+    git,
+    discovery: asTrimmedString(record.discovery) || null,
+    lifecycle: asRecord(record.lifecycle),
+    validation: asRecord(record.validation),
+    _discovered: asBoolean(record._discovered, false),
+    _discoveredOnly: asBoolean(record._discoveredOnly, false),
+    _merged: asTrimmedString(record._merged) || null,
+    _stableOrder: typeof record._stableOrder === 'number' && Number.isFinite(record._stableOrder) ? record._stableOrder : null,
+  };
+}
+
+export function normalizeExecutorWorktreeDiscovery(value: unknown): ExecutorWorktreeDiscovery | null {
+  const record = asRecord(value);
+  if (Object.keys(record).length === 0) {
+    return null;
+  }
+  return {
+    contractVersion: asTrimmedString(record.contractVersion) || '1',
+    repoId: asTrimmedString(record.repoId) || null,
+    repoPath: asTrimmedString(record.repoPath) || null,
+    gitListOk: typeof record.gitListOk === 'boolean' ? record.gitListOk : null,
+    gitListError: asTrimmedString(record.gitListError) || null,
+    persistedCount: asNumber(record.persistedCount, 0),
+    discoveredCount: asNumber(record.discoveredCount, 0),
   };
 }

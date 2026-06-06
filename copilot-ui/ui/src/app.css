@@ -8672,3 +8672,166 @@ textarea:focus-visible,
 .workspace-command-stderr {
   color: var(--color-danger-500);
 }
+
+/* ── Worktrees Card ── */
+
+.workspace-worktrees-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2xs);
+}
+
+.workspace-worktree-item {
+  display: grid;
+  gap: var(--space-2xs);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-1);
+}
+
+.workspace-worktree-item.workspace-worktree-dirty {
+  border-color: var(--color-warning-500, var(--color-warning-200, #f5a623));
+}
+
+.workspace-worktree-item.workspace-worktree-missing {
+  border-color: var(--color-danger-500, #d93025);
+  background: var(--color-danger-50, #fde7e7);
+}
+
+.workspace-worktree-item.workspace-worktree-blocked {
+  border-color: var(--color-warning-500, #f5a623);
+}
+
+.workspace-worktree-item.workspace-worktree-assigned {
+  background: var(--color-brand-50);
+}
+
+.workspace-worktree-item.workspace-worktree-interrupted {
+  background: var(--color-warning-50, #fff5e0);
+}
+
+.workspace-worktree-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.workspace-worktree-meta {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--color-ink-500);
+}
+
+.workspace-worktree-source {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-700);
+  background: var(--color-surface-2);
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+}
+
+.workspace-worktree-status {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-ink-500);
+}
+
+.workspace-worktree-branch {
+  font-size: 0.85rem;
+  color: var(--color-ink-900);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.workspace-worktree-dirty {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--color-ink-700);
+}
+
+.workspace-worktree-dirty.workspace-worktree-item-dirty {
+  color: var(--color-warning-500, #b25b00);
+}
+
+.workspace-worktree-ahead-behind {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--color-ink-500);
+}
+
+.workspace-worktree-updated {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-ink-500);
+  margin-left: auto;
+}
+
+.workspace-worktree-path {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-ink-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-worktree-flag {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+}
+
+.workspace-worktree-flag-missing {
+  background: var(--color-danger-50, #fde7e7);
+  color: var(--color-danger-500, #b3261e);
+}
+
+.workspace-worktree-flag-blocked {
+  background: var(--color-warning-50, #fff5e0);
+  color: var(--color-warning-500, #b25b00);
+}
+
+.workspace-worktree-flag-assigned {
+  background: var(--color-brand-50);
+  color: var(--color-brand-700);
+}
+
+.workspace-worktree-flag-reusable {
+  background: var(--color-success-50, #e6f4ea);
+  color: var(--color-success-500, #137333);
+}
+
+.workspace-worktree-flag-interrupted {
+  background: var(--color-warning-50, #fff5e0);
+  color: var(--color-warning-500, #b25b00);
+}
+
+.workspace-worktree-flag-error {
+  background: var(--color-danger-50, #fde7e7);
+  color: var(--color-danger-500, #b3261e);
+}
+
+.workspace-worktrees-error {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--color-danger-500, #b3261e);
+  background: var(--color-danger-50, #fde7e7);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-sm);
+  margin-top: var(--space-xs);
+}

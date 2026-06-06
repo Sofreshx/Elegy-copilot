@@ -7,6 +7,7 @@ import type { PlanningRecordItem } from '../../lib/types';
 import type { GitSummaryResponse, GitPullRequestResponse, GitCheckResults, GitLogResponse } from '../../lib/api/git';
 import type { VerificationState } from '../Repositories/verification';
 import WorkspaceCommandsCard from './WorkspaceCommandsCard';
+import WorkspaceWorktreesCard from './WorkspaceWorktreesCard';
 
 interface WorkspaceRightRailProps {
   repoPath: string;
@@ -147,6 +148,7 @@ export default function WorkspaceRightRail({
         ) : null}
       </Panel>
 
+      <WorkspaceWorktreesCard repoId={repoId} repoPath={repoPath} />
       <WorkspaceCommandsCard repoPath={repoPath} />
 
       <Panel title="Commit & Push" testId="workspace-commit-card">

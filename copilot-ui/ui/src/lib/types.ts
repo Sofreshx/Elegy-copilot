@@ -1056,10 +1056,55 @@ export interface ExecutorWorktreeRecord extends WorktreeBinding {
   repoPath?: string | null;
   repoLabel?: string | null;
   updatedAt?: string | null;
+  path?: string | null;
+  worktreePath?: string | null;
+  source?: string | null;
+  mode?: string | null;
+  branch?: string | null;
+  status?: string | null;
+  head?: string | null;
+  detached?: boolean | null;
+  git?: ExecutorWorktreeGitSnapshot | null;
+  discovery?: string | null;
+  lifecycle?: Record<string, unknown> | null;
+  validation?: Record<string, unknown> | null;
+  _discovered?: boolean;
+  _discoveredOnly?: boolean;
+  _merged?: 'persisted' | 'discovered' | 'both' | null;
+  _stableOrder?: number | null;
+}
+
+export interface ExecutorWorktreeGitSnapshot {
+  head?: string | null;
+  detached?: boolean;
+  bare?: boolean;
+  locked?: string | null;
+  prunable?: string | null;
+  guid?: string | null;
+  branch?: string | null;
+  ahead?: number;
+  behind?: number;
+  staged?: number;
+  unstaged?: number;
+  untracked?: number;
+  changed?: number;
+  probeError?: string | null;
+  mtimeMs?: number | null;
+}
+
+export interface ExecutorWorktreeDiscovery {
+  contractVersion: string;
+  repoId: string | null;
+  repoPath: string | null;
+  gitListOk: boolean | null;
+  gitListError: string | null;
+  persistedCount: number;
+  discoveredCount: number;
 }
 
 export interface ExecutorWorktreesResponse {
   worktrees: ExecutorWorktreeRecord[];
+  worktreeDiscovery?: ExecutorWorktreeDiscovery | null;
 }
 
 export interface ResolveExecutorWorktreePayload {
