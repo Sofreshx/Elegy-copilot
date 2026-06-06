@@ -315,18 +315,22 @@ async function run() {
     assert.ok(source.includes('VerificationState'), 'Expected VerificationState type');
   });
 
-  await test('RepositoriesView uses repository-launcher layout', async () => {
+  await test('RepositoriesView uses dense launcher layout', async () => {
     const source = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Repositories', 'RepositoriesView.tsx'), 'utf8');
     assert.ok(source.includes('repos-launcher-layout'), 'Expected repos-launcher-layout class');
-    assert.ok(source.includes('repos-launcher-list'), 'Expected repos-launcher-list test id');
+    assert.ok(source.includes('repos-launcher-list'), 'Expected repos-launcher-list class');
+    assert.ok(source.includes('repos-launcher-row'), 'Expected repos-launcher-row dense row class');
     assert.ok(source.includes('repos-register-panel'), 'Expected repos-register-panel test id');
     assert.ok(source.includes('repos-refresh'), 'Expected repos-refresh test id');
     assert.ok(source.includes('repos-search-input'), 'Expected repos-search-input test id');
+    assert.ok(source.includes('repos-empty'), 'Expected repos-empty test id for empty state');
+    assert.ok(source.includes('repos-no-results'), 'Expected repos-no-results test id for no-match state');
     assert.ok(source.includes('navigationStore'), 'Expected navigationStore import for workspace tab opening');
     assert.ok(!source.includes('repos-cards-layout'), 'Did not expect legacy repos-cards-layout class');
     assert.ok(!source.includes('BranchCard'), 'Did not expect BranchCard import in RepositoriesView');
     assert.ok(!source.includes('ChangesCard'), 'Did not expect ChangesCard import in RepositoriesView');
     assert.ok(!source.includes('CommitPushCard'), 'Did not expect CommitPushCard import in RepositoriesView');
+    assert.ok(!source.includes('import { Button, Panel, StatusBadge'), 'Did not expect Panel import in RepositoriesView');
   });
 
   await test('repoDocs API client exists', async () => {

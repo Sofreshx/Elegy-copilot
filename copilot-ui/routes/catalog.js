@@ -2831,6 +2831,19 @@ function listRepoInventory(ctx, deps, extra = {}) {
   });
 }
 
+function filterWorktreeRepos(inventory) {
+  const filteredRepos = inventory.repos.filter((r) => !r.isWorktreeCheckout);
+  // If the selected repo is a worktree, clear it
+  const selectedRepo = inventory.selectedRepo && inventory.selectedRepo.isWorktreeCheckout
+    ? null
+    : inventory.selectedRepo;
+  return {
+    ...inventory,
+    repos: filteredRepos,
+    selectedRepo,
+  };
+}
+
 function normalizeRepoInventoryBody(body = {}) {
   const source = body && typeof body === 'object' ? body : {};
   return {
@@ -2874,12 +2887,13 @@ function handleCatalogReposList(ctx, deps) {
   const inventory = listRepoInventory(ctx, deps, {
     explicitRepoPaths: explicitRepoPathsFromRequest(ctx.u.searchParams),
   });
+  const filtered = filterWorktreeRepos(inventory);
   deps.sendJson(ctx.res, 200, buildRepoInventoryResponse('catalog.repos.list', {
-    count: inventory.repos.length,
-    selectedRepo: inventory.selectedRepo,
-    storage: inventory.storage,
-    workspaceScan: inventory.workspaceScan,
-    repos: inventory.repos,
+    count: filtered.repos.length,
+    selectedRepo: filtered.selectedRepo,
+    storage: filtered.storage,
+    workspaceScan: filtered.workspaceScan,
+    repos: filtered.repos,
   }));
 }
 
@@ -2892,13 +2906,14 @@ function handleCatalogRepoScanRoots(ctx, deps) {
         customScanRoots,
       });
       const inventory = listRepoInventory(ctx, deps);
+      const filtered = filterWorktreeRepos(inventory);
       deps.sendJson(ctx.res, 200, buildRepoInventoryResponse('catalog.repos.scan-roots', {
         updated: true,
-        count: inventory.repos.length,
-        selectedRepo: inventory.selectedRepo,
-        storage: inventory.storage,
-        workspaceScan: inventory.workspaceScan,
-        repos: inventory.repos,
+        count: filtered.repos.length,
+        selectedRepo: filtered.selectedRepo,
+        storage: filtered.storage,
+        workspaceScan: filtered.workspaceScan,
+        repos: filtered.repos,
       }));
     })
     .catch((error) => sendJsonError(

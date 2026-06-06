@@ -39,10 +39,13 @@ export default function Sidebar({
       <div className="sidebar-header">
         <div className="sidebar-brand-lockup">
           <img
-            alt=""
-            aria-hidden="true"
+            alt="Elegy Copilot"
             className="sidebar-brand-icon"
             src={BRAND_ICON_SRC}
+            onError={(e) => {
+              const img = e.currentTarget;
+              img.style.display = 'none';
+            }}
           />
           {!isCollapsed && <span className="sidebar-brand">Elegy Copilot</span>}
         </div>
@@ -108,12 +111,12 @@ export default function Sidebar({
           <button
             className={`sidebar-item${activeItem === settingsItem.id ? ' sidebar-item-active' : ''}`}
             data-testid={`sidebar-item-${settingsItem.id}`}
+            aria-label={settingsItem.label}
             onClick={() => onNavigate(settingsItem.id)}
-            title={isCollapsed ? settingsItem.label : settingsItem.description}
+            title={settingsItem.description}
             type="button"
           >
             <span className="sidebar-item-icon" aria-hidden="true">{settingsItem.icon}</span>
-            {!isCollapsed && <span className="sidebar-item-label">{settingsItem.label}</span>}
           </button>
           {onToggleCollapse && (
             <button

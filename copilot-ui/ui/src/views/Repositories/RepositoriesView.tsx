@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Button, Panel, StatusBadge, Toolbar } from '../../components';
+import { Button, StatusBadge, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { notificationStore } from '../../stores/notificationStore';
 import { navigationStore } from '../../stores/navigation';
@@ -31,7 +31,9 @@ export default function RepositoriesView() {
       list = list.filter(
         (r) =>
           (r.repoLabel || '').toLowerCase().includes(query) ||
-          (r.repoPath || '').toLowerCase().includes(query)
+          (r.repoPath || '').toLowerCase().includes(query) ||
+          (r.repoId || '').toLowerCase().includes(query) ||
+          (r.scanStatus || '').toLowerCase().includes(query)
       );
     }
     return list;
@@ -66,150 +68,155 @@ export default function RepositoriesView() {
     return new Set(navState.openWorkspaces.map((w) => normalizePath(w.repoPath)));
   }, [navState.openWorkspaces]);
 
+  const repoCount = filtered.length;
+
   return (
     <div className="repos-view" data-testid="repositories-view">
+      {/* Header toolbar */}
       <Toolbar testId="repos-toolbar">
         <h2>Repositories</h2>
         <span className="state-copy">
-          {state.repos.length} known repo{state.repos.length !== 1 ? 's' : ''}
+          {repoCount} repositor{repoCount !== 1 ? 'ies' : 'y'}
         </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          testId="repos-refresh"
+          disabled={state.loading}
+          onClick={() => void repositoriesStore.loadInventory()}
+        >
+          {state.loading ? 'Loading\u2026' : 'Refresh'}
+        </Button>
       </Toolbar>
 
-      <div className="repos-launcher-layout" data-testid="repos-launcher-layout">
-        {/* Search */}
+      {/* Search */}
+      <input
+        className="form-input-field"
+        type="text"
+        placeholder="Search repositories\u2026"
+        value={state.searchQuery}
+        onChange={(e) => repositoriesStore.setSearchQuery(e.target.value)}
+        data-testid="repos-search-input"
+      />
+
+      {/* Error */}
+      {state.error ? (
+        <p className="state-message state-error" role="alert" data-testid="repos-error">
+          {state.error}
+        </p>
+      ) : null}
+
+      {/* Loading */}
+      {state.loading && state.repos.length === 0 ? (
+        <p className="state-message">Loading known repos\u2026</p>
+      ) : null}
+
+      {/* Empty: no repos at all */}
+      {!state.loading && state.repos.length === 0 ? (
+        <p className="state-message repos-empty-msg" data-testid="repos-empty">
+          No repositories found. Configure source folders below.
+        </p>
+      ) : null}
+
+      {/* No search results */}
+      {!state.loading && filtered.length === 0 && state.repos.length > 0 ? (
+        <p className="state-message repos-empty-msg" data-testid="repos-no-results">
+          No repositories match your search.
+        </p>
+      ) : null}
+
+      {/* Dense repo list */}
+      {filtered.length > 0 ? (
+        <div className="repos-launcher-layout" data-testid="repos-launcher-layout">
+          <ul className="repos-launcher-list" data-testid="repos-launcher-list">
+            {filtered.map((repo, idx) => {
+              const repoPath = (repo.repoPath || '').trim();
+              const isOpen = openWorkspacePaths.has(normalizePath(repoPath));
+              const stableKey = repo.repoId || repo.repoPath || `repo-${idx}`;
+              return (
+                <li
+                  key={stableKey}
+                  className={`repos-launcher-row${isOpen ? ' is-selected' : ''}`}
+                  data-testid={`repos-launcher-item-${repoPath || repo.repoId || 'unknown'}`}
+                >
+                  <div className="repos-launcher-row-info">
+                    <span className="repos-launcher-row-label" title={repo.repoLabel || repo.repoPath || 'Unknown'}>
+                      {repo.repoLabel || repo.repoPath || 'Unknown'}
+                    </span>
+                    {repo.repoPath ? (
+                      <span className="repos-launcher-row-path" title={repo.repoPath}>
+                        {repo.repoPath}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="repos-launcher-row-badges">
+                    <StatusBadge status={repo.scanStatus || 'not scanned'} />
+                    {repo.registered ? <StatusBadge status="registered" /> : null}
+                    {isOpen ? <StatusBadge status="selected" /> : null}
+                  </div>
+                  {repoPath ? (
+                    <div className="repos-launcher-row-actions">
+                      <Button
+                        variant={isOpen ? 'secondary' : 'primary'}
+                        size="sm"
+                        testId={`repos-open-${repoPath}`}
+                        onClick={() => handleOpen(repo)}
+                      >
+                        {isOpen ? 'Focus' : 'Open'}
+                      </Button>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+
+      {/* Visual separator before sources config */}
+      <hr className="repos-section-divider" />
+
+      {/* Register section */}
+      <div className="repos-register-section" data-testid="repos-register-panel">
+        <h3 className="repos-section-title">Register Repository</h3>
+        <p className="repos-section-subtitle">Add a repository not discovered by scan</p>
+        <label className="form-label" htmlFor="repos-register-path">
+          Repository path
+        </label>
         <input
+          id="repos-register-path"
           className="form-input-field"
           type="text"
-          placeholder="Search repositories\u2026"
-          value={state.searchQuery}
-          onChange={(e) => repositoriesStore.setSearchQuery(e.target.value)}
-          data-testid="repos-search-input"
+          placeholder="C:\Users\you\Documents\GitHub\my-project"
+          value={registerPath}
+          onChange={(e) => setRegisterPath(e.target.value)}
+          data-testid="repos-register-path-input"
         />
-
-        {/* Error */}
-        {state.error ? (
-          <p className="state-message state-error" role="alert" data-testid="repos-error">
-            {state.error}
-          </p>
-        ) : null}
-
-        {/* Loading */}
-        {state.loading && state.repos.length === 0 ? (
-          <p className="state-message">Loading known repos\u2026</p>
-        ) : null}
-
-        {/* Empty */}
-        {!state.loading && state.repos.length === 0 ? (
-          <p className="state-message">
-            No repositories found. Add scan roots or register a repository below.
-          </p>
-        ) : null}
-
-        {/* No results */}
-        {filtered.length === 0 && state.repos.length > 0 ? (
-          <p className="state-message">No repositories match your search.</p>
-        ) : null}
-
-        {/* Repo list */}
-        <ul className="repos-selector-list" data-testid="repos-launcher-list">
-          {filtered.map((repo) => {
-            const repoPath = (repo.repoPath || '').trim();
-            const isOpen = openWorkspacePaths.has(normalizePath(repoPath));
-            return (
-              <li
-                key={repo.repoId || repo.repoPath || ''}
-                className={`repos-selector-item${isOpen ? ' is-selected' : ''}`}
-                data-testid={`repos-launcher-item-${repoPath}`}
-              >
-                <div className="repos-selector-item-header">
-                  <span className="repos-selector-item-label">
-                    {repo.repoLabel || repo.repoPath || 'Unknown'}
-                  </span>
-                  <div className="catalog-badge-row">
-                    <StatusBadge status={repo.scanStatus || 'unknown'} />
-                    {repo.registered ? <StatusBadge status="registered" /> : null}
-                    {isOpen ? <StatusBadge status="open" /> : null}
-                  </div>
-                </div>
-                {repo.repoPath ? (
-                  <p className="repos-selector-item-path">{repo.repoPath}</p>
-                ) : null}
-                {repoPath ? (
-                  <div className="repos-launcher-actions">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      testId={`repos-open-${repoPath}`}
-                      onClick={() => handleOpen(repo)}
-                    >
-                      {isOpen ? 'Focus' : 'Open'}
-                    </Button>
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-
-        {/* Refresh */}
-        <div className="repos-launcher-controls">
-          <Button
-            variant="ghost"
-            size="sm"
-            testId="repos-refresh"
-            disabled={state.loading}
-            onClick={() => void repositoriesStore.loadInventory()}
-          >
-            {state.loading ? 'Loading\u2026' : 'Refresh inventory'}
-          </Button>
-        </div>
-
-        {/* Register section */}
-        <Panel
-          title="Register Repository"
-          subtitle="Add a repository not discovered by scan"
-          testId="repos-register-panel"
+        <label className="form-label" htmlFor="repos-register-label">
+          Display label (optional)
+        </label>
+        <input
+          id="repos-register-label"
+          className="form-input-field"
+          type="text"
+          placeholder="My Project"
+          value={registerLabel}
+          onChange={(e) => setRegisterLabel(e.target.value)}
+          data-testid="repos-register-label-input"
+        />
+        <Button
+          variant="secondary"
+          size="sm"
+          testId="repos-register-btn"
+          disabled={registering || !registerPath.trim()}
+          onClick={handleRegister}
         >
-          <label className="form-label" htmlFor="repos-register-path">
-            Repository path
-          </label>
-          <input
-            id="repos-register-path"
-            className="form-input-field"
-            type="text"
-            placeholder="C:\Users\you\Documents\GitHub\my-project"
-            value={registerPath}
-            onChange={(e) => setRegisterPath(e.target.value)}
-            data-testid="repos-register-path-input"
-          />
-          <label className="form-label" htmlFor="repos-register-label">
-            Display label (optional)
-          </label>
-          <input
-            id="repos-register-label"
-            className="form-input-field"
-            type="text"
-            placeholder="My Project"
-            value={registerLabel}
-            onChange={(e) => setRegisterLabel(e.target.value)}
-            data-testid="repos-register-label-input"
-          />
-          <div className="catalog-action-row">
-            <Button
-              variant="secondary"
-              size="sm"
-              testId="repos-register-btn"
-              disabled={registering || !registerPath.trim()}
-              onClick={handleRegister}
-            >
-              {registering ? 'Registering\u2026' : 'Register'}
-            </Button>
-          </div>
-        </Panel>
-
-        {/* Scan roots config */}
-        <SourcesConfigPanel />
+          {registering ? 'Registering\u2026' : 'Register'}
+        </Button>
       </div>
+
+      {/* Scan roots config */}
+      <SourcesConfigPanel />
     </div>
   );
 }

@@ -143,6 +143,7 @@ export default function App() {
     <>
       <ToastContainer />
       <AppLayout
+      appVersion={desktopUpdaterState.currentVersion}
       sidebarCollapsed={isSidebarCollapsed}
       statusBar={
         <StatusBar
