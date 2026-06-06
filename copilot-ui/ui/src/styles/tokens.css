@@ -108,6 +108,7 @@
 
   --z-base: 1;
   --z-content: 10;
+  --z-sticky: 25;
   --z-overlay: 50;
   --z-popover: 100;
   --z-toast: 200;

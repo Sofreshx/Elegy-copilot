@@ -353,6 +353,51 @@ async function run() {
     assert.match(response.res.body.worktreeDiscovery.gitListError, /git exploded/);
   });
 
+  // ─── Cleanup route tests ─────────────────────────────────────────────────
+  await test('POST /api/executor/worktrees/cleanup/analyze rejects empty body', async () => {
+    const { res } = await invoke(routes, 'POST', '/api/executor/worktrees/cleanup/analyze', null);
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.body.error, 'repoPath and worktreePath are required');
+  });
+
+  await test('POST /api/executor/worktrees/cleanup/analyze rejects missing repoPath', async () => {
+    const { res } = await invoke(routes, 'POST', '/api/executor/worktrees/cleanup/analyze', { worktreePath: '/test' });
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.body.error, 'repoPath and worktreePath are required');
+  });
+
+  await test('POST /api/executor/worktrees/cleanup/analyze rejects missing worktreePath', async () => {
+    const { res } = await invoke(routes, 'POST', '/api/executor/worktrees/cleanup/analyze', { repoPath: '/test' });
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.body.error, 'repoPath and worktreePath are required');
+  });
+
+  await test('POST /api/executor/worktrees/cleanup/remove rejects missing repoPath', async () => {
+    const { res } = await invoke(routes, 'POST', '/api/executor/worktrees/cleanup/remove', null);
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.body.error, 'repoPath and worktreePath are required');
+  });
+
+  await test('POST /api/executor/worktrees/prune rejects missing repoPath', async () => {
+    const { res } = await invoke(routes, 'POST', '/api/executor/worktrees/prune', null);
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.body.error, 'repoPath is required');
+  });
+
+  await test('all cleanup routes are registered with correct methods and paths', async () => {
+    const routeEntries = routes.map((r) => `${r.method} ${r.path instanceof RegExp ? r.path.source : r.path}`);
+    assert.ok(routeEntries.includes('POST /api/executor/worktrees/cleanup/analyze'), 'analyze route missing');
+    assert.ok(routeEntries.includes('POST /api/executor/worktrees/cleanup/remove'), 'remove route missing');
+    assert.ok(routeEntries.includes('POST /api/executor/worktrees/prune'), 'prune route missing');
+  });
+
+  await test('handleCleanupAnalyze, handleCleanupRemove, handlePrune are exported', async () => {
+    const mod = require('./executor');
+    assert.equal(typeof mod.handleCleanupAnalyze, 'function');
+    assert.equal(typeof mod.handleCleanupRemove, 'function');
+    assert.equal(typeof mod.handlePrune, 'function');
+  });
+
   console.log(`\n  ${passed} passed, ${process.exitCode ? 'some failed' : '0 failed'}\n`);
 }
 
