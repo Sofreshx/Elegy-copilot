@@ -200,7 +200,7 @@ function countLlmEntries(logDir) {
 }
 
 function readRequestLogs(options = {}) {
-  const logDir = resolveLogDir();
+  const logDir = typeof options.logDir === 'string' && options.logDir ? options.logDir : resolveLogDir();
   const limit = Math.min(
     Math.max(1, typeof options.limit === 'number' ? options.limit : DEFAULT_LIMIT),
     MAX_LIMIT,

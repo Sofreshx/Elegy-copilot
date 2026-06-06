@@ -4,6 +4,7 @@ import {
   getCodexProviderStatus,
   getDeepseekStatus,
   getBootstrapStatus,
+  getCodexCliStatus,
   bootstrapMoonBridge,
   resetCodexProvider,
   saveDeepseekSettings,
@@ -22,6 +23,8 @@ export interface CodexProviderState {
   saving: boolean;
   bridgeLoading: boolean;
   bootstrapLoading: boolean;
+  installingCli: boolean;
+  cliStatus: { installed: boolean; version: string | null; installCommand: string; lastError: string | null } | null;
   error: string | null;
   message: string | null;
 }
@@ -34,6 +37,8 @@ const INITIAL_STATE: CodexProviderState = {
   saving: false,
   bridgeLoading: false,
   bootstrapLoading: false,
+  installingCli: false,
+  cliStatus: null,
   error: null,
   message: null,
 };
@@ -44,12 +49,20 @@ function createCodexProviderStore() {
   async function load(): Promise<void> {
     store.setState((state) => ({ ...state, loading: true, error: null }));
     try {
-      const [status, dsStatus, bootstrapStatus] = await Promise.all([
+      const [status, dsStatus, bootstrapStatus, cliStatusResult] = await Promise.all([
         getCodexProviderStatus(),
         getDeepseekStatus().catch(() => null),
         getBootstrapStatus().catch(() => null),
+        getCodexCliStatus().catch(() => null),
       ]);
-      store.setState((state) => ({ ...state, status, deepseekStatus: dsStatus, bootstrapStatus, loading: false }));
+      store.setState((state) => ({
+        ...state,
+        status,
+        deepseekStatus: dsStatus,
+        bootstrapStatus,
+        cliStatus: cliStatusResult?.cli || state.cliStatus,
+        loading: false,
+      }));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load Codex provider status';
       store.setState((state) => ({ ...state, loading: false, error: message }));
@@ -203,6 +216,46 @@ function createCodexProviderStore() {
     }
   }
 
+  async function loadCliStatus(): Promise<void> {
+    try {
+      const result = await getCodexCliStatus();
+      store.setState((state) => ({
+        ...state,
+        cliStatus: result.cli || null,
+      }));
+    } catch {
+      // best-effort, CLI status is non-critical
+    }
+  }
+
+  async function installCodexCli(): Promise<void> {
+    store.setState((state) => ({ ...state, installingCli: true, error: null, message: null }));
+    try {
+      const { installCodexCli: apiInstall } = await import('../lib/api/codexConfig');
+      const response = await apiInstall();
+      if (response.ok) {
+        store.setState((state) => ({
+          ...state,
+          installingCli: false,
+          message: 'Codex CLI installed successfully.',
+          cliStatus: response.cli || null,
+        }));
+      } else {
+        store.setState((state) => ({
+          ...state,
+          installingCli: false,
+          error: response.error || 'Failed to install Codex CLI.',
+        }));
+      }
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        installingCli: false,
+        error: error instanceof Error ? error.message : 'An unexpected error occurred.',
+      }));
+    }
+  }
+
   function resetState(): void {
     store.setState(() => ({ ...INITIAL_STATE }));
   }
@@ -220,6 +273,8 @@ function createCodexProviderStore() {
     checkBridge,
     fetchBootstrapStatus,
     bootstrap,
+    loadCliStatus,
+    installCodexCli,
     resetState,
   };
 }

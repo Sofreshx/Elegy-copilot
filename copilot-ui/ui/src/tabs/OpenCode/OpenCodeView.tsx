@@ -343,6 +343,14 @@ function SetupSection({ status, toolingInstalling, saving }: { status: OpenCodeS
       void opencodeStore.installCodexPlanning();
       return;
     }
+    if (actionKind === 'install-opencode-cli') {
+      void opencodeStore.installOpenCodeCli();
+      return;
+    }
+    if (actionKind === 'install-worktree-permissions') {
+      void opencodeStore.installWorktreePermissions();
+      return;
+    }
     if (actionKind === 'install' || actionKind === 'update') {
       if (check.id === 'elegy-planning-cli') {
         void opencodeStore.installTooling({ kind: 'elegy-planning-cli' });
@@ -356,6 +364,8 @@ function SetupSection({ status, toolingInstalling, saving }: { status: OpenCodeS
 
   const isRowBusy = (id: string, actionKind: string | undefined) => {
     if (id === 'elegy-planning-cli' || id === 'elegy-skills' || id === 'codex-elegy-planning') return toolingInstalling;
+    if (id === 'opencode-cli') return opencodeStore.getState().installingCli;
+    if (id === 'worktree-permissions') return opencodeStore.getState().permissionsInstalling;
     if (actionKind === 'install' || actionKind === 'update') return saving;
     return false;
   };

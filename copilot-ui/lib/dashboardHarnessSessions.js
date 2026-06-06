@@ -149,6 +149,100 @@ function buildCodexHarnessSessions(options = {}) {
   const sessionsDir = path.join(homePath, 'sessions');
   const indexExists = !!safeStat(indexPath, options.fsImpl);
   const sessionsDirExists = !!safeStat(sessionsDir, options.fsImpl);
+
+  // Prefer index file
+  if (indexExists) {
+    const indexText = safeReadText(indexPath, options.fsImpl);
+    if (indexText != null) {
+      const sessionsById = new Map();
+      for (const line of indexText.split(/\r?\n/)) {
+        if (!line.trim()) continue;
+        let parsed;
+        try { parsed = JSON.parse(line); } catch { continue; }
+        const sessionId = normalizeString(parsed && parsed.id);
+        if (!sessionId) continue;
+        const updatedAtMs = parseTime(parsed && parsed.updated_at);
+        const existing = sessionsById.get(sessionId);
+        if (existing && (existing.updatedAtMs || 0) >= (updatedAtMs || 0)) continue;
+        sessionsById.set(sessionId, {
+          harnessId: 'codex',
+          sessionId,
+          title: normalizeString(parsed && parsed.thread_name) || sessionId,
+          status: 'unknown',
+          startedAtMs: null,
+          updatedAtMs,
+          elapsedMs: null,
+          repoLabel: null,
+          projectName: null,
+          source: 'codex',
+          storageKind: 'session-index',
+          canOpen: false,
+        });
+      }
+      const sessions = Array.from(sessionsById.values()).sort(sortSessionsByUpdatedDesc);
+      return buildHarnessRow(harness, {
+        homePath,
+        inventoryAvailable: true,
+        sessionCount: sessions.length,
+        latestUpdatedAtMs: sessions[0]?.updatedAtMs || null,
+        sessions,
+      });
+    }
+  }
+
+  // Fallback: list session directories
+  if (sessionsDirExists) {
+    const sessionDirs = safeReadDir(sessionsDir, options.fsImpl)
+      .filter((entry) => entry && entry.isDirectory());
+
+    if (sessionDirs.length > 0) {
+      const sessions = sessionDirs
+        .map((entry) => {
+          const sessionId = entry.name;
+          const dirPath = path.join(sessionsDir, sessionId);
+          const dirStat = safeStat(dirPath, options.fsImpl);
+          let latestMtime = null;
+          try {
+            const contents = options.fsImpl.readdirSync(dirPath, { withFileTypes: true });
+            for (const child of contents) {
+              if (!child || !child.isFile()) continue;
+              const childStat = safeStat(path.join(dirPath, child.name), options.fsImpl);
+              if (childStat && childStat.mtimeMs > (latestMtime || 0)) {
+                latestMtime = childStat.mtimeMs;
+              }
+            }
+            if (latestMtime == null && dirStat) latestMtime = dirStat.mtimeMs;
+          } catch {
+            if (dirStat) latestMtime = dirStat.mtimeMs;
+          }
+          return {
+            harnessId: 'codex',
+            sessionId,
+            title: sessionId,
+            status: 'unknown',
+            startedAtMs: null,
+            updatedAtMs: latestMtime,
+            elapsedMs: null,
+            repoLabel: null,
+            projectName: null,
+            source: 'codex',
+            storageKind: 'session-directory',
+            canOpen: false,
+          };
+        })
+        .sort(sortSessionsByUpdatedDesc);
+
+      return buildHarnessRow(harness, {
+        homePath,
+        inventoryAvailable: true,
+        sessionCount: sessions.length,
+        latestUpdatedAtMs: sessions[0]?.updatedAtMs || null,
+        sessions,
+      });
+    }
+  }
+
+  // No sessions at all
   if (!indexExists && !sessionsDirExists) {
     return buildHarnessRow(harness, {
       homePath,
@@ -157,58 +251,10 @@ function buildCodexHarnessSessions(options = {}) {
     });
   }
 
-  const indexText = safeReadText(indexPath, options.fsImpl);
-  if (indexText == null) {
-    return buildHarnessRow(harness, {
-      homePath,
-      inventoryAvailable: false,
-      inventoryReason: 'inventory_read_failed',
-    });
-  }
-
-  const sessionsById = new Map();
-  for (const line of indexText.split(/\r?\n/)) {
-    if (!line.trim()) {
-      continue;
-    }
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    const sessionId = normalizeString(parsed && parsed.id);
-    if (!sessionId) {
-      continue;
-    }
-    const updatedAtMs = parseTime(parsed && parsed.updated_at);
-    const existing = sessionsById.get(sessionId);
-    if (existing && (existing.updatedAtMs || 0) >= (updatedAtMs || 0)) {
-      continue;
-    }
-    sessionsById.set(sessionId, {
-      harnessId: 'codex',
-      sessionId,
-      title: normalizeString(parsed && parsed.thread_name) || sessionId,
-      status: 'unknown',
-      startedAtMs: null,
-      updatedAtMs,
-      elapsedMs: null,
-      repoLabel: null,
-      projectName: null,
-      source: 'codex',
-      storageKind: 'session-index',
-      canOpen: false,
-    });
-  }
-
-  const sessions = Array.from(sessionsById.values()).sort(sortSessionsByUpdatedDesc);
   return buildHarnessRow(harness, {
     homePath,
-    inventoryAvailable: true,
-    sessionCount: sessions.length,
-    latestUpdatedAtMs: sessions[0]?.updatedAtMs || null,
-    sessions,
+    inventoryAvailable: false,
+    inventoryReason: 'inventory_read_failed',
   });
 }
 
@@ -222,10 +268,71 @@ function buildOpenCodeHarnessSessions(options = {}) {
     });
   }
 
+  const opencodeLogReader = options.opencodeLogReader || require('./opencodeLogReader');
+  const fsImpl = options.fsImpl || fs;
+
+  // Read log entries with session IDs
+  let entries = [];
+  try {
+    const logOpts = { limit: 2000 };
+    if (options.opencodeLogDir) {
+      logOpts.logDir = options.opencodeLogDir;
+    }
+    const logResult = opencodeLogReader.readRequestLogs(logOpts);
+    entries = Array.isArray(logResult.requests) ? logResult.requests : [];
+  } catch {
+    return buildHarnessRow(harness, {
+      homePath,
+      inventoryAvailable: false,
+      inventoryReason: 'inventory_read_failed',
+    });
+  }
+
+  // Filter entries that have a sessionId
+  const entriesWithSession = entries.filter((entry) => entry.sessionId && String(entry.sessionId).trim());
+
+  if (entriesWithSession.length === 0) {
+    return buildHarnessRow(harness, {
+      homePath,
+      inventoryAvailable: false,
+      inventoryReason: 'inventory_missing',
+    });
+  }
+
+  // Group by sessionId, keeping latest entry per session
+  const sessionsById = new Map();
+  for (const entry of entriesWithSession) {
+    const sessionId = String(entry.sessionId).trim();
+    const existing = sessionsById.get(sessionId);
+    const entryTimestamp = parseTime(entry.timestamp);
+
+    if (existing && (existing.updatedAtMs || 0) >= (entryTimestamp || 0)) {
+      continue;
+    }
+
+    sessionsById.set(sessionId, {
+      harnessId: 'opencode',
+      sessionId,
+      title: entry.agent ? `${entry.agent}-${sessionId.slice(0, 8)}` : sessionId,
+      status: 'unknown',
+      startedAtMs: null,
+      updatedAtMs: entryTimestamp,
+      elapsedMs: null,
+      repoLabel: null,
+      projectName: null,
+      source: 'opencode',
+      storageKind: 'opencode-log',
+      canOpen: false,
+    });
+  }
+
+  const sessions = Array.from(sessionsById.values()).sort(sortSessionsByUpdatedDesc);
   return buildHarnessRow(harness, {
     homePath,
-    inventoryAvailable: false,
-    inventoryReason: 'inventory_not_supported',
+    inventoryAvailable: true,
+    sessionCount: sessions.length,
+    latestUpdatedAtMs: sessions[0]?.updatedAtMs || null,
+    sessions,
   });
 }
 
@@ -336,6 +443,9 @@ function listHarnessSessions(options = {}) {
     }),
     buildOpenCodeHarnessSessions({
       opencodeHome: options.opencodeHome,
+      opencodeLogReader: options.opencodeLogReader,
+      opencodeLogDir: options.opencodeLogDir,
+      fsImpl,
     }),
     buildAntigravityHarnessSessions({
       antigravityHome: options.antigravityHome,

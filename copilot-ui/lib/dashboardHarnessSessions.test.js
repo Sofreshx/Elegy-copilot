@@ -53,6 +53,9 @@ async function run() {
     writeFile(path.join(antigravityHome, 'conversations', 'ag-2.pb'), 'y');
     fs.mkdirSync(opencodeHome, { recursive: true });
     fs.mkdirSync(path.join(geminiHome, 'history', 'workspace-a'), { recursive: true });
+
+    const opencodeLogDir = path.join(root, '.local', 'share', 'opencode', 'log');
+    // Intentionally NOT creating this directory so readRequestLogs returns empty
     writeFile(path.join(geminiHome, 'history', 'workspace-a', '.project_root'), 'C:/workspace-a');
 
     const inventory = listHarnessSessions({
@@ -60,6 +63,7 @@ async function run() {
       sandboxesHome: path.join(root, 'sandboxes'),
       codexHome,
       opencodeHome,
+      opencodeLogDir,
       antigravityHome,
       geminiHome,
       sessionAggregation: {
@@ -99,7 +103,7 @@ async function run() {
     assert.equal(antigravity.inventoryAvailable, true);
     assert.equal(antigravity.sessionCount, 2);
     assert.equal(opencode.inventoryAvailable, false);
-    assert.equal(opencode.inventoryReason, 'inventory_not_supported');
+    assert.equal(opencode.inventoryReason, 'inventory_missing');
     assert.equal(geminiCli.inventoryAvailable, false);
     assert.equal(geminiCli.inventoryReason, 'inventory_not_supported');
   });

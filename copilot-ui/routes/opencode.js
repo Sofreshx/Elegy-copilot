@@ -19,6 +19,7 @@ const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require
 const codexConfig = require('../lib/codexConfig');
 const { resolvePlanningHealth, resolvePlanningFeatureStatus } = require('../lib/elegyPlanningHealth');
 const providerUsageStats = require('../lib/providerUsageStats');
+const toolCliInstallers = require('../lib/toolCliInstallers');
 
 const TOOLING_INSTALL_KINDS = new Set(['elegy-planning-cli', 'elegy-skills', 'install-codex-planning']);
 
@@ -290,6 +291,19 @@ function buildSetupChecks(opencodeHome, copilotHomeAbs, engineRoot, assets, ctx,
     action: hasElegyPlanningCli ? null : { kind: 'update', label: 'Install elegy-planning CLI' },
   });
 
+  const opencodeCliStatus = ctx.opencodeCli || { installed: false };
+  checks.push({
+    id: 'opencode-cli',
+    label: 'OpenCode CLI detected',
+    status: opencodeCliStatus.installed ? 'ok' : 'warning',
+    detail: opencodeCliStatus.installed
+      ? `OpenCode CLI is available${opencodeCliStatus.version ? ` (${opencodeCliStatus.version})` : ''}`
+      : 'OpenCode CLI not detected. Install to use OpenCode outside the dashboard.',
+    action: opencodeCliStatus.installed
+      ? null
+      : { kind: 'install-opencode-cli', label: 'Install OpenCode CLI' },
+  });
+
   const hasElegyPlanningLive =
     Boolean(ctx.planningLiveAuthority && ctx.planningLiveAuthority.ready);
   checks.push({
@@ -350,6 +364,22 @@ function buildSetupChecks(opencodeHome, copilotHomeAbs, engineRoot, assets, ctx,
       ? 'Worktree plugin is present'
       : 'Worktree plugin not found. Install OpenCode assets.',
     action: worktreePlugin ? null : { kind: 'install', label: 'Install OpenCode assets' },
+  });
+
+  // Worktree permissions check
+  const worktreePermStatus = opencodeConfigLib.ensureWorktreePermissions
+    ? opencodeConfigLib.ensureWorktreePermissions(opencodeHome)
+    : { patched: false, reason: 'not_supported' };
+  checks.push({
+    id: 'worktree-permissions',
+    label: 'OpenCode worktree permissions installed',
+    status: worktreePermStatus.patched ? 'ok' : 'warning',
+    detail: worktreePermStatus.patched
+      ? 'Managed worktree permission rules are installed.'
+      : 'Worktree permission rules not installed. Running worktree operations may generate permission prompts.',
+    action: worktreePermStatus.patched
+      ? null
+      : { kind: 'install-worktree-permissions', label: 'Install worktree permissions' },
   });
 
   const providerRoute = asTrimmedString(ctx.activeProviderRoute || 'opencode-go');
@@ -558,6 +588,9 @@ async function buildOpenCodeStatus(ctx, deps) {
   const profiles = buildProfiles(opencodeConfig, opencodeHome);
   const lanes = buildLanes();
   const toolingStatus = computeToolingStatus(ctx, deps, managedAssetStatuses);
+  const opencodeCliStatus = deps.toolCliInstallers
+    ? deps.toolCliInstallers.getCliToolStatus('opencode-cli')
+    : toolCliInstallers.getCliToolStatus('opencode-cli');
   const planningLiveAuthority = resolvePlanningLiveAuthorityState(deps.roadmapWorkflowPlanningBridge);
 
   const augmentedContext = {
@@ -568,6 +601,7 @@ async function buildOpenCodeStatus(ctx, deps) {
     activeProviderRoute: profiles.activeProfileId,
     smallModel: configStatus.exploreModel,
     bigModel: configStatus.scoutModel,
+    opencodeCli: opencodeCliStatus,
   };
 
   const codexHome = ctx.codexHome || path.join(require('os').homedir(), '.codex');
@@ -601,6 +635,7 @@ async function buildOpenCodeStatus(ctx, deps) {
     elegyPlanningCli: toolingStatus.elegyPlanningCli,
     elegySkillsAssets: toolingStatus.elegySkillsAssets,
     planningLiveAuthority,
+    opencodeCli: opencodeCliStatus,
   };
 }
 
@@ -627,6 +662,7 @@ function register(deps = {}) {
     fs: deps.fs || fs,
     path: deps.path || path,
     roadmapWorkflowPlanningBridge: deps.roadmapWorkflowPlanningBridge || null,
+    toolCliInstallers: deps.toolCliInstallers || toolCliInstallers,
   };
 
   return [
@@ -808,6 +844,44 @@ function register(deps = {}) {
 
           const status = await buildOpenCodeStatus(ctx, resolvedDeps);
           resolvedDeps.sendJson(ctx.res, 200, { ok: true, kind, ...result, status });
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, 500, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/opencode/cli/install',
+      handler: async (ctx) => {
+        try {
+          const installer = resolvedDeps.toolCliInstallers || toolCliInstallers;
+          const result = await installer.installCliTool('opencode-cli');
+          const status = await buildOpenCodeStatus(ctx, resolvedDeps);
+          resolvedDeps.sendJson(ctx.res, result.ok ? 200 : 500, { ...result, status });
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, 500, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/opencode/permissions/worktree',
+      handler: async (ctx) => {
+        try {
+          const { opencodeHome } = ctx;
+          if (!opencodeHome) {
+            resolvedDeps.sendJson(ctx.res, 400, { ok: false, error: 'opencodeHome is required.' });
+            return;
+          }
+          const result = resolvedDeps.opencodeConfig.ensureWorktreePermissions(opencodeHome);
+          const status = await buildOpenCodeStatus(ctx, resolvedDeps);
+          resolvedDeps.sendJson(ctx.res, 200, { ok: true, ...result, status });
         } catch (error) {
           resolvedDeps.sendJson(ctx.res, 500, {
             ok: false,

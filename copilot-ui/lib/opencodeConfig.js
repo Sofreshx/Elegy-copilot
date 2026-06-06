@@ -331,6 +331,72 @@ function setAgentModels(opencodeHome, smallModel, bigModel, reviewModel) {
   return getStatus(resolvedHome);
 }
 
+/**
+ * Ensure worktree permission rules are present in the OpenCode config.
+ *
+ * Reads the raw config file directly (bypassing `readConfig`/`writeConfig`
+ * to avoid the provider.route stripping in `writeConfig`), patches only the
+ * permissions section, and writes back using `writeTextAtomic`. This preserves
+ * ALL existing config fields exactly as they were — including provider.route.
+ *
+ * @param {string} opencodeHome - Path to the OpenCode home directory.
+ * @param {{ fs?: typeof fs, path?: typeof path, os?: typeof os }} [deps] - Optional dependency overrides for testing.
+ * @returns {{ patched: boolean, reason?: string, rulesAdded?: number }}
+ */
+function ensureWorktreePermissions(opencodeHome, deps = {}) {
+  const fsImpl = deps.fs || fs;
+  const pathImpl = deps.path || path;
+  const osImpl = deps.os || os;
+  const WORKTREE_ROOT = pathImpl.join(osImpl.homedir(), '.local', 'share', 'opencode', 'worktree');
+
+  // Read raw config file directly (not through readConfig/writeConfig, to preserve all fields)
+  const configPath = resolveConfigPath(opencodeHome);
+  let rawConfig = {};
+  try {
+    const raw = fsImpl.readFileSync(configPath, 'utf8');
+    rawConfig = JSON.parse(raw);
+    if (!rawConfig || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) {
+      rawConfig = {};
+    }
+  } catch {
+    // Config doesn't exist or can't be parsed — start from scratch
+    rawConfig = {};
+  }
+
+  // Check if worktree permissions already exist
+  const existingAllow = Array.isArray(rawConfig.permissions?.allow) ? rawConfig.permissions.allow : [];
+  const hasWorktreePermission = existingAllow.some((rule) => {
+    if (typeof rule !== 'string') return false;
+    return rule.includes('worktree') && (rule.includes(WORKTREE_ROOT) || rule.includes('.local/share/opencode/worktree'));
+  });
+
+  if (hasWorktreePermission) {
+    return { patched: false, reason: 'already_configured' };
+  }
+
+  // Managed worktree permission rules
+  const worktreeRules = [
+    `Read(${WORKTREE_ROOT}/**)`,
+    `Glob(${WORKTREE_ROOT}/**)`,
+    `Bash(git status)`,
+    `Bash(git worktree list)`,
+  ];
+
+  // Merge conservatively: keep existing user rules, add managed rules
+  const newAllow = [...existingAllow, ...worktreeRules];
+
+  // Patch config in-place — preserve ALL existing fields
+  rawConfig.permissions = {
+    ...(rawConfig.permissions || {}),
+    allow: newAllow,
+  };
+
+  // Write back using writeTextAtomic directly, bypassing writeConfig's provider.route stripping
+  const json = JSON.stringify(rawConfig, null, 2) + '\n';
+  writeTextAtomic(configPath, json);
+  return { patched: true, rulesAdded: worktreeRules.length };
+}
+
 function resetConfig(opencodeHome) {
   const resolvedHome = resolveOpenCodeHome(opencodeHome);
   const config = readConfig(resolvedHome);
@@ -378,4 +444,5 @@ module.exports = {
   setActiveProfileRoute,
   removeActiveProfileRoute,
   updateStateProfileRoute,
+  ensureWorktreePermissions,
 };

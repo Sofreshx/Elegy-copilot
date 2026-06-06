@@ -595,6 +595,52 @@ export default function CodexProviderPanel() {
         </p>
       ) : null}
 
+      {/* Codex CLI Install */}
+      <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color, #ddd)' }} />
+
+      <div className="settings-row" data-testid="codex-cli-status">
+        <div className="settings-row-label">
+          <strong>Codex CLI Installation</strong>
+          <div className="settings-row-description" style={{ marginTop: 4 }}>
+            {state.cliStatus?.installed ? (
+              <span>
+                <Badge tone="success">Installed</Badge>
+                {state.cliStatus.version ? (
+                  <code style={{ marginLeft: 8, fontSize: '0.72rem' }}>{state.cliStatus.version}</code>
+                ) : null}
+              </span>
+            ) : (
+              <span>
+                <Badge tone="neutral">Not installed</Badge>
+                <span style={{ marginLeft: 8 }}>
+                  Install the Codex CLI globally via npm to use Codex outside the dashboard.
+                </span>
+              </span>
+            )}
+            {state.cliStatus?.lastError ? (
+              <span style={{ color: 'var(--danger-color, #c00)', fontSize: '0.75rem', display: 'block', marginTop: 4 }}>
+                {state.cliStatus.lastError}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <div className="settings-row-action">
+          {!state.cliStatus?.installed ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              testId="codex-cli-install"
+              disabled={state.installingCli}
+              onClick={() => codexProviderStore.installCodexCli()}
+            >
+              {state.installingCli ? 'Installing…' : 'Install Codex CLI'}
+            </Button>
+          ) : (
+            <Badge tone="success" testId="codex-cli-installed-badge">Installed</Badge>
+          )}
+        </div>
+      </div>
+
       <div className="settings-row">
         <div className="settings-row-label">
           <span className="settings-row-description">

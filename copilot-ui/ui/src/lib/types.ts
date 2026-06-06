@@ -3410,6 +3410,12 @@ export interface OpenCodeStatusResponse {
   elegyPlanningCli: OpenCodeElegyPlanningCli;
   elegySkillsAssets: OpenCodeElegySkillsAssets;
   planningLiveAuthority: OpenCodePlanningLiveAuthority;
+  opencodeCli?: {
+    installed: boolean;
+    version: string | null;
+    installCommand: string;
+    lastError: string | null;
+  };
 }
 
 export interface OpenCodeConfigPayload {
@@ -3463,4 +3469,25 @@ export interface OpenCodeRequestLogsResponse {
   requests: OpenCodeRequestLogEntry[];
   total: number;
   logFiles: number;
+}
+
+export interface ClaudeCodeCliStatus {
+  installed: boolean;
+  version: string | null;
+  installCommand: string;
+  lastError: string | null;
+}
+
+export interface ClaudeCodeStatusResponse {
+  overallStatus: 'ready' | 'degraded' | 'blocked';
+  claudeHome: string;
+  claudeConfigPath: string | null;
+  cli: ClaudeCodeCliStatus;
+}
+
+export interface ClaudeCodeCliInstallResponse {
+  ok: boolean;
+  version: string | null;
+  error: string | null;
+  status?: ClaudeCodeStatusResponse;
 }
