@@ -7,6 +7,12 @@ import type {
   OpenCodeToolingInstallResponse,
   OpenCodeRequestLogsResponse,
   ToolingUpdateActionResponse,
+  OpenCodeGoWorkspacesResponse,
+  OpenCodeGoWorkspaceCreatePayload,
+  OpenCodeGoWorkspaceActionResponse,
+  OpenCodeGoWorkspaceCreateFlowPayload,
+  OpenCodeGoWorkspaceCreateFlowResponse,
+  OpenCodeGoWorkspaceValidateResponse,
 } from '../types';
 import { apiRequest } from './core';
 
@@ -75,6 +81,47 @@ export function installOpenCodeCli(baseUrl?: string): Promise<{ ok: boolean; err
     baseUrl,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+export function getGoWorkspaces(baseUrl?: string): Promise<OpenCodeGoWorkspacesResponse> {
+  return apiRequest<OpenCodeGoWorkspacesResponse>('/api/opencode/go-workspaces', { baseUrl });
+}
+
+export function registerGoWorkspace(payload: OpenCodeGoWorkspaceCreatePayload, baseUrl?: string): Promise<OpenCodeGoWorkspacesResponse & OpenCodeGoWorkspaceActionResponse> {
+  return apiRequest<OpenCodeGoWorkspacesResponse & OpenCodeGoWorkspaceActionResponse>('/api/opencode/go-workspaces', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    baseUrl,
+  });
+}
+
+export function createGoWorkspaceFlow(payload: OpenCodeGoWorkspaceCreateFlowPayload, baseUrl?: string): Promise<OpenCodeGoWorkspaceCreateFlowResponse> {
+  return apiRequest<OpenCodeGoWorkspaceCreateFlowResponse>('/api/opencode/go-workspaces/create-flow', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    baseUrl,
+  });
+}
+
+export function activateGoWorkspace(id: string, baseUrl?: string): Promise<OpenCodeGoWorkspacesResponse & OpenCodeGoWorkspaceActionResponse> {
+  return apiRequest<OpenCodeGoWorkspacesResponse & OpenCodeGoWorkspaceActionResponse>(`/api/opencode/go-workspaces/${encodeURIComponent(id)}/activate`, {
+    method: 'POST',
+    baseUrl,
+  });
+}
+
+export function validateGoWorkspace(id: string, baseUrl?: string): Promise<OpenCodeGoWorkspaceValidateResponse> {
+  return apiRequest<OpenCodeGoWorkspaceValidateResponse>(`/api/opencode/go-workspaces/${encodeURIComponent(id)}/validate`, {
+    method: 'POST',
+    baseUrl,
+  });
+}
+
+export function deleteGoWorkspace(id: string, baseUrl?: string): Promise<OpenCodeGoWorkspacesResponse & OpenCodeGoWorkspaceActionResponse> {
+  return apiRequest<OpenCodeGoWorkspacesResponse & OpenCodeGoWorkspaceActionResponse>(`/api/opencode/go-workspaces/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    baseUrl,
   });
 }
 

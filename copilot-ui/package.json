@@ -44,6 +44,7 @@
     "@electric-sql/pglite": "^0.4.2",
     "@elegy-copilot/contracts": "file:../contracts",
     "@elegy-copilot/root": "file:..",
+    "@napi-rs/keyring": "^1.2.0",
     "dompurify": "^3.3.1",
     "js-yaml": "^4.2.0",
     "mermaid": "^11.12.3",

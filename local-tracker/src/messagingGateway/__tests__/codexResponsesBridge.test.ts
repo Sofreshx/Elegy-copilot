@@ -421,3 +421,184 @@ describe('CodexResponsesBridgeServer', () => {
     });
   });
 });
+
+describe('CodexResponsesBridgeServer with resolveOpencodeGoApiKey', () => {
+  let port = 0;
+
+  beforeAll(async () => {
+    delete process.env.OPENCODE_GO_API_KEY;
+  });
+
+  it('uses the resolver result over env when no Authorization header is present', async () => {
+    process.env.OPENCODE_GO_API_KEY = 'should-not-be-used';
+    const fetchMock = jest.fn();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ 'Content-Type': 'application/json' }),
+      json: async () => ({
+        id: 'chatcmpl_resolver',
+        created: 1,
+        model: 'kimi-k2.6',
+        choices: [{ finish_reason: 'stop', message: { content: 'ok' } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      }),
+    });
+    const resolverServer = new CodexResponsesBridgeServer({
+      port: 0,
+      fetchImpl: fetchMock as typeof fetch,
+      defaultModel: 'kimi-k2.6',
+      resolveOpencodeGoApiKey: () => 'keychain-active-key',
+    });
+    await resolverServer.start();
+    port = resolverServer.getPort() || 0;
+    try {
+      const res = await makeRequest(port, {
+        method: 'POST',
+        path: '/v1/responses',
+        body: JSON.stringify({ model: 'opencode-go', input: 'Hello' }),
+      });
+      expect(res.statusCode).toBe(200);
+      expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+        Authorization: 'Bearer keychain-active-key',
+      });
+    } finally {
+      await resolverServer.stop();
+    }
+  });
+
+  it('falls back to OPENCODE_GO_API_KEY env when resolver returns null', async () => {
+    process.env.OPENCODE_GO_API_KEY = 'env-fallback-key';
+    const fetchMock = jest.fn();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ 'Content-Type': 'application/json' }),
+      json: async () => ({
+        id: 'chatcmpl_env_only',
+        created: 1,
+        model: 'kimi-k2.6',
+        choices: [{ finish_reason: 'stop', message: { content: 'ok' } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      }),
+    });
+    const resolverServer = new CodexResponsesBridgeServer({
+      port: 0,
+      fetchImpl: fetchMock as typeof fetch,
+      defaultModel: 'kimi-k2.6',
+      resolveOpencodeGoApiKey: () => null,
+    });
+    await resolverServer.start();
+    port = resolverServer.getPort() || 0;
+    try {
+      const res = await makeRequest(port, {
+        method: 'POST',
+        path: '/v1/responses',
+        body: JSON.stringify({ model: 'opencode-go', input: 'Hello' }),
+      });
+      expect(res.statusCode).toBe(200);
+      expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+        Authorization: 'Bearer env-fallback-key',
+      });
+    } finally {
+      await resolverServer.stop();
+    }
+  });
+
+  it('prefers bearer token over resolver and env', async () => {
+    process.env.OPENCODE_GO_API_KEY = 'env-fallback-key';
+    const fetchMock = jest.fn();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ 'Content-Type': 'application/json' }),
+      json: async () => ({
+        id: 'chatcmpl_bearer',
+        created: 1,
+        model: 'kimi-k2.6',
+        choices: [{ finish_reason: 'stop', message: { content: 'ok' } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      }),
+    });
+    const resolverServer = new CodexResponsesBridgeServer({
+      port: 0,
+      fetchImpl: fetchMock as typeof fetch,
+      defaultModel: 'kimi-k2.6',
+      resolveOpencodeGoApiKey: () => 'resolver-key',
+    });
+    await resolverServer.start();
+    port = resolverServer.getPort() || 0;
+    try {
+      const res = await makeRequest(port, {
+        method: 'POST',
+        path: '/v1/responses',
+        token: 'bearer-key',
+        body: JSON.stringify({ model: 'opencode-go', input: 'Hello' }),
+      });
+      expect(res.statusCode).toBe(200);
+      expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+        Authorization: 'Bearer bearer-key',
+      });
+    } finally {
+      await resolverServer.stop();
+    }
+  });
+
+  it('returns 401 when resolver and env both yield no key', async () => {
+    delete process.env.OPENCODE_GO_API_KEY;
+    const resolverServer = new CodexResponsesBridgeServer({
+      port: 0,
+      fetchImpl: jest.fn() as typeof fetch,
+      defaultModel: 'kimi-k2.6',
+      resolveOpencodeGoApiKey: () => null,
+    });
+    await resolverServer.start();
+    port = resolverServer.getPort() || 0;
+    try {
+      const res = await makeRequest(port, {
+        method: 'POST',
+        path: '/v1/responses',
+        body: JSON.stringify({ model: 'opencode-go', input: 'Hello' }),
+      });
+      expect(res.statusCode).toBe(401);
+    } finally {
+      await resolverServer.stop();
+    }
+  });
+
+  it('swallows resolver errors and falls back to env', async () => {
+    process.env.OPENCODE_GO_API_KEY = 'env-fallback-key';
+    const fetchMock = jest.fn();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ 'Content-Type': 'application/json' }),
+      json: async () => ({
+        id: 'chatcmpl_throw_resolver',
+        created: 1,
+        model: 'kimi-k2.6',
+        choices: [{ finish_reason: 'stop', message: { content: 'ok' } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      }),
+    });
+    const resolverServer = new CodexResponsesBridgeServer({
+      port: 0,
+      fetchImpl: fetchMock as typeof fetch,
+      defaultModel: 'kimi-k2.6',
+      resolveOpencodeGoApiKey: () => {
+        throw new Error('keyring offline');
+      },
+    });
+    await resolverServer.start();
+    port = resolverServer.getPort() || 0;
+    try {
+      const res = await makeRequest(port, {
+        method: 'POST',
+        path: '/v1/responses',
+        body: JSON.stringify({ model: 'opencode-go', input: 'Hello' }),
+      });
+      expect(res.statusCode).toBe(200);
+      expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+        Authorization: 'Bearer env-fallback-key',
+      });
+    } finally {
+      await resolverServer.stop();
+    }
+  });
+});

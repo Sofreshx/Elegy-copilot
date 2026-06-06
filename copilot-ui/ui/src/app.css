@@ -8673,6 +8673,7 @@ textarea:focus-visible,
   color: var(--color-danger-500);
 }
 
+
 /* ── Tab bar row with brand ── */
 
 .workspace-local-tabs-row {
@@ -9313,4 +9314,178 @@ textarea:focus-visible,
 .workspace-docs-graph-warning summary {
   cursor: pointer;
   font-weight: 600;
+
+/* Go Workspaces */
+.go-workspaces-register {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: var(--panel-bg, #1e1e2e);
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #313244);
+}
+
+.go-workspaces-register h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #cdd6f4);
+}
+
+.go-workspaces-form-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.go-workspaces-form-row input {
+  flex: 1;
+  min-width: 140px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color, #313244);
+  border-radius: 6px;
+  background: var(--input-bg, #11111b);
+  color: var(--text-primary, #cdd6f4);
+  font-size: 13px;
+}
+
+.go-workspaces-form-row input::placeholder {
+  color: var(--text-muted, #6c7086);
+}
+
+.go-workspaces-form-row button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent-color, #cba6f7);
+  color: #1e1e2e;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.go-workspaces-form-row button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.go-workspaces-list {
+  margin-top: 8px;
+}
+
+.go-workspaces-list h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #cdd6f4);
+}
+
+.go-workspace-card {
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  background: var(--panel-bg, #1e1e2e);
+  border: 1px solid var(--border-color, #313244);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.go-workspace-card-active {
+  border-color: var(--accent-color, #cba6f7);
+  background: var(--panel-bg-active, #1e1e2e);
+}
+
+.go-workspace-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.go-workspace-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #cdd6f4);
+}
+
+.go-workspace-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.go-workspace-badge-active {
+  background: var(--accent-color, #cba6f7);
+  color: #1e1e2e;
+}
+
+.go-workspace-badge-detected {
+  background: var(--text-muted, #6c7086);
+  color: #1e1e2e;
+}
+
+.go-workspace-card-details {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-secondary, #a6adc8);
+  flex-wrap: wrap;
+}
+
+.go-workspace-workspaceId {
+  font-family: var(--font-mono, 'Consolas', monospace);
+}
+
+.go-workspace-source {
+  opacity: 0.7;
+}
+
+.go-workspace-validation {
+  font-weight: 500;
+}
+
+.go-workspace-validation-ok {
+  color: var(--success-color, #a6e3a1);
+}
+
+.go-workspace-validation-error,
+.go-workspace-validation-invalid,
+.go-workspace-validation-failed {
+  color: var(--error-color, #f38ba8);
+}
+
+.go-workspace-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.go-workspace-card-actions button {
+  padding: 4px 12px;
+  border: 1px solid var(--border-color, #313244);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary, #cdd6f4);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.go-workspace-card-actions button:hover:not(:disabled) {
+  background: var(--hover-bg, #313244);
+}
+
+.go-workspace-card-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.go-workspace-delete-btn {
+  color: var(--error-color, #f38ba8) !important;
+  border-color: var(--error-color, #f38ba8) !important;
 }

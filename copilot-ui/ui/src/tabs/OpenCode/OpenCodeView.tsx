@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Badge, Button, LogViewer, Panel, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import type {
@@ -19,6 +19,7 @@ const TAB_SECTIONS: Array<{ id: OpenCodeTabSectionId; label: string }> = [
   { id: 'profiles', label: 'Profiles' },
   { id: 'setup', label: 'Setup' },
   { id: 'logs', label: 'Request Log' },
+  { id: 'go-workspaces', label: 'Workspaces' },
 ];
 
 function StatusDot({ status }: { status: string }) {
@@ -451,12 +452,163 @@ function RequestLogSection() {
 type LaneSectionProps = { status: OpenCodeStatusResponse; selectedLaneId: string | null };
 type SectionProps = { status: OpenCodeStatusResponse; selectedLaneId: string | null };
 
+function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
+  const state = useStoreValue(opencodeStore);
+  const goWorkspaces = state.goWorkspaces;
+  const loading = state.goWorkspacesLoading;
+  const error = state.goWorkspacesError;
+
+  const [label, setLabel] = React.useState('');
+  const [wsId, setWsId] = React.useState('');
+  const [apiKey, setApiKey] = React.useState('');
+  const [submitting, setSubmitting] = React.useState(false);
+  const [formError, setFormError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    opencodeStore.loadGoWorkspaces();
+  }, []);
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!label.trim() || !wsId.trim() || !apiKey.trim()) {
+      setFormError('All fields are required.');
+      return;
+    }
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      await opencodeStore.createGoWorkspace({
+        label: label.trim(),
+        workspaceId: wsId.trim(),
+        apiKey: apiKey.trim(),
+        activate: true,
+      });
+      setLabel('');
+      setWsId('');
+      setApiKey('');
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleActivate = (id: string) => opencodeStore.activateGoWorkspaceAction(id);
+  const handleValidate = (id: string) => opencodeStore.validateGoWorkspaceAction(id);
+  const handleDelete = (id: string, label: string) => {
+    if (window.confirm(`Delete workspace "${label}"?`)) {
+      opencodeStore.deleteGoWorkspaceAction(id);
+    }
+  };
+
+  const allWorkspaces = [
+    ...(goWorkspaces?.detected || []).map((w) => ({ ...w, _type: 'detected' as const })),
+    ...(goWorkspaces?.registered || []).map((w) => ({ ...w, _type: 'registered' as const })),
+  ];
+
+  return (
+    <div className="opencode-section opencode-go-workspaces">
+      {error && <div className="opencode-error">{error}</div>}
+
+      <form className="go-workspaces-register" onSubmit={handleRegister}>
+        <h4>Register New Workspace</h4>
+        {formError && <div className="opencode-error">{formError}</div>}
+        <div className="go-workspaces-form-row">
+          <input
+            type="text"
+            placeholder="Label (e.g. Primary)"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            disabled={submitting || loading}
+          />
+          <input
+            type="text"
+            placeholder="Workspace ID"
+            value={wsId}
+            onChange={(e) => setWsId(e.target.value)}
+            disabled={submitting || loading}
+          />
+          <input
+            type="password"
+            placeholder="API Key"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            disabled={submitting || loading}
+          />
+          <button type="submit" disabled={submitting || loading}>
+            {submitting ? 'Registering…' : 'Register'}
+          </button>
+        </div>
+      </form>
+
+      {loading && !goWorkspaces && <div className="opencode-loading">Loading workspaces…</div>}
+
+      {allWorkspaces.length > 0 && (
+        <div className="go-workspaces-list">
+          <h4>Workspaces</h4>
+          {allWorkspaces.map((workspace) => {
+            const isActive = workspace.id === goWorkspaces?.activeId;
+            const isDetected = workspace._type === 'detected';
+            const isRegistered = workspace._type === 'registered';
+
+            return (
+              <div
+                key={workspace.id}
+                className={`go-workspace-card ${isActive ? 'go-workspace-card-active' : ''}`}
+              >
+                <div className="go-workspace-card-header">
+                  <span className="go-workspace-label">{workspace.label}</span>
+                  {isActive && <span className="go-workspace-badge go-workspace-badge-active">Active</span>}
+                  {isDetected && <span className="go-workspace-badge go-workspace-badge-detected">Detected</span>}
+                </div>
+                <div className="go-workspace-card-details">
+                  <span className="go-workspace-workspaceId">{workspace.workspaceId}</span>
+                  <span className="go-workspace-source">via {workspace.keySource || 'keychain'}</span>
+                  {workspace.lastValidatedStatus && (
+                    <span className={`go-workspace-validation go-workspace-validation-${workspace.lastValidatedStatus}`}>
+                      {workspace.lastValidatedStatus === 'ok' ? '✓ Valid' : workspace.lastValidatedStatus}
+                    </span>
+                  )}
+                </div>
+                {isRegistered && (
+                  <div className="go-workspace-card-actions">
+                    {!isActive && (
+                      <button onClick={() => handleActivate(workspace.id)} disabled={loading}>
+                        Activate
+                      </button>
+                    )}
+                    <button onClick={() => handleValidate(workspace.id)} disabled={loading}>
+                      Validate
+                    </button>
+                    <button
+                      className="go-workspace-delete-btn"
+                      onClick={() => handleDelete(workspace.id, workspace.label)}
+                      disabled={loading}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {!loading && allWorkspaces.length === 0 && !error && (
+        <div className="opencode-empty">No workspaces configured yet. Register one above.</div>
+      )}
+    </div>
+  );
+}
+
 const SECTION_COMPONENTS: Record<OpenCodeTabSectionId, React.FC<SectionProps>> = {
   overview: OverviewSection as unknown as React.FC<SectionProps>,
   lanes: LaneSection,
   profiles: ProfilesSection as unknown as React.FC<SectionProps>,
   setup: SetupSection as unknown as React.FC<SectionProps>,
   logs: RequestLogSection as unknown as React.FC<SectionProps>,
+  'go-workspaces': GoWorkspacesSection,
 };
 
 export default function OpenCodeView() {

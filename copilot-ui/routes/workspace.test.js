@@ -1,10 +1,21 @@
 'use strict';
 
-const { describe, it, beforeEach } = require('node:test');
+const { describe, it, before, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const child_process = require('child_process');
+const ORIGINAL_SPAWN = child_process.spawn;
+const ORIGINAL_EXEC_SYNC = child_process.execSync;
+
+let workspaceModule = null;
+function loadWorkspace() {
+  delete require.cache[require.resolve('./workspace')];
+  workspaceModule = require('./workspace');
+  return workspaceModule;
+}
+loadWorkspace();
 const {
   validateCommand,
   validateCwd,
@@ -18,7 +29,7 @@ const {
   detectPackageScripts,
   buildLauncherCommand,
   detectTerminal,
-} = require('./workspace');
+} = workspaceModule;
 
 function createMockCtx(queryParams = {}) {
   const res = {
@@ -643,6 +654,121 @@ describe('workspace route handlers', () => {
         assert.ok(config);
         assert.equal(config.commands.length, 1);
         assert.equal(config.commands[0].id, 'good');
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe('opencode launcher env injection', () => {
+    let captured;
+
+    function makeSpawn() {
+      return (cmd, args, options) => {
+        captured = { cmd, args, options };
+        return { unref: () => {} };
+      };
+    }
+
+    beforeEach(() => {
+      captured = null;
+      child_process.execSync = () => Buffer.from('');
+      child_process.spawn = ORIGINAL_SPAWN;
+    });
+
+    afterEach(() => {
+      child_process.execSync = ORIGINAL_EXEC_SYNC;
+      child_process.spawn = ORIGINAL_SPAWN;
+    });
+
+    it('passes OPENCODE_GO_API_KEY to spawned pwsh when resolver returns a key', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencode-launch-'));
+      try {
+        child_process.spawn = makeSpawn();
+        const mod = loadWorkspace();
+        const readJsonBody = async () => ({ launcherId: 'opencode', repoPath: tmpDir });
+        const resolveOpencodeGoApiKey = async () => 'active-keychain-key';
+        const routes = mod.register({
+          sendJson: () => {},
+          readJsonBody,
+          resolveOpencodeGoApiKey,
+        });
+        const route = routes.find((r) => r.method === 'POST' && r.path === '/api/workspace/launch');
+        assert.ok(route);
+
+        await route.handler({ res: {}, req: {}, u: { searchParams: new URLSearchParams() } });
+        assert.ok(captured, 'spawn was not called');
+        assert.equal(captured.options.env.OPENCODE_GO_API_KEY, 'active-keychain-key');
+        assert.equal(captured.options.detached, true);
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('omits OPENCODE_GO_API_KEY env when resolver returns null', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencode-launch-'));
+      try {
+        child_process.spawn = makeSpawn();
+        const mod = loadWorkspace();
+        const readJsonBody = async () => ({ launcherId: 'opencode', repoPath: tmpDir });
+        const resolveOpencodeGoApiKey = async () => null;
+        const routes = mod.register({
+          sendJson: () => {},
+          readJsonBody,
+          resolveOpencodeGoApiKey,
+        });
+        const route = routes.find((r) => r.method === 'POST' && r.path === '/api/workspace/launch');
+        assert.ok(route);
+
+        await route.handler({ res: {}, req: {}, u: { searchParams: new URLSearchParams() } });
+        assert.ok(captured, 'spawn was not called');
+        assert.equal(captured.options.env, undefined);
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('does not inject env for non-opencode launchers', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencode-launch-'));
+      try {
+        child_process.spawn = makeSpawn();
+        const mod = loadWorkspace();
+        const readJsonBody = async () => ({ launcherId: 'codex', repoPath: tmpDir });
+        const resolveOpencodeGoApiKey = async () => 'should-not-be-used';
+        const routes = mod.register({
+          sendJson: () => {},
+          readJsonBody,
+          resolveOpencodeGoApiKey,
+        });
+        const route = routes.find((r) => r.method === 'POST' && r.path === '/api/workspace/launch');
+        assert.ok(route);
+
+        await route.handler({ res: {}, req: {}, u: { searchParams: new URLSearchParams() } });
+        assert.ok(captured, 'spawn was not called');
+        assert.equal(captured.options.env, undefined);
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('swallows resolver errors and proceeds without env', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencode-launch-'));
+      try {
+        child_process.spawn = makeSpawn();
+        const mod = loadWorkspace();
+        const readJsonBody = async () => ({ launcherId: 'opencode', repoPath: tmpDir });
+        const resolveOpencodeGoApiKey = async () => { throw new Error('keyring offline'); };
+        const routes = mod.register({
+          sendJson: () => {},
+          readJsonBody,
+          resolveOpencodeGoApiKey,
+        });
+        const route = routes.find((r) => r.method === 'POST' && r.path === '/api/workspace/launch');
+        assert.ok(route);
+
+        await route.handler({ res: {}, req: {}, u: { searchParams: new URLSearchParams() } });
+        assert.ok(captured, 'spawn was not called');
+        assert.equal(captured.options.env, undefined);
       } finally {
         fs.rmSync(tmpDir, { recursive: true, force: true });
       }
