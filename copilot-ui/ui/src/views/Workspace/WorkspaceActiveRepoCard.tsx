@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Panel } from '../../components';
+import { Button, Panel } from '../../components';
 import { notificationStore } from '../../stores/notificationStore';
 import type { CatalogRepoInventoryEntry } from '../../lib/types';
 import type { GitSummaryResponse, GitPullRequestResponse, GitLogResponse, GitCheckResults } from '../../lib/api/git';
@@ -238,7 +238,7 @@ export default function WorkspaceActiveRepoCard({
         <Button
           variant="primary"
           size="sm"
-          disabled={!commitMessage.trim() || committing}
+          disabled={!commitMessage?.trim() || committing}
           onClick={onCommit}
           testId="workspace-commit"
         >

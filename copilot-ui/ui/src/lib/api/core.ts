@@ -32,6 +32,7 @@ import type {
   ExecutorRun,
   ExecutorRunEvent,
   ExecutorRunsResponse,
+  ExecutorWorktreeDiscovery,
   ExecutorWorktreeRecord,
   ExecutorWorktreesResponse,
   GatewayConfig,
@@ -2975,7 +2976,7 @@ export function normalizeExecutorWorktreeRecord(value: unknown): ExecutorWorktre
     validation: asRecord(record.validation),
     _discovered: asBoolean(record._discovered, false),
     _discoveredOnly: asBoolean(record._discoveredOnly, false),
-    _merged: asTrimmedString(record._merged) || null,
+    _merged: (asTrimmedString(record._merged) || null) as ExecutorWorktreeRecord['_merged'],
     _stableOrder: typeof record._stableOrder === 'number' && Number.isFinite(record._stableOrder) ? record._stableOrder : null,
   };
 }
