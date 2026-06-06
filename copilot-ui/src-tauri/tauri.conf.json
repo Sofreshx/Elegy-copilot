@@ -13,6 +13,9 @@
   "bundle": {
     "active": true,
     "targets": "nsis",
+    "icon": [
+      "icons/icon.ico"
+    ],
     "resources": {
       "gen/resources/node": "node",
       "gen/resources/copilot-ui": "copilot-ui",
