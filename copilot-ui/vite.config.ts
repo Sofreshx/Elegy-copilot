@@ -25,7 +25,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: path.resolve(__dirname, 'tests/vitest.setup.ts'),
-    include: ['../tests/**/*.vitest.ts', '../tests/**/*.vitest.tsx'],
+    include: ['../tests/**/*.vitest.ts', '../tests/**/*.vitest.tsx', '../ui/src/views/Workspace/*.test.tsx'],
     clearMocks: true,
     testTimeout: 30_000,
     hookTimeout: 15_000,

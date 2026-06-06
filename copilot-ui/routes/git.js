@@ -643,6 +643,235 @@ function handleGitActionWithGate(ctx, deps, action, executeAction) {
     });
 }
 
+function handleGitMergeCandidates(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const repoPath = resolveRepoPath(ctx);
+
+  if (!repoPath) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+
+  return Promise.resolve()
+    .then(async () => {
+      // Get current branch
+      const currentBranch = (await runGit(deps.childProcess, ['branch', '--show-current'], repoPath)).stdout.trim();
+      
+      // Get all local branches
+      const branchOutput = await runGit(deps.childProcess, ['for-each-ref', '--format=%(refname:short)\t%(upstream:short)\t%(objectname:short)\t%(committerdate:iso)', 'refs/heads'], repoPath);
+      const branches = branchOutput.stdout.trim().split('\n').filter(Boolean).map(line => {
+        const [name, upstream, lastCommit, lastCommitDate] = line.split('\t');
+        return {
+          name: String(name || '').trim(),
+          upstream: String(upstream || '').trim() || null,
+          lastCommit: String(lastCommit || '').trim(),
+          lastCommitDate: String(lastCommitDate || '').trim(),
+          current: String(name || '').trim() === currentBranch,
+        };
+      });
+
+      // For each non-current branch, check merge status
+      const candidates = await Promise.all(branches
+        .filter(b => !b.current && b.name)
+        .map(async (branch) => {
+          try {
+            // Check if branch is merged into current
+            const mergedResult = await runGit(deps.childProcess, ['merge-base', '--is-ancestor', branch.name, currentBranch], repoPath).catch(() => null);
+            const isMerged = mergedResult !== null;
+            
+            // Get ahead/behind
+            const aheadResult = await runGit(deps.childProcess, ['rev-list', '--count', `${currentBranch}..${branch.name}`], repoPath).catch(() => ({ stdout: '0' }));
+            const behindResult = await runGit(deps.childProcess, ['rev-list', '--count', `${branch.name}..${currentBranch}`], repoPath).catch(() => ({ stdout: '0' }));
+            
+            return {
+              name: branch.name,
+              upstream: branch.upstream,
+              lastCommit: branch.lastCommit,
+              lastCommitDate: branch.lastCommitDate,
+              isMerged,
+              ahead: parseInt(String(aheadResult.stdout).trim(), 10) || 0,
+              behind: parseInt(String(behindResult.stdout).trim(), 10) || 0,
+            };
+          } catch {
+            return {
+              name: branch.name,
+              upstream: branch.upstream,
+              lastCommit: branch.lastCommit,
+              lastCommitDate: branch.lastCommitDate,
+              isMerged: false,
+              ahead: 0,
+              behind: 0,
+              error: 'Could not determine merge status',
+            };
+          }
+        }));
+
+      return {
+        repoPath,
+        currentBranch,
+        branches: candidates,
+      };
+    })
+    .then((result) => sendJson(res, 200, result))
+    .catch((error) => {
+      sendJson(res, 500, { error: String(error.message || error) });
+    });
+}
+
+function handleGitMergeDryRun(ctx, deps) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+
+  return readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const repoPath = isNonEmptyString(payload.repoPath) ? payload.repoPath.trim() : '';
+      const sourceRef = isNonEmptyString(payload.sourceRef) ? payload.sourceRef.trim() : '';
+      const targetRef = isNonEmptyString(payload.targetRef) ? payload.targetRef.trim() : '';
+
+      if (!repoPath) throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+      if (!sourceRef) throw Object.assign(new Error('sourceRef is required'), { statusCode: 400 });
+      if (!targetRef) throw Object.assign(new Error('targetRef is required'), { statusCode: 400 });
+
+      // Check if worktree is dirty
+      const statusResult = await runGit(deps.childProcess, ['status', '--porcelain'], repoPath);
+      const isDirty = statusResult.stdout.trim().length > 0;
+
+      if (isDirty) {
+        return {
+          ok: false,
+          clean: false,
+          conflicts: [],
+          diagnostics: 'Working tree is dirty. Please commit or stash changes before attempting a merge.',
+          sourceRef,
+          targetRef,
+          dirty: true,
+        };
+      }
+
+      // Use git merge-tree for non-mutating merge analysis
+      let mergeResult;
+      try {
+        mergeResult = await runGit(deps.childProcess, ['merge-tree', targetRef, sourceRef], repoPath, 15000);
+      } catch (err) {
+        // merge-tree exits non-zero on conflicts — that's expected and we parse stdout
+        const stdout = err.stdout || '';
+        const stderr = err.stderr || '';
+        const message = String(err.message || '');
+
+        // Distinguish between conflict non-zero exit and command failure
+        if (stdout.includes('<<<<<<<') || stdout.includes('>>>>>>>') || stdout.includes('=======') || message.includes('merge-tree')) {
+          // Expected: merge-tree found conflicts
+          mergeResult = { stdout, stderr };
+        } else {
+          // Unexpected: command failure (git not found, bad ref, pre-2.38 git, etc.)
+          return {
+            ok: false,
+            clean: false,
+            conflicts: [],
+            diagnostics: `Merge analysis failed: ${message || stderr || 'Unknown error'}`,
+            sourceRef,
+            targetRef,
+            dirty: false,
+            error: message || stderr || 'Merge analysis failed',
+          };
+        }
+      }
+
+      const output = mergeResult.stdout || '';
+      const hasConflicts = output.includes('<<<<<<<') || output.includes('>>>>>>>') || output.includes('=======');
+      
+      // Parse conflict files
+      const conflicts = [];
+      if (hasConflicts) {
+        const lines = output.split('\n');
+        for (const line of lines) {
+          // merge-tree outputs conflict filenames in various formats
+          const conflictMatch = line.match(/^(?:changed in both|added in both|CONFLICT|merged\s+)\s*(.+)$/i);
+          if (conflictMatch) {
+            conflicts.push(conflictMatch[1].trim());
+          }
+        }
+      }
+
+      return {
+        ok: !hasConflicts,
+        clean: !hasConflicts,
+        conflicts: conflicts.length > 0 ? conflicts : undefined,
+        diagnostics: hasConflicts ? `Merge conflict detected in ${conflicts.length} file(s)` : 'No conflicts detected',
+        sourceRef,
+        targetRef,
+        dirty: false,
+      };
+    })
+    .then((result) => sendJson(res, 200, result))
+    .catch((error) => {
+      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      sendJson(res, statusCode, { error: String(error.message || error) });
+    });
+}
+
+function handleGitMergeLocal(ctx, deps) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+
+  return readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const repoPath = isNonEmptyString(payload.repoPath) ? payload.repoPath.trim() : '';
+      const sourceRef = isNonEmptyString(payload.sourceRef) ? payload.sourceRef.trim() : '';
+      const targetRef = isNonEmptyString(payload.targetRef) ? payload.targetRef.trim() : '';
+
+      if (!repoPath) throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+      if (!sourceRef) throw Object.assign(new Error('sourceRef is required'), { statusCode: 400 });
+      if (!targetRef) throw Object.assign(new Error('targetRef is required'), { statusCode: 400 });
+
+      // Safety: check current branch
+      const currentBranch = (await runGit(deps.childProcess, ['branch', '--show-current'], repoPath)).stdout.trim();
+      if (currentBranch !== targetRef) {
+        throw Object.assign(new Error(`Current branch (${currentBranch}) does not match target ref (${targetRef}). Switch to the target branch first.`), { statusCode: 409 });
+      }
+
+      // Safety: check clean worktree
+      const statusResult = await runGit(deps.childProcess, ['status', '--porcelain'], repoPath);
+      if (statusResult.stdout.trim().length > 0) {
+        throw Object.assign(new Error('Working tree is dirty. Commit or stash changes before merging.'), { statusCode: 409 });
+      }
+
+      // Verify merge would be clean via merge-tree first
+      let mergeCheck;
+      try {
+        mergeCheck = await runGit(deps.childProcess, ['merge-tree', targetRef, sourceRef], repoPath, 10000);
+      } catch (err) {
+        mergeCheck = { stdout: err.stdout || '', stderr: err.stderr || '' };
+      }
+      const mergeOutput = mergeCheck.stdout || '';
+      if (mergeOutput.includes('<<<<<<<') || mergeOutput.includes('>>>>>>>')) {
+        throw Object.assign(new Error('Dry-run indicates conflicts exist. Resolve conflicts or run merge dry-run first.'), { statusCode: 409, conflicts: true });
+      }
+
+      // Execute the merge (--no-ff to record merge commit)
+      const result = await runGit(deps.childProcess, ['merge', '--no-ff', sourceRef], repoPath, 30000);
+
+      return {
+        merged: true,
+        sourceRef,
+        targetRef,
+        output: `${result.stdout}${result.stderr}`.trim(),
+      };
+    })
+    .then((result) => sendJson(res, 200, result))
+    .catch((error) => {
+      if (error.conflicts) {
+        sendJson(res, 409, { error: String(error.message || error), conflicts: true });
+        return;
+      }
+      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      sendJson(res, statusCode, { error: String(error.message || error) });
+    });
+}
+
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const readJsonBody = context.readJsonBody || defaultReadJsonBody;
@@ -663,6 +892,9 @@ function register(context = {}) {
     { method: 'POST', path: '/api/git/push', handler: (ctx) => handleGitPush(ctx, deps) },
     { method: 'POST', path: '/api/git/pull-request', handler: (ctx) => handleGitPullRequest(ctx, deps) },
     { method: 'POST', path: '/api/git/auth/login', handler: (ctx) => handleGitAuthLogin(ctx, deps) },
+    { method: 'GET', path: '/api/git/merge-candidates', handler: (ctx) => handleGitMergeCandidates(ctx, deps) },
+    { method: 'POST', path: '/api/git/merge-dry-run', handler: (ctx) => handleGitMergeDryRun(ctx, deps) },
+    { method: 'POST', path: '/api/git/merge-local', handler: (ctx) => handleGitMergeLocal(ctx, deps) },
   ];
 }
 

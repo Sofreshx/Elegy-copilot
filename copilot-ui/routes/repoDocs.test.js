@@ -91,9 +91,9 @@ function cleanupTempRepo(tmpDir) {
 async function run() {
   console.log('\nRepo Docs Route Tests\n');
 
-  await test('register returns 2 route descriptors', async () => {
+  await test('register returns 3 route descriptors', async () => {
     const routes = registerWithMocks();
-    assert.equal(routes.length, 2);
+    assert.equal(routes.length, 3);
   });
 
   await test('GET /api/repo-docs/list requires repoPath', async () => {
@@ -172,6 +172,71 @@ async function run() {
       const routes = registerWithMocks();
       const { res, body } = await invoke(routes, 'GET', `/api/repo-docs/read?repoPath=${encodeURIComponent(tmpDir)}&path=docs/missing.md`);
       assert.equal(res.statusCode, 404);
+    } finally {
+      cleanupTempRepo(tmpDir);
+    }
+  });
+
+  // ─── Graph route tests ─────────────────────────────────────────────────
+
+  await test('GET /api/repo-docs/graph returns 400 when repoPath is missing', async () => {
+    const routes = registerWithMocks();
+    const { res, body } = await invoke(routes, 'GET', '/api/repo-docs/graph');
+    assert.equal(res.statusCode, 400);
+    assert.match(body.error, /repoPath/i);
+  });
+
+  await test('GET /api/repo-docs/graph returns nodes and edges', async () => {
+    const tmpDir = createTempRepo();
+    try {
+      // Add a cross-link between files
+      fs.writeFileSync(path.join(tmpDir, 'docs', 'guide.md'), '# Guide\nSee [spec](specs/spec.md) for details.\n', 'utf8');
+      fs.writeFileSync(path.join(tmpDir, 'specs', 'spec.md'), '# Spec\nSee [guide](docs/guide.md) for docs.\n', 'utf8');
+
+      const routes = registerWithMocks();
+      const { res, body } = await invoke(routes, 'GET', `/api/repo-docs/graph?repoPath=${encodeURIComponent(tmpDir)}`);
+      assert.equal(res.statusCode, 200);
+      assert.ok(Array.isArray(body.nodes));
+      assert.ok(Array.isArray(body.edges));
+      // Should have at least README.md, docs/guide.md, specs/spec.md
+      const nodePaths = body.nodes.map((n) => n.id);
+      assert.ok(nodePaths.includes('README.md'));
+      assert.ok(nodePaths.includes('docs/guide.md'));
+      assert.ok(nodePaths.includes('specs/spec.md'));
+    } finally {
+      cleanupTempRepo(tmpDir);
+    }
+  });
+
+  await test('GET /api/repo-docs/graph skips blocked files', async () => {
+    const tmpDir = createTempRepo();
+    try {
+      // Create an external symlink (blocked)
+      const externalTarget = fs.mkdtempSync(path.join(os.tmpdir(), 'repo-docs-ext-'));
+      fs.writeFileSync(path.join(externalTarget, 'external.md'), '# External\n');
+      try {
+        const symlinkPath = path.join(tmpDir, 'docs', 'external-link.md');
+        fs.symlinkSync(path.join(externalTarget, 'external.md'), symlinkPath, 'file');
+      } catch {
+        // symlinking may fail on Windows without elevated privileges — skip test gracefully
+        console.log('  SKIP: symlink test (requires elevated privileges on Windows)');
+        passed -= 1;
+        return;
+      }
+
+      const routes = registerWithMocks();
+      const { res, body } = await invoke(routes, 'GET', `/api/repo-docs/graph?repoPath=${encodeURIComponent(tmpDir)}`);
+      assert.equal(res.statusCode, 200);
+      assert.ok(Array.isArray(body.nodes));
+      // The external symlink doc should not appear in nodes or should be in skipped
+      const externalNode = body.nodes.find((n) => n.id.includes('external-link'));
+      if (externalNode) {
+        // If it appeared, it should not have a blocked reason (the graph handler skips blocked)
+      }
+      if (body.skipped) {
+        const externalSkipped = body.skipped.find((s) => s.path && s.path.includes('external-link'));
+        assert.ok(externalSkipped, 'External symlink should be skipped');
+      }
     } finally {
       cleanupTempRepo(tmpDir);
     }

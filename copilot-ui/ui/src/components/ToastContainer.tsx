@@ -27,6 +27,7 @@ function ToastItem({ toast }: ToastItemProps) {
       {toast.actionLabel && toast.onAction && (
         <button
           className="toast__action"
+          type="button"
           onClick={() => {
             toast.onAction?.();
             notificationStore.removeToast(toast.id);
@@ -37,6 +38,7 @@ function ToastItem({ toast }: ToastItemProps) {
       )}
       <button
         className="toast__close"
+        type="button"
         onClick={() => notificationStore.removeToast(toast.id)}
         aria-label="Dismiss"
       >

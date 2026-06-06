@@ -26,6 +26,8 @@ export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'maintenance' | '
 
 export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal';
 
+export type WorkspaceLocalTab = 'docs' | 'git' | 'planning' | 'execution';
+
 export interface OpenWorkspace {
   repoPath: string;
   repoLabel: string;
@@ -66,6 +68,8 @@ export type NavigationState = {
   wizardOpen: WizardType;
   settingsSection: SettingsSection;
   workspaceCenterMode: WorkspaceCenterMode;
+  activeWorkspaceLocalTab: WorkspaceLocalTab;
+  isWorkspaceCenterFocused: boolean;
   activePlanningSessionId: string | null;
   activePlanningSessionContext: SelectedSessionContext | null;
   openWorkspaces: OpenWorkspace[];
@@ -84,6 +88,8 @@ const INITIAL_STATE: NavigationState = {
   wizardOpen: null,
   settingsSection: 'app',
   workspaceCenterMode: 'docs',
+  activeWorkspaceLocalTab: 'docs',
+  isWorkspaceCenterFocused: false,
   activePlanningSessionId: null,
   activePlanningSessionContext: null,
   openWorkspaces: [],
@@ -117,6 +123,7 @@ function createNavigationStore() {
       selectedSessionContext: null,
       wizardOpen: null,
       workspaceCenterMode: 'docs',
+      activeWorkspaceLocalTab: 'docs',
     }));
   }
 
@@ -180,10 +187,25 @@ function createNavigationStore() {
     }));
   }
 
+  function setActiveWorkspaceLocalTab(tab: WorkspaceLocalTab): void {
+    store.setState((state) => ({
+      ...state,
+      activeWorkspaceLocalTab: tab,
+    }));
+  }
+
+  function toggleWorkspaceCenterFocus(): void {
+    store.setState((state) => ({
+      ...state,
+      isWorkspaceCenterFocused: !state.isWorkspaceCenterFocused,
+    }));
+  }
+
   function openPlanningSession(sessionId: string, context: SelectedSessionContext | null = null): void {
     store.setState((state) => ({
       ...state,
       workspaceCenterMode: 'planning-session',
+      activeWorkspaceLocalTab: 'planning',
       activePlanningSessionId: sessionId,
       activePlanningSessionContext: context,
     }));
@@ -193,6 +215,7 @@ function createNavigationStore() {
     store.setState((state) => ({
       ...state,
       workspaceCenterMode: 'docs',
+      activeWorkspaceLocalTab: 'docs',
       activePlanningSessionId: null,
       activePlanningSessionContext: null,
     }));
@@ -306,6 +329,8 @@ function createNavigationStore() {
     closeWizard,
     setSettingsSection,
     setWorkspaceCenterMode,
+    setActiveWorkspaceLocalTab,
+    toggleWorkspaceCenterFocus,
     openPlanningSession,
     closePlanningSession,
     openWorkspace,
