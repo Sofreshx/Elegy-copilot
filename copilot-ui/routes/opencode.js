@@ -19,6 +19,7 @@ const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require
 const codexConfig = require('../lib/codexConfig');
 const { resolvePlanningHealth, resolvePlanningFeatureStatus } = require('../lib/elegyPlanningHealth');
 const providerUsageStats = require('../lib/providerUsageStats');
+const toolCliInstallers = require('../lib/toolCliInstallers');
 
 const TOOLING_INSTALL_KINDS = new Set(['elegy-planning-cli', 'elegy-skills', 'install-codex-planning', 'worktree-permission-profile']);
 
@@ -288,6 +289,23 @@ function buildSetupChecks(opencodeHome, copilotHomeAbs, engineRoot, assets, ctx,
       ? 'elegy-planning CLI is available'
       : 'elegy-planning CLI not detected. Install via tooling updates.',
     action: hasElegyPlanningCli ? null : { kind: 'update', label: 'Install elegy-planning CLI' },
+  });
+
+  // OpenCode CLI check — uses the shared toolCliInstallers helper
+  const ocCliInstaller = (ctx.toolCliInstallers || toolCliInstallers);
+  const opencodeCliStatus = ocCliInstaller.getCliToolStatus
+    ? ocCliInstaller.getCliToolStatus('opencode-cli')
+    : { installed: false };
+  checks.push({
+    id: 'opencode-cli',
+    label: 'OpenCode CLI detected',
+    status: opencodeCliStatus.installed ? 'ok' : 'warning',
+    detail: opencodeCliStatus.installed
+      ? `OpenCode CLI is available${opencodeCliStatus.version ? ` (${opencodeCliStatus.version})` : ''}`
+      : 'OpenCode CLI not detected. Install to use OpenCode outside the dashboard.',
+    action: opencodeCliStatus.installed
+      ? null
+      : { kind: 'install-opencode-cli', label: 'Install OpenCode CLI' },
   });
 
   const hasElegyPlanningLive =
@@ -596,6 +614,7 @@ async function buildOpenCodeStatus(ctx, deps) {
     activeProviderRoute: profiles.activeProfileId,
     smallModel: configStatus.exploreModel,
     bigModel: configStatus.scoutModel,
+    toolCliInstallers: deps.toolCliInstallers || toolCliInstallers,
   };
 
   const codexHome = ctx.codexHome || path.join(require('os').homedir(), '.codex');
@@ -621,6 +640,10 @@ async function buildOpenCodeStatus(ctx, deps) {
     }
   }
 
+  const opencodeCliStatus = (deps.toolCliInstallers || toolCliInstallers).getCliToolStatus
+    ? (deps.toolCliInstallers || toolCliInstallers).getCliToolStatus('opencode-cli')
+    : { installed: false };
+
   return {
     overallStatus,
     warnings,
@@ -639,6 +662,7 @@ async function buildOpenCodeStatus(ctx, deps) {
     elegySkillsAssets: toolingStatus.elegySkillsAssets,
     planningLiveAuthority,
     worktreePermissionProfile: worktreePermissionStatus,
+    opencodeCli: opencodeCliStatus,
   };
 }
 
@@ -665,6 +689,7 @@ function register(deps = {}) {
     fs: deps.fs || fs,
     path: deps.path || path,
     roadmapWorkflowPlanningBridge: deps.roadmapWorkflowPlanningBridge || null,
+    toolCliInstallers: deps.toolCliInstallers || toolCliInstallers,
   };
 
   return [
@@ -869,6 +894,23 @@ function register(deps = {}) {
 
           const status = await buildOpenCodeStatus(ctx, resolvedDeps);
           resolvedDeps.sendJson(ctx.res, 200, { ok: true, kind, ...result, status });
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, 500, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/opencode/cli/install',
+      handler: async (ctx) => {
+        try {
+          const installer = resolvedDeps.toolCliInstallers;
+          const result = await installer.installCliTool('opencode-cli');
+          const status = await buildOpenCodeStatus(ctx, resolvedDeps);
+          resolvedDeps.sendJson(ctx.res, result.ok ? 200 : 500, { ...result, status });
         } catch (error) {
           resolvedDeps.sendJson(ctx.res, 500, {
             ok: false,
