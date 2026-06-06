@@ -7,6 +7,7 @@ interface AppLayoutProps {
   sidebar: ReactNode;
   children: ReactNode;
   testId?: string;
+  sidebarCollapsed?: boolean;
 }
 
 export default function AppLayout({
@@ -14,12 +15,13 @@ export default function AppLayout({
   sidebar,
   children,
   testId = 'app-layout',
+  sidebarCollapsed = false,
 }: AppLayoutProps) {
   return (
     <div className="app-layout" data-testid={testId}>
       {statusBar}
       <RuntimeDisconnectedBanner />
-      <div className="app-layout-body">
+      <div className={`app-layout-body${sidebarCollapsed ? ' app-layout-body-collapsed' : ''}`}>
         {sidebar}
         <main className="app-layout-content">
           {children}

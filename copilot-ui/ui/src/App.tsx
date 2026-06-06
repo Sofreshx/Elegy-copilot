@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import AppLayout from './components/AppLayout';
 import RuntimeDisconnectedBanner from './components/RuntimeDisconnectedBanner';
 import Sidebar from './components/Sidebar';
@@ -23,9 +23,31 @@ import AddProjectWizard from './views/Project/AddProjectWizard';
 import WorkspaceView from './views/Workspace/WorkspaceView';
 import RepositoriesView from './views/Repositories/RepositoriesView';
 
+const SIDEBAR_COLLAPSED_KEY = 'elegy-copilot-sidebar-collapsed';
+
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
   const desktopUpdaterState = useStoreValue(desktopUpdaterStore);
+
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  function handleToggleSidebarCollapse() {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+      } catch {
+        // localStorage may be unavailable
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     desktopUpdaterStore.startListening();
@@ -51,6 +73,9 @@ export default function App() {
         e.preventDefault();
       } else if (navigationStore.getState().workspaceCenterMode === 'planning-session') {
         navigationStore.closePlanningSession();
+        e.preventDefault();
+      } else if (navigationStore.getState().workspaceCenterMode === 'docs-graph') {
+        navigationStore.closeDocsGraph();
         e.preventDefault();
       }
       return;
@@ -116,6 +141,7 @@ export default function App() {
     <>
       <ToastContainer />
       <AppLayout
+      sidebarCollapsed={isSidebarCollapsed}
       statusBar={
         <StatusBar
           desktopUpdaterTone={desktopUpdaterPresentation.tone}
@@ -128,6 +154,8 @@ export default function App() {
       }
       sidebar={
         <Sidebar
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={handleToggleSidebarCollapse}
           items={SIDEBAR_NAV_ITEMS}
           activeItem={navigationState.activeSidebarItem}
           onNavigate={(id: SidebarItemId) => navigationStore.navigate(id)}
