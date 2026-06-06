@@ -234,3 +234,72 @@ export async function runGitChecks(repoPath: string, baseUrl?: string): Promise<
     body: JSON.stringify({ repoPath }),
   });
 }
+
+// ─── Merge candidate and dry-run APIs ──────────────────────────────────────
+
+export interface MergeCandidate {
+  name: string;
+  upstream: string | null;
+  lastCommit: string;
+  lastCommitDate: string;
+  isMerged: boolean;
+  ahead: number;
+  behind: number;
+  error?: string;
+}
+
+export interface MergeCandidatesResponse {
+  repoPath: string;
+  currentBranch: string;
+  branches: MergeCandidate[];
+}
+
+export interface MergeDryRunResponse {
+  ok: boolean;
+  clean: boolean;
+  conflicts?: string[];
+  diagnostics: string;
+  sourceRef: string;
+  targetRef: string;
+  dirty: boolean;
+}
+
+export interface MergeLocalResponse {
+  merged: boolean;
+  sourceRef: string;
+  targetRef: string;
+  output: string;
+}
+
+export async function getMergeCandidates(repoPath: string, baseUrl?: string): Promise<MergeCandidatesResponse> {
+  const url = `/api/git/merge-candidates?repoPath=${encodeURIComponent(repoPath)}`;
+  return apiRequest<MergeCandidatesResponse>(url, { baseUrl });
+}
+
+export async function mergeDryRun(
+  repoPath: string,
+  sourceRef: string,
+  targetRef: string,
+  baseUrl?: string,
+): Promise<MergeDryRunResponse> {
+  return apiRequest<MergeDryRunResponse>('/api/git/merge-dry-run', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, sourceRef, targetRef }),
+  });
+}
+
+export async function mergeLocal(
+  repoPath: string,
+  sourceRef: string,
+  targetRef: string,
+  baseUrl?: string,
+): Promise<MergeLocalResponse> {
+  return apiRequest<MergeLocalResponse>('/api/git/merge-local', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, sourceRef, targetRef }),
+  });
+}

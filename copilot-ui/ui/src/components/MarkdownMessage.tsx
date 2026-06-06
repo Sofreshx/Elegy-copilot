@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import DOMPurify from 'dompurify';
+import mermaid from 'mermaid';
 import CopyButton from './CopyButton';
 
 interface MarkdownMessageProps {
@@ -178,6 +179,61 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
   return { html, codeBlocks };
 }
 
+function MermaidBlock({ code, blockId }: { code: string; blockId: string }) {
+  const [svg, setSvg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (!initialized.current) {
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'strict',
+        theme: 'default',
+      });
+      initialized.current = true;
+    }
+
+    let cancelled = false;
+    async function render() {
+      try {
+        const renderId = `mermaid-${blockId}`;
+        const result = await mermaid.render(renderId, code);
+        if (!cancelled) {
+          const safe = DOMPurify.sanitize(result.svg, {
+            USE_PROFILES: { svg: true, svgFilters: true },
+          });
+          setSvg(safe);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      }
+    }
+    void render();
+    return () => { cancelled = true; };
+  }, [code, blockId]);
+
+  if (error) {
+    return (
+      <div className="markdown-mermaid-error" role="alert">
+        <span className="markdown-mermaid-error-label">Diagram render error:</span>
+        <span>{error}</span>
+        <pre className="code-block">{code}</pre>
+      </div>
+    );
+  }
+
+  if (!svg) {
+    return <div className="markdown-mermaid-loading">Rendering diagram...</div>;
+  }
+
+  return (
+    <div className="markdown-mermaid" dangerouslySetInnerHTML={{ __html: svg }} />
+  );
+}
+
 export default function MarkdownMessage({
   content,
   testId = 'markdown-message',
@@ -232,17 +288,27 @@ export default function MarkdownMessage({
 
           {/* Render the code block that follows this segment (if any) */}
           {idx < codeBlocks.length && (
-            <div className="markdown-code-block" data-testid="markdown-code-block">
-              <div className="markdown-code-block-header">
-                <span className="markdown-code-block-lang">
-                  {codeBlocks[idx].lang || 'code'}
-                </span>
-                <CopyButton text={codeBlocks[idx].code} testId="code-block-copy" />
+            codeBlocks[idx].lang === 'mermaid' ? (
+              <div className="markdown-code-block" data-testid="markdown-mermaid-block">
+                <div className="markdown-code-block-header">
+                  <span className="markdown-code-block-lang">mermaid</span>
+                  <CopyButton text={codeBlocks[idx].code} testId="mermaid-block-copy" />
+                </div>
+                <MermaidBlock code={codeBlocks[idx].code} blockId={codeBlocks[idx].id} />
               </div>
-              <pre>
-                <code>{codeBlocks[idx].code}</code>
-              </pre>
-            </div>
+            ) : (
+              <div className="markdown-code-block" data-testid="markdown-code-block">
+                <div className="markdown-code-block-header">
+                  <span className="markdown-code-block-lang">
+                    {codeBlocks[idx].lang || 'code'}
+                  </span>
+                  <CopyButton text={codeBlocks[idx].code} testId="code-block-copy" />
+                </div>
+                <pre>
+                  <code>{codeBlocks[idx].code}</code>
+                </pre>
+              </div>
+            )
           )}
         </React.Fragment>
       ))}

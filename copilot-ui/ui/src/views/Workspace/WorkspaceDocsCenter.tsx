@@ -5,15 +5,19 @@ import type { RepoDocEntry, RepoDocReadResponse } from '../../lib/api/repoDocs';
 
 interface WorkspaceDocsCenterProps {
   repoPath: string;
+  isFocused?: boolean;
+  treeVisible?: boolean;
+  onToggleTree?: () => void;
 }
 
-export default function WorkspaceDocsCenter({ repoPath }: WorkspaceDocsCenterProps) {
+export default function WorkspaceDocsCenter({ repoPath, isFocused, treeVisible = true, onToggleTree }: WorkspaceDocsCenterProps) {
   const [files, setFiles] = useState<RepoDocEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<RepoDocReadResponse | null>(null);
   const [docLoading, setDocLoading] = useState(false);
   const [docError, setDocError] = useState<string | null>(null);
+  const [treeOverlayVisible, setTreeOverlayVisible] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +50,8 @@ export default function WorkspaceDocsCenter({ repoPath }: WorkspaceDocsCenterPro
       setDocError(err instanceof Error ? err.message : String(err));
     } finally {
       setDocLoading(false);
+      // Auto-minimize tree overlay when a document is selected from the overlay
+      setTreeOverlayVisible(false);
     }
   }
 
@@ -85,58 +91,115 @@ export default function WorkspaceDocsCenter({ repoPath }: WorkspaceDocsCenterPro
     }
   }
 
+  // Shared file list content for both inline tree and overlay
+  const treeContent = (
+    <>
+      {loading ? (
+        <div className="state-message">Loading...</div>
+      ) : error ? (
+        <div className="state-error">{error}</div>
+      ) : files.length === 0 ? (
+        <div className="state-message">No docs or specs found in this repository.</div>
+      ) : (
+        <ul className="workspace-docs-list" data-testid="workspace-docs-list">
+          {files.map((file) => (
+            <li key={file.path}>
+              <button
+                type="button"
+                className={
+                  `workspace-docs-item` +
+                  (file.blockedReason ? ` workspace-docs-item-blocked` : '') +
+                  (!file.blockedReason && selectedDoc?.path === file.path ? ` workspace-docs-item-active` : '') +
+                  (file.isSymlink && !file.blockedReason ? ` workspace-docs-item-symlink` : '')
+                }
+                onClick={() => void handleSelectFile(file)}
+                disabled={!!file.blockedReason}
+                data-testid={`workspace-docs-item-${file.path}`}
+                title={file.blockedReason || (file.isSymlink ? `Symlink → ${file.resolvedPath}` : file.path)}
+              >
+                <span className="workspace-docs-item-path">{file.path}</span>
+                {file.isSymlink && !file.blockedReason && (
+                  <span className="workspace-docs-item-symlink-indicator" title={`Resolves to: ${file.resolvedPath}`}>&#x2197;</span>
+                )}
+                {file.blockedReason && (
+                  <span className="workspace-docs-item-warning" title={file.blockedReason}>&#x26A0;</span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+
+  const treeHidden = isFocused;
+
   return (
-    <div className="workspace-docs-center" data-testid="workspace-docs-center">
-      <div className="workspace-docs-tree" data-testid="workspace-docs-tree">
-        <Panel title="Docs & Specs" subtitle={`${files.length} files`} testId="workspace-docs-panel">
-          {loading ? (
-            <div className="state-message">Loading...</div>
-          ) : error ? (
-            <div className="state-error">{error}</div>
-          ) : files.length === 0 ? (
-            <div className="state-message">No docs or specs found in this repository.</div>
-          ) : (
-            <ul className="workspace-docs-list" data-testid="workspace-docs-list">
-              {files.map((file) => (
-                <li key={file.path}>
-                  <button
-                    type="button"
-                    className={
-                      `workspace-docs-item` +
-                      (file.blockedReason ? ` workspace-docs-item-blocked` : '') +
-                      (!file.blockedReason && selectedDoc?.path === file.path ? ` workspace-docs-item-active` : '') +
-                      (file.isSymlink && !file.blockedReason ? ` workspace-docs-item-symlink` : '')
-                    }
-                    onClick={() => void handleSelectFile(file)}
-                    disabled={!!file.blockedReason}
-                    data-testid={`workspace-docs-item-${file.path}`}
-                    title={file.blockedReason || (file.isSymlink ? `Symlink → ${file.resolvedPath}` : file.path)}
-                  >
-                    <span className="workspace-docs-item-path">{file.path}</span>
-                    {file.isSymlink && !file.blockedReason && (
-                      <span className="workspace-docs-item-symlink-indicator" title={`Resolves to: ${file.resolvedPath}`}>&#x2197;</span>
-                    )}
-                    {file.blockedReason && (
-                      <span className="workspace-docs-item-warning" title={file.blockedReason}>&#x26A0;</span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
+    <div className={`workspace-docs-center${treeHidden ? ' workspace-docs-tree-collapsed' : ''}`} data-testid="workspace-docs-center">
+      {/* Inline tree sidebar */}
+      {treeVisible && !treeHidden && (
+        <div className="workspace-docs-tree" data-testid="workspace-docs-tree">
+          <Panel title="Docs & Specs" subtitle={`${files.length} files`} testId="workspace-docs-panel">
+            {treeContent}
+          </Panel>
+          {onToggleTree && (
+            <button
+              className="workspace-docs-tree-close"
+              onClick={onToggleTree}
+              data-testid="workspace-docs-tree-close"
+              title="Close tree panel"
+            >
+              &times;
+            </button>
           )}
-        </Panel>
-      </div>
+        </div>
+      )}
 
       <div className="workspace-docs-viewer" data-testid="workspace-docs-viewer">
+        {/* Viewer header with tree toggle for collapsed mode */}
+        <div className="workspace-docs-viewer-header">
+          {!treeVisible && !treeHidden && (
+            <div className="workspace-docs-tree-toggle" data-testid="workspace-docs-tree-toggle">
+              <button
+                className="workspace-docs-tree-toggle-btn"
+                onClick={() => setTreeOverlayVisible((v) => !v)}
+                title="Show document tree"
+              >
+                Docs &triangleright;
+              </button>
+              {/* Tree overlay dropdown when collapsed */}
+              {treeOverlayVisible && (
+                <div className="workspace-docs-tree-overlay" data-testid="workspace-docs-tree-overlay">
+                  <div className="workspace-docs-tree-overlay-header">
+                    <span className="workspace-docs-tree-overlay-title">
+                      Docs & Specs ({files.length} files)
+                    </span>
+                    <button
+                      className="workspace-docs-tree-overlay-close"
+                      onClick={() => setTreeOverlayVisible(false)}
+                      title="Close overlay"
+                      data-testid="workspace-docs-tree-overlay-close"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                  {treeContent}
+                </div>
+              )}
+            </div>
+          )}
+          {selectedDoc && (
+            <span className="workspace-docs-viewer-path">{selectedDoc.path}</span>
+          )}
+        </div>
+
+        {/* Content area */}
         {docLoading ? (
           <div className="state-message">Loading document...</div>
         ) : docError ? (
           <div className="state-error">{docError}</div>
         ) : selectedDoc ? (
           <div className="workspace-docs-content">
-            <div className="workspace-docs-viewer-header">
-              <span className="workspace-docs-viewer-path">{selectedDoc.path}</span>
-            </div>
             <div className="workspace-docs-viewer-body">
               <MarkdownMessage
                 content={selectedDoc.content}
