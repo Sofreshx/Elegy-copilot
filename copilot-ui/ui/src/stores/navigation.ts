@@ -57,7 +57,7 @@ export type SidebarNavItem = {
 export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
   { id: 'repositories', label: 'Repositories', icon: '␀', description: 'Browse and open registered repositories' },
   { id: 'lexicon', label: 'Lexicon', icon: '◈', description: 'Searchable vocabulary reference for UI, design, architecture, and software engineering terms' },
-  { id: 'settings', label: 'Settings', icon: '☰', description: 'App configuration and preferences' },
+  { id: 'settings', label: 'Settings', icon: '⚙', description: 'App configuration and preferences' },
 ];
 
 export type NavigationState = {

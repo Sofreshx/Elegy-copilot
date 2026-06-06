@@ -32,12 +32,39 @@ export default function WorkspaceView() {
   const menuRef = useRef<HTMLDivElement>(null);
   const lastCheckRef = useRef<{ branch: string | null; head: string | null; changeCount: number } | null>(null);
 
+  const LAST_WORKSPACE_LAUNCHER_KEY = 'elegy-copilot-last-workspace-launcher';
+
+  const [lastLauncherId, setLastLauncherId] = useState<string | null>(() => {
+    try { return localStorage.getItem(LAST_WORKSPACE_LAUNCHER_KEY); }
+    catch { return null; }
+  });
+
   const GROUP_ORDER = ['ides', 'agents', 'terminals'] as const;
   const GROUP_LABELS: Record<string, string> = {
     ides: 'IDEs',
     agents: 'Agent CLIs',
     terminals: 'Terminals',
   };
+
+  const LAUNCHER_ICONS: Record<string, string> = {
+    ides: '\u25C8',     // ◈
+    agents: '\u26A1',   // ⚡
+    terminals: '\u003E\u005F', // >_
+  };
+
+  function resolveLauncherIcon(launcherId: string | null, launchers: WorkspaceLauncher[]): string {
+    if (launcherId) {
+      const match = launchers.find(l => l.id === launcherId);
+      if (match) return LAUNCHER_ICONS[match.group] || LAUNCHER_ICONS.ides;
+    }
+    // Default: first available launcher
+    const first = launchers.find(l => l.available);
+    if (first) return LAUNCHER_ICONS[first.group] || LAUNCHER_ICONS.ides;
+    // Fallback
+    const firstAny = launchers[0];
+    if (firstAny) return LAUNCHER_ICONS[firstAny.group] || LAUNCHER_ICONS.ides;
+    return '\u25B6'; // ▶ default play
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -133,6 +160,8 @@ export default function WorkspaceView() {
   }
   const availableLaunchers = launchers.filter((l) => l.available);
 
+  const triggerIcon = launching ? '\u23F3' : resolveLauncherIcon(lastLauncherId, launchers);
+
   // ─── Launch handler ──────────────────────────────────────────────────────
   async function handleLaunch(launcherId: string) {
     if (!selectedRepoPath) return;
@@ -142,6 +171,9 @@ export default function WorkspaceView() {
       const result = await launchWorkspace(launcherId, selectedRepoPath);
       if (!result.ok) {
         notificationStore.error('Launch failed', { message: `Failed to open ${launcherId}` });
+      } else {
+        setLastLauncherId(launcherId);
+        try { localStorage.setItem(LAST_WORKSPACE_LAUNCHER_KEY, launcherId); } catch {}
       }
     } catch (err) {
       notificationStore.error('Launch failed', { message: err instanceof Error ? err.message : String(err) });
@@ -190,7 +222,8 @@ export default function WorkspaceView() {
                 disabled={availableLaunchers.length === 0}
                 type="button"
               >
-                <span className="workspace-launch-trigger-icon">{launching ? '\u23F3' : '\u25B6'}</span>
+                <span className="workspace-launch-trigger-icon">{triggerIcon}</span>
+                <span className="workspace-launch-trigger-chevron">&#9660;</span>
               </button>
               {menuOpen && (
                 <div className="workspace-launch-menu" data-testid="workspace-launch-menu">

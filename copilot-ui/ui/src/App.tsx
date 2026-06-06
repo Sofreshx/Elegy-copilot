@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import AppLayout from './components/AppLayout';
-import RuntimeDisconnectedBanner from './components/RuntimeDisconnectedBanner';
 import Sidebar from './components/Sidebar';
-import StatusBar from './components/StatusBar';
 import ToastContainer from './components/ToastContainer';
-import { getDesktopUpdaterPresentation } from './lib/desktopUpdaterPresentation';
 import { useStoreValue } from './lib/store';
 import {
   navigationStore,
@@ -95,8 +92,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyboard);
   }, [handleKeyboard]);
 
-  const desktopUpdaterPresentation = getDesktopUpdaterPresentation(desktopUpdaterState);
-
   function renderContent() {
     if (navigationState.wizardOpen === 'project') {
       return <AddProjectWizard />;
@@ -145,16 +140,10 @@ export default function App() {
       <AppLayout
       appVersion={desktopUpdaterState.currentVersion}
       sidebarCollapsed={isSidebarCollapsed}
-      statusBar={
-        <StatusBar
-          desktopUpdaterTone={desktopUpdaterPresentation.tone}
-          desktopUpdaterSummary={desktopUpdaterPresentation.summary}
-          canDownload={desktopUpdaterState.canDownload}
-          canRestartToUpdate={desktopUpdaterState.canRestartToUpdate}
-          onDownloadUpdate={() => void desktopUpdaterStore.downloadUpdate()}
-          onRestartToUpdate={() => void desktopUpdaterStore.restartToUpdate()}
-        />
-      }
+      canDownload={desktopUpdaterState.canDownload}
+      canRestartToUpdate={desktopUpdaterState.canRestartToUpdate}
+      onDownloadUpdate={() => void desktopUpdaterStore.downloadUpdate()}
+      onRestartToUpdate={() => void desktopUpdaterStore.restartToUpdate()}
       sidebar={
         <Sidebar
           isCollapsed={isSidebarCollapsed}

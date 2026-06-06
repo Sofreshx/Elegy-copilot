@@ -19,7 +19,7 @@ interface AppInfo {
 }
 
 const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; icon: string }> = [
-  { id: 'app', label: 'App Settings', icon: '☰' },
+  { id: 'app', label: 'App Settings', icon: '⚙' },
   { id: 'catalog', label: 'Catalog & Assets', icon: '▤' },
   { id: 'opencode', label: 'OpenCode Setup', icon: '⊞' },
   { id: 'maintenance', label: 'Maintenance', icon: '⚙' },
@@ -88,8 +88,8 @@ export default function SettingsView() {
   return (
     <div className="settings-view" data-testid="settings-view">
       <Toolbar testId="settings-toolbar">
-        <Button variant="ghost" size="sm" onClick={handleBack} testId="settings-back">
-          Back
+        <Button variant="ghost" size="sm" onClick={handleBack} testId="settings-back" aria-label="Back" title="Back">
+          ←
         </Button>
         <h2>Settings</h2>
       </Toolbar>

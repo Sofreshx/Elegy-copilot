@@ -11,6 +11,7 @@ export { default as MarkdownMessage } from './MarkdownMessage';
 export { default as Panel } from './Panel';
 export { default as Sidebar } from './Sidebar';
 export { default as StatusBadge } from './StatusBadge';
+export { default as DesktopUpdaterShellAction } from './DesktopUpdaterShellAction';
 export { default as StatusBar } from './StatusBar';
 export { default as SteppedWizard } from './SteppedWizard';
 export { default as ToastContainer } from './ToastContainer';

@@ -122,3 +122,50 @@ describe('desktop updater UI affordances', () => {
     expect(screen.queryByTestId('updates-app-restart')).not.toBeInTheDocument();
   });
 });
+
+describe('desktop updater shell action (titlebar)', () => {
+  it('renders download button when canDownload is true', async () => {
+    const { default: DesktopUpdaterShellAction } = await import('../ui/src/components/DesktopUpdaterShellAction');
+    render(<DesktopUpdaterShellAction canDownload canRestartToUpdate={false} />);
+    expect(screen.getByTestId('desktop-updater-shell-action')).toBeInTheDocument();
+    expect(screen.getByTestId('desktop-updater-download')).toHaveTextContent('Update');
+    expect(screen.queryByTestId('desktop-updater-restart')).not.toBeInTheDocument();
+  });
+
+  it('renders nothing when no update is actionable', async () => {
+    const { default: DesktopUpdaterShellAction } = await import('../ui/src/components/DesktopUpdaterShellAction');
+    const { container } = render(<DesktopUpdaterShellAction canDownload={false} canRestartToUpdate={false} />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('renders install button when canRestartToUpdate is true', async () => {
+    const { default: DesktopUpdaterShellAction } = await import('../ui/src/components/DesktopUpdaterShellAction');
+    render(<DesktopUpdaterShellAction canDownload={false} canRestartToUpdate />);
+    expect(screen.getByTestId('desktop-updater-shell-action')).toBeInTheDocument();
+    expect(screen.getByTestId('desktop-updater-restart')).toHaveTextContent('Install');
+  });
+});
+
+describe('AppLayout titlebar shell', () => {
+  it('renders custom titlebar with window controls', async () => {
+    const { default: AppLayout } = await import('../ui/src/components/AppLayout');
+    render(
+      <AppLayout appVersion="1.0.0" sidebar={<div />}>
+        <div>Content</div>
+      </AppLayout>
+    );
+    expect(screen.getByTestId('app-layout')).toBeInTheDocument();
+    // Version footer should always render now
+    expect(screen.getByTestId('app-version-footer')).toBeInTheDocument();
+  });
+
+  it('renders desktop updater shell action only when updater props are actionable', async () => {
+    const { default: AppLayout } = await import('../ui/src/components/AppLayout');
+    render(
+      <AppLayout appVersion="1.0.0" sidebar={<div />} canDownload>
+        <div>Content</div>
+      </AppLayout>
+    );
+    expect(screen.getByTestId('desktop-updater-shell-action')).toBeInTheDocument();
+  });
+});

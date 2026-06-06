@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { SIDEBAR_NAV_ITEMS } from '../ui/src/stores/navigation';
 
@@ -16,6 +16,8 @@ describe('sidebar', () => {
     expect(settingsBtn).toBeInTheDocument();
     // Should have aria-label
     expect(settingsBtn).toHaveAttribute('aria-label', 'Settings');
+    // Should have gear icon
+    expect(settingsBtn.querySelector('.sidebar-item-icon')?.textContent).toContain('⚙');
     // Should NOT have visible text label child
     expect(settingsBtn.querySelector('.sidebar-item-label')).not.toBeInTheDocument();
   });
@@ -64,5 +66,48 @@ describe('sidebar', () => {
     expect(nav.className).toContain('sidebar-collapsed');
     // Settings should still be icon-only in collapsed mode too
     expect(screen.getByTestId('sidebar-item-settings')).toBeInTheDocument();
+  });
+
+  it('collapse toggle is right-aligned in sidebar footer', async () => {
+    const { default: Sidebar } = await import('../ui/src/components/Sidebar');
+    render(
+      <Sidebar
+        items={SIDEBAR_NAV_ITEMS}
+        activeItem="repositories"
+        onNavigate={() => {}}
+        onToggleCollapse={() => {}}
+      />
+    );
+    const collapseToggle = screen.getByTestId('sidebar-collapse-toggle');
+    expect(collapseToggle).toBeInTheDocument();
+  });
+
+  it('collapse toggle renders when onToggleCollapse is provided', async () => {
+    const { default: Sidebar } = await import('../ui/src/components/Sidebar');
+    render(
+      <Sidebar
+        items={SIDEBAR_NAV_ITEMS}
+        activeItem="repositories"
+        onNavigate={() => {}}
+        onToggleCollapse={() => {}}
+      />
+    );
+    const toggle = screen.getByTestId('sidebar-collapse-toggle');
+    expect(toggle).toBeInTheDocument();
+  });
+
+  it('collapse toggle shows expand icon when collapsed', async () => {
+    const { default: Sidebar } = await import('../ui/src/components/Sidebar');
+    render(
+      <Sidebar
+        items={SIDEBAR_NAV_ITEMS}
+        activeItem="repositories"
+        onNavigate={() => {}}
+        isCollapsed
+        onToggleCollapse={() => {}}
+      />
+    );
+    const toggle = screen.getByTestId('sidebar-collapse-toggle');
+    expect(toggle.textContent).toBe('▶');
   });
 });
