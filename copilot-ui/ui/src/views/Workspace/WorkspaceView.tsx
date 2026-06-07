@@ -19,7 +19,6 @@ import WorkspacePlanningTab from './WorkspacePlanningTab';
 import WorkspaceExecutionTab from './WorkspaceExecutionTab';
 import AppIcon from '../../components/AppIcon';
 import WorkspaceAssetsTab from './WorkspaceAssetsTab';
-import WorkspaceReviewTab from './WorkspaceReviewTab';
 
 export default function WorkspaceView() {
   const state = useStoreValue(repositoriesStore);
@@ -105,8 +104,8 @@ export default function WorkspaceView() {
     : null;
 
   useEffect(() => {
-    if (selectedRepoPath) {
-      void gitStore.loadStatus(selectedRepoPath);
+    if (selectedRepoPath && typeof selectedRepoPath === 'string' && selectedRepoPath.trim()) {
+      void gitStore.loadStatus(selectedRepoPath.trim());
     }
   }, [selectedRepoPath]);
 
@@ -303,12 +302,6 @@ export default function WorkspaceView() {
             )}
             {navState.activeWorkspaceLocalTab === 'assets' && (
               <WorkspaceAssetsTab repoPath={selectedRepoPath} />
-            )}
-            {navState.activeWorkspaceLocalTab === 'review' && (
-              <WorkspaceReviewTab
-                repoPath={selectedRepoPath}
-                repoId={displayRepo?.repoId ?? null}
-              />
             )}
           </div>
 

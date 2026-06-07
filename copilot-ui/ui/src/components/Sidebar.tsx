@@ -1,4 +1,6 @@
-import type { SidebarItemId, SidebarNavItem } from '../stores/navigation';
+import AppIcon from './AppIcon';
+import { useStoreValue } from '../lib/store';
+import { navigationStore, type SidebarItemId, type SidebarNavItem } from '../stores/navigation';
 
 interface SidebarProps {
   items: readonly SidebarNavItem[];
@@ -13,6 +15,7 @@ export default function Sidebar({
   onNavigate,
   testId = 'sidebar',
 }: SidebarProps) {
+  const store = useStoreValue(navigationStore);
   const topItems = items.filter((item) => item.id !== 'settings');
   const settingsItem = items.find((item) => item.id === 'settings');
   const openWorkspaces = store.openWorkspaces;

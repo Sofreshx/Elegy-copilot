@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MarkdownMessage } from '../../components';
-import { listRepoDocs, readRepoDoc, writeRepoDoc, deleteRepoDoc } from '../../lib/api/repoDocs';
-import type { RepoDocEntry, RepoDocReadResponse } from '../../lib/api/repoDocs';
+import { listRepoDocs, listRepoDocsTree, readRepoDoc, writeRepoDoc, deleteRepoDoc } from '../../lib/api/repoDocs';
+import type { RepoDocEntry, RepoDocReadResponse, RepoDocTreeNode } from '../../lib/api/repoDocs';
+import DocTreeView from './DocTreeView';
 
 interface WorkspaceDocsCenterProps {
   repoPath: string;
@@ -18,6 +19,9 @@ export default function WorkspaceDocsCenter({ repoPath }: WorkspaceDocsCenterPro
   const [editContent, setEditContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [tree, setTree] = useState<RepoDocTreeNode[]>([]);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [totalDirs, setTotalDirs] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,9 +104,10 @@ export default function WorkspaceDocsCenter({ repoPath }: WorkspaceDocsCenterPro
       await deleteRepoDoc(repoPath, selectedDoc.path);
       setSelectedDoc(null);
       setEditMode(false);
-      // Refresh the file list
+      // Refresh the file list and clear tree (flat list fallback)
       const data = await listRepoDocs(repoPath);
       setFiles(data.files);
+      setTree([]);
     } catch (err) {
       setDocError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -191,7 +196,7 @@ export default function WorkspaceDocsCenter({ repoPath }: WorkspaceDocsCenterPro
       <div className="workspace-docs-tree" data-testid="workspace-docs-tree">
         <div className="workspace-docs-tree-header">
           <span className="workspace-docs-tree-title">Docs & Specs</span>
-          <span className="workspace-docs-tree-count">{files.length} files</span>
+          <span className="workspace-docs-tree-count">{tree.length > 0 ? `${totalFiles} files, ${totalDirs} dirs` : `${files.length} files`}</span>
         </div>
         {treeContent}
       </div>

@@ -161,6 +161,11 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
   const [enrichedLoading, setEnrichedLoading] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState<string | null>(null);
+  const [showReviewFor, setShowReviewFor] = useState<string | null>(null);
+  const [reviewHarness, setReviewHarness] = useState<'opencode' | 'codex'>('opencode');
+  const [reviewLane, setReviewLane] = useState<'quick' | 'standard' | 'spec' | 'project'>('standard');
+  const [reviewLaunching, setReviewLaunching] = useState(false);
+  const [reviewResult, setReviewResult] = useState<{ ok: boolean; message?: string; error?: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -370,21 +375,24 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
                 <div className="workspace-worktree-flag workspace-worktree-flag-error">{entry.probeError}</div>
               ) : null}
               <div className="workspace-worktree-actions">
-                <button
-                  type="button"
-                  className="workspace-worktree-code-review-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Navigate to the Review tab in the workspace
-                    navigationStore.setActiveWorkspaceLocalTab('review');
-                    // Store the selected worktree path for the review tab to pre-select
-                    // (the WorkspaceReviewTab will auto-select the most active worktree)
-                  }}
-                  title="Start code review for this worktree"
-                  data-testid={`workspace-worktree-review-${entry.key}`}
-                >
-                  <span aria-hidden="true">{'\uD83D\uDD0D'}</span> Review
-                </button>
+                {!entry.isMissing && !entry.isLaunchBlocked && (entry.dirty || entry.hasActiveSessions || entry.statusLabel === 'active' || entry.enrichedStatus === 'active') ? (
+                  <button
+                    type="button"
+                    className="workspace-worktree-review-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowReviewFor(showReviewFor === entry.key ? null : entry.key);
+                      setReviewHarness('opencode');
+                      setReviewLane('standard');
+                      setReviewResult(null);
+                    }}
+                    title="Launch code review for this worktree"
+                    data-testid={`workspace-worktree-review-${entry.key}`}
+                  >
+                    🔍 Review
+                  </button>
+                ) : null}
+
                 {showRemoveConfirm === entry.key ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <span style={{ color: 'var(--color-accent-500)', fontSize: '0.75rem' }}>
@@ -443,6 +451,97 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
                   </button>
                 )}
               </div>
+              {showReviewFor === entry.key && (
+                <div className="workspace-worktree-review-panel" data-testid={`workspace-worktree-review-panel-${entry.key}`}>
+                  {/* Harness selector */}
+                  <div className="workspace-review-section">
+                    <label className="workspace-review-label" style={{ fontSize: '0.75rem' }}>Review Tool</label>
+                    <div className="workspace-review-harness-row" style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                      <button
+                        type="button"
+                        className={`workspace-review-harness-btn${reviewHarness === 'opencode' ? ' active' : ''}`}
+                        onClick={() => { setReviewHarness('opencode'); setReviewResult(null); }}
+                        style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+                      >
+                        OpenCode
+                      </button>
+                      <button
+                        type="button"
+                        className={`workspace-review-harness-btn${reviewHarness === 'codex' ? ' active' : ''}`}
+                        onClick={() => { setReviewHarness('codex'); setReviewResult(null); }}
+                        style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+                      >
+                        Codex
+                      </button>
+                    </div>
+                  </div>
+                  {/* Lane selector — only for OpenCode */}
+                  {reviewHarness === 'opencode' && (
+                    <div className="workspace-review-section" style={{ marginTop: '6px' }}>
+                      <label className="workspace-review-label" style={{ fontSize: '0.75rem' }}>Lane</label>
+                      <div className="workspace-review-lane-row" style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
+                        {(['quick', 'standard', 'spec', 'project'] as const).map((l) => (
+                          <button
+                            key={l}
+                            type="button"
+                            className={`workspace-review-lane-btn${reviewLane === l ? ' active' : ''}`}
+                            onClick={() => { setReviewLane(l); setReviewResult(null); }}
+                            style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+                          >
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Launch button */}
+                  <div className="workspace-review-section" style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="workspace-review-launch-btn"
+                      disabled={reviewLaunching}
+                      onClick={async () => {
+                        setReviewLaunching(true);
+                        setReviewResult(null);
+                        try {
+                          const body: Record<string, string | undefined> = {
+                            harness: reviewHarness,
+                            repoPath,
+                            worktreePath: entry.path,
+                          };
+                          if (reviewHarness === 'opencode') {
+                            body.lane = reviewLane;
+                          }
+                          const res = await fetch('/api/code-review/launch', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body),
+                          });
+                          const data = await res.json();
+                          setReviewResult(data);
+                        } catch (err) {
+                          setReviewResult({ ok: false, error: err instanceof Error ? err.message : String(err) });
+                        } finally {
+                          setReviewLaunching(false);
+                        }
+                      }}
+                      style={{ fontSize: '0.75rem', padding: '3px 12px' }}
+                    >
+                      {reviewLaunching ? 'Launching...' : 'Launch Code Review'}
+                    </button>
+                    {reviewLaunching && <span style={{ fontSize: '0.7rem' }}>⏳</span>}
+                  </div>
+                  {/* Result message */}
+                  {reviewResult && (
+                    <div
+                      className={`workspace-review-result${reviewResult.ok ? ' success' : ' error'}`}
+                      style={{ fontSize: '0.75rem', marginTop: '6px', padding: '4px 8px', borderRadius: '4px', backgroundColor: reviewResult.ok ? 'var(--color-success-100, #d4edda)' : 'var(--color-error-100, #f8d7da)', color: reviewResult.ok ? 'var(--color-success-700, #155724)' : 'var(--color-error-700, #721c24)' }}
+                    >
+                      {reviewResult.ok ? reviewResult.message : (reviewResult.error || 'Launch failed')}
+                    </div>
+                  )}
+                </div>
+              )}
             </li>
           );
         })}

@@ -2141,7 +2141,7 @@ textarea:focus-visible,
 
 .app-layout {
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto 1fr auto;
   height: 100dvh;
   height: 100vh;
   width: 100vw;
@@ -2167,7 +2167,6 @@ textarea:focus-visible,
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  grid-row: 4;
   padding: 0 0.5rem;
   border-top: 1px solid rgba(57, 66, 79, 0.25);
   background: transparent;
@@ -2421,7 +2420,7 @@ textarea:focus-visible,
   backdrop-filter: blur(12px);
   overflow-y: auto;
   min-height: 0;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .sidebar-nav {
@@ -2469,6 +2468,16 @@ textarea:focus-visible,
   font-size: 1.15rem;
   line-height: 1;
   text-align: center;
+}
+
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2xs);
+  width: 100%;
+  margin-top: auto;
+  padding: var(--space-xs) 0;
 }
 
 .sidebar-workspaces {
@@ -9298,6 +9307,430 @@ textarea:focus-visible,
 .workspace-docs-editor:focus {
   border-color: var(--color-brand-400);
   box-shadow: 0 0 0 2px rgba(47, 165, 157, 0.15);
+}
+
+/* ── Tree node shared styles (used by Docs and Assets tabs) ── */
+
+.workspace-docs-tree-node {
+  min-height: 0;
+}
+
+.workspace-docs-tree-folder {
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs) var(--space-xs);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--duration-fast);
+  user-select: none;
+}
+
+.workspace-docs-tree-folder:hover {
+  background: var(--color-surface-2);
+}
+
+.workspace-docs-tree-folder-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.workspace-docs-tree-toggle {
+  font-size: 0.65rem;
+  width: 12px;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.workspace-docs-tree-icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.workspace-docs-tree-children {
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-docs-tree-file {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2xs) var(--space-xs);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--color-ink-700);
+  transition: background-color var(--duration-fast), border-color var(--duration-fast);
+}
+
+.workspace-docs-tree-file:hover {
+  background: var(--color-surface-2);
+  border-color: var(--color-ink-200);
+}
+
+.workspace-docs-tree-item-active {
+  background: var(--color-brand-50);
+  border-color: var(--color-brand-200);
+  color: var(--color-brand-600);
+}
+
+.workspace-docs-tree-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-docs-tree-harness-badge {
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  color: var(--color-ink-400);
+  opacity: 0.7;
+}
+
+/* ── Assets tab viewer (mirrors docs viewer) ── */
+
+.workspace-assets-center {
+  display: flex;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-assets-tree {
+  min-width: 0;
+  width: 250px;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(57, 66, 79, 0.15);
+  overflow-y: auto;
+  padding: var(--space-sm);
+}
+
+.workspace-assets-tree-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid rgba(57, 66, 79, 0.15);
+  margin-bottom: var(--space-xs);
+}
+
+.workspace-assets-tree-title {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-ink-400);
+}
+
+.workspace-assets-tree-count {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-ink-500);
+  opacity: 0.6;
+}
+
+.workspace-assets-viewer {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace-assets-viewer-header {
+  display: flex;
+  align-items: center;
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid rgba(57, 66, 79, 0.15);
+  flex-shrink: 0;
+}
+
+.workspace-assets-viewer-path {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--color-ink-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-assets-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-md);
+}
+
+.workspace-assets-viewer-body {
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+.workspace-assets-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+}
+
+.workspace-assets-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2xs) var(--space-xs);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--color-ink-700);
+  transition: background-color var(--duration-fast), border-color var(--duration-fast);
+}
+
+.workspace-assets-item:hover {
+  background: var(--color-surface-2);
+  border-color: var(--color-ink-200);
+}
+
+.workspace-assets-item-active {
+  background: var(--color-brand-50);
+  border-color: var(--color-brand-200);
+  color: var(--color-brand-600);
+}
+
+/* ── Worktree review panel ── */
+
+.workspace-worktree-review-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  background: transparent;
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2xs) var(--space-xs);
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--color-ink-500);
+  transition: background-color var(--duration-fast), border-color var(--duration-fast);
+  margin-right: var(--space-xs);
+}
+
+.workspace-worktree-review-btn:hover {
+  background: var(--color-surface-2);
+  border-color: var(--color-brand-300);
+  color: var(--color-brand-500);
+}
+
+.workspace-worktree-review-panel {
+  margin-top: var(--space-sm);
+  padding: var(--space-sm);
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-1);
+}
+
+.workspace-review-section {
+  margin-bottom: var(--space-sm);
+}
+
+.workspace-review-section:last-child {
+  margin-bottom: 0;
+}
+
+.workspace-review-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-ink-400);
+  margin-bottom: var(--space-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.workspace-review-harness-row {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.workspace-review-harness-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  background: transparent;
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2xs) var(--space-sm);
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: var(--color-ink-500);
+  transition: background-color var(--duration-fast), border-color var(--duration-fast);
+}
+
+.workspace-review-harness-btn:hover {
+  background: var(--color-surface-2);
+}
+
+.workspace-review-harness-btn.active {
+  background: var(--color-brand-50);
+  border-color: var(--color-brand-300);
+  color: var(--color-brand-600);
+}
+
+.workspace-review-lane-row {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.workspace-review-lane-btn {
+  background: transparent;
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2xs) var(--space-sm);
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--color-ink-500);
+  transition: background-color var(--duration-fast), border-color var(--duration-fast);
+}
+
+.workspace-review-lane-btn:hover {
+  background: var(--color-surface-2);
+}
+
+.workspace-review-lane-btn.active {
+  background: var(--color-brand-50);
+  border-color: var(--color-brand-300);
+  color: var(--color-brand-600);
+}
+
+.workspace-review-launch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  background: var(--color-brand-500);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-md);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: background-color var(--duration-fast);
+}
+
+.workspace-review-launch-btn:hover {
+  background: var(--color-brand-600);
+}
+
+.workspace-review-launch-btn:disabled {
+  background: var(--color-ink-300);
+  cursor: not-allowed;
+}
+
+.workspace-review-result {
+  margin-top: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+}
+
+.workspace-review-result.success {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--color-success-600);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.workspace-review-result.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error-600);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* ── Worktree flags and actions ── */
+
+.workspace-worktree-flag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  margin-right: var(--space-2xs);
+  margin-top: var(--space-2xs);
+}
+
+.workspace-worktree-flag-missing {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error-500);
+}
+
+.workspace-worktree-flag-blocked {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--color-warning-600);
+}
+
+.workspace-worktree-flag-assigned {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--color-info-500);
+}
+
+.workspace-worktree-flag-reusable {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--color-success-500);
+}
+
+.workspace-worktree-flag-interrupted {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error-500);
+}
+
+.workspace-worktree-flag-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error-600);
+}
+
+.workspace-worktree-path {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--color-ink-400);
+  opacity: 0.6;
+  margin-top: var(--space-2xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-worktree-actions {
+  display: flex;
+  align-items: center;
+  margin-top: var(--space-xs);
+}
+
+.workspace-worktree-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2xs) var(--space-xs);
+  cursor: pointer;
+  font-size: 0.72rem;
+  color: var(--color-ink-400);
+  transition: background-color var(--duration-fast), border-color var(--duration-fast);
+}
+
+.workspace-worktree-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: var(--color-error-300);
+  color: var(--color-error-500);
 }
 
 /* ── Workspace Floating Card ── */

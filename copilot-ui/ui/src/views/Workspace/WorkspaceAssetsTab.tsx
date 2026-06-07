@@ -1,141 +1,241 @@
-import { useState, useEffect } from 'react';
-import AppIcon from '../../components/AppIcon';
-import { discoverRepoAssets, installRepoAsset } from '../../lib/api/repoAssets';
-import type { RepoAssetEntry } from '../../lib/api/repoAssets';
+import { useState, useEffect, useCallback } from 'react';
+import { MarkdownMessage } from '../../components';
+import { listRepoDocsTree, readRepoDoc } from '../../lib/api/repoDocs';
+import type { RepoDocTreeNode, RepoDocTreeFileNode, RepoDocTreeDirNode, RepoDocReadResponse } from '../../lib/api/repoDocs';
+import DocTreeView from './DocTreeView';
+
+// ── Tree filtering ──
+
+function filterTreeForAssets(nodes: RepoDocTreeNode[]): RepoDocTreeNode[] {
+  return nodes
+    .map((node) => {
+      if (node.kind === 'directory') {
+        const dir = node as RepoDocTreeDirNode;
+        // Skip docs/specs directories entirely
+        if (dir.dirKind === 'specs' || dir.dirKind === 'docs') return null;
+        // Recursively filter children
+        const filteredChildren = filterTreeForAssets(dir.children || []);
+        if (filteredChildren.length === 0) return null;
+        return { ...dir, children: filteredChildren };
+      }
+
+      // File node
+      const file = node as RepoDocTreeFileNode;
+
+      // Agent, skill, config files by their fileKind classification
+      if (
+        file.fileKind === 'agent' ||
+        file.fileKind === 'skill' ||
+        file.fileKind === 'config'
+      ) {
+        return node;
+      }
+
+      // Files inside harness dot-directories
+      if (
+        file.path.startsWith('.opencode/') ||
+        file.path.startsWith('.codex/') ||
+        file.path.startsWith('.copilot/') ||
+        file.path.startsWith('.gemini/') ||
+        file.path.startsWith('.antigravity/')
+      ) {
+        return node;
+      }
+
+      // Root-level convention files
+      if (file.path === 'AGENTS.md' || file.path === 'guidelines.md') {
+        return node;
+      }
+
+      return null;
+    })
+    .filter((node): node is RepoDocTreeNode => node !== null);
+}
+
+// ── Main tab component ──
 
 interface Props {
   repoPath: string;
 }
 
 export default function WorkspaceAssetsTab({ repoPath }: Props) {
-  const [assets, setAssets] = useState<RepoAssetEntry[]>([]);
+  const [tree, setTree] = useState<RepoDocTreeNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<RepoDocReadResponse | null>(null);
+  const [docLoading, setDocLoading] = useState(false);
+  const [docError, setDocError] = useState<string | null>(null);
+  const [assetCount, setAssetCount] = useState(0);
+
+  // ── Load tree ──
 
   useEffect(() => {
     let cancelled = false;
+
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const data = await discoverRepoAssets(repoPath);
-        if (!cancelled) setAssets(data.assets);
+        const data = await listRepoDocsTree(repoPath);
+        if (!cancelled) {
+          const filtered = filterTreeForAssets(data.tree);
+          setTree(filtered);
+          setAssetCount(countFiles(filtered));
+        }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
+
     void load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [repoPath]);
 
-  async function handleInstall(assetId: string, harness: string) {
-    // Set installing state
-    setAssets(prev => prev.map(a =>
-      a.id === assetId ? { ...a, _installing: harness } : a
-    ));
+  // ── Count files in filtered tree ──
+
+  function countFiles(nodes: RepoDocTreeNode[]): number {
+    let count = 0;
+    for (const node of nodes) {
+      if (node.kind === 'file') {
+        count++;
+      } else if (node.kind === 'directory') {
+        count += countFiles((node as RepoDocTreeDirNode).children || []);
+      }
+    }
+    return count;
+  }
+
+  // ── Select / read file ──
+
+  async function handleSelectFile(filePath: string) {
+    setDocLoading(true);
+    setDocError(null);
+    setSelectedDoc(null);
     try {
-      await installRepoAsset(repoPath, assetId, harness);
-      // Update the harness status
-      setAssets(prev => prev.map(a => {
-        if (a.id !== assetId) return a;
-        return {
-          ...a,
-          _installing: undefined,
-          harnesses: a.harnesses.map(h =>
-            h.harness === harness ? { ...h, installed: true, installedAt: new Date().toISOString() } : h
-          )
-        };
-      }));
+      const doc = await readRepoDoc(repoPath, filePath);
+      setSelectedDoc(doc);
     } catch (err) {
-      // Reset installing state on error
-      setAssets(prev => prev.map(a =>
-        a.id === assetId ? { ...a, _installing: undefined } : a
-      ));
-      setError(err instanceof Error ? err.message : String(err));
+      setDocError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDocLoading(false);
     }
   }
 
-  const harnessLabels: Record<string, string> = {
-    opencode: 'OpenCode',
-    codex: 'Codex',
-    copilot: 'Copilot',
-    antigravity: 'Antigravity',
-  };
+  const handleSelectFileCb = useCallback(
+    (filePath: string) => {
+      void handleSelectFile(filePath);
+    },
+    [repoPath],
+  );
 
-  const harnessIcons: Record<string, string> = {
-    opencode: 'opencode',
-    codex: 'codex',
-    copilot: 'settings',
-    antigravity: 'hexagon',
-  };
+  // ── Relative doc link navigation ──
 
-  const kindIcons: Record<string, string> = {
-    agent: 'agent',
-    skill: 'skill',
-    config: 'settings',
-  };
+  function handleNavigateDoc(docPath: string) {
+    let targetPath = docPath;
 
-  if (loading) return <div className="state-message">Discovering repo assets...</div>;
-  if (error) return <div className="state-error">{error}</div>;
+    // Resolve relative path against current doc's directory
+    if (targetPath.startsWith('./') || targetPath.startsWith('../')) {
+      if (selectedDoc?.path) {
+        const currentDir = selectedDoc.path.substring(
+          0,
+          selectedDoc.path.lastIndexOf('/') + 1,
+        );
+        targetPath = currentDir + docPath.substring(docPath.startsWith('./') ? 2 : 0);
 
-  return (
-    <div className="workspace-assets-tab">
-      <div className="workspace-assets-header">
-        <h3>Repository Agents & Skills</h3>
-        <span className="workspace-assets-count">{assets.length} assets found</span>
-      </div>
+        // Normalize ../
+        const parts = targetPath.split('/');
+        const resolved: string[] = [];
+        for (const part of parts) {
+          if (part === '..') {
+            resolved.pop();
+          } else if (part !== '.' && part !== '') {
+            resolved.push(part);
+          }
+        }
+        targetPath = resolved.join('/');
+      }
+    }
 
-      {assets.length === 0 ? (
-        <div className="state-message">
-          No agents or skills found in this repository.
-          <br />
-          <small>Add AGENTS.md, skills/SKILL.md, or .opencode/agents/*.agent.md files to your repo.</small>
-        </div>
+    void handleSelectFile(targetPath);
+  }
+
+  // ── Tree sidebar content ──
+
+  const treeContent = (
+    <>
+      {loading ? (
+        <div className="state-message">Loading assets...</div>
+      ) : error ? (
+        <div className="state-error">{error}</div>
+      ) : tree.length > 0 ? (
+        <DocTreeView
+          tree={tree}
+          selectedPath={selectedDoc?.path ?? null}
+          onSelectFile={handleSelectFileCb}
+        />
       ) : (
-        <div className="workspace-assets-grid">
-          {assets.map((asset) => (
-            <div key={asset.id} className="workspace-asset-card">
-              <div className="workspace-asset-card-header">
-                <AppIcon name={(kindIcons[asset.kind] || 'file-text') as any} size={18} className="workspace-asset-kind-icon" />
-                <span className="workspace-asset-name">{asset.name}</span>
-                <span className="workspace-asset-kind-badge">{asset.kind}</span>
-                {asset.sourceHarness && (
-                  <span className="workspace-asset-source-badge" title={`From ${harnessLabels[asset.sourceHarness] || asset.sourceHarness} config`}>
-                    <AppIcon name={(harnessIcons[asset.sourceHarness] || 'package') as any} size={14} />
-                  </span>
-                )}
-              </div>
-              <div className="workspace-asset-path" title={asset.path}>{asset.path}</div>
-              <div className="workspace-asset-harnesses">
-                {asset.harnesses.map((hs) => (
-                  <button
-                    key={hs.harness}
-                    className={`workspace-asset-harness-btn${hs.installed ? ' installed' : ''}${asset._installing === hs.harness ? ' installing' : ''}`}
-                    onClick={() => !hs.installed && handleInstall(asset.id, hs.harness)}
-                    disabled={hs.installed || asset._installing === hs.harness}
-                    title={hs.installed
-                      ? `Installed for ${harnessLabels[hs.harness]}${hs.installedAt ? ` at ${new Date(hs.installedAt).toLocaleDateString()}` : ''}`
-                      : `Install for ${harnessLabels[hs.harness]}`
-                    }
-                  >
-                    <AppIcon name={(harnessIcons[hs.harness] || 'package') as any} size={14} className="workspace-asset-harness-icon" />
-                    <span className="workspace-asset-harness-label">{harnessLabels[hs.harness] || hs.harness}</span>
-                    {hs.installed ? (
-                      <AppIcon name="check" size={14} className="workspace-asset-harness-check" />
-                    ) : asset._installing === hs.harness ? (
-                      <AppIcon name="sync" size={14} className="workspace-asset-harness-spinner" />
-                    ) : (
-                      <AppIcon name="squared-plus" size={14} className="workspace-asset-harness-add" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+        <div className="workspace-assets-empty" data-testid="workspace-assets-empty-tree">
+          <p className="state-message">
+            No agents, skills, or configs found in this repository.
+          </p>
         </div>
       )}
+    </>
+  );
+
+  // ── Render ──
+
+  return (
+    <div className="workspace-assets-center" data-testid="workspace-assets-center">
+      {/* Tree sidebar */}
+      <div className="workspace-assets-tree" data-testid="workspace-assets-tree">
+        <div className="workspace-assets-tree-header">
+          <span className="workspace-assets-tree-title">Agents & Skills</span>
+          <span className="workspace-assets-tree-count">
+            {assetCount} {assetCount === 1 ? 'file' : 'files'}
+          </span>
+        </div>
+        {treeContent}
+      </div>
+
+      {/* Viewer */}
+      <div className="workspace-assets-viewer" data-testid="workspace-assets-viewer">
+        <div className="workspace-assets-viewer-header">
+          {selectedDoc ? (
+            <span className="workspace-assets-viewer-path">{selectedDoc.path}</span>
+          ) : (
+            <span className="workspace-assets-viewer-path">No file selected</span>
+          )}
+        </div>
+
+        {docLoading ? (
+          <div className="state-message">Loading file...</div>
+        ) : docError ? (
+          <div className="state-error">{docError}</div>
+        ) : selectedDoc ? (
+          <div className="workspace-assets-content">
+            <div className="workspace-assets-viewer-body">
+              <MarkdownMessage
+                content={selectedDoc.content}
+                testId="workspace-assets-markdown"
+                onNavigateDoc={handleNavigateDoc}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="workspace-assets-empty" data-testid="workspace-assets-empty">
+            <p className="state-message">
+              Select a file from the tree to view its contents.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

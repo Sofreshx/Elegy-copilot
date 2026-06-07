@@ -94,7 +94,6 @@ export default function SettingsView() {
     <div className="settings-view" data-testid="settings-view">
       <Toolbar testId="settings-toolbar">
         <IconButton icon="chevron-left" size={22} label="Back" onClick={handleBack} testId="settings-back" />
-        <h2>Settings</h2>
       </Toolbar>
 
       <div className="settings-layout">

@@ -40,7 +40,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
 
 export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal' | 'docs-graph';
 
-export type WorkspaceLocalTab = 'docs' | 'git' | 'planning' | 'execution' | 'review';
+export type WorkspaceLocalTab = 'docs' | 'git' | 'planning' | 'execution' | 'assets';
 
 export interface OpenWorkspace {
   repoPath: string;
@@ -335,7 +335,9 @@ function createNavigationStore() {
 
   function loadPersistedActiveWorkspaceId(): string | null {
     try {
-      return localStorage.getItem(ACTIVE_WORKSPACE_STORAGE_KEY) || null;
+      const raw = localStorage.getItem(ACTIVE_WORKSPACE_STORAGE_KEY);
+      if (!raw || !raw.trim()) return null;
+      return raw.trim();
     } catch {
       return null;
     }
