@@ -13,6 +13,7 @@ import type {
   OpenCodeGoWorkspaceCreateFlowPayload,
   OpenCodeGoWorkspaceCreateFlowResponse,
   OpenCodeGoWorkspaceValidateResponse,
+  OpenCodePermissionsResponse,
 } from '../types';
 import { apiRequest } from './core';
 
@@ -137,4 +138,20 @@ export function getOpenCodeRequestLogs(
     `/api/opencode/logs/requests${qs ? `?${qs}` : ''}`,
     { baseUrl },
   );
+}
+
+export function getOpenCodePermissions(baseUrl?: string): Promise<OpenCodePermissionsResponse> {
+  return apiRequest<OpenCodePermissionsResponse>('/api/opencode/permissions', { baseUrl });
+}
+
+export function saveOpenCodePermissions(
+  payload: { permission: Record<string, unknown> },
+  baseUrl?: string,
+): Promise<OpenCodePermissionsResponse> {
+  return apiRequest<OpenCodePermissionsResponse>('/api/opencode/permissions', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 }

@@ -3510,7 +3510,7 @@ export interface OpenCodeAssetsInstallResponse {
   error?: string;
 }
 
-export type OpenCodeToolingInstallKind = 'elegy-planning-cli' | 'elegy-skills' | 'install-codex-planning';
+export type OpenCodeToolingInstallKind = 'elegy-planning-cli' | 'elegy-skills' | 'install-codex-planning' | 'worktree-permission-profile';
 
 export interface OpenCodeToolingInstallPayload {
   kind: OpenCodeToolingInstallKind;
@@ -3573,7 +3573,7 @@ export interface OpenCodeToolingInstallResponse {
   error?: string;
 }
 
-export type OpenCodeTabSectionId = 'overview' | 'lanes' | 'profiles' | 'setup' | 'logs' | 'go-workspaces';
+export type OpenCodeTabSectionId = 'overview' | 'lanes' | 'profiles' | 'setup' | 'logs' | 'go-workspaces' | 'permissions';
 
 export interface OpenCodeRequestLogEntry {
   timestamp: string;
@@ -3611,4 +3611,26 @@ export interface ClaudeCodeCliInstallResponse {
   version: string | null;
   error: string | null;
   status?: ClaudeCodeStatusResponse;
+}
+
+export interface GitHubStatusResponse {
+  ghInstalled: boolean;
+  ghVersion: string | null;
+  authenticated: boolean;
+  user: string | null;
+  error: string | null;
+}
+
+export interface OpenCodePermissionsResponse {
+  ok: boolean;
+  permission: Record<string, unknown> | null;
+}
+
+export interface OpenCodePermissions {
+  external_directory?: {
+    patterns: string[];
+    action: string;
+  };
+  bash?: Record<string, string>;
+  [key: string]: unknown;
 }

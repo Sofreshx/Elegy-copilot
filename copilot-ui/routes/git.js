@@ -872,6 +872,71 @@ function handleGitMergeLocal(ctx, deps) {
     });
 }
 
+function handleGitHubStatus(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const os = require('os');
+  const homeDir = os.homedir();
+
+  let ghInstalled = false;
+  let ghVersion = null;
+  let authenticated = false;
+  let user = null;
+  let error = null;
+
+  return Promise.resolve()
+    .then(async () => {
+      // Check if gh CLI is installed
+      try {
+        const versionResult = await runCommand(deps.childProcess, 'gh', ['--version'], homeDir, 10000);
+        ghInstalled = true;
+        const versionMatch = String(versionResult.stdout || versionResult.stderr || '').match(/gh version ([\d.]+)/i);
+        ghVersion = versionMatch ? versionMatch[1] : 'unknown';
+      } catch (e) {
+        error = 'GitHub CLI (gh) is not installed or not in PATH.';
+      }
+
+      // Check auth status
+      if (ghInstalled) {
+        try {
+          const authResult = await runCommand(deps.childProcess, 'gh', ['auth', 'status'], homeDir, 15000);
+          authenticated = /Logged in/i.test(authResult.stdout) || /Logged in/i.test(authResult.stderr);
+        } catch (e) {
+          // gh auth status may exit non-zero even when partially authenticated
+          const msg = String(e.stderr || e.message || '').toLowerCase();
+          if (/logged in/i.test(msg)) authenticated = true;
+        }
+
+        // Get user info if authenticated
+        if (authenticated) {
+          try {
+            const userResult = await runCommand(deps.childProcess, 'gh', ['api', 'user', '--jq', '.login'], homeDir, 10000);
+            user = String(userResult.stdout || '').trim() || null;
+          } catch (e) {
+            // User info not critical
+          }
+        }
+      }
+
+      sendJson(res, 200, {
+        ghInstalled,
+        ghVersion,
+        authenticated,
+        user,
+        error,
+      });
+    })
+    .catch((err) => {
+      sendJson(res, 500, {
+        ghInstalled: false,
+        ghVersion: null,
+        authenticated: false,
+        user: null,
+        error: String(err.message || err),
+      });
+    });
+}
+
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const readJsonBody = context.readJsonBody || defaultReadJsonBody;
@@ -895,6 +960,7 @@ function register(context = {}) {
     { method: 'GET', path: '/api/git/merge-candidates', handler: (ctx) => handleGitMergeCandidates(ctx, deps) },
     { method: 'POST', path: '/api/git/merge-dry-run', handler: (ctx) => handleGitMergeDryRun(ctx, deps) },
     { method: 'POST', path: '/api/git/merge-local', handler: (ctx) => handleGitMergeLocal(ctx, deps) },
+    { method: 'GET', path: '/api/git/github-status', handler: (ctx) => handleGitHubStatus(ctx, deps) },
   ];
 }
 

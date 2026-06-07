@@ -22,7 +22,7 @@ export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | '
 export type MaintenanceSection = 'updates' | 'sandboxes' | 'diagnostics';
 export type WizardType = 'project' | 'asset' | null;
 
-export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'maintenance' | 'runtime' | 'codex' | 'claude-code';
+export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'maintenance' | 'runtime' | 'codex' | 'claude-code' | 'github';
 
 export interface SettingsNavItem {
   id: SettingsSection;

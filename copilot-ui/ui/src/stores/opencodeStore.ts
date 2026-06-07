@@ -169,7 +169,9 @@ function createOpenCodeStore() {
           toolingInstalling: false,
           message: payload.kind === 'elegy-planning-cli'
             ? 'elegy-planning CLI install completed.'
-            : 'Elegy skills install completed.',
+            : payload.kind === 'worktree-permission-profile'
+              ? 'Worktree permissions installed.'
+              : 'Elegy skills install completed.',
         }));
       } else {
         store.setState((state) => ({
@@ -242,15 +244,12 @@ function createOpenCodeStore() {
   async function installWorktreePermissions(): Promise<void> {
     store.setState((state) => ({ ...state, permissionsInstalling: true, error: null, message: null }));
     try {
-      const { apiRequest } = await import('../lib/api/core');
-      const response = await apiRequest<{ ok: boolean; patched?: boolean; error?: string; status?: OpenCodeStatusResponse }>(
-        '/api/opencode/permissions/worktree',
-        { method: 'POST', headers: { 'Content-Type': 'application/json' } }
-      );
-      if (response.ok && response.patched) {
+      const response = await installOpenCodeTooling({ kind: 'worktree-permission-profile' });
+      const status = response.status;
+      if (response.ok && status) {
         store.setState((state) => ({
           ...state,
-          status: response.status || state.status,
+          status,
           permissionsInstalling: false,
           message: 'Worktree permissions installed.',
         }));

@@ -8,6 +8,7 @@ import OpenCodeView from '../../tabs/OpenCode/OpenCodeView';
 import MaintenanceView from '../Maintenance/MaintenanceView';
 import DashboardView from '../DashboardView';
 import ClaudeCodeView from '../../tabs/ClaudeCode/ClaudeCodeView';
+import GitHubSettingsView from './GitHubSettingsView';
 import { Panel } from '../../components';
 
 const BRAND_ICON_SRC = '/elegy-copilot-icon.svg';
@@ -26,6 +27,7 @@ const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; icon: strin
   { id: 'runtime', label: 'Runtime', icon: '▶' },
   { id: 'codex', label: 'Codex Providers', icon: '◈' },
   { id: 'claude-code', label: 'Claude Code Setup', icon: '◈' },
+  { id: 'github', label: 'GitHub CLI', icon: '⎇' },
 ];
 
 export default function SettingsView() {
@@ -79,6 +81,8 @@ export default function SettingsView() {
         return <CodexProviderPanel />;
       case 'claude-code':
         return <ClaudeCodeView />;
+      case 'github':
+        return <GitHubSettingsView />;
       case 'app':
       default:
         return <SettingsAppSection appInfo={appInfo} infoLoading={infoLoading} />;
