@@ -300,6 +300,87 @@ async function handleCleanupRemove(ctx, deps) {
   }
 }
 
+async function handleCleanupRemoveWithBranch(ctx, deps) {
+  const executor = requireExecutor(ctx.res, deps);
+  if (!executor) return;
+  
+  const body = await deps.readJsonBody(ctx.req);
+  const repoPath = (body && body.repoPath || '').trim();
+  const worktreePath = (body && body.worktreePath || '').trim();
+  const force = body && body.force === true;
+  let branch = (body && body.branch || '').trim();
+  
+  if (!repoPath || !worktreePath) {
+    deps.sendJson(ctx.res, 400, { error: 'repoPath and worktreePath are required' });
+    return;
+  }
+  
+  // Determine branch from worktree if not provided
+  if (!branch) {
+    try {
+      branch = execFileSync('git', ['-C', worktreePath, 'rev-parse', '--abbrev-ref', 'HEAD'], {
+        encoding: 'utf8', timeout: 10000, windowsHide: true
+      }).trim();
+    } catch (err) {
+      deps.sendJson(ctx.res, 400, { error: 'Could not determine branch from worktree. Provide branch explicitly.', diagnostics: err.message });
+      return;
+    }
+  }
+  
+  if (!branch) {
+    deps.sendJson(ctx.res, 400, { error: 'Could not determine branch and no branch provided.' });
+    return;
+  }
+  
+  // Remove worktree
+  let output;
+  try {
+    const args = ['-C', repoPath, 'worktree', 'remove', worktreePath];
+    if (force) args.push('--force');
+    output = execFileSync('git', args, {
+      encoding: 'utf8', timeout: 30000, windowsHide: true
+    }).trim();
+  } catch (err) {
+    deps.sendJson(ctx.res, 500, {
+      error: `Failed to remove worktree: ${err.message}`,
+      removed: false,
+      worktreePath,
+      branch,
+    });
+    return;
+  }
+  
+  // Notify session hooks about worktree removal
+  if (ctx.sessionHooks && typeof ctx.sessionHooks.onWorktreeRemove === 'function') {
+    try {
+      ctx.sessionHooks.onWorktreeRemove(worktreePath);
+    } catch { /* ignore hook errors */ }
+  }
+  
+  // Delete branch after successful worktree removal
+  let branchDeleted = false;
+  let branchOutput = '';
+  try {
+    branchOutput = execFileSync('git', ['-C', repoPath, 'branch', '-D', branch], {
+      encoding: 'utf8', timeout: 10000, windowsHide: true
+    }).trim();
+    branchDeleted = true;
+  } catch (err) {
+    branchOutput = err.message;
+    // Don't fail — worktree already removed; branch deletion issue is noted in response
+  }
+  
+  deps.sendJson(ctx.res, 200, {
+    removed: true,
+    worktreePath,
+    branch,
+    branchDeleted,
+    repoPath,
+    output: output || 'Worktree removed successfully',
+    branchOutput: branchOutput || '',
+  });
+}
+
 async function handlePrune(ctx, deps) {
   const executor = requireExecutor(ctx.res, deps);
   if (!executor) return;
@@ -379,10 +460,15 @@ function register(deps = {}) {
     },
     {
       method: 'POST',
+      path: '/api/executor/worktrees/cleanup/remove-with-branch',
+      handler: (ctx) => handleCleanupRemoveWithBranch(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
       path: '/api/executor/worktrees/prune',
       handler: (ctx) => handlePrune(ctx, resolvedDeps),
     },
   ];
 }
 
-module.exports = { register, handleListWorktrees, handleCleanupAnalyze, handleCleanupRemove, handlePrune };
+module.exports = { register, handleListWorktrees, handleCleanupAnalyze, handleCleanupRemove, handleCleanupRemoveWithBranch, handlePrune };

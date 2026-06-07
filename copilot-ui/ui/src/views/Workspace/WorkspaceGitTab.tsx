@@ -17,9 +17,12 @@ import {
   pullGit,
   checkoutGitBranch,
   discoverGitChecks,
+  mergeWorktree,
 } from '../../lib/api/git';
-import { listExecutorWorktrees, analyzeWorktreeCleanup, removeWorktree, pruneWorktrees } from '../../lib/api/executor';
-import type { ExecutorWorktreeRecord } from '../../lib/types';
+import type { MergeWorktreeResponse } from '../../lib/api/git';
+import { listExecutorWorktrees, analyzeWorktreeCleanup, removeWorktreeWithBranch } from '../../lib/api/executor';
+import type { ExecutorWorktreeRecord, EnrichedWorktreeEntry } from '../../lib/types';
+import { getEnrichedWorktrees } from '../../lib/api/elegyDb';
 import type { VerificationState } from '../Repositories/verification';
 
 // ─── Inline worktree display helpers (from WorkspaceWorktreesCard) ──────────
@@ -59,6 +62,10 @@ interface WorktreeDisplay {
   isReusable: boolean;
   isInterrupted: boolean;
   probeError: string | null;
+  createdAt: string;
+  sessionCount: number;
+  hasActiveSessions: boolean;
+  enrichedStatus: string | null;
 }
 
 const MAX_ROWS = 10;
@@ -76,9 +83,23 @@ function getRecordTimestamp(record: ExecutorWorktreeRecord): number {
   return 0;
 }
 
-function sortForDisplay(records: ExecutorWorktreeRecord[]): ExecutorWorktreeRecord[] {
+function sortForDisplay(records: ExecutorWorktreeRecord[], order: 'date-desc' | 'date-asc' | 'status' | 'source' = 'date-desc'): ExecutorWorktreeRecord[] {
   return records.slice().sort((left, right) => {
+    if (order === 'status') {
+      const leftStatus = (left.status || '').toLowerCase();
+      const rightStatus = (right.status || '').toLowerCase();
+      if (leftStatus !== rightStatus) return leftStatus.localeCompare(rightStatus);
+      return getRecordTimestamp(right) - getRecordTimestamp(left);
+    }
+    if (order === 'source') {
+      const leftSource = (left.source || '').toLowerCase();
+      const rightSource = (right.source || '').toLowerCase();
+      if (leftSource !== rightSource) return leftSource.localeCompare(rightSource);
+      return getRecordTimestamp(right) - getRecordTimestamp(left);
+    }
+    // date-desc or date-asc
     const delta = getRecordTimestamp(right) - getRecordTimestamp(left);
+    if (order === 'date-asc') return -delta;
     if (delta !== 0) return delta;
     const leftStable = typeof left._stableOrder === 'number' ? left._stableOrder : Number.POSITIVE_INFINITY;
     const rightStable = typeof right._stableOrder === 'number' ? right._stableOrder : Number.POSITIVE_INFINITY;
@@ -103,6 +124,19 @@ function formatRelative(iso: string | null | undefined, mtimeMs?: number | null)
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
   return new Date(timestamp).toISOString().slice(0, 10);
+}
+
+function formatDate(record: ExecutorWorktreeRecord): string {
+  const updated = record.updatedAt;
+  if (updated) {
+    const d = new Date(updated);
+    if (Number.isFinite(d.getTime())) return d.toLocaleDateString();
+  }
+  const git = record.git;
+  if (git && typeof git.mtimeMs === 'number' && Number.isFinite(git.mtimeMs)) {
+    return new Date(git.mtimeMs).toLocaleDateString();
+  }
+  return 'unknown';
 }
 
 function getAssignment(record: ExecutorWorktreeRecord): { sessionId?: string | null; runId?: string | null; overlaySessionId?: string | null } {
@@ -133,6 +167,8 @@ function toDisplay(record: ExecutorWorktreeRecord): WorktreeDisplay {
   const changed = git ? Number(git.changed || 0) : 0;
   const dirty = changed > 0;
   const probeError = git && git.probeError ? git.probeError : null;
+  const createdAtTs = getRecordTimestamp(record);
+  const createdAt = createdAtTs > 0 ? new Date(createdAtTs).toLocaleDateString() : 'unknown';
   return {
     key: record.worktreeId || record.path || `wt-${Math.random().toString(36).slice(2, 9)}`,
     sourceLabel,
@@ -150,6 +186,10 @@ function toDisplay(record: ExecutorWorktreeRecord): WorktreeDisplay {
     isReusable: status === 'reusable',
     isInterrupted: status === 'interrupted',
     probeError,
+    createdAt,
+    sessionCount: 0,
+    hasActiveSessions: false,
+    enrichedStatus: null,
   };
 }
 
@@ -227,7 +267,21 @@ export default function WorkspaceGitTab({
   const [cleanupAnalyses, setCleanupAnalyses] = useState<Record<string, { eligible: boolean; reason: string; dirty: boolean; missing: boolean; assigned: boolean; conflicts: boolean; mergedIntoCurrentOrDefault: boolean; diagnostics: string[] }>>({});
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
-  const [pruning, setPruning] = useState(false);
+
+  // ─── Enriched worktree state ──────────────────────────────────────────────
+  const [enrichedWorktrees, setEnrichedWorktrees] = useState<EnrichedWorktreeEntry[]>([]);
+  const [enrichedLoading, setEnrichedLoading] = useState(false);
+  
+  // ─── Worktree sorting ─────────────────────────────────────────────────────
+  const [sortOrder, setSortOrder] = useState<'date-desc' | 'date-asc' | 'status' | 'source'>('date-desc');
+
+  // ─── Worktree merge state ─────────────────────────────────────────────────
+  const [worktreeMergeResults, setWorktreeMergeResults] = useState<Record<string, MergeWorktreeResponse>>({});
+  const [mergingWorktree, setMergingWorktree] = useState<string | null>(null);
+
+  // ─── Skip-verify commit state ─────────────────────────────────────────────
+  const [showSkipVerifyConfirm, setShowSkipVerifyConfirm] = useState(false);
+  const [skipVerifyCommitting, setSkipVerifyCommitting] = useState(false);
 
   // ─── Checks discovery state ────────────────────────────────────────────────
   const [discoveredChecks, setDiscoveredChecks] = useState<GitChecksDiscoverResponse | null>(null);
@@ -282,6 +336,25 @@ export default function WorkspaceGitTab({
     void load();
     return () => { cancelled = true; };
   }, [loadWorktrees]);
+
+  // ─── Load enriched worktree data ──────────────────────────────────────────
+  useEffect(() => {
+    if (!repoPath) return;
+    let cancelled = false;
+    async function load() {
+      setEnrichedLoading(true);
+      try {
+        const data = await getEnrichedWorktrees(repoPath);
+        if (!cancelled) setEnrichedWorktrees(data.worktrees || []);
+      } catch {
+        // enriched data is optional
+      } finally {
+        if (!cancelled) setEnrichedLoading(false);
+      }
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, [repoPath]);
 
   // ─── Discover checks on mount ──────────────────────────────────────────────
   useEffect(() => {
@@ -451,7 +524,21 @@ export default function WorkspaceGitTab({
 
 
   // ─── Worktrees display ─────────────────────────────────────────────────────
-  const worktreeDisplay = sortForDisplay(worktreeRecords).slice(0, MAX_ROWS).map(toDisplay);
+  const worktreeDisplay = sortForDisplay(worktreeRecords, sortOrder).slice(0, MAX_ROWS).map(record => {
+    const entry = toDisplay(record);
+    // Merge enriched data
+    const enriched = enrichedWorktrees.find(w => {
+      const wtPath = (w.path || '').replace(/\\/g, '/').toLowerCase();
+      const entryPath = (entry.path || '').replace(/\\/g, '/').toLowerCase();
+      return wtPath && entryPath && (wtPath === entryPath || entryPath.endsWith(wtPath) || wtPath.endsWith(entryPath));
+    });
+    if (enriched) {
+      entry.sessionCount = enriched.sessionCount || 0;
+      entry.hasActiveSessions = enriched.sessionCount > 0;
+      entry.enrichedStatus = enriched.status || null;
+    }
+    return entry;
+  });
 
   // ─── Worktree cleanup handlers ─────────────────────────────────────────────
   async function handleAnalyzeCleanup(worktreePath: string, branch: string) {
@@ -466,15 +553,15 @@ export default function WorkspaceGitTab({
     }
   }
 
-  async function handleRemoveWorktree(worktreePath: string) {
-    const analysis = cleanupAnalyses[worktreePath];
-    if (!analysis || !analysis.eligible) return;
+  async function handleRemoveWorktree(worktreePath: string, branch: string) {
     setRemoving(worktreePath);
     try {
-      const result = await removeWorktree(repoPath, worktreePath);
+      const result = await removeWorktreeWithBranch(repoPath, worktreePath, branch || null);
       if (result.removed) {
-        notificationStore.success('Worktree removed', { message: worktreePath });
-        // Refresh worktree list
+        notificationStore.success(
+          result.branchDeleted ? 'Worktree & branch removed' : 'Worktree removed (branch may remain)',
+          { message: `${worktreePath}${result.branch ? ` (branch: ${result.branch})` : ''}` }
+        );
         loadWorktrees();
       }
     } catch (err) {
@@ -484,27 +571,34 @@ export default function WorkspaceGitTab({
     }
   }
 
-  async function handlePrune() {
-    setPruning(true);
+  async function handleMergeWorktree(worktreePath: string, worktreeBranch: string) {
+    if (!summary?.branch) return;
+    const targetBranch = summary.branch;
+    setMergingWorktree(worktreePath);
     try {
-      const result = await pruneWorktrees(repoPath);
-      if (result.pruned) {
-        notificationStore.success('Pruned', { message: result.output || 'Worktrees pruned' });
+      const result = await mergeWorktree(repoPath, worktreePath, worktreeBranch, targetBranch);
+      setWorktreeMergeResults(prev => ({ ...prev, [worktreePath]: result }));
+      if (result.merged) {
+        notificationStore.success('Merge complete', { message: `Merged ${worktreeBranch} into ${targetBranch}` });
         loadWorktrees();
+      } else if (result.conflicts) {
+        notificationStore.error('Merge conflicts', { message: `${result.conflictFiles?.length || 0} file(s) have conflicts` });
       }
     } catch (err) {
-      notificationStore.error('Prune failed', { message: err instanceof Error ? err.message : String(err) });
+      setWorktreeMergeResults(prev => ({
+        ...prev,
+        [worktreePath]: {
+          merged: false,
+          conflicts: true,
+          conflictFiles: [],
+          diagnostics: err instanceof Error ? err.message : String(err),
+          sourceRef: worktreeBranch,
+          targetRef: targetBranch,
+        },
+      }));
+      notificationStore.error('Merge failed', { message: err instanceof Error ? err.message : String(err) });
     } finally {
-      setPruning(false);
-    }
-  }
-
-  async function handleBatchRemove() {
-    const safePaths = Object.entries(cleanupAnalyses)
-      .filter(([, analysis]) => analysis.eligible)
-      .map(([path]) => path);
-    for (const wtPath of safePaths) {
-      await handleRemoveWorktree(wtPath);
+      setMergingWorktree(null);
     }
   }
 
@@ -847,36 +941,34 @@ export default function WorkspaceGitTab({
       {/* SECTION 3 — Worktrees Table                                      */}
       {/* ================================================================ */}
       <div className="workspace-git-worktrees-area" data-testid="workspace-git-worktrees-area">
-        <h3 className="workspace-git-section-title">
-          Worktrees ({worktreeRecords.length})
-        </h3>
-
-        {/* Batch cleanup action bar */}
-        {worktreeDisplay.length > 0 ? (
-          <div className="workspace-git-cleanup-actions" data-testid="workspace-worktrees-cleanup-bar">
-            <button
-              type="button"
-              className="button button-sm button-secondary"
-              disabled={pruning}
-              onClick={() => void handlePrune()}
-              data-testid="workspace-worktrees-prune"
-            >
-              {pruning ? 'Pruning...' : 'Prune stale'}
-            </button>
-            <button
-              type="button"
-              className="button button-sm button-secondary"
-              disabled={Object.values(cleanupAnalyses).filter(a => a.eligible).length === 0}
-              onClick={() => void handleBatchRemove()}
-              data-testid="workspace-worktrees-batch-remove"
-            >
-              Remove merged & safe
-            </button>
-            <span className="workspace-git-cleanup-detail" data-testid="workspace-worktrees-safe-count">
-              {Object.values(cleanupAnalyses).filter(a => a.eligible).length} safe to remove
-            </span>
-          </div>
-        ) : null}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
+          <h3 className="workspace-git-section-title" style={{ margin: 0 }}>
+            Worktrees ({worktreeRecords.length})
+          </h3>
+          <button
+            type="button"
+            className="button button-sm button-ghost"
+            onClick={() => void loadWorktrees()}
+            disabled={worktreesLoading}
+            title="Reload worktrees"
+            aria-label="Reload worktrees"
+            data-testid="workspace-worktrees-reload"
+          >
+            ↻ Reload
+          </button>
+          <select
+            className="form-input-field"
+            style={{ width: 'auto', padding: '2px 6px', fontSize: '0.75rem' }}
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+            data-testid="workspace-worktrees-sort"
+          >
+            <option value="date-desc">Newest first</option>
+            <option value="date-asc">Oldest first</option>
+            <option value="status">By status</option>
+            <option value="source">By source</option>
+          </select>
+        </div>
 
         {worktreesLoading ? (
           <div className="state-message">Scanning worktrees...</div>
@@ -890,6 +982,7 @@ export default function WorkspaceGitTab({
               <tr className="workspace-git-table-header">
                 <th className="workspace-git-table-cell">Branch</th>
                 <th className="workspace-git-table-cell">Path</th>
+                <th className="workspace-git-table-cell">Created</th>
                 <th className="workspace-git-table-cell">Source</th>
                 <th className="workspace-git-table-cell">Status</th>
                 <th className="workspace-git-table-cell">Dirty</th>
@@ -915,6 +1008,9 @@ export default function WorkspaceGitTab({
                     >
                       {entry.path}
                     </span>
+                  </td>
+                  <td className="workspace-git-table-cell" data-testid={`workspace-worktree-created-${entry.key}`}>
+                    {entry.createdAt}
                   </td>
                   <td className="workspace-git-table-cell" data-testid={`workspace-worktree-source-${entry.key}`}>
                     {entry.sourceLabel}
@@ -944,6 +1040,11 @@ export default function WorkspaceGitTab({
                       ) : null}
                       {entry.probeError ? (
                         <span className="workspace-git-worktree-flag workspace-git-worktree-flag-error" title={entry.probeError}>probe error</span>
+                      ) : null}
+                      {worktreeMergeResults[entry.path]?.conflicts ? (
+                        <span className="workspace-git-worktree-flag workspace-git-worktree-flag-error" title={worktreeMergeResults[entry.path].diagnostics || 'Merge conflicts detected'}>
+                          conflicts
+                        </span>
                       ) : null}
 
                       {/* Expand diagnostics */}
@@ -991,7 +1092,7 @@ export default function WorkspaceGitTab({
                           type="button"
                           className="button button-sm button-secondary"
                           disabled={!cleanupAnalyses[entry.path].eligible || removing === entry.path}
-                          onClick={() => void handleRemoveWorktree(entry.path)}
+                          onClick={() => void handleRemoveWorktree(entry.path, entry.branchLabel)}
                           data-testid={`workspace-worktree-remove-${entry.key}`}
                         >
                           {removing === entry.path ? '...' : 'Remove'}
@@ -1008,6 +1109,32 @@ export default function WorkspaceGitTab({
                         {analyzing === entry.path ? '...' : 'Analyze'}
                       </button>
                     )}
+                    {/* Verify & Merge for worktrees with sessions */}
+                    {entry.hasActiveSessions ? (
+                      <div style={{ display: 'flex', gap: 'var(--space-xs)', marginTop: '4px' }}>
+                        {worktreeMergeResults[entry.path] ? (
+                          worktreeMergeResults[entry.path].merged ? (
+                            <span className="workspace-git-merge-clean-label" style={{ color: 'var(--color-success-500)' }}>✓ Merged</span>
+                          ) : worktreeMergeResults[entry.path].conflicts ? (
+                            <span
+                              className="workspace-git-worktree-flag workspace-git-worktree-flag-error"
+                              title={worktreeMergeResults[entry.path].diagnostics || 'Conflicts detected'}
+                            >⚠ Conflicts</span>
+                          ) : (
+                            <span className="workspace-git-merge-error">✗ Failed</span>
+                          )
+                        ) : null}
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          disabled={mergingWorktree === entry.path || !!worktreeMergeResults[entry.path]?.merged}
+                          onClick={() => void handleMergeWorktree(entry.path, entry.branchLabel)}
+                          testId={`workspace-worktree-merge-${entry.key}`}
+                        >
+                          {mergingWorktree === entry.path ? 'Merging...' : 'Verify & Merge'}
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 </td>
                 </tr>
@@ -1127,6 +1254,55 @@ export default function WorkspaceGitTab({
             ⚠ Checks are not verified. Run Verify & Commit before pushing.
           </div>
         ) : null}
+
+        {/* Commit & Push without verifying */}
+        <div className="workspace-git-composer-actions" style={{ marginTop: 'var(--space-sm)', borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-sm)' }}>
+          {!showSkipVerifyConfirm ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!gitState.commitMessage.trim() || gitState.committing || gitState.syncing}
+              onClick={() => setShowSkipVerifyConfirm(true)}
+              testId="workspace-skip-verify-commit"
+            >
+              Commit & Push (skip verify)
+            </Button>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+              <span style={{ color: 'var(--color-accent-500)', fontSize: '0.8rem' }}>⚠ Skip verification and push directly?</span>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={skipVerifyCommitting}
+                onClick={async () => {
+                  setSkipVerifyCommitting(true);
+                  try {
+                    onCommit();
+                    // slight delay then push
+                    setTimeout(() => {
+                      onPush();
+                      setSkipVerifyCommitting(false);
+                      setShowSkipVerifyConfirm(false);
+                    }, 500);
+                  } catch {
+                    setSkipVerifyCommitting(false);
+                  }
+                }}
+                testId="workspace-skip-verify-confirm"
+              >
+                {skipVerifyCommitting ? 'Committing...' : 'Yes, commit & push'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSkipVerifyConfirm(false)}
+                testId="workspace-skip-verify-cancel"
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+        </div>
 
         {/* Push disabled hint */}
         {pushDisabled && changeCount > 0 ? (

@@ -872,6 +872,85 @@ function handleGitMergeLocal(ctx, deps) {
     });
 }
 
+function handleGitMergeWorktree(ctx, deps) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+
+  return readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const repoPath = isNonEmptyString(payload.repoPath) ? payload.repoPath.trim() : '';
+      const worktreePath = isNonEmptyString(payload.worktreePath) ? payload.worktreePath.trim() : '';
+      const worktreeBranch = isNonEmptyString(payload.worktreeBranch) ? payload.worktreeBranch.trim() : '';
+      const targetBranch = isNonEmptyString(payload.targetBranch) ? payload.targetBranch.trim() : '';
+
+      if (!repoPath) throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+      if (!worktreePath) throw Object.assign(new Error('worktreePath is required'), { statusCode: 400 });
+      if (!worktreeBranch) throw Object.assign(new Error('worktreeBranch is required'), { statusCode: 400 });
+      if (!targetBranch) throw Object.assign(new Error('targetBranch is required'), { statusCode: 400 });
+
+      // Safety: check current branch matches target branch
+      const currentBranch = (await runGit(deps.childProcess, ['branch', '--show-current'], repoPath)).stdout.trim();
+      if (currentBranch !== targetBranch) {
+        throw Object.assign(new Error(`Current branch (${currentBranch}) does not match target branch (${targetBranch}). Switch to the target branch first.`), { statusCode: 409 });
+      }
+
+      // Safety: check working tree is clean
+      const statusResult = await runGit(deps.childProcess, ['status', '--porcelain'], repoPath);
+      if (statusResult.stdout.trim().length > 0) {
+        throw Object.assign(new Error('Working tree is dirty. Commit or stash changes before merging.'), { statusCode: 409 });
+      }
+
+      // Dry-run: use merge-tree to check for conflicts
+      let mergeCheck;
+      try {
+        mergeCheck = await runGit(deps.childProcess, ['merge-tree', targetBranch, worktreeBranch], repoPath, 15000);
+      } catch (err) {
+        mergeCheck = { stdout: err.stdout || '', stderr: err.stderr || '' };
+      }
+      const mergeOutput = mergeCheck.stdout || '';
+
+      // Parse conflicts from merge-tree output
+      const hasConflicts = mergeOutput.includes('<<<<<<<') || mergeOutput.includes('>>>>>>>') || mergeOutput.includes('=======');
+      const conflictFiles = [];
+      if (hasConflicts) {
+        const lines = mergeOutput.split('\n');
+        for (const line of lines) {
+          const conflictMatch = line.match(/^(?:changed in both|added in both|CONFLICT|merged\s+)\s*(.+)$/i);
+          if (conflictMatch) {
+            conflictFiles.push(conflictMatch[1].trim());
+          }
+        }
+      }
+
+      if (hasConflicts) {
+        return {
+          merged: false,
+          conflicts: true,
+          conflictFiles,
+          diagnostics: `Merge conflict detected in ${conflictFiles.length} file(s)`,
+          sourceRef: worktreeBranch,
+          targetRef: targetBranch,
+        };
+      }
+
+      // Execute the merge (--no-ff to record merge commit)
+      const result = await runGit(deps.childProcess, ['merge', '--no-ff', worktreeBranch], repoPath, 30000);
+
+      return {
+        merged: true,
+        sourceRef: worktreeBranch,
+        targetRef: targetBranch,
+        output: `${result.stdout}${result.stderr}`.trim(),
+      };
+    })
+    .then((result) => sendJson(res, 200, result))
+    .catch((error) => {
+      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      sendJson(res, statusCode, { error: String(error.message || error) });
+    });
+}
+
 function handleGitHubStatus(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
@@ -960,8 +1039,9 @@ function register(context = {}) {
     { method: 'GET', path: '/api/git/merge-candidates', handler: (ctx) => handleGitMergeCandidates(ctx, deps) },
     { method: 'POST', path: '/api/git/merge-dry-run', handler: (ctx) => handleGitMergeDryRun(ctx, deps) },
     { method: 'POST', path: '/api/git/merge-local', handler: (ctx) => handleGitMergeLocal(ctx, deps) },
+    { method: 'POST', path: '/api/git/merge-worktree', handler: (ctx) => handleGitMergeWorktree(ctx, deps) },
     { method: 'GET', path: '/api/git/github-status', handler: (ctx) => handleGitHubStatus(ctx, deps) },
   ];
 }
 
-module.exports = { register };
+module.exports = { register, handleGitMergeWorktree };

@@ -303,3 +303,29 @@ export async function mergeLocal(
     body: JSON.stringify({ repoPath, sourceRef, targetRef }),
   });
 }
+
+export interface MergeWorktreeResponse {
+  merged: boolean;
+  conflicts?: boolean;
+  conflictFiles?: string[];
+  diagnostics?: string;
+  sourceRef: string;
+  targetRef: string;
+  output?: string;
+  error?: string;
+}
+
+export async function mergeWorktree(
+  repoPath: string,
+  worktreePath: string,
+  worktreeBranch: string,
+  targetBranch: string,
+  baseUrl?: string,
+): Promise<MergeWorktreeResponse> {
+  return apiRequest<MergeWorktreeResponse>('/api/git/merge-worktree', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, worktreePath, worktreeBranch, targetBranch }),
+  });
+}
