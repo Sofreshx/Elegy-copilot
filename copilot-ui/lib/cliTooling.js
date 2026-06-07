@@ -27,7 +27,7 @@ function runCliInstall(toolId, options = {}) {
     return { ok: true, dryRun: true, command };
   }
   if (!isNpmAvailable()) {
-    return { ok: false, error: 'npm is not available on this system. Install Node.js from https://nodejs.org/' };
+    return { ok: false, error: 'npm is not available on this system. Install Node.js (which includes npm) from https://nodejs.org/' };
   }
   try {
     const childProcess = options.childProcess || require('child_process');

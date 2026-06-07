@@ -96,9 +96,12 @@ function getCliToolStatus(toolId, spawnSyncImpl) {
     });
 
     if (result.error) {
-      // ENOENT or other system error — tool is not available
+      // ENOENT means the command is not on PATH — tool is not installed, that's expected.
+      // Other system errors (EPERM, etc.) are genuine and should be reported.
       status.installed = false;
-      status.lastError = result.error.message || String(result.error);
+      if (result.error.code !== 'ENOENT') {
+        status.lastError = result.error.message || String(result.error);
+      }
       return status;
     }
 

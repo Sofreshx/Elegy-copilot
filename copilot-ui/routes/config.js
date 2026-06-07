@@ -96,6 +96,11 @@ function register(deps = {}) {
       handler: (ctx) => handleResetCodexProvider(ctx, resolvedDeps),
     },
     {
+      method: 'POST',
+      path: '/api/config/codex-provider/factory-reset',
+      handler: (ctx) => handleFactoryResetCodexProvider(ctx, resolvedDeps),
+    },
+    {
       method: 'GET',
       path: '/api/config/codex-provider/deepseek',
       handler: (ctx) => handleGetDeepseek(ctx, resolvedDeps),
@@ -334,6 +339,20 @@ async function handleResetCodexProvider(ctx, deps) {
       error: shouldExpose
         ? err.message
         : 'Failed to reset Codex provider config',
+      details: shouldExpose ? undefined : err.message,
+    });
+  }
+}
+
+function handleFactoryResetCodexProvider(ctx, deps) {
+  try {
+    const result = deps.codexConfig.factoryReset(ctx.codexHome);
+    deps.sendJson(ctx.res, 200, result);
+  } catch (err) {
+    const statusCode = err.statusCode || 500;
+    const shouldExpose = isUserFacingCodexConfigError(statusCode);
+    deps.sendJson(ctx.res, err.statusCode || 500, {
+      error: shouldExpose ? err.message : 'Failed to factory-reset Codex provider config',
       details: shouldExpose ? undefined : err.message,
     });
   }

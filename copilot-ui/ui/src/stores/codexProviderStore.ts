@@ -11,6 +11,8 @@ import {
   setCodexProviderMode,
   startDeepseekBridge,
   stopDeepseekBridge,
+  factoryResetCodexProvider,
+  reinstallCodexSurface,
   type DeepseekSettingsPayload,
 } from '../lib/api/codexConfig';
 import type { CodexProviderDeepseekStatus, CodexProviderStatusResponse, MoonBridgeBootstrapStatus } from '../lib/types';
@@ -101,6 +103,40 @@ function createCodexProviderStore() {
       }));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to reset Codex provider';
+      store.setState((state) => ({ ...state, saving: false, error: message }));
+    }
+  }
+
+  async function factoryReset(): Promise<void> {
+    store.setState((state) => ({ ...state, saving: true, error: null, message: null }));
+    try {
+      const status = await factoryResetCodexProvider();
+      store.setState((state) => ({
+        ...state,
+        status,
+        saving: false,
+        message: 'Codex config factory reset complete. All Elegy-managed settings removed.',
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to factory-reset Codex provider';
+      store.setState((state) => ({ ...state, saving: false, error: message }));
+    }
+  }
+
+  async function reinstallSurface(): Promise<void> {
+    store.setState((state) => ({ ...state, saving: true, error: null, message: null }));
+    try {
+      await reinstallCodexSurface();
+      // After reinstalling, switch to native mode for a clean starting point
+      await setMode('native');
+      await load(); // Refresh full status after mode switch
+      store.setState((state) => ({
+        ...state,
+        saving: false,
+        message: 'Codex surface reinstalled and set to native mode.',
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to reinstall Codex surface';
       store.setState((state) => ({ ...state, saving: false, error: message }));
     }
   }
@@ -265,6 +301,8 @@ function createCodexProviderStore() {
     load,
     setMode,
     reset,
+    factoryReset,
+    reinstallSurface,
     saveDeepseek,
     startBridge,
     stopBridge,

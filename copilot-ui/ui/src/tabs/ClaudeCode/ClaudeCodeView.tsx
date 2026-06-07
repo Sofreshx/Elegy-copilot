@@ -88,7 +88,17 @@ function SetupSection({ status }: { status: ClaudeCodeStatusResponse }) {
               >
                 {state.installing ? 'Installing…' : 'Install Claude Code CLI'}
               </Button>
-            ) : null}
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                testId="claude-code-setup-action-cli"
+                disabled={state.installing}
+                onClick={handleInstall}
+              >
+                {state.installing ? 'Reinstalling…' : 'Reinstall Claude Code CLI'}
+              </Button>
+            )}
           </div>
         </div>
       </Panel>
