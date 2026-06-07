@@ -1,6 +1,4 @@
-import { useStoreValue } from '../lib/store';
-import { navigationStore, type SidebarItemId, type SidebarNavItem } from '../stores/navigation';
-import AppIcon from './AppIcon';
+import type { SidebarItemId, SidebarNavItem } from '../stores/navigation';
 
 interface SidebarProps {
   items: readonly SidebarNavItem[];
@@ -15,8 +13,7 @@ export default function Sidebar({
   onNavigate,
   testId = 'sidebar',
 }: SidebarProps) {
-  const store = useStoreValue(navigationStore);
-  const topItems = items.filter((item) => item.id !== 'settings' && item.id !== 'workspace');
+  const topItems = items.filter((item) => item.id !== 'settings');
   const settingsItem = items.find((item) => item.id === 'settings');
   const openWorkspaces = store.openWorkspaces;
   const activeWorkspaceId = store.activeWorkspaceId;
@@ -43,36 +40,20 @@ export default function Sidebar({
         ))}
       </div>
 
-      {/* Open workspace list with text labels */}
-      {openWorkspaces.length > 0 && (
-        <div className="sidebar-workspaces" data-testid="sidebar-workspaces">
-          {openWorkspaces.map((ws) => (
-            <button
-              key={ws.repoPath}
-              className={`sidebar-workspace-item${activeWorkspaceId === ws.repoPath && activeItem === 'workspace' ? ' sidebar-workspace-item-active' : ''}`}
-              data-testid={`sidebar-workspace-${ws.repoPath.replace(/[^a-zA-Z0-9]/g, '-')}`}
-              title={ws.repoPath}
-              onClick={() => navigationStore.focusWorkspace(ws.repoPath)}
-              type="button"
-            >
-              <span className="sidebar-workspace-label">{ws.repoLabel}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {settingsItem && (
-        <button
-          className={`sidebar-item${activeItem === settingsItem.id ? ' sidebar-item-active' : ''}`}
-          data-testid="sidebar-item-settings"
-          aria-label={settingsItem.label}
-          title={settingsItem.description}
-          onClick={() => onNavigate(settingsItem.id)}
-          type="button"
-        >
-          <AppIcon name="settings" size={20} className="sidebar-item-icon" />
-        </button>
-      )}
+      <div className="sidebar-footer">
+        {settingsItem && (
+          <button
+            className={`sidebar-item${activeItem === settingsItem.id ? ' sidebar-item-active' : ''}`}
+            data-testid="sidebar-item-settings"
+            aria-label={settingsItem.label}
+            title={settingsItem.description}
+            onClick={() => onNavigate(settingsItem.id)}
+            type="button"
+          >
+            <span className="sidebar-item-icon" aria-hidden="true">⚙</span>
+          </button>
+        )}
+      </div>
     </nav>
   );
 }

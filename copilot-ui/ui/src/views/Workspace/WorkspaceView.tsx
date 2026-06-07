@@ -271,10 +271,7 @@ export default function WorkspaceView() {
 
           <div className="workspace-tab-content" data-testid="workspace-tab-content">
             {navState.activeWorkspaceLocalTab === 'docs' && (
-              <WorkspaceDocsTab
-                repoPath={selectedRepoPath}
-                isFocused={navState.isWorkspaceCenterFocused}
-              />
+              <WorkspaceDocsTab repoPath={selectedRepoPath} />
             )}
             {navState.activeWorkspaceLocalTab === 'git' && (
               <WorkspaceGitTab

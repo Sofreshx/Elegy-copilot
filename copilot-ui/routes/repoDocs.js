@@ -2,15 +2,19 @@
 
 const fs = require('fs');
 const path = require('path');
-const { sendJson: defaultSendJson } = require('./_helpers');
+const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
 const ALLOWED_EXTENSIONS = new Set(['.md', '.markdown']);
-const ALLOWED_PREFIXES = ['specs/', 'docs/', 'specs\\', 'docs\\'];
-const ALLOWED_ROOT_FILES = ['README.md', 'readme.md', 'CHANGELOG.md', 'changelog.md'];
+const ALLOWED_PREFIXES = ['specs/', 'docs/', 'skills/', 'agents/', '.opencode/', '.codex/', '.copilot/', '.gemini/', '.antigravity/', 'specs\\', 'docs\\', 'skills\\', 'agents\\', '.opencode\\', '.codex\\', '.copilot\\', '.gemini\\', '.antigravity\\'];
+const ALLOWED_ROOT_FILES = ['README.md', 'readme.md', 'CHANGELOG.md', 'changelog.md', 'AGENTS.md', 'agents.md', 'guidelines.md', 'GUIDELINES.md'];
+
+const TREE_ALLOWED_EXTENSIONS = new Set(['.md', '.markdown', '.json', '.toml']);
+
+const CONFIG_DIRECTORIES = ['skills', 'agents', '.opencode', '.codex', '.copilot', '.gemini', '.antigravity'];
 
 const MAX_FILE_SIZE = 512 * 1024;
 
@@ -33,7 +37,7 @@ function isAllowedDocPath(relativePath) {
   return ALLOWED_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
-function scanMarkdownFiles(dir, baseDir, results) {
+function scanMarkdownFiles(dir, baseDir, results, extensions = ALLOWED_EXTENSIONS) {
   if (!fs.existsSync(dir)) return;
   let entries;
   try {
@@ -68,10 +72,10 @@ function scanMarkdownFiles(dir, baseDir, results) {
         if (entry.name === 'node_modules' || entry.name === '.git') continue;
         if (isExternal) continue; // skip external symlinked dirs
         // Follow symlinked directory by recursing into the resolved path
-        scanMarkdownFiles(resolvedPath, baseDir, results);
+        scanMarkdownFiles(resolvedPath, baseDir, results, extensions);
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase();
-        if (ALLOWED_EXTENSIONS.has(ext)) {
+        if (extensions.has(ext)) {
           if (isExternal) {
             results.push({
               path: relativePath,
@@ -101,10 +105,10 @@ function scanMarkdownFiles(dir, baseDir, results) {
       }
     } else if (lstat.isDirectory()) {
       if (entry.name === 'node_modules' || entry.name === '.git') continue;
-      scanMarkdownFiles(fullPath, baseDir, results);
+      scanMarkdownFiles(fullPath, baseDir, results, extensions);
     } else if (lstat.isFile()) {
       const ext = path.extname(entry.name).toLowerCase();
-      if (ALLOWED_EXTENSIONS.has(ext)) {
+      if (extensions.has(ext)) {
         try {
           const stat = fs.statSync(fullPath);
           results.push({
@@ -141,9 +145,9 @@ function handleRepoDocsList(ctx, deps) {
   try {
     const files = [];
 
-    for (const subDir of ['specs', 'docs']) {
+    for (const subDir of ['specs', 'docs', ...CONFIG_DIRECTORIES]) {
       const fullPath = path.join(root, subDir);
-      scanMarkdownFiles(fullPath, root, files);
+      scanMarkdownFiles(fullPath, root, files, TREE_ALLOWED_EXTENSIONS);
     }
 
     for (const rootFile of ALLOWED_ROOT_FILES) {
@@ -216,7 +220,7 @@ function handleRepoDocsRead(ctx, deps) {
   const relativePath = filePath.trim();
 
   if (!isAllowedDocPath(relativePath)) {
-    sendJson(res, 403, { error: 'Path is not allowed. Only markdown files under specs/, docs/, or root README are accessible.' });
+    sendJson(res, 403, { error: 'Path is not allowed.' });
     return;
   }
 
@@ -561,8 +565,8 @@ function handleRepoDocsGraph(ctx, deps) {
   try {
     // Reuse the same scanning logic as list
     const files = [];
-    for (const subDir of ['specs', 'docs']) {
-      scanMarkdownFiles(path.join(root, subDir), root, files);
+    for (const subDir of ['specs', 'docs', ...CONFIG_DIRECTORIES]) {
+      scanMarkdownFiles(path.join(root, subDir), root, files, TREE_ALLOWED_EXTENSIONS);
     }
     for (const rootFile of ALLOWED_ROOT_FILES) {
       const fullPath = path.join(root, rootFile);
@@ -654,16 +658,185 @@ function handleRepoDocsGraph(ctx, deps) {
   }
 }
 
+async function handleRepoDocsWrite(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+
+  let body;
+  try {
+    body = await readJsonBody(ctx.req);
+  } catch (bodyError) {
+    const code = Number(bodyError && bodyError.statusCode) || 400;
+    sendJson(res, code, { error: bodyError && bodyError.message || 'Invalid request body' });
+    return;
+  }
+
+  const repoPath = body && body.repoPath;
+  const relativePath = body && body.path;
+  const content = body && body.content;
+
+  if (!isNonEmptyString(repoPath)) {
+    sendJson(res, 400, { error: 'repoPath is required in the request body' });
+    return;
+  }
+
+  if (!isNonEmptyString(relativePath)) {
+    sendJson(res, 400, { error: 'path is required in the request body' });
+    return;
+  }
+
+  if (typeof content !== 'string') {
+    sendJson(res, 400, { error: 'content is required in the request body' });
+    return;
+  }
+
+  const root = repoPath.trim();
+
+  if (!isAllowedDocPath(relativePath)) {
+    sendJson(res, 403, { error: 'Path is not allowed.' });
+    return;
+  }
+
+  const fullPath = path.join(root, relativePath);
+
+  // Resolve symlinks to get the real path before traversal check
+  let realPath;
+  try {
+    realPath = fs.realpathSync(fullPath);
+  } catch {
+    realPath = path.resolve(fullPath);
+  }
+
+  const resolvedRoot = path.resolve(root);
+  if (!realPath.startsWith(resolvedRoot + path.sep) && realPath !== resolvedRoot) {
+    sendJson(res, 403, { error: 'Path traversal detected' });
+    return;
+  }
+
+  try {
+    // Ensure parent directory exists
+    const parentDir = path.dirname(realPath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+
+    fs.writeFileSync(realPath, content, 'utf8');
+
+    const stat = fs.statSync(realPath);
+    const relativeForResponse = path.relative(root, realPath).replace(/\\/g, '/');
+
+    sendJson(res, 200, {
+      path: relativeForResponse,
+      name: path.basename(realPath),
+      size: stat.size,
+      modifiedAt: stat.mtime.toISOString(),
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
+function handleRepoDocsDelete(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const { u } = ctx;
+  const repoPath = u.searchParams.get('repoPath');
+  const filePath = u.searchParams.get('path');
+
+  if (!isNonEmptyString(repoPath)) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+
+  if (!isNonEmptyString(filePath)) {
+    sendJson(res, 400, { error: 'path query parameter is required' });
+    return;
+  }
+
+  const root = repoPath.trim();
+  const relativePath = filePath.trim();
+
+  if (!isAllowedDocPath(relativePath)) {
+    sendJson(res, 403, { error: 'Path is not allowed.' });
+    return;
+  }
+
+  const fullPath = path.join(root, relativePath);
+
+  // Resolve symlinks to get the real path before traversal check
+  let realPath;
+  try {
+    realPath = fs.realpathSync(fullPath);
+  } catch {
+    realPath = path.resolve(fullPath);
+  }
+
+  const resolvedRoot = path.resolve(root);
+  if (!realPath.startsWith(resolvedRoot + path.sep) && realPath !== resolvedRoot) {
+    sendJson(res, 403, { error: 'Path traversal detected' });
+    return;
+  }
+
+  if (!fs.existsSync(realPath)) {
+    sendJson(res, 404, { error: 'File not found' });
+    return;
+  }
+
+  try {
+    const stat = fs.statSync(realPath);
+    if (!stat.isFile()) {
+      sendJson(res, 400, { error: 'Path is not a file' });
+      return;
+    }
+  } catch (error) {
+    sendJson(res, 500, { error: String(error.message || error) });
+    return;
+  }
+
+  // Check for protected files
+  const normalizedRel = relativePath.replace(/\\/g, '/');
+  const basename = path.basename(normalizedRel).toLowerCase();
+  const protectedBasenames = ['agents.md', 'guidelines.md', 'readme.md', 'changelog.md'];
+  if (protectedBasenames.includes(basename) && normalizedRel.indexOf('/') === -1) {
+    sendJson(res, 403, { error: 'Protected file — cannot be deleted from the document viewer' });
+    return;
+  }
+
+  const protectedDirPrefixes = ['.opencode/', '.codex/', '.copilot/', '.gemini/', '.antigravity/'];
+  if (protectedDirPrefixes.some((prefix) => normalizedRel.startsWith(prefix))) {
+    sendJson(res, 403, { error: 'Protected file — cannot be deleted from the document viewer' });
+    return;
+  }
+
+  try {
+    fs.unlinkSync(realPath);
+    const relativeForResponse = path.relative(root, realPath).replace(/\\/g, '/');
+    sendJson(res, 200, {
+      deleted: true,
+      path: relativeForResponse,
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
-  const deps = { sendJson };
+  const readJsonBody = context.readJsonBody || defaultReadJsonBody;
+  const deps = { sendJson, readJsonBody };
 
   return [
     { method: 'GET', path: '/api/repo-docs/list', handler: (ctx) => handleRepoDocsList(ctx, deps) },
     { method: 'GET', path: '/api/repo-docs/read', handler: (ctx) => handleRepoDocsRead(ctx, deps) },
     { method: 'GET', path: '/api/repo-docs/tree', handler: (ctx) => handleRepoDocsTree(ctx, deps) },
     { method: 'GET', path: '/api/repo-docs/graph', handler: (ctx) => handleRepoDocsGraph(ctx, deps) },
+    { method: 'POST', path: '/api/repo-docs/write', handler: (ctx) => handleRepoDocsWrite(ctx, deps) },
+    { method: 'DELETE', path: '/api/repo-docs/delete', handler: (ctx) => handleRepoDocsDelete(ctx, deps) },
   ];
 }
 
-module.exports = { register };
+module.exports = {
+  register,
+  handleRepoDocsWrite,
+  handleRepoDocsDelete,
+};
