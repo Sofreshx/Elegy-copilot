@@ -18,6 +18,8 @@ import WorkspaceGitTab from './WorkspaceGitTab';
 import WorkspacePlanningTab from './WorkspacePlanningTab';
 import WorkspaceExecutionTab from './WorkspaceExecutionTab';
 import AppIcon from '../../components/AppIcon';
+import WorkspaceAssetsTab from './WorkspaceAssetsTab';
+import WorkspaceReviewTab from './WorkspaceReviewTab';
 
 export default function WorkspaceView() {
   const state = useStoreValue(repositoriesStore);
@@ -301,6 +303,15 @@ export default function WorkspaceView() {
             )}
             {navState.activeWorkspaceLocalTab === 'execution' && (
               <WorkspaceExecutionTab repoPath={selectedRepoPath} launchers={launchers} />
+            )}
+            {navState.activeWorkspaceLocalTab === 'assets' && (
+              <WorkspaceAssetsTab repoPath={selectedRepoPath} />
+            )}
+            {navState.activeWorkspaceLocalTab === 'review' && (
+              <WorkspaceReviewTab
+                repoPath={selectedRepoPath}
+                repoId={displayRepo?.repoId ?? null}
+              />
             )}
           </div>
 

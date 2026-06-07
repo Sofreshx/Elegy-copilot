@@ -1,5 +1,36 @@
 import { apiRequest } from './core';
 
+export interface RepoDocTreeFileNode {
+  name: string;
+  path: string;
+  kind: 'file';
+  size?: number;
+  modifiedAt?: string;
+  isSymlink?: boolean;
+  resolvedPath?: string;
+  blockedReason?: string;
+  fileKind?: 'doc' | 'agent' | 'skill' | 'config' | 'manifest';
+  harness?: string;
+}
+
+export interface RepoDocTreeDirNode {
+  name: string;
+  path: string;
+  kind: 'directory';
+  children: RepoDocTreeNode[];
+  collapsed?: boolean;
+  dirKind?: 'specs' | 'docs' | 'skills' | 'agents' | 'harness' | 'root';
+}
+
+export type RepoDocTreeNode = RepoDocTreeFileNode | RepoDocTreeDirNode;
+
+export interface RepoDocsTreeResponse {
+  repoPath: string;
+  tree: RepoDocTreeNode[];
+  totalFiles: number;
+  totalDirs: number;
+}
+
 export interface RepoDocEntry {
   path: string;
   name: string;
@@ -24,6 +55,11 @@ export interface RepoDocReadResponse {
   modifiedAt: string;
   isSymlink?: boolean;
   resolvedPath?: string;
+}
+
+export async function listRepoDocsTree(repoPath: string, baseUrl?: string): Promise<RepoDocsTreeResponse> {
+  const url = `/api/repo-docs/tree?repoPath=${encodeURIComponent(repoPath)}`;
+  return apiRequest<RepoDocsTreeResponse>(url, { baseUrl });
 }
 
 export async function listRepoDocs(repoPath: string, baseUrl?: string): Promise<RepoDocsListResponse> {

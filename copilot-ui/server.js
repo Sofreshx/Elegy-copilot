@@ -98,6 +98,7 @@ const { createPostgresPlanningPersistenceClient } = require('./lib/planningPersi
 const { createDesktopUpdaterController } = require('./lib/desktop-shell/updater');
 const { createRegistry } = require('./routes');
 const { createExecutorService } = require('./lib/executorService');
+const { createSessionHooks } = require('./lib/sessionHooks');
 const { createWorkflowLayerService } = require('./lib/workflowLayerService');
 const { createUiRuntimeOverlayService } = require('./lib/uiRuntimeOverlayService');
 const {
@@ -4579,7 +4580,7 @@ function handleNativeRuntimeFallback({ req, res, pathname, copilotHome }) {
   return false;
 }
 
-function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry, nativeRuntimeUrl }) {
+function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry, nativeRuntimeUrl, elegyDb, sessionHooks }) {
   // Auth scope: single-session only. Multi-session aggregate views are deferred.
   // All API endpoints serve one session at a time. No cross-session auth tokens.
   const pathname = u.pathname;
@@ -4704,6 +4705,8 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     providerState,
     startupManagedAssetSync,
     autonomousDecisionLog,
+    elegyDb,
+    sessionHooks,
   })) {
     return;
   }
@@ -4899,6 +4902,20 @@ async function startServer(options = {}) {
   }
 
   const changeTracker = createChangeTracker(path.resolve(copilotHome), path.resolve(vscodeHome), path.resolve(sandboxesHome));
+
+  // Initialize Elegy Copilot SQLite database
+  const elegyDbPath = typeof options.elegyDbPath === 'string' && options.elegyDbPath.trim()
+    ? options.elegyDbPath.trim()
+    : path.join(copilotHome, 'elegy-copilot.db');
+  const { createElegyDb } = require('./lib/elegyDb');
+  const elegyDb = createElegyDb({ dbPath: elegyDbPath });
+  if (!quiet) {
+    const health = elegyDb.getHealth();
+    console.log(`[elegy-db] ready at ${elegyDbPath} (v${health.userVersion}, ${health.tableCount} tables)`);
+  }
+
+  const sessionHooks = createSessionHooks({ db: elegyDb });
+
   const uiDistDir = path.join(__dirname, 'ui-dist');
   const legacyPublicDir = path.join(__dirname, 'public');
   const resolveStaticDir = () => (fs.existsSync(path.join(uiDistDir, 'index.html'))
@@ -4972,9 +4989,12 @@ async function startServer(options = {}) {
   try {
     executorService = await createExecutorService({
       copilotHome,
+      sessionHooks,
     }).init();
   } catch (error) {
     stopDesktopUpdaterBackgroundWork();
+    if (elegyDb && typeof elegyDb.close === 'function') elegyDb.close();
+    if (sessionHooks && typeof sessionHooks.close === 'function') sessionHooks.close();
     changeTracker.close();
     await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
     const detail = String(error && error.message ? error.message : error);
@@ -4990,6 +5010,8 @@ async function startServer(options = {}) {
   } catch (error) {
     stopDesktopUpdaterBackgroundWork();
     await shutdownExecutorServiceSafely(executorService);
+    if (elegyDb && typeof elegyDb.close === 'function') elegyDb.close();
+    if (sessionHooks && typeof sessionHooks.close === 'function') sessionHooks.close();
     changeTracker.close();
     await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
     const detail = String(error && error.message ? error.message : error);
@@ -5149,6 +5171,8 @@ async function startServer(options = {}) {
     stopDesktopUpdaterBackgroundWork();
     await shutdownWorkflowLayerServiceSafely(workflowLayerService);
     await shutdownExecutorServiceSafely(executorService);
+    if (elegyDb && typeof elegyDb.close === 'function') elegyDb.close();
+    if (sessionHooks && typeof sessionHooks.close === 'function') sessionHooks.close();
     changeTracker.close();
     await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
     throw error;
@@ -5184,6 +5208,8 @@ async function startServer(options = {}) {
           autonomousDecisionLog,
           routeRegistry,
           nativeRuntimeUrl,
+          elegyDb,
+          sessionHooks,
         });
         return;
       }
@@ -5221,6 +5247,8 @@ async function startServer(options = {}) {
         .then(() => shutdownExecutorServiceSafely(executorService))
         .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
         .finally(() => {
+          if (elegyDb && typeof elegyDb.close === 'function') elegyDb.close();
+          if (sessionHooks && typeof sessionHooks.close === 'function') sessionHooks.close();
           changeTracker.close();
           reject(error);
         });
@@ -5281,6 +5309,8 @@ async function startServer(options = {}) {
             .then(() => shutdownExecutorServiceSafely(executorService))
             .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
             .finally(() => {
+              if (elegyDb && typeof elegyDb.close === 'function') elegyDb.close();
+              if (sessionHooks && typeof sessionHooks.close === 'function') sessionHooks.close();
               changeTracker.close();
               server.close(() => closeResolve());
             });

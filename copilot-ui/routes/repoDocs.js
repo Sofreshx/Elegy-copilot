@@ -279,6 +279,381 @@ function handleRepoDocsRead(ctx, deps) {
   }
 }
 
+// ── Tree endpoint: broader scan with folder hierarchy ──
+
+const TREE_ALLOWED_EXTENSIONS = new Set(['.md', '.markdown', '.toml', '.json']);
+const TREE_MAX_DEPTH = 5;
+const TREE_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'target', '__pycache__']);
+
+const TREE_SCAN_PATHS = [
+  { prefix: 'specs/', dirKind: 'specs' },
+  { prefix: 'docs/', dirKind: 'docs' },
+  { prefix: 'skills/', dirKind: 'skills' },
+  { prefix: 'agents/', dirKind: 'agents' },
+  { prefix: '.opencode/', dirKind: 'harness', harness: 'opencode' },
+  { prefix: '.codex/', dirKind: 'harness', harness: 'codex' },
+  { prefix: '.copilot/', dirKind: 'harness', harness: 'copilot' },
+  { prefix: '.gemini/', dirKind: 'harness', harness: 'antigravity' },
+  { prefix: '.antigravity/', dirKind: 'harness', harness: 'antigravity' },
+];
+
+const TREE_ROOT_FILES = ['AGENTS.md', 'guidelines.md', 'README.md', 'readme.md', 'CHANGELOG.md', 'changelog.md'];
+
+function walkFilesForTree(dir, baseDir, results, harness) {
+  if (!fs.existsSync(dir)) return;
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (TREE_SKIP_DIRS.has(entry.name)) continue;
+
+    const fullPath = path.join(dir, entry.name);
+    const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, '/');
+
+    // Compute depth from relative path
+    const depth = relativePath.split('/').length;
+    if (depth > TREE_MAX_DEPTH) continue;
+
+    let lstat;
+    try {
+      lstat = fs.lstatSync(fullPath);
+    } catch {
+      continue;
+    }
+
+    if (lstat.isDirectory()) {
+      walkFilesForTree(fullPath, baseDir, results, harness);
+    } else if (lstat.isFile()) {
+      const ext = path.extname(entry.name).toLowerCase();
+      const nameLower = entry.name.toLowerCase();
+      // Accept .agent.md (double-ext) and all allowed extensions
+      const isAllowed = TREE_ALLOWED_EXTENSIONS.has(ext) || nameLower.endsWith('.agent.md');
+      if (!isAllowed) continue;
+
+      try {
+        const stat = fs.statSync(fullPath);
+        if (stat.size > MAX_FILE_SIZE) continue;
+
+        const fileEntry = {
+          path: relativePath,
+          name: entry.name,
+          size: stat.size,
+          modifiedAt: stat.mtime.toISOString(),
+        };
+        if (harness) fileEntry.harness = harness;
+        results.push(fileEntry);
+      } catch {
+        // skip
+      }
+    }
+  }
+}
+
+function classifyFileKind(filePath) {
+  const normalized = filePath.replace(/\\/g, '/').toLowerCase();
+
+  // Harness sub-paths: agent vs skill files
+  if (normalized.includes('/agents/')) return 'agent';
+  if (normalized.includes('/skills/')) return 'skill';
+
+  // Top-level agent dir
+  if (normalized.startsWith('agents/')) return 'agent';
+
+  // Agent files by naming convention
+  if (normalized.endsWith('.agent.md')) return 'agent';
+
+  // Top-level skills dir
+  if (normalized.startsWith('skills/')) return 'skill';
+
+  // Manifest files
+  const ext = path.extname(normalized).toLowerCase();
+  if (ext === '.toml' || ext === '.json') return 'manifest';
+
+  // Specs and docs
+  if (normalized.startsWith('specs/') || normalized.startsWith('docs/')) return 'doc';
+
+  // Config files under harness dirs
+  if (normalized.startsWith('.opencode/') || normalized.startsWith('.codex/') ||
+      normalized.startsWith('.copilot/') || normalized.startsWith('.gemini/') ||
+      normalized.startsWith('.antigravity/')) return 'config';
+
+  // Default
+  return 'doc';
+}
+
+function classifyHarness(filePath) {
+  const normalized = filePath.replace(/\\/g, '/');
+  if (normalized.startsWith('.opencode/')) return 'opencode';
+  if (normalized.startsWith('.codex/')) return 'codex';
+  if (normalized.startsWith('.copilot/')) return 'copilot';
+  if (normalized.startsWith('.gemini/')) return 'antigravity';
+  if (normalized.startsWith('.antigravity/')) return 'antigravity';
+  return undefined;
+}
+
+function classifyDirKind(dirPath) {
+  const normalized = dirPath.replace(/\\/g, '/');
+  for (const scanPath of TREE_SCAN_PATHS) {
+    if (normalized === scanPath.prefix.replace(/\/$/, '') || normalized.startsWith(scanPath.prefix)) {
+      return scanPath.dirKind;
+    }
+  }
+  return undefined;
+}
+
+function buildTreeFromPaths(files) {
+  const dirMap = new Map();
+  const rootChildren = [];
+
+  for (const file of files) {
+    const parts = file.path.replace(/\\/g, '/').split('/');
+
+    // Ensure all parent directory nodes exist
+    let parent = rootChildren;
+    let currentPath = '';
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      currentPath = currentPath ? currentPath + '/' + parts[i] : parts[i];
+
+      let dirNode = dirMap.get(currentPath);
+      if (!dirNode) {
+        dirNode = {
+          name: parts[i],
+          path: currentPath,
+          kind: 'directory',
+          children: [],
+          collapsed: true,
+          dirKind: classifyDirKind(currentPath),
+        };
+        dirMap.set(currentPath, dirNode);
+        parent.push(dirNode);
+      }
+      parent = dirNode.children;
+    }
+
+    // Determine harness
+    const harness = file.harness || classifyHarness(file.path);
+
+    // Add file node
+    const fileNode = {
+      name: file.name,
+      path: file.path,
+      kind: 'file',
+      size: file.size,
+      modifiedAt: file.modifiedAt,
+      fileKind: file.fileKind || classifyFileKind(file.path),
+    };
+    if (file.isSymlink) fileNode.isSymlink = true;
+    if (file.resolvedPath) fileNode.resolvedPath = file.resolvedPath;
+    if (file.blockedReason) fileNode.blockedReason = file.blockedReason;
+    if (harness) fileNode.harness = harness;
+
+    parent.push(fileNode);
+  }
+
+  // Sort: directories first alphabetically, then files alphabetically
+  function sortTreeNodes(nodes) {
+    nodes.sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    for (const node of nodes) {
+      if (node.children && node.children.length > 0) {
+        sortTreeNodes(node.children);
+      }
+    }
+  }
+
+  sortTreeNodes(rootChildren);
+  return rootChildren;
+}
+
+function countTreeDirs(nodes) {
+  let count = 0;
+  for (const node of nodes) {
+    if (node.kind === 'directory') {
+      count++;
+      if (node.children) count += countTreeDirs(node.children);
+    }
+  }
+  return count;
+}
+
+function handleRepoDocsTree(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const { u } = ctx;
+  const repoPath = u.searchParams.get('repoPath');
+
+  if (!isNonEmptyString(repoPath)) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+
+  const root = repoPath.trim();
+  if (!fs.existsSync(root)) {
+    sendJson(res, 404, { error: 'Repository path not found' });
+    return;
+  }
+
+  try {
+    const files = [];
+
+    // Scan each allowed path prefix
+    for (const scanPath of TREE_SCAN_PATHS) {
+      const fullPath = path.join(root, scanPath.prefix);
+      walkFilesForTree(fullPath, root, files, scanPath.harness);
+    }
+
+    // Scan root files
+    for (const rootFile of TREE_ROOT_FILES) {
+      const fullPath = path.join(root, rootFile);
+      if (fs.existsSync(fullPath)) {
+        try {
+          const stat = fs.statSync(fullPath);
+          if (stat.size <= MAX_FILE_SIZE) {
+            files.push({
+              path: rootFile,
+              name: rootFile,
+              size: stat.size,
+              modifiedAt: stat.mtime.toISOString(),
+            });
+          }
+        } catch { /* skip */ }
+      }
+    }
+
+    // Build tree
+    const tree = buildTreeFromPaths(files);
+
+    sendJson(res, 200, {
+      repoPath: root,
+      tree,
+      totalFiles: files.length,
+      totalDirs: countTreeDirs(tree),
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
+function handleRepoDocsGraph(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const { u } = ctx;
+  const repoPath = u.searchParams.get('repoPath');
+
+  if (!isNonEmptyString(repoPath)) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+
+  const root = repoPath.trim();
+  if (!fs.existsSync(root)) {
+    sendJson(res, 404, { error: 'Repository path not found' });
+    return;
+  }
+
+  try {
+    // Reuse the same scanning logic as list
+    const files = [];
+    for (const subDir of ['specs', 'docs']) {
+      scanMarkdownFiles(path.join(root, subDir), root, files);
+    }
+    for (const rootFile of ALLOWED_ROOT_FILES) {
+      const fullPath = path.join(root, rootFile);
+      if (fs.existsSync(fullPath)) {
+        try {
+          const stat = fs.statSync(fullPath);
+          files.push({
+            path: rootFile, name: rootFile, size: stat.size,
+            modifiedAt: stat.mtime.toISOString(),
+          });
+        } catch { /* skip */ }
+      }
+    }
+
+    // Build nodes and edges
+    const nodes = [];
+    const edges = [];
+    const errors = [];
+    const skipped = [];
+    const fileSet = new Set(files.map(f => f.path));
+
+    for (const file of files) {
+      // Skip blocked files
+      if (file.blockedReason) {
+        skipped.push({ path: file.path, reason: file.blockedReason });
+        continue;
+      }
+      
+      const depth = file.path.replace(/\\/g, '/').split('/').length - 1;
+      nodes.push({
+        id: file.path,
+        label: file.name,
+        path: file.path,
+        depth,
+      });
+
+      // Try to read file content to extract links
+      try {
+        const fullPath = path.join(root, file.path);
+        let realPath;
+        try { realPath = fs.realpathSync(fullPath); } catch { realPath = path.resolve(fullPath); }
+        
+        if (!realPath.startsWith(path.resolve(root) + path.sep) && realPath !== path.resolve(root)) {
+          skipped.push({ path: file.path, reason: 'Path traversal' });
+          continue;
+        }
+        
+        const stat = fs.statSync(realPath);
+        if (stat.size > MAX_FILE_SIZE) {
+          skipped.push({ path: file.path, reason: 'File too large' });
+          continue;
+        }
+        
+        const content = fs.readFileSync(realPath, 'utf8');
+        
+        // Extract markdown links
+        const mdRegex = /\[([^\]]+)\]\(([^)]+\.md)\)/gi;
+        let match;
+        while ((match = mdRegex.exec(content)) !== null) {
+          const target = match[2].replace(/\\/g, '/').replace(/^\.\//, '');
+          if (fileSet.has(target)) {
+            edges.push({ source: file.path, target, type: 'link' });
+          }
+        }
+        
+        // Extract wiki links
+        const wikiRegex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+        while ((match = wikiRegex.exec(content)) !== null) {
+          const target = match[1] + '.md';
+          if (fileSet.has(target)) {
+            edges.push({ source: file.path, target, type: 'wiki' });
+          }
+        }
+      } catch (err) {
+        errors.push({ path: file.path, error: err.message || String(err) });
+        // Still include the node even if we couldn't read it
+      }
+    }
+
+    sendJson(res, 200, {
+      repoPath: root,
+      nodes,
+      edges,
+      errors: errors.length > 0 ? errors : undefined,
+      skipped: skipped.length > 0 ? skipped : undefined,
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const deps = { sendJson };
@@ -286,6 +661,8 @@ function register(context = {}) {
   return [
     { method: 'GET', path: '/api/repo-docs/list', handler: (ctx) => handleRepoDocsList(ctx, deps) },
     { method: 'GET', path: '/api/repo-docs/read', handler: (ctx) => handleRepoDocsRead(ctx, deps) },
+    { method: 'GET', path: '/api/repo-docs/tree', handler: (ctx) => handleRepoDocsTree(ctx, deps) },
+    { method: 'GET', path: '/api/repo-docs/graph', handler: (ctx) => handleRepoDocsGraph(ctx, deps) },
   ];
 }
 

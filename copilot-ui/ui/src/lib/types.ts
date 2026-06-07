@@ -3613,6 +3613,128 @@ export interface ClaudeCodeCliInstallResponse {
   status?: ClaudeCodeStatusResponse;
 }
 
+// ── Repo Docs Tree ──
+
+export interface RepoDocTreeFileNode {
+  name: string;
+  path: string;
+  kind: 'file';
+  size?: number;
+  modifiedAt?: string;
+  isSymlink?: boolean;
+  resolvedPath?: string;
+  blockedReason?: string;
+  fileKind?: 'doc' | 'agent' | 'skill' | 'config' | 'manifest';
+  harness?: string;
+}
+
+export interface RepoDocTreeDirNode {
+  name: string;
+  path: string;
+  kind: 'directory';
+  children: RepoDocTreeNode[];
+  collapsed?: boolean;
+  dirKind?: 'specs' | 'docs' | 'skills' | 'agents' | 'harness' | 'root';
+}
+
+export type RepoDocTreeNode = RepoDocTreeFileNode | RepoDocTreeDirNode;
+
+export interface RepoDocsTreeResponse {
+  repoPath: string;
+  tree: RepoDocTreeNode[];
+  totalFiles: number;
+  totalDirs: number;
+}
+
+// ── Repo Assets ─────────────────────────────────────────────────────
+
+export interface RepoAssetHarnessStatus {
+  harness: string;
+  installed: boolean;
+  installedAt: string | null;
+}
+
+export interface RepoAssetEntry {
+  id: string;
+  name: string;
+  kind: 'agent' | 'skill' | 'config';
+  path: string;
+  sourceHarness: string | null;
+  filePath: string;
+  size: number;
+  modifiedAt: string;
+  harnesses: RepoAssetHarnessStatus[];
+  _installing?: string;
+}
+
+export interface RepoAssetsDiscoverResponse {
+  repoPath: string;
+  assets: RepoAssetEntry[];
+  availableHarnesses: string[];
+  count: number;
+}
+
+// ── Elegy DB: Enriched Worktrees ──
+
+export interface EnrichedWorktreeSession {
+  sessionId: string;
+  title: string | null;
+  status: string;
+  source: string;
+  model: string | null;
+  startedAt: string;
+}
+export interface EnrichedWorktreeHookEvent {
+  id: string;
+  hookType: string;
+  createdAt: string;
+}
+export interface EnrichedWorktreeEntry {
+  id: string;
+  path: string;
+  repoPath: string;
+  branch: string;
+  source: string;
+  status: string;
+  sessionCount: number;
+  headSha: string | null;
+  lastActivityAt: string | null;
+  created_at: string;
+  updated_at: string;
+  sessions: EnrichedWorktreeSession[];
+  recentHookEvents: EnrichedWorktreeHookEvent[];
+}
+export interface EnrichedWorktreesResponse {
+  repoPath: string;
+  worktrees: EnrichedWorktreeEntry[];
+  count: number;
+}
+
+export interface CodeReviewPrepareResponse {
+  repoPath: string;
+  worktreePath: string | null;
+  branch: string;
+  baseBranch: string | null;
+  diffStat: string | null;
+  changedFiles: string[];
+  changedFileCount: number;
+  prUrl: string | null;
+}
+
+export interface CodeReviewLaunchResponse {
+  ok: boolean;
+  harness: string;
+  lane: string;
+  repoPath: string;
+  worktreePath: string | null;
+  prUrl: string | null;
+  command: string;
+  pid: number;
+  message: string;
+}
+
+// ── GitHub & OpenCode Permissions (main branch) ──
+
 export interface GitHubStatusResponse {
   ghInstalled: boolean;
   ghVersion: string | null;
