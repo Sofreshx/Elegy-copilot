@@ -15,7 +15,10 @@ describe('sidebar', () => {
     const settingsBtn = screen.getByTestId('sidebar-item-settings');
     expect(settingsBtn).toBeInTheDocument();
     expect(settingsBtn).toHaveAttribute('aria-label', 'Settings');
-    expect(settingsBtn.querySelector('.sidebar-item-icon')?.textContent).toContain('⚙');
+    // Icon is now an SVG element (AppIcon), not a Unicode text node
+    const iconEl = settingsBtn.querySelector('.sidebar-item-icon');
+    expect(iconEl).toBeInTheDocument();
+    expect(iconEl?.tagName).toBe('svg');
   });
 
   it('does not render brand icon', async () => {

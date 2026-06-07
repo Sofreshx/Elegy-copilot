@@ -1,4 +1,5 @@
 import { createStore } from '../lib/store';
+import type { AppIconName } from '../components/AppIcon';
 
 export const CATALOG_SECTION_IDS = [
   'status',
@@ -37,7 +38,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
   { id: 'opencode', label: 'OpenCode', icon: '⊞' },
 ];
 
-export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal' | 'docs-graph';
+export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal';
 
 export type WorkspaceLocalTab = 'docs' | 'git' | 'planning' | 'execution';
 
@@ -63,14 +64,14 @@ export interface SelectedSessionContext {
 export type SidebarNavItem = {
   id: SidebarItemId;
   label: string;
-  icon: string;
+  icon: AppIconName;
   description: string;
 };
 
 export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
-  { id: 'repositories', label: 'Repositories', icon: '␀', description: 'Browse and open registered repositories' },
-  { id: 'lexicon', label: 'Lexicon', icon: '◈', description: 'Searchable vocabulary reference for UI, design, architecture, and software engineering terms' },
-  { id: 'settings', label: 'Settings', icon: '⚙', description: 'App configuration and preferences' },
+  { id: 'repositories', label: 'Repositories', icon: 'repo', description: 'Browse and open registered repositories' },
+  { id: 'lexicon', label: 'Lexicon', icon: 'diamond', description: 'Searchable vocabulary reference for UI, design, architecture, and software engineering terms' },
+  { id: 'settings', label: 'Settings', icon: 'settings', description: 'App configuration and preferences' },
 ];
 
 export type NavigationState = {
@@ -355,14 +356,6 @@ function createNavigationStore() {
     }
   }
 
-  function openDocsGraph(): void {
-    store.setState((state) => ({ ...state, workspaceCenterMode: 'docs-graph' }));
-  }
-
-  function closeDocsGraph(): void {
-    store.setState((state) => ({ ...state, workspaceCenterMode: 'docs' }));
-  }
-
   function reset(): void {
     try {
       localStorage.removeItem(WORKSPACE_TABS_STORAGE_KEY);
@@ -389,8 +382,6 @@ function createNavigationStore() {
     toggleWorkspaceCenterFocus,
     openPlanningSession,
     closePlanningSession,
-    openDocsGraph,
-    closeDocsGraph,
     openWorkspace,
     focusWorkspace,
     closeWorkspace,

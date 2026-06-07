@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { navigationStore } from '../../stores/navigation';
 import WorkspaceDocsCenter from './WorkspaceDocsCenter';
-import DocumentationGraphView from './DocumentationGraphView';
+import AppIcon from '../../components/AppIcon';
 
 interface WorkspaceDocsTabProps {
   repoPath: string;
@@ -9,7 +9,6 @@ interface WorkspaceDocsTabProps {
 }
 
 export default function WorkspaceDocsTab({ repoPath, isFocused }: WorkspaceDocsTabProps) {
-  const [showGraph, setShowGraph] = useState(false);
   const [treeVisible, setTreeVisible] = useState(true);
 
   return (
@@ -24,17 +23,7 @@ export default function WorkspaceDocsTab({ repoPath, isFocused }: WorkspaceDocsT
           data-testid="workspace-docs-focus-toggle"
           type="button"
         >
-          <span aria-hidden="true">{isFocused ? '\u25A3' : '\u25A1'}</span>
-        </button>
-        <button
-          className="workspace-docs-toolbar-btn"
-          onClick={() => setShowGraph(!showGraph)}
-          aria-label={showGraph ? 'List view' : 'Graph view'}
-          title={showGraph ? 'List view' : 'Graph view'}
-          data-testid="workspace-docs-graph-toggle"
-          type="button"
-        >
-          <span aria-hidden="true">{showGraph ? '\u2630' : '\u25C9'}</span>
+          <AppIcon name="focus" size={18} />
         </button>
         <div className="workspace-docs-toolbar-spacer" />
         <button
@@ -45,25 +34,16 @@ export default function WorkspaceDocsTab({ repoPath, isFocused }: WorkspaceDocsT
           data-testid="workspace-docs-tree-toggle"
           type="button"
         >
-          <span aria-hidden="true">{treeVisible ? '\u25C0' : '\u25B6'}</span>
+          <AppIcon name={treeVisible ? 'chevron-left' : 'chevron-right'} size={18} />
         </button>
       </div>
 
-      {showGraph ? (
-        <DocumentationGraphView
-          repoPath={repoPath}
-          onSelectDoc={(_docPath: string) => {
-            setShowGraph(false);
-          }}
-        />
-      ) : (
-        <WorkspaceDocsCenter
-          repoPath={repoPath}
-          isFocused={isFocused}
-          treeVisible={treeVisible}
-          onToggleTree={() => setTreeVisible((v) => !v)}
-        />
-      )}
+      <WorkspaceDocsCenter
+        repoPath={repoPath}
+        isFocused={isFocused}
+        treeVisible={treeVisible}
+        onToggleTree={() => setTreeVisible((v) => !v)}
+      />
     </div>
   );
 }

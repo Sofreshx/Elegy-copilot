@@ -48,9 +48,6 @@ export default function App() {
       } else if (navigationStore.getState().workspaceCenterMode === 'planning-session') {
         navigationStore.closePlanningSession();
         e.preventDefault();
-      } else if (navigationStore.getState().workspaceCenterMode === 'docs-graph') {
-        navigationStore.closeDocsGraph();
-        e.preventDefault();
       }
       return;
     }

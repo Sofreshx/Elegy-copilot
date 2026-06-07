@@ -1,5 +1,6 @@
 import { useStoreValue } from '../lib/store';
 import { navigationStore, type SidebarItemId, type SidebarNavItem } from '../stores/navigation';
+import AppIcon from './AppIcon';
 
 interface SidebarProps {
   items: readonly SidebarNavItem[];
@@ -35,7 +36,7 @@ export default function Sidebar({
             onClick={() => onNavigate(item.id)}
             type="button"
           >
-            <span className="sidebar-item-icon" aria-hidden="true">{item.icon}</span>
+            <AppIcon name={item.icon} size={24} className="sidebar-item-icon" />
           </button>
         ))}
       </div>
@@ -50,7 +51,7 @@ export default function Sidebar({
             onClick={() => navigationStore.focusWorkspace(store.activeWorkspaceId!)}
             type="button"
           >
-            <span className="sidebar-item-icon" aria-hidden="true">📂</span>
+            <AppIcon name="folder-open" size={24} className="sidebar-item-icon" />
           </button>
         )}
         {settingsItem && (
@@ -62,7 +63,7 @@ export default function Sidebar({
             onClick={() => onNavigate(settingsItem.id)}
             type="button"
           >
-            <span className="sidebar-item-icon" aria-hidden="true">⚙</span>
+            <AppIcon name="settings" size={24} className="sidebar-item-icon" />
           </button>
         )}
       </div>
