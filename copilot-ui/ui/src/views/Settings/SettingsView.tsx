@@ -20,7 +20,7 @@ interface AppInfo {
 
 const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; icon: string }> = [
   { id: 'app', label: 'App Settings', icon: '⚙' },
-  { id: 'catalog', label: 'Catalog & Assets', icon: '▤' },
+  { id: 'catalog', label: 'Assets & Tools', icon: '▤' },
   { id: 'opencode', label: 'OpenCode Setup', icon: '⊞' },
   { id: 'maintenance', label: 'Maintenance', icon: '⚙' },
   { id: 'runtime', label: 'Runtime', icon: '▶' },
