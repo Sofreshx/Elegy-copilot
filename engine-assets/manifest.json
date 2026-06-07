@@ -469,6 +469,13 @@
       "loadMode": "always"
     },
     {
+      "id": "skill-ui-system",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/ui-system",
+      "destination": "skills/ui-system",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "skill-commit-validation-governance",
       "type": "skill",
       "source": "engine-assets/skills/commit-validation-governance",

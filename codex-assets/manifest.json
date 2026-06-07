@@ -142,6 +142,13 @@
       "source": "catalog-assets/shared-skills/elegy-planning",
       "destination": "skills/elegy-planning",
       "loadMode": "always"
+    },
+    {
+      "id": "codex-ui-system-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/ui-system",
+      "destination": "skills/ui-system",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": []

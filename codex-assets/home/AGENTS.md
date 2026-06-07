@@ -64,6 +64,7 @@ Primary skills available:
 - `spec-authoring` — Durable spec authoring under `specs/<spec-slug>/spec.md`.
 - `spec-review` — Adversarial spec review before implementation planning.
 - `stack-detector` — Automatic tech stack detection.
+- `ui-system` — Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; treat Figma / Storybook MCP data as context, not authority.
 
 ### elegy-planning Availability
 
