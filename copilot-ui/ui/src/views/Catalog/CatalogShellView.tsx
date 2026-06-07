@@ -1120,13 +1120,7 @@ export default function CatalogShellView() {
           >
             {catalogState.installing ? 'Syncing...' : 'Sync Harnesses'}
           </Button>
-          <Button
-            onClick={() => setShowRepositoryAssets(true)}
-            testId="assets-tools-repository-view"
-            variant="ghost"
-          >
-            Repository Assets
-          </Button>
+          {/* Repository Assets moved to Workspace area — see WorkspaceAssetsTab */}
         </div>
       </Toolbar>
 

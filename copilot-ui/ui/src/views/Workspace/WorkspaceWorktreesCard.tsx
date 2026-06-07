@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Panel } from '../../components';
 import { listExecutorWorktrees } from '../../lib/api/executor';
+import { getEnrichedWorktrees } from '../../lib/api/elegyDb';
+import { navigationStore } from '../../stores/navigation';
 import type { ExecutorWorktreeRecord } from '../../lib/types';
+import type { EnrichedWorktreeEntry } from '../../lib/types';
 
 interface WorkspaceWorktreesCardProps {
   repoId: string | null;
@@ -43,6 +46,10 @@ interface WorktreeDisplay {
   isReusable: boolean;
   isInterrupted: boolean;
   probeError: string | null;
+  sessionCount: number;
+  hasActiveSessions: boolean;
+  linkedPlanId: string | null;
+  enrichedStatus: string | null;
 }
 
 const MAX_ROWS = 10;
@@ -134,6 +141,10 @@ function toDisplay(record: ExecutorWorktreeRecord): WorktreeDisplay {
     isReusable: status === 'reusable',
     isInterrupted: status === 'interrupted',
     probeError,
+    sessionCount: 0,
+    hasActiveSessions: false,
+    linkedPlanId: null,
+    enrichedStatus: null,
   };
 }
 
@@ -141,6 +152,8 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
   const [records, setRecords] = useState<ExecutorWorktreeRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [gitListError, setGitListError] = useState<string | null>(null);
+  const [enrichedWorktrees, setEnrichedWorktrees] = useState<EnrichedWorktreeEntry[]>([]);
+  const [enrichedLoading, setEnrichedLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -169,6 +182,24 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
     return () => { cancelled = true; };
   }, [repoId, repoPath]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadEnriched() {
+      if (!repoPath) return;
+      setEnrichedLoading(true);
+      try {
+        const data = await getEnrichedWorktrees(repoPath);
+        if (!cancelled) setEnrichedWorktrees(data.worktrees || []);
+      } catch {
+        // enriched data is optional, don't error
+      } finally {
+        if (!cancelled) setEnrichedLoading(false);
+      }
+    }
+    void loadEnriched();
+    return () => { cancelled = true; };
+  }, [repoPath]);
+
   if (loading) {
     return (
       <Panel title="Worktrees" subtitle="Scanning git" testId="workspace-worktrees-card">
@@ -192,7 +223,22 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
     );
   }
 
-  const display = sortForDisplay(records).slice(0, MAX_ROWS).map(toDisplay);
+  const display = sortForDisplay(records).slice(0, MAX_ROWS).map(record => {
+    const entry = toDisplay(record);
+    // Merge enriched data by matching worktree path
+    const enriched = enrichedWorktrees.find(w => {
+      const wtPath = (w.path || '').replace(/\\/g, '/').toLowerCase();
+      const entryPath = (entry.path || '').replace(/\\/g, '/').toLowerCase();
+      return wtPath && entryPath && (wtPath === entryPath || entryPath.endsWith(wtPath) || wtPath.endsWith(entryPath));
+    });
+    if (enriched) {
+      entry.sessionCount = enriched.sessionCount || 0;
+      entry.hasActiveSessions = enriched.sessionCount > 0;
+      entry.linkedPlanId = enriched.sessions && enriched.sessions.length > 0 ? enriched.sessions[0].sessionId : null;
+      entry.enrichedStatus = enriched.status || null;
+    }
+    return entry;
+  });
   const total = records.length;
   const subtitle = total > MAX_ROWS
     ? `${MAX_ROWS} newest of ${total}`
@@ -230,6 +276,11 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
                 <span className="workspace-worktree-branch" title={entry.path}>
                   {entry.branchLabel}
                 </span>
+                {entry.sessionCount > 0 && (
+                  <span className="workspace-worktree-sessions" title={`${entry.sessionCount} active session(s)`}>
+                    {entry.sessionCount} session{entry.sessionCount !== 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
               <div className="workspace-worktree-row workspace-worktree-meta">
                 <span className="workspace-worktree-dirty" data-testid={`workspace-worktree-dirty-${entry.key}`}>
@@ -269,6 +320,23 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
               {entry.probeError ? (
                 <div className="workspace-worktree-flag workspace-worktree-flag-error">{entry.probeError}</div>
               ) : null}
+              <div className="workspace-worktree-actions">
+                <button
+                  type="button"
+                  className="workspace-worktree-code-review-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Navigate to the Review tab in the workspace
+                    navigationStore.setActiveWorkspaceLocalTab('review');
+                    // Store the selected worktree path for the review tab to pre-select
+                    // (the WorkspaceReviewTab will auto-select the most active worktree)
+                  }}
+                  title="Start code review for this worktree"
+                  data-testid={`workspace-worktree-review-${entry.key}`}
+                >
+                  <span aria-hidden="true">{'\uD83D\uDD0D'}</span> Review
+                </button>
+              </div>
             </li>
           );
         })}

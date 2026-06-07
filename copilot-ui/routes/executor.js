@@ -280,6 +280,11 @@ async function handleCleanupRemove(ctx, deps) {
       encoding: 'utf8', timeout: 30000, windowsHide: true
     }).trim();
     
+    // Notify session hooks about worktree removal
+    if (ctx.sessionHooks && typeof ctx.sessionHooks.onWorktreeRemove === 'function') {
+      ctx.sessionHooks.onWorktreeRemove(worktreePath);
+    }
+
     deps.sendJson(ctx.res, 200, {
       removed: true,
       worktreePath,

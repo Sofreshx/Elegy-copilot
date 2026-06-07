@@ -311,6 +311,7 @@ class ExecutorService extends EventEmitter {
     this._timers = new Map();
     this._runSubscriptions = new Map();
     this._activeRunsBySession = new Map();
+    this._sessionHooks = isObject(config) ? (config.sessionHooks || null) : null;
     this._lastError = null;
     this._initialized = false;
     this._statePath = this._path.join(this._path.resolve(String(this._config.copilotHome || '.')), 'executor', 'state.json');
@@ -344,6 +345,16 @@ class ExecutorService extends EventEmitter {
       }
     }
     this._runSubscriptions.clear();
+
+    if (this._sessionHooks) {
+      for (const [sessionId, runId] of this._activeRunsBySession.entries()) {
+        this._sessionHooks.onSessionEnd({
+          sessionId,
+          status: 'cancelled',
+          metadata: { runId, reason: 'server-shutdown' },
+        });
+      }
+    }
     this._activeRunsBySession.clear();
   }
 
@@ -632,6 +643,14 @@ class ExecutorService extends EventEmitter {
     const run = this._runs.get(asTrimmedString(runId));
     if (!run) {
       throw Object.assign(new Error('Executor run not found'), { statusCode: 404 });
+    }
+
+    if (this._sessionHooks && run.sessionId) {
+      this._sessionHooks.onSessionEnd({
+        sessionId: run.sessionId,
+        status: 'cancelled',
+        metadata: { runId: run.id, jobId: run.jobId, reason: 'operator-cancel' },
+      });
     }
 
     if (run.status === 'retrying') {
@@ -960,6 +979,26 @@ class ExecutorService extends EventEmitter {
           });
           sessionId = sanitizeSessionId(created && created.sessionId);
           createdSession = true;
+
+          // Fire session start hook after successful session creation
+          if (this._sessionHooks && sessionId) {
+            const worktreePath = sandboxConfig && sandboxConfig.worktreePath
+              ? sandboxConfig.worktreePath
+              : (worktreePlan && worktreePlan.cwd ? worktreePlan.cwd : null);
+            this._sessionHooks.onSessionStart({
+              sessionId,
+              source: 'executor',
+              harness: null,
+              title: job.title || `Job ${job.id}`,
+              repoPath: job.repoPath || null,
+              repoId: job.repoId || null,
+              branch: worktreePlan && worktreePlan.branch ? worktreePlan.branch : null,
+              worktreePath,
+              model: job.model || null,
+              planId: job.orchestration && job.orchestration.workflow ? job.orchestration.workflow.workflowId : null,
+              metadata: { jobId: job.id, runId: run.id },
+            });
+          }
         }
       }
 
@@ -1129,6 +1168,15 @@ class ExecutorService extends EventEmitter {
       sessionId: run.sessionId,
     });
     this._releaseJobFromRun(run, 'idle');
+
+    if (this._sessionHooks && run.sessionId) {
+      this._sessionHooks.onSessionEnd({
+        sessionId: run.sessionId,
+        status: 'completed',
+        metadata: { runId: run.id, jobId: run.jobId },
+      });
+    }
+
     this._persistState();
   }
 
@@ -1193,6 +1241,16 @@ class ExecutorService extends EventEmitter {
     run.finishedAt = nowIso(this._now);
     run.updatedAt = run.finishedAt;
     this._releaseJobFromRun(run, 'idle');
+
+    if (this._sessionHooks && run.sessionId) {
+      this._sessionHooks.onSessionEnd({
+        sessionId: run.sessionId,
+        status: 'failed',
+        error: run.error,
+        metadata: { runId: run.id, jobId: run.jobId, attempt: run.attemptCount },
+      });
+    }
+
     this._persistState();
   }
 

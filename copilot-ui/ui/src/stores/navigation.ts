@@ -39,7 +39,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
 
 export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal' | 'docs-graph';
 
-export type WorkspaceLocalTab = 'docs' | 'git' | 'planning' | 'execution';
+export type WorkspaceLocalTab = 'docs' | 'git' | 'planning' | 'execution' | 'assets' | 'review';
 
 export interface OpenWorkspace {
   repoPath: string;

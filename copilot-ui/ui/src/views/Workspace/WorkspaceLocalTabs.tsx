@@ -10,6 +10,8 @@ const TABS: { id: WorkspaceLocalTab; label: string; icon: string }[] = [
   { id: 'git', label: 'Git', icon: '\u2387' },
   { id: 'planning', label: 'Planning', icon: '\u25C8' },
   { id: 'execution', label: 'Execution', icon: '\u25B6' },
+  { id: 'assets', label: 'Assets', icon: '\uD83E\uDDE9' },
+  { id: 'review', label: 'Review', icon: '\uD83D\uDD0D' },
 ];
 
 export default function WorkspaceLocalTabs({ activeTab, onTabChange }: WorkspaceLocalTabsProps) {

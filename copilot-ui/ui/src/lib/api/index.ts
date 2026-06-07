@@ -16,3 +16,5 @@ export * from './opencode';
 export * from './lexicon';
 export * from './workspace';
 export * from './stats';
+export * from './elegyDb';
+export * from './repoAssets';
