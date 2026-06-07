@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Button, StatusBadge, Toolbar } from '../../components';
+import { Button, IconButton, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { navigationStore } from '../../stores/navigation';
 import { repositoriesStore } from './repositoriesStore';
@@ -141,21 +141,15 @@ export default function RepositoriesView() {
                       </span>
                     ) : null}
                   </div>
-                  <div className="repos-launcher-row-badges">
-                    <StatusBadge status={repo.scanStatus || 'not scanned'} />
-                    {repo.registered ? <StatusBadge status="registered" /> : null}
-                    {isOpen ? <StatusBadge status="selected" /> : null}
-                  </div>
                   {repoPath ? (
                     <div className="repos-launcher-row-actions">
-                      <Button
-                        variant={isOpen ? 'secondary' : 'primary'}
-                        size="sm"
-                        testId={`repos-open-${repoPath}`}
+                      <IconButton
+                        icon="focus"
+                        size={18}
+                        label={isOpen ? 'Focus' : 'Open'}
                         onClick={() => handleOpen(repoPath, repo.repoLabel || repoPath)}
-                      >
-                        {isOpen ? 'Focus' : 'Open'}
-                      </Button>
+                        testId={`repos-open-${repoPath}`}
+                      />
                     </div>
                   ) : null}
                 </li>

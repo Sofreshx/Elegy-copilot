@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import AppIcon from '../../components/AppIcon';
 import { discoverRepoAssets, installRepoAsset } from '../../lib/api/repoAssets';
 import type { RepoAssetEntry } from '../../lib/api/repoAssets';
 
@@ -64,16 +65,16 @@ export default function WorkspaceAssetsTab({ repoPath }: Props) {
   };
 
   const harnessIcons: Record<string, string> = {
-    opencode: '\u229E',  // ⊞
-    codex: '\u25C8',     // ◈
-    copilot: '\u2699',   // ⚙
-    antigravity: '\u2B21', // ⬡
+    opencode: 'opencode',
+    codex: 'codex',
+    copilot: 'settings',
+    antigravity: 'hexagon',
   };
 
   const kindIcons: Record<string, string> = {
-    agent: '\uD83E\uDD16',   // 🤖
-    skill: '\u26A1',         // ⚡
-    config: '\u2699',        // ⚙
+    agent: 'agent',
+    skill: 'skill',
+    config: 'settings',
   };
 
   if (loading) return <div className="state-message">Discovering repo assets...</div>;
@@ -97,12 +98,12 @@ export default function WorkspaceAssetsTab({ repoPath }: Props) {
           {assets.map((asset) => (
             <div key={asset.id} className="workspace-asset-card">
               <div className="workspace-asset-card-header">
-                <span className="workspace-asset-kind-icon">{kindIcons[asset.kind] || '\uD83D\uDCC4'}</span>
+                <AppIcon name={(kindIcons[asset.kind] || 'file-text') as any} size={18} className="workspace-asset-kind-icon" />
                 <span className="workspace-asset-name">{asset.name}</span>
                 <span className="workspace-asset-kind-badge">{asset.kind}</span>
                 {asset.sourceHarness && (
                   <span className="workspace-asset-source-badge" title={`From ${harnessLabels[asset.sourceHarness] || asset.sourceHarness} config`}>
-                    {harnessIcons[asset.sourceHarness] || asset.sourceHarness}
+                    <AppIcon name={(harnessIcons[asset.sourceHarness] || 'package') as any} size={14} />
                   </span>
                 )}
               </div>
@@ -119,14 +120,14 @@ export default function WorkspaceAssetsTab({ repoPath }: Props) {
                       : `Install for ${harnessLabels[hs.harness]}`
                     }
                   >
-                    <span className="workspace-asset-harness-icon">{harnessIcons[hs.harness] || hs.harness}</span>
+                    <AppIcon name={(harnessIcons[hs.harness] || 'package') as any} size={14} className="workspace-asset-harness-icon" />
                     <span className="workspace-asset-harness-label">{harnessLabels[hs.harness] || hs.harness}</span>
                     {hs.installed ? (
-                      <span className="workspace-asset-harness-check">{'\u2713'}</span>
+                      <AppIcon name="check" size={14} className="workspace-asset-harness-check" />
                     ) : asset._installing === hs.harness ? (
-                      <span className="workspace-asset-harness-spinner">{'\u23F3'}</span>
+                      <AppIcon name="sync" size={14} className="workspace-asset-harness-spinner" />
                     ) : (
-                      <span className="workspace-asset-harness-add">+</span>
+                      <AppIcon name="squared-plus" size={14} className="workspace-asset-harness-add" />
                     )}
                   </button>
                 ))}

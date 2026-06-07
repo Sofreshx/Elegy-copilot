@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import AppIcon from '../../components/AppIcon';
 import { listExecutorWorktrees } from '../../lib/api/executor';
 import { getEnrichedWorktrees } from '../../lib/api/elegyDb';
 import type { ExecutorWorktreeRecord, EnrichedWorktreeEntry } from '../../lib/types';
@@ -11,8 +12,8 @@ interface WorkspaceReviewTabProps {
 type ReviewTarget = 'worktree' | 'pr';
 
 const HARNESS_OPTIONS = [
-  { id: 'opencode', label: 'OpenCode', icon: '\u229E', description: 'Use OpenCode for code review' },
-  { id: 'codex', label: 'Codex', icon: '\u25C8', description: 'Use Codex for code review' },
+  { id: 'opencode', label: 'OpenCode', icon: 'opencode', description: 'Use OpenCode for code review' },
+  { id: 'codex', label: 'Codex', icon: 'codex', description: 'Use Codex for code review' },
 ];
 
 const OPENCODE_LANES = [
@@ -154,14 +155,14 @@ export default function WorkspaceReviewTab({ repoPath, repoId }: WorkspaceReview
             className={`workspace-review-target-btn${reviewTarget === 'worktree' ? ' active' : ''}`}
             onClick={() => setReviewTarget('worktree')}
           >
-            <span>{'\uD83C\uDF33'}</span> Local Worktree
+            <AppIcon name="git-branch" size={16} /> Local Worktree
           </button>
           <button
             type="button"
             className={`workspace-review-target-btn${reviewTarget === 'pr' ? ' active' : ''}`}
             onClick={() => setReviewTarget('pr')}
           >
-            <span>{'\uD83D\uDD17'}</span> Pull Request
+            <AppIcon name="external-link" size={16} /> Pull Request
           </button>
         </div>
       </div>
@@ -236,7 +237,7 @@ export default function WorkspaceReviewTab({ repoPath, repoId }: WorkspaceReview
               onClick={() => setHarness(h.id)}
               title={h.description}
             >
-              <span className="workspace-review-harness-icon">{h.icon}</span>
+              <AppIcon name={h.icon as any} size={18} className="workspace-review-harness-icon" />
               {h.label}
             </button>
           ))}
@@ -276,9 +277,9 @@ export default function WorkspaceReviewTab({ repoPath, repoId }: WorkspaceReview
           }
         >
           {launching ? (
-            <>{'\u23F3'} Launching...</>
+            <>Launching...</>
           ) : (
-            <>{'\u25B6'} Start Code Review</>
+            <><AppIcon name="play" size={16} /> Start Code Review</>
           )}
         </button>
       </div>
@@ -287,9 +288,9 @@ export default function WorkspaceReviewTab({ repoPath, repoId }: WorkspaceReview
       {result && (
         <div className={`workspace-review-result${result.ok ? ' success' : ' error'}`}>
           {result.ok ? (
-            <span>{'\u2705'} {result.message}</span>
+            <span><AppIcon name="check" size={16} /> {result.message}</span>
           ) : (
-            <span>{'\u274C'} {result.error || 'Launch failed'}</span>
+            <span><AppIcon name="close" size={16} /> {result.error || 'Launch failed'}</span>
           )}
         </div>
       )}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Toolbar } from '../../components';
+import { Button, IconButton, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { navigationStore, type SettingsSection } from '../../stores/navigation';
 import CodexProviderPanel from './CodexProviderPanel';
@@ -9,6 +9,8 @@ import MaintenanceView from '../Maintenance/MaintenanceView';
 import DashboardView from '../DashboardView';
 import ClaudeCodeView from '../../tabs/ClaudeCode/ClaudeCodeView';
 import { Panel } from '../../components';
+import GitHubSettingsView from './GitHubSettingsView';
+import AppIcon from '../../components/AppIcon';
 
 const BRAND_ICON_SRC = '/elegy-copilot-icon.svg';
 
@@ -80,6 +82,8 @@ export default function SettingsView() {
         return <CodexProviderPanel />;
       case 'claude-code':
         return <ClaudeCodeView />;
+      case 'github':
+        return <GitHubSettingsView />;
       case 'app':
       default:
         return <SettingsAppSection appInfo={appInfo} infoLoading={infoLoading} />;
@@ -89,9 +93,7 @@ export default function SettingsView() {
   return (
     <div className="settings-view" data-testid="settings-view">
       <Toolbar testId="settings-toolbar">
-        <Button variant="ghost" size="sm" onClick={handleBack} testId="settings-back" aria-label="Back" title="Back">
-          ←
-        </Button>
+        <IconButton icon="chevron-left" size={22} label="Back" onClick={handleBack} testId="settings-back" />
         <h2>Settings</h2>
       </Toolbar>
 
@@ -105,7 +107,7 @@ export default function SettingsView() {
               data-testid={`settings-nav-${section.id}`}
               type="button"
             >
-              <span className="settings-nav-icon" aria-hidden="true">{section.icon}</span>
+              <span className="settings-nav-icon" aria-hidden="true"><AppIcon name={section.icon as any} size={18} /></span>
               <span className="settings-nav-label">{section.label}</span>
             </button>
           ))}
