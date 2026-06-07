@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-05-19
+updated: 2026-06-07
 category: system
 status: current
 doc_kind: node
@@ -14,7 +14,7 @@ related: [catalog-control-plane, session-state-artifacts, planning-backlog-roadm
 
 ## Purpose
 
-`copilot-ui` is the local UI, HTTP API, and desktop shell for Instruction Engine. The packaged desktop app is the normal runtime. Today the shipped runtime is still Node-backed, but the rewrite is moving active route authority into `native/runtime` slice by slice.
+`copilot-ui` is the local UI, HTTP API, and desktop shell for Instruction Engine. The packaged desktop app (Tauri shell + Node sidecar) is the normal runtime. The backend is Node.js-based; a parallel Rust runtime under `native/runtime` handles select routes (health, version, policy preflight) when the `INSTRUCTION_ENGINE_NATIVE_RUNTIME_URL` env var is set.
 
 ## Start
 
@@ -32,28 +32,46 @@ node copilot-ui/server.js
 
 ## Main UI
 
-Sidebar sections:
+### Sidebar (left navigation)
 
-- `Runtime`
-- `Projects`
-- `Catalog`
-- `Planning`
-- `Maintenance`
-- `Settings`
+| Item | View |
+|------|------|
+| Repositories | Browse and open registered repositories |
+| Lexicon | Searchable vocabulary reference |
+| Workspace | Appears when a repository is opened; shows docs, git, planning, and execution tabs |
+| Settings (bottom) | App configuration (via settings gear icon) |
 
-Catalog sections are currently organized through the active shell and do not match older `Catalog > Status` docs exactly. Treat the mounted `App.tsx` shell as the implementation truth during the rewrite.
+### Settings sub-sections
+
+Settings is a rich view with these tabs:
+
+| Section | Content |
+|---------|---------|
+| App Settings | Keyboard shortcuts, about/about info |
+| Assets & Tools | Catalog control plane (CatalogShellView) — repo registration, asset install, surface management |
+| OpenCode Setup | OpenCode configuration, CLI tooling, provider stats |
+| Maintenance | Updates, sandboxes, diagnostics (gateway, LSP, stats) |
+| Runtime | Dashboard health view (DashboardView) |
+| Codex Providers | Provider configuration panel |
+| Claude Code Setup | Claude Code configuration panel |
+
+The sidebar and settings structure are defined in `copilot-ui/ui/src/stores/navigation.ts` (SIDEBAR_NAV_ITEMS, SETTINGS_NAV_ITEMS) and rendered in `copilot-ui/ui/src/views/Settings/SettingsView.tsx`.
 
 ## Current Responsibilities
 
-- Catalog refresh, repo registration, search, install, and external-source flows.
-- Session and project browsing.
-- The live planning task-board surface.
-- Maintenance, diagnostics, and desktop update UI.
-- Local API delivery for the desktop app.
+- **Catalog control plane**: repo registration, asset install/search, external-source management, skill preview.
+- **Workspace**: per-repo docs, git operations, planning graph, and execution surface.
+- **Sessions**: session browse, detail view with activity stream, artifacts, task board, skill usage.
+- **Lexicon**: searchable terminology reference for UI, design, and architecture terms.
+- **Settings**: app info, catalog, OpenCode/Codex/Claude Code configuration.
+- **Maintenance**: desktop updates, sandbox management, gateway/LSP diagnostics.
+- **Local API delivery**: all of the above served as HTTP routes for the desktop app.
 
 ## Planning Boundary
 
-- The live planning surface is the repo task board plus workflow-artifact sync into `elegy-planning`.
+- Planning surfaces are accessible via the Workspace's "Planning" local tab, which renders a `PlanningGraphView` graph.
+- The `StandaloneGraphWindow` is available as a pop-out planning graph via URL parameter (`?roadmapId=...`).
+- Planning persistence flows through `planningPersistence.js` backed by the `elegy-planning` database under `~/.copilot`.
 - Old repo-file planning routes are retired from active use.
 
 ## State

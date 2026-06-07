@@ -141,7 +141,7 @@ More contributor and community guidance:
 | Type | Count | Location |
 |------|-------|----------|
 | Agents | 6 | `engine-assets/agents/*.agent.md` |
-| Skills | 11 | `engine-assets/skills/<name>/SKILL.md` |
+| Skills | 12 | `engine-assets/skills/<name>/SKILL.md` |
 | Prompts | 1 | `engine-assets/prompts/*.prompt.md` |
 | Instructions | 1 | `engine-assets/copilot-instructions.md` |
 | Canonical asset manifest | — | `engine-assets/manifest.json` |
@@ -394,28 +394,39 @@ After this, permission prompts for `~/.copilot` should stop (or significantly re
 
 ```
 instruction-engine/
+├── antigravity-assets/     Antigravity Gemini.md source + skills
+├── catalog-assets/         Shared cross-surface skill catalog
 ├── codex-assets/
 │   ├── home/               Codex global AGENTS.md source
 │   ├── agents/             Codex custom agent TOML files
 │   ├── skills/             Codex skill folders with SKILL.md
+├── configuration/          App-level config overlays
+├── contracts/              Shared runtime contracts
+├── copilot-ui/             Local dashboard + desktop shell (Node.js + Tauri)
+├── docs/
+│   ├── system/             Canonical design and operational docs
+│   ├── research/           Research and historical notes
+│   └── roadmaps/           Persistent roadmap planning artifacts
 ├── engine-assets/
-│   ├── agents/             agent .agent.md files (source of truth)
-│   ├── skills/             skill folders with SKILL.md
+│   ├── agents/             Agent .agent.md files (source of truth)
+│   ├── skills/             Skill folders with SKILL.md
 │   ├── prompts/            *.prompt.md files
 │   ├── copilot-instructions.md
-├── .cli/
-│   ├── manifest.allowlist.json  shipped agents/skills/prompts allowlist
-│   └── manifest.json            generated install/shipping manifest
-├── copilot-ui/             local dashboard (Node.js, not installed)
-├── local-tracker/          session/task tracking daemon + Discord gateway
+├── local-tracker/          Session/task tracking daemon + Discord gateway
+├── native/                 Rust runtime for select API routes
+├── opencode-assets/        OpenCode home baseline (agents, skills, prompts)
+├── plugins/                Plugin assets
 ├── scripts/
-│   ├── cli-install.ps1/.sh install scripts
+│   ├── cli-install.ps1/.sh Install scripts
 │   ├── codex-install.ps1/.sh Codex install scripts
-│   └── cli-ui.ps1/.sh      dashboard launch scripts
-├── docs/                   architecture docs and playbooks
-└── .github/
-    ├── copilot-instructions.md  (repo-level instructions for this repo)
-    └── templates/
+│   └── cli-ui.ps1/.sh     Dashboard launch scripts
+├── specs/                  Durable specs for spec-driven development
+├── .github/
+│   ├── copilot-instructions.md  (repo-level instructions for this repo)
+│   └── workflows/          CI/CD workflows
+└── .cli/
+    ├── manifest.allowlist.json  Shipped agents/skills/prompts allowlist
+    └── manifest.json            Generated install/shipping manifest
 ```
 
 ---

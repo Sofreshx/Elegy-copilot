@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-05-25
+updated: 2026-06-07
 category: system
 status: current
 doc_kind: index
@@ -22,6 +22,7 @@ Use docs in this order:
 
 - [[copilot-ui-guide]] [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md)
 - [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md)
+- [[architecture-overview]] [docs/system/architecture-overview.md](docs/system/architecture-overview.md)
 - [[opencode-guide]] [docs/system/opencode-guide.md](docs/system/opencode-guide.md)
 - [[repo-skill-sync-governance]] [docs/system/repo-skill-sync-governance.md](docs/system/repo-skill-sync-governance.md)
 - [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)

@@ -43,3 +43,18 @@ Use this precedence when work touches this repository:
   `AGENTS.md`.
 - Run the narrowest relevant validation after every change: lint, format, typecheck, and test. When
   applicable, use `commit-check-run` as the pre-commit umbrella gate.
+
+## Documentation sync rules
+
+When certain repo changes occur, update the corresponding docs in the same commit:
+
+| When you change... | Update... |
+|---|---|
+| Sidebar navigation, tab/view structure, or route layout | `docs/system/copilot-ui-guide.md` |
+| Shipped asset count (agents, skills, prompts) | `README.md` asset inventory table |
+| New top-level directory added | `README.md` repo layout diagram |
+| Agent behavior, skill contracts, or workflow policy | Smallest relevant `docs/system/` node |
+| New spec-driven work begins | `specs/<slug>/spec.md` + `specs/index.md` |
+| CI pipeline, test matrix, or build scripts | `CONTRIBUTING.md` local setup section + `docs/system/ci-conventions.md` |
+
+These rules are minimum-sync guards: the doc update should travel with the code change, not in a follow-up. When in doubt about which doc to update, consult `docs/system/documentation-structure-governance.md`.

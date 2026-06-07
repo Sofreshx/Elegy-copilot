@@ -1,0 +1,51 @@
+# Instruction Engine — Agent Entrypoint
+
+This is the Instruction Engine monorepo, also published as Elegy Copilot. It is the shared-asset and control-plane workspace for Copilot, Codex, OpenCode, and Antigravity.
+
+## Before any work
+
+1. Load `guidelines.md` for repo-specific rules and precedence.
+2. Start at `docs/system/index.md` for the task's canonical doc entrypoint.
+3. Use the narrowest relevant validator after changes (`npm run test:all`, `npm run ci:local`, or the specific module's test script).
+
+## Quick orientation
+
+| Area | Path | Purpose |
+|------|------|---------|
+| Engine assets | `engine-assets/` | Shipped Copilot agents, skills, prompts, instructions |
+| Codex assets | `codex-assets/` | Shipped Codex instructions, agents, skills |
+| OpenCode assets | `opencode-assets/` | OpenCode home baseline |
+| Antigravity assets | `antigravity-assets/` | Antigravity Gemini.md + skills |
+| Dashboard UI | `copilot-ui/` | Local dashboard + desktop shell (Node + Tauri) |
+| Contracts | `contracts/` | Shared runtime contracts |
+| Local tracker | `local-tracker/` | Session/task tracking + Discord gateway |
+| Native runtime | `native/` | Rust runtime for select API routes |
+| Canonical docs | `docs/system/` | Design, governance, and operational docs |
+| Specs | `specs/` | Durable spec-driven development specs |
+
+## Key commands
+
+```bash
+npm ci                          # Install all dependencies
+npm run build:contracts         # Build shared contracts
+npm run test:all                # Run all workspace tests
+npm run ci:local                # Full local CI (validators + builds + tests)
+npm --prefix copilot-ui run desktop:dev   # Start desktop app in dev mode
+node copilot-ui/server.js       # Raw server (API debugging only)
+```
+
+## Rules
+
+- Never commit secrets, signing material, or machine-local state.
+- Run validation after every change (lint, typecheck, test).
+- When changing shipped assets, update manifest + allowlist + validators together.
+- When changing UI structure, update `docs/system/copilot-ui-guide.md`.
+- Prefer additive changes over weakening existing safety gates.
+
+## Authority
+
+1. Explicit user instruction for the current task
+2. Canonical docs in `docs/system/**`
+3. `guidelines.md`
+4. `README.md` and other maintained docs
+5. Repeated implementation patterns
