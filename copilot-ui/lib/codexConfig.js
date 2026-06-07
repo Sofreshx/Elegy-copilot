@@ -282,6 +282,31 @@ function removeRootKeyLines(lines, key) {
   return lines.filter((line) => !new RegExp(`^\\s*${escapeRegExp(key)}\\s*=`).test(String(line || '')));
 }
 
+function stripIeManagedRootKeys(preambleLines) {
+  const ieManagedIdentifiers = [
+    'opencode',
+    'opencode-chat',
+    'opencode-go',
+    DEEPSEEK_PROVIDER_ID,
+    DEEPSEEK_MODEL,
+    'deepseek-v4-flash',
+    'models_catalog.deepseek.json',
+  ];
+  return preambleLines.filter((line) => {
+    const trimmed = String(line || '').trim();
+    // Check if this is a root key line we care about
+    const matching = trimmed.match(/^\s*(model_provider|model|review_model|model_catalog_json)\s*=\s*"([^"]*)"/);
+    if (!matching) return true;
+    const value = matching[2];
+    for (const identifier of ieManagedIdentifiers) {
+      if (value === identifier || value.includes(identifier)) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
 function insertRootKeyLine(lines, line) {
   const nextLines = [...lines];
   let insertAt = nextLines.length;
@@ -577,6 +602,18 @@ function setMode(codexHome, mode) {
     }
   }
 
+  // When switching to native, strip any root-level model_provider/model keys
+  // that reference instruction-engine-managed provider IDs. These are orphaned
+  // when the managed provider table block is stripped, leaving Codex unable to
+  // resolve the provider (e.g. "Model provider `opencode-go` not found").
+  if (normalizedMode === 'native' && nextTextResult.nextText) {
+    const { preambleLines, bodyText } = splitRootPreamble(nextTextResult.nextText);
+    const cleanedPreamble = stripIeManagedRootKeys(preambleLines);
+    if (cleanedPreamble !== preambleLines) {
+      nextTextResult.nextText = composeConfigText(cleanedPreamble, bodyText, '');
+    }
+  }
+
   // For the native case, need to compare against original pre-strip text
   const originalText = readTextIfExists(configPath);
   const changed = normalizeNewlines(originalText) !== normalizeNewlines(nextTextResult.nextText);
@@ -679,6 +716,63 @@ function hardReset(codexHome) {
   };
 }
 
+function factoryReset(codexHome) {
+  const resolvedHome = resolveCodexHome(codexHome);
+  const configPath = resolveConfigPath(resolvedHome);
+  const configText = readTextIfExists(configPath);
+
+  let backupCreatedAt = null;
+
+  // Save a timestamped backup if config exists and has content
+  if (configText && configText.trim()) {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupFilename = `.elegy-factory-reset-${timestamp}.toml`;
+    const factoryResetBackupPath = path.join(resolvedHome, backupFilename);
+    writeTextAtomic(factoryResetBackupPath, configText);
+    backupCreatedAt = new Date().toISOString();
+  }
+
+  // Strip all managed blocks from the text
+  let cleaned = configText;
+  if (hasInstructionEngineManagedBlock(cleaned)) {
+    cleaned = stripInstructionEngineManagedBlock(cleaned);
+  }
+  // Also strip legacy elegy managed codex provider block
+  if (cleaned.includes('# BEGIN elegy managed codex provider')) {
+    cleaned = cleaned.replace(
+      new RegExp(`\\n?# BEGIN elegy managed codex provider[\\s\\S]*?# END elegy managed codex provider\\n?`, 'g'),
+      '\n',
+    ).replace(/\n{3,}/g, '\n\n').trimEnd();
+  }
+  if (hasDeepseekManagedBlock(cleaned)) {
+    cleaned = stripDeepseekManagedBlock(cleaned);
+  }
+
+  // Delete the config.toml file entirely
+  try {
+    fs.rmSync(configPath, { force: true });
+  } catch {
+    // Ignore deletion failures.
+  }
+
+  // Delete state files and artifacts
+  removeState(resolvedHome);
+  removeDeepseekState(resolvedHome);
+  const backupPath = resolveBackupPath(resolvedHome);
+  try {
+    fs.rmSync(backupPath, { force: true });
+  } catch {
+    // Ignore backup deletion failures.
+  }
+  removeDeepseekCatalog(resolvedHome);
+
+  return {
+    ...getStatus(resolvedHome),
+    action: 'factory-reset',
+    backupCreatedAt,
+  };
+}
+
 function getPlanningSkillStatus(codexHome) {
   const resolvedHome = resolveCodexHome(codexHome);
   const skillDir = path.join(resolvedHome, 'skills', 'elegy-planning');
@@ -704,6 +798,7 @@ module.exports = {
   resolveDeepseekStatePath,
   resolveDeepseekCatalogPath,
   stripDeepseekManagedBlock,
+  stripIeManagedRootKeys,
   appendDeepseekManagedBlock,
   applyDeepseekSoftReset,
   getDeepseekStatus,
@@ -714,4 +809,5 @@ module.exports = {
   getStatus,
   setMode,
   hardReset,
+  factoryReset,
 };

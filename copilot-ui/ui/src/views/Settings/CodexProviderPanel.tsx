@@ -32,12 +32,19 @@ export default function CodexProviderPanel() {
   const [apiKey, setApiKey] = useState('');
   const [bridgeUrl, setBridgeUrl] = useState(dsStatus?.bridgeUrl || 'http://127.0.0.1:38440/v1');
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [confirmFactoryReset, setConfirmFactoryReset] = useState(false);
 
   useEffect(() => {
     if (dsStatus?.bridgePath) setBridgePath(dsStatus.bridgePath);
     if (dsStatus?.bridgeConfigPath) setBridgeConfigPath(dsStatus.bridgeConfigPath);
     if (dsStatus?.bridgeUrl) setBridgeUrl(dsStatus.bridgeUrl);
   }, [dsStatus?.bridgePath, dsStatus?.bridgeConfigPath, dsStatus?.bridgeUrl]);
+
+  useEffect(() => {
+    if (!confirmFactoryReset) return;
+    const timer = setTimeout(() => setConfirmFactoryReset(false), 4000);
+    return () => clearTimeout(timer);
+  }, [confirmFactoryReset]);
 
   const currentModeLabel = activeMode === 'deepseek-bridge' ? 'DeepSeek V4' : 'Native Codex';
 
@@ -437,7 +444,7 @@ export default function CodexProviderPanel() {
         <div className="settings-row-label">
           <strong>Recovery</strong>
           <span className="settings-row-description">
-            Soft reset removes only Elegy-managed Codex provider settings from the config. Hard restore writes back the pre-Elegy backup snapshot.
+            Soft reset removes only Elegy-managed Codex provider settings from the config. Hard restore writes back the pre-Elegy backup snapshot. Factory Reset removes ALL Elegy-managed settings, state files, and config backups.
           </span>
         </div>
         <div className="settings-row-action">
@@ -458,6 +465,56 @@ export default function CodexProviderPanel() {
             onClick={() => codexProviderStore.reset(true)}
           >
             Hard Restore
+          </Button>
+        </div>
+      </div>
+
+      <div className="settings-row">
+        <div className="settings-row-label">
+          <strong>Factory Reset</strong>
+          <span className="settings-row-description">
+            Removes ALL Elegy-managed Codex settings, state files, and config backups.
+            Codex will return to its native OpenAI defaults. A timestamped backup is saved before reset.
+          </span>
+        </div>
+        <div className="settings-row-action">
+          <Button
+            variant="danger"
+            size="sm"
+            testId="codex-provider-factory-reset"
+            disabled={state.loading || state.saving}
+            onClick={() => {
+              if (confirmFactoryReset) {
+                setConfirmFactoryReset(false);
+                codexProviderStore.factoryReset();
+              } else {
+                setConfirmFactoryReset(true);
+              }
+            }}
+          >
+            {state.saving && confirmFactoryReset ? 'Resetting…'
+              : confirmFactoryReset ? 'Confirm Factory Reset?'
+              : 'Factory Reset'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="settings-row">
+        <div className="settings-row-label">
+          <strong>Reinstall Codex Surface</strong>
+          <span className="settings-row-description">
+            Re-runs the Codex installer to sync agents, skills, and prompts. Switches to native mode afterward.
+          </span>
+        </div>
+        <div className="settings-row-action">
+          <Button
+            variant="secondary"
+            size="sm"
+            testId="codex-provider-reinstall-surface"
+            disabled={state.loading || state.saving}
+            onClick={() => codexProviderStore.reinstallSurface()}
+          >
+            {state.saving ? 'Reinstalling…' : 'Reinstall Codex Surface'}
           </Button>
         </div>
       </div>

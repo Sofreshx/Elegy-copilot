@@ -124,3 +124,21 @@ export function installCodexCli(baseUrl?: string): Promise<{ ok: boolean; versio
     headers: { 'Content-Type': 'application/json' },
   });
 }
+
+export async function factoryResetCodexProvider(baseUrl?: string): Promise<CodexProviderStatusResponse> {
+  const payload = await apiRequest<unknown>('/api/config/codex-provider/factory-reset', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return normalizeCodexProviderStatusResponse(payload);
+}
+
+export async function reinstallCodexSurface(baseUrl?: string): Promise<{ target: string; dryRun: boolean; force: boolean; surfaces: unknown[] }> {
+  return apiRequest('/api/assets/install-surfaces', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target: 'codex', force: true }),
+  });
+}
