@@ -56,30 +56,58 @@ async function run() {
     const bootstrapHtml = fs.readFileSync(path.join(repoRoot, 'src-tauri', 'bootstrap', 'index.html'), 'utf8');
 
     assert.ok(fs.existsSync(brandIconPath), 'Expected branded svg icon asset in ui/public');
-    assert.ok(sidebarSource.includes('sidebar-brand-icon'), 'Expected Sidebar to render the branded icon');
-    assert.ok(sidebarSource.includes('/elegy-copilot-icon.svg'), 'Expected Sidebar to use the shared branded svg asset');
+    // Sidebar is now an icon rail — brand icon lives in Settings, not the rail
+    assert.ok(!sidebarSource.includes('sidebar-brand-icon'), 'Expected Sidebar icon rail to NOT render branded icon');
+    assert.ok(!sidebarSource.includes('/elegy-copilot-icon.svg'), 'Expected Sidebar icon rail to NOT reference branded svg');
     assert.ok(settingsSource.includes('settings-view'), 'Expected SettingsView to have settings-view data-testid');
-    assert.ok(settingsSource.includes('settings-page-heading'), 'Expected SettingsView to have settings-page-heading element');
+    assert.ok(settingsSource.includes('settings-toolbar'), 'Expected SettingsView to have settings-toolbar element');
     assert.ok(settingsSource.includes('settings-about-brand'), 'Expected Settings about panel to render branded app identity');
     assert.ok(settingsSource.includes('/elegy-copilot-icon.svg'), 'Expected Settings to use the shared branded svg asset');
     assert.ok(bootstrapHtml.includes('boot-mark'), 'Expected Tauri bootstrap shell to render the brand mark');
     assert.ok(bootstrapHtml.includes('Starting workspace...'), 'Expected Tauri bootstrap shell to expose branded startup copy');
   });
 
-  await test('sidebar brand text is NOT rendered and sidebar UI elements exist', async () => {
+  await test('sidebar uses fixed icon rail with no brand, no collapse toggle', async () => {
     const sidebarSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'Sidebar.tsx'), 'utf8');
 
-    // Brand TEXT should not appear as static content (icon remains, text should be conditional)
+    // No brand image — the icon rail should not render brand imagery
     assert.ok(
-      !sidebarSource.includes('<span className="sidebar-brand">Elegy Copilot</span>'),
-      'Expected Sidebar NOT to render static brand text; should be conditional on isCollapsed'
+      !sidebarSource.includes('/elegy-copilot-icon.svg'),
+      'Expected Sidebar to NOT reference the branded svg (icon rail has no brand image)'
+    );
+    assert.ok(
+      !sidebarSource.includes('sidebar-brand-icon'),
+      'Expected Sidebar to NOT use sidebar-brand-icon class'
     );
 
-    // Sidebar interactive elements
-    assert.ok(sidebarSource.includes('sidebar-collapse-toggle'), 'Expected sidebar-collapse-toggle in Sidebar.tsx');
-    assert.ok(sidebarSource.includes('sidebar-settings-back'), 'Expected sidebar-settings-back in Sidebar.tsx');
-    assert.ok(sidebarSource.includes('sidebar-collapsed'), 'Expected sidebar-collapsed class reference in Sidebar.tsx');
-    assert.ok(sidebarSource.includes('sidebar-settings-'), 'Expected sidebar-settings- data-testid pattern in Sidebar.tsx');
+    // No collapse toggle
+    assert.ok(
+      !sidebarSource.includes('sidebar-collapse-toggle'),
+      'Expected Sidebar to NOT have sidebar-collapse-toggle (always thin, no collapse)'
+    );
+    assert.ok(
+      !sidebarSource.includes('isCollapsed'),
+      'Expected Sidebar to NOT accept isCollapsed prop'
+    );
+    assert.ok(
+      !sidebarSource.includes('onToggleCollapse'),
+      'Expected Sidebar to NOT accept onToggleCollapse prop'
+    );
+
+    // Icon rail specific elements (items are rendered from dynamic items array)
+    assert.ok(sidebarSource.includes('aria-label="Main navigation"'), 'Expected aria-label on nav element');
+    assert.ok(sidebarSource.includes("'sidebar'"), "Expected sidebar testId");
+    assert.ok(sidebarSource.includes('sidebar-item-icon'), 'Expected icon-only items with sidebar-item-icon');
+    assert.ok(sidebarSource.includes('sidebar-item-'), 'Expected sidebar items with dynamic sidebar-item- pattern');
+    assert.ok(sidebarSource.includes('sidebar-item-settings'), 'Expected settings sidebar item');
+    assert.ok(sidebarSource.includes('sidebar-item-workspace'), 'Expected workspace item test id');
+
+    // Dynamic item rendering pattern (sidebar-item-${item.id})
+    assert.ok(sidebarSource.includes('sidebar-item-${'), 'Expected items rendered via dynamic template literal');
+
+    // Uses navigationStore directly
+    assert.ok(sidebarSource.includes('useStoreValue'), 'Expected useStoreValue import for navigationStore');
+    assert.ok(sidebarSource.includes("from '../stores/navigation'"), 'Expected navigationStore import');
   });
 
   await test('main.tsx and App.tsx exist', async () => {
@@ -112,7 +140,7 @@ async function run() {
     assert.ok(appSource.includes("./views/Workspace/WorkspaceView"), 'Expected WorkspaceView import in App.tsx');
     assert.ok(appSource.includes("./tabs/Lexicon/LexiconView"), 'Expected LexiconView import in App.tsx');
     assert.ok(appSource.includes("./views/Settings/SettingsView"), 'Expected SettingsView import in App.tsx');
-    assert.ok(appSource.includes('SETTINGS_NAV_ITEMS'), 'Expected SETTINGS_NAV_ITEMS import in App.tsx');
+    assert.ok(appSource.includes('SIDEBAR_NAV_ITEMS'), 'Expected SIDEBAR_NAV_ITEMS import in App.tsx');
     assert.ok(!appSource.includes(["./views", "Workflows", ["Workflows", "Hub"].join("")].join("/")), 'Did not expect standalone workflows hub import in App.tsx');
     assert.ok(!appSource.includes("./views/Workflows/WorkflowExecutionView"), 'Did not expect standalone workflow execution import in App.tsx');
     assert.ok(!appSource.includes("./views/Workflows/WorkflowTemplateEditor"), 'Did not expect standalone workflow editor import in App.tsx');
@@ -249,7 +277,6 @@ async function run() {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
 
     assert.ok(appSource.includes('AppLayout'), 'Expected AppLayout component in App.tsx');
-    assert.ok(appSource.includes('StatusBar'), 'Expected StatusBar component in App.tsx');
     assert.ok(appSource.includes('Sidebar'), 'Expected Sidebar component in App.tsx');
   });
 
@@ -382,30 +409,41 @@ async function run() {
     assert.ok(source.includes('runGitChecks'), 'Expected runGitChecks function');
   });
 
-  await test('Sidebar supports collapsible icon rail with collapse toggle', async () => {
+  await test('Sidebar is a fixed 52px icon rail with no collapse support', async () => {
     const sidebarSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'Sidebar.tsx'), 'utf8');
-    assert.ok(sidebarSource.includes('isCollapsed'), 'Expected Sidebar to accept isCollapsed prop');
-    assert.ok(sidebarSource.includes('sidebar-collapse-toggle'), 'Expected sidebar-collapse-toggle testId');
-    assert.ok(sidebarSource.includes('sidebar-collapsed'), 'Expected sidebar-collapsed className in collapsed mode');
+    // No collapse props
+    assert.ok(!sidebarSource.includes('isCollapsed'), 'Expected Sidebar to NOT accept isCollapsed');
+    assert.ok(!sidebarSource.includes('sidebar-collapsed'), 'Expected no sidebar-collapsed class reference');
+    assert.ok(!sidebarSource.includes('sidebar-collapse-toggle'), 'Expected no collapse toggle testId');
+    // Fixed rail: items are icon-only
+    assert.ok(sidebarSource.includes('aria-label'), 'Expected aria-labels on nav items');
+    assert.ok(sidebarSource.includes('title={'), 'Expected title attributes on nav items');
   });
 
-  await test('AppLayout supports sidebarCollapsed prop for narrow grid', async () => {
+  await test('AppLayout is a simple shell grid with no collapse logic', async () => {
     const layoutSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'AppLayout.tsx'), 'utf8');
-    assert.ok(layoutSource.includes('sidebarCollapsed'), 'Expected AppLayout to accept sidebarCollapsed prop');
-    assert.ok(layoutSource.includes('app-layout-body-collapsed'), 'Expected app-layout-body-collapsed class');
+    assert.ok(!layoutSource.includes('sidebarCollapsed'), 'Expected AppLayout to NOT accept sidebarCollapsed prop');
+    assert.ok(!layoutSource.includes('app-layout-body-collapsed'), 'Expected no app-layout-body-collapsed class');
+    assert.ok(layoutSource.includes('app-layout-body'), 'Expected app-layout-body grid container');
+    assert.ok(layoutSource.includes('app-layout-content'), 'Expected app-layout-content main area');
+    assert.ok(layoutSource.includes('app-layout-footer'), 'Expected app-layout-footer');
+    assert.ok(layoutSource.includes('app-version'), 'Expected app-version footer element');
   });
 
-  await test('App.tsx persists sidebar collapse state to localStorage', async () => {
+  await test('App.tsx does NOT persist sidebar collapse state', async () => {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
-    assert.ok(appSource.includes('elegy-copilot-sidebar-collapsed'), 'Expected sidebar collapse localStorage key');
-    assert.ok(appSource.includes('handleToggleSidebarCollapse'), 'Expected sidebar collapse toggle handler');
+    assert.ok(!appSource.includes('elegy-copilot-sidebar-collapsed'), 'Expected NO sidebar collapse localStorage key');
+    assert.ok(!appSource.includes('handleToggleSidebarCollapse'), 'Expected NO sidebar collapse toggle handler');
+    assert.ok(!appSource.includes('isSidebarCollapsed'), 'Expected NO isSidebarCollapsed state');
+    assert.ok(!appSource.includes('sidebarCollapsed'), 'Expected NO sidebarCollapsed prop on AppLayout');
   });
 
-  await test('Workspace focus mode toggle exists with expected testId', async () => {
-    const workspaceSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceView.tsx'), 'utf8');
-    assert.ok(workspaceSource.includes('workspace-focus-toggle'), 'Expected focus toggle testId');
-    assert.ok(workspaceSource.includes('isWorkspaceCenterFocused'), 'Expected focus state check');
-    assert.ok(workspaceSource.includes('workspace-main-layout-focused'), 'Expected focused layout class');
+  await test('Workspace focus mode toggle exists in docs toolbar and viewer', async () => {
+    const docsTabSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceDocsTab.tsx'), 'utf8');
+    const docsCenterSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceDocsCenter.tsx'), 'utf8');
+    assert.ok(docsTabSource.includes('workspace-docs-focus-toggle'), 'Expected focus toggle in docs toolbar');
+    assert.ok(docsCenterSource.includes('workspace-docs-focus-toggle'), 'Expected focus toggle in doc viewer header');
+    assert.ok(docsCenterSource.includes('toggleWorkspaceCenterFocus'), 'Expected focus toggle action');
   });
 
   await test('Navigation store includes workspace focus and docs-graph mode', async () => {
@@ -416,10 +454,12 @@ async function run() {
     assert.ok(navSource.includes('closeDocsGraph'), 'Expected closeDocsGraph method');
   });
 
-  await test('WorkspaceDocsCenter accepts isFocused and files props', async () => {
+  await test('WorkspaceDocsCenter accepts isFocused, treeVisible, and onToggleTree props', async () => {
     const docsSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceDocsCenter.tsx'), 'utf8');
     assert.ok(docsSource.includes('isFocused'), 'Expected isFocused prop in WorkspaceDocsCenter');
-    assert.ok(docsSource.includes('buildDocTree'), 'Expected docTree import in WorkspaceDocsCenter');
+    assert.ok(docsSource.includes('treeVisible'), 'Expected treeVisible prop in WorkspaceDocsCenter');
+    assert.ok(docsSource.includes('onToggleTree'), 'Expected onToggleTree prop in WorkspaceDocsCenter');
+    assert.ok(docsSource.includes('workspace-docs-tree-header'), 'Expected tree header with docs title');
   });
 
   await test('DocumentationGraphView component exists with graph rendering', async () => {
@@ -452,11 +492,29 @@ async function run() {
     assert.ok(mdSource.includes("'h4'"), "Expected h4 tag in DOMPurify allowlist");
   });
 
+  await test('WorkspaceDocsTab uses icon-only toolbar instead of text buttons', async () => {
+    const docsTabSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceDocsTab.tsx'), 'utf8');
+    // No text button header
+    assert.ok(!docsTabSource.includes('workspace-docs-tab-header'), 'Expected NO old text-button header');
+    // New icon toolbar
+    assert.ok(docsTabSource.includes('workspace-docs-toolbar'), 'Expected icon toolbar container');
+    assert.ok(docsTabSource.includes('workspace-docs-toolbar-btn'), 'Expected icon toolbar buttons');
+    // No text labels for actions
+    assert.ok(!docsTabSource.includes('>Focus<'), 'Expected no "Focus" text label');
+    assert.ok(!docsTabSource.includes('>Graph view<'), 'Expected no "Graph view" text label');
+    assert.ok(!docsTabSource.includes('>Hide tree<'), 'Expected no "Hide tree" text label');
+    // Uses unicode icons
+    assert.ok(docsTabSource.includes('workspace-docs-focus-toggle'), 'Expected focus toggle testId');
+    assert.ok(docsTabSource.includes('workspace-docs-graph-toggle'), 'Expected graph toggle testId');
+    assert.ok(docsTabSource.includes('workspace-docs-tree-toggle'), 'Expected tree toggle testId');
+  });
+
   await test('Workspace center includes graph toggle for docs-graph mode', async () => {
-    const workspaceSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceView.tsx'), 'utf8');
-    assert.ok(workspaceSource.includes('workspace-graph-toggle'), 'Expected graph toggle testId');
-    assert.ok(workspaceSource.includes("'docs-graph'"), 'Expected docs-graph mode reference');
-    assert.ok(workspaceSource.includes('DocumentationGraphView'), 'Expected DocumentationGraphView component usage');
+    const navSource = fs.readFileSync(path.join(uiSrcRoot, 'stores', 'navigation.ts'), 'utf8');
+    const docsTabSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceDocsTab.tsx'), 'utf8');
+    assert.ok(navSource.includes("'docs-graph'"), 'Expected docs-graph mode in navigation store');
+    assert.ok(docsTabSource.includes('workspace-docs-graph-toggle'), 'Expected graph toggle testId in docs toolbar');
+    assert.ok(docsTabSource.includes('DocumentationGraphView'), 'Expected DocumentationGraphView component usage');
   });
 
   await test('Enhanced markdown CSS includes new heading, table, callout, and tag styles', async () => {

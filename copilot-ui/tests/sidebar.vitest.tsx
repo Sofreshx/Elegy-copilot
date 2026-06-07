@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { SIDEBAR_NAV_ITEMS } from '../ui/src/stores/navigation';
 
@@ -14,15 +14,11 @@ describe('sidebar', () => {
     );
     const settingsBtn = screen.getByTestId('sidebar-item-settings');
     expect(settingsBtn).toBeInTheDocument();
-    // Should have aria-label
     expect(settingsBtn).toHaveAttribute('aria-label', 'Settings');
-    // Should have gear icon
     expect(settingsBtn.querySelector('.sidebar-item-icon')?.textContent).toContain('⚙');
-    // Should NOT have visible text label child
-    expect(settingsBtn.querySelector('.sidebar-item-label')).not.toBeInTheDocument();
   });
 
-  it('renders brand icon with alt text', async () => {
+  it('does not render brand icon', async () => {
     const { default: Sidebar } = await import('../ui/src/components/Sidebar');
     render(
       <Sidebar
@@ -31,10 +27,7 @@ describe('sidebar', () => {
         onNavigate={() => {}}
       />
     );
-    const brandImg = screen.getByAltText('Elegy Copilot');
-    expect(brandImg).toBeInTheDocument();
-    expect(brandImg.tagName).toBe('IMG');
-    expect(brandImg).toHaveClass('sidebar-brand-icon');
+    expect(screen.queryByAltText('Elegy Copilot')).not.toBeInTheDocument();
   });
 
   it('renders nav items for non-settings routes', async () => {
@@ -50,64 +43,49 @@ describe('sidebar', () => {
     expect(screen.getByTestId('sidebar-item-lexicon')).toBeInTheDocument();
   });
 
-  it('renders correctly when collapsed', async () => {
+  it('is always visible as fixed-width icon rail without collapse', async () => {
     const { default: Sidebar } = await import('../ui/src/components/Sidebar');
     render(
       <Sidebar
         items={SIDEBAR_NAV_ITEMS}
         activeItem="repositories"
         onNavigate={() => {}}
-        isCollapsed
-        onToggleCollapse={() => {}}
       />
     );
-    // Should still render but with collapsed class
     const nav = screen.getByTestId('sidebar');
-    expect(nav.className).toContain('sidebar-collapsed');
-    // Settings should still be icon-only in collapsed mode too
+    expect(nav).toHaveClass('sidebar');
+    expect(nav.className).not.toContain('sidebar-collapsed');
+    // No collapse toggle in new design
+    expect(screen.queryByTestId('sidebar-collapse-toggle')).not.toBeInTheDocument();
+    // Settings should still be rendered
     expect(screen.getByTestId('sidebar-item-settings')).toBeInTheDocument();
   });
 
-  it('collapse toggle is right-aligned in sidebar footer', async () => {
+  it('each nav item has aria-label and title attributes', async () => {
     const { default: Sidebar } = await import('../ui/src/components/Sidebar');
     render(
       <Sidebar
         items={SIDEBAR_NAV_ITEMS}
         activeItem="repositories"
         onNavigate={() => {}}
-        onToggleCollapse={() => {}}
       />
     );
-    const collapseToggle = screen.getByTestId('sidebar-collapse-toggle');
-    expect(collapseToggle).toBeInTheDocument();
+    const lexiconBtn = screen.getByTestId('sidebar-item-lexicon');
+    expect(lexiconBtn).toHaveAttribute('aria-label', 'Lexicon');
+    expect(lexiconBtn).toHaveAttribute('title');
+    expect(lexiconBtn.querySelector('.sidebar-item-icon')).toBeInTheDocument();
   });
 
-  it('collapse toggle renders when onToggleCollapse is provided', async () => {
+  it('renders active item with sidebar-item-active class', async () => {
     const { default: Sidebar } = await import('../ui/src/components/Sidebar');
     render(
       <Sidebar
         items={SIDEBAR_NAV_ITEMS}
         activeItem="repositories"
         onNavigate={() => {}}
-        onToggleCollapse={() => {}}
       />
     );
-    const toggle = screen.getByTestId('sidebar-collapse-toggle');
-    expect(toggle).toBeInTheDocument();
-  });
-
-  it('collapse toggle shows expand icon when collapsed', async () => {
-    const { default: Sidebar } = await import('../ui/src/components/Sidebar');
-    render(
-      <Sidebar
-        items={SIDEBAR_NAV_ITEMS}
-        activeItem="repositories"
-        onNavigate={() => {}}
-        isCollapsed
-        onToggleCollapse={() => {}}
-      />
-    );
-    const toggle = screen.getByTestId('sidebar-collapse-toggle');
-    expect(toggle.textContent).toBe('▶');
+    const activeBtn = screen.getByTestId('sidebar-item-repositories');
+    expect(activeBtn.className).toContain('sidebar-item-active');
   });
 });

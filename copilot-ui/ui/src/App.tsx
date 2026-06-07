@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import AppLayout from './components/AppLayout';
 import Sidebar from './components/Sidebar';
 import ToastContainer from './components/ToastContainer';
@@ -19,32 +19,9 @@ import AssetCreationWizard from './views/Catalog/AssetCreationWizard';
 import AddProjectWizard from './views/Project/AddProjectWizard';
 import WorkspaceView from './views/Workspace/WorkspaceView';
 import RepositoriesView from './views/Repositories/RepositoriesView';
-
-const SIDEBAR_COLLAPSED_KEY = 'elegy-copilot-sidebar-collapsed';
-
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
   const desktopUpdaterState = useStoreValue(desktopUpdaterStore);
-
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  function handleToggleSidebarCollapse() {
-    setIsSidebarCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
-      } catch {
-        // localStorage may be unavailable
-      }
-      return next;
-    });
-  }
 
   useEffect(() => {
     desktopUpdaterStore.startListening();
@@ -139,22 +116,15 @@ export default function App() {
       <ToastContainer />
       <AppLayout
       appVersion={desktopUpdaterState.currentVersion}
-      sidebarCollapsed={isSidebarCollapsed}
       canDownload={desktopUpdaterState.canDownload}
       canRestartToUpdate={desktopUpdaterState.canRestartToUpdate}
       onDownloadUpdate={() => void desktopUpdaterStore.downloadUpdate()}
       onRestartToUpdate={() => void desktopUpdaterStore.restartToUpdate()}
       sidebar={
         <Sidebar
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={handleToggleSidebarCollapse}
           items={SIDEBAR_NAV_ITEMS}
           activeItem={navigationState.activeSidebarItem}
           onNavigate={(id: SidebarItemId) => navigationStore.navigate(id)}
-          openWorkspaces={navigationState.openWorkspaces}
-          activeWorkspaceId={navigationState.activeWorkspaceId}
-          onFocusWorkspace={(repoPath) => navigationStore.focusWorkspace(repoPath)}
-          onCloseWorkspace={(repoPath) => navigationStore.closeWorkspace(repoPath)}
         />
       }
     >

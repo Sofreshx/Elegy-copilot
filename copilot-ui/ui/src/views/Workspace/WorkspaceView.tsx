@@ -204,15 +204,12 @@ export default function WorkspaceView() {
     <div className="workspace-view" data-testid="workspace-view">
       {selectedRepoPath ? (
         <div className="workspace-layout">
-          {/* Floating local tab switcher and brand */}
+          {/* Floating local tab switcher and launcher */}
           <div className="workspace-local-tabs-row" data-testid="workspace-local-tabs-row">
             <WorkspaceLocalTabs
               activeTab={navState.activeWorkspaceLocalTab}
               onTabChange={(tab) => navigationStore.setActiveWorkspaceLocalTab(tab)}
             />
-            <div className="workspace-brand" data-testid="workspace-brand">
-              <img src="/elegy-copilot-icon.svg" alt="Elegy Copilot" className="workspace-brand-icon" />
-            </div>
             <div className="workspace-launch-actions" ref={menuRef}>
               <button
                 className="workspace-launch-trigger"
@@ -222,14 +219,18 @@ export default function WorkspaceView() {
                 disabled={availableLaunchers.length === 0}
                 type="button"
               >
-                <span className="workspace-launch-trigger-icon">{triggerIcon}</span>
-                <span className="workspace-launch-trigger-chevron">&#9660;</span>
+                <span className="workspace-launch-trigger-icon" aria-hidden="true">{triggerIcon}</span>
+                <span className="workspace-launch-trigger-label">Open in...</span>
+                <span className="workspace-launch-trigger-chevron" aria-hidden="true">&#9660;</span>
               </button>
               {menuOpen && (
                 <div className="workspace-launch-menu" data-testid="workspace-launch-menu">
                   {GROUP_ORDER.filter((g) => grouped.has(g)).map((group) => (
                     <div key={group} className="workspace-launch-menu-group">
-                      <div className="workspace-launch-menu-group-label">{GROUP_LABELS[group] || group}</div>
+                      <div className="workspace-launch-menu-group-label">
+                        <span className="workspace-launch-menu-group-icon">{LAUNCHER_ICONS[group] || ''}</span>
+                        {GROUP_LABELS[group] || group}
+                      </div>
                       {grouped.get(group)!.map((launcher) => (
                         <button
                           key={launcher.id}
@@ -240,6 +241,7 @@ export default function WorkspaceView() {
                           data-testid={`workspace-launch-${launcher.id}`}
                           title={launcher.available ? undefined : launcher.reason || `${launcher.label} is not available`}
                         >
+                          <span className="workspace-launch-menu-item-icon">{LAUNCHER_ICONS[launcher.group] || '\u25B6'}</span>
                           <span className="workspace-launch-menu-item-label">
                             {launching === launcher.id ? 'Opening...' : launcher.label}
                           </span>

@@ -6,7 +6,6 @@ import DesktopUpdaterShellAction from './DesktopUpdaterShellAction';
 interface AppLayoutProps {
   sidebar: ReactNode;
   children: ReactNode;
-  sidebarCollapsed?: boolean;
   testId?: string;
   appVersion?: string;
   canDownload?: boolean;
@@ -18,7 +17,6 @@ interface AppLayoutProps {
 export default function AppLayout({
   sidebar,
   children,
-  sidebarCollapsed = false,
   testId = 'app-layout',
   appVersion,
   canDownload = false,
@@ -28,19 +26,21 @@ export default function AppLayout({
 }: AppLayoutProps) {
   return (
     <div className="app-layout" data-testid={testId}>
-      <header className="app-titlebar" data-tauri-drag-region>
-        <span className="app-titlebar-label">Elegy Copilot</span>
-        <span className="app-titlebar-spacer" />
-        <DesktopUpdaterShellAction
-          canDownload={canDownload}
-          canRestartToUpdate={canRestartToUpdate}
-          onDownloadUpdate={onDownloadUpdate}
-          onRestartToUpdate={onRestartToUpdate}
-        />
-        <WindowControls />
+      <header className="app-titlebar">
+        <span className="app-titlebar-label" data-tauri-drag-region>Elegy Copilot</span>
+        <span className="app-titlebar-spacer" data-tauri-drag-region />
+        <div className="app-titlebar-actions">
+          <DesktopUpdaterShellAction
+            canDownload={canDownload}
+            canRestartToUpdate={canRestartToUpdate}
+            onDownloadUpdate={onDownloadUpdate}
+            onRestartToUpdate={onRestartToUpdate}
+          />
+          <WindowControls />
+        </div>
       </header>
       <RuntimeDisconnectedBanner />
-      <div className={`app-layout-body${sidebarCollapsed ? ' app-layout-body-collapsed' : ''}`}>
+      <div className="app-layout-body">
         {sidebar}
         <main className="app-layout-content">
           {children}
