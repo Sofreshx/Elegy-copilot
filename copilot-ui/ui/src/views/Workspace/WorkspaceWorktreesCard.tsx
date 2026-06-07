@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Panel } from '../../components';
-import { listExecutorWorktrees } from '../../lib/api/executor';
+import { listExecutorWorktrees, removeWorktreeWithBranch } from '../../lib/api/executor';
 import { getEnrichedWorktrees } from '../../lib/api/elegyDb';
 import { navigationStore } from '../../stores/navigation';
+import { notificationStore } from '../../stores/notificationStore';
 import type { ExecutorWorktreeRecord } from '../../lib/types';
 import type { EnrichedWorktreeEntry } from '../../lib/types';
 
@@ -39,6 +40,7 @@ interface WorktreeDisplay {
   ahead: number;
   behind: number;
   updatedAtLabel: string;
+  createdAt: string;
   path: string;
   isMissing: boolean;
   isLaunchBlocked: boolean;
@@ -124,6 +126,8 @@ function toDisplay(record: ExecutorWorktreeRecord): WorktreeDisplay {
   const changed = git ? Number(git.changed || 0) : 0;
   const dirty = changed > 0;
   const probeError = git && git.probeError ? git.probeError : null;
+  const createdAtTs = getRecordTimestamp(record);
+  const createdAt = createdAtTs > 0 ? new Date(createdAtTs).toLocaleDateString() : 'unknown';
   return {
     key: record.worktreeId || record.path || `wt-${Math.random().toString(36).slice(2, 9)}`,
     sourceLabel,
@@ -134,6 +138,7 @@ function toDisplay(record: ExecutorWorktreeRecord): WorktreeDisplay {
     ahead: git ? Number(git.ahead || 0) : 0,
     behind: git ? Number(git.behind || 0) : 0,
     updatedAtLabel: formatRelative(record.updatedAt, git ? git.mtimeMs : null),
+    createdAt,
     path: record.path || record.worktreePath || '',
     isMissing,
     isLaunchBlocked,
@@ -154,6 +159,8 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
   const [gitListError, setGitListError] = useState<string | null>(null);
   const [enrichedWorktrees, setEnrichedWorktrees] = useState<EnrichedWorktreeEntry[]>([]);
   const [enrichedLoading, setEnrichedLoading] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -251,6 +258,40 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
           git discovery failed: {gitListError}
         </div>
       ) : null}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: '8px' }}>
+        <button
+          type="button"
+          className="button button-sm button-ghost"
+          onClick={async () => {
+            setLoading(true);
+            try {
+              const response = await listExecutorWorktrees({ repoId: repoId || undefined, repoPath });
+              setRecords(response.worktrees || []);
+              setGitListError(response.worktreeDiscovery ? response.worktreeDiscovery.gitListError : null);
+            } catch {
+              setRecords([]);
+              setGitListError(null);
+            } finally {
+              setLoading(false);
+            }
+            // Also reload enriched
+            setEnrichedLoading(true);
+            try {
+              const data = await getEnrichedWorktrees(repoPath);
+              setEnrichedWorktrees(data.worktrees || []);
+            } catch {
+              // enriched optional
+            } finally {
+              setEnrichedLoading(false);
+            }
+          }}
+          title="Reload worktrees"
+          aria-label="Reload worktrees"
+          data-testid="workspace-worktrees-card-reload"
+        >
+          ↻ Reload
+        </button>
+      </div>
       <ul className="workspace-worktrees-list" data-testid="workspace-worktrees-list">
         {display.map((entry) => {
           const classes = ['workspace-worktree-item'];
@@ -288,6 +329,11 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
                     ? `${entry.dirtyCount} dirty`
                     : 'clean'}
                 </span>
+                {entry.enrichedStatus ? (
+                  <span className="workspace-worktree-enriched-status" style={{ color: entry.hasActiveSessions ? 'var(--color-success-500)' : 'var(--color-ink-400)', fontSize: '0.7rem' }}>
+                    {entry.hasActiveSessions ? '● active' : `● ${entry.enrichedStatus}`}
+                  </span>
+                ) : null}
                 {entry.ahead > 0 || entry.behind > 0 ? (
                   <span className="workspace-worktree-ahead-behind" data-testid={`workspace-worktree-ahead-behind-${entry.key}`}>
                     {entry.ahead > 0 ? `+${entry.ahead} ahead` : ''}
@@ -297,6 +343,9 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
                 ) : null}
                 <span className="workspace-worktree-updated" data-testid={`workspace-worktree-updated-${entry.key}`}>
                   {entry.updatedAtLabel}
+                </span>
+                <span className="workspace-worktree-created" data-testid={`workspace-worktree-created-${entry.key}`}>
+                  {entry.createdAt}
                 </span>
               </div>
               <div className="workspace-worktree-path" data-testid={`workspace-worktree-path-${entry.key}`}>
@@ -336,6 +385,63 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
                 >
                   <span aria-hidden="true">{'\uD83D\uDD0D'}</span> Review
                 </button>
+                {showRemoveConfirm === entry.key ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ color: 'var(--color-accent-500)', fontSize: '0.75rem' }}>
+                      {entry.hasActiveSessions ? '⚠ Active sessions! Remove?' : 'Remove?'}
+                    </span>
+                    <button
+                      type="button"
+                      className="button button-sm button-secondary"
+                      disabled={removing === entry.key}
+                      onClick={async () => {
+                        setRemoving(entry.key);
+                        setShowRemoveConfirm(null);
+                        try {
+                          const result = await removeWorktreeWithBranch(repoPath, entry.path, entry.branchLabel);
+                          if (result.removed) {
+                            notificationStore.success('Worktree removed', { message: entry.path });
+                            // Reload
+                            setLoading(true);
+                            try {
+                              const response = await listExecutorWorktrees({ repoId: repoId || undefined, repoPath });
+                              setRecords(response.worktrees || []);
+                            } catch { /* ignore */ }
+                            finally { setLoading(false); }
+                          }
+                        } catch (err) {
+                          notificationStore.error('Remove failed', { message: err instanceof Error ? err.message : String(err) });
+                        } finally {
+                          setRemoving(null);
+                        }
+                      }}
+                      data-testid={`workspace-worktree-card-remove-confirm-${entry.key}`}
+                    >
+                      {removing === entry.key ? '...' : 'Yes'}
+                    </button>
+                    <button
+                      type="button"
+                      className="button button-sm button-ghost"
+                      onClick={() => setShowRemoveConfirm(null)}
+                      data-testid={`workspace-worktree-card-remove-cancel-${entry.key}`}
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="workspace-worktree-remove-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowRemoveConfirm(entry.key);
+                    }}
+                    title={entry.hasActiveSessions ? 'Remove (has active sessions)' : 'Remove worktree'}
+                    data-testid={`workspace-worktree-card-remove-${entry.key}`}
+                  >
+                    ✕ Remove
+                  </button>
+                )}
               </div>
             </li>
           );

@@ -135,3 +135,29 @@ export async function pruneWorktrees(
     body: JSON.stringify({ repoPath }),
   });
 }
+
+export interface WorktreeCleanupRemoveWithBranchResponse {
+  removed: boolean;
+  worktreePath: string;
+  branch: string | null;
+  branchDeleted: boolean;
+  repoPath: string;
+  output?: string;
+  branchOutput?: string;
+  error?: string;
+}
+
+export async function removeWorktreeWithBranch(
+  repoPath: string,
+  worktreePath: string,
+  branch?: string | null,
+  force?: boolean,
+  baseUrl?: string,
+): Promise<WorktreeCleanupRemoveWithBranchResponse> {
+  return apiRequest<WorktreeCleanupRemoveWithBranchResponse>('/api/executor/worktrees/cleanup/remove-with-branch', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, worktreePath, branch: branch || undefined, force: force || false }),
+  });
+}
