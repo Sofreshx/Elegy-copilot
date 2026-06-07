@@ -240,6 +240,271 @@ async function run() {
     }
   });
 
+  await test('OpenCode session records are read from repo-state and projected into worktree list', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-worktree-service-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'repo');
+    const worktreePath = path.join(tmpRoot, 'repo-worktrees', 'wt-session');
+
+    try {
+      createGitRepoRoot(repoPath);
+      createGitWorktree(repoPath, worktreePath, 'wt-session');
+      const service = createWorktreeService({ copilotHome });
+
+      const resolved = service.resolveLaunchPlan({
+        copilotHome,
+        repoId: 'repo',
+        repoPath,
+        worktree: {
+          mode: 'dedicated',
+          worktreeId: 'wt-session',
+          worktreePath,
+        },
+        activeSessions: [{
+          repoId: 'repo',
+          active: true,
+          worktree: { mode: 'shared' },
+        }],
+      });
+
+      // Write two session records for that worktree
+      const sessionsDir = path.join(copilotHome, 'repo-state', 'repo', 'opencode-sessions');
+      fs.mkdirSync(sessionsDir, { recursive: true });
+      fs.writeFileSync(path.join(sessionsDir, 'sess-running.json'), JSON.stringify({
+        contractVersion: '1',
+        source: 'opencode-worktree-plugin',
+        sessionId: 'sess-running',
+        repoId: 'repo',
+        worktreeId: 'wt-session',
+        worktreePath,
+        branch: 'feature/sess',
+        status: 'running',
+        lifecycle: {
+          startedAt: '2026-06-07T10:00:00.000Z',
+          lastSeenAt: '2026-06-07T10:00:00.000Z',
+        },
+        lastEvent: { type: 'session.created', receivedAt: '2026-06-07T10:00:00.000Z' },
+      }), 'utf8');
+      fs.writeFileSync(path.join(sessionsDir, 'sess-deleted.json'), JSON.stringify({
+        contractVersion: '1',
+        source: 'opencode-worktree-plugin',
+        sessionId: 'sess-deleted',
+        repoId: 'repo',
+        worktreeId: 'wt-session',
+        worktreePath,
+        branch: 'feature/sess',
+        status: 'deleted',
+        lifecycle: {
+          startedAt: '2026-06-07T09:00:00.000Z',
+          lastSeenAt: '2026-06-07T09:30:00.000Z',
+          deletedAt: '2026-06-07T09:30:00.000Z',
+        },
+        lastEvent: { type: 'session.deleted', receivedAt: '2026-06-07T09:30:00.000Z' },
+      }), 'utf8');
+
+      const direct = service.getOpenCodeSession(copilotHome, 'repo', 'sess-running');
+      assert.ok(direct, 'getOpenCodeSession should return running session');
+      assert.equal(direct.status, 'running');
+      assert.equal(direct.worktreeId, 'wt-session');
+
+      const list = service.listOpenCodeSessions({ copilotHome, repoId: 'repo', includeDeleted: true });
+      assert.equal(list.length, 2, 'should list both sessions with includeDeleted');
+      const statuses = list.map((s) => s.status).sort();
+      assert.deepEqual(statuses, ['deleted', 'running']);
+
+      // Default (no includeDeleted) hides deleted sessions
+      const filtered = service.listOpenCodeSessions({ copilotHome, repoId: 'repo', worktreeId: 'wt-session' });
+      assert.equal(filtered.length, 1, 'should filter to one worktree');
+      assert.equal(filtered[0].status, 'running');
+
+      // includeDeleted=true brings back the deleted session
+      const withDeleted = service.listOpenCodeSessions({ copilotHome, repoId: 'repo', includeDeleted: true });
+      assert.equal(withDeleted.length, 2);
+
+      // Project onto worktree list
+      const worktrees = service.listWorktrees({
+        copilotHome,
+        repoId: 'repo',
+        includeSessions: true,
+      });
+      const wt = worktrees.find((w) => w.worktreeId === 'wt-session');
+      assert.ok(wt, 'worktree record should exist');
+      assert.equal(wt.opencodeSessionStatus, 'running');
+      assert.equal(wt.opencodeSessionId, 'sess-running');
+      assert.equal(wt.opencodeSessions.length, 1, 'deleted session excluded by default');
+      assert.equal(wt.opencodeSessions[0].sessionId, 'sess-running');
+
+      // includeDeleted=true projection
+      const worktreesWithDeleted = service.listWorktrees({
+        copilotHome,
+        repoId: 'repo',
+        includeSessions: true,
+        includeDeleted: true,
+      });
+      const wtWithDeleted = worktreesWithDeleted.find((w) => w.worktreeId === 'wt-session');
+      assert.equal(wtWithDeleted.opencodeSessions.length, 2);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('malformed OpenCode session JSON is ignored fail-soft', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-worktree-service-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'repo');
+    const worktreePath = path.join(tmpRoot, 'repo-worktrees', 'wt-malformed');
+
+    try {
+      createGitRepoRoot(repoPath);
+      createGitWorktree(repoPath, worktreePath, 'wt-malformed');
+      const service = createWorktreeService({ copilotHome });
+
+      service.resolveLaunchPlan({
+        copilotHome,
+        repoId: 'repo',
+        repoPath,
+        worktree: {
+          mode: 'dedicated',
+          worktreeId: 'wt-malformed',
+          worktreePath,
+        },
+        activeSessions: [{
+          repoId: 'repo',
+          active: true,
+          worktree: { mode: 'shared' },
+        }],
+      });
+
+      const sessionsDir = path.join(copilotHome, 'repo-state', 'repo', 'opencode-sessions');
+      fs.mkdirSync(sessionsDir, { recursive: true });
+      // Malformed JSON
+      fs.writeFileSync(path.join(sessionsDir, 'broken.json'), '{not valid json', 'utf8');
+      // Missing sessionId
+      fs.writeFileSync(path.join(sessionsDir, 'missing-id.json'), JSON.stringify({
+        contractVersion: '1',
+        source: 'opencode-worktree-plugin',
+        repoId: 'repo',
+        worktreeId: 'wt-malformed',
+        status: 'running',
+      }), 'utf8');
+      // Missing repoId
+      fs.writeFileSync(path.join(sessionsDir, 'missing-repo.json'), JSON.stringify({
+        contractVersion: '1',
+        source: 'opencode-worktree-plugin',
+        sessionId: 'x',
+        status: 'running',
+      }), 'utf8');
+      // Valid one
+      fs.writeFileSync(path.join(sessionsDir, 'valid.json'), JSON.stringify({
+        contractVersion: '1',
+        source: 'opencode-worktree-plugin',
+        sessionId: 'valid-sess',
+        repoId: 'repo',
+        worktreeId: 'wt-malformed',
+        worktreePath,
+        branch: 'feature/x',
+        status: 'idle',
+        lifecycle: { startedAt: '2026-06-07T08:00:00.000Z', lastSeenAt: '2026-06-07T08:00:00.000Z', idleAt: '2026-06-07T08:00:00.000Z' },
+        lastEvent: { type: 'session.idle', receivedAt: '2026-06-07T08:00:00.000Z' },
+      }), 'utf8');
+
+      const list = service.listOpenCodeSessions({ copilotHome, repoId: 'repo' });
+      assert.equal(list.length, 1, 'should ignore broken/missing session records');
+      assert.equal(list[0].sessionId, 'valid-sess');
+      assert.equal(list[0].status, 'idle');
+
+      const worktrees = service.listWorktrees({
+        copilotHome,
+        repoId: 'repo',
+        includeSessions: true,
+      });
+      const wt = worktrees.find((w) => w.worktreeId === 'wt-malformed');
+      assert.equal(wt.opencodeSessionId, 'valid-sess');
+      assert.equal(wt.opencodeSessionStatus, 'idle');
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('session projection is deterministic after restart (read-only, no live plugin)', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-worktree-service-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'repo');
+    const worktreePath = path.join(tmpRoot, 'repo-worktrees', 'wt-restart');
+
+    try {
+      createGitRepoRoot(repoPath);
+      createGitWorktree(repoPath, worktreePath, 'wt-restart');
+
+      // First service instance: write worktree record + 2 session records
+      {
+        const service = createWorktreeService({ copilotHome });
+        service.resolveLaunchPlan({
+          copilotHome,
+          repoId: 'repo',
+          repoPath,
+          worktree: {
+            mode: 'dedicated',
+            worktreeId: 'wt-restart',
+            worktreePath,
+          },
+          activeSessions: [{
+            repoId: 'repo',
+            active: true,
+            worktree: { mode: 'shared' },
+          }],
+        });
+        service.markWorktreeActive({
+          copilotHome,
+          repoId: 'repo',
+          worktreeId: 'wt-restart',
+          sessionId: 'rest-sess-1',
+        });
+
+        const sessionsDir = path.join(copilotHome, 'repo-state', 'repo', 'opencode-sessions');
+        fs.mkdirSync(sessionsDir, { recursive: true });
+        fs.writeFileSync(path.join(sessionsDir, 'rest-sess-1.json'), JSON.stringify({
+          contractVersion: '1',
+          source: 'opencode-worktree-plugin',
+          sessionId: 'rest-sess-1',
+          repoId: 'repo',
+          worktreeId: 'wt-restart',
+          worktreePath,
+          branch: 'feature/restart',
+          status: 'running',
+          lifecycle: { startedAt: '2026-06-07T11:00:00.000Z', lastSeenAt: '2026-06-07T11:00:00.000Z' },
+          lastEvent: { type: 'session.created', receivedAt: '2026-06-07T11:00:00.000Z' },
+        }), 'utf8');
+      }
+
+      // Second service instance simulates a fresh restart: read-only projection
+      const service2 = createWorktreeService({ copilotHome });
+      const worktrees = service2.listWorktrees({
+        copilotHome,
+        repoId: 'repo',
+        includeSessions: true,
+      });
+      const wt = worktrees.find((w) => w.worktreeId === 'wt-restart');
+      assert.equal(wt.status, 'active');
+      assert.equal(wt.assignment.sessionId, 'rest-sess-1');
+      assert.equal(wt.opencodeSessionStatus, 'running');
+      assert.equal(wt.opencodeSessionId, 'rest-sess-1');
+      assert.equal(wt.opencodeSessions.length, 1);
+      assert.equal(wt.opencodeSessions[0].sessionId, 'rest-sess-1');
+
+      // Project again — should be stable
+      const worktrees2 = service2.listWorktrees({
+        copilotHome,
+        repoId: 'repo',
+        includeSessions: true,
+      });
+      const wt2 = worktrees2.find((w) => w.worktreeId === 'wt-restart');
+      assert.deepEqual(wt.opencodeSessions, wt2.opencodeSessions);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
   console.log(`\n  ${passed} passed, ${process.exitCode ? 'some failed' : '0 failed'}\n`);
 }
 

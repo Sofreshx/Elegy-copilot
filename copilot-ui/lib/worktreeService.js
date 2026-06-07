@@ -33,6 +33,15 @@ const WORKTREE_RECOVERY_MODES = Object.freeze({
   MANUAL: 'manual',
   REUSE: 'reuse',
 });
+const OPENCODE_SESSION_CONTRACT_VERSION = '1';
+const OPENCODE_SESSION_SOURCE = 'opencode-worktree-plugin';
+const OPENCODE_SESSION_STATES = Object.freeze({
+  RUNNING: 'running',
+  IDLE: 'idle',
+  ERROR: 'error',
+  DELETED: 'deleted',
+  UNKNOWN: 'unknown',
+});
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -58,6 +67,66 @@ function asNullableIsoString(value) {
   }
   const parsed = Date.parse(normalized);
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+}
+
+function normalizeOpenCodeSessionStatus(value) {
+  const normalized = asTrimmedString(value).toLowerCase();
+  if (Object.values(OPENCODE_SESSION_STATES).includes(normalized)) {
+    return normalized;
+  }
+  return OPENCODE_SESSION_STATES.UNKNOWN;
+}
+
+function normalizeOpenCodeSessionRecord(pathImpl, input = {}, options = {}) {
+  if (!isObject(input)) {
+    return null;
+  }
+  const sessionId = asOptionalString(input.sessionId || input.id);
+  const recordRepoId = asOptionalString(input.repoId);
+  if (!sessionId || !recordRepoId) {
+    return null;
+  }
+  // The query repoId (options.repoId) is the directory we are reading from.
+  // If the record carries a repoId that disagrees, treat it as foreign/malformed.
+  if (options.repoId && recordRepoId !== options.repoId) {
+    return null;
+  }
+  const repoId = recordRepoId;
+  const source = asOptionalString(input.source) || OPENCODE_SESSION_SOURCE;
+  const lifecycleRaw = isObject(input.lifecycle) ? input.lifecycle : {};
+  const lastEventRaw = isObject(input.lastEvent) ? input.lastEvent : null;
+  const errorRaw = isObject(input.error) ? input.error : null;
+  const includeError = options.includeError === true;
+
+  return {
+    contractVersion: OPENCODE_SESSION_CONTRACT_VERSION,
+    source,
+    sessionId,
+    repoId,
+    repoPath: normalizePathValue(pathImpl, input.repoPath),
+    repoLabel: asOptionalString(input.repoLabel),
+    projectId: asOptionalString(input.projectId),
+    worktreeId: asOptionalString(input.worktreeId),
+    worktreePath: normalizePathValue(pathImpl, input.worktreePath),
+    branch: asOptionalString(input.branch),
+    status: normalizeOpenCodeSessionStatus(input.status),
+    lifecycle: {
+      startedAt: asNullableIsoString(lifecycleRaw.startedAt),
+      lastSeenAt: asNullableIsoString(lifecycleRaw.lastSeenAt),
+      idleAt: asNullableIsoString(lifecycleRaw.idleAt),
+      errorAt: asNullableIsoString(lifecycleRaw.errorAt),
+      deletedAt: asNullableIsoString(lifecycleRaw.deletedAt),
+    },
+    lastEvent: lastEventRaw
+      ? {
+        type: asOptionalString(lastEventRaw.type),
+        receivedAt: asNullableIsoString(lastEventRaw.receivedAt),
+      }
+      : null,
+    ...(includeError && errorRaw
+      ? { error: { message: asOptionalString(errorRaw.message) || null } }
+      : {}),
+  };
 }
 
 function nowIso(nowFn) {
@@ -502,6 +571,14 @@ class WorktreeService {
     return this._path.join(this._resolveWorktreesDir(copilotHome, repoId), `${worktreeId}.json`);
   }
 
+  _resolveOpenCodeSessionsDir(copilotHome, repoId) {
+    return this._path.join(this._resolveRepoStateRoot(copilotHome), String(repoId || ''), 'opencode-sessions');
+  }
+
+  _resolveOpenCodeSessionPath(copilotHome, repoId, sessionId) {
+    return this._path.join(this._resolveOpenCodeSessionsDir(copilotHome, repoId), `${sessionId}.json`);
+  }
+
   _readRecord(absPath) {
     try {
       const parsed = JSON.parse(this._fs.readFileSync(absPath, 'utf8'));
@@ -518,6 +595,33 @@ class WorktreeService {
     } catch {
       return null;
     }
+  }
+
+  _readOpenCodeSession(absPath, options = {}) {
+    let raw = null;
+    try {
+      raw = this._fs.readFileSync(absPath, 'utf8');
+    } catch {
+      return null;
+    }
+    let parsed = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    if (!isObject(parsed)) {
+      return null;
+    }
+    const normalized = normalizeOpenCodeSessionRecord(this._path, parsed, {
+      repoId: options.repoId,
+      includeError: options.includeError === true,
+    });
+    if (!normalized) {
+      return null;
+    }
+    normalized.durablePath = absPath;
+    return normalized;
   }
 
   _writeRecord(copilotHome, record) {
@@ -559,9 +663,137 @@ class WorktreeService {
     return this._readRecord(this._resolveWorktreePath(copilotHome, normalizedRepoId, normalizedWorktreeId));
   }
 
+  getOpenCodeSession(copilotHome, repoId, sessionId, options = {}) {
+    const normalizedRepoId = asTrimmedString(repoId);
+    const normalizedSessionId = asTrimmedString(sessionId);
+    if (!normalizedRepoId || !normalizedSessionId) {
+      return null;
+    }
+    return this._readOpenCodeSession(
+      this._resolveOpenCodeSessionPath(copilotHome, normalizedRepoId, normalizedSessionId),
+      { repoId: normalizedRepoId, includeError: options.includeError === true }
+    );
+  }
+
+  listOpenCodeSessions(options = {}) {
+    const copilotHome = options.copilotHome || options.copilotHomeAbs || this._config.copilotHome || '.';
+    const repoIdFilter = asOptionalString(options.repoId);
+    const worktreeIdFilter = asOptionalString(options.worktreeId);
+    const worktreePathFilter = asOptionalString(options.worktreePath);
+    const statusFilter = normalizeOpenCodeSessionStatus(options.status || null);
+    const statusFilterActive = options.status !== undefined && options.status !== null
+      && asTrimmedString(options.status) !== '';
+    const includeError = options.includeError === true;
+    const includeDeleted = options.includeDeleted === true;
+
+    const collected = [];
+    const repoIds = repoIdFilter ? [repoIdFilter] : this._listRepoIds(copilotHome);
+
+    for (const rid of repoIds) {
+      const dirPath = this._resolveOpenCodeSessionsDir(copilotHome, rid);
+      let entries = [];
+      try {
+        entries = this._fs.readdirSync(dirPath, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        if (!entry || !entry.isFile() || !/\.json$/i.test(entry.name)) {
+          continue;
+        }
+        const absPath = this._path.join(dirPath, entry.name);
+        const record = this._readOpenCodeSession(absPath, { repoId: rid, includeError });
+        if (!record) continue;
+        if (worktreeIdFilter && record.worktreeId !== worktreeIdFilter) continue;
+        if (worktreePathFilter && normalizeComparablePath(this._path, record.worktreePath) !== normalizeComparablePath(this._path, worktreePathFilter)) {
+          continue;
+        }
+        if (statusFilterActive && record.status !== statusFilter) continue;
+        if (!includeDeleted && !statusFilterActive && record.status === OPENCODE_SESSION_STATES.DELETED) continue;
+        collected.push(record);
+      }
+    }
+
+    return collected.sort((left, right) => {
+      const rightMs = Date.parse((right.lifecycle && right.lifecycle.lastSeenAt) || right.updatedAt || '') || 0;
+      const leftMs = Date.parse((left.lifecycle && left.lifecycle.lastSeenAt) || left.updatedAt || '') || 0;
+      return rightMs - leftMs;
+    });
+  }
+
+  _listRepoIds(copilotHome) {
+    const repoStateRoot = this._resolveRepoStateRoot(copilotHome);
+    let repoEntries = [];
+    try {
+      repoEntries = this._fs.readdirSync(repoStateRoot, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+    return repoEntries
+      .filter((entry) => entry && entry.isDirectory())
+      .map((entry) => entry.name);
+  }
+
+  _attachOpenCodeSessions(worktreeRecords, options = {}) {
+    if (!Array.isArray(worktreeRecords) || worktreeRecords.length === 0) {
+      return worktreeRecords || [];
+    }
+    const copilotHome = options.copilotHome || this._config.copilotHome || '.';
+    const includeError = options.includeError === true;
+    const includeDeleted = options.includeDeleted === true;
+    const limit = Number.isFinite(options.sessionLimit) ? Math.max(0, options.sessionLimit) : 8;
+
+    const repoIds = Array.from(new Set(worktreeRecords
+      .map((r) => asTrimmedString(r.repoId))
+      .filter(Boolean)));
+
+    const sessionsByWorktree = new Map();
+    for (const rid of repoIds) {
+      const sessions = this.listOpenCodeSessions({
+        copilotHome,
+        repoId: rid,
+        includeError,
+        includeDeleted,
+      });
+      for (const sess of sessions) {
+        if (!sess.worktreeId) continue;
+        const list = sessionsByWorktree.get(sess.worktreeId) || [];
+        list.push(sess);
+        sessionsByWorktree.set(sess.worktreeId, list);
+      }
+    }
+
+    for (const record of worktreeRecords) {
+      const id = asTrimmedString(record.worktreeId);
+      if (!id) continue;
+      const sessions = sessionsByWorktree.get(id) || [];
+      sessions.sort((left, right) => {
+        const rightMs = Date.parse((right.lifecycle && right.lifecycle.lastSeenAt) || '') || 0;
+        const leftMs = Date.parse((left.lifecycle && left.lifecycle.lastSeenAt) || '') || 0;
+        return rightMs - leftMs;
+      });
+      record.opencodeSessions = sessions.slice(0, limit);
+      const active = sessions.find((s) => s.status === OPENCODE_SESSION_STATES.RUNNING)
+        || sessions.find((s) => s.status === OPENCODE_SESSION_STATES.IDLE)
+        || sessions.find((s) => s.status === OPENCODE_SESSION_STATES.ERROR)
+        || null;
+      if (active) {
+        record.opencodeSessionStatus = active.status;
+        record.opencodeSessionId = active.sessionId;
+        record.opencodeSessionLastSeenAt = (active.lifecycle && active.lifecycle.lastSeenAt) || null;
+      } else {
+        record.opencodeSessionStatus = OPENCODE_SESSION_STATES.UNKNOWN;
+        record.opencodeSessionId = null;
+        record.opencodeSessionLastSeenAt = null;
+      }
+    }
+    return worktreeRecords;
+  }
+
   listWorktrees(options = {}) {
     const copilotHome = options.copilotHome || options.copilotHomeAbs || this._config.copilotHome || '.';
     const repoId = asOptionalString(options.repoId);
+    const includeSessions = options.includeSessions === true || options.withOpenCodeSessions === true;
     const worktrees = [];
 
     if (repoId) {
@@ -597,11 +829,22 @@ class WorktreeService {
       }
     }
 
-    return worktrees.sort((left, right) => {
+    const sorted = worktrees.sort((left, right) => {
       const rightMs = Date.parse(right.updatedAt || right.lifecycle.lastSeenAt || '') || 0;
       const leftMs = Date.parse(left.updatedAt || left.lifecycle.lastSeenAt || '') || 0;
       return rightMs - leftMs;
     });
+
+    if (includeSessions) {
+      this._attachOpenCodeSessions(sorted, {
+        copilotHome,
+        includeError: options.includeError === true,
+        includeDeleted: options.includeDeleted === true,
+        sessionLimit: options.sessionLimit,
+      });
+    }
+
+    return sorted;
   }
 
   resolveLaunchPlan(input = {}) {
@@ -964,7 +1207,11 @@ module.exports = {
   WORKTREE_CLEANUP_POLICIES,
   WORKTREE_CLEANUP_STATES,
   WORKTREE_RECOVERY_MODES,
+  OPENCODE_SESSION_CONTRACT_VERSION,
+  OPENCODE_SESSION_STATES,
+  OPENCODE_SESSION_SOURCE,
   normalizeWorktreeRecord,
+  normalizeOpenCodeSessionRecord,
   validateDedicatedWorktreePath,
   createWorktreeId,
   createWorktreeService,
