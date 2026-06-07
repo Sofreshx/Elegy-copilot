@@ -1,3 +1,5 @@
+export { default as AppIcon } from './AppIcon';
+export type { AppIconName } from './AppIcon';
 export { default as AppLayout } from './AppLayout';
 export { default as Badge } from './Badge';
 export { default as Button } from './Button';
@@ -12,6 +14,7 @@ export { default as Panel } from './Panel';
 export { default as Sidebar } from './Sidebar';
 export { default as StatusBadge } from './StatusBadge';
 export { default as DesktopUpdaterShellAction } from './DesktopUpdaterShellAction';
+export { default as IconButton } from './IconButton';
 export { default as StatusBar } from './StatusBar';
 export { default as SteppedWizard } from './SteppedWizard';
 export { default as ToastContainer } from './ToastContainer';

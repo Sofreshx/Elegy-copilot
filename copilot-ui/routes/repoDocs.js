@@ -279,119 +279,6 @@ function handleRepoDocsRead(ctx, deps) {
   }
 }
 
-function handleRepoDocsGraph(ctx, deps) {
-  const { res } = ctx;
-  const { sendJson } = deps;
-  const { u } = ctx;
-  const repoPath = u.searchParams.get('repoPath');
-
-  if (!isNonEmptyString(repoPath)) {
-    sendJson(res, 400, { error: 'repoPath query parameter is required' });
-    return;
-  }
-
-  const root = repoPath.trim();
-  if (!fs.existsSync(root)) {
-    sendJson(res, 404, { error: 'Repository path not found' });
-    return;
-  }
-
-  try {
-    // Reuse the same scanning logic as list
-    const files = [];
-    for (const subDir of ['specs', 'docs']) {
-      scanMarkdownFiles(path.join(root, subDir), root, files);
-    }
-    for (const rootFile of ALLOWED_ROOT_FILES) {
-      const fullPath = path.join(root, rootFile);
-      if (fs.existsSync(fullPath)) {
-        try {
-          const stat = fs.statSync(fullPath);
-          files.push({
-            path: rootFile, name: rootFile, size: stat.size,
-            modifiedAt: stat.mtime.toISOString(),
-          });
-        } catch { /* skip */ }
-      }
-    }
-
-    // Build nodes and edges
-    const nodes = [];
-    const edges = [];
-    const errors = [];
-    const skipped = [];
-    const fileSet = new Set(files.map(f => f.path));
-
-    for (const file of files) {
-      // Skip blocked files
-      if (file.blockedReason) {
-        skipped.push({ path: file.path, reason: file.blockedReason });
-        continue;
-      }
-      
-      const depth = file.path.replace(/\\/g, '/').split('/').length - 1;
-      nodes.push({
-        id: file.path,
-        label: file.name,
-        path: file.path,
-        depth,
-      });
-
-      // Try to read file content to extract links
-      try {
-        const fullPath = path.join(root, file.path);
-        let realPath;
-        try { realPath = fs.realpathSync(fullPath); } catch { realPath = path.resolve(fullPath); }
-        
-        if (!realPath.startsWith(path.resolve(root) + path.sep) && realPath !== path.resolve(root)) {
-          skipped.push({ path: file.path, reason: 'Path traversal' });
-          continue;
-        }
-        
-        const stat = fs.statSync(realPath);
-        if (stat.size > MAX_FILE_SIZE) {
-          skipped.push({ path: file.path, reason: 'File too large' });
-          continue;
-        }
-        
-        const content = fs.readFileSync(realPath, 'utf8');
-        
-        // Extract markdown links
-        const mdRegex = /\[([^\]]+)\]\(([^)]+\.md)\)/gi;
-        let match;
-        while ((match = mdRegex.exec(content)) !== null) {
-          const target = match[2].replace(/\\/g, '/').replace(/^\.\//, '');
-          if (fileSet.has(target)) {
-            edges.push({ source: file.path, target, type: 'link' });
-          }
-        }
-        
-        // Extract wiki links
-        const wikiRegex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
-        while ((match = wikiRegex.exec(content)) !== null) {
-          const target = match[1] + '.md';
-          if (fileSet.has(target)) {
-            edges.push({ source: file.path, target, type: 'wiki' });
-          }
-        }
-      } catch (err) {
-        errors.push({ path: file.path, error: err.message || String(err) });
-        // Still include the node even if we couldn't read it
-      }
-    }
-
-    sendJson(res, 200, {
-      repoPath: root,
-      nodes,
-      edges,
-      errors: errors.length > 0 ? errors : undefined,
-      skipped: skipped.length > 0 ? skipped : undefined,
-    });
-  } catch (error) {
-    sendJson(res, 500, { error: String(error.message || error) });
-  }
-}
-
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const deps = { sendJson };
@@ -399,7 +286,6 @@ function register(context = {}) {
   return [
     { method: 'GET', path: '/api/repo-docs/list', handler: (ctx) => handleRepoDocsList(ctx, deps) },
     { method: 'GET', path: '/api/repo-docs/read', handler: (ctx) => handleRepoDocsRead(ctx, deps) },
-    { method: 'GET', path: '/api/repo-docs/graph', handler: (ctx) => handleRepoDocsGraph(ctx, deps) },
   ];
 }
 

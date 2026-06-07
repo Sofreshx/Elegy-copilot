@@ -17,6 +17,7 @@ import WorkspaceDocsTab from './WorkspaceDocsTab';
 import WorkspaceGitTab from './WorkspaceGitTab';
 import WorkspacePlanningTab from './WorkspacePlanningTab';
 import WorkspaceExecutionTab from './WorkspaceExecutionTab';
+import AppIcon from '../../components/AppIcon';
 
 export default function WorkspaceView() {
   const state = useStoreValue(repositoriesStore);
@@ -47,9 +48,9 @@ export default function WorkspaceView() {
   };
 
   const LAUNCHER_ICONS: Record<string, string> = {
-    ides: '\u25C8',     // ◈
-    agents: '\u26A1',   // ⚡
-    terminals: '\u003E\u005F', // >_
+    ides: 'codex',
+    agents: 'agent',
+    terminals: 'play',
   };
 
   function resolveLauncherIcon(launcherId: string | null, launchers: WorkspaceLauncher[]): string {
@@ -63,7 +64,7 @@ export default function WorkspaceView() {
     // Fallback
     const firstAny = launchers[0];
     if (firstAny) return LAUNCHER_ICONS[firstAny.group] || LAUNCHER_ICONS.ides;
-    return '\u25B6'; // ▶ default play
+    return 'play';
   }
 
   useEffect(() => {
@@ -160,7 +161,7 @@ export default function WorkspaceView() {
   }
   const availableLaunchers = launchers.filter((l) => l.available);
 
-  const triggerIcon = launching ? '\u23F3' : resolveLauncherIcon(lastLauncherId, launchers);
+  const triggerIcon = launching ? 'refresh' as const : resolveLauncherIcon(lastLauncherId, launchers);
 
   // ─── Launch handler ──────────────────────────────────────────────────────
   async function handleLaunch(launcherId: string) {
@@ -219,16 +220,16 @@ export default function WorkspaceView() {
                 disabled={availableLaunchers.length === 0}
                 type="button"
               >
-                <span className="workspace-launch-trigger-icon" aria-hidden="true">{triggerIcon}</span>
+                <AppIcon name={triggerIcon as any} size={18} className="workspace-launch-trigger-icon" />
                 <span className="workspace-launch-trigger-label">Open in...</span>
-                <span className="workspace-launch-trigger-chevron" aria-hidden="true">&#9660;</span>
+                <AppIcon name="chevron-down" size={12} className="workspace-launch-trigger-chevron" />
               </button>
               {menuOpen && (
                 <div className="workspace-launch-menu" data-testid="workspace-launch-menu">
                   {GROUP_ORDER.filter((g) => grouped.has(g)).map((group) => (
                     <div key={group} className="workspace-launch-menu-group">
                       <div className="workspace-launch-menu-group-label">
-                        <span className="workspace-launch-menu-group-icon">{LAUNCHER_ICONS[group] || ''}</span>
+                        <AppIcon name={(LAUNCHER_ICONS[group] || 'play') as any} size={14} className="workspace-launch-menu-group-icon" />
                         {GROUP_LABELS[group] || group}
                       </div>
                       {grouped.get(group)!.map((launcher) => (
@@ -241,7 +242,7 @@ export default function WorkspaceView() {
                           data-testid={`workspace-launch-${launcher.id}`}
                           title={launcher.available ? undefined : launcher.reason || `${launcher.label} is not available`}
                         >
-                          <span className="workspace-launch-menu-item-icon">{LAUNCHER_ICONS[launcher.group] || '\u25B6'}</span>
+                          <AppIcon name={(LAUNCHER_ICONS[launcher.group] || 'play') as any} size={15} className="workspace-launch-menu-item-icon" />
                           <span className="workspace-launch-menu-item-label">
                             {launching === launcher.id ? 'Opening...' : launcher.label}
                           </span>

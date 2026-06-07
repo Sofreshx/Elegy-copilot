@@ -36,28 +36,4 @@ export async function readRepoDoc(repoPath: string, docPath: string, baseUrl?: s
   return apiRequest<RepoDocReadResponse>(url, { baseUrl });
 }
 
-export interface GraphNode {
-  id: string;
-  label: string;
-  path: string;
-  depth: number;
-}
 
-export interface GraphEdge {
-  source: string;
-  target: string;
-  type: 'link' | 'wiki';
-}
-
-export interface RepoDocsGraphResponse {
-  repoPath: string;
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-  errors?: { path: string; error: string }[];
-  skipped?: { path: string; reason: string }[];
-}
-
-export async function getRepoDocsGraph(repoPath: string, baseUrl?: string): Promise<RepoDocsGraphResponse> {
-  const url = `/api/repo-docs/graph?repoPath=${encodeURIComponent(repoPath)}`;
-  return apiRequest<RepoDocsGraphResponse>(url, { baseUrl });
-}

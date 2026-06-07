@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Button, Toolbar } from '../../components';
+import { AppIcon, IconButton, Toolbar } from '../../components';
+import type { AppIconName } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { navigationStore, type SettingsSection } from '../../stores/navigation';
 import CodexProviderPanel from './CodexProviderPanel';
@@ -18,14 +19,14 @@ interface AppInfo {
   routeCount?: number;
 }
 
-const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; icon: string }> = [
-  { id: 'app', label: 'App Settings', icon: '⚙' },
-  { id: 'catalog', label: 'Assets & Tools', icon: '▤' },
-  { id: 'opencode', label: 'OpenCode Setup', icon: '⊞' },
-  { id: 'maintenance', label: 'Maintenance', icon: '⚙' },
-  { id: 'runtime', label: 'Runtime', icon: '▶' },
-  { id: 'codex', label: 'Codex Providers', icon: '◈' },
-  { id: 'claude-code', label: 'Claude Code Setup', icon: '◈' },
+const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; icon: AppIconName }> = [
+  { id: 'app', label: 'App Settings', icon: 'settings' },
+  { id: 'catalog', label: 'Assets & Tools', icon: 'layout' },
+  { id: 'opencode', label: 'OpenCode Setup', icon: 'squared-plus' },
+  { id: 'maintenance', label: 'Maintenance', icon: 'maintenance' },
+  { id: 'runtime', label: 'Runtime', icon: 'play' },
+  { id: 'codex', label: 'Codex Providers', icon: 'diamond' },
+  { id: 'claude-code', label: 'Claude Code Setup', icon: 'diamond' },
 ];
 
 export default function SettingsView() {
@@ -88,9 +89,7 @@ export default function SettingsView() {
   return (
     <div className="settings-view" data-testid="settings-view">
       <Toolbar testId="settings-toolbar">
-        <Button variant="ghost" size="sm" onClick={handleBack} testId="settings-back" aria-label="Back" title="Back">
-          ←
-        </Button>
+        <IconButton icon="arrow-left" size={24} label="Back to workspace" onClick={handleBack} testId="settings-back" />
         <h2>Settings</h2>
       </Toolbar>
 
@@ -104,7 +103,7 @@ export default function SettingsView() {
               data-testid={`settings-nav-${section.id}`}
               type="button"
             >
-              <span className="settings-nav-icon" aria-hidden="true">{section.icon}</span>
+              <AppIcon name={section.icon} size={20} className="settings-nav-icon" />
               <span className="settings-nav-label">{section.label}</span>
             </button>
           ))}
