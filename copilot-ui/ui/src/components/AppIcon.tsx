@@ -65,17 +65,17 @@ const ICON_PATHS: Record<AppIconName, string> = {
   assets:
     'M16.5 9.4 7.5 4.21M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z M3.27 6.96 12 12.01 20.73 6.96 M12 22.08V12',
 
-  // code brackets "C"
+  // terminal window icon
   codex:
-    'M9 6H8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h1 M15 6h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-1 M10 9l-3 3 3 3 M14 15l3-3-3-3',
+    'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z M8 10l2 2-2 2 M12 16h4',
 
-  // "CC" letterform
+  // hexagonal Anthropic shape
   'claude-code':
-    'M4 8a2 2 0 0 1 2-2h1 M4 8v8a2 2 0 0 0 2 2h1 M4 8h3 M4 16h3 M13 8h3 M13 16h3 M13 8a2 2 0 0 1 2-2h1 M13 16a2 2 0 0 0 2 2h1 M13 8v8',
+    'M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z M8 14l4-6 4 6 M10 12h4',
 
-  // open bracket "O"
+  // open circle with bracket
   opencode:
-    'M12 3c4.97 0 9 4.03 9 9s-4.03 9-9 9-9-4.03-9-9 4.03-9 9-9Z M10 9l-3 3 3 3 M14 15l3-3-3-3',
+    'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z M8 12l3-3 3 3 M8 12h8',
 
   // wrench
   maintenance:

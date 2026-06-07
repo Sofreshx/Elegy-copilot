@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AppIcon, IconButton, Toolbar } from '../../components';
-import type { AppIconName } from '../../components';
+import { Button, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { navigationStore, type SettingsSection } from '../../stores/navigation';
 import CodexProviderPanel from './CodexProviderPanel';
@@ -9,7 +8,6 @@ import OpenCodeView from '../../tabs/OpenCode/OpenCodeView';
 import MaintenanceView from '../Maintenance/MaintenanceView';
 import DashboardView from '../DashboardView';
 import ClaudeCodeView from '../../tabs/ClaudeCode/ClaudeCodeView';
-import GitHubSettingsView from './GitHubSettingsView';
 import { Panel } from '../../components';
 
 const BRAND_ICON_SRC = '/elegy-copilot-icon.svg';
@@ -20,14 +18,14 @@ interface AppInfo {
   routeCount?: number;
 }
 
-const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; icon: AppIconName }> = [
+const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; icon: string }> = [
   { id: 'app', label: 'App Settings', icon: 'settings' },
   { id: 'catalog', label: 'Assets & Tools', icon: 'layout' },
-  { id: 'opencode', label: 'OpenCode Setup', icon: 'squared-plus' },
+  { id: 'opencode', label: 'OpenCode', icon: 'opencode' },
   { id: 'maintenance', label: 'Maintenance', icon: 'maintenance' },
   { id: 'runtime', label: 'Runtime', icon: 'play' },
-  { id: 'codex', label: 'Codex Providers', icon: 'diamond' },
-  { id: 'claude-code', label: 'Claude Code Setup', icon: 'diamond' },
+  { id: 'codex', label: 'Codex', icon: 'codex' },
+  { id: 'claude-code', label: 'Claude Code', icon: 'claude-code' },
   { id: 'github', label: 'GitHub CLI', icon: 'git-branch' },
 ];
 
@@ -82,8 +80,6 @@ export default function SettingsView() {
         return <CodexProviderPanel />;
       case 'claude-code':
         return <ClaudeCodeView />;
-      case 'github':
-        return <GitHubSettingsView />;
       case 'app':
       default:
         return <SettingsAppSection appInfo={appInfo} infoLoading={infoLoading} />;
@@ -93,7 +89,9 @@ export default function SettingsView() {
   return (
     <div className="settings-view" data-testid="settings-view">
       <Toolbar testId="settings-toolbar">
-        <IconButton icon="arrow-left" size={24} label="Back to workspace" onClick={handleBack} testId="settings-back" />
+        <Button variant="ghost" size="sm" onClick={handleBack} testId="settings-back" aria-label="Back" title="Back">
+          ←
+        </Button>
         <h2>Settings</h2>
       </Toolbar>
 
@@ -107,7 +105,7 @@ export default function SettingsView() {
               data-testid={`settings-nav-${section.id}`}
               type="button"
             >
-              <AppIcon name={section.icon} size={20} className="settings-nav-icon" />
+              <span className="settings-nav-icon" aria-hidden="true">{section.icon}</span>
               <span className="settings-nav-label">{section.label}</span>
             </button>
           ))}

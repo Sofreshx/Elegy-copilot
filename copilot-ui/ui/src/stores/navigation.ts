@@ -23,7 +23,7 @@ export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | '
 export type MaintenanceSection = 'updates' | 'sandboxes' | 'diagnostics';
 export type WizardType = 'project' | 'asset' | null;
 
-export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'maintenance' | 'runtime' | 'codex' | 'claude-code' | 'github';
+export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'maintenance' | 'runtime' | 'codex' | 'claude-code';
 
 export interface SettingsNavItem {
   id: SettingsSection;
@@ -32,15 +32,15 @@ export interface SettingsNavItem {
 }
 
 export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
-  { id: 'app', label: 'Settings', icon: '☰' },
-  { id: 'codex', label: 'Codex', icon: '◈' },
-  { id: 'claude-code', label: 'Claude Code', icon: '⬡' },
-  { id: 'opencode', label: 'OpenCode', icon: '⊞' },
+  { id: 'app', label: 'Settings', icon: 'settings' },
+  { id: 'codex', label: 'Codex', icon: 'codex' },
+  { id: 'claude-code', label: 'Claude Code', icon: 'claude-code' },
+  { id: 'opencode', label: 'OpenCode', icon: 'opencode' },
 ];
 
-export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal';
+export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal' | 'docs-graph';
 
-export type WorkspaceLocalTab = 'docs' | 'git' | 'planning' | 'execution' | 'assets' | 'review';
+export type WorkspaceLocalTab = 'docs' | 'git' | 'planning' | 'execution';
 
 export interface OpenWorkspace {
   repoPath: string;
@@ -69,6 +69,7 @@ export type SidebarNavItem = {
 };
 
 export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
+  { id: 'workspace', label: 'Workspace', icon: 'folder-open', description: 'Active workspace' },
   { id: 'repositories', label: 'Repositories', icon: 'repo', description: 'Browse and open registered repositories' },
   { id: 'lexicon', label: 'Lexicon', icon: 'diamond', description: 'Searchable vocabulary reference for UI, design, architecture, and software engineering terms' },
   { id: 'settings', label: 'Settings', icon: 'settings', description: 'App configuration and preferences' },
@@ -356,6 +357,14 @@ function createNavigationStore() {
     }
   }
 
+  function openDocsGraph(): void {
+    store.setState((state) => ({ ...state, workspaceCenterMode: 'docs-graph' }));
+  }
+
+  function closeDocsGraph(): void {
+    store.setState((state) => ({ ...state, workspaceCenterMode: 'docs' }));
+  }
+
   function reset(): void {
     try {
       localStorage.removeItem(WORKSPACE_TABS_STORAGE_KEY);
@@ -382,6 +391,8 @@ function createNavigationStore() {
     toggleWorkspaceCenterFocus,
     openPlanningSession,
     closePlanningSession,
+    openDocsGraph,
+    closeDocsGraph,
     openWorkspace,
     focusWorkspace,
     closeWorkspace,

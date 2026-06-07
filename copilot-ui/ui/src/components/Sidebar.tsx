@@ -16,8 +16,10 @@ export default function Sidebar({
   testId = 'sidebar',
 }: SidebarProps) {
   const store = useStoreValue(navigationStore);
-  const topItems = items.filter((item) => item.id !== 'settings');
+  const topItems = items.filter((item) => item.id !== 'settings' && item.id !== 'workspace');
   const settingsItem = items.find((item) => item.id === 'settings');
+  const openWorkspaces = store.openWorkspaces;
+  const activeWorkspaceId = store.activeWorkspaceId;
 
   return (
     <nav
@@ -36,37 +38,41 @@ export default function Sidebar({
             onClick={() => onNavigate(item.id)}
             type="button"
           >
-            <AppIcon name={item.icon} size={24} className="sidebar-item-icon" />
+            <AppIcon name={item.icon} size={20} className="sidebar-item-icon" />
           </button>
         ))}
       </div>
 
-      <div className="sidebar-footer">
-        {store.activeWorkspaceId && (
-          <button
-            className="sidebar-item"
-            data-testid="sidebar-item-workspace"
-            aria-label="Workspace"
-            title="Active workspace"
-            onClick={() => navigationStore.focusWorkspace(store.activeWorkspaceId!)}
-            type="button"
-          >
-            <AppIcon name="folder-open" size={24} className="sidebar-item-icon" />
-          </button>
-        )}
-        {settingsItem && (
-          <button
-            className={`sidebar-item${activeItem === settingsItem.id ? ' sidebar-item-active' : ''}`}
-            data-testid="sidebar-item-settings"
-            aria-label={settingsItem.label}
-            title={settingsItem.description}
-            onClick={() => onNavigate(settingsItem.id)}
-            type="button"
-          >
-            <AppIcon name="settings" size={24} className="sidebar-item-icon" />
-          </button>
-        )}
-      </div>
+      {/* Open workspace list with text labels */}
+      {openWorkspaces.length > 0 && (
+        <div className="sidebar-workspaces" data-testid="sidebar-workspaces">
+          {openWorkspaces.map((ws) => (
+            <button
+              key={ws.repoPath}
+              className={`sidebar-workspace-item${activeWorkspaceId === ws.repoPath && activeItem === 'workspace' ? ' sidebar-workspace-item-active' : ''}`}
+              data-testid={`sidebar-workspace-${ws.repoPath.replace(/[^a-zA-Z0-9]/g, '-')}`}
+              title={ws.repoPath}
+              onClick={() => navigationStore.focusWorkspace(ws.repoPath)}
+              type="button"
+            >
+              <span className="sidebar-workspace-label">{ws.repoLabel}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {settingsItem && (
+        <button
+          className={`sidebar-item${activeItem === settingsItem.id ? ' sidebar-item-active' : ''}`}
+          data-testid="sidebar-item-settings"
+          aria-label={settingsItem.label}
+          title={settingsItem.description}
+          onClick={() => onNavigate(settingsItem.id)}
+          type="button"
+        >
+          <AppIcon name="settings" size={20} className="sidebar-item-icon" />
+        </button>
+      )}
     </nav>
   );
 }

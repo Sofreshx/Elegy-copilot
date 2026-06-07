@@ -418,6 +418,10 @@ export default function WorkspaceGitTab({
     if (commitPhase === 'running-checks' && !runningChecks && checkResults && !checkResults.allPassed) {
       setCommitPhase('idle');
     }
+    // Handle case where checks completed but returned null (API error or no checks configured)
+    if (commitPhase === 'running-checks' && !runningChecks && !checkResults) {
+      setCommitPhase('idle');
+    }
   }, [commitPhase, runningChecks, checkResults]);
 
   // Notify when checks fail
