@@ -285,7 +285,6 @@ function handleRepoDocsRead(ctx, deps) {
 
 // ── Tree endpoint: broader scan with folder hierarchy ──
 
-const TREE_ALLOWED_EXTENSIONS = new Set(['.md', '.markdown', '.toml', '.json']);
 const TREE_MAX_DEPTH = 5;
 const TREE_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'target', '__pycache__']);
 
