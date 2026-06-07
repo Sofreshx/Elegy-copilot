@@ -4,6 +4,16 @@ const fs = require('fs');
 const path = require('path');
 const childProcess = require('child_process');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const { GLOBAL_HARNESSES } = require('../lib/harnessCatalog');
+
+// Mapping from harness catalog IDs to CLI commands. Only harnesses with a CLI binary.
+const HARNESS_TO_CLI_MAP = Object.freeze({
+  'copilot': { label: 'Copilot CLI', cmd: 'copilot' },
+  'codex': { label: 'Codex CLI', cmd: 'codex' },
+  'opencode': { label: 'OpenCode CLI', cmd: 'opencode' },
+  'claude-code': { label: 'Claude Code CLI', cmd: 'claude' },
+  'gemini-cli': { label: 'Gemini CLI', cmd: 'gemini' },
+});
 
 const pinnedCommands = require('../lib/pinnedCommands');
 
@@ -296,15 +306,29 @@ function handleGetLaunchers(ctx, deps) {
 function detectLaunchers() {
   const { execSync } = require('child_process');
   const platform = process.platform;
-  const candidates = [
+
+  // IDE candidates (hardcoded — not derived from harness catalog)
+  const ideCandidates = [
     { id: 'vscode', label: 'VS Code', cmd: 'code', group: 'ides' },
     { id: 'codium', label: 'VSCodium', cmd: 'codium', group: 'ides' },
     { id: 'cursor', label: 'Cursor', cmd: 'cursor', group: 'ides' },
     { id: 'windsurf', label: 'Windsurf', cmd: 'windsurf', group: 'ides' },
-    { id: 'opencode', label: 'OpenCode CLI', cmd: 'opencode', group: 'agents' },
-    { id: 'codex', label: 'Codex CLI', cmd: 'codex', group: 'agents' },
-    { id: 'copilot', label: 'Copilot CLI', cmd: 'copilot', group: 'agents' },
   ];
+
+  // Agent CLI candidates derived from harness catalog + CLI map
+  const agentCandidates = GLOBAL_HARNESSES
+    .filter((h) => HARNESS_TO_CLI_MAP[h.id])
+    .map((h) => {
+      const entry = HARNESS_TO_CLI_MAP[h.id];
+      return {
+        id: h.id,
+        label: entry.label,
+        cmd: entry.cmd,
+        group: 'agents',
+      };
+    });
+
+  const candidates = [...ideCandidates, ...agentCandidates];
 
   const launchers = [];
   for (const c of candidates) {
@@ -381,10 +405,14 @@ function buildLauncherCommand(launcher, repoPath, platform, terminalInfo) {
     // --- Agent CLI launcher ---
     if (isAgent) {
       // Map launcher id to its subcommand
-      const agentSubCommand = launcher.id === 'opencode' ? 'opencode .' :
-                              launcher.id === 'codex' ? 'codex' :
-                              launcher.id === 'copilot' ? 'copilot' :
-                              `${launcher.command} .`;
+      const AGENT_SUBCOMMANDS = {
+        'opencode': 'opencode .',
+        'codex': 'codex',
+        'copilot': 'copilot',
+        'claude-code': 'claude',
+        'gemini-cli': 'gemini',
+      };
+      const agentSubCommand = AGENT_SUBCOMMANDS[launcher.id] || `${launcher.command} .`;
 
       if (terminalInfo && terminalInfo.type === 'wt') {
         return { cmd: 'wt.exe', args: ['-d', repoPath, 'pwsh', '-NoExit', '-Command', agentSubCommand] };

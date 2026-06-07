@@ -242,7 +242,7 @@ describe('workspace route handlers', () => {
         await handleRunCommand(ctx, { sendJson, readJsonBody });
         assert.equal(calls.length, 1);
         assert.equal(calls[0].status, 404);
-        assert.match(calls[0].body.error, /elegy.workspace.json/);
+        assert.match(calls[0].body.error, /not found in workspace config/);
       } finally {
         fs.rmSync(tmpDir, { recursive: true, force: true });
       }

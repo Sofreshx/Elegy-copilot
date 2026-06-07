@@ -111,7 +111,7 @@ test('GET /api/tooling/cli/status returns tools array', async () => {
   assert.equal(statusCode, 200);
   assert.equal(body.ok, true);
   assert.equal(Array.isArray(body.tools), true);
-  assert.equal(body.tools.length, 3);
+  assert.equal(body.tools.length, 4);
   assert.equal(typeof body.checkedAt, 'string');
 
   const opencodeCli = body.tools.find((tool) => tool.id === 'opencode-cli');
