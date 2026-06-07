@@ -4,6 +4,7 @@ import { useStoreValue } from '../../lib/store';
 import type {
   OpenCodeLane,
   OpenCodeLaneNode,
+  OpenCodePermissions,
   OpenCodeProfile,
   OpenCodeRequestLogEntry,
   OpenCodeSetupCheck,
@@ -20,6 +21,7 @@ const TAB_SECTIONS: Array<{ id: OpenCodeTabSectionId; label: string }> = [
   { id: 'setup', label: 'Setup' },
   { id: 'logs', label: 'Request Log' },
   { id: 'go-workspaces', label: 'Workspaces' },
+  { id: 'permissions', label: 'Permissions' },
 ];
 
 function StatusDot({ status }: { status: string }) {
@@ -348,7 +350,7 @@ function SetupSection({ status, toolingInstalling, saving }: { status: OpenCodeS
       void opencodeStore.installOpenCodeCli();
       return;
     }
-    if (actionKind === 'install-worktree-permissions') {
+    if (actionKind === 'worktree-permission-profile') {
       void opencodeStore.installWorktreePermissions();
       return;
     }
@@ -366,7 +368,7 @@ function SetupSection({ status, toolingInstalling, saving }: { status: OpenCodeS
   const isRowBusy = (id: string, actionKind: string | undefined) => {
     if (id === 'elegy-planning-cli' || id === 'elegy-skills' || id === 'codex-elegy-planning') return toolingInstalling;
     if (id === 'opencode-cli') return opencodeStore.getState().installingCli;
-    if (id === 'worktree-permissions') return opencodeStore.getState().permissionsInstalling;
+    if (id === 'worktree-permission-profile') return opencodeStore.getState().permissionsInstalling;
     if (actionKind === 'install' || actionKind === 'update') return saving;
     return false;
   };
@@ -602,6 +604,224 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
   );
 }
 
+function PermissionsSection(_props: SectionProps): React.ReactElement {
+  const state = useStoreValue(opencodeStore);
+  const [permissions, setPermissions] = React.useState<OpenCodePermissions | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [permissionsError, setPermissionsError] = React.useState<string | null>(null);
+
+  const [newPattern, setNewPattern] = React.useState('');
+  const [newBashCommand, setNewBashCommand] = React.useState('');
+  const [newBashAction, setNewBashAction] = React.useState<'allow' | 'deny'>('allow');
+
+  const loadPermissions = React.useCallback(async () => {
+    setLoading(true);
+    setPermissionsError(null);
+    try {
+      const { getOpenCodePermissions } = await import('../../lib/api/opencode');
+      const response = await getOpenCodePermissions();
+      setPermissions((response.permission as OpenCodePermissions) || null);
+    } catch (err) {
+      setPermissionsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void loadPermissions();
+  }, [loadPermissions]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setPermissionsError(null);
+    try {
+      const { saveOpenCodePermissions } = await import('../../lib/api/opencode');
+      const response = await saveOpenCodePermissions({ permission: (permissions || {}) as Record<string, unknown> });
+      setPermissions((response.permission as OpenCodePermissions) || null);
+      opencodeStore.setState((prev) => ({ ...prev, message: 'Permissions saved.' }));
+    } catch (err) {
+      setPermissionsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleApplyWorktreeDefaults = async () => {
+    setSaving(true);
+    setPermissionsError(null);
+    try {
+      await opencodeStore.installWorktreePermissions();
+      // Reload permissions after applying worktree defaults
+      await loadPermissions();
+    } catch {
+      // Error is already set by the store
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addExternalPattern = () => {
+    if (!newPattern.trim()) return;
+    const current = permissions?.external_directory || { patterns: [], action: 'allow' };
+    const patterns = [...current.patterns.filter(p => p !== newPattern.trim()), newPattern.trim()];
+    setPermissions({ ...permissions, external_directory: { ...current, patterns } });
+    setNewPattern('');
+  };
+
+  const removeExternalPattern = (pattern: string) => {
+    const current = permissions?.external_directory;
+    if (!current) return;
+    const patterns = current.patterns.filter(p => p !== pattern);
+    setPermissions({ ...permissions, external_directory: { ...current, patterns } });
+  };
+
+  const addBashRule = () => {
+    if (!newBashCommand.trim()) return;
+    const bash = { ...(permissions?.bash || {}), [newBashCommand.trim()]: newBashAction };
+    setPermissions({ ...permissions, bash });
+    setNewBashCommand('');
+  };
+
+  const removeBashRule = (command: string) => {
+    if (!permissions?.bash) return;
+    const bash = { ...permissions.bash };
+    delete bash[command];
+    setPermissions({ ...permissions, bash });
+  };
+
+  const externalPatterns = permissions?.external_directory?.patterns || [];
+  const bashRules = permissions?.bash || {};
+  const worktreeMarker = permissions?.['instruction-engine-worktree-permission-profile'];
+
+  return (
+    <div className="opencode-section" data-testid="opencode-permissions">
+      {permissionsError && <div className="opencode-error">{permissionsError}</div>}
+
+      <Panel title="External Directory Patterns" subtitle="Directories OpenCode is allowed to access outside the workspace" testId="opencode-permissions-external-dirs">
+        {externalPatterns.length === 0 ? (
+          <p className="opencode-hint">No external directory patterns configured.</p>
+        ) : (
+          <div className="opencode-permissions-patterns">
+            {externalPatterns.map((pattern: string) => (
+              <div key={pattern} className="opencode-permissions-row" data-testid={`opencode-perm-pattern-${pattern}`}>
+                <code className="opencode-permissions-value">{pattern}</code>
+                <Button variant="ghost" size="sm" testId={`opencode-perm-remove-pattern-${pattern}`} onClick={() => removeExternalPattern(pattern)}>
+                  Remove
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="opencode-permissions-add">
+          <input
+            type="text"
+            className="opencode-model-input"
+            placeholder="~/.local/share/opencode/worktree/**"
+            value={newPattern}
+            onChange={(e) => setNewPattern(e.target.value)}
+            data-testid="opencode-perm-new-pattern"
+          />
+          <Button variant="secondary" size="sm" testId="opencode-perm-add-pattern" onClick={addExternalPattern} disabled={!newPattern.trim()}>
+            Add Pattern
+          </Button>
+        </div>
+      </Panel>
+
+      <Panel title="Bash Command Rules" subtitle="Commands allowed or denied in OpenCode" testId="opencode-permissions-bash">
+        {Object.keys(bashRules).length === 0 ? (
+          <p className="opencode-hint">No bash command rules configured.</p>
+        ) : (
+          <div className="opencode-permissions-patterns">
+            {Object.entries(bashRules).map(([command, action]: [string, string]) => (
+              <div key={command} className="opencode-permissions-row" data-testid={`opencode-perm-bash-${command}`}>
+                <code className="opencode-permissions-value">{command}</code>
+                <Badge tone={action === 'allow' ? 'success' : 'danger'}>{action}</Badge>
+                <Button variant="ghost" size="sm" testId={`opencode-perm-remove-bash-${command}`} onClick={() => removeBashRule(command)}>
+                  Remove
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="opencode-permissions-add">
+          <input
+            type="text"
+            className="opencode-model-input"
+            placeholder="git status *"
+            value={newBashCommand}
+            onChange={(e) => setNewBashCommand(e.target.value)}
+            data-testid="opencode-perm-new-bash-command"
+          />
+          <select
+            className="opencode-model-input"
+            value={newBashAction}
+            onChange={(e) => setNewBashAction(e.target.value as 'allow' | 'deny')}
+            data-testid="opencode-perm-new-bash-action"
+            style={{ width: '100px' }}
+          >
+            <option value="allow">allow</option>
+            <option value="deny">deny</option>
+          </select>
+          <Button variant="secondary" size="sm" testId="opencode-perm-add-bash" onClick={addBashRule} disabled={!newBashCommand.trim()}>
+            Add Rule
+          </Button>
+        </div>
+      </Panel>
+
+      <Panel title="Worktree Permission Profile" subtitle="Auto-configured worktree permissions" testId="opencode-permissions-worktree-profile">
+        {worktreeMarker ? (
+          <div className="opencode-permissions-row">
+            <StatusDot status="ok" />
+            <div>
+              <strong>Worktree profile applied</strong>
+              <p>Base: {String((worktreeMarker as Record<string, unknown>).worktreeBase || 'unknown')}</p>
+              <p>Version: {String((worktreeMarker as Record<string, unknown>).version || 'unknown')}</p>
+              <p>Applied at: {String((worktreeMarker as Record<string, unknown>).appliedAt || 'unknown')}</p>
+            </div>
+          </div>
+        ) : (
+          <p className="opencode-hint">Worktree permission profile is not yet applied. Click below to add default worktree directory and command permissions.</p>
+        )}
+        <div className="opencode-model-actions" style={{ marginTop: '12px' }}>
+          <Button
+            variant="secondary"
+            size="sm"
+            testId="opencode-perm-apply-worktree"
+            disabled={saving}
+            onClick={handleApplyWorktreeDefaults}
+          >
+            {saving ? 'Applying...' : 'Apply Worktree Defaults'}
+          </Button>
+        </div>
+      </Panel>
+
+      <div className="opencode-model-actions" style={{ marginTop: '16px' }}>
+        <Button
+          variant="primary"
+          size="sm"
+          testId="opencode-perm-save"
+          disabled={saving || loading}
+          onClick={handleSave}
+        >
+          {saving ? 'Saving...' : 'Save Permissions'}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          testId="opencode-perm-refresh"
+          disabled={loading}
+          onClick={loadPermissions}
+          style={{ marginLeft: '8px' }}
+        >
+          {loading ? 'Loading...' : 'Refresh'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 const SECTION_COMPONENTS: Record<OpenCodeTabSectionId, React.FC<SectionProps>> = {
   overview: OverviewSection as unknown as React.FC<SectionProps>,
   lanes: LaneSection,
@@ -609,6 +829,7 @@ const SECTION_COMPONENTS: Record<OpenCodeTabSectionId, React.FC<SectionProps>> =
   setup: SetupSection as unknown as React.FC<SectionProps>,
   logs: RequestLogSection as unknown as React.FC<SectionProps>,
   'go-workspaces': GoWorkspacesSection,
+  permissions: PermissionsSection,
 };
 
 export default function OpenCodeView() {

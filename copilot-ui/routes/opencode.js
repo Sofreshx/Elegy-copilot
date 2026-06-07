@@ -1166,6 +1166,38 @@ function register(deps = {}) {
       path: '/api/stats/provider-usage',
       handler: (ctx) => handleProviderUsage(ctx, resolvedDeps),
     },
+    {
+      method: 'GET',
+      path: '/api/opencode/permissions',
+      handler: async (ctx) => {
+        try {
+          const config = resolvedDeps.opencodeConfig.readConfig(ctx.opencodeHome);
+          const permission = config && config.permission ? config.permission : null;
+          resolvedDeps.sendJson(ctx.res, 200, { ok: true, permission });
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, 500, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/opencode/permissions',
+      handler: async (ctx) => {
+        try {
+          const body = await resolvedDeps.readJsonBody(ctx.req);
+          const config = resolvedDeps.opencodeConfig.readConfig(ctx.opencodeHome);
+          config.permission = body.permission || null;
+          resolvedDeps.opencodeConfig.writeConfig(ctx.opencodeHome, config);
+          resolvedDeps.sendJson(ctx.res, 200, { ok: true, permission: config.permission });
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, 500, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
   ];
 
   return baseRoutes.concat(registerGoWorkspacesRoutes(resolvedDeps));
