@@ -2415,22 +2415,22 @@ textarea:focus-visible,
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--space-sm) 0;
+  justify-content: center;
+  padding: var(--space-2xs) 0;
   background: rgba(17, 20, 24, 0.85);
   backdrop-filter: blur(12px);
   border-right: 1px solid rgba(57, 66, 79, 0.2);
   overflow-y: auto;
   min-height: 0;
-  gap: var(--space-xs);
+  gap: var(--space-2xs);
 }
 
 .sidebar-nav {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-xs) 0;
+  gap: var(--space-2xs);
+  padding: 0;
   width: 100%;
 }
 
@@ -2472,15 +2472,64 @@ textarea:focus-visible,
   text-align: center;
 }
 
-.sidebar-footer {
+.sidebar-workspaces {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--space-2xs);
   width: 100%;
   padding: var(--space-xs) 0;
-  border-top: 1px solid rgba(57, 66, 79, 0.15);
-  margin-top: auto;
+  margin: var(--space-2xs) 0;
+  border-top: 1px solid rgba(57, 66, 79, 0.12);
+  border-bottom: 1px solid rgba(57, 66, 79, 0.12);
+  overflow-y: auto;
+  flex-shrink: 0;
+  max-height: 50vh;
+}
+
+.sidebar-workspace-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-500);
+  cursor: pointer;
+  padding: 0 var(--space-2xs);
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sidebar-workspace-item:hover {
+  background: rgba(110, 175, 168, 0.1);
+  color: var(--color-ink-300);
+}
+
+.sidebar-workspace-item-active {
+  color: var(--color-brand-400);
+  border-color: rgba(47, 165, 157, 0.35);
+  background: rgba(47, 165, 157, 0.12);
+  box-shadow: 0 0 8px rgba(47, 165, 157, 0.15);
+}
+
+.sidebar-workspace-label {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  line-height: 1.1;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 36px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  letter-spacing: 0.02em;
 }
 
 /* ── Dashboard View ── */
@@ -9043,6 +9092,9 @@ textarea:focus-visible,
   grid-template-columns: minmax(min(100%, 16rem), 18rem) minmax(0, 1fr);
   align-items: start;
   min-width: 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .workspace-docs-tree {
@@ -9181,6 +9233,9 @@ textarea:focus-visible,
 
 .workspace-docs-viewer {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .workspace-docs-content {
@@ -9256,7 +9311,8 @@ textarea:focus-visible,
 }
 
 .workspace-docs-viewer-body {
-  max-height: 600px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: var(--space-sm);
   border: 1px solid var(--color-ink-200);
@@ -9459,18 +9515,6 @@ textarea:focus-visible,
   min-width: 0;
 }
 
-/* ── Sidebar nav sections ── */
-
-.sidebar-nav-top {
-  padding-bottom: var(--space-xs);
-  border-bottom: 1px solid var(--color-border-100);
-}
-
-.sidebar-nav-main {
-  flex: 1;
-  overflow-y: auto;
-}
-
 /* ── Commands Card ── */
 
 .workspace-commands-list {
@@ -9616,6 +9660,8 @@ textarea:focus-visible,
 
 .workspace-tab-content {
   min-height: 400px;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── Docs Tab ── */
@@ -9623,6 +9669,8 @@ textarea:focus-visible,
 .workspace-docs-tab {
   display: grid;
   gap: var(--space-sm);
+  flex: 1;
+  min-height: 0;
 }
 
 .workspace-docs-toolbar {
@@ -9685,6 +9733,9 @@ textarea:focus-visible,
 .workspace-git-tab {
   display: grid;
   gap: var(--space-md);
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .workspace-git-branches-area {
@@ -10566,29 +10617,12 @@ textarea:focus-visible,
 .workspace-execution-tab {
   display: grid;
   gap: var(--space-md);
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
-.workspace-execution-launchers {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
-  padding: var(--space-sm);
-  background: var(--color-surface-2);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border-100);
-}
-
-.workspace-execution-launcher-group {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-}
-
-.workspace-execution-launcher-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2xs);
-}
+/* ── Terminal placeholder ── */
 
 .workspace-execution-terminal {
   padding: var(--space-md);

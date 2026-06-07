@@ -1,4 +1,5 @@
 import { createStore } from '../lib/store';
+import type { AppIconName } from '../components/AppIcon';
 
 export const CATALOG_SECTION_IDS = [
   'status',
@@ -31,10 +32,10 @@ export interface SettingsNavItem {
 }
 
 export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
-  { id: 'app', label: 'Settings', icon: '☰' },
-  { id: 'codex', label: 'Codex', icon: '◈' },
-  { id: 'claude-code', label: 'Claude Code', icon: '⬡' },
-  { id: 'opencode', label: 'OpenCode', icon: '⊞' },
+  { id: 'app', label: 'Settings', icon: 'settings' },
+  { id: 'codex', label: 'Codex', icon: 'codex' },
+  { id: 'claude-code', label: 'Claude Code', icon: 'claude-code' },
+  { id: 'opencode', label: 'OpenCode', icon: 'opencode' },
 ];
 
 export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal' | 'docs-graph';
@@ -63,14 +64,15 @@ export interface SelectedSessionContext {
 export type SidebarNavItem = {
   id: SidebarItemId;
   label: string;
-  icon: string;
+  icon: AppIconName;
   description: string;
 };
 
 export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
-  { id: 'repositories', label: 'Repositories', icon: '␀', description: 'Browse and open registered repositories' },
-  { id: 'lexicon', label: 'Lexicon', icon: '◈', description: 'Searchable vocabulary reference for UI, design, architecture, and software engineering terms' },
-  { id: 'settings', label: 'Settings', icon: '⚙', description: 'App configuration and preferences' },
+  { id: 'workspace', label: 'Workspace', icon: 'folder-open', description: 'Active workspace' },
+  { id: 'repositories', label: 'Repositories', icon: 'repo', description: 'Browse and open registered repositories' },
+  { id: 'lexicon', label: 'Lexicon', icon: 'diamond', description: 'Searchable vocabulary reference for UI, design, architecture, and software engineering terms' },
+  { id: 'settings', label: 'Settings', icon: 'settings', description: 'App configuration and preferences' },
 ];
 
 export type NavigationState = {
