@@ -1,24 +1,23 @@
 import { useState, useEffect } from 'react';
-import { Panel, MarkdownMessage } from '../../components';
-import { navigationStore } from '../../stores/navigation';
-import { listRepoDocs, readRepoDoc } from '../../lib/api/repoDocs';
+import { MarkdownMessage } from '../../components';
+import { listRepoDocs, readRepoDoc, writeRepoDoc, deleteRepoDoc } from '../../lib/api/repoDocs';
 import type { RepoDocEntry, RepoDocReadResponse } from '../../lib/api/repoDocs';
 
 interface WorkspaceDocsCenterProps {
   repoPath: string;
-  isFocused?: boolean;
-  treeVisible?: boolean;
-  onToggleTree?: () => void;
 }
 
-export default function WorkspaceDocsCenter({ repoPath, isFocused, treeVisible = true, onToggleTree }: WorkspaceDocsCenterProps) {
+export default function WorkspaceDocsCenter({ repoPath }: WorkspaceDocsCenterProps) {
   const [files, setFiles] = useState<RepoDocEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<RepoDocReadResponse | null>(null);
   const [docLoading, setDocLoading] = useState(false);
   const [docError, setDocError] = useState<string | null>(null);
-  const [treeOverlayVisible, setTreeOverlayVisible] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +43,7 @@ export default function WorkspaceDocsCenter({ repoPath, isFocused, treeVisible =
     setDocLoading(true);
     setDocError(null);
     setSelectedDoc(null);
+    setEditMode(false);
     try {
       const doc = await readRepoDoc(repoPath, file.path);
       setSelectedDoc(doc);
@@ -51,8 +51,49 @@ export default function WorkspaceDocsCenter({ repoPath, isFocused, treeVisible =
       setDocError(err instanceof Error ? err.message : String(err));
     } finally {
       setDocLoading(false);
-      // Auto-minimize tree overlay when a document is selected from the overlay
-      setTreeOverlayVisible(false);
+    }
+  }
+
+  function handleStartEdit() {
+    if (!selectedDoc) return;
+    setEditContent(selectedDoc.content);
+    setEditMode(true);
+  }
+
+  async function handleSave() {
+    if (!selectedDoc) return;
+    setSaving(true);
+    try {
+      const result = await writeRepoDoc(repoPath, selectedDoc.path, editContent);
+      setSelectedDoc({
+        ...selectedDoc,
+        content: editContent,
+        size: result.size,
+        modifiedAt: result.modifiedAt,
+      });
+      setEditMode(false);
+    } catch (err) {
+      setDocError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!selectedDoc) return;
+    if (!window.confirm(`Delete ${selectedDoc.path}? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      await deleteRepoDoc(repoPath, selectedDoc.path);
+      setSelectedDoc(null);
+      setEditMode(false);
+      // Refresh the file list
+      const data = await listRepoDocs(repoPath);
+      setFiles(data.files);
+    } catch (err) {
+      setDocError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -92,7 +133,7 @@ export default function WorkspaceDocsCenter({ repoPath, isFocused, treeVisible =
     }
   }
 
-  // Shared file list content for both inline tree and overlay
+  // Shared file list content for the tree sidebar
   const treeContent = (
     <>
       {loading ? (
@@ -133,84 +174,77 @@ export default function WorkspaceDocsCenter({ repoPath, isFocused, treeVisible =
     </>
   );
 
-  const treeHidden = isFocused;
-
   return (
-    <div className={`workspace-docs-center${treeHidden ? ' workspace-docs-tree-collapsed' : ''}`} data-testid="workspace-docs-center">
-      {/* Inline tree sidebar */}
-      {treeVisible && !treeHidden && (
-        <div className="workspace-docs-tree" data-testid="workspace-docs-tree">
-          <div className="workspace-docs-tree-header">
-            <span className="workspace-docs-tree-title">Docs & Specs</span>
-            <span className="workspace-docs-tree-count">{files.length} files</span>
-            {onToggleTree && (
-              <button
-                className="workspace-docs-tree-header-close"
-                onClick={onToggleTree}
-                data-testid="workspace-docs-tree-close"
-                title="Hide tree"
-                aria-label="Hide tree"
-              >
-                &times;
-              </button>
-            )}
-          </div>
-          {treeContent}
+    <div className="workspace-docs-center" data-testid="workspace-docs-center">
+      {/* Tree sidebar — always visible */}
+      <div className="workspace-docs-tree" data-testid="workspace-docs-tree">
+        <div className="workspace-docs-tree-header">
+          <span className="workspace-docs-tree-title">Docs & Specs</span>
+          <span className="workspace-docs-tree-count">{files.length} files</span>
         </div>
-      )}
+        {treeContent}
+      </div>
 
       <div className="workspace-docs-viewer" data-testid="workspace-docs-viewer">
-        {/* Viewer header with tree toggle for collapsed mode */}
+        {/* Viewer header */}
         <div className="workspace-docs-viewer-header">
-          {!treeVisible && !treeHidden && (
-            <button
-              className="workspace-docs-viewer-tree-restore"
-              onClick={() => setTreeOverlayVisible((v) => !v)}
-              title="Show document tree"
-              aria-label="Show document tree"
-              data-testid="workspace-docs-tree-toggle"
-            >
-              <span aria-hidden="true">&#9776;</span>
-            </button>
-          )}
           {selectedDoc && (
             <>
-              <span className="workspace-docs-viewer-path">{selectedDoc.path}</span>
-              <button
-                className="workspace-docs-viewer-focus-btn"
-                onClick={() => navigationStore.toggleWorkspaceCenterFocus()}
-                aria-label={isFocused ? 'Exit focus' : 'Focus'}
-                title={isFocused ? 'Exit focus' : 'Focus'}
-                data-testid="workspace-docs-focus-toggle"
-              >
-                <span aria-hidden="true">{isFocused ? '\u25A3' : '\u25A1'}</span>
-              </button>
+              <span className="workspace-docs-viewer-path">
+                {editMode ? `Editing: ${selectedDoc.path}` : selectedDoc.path}
+              </span>
+              <div className="workspace-docs-viewer-actions">
+                {!editMode && (
+                  <button
+                    className="workspace-docs-viewer-edit-btn"
+                    onClick={handleStartEdit}
+                    aria-label="Edit document"
+                    title="Edit document"
+                    type="button"
+                  >
+                    &#x270E;
+                  </button>
+                )}
+                {editMode && (
+                  <>
+                    <button
+                      className="workspace-docs-viewer-cancel-btn"
+                      onClick={() => { setEditMode(false); setDocError(null); }}
+                      aria-label="Cancel editing"
+                      title="Cancel editing"
+                      type="button"
+                    >
+                      &#x2190;
+                    </button>
+                    <button
+                      className="workspace-docs-viewer-save-btn"
+                      onClick={() => void handleSave()}
+                      disabled={saving}
+                      aria-label="Save document"
+                      title={saving ? 'Saving...' : 'Save document'}
+                      type="button"
+                    >
+                      {saving ? '...' : '\u2713'}
+                    </button>
+                    <button
+                      className="workspace-docs-viewer-delete-btn"
+                      onClick={() => void handleDelete()}
+                      disabled={deleting}
+                      aria-label="Delete document"
+                      title={deleting ? 'Deleting...' : 'Delete document'}
+                      type="button"
+                    >
+                      &#x1F5D1;
+                    </button>
+                  </>
+                )}
+              </div>
             </>
           )}
-          {!selectedDoc && !treeVisible && !treeHidden && (
+          {!selectedDoc && (
             <span className="workspace-docs-viewer-path">No document selected</span>
           )}
         </div>
-
-        {/* Tree overlay when collapsed */}
-        {treeOverlayVisible && (
-          <div className="workspace-docs-tree-overlay" data-testid="workspace-docs-tree-overlay">
-            <div className="workspace-docs-tree-overlay-header">
-              <span className="workspace-docs-tree-overlay-title">
-                Docs & Specs ({files.length} files)
-              </span>
-              <button
-                className="workspace-docs-tree-overlay-close"
-                onClick={() => setTreeOverlayVisible(false)}
-                title="Close overlay"
-                data-testid="workspace-docs-tree-overlay-close"
-              >
-                &times;
-              </button>
-            </div>
-            {treeContent}
-          </div>
-        )}
 
         {/* Content area */}
         {docLoading ? (
@@ -218,15 +252,26 @@ export default function WorkspaceDocsCenter({ repoPath, isFocused, treeVisible =
         ) : docError ? (
           <div className="state-error">{docError}</div>
         ) : selectedDoc ? (
-          <div className="workspace-docs-content">
+          editMode ? (
             <div className="workspace-docs-viewer-body">
-              <MarkdownMessage
-                content={selectedDoc.content}
-                testId="workspace-docs-markdown"
-                onNavigateDoc={handleNavigateDoc}
+              <textarea
+                className="workspace-docs-editor"
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                data-testid="workspace-docs-editor"
               />
             </div>
-          </div>
+          ) : (
+            <div className="workspace-docs-content">
+              <div className="workspace-docs-viewer-body">
+                <MarkdownMessage
+                  content={selectedDoc.content}
+                  testId="workspace-docs-markdown"
+                  onNavigateDoc={handleNavigateDoc}
+                />
+              </div>
+            </div>
+          )
         ) : (
           <div className="workspace-docs-empty" data-testid="workspace-docs-empty">
             <p className="state-message">Select a document from the tree to view its contents.</p>

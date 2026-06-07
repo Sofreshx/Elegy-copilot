@@ -1,5 +1,4 @@
-import { useStoreValue } from '../lib/store';
-import { navigationStore, type SidebarItemId, type SidebarNavItem } from '../stores/navigation';
+import type { SidebarItemId, SidebarNavItem } from '../stores/navigation';
 
 interface SidebarProps {
   items: readonly SidebarNavItem[];
@@ -14,7 +13,6 @@ export default function Sidebar({
   onNavigate,
   testId = 'sidebar',
 }: SidebarProps) {
-  const store = useStoreValue(navigationStore);
   const topItems = items.filter((item) => item.id !== 'settings');
   const settingsItem = items.find((item) => item.id === 'settings');
 
@@ -41,18 +39,6 @@ export default function Sidebar({
       </div>
 
       <div className="sidebar-footer">
-        {store.activeWorkspaceId && (
-          <button
-            className="sidebar-item"
-            data-testid="sidebar-item-workspace"
-            aria-label="Workspace"
-            title="Active workspace"
-            onClick={() => navigationStore.focusWorkspace(store.activeWorkspaceId!)}
-            type="button"
-          >
-            <span className="sidebar-item-icon" aria-hidden="true">📂</span>
-          </button>
-        )}
         {settingsItem && (
           <button
             className={`sidebar-item${activeItem === settingsItem.id ? ' sidebar-item-active' : ''}`}

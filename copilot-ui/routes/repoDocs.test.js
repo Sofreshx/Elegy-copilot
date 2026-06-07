@@ -91,9 +91,9 @@ function cleanupTempRepo(tmpDir) {
 async function run() {
   console.log('\nRepo Docs Route Tests\n');
 
-  await test('register returns 3 route descriptors', async () => {
+  await test('register returns 5 route descriptors', async () => {
     const routes = registerWithMocks();
-    assert.equal(routes.length, 3);
+    assert.equal(routes.length, 5);
   });
 
   await test('GET /api/repo-docs/list requires repoPath', async () => {

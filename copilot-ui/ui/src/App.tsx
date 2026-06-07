@@ -18,6 +18,7 @@ import LexiconView from './tabs/Lexicon/LexiconView';
 import AssetCreationWizard from './views/Catalog/AssetCreationWizard';
 import AddProjectWizard from './views/Project/AddProjectWizard';
 import WorkspaceView from './views/Workspace/WorkspaceView';
+import WorkspaceFloatingCard from './components/WorkspaceFloatingCard';
 import RepositoriesView from './views/Repositories/RepositoriesView';
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
@@ -129,6 +130,7 @@ export default function App() {
       }
     >
       {renderContent()}
+      <WorkspaceFloatingCard />
       </AppLayout>
     </>
   );
