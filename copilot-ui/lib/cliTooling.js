@@ -1,9 +1,12 @@
 'use strict';
 
+const { isNpmAvailable } = require('./toolCliInstallers');
+
 const CLI_TOOLING_CATALOG = Object.freeze([
   { id: 'opencode-cli', title: 'OpenCode CLI', npmPackage: 'opencode-ai', version: 'latest' },
   { id: 'codex-cli', title: 'Codex CLI', npmPackage: '@openai/codex', version: 'latest' },
   { id: 'claude-cli', title: 'Claude Code CLI', npmPackage: '@anthropic-ai/claude-code', version: 'latest' },
+  { id: 'gemini-cli', title: 'Gemini CLI', npmPackage: 'gemini-cli', version: 'latest' },
 ]);
 
 function resolveCliToolingCommand(toolId, options = {}) {
@@ -22,6 +25,9 @@ function runCliInstall(toolId, options = {}) {
   }
   if (options.dryRun) {
     return { ok: true, dryRun: true, command };
+  }
+  if (!isNpmAvailable()) {
+    return { ok: false, error: 'npm is not available on this system. Install Node.js from https://nodejs.org/' };
   }
   try {
     const childProcess = options.childProcess || require('child_process');

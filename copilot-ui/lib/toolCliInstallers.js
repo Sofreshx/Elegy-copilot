@@ -43,6 +43,13 @@ const KNOWN_CLI_TOOLS = [
     packageName: '@anthropic-ai/claude-code',
     installCommand: 'npm install -g @anthropic-ai/claude-code',
   },
+  {
+    id: 'gemini-cli',
+    label: 'Gemini CLI',
+    command: 'gemini',
+    packageName: 'gemini-cli',
+    installCommand: 'npm install -g gemini-cli',
+  },
 ];
 
 /**
@@ -127,6 +134,28 @@ function listCliToolStatuses(spawnSyncImpl) {
 }
 
 /**
+ * Check whether npm is available on the system PATH.
+ *
+ * Uses spawnSync to run `npm --version` with a 5-second timeout.
+ * Returns true if npm exits with code 0, false otherwise.
+ *
+ * @returns {boolean}
+ */
+function isNpmAvailable() {
+  try {
+    const { execSync } = require('child_process');
+    execSync('npm --version', {
+      timeout: 5000,
+      windowsHide: true,
+      stdio: 'ignore',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Install a CLI tool via `npm install -g <packageName>`.
  * Uses child_process.execFile asynchronously to avoid blocking the event loop.
  *
@@ -137,6 +166,17 @@ function listCliToolStatuses(spawnSyncImpl) {
  */
 async function installCliTool(toolId, execImpl) {
   const tool = findTool(toolId);
+
+  // Pre-check: is npm available?
+  if (!isNpmAvailable()) {
+    return {
+      ok: false,
+      toolId,
+      version: null,
+      error: 'npm is not available on this system. Install Node.js (which includes npm) from https://nodejs.org/',
+    };
+  }
+
   const execFile = execImpl || require('child_process').execFile;
 
   return new Promise((resolve) => {
@@ -166,4 +206,5 @@ module.exports = {
   getCliToolStatus,
   listCliToolStatuses,
   installCliTool,
+  isNpmAvailable,
 };

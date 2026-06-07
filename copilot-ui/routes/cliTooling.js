@@ -2,6 +2,7 @@
 
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 const { CLI_TOOLING_CATALOG, runCliInstall, detectCliTool } = require('../lib/cliTooling');
+const { isNpmAvailable } = require('../lib/toolCliInstallers');
 
 function buildCliToolingStatus(deps) {
   const childProcess = deps.childProcess || require('node:child_process');
@@ -10,6 +11,7 @@ function buildCliToolingStatus(deps) {
   );
   return {
     ok: true,
+    npmAvailable: isNpmAvailable(),
     tools,
     checkedAt: new Date().toISOString(),
   };

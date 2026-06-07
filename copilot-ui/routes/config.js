@@ -480,7 +480,10 @@ async function handleStartDeepseekBridge(ctx, deps) {
     let bridgePath = ds.bridgePath;
 
     if (!bridgePath || !require('fs').existsSync(bridgePath)) {
-      deps.sendJson(ctx.res, 400, { error: 'Moon Bridge executable path is not configured or not found.' });
+      deps.sendJson(ctx.res, 400, {
+        error: 'Moon Bridge executable not found. Run "Install Moon Bridge" first from the Codex Provider settings to set up the bridge binary.',
+        bridgePath: bridgePath || null,
+      });
       return;
     }
 
@@ -496,7 +499,8 @@ async function handleStartDeepseekBridge(ctx, deps) {
         bridgePath = found;
       } else {
         deps.sendJson(ctx.res, 400, {
-          error: 'Moon Bridge path is a directory, not an executable. Build the binary first (go build) or provide the full path to the executable.',
+          error: 'Moon Bridge path is a directory, not an executable. The binary must be built first. Run "Install Moon Bridge" from Codex Provider settings, or run "go build" inside the Moon Bridge source directory.',
+          searchedPaths: candidates.map((name) => path.join(bridgePath, name)),
         });
         return;
       }
@@ -671,27 +675,91 @@ async function handleBootstrapMoonBridge(ctx, deps) {
     const forceRebuild = body.forceRebuild === true;
 
     const bundledSource = resolveBundledMoonBridgeSource();
-    const result = deps.moonBridgeBootstrap.bootstrapMoonBridge({
+    const preStatus = deps.moonBridgeBootstrap.getBootstrapStatus({
       copilotHome,
-      forceRebuild,
       bundledSource: bundledSource || undefined,
     });
 
-    deps.codexConfig.saveBootstrapState(codexHome, result.status);
+    // Fast path: bundled binary is available — run synchronously (just a file copy)
+    if (preStatus.bundledSourceAvailable) {
+      const result = deps.moonBridgeBootstrap.bootstrapMoonBridge({
+        copilotHome,
+        forceRebuild,
+        bundledSource,
+      });
+      deps.codexConfig.saveBootstrapState(codexHome, result.status);
 
-    if (result.success) {
-      deps.sendJson(ctx.res, 200, {
-        success: true,
-        message: 'Moon Bridge installed and built successfully.',
-        status: result.status,
-      });
-    } else {
-      deps.sendJson(ctx.res, 200, {
-        success: false,
-        error: result.error || 'Moon Bridge bootstrap failed.',
-        status: result.status,
-      });
+      if (result.success) {
+        deps.sendJson(ctx.res, 200, {
+          success: true,
+          message: 'Moon Bridge installed and built successfully.',
+          status: result.status,
+        });
+      } else {
+        deps.sendJson(ctx.res, 200, {
+          success: false,
+          error: result.error || 'Moon Bridge bootstrap failed.',
+          status: result.status,
+        });
+      }
+      return;
     }
+
+    // Slow path: needs git clone + go build. Check prerequisites first.
+    if (!preStatus.gitAvailable) {
+      deps.sendJson(ctx.res, 400, {
+        success: false,
+        error: 'Git is not available on this system. Moon Bridge requires git to clone the source repository. Install git from https://git-scm.com/ or use a pre-built binary.',
+        status: preStatus,
+      });
+      return;
+    }
+
+    if (!preStatus.goAvailable) {
+      deps.sendJson(ctx.res, 400, {
+        success: false,
+        error: 'Go 1.25+ is not available on this system. Moon Bridge requires Go to build from source. Install Go from https://go.dev/ or use a pre-built binary.',
+        status: preStatus,
+      });
+      return;
+    }
+
+    // Run bootstrap in a forked child process to avoid blocking the event loop
+    const { fork } = require('child_process');
+    const workerPath = require.resolve('../lib/moonBridgeBootstrapWorker');
+
+    deps.sendJson(ctx.res, 202, {
+      success: true,
+      message: 'Moon Bridge installation started. This may take a few minutes for git clone and go build...',
+      status: preStatus,
+      async: true,
+    });
+
+    // The child process runs in background; the response has already been sent.
+    // We save the result to state so subsequent calls can pick it up.
+    const child = fork(workerPath, [], { stdio: 'ignore' });
+
+    child.on('message', (msg) => {
+      if (msg && msg.ok) {
+        deps.codexConfig.saveBootstrapState(codexHome, msg.result.status);
+      } else {
+        deps.codexConfig.saveBootstrapState(codexHome, {
+          ...preStatus,
+          lastError: (msg && msg.error) || 'Child process bootstrap failed',
+          lastBootstrapAt: new Date().toISOString(),
+        });
+      }
+    });
+
+    child.on('error', () => {
+      deps.codexConfig.saveBootstrapState(codexHome, {
+        ...preStatus,
+        lastError: 'Child process error during bootstrap',
+        lastBootstrapAt: new Date().toISOString(),
+      });
+    });
+
+    child.send({ copilotHome, forceRebuild });
   } catch (err) {
     deps.sendJson(ctx.res, 500, { error: 'Failed to bootstrap Moon Bridge', details: err.message });
   }
