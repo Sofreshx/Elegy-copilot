@@ -219,6 +219,13 @@
       "type": "agent",
       "source": "opencode-assets/agents/explorer.md",
       "destination": "agents/explorer.md"
+    },
+    {
+      "id": "opencode-ui-system-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/ui-system",
+      "destination": "skills/ui-system",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": []

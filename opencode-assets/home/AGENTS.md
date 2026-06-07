@@ -67,6 +67,7 @@ Primary skills available:
 - `security` — Security review and vulnerability detection
 - `project-conventions-governance` — Repo conventions and governance
 - `stack-detector` — Automatic tech stack detection
+- `ui-system` — Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; treat Figma / Storybook MCP data as context, not authority.
 - `elegy-obsidian` — Foundation skill for read/write/search operations against a local Obsidian vault via the official Obsidian Desktop CLI (v1.12+). Non-authoritative mirror; durable planning state stays in `elegy-planning`.
 
 See the [Lane Agents](#lane-agents) section for lane selection, agent profiles, and escalation rules.

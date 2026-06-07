@@ -181,6 +181,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-spec-review-skill', { sourceAssetId: 'skill-spec-review' }),
       route('codex-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning' }),
       route('codex-repo-backed-obsidian-docs-skill', { sourceAssetId: 'skill-repo-backed-obsidian-docs' }),
+      route('codex-ui-system-skill', { sourceAssetId: 'skill-ui-system' }),
     ],
   },
   {
@@ -220,6 +221,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-stack-detector-skill'),
       route('opencode-worktree-plugin', { destination: 'plugins/worktree.js' }),
       route('opencode-worktree-skill'),
+      route('opencode-ui-system-skill', { sourceAssetId: 'skill-ui-system' }),
     ],
   },
   {

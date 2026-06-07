@@ -58,6 +58,7 @@ export const SHIPPED_ASSETS = [
   skill('skill-spec-authoring', 'catalog-assets/shared-skills/spec-authoring', { loadMode: 'on-demand' }),
   skill('skill-spec-dev', 'catalog-assets/shared-skills/spec-dev', { loadMode: 'on-demand' }),
   skill('skill-spec-review', 'catalog-assets/shared-skills/spec-review', { loadMode: 'on-demand' }),
+  skill('skill-ui-system', 'catalog-assets/shared-skills/ui-system', { loadMode: 'on-demand' }),
 
   instructions('codex-global-instructions', 'codex-assets/home/AGENTS.md'),
   agent('codex-reviewer-agent', 'codex-assets/agents/reviewer.toml'),
