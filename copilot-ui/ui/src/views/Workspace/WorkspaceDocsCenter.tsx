@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Panel, MarkdownMessage } from '../../components';
+import { navigationStore } from '../../stores/navigation';
 import { listRepoDocs, readRepoDoc } from '../../lib/api/repoDocs';
 import type { RepoDocEntry, RepoDocReadResponse } from '../../lib/api/repoDocs';
 
@@ -139,19 +140,22 @@ export default function WorkspaceDocsCenter({ repoPath, isFocused, treeVisible =
       {/* Inline tree sidebar */}
       {treeVisible && !treeHidden && (
         <div className="workspace-docs-tree" data-testid="workspace-docs-tree">
-          <Panel title="Docs & Specs" subtitle={`${files.length} files`} testId="workspace-docs-panel">
-            {treeContent}
-          </Panel>
-          {onToggleTree && (
-            <button
-              className="workspace-docs-tree-close"
-              onClick={onToggleTree}
-              data-testid="workspace-docs-tree-close"
-              title="Close tree panel"
-            >
-              &times;
-            </button>
-          )}
+          <div className="workspace-docs-tree-header">
+            <span className="workspace-docs-tree-title">Docs & Specs</span>
+            <span className="workspace-docs-tree-count">{files.length} files</span>
+            {onToggleTree && (
+              <button
+                className="workspace-docs-tree-header-close"
+                onClick={onToggleTree}
+                data-testid="workspace-docs-tree-close"
+                title="Hide tree"
+                aria-label="Hide tree"
+              >
+                &times;
+              </button>
+            )}
+          </div>
+          {treeContent}
         </div>
       )}
 
@@ -159,39 +163,54 @@ export default function WorkspaceDocsCenter({ repoPath, isFocused, treeVisible =
         {/* Viewer header with tree toggle for collapsed mode */}
         <div className="workspace-docs-viewer-header">
           {!treeVisible && !treeHidden && (
-            <div className="workspace-docs-tree-toggle" data-testid="workspace-docs-tree-toggle">
-              <button
-                className="workspace-docs-tree-toggle-btn"
-                onClick={() => setTreeOverlayVisible((v) => !v)}
-                title="Show document tree"
-              >
-                Docs &triangleright;
-              </button>
-              {/* Tree overlay dropdown when collapsed */}
-              {treeOverlayVisible && (
-                <div className="workspace-docs-tree-overlay" data-testid="workspace-docs-tree-overlay">
-                  <div className="workspace-docs-tree-overlay-header">
-                    <span className="workspace-docs-tree-overlay-title">
-                      Docs & Specs ({files.length} files)
-                    </span>
-                    <button
-                      className="workspace-docs-tree-overlay-close"
-                      onClick={() => setTreeOverlayVisible(false)}
-                      title="Close overlay"
-                      data-testid="workspace-docs-tree-overlay-close"
-                    >
-                      &times;
-                    </button>
-                  </div>
-                  {treeContent}
-                </div>
-              )}
-            </div>
+            <button
+              className="workspace-docs-viewer-tree-restore"
+              onClick={() => setTreeOverlayVisible((v) => !v)}
+              title="Show document tree"
+              aria-label="Show document tree"
+              data-testid="workspace-docs-tree-toggle"
+            >
+              <span aria-hidden="true">&#9776;</span>
+            </button>
           )}
           {selectedDoc && (
-            <span className="workspace-docs-viewer-path">{selectedDoc.path}</span>
+            <>
+              <span className="workspace-docs-viewer-path">{selectedDoc.path}</span>
+              <button
+                className="workspace-docs-viewer-focus-btn"
+                onClick={() => navigationStore.toggleWorkspaceCenterFocus()}
+                aria-label={isFocused ? 'Exit focus' : 'Focus'}
+                title={isFocused ? 'Exit focus' : 'Focus'}
+                data-testid="workspace-docs-focus-toggle"
+              >
+                <span aria-hidden="true">{isFocused ? '\u25A3' : '\u25A1'}</span>
+              </button>
+            </>
+          )}
+          {!selectedDoc && !treeVisible && !treeHidden && (
+            <span className="workspace-docs-viewer-path">No document selected</span>
           )}
         </div>
+
+        {/* Tree overlay when collapsed */}
+        {treeOverlayVisible && (
+          <div className="workspace-docs-tree-overlay" data-testid="workspace-docs-tree-overlay">
+            <div className="workspace-docs-tree-overlay-header">
+              <span className="workspace-docs-tree-overlay-title">
+                Docs & Specs ({files.length} files)
+              </span>
+              <button
+                className="workspace-docs-tree-overlay-close"
+                onClick={() => setTreeOverlayVisible(false)}
+                title="Close overlay"
+                data-testid="workspace-docs-tree-overlay-close"
+              >
+                &times;
+              </button>
+            </div>
+            {treeContent}
+          </div>
+        )}
 
         {/* Content area */}
         {docLoading ? (

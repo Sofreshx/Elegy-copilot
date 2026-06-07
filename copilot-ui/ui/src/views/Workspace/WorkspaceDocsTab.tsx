@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Button } from '../../components';
 import { navigationStore } from '../../stores/navigation';
 import WorkspaceDocsCenter from './WorkspaceDocsCenter';
 import DocumentationGraphView from './DocumentationGraphView';
@@ -15,37 +14,45 @@ export default function WorkspaceDocsTab({ repoPath, isFocused }: WorkspaceDocsT
 
   return (
     <div className="workspace-docs-tab" data-testid="workspace-docs-tab">
-      <div className="workspace-docs-tab-header" data-testid="workspace-docs-tab-header">
-        <Button
-          variant="ghost"
-          size="sm"
-          testId="workspace-docs-focus-toggle"
+      {/* Icon-only toolbar */}
+      <div className="workspace-docs-toolbar" data-testid="workspace-docs-toolbar">
+        <button
+          className="workspace-docs-toolbar-btn"
           onClick={() => navigationStore.toggleWorkspaceCenterFocus()}
+          aria-label={isFocused ? 'Exit focus' : 'Focus'}
+          title={isFocused ? 'Exit focus' : 'Focus'}
+          data-testid="workspace-docs-focus-toggle"
+          type="button"
         >
-          {isFocused ? 'Exit focus' : 'Focus'}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          testId="workspace-docs-graph-toggle"
+          <span aria-hidden="true">{isFocused ? '\u25A3' : '\u25A1'}</span>
+        </button>
+        <button
+          className="workspace-docs-toolbar-btn"
           onClick={() => setShowGraph(!showGraph)}
+          aria-label={showGraph ? 'List view' : 'Graph view'}
+          title={showGraph ? 'List view' : 'Graph view'}
+          data-testid="workspace-docs-graph-toggle"
+          type="button"
         >
-          {showGraph ? 'List view' : 'Graph view'}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          testId="workspace-docs-tree-toggle"
+          <span aria-hidden="true">{showGraph ? '\u2630' : '\u25C9'}</span>
+        </button>
+        <div className="workspace-docs-toolbar-spacer" />
+        <button
+          className="workspace-docs-toolbar-btn"
           onClick={() => setTreeVisible((v) => !v)}
+          aria-label={treeVisible ? 'Hide tree' : 'Show tree'}
+          title={treeVisible ? 'Hide tree' : 'Show tree'}
+          data-testid="workspace-docs-tree-toggle"
+          type="button"
         >
-          {treeVisible ? 'Hide tree' : 'Show tree'}
-        </Button>
+          <span aria-hidden="true">{treeVisible ? '\u25C0' : '\u25B6'}</span>
+        </button>
       </div>
 
       {showGraph ? (
         <DocumentationGraphView
           repoPath={repoPath}
-          onSelectDoc={(docPath: string) => {
+          onSelectDoc={(_docPath: string) => {
             setShowGraph(false);
           }}
         />
