@@ -2141,7 +2141,7 @@ textarea:focus-visible,
 
 .app-layout {
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto 1fr auto;
   height: 100dvh;
   height: 100vh;
   width: 100vw;
@@ -2192,6 +2192,10 @@ textarea:focus-visible,
 }
 
 /* ── App Titlebar (custom frameless chrome) ── */
+/* NOTE: -webkit-app-region must be set EXPLICITLY on every interactive child element.
+   CSS inheritance of this property is unreliable in Tauri v2's WebView2 on Windows.
+   Relying on parent no-drag alone can cause click events to be intercepted for
+   window dragging, breaking minimize/maximize/close buttons and resize handles. */
 
 .app-titlebar {
   display: flex;
@@ -2231,6 +2235,7 @@ textarea:focus-visible,
   align-items: center;
   gap: var(--space-2xs);
   margin-right: var(--space-xs);
+  -webkit-app-region: no-drag;
 }
 
 .app-titlebar-updater-btn {
@@ -2259,6 +2264,7 @@ textarea:focus-visible,
   align-items: center;
   gap: 0;
   flex-shrink: 0;
+  -webkit-app-region: no-drag;
 }
 
 .window-control-btn {
@@ -2284,6 +2290,88 @@ textarea:focus-visible,
 .window-control-close:hover {
   background: var(--color-danger-500);
   color: #fff;
+}
+
+/* ── Frameless Resize Hit Zones (Tauri) ── */
+
+.window-resize-regions {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.window-resize-region {
+  position: fixed;
+  pointer-events: auto;
+  background: transparent;
+  user-select: none;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+}
+
+.window-resize-region-n {
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.window-resize-region-s {
+  bottom: 0;
+  left: 12px;
+  right: 12px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.window-resize-region-w {
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.window-resize-region-e {
+  top: 12px;
+  bottom: 12px;
+  right: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.window-resize-region-nw {
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+
+.window-resize-region-ne {
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
+
+.window-resize-region-sw {
+  bottom: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
+
+.window-resize-region-se {
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
 }
 
 /* ── Status Bar ── */

@@ -20,6 +20,7 @@
     "core:window:allow-center",
     "core:window:allow-set-decorations",
     "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
     "core:window:allow-toggle-maximize",
     "core:window:allow-is-maximized"
   ]

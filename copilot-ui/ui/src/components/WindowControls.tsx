@@ -1,44 +1,58 @@
 import { useState, useEffect } from 'react';
-
-interface DesktopWindowControls {
-  minimize: () => void;
-  toggleMaximize: () => void;
-  close: () => void;
-}
+import type { DesktopWindowControls } from '../vite-env';
 
 function getWindowControls(): DesktopWindowControls | null {
-  const win = window as Window & {
-    instructionEngineDesktop?: {
-      windowControls?: DesktopWindowControls
-    }
-  };
-  return win.instructionEngineDesktop?.windowControls ?? null;
+  return window.instructionEngineDesktop?.windowControls ?? null;
 }
 
 export default function WindowControls() {
   const [isMaximized, setIsMaximized] = useState(false);
   const controls = getWindowControls();
 
-  // Listen for window resize to detect maximize state
   useEffect(() => {
-    function checkMaximized() {
-      // In Tauri frameless mode, check if window fills the screen
-      const isFullscreen = window.outerWidth >= screen.availWidth - 1
-        && window.outerHeight >= screen.availHeight - 1;
-      setIsMaximized(isFullscreen);
+    let cancelled = false;
+
+    async function syncMaximizedState() {
+      if (!controls) return;
+      try {
+        const next = await controls.isMaximized();
+        if (!cancelled) {
+          setIsMaximized(Boolean(next));
+        }
+      } catch {
+        // best-effort; ignore maximize-state sync failures
+      }
     }
-    checkMaximized();
-    window.addEventListener('resize', checkMaximized);
-    return () => window.removeEventListener('resize', checkMaximized);
-  }, []);
+
+    void syncMaximizedState();
+    window.addEventListener('resize', syncMaximizedState);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('resize', syncMaximizedState);
+    };
+  }, [controls]);
 
   if (!controls) return null;
+
+  async function handleToggleMaximize() {
+    if (!controls) return;
+    try {
+      await controls.toggleMaximize();
+    } finally {
+      try {
+        const next = await controls.isMaximized();
+        setIsMaximized(Boolean(next));
+      } catch {
+        // best-effort; leave previous state if refresh fails
+      }
+    }
+  }
 
   return (
     <div className="window-controls" data-testid="window-controls">
       <button
         className="window-control-btn"
-        onClick={controls.minimize}
+        onClick={() => { void controls.minimize(); }}
         aria-label="Minimize"
         title="Minimize"
         data-testid="app-window-minimize"
@@ -48,7 +62,7 @@ export default function WindowControls() {
       </button>
       <button
         className="window-control-btn"
-        onClick={() => { controls.toggleMaximize(); setIsMaximized(!isMaximized); }}
+        onClick={handleToggleMaximize}
         aria-label={isMaximized ? 'Restore' : 'Maximize'}
         title={isMaximized ? 'Restore' : 'Maximize'}
         data-testid="app-window-maximize"
@@ -58,7 +72,7 @@ export default function WindowControls() {
       </button>
       <button
         className="window-control-btn window-control-close"
-        onClick={controls.close}
+        onClick={() => { void controls.close(); }}
         aria-label="Close"
         title="Close"
         data-testid="app-window-close"

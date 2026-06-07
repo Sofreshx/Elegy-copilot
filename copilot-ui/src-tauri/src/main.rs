@@ -630,25 +630,35 @@ fn build_init_script(app: &AppHandle) -> Result<String, String> {
                     updaterPollTimer = null;
                 };
 
+        const tauriWindow = () => {
+          const tauri = window.__TAURI__;
+          const factory = tauri && tauri.window && typeof tauri.window.getCurrentWindow === 'function'
+            ? tauri.window.getCurrentWindow.bind(tauri.window)
+            : null;
+          return factory ? factory() : null;
+        };
+
+        const noop = () => Promise.resolve();
+        const noopBool = () => Promise.resolve(false);
+
+        const currentWindow = tauriWindow();
+        const tauriWindowControls = currentWindow ? {
+          minimize: () => Promise.resolve(currentWindow.minimize()).catch(() => {}),
+          toggleMaximize: () => Promise.resolve(currentWindow.toggleMaximize()).catch(() => {}),
+          close: () => Promise.resolve(currentWindow.close()).catch(() => {}),
+          isMaximized: () => Promise.resolve(currentWindow.isMaximized()).catch(() => false),
+          startResizeDragging: (direction) => Promise.resolve(currentWindow.startResizeDragging(direction)).catch(() => {}),
+        } : null;
+
         window.instructionEngineDesktop = Object.freeze({
           platform: 'win32',
           shell: 'tauri',
-          windowControls: Object.freeze({
-            minimize: () => {
-              try {
-                const invoke = window.__TAURI_INTERNALS__?.invoke;
-                if (invoke) { invoke('plugin:window|minimize').catch(() => {}); }
-              } catch {}
-            },
-            toggleMaximize: () => {
-              try {
-                const invoke = window.__TAURI_INTERNALS__?.invoke;
-                if (invoke) { invoke('plugin:window|toggle_maximize').catch(() => {}); }
-              } catch {}
-            },
-            close: () => {
-              window.close();
-            },
+          windowControls: Object.freeze(tauriWindowControls ?? {
+            minimize: noop,
+            toggleMaximize: noop,
+            close: noop,
+            isMaximized: noopBool,
+            startResizeDragging: () => noop(),
           }),
                     updater: Object.freeze({
                         getState: () => pollUpdaterState(),
@@ -753,7 +763,6 @@ fn create_main_window(app: &AppHandle, window_url: &str) -> Result<(), String> {
         .title("Elegy Copilot")
         .inner_size(1360.0, 900.0)
         .min_inner_size(1100.0, 720.0)
-        .decorations(false)
         .initialization_script(&init_script)
         .on_navigation(move |url| {
             if is_loopback_runtime_url(url) {

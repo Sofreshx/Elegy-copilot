@@ -113,10 +113,6 @@ export default function App() {
       <ToastContainer />
       <AppLayout
       appVersion={desktopUpdaterState.currentVersion}
-      canDownload={desktopUpdaterState.canDownload}
-      canRestartToUpdate={desktopUpdaterState.canRestartToUpdate}
-      onDownloadUpdate={() => void desktopUpdaterStore.downloadUpdate()}
-      onRestartToUpdate={() => void desktopUpdaterStore.restartToUpdate()}
       sidebar={
         <Sidebar
           items={SIDEBAR_NAV_ITEMS}

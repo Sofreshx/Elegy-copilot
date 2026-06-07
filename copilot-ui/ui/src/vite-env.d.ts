@@ -2,11 +2,30 @@
 
 import type { DesktopUpdaterState } from './lib/types';
 
+export type TauriResizeDirection =
+	| 'East'
+	| 'West'
+	| 'North'
+	| 'South'
+	| 'NorthEast'
+	| 'NorthWest'
+	| 'SouthEast'
+	| 'SouthWest';
+
+export interface DesktopWindowControls {
+	minimize: () => Promise<void>;
+	toggleMaximize: () => Promise<void>;
+	close: () => Promise<void>;
+	isMaximized: () => Promise<boolean>;
+	startResizeDragging: (direction: TauriResizeDirection) => Promise<void>;
+}
+
 declare global {
 	interface Window {
 		instructionEngineDesktop?: {
 			platform: string;
 			shell: string;
+			windowControls?: DesktopWindowControls;
 			updater?: {
 				getState: () => Promise<DesktopUpdaterState>;
 				checkForUpdates: () => Promise<DesktopUpdaterState>;
@@ -18,6 +37,19 @@ declare global {
 		__TAURI__?: {
 			core: {
 				invoke: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+			};
+			window?: {
+				getCurrentWindow: () => {
+					minimize: () => Promise<void>;
+					unminimize: () => Promise<void>;
+					toggleMaximize: () => Promise<void>;
+					maximize: () => Promise<void>;
+					unmaximize: () => Promise<void>;
+					close: () => Promise<void>;
+					isMaximized: () => Promise<boolean>;
+					startResizeDragging: (direction: TauriResizeDirection) => Promise<void>;
+					startDragging: () => Promise<void>;
+				};
 			};
 			webviewWindow: {
 				WebviewWindow: new (
