@@ -326,6 +326,286 @@ await test('deletion with unknown status is refused without force (fail-closed)'
   });
 });
 
+await test('session.created writes a session record and links the current worktree', () => {
+  return withTempDir(async (root) => {
+    const repoDir = path.join(root, 'repo');
+    fs.mkdirSync(repoDir);
+    initGitRepo(repoDir);
+
+    const copilotHome = path.join(root, '.copilot');
+    fs.mkdirSync(copilotHome, { recursive: true });
+    process.env.ELEGY_COPILOT_HOME = copilotHome;
+    process.env.OPENCODE_SESSION_ID = 'sess-1';
+
+    try {
+      const plugin = await WorktreePlugin({ project: { path: repoDir } });
+      const createResult = await plugin.tool.worktree_create.execute({ branch: 'feature/sess-created' });
+      const worktreeId = createResult.metadata.sharedRegistry;
+
+      await plugin.event({ event: { type: 'session.created', properties: { sessionID: 'sess-1' } } });
+
+      const expectedRepoId = computeRepoId(repoDir);
+      const sessPath = path.join(copilotHome, 'repo-state', expectedRepoId, 'opencode-sessions', 'sess-1.json');
+      assert.ok(fs.existsSync(sessPath), 'session record should exist');
+      const sess = JSON.parse(fs.readFileSync(sessPath, 'utf8'));
+      assert.strictEqual(sess.contractVersion, '1');
+      assert.strictEqual(sess.source, 'opencode-worktree-plugin');
+      assert.strictEqual(sess.sessionId, 'sess-1');
+      assert.strictEqual(sess.repoId, expectedRepoId);
+      assert.strictEqual(sess.worktreeId, worktreeId);
+      assert.strictEqual(sess.status, 'running');
+      assert.ok(sess.lifecycle.startedAt, 'should have startedAt');
+      assert.ok(sess.lifecycle.lastSeenAt, 'should have lastSeenAt');
+      assert.strictEqual(sess.lastEvent.type, 'session.created');
+
+      // The linked worktree should be marked active
+      const wtPath = path.join(copilotHome, 'repo-state', expectedRepoId, 'worktrees', worktreeId + '.json');
+      const wt = JSON.parse(fs.readFileSync(wtPath, 'utf8'));
+      assert.strictEqual(wt.status, 'active', 'worktree should be active after session.created');
+      assert.strictEqual(wt.assignment.sessionId, 'sess-1');
+
+      await plugin.tool.worktree_delete.execute({ branch: 'feature/sess-created', force: true });
+    } finally {
+      delete process.env.ELEGY_COPILOT_HOME;
+      delete process.env.OPENCODE_SESSION_ID;
+    }
+  });
+});
+
+await test('session.idle marks session idle without releasing worktree assignment', () => {
+  return withTempDir(async (root) => {
+    const repoDir = path.join(root, 'repo');
+    fs.mkdirSync(repoDir);
+    initGitRepo(repoDir);
+
+    const copilotHome = path.join(root, '.copilot');
+    fs.mkdirSync(copilotHome, { recursive: true });
+    process.env.ELEGY_COPILOT_HOME = copilotHome;
+    process.env.OPENCODE_SESSION_ID = 'sess-2';
+
+    try {
+      const plugin = await WorktreePlugin({ project: { path: repoDir } });
+      const createResult = await plugin.tool.worktree_create.execute({ branch: 'feature/sess-idle' });
+      const worktreeId = createResult.metadata.sharedRegistry;
+      const expectedRepoId = computeRepoId(repoDir);
+
+      await plugin.event({ event: { type: 'session.created', properties: { sessionID: 'sess-2' } } });
+      await plugin.event({ event: { type: 'session.idle', properties: { sessionID: 'sess-2' } } });
+
+      const sessPath = path.join(copilotHome, 'repo-state', expectedRepoId, 'opencode-sessions', 'sess-2.json');
+      const sess = JSON.parse(fs.readFileSync(sessPath, 'utf8'));
+      assert.strictEqual(sess.status, 'idle', 'session should be idle');
+      assert.ok(sess.lifecycle.idleAt, 'should record idleAt');
+      assert.strictEqual(sess.worktreeId, worktreeId, 'worktree linkage should persist');
+
+      const wtPath = path.join(copilotHome, 'repo-state', expectedRepoId, 'worktrees', worktreeId + '.json');
+      const wt = JSON.parse(fs.readFileSync(wtPath, 'utf8'));
+      assert.strictEqual(wt.assignment.sessionId, 'sess-2', 'worktree assignment should be preserved on idle');
+      assert.notStrictEqual(wt.status, 'reusable', 'idle should not release the worktree');
+
+      await plugin.tool.worktree_delete.execute({ branch: 'feature/sess-idle', force: true });
+    } finally {
+      delete process.env.ELEGY_COPILOT_HOME;
+      delete process.env.OPENCODE_SESSION_ID;
+    }
+  });
+});
+
+await test('session.error marks session error and worktree interrupted', () => {
+  return withTempDir(async (root) => {
+    const repoDir = path.join(root, 'repo');
+    fs.mkdirSync(repoDir);
+    initGitRepo(repoDir);
+
+    const copilotHome = path.join(root, '.copilot');
+    fs.mkdirSync(copilotHome, { recursive: true });
+    process.env.ELEGY_COPILOT_HOME = copilotHome;
+    process.env.OPENCODE_SESSION_ID = 'sess-3';
+
+    try {
+      const plugin = await WorktreePlugin({ project: { path: repoDir } });
+      const createResult = await plugin.tool.worktree_create.execute({ branch: 'feature/sess-error' });
+      const worktreeId = createResult.metadata.sharedRegistry;
+      const expectedRepoId = computeRepoId(repoDir);
+
+      await plugin.event({ event: { type: 'session.created', properties: { sessionID: 'sess-3' } } });
+      await plugin.event({ event: { type: 'session.error', properties: { sessionID: 'sess-3', error: 'boom' } } });
+
+      const sessPath = path.join(copilotHome, 'repo-state', expectedRepoId, 'opencode-sessions', 'sess-3.json');
+      const sess = JSON.parse(fs.readFileSync(sessPath, 'utf8'));
+      assert.strictEqual(sess.status, 'error', 'session should be error');
+      assert.ok(sess.lifecycle.errorAt, 'should record errorAt');
+      assert.strictEqual(sess.error.message, 'boom');
+
+      const wtPath = path.join(copilotHome, 'repo-state', expectedRepoId, 'worktrees', worktreeId + '.json');
+      const wt = JSON.parse(fs.readFileSync(wtPath, 'utf8'));
+      assert.strictEqual(wt.status, 'interrupted', 'worktree should be interrupted');
+      assert.ok(wt.lifecycle.interruptedAt, 'should record interruptedAt');
+      assert.strictEqual(wt.assignment.sessionId, 'sess-3', 'sessionId is preserved on interrupted worktree');
+
+      await plugin.tool.worktree_delete.execute({ branch: 'feature/sess-error', force: true });
+    } finally {
+      delete process.env.ELEGY_COPILOT_HOME;
+      delete process.env.OPENCODE_SESSION_ID;
+    }
+  });
+});
+
+await test('session.deleted marks session deleted and worktree reusable', () => {
+  return withTempDir(async (root) => {
+    const repoDir = path.join(root, 'repo');
+    fs.mkdirSync(repoDir);
+    initGitRepo(repoDir);
+
+    const copilotHome = path.join(root, '.copilot');
+    fs.mkdirSync(copilotHome, { recursive: true });
+    process.env.ELEGY_COPILOT_HOME = copilotHome;
+    process.env.OPENCODE_SESSION_ID = 'sess-4';
+
+    try {
+      const plugin = await WorktreePlugin({ project: { path: repoDir } });
+      const createResult = await plugin.tool.worktree_create.execute({ branch: 'feature/sess-deleted' });
+      const worktreeId = createResult.metadata.sharedRegistry;
+      const expectedRepoId = computeRepoId(repoDir);
+
+      await plugin.event({ event: { type: 'session.created', properties: { sessionID: 'sess-4' } } });
+      await plugin.event({ event: { type: 'session.deleted', properties: { sessionID: 'sess-4' } } });
+
+      const sessPath = path.join(copilotHome, 'repo-state', expectedRepoId, 'opencode-sessions', 'sess-4.json');
+      const sess = JSON.parse(fs.readFileSync(sessPath, 'utf8'));
+      assert.strictEqual(sess.status, 'deleted', 'session should be deleted');
+      assert.ok(sess.lifecycle.deletedAt, 'should record deletedAt');
+
+      const wtPath = path.join(copilotHome, 'repo-state', expectedRepoId, 'worktrees', worktreeId + '.json');
+      const wt = JSON.parse(fs.readFileSync(wtPath, 'utf8'));
+      assert.strictEqual(wt.status, 'reusable', 'worktree should be reusable after session.deleted');
+      assert.strictEqual(wt.assignment.sessionId, null, 'worktree assignment should be cleared');
+
+      await plugin.tool.worktree_delete.execute({ branch: 'feature/sess-deleted', force: true });
+    } finally {
+      delete process.env.ELEGY_COPILOT_HOME;
+      delete process.env.OPENCODE_SESSION_ID;
+    }
+  });
+});
+
+await test('legacy session.create/session.delete are tolerated as running/deleted', () => {
+  return withTempDir(async (root) => {
+    const repoDir = path.join(root, 'repo');
+    fs.mkdirSync(repoDir);
+    initGitRepo(repoDir);
+
+    const copilotHome = path.join(root, '.copilot');
+    fs.mkdirSync(copilotHome, { recursive: true });
+    process.env.ELEGY_COPILOT_HOME = copilotHome;
+    process.env.OPENCODE_SESSION_ID = 'sess-legacy';
+
+    try {
+      const plugin = await WorktreePlugin({ project: { path: repoDir } });
+      const createResult = await plugin.tool.worktree_create.execute({ branch: 'feature/sess-legacy' });
+      const worktreeId = createResult.metadata.sharedRegistry;
+      const expectedRepoId = computeRepoId(repoDir);
+
+      // Legacy event name
+      await plugin.event({ event: { type: 'session.create', properties: { sessionID: 'sess-legacy' } } });
+      const sessPath = path.join(copilotHome, 'repo-state', expectedRepoId, 'opencode-sessions', 'sess-legacy.json');
+      const sess1 = JSON.parse(fs.readFileSync(sessPath, 'utf8'));
+      assert.strictEqual(sess1.status, 'running', 'legacy session.create should map to running');
+      assert.strictEqual(sess1.lastEvent.type, 'session.create');
+
+      // Legacy delete
+      await plugin.event({ event: { type: 'session.delete', properties: { sessionID: 'sess-legacy' } } });
+      const sess2 = JSON.parse(fs.readFileSync(sessPath, 'utf8'));
+      assert.strictEqual(sess2.status, 'deleted', 'legacy session.delete should map to deleted');
+      assert.strictEqual(sess2.lastEvent.type, 'session.delete');
+
+      const wtPath = path.join(copilotHome, 'repo-state', expectedRepoId, 'worktrees', worktreeId + '.json');
+      const wt = JSON.parse(fs.readFileSync(wtPath, 'utf8'));
+      assert.strictEqual(wt.status, 'reusable');
+
+      await plugin.tool.worktree_delete.execute({ branch: 'feature/sess-legacy', force: true });
+    } finally {
+      delete process.env.ELEGY_COPILOT_HOME;
+      delete process.env.OPENCODE_SESSION_ID;
+    }
+  });
+});
+
+await test('worktree_create persists session record when OPENCODE_SESSION_ID is set', () => {
+  return withTempDir(async (root) => {
+    const repoDir = path.join(root, 'repo');
+    fs.mkdirSync(repoDir);
+    initGitRepo(repoDir);
+
+    const copilotHome = path.join(root, '.copilot');
+    fs.mkdirSync(copilotHome, { recursive: true });
+    process.env.ELEGY_COPILOT_HOME = copilotHome;
+    process.env.OPENCODE_SESSION_ID = 'sess-create';
+
+    try {
+      const plugin = await WorktreePlugin({ project: { path: repoDir } });
+      const createResult = await plugin.tool.worktree_create.execute({ branch: 'feature/sess-create' });
+
+      const expectedRepoId = computeRepoId(repoDir);
+      const sessPath = path.join(copilotHome, 'repo-state', expectedRepoId, 'opencode-sessions', 'sess-create.json');
+      assert.ok(fs.existsSync(sessPath), 'session record should be written by worktree_create');
+      const sess = JSON.parse(fs.readFileSync(sessPath, 'utf8'));
+      assert.strictEqual(sess.sessionId, 'sess-create');
+      assert.strictEqual(sess.status, 'running');
+      assert.strictEqual(sess.worktreeId, createResult.metadata.sharedRegistry);
+      assert.strictEqual(sess.branch, 'feature/sess-create');
+      assert.strictEqual(sess.worktreePath, createResult.metadata.worktreePath);
+
+      await plugin.tool.worktree_delete.execute({ branch: 'feature/sess-create', force: true });
+    } finally {
+      delete process.env.ELEGY_COPILOT_HOME;
+      delete process.env.OPENCODE_SESSION_ID;
+    }
+  });
+});
+
+await test('session event resolves sessionID from properties.sessionID / sessionId / id / OPENCODE_SESSION_ID', () => {
+  return withTempDir(async (root) => {
+    const repoDir = path.join(root, 'repo');
+    fs.mkdirSync(repoDir);
+    initGitRepo(repoDir);
+
+    const copilotHome = path.join(root, '.copilot');
+    fs.mkdirSync(copilotHome, { recursive: true });
+    process.env.ELEGY_COPILOT_HOME = copilotHome;
+    process.env.OPENCODE_SESSION_ID = 'env-sess';
+
+    try {
+      const plugin = await WorktreePlugin({ project: { path: repoDir } });
+      await plugin.tool.worktree_create.execute({ branch: 'feature/sess-resolve' });
+      const expectedRepoId = computeRepoId(repoDir);
+
+      // From properties.id (not sessionID)
+      await plugin.event({ event: { type: 'session.created', properties: { id: 'props-id' } } });
+      // From properties.sessionId
+      await plugin.event({ event: { type: 'session.status', properties: { sessionId: 'props-sid' } } });
+      // From top-level sessionId
+      await plugin.event({ event: { type: 'session.status', sessionId: 'top-sid' } });
+      // From OPENCODE_SESSION_ID env (env-sess)
+      await plugin.event({ event: { type: 'session.status' } });
+
+      const dir = path.join(copilotHome, 'repo-state', expectedRepoId, 'opencode-sessions');
+      const names = fs.readdirSync(dir);
+      assert.ok(names.includes('props-id.json'), 'props.id should resolve');
+      assert.ok(names.includes('props-sid.json'), 'props.sessionId should resolve');
+      assert.ok(names.includes('top-sid.json'), 'event.sessionId should resolve');
+      assert.ok(names.includes('env-sess.json'), 'OPENCODE_SESSION_ID should resolve');
+
+      // Clean up
+      const pluginNoEnv = await WorktreePlugin({ project: { path: repoDir } });
+      await pluginNoEnv.tool.worktree_delete.execute({ branch: 'feature/sess-resolve', force: true });
+    } finally {
+      delete process.env.ELEGY_COPILOT_HOME;
+      delete process.env.OPENCODE_SESSION_ID;
+    }
+  });
+});
+
 console.log(`\n${passed} tests passed`);
 if (process.exitCode) {
   console.error('Some tests FAILED');

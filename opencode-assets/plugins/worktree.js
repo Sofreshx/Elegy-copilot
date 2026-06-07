@@ -1,6 +1,6 @@
 import { tool } from "@opencode-ai/plugin/tool";
 import { createHash } from "node:crypto";
-import { mkdir, rm, readFile, readdir, stat, writeFile, cp, copyFile } from "node:fs/promises";
+import { mkdir, rm, readFile, readdir, stat, writeFile, cp, copyFile, rename } from "node:fs/promises";
 import { join, basename, dirname, resolve as pathResolve } from "node:path";
 import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
@@ -9,6 +9,23 @@ const WORKTREE_BASE = process.env.OPENCODE_WORKTREE_BASE
   || join(process.env.HOME || process.env.USERPROFILE || "~", ".local", "share", "opencode", "worktree");
 
 const STATE_DIR = join(WORKTREE_BASE, ".state");
+
+const SESSION_CONTRACT_VERSION = "1";
+const SESSION_SOURCE = "opencode-worktree-plugin";
+const SESSION_STATES = Object.freeze({
+  RUNNING: "running",
+  IDLE: "idle",
+  ERROR: "error",
+  DELETED: "deleted",
+  UNKNOWN: "unknown",
+});
+
+const WORKTREE_STATUS = Object.freeze({
+  READY: "ready",
+  ACTIVE: "active",
+  INTERRUPTED: "interrupted",
+  REUSABLE: "reusable",
+});
 
 // Windows long-path helper: prepend \\?\ for paths >=260 chars
 function safePath(p) {
@@ -53,10 +70,283 @@ async function writeProjectState(projectId, state) {
   await writeFile(p, JSON.stringify(state, null, 2), "utf8");
 }
 
+function sessionDir(copilotHome, repoId) {
+  return join(copilotHome, "repo-state", String(repoId || ""), "opencode-sessions");
+}
+
+function sessionRecordPath(copilotHome, repoId, sessionId) {
+  const safe = sanitizeSessionId(sessionId);
+  if (!safe) return null;
+  return join(sessionDir(copilotHome, repoId), safe + ".json");
+}
+
+async function readSessionRecordFile(absPath) {
+  try {
+    const raw = await readFile(absPath, "utf8");
+    const parsed = JSON.parse(raw);
+    if (!isPlainObject(parsed)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function writeJsonAtomic(absPath, value) {
+  const dirPath = dirname(absPath);
+  await mkdir(dirPath, { recursive: true });
+  const base = basename(absPath);
+  const tempPath = join(dirPath, "." + base + "." + process.pid + "." + Date.now() + "." + Math.random().toString(16).slice(2) + ".tmp");
+  await writeFile(tempPath, JSON.stringify(value, null, 2) + "\n", "utf8");
+  try {
+    await rename(tempPath, absPath);
+  } catch (err) {
+    try { await rm(tempPath, { force: true }); } catch {}
+    throw err;
+  }
+}
+
+function buildSessionRecord(input = {}, fallback = {}) {
+  const merged = { ...fallback, ...input };
+  const fallbackRecord = isPlainObject(fallback) ? fallback : {};
+  const lifecycle = isPlainObject(merged.lifecycle) ? merged.lifecycle : (isPlainObject(fallbackRecord.lifecycle) ? fallbackRecord.lifecycle : {});
+  const lastEvent = isPlainObject(merged.lastEvent) ? merged.lastEvent : null;
+  const errorInfo = isPlainObject(merged.error) ? merged.error : null;
+
+  return {
+    contractVersion: SESSION_CONTRACT_VERSION,
+    source: SESSION_SOURCE,
+    sessionId: String(merged.sessionId || fallbackRecord.sessionId || ""),
+    repoId: String(merged.repoId || fallbackRecord.repoId || ""),
+    repoPath: merged.repoPath || fallbackRecord.repoPath || null,
+    repoLabel: merged.repoLabel || fallbackRecord.repoLabel || null,
+    projectId: merged.projectId || fallbackRecord.projectId || null,
+    worktreeId: merged.worktreeId || fallbackRecord.worktreeId || null,
+    worktreePath: merged.worktreePath || fallbackRecord.worktreePath || null,
+    branch: merged.branch || fallbackRecord.branch || null,
+    status: normalizeSessionStatus(merged.status || fallbackRecord.status),
+    lifecycle: {
+      startedAt: lifecycle.startedAt || fallbackRecord.lifecycle?.startedAt || null,
+      lastSeenAt: lifecycle.lastSeenAt || fallbackRecord.lifecycle?.lastSeenAt || null,
+      idleAt: lifecycle.idleAt || fallbackRecord.lifecycle?.idleAt || null,
+      errorAt: lifecycle.errorAt || fallbackRecord.lifecycle?.errorAt || null,
+      deletedAt: lifecycle.deletedAt || fallbackRecord.lifecycle?.deletedAt || null,
+    },
+    lastEvent: lastEvent
+      ? { type: String(lastEvent.type || ""), receivedAt: lastEvent.receivedAt || null }
+      : (fallbackRecord.lastEvent || null),
+    ...(errorInfo ? { error: { message: String(errorInfo.message || "") } } : (fallbackRecord.error ? { error: { message: String(fallbackRecord.error.message || "") } } : {})),
+  };
+}
+
+async function updateSessionRecord(copilotHome, repoId, sessionId, mutator) {
+  if (!copilotHome) return null;
+  const sanitized = sanitizeSessionId(sessionId);
+  if (!sanitized || !repoId) return null;
+  const absPath = sessionRecordPath(copilotHome, repoId, sanitized);
+  if (!absPath) return null;
+
+  const existing = (await readSessionRecordFile(absPath)) || buildSessionRecord({
+    sessionId: sanitized,
+    repoId,
+  });
+  const next = mutator(existing) || existing;
+  const normalized = buildSessionRecord(next, existing);
+  normalized.sessionId = sanitized;
+  normalized.repoId = String(repoId);
+  if (!normalized.lifecycle.startedAt) normalized.lifecycle.startedAt = nowIso();
+  if (!normalized.lifecycle.lastSeenAt) normalized.lifecycle.lastSeenAt = nowIso();
+
+  await writeJsonAtomic(absPath, normalized);
+  return normalized;
+}
+
+async function readSessionRecord(copilotHome, repoId, sessionId) {
+  if (!copilotHome) return null;
+  const absPath = sessionRecordPath(copilotHome, repoId, sessionId);
+  if (!absPath) return null;
+  return readSessionRecordFile(absPath);
+}
+
+async function listSessionRecords(copilotHome, repoId) {
+  if (!copilotHome) return [];
+  const dir = sessionDir(copilotHome, repoId);
+  let entries = [];
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const entry of entries) {
+    if (!entry || !entry.isFile() || !/\.json$/i.test(entry.name)) continue;
+    const rec = await readSessionRecordFile(join(dir, entry.name));
+    if (rec) out.push(rec);
+  }
+  return out;
+}
+
+async function removeSessionRecord(copilotHome, repoId, sessionId) {
+  if (!copilotHome) return false;
+  const absPath = sessionRecordPath(copilotHome, repoId, sessionId);
+  if (!absPath) return false;
+  try {
+    await rm(absPath, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readSharedWorktreeRecord(copilotHome, repoId, worktreeId) {
+  if (!copilotHome || !repoId || !worktreeId) return null;
+  const p = join(copilotHome, "repo-state", String(repoId), "worktrees", worktreeId + ".json");
+  return readSessionRecordFile(p);
+}
+
+async function listSharedWorktreeRecords(copilotHome, repoId) {
+  if (!copilotHome || !repoId) return [];
+  const dir = join(copilotHome, "repo-state", String(repoId), "worktrees");
+  let entries = [];
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const entry of entries) {
+    if (!entry || !entry.isFile() || !/\.json$/i.test(entry.name)) continue;
+    const rec = await readSessionRecordFile(join(dir, entry.name));
+    if (rec) out.push(rec);
+  }
+  return out;
+}
+
+async function writeSharedWorktreeRecord(copilotHome, repoId, worktreeId, mutator) {
+  if (!copilotHome || !repoId || !worktreeId) return null;
+  const p = join(copilotHome, "repo-state", String(repoId), "worktrees", worktreeId + ".json");
+  const existing = (await readSessionRecordFile(p)) || { worktreeId, repoId };
+  const next = mutator(existing) || existing;
+  const normalized = normalizeWorktreeRecordForPlugin(next, existing);
+  normalized.worktreeId = worktreeId;
+  normalized.repoId = String(repoId);
+  if (!normalized.updatedAt) normalized.updatedAt = nowIso();
+  await writeJsonAtomic(p, normalized);
+  return normalized;
+}
+
+function normalizeComparablePath(value) {
+  if (!value) return "";
+  return String(value).replace(/\\/g, "/").trim().toLowerCase();
+}
+
+async function resolveLinkedWorktreeId(copilotHome, repoId, sessionId, projectState, hints = {}) {
+  if (!copilotHome || !repoId) return null;
+
+  // 1) known active plugin state (in-process auxiliary state captured at worktree_create)
+  if (projectState && projectState.sessionId && sessionId && projectState.sessionId === sessionId) {
+    if (projectState.activeWorktreeBranch) {
+      return "wt-oc-" + repoId + "-" + branchToWorktreeIdSuffix(projectState.activeWorktreeBranch);
+    }
+  }
+
+  // 2) explicit hints (worktreePath or worktreeId) from the event/caller
+  if (hints.worktreeId) return String(hints.worktreeId);
+  if (hints.worktreePath) {
+    const target = normalizeComparablePath(hints.worktreePath);
+    if (target) {
+      const all = await listSharedWorktreeRecords(copilotHome, repoId);
+      const match = all.find((r) => normalizeComparablePath(r.path) === target);
+      if (match && match.worktreeId) return String(match.worktreeId);
+    }
+  }
+
+  // 3) try the existing session record's linked worktreeId (sticky linkage)
+  if (sessionId) {
+    const sess = await readSessionRecord(copilotHome, repoId, sessionId);
+    if (sess && sess.worktreeId) {
+      return String(sess.worktreeId);
+    }
+  }
+
+  // 4) fall back to plugin auxiliary state even if sessionId didn't match
+  if (projectState && projectState.activeWorktreeBranch) {
+    return "wt-oc-" + repoId + "-" + branchToWorktreeIdSuffix(projectState.activeWorktreeBranch);
+  }
+
+  return null;
+}
+
+function resolveSessionIdFromEvent(event) {
+  if (!event || !isPlainObject(event)) return "";
+  const props = isPlainObject(event.properties) ? event.properties : {};
+  return String(
+    props.sessionID
+    || props.sessionId
+    || props.id
+    || event.sessionID
+    || event.sessionId
+    || event.id
+    || process.env.OPENCODE_SESSION_ID
+    || ""
+  ).trim();
+}
+
 function projectIdFromPath(projectPath) {
   const normalized = projectPath.replace(/\\/g, "/");
   const parts = normalized.split("/").filter(Boolean);
   return parts.slice(-2).join("-").replace(/[^a-zA-Z0-9_-]/g, "-");
+}
+
+function branchToWorktreeIdSuffix(branch) {
+  return String(branch || "").replace(/[^a-zA-Z0-9_-]/g, "-");
+}
+
+function sanitizeSessionId(sessionId) {
+  const trimmed = String(sessionId || "").trim();
+  if (!trimmed) return "";
+  return trimmed.replace(/[^a-zA-Z0-9_.-]/g, "-").slice(0, 200) || "unknown";
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeSessionStatus(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (Object.values(SESSION_STATES).includes(normalized)) return normalized;
+  return SESSION_STATES.UNKNOWN;
+}
+
+function normalizeWorktreeRecordForPlugin(input = {}, fallback = {}) {
+  const merged = { ...fallback, ...input };
+  const record = isPlainObject(input) ? input : {};
+  const fallbackRecord = isPlainObject(fallback) ? fallback : {};
+
+  const next = {
+    contractVersion: SESSION_CONTRACT_VERSION,
+    worktreeId: String(merged.worktreeId || fallbackRecord.worktreeId || ""),
+    repoId: String(merged.repoId || fallbackRecord.repoId || ""),
+    repoPath: merged.repoPath || fallbackRecord.repoPath || null,
+    repoLabel: merged.repoLabel || fallbackRecord.repoLabel || null,
+    mode: merged.mode || fallbackRecord.mode || "dedicated",
+    path: merged.path || fallbackRecord.path || null,
+    branch: merged.branch || fallbackRecord.branch || null,
+    source: merged.source || fallbackRecord.source || SESSION_SOURCE,
+    status: String(merged.status || fallbackRecord.status || WORKTREE_STATUS.READY),
+    launch: isPlainObject(merged.launch) ? merged.launch : (isPlainObject(fallbackRecord.launch) ? fallbackRecord.launch : { blocked: false, reason: null }),
+    assignment: isPlainObject(merged.assignment)
+      ? merged.assignment
+      : (isPlainObject(fallbackRecord.assignment) ? fallbackRecord.assignment : { sessionId: null, runId: null, overlaySessionId: null }),
+    lifecycle: isPlainObject(merged.lifecycle)
+      ? merged.lifecycle
+      : (isPlainObject(fallbackRecord.lifecycle) ? fallbackRecord.lifecycle : {}),
+  };
+
+  return next;
 }
 
 function runGit(args, cwd) {
@@ -140,7 +430,7 @@ async function writeSharedRegistryRecord(repoId, branch, worktreePath, projectPa
     const repoStateDir = join(copilotHome, "repo-state", repoId, "worktrees");
     await mkdir(repoStateDir, { recursive: true });
 
-    const worktreeId = "wt-oc-" + repoId + "-" + branch.replace(/[^a-zA-Z0-9_-]/g, "-");
+    const worktreeId = "wt-oc-" + repoId + "-" + branchToWorktreeIdSuffix(branch);
     const recordPath = join(repoStateDir, worktreeId + ".json");
     const now = new Date().toISOString();
 
@@ -153,7 +443,7 @@ async function writeSharedRegistryRecord(repoId, branch, worktreePath, projectPa
       mode: "dedicated",
       path: worktreePath,
       branch,
-      source: "opencode-worktree-plugin",
+      source: SESSION_SOURCE,
       status: "ready",
       launch: { blocked: false, reason: null },
       assignment: {
@@ -176,7 +466,7 @@ async function writeSharedRegistryRecord(repoId, branch, worktreePath, projectPa
       updatedAt: now,
     };
 
-    await writeFile(recordPath, JSON.stringify(record, null, 2) + "\n", "utf8");
+    await writeJsonAtomic(recordPath, record);
     return { worktreeId, recordPath };
   } catch {
     return null;
@@ -215,6 +505,7 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
   const projectPath = (project && project.path) || directory;
   const projectId = projectIdFromPath(projectPath);
   const repoId = computeRepoId(projectPath);
+  const repoLabel = basename(projectPath);
 
   return {
     tool: {
@@ -288,6 +579,38 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
 
           // Write compatible record into shared Elegy Copilot registry
           const sharedResult = await writeSharedRegistryRecord(repoId, branch, worktreePath, projectPath, sessionId);
+          const worktreeId = sharedResult ? sharedResult.worktreeId : null;
+
+          // If we have a session id, also write the OpenCode session projection
+          if (sessionId) {
+            const copilotHome = resolveSharedRegistryHome();
+            if (copilotHome) {
+              try {
+                await updateSessionRecord(copilotHome, repoId, sessionId, (existing) => {
+                  return {
+                    ...(existing || {}),
+                    sessionId,
+                    repoId,
+                    repoPath: pathResolve(projectPath),
+                    repoLabel: repoLabel,
+                    projectId,
+                    worktreeId: worktreeId || (existing && existing.worktreeId) || null,
+                    worktreePath,
+                    branch,
+                    status: SESSION_STATES.RUNNING,
+                    lifecycle: {
+                      ...((existing && existing.lifecycle) || {}),
+                      startedAt: (existing && existing.lifecycle && existing.lifecycle.startedAt) || new Date().toISOString(),
+                      lastSeenAt: new Date().toISOString(),
+                    },
+                    lastEvent: { type: "worktree_create", receivedAt: new Date().toISOString() },
+                  };
+                });
+              } catch {
+                // session record writes are best-effort
+              }
+            }
+          }
 
           let output = "Worktree created at " + worktreePath + "\nBranch: " + branch + "\nBase: " + resolvedBase;
           if (setupResult) output += setupResult;
@@ -486,9 +809,144 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
     },
 
     event: async function({ event }) {
-      if (event.type === "session.create" || event.type === "session.delete") {
-        const sessionId = (event.properties && event.properties.sessionID) || "unknown";
-        console.log("[worktree] " + event.type + " session=" + sessionId + " worktree=" + (worktree || "none") + " project=" + projectId);
+      if (!event || !event.type) return;
+
+      const copilotHome = resolveSharedRegistryHome();
+      if (!copilotHome) return;
+
+      const sessionId = resolveSessionIdFromEvent(event);
+      if (!sessionId) return;
+
+      const props = isPlainObject(event.properties) ? event.properties : {};
+      const hintWorktreePath = props.worktreePath || worktree || null;
+      const hintWorktreeId = props.worktreeId || null;
+      const eventType = String(event.type);
+
+      let nextStatus = null;
+      let touchedWorktreeAction = null;
+      if (eventType === "session.created" || eventType === "session.create" || eventType === "session.status") {
+        nextStatus = SESSION_STATES.RUNNING;
+        touchedWorktreeAction = "active";
+      } else if (eventType === "session.idle") {
+        nextStatus = SESSION_STATES.IDLE;
+        touchedWorktreeAction = "keep";
+      } else if (eventType === "session.error") {
+        nextStatus = SESSION_STATES.ERROR;
+        touchedWorktreeAction = "interrupted";
+      } else if (eventType === "session.deleted" || eventType === "session.delete") {
+        nextStatus = SESSION_STATES.DELETED;
+        touchedWorktreeAction = "reusable";
+      } else {
+        return;
+      }
+
+      try {
+        const projectState = await readProjectState(projectId);
+        const receivedAt = nowIso();
+        const updated = await updateSessionRecord(copilotHome, repoId, sessionId, (existing) => {
+          const wasCreated = !existing || !existing.lifecycle || !existing.lifecycle.startedAt;
+          const lifecycle = (existing && existing.lifecycle) || {};
+          const next = {
+            ...(existing || {}),
+            sessionId,
+            repoId,
+            repoPath: pathResolve(projectPath),
+            repoLabel,
+            projectId,
+            worktreePath: (existing && existing.worktreePath) || hintWorktreePath,
+            worktreeId: (existing && existing.worktreeId) || hintWorktreeId,
+            branch: (existing && existing.branch) || (projectState && projectState.activeWorktreeBranch) || null,
+            status: nextStatus,
+            lifecycle: {
+              startedAt: lifecycle.startedAt || (wasCreated ? receivedAt : null),
+              lastSeenAt: receivedAt,
+              idleAt: nextStatus === SESSION_STATES.IDLE ? receivedAt : (lifecycle.idleAt || null),
+              errorAt: nextStatus === SESSION_STATES.ERROR ? receivedAt : (lifecycle.errorAt || null),
+              deletedAt: nextStatus === SESSION_STATES.DELETED ? receivedAt : (lifecycle.deletedAt || null),
+            },
+            lastEvent: { type: eventType, receivedAt },
+          };
+          if (nextStatus === SESSION_STATES.ERROR) {
+            const message = (event.properties && (event.properties.error || event.properties.message))
+              || (event.error && event.error.message)
+              || (event.message)
+              || "session error";
+            next.error = { message: String(message) };
+          } else if (nextStatus !== SESSION_STATES.ERROR && nextStatus !== SESSION_STATES.UNKNOWN) {
+            delete next.error;
+          }
+          return next;
+        });
+
+        if (touchedWorktreeAction && touchedWorktreeAction !== "keep") {
+          const linkedWorktreeId = await resolveLinkedWorktreeId(copilotHome, repoId, sessionId, projectState, {
+            worktreeId: hintWorktreeId || (updated && updated.worktreeId) || null,
+            worktreePath: hintWorktreePath || (updated && updated.worktreePath) || null,
+          });
+          if (linkedWorktreeId) {
+            if (touchedWorktreeAction === "active") {
+              await writeSharedWorktreeRecord(copilotHome, repoId, linkedWorktreeId, (existing) => {
+                const wasActive = existing && existing.status === WORKTREE_STATUS.ACTIVE
+                  && existing.assignment && existing.assignment.sessionId === sessionId;
+                return {
+                  ...existing,
+                  status: WORKTREE_STATUS.ACTIVE,
+                  assignment: {
+                    ...(existing && existing.assignment ? existing.assignment : {}),
+                    sessionId,
+                    runId: (existing && existing.assignment && existing.assignment.runId) || null,
+                    overlaySessionId: (existing && existing.assignment && existing.assignment.overlaySessionId) || null,
+                  },
+                  lifecycle: {
+                    ...(existing && existing.lifecycle ? existing.lifecycle : {}),
+                    activatedAt: wasActive
+                      ? ((existing && existing.lifecycle && existing.lifecycle.activatedAt) || receivedAt)
+                      : receivedAt,
+                    lastSeenAt: receivedAt,
+                  },
+                  updatedAt: receivedAt,
+                };
+              });
+            } else if (touchedWorktreeAction === "interrupted") {
+              await writeSharedWorktreeRecord(copilotHome, repoId, linkedWorktreeId, (existing) => {
+                return {
+                  ...existing,
+                  status: WORKTREE_STATUS.INTERRUPTED,
+                  assignment: {
+                    ...(existing && existing.assignment ? existing.assignment : {}),
+                    sessionId,
+                  },
+                  lifecycle: {
+                    ...(existing && existing.lifecycle ? existing.lifecycle : {}),
+                    interruptedAt: receivedAt,
+                    lastSeenAt: receivedAt,
+                  },
+                  updatedAt: receivedAt,
+                };
+              });
+            } else if (touchedWorktreeAction === "reusable") {
+              await writeSharedWorktreeRecord(copilotHome, repoId, linkedWorktreeId, (existing) => {
+                return {
+                  ...existing,
+                  status: WORKTREE_STATUS.REUSABLE,
+                  assignment: {
+                    sessionId: null,
+                    runId: null,
+                    overlaySessionId: null,
+                  },
+                  lifecycle: {
+                    ...(existing && existing.lifecycle ? existing.lifecycle : {}),
+                    releasedAt: receivedAt,
+                    lastSeenAt: receivedAt,
+                  },
+                  updatedAt: receivedAt,
+                };
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.log("[worktree] session event failed: " + (err && err.message ? err.message : err));
       }
     },
   };
