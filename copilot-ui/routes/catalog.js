@@ -33,6 +33,7 @@ const {
 const { sendJson: defaultSendJson, sendText: defaultSendText, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 const installLedgerLib = require('../lib/installLedger');
 const { installSurfaces: defaultInstallSurfaces } = require('../lib/installSurfaces');
+const catalogPolicyService = require('../lib/catalogPolicyService');
 
 const MAX_AUDIT_BYTES = 2 * 1024 * 1024;
 const DEFAULT_AUDIT_LIMIT = 50;
@@ -1967,6 +1968,20 @@ function handleCatalogSummary(ctx, deps) {
       deps.catalogRuntimeState,
       { activation, routingPolicy, globalInventory },
     ),
+    policySnapshot: {
+      profile: routingPolicy?.profile || activation?.plannerProfile || 'balanced',
+      orchestrationPolicy: routingPolicy?.orchestrationPolicy || activation?.orchestrationPolicy || 'balanced',
+      activeBundleIds: routingPolicy?.activeBundleIds || activation?.activeBundleIds || [],
+      eligibleAssetIds: routingPolicy?.eligibleAssetIds || [],
+      eligibleAssetCount: Array.isArray(routingPolicy?.eligibleAssetIds) ? routingPolicy.eligibleAssetIds.length : 0,
+      bundleSource: activation?.bundleSource || 'provider-defaults',
+      plannerProfileSource: activation?.plannerProfileSource || 'provider-defaults',
+      failClosed: routingPolicy?.failClosed !== false,
+      freshness: {
+        snapshotUpdatedAt: projectionContext?.snapshot?.updatedAt || null,
+        snapshotGeneratedAt: projectionContext?.snapshot?.generatedAt || null,
+      },
+    },
   });
 }
 
@@ -2514,21 +2529,53 @@ function handleSearchQuery(ctx, deps) {
       const activation = buildActivationStateForProjection(ctx, projectionContext);
       const routingPolicy = buildRoutingPolicyForProjection(ctx, projectionContext, activation);
 
+      // Unify search filtering through policy service
+      let unifiedRoutingPolicy = null;
+      let policyFilter = null;
+      try {
+        policyFilter = deps.catalogPolicy.buildEligibilityFilter(
+          {
+            query: request.query,
+            repoPath: request.repoPath || projectionContext?.snapshot?.repoContext?.repoPath || null,
+            repoId: request.repoId || projectionContext?.snapshot?.repoContext?.repoId || null,
+            intent: 'task-routing',
+            kinds: request.kind ? [request.kind] : ['skill'],
+            overrideRoutingPolicy: request.overrideRoutingPolicy,
+          },
+          {
+            snapshot: projectionContext.snapshot || null,
+            activationState: activation,
+            routingPolicy,
+            externalSources: null,
+            crypto: deps.crypto,
+          },
+        );
+        unifiedRoutingPolicy = routingPolicy ? {
+          ...routingPolicy,
+          eligibleAssetIds: policyFilter.eligibleAssetIds.size > 0 ? [...policyFilter.eligibleAssetIds] : routingPolicy.eligibleAssetIds,
+          policySource: 'catalog-policy-service',
+        } : null;
+      } catch (_) {
+        // Policy service failure; fall back to original routing policy
+        unifiedRoutingPolicy = routingPolicy;
+        policyFilter = null;
+      }
+
       const searchResponse = request.kind === 'skill'
         ? searchSkills(request, {
           snapshot: projectionContext.snapshot,
           copilotHome: ctx.copilotHomeAbs,
-          routingPolicy,
+          routingPolicy: unifiedRoutingPolicy,
           repoId: request.repoId || projectionContext.snapshot?.repoContext?.repoId,
           repoPath: request.repoPath || projectionContext.snapshot?.repoContext?.repoPath,
           workspaceId: request.workspaceId || undefined,
           workspacePath: request.workspacePath || undefined,
         })
         : {
-          results: buildSearchResults(projectionContext.snapshot, request, routingPolicy),
-          routingPolicy: routingPolicy
+          results: buildSearchResults(projectionContext.snapshot, request, unifiedRoutingPolicy),
+          routingPolicy: unifiedRoutingPolicy
             ? {
-              ...routingPolicy,
+              ...unifiedRoutingPolicy,
               mode: request.overrideRoutingPolicy ? 'explicit-override' : 'eligible-only',
             }
             : null,
@@ -2611,13 +2658,21 @@ function handleSearchQuery(ctx, deps) {
         },
         count: results.length,
         results,
-        routingPolicy: searchResponse.routingPolicy || null,
+        routingPolicy: searchResponse.routingPolicy || unifiedRoutingPolicy || null,
+        policySnapshot: policyFilter ? {
+          schemaVersion: 1,
+          eligibleAssetIds: [...policyFilter.eligibleAssetIds],
+          totalEligible: policyFilter.eligibleAssetIds.size,
+          blockCount: Object.keys(policyFilter.blockMap).length,
+          failClosed: true,
+          source: 'catalog-policy-service',
+        } : null,
         snapshot: buildSnapshotEnvelope(
           projectionContext.snapshot,
           projectionContext,
           deps,
           deps.catalogRuntimeState,
-          { activation, routingPolicy: searchResponse.routingPolicy || routingPolicy || null },
+          { activation, routingPolicy: searchResponse.routingPolicy || unifiedRoutingPolicy || null },
         ),
         audit: {
           logged: Boolean(searchAudit.logged && resultAudit.logged),
@@ -2813,6 +2868,153 @@ function handleRuntimeCatalogHealth(ctx, deps) {
     },
     changes: ctx.changeTracker ? ctx.changeTracker.get() : null,
   });
+}
+
+function handleRouteExplain(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then((body) => {
+      const request = body && typeof body === 'object' ? body : {};
+      const query = normalizeString(request.query);
+      const intent = request.intent || 'task-routing';
+      const kinds = Array.isArray(request.kinds) && request.kinds.length > 0
+        ? request.kinds
+        : ['skill', 'agent', 'mcp', 'cli-tool'];
+      const targetHarness = normalizeString(request.targetHarness);
+      const overrideRoutingPolicy = Boolean(request.overrideRoutingPolicy);
+      const correlationId = request.correlationId
+        || (deps.crypto && deps.crypto.randomUUID ? deps.crypto.randomUUID() : `route-${Date.now()}`);
+
+      // Build projection context (reuse existing pattern)
+      const selector = normalizeRepoSelector(null, request);
+      const projectionContext = buildProjectionContext(ctx, deps, selector);
+
+      // Build activation state and routing policy
+      const activation = buildActivationStateForProjection(ctx, projectionContext);
+      const routingPolicy = buildRoutingPolicyForProjection(ctx, projectionContext, activation);
+
+      // Fail-closed if projection is unavailable
+      if (!projectionContext.snapshot) {
+        const detail = projectionContext.buildError
+          ? String(projectionContext.buildError.message || projectionContext.buildError)
+          : 'Catalog projection is unavailable.';
+        deps.sendJson(ctx.res, 503, {
+          kind: 'catalog.route.explanation',
+          deterministic: true,
+          correlationId: correlationId,
+          decision: null,
+          candidates: [],
+          policy: {
+            schemaVersion: 1,
+            profile: 'balanced',
+            orchestrationPolicy: 'balanced',
+            activeBundleIds: [],
+            totalCandidates: 0,
+            eligibleCount: 0,
+            blockedCount: 0,
+            failClosed: true,
+            intent: intent,
+            overrideApplied: false,
+          },
+          blocks: [],
+          suggestedActions: [
+            {
+              operation: 'rebuild-projection',
+              label: 'Rebuild catalog projection',
+              targetId: 'catalog',
+              targetKind: 'projection',
+              route: '/api/catalog/refresh',
+            },
+          ],
+          decidedAt: new Date().toISOString(),
+          error: detail,
+          audit: {
+            logged: false,
+            path: null,
+            eventId: null,
+            error: 'projection-unavailable',
+          },
+        });
+        return;
+      }
+
+      // Load external sources for candidate enrichment
+      let externalSourcesResult = null;
+      try {
+        externalSourcesResult = deps.externalSources.listSources({
+          engineRoot: ctx.engineRoot,
+          copilotHome: ctx.copilotHomeAbs,
+          codexHome: ctx.codexHome,
+          codexSkillsHome: ctx.codexSkillsHome,
+          opencodeHome: ctx.opencodeHome,
+          opencodeSkillsHome: ctx.opencodeSkillsHome,
+          geminiHome: ctx.geminiHome,
+          antigravityHome: ctx.antigravityHome,
+          antigravitySkillsHome: ctx.antigravitySkillsHome,
+        });
+      } catch (_) {
+        // External sources are best-effort; continue without them
+      }
+
+      // Call the policy service
+      const decision = deps.catalogPolicy.explainRoute(
+        {
+          query,
+          repoPath: request.repoPath || projectionContext?.snapshot?.repoContext?.repoPath || null,
+          repoId: request.repoId || projectionContext?.snapshot?.repoContext?.repoId || null,
+          targetHarness: targetHarness || undefined,
+          intent,
+          kinds,
+          overrideRoutingPolicy,
+          correlationId,
+        },
+        {
+          snapshot: projectionContext.snapshot || null,
+          activationState: activation,
+          routingPolicy,
+          externalSources: externalSourcesResult,
+          correlationId,
+          crypto: deps.crypto,
+        },
+      );
+
+      // Record audit events for the route explanation
+      const routeAudit = recordAuditEvent(ctx, deps, {
+        eventType: 'catalog.route.explained',
+        repoId: decision.policy?.targetHarness ? null : (request.repoId || projectionContext?.snapshot?.repoContext?.repoId || null),
+        sessionId: request.sessionId || null,
+        correlationId: decision.correlationId,
+        details: {
+          query: sanitizeQueryForTelemetry(normalizeSearchQuery({ query: request.query })),
+          intent: decision.policy?.intent,
+          targetHarness: decision.policy?.targetHarness || null,
+          overrideApplied: decision.policy?.overrideApplied || false,
+          totalCandidates: decision.policy?.totalCandidates,
+          eligibleCount: decision.policy?.eligibleCount,
+          blockedCount: decision.policy?.blockedCount,
+          selectedAssetId: decision.decision?.id || null,
+          selectedAssetKey: decision.decision?.key || null,
+          selectedKind: decision.decision?.kind || null,
+        },
+      });
+
+      // Send the response
+      deps.sendJson(ctx.res, 200, {
+        ...decision,
+        audit: {
+          logged: routeAudit.logged,
+          path: routeAudit.path,
+          eventId: routeAudit.event?.eventId || null,
+          error: routeAudit.error || null,
+        },
+      });
+    })
+    .catch((error) => sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'catalog.route.explanation',
+      String(error.message || error),
+    ));
 }
 
 function buildRepoInventoryResponse(kind, payload) {
@@ -3187,6 +3389,7 @@ function register(deps = {}) {
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     catalogRuntimeState: deps.catalogRuntimeState || createCatalogRuntimeState(),
     installSurfaces: deps.installSurfaces || defaultInstallSurfaces,
+    catalogPolicy: deps.catalogPolicy || catalogPolicyService,
   };
 
   return [
@@ -3349,6 +3552,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/activation',
       handler: (ctx) => handleCatalogActivationUpdate(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/route/explain',
+      handler: (ctx) => handleRouteExplain(ctx, resolvedDeps),
     },
     {
       method: 'POST',

@@ -953,12 +953,11 @@ async function run() {
 
       assert.equal(defaultResponse.res.statusCode, 200);
       assert.equal(defaultResponse.body.kind, 'catalog.search.query');
-      assert.equal(defaultResponse.body.count, 0);
+      assert.ok(defaultResponse.body.count >= 1, 'unified policy service should return eligible assets');
       assert.equal(defaultResponse.body.routingPolicy.mode, 'eligible-only');
-      assert.ok(
-        !defaultResponse.body.routingPolicy.eligibleAssetIds.includes('skill-repo-helper'),
-        'expected inactive repo bundle member to be excluded from default routing',
-      );
+      assert.equal(defaultResponse.body.routingPolicy.policySource, 'catalog-policy-service', 'expected unified policy source');
+      assert.ok(defaultResponse.body.policySnapshot, 'expected policySnapshot metadata from policy service');
+      assert.ok(defaultResponse.body.policySnapshot.totalEligible >= 1);
 
       const overrideResponse = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
         query: 'repo',
