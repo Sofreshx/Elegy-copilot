@@ -38,7 +38,7 @@ async function main() {
     );
     assert.deepStrictEqual(
       profile.proposals.requiredResourcePaths,
-      ['.github/copilot-instructions.md', '.github/skills', 'specs/index.md'],
+      ['.github/copilot-instructions.md', '.github/skills', 'docs/specs/index.md'],
     );
     assert.deepStrictEqual(
       profile.proposals.recommendedResourcePaths,

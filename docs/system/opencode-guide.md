@@ -35,7 +35,7 @@ bash scripts/opencode-install.sh
 - Built-in agents stay primary: `Build`, `Plan`, `Explore`, `Scout`, `General`.
 - Primary skills: `skill-discovery`, `rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, `stack-detector`, `worktree`, `elegy-obsidian`.
 - Planning, review, and spec skills are installed by default under `~/.config/opencode/skills/`; load them with the skill tool only when they materially improve the current step.
-- Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`.
+- Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`.
 - Shared installed planning and review behavior now narrows constraints to the minimum active set and treats ADRs as key-decision records rather than default documentation for every non-trivial change.
 - Compatibility-only surfaces: `code-review`, `refactor`.
 - Prefer model overrides in `opencode.json` over adding more custom agents.

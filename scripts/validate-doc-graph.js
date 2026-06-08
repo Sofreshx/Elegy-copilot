@@ -166,7 +166,7 @@ function validateDocGraph({ repoRoot = defaultRepoRoot } = {}) {
 		return { errors, warnings, docCount: 0 };
 	}
 
-	const docFiles = walkDir(docsRoot);
+	const docFiles = walkDir(docsRoot).filter(abs => !abs.includes(`docs${path.sep}specs${path.sep}`));
 
 	/** @type {Map<string, { rel: string; abs: string; meta: any; body: string; lines: string[] }>} */
 	const docsByRel = new Map();

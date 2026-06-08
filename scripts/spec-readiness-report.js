@@ -154,7 +154,7 @@ function assessSpec(filePath) {
 }
 
 function main() {
-  const targetPath = path.resolve(process.argv[2] || path.join(process.cwd(), 'specs'));
+  const targetPath = path.resolve(process.argv[2] || path.join(process.cwd(), 'docs/specs'));
   if (!fs.existsSync(targetPath)) {
     console.error(JSON.stringify({ error: 'specs directory not found', path: targetPath }, null, 2));
     process.exit(1);

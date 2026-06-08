@@ -290,6 +290,7 @@ const TREE_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'target
 
 const TREE_SCAN_PATHS = [
   { prefix: 'specs/', dirKind: 'specs' },
+  { prefix: 'docs/specs/', dirKind: 'specs' },
   { prefix: 'docs/', dirKind: 'docs' },
   { prefix: 'skills/', dirKind: 'skills' },
   { prefix: 'agents/', dirKind: 'agents' },

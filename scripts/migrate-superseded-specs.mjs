@@ -9,7 +9,7 @@
  * - Updates status: draft → status: superseded on the two superseded specs
  * - Adds superseded_by: planning-visibility-canonicalization to each
  * - Adds supersedes: [...] to planning-visibility-canonicalization
- * - Regenerates specs/index.md
+ * - Regenerates docs/specs/index.md
  *
  * Safe to re-run (all operations are idempotent).
  *
@@ -30,9 +30,9 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 // ---------------------------------------------------------------------------
 
 const SPECS = {
-  'align-elegy-db-assets': path.resolve(REPO_ROOT, 'specs/align-elegy-db-assets/spec.md'),
-  'planning-explorer-view': path.resolve(REPO_ROOT, 'specs/planning-explorer-view/spec.md'),
-  'planning-visibility-canonicalization': path.resolve(REPO_ROOT, 'specs/planning-visibility-canonicalization/spec.md'),
+  'align-elegy-db-assets': path.resolve(REPO_ROOT, 'docs/specs/align-elegy-db-assets/spec.md'),
+  'planning-explorer-view': path.resolve(REPO_ROOT, 'docs/specs/planning-explorer-view/spec.md'),
+  'planning-visibility-canonicalization': path.resolve(REPO_ROOT, 'docs/specs/planning-visibility-canonicalization/spec.md'),
 };
 
 const SUPERSEDING_ID = 'planning-visibility-canonicalization';
@@ -230,7 +230,7 @@ function main() {
   let anyError = false;
 
   // 1. Update align-elegy-db-assets — superseded by planning-visibility-canonicalization
-  console.log('1. specs/align-elegy-db-assets/spec.md');
+  console.log('1. docs/specs/align-elegy-db-assets/spec.md');
   const result1 = migrateSpec(SPECS['align-elegy-db-assets'], [
     { action: 'replace_line', key: 'status', oldValue: 'draft', newValue: 'superseded' },
     { action: 'add_line_after', key: 'superseded_by', newValue: SUPERSEDING_ID, anchorKey: 'status', anchorValue: 'superseded' },
@@ -243,7 +243,7 @@ function main() {
   if (result1.length === 0) console.log('   (no changes needed)');
 
   // 2. Update planning-explorer-view — superseded by planning-visibility-canonicalization
-  console.log('\n2. specs/planning-explorer-view/spec.md');
+  console.log('\n2. docs/specs/planning-explorer-view/spec.md');
   const result2 = migrateSpec(SPECS['planning-explorer-view'], [
     { action: 'replace_line', key: 'status', oldValue: 'draft', newValue: 'superseded' },
     { action: 'add_line_after', key: 'superseded_by', newValue: SUPERSEDING_ID, anchorKey: 'status', anchorValue: 'superseded' },
@@ -259,7 +259,7 @@ function main() {
   // so no liveness_skip_paths is needed.
 
   // 3. Update planning-visibility-canonicalization — add supersedes
-  console.log('\n3. specs/planning-visibility-canonicalization/spec.md');
+  console.log('\n3. docs/specs/planning-visibility-canonicalization/spec.md');
   const result3 = migrateSpec(SPECS['planning-visibility-canonicalization'], [
     { action: 'add_or_update_array', key: 'supersedes', values: SUPERSEDED_IDS },
   ]);

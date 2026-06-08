@@ -1,6 +1,6 @@
 ---
 created: 2026-04-10
-updated: 2026-05-21
+updated: 2026-06-08
 category: system
 status: current
 doc_kind: node
@@ -152,7 +152,7 @@ small repo-local profile bundle without widening the shared lane itself into a w
 ## Approved overlay profile: `spec-driven`
 
 `spec-driven` is an opt-in overlay profile for repositories that want durable spec scaffolding under
-the canonical `specs/` contract.
+the canonical `docs/specs/` contract.
 
 - it extends the approved canonical-doc-entrypoint profiles instead of replacing them
 - it is applied only through a harness-native installer with explicit `repo-root` plus `setup-profile`
@@ -164,7 +164,7 @@ Installer-mediated `spec-driven` bootstrap may create or refresh these repo-loca
 - repo `AGENTS.md` or repo `GEMINI.md` managed spec-driven block depending on the selected harness
 - `.github/agents/`
 - `.github/skills/`
-- `specs/` and starter `specs/index.md`
+- `docs/specs/` and starter `docs/specs/index.md`
 - `scripts/validate-specs.js`
 - `package.json` script entry `validate:specs` when `package.json` exists and the script name is free
 - selected-harness repo skill mirrors derived from `.github/skills/`
@@ -172,7 +172,7 @@ Installer-mediated `spec-driven` bootstrap may create or refresh these repo-loca
 Installer-mediated `spec-driven` bootstrap must preserve local user content conservatively:
 
 - use bounded managed blocks for repo instruction overlays instead of replacing whole files
-- do not overwrite an existing `specs/index.md` starter with a new template
+- do not overwrite an existing `docs/specs/index.md` starter with a new template
 - do not replace an existing conflicting `package.json` `validate:specs` script silently
 - keep `.github/skills/` as the only editable repo-local skill authority and generate mirrors from it
 

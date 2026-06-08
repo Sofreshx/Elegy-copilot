@@ -536,7 +536,7 @@ function checkIndexIntegrity(specsDir, specFiles) {
   const indexFile = path.join(specsDir, 'index.md');
 
   if (!fs.existsSync(indexFile)) {
-    errors.push({ file: null, message: 'index drift: specs/index.md not found' });
+    errors.push({ file: null, message: `index drift: index.md not found at spec root` });
     return errors;
   }
 

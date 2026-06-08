@@ -1,11 +1,11 @@
 ---
 created: 2026-05-21
-updated: 2026-05-28
+updated: 2026-06-08
 category: system
 status: current
 doc_kind: node
 id: spec-driven-development
-summary: Canonical contract for spec-driven development, durable repo specs under specs/, and the shared spec authoring and review skills.
+summary: Canonical contract for spec-driven development, durable repo specs under docs/specs/, and the shared spec authoring and review skills.
 tags: [specs, planning, validation, skills]
 related: [workflow-planning-contract, validation-governance]
 ---
@@ -22,7 +22,7 @@ replace them, and it does not introduce a new orchestrator fleet.
 ## Positioning
 
 - Use spec-driven development when the work needs a tighter requirements contract before planning or implementation.
-- Default durable repo specs live under `specs/`.
+- Default durable repo specs live under `docs/specs/`.
 - Keep execution planning in the existing plan-pack and roadmap lanes.
 - Keep implementation review and validation in the existing review and validation lanes.
 
@@ -33,18 +33,18 @@ replace them, and it does not introduce a new orchestrator fleet.
 - Repo-local spec bootstrap now shells through `elegy configuration apply`, so Phase 1 examples should pass `--elegy-cli <path>` explicitly.
 - `INSTRUCTION_ENGINE_ELEGY_CLI_PATH` is a convenience fallback for repeated local runs, but it is not the primary documented invocation.
 - Use `--repo-root <path> --setup-profile spec-driven --elegy-cli <path>` with the Codex, OpenCode, or Antigravity installer when a repo should opt into durable spec scaffolding.
-- The approved `spec-driven` bootstrap adds bounded repo-local instruction overlays, `specs/index.md`, the repo-local spec validator, and the selected harness's repo-skill mirrors.
+- The approved `spec-driven` bootstrap adds bounded repo-local instruction overlays, `docs/specs/index.md`, the repo-local spec validator, and the selected harness's repo-skill mirrors.
 - This exists to make spec-driven work easy to opt into without introducing a separate runtime, planner fleet, or second spec contract.
 
 ## Repository Spec Contract
 
 Default durable spec path:
 
-- `specs/<spec-slug>/spec.md`
+- `docs/specs/<spec-slug>/spec.md`
 
 Optional catalog:
 
-- `specs/index.md`
+- `docs/specs/index.md`
 
 Required frontmatter keys:
 
@@ -151,7 +151,7 @@ Optional hardening keys: `freshness: ignore` (skips staleness warnings), `livene
 
 ## Pre-Commit Hook
 
-Run `node scripts/install-spec-hooks.mjs` once to install a pre-commit gate that validates specs before commit. The hook runs `validate-specs.js --strict specs` whenever spec files are staged. Set `SKIP_SPEC_CHECK=1` to bypass.
+Run `node scripts/install-spec-hooks.mjs` once to install a pre-commit gate that validates specs before commit. The hook runs `validate-specs.js --strict docs/specs` whenever spec files are staged. Set `SKIP_SPEC_CHECK=1` to bypass.
 
 ## Spec Relationships
 
@@ -181,7 +181,7 @@ Not every spec needs a sibling `plan.md`. Write one when:
 - The implementation requires 2 or more phases.
 - The work involves 2 or more owners.
 
-The `plan.md` lives alongside `spec.md` at `specs/<slug>/plan.md` and contains the execution plan (implementation order, risk assessment, validation steps). See existing examples in the `specs/` directory.
+The `plan.md` lives alongside `spec.md` at `docs/specs/<slug>/plan.md` and contains the execution plan (implementation order, risk assessment, validation steps). See existing examples in the `docs/specs/` directory.
 
 ## ADR Promotion
 
@@ -203,8 +203,8 @@ Use `spec-first` for short-lived clarification before normal planning.
 
 Use `spec-anchored` for durable repo features, workflows, contracts, skills, agents, or migrations.
 
-- Write or update `specs/<spec-slug>/spec.md`.
-- Optionally maintain `specs/index.md` when the repo has enough durable specs to justify a catalog.
+- Write or update `docs/specs/<spec-slug>/spec.md`.
+- Optionally maintain `docs/specs/index.md` when the repo has enough durable specs to justify a catalog.
 - Hand the approved spec to the normal planning and implementation lanes after review.
 
 ### Spec-As-Source
@@ -230,36 +230,11 @@ planner abstraction.
 3. Use `spec-review` before implementation planning when the spec should drive later work.
 4. Move into the existing plan-pack, roadmap, implementation, review, and validation lanes after the spec is ready.
 
-## Specs and Docs Relationship
+## Specs Location
 
-Specs (`specs/`) and docs (`docs/`) serve different purposes and must not collide:
+Specs live under `docs/specs/<spec-slug>/spec.md` as a governed spec family within the canonical `docs/` knowledge root. They are validated by the separate `scripts/validate-specs.js` validator (not by the doc-graph validator). The optional catalog is `docs/specs/index.md`.
 
-| Artifact | Location | Purpose | Authority |
-|---|---|---|---|
-| Spec | `specs/<spec-slug>/spec.md` | Durable requirements contract for non-trivial work | Source of truth for acceptance criteria |
-| System doc | `docs/system/*.md` | Architecture, governance, workflow contracts | Source of truth for system design |
-| Roadmap | `docs/roadmaps/*.md` | Multi-session planning slices | Source of truth for sequencing |
-| ADR | `docs/adr/*.md` | Architecture decision records | Source of truth for decisions |
-
-### Cross-referencing
-
-- Specs reference docs in `Context Evidence` section: list the `docs/system/` nodes that inform the spec.
-- System docs can reference specs in `related` frontmatter: add the spec slug to the related array.
-- Roadmaps reference specs in `Plan Refs` when a roadmap slice implements a spec.
-- Do not duplicate content between a spec and a doc. If a spec describes behavior and a doc describes design, link them.
-
-### Discovery
-
-- Find all specs: `ls specs/*/spec.md` or read `specs/index.md` if present.
-- Find spec-related docs: grep for the spec slug in `docs/system/` frontmatter `related` arrays.
-- Find doc-related specs: grep for the doc id in `specs/*/spec.md` `Context Evidence` sections.
-
-### No Collision Rule
-
-- Specs never write into `docs/`. They live at repo root under `specs/`.
-- Docs never write into `specs/`. They live under `docs/`.
-- If a spec needs to capture an architecture decision, write an ADR in `docs/adr/` and reference it from the spec's `Context Evidence`.
-- If a doc needs to capture requirements, reference the spec rather than inlining requirements.
+Pre-commit spec validation is installed via `node scripts/install-spec-hooks.mjs` and gates on staged `docs/specs/<slug>/spec.md` files.
 
 ## Validation
 
@@ -277,7 +252,7 @@ Each layer is additive — a spec must pass all four to be considered implementa
 - Prefer the repo-local validator when present: `node scripts/validate-specs.js <spec-root>`.
 - The v1 validator checks frontmatter keys and enums, required headings, non-empty `Intent`, at least two `Acceptance Checks`, and `Validation Evidence` when `status: implemented`.
 - The spec validator now includes freshness warnings (90-day draft, 180-day implemented), index integrity checks, cross-spec reference validation, and plan.md requirement checks — all under `--strict` mode.
-- **CI Gate:** The `validate:specs` CI step runs `validate-specs.js --strict specs` in GitHub Actions on every push. Broken specs are rejected before merge.
+- **CI Gate:** The `validate:specs` CI step runs `validate-specs.js --strict docs/specs` in GitHub Actions on every push. Broken specs are rejected before merge.
 - Validation is evidence that the spec matches the contract shape, not proof that the implementation is correct.
 
 ## Boundaries

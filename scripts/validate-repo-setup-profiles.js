@@ -32,7 +32,7 @@ const expectedSpecDrivenExtendsProfileKeys = [
 const expectedSpecDrivenRequiredResourcePaths = [
   '.github/copilot-instructions.md',
   '.github/skills',
-  'specs/index.md',
+  'docs/specs/index.md',
 ];
 const expectedSpecDrivenRecommendedResourcePaths = [
   'AGENTS.md',
