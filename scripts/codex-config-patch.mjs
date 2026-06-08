@@ -8,7 +8,7 @@ export const DEFAULT_REVIEW_MODEL = 'deepseek-v4-pro';
 export const DEFAULT_PROFILE_NAME = 'instruction_engine_plan_review';
 export const MANAGED_BLOCK_START = '# BEGIN instruction-engine managed codex defaults';
 export const MANAGED_BLOCK_END = '# END instruction-engine managed codex defaults';
-export const DEFAULT_PROVIDER_ID = 'opencode-go';
+export const DEFAULT_PROVIDER_ID = 'opencode-go'; // fallback for managed block profiles, not root-level default
 export const DEFAULT_MODEL = 'mimo-v2-pro';
 
 export const EXTERNAL_PROVIDERS = [
@@ -41,6 +41,8 @@ function parseArgs(argv) {
     reviewModel: DEFAULT_REVIEW_MODEL,
     profileName: DEFAULT_PROFILE_NAME,
     enableExternalProviders: true,
+    providerId: '',
+    modelId: '',
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -91,6 +93,30 @@ function parseArgs(argv) {
     }
     if (value === '--disable-external-providers') {
       args.enableExternalProviders = false;
+      continue;
+    }
+    if (value.startsWith('--provider-id=')) {
+      args.providerId = value.slice('--provider-id='.length);
+      continue;
+    }
+    if (value === '--provider-id') {
+      i += 1;
+      if (i >= argv.length || String(argv[i]).startsWith('--')) {
+        throw new Error('Missing required --provider-id <id>');
+      }
+      args.providerId = argv[i] || '';
+      continue;
+    }
+    if (value.startsWith('--model-id=')) {
+      args.modelId = value.slice('--model-id='.length);
+      continue;
+    }
+    if (value === '--model-id') {
+      i += 1;
+      if (i >= argv.length || String(argv[i]).startsWith('--')) {
+        throw new Error('Missing required --model-id <id>');
+      }
+      args.modelId = argv[i] || '';
       continue;
     }
     throw new Error(`Unknown arg: ${value}`);
@@ -174,13 +200,13 @@ function buildProviderTable(provider) {
 }
 
 // Build only the root-level keys that need to go BEFORE any TOML tables
-function buildRootKeyLines({ needsModel, needsProvider, needsReviewModel, reviewModel }) {
+function buildRootKeyLines({ needsModel, needsProvider, needsReviewModel, reviewModel, modelId, providerId }) {
   const lines = [];
   if (needsModel) {
-    lines.push(`model = "${DEFAULT_MODEL}"`);
+    lines.push(`model = "${modelId || DEFAULT_MODEL}"`);
   }
-  if (needsProvider) {
-    lines.push(`model_provider = "${DEFAULT_PROVIDER_ID}"`);
+  if (needsProvider && providerId) {
+    lines.push(`model_provider = "${providerId}"`);
   }
   if (needsReviewModel) {
     lines.push(`review_model = "${reviewModel}"`);
@@ -224,12 +250,14 @@ export function patchCodexConfig(originalText, options = {}) {
   const reviewModel = options.reviewModel || DEFAULT_REVIEW_MODEL;
   const profileName = options.profileName || DEFAULT_PROFILE_NAME;
   const enableExternalProviders = options.enableExternalProviders !== false;
+  const providerId = options.providerId;
+  const modelId = options.modelId;
   const stripped = stripManagedBlock(originalText);
   // Only check the preamble (before first table header) for root keys.
   // Keys inside [profiles.*] or [model_providers.*] sections are NOT root-level defaults.
   const rootPreambleText = splitRootPreamble(stripped).preambleLines.join('\n');
   const needsModel = !hasTopLevelKey(rootPreambleText, 'model');
-  const needsProvider = !hasTopLevelKey(rootPreambleText, 'model_provider');
+  const needsProvider = !!providerId && !hasTopLevelKey(rootPreambleText, 'model_provider');
   const needsReviewModel = !hasTopLevelKey(rootPreambleText, 'review_model');
   const needsProfile = !hasProfile(stripped, profileName);
 
@@ -249,7 +277,7 @@ export function patchCodexConfig(originalText, options = {}) {
   }
 
   // Build root-level keys to insert BEFORE the first TOML table
-  const rootKeyLines = buildRootKeyLines({ needsModel, needsProvider, needsReviewModel, reviewModel });
+  const rootKeyLines = buildRootKeyLines({ needsModel, needsProvider, needsReviewModel, reviewModel, modelId, providerId });
 
   // Build the managed block containing only TOML tables (no root keys)
   const block = buildManagedBlock({
@@ -325,6 +353,8 @@ if (isMainModule) {
       reviewModel: args.reviewModel,
       profileName: args.profileName,
       enableExternalProviders: args.enableExternalProviders,
+      providerId: args.providerId || undefined,
+      modelId: args.modelId || undefined,
     });
 
     if (args.dryRun) {

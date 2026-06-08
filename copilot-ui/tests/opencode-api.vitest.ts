@@ -310,11 +310,17 @@ describe('opencode route - register', () => {
   it('POST /api/opencode/config writes profileRoute to state when provided', async () => {
     const sendJson = createMockSendJson();
     const opencodeConfig = createMockOpenCodeConfig();
+    const mockExecFile = vi.fn((_file, _args, _options, callback) => {
+      callback(null, 'stdout', '');
+      return { on: vi.fn() };
+    });
     const routes = register({
       sendJson,
       readJsonBody: createReadJsonBody({ profileRoute: 'deepseek-direct' }),
       assets: createMockAssets(),
       opencodeConfig,
+      fs: { existsSync: vi.fn(() => true) },
+      childProcess: { execFile: mockExecFile },
     });
     const configRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/config',

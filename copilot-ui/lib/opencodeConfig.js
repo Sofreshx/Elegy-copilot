@@ -11,8 +11,8 @@ const STATE_FILENAME = '.elegy-opencode-agent-state.json';
 const WORKTREE_PERMISSION_PROFILE_VERSION = 1;
 const WORKTREE_PERMISSION_PROFILE_MARKER = 'instruction-engine-worktree-permission-profile';
 
-const KNOWN_DEFAULT_EXPLORE_MODEL = 'deepseek/deepseek-v4-flash';
-const KNOWN_DEFAULT_SCOUT_MODEL = 'deepseek/deepseek-v4-flash';
+const KNOWN_DEFAULT_EXPLORE_MODEL = 'opencode-go/deepseek-v4-flash';
+const KNOWN_DEFAULT_SCOUT_MODEL = 'opencode-go/deepseek-v4-flash';
 
 const AGENT_KEYS = ['explore', 'scout'];
 

@@ -121,6 +121,7 @@ export interface GitCheckResult {
 export interface GitCheckResults {
   repoRoot: string;
   checkedAt: string;
+  source: 'commit-check' | 'legacy' | 'none';
   checksAvailable: number;
   checksRun: number;
   checksPassed: number;
@@ -218,6 +219,7 @@ export async function createGitPullRequest(
 export interface GitChecksDiscoverResponse {
   repoPath: string;
   checksAvailable: number;
+  source: 'commit-check' | 'legacy' | 'none';
   checks: Array<{ name: string; path: string; description: string }>;
 }
 

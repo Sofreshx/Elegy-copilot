@@ -484,6 +484,10 @@ async function run() {
       const result = await externalSources.activateInstallable({
         engineRoot,
         copilotHome: homes.copilotHome,
+        codexHome: homes.codexHome,
+        opencodeHome: homes.opencodeHome,
+        geminiHome: homes.geminiHome,
+        antigravityHome: homes.antigravityHome,
         childProcess: stub.childProcess,
         force: true,
       }, {
@@ -544,6 +548,10 @@ async function run() {
       const result = await externalSources.activateInstallable({
         engineRoot,
         copilotHome: homes.copilotHome,
+        codexHome: homes.codexHome,
+        opencodeHome: homes.opencodeHome,
+        geminiHome: homes.geminiHome,
+        antigravityHome: homes.antigravityHome,
         childProcess: stub.childProcess,
         force: true,
       }, {
@@ -605,6 +613,10 @@ async function run() {
         await externalSources.activateInstallable({
           engineRoot,
           copilotHome: homes.copilotHome,
+          codexHome: homes.codexHome,
+          opencodeHome: homes.opencodeHome,
+          geminiHome: homes.geminiHome,
+          antigravityHome: homes.antigravityHome,
           childProcess: stub.childProcess,
         }, {
           sourceId: 'spec-kit',
@@ -619,6 +631,125 @@ async function run() {
       assert.match(String(caught.message || ''), /unable to install spec kit/i);
       assert.match(String(caught.message || ''), /neither .*uv.* nor .*pipx.* available on path/i);
       assert.match(String(caught.message || ''), /install one of them and retry/i);
+    });
+
+    await test('activateInstallable deactivates conflicting installables from the same conflict group', async () => {
+      const homes = createTargetHomes('conflict-test');
+      writeCatalog([
+        {
+          sourceId: 'conflict-source',
+          title: 'Conflict Source',
+          url: 'https://github.com/example/conflict-source',
+          sourceType: 'github-repo',
+          owner: 'example',
+          repo: 'conflict-source',
+          defaultRef: 'main',
+          includeSkills: false,
+          includeMcp: true,
+          installables: [
+            {
+              installableId: 'cli:tool-a',
+              kind: 'cli-tool',
+              name: 'tool-a',
+              title: 'Tool A',
+              targetSupport: ['host'],
+              installCommand: 'echo installed-a',
+            },
+            {
+              installableId: 'mcp:tool-b',
+              kind: 'mcp-server',
+              name: 'tool-b',
+              title: 'Tool B',
+              targetSupport: ['opencode'],
+              metadata: {
+                commandTemplate: ['npx', '-y', 'tool-b-mcp'],
+              },
+            },
+          ],
+          conflictGroups: [
+            {
+              groupId: 'group-a',
+              label: 'CLI Mode',
+              installableIds: ['cli:tool-a'],
+              conflictsWith: ['group-b'],
+            },
+            {
+              groupId: 'group-b',
+              label: 'MCP Mode',
+              installableIds: ['mcp:tool-b'],
+              conflictsWith: ['group-a'],
+            },
+          ],
+        },
+      ]);
+
+      const stub = createExecFileStub({
+        'echo installed-a': { stdout: '/usr/local/bin/tool-a\n' },
+      });
+
+      // First activate CLI tool
+      await externalSources.activateInstallable({
+        engineRoot,
+        copilotHome: homes.copilotHome,
+        codexHome: homes.codexHome,
+        opencodeHome: homes.opencodeHome,
+        geminiHome: homes.geminiHome,
+        antigravityHome: homes.antigravityHome,
+        childProcess: stub.childProcess,
+      }, {
+        sourceId: 'conflict-source',
+        installableId: 'cli:tool-a',
+        target: 'host',
+      });
+
+      let state = JSON.parse(fs.readFileSync(externalSources.resolveStatePath(homes.copilotHome), 'utf8'));
+      assert.strictEqual(state.sources['conflict-source'].targets.host.installables['cli:tool-a'].enabled, true);
+
+      // Now activate MCP tool — should deactivate CLI tool
+      await externalSources.activateInstallable({
+        engineRoot,
+        copilotHome: homes.copilotHome,
+        codexHome: homes.codexHome,
+        opencodeHome: homes.opencodeHome,
+        geminiHome: homes.geminiHome,
+        antigravityHome: homes.antigravityHome,
+        childProcess: stub.childProcess,
+      }, {
+        sourceId: 'conflict-source',
+        installableId: 'mcp:tool-b',
+        target: 'opencode',
+      });
+
+      state = JSON.parse(fs.readFileSync(externalSources.resolveStatePath(homes.copilotHome), 'utf8'));
+      assert.strictEqual(state.sources['conflict-source'].targets.opencode.installables['mcp:tool-b'].enabled, true);
+      const cliState = state.sources['conflict-source'].targets.host?.installables?.['cli:tool-a'];
+      assert.ok(cliState, 'cli:tool-a should exist in state');
+      assert.strictEqual(cliState.enabled, false, `cli:tool-a.enabled expected false but got ${cliState.enabled}`);
+    });
+
+    await test('resolveConflictGroups returns empty array for sources without conflict groups', async () => {
+      const source = { sourceId: 'no-groups', conflictGroups: undefined };
+      const groups = externalSources.resolveConflictGroups(source);
+      assert.deepStrictEqual(groups, []);
+    });
+
+    await test('findConflictGroupForInstallable returns the correct group', async () => {
+      const conflictGroups = [
+        { groupId: 'group-a', installableIds: ['cli:tool-a', 'skill:skill-a'] },
+        { groupId: 'group-b', installableIds: ['mcp:tool-b'] },
+      ];
+      const group = externalSources.findConflictGroupForInstallable(conflictGroups, 'skill:skill-a');
+      assert.ok(group);
+      assert.strictEqual(group.groupId, 'group-a');
+    });
+
+    await test('resolveConflictingInstallableIds returns all conflicting installable IDs', async () => {
+      const conflictGroups = [
+        { groupId: 'group-a', installableIds: ['cli:tool-a'], conflictsWith: ['group-b'] },
+        { groupId: 'group-b', installableIds: ['mcp:tool-b', 'skill:skill-b'], conflictsWith: ['group-a'] },
+      ];
+      const ids = externalSources.resolveConflictingInstallableIds(conflictGroups, 'group-a');
+      assert.deepStrictEqual(ids.sort(), ['mcp:tool-b', 'skill:skill-b']);
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });

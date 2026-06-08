@@ -3496,17 +3496,25 @@ export interface OpenCodeStatusResponse {
     installCommand: string;
     lastError: string | null;
   };
+  availableModels: Array<{ id: string; displayName: string; provider: string }>;
+  profileMismatch: {
+    expectedProfile: string;
+    mismatches: Array<{ agent: string; role: string; actualModel: string; expectedModel: string }>;
+  } | null;
+  invalidProviderModels: Array<{ agent: string; model: string; reason: string }> | null;
 }
 
 export interface OpenCodeConfigPayload {
   profileRoute?: string;
   smallModel?: string;
   bigModel?: string;
+  reviewModel?: string;
 }
 
 export interface OpenCodeConfigResponse {
   ok: boolean;
   status: OpenCodeStatusResponse;
+  error?: string;
 }
 
 export interface OpenCodeAssetsInstallResponse {
@@ -3617,6 +3625,36 @@ export interface ClaudeCodeCliInstallResponse {
   version: string | null;
   error: string | null;
   status?: ClaudeCodeStatusResponse;
+}
+
+export type ClaudeCodeProviderMode = 'vanilla' | 'opencode-go' | 'deepseek-direct' | 'custom';
+
+export interface ClaudeCodeProviderStatusResponse {
+  activeMode: ClaudeCodeProviderMode;
+  baseUrl: string | null;
+  hasBackup: boolean;
+  backupCreatedAt: string | null;
+  settingsPath: string;
+  settingsExists: boolean;
+  apiKeyConfigured: boolean;
+  openCodeGoKeyAvailable: boolean;
+  openCodeGoKeySource: string | null;
+  model: string | null;
+  lastAppliedAt: string | null;
+  lastResetAt: string | null;
+}
+
+export interface ClaudeCodeProviderSetResponse {
+  ok: boolean;
+  mode: ClaudeCodeProviderMode;
+  status: ClaudeCodeProviderStatusResponse;
+  error?: string;
+}
+
+export interface ClaudeCodeProviderResetResponse {
+  ok: boolean;
+  status: ClaudeCodeProviderStatusResponse;
+  error?: string;
 }
 
 // ── Repo Docs Tree ──

@@ -3,6 +3,7 @@ import { Badge, Button, Panel, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import type { ClaudeCodeStatusResponse } from '../../lib/types';
 import { claudeCodeStore } from '../../stores/claudeCodeStore';
+import ClaudeCodeProviderPanel from '../../views/Settings/ClaudeCodeProviderPanel';
 
 function StatusDot({ status }: { status: string }) {
   const className = status === 'ok' ? 'health-dot health-dot-ok'
@@ -139,6 +140,9 @@ export default function ClaudeCodeView() {
           <>
             <ReadinessSection status={state.status} />
             <SetupSection status={state.status} />
+            <div className="opencode-section" data-testid="claude-code-provider-section">
+              <ClaudeCodeProviderPanel />
+            </div>
           </>
         ) : null}
       </div>

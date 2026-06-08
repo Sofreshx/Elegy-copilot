@@ -253,6 +253,8 @@ export function parseArgs(argv) {
     setupProfile: '',
     enableExternalProviders: true,
     printEnvOnly: false,
+    providerId: '',
+    modelId: '',
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -357,6 +359,30 @@ export function parseArgs(argv) {
       args.enableExternalProviders = false;
       continue;
     }
+    if (value.startsWith('--provider-id=')) {
+      args.providerId = value.slice('--provider-id='.length);
+      continue;
+    }
+    if (value === '--provider-id') {
+      i += 1;
+      if (i >= argv.length || String(argv[i]).startsWith('--')) {
+        throw new Error('Missing value for --provider-id');
+      }
+      args.providerId = argv[i] || '';
+      continue;
+    }
+    if (value.startsWith('--model-id=')) {
+      args.modelId = value.slice('--model-id='.length);
+      continue;
+    }
+    if (value === '--model-id') {
+      i += 1;
+      if (i >= argv.length || String(argv[i]).startsWith('--')) {
+        throw new Error('Missing value for --model-id');
+      }
+      args.modelId = argv[i] || '';
+      continue;
+    }
     if (value === '--print-env-only') {
       args.printEnvOnly = true;
       continue;
@@ -444,6 +470,8 @@ export function runInstall(args = {}) {
     reviewModel: args.reviewModel,
     profileName: args.profileName,
     enableExternalProviders: args.enableExternalProviders,
+    providerId: args.providerId || undefined,
+    modelId: args.modelId || undefined,
   });
   const configAction = args.dryRun
     ? (configResult.changed ? 'would_patch' : 'skipped')

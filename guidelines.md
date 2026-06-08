@@ -33,7 +33,7 @@ Start at `docs/system/index.md`. This file is the local overlay.
 | Shipped asset count (agents, skills, prompts) | `README.md` asset inventory |
 | New top-level directory | `README.md` repo layout |
 | Agent behavior, skill contracts, workflow policy | Smallest relevant `docs/system/` node |
-| Spec-driven work begins | `specs/<slug>/spec.md` + `specs/index.md` |
+| Spec-driven work begins | `docs/specs/<slug>/spec.md` + `docs/specs/index.md` |
 | CI, test matrix, or build scripts | `CONTRIBUTING.md` + `docs/system/ci-conventions.md` |
 
 Doc updates must travel with code changes, not follow-ups.

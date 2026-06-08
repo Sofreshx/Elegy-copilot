@@ -28,9 +28,13 @@ function handleChecksDiscover(ctx, deps) {
 
   try {
     const checks = discoverChecks(repoPath);
+    const source = checks.length > 0 && checks[0].source
+      ? checks[0].source
+      : 'none';
     sendJson(res, 200, {
       repoPath,
       checksAvailable: checks.length,
+      source,
       checks: checks.map((c) => ({
         name: c.name,
         path: c.path,

@@ -220,11 +220,34 @@ function buildLanes() {
   ];
 }
 
-function buildProfiles(opencodeConfig, opencodeHome) {
+function deriveModelDisplayName(modelId) {
+  if (typeof modelId !== 'string' || !modelId) return modelId;
+  const parts = modelId.split('/');
+  const modelName = parts.length > 1 ? parts.slice(1).join('/') : modelId;
+  return modelName
+    .split('-')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+function buildProfiles(opencodeConfig, opencodeHome, engineRoot, fsModule, pathModule) {
   const activeProviderRoute = opencodeConfig.getActiveProfileRoute
     ? opencodeConfig.getActiveProfileRoute(opencodeHome)
     : 'opencode-go';
   const availableRoutes = ['opencode-go', 'deepseek-direct'];
+
+  let profileDefs = {};
+  if (engineRoot && fsModule && pathModule) {
+    try {
+      const profilesPath = pathModule.resolve(engineRoot, 'opencode-assets', 'profiles.json');
+      if (fsModule.existsSync(profilesPath)) {
+        const profilesData = JSON.parse(fsModule.readFileSync(profilesPath, 'utf8'));
+        profileDefs = profilesData.profiles || {};
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   const profiles = [
     {
@@ -232,25 +255,64 @@ function buildProfiles(opencodeConfig, opencodeHome) {
       label: 'OpenCode Go',
       description: 'Default provider route via OpenCode Go runtime',
       route: 'opencode-go',
-      smallModel: 'DeepSeek V4 Flash Max',
-      bigModel: 'DeepSeek V4 Pro Max',
-      reviewModel: 'DeepSeek V4 Pro High',
+      smallModel: profileDefs['opencode-go']?.smallLabel || deriveModelDisplayName(profileDefs['opencode-go']?.small || 'deepseek-v4-flash'),
+      bigModel: profileDefs['opencode-go']?.bigLabel || deriveModelDisplayName(profileDefs['opencode-go']?.big || 'deepseek-v4-pro'),
+      reviewModel: profileDefs['opencode-go']?.reviewLabel || deriveModelDisplayName(profileDefs['opencode-go']?.review || 'deepseek-v4-pro'),
+      smallModelId: profileDefs['opencode-go']?.small || null,
+      bigModelId: profileDefs['opencode-go']?.big || null,
+      reviewModelId: profileDefs['opencode-go']?.review || null,
     },
     {
       id: 'deepseek-direct',
       label: 'Direct DeepSeek',
       description: 'Direct DeepSeek API provider route',
       route: 'deepseek-direct',
-      smallModel: 'DeepSeek V4 Flash Max',
-      bigModel: 'DeepSeek V4 Pro Max',
-      reviewModel: 'DeepSeek V4 Pro High',
+      smallModel: profileDefs['deepseek-direct']?.smallLabel || deriveModelDisplayName(profileDefs['deepseek-direct']?.small || 'deepseek-v4-flash'),
+      bigModel: profileDefs['deepseek-direct']?.bigLabel || deriveModelDisplayName(profileDefs['deepseek-direct']?.big || 'deepseek-v4-pro'),
+      reviewModel: profileDefs['deepseek-direct']?.reviewLabel || deriveModelDisplayName(profileDefs['deepseek-direct']?.review || 'deepseek-v4-pro'),
+      smallModelId: profileDefs['deepseek-direct']?.small || null,
+      bigModelId: profileDefs['deepseek-direct']?.big || null,
+      reviewModelId: profileDefs['deepseek-direct']?.review || null,
     },
   ];
+
+  // Build available models from profiles.json with curated labels
+  const availableModels = [];
+  if (engineRoot && fsModule && pathModule) {
+    try {
+      const profilesPath = pathModule.resolve(engineRoot, 'opencode-assets', 'profiles.json');
+      if (fsModule.existsSync(profilesPath)) {
+        const profilesData = JSON.parse(fsModule.readFileSync(profilesPath, 'utf8'));
+        const allProfiles = profilesData.profiles || {};
+        const seen = new Set();
+        for (const [, profileData] of Object.entries(allProfiles)) {
+          for (const role of ['small', 'big', 'review']) {
+            const modelId = profileData[role];
+            if (modelId && typeof modelId === 'string' && !seen.has(modelId)) {
+              seen.add(modelId);
+              const parts = modelId.split('/');
+              const providerName = parts.length > 1 ? parts[0] : 'unknown';
+              const labelKey = `${role}Label`;
+              const displayName = profileData[labelKey] || deriveModelDisplayName(modelId);
+              availableModels.push({
+                id: modelId,
+                displayName,
+                provider: providerName,
+              });
+            }
+          }
+        }
+      }
+    } catch {
+      // If profiles.json can't be read, availableModels stays empty
+    }
+  }
 
   return {
     availableRoutes,
     activeProfileId: activeProviderRoute,
     profiles,
+    availableModels,
   };
 }
 
@@ -603,7 +665,7 @@ async function buildOpenCodeStatus(ctx, deps) {
     ? assets.getManagedAssetStatuses(engineRoot, opencodeHome, 'opencode-assets/manifest.json')
     : [];
   const configStatus = opencodeConfig.getStatus(opencodeHome);
-  const profiles = buildProfiles(opencodeConfig, opencodeHome);
+  const profiles = buildProfiles(opencodeConfig, opencodeHome, engineRoot, deps.fs, deps.path);
   const lanes = buildLanes();
   const toolingStatus = computeToolingStatus(ctx, deps, managedAssetStatuses);
   const planningLiveAuthority = resolvePlanningLiveAuthorityState(deps.roadmapWorkflowPlanningBridge);
@@ -646,6 +708,84 @@ async function buildOpenCodeStatus(ctx, deps) {
     ? (deps.toolCliInstallers || toolCliInstallers).getCliToolStatus('opencode-cli')
     : { installed: false };
 
+  // R5: Profile mismatch detection — compare state file active profile against all agent file models
+  let profileMismatch = null;
+  try {
+    const stateActiveRoute = opencodeConfig.getActiveProfileRoute
+      ? opencodeConfig.getActiveProfileRoute(opencodeHome)
+      : 'opencode-go';
+    const profilesPath = path.resolve(engineRoot, 'opencode-assets', 'profiles.json');
+    if (fs.existsSync(profilesPath)) {
+      const profilesData = JSON.parse(fs.readFileSync(profilesPath, 'utf8'));
+      const targetProfile = profilesData.profiles && profilesData.profiles[stateActiveRoute];
+      const agentRoles = profilesData.agentRoles || {};
+      if (targetProfile) {
+        const agentsDir = path.join(opencodeHome, 'agents');
+        if (fs.existsSync(agentsDir)) {
+          const mismatches = [];
+          for (const entry of fs.readdirSync(agentsDir).sort()) {
+            if (!entry.endsWith('.md')) continue;
+            const agentName = entry.slice(0, -3);
+            const role = agentRoles[agentName];
+            if (!role) continue;
+            const expectedModel = targetProfile[role];
+            if (!expectedModel) continue;
+            const agentPath = path.join(agentsDir, entry);
+            const agentContent = fs.readFileSync(agentPath, 'utf8');
+            const fmMatch = agentContent.match(/^---\n([\s\S]*?)\n---/);
+            if (fmMatch) {
+              const modelMatch = fmMatch[1].match(/^model:\s*(.+)$/m);
+              if (modelMatch) {
+                const actualModel = modelMatch[1].trim();
+                if (actualModel !== expectedModel) {
+                  mismatches.push({ agent: agentName, role, actualModel, expectedModel });
+                }
+              }
+            }
+          }
+          if (mismatches.length > 0) {
+            profileMismatch = { expectedProfile: stateActiveRoute, mismatches };
+          }
+        }
+      }
+    }
+  } catch {
+    // If drift detection fails (e.g., no agent file yet), leave profileMismatch as null
+    profileMismatch = null;
+  }
+
+  // R6: Detect invalid custom provider/model pairs in opencode.jsonc agent config
+  let invalidProviderModels = null;
+  try {
+    const config = opencodeConfig.readConfig(opencodeHome);
+    const providers = config.provider && typeof config.provider === 'object' ? config.provider : {};
+    const agent = config.agent && typeof config.agent === 'object' ? config.agent : {};
+    const builtInProviders = new Set(['deepseek', 'opencode', 'opencode-go']);
+    const invalid = [];
+    for (const [agentName, agentCfg] of Object.entries(agent)) {
+      if (!agentCfg || typeof agentCfg !== 'object' || typeof agentCfg.model !== 'string') continue;
+      const modelId = agentCfg.model;
+      const slashIdx = modelId.indexOf('/');
+      if (slashIdx <= 0) continue;
+      const providerPrefix = modelId.slice(0, slashIdx);
+      if (builtInProviders.has(providerPrefix)) continue;
+      const providerCfg = providers[providerPrefix];
+      if (!providerCfg) {
+        invalid.push({ agent: agentName, model: modelId, reason: `provider "${providerPrefix}" not configured` });
+      } else if (providerCfg.models && typeof providerCfg.models === 'object') {
+        const modelKey = modelId.slice(slashIdx + 1);
+        if (!providerCfg.models[modelKey]) {
+          invalid.push({ agent: agentName, model: modelId, reason: `model "${modelKey}" not found in provider "${providerPrefix}".models` });
+        }
+      }
+    }
+    if (invalid.length > 0) {
+      invalidProviderModels = invalid;
+    }
+  } catch {
+    invalidProviderModels = null;
+  }
+
   return {
     overallStatus,
     warnings,
@@ -653,6 +793,7 @@ async function buildOpenCodeStatus(ctx, deps) {
     activeProfileId: profiles.activeProfileId,
     profiles: profiles.profiles,
     availableRoutes: profiles.availableRoutes,
+    availableModels: profiles.availableModels || [],
     lanes,
     configPreview: getConfigPreview(opencodeConfig, opencodeHome),
     opencodeHome: configStatus.opencodeHome,
@@ -665,6 +806,8 @@ async function buildOpenCodeStatus(ctx, deps) {
     planningLiveAuthority,
     worktreePermissionProfile: worktreePermissionStatus,
     opencodeCli: opencodeCliStatus,
+    profileMismatch,
+    invalidProviderModels,
   };
 }
 
@@ -914,6 +1057,35 @@ function sanitizePermission(value) {
   return { ok: true, value: permission };
 }
 
+/**
+ * Normalize permission values to strings for safe UI rendering.
+ * OpenCode config schema allows both simple strings ("allow") and
+ * nested objects ({"allow": true}) as permission values.
+ * This flattens object values to their string equivalent so the
+ * UI never receives a non-string value in the permission object.
+ */
+function normalizePermissions(permission) {
+  if (!permission || typeof permission !== 'object' || Array.isArray(permission)) {
+    return null;
+  }
+  const normalized = {};
+  for (const [key, val] of Object.entries(permission)) {
+    if (typeof val === 'string') {
+      normalized[key] = val;
+    } else if (val && typeof val === 'object' && !Array.isArray(val)) {
+      // Object-valued: {"allow": true} → "allow", {"deny": true} → "deny", {"ask": true} → "ask"
+      if (val.allow === true) normalized[key] = 'allow';
+      else if (val.deny === true) normalized[key] = 'deny';
+      else if (val.ask === true) normalized[key] = 'ask';
+      else normalized[key] = 'allow'; // safe default for unknown shapes
+    } else {
+      // Unknown type, skip
+      normalized[key] = 'allow';
+    }
+  }
+  return normalized;
+}
+
 function register(deps = {}) {
   const resolvedDeps = {
     sendJson: deps.sendJson || defaultSendJson,
@@ -951,18 +1123,77 @@ function register(deps = {}) {
       handler: async (ctx) => {
         try {
           const body = await resolvedDeps.readJsonBody(ctx.req);
-          const { opencodeHome } = ctx;
+          const { opencodeHome, engineRoot } = ctx;
           const profileRoute = asTrimmedString(body.profileRoute);
           const smallModel = asTrimmedString(body.smallModel);
           const bigModel = asTrimmedString(body.bigModel);
           const reviewModel = asTrimmedString(body.reviewModel);
+          const { path: pathModule, fs: fsModule, childProcess: childProcessModule } = resolvedDeps;
 
+          // R2: Profile activation must invoke the CLI profile-switch script
           if (profileRoute) {
-            resolvedDeps.opencodeConfig.updateStateProfileRoute
-              ? resolvedDeps.opencodeConfig.updateStateProfileRoute(opencodeHome, profileRoute)
-              : null;
+            const scriptPath = pathModule.resolve(engineRoot, 'scripts', 'opencode-profile-switch.mjs');
+
+            // Pre-invocation existence check
+            if (!fsModule.existsSync(scriptPath)) {
+              resolvedDeps.sendJson(ctx.res, 500, {
+                ok: false,
+                error: `Profile switch script not found at: ${scriptPath}`,
+              });
+              return;
+            }
+
+            // Validate that profileRoute is a known profile
+            const knownProfiles = ['opencode-go', 'deepseek-direct'];
+            if (!knownProfiles.includes(profileRoute)) {
+              resolvedDeps.sendJson(ctx.res, 400, {
+                ok: false,
+                error: `Unknown profile: ${profileRoute}. Available: ${knownProfiles.join(', ')}`,
+              });
+              return;
+            }
+
+            try {
+              await new Promise((resolve, reject) => {
+                const child = childProcessModule.execFile(
+                  process.execPath,
+                  [scriptPath, profileRoute],
+                  {
+                    cwd: engineRoot,
+                    timeout: 30000, // 30 seconds
+                    maxBuffer: 1024 * 1024, // 1 MB output buffer
+                  },
+                  (error, stdout, stderr) => {
+                    if (error) {
+                      const detail = stderr || error.message;
+                      reject(new Error(`Profile switch failed: ${detail.trim()}`));
+                      return;
+                    }
+                    resolve({ stdout, stderr });
+                  },
+                );
+
+                // Timeout handling: the `timeout` option on execFile sends SIGTERM
+                // after the timeout, but for explicitness we track it
+                child.on('error', (err) => {
+                  reject(new Error(`Profile switch script error: ${err.message}`));
+                });
+              });
+
+              // Script succeeded — now update the state file
+              if (resolvedDeps.opencodeConfig.updateStateProfileRoute) {
+                resolvedDeps.opencodeConfig.updateStateProfileRoute(opencodeHome, profileRoute);
+              }
+            } catch (scriptError) {
+              resolvedDeps.sendJson(ctx.res, 500, {
+                ok: false,
+                error: scriptError instanceof Error ? scriptError.message : String(scriptError),
+              });
+              return;
+            }
           }
 
+          // Model overrides: only used when small/big/review are passed WITHOUT a profile switch
           if (smallModel || bigModel || reviewModel) {
             resolvedDeps.opencodeConfig.setAgentModels(
               opencodeHome,
@@ -1251,7 +1482,8 @@ function register(deps = {}) {
       handler: async (ctx) => {
         try {
           const config = resolvedDeps.opencodeConfig.readConfig(ctx.opencodeHome);
-          const permission = config && config.permission ? config.permission : null;
+          const rawPermission = config && config.permission ? config.permission : null;
+          const permission = normalizePermissions(rawPermission);
           resolvedDeps.sendJson(ctx.res, 200, { ok: true, permission });
         } catch (error) {
           resolvedDeps.sendJson(ctx.res, 500, {

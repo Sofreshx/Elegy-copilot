@@ -2,16 +2,22 @@
   "activeProfile": "opencode-go",
   "profiles": {
     "opencode-go": {
+      "small": "opencode-go/deepseek-v4-flash",
+      "big": "opencode-go/deepseek-v4-pro",
+      "review": "opencode-go/deepseek-v4-pro",
+      "reasoningEffort": "high",
+      "smallLabel": "DeepSeek V4 Flash",
+      "bigLabel": "DeepSeek V4 Pro",
+      "reviewLabel": "DeepSeek V4 Pro"
+    },
+    "deepseek-direct": {
       "small": "deepseek/deepseek-v4-flash",
       "big": "deepseek/deepseek-v4-pro",
       "review": "deepseek/deepseek-v4-pro",
-      "reasoningEffort": "high"
-    },
-    "deepseek-direct": {
-      "small": "deepseek-direct/deepseek-v4-flash",
-      "big": "deepseek-direct/deepseek-v4-pro",
-      "review": "deepseek-direct/deepseek-v4-pro",
-      "reasoningEffort": "high"
+      "reasoningEffort": "high",
+      "smallLabel": "DeepSeek V4 Flash Max",
+      "bigLabel": "DeepSeek V4 Pro Max",
+      "reviewLabel": "DeepSeek V4 Pro High"
     }
   },
   "agentRoles": {

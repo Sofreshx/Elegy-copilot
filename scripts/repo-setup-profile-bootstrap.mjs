@@ -179,7 +179,7 @@ function buildSpecsIndexText() {
     '',
     'This repo opts into instruction-engine spec-driven development for non-trivial work.',
     '',
-    '- Durable specs live under `specs/<spec-slug>/spec.md`.',
+    '- Durable specs live under `docs/specs/<spec-slug>/spec.md`.',
     '- Use `spec-dev` to choose `spec-first`, `spec-anchored`, or `spec-as-source`.',
     '- Use `spec-authoring` to create or refine durable specs and `spec-review` before implementation planning when the spec will drive the work.',
     '- Narrow candidate constraints to the minimum hard constraints needed for the active step.',
@@ -406,7 +406,7 @@ export function runRepoSetupProfileBootstrap(options = {}) {
 
   results.push(ensureDir(path.join(repoRoot, '.github', 'agents'), Boolean(options.dryRun), log));
   results.push(ensureDir(path.join(repoRoot, '.github', 'skills'), Boolean(options.dryRun), log));
-  results.push(ensureDir(path.join(repoRoot, 'specs'), Boolean(options.dryRun), log));
+  results.push(ensureDir(path.join(repoRoot, 'docs', 'specs'), Boolean(options.dryRun), log));
 
   const overlays = runElegyConfigurationApply({
     elegyCliPath,
@@ -420,7 +420,7 @@ export function runRepoSetupProfileBootstrap(options = {}) {
   });
   results.push(...receiptEntriesToResults(overlays.receipt));
 
-  results.push(createTextFileIfMissing(buildSpecsIndexText(), path.join(repoRoot, 'specs', 'index.md'), options));
+  results.push(createTextFileIfMissing(buildSpecsIndexText(), path.join(repoRoot, 'docs', 'specs', 'index.md'), options));
 
   const validator = runElegyConfigurationApply({
     elegyCliPath,

@@ -41,7 +41,7 @@
     {
       "sourceId": "context7",
       "title": "Context7",
-      "description": "Public MCP and skill source for up-to-date documentation retrieval.",
+      "description": "Public skill and MCP source for up-to-date documentation retrieval.",
       "url": "https://github.com/upstash/context7",
       "sourceType": "github-repo",
       "owner": "upstash",
@@ -55,10 +55,37 @@
       "mcpManifestPath": "server.json",
       "installables": [
         {
+          "installableId": "cli:context7",
+          "kind": "cli-tool",
+          "name": "ctx7",
+          "title": "Context7 CLI",
+          "description": "Context7 CLI for up-to-date documentation retrieval via ctx7 commands.",
+          "targetSupport": [
+            "host"
+          ],
+          "installCommand": "npm install -g ctx7",
+          "verifyCommand": "ctx7 --help",
+          "runtimeChecks": [
+            "ctx7 is callable from the host runtime.",
+            "CONTEXT7_API_KEY is optional and only needed for authenticated access."
+          ],
+          "setupHints": [
+            "Store CONTEXT7_API_KEY outside the repository if you need authenticated access.",
+            "Use ctx7 library <name> to search for libraries.",
+            "Use ctx7 docs <libraryId> <query> to retrieve documentation."
+          ],
+          "metadata": {
+            "package": "ctx7",
+            "verifyEnvVars": [
+              "CONTEXT7_API_KEY"
+            ]
+          }
+        },
+        {
           "installableId": "mcp:context7",
           "kind": "mcp-server",
           "name": "context7",
-          "title": "Context7",
+          "title": "Context7 MCP",
           "description": "Context7 MCP server for fresh documentation retrieval.",
           "sourcePath": "server.json",
           "targetSupport": [
@@ -85,6 +112,31 @@
               "CONTEXT7_API_KEY"
             ]
           }
+        }
+      ],
+      "conflictGroups": [
+        {
+          "groupId": "context7-cli-skills",
+          "label": "CLI + Skills",
+          "installableIds": [
+            "cli:context7",
+            "skill:context7-cli",
+            "skill:context7-mcp",
+            "skill:find-docs"
+          ],
+          "conflictsWith": [
+            "context7-mcp"
+          ]
+        },
+        {
+          "groupId": "context7-mcp",
+          "label": "MCP Server",
+          "installableIds": [
+            "mcp:context7"
+          ],
+          "conflictsWith": [
+            "context7-cli-skills"
+          ]
         }
       ]
     },

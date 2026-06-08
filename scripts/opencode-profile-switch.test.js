@@ -69,11 +69,11 @@ async function main() {
         fs.writeFileSync(filePath, content, 'utf8');
       }
 
-      // Switch to deepseek-direct profile
+      // Switch to deepseek-direct profile (uses built-in deepseek provider)
       const profile = {
-        small: 'deepseek-direct/deepseek-v4-flash',
-        big: 'deepseek-direct/deepseek-v4-pro',
-        review: 'deepseek-direct/deepseek-v4-pro',
+        small: 'deepseek/deepseek-v4-flash',
+        big: 'deepseek/deepseek-v4-pro',
+        review: 'deepseek/deepseek-v4-pro',
         reasoningEffort: 'high',
       };
 
@@ -101,10 +101,10 @@ async function main() {
         assert.ok(content.includes(`model: ${result.newModel}`), `${result.agent} model should be ${result.newModel}`);
       }
 
-      // Verify model changed for all agents (from deepseek/ to deepseek-direct/)
+      // Verify model changed for all agents (from deepseek/ to deepseek/ — same provider, different profile)
       for (const result of results) {
         assert.ok(result.oldModel.startsWith('deepseek/'), `${result.agent} old model should start with deepseek/`);
-        assert.ok(result.newModel.startsWith('deepseek-direct/'), `${result.agent} new model should start with deepseek-direct/`);
+        assert.ok(result.newModel.startsWith('deepseek/'), `${result.agent} new model should start with deepseek/`);
       }
     });
   });
@@ -120,9 +120,9 @@ async function main() {
 
       const agentRoles = { quick: 'small' };
       const profile = {
-        small: 'deepseek-direct/deepseek-v4-flash',
-        big: 'deepseek-direct/deepseek-v4-pro',
-        review: 'deepseek-direct/deepseek-v4-pro',
+        small: 'deepseek/deepseek-v4-flash',
+        big: 'deepseek/deepseek-v4-pro',
+        review: 'deepseek/deepseek-v4-pro',
         reasoningEffort: 'medium',
       };
 
@@ -130,7 +130,7 @@ async function main() {
 
       const updated = fs.readFileSync(filePath, 'utf8');
       assert.ok(updated.includes('reasoningEffort: medium'), 'reasoningEffort should be updated from profile');
-      assert.ok(updated.includes('model: deepseek-direct/deepseek-v4-flash'), 'model should be updated');
+      assert.ok(updated.includes('model: deepseek/deepseek-v4-flash'), 'model should be updated');
     });
   });
 
@@ -149,7 +149,7 @@ async function main() {
 
       const agentRoles = { quick: 'small' };
       const profile = {
-        small: 'deepseek-direct/deepseek-v4-flash',
+        small: 'deepseek/deepseek-v4-flash',
         reasoningEffort: 'high',
       };
 
@@ -158,7 +158,7 @@ async function main() {
 
       const quickResult = utils.updateAgentModel(quickPath, profile, agentRoles);
       assert.ok(quickResult !== null, 'agents with role should be updated');
-      assert.strictEqual(quickResult.newModel, 'deepseek-direct/deepseek-v4-flash');
+      assert.strictEqual(quickResult.newModel, 'deepseek/deepseek-v4-flash');
 
       // custom-agent should be unchanged
       const customContent = fs.readFileSync(customPath, 'utf8');

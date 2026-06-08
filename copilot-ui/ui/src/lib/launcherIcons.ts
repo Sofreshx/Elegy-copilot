@@ -3,10 +3,14 @@
  * Falls back to a generic group icon when no brand icon is registered.
  */
 export const LAUNCHER_ICON_MAP: Record<string, string> = {
-  'opencode-cli': '/icons/opencode.svg',
-  'claude-code-cli': '/icons/claude.svg',
-  'codex-cli': '/icons/codex.svg',
-  'copilot-cli': '/icons/copilot.svg',
+  'vscode': '/icons/vscode.svg',
+  'codium': '/icons/codium.svg',
+  'cursor': '/icons/cursor.svg',
+  'windsurf': '/icons/windsurf.svg',
+  'opencode': '/icons/opencode.svg',
+  'claude-code': '/icons/claude.svg',
+  'codex': '/icons/codex.svg',
+  'copilot': '/icons/copilot.svg',
   'gemini-cli': '/icons/gemini.svg',
 };
 

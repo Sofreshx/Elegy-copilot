@@ -66,6 +66,8 @@ export function updateAgentModel(filePath, profile, agentRoles) {
   if (!newModel) return null;
 
   let content = fs.readFileSync(filePath, 'utf8');
+  // Normalize CRLF → LF for consistent parsing across platforms
+  content = content.replace(/\r\n/g, '\n');
   const { frontmatter } = parseFrontmatter(content);
   const oldModel = frontmatter.model;
 

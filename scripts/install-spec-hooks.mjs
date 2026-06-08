@@ -24,7 +24,7 @@ const HOOK_BLOCK = `#!/bin/sh
 # Bypass: SKIP_CHECK=1 git commit
 
 # ── Spec validation (staged spec files only) ──
-STAGED_SPECS=$(git diff --cached --name-only --diff-filter=ACMR | grep '^specs/[^/]*/spec\\.md$')
+STAGED_SPECS=$(git diff --cached --name-only --diff-filter=ACMR | grep '^docs/specs/[^/]*/spec\\.md$')
 if [ -n "$STAGED_SPECS" ]; then
   echo "[pre-commit] Staged spec files detected, validating..."
   for spec in $STAGED_SPECS; do

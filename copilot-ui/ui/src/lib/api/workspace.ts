@@ -35,7 +35,6 @@ export interface WorkspaceLauncher {
   command: string;
   available: boolean;
   reason?: string;
-  argsPreview?: string;
 }
 
 export interface WorkspaceLaunchersResponse {

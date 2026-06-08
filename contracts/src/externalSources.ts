@@ -32,6 +32,13 @@ export interface ExternalInstallableRecord {
   metadata?: Record<string, unknown>;
 }
 
+export interface ConflictGroup {
+  groupId: string;
+  label: string;
+  installableIds: string[];
+  conflictsWith: string[];
+}
+
 export interface ExternalSourceRecord {
   sourceId: string;
   title: string;
@@ -49,6 +56,7 @@ export interface ExternalSourceRecord {
   mcpManifestPath?: string;
   setupHints?: string[];
   installables?: ExternalInstallableRecord[];
+  conflictGroups?: ConflictGroup[];
   metadata?: Record<string, unknown>;
   editable?: boolean;
 }
@@ -128,6 +136,26 @@ function normalizeExternalInstallableRecord(value: unknown): ExternalInstallable
   };
 }
 
+function normalizeConflictGroup(value: unknown): ConflictGroup | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const groupId = normalizeString(record.groupId);
+  const label = normalizeString(record.label);
+  if (!groupId) {
+    return null;
+  }
+
+  return {
+    groupId,
+    label: label || groupId,
+    installableIds: normalizeStringList(record.installableIds),
+    conflictsWith: normalizeStringList(record.conflictsWith),
+  };
+}
+
 function normalizeExternalSourceRecord(value: unknown): ExternalSourceRecord | null {
   if (!value || typeof value !== 'object') {
     return null;
@@ -163,6 +191,11 @@ function normalizeExternalSourceRecord(value: unknown): ExternalSourceRecord | n
       ? record.installables
         .map((entry) => normalizeExternalInstallableRecord(entry))
         .filter((entry): entry is ExternalInstallableRecord => Boolean(entry))
+      : undefined,
+    conflictGroups: Array.isArray(record.conflictGroups)
+      ? record.conflictGroups
+        .map((entry) => normalizeConflictGroup(entry))
+        .filter((entry): entry is ConflictGroup => Boolean(entry))
       : undefined,
     metadata: normalizeRecordObject(record.metadata),
     editable: normalizeBoolean(record.editable, false),

@@ -104,6 +104,18 @@ function main() {
     if (!config.agent || typeof config.agent !== 'object') {
       config.agent = {};
     }
+
+    // Provider config management:
+    // - Both profiles use built-in providers (opencode-go or deepseek).
+    // - Always clean stale custom "deepseek-direct" provider if present.
+    if (!config.provider || typeof config.provider !== 'object') {
+      config.provider = {};
+    }
+    delete config.provider['deepseek-direct'];
+    if (Object.keys(config.provider).length === 0) {
+      delete config.provider;
+    }
+
     let configUpdated = 0;
     for (const [agentName, roleKey] of Object.entries(agentRoles)) {
       const modelValue = profile[roleKey];
@@ -122,9 +134,6 @@ function main() {
   } catch (err) {
     console.log(`[WARN] Could not sync opencode.jsonc: ${err.message}`);
   }
-
-  profilesConfig.activeProfile = targetProfile;
-  fs.writeFileSync(profilesPath, `${JSON.stringify(profilesConfig, null, 2)}\n`, 'utf8');
 
   console.log(`Switched to profile: ${targetProfile}`);
   console.log('');

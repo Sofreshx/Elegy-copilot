@@ -160,6 +160,7 @@ describe('WorkspaceGitTab', () => {
     vi.mocked(gitApi.discoverGitChecks).mockResolvedValue({
       repoPath: '/test/repo',
       checksAvailable: 2,
+      source: 'legacy',
       checks: [
         { name: 'lint', path: 'npm run lint', description: 'Run linter' },
         { name: 'test', path: 'npm test', description: 'Run tests' },

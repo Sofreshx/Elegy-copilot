@@ -75,6 +75,13 @@ const INITIAL_DETAIL_STATE: DetailState = {
   label: 'No source detail selected',
 };
 
+function resolveContext7ModeInstallableIds(mode: 'cli-skills' | 'mcp'): string[] {
+  if (mode === 'mcp') {
+    return ['mcp:context7'];
+  }
+  return ['cli:context7', 'skill:context7-cli', 'skill:context7-mcp', 'skill:find-docs'];
+}
+
 const INSTALL_SURFACE_CARDS: Array<{
   target: InstallSurfaceTarget;
   title: string;
@@ -328,7 +335,7 @@ function buildExternalInventoryEntries(sources: CatalogExternalSourceProjection[
     .flatMap((source) => {
       const installables = Array.isArray(source.installables) ? source.installables : [];
       return installables.flatMap((installable) => {
-        if (installable.kind !== 'mcp' && installable.kind !== 'cli-tool') {
+        if (installable.kind !== 'mcp' && installable.kind !== 'cli-tool' && installable.kind !== 'skill') {
           return [];
         }
         const supportedTargets = readExternalInstallableTargets(installable);
@@ -384,6 +391,7 @@ export default function CatalogStatusView() {
     inventory: EMPTY_INSTALLED_INVENTORY,
   });
   const [detailState, setDetailState] = useState<DetailState>(INITIAL_DETAIL_STATE);
+  const [context7Mode, setContext7Mode] = useState<'cli-skills' | 'mcp'>('cli-skills');
 
   useEffect(() => {
     void catalogWorkspaceStore.loadWorkspace();
@@ -526,6 +534,14 @@ export default function CatalogStatusView() {
   const handleSyncInstallVerifySource = async (source: CatalogExternalSourceProjection) => {
     await catalogWorkspaceStore.syncInstallVerifyExternalSource({
       sourceId: source.sourceId,
+      repoPath: effectiveRepoPath || undefined,
+    });
+  };
+
+  const handleSyncInstallVerifyContext7 = async (source: CatalogExternalSourceProjection, mode: 'cli-skills' | 'mcp') => {
+    await catalogWorkspaceStore.syncInstallVerifyExternalSource({
+      sourceId: source.sourceId,
+      installableIds: resolveContext7ModeInstallableIds(mode),
       repoPath: effectiveRepoPath || undefined,
     });
   };
@@ -711,6 +727,28 @@ export default function CatalogStatusView() {
                         {installableCount} installable(s) · {activeCount} active target(s)
                         {source.sync?.resolvedRef ? ` · ref: ${source.sync.resolvedRef}` : ''}
                       </p>
+                      {source.sourceId === 'context7' && !isActive && (
+                        <div className="catalog-action-row" style={{ marginBottom: '6px' }}>
+                          <label className="planning-checkbox" style={{ marginRight: '12px' }}>
+                            <input
+                              checked={context7Mode === 'cli-skills'}
+                              onChange={() => setContext7Mode('cli-skills')}
+                              type="radio"
+                              name="context7-mode"
+                            />
+                            CLI + Skills (recommended)
+                          </label>
+                          <label className="planning-checkbox">
+                            <input
+                              checked={context7Mode === 'mcp'}
+                              onChange={() => setContext7Mode('mcp')}
+                              type="radio"
+                              name="context7-mode"
+                            />
+                            MCP Server
+                          </label>
+                        </div>
+                      )}
                       {verification.errors.length > 0 && (
                         <p className="state-message state-error">{verification.errors[0]}</p>
                       )}
@@ -731,7 +769,11 @@ export default function CatalogStatusView() {
                           <Button
                             disabled={catalogState.loading || catalogState.mutating || installableCount === 0}
                             onClick={() => {
-                              void handleSyncInstallVerifySource(source);
+                              if (source.sourceId === 'context7') {
+                                void handleSyncInstallVerifyContext7(source, context7Mode);
+                              } else {
+                                void handleSyncInstallVerifySource(source);
+                              }
                             }}
                             size="sm"
                             testId={`catalog-external-asset-${source.sourceId}-enable`}

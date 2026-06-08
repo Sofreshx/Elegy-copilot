@@ -41,7 +41,7 @@ try {
 }
 
 const stagedFiles = staged.trim().split('\n').filter(Boolean);
-const specFiles = stagedFiles.filter(f => f.match(/^specs\/[^/]+\/spec\.md$/));
+const specFiles = stagedFiles.filter(f => f.match(/^docs\/specs\/[^/]+\/spec\.md$/));
 
 if (specFiles.length === 0) {
   process.exit(0);
@@ -50,7 +50,7 @@ if (specFiles.length === 0) {
 // Run full-directory validation
 console.error(`[spec-precommit] ${specFiles.length} spec file(s) staged, running validation...`);
 try {
-  execSync('node scripts/validate-specs.js --strict specs', {
+  execSync('node scripts/validate-specs.js --strict docs/specs', {
     encoding: 'utf8',
     stdio: 'inherit'
   });

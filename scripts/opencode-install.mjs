@@ -513,6 +513,21 @@ export async function runInstall(args = {}) {
     console.log(`[WARN] Profile injection failed: ${err.message}`);
   }
 
+  // ── Claude Code provider setup ──
+  // Configure Claude Code to use DeepSeek Direct by default (Anthropic-compatible endpoint)
+  try {
+    const { applyDefaultProvider } = require('../copilot-ui/lib/claudeCodeConfig.js');
+    const claudeHome = path.join(os.homedir(), '.claude');
+    const ccResult = applyDefaultProvider(claudeHome);
+    if (ccResult.applied) {
+      console.log(`[OK] Claude Code provider set to ${ccResult.mode} (key from ${ccResult.source})`);
+    } else if (ccResult.reason) {
+      console.log(`[SKIP] Claude Code provider: ${ccResult.reason}`);
+    }
+  } catch (err) {
+    console.log(`[WARN] Claude Code provider setup failed: ${err.message}`);
+  }
+
   const pruneResults = [
     ...pruneManagedEntries(path.join(opencodeHome, 'agents'), previousInventory.agents, desiredInventory.agents, 'agent', shaFile, args),
     ...pruneManagedEntries(skillsHome, previousInventory.skills, desiredInventory.skills, 'skill', dirHash, args),

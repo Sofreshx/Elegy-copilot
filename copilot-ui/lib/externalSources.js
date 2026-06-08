@@ -647,6 +647,13 @@ async function resolveCliInstallerSelection(installable, options) {
     if (!defaultInstallCommand) {
       throw Object.assign(new Error(`Installable ${installable.installableId} is missing an install command.`), { statusCode: 400 });
     }
+    const firstToken = defaultInstallCommand.split(/\s+/)[0];
+    if (firstToken === 'npm' || firstToken === 'npx') {
+      const npmProbe = await probeInstallerAvailability(firstToken, options);
+      if (!npmProbe.ok) {
+        throw Object.assign(new Error(`${firstToken} is not available on PATH. Install Node.js from https://nodejs.org/ and retry.`), { statusCode: 500 });
+      }
+    }
     return {
       installer: null,
       installCommand: defaultInstallCommand,
@@ -761,6 +768,7 @@ function runCommand(invocation, options = {}) {
         cwd: invocation.cwd,
         env: invocation.env,
         windowsHide: true,
+        shell: true,
         timeout: invocation.timeoutMs,
         maxBuffer: 1024 * 1024,
       },
@@ -2067,6 +2075,102 @@ function resolveInstallableFromSource(options, sourceId, installableId) {
   };
 }
 
+function resolveConflictGroups(source) {
+  if (!source || !Array.isArray(source.conflictGroups)) {
+    return [];
+  }
+  return source.conflictGroups;
+}
+
+function findConflictGroupForInstallable(conflictGroups, installableId) {
+  return conflictGroups.find((group) =>
+    Array.isArray(group.installableIds) && group.installableIds.includes(installableId)
+  ) || null;
+}
+
+function resolveConflictingInstallableIds(conflictGroups, groupId) {
+  const group = conflictGroups.find((g) => g.groupId === groupId);
+  if (!group || !Array.isArray(group.conflictsWith)) {
+    return [];
+  }
+  const conflictingIds = [];
+  for (const conflictingGroupId of group.conflictsWith) {
+    const conflictingGroup = conflictGroups.find((g) => g.groupId === conflictingGroupId);
+    if (conflictingGroup && Array.isArray(conflictingGroup.installableIds)) {
+      conflictingIds.push(...conflictingGroup.installableIds);
+    }
+  }
+  return [...new Set(conflictingIds)];
+}
+
+async function deactivateConflictingInstallables(options, source, target, excludeInstallableId) {
+  const conflictGroups = resolveConflictGroups(source);
+  if (conflictGroups.length === 0) {
+    return;
+  }
+
+  const sourceState = resolveSourceStateEntry(
+    readExternalSourcesState(options.copilotHome).state,
+    source.sourceId,
+  );
+  const allTargets = sourceState?.targets && typeof sourceState.targets === 'object'
+    ? Object.keys(sourceState.targets)
+    : [];
+
+  const installables = resolveSourceInstallables(source, loadCachedSnapshot(options.copilotHome, source.sourceId));
+  const installableMap = new Map(installables.map((entry) => [entry.installableId, entry]));
+
+  const incomingGroup = findConflictGroupForInstallable(conflictGroups, excludeInstallableId);
+  if (!incomingGroup) {
+    return;
+  }
+
+  const conflictingIds = resolveConflictingInstallableIds(conflictGroups, incomingGroup.groupId);
+  if (conflictingIds.length === 0) {
+    return;
+  }
+
+  const toDeactivate = [];
+  for (const targetKey of allTargets) {
+    const targetState = sourceState.targets[targetKey];
+    const installablesState = targetState?.installables;
+    if (!installablesState || typeof installablesState !== 'object') {
+      continue;
+    }
+
+    for (const [entryInstallableId, entryState] of Object.entries(installablesState)) {
+      if (entryInstallableId === excludeInstallableId) {
+        continue;
+      }
+      if (!entryState || entryState.enabled !== true) {
+        continue;
+      }
+      if (conflictingIds.includes(entryInstallableId)) {
+        toDeactivate.push({
+          installableId: entryInstallableId,
+          installable: installableMap.get(entryInstallableId),
+          target: targetKey,
+        });
+      }
+    }
+  }
+
+  for (const { installableId: conflictingId, installable: conflictingInstallable, target: deactivateTarget } of toDeactivate) {
+    if (!conflictingInstallable) {
+      continue;
+    }
+    try {
+      deactivateInstallable(options, {
+        sourceId: source.sourceId,
+        installableId: conflictingId,
+        target: deactivateTarget,
+      });
+    } catch {
+      // best-effort deactivation — continue even if removal fails
+    }
+  }
+}
+
 async function activateInstallable(options, payload) {
   const normalizedSourceId = normalizeExternalSourceId(payload?.sourceId);
   const installableId = normalizeString(payload?.installableId);
@@ -2080,6 +2184,8 @@ async function activateInstallable(options, payload) {
   if (!supportedTargets.includes(target)) {
     throw Object.assign(new Error(`Installable ${installableId} does not support target ${target}.`), { statusCode: 400 });
   }
+
+  await deactivateConflictingInstallables(options, source, target, installableId);
 
   const materialized = await resolveMaterializeInstallable(options, source, installable, target, cached);
   const now = new Date().toISOString();
@@ -2580,4 +2686,7 @@ module.exports = {
   deactivateInstallable,
   syncInstallVerifySource,
   bootstrapSpecKitRepo,
+  resolveConflictGroups,
+  findConflictGroupForInstallable,
+  resolveConflictingInstallableIds,
 };

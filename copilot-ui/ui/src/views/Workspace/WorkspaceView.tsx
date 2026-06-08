@@ -250,9 +250,7 @@ export default function WorkspaceView() {
                           <span className="workspace-launch-menu-item-label">
                             {launching === launcher.id ? 'Opening...' : launcher.label}
                           </span>
-                          {launcher.argsPreview ? (
-                            <span className="workspace-launch-menu-item-args">{launcher.argsPreview}</span>
-                          ) : null}
+
                         </button>
                       ))}
                     </div>

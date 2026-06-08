@@ -96,11 +96,21 @@ function createOpenCodeStore() {
     store.setState((state) => ({ ...state, saving: true, error: null, message: null }));
     try {
       const response = await saveOpenCodeConfig(payload);
+      if (response.ok === false) {
+        store.setState((state) => ({
+          ...state,
+          saving: false,
+          error: response.error || 'Failed to save configuration.',
+        }));
+        return;
+      }
       store.setState((state) => ({
         ...state,
         status: response.status,
         saving: false,
-        message: 'OpenCode configuration saved.',
+        message: payload.profileRoute
+          ? `Profile switched to ${payload.profileRoute}.`
+          : 'OpenCode configuration saved.',
       }));
     } catch (error) {
       store.setState((state) => ({

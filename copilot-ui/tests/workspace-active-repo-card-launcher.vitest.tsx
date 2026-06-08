@@ -34,11 +34,11 @@ describe('WorkspaceActiveRepoCard launcher UI', () => {
   };
 
   const sampleLaunchers = [
-    { id: 'vscode', label: 'VS Code', group: 'ides', command: 'code', available: true, argsPreview: '<repo-path>' },
-    { id: 'cursor', label: 'Cursor', group: 'ides', command: 'cursor', available: false, reason: 'not found', argsPreview: '<repo-path>' },
-    { id: 'opencode', label: 'OpenCode CLI', group: 'agents', command: 'opencode', available: true, argsPreview: 'opencode .' },
-    { id: 'codex', label: 'Codex CLI', group: 'agents', command: 'codex', available: false, reason: 'not found', argsPreview: 'codex' },
-    { id: 'terminal', label: 'Terminal', group: 'terminals', command: 'terminal', available: true, argsPreview: '-NoExit -WorkingDirectory <repo-path>' },
+    { id: 'vscode', label: 'VS Code', group: 'ides', command: 'code', available: true },
+    { id: 'cursor', label: 'Cursor', group: 'ides', command: 'cursor', available: false, reason: 'not found' },
+    { id: 'opencode', label: 'OpenCode CLI', group: 'agents', command: 'opencode', available: true },
+    { id: 'codex', label: 'Codex CLI', group: 'agents', command: 'codex', available: false, reason: 'not found' },
+    { id: 'terminal', label: 'Terminal', group: 'terminals', command: 'terminal', available: true },
   ];
 
   beforeEach(() => {
@@ -169,8 +169,8 @@ describe('WorkspaceActiveRepoCard launcher UI', () => {
   it('trigger is disabled when no launchers are available', async () => {
     mockGetWorkspaceLaunchers.mockResolvedValue({
       launchers: [
-        { id: 'vscode', label: 'VS Code', group: 'ides', command: 'code', available: false, reason: 'not found', argsPreview: '<repo-path>' },
-        { id: 'terminal', label: 'Terminal', group: 'terminals', command: 'terminal', available: false, reason: 'unavailable', argsPreview: '' },
+        { id: 'vscode', label: 'VS Code', group: 'ides', command: 'code', available: false, reason: 'not found' },
+        { id: 'terminal', label: 'Terminal', group: 'terminals', command: 'terminal', available: false, reason: 'unavailable' },
       ],
     });
 
@@ -183,21 +183,6 @@ describe('WorkspaceActiveRepoCard launcher UI', () => {
 
     const trigger = screen.getByTestId('workspace-launch-trigger');
     expect(trigger).toBeDisabled();
-  });
-
-  it('shows argsPreview text for launchers that have it', async () => {
-    const { default: WorkspaceActiveRepoCard } = await import('../ui/src/views/Workspace/WorkspaceActiveRepoCard');
-    render(<WorkspaceActiveRepoCard {...defaultProps} />);
-
-    await waitFor(() => {
-      expect(mockGetWorkspaceLaunchers).toHaveBeenCalled();
-    });
-
-    fireEvent.click(screen.getByTestId('workspace-launch-trigger'));
-
-    // OpenCode should show its argsPreview
-    const opencodeItem = screen.getByTestId('workspace-launch-opencode');
-    expect(opencodeItem.querySelector('.workspace-launch-menu-item-args')).toHaveTextContent('opencode .');
   });
 
   it('shows first available launcher icon as default trigger icon', async () => {

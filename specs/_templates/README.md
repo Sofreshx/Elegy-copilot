@@ -11,4 +11,4 @@ Choose the template closest to your work:
 | \gent\ | A scoped change to a single lane agent or subagent prompt | \gent.md\ |
 | \migration\ | Data migration, schema migration, or state transition | \migration.md\ |
 
-Copy the relevant template to \specs/<your-slug>/spec.md\ and fill in the sections. Not all recommended sections are required — the spec validator only enforces the 8 required headings. Add extra sections as needed.
+Copy the relevant template to \docs/specs/<your-slug>/spec.md\ and fill in the sections. Not all recommended sections are required — the spec validator only enforces the 8 required headings. Add extra sections as needed.

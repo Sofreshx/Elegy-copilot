@@ -113,7 +113,7 @@ When the current workspace is the Instruction Engine / Elegy Copilot repo:
 - `copilot-ui/` is the local dashboard and catalog control plane; the packaged Windows desktop app is the normal end-user runtime.
 - `contracts/`, `local-tracker/`, `scripts/`, and `docs/system/**` hold shared contracts, gateway/runtime support, installers/validators, and canonical policy.
 - Start repo-rule work at `docs/system/index.md`, then the nearest MOC, then the smallest canonical node.
-- For spec-driven work, follow `docs/system/spec-driven-development.md`; durable specs live at `specs/<spec-slug>/spec.md` with optional `specs/index.md`, and the repo-local validator is `node scripts/validate-specs.js <spec-root>`.
+- For spec-driven work, follow `docs/system/spec-driven-development.md`; durable specs live at `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`, and the repo-local validator is `node scripts/validate-specs.js <spec-root>`.
 
 ## Implementation Friction Capture
 - Constructive complaints about hard-to-work-with code are allowed when they help delivery.

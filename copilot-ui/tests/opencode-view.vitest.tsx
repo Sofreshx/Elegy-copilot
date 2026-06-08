@@ -88,6 +88,14 @@ const mockStatus: OpenCodeStatusResponse = {
   elegyPlanningCli: { cliPath: '/usr/local/bin/elegy-planning', currentVersion: '1.0.0', canUpdate: true },
   elegySkillsAssets: { trackedCount: 3, outdatedCount: 0, updateAvailable: false, canUpdate: true, assets: [] },
   planningLiveAuthority: { ready: true, state: null },
+  profileMismatch: null,
+  invalidProviderModels: null,
+  availableModels: [
+    { id: 'opencode-go/deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', provider: 'opencode-go' },
+    { id: 'opencode-go/deepseek-v4-pro', displayName: 'DeepSeek V4 Pro', provider: 'opencode-go' },
+    { id: 'deepseek/deepseek-v4-flash', displayName: 'DeepSeek V4 Flash Max', provider: 'deepseek' },
+    { id: 'deepseek/deepseek-v4-pro', displayName: 'DeepSeek V4 Pro Max', provider: 'deepseek' },
+  ],
 };
 
 describe('OpenCodeView', () => {
@@ -214,13 +222,13 @@ describe('OpenCodeView', () => {
 
     const smallInput = screen.getByTestId('opencode-small-model-input') as HTMLInputElement;
     const bigInput = screen.getByTestId('opencode-big-model-input') as HTMLInputElement;
-    fireEvent.change(smallInput, { target: { value: 'New Small Model' } });
-    fireEvent.change(bigInput, { target: { value: 'New Big Model' } });
+    fireEvent.change(smallInput, { target: { value: 'deepseek/deepseek-v4-flash' } });
+    fireEvent.change(bigInput, { target: { value: 'deepseek/deepseek-v4-pro' } });
 
     fireEvent.click(screen.getByTestId('opencode-models-save'));
 
     await waitFor(() => {
-      expect(saveSpy).toHaveBeenCalledWith({ smallModel: 'New Small Model', bigModel: 'New Big Model' });
+      expect(saveSpy).toHaveBeenCalledWith({ smallModel: 'deepseek/deepseek-v4-flash', bigModel: 'deepseek/deepseek-v4-pro', reviewModel: 'DeepSeek V4 Pro High' });
     });
     saveSpy.mockRestore();
   });

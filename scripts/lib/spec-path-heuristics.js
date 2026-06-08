@@ -14,7 +14,7 @@
 
 const KNOWN_SOURCE_DIRS = new Set([
   'opencode-assets', 'catalog-assets', 'codex-assets', 'antigravity-assets',
-  'engine-assets', 'scripts', 'docs', 'specs', 'contracts', 'copilot-ui',
+  'engine-assets', 'scripts', 'docs', 'docs/specs', 'specs', 'contracts', 'copilot-ui',
   'local-tracker', 'elegy-assets',
 ]);
 

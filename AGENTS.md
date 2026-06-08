@@ -22,7 +22,9 @@ This is the Instruction Engine monorepo, also published as Elegy Copilot. It is 
 | Local tracker | `local-tracker/` | Session/task tracking + Discord gateway |
 | Native runtime | `native/` | Rust runtime for select API routes |
 | Canonical docs | `docs/system/` | Design, governance, and operational docs |
-| Specs | `specs/` | Durable spec-driven development specs |
+| Specs | `docs/specs/` | Durable spec-driven development specs |
+
+Future docs and specs must be concise, map-like, and scoped to their stated purpose (no tangential exposition, no duplicated policy).
 
 ## Key commands
 

@@ -118,7 +118,7 @@ function generateIndex(specsPath) {
 }
 
 function main() {
-  const targetPath = path.resolve(process.argv[2] || path.join(process.cwd(), 'specs'));
+  const targetPath = path.resolve(process.argv[2] || path.join(process.cwd(), 'docs/specs'));
   const indexContent = generateIndex(targetPath);
   const indexPath = path.join(targetPath, 'index.md');
   fs.writeFileSync(indexPath, indexContent, 'utf8');

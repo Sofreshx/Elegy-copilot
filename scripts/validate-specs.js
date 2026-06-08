@@ -122,7 +122,7 @@ function parseArgs(argv) {
     require: false,
     strict: false,
     json: false,
-    targetPath: path.join(process.cwd(), 'specs'),
+    targetPath: path.join(process.cwd(), 'docs/specs'),
   };
 
   let explicitPath = '';
@@ -736,7 +736,7 @@ function validateSpecFile(filePath, options, specIdMap) {
 }
 
 function validateSpecsRoot(options = {}) {
-  const targetPath = path.resolve(options.targetPath || path.join(process.cwd(), 'specs'));
+  const targetPath = path.resolve(options.targetPath || path.join(process.cwd(), 'docs/specs'));
   const requireSpecs = Boolean(options.require);
   const errors = [];
   const warnings = [];

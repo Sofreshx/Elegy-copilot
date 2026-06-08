@@ -401,7 +401,7 @@ describe('workspace route handlers', () => {
         group: 'agents',
         command: 'opencode',
         available: true,
-        argsPreview: '<repo-path>',
+
         ...overrides,
       };
     }

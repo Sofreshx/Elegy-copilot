@@ -93,6 +93,7 @@ function getCliToolStatus(toolId, spawnSyncImpl) {
       encoding: 'utf-8',
       timeout: 15000,
       windowsHide: true,
+      shell: true,
     });
 
     if (result.error) {
@@ -187,6 +188,7 @@ async function installCliTool(toolId, execImpl) {
       timeout: 120000,
       windowsHide: true,
       maxBuffer: 1024 * 1024,
+      shell: true,
     }, (error, stdout, stderr) => {
       if (error) {
         if (error.code === 'ENOENT') {

@@ -37,7 +37,7 @@ function StatusDot({ status }: { status: string }) {
   );
 }
 
-function OverviewSection({ status }: { status: OpenCodeStatusResponse }) {
+function OverviewSection({ status }: SectionProps) {
   const overallBadge = status.overallStatus === 'ready' ? 'success'
     : status.overallStatus === 'degraded' ? 'accent'
     : 'danger';
@@ -175,7 +175,7 @@ function LaneDetailPanel({ lane }: { lane: OpenCodeLane }) {
   );
 }
 
-function LaneSection({ status, selectedLaneId }: { status: OpenCodeStatusResponse; selectedLaneId: string | null }) {
+function LaneSection({ status, selectedLaneId, saving }: SectionProps) {
   const selectedLane = selectedLaneId
     ? status.lanes.find((l: OpenCodeLane) => l.id === selectedLaneId)
     : null;
@@ -217,24 +217,31 @@ function LaneSection({ status, selectedLaneId }: { status: OpenCodeStatusRespons
   );
 }
 
-function ProfilesSection({ status, saving }: { status: OpenCodeStatusResponse; selectedLaneId: string | null; saving: boolean }) {
+function ProfilesSection({ status, saving }: SectionProps) {
   const [smallModel, setSmallModel] = useState<string>(status.smallModel);
   const [bigModel, setBigModel] = useState<string>(status.bigModel);
-  const [reviewModel] = useState<string>('DeepSeek V4 Pro High');
+  const profileReviewModel = status.profiles.find(p => p.id === status.activeProfileId)?.reviewModel || '';
+  const [reviewModel, setReviewModel] = useState<string>(profileReviewModel);
   const [modelsDirty, setModelsDirty] = useState<boolean>(false);
 
   useEffect(() => {
     setSmallModel(status.smallModel);
     setBigModel(status.bigModel);
+    const profile = status.profiles.find(p => p.id === status.activeProfileId);
+    if (profile) {
+      setReviewModel(profile.reviewModel);
+    }
     setModelsDirty(false);
-  }, [status.smallModel, status.bigModel]);
+  }, [status.smallModel, status.bigModel, status.activeProfileId, status.profiles]);
+
+  const mismatch = status.profileMismatch;
 
   const handleRouteChange = (profileId: string) => {
     void opencodeStore.saveConfig({ profileRoute: profileId });
   };
 
   const handleSaveModels = () => {
-    void opencodeStore.saveConfig({ smallModel, bigModel });
+    void opencodeStore.saveConfig({ smallModel, bigModel, reviewModel });
   };
 
   return (
@@ -284,36 +291,45 @@ function ProfilesSection({ status, saving }: { status: OpenCodeStatusResponse; s
         <div className="opencode-model-form">
           <div className="opencode-model-row">
             <label className="opencode-model-label" htmlFor="opencode-small-model">Small Model</label>
-            <input
+            <select
               id="opencode-small-model"
               className="opencode-model-input"
-              type="text"
               value={smallModel}
               data-testid="opencode-small-model-input"
               onChange={(e) => { setSmallModel(e.target.value); setModelsDirty(true); }}
-            />
+            >
+              {status.availableModels.map((m) => (
+                <option key={m.id} value={m.id}>{m.displayName} ({m.provider})</option>
+              ))}
+            </select>
           </div>
           <div className="opencode-model-row">
             <label className="opencode-model-label" htmlFor="opencode-big-model">Big Model</label>
-            <input
+            <select
               id="opencode-big-model"
               className="opencode-model-input"
-              type="text"
               value={bigModel}
               data-testid="opencode-big-model-input"
               onChange={(e) => { setBigModel(e.target.value); setModelsDirty(true); }}
-            />
+            >
+              {status.availableModels.map((m) => (
+                <option key={m.id} value={m.id}>{m.displayName} ({m.provider})</option>
+              ))}
+            </select>
           </div>
           <div className="opencode-model-row">
-            <label className="opencode-model-label" htmlFor="opencode-review-model">Review Model (display only)</label>
-            <input
+            <label className="opencode-model-label" htmlFor="opencode-review-model">Review Model</label>
+            <select
               id="opencode-review-model"
               className="opencode-model-input"
-              type="text"
               value={reviewModel}
               data-testid="opencode-review-model-input"
-              readOnly
-            />
+              onChange={(e) => { setReviewModel(e.target.value); setModelsDirty(true); }}
+            >
+              {status.availableModels.map((m) => (
+                <option key={m.id} value={m.id}>{m.displayName} ({m.provider})</option>
+              ))}
+            </select>
           </div>
           <div className="opencode-model-actions">
             <Button
@@ -329,6 +345,34 @@ function ProfilesSection({ status, saving }: { status: OpenCodeStatusResponse; s
         </div>
       </Panel>
 
+      {mismatch && mismatch.mismatches && mismatch.mismatches.length > 0 ? (
+        <Panel title="Profile Mismatch" testId="opencode-profile-mismatch">
+          <div className="opencode-mismatch-banner" style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: '4px', padding: '12px', marginBottom: '12px' }}>
+            <p style={{ margin: 0, color: '#856404' }}>
+              <strong>⚠ Profile mismatch detected:</strong> active profile is <strong>{mismatch.expectedProfile}</strong> but {mismatch.mismatches.length} agent(s) use unexpected models. Click Activate to re-apply.
+            </p>
+            <ul style={{ margin: '8px 0 0', paddingLeft: '20px', color: '#856404' }}>
+              {mismatch.mismatches.map((m: { agent: string; role: string; actualModel: string; expectedModel: string }) => (
+                <li key={m.agent}>
+                  <code>{m.agent}</code> ({m.role}): <code>{m.actualModel}</code> → expected <code>{m.expectedModel}</code>
+                </li>
+              ))}
+            </ul>
+            <div style={{ marginTop: '8px' }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                testId="opencode-profile-mismatch-activate"
+                disabled={saving}
+                onClick={() => handleRouteChange(mismatch.expectedProfile)}
+              >
+                {saving ? 'Applying…' : 'Activate ' + mismatch.expectedProfile}
+              </Button>
+            </div>
+          </div>
+        </Panel>
+      ) : null}
+
       {status.configPreview ? (
         <Panel title="Config Preview" testId="opencode-config-preview">
           <pre className="opencode-config-preview">{JSON.stringify(status.configPreview, null, 2)}</pre>
@@ -338,7 +382,7 @@ function ProfilesSection({ status, saving }: { status: OpenCodeStatusResponse; s
   );
 }
 
-function SetupSection({ status, toolingInstalling, saving }: { status: OpenCodeStatusResponse; selectedLaneId: string | null; toolingInstalling: boolean; saving: boolean }) {
+function SetupSection({ status, toolingInstalling, saving }: SectionProps & { toolingInstalling: boolean }) {
   const handleAction = (check: OpenCodeSetupCheck) => {
     if (!check.action) return;
     const actionKind = check.action.kind;
@@ -407,7 +451,7 @@ function SetupSection({ status, toolingInstalling, saving }: { status: OpenCodeS
   );
 }
 
-function RequestLogSection() {
+function RequestLogSection(_props: SectionProps) {
   const state = useStoreValue(opencodeStore);
 
   useEffect(() => {
@@ -452,8 +496,7 @@ function RequestLogSection() {
   );
 }
 
-type LaneSectionProps = { status: OpenCodeStatusResponse; selectedLaneId: string | null };
-type SectionProps = { status: OpenCodeStatusResponse; selectedLaneId: string | null };
+type SectionProps = { status: OpenCodeStatusResponse; selectedLaneId: string | null; saving: boolean };
 
 function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
   const state = useStoreValue(opencodeStore);
@@ -777,7 +820,7 @@ function PermissionsSection(_props: SectionProps): React.ReactElement {
   );
 }
 
-function ExperimentalSection({ status }: { status: OpenCodeStatusResponse; selectedLaneId: string | null }) {
+function ExperimentalSection({ status }: SectionProps) {
   const state = useStoreValue(opencodeStore);
 
   // Read lsp from config preview
@@ -823,14 +866,14 @@ function ExperimentalSection({ status }: { status: OpenCodeStatusResponse; selec
 }
 
 const SECTION_COMPONENTS: Record<OpenCodeTabSectionId, React.FC<SectionProps>> = {
-  overview: OverviewSection as unknown as React.FC<SectionProps>,
+  overview: OverviewSection,
   lanes: LaneSection,
-  profiles: ProfilesSection as unknown as React.FC<SectionProps>,
+  profiles: ProfilesSection,
   setup: SetupSection as unknown as React.FC<SectionProps>,
-  logs: RequestLogSection as unknown as React.FC<SectionProps>,
+  logs: RequestLogSection,
   'go-workspaces': GoWorkspacesSection,
   permissions: PermissionsSection,
-  experimental: ExperimentalSection as unknown as React.FC<SectionProps>,
+  experimental: ExperimentalSection,
 };
 
 export default function OpenCodeView() {
@@ -879,7 +922,7 @@ export default function OpenCodeView() {
         ) : null}
 
         {state.status ? (
-          <SectionComponent status={state.status} selectedLaneId={state.selectedLaneId} />
+          <SectionComponent status={state.status} selectedLaneId={state.selectedLaneId} saving={state.saving} />
         ) : null}
       </div>
     </div>

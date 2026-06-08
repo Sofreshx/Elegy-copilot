@@ -183,7 +183,7 @@ async function main() {
     ].join('\n');
     fs.writeFileSync(configPath, configText, 'utf8');
 
-    const result = patcher.patchConfigFile(configPath);
+    const result = patcher.patchConfigFile(configPath, { providerId: 'opencode-go' });
     assert.strictEqual(result.changed, true);
 
     const patched = fs.readFileSync(configPath, 'utf8');
@@ -299,7 +299,7 @@ async function main() {
     ].join('\n');
     fs.writeFileSync(configPath, configText, 'utf8');
 
-    const result = patcher.patchConfigFile(configPath);
+    const result = patcher.patchConfigFile(configPath, { providerId: 'opencode-go' });
     const patched = fs.readFileSync(configPath, 'utf8');
 
     // After migration, the old style should be gone (managed block only contains tables now)
@@ -320,6 +320,11 @@ async function main() {
     assert.ok(patched.includes('shell = "pwsh"'), patched);
     assert.ok(patched.includes('approval_policy = "on-request"'), patched);
   });
+  });
+
+  await test('writes root-level model_provider when --provider-id is provided', async () => {
+    const result = patcher.patchCodexConfig('', { providerId: 'opencode-go' });
+    assert.ok(result.includes('model_provider = "opencode-go"'), result);
   });
 
   console.log(`\n${passed} tests passed`);

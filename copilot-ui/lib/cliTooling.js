@@ -55,6 +55,7 @@ function detectCliTool(toolId, options = {}) {
       timeout: 15_000,
       encoding: 'utf8',
       windowsHide: true,
+      shell: true,
       ...(options.execOptions || {}),
     });
     const version = String(result).trim();

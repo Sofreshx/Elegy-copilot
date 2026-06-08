@@ -350,7 +350,6 @@ function detectLaunchers() {
       command: c.cmd,
       available,
       reason: available ? undefined : `${c.cmd} not found in PATH`,
-      argsPreview: `<repo-path>`,
     });
   }
 
@@ -361,7 +360,6 @@ function detectLaunchers() {
     group: 'terminals',
     command: 'terminal',
     available: true,
-    argsPreview: process.platform === 'win32' ? '-NoExit -WorkingDirectory <repo-path>' : '--working-directory <repo-path>',
   });
 
   return launchers;
