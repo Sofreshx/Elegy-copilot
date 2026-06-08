@@ -124,7 +124,7 @@
         "requiredResourcePaths": [
           ".github/copilot-instructions.md",
           ".github/skills",
-          "specs/index.md"
+          "docs/specs/index.md"
         ],
         "recommendedResourcePaths": [
           "AGENTS.md",

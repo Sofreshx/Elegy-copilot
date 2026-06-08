@@ -11,7 +11,7 @@ Instruction-engine keeps the current Antigravity CLI compatibility surface under
 Shared routing skills include `skill-discovery` and `stack-detector`.
 Planning, review, and spec skills are installed by default: `rubberduck-plan-review`, `roadmap-planning`, `implementation-handoff`, `implementation-review`, `spec-dev`, `spec-authoring`, and `spec-review`.
 Load them only when the current step needs that guidance.
-Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`; follow the current contract in `docs/system/spec-driven-development.md` when the target repo opts into spec-driven work.
+Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`; follow the current contract in `docs/system/spec-driven-development.md` when the target repo opts into spec-driven work.
 
 When a task clearly maps to an installed skill, load and follow that skill before proceeding.
 Narrow candidate constraints to the minimum hard constraints needed for the active step instead of copying full upstream rule sets.

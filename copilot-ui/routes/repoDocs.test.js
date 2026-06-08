@@ -72,10 +72,10 @@ function registerWithMocks() {
 function createTempRepo() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repo-docs-test-'));
   fs.mkdirSync(path.join(tmpDir, 'docs'));
-  fs.mkdirSync(path.join(tmpDir, 'specs'));
+  fs.mkdirSync(path.join(tmpDir, 'docs', 'specs'));
   fs.writeFileSync(path.join(tmpDir, 'README.md'), '# Test Repo\n');
   fs.writeFileSync(path.join(tmpDir, 'docs', 'guide.md'), '# Guide\n');
-  fs.writeFileSync(path.join(tmpDir, 'specs', 'spec.md'), '# Spec\n');
+  fs.writeFileSync(path.join(tmpDir, 'docs', 'specs', 'spec.md'), '# Spec\n');
   fs.writeFileSync(path.join(tmpDir, 'docs', 'notes.txt'), 'not markdown');
   return tmpDir;
 }
@@ -113,7 +113,7 @@ async function run() {
       const paths = body.files.map((f) => f.path);
       assert.ok(paths.includes('README.md'));
       assert.ok(paths.includes('docs/guide.md'));
-      assert.ok(paths.includes('specs/spec.md'));
+      assert.ok(paths.includes('docs/specs/spec.md'));
       assert.ok(!paths.includes('docs/notes.txt'));
     } finally {
       cleanupTempRepo(tmpDir);

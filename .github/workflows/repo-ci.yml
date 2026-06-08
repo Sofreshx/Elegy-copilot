@@ -55,7 +55,7 @@ jobs:
         run: node scripts/validate-doc-graph.js
 
       - name: Validate specs
-        run: node scripts/validate-specs.js --strict specs
+        run: node scripts/validate-specs.js --strict docs/specs
 
       - name: Build UI (produces ui-dist for sidecar validation)
         run: npm --prefix copilot-ui run ui:build

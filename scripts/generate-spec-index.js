@@ -2,7 +2,7 @@
 /**
  * Spec-System Hardening — Index Generator
  * =========================================
- * Generates specs/index.md from all specs/*/spec.md files.
+ * Generates docs/specs/index.md from each spec subdirectory's spec.md
  * 
  * RELIABILITY: The generated index is validated against the filesystem
  * by validate-specs.js --strict (R3 index drift check). CI enforces
@@ -118,7 +118,7 @@ function generateIndex(specsPath) {
 }
 
 function main() {
-  const targetPath = path.resolve(process.argv[2] || path.join(process.cwd(), 'specs'));
+  const targetPath = path.resolve(process.argv[2] || path.join(process.cwd(), 'docs/specs'));
   const indexContent = generateIndex(targetPath);
   const indexPath = path.join(targetPath, 'index.md');
   fs.writeFileSync(indexPath, indexContent, 'utf8');

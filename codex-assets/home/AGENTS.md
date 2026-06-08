@@ -61,7 +61,7 @@ Primary skills available:
 - `implementation-review` — Post-edit review before handoff.
 - `implementation-handoff` — Executor-ready brief for another session or model.
 - `spec-dev` — Spec-driven router for spec-first and spec-anchored work.
-- `spec-authoring` — Durable spec authoring under `specs/<spec-slug>/spec.md`.
+- `spec-authoring` — Durable spec authoring under `docs/specs/<spec-slug>/spec.md`.
 - `spec-review` — Adversarial spec review before implementation planning.
 - `stack-detector` — Automatic tech stack detection.
 - `ui-system` — Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; treat Figma / Storybook MCP data as context, not authority.
@@ -96,8 +96,8 @@ roadmap work.
 - Use `/resume` to continue prior work instead of rebuilding context from scratch.
 - Use `PLANS.md` only for long-horizon work that must survive compaction or handoff. Do not create a file-backed plan by default.
 - Use `$elegy-planning` for persisted multi-session goals, roadmaps, and plans backed by SQLite; fall back to `$roadmap-planning` (markdown roadmaps under `docs/roadmaps/<roadmap-slug>.md`) only when the elegy-planning CLI is not available.
-- Use `$spec-dev` when the task needs spec-first clarification, a durable repo spec under `specs/<spec-slug>/spec.md`, or a narrow spec-as-source flow.
-- Use `$spec-authoring` to create or refine durable specs under `specs/`, then `$spec-review` before implementation planning when the spec will drive the work.
+- Use `$spec-dev` when the task needs spec-first clarification, a durable repo spec under `docs/specs/<spec-slug>/spec.md`, or a narrow spec-as-source flow.
+- Use `$spec-authoring` to create or refine durable specs under `docs/specs/`, then `$spec-review` before implementation planning when the spec will drive the work.
 - Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Do not create ADRs for ordinary local implementation choices.
 - Use `$stack-detector` for explicit stack/target-context detection, and `$skill-discovery` when the right shared skill is still ambiguous after the first pass.
 - Treat a Roadmap as durable multi-session planning above a session plan: it records goals, non-goals, targets, sequencing, progress, evidence, and reevaluation notes, while the current session implements one selected slice.
@@ -116,7 +116,7 @@ For the Instruction Engine repo itself, the current identity and delivery model 
 - `contracts/`, `local-tracker/`, `scripts/`, and `docs/system/**` hold shared contracts, gateway/runtime support, installers/validators, and canonical policy.
 
 For spec-driven work, use the current repo contract in `docs/system/spec-driven-development.md`:
-durable specs live at `specs/<spec-slug>/spec.md`, with optional `specs/index.md`, and should be
+durable specs live at `docs/specs/<spec-slug>/spec.md`, with optional `docs/specs/index.md`, and should be
 validated with `node scripts/validate-specs.js <spec-root>` when the target repo has that validator.
 
 ## Boundaries

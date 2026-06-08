@@ -1,6 +1,6 @@
 ﻿---
 name: spec-dev
-description: "Entrypoint/router for spec-driven development. Decide whether the task should use spec-first clarification, a durable repo spec under specs/, or spec-as-source declarative authoring. Triggers on: spec-driven development, write a spec, refine a spec, spec-first, spec-anchored, spec-as-source, specs folder."
+description: "Entrypoint/router for spec-driven development. Decide whether the task should use spec-first clarification, a durable repo spec under docs/specs/, or spec-as-source declarative authoring. Triggers on: spec-driven development, write a spec, refine a spec, spec-first, spec-anchored, spec-as-source, specs folder."
 metadata: {"tags":["specs","planning","requirements","validation"]}
 ---
 
@@ -17,7 +17,7 @@ metadata: {"tags":["specs","planning","requirements","validation"]}
 Default posture:
 
 - keep the clarification compact,
-- do not create `specs/` files unless the work is non-trivial or the user explicitly wants a durable spec.
+- do not create `docs/specs/` files unless the work is non-trivial or the user explicitly wants a durable spec.
 
 ### Use `spec-anchored` when
 
@@ -28,8 +28,8 @@ Default posture:
 
 Default durable location:
 
-- `specs/<spec-slug>/spec.md`
-- optional catalog: `specs/index.md`
+- `docs/specs/<spec-slug>/spec.md`
+- optional catalog: `docs/specs/index.md`
 
 ### Use `spec-as-source` when
 
@@ -49,10 +49,10 @@ Do not use `spec-as-source` for general product code or broad implementation not
 ## Decision Checks
 
 1. Is the work still mostly clarification?
-2. Will the repo benefit from a durable spec under `specs/`?
+2. Will the repo benefit from a durable spec under `docs/specs/`?
 3. Is the spec meant to drive generated or declarative artifacts?
 4. Would a normal plan or roadmap already cover the problem without a durable spec?
-5. **Does this spec need a sibling `plan.md`?** Yes if the spec has 5+ requirements, 2+ implementation phases, or involves 2+ owners. Place `plan.md` in `specs/<slug>/plan.md` alongside `spec.md`.
+5. **Does this spec need a sibling `plan.md`?** Yes if the spec has 5+ requirements, 2+ implementation phases, or involves 2+ owners. Place `plan.md` in `docs/specs/<slug>/plan.md` alongside `spec.md`.
 
 ## Next-Step Routing
 

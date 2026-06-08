@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-06-06
+updated: 2026-06-08
 category: system
 status: current
 doc_kind: node
@@ -227,6 +227,17 @@ DOC_STRUCTURE_GOVERNANCE
 6. propose the smallest structural update
 7. update the canonical node plus the minimal index or MOC links needed
 8. validate with the doc graph validator when available
+
+### Concision Rule
+
+Docs and specs must be concise, map-like, and scoped to their stated purpose. Avoid tangential exposition and duplicated policy. When a concept is covered by a canonical doc, link to it rather than re-explaining it.
+
+### Pruning Policy
+
+When editing existing docs or specs:
+- Delete obsolete, duplicated, inaccurate, or compatibility-only prose instead of preserving it by default.
+- Replace stale detail with links to the current authority.
+- Keep redirects only when needed for inbound path compatibility.
 
 ## Doc Freshness Sync Rule
 

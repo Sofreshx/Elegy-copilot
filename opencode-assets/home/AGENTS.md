@@ -62,7 +62,7 @@ Primary skills available:
 - `implementation-handoff` — Executor-ready brief for another session or model
 - `implementation-review` — Post-edit review before handoff
 - `spec-dev` — Spec-driven router for spec-first, spec-anchored, and spec-as-source work
-- `spec-authoring` — Durable spec authoring under `specs/<spec-slug>/spec.md`
+- `spec-authoring` — Durable spec authoring under `docs/specs/<spec-slug>/spec.md`
 - `spec-review` — Adversarial spec review before implementation planning
 - `security` — Security review and vulnerability detection
 - `project-conventions-governance` — Repo conventions and governance
@@ -74,7 +74,7 @@ See the [Lane Agents](#lane-agents) section for lane selection, agent profiles, 
 
 Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Do not create ADRs for ordinary local implementation choices.
 
-Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`.
+Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`.
 Follow `docs/system/spec-driven-development.md` in the Instruction Engine repo when a target repo opts into spec-driven work, and run the target repo's `node scripts/validate-specs.js <spec-root>` validator when present.
 
 ## Instruction Engine Repo Map
@@ -138,7 +138,7 @@ Contract, workflow, API, or user-facing behavior changes. Spec-first workflow wi
 
 - **Model:** `big` (DeepSeek V4 Pro)
 - **Gates:** `reviewer` subagent for spec review (before implementation) and plan review
-- **Spec required:** Yes — durable spec under `specs/<slug>/spec.md`
+- **Spec required:** Yes — durable spec under `docs/specs/<slug>/spec.md`
 - **Worktree required:** No
 - **Validation:** Spec validation + focused tests
 - **Skills:** Load `spec-dev`, `spec-authoring`, `spec-review`, `elegy-planning`

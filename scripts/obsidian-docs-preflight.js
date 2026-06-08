@@ -96,19 +96,19 @@ try {
 const docsDir = path.join(targetRepo, 'docs');
 const systemDir = path.join(docsDir, 'system');
 const researchDir = path.join(docsDir, 'research');
-const specsDir = path.join(targetRepo, 'specs');
+const specsDir = path.join(targetRepo, 'docs', 'specs');
 
 const layout = {
 	'docs/': dirExists(docsDir),
 	'docs/system/': dirExists(systemDir),
 	'docs/research/': dirExists(researchDir),
-	'specs/': dirExists(specsDir),
+	'docs/specs/': dirExists(specsDir),
 };
 
-addCheck('docs-layout', layout['docs/'] || layout['specs/'], JSON.stringify(layout));
+addCheck('docs-layout', layout['docs/'] || layout['docs/specs/'], JSON.stringify(layout));
 
-if (!layout['docs/'] && !layout['specs/']) {
-	warn('No docs/ or specs/ directory found. This repo may not have a documentation convention yet. Run obsidian-docs-init to set up.');
+if (!layout['docs/'] && !layout['docs/specs/']) {
+	warn('No docs/ or docs/specs/ directory found. This repo may not have a documentation convention yet. Run obsidian-docs-init to set up.');
 }
 
 // ---- 5. .obsidian/ config state ----

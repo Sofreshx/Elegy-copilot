@@ -18,8 +18,8 @@
   },
   "source": {
     "definitionPath": "engine-assets/skills/repo-setup-governance/profile-definitions.json",
-    "sourceRevision": "sha256:e80af3d5e5836a95f474ff1816de416e03eb87b061d702c5242beec44012d18e",
-    "checksum": "sha256:e80af3d5e5836a95f474ff1816de416e03eb87b061d702c5242beec44012d18e"
+    "sourceRevision": "sha256:728c7ce84d211967dbe784e39bbe65e6fee3422dfd4153804b741aba20df4716",
+    "checksum": "sha256:728c7ce84d211967dbe784e39bbe65e6fee3422dfd4153804b741aba20df4716"
   },
   "profiles": [
     {
@@ -103,7 +103,7 @@
         "requiredResourcePaths": [
           ".github/copilot-instructions.md",
           ".github/skills",
-          "specs/index.md"
+          "docs/specs/index.md"
         ],
         "recommendedResourcePaths": [
           "AGENTS.md",

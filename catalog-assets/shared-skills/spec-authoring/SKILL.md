@@ -1,6 +1,6 @@
 ﻿---
 name: spec-authoring
-description: "Create or refine a durable repo spec under specs/<spec-slug>/spec.md using the shared contract. Use when work should be spec-anchored or spec-as-source and needs a concrete spec artifact before implementation planning. Triggers on: author a spec, create a spec, refine spec.md, specs template, specs folder, durable repo spec."
+description: "Create or refine a durable repo spec under docs/specs/<spec-slug>/spec.md using the shared contract. Use when work should be spec-anchored or spec-as-source and needs a concrete spec artifact before implementation planning. Triggers on: author a spec, create a spec, refine spec.md, specs template, specs folder, durable repo spec."
 metadata: {"tags":["specs","authoring","requirements","contracts"]}
 ---
 
@@ -10,11 +10,11 @@ metadata: {"tags":["specs","authoring","requirements","contracts"]}
 
 Default durable path:
 
-- `specs/<spec-slug>/spec.md`
+- `docs/specs/<spec-slug>/spec.md`
 
 Optional catalog:
 
-- `specs/index.md`
+- `docs/specs/index.md`
 
 Required frontmatter:
 
@@ -62,7 +62,7 @@ Required headings:
 - When `status: implemented`, `Validation Evidence` must contain real evidence, not a placeholder.
 - Use `Drift Notes` to record deviations, follow-up reconciliation, or `none`.
 - Do not treat a spec as the permanent home for a key architectural or workflow-authority tradeoff when that decision should be promoted into an ADR.
-- Use the per-type templates under `specs/_templates/` when the default template does not match your `type`.
+- Use the per-type templates under `docs/specs/_templates/` when the default template does not match your `type`.
 
 ### Spec Link Conventions
 
@@ -89,7 +89,7 @@ Before handing a spec to `spec-review`, confirm:
 - [ ] Validation Evidence is populated (required for `implemented` status).
 - [ ] Drift Notes captures any deviation or follow-up, or says "None."
 - [ ] Ensure the spec pre-commit hook is installed: `node scripts/install-spec-hooks.mjs`.
-- [ ] Run `node scripts/validate-specs.js specs/<slug>/spec.md` and fix all errors.
+- [ ] Run `node scripts/validate-specs.js docs/specs/<slug>/spec.md` and fix all errors.
 - [ ] Run `node scripts/validate-specs.js --strict <spec-path>` and verify: no index drift warnings, no cross-spec errors, no stale-draft warnings (unless intentional with `freshness: ignore`), and a `plan.md` exists if the spec has 5+ requirements.
 - [ ] If the spec has 5+ requirements or 2+ phases, create a sibling `plan.md`.
 
@@ -97,7 +97,7 @@ Before handing a spec to `spec-review`, confirm:
 
 1. Derive a stable spec slug and `spec_id` from the durable subject.
 2. Read the smallest relevant repo evidence before writing requirements.
-3. Create or refine `specs/<spec-slug>/spec.md`.
+3. Create or refine `docs/specs/<spec-slug>/spec.md`.
 4. Update `updated` with the current date.
 5. Run the repo-local spec validator when available.
 6. If implementation will depend on the spec, hand it to `spec-review` before planning.

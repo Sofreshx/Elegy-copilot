@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-22
+updated: 2026-06-08
 category: system
 status: current
 doc_kind: node
@@ -23,6 +23,7 @@ This document defines the **canonical contract** for documentation in this repo.
 
 - `docs/system/**` — canonical, system-of-record documentation.
 - `docs/research/**` — non-canonical notes/spikes/audits.
+- `docs/specs/**` — governed spec family; excluded from doc-graph validation (uses separate `scripts/validate-specs.js` validator). Specs are not wiki-linked from docs; docs may reference specs by path.
 - other top-level `docs/*.md` paths — reserved for **redirect stubs** only (after migration).
 
 Redirect docs may also exist in other legacy paths (e.g., `docs/orchestrator/*`) when preserving older inbound links.

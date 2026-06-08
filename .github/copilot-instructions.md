@@ -103,7 +103,7 @@ Instruction Engine / Elegy Copilot repo map:
 - `codex-assets/`, `opencode-assets/`, and `antigravity-assets/` ship thinner native home baselines for their harnesses.
 - `copilot-ui/` is the local dashboard and catalog control plane; the packaged Windows desktop app is the normal end-user runtime.
 - `contracts/`, `local-tracker/`, `scripts/`, and `docs/system/**` hold shared contracts, gateway/runtime support, installers/validators, and canonical policy.
-- For spec-driven work, follow `docs/system/spec-driven-development.md`; durable specs live at `specs/<spec-slug>/spec.md` with optional `specs/index.md`, and the repo-local validator is `node scripts/validate-specs.js <spec-root>`.
+- For spec-driven work, follow `docs/system/spec-driven-development.md`; durable specs live at `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`, and the repo-local validator is `node scripts/validate-specs.js <spec-root>`.
 
 Precedence:
 - Canonical decisions live in `docs/system/**`.

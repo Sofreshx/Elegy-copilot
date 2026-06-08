@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-03
+updated: 2026-06-08
 category: system
 status: current
 doc_kind: node
@@ -53,7 +53,7 @@ OpenCode should stay native-first rather than mirroring the Copilot fleet:
 ## Spec-driven development skill posture
 
 - `spec-dev`, `spec-authoring`, and `spec-review` ship across target harnesses, but should still be loaded only when the current step needs spec guidance.
-- Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`.
+- Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`.
 - Repo-local spec scaffolding is opt-in per selected repo through the existing harness installers using the `spec-driven` repo-setup profile.
 - Use specs to clarify or anchor requirements before normal planning.
 - Keep plan packs, roadmap flows, implementation review, and validation as the execution and evidence lanes.

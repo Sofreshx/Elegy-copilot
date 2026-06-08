@@ -60,7 +60,7 @@ function checkLivenessForSpec(specFilePath) {
 }
 
 function main() {
-  const targetPath = path.resolve(process.argv[2] || path.join(process.cwd(), 'specs'));
+  const targetPath = path.resolve(process.argv[2] || path.join(process.cwd(), 'docs/specs'));
 
   if (!fs.existsSync(targetPath)) {
     console.log(`specs ok (no specs directory at ${toDisplayPath(targetPath)})`);
