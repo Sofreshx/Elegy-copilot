@@ -5,9 +5,8 @@ control-plane workspace for Copilot, Codex, OpenCode, and Antigravity agents,
 skills, prompts, repo setup overlays, and the local dashboard/runtime.
 
 This is the shared OpenCode baseline installed to the user's OpenCode home.
-Keep this file workflow-specific; put target-repo commands, test details, and
-local conventions in the target repo's own `AGENTS.md`, `guidelines.md`, or
-canonical docs.
+Keep this file workflow-specific; put target-repo commands, test details, and local conventions in the target repo's own `AGENTS.md` or canonical docs.
+Follow `guidelines.md`: clarify ambiguity before implementation; write concise, precise, diagram-forward instructions; avoid vague or ceremonial prose.
 
 ## Workflow
 

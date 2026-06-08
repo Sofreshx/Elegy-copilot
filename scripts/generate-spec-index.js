@@ -2,7 +2,7 @@
 /**
  * Spec-System Hardening — Index Generator
  * =========================================
- * Generates specs/index.md from all specs/*/spec.md files.
+ * Generates specs/index.md from all specs/<spec>/spec.md files.
  * 
  * RELIABILITY: The generated index is validated against the filesystem
  * by validate-specs.js --strict (R3 index drift check). CI enforces

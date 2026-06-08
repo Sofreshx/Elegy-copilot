@@ -54,6 +54,9 @@ jobs:
       - name: Validate docs graph
         run: node scripts/validate-doc-graph.js
 
+      - name: Validate guidelines wiring
+        run: node scripts/validate-guidelines-wiring.mjs
+
       - name: Validate specs
         run: node scripts/validate-specs.js --strict specs
 

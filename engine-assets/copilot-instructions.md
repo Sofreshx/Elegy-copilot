@@ -129,7 +129,8 @@ When the current workspace is the Instruction Engine / Elegy Copilot repo:
 
 ## Supporting context after canonical bootstrap
 - For repo-rule or workflow decisions, start with `docs/system/index.md`, then the closest MOC, then the smallest relevant canonical node in `docs/system/**`.
-- After that bootstrap, use the nearest applicable `guidelines.md`, then supporting repo docs such as `README.md`, `docs/`, or `documentation/`. Treat these as secondary context that can be stale and cannot outrank `docs/system/**`.
+
+Follow `guidelines.md`: clarify ambiguity before implementation; write concise, precise, diagram-forward instructions; avoid vague or ceremonial prose.
 
 ## Documentation Discovery Protocol
 When task decisions depend on repository docs, follow this route first:
@@ -138,7 +139,6 @@ When task decisions depend on repository docs, follow this route first:
 3. Follow that MOC to the minimal set of canonical nodes in `docs/system/**`.
 4. Expand only when needed, and keep downstream briefs pointer-based instead of copying long policy blocks.
 
-Use `guidelines.md` and `README.md` only as lighter local overlays after the canonical route is loaded.
 If those surfaces conflict with `docs/system/**`, follow `docs/system/**` and surface the drift.
 
 ## Temp File Safety Controls

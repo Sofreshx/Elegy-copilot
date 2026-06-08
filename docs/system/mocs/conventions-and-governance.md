@@ -7,7 +7,7 @@ doc_kind: moc
 id: moc-conventions-and-governance
 summary: Map of content for canonical conventions, governance routing, and follow-up handoff entrypoints.
 tags: [governance, conventions, routing]
-related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, follow-up-discovery-governance]
+related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, follow-up-discovery-governance, concise-instruction-governance]
 ---
 
 # MOC — Conventions & Governance
@@ -33,6 +33,8 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
   [docs/system/self-documenting-code-and-rationale-placement.md](docs/system/self-documenting-code-and-rationale-placement.md)
 - Documentation entrypoints, information architecture, and discoverability:
   [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
+- Concise instruction standards, writing rules, and empty language bans:
+  [[concise-instruction-governance]] [docs/system/concise-instruction-governance.md](docs/system/concise-instruction-governance.md)
 - Planning-ready follow-up when convention gaps become next tasks:
   [[follow-up-discovery-governance]] [docs/system/follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
 - Specific change review versus governance authoring:
@@ -60,6 +62,7 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
 - "Decide whether this belongs in code, comments, API docs, or canonical docs" -> `docs/system/self-documenting-code-and-rationale-placement.md`
 - "Show me the whole rules -> compliance -> audit -> follow-up workflow" -> `docs/system/rules-compliance-audit-handoff-workflow.md`
 - "Make the rules easier to discover" -> `docs/system/documentation-structure-governance.md`
+- "Write or enforce concise instruction standards" -> `docs/system/concise-instruction-governance.md`
 - "Turn convention gaps into follow-up tasks" -> `docs/system/follow-up-discovery-governance.md`
 - "Review this implementation for correctness" -> `docs/system/reviewer-lane-governance.md`
 

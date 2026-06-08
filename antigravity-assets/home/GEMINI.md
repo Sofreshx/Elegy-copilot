@@ -17,5 +17,6 @@ When a task clearly maps to an installed skill, load and follow that skill befor
 Narrow candidate constraints to the minimum hard constraints needed for the active step instead of copying full upstream rule sets.
 Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions.
 Direct user instructions and local repository guidance still take precedence over these shared defaults.
+Follow `guidelines.md`: clarify ambiguity before implementation; write concise, precise, diagram-forward instructions; avoid vague or ceremonial prose.
 
 When the current workspace is Instruction Engine / Elegy Copilot, start repo-rule work at `docs/system/index.md`, then the nearest MOC, then the smallest canonical node. The key repo centers are `engine-assets/` for Copilot assets, `antigravity-assets/` for this installed home baseline, `copilot-ui/` for the local dashboard/catalog control plane, and `scripts/` for installers and validators.
