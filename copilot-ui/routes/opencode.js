@@ -802,6 +802,10 @@ async function buildOpenCodeStatus(ctx, deps) {
     invalidProviderModels = null;
   }
 
+  const activeProfile = Array.isArray(profiles.profiles)
+    ? profiles.profiles.find((p) => p.id === profiles.activeProfileId)
+    : null;
+
   return {
     overallStatus,
     warnings,
@@ -817,6 +821,7 @@ async function buildOpenCodeStatus(ctx, deps) {
     smallModel: configStatus.exploreModel,
     bigModel: configStatus.scoutModel,
     isCustomConfig: configStatus.isCustom,
+    roleModels: activeProfile?.roleModels || null,
     elegyPlanningCli: toolingStatus.elegyPlanningCli,
     elegySkillsAssets: toolingStatus.elegySkillsAssets,
     planningLiveAuthority,

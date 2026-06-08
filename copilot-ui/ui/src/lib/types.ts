@@ -3484,6 +3484,7 @@ export interface OpenCodeStatusResponse {
   smallModel: string;
   bigModel: string;
   isCustomConfig: boolean;
+  roleModels?: Record<string, string>;
   elegyPlanningCli: OpenCodeElegyPlanningCli;
   elegySkillsAssets: OpenCodeElegySkillsAssets;
   planningLiveAuthority: OpenCodePlanningLiveAuthority;
@@ -3508,7 +3509,9 @@ export interface OpenCodeStatusResponse {
 }
 
 export interface OpenCodeConfigPayload {
+  profileId?: string;
   profileRoute?: string;
+  roleModels?: Record<string, string>;
   smallModel?: string;
   bigModel?: string;
   reviewModel?: string;

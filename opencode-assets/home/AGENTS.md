@@ -157,25 +157,34 @@ Multi-session roadmap work. Orchestrator that coordinates elegy-planning goal/ro
 
 ### Provider Profiles
 
-Profiles define model+provider routing for all lane agents and subagents. Profiles are configured in `opencode-assets/profiles.json` and applied at install time or via the profile switch command.
+Profiles define model+provider routing for all lane agents and subagents using five task roles. Profiles are configured in `opencode-assets/profiles.json` and applied at install time or via the profile switch command.
 
-| Profile field | Default | Description |
+| Role | Default (opencode-go-balanced) | Agents |
 |---|---|---|
-| `small` | `deepseek/deepseek-v4-flash` | Cheap model for exploration and implementation (quick, impl, explorer) |
-| `big` | `deepseek/deepseek-v4-pro` | Capable model for primary lanes (standard, spec, project) |
-| `review` | `deepseek/deepseek-v4-pro` | Model for review gates (reviewer subagent) |
+| `planning` | `opencode-go/deepseek-v4-pro` | `plan`, `standard`, `spec`, `project` |
+| `implementation` | `opencode-go/deepseek-v4-flash` | `build`, `impl`, `quick` |
+| `exploration` | `opencode-go/deepseek-v4-flash` | `explore`, `explorer` |
+| `review` | `opencode-go/deepseek-v4-pro` | `reviewer` |
+| `research` | `opencode-go/deepseek-v4-pro` | `scout` |
 | `reasoningEffort` | `high` | Max reasoning effort on all DeepSeek models |
 
 **Available profiles:**
-- `opencode-go` — DeepSeek models via OpenCode Go (native provider)
+- `opencode-go-balanced` — Go provider with DeepSeek defaults
+- `opencode-go-fast` — Go provider with cheaper exploration models
+- `opencode-zen-free` — Zen provider using free-tier models (best-effort, availability may change)
+- `opencode-zen-mixed` — Zen free models for exploration/research, stronger models for planning/review
 - `deepseek-direct` — DeepSeek models via direct API (fallback route)
 
 Switch profiles:
 ```
-node scripts/opencode-profile-switch.mjs deepseek-direct
+node scripts/opencode-profile-switch.mjs <profile-id>
+node scripts/opencode-profile-switch.mjs --list
+node scripts/opencode-profile-switch.mjs --current
 ```
 
-Profile definitions live in `opencode-assets/profiles.json`. The install script applies the active profile. Profile switching updates the model fields in all installed agent files under `~/.config/opencode/agents/`.
+Profile definitions live in `opencode-assets/profiles.json`. The install script applies the active profile. Profile switching updates the model fields in all installed agent files under `~/.config/opencode/agents/` and writes both role-level `config.agentRoleModels.<role>.model` and legacy `config.agent.<name>.model` overrides to `opencode.jsonc`.
+
+The legacy `small`/`big`/`review` profile fields remain supported for backward compatibility and normalize to role models at runtime.
 
 ### Lane Agent Selection
 Switch between lane agents using **Tab** in the OpenCode TUI:

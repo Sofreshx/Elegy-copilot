@@ -26,7 +26,7 @@ bash scripts/opencode-install.sh
 - Add `--force` to overwrite managed files.
 - Add `--dry-run` to preview writes.
 - The installer writes `~/.config/opencode/AGENTS.md`, curated skills under `~/.config/opencode/skills/`, and the worktree plugin under `~/.config/opencode/plugins/`.
-- The installer does not edit `opencode.json`.
+- The installer writes agent model overrides into `opencode.jsonc` under `agent.<name>.model` and `agentRoleModels.<role>.model`.
 - The installer can also bootstrap a selected repo for opt-in spec-driven setup with `--repo-root <path> --setup-profile spec-driven --elegy-cli <path>`.
 - `INSTRUCTION_ENGINE_ELEGY_CLI_PATH` is still accepted as a fallback when rerunning the same local setup.
 
@@ -38,7 +38,7 @@ bash scripts/opencode-install.sh
 - Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`.
 - Shared installed planning and review behavior now narrows constraints to the minimum active set and treats ADRs as key-decision records rather than default documentation for every non-trivial change.
 - Compatibility-only surfaces: `code-review`, `refactor`.
-- Prefer model overrides in `opencode.json` over adding more custom agents.
+- Prefer role-level model overrides in `opencode.jsonc` (`agentRoleModels.<role>.model`) over adding more custom agents. Legacy `agent.<name>.model` overrides remain supported.
 - Keep repo-specific guidance in repo `AGENTS.md`.
 - Use OpenCode `/init` only when repo-local guidance actually needs to be created or refreshed.
 - Prefer the installer-based `spec-driven` profile for repeatable repo-local spec scaffolding instead of inventing a separate OpenCode-specific bootstrap path.
@@ -56,18 +56,37 @@ See `opencode-assets/home/AGENTS.md` (installed to `~/.config/opencode/AGENTS.md
 
 ### Provider Profiles
 
-Profiles configure model routing across lanes. Both DeepSeek V4 Pro Max and V4 Flash Max use max reasoning effort at all times.
+Profiles configure model routing across five task roles. Each profile maps models to roles using OpenCode Go (`opencode-go/<model-id>`) or OpenCode Zen (`opencode/<model-id>`) provider prefixes. All DeepSeek models use max reasoning effort (`reasoningEffort: high`).
 
-| Field | Default | Description |
+| Role | Description | Agents |
 |---|---|---|
-| `small` | DeepSeek V4 Flash Max | Cheap model for exploration/implementation |
-| `big` | DeepSeek V4 Pro Max | Capable model for gates and review |
-| `review` | DeepSeek V4 Pro High | Model for spec/plan/review gates |
-| `route` | `opencode-go` | Provider route (opencode-go or deepseek-direct) |
+| `planning` | Planning, spec authoring, roadmap work | `plan`, `standard`, `spec`, `project` |
+| `implementation` | Code edits, file writes, commands | `build`, `impl`, `quick` |
+| `exploration` | Read-only code discovery | `explore`, `explorer` |
+| `review` | Review gates (spec, plan, code) | `reviewer` |
+| `research` | External docs and dependencies | `scout` |
 
-Default route is OpenCode Go; direct DeepSeek is a configurable fallback. Use `/connect` in OpenCode TUI to set provider credentials.
+#### Curated Profiles
 
-Max reasoning is set in `opencode.jsonc` with `reasoningEffort: "high"` on all agent configs that use DeepSeek models (build, plan, explore, scout). This pass-through option maps to the DeepSeek API `reasoning_effort` parameter.
+| Profile | Description |
+|---|---|
+| `opencode-go-balanced` | Go provider with DeepSeek defaults — Pro for planning/review/research, Flash for implementation/exploration |
+| `opencode-go-fast` | Go provider with cheaper models — Pro for planning/review, Flash for all others |
+| `opencode-zen-free` | Zen provider using free-tier models — best-effort curated IDs |
+| `opencode-zen-mixed` | Zen free models for exploration/research, stronger models for planning/review |
+| `deepseek-direct` | Direct DeepSeek API fallback route |
+
+Profiles are defined in `opencode-assets/profiles.json` and applied at install time or via the profile switch command:
+
+```
+node scripts/opencode-profile-switch.mjs <profile-id>
+node scripts/opencode-profile-switch.mjs --list
+node scripts/opencode-profile-switch.mjs --current
+```
+
+The installer writes both role-level (`config.agentRoleModels.<role>.model`) and legacy agent-level (`config.agent.<name>.model`) overrides to `opencode.jsonc`. The dashboard Profiles tab shows all available profiles with their role model assignments.
+
+The legacy `small`/`big`/`review` profile fields remain supported for backward compatibility and normalize to `roleModels` at runtime.
 
 ## Worktree Plugin
 
@@ -95,6 +114,6 @@ The plugin also injects `OPENCODE_WORKTREE_PATH`, `OPENCODE_WORKTREE_ROOT`, and 
 ## Quick Checks
 
 - Re-run `scripts/opencode-install.* --force` if shared skills are missing.
-- Check `opencode.json` if built-in model overrides are not applying.
+- Check `opencode.jsonc` if built-in model overrides are not applying.
 - Restart OpenCode after changing `opencode.json`.
 - Worktree plugin loads automatically via `opencode.json` plugin config.

@@ -223,16 +223,18 @@ function ProfilesSection({ status, saving }: SectionProps) {
   const profileReviewModel = status.profiles.find(p => p.id === status.activeProfileId)?.reviewModel || '';
   const [reviewModel, setReviewModel] = useState<string>(profileReviewModel);
   const [modelsDirty, setModelsDirty] = useState<boolean>(false);
+  const [roleModels, setRoleModels] = useState<Record<string, string>>(status.roleModels || {});
 
   useEffect(() => {
     setSmallModel(status.smallModel);
     setBigModel(status.bigModel);
+    setRoleModels(status.roleModels || {});
     const profile = status.profiles.find(p => p.id === status.activeProfileId);
     if (profile) {
       setReviewModel(profile.reviewModel);
     }
     setModelsDirty(false);
-  }, [status.smallModel, status.bigModel, status.activeProfileId, status.profiles]);
+  }, [status.smallModel, status.bigModel, status.activeProfileId, status.profiles, status.roleModels]);
 
   const mismatch = status.profileMismatch;
 
@@ -242,6 +244,14 @@ function ProfilesSection({ status, saving }: SectionProps) {
 
   const handleSaveModels = () => {
     void opencodeStore.saveConfig({ smallModel, bigModel, reviewModel });
+  };
+
+  const handleProfileSwitch = (profileId: string) => {
+    void opencodeStore.saveConfig({ profileId });
+  };
+
+  const handleSaveRoleModels = () => {
+    void opencodeStore.saveConfig({ roleModels });
   };
 
   return (
@@ -261,6 +271,20 @@ function ProfilesSection({ status, saving }: SectionProps) {
                 ) : null}
               </div>
               <p className="opencode-profile-desc">{profile.description}</p>
+              {profile.tags && profile.tags.length > 0 ? (
+                <div className="opencode-profile-tags" style={{ marginTop: '4px' }}>
+                  {profile.tags.map((tag: string) => (
+                    <span key={tag} className="opencode-tag" style={{
+                      display: 'inline-block',
+                      background: 'var(--color-bg-tertiary)',
+                      borderRadius: '4px',
+                      padding: '1px 6px',
+                      marginRight: '4px',
+                      fontSize: '11px',
+                    }}>{tag}</span>
+                  ))}
+                </div>
+              ) : null}
               <dl className="opencode-detail-list">
                 <dt>Route</dt>
                 <dd><code>{profile.route}</code></dd>
@@ -270,6 +294,14 @@ function ProfilesSection({ status, saving }: SectionProps) {
                 <dd>{profile.bigModel}</dd>
                 <dt>Review Model</dt>
                 <dd>{profile.reviewModel}</dd>
+                {profile.roleModels && Object.keys(profile.roleModels).length > 0 ? (
+                  Object.entries(profile.roleModels).map(([role, model]) => (
+                    <React.Fragment key={role}>
+                      <dt>{role.charAt(0).toUpperCase() + role.slice(1)}</dt>
+                      <dd>{model}</dd>
+                    </React.Fragment>
+                  ))
+                ) : null}
               </dl>
               {profile.id !== status.activeProfileId ? (
                 <Button
@@ -277,7 +309,7 @@ function ProfilesSection({ status, saving }: SectionProps) {
                   size="sm"
                   testId={`opencode-profile-activate-${profile.id}`}
                   disabled={saving}
-                  onClick={() => handleRouteChange(profile.id)}
+                  onClick={() => handleProfileSwitch(profile.id)}
                 >
                   {saving ? 'Saving…' : 'Activate'}
                 </Button>
@@ -289,57 +321,34 @@ function ProfilesSection({ status, saving }: SectionProps) {
 
       <Panel title="Model Selection" testId="opencode-model-selection">
         <div className="opencode-model-form">
-          <div className="opencode-model-row">
-            <label className="opencode-model-label" htmlFor="opencode-small-model">Small Model</label>
-            <select
-              id="opencode-small-model"
-              className="opencode-model-input"
-              value={smallModel}
-              data-testid="opencode-small-model-input"
-              onChange={(e) => { setSmallModel(e.target.value); setModelsDirty(true); }}
-            >
-              {status.availableModels.map((m) => (
-                <option key={m.id} value={m.id}>{m.displayName} ({m.provider})</option>
-              ))}
-            </select>
-          </div>
-          <div className="opencode-model-row">
-            <label className="opencode-model-label" htmlFor="opencode-big-model">Big Model</label>
-            <select
-              id="opencode-big-model"
-              className="opencode-model-input"
-              value={bigModel}
-              data-testid="opencode-big-model-input"
-              onChange={(e) => { setBigModel(e.target.value); setModelsDirty(true); }}
-            >
-              {status.availableModels.map((m) => (
-                <option key={m.id} value={m.id}>{m.displayName} ({m.provider})</option>
-              ))}
-            </select>
-          </div>
-          <div className="opencode-model-row">
-            <label className="opencode-model-label" htmlFor="opencode-review-model">Review Model</label>
-            <select
-              id="opencode-review-model"
-              className="opencode-model-input"
-              value={reviewModel}
-              data-testid="opencode-review-model-input"
-              onChange={(e) => { setReviewModel(e.target.value); setModelsDirty(true); }}
-            >
-              {status.availableModels.map((m) => (
-                <option key={m.id} value={m.id}>{m.displayName} ({m.provider})</option>
-              ))}
-            </select>
-          </div>
+          {(['planning', 'implementation', 'exploration', 'review', 'research'] as const).map((role) => (
+            <div className="opencode-model-row" key={role}>
+              <label className="opencode-model-label" htmlFor={`opencode-role-${role}`}>
+                {role.charAt(0).toUpperCase() + role.slice(1)}
+              </label>
+              <input
+                id={`opencode-role-${role}`}
+                className="opencode-model-input"
+                type="text"
+                value={roleModels[role] || ''}
+                data-testid={`opencode-role-${role}-input`}
+                onChange={(e) => {
+                  setRoleModels((prev: Record<string, string>) => ({ ...prev, [role]: e.target.value }));
+                  setModelsDirty(true);
+                }}
+              />
+            </div>
+          ))}
+>>>>>>> spec/opencode-lane-model-profiles
           <div className="opencode-model-actions">
             <Button
               variant="primary"
               size="sm"
               testId="opencode-models-save"
               disabled={!modelsDirty || saving}
-              onClick={handleSaveModels}
+              onClick={handleSaveRoleModels}
             >
-              {saving ? 'Saving…' : 'Save models'}
+              {saving ? 'Saving…' : 'Save role models'}
             </Button>
           </div>
         </div>
