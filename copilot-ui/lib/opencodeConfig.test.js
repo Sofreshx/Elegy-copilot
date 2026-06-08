@@ -23,6 +23,12 @@ const {
   resolveWorktreeBase,
   buildWorktreePermissionProfile,
   WORKTREE_PERMISSION_PROFILE_MARKER,
+  normalizeProfile,
+  readProfileCatalog,
+  setAgentRoleModels,
+  getActiveProfileId,
+  setActiveProfileId,
+  applyProfile,
 } = require('./opencodeConfig');
 
 describe('opencodeConfig', () => {
@@ -368,6 +374,105 @@ describe('opencodeConfig', () => {
       const status = getWorktreePermissionProfileStatus(tmpDir);
       assert.equal(status.applied, true);
       assert.equal(status.missingPermissionKeys.length, 0);
+    });
+  });
+
+  describe('normalizeProfile', () => {
+    it('synthesizes roleModels from legacy small/big/review', () => {
+      const result = normalizeProfile({ small: 'flash', big: 'pro', review: 'pro-review' });
+      assert.equal(result.roleModels.exploration, 'flash');
+      assert.equal(result.roleModels.implementation, 'flash');
+      assert.equal(result.roleModels.planning, 'pro');
+      assert.equal(result.roleModels.review, 'pro-review');
+      assert.equal(result.roleModels.research, 'pro');
+    });
+
+    it('passes through profile with existing roleModels unchanged', () => {
+      const input = { roleModels: { planning: 'p1', implementation: 'i1' }, tags: ['test'] };
+      const result = normalizeProfile(input);
+      assert.deepStrictEqual(result.roleModels, { planning: 'p1', implementation: 'i1' });
+      assert.deepStrictEqual(result.tags, ['test']);
+    });
+
+    it('adds defaults for missing label, description, tags', () => {
+      const result = normalizeProfile({ roleModels: {} }, 'test-profile');
+      assert.equal(result.label, 'test-profile');
+      assert.equal(result.description, '');
+      assert.ok(Array.isArray(result.tags));
+      assert.equal(result.tags.length, 0);
+    });
+
+    it('passes null/undefined through unchanged', () => {
+      assert.equal(normalizeProfile(null), null);
+      assert.equal(normalizeProfile(undefined), undefined);
+    });
+  });
+
+  describe('readProfileCatalog', () => {
+    it('reads and parses profiles.json', () => {
+      const profilesDir = path.join(tmpDir, 'opencode-assets');
+      fs.mkdirSync(profilesDir, { recursive: true });
+      const data = { profiles: { test: { label: 'Test' } } };
+      fs.writeFileSync(path.join(profilesDir, 'profiles.json'), JSON.stringify(data), 'utf8');
+      const result = readProfileCatalog(tmpDir);
+      assert.deepStrictEqual(result, data);
+    });
+
+    it('throws when file is missing', () => {
+      assert.throws(() => readProfileCatalog(tmpDir), /ENOENT/);
+    });
+  });
+
+  describe('setAgentRoleModels', () => {
+    it('writes agentRoleModels to opencode.jsonc', () => {
+      setAgentRoleModels(tmpDir, { planning: 'model-a', implementation: 'model-b' });
+      const config = readConfig(tmpDir);
+      assert.equal(config.agentRoleModels.planning.model, 'model-a');
+      assert.equal(config.agentRoleModels.implementation.model, 'model-b');
+    });
+  });
+
+  describe('setAgentModels legacy compat', () => {
+    it('writes config.agent.<name>.model for backward compat', () => {
+      setAgentModels(tmpDir, 'small-model', 'big-model', 'review-model');
+      const config = readConfig(tmpDir);
+      assert.equal(config.agent.quick.model, 'small-model');
+      assert.equal(config.agent.standard.model, 'big-model');
+      assert.equal(config.agent.reviewer.model, 'review-model');
+    });
+
+    it('also writes config.agentRoleModels', () => {
+      setAgentModels(tmpDir, 'small-model', 'big-model', 'review-model');
+      const config = readConfig(tmpDir);
+      assert.equal(config.agentRoleModels.exploration.model, 'small-model');
+      assert.equal(config.agentRoleModels.planning.model, 'big-model');
+    });
+  });
+
+  describe('getActiveProfileId / setActiveProfileId', () => {
+    it('setActiveProfileId writes to state file', () => {
+      setActiveProfileId(tmpDir, 'my-profile');
+      assert.equal(getActiveProfileId(tmpDir), 'my-profile');
+    });
+
+    it('falls back to activeProfileRoute', () => {
+      const statePath = resolveStatePath(tmpDir);
+      fs.writeFileSync(statePath, JSON.stringify({ activeProfileRoute: 'legacy-route' }), 'utf8');
+      assert.equal(getActiveProfileId(tmpDir), 'legacy-route');
+    });
+
+    it('defaults to opencode-go-balanced when neither exists', () => {
+      assert.equal(getActiveProfileId(tmpDir), 'opencode-go-balanced');
+    });
+  });
+
+  describe('applyProfile', () => {
+    it('applies normalized profile roleModels to config', () => {
+      const profile = { roleModels: { planning: 'plan-model', implementation: 'impl-model' } };
+      applyProfile(tmpDir, profile);
+      const config = readConfig(tmpDir);
+      assert.equal(config.agentRoleModels.planning.model, 'plan-model');
+      assert.equal(config.agentRoleModels.implementation.model, 'impl-model');
     });
   });
 });

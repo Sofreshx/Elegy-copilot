@@ -1489,21 +1489,27 @@
     "bodyType": "json",
     "bodyKeys": [
       "activeProfileId",
+      "availableModels",
       "availableRoutes",
       "bigModel",
       "configPath",
       "configPreview",
       "elegyPlanningCli",
       "elegySkillsAssets",
+      "invalidProviderModels",
       "isCustomConfig",
       "lanes",
+      "opencodeCli",
       "opencodeHome",
       "overallStatus",
       "planningLiveAuthority",
+      "profileMismatch",
       "profiles",
+      "roleModels",
       "setupChecks",
       "smallModel",
-      "warnings"
+      "warnings",
+      "worktreePermissionProfile"
     ]
   },
   "POST /api/opencode/config": {

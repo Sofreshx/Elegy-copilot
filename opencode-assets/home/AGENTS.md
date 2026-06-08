@@ -20,6 +20,8 @@ canonical docs.
 7. Run the narrowest relevant validation after changes (lint, typecheck, test, build).
 8. Narrow candidate constraints to the minimum hard constraints needed for the active step; keep shaping context and open questions separate.
 
+Keep instruction surfaces compact. Future specs and docs must be concise, map-like, and scoped to their stated purpose.
+
 ## Clarification Standard
 
 - Ask the user when a missing answer would change scope, architecture, data handling, destructive actions, or acceptance criteria.
@@ -62,7 +64,7 @@ Primary skills available:
 - `implementation-handoff` — Executor-ready brief for another session or model
 - `implementation-review` — Post-edit review before handoff
 - `spec-dev` — Spec-driven router for spec-first, spec-anchored, and spec-as-source work
-- `spec-authoring` — Durable spec authoring under `specs/<spec-slug>/spec.md`
+- `spec-authoring` — Durable spec authoring under `docs/specs/<spec-slug>/spec.md`
 - `spec-review` — Adversarial spec review before implementation planning
 - `security` — Security review and vulnerability detection
 - `project-conventions-governance` — Repo conventions and governance
@@ -74,7 +76,7 @@ See the [Lane Agents](#lane-agents) section for lane selection, agent profiles, 
 
 Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Do not create ADRs for ordinary local implementation choices.
 
-Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`.
+Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`.
 Follow `docs/system/spec-driven-development.md` in the Instruction Engine repo when a target repo opts into spec-driven work, and run the target repo's `node scripts/validate-specs.js <spec-root>` validator when present.
 
 ## Instruction Engine Repo Map
@@ -138,7 +140,7 @@ Contract, workflow, API, or user-facing behavior changes. Spec-first workflow wi
 
 - **Model:** `big` (DeepSeek V4 Pro)
 - **Gates:** `reviewer` subagent for spec review (before implementation) and plan review
-- **Spec required:** Yes — durable spec under `specs/<slug>/spec.md`
+- **Spec required:** Yes — durable spec under `docs/specs/<slug>/spec.md`
 - **Worktree required:** No
 - **Validation:** Spec validation + focused tests
 - **Skills:** Load `spec-dev`, `spec-authoring`, `spec-review`, `elegy-planning`
@@ -155,25 +157,34 @@ Multi-session roadmap work. Orchestrator that coordinates elegy-planning goal/ro
 
 ### Provider Profiles
 
-Profiles define model+provider routing for all lane agents and subagents. Profiles are configured in `opencode-assets/profiles.json` and applied at install time or via the profile switch command.
+Profiles define model+provider routing for all lane agents and subagents using five task roles. Profiles are configured in `opencode-assets/profiles.json` and applied at install time or via the profile switch command.
 
-| Profile field | Default | Description |
+| Role | Default (opencode-go-balanced) | Agents |
 |---|---|---|
-| `small` | `deepseek/deepseek-v4-flash` | Cheap model for exploration and implementation (quick, impl, explorer) |
-| `big` | `deepseek/deepseek-v4-pro` | Capable model for primary lanes (standard, spec, project) |
-| `review` | `deepseek/deepseek-v4-pro` | Model for review gates (reviewer subagent) |
+| `planning` | `opencode-go/deepseek-v4-pro` | `plan`, `standard`, `spec`, `project` |
+| `implementation` | `opencode-go/deepseek-v4-flash` | `build`, `impl`, `quick` |
+| `exploration` | `opencode-go/deepseek-v4-flash` | `explore`, `explorer` |
+| `review` | `opencode-go/deepseek-v4-pro` | `reviewer` |
+| `research` | `opencode-go/deepseek-v4-pro` | `scout` |
 | `reasoningEffort` | `high` | Max reasoning effort on all DeepSeek models |
 
 **Available profiles:**
-- `opencode-go` — DeepSeek models via OpenCode Go (native provider)
+- `opencode-go-balanced` — Go provider with DeepSeek defaults
+- `opencode-go-fast` — Go provider with cheaper exploration models
+- `opencode-zen-free` — Zen provider using free-tier models (best-effort, availability may change)
+- `opencode-zen-mixed` — Zen free models for exploration/research, stronger models for planning/review
 - `deepseek-direct` — DeepSeek models via direct API (fallback route)
 
 Switch profiles:
 ```
-node scripts/opencode-profile-switch.mjs deepseek-direct
+node scripts/opencode-profile-switch.mjs <profile-id>
+node scripts/opencode-profile-switch.mjs --list
+node scripts/opencode-profile-switch.mjs --current
 ```
 
-Profile definitions live in `opencode-assets/profiles.json`. The install script applies the active profile. Profile switching updates the model fields in all installed agent files under `~/.config/opencode/agents/`.
+Profile definitions live in `opencode-assets/profiles.json`. The install script applies the active profile. Profile switching updates the model fields in all installed agent files under `~/.config/opencode/agents/` and writes both role-level `config.agentRoleModels.<role>.model` and legacy `config.agent.<name>.model` overrides to `opencode.jsonc`.
+
+The legacy `small`/`big`/`review` profile fields remain supported for backward compatibility and normalize to role models at runtime.
 
 ### Lane Agent Selection
 Switch between lane agents using **Tab** in the OpenCode TUI:

@@ -58,11 +58,41 @@ function createMockOpenCodeConfig(statusOverrides: Record<string, unknown> = {})
       },
     })),
     setAgentModels: vi.fn(),
+    setAgentRoleModels: vi.fn(),
     resetConfig: vi.fn(),
     getActiveProfileRoute: vi.fn(() => 'opencode-go'),
+    getActiveProfileId: vi.fn(() => 'opencode-go'),
+    setActiveProfileId: vi.fn(),
     setActiveProfileRoute: vi.fn(),
     removeActiveProfileRoute: vi.fn(),
     updateStateProfileRoute: vi.fn(),
+    readProfileCatalog: vi.fn(() => ({
+      activeProfile: 'opencode-go',
+      profiles: {
+        'opencode-go': {
+          label: 'OpenCode Go',
+          description: 'Default provider route',
+          small: 'deepseek-v4-flash',
+          big: 'deepseek-v4-pro',
+          review: 'deepseek-v4-pro',
+          roleModels: { planning: 'deepseek-v4-pro', implementation: 'deepseek-v4-flash', exploration: 'deepseek-v4-flash', review: 'deepseek-v4-pro', research: 'deepseek-v4-pro' },
+          smallLabel: 'DeepSeek V4 Flash',
+          bigLabel: 'DeepSeek V4 Pro',
+          reviewLabel: 'DeepSeek V4 Pro',
+        },
+        'deepseek-direct': {
+          label: 'Direct DeepSeek',
+          description: 'Direct DeepSeek API fallback route',
+          small: 'deepseek/deepseek-v4-flash',
+          big: 'deepseek/deepseek-v4-pro',
+          review: 'deepseek/deepseek-v4-pro',
+          roleModels: { planning: 'deepseek/deepseek-v4-pro', implementation: 'deepseek/deepseek-v4-flash', exploration: 'deepseek/deepseek-v4-flash', review: 'deepseek/deepseek-v4-pro', research: 'deepseek/deepseek-v4-pro' },
+          smallLabel: 'DeepSeek V4 Flash Max',
+          bigLabel: 'DeepSeek V4 Pro Max',
+          reviewLabel: 'DeepSeek V4 Pro High',
+        },
+      },
+    })),
   };
 }
 
@@ -310,11 +340,17 @@ describe('opencode route - register', () => {
   it('POST /api/opencode/config writes profileRoute to state when provided', async () => {
     const sendJson = createMockSendJson();
     const opencodeConfig = createMockOpenCodeConfig();
+    const mockExecFile = vi.fn((_file, _args, _options, callback) => {
+      callback(null, 'stdout', '');
+      return { on: vi.fn() };
+    });
     const routes = register({
       sendJson,
       readJsonBody: createReadJsonBody({ profileRoute: 'deepseek-direct' }),
       assets: createMockAssets(),
       opencodeConfig,
+      fs: { existsSync: vi.fn(() => true) },
+      childProcess: { execFile: mockExecFile },
     });
     const configRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/config',
@@ -323,7 +359,7 @@ describe('opencode route - register', () => {
     const ctx = createMockCtx();
     await configRoute.handler(ctx);
 
-    expect(opencodeConfig.updateStateProfileRoute).toHaveBeenCalledWith(
+    expect(opencodeConfig.setActiveProfileId).toHaveBeenCalledWith(
       ctx.opencodeHome,
       'deepseek-direct',
     );
@@ -490,6 +526,128 @@ describe('opencode route - register', () => {
           ]),
         }),
       }),
+    );
+  });
+
+  it('GET /api/opencode/status returns profiles with roleModels field', async () => {
+    const sendJson = createMockSendJson();
+    const routes = register({ sendJson, assets: createMockAssets(), opencodeConfig: createMockOpenCodeConfig(), childProcess: { spawnSync: () => ({ stdout: '1.0.0', stderr: '' }) } });
+    const statusRoute = routes.find(
+      (r: { method: string; path: string }) => r.method === 'GET' && r.path === '/api/opencode/status',
+    );
+
+    const ctx = createMockCtx();
+    await statusRoute.handler(ctx);
+
+    const body = sendJson.mock.calls[0][2] as { profiles: Array<Record<string, unknown>> };
+    expect(Array.isArray(body.profiles)).toBe(true);
+    for (const profile of body.profiles) {
+      expect(profile).toHaveProperty('roleModels');
+      expect(profile).toHaveProperty('tags');
+      expect(typeof profile.roleModels).toBe('object' as string);
+      expect(Array.isArray(profile.tags)).toBe(true);
+    }
+  });
+
+  it('POST /api/opencode/config accepts { profileId } payload', async () => {
+    const sendJson = createMockSendJson();
+    const opencodeConfig = createMockOpenCodeConfig();
+    const mockExecFile = vi.fn((_file, _args, _options, callback) => {
+      callback(null, 'stdout', '');
+      return { on: vi.fn() };
+    });
+    const routes = register({
+      sendJson,
+      readJsonBody: createReadJsonBody({ profileId: 'deepseek-direct' }),
+      assets: createMockAssets(),
+      opencodeConfig,
+      fs: { existsSync: vi.fn(() => true) },
+      childProcess: { execFile: mockExecFile },
+    });
+    const configRoute = routes.find(
+      (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/config',
+    );
+
+    const ctx = createMockCtx();
+    await configRoute.handler(ctx);
+
+    expect(opencodeConfig.setActiveProfileId).toHaveBeenCalledWith(
+      ctx.opencodeHome,
+      'deepseek-direct',
+    );
+    expect(sendJson).toHaveBeenCalledWith(ctx.res, 200, expect.objectContaining({ ok: true }));
+  });
+
+  it('POST /api/opencode/config accepts { roleModels } payload', async () => {
+    const sendJson = createMockSendJson();
+    const opencodeConfig = createMockOpenCodeConfig();
+    const roleModels = { planning: 'new/planning-model', implementation: 'new/impl-model' };
+    const routes = register({
+      sendJson,
+      readJsonBody: createReadJsonBody({ roleModels }),
+      assets: createMockAssets(),
+      opencodeConfig,
+    });
+    const configRoute = routes.find(
+      (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/config',
+    );
+
+    const ctx = createMockCtx();
+    await configRoute.handler(ctx);
+
+    expect(opencodeConfig.setAgentRoleModels).toHaveBeenCalledWith(
+      ctx.opencodeHome,
+      roleModels,
+    );
+    expect(sendJson).toHaveBeenCalledWith(ctx.res, 200, expect.objectContaining({ ok: true }));
+  });
+
+  it('POST /api/opencode/config still accepts legacy { smallModel, bigModel } payload', async () => {
+    const sendJson = createMockSendJson();
+    const opencodeConfig = createMockOpenCodeConfig();
+    const routes = register({
+      sendJson,
+      readJsonBody: createReadJsonBody({ smallModel: 'flash', bigModel: 'pro' }),
+      assets: createMockAssets(),
+      opencodeConfig,
+    });
+    const configRoute = routes.find(
+      (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/config',
+    );
+
+    const ctx = createMockCtx();
+    await configRoute.handler(ctx);
+
+    expect(opencodeConfig.setAgentModels).toHaveBeenCalledWith(
+      ctx.opencodeHome,
+      'flash',
+      'pro',
+      undefined,
+    );
+    expect(sendJson).toHaveBeenCalledWith(ctx.res, 200, expect.objectContaining({ ok: true }));
+  });
+
+  it('POST /api/opencode/config rejects unknown profileId', async () => {
+    const sendJson = createMockSendJson();
+    const opencodeConfig = createMockOpenCodeConfig();
+    const routes = register({
+      sendJson,
+      readJsonBody: createReadJsonBody({ profileId: 'nonexistent-profile' }),
+      assets: createMockAssets(),
+      opencodeConfig,
+      fs: { existsSync: vi.fn(() => true) },
+    });
+    const configRoute = routes.find(
+      (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/config',
+    );
+
+    const ctx = createMockCtx();
+    await configRoute.handler(ctx);
+
+    expect(sendJson).toHaveBeenCalledWith(
+      ctx.res,
+      400,
+      expect.objectContaining({ ok: false, error: expect.stringContaining('Unknown profile') }),
     );
   });
 });

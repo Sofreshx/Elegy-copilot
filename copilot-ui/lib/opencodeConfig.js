@@ -11,8 +11,8 @@ const STATE_FILENAME = '.elegy-opencode-agent-state.json';
 const WORKTREE_PERMISSION_PROFILE_VERSION = 1;
 const WORKTREE_PERMISSION_PROFILE_MARKER = 'instruction-engine-worktree-permission-profile';
 
-const KNOWN_DEFAULT_EXPLORE_MODEL = 'deepseek/deepseek-v4-flash';
-const KNOWN_DEFAULT_SCOUT_MODEL = 'deepseek/deepseek-v4-flash';
+const KNOWN_DEFAULT_EXPLORE_MODEL = 'opencode-go/deepseek-v4-flash';
+const KNOWN_DEFAULT_SCOUT_MODEL = 'opencode-go/deepseek-v4-flash';
 
 const AGENT_KEYS = ['explore', 'scout'];
 
@@ -301,16 +301,40 @@ function setAgentModels(opencodeHome, smallModel, bigModel, reviewModel) {
   const config = readConfig(resolvedHome);
   const previousModels = getAgentModels(config);
 
-  if (!config.agent || typeof config.agent !== 'object') {
-    config.agent = {};
+  // Build normalized roleModels from legacy small/big/review
+  const roleModels = {};
+  if (typeof smallModel === 'string' && smallModel.trim()) {
+    roleModels.exploration = smallModel.trim();
+    roleModels.implementation = smallModel.trim();
+  }
+  if (typeof bigModel === 'string' && bigModel.trim()) {
+    roleModels.planning = bigModel.trim();
+    roleModels.research = bigModel.trim();
+  }
+  if (typeof reviewModel === 'string' && reviewModel.trim()) {
+    roleModels.review = reviewModel.trim();
   }
 
+  // Write role-level overrides via new API
+  if (!config.agentRoleModels || typeof config.agentRoleModels !== 'object') {
+    config.agentRoleModels = {};
+  }
+  for (const [role, model] of Object.entries(roleModels)) {
+    if (!config.agentRoleModels[role] || typeof config.agentRoleModels[role] !== 'object') {
+      config.agentRoleModels[role] = {};
+    }
+    config.agentRoleModels[role].model = model;
+  }
+
+  // Also write legacy agent.<name>.model for backward compat
   function ensureAgentEntry(name) {
+    if (!config.agent || typeof config.agent !== 'object') {
+      config.agent = {};
+    }
     if (!config.agent[name] || typeof config.agent[name] !== 'object') {
       config.agent[name] = {};
     }
   }
-
   function applyModel(targetKeys, modelValue) {
     if (typeof modelValue !== 'string' || !modelValue.trim()) return;
     for (const key of targetKeys) {
@@ -318,7 +342,6 @@ function setAgentModels(opencodeHome, smallModel, bigModel, reviewModel) {
       config.agent[key].model = modelValue.trim();
     }
   }
-
   applyModel(LANE_SMALL_AGENT_KEYS, smallModel);
   applyModel(LANE_BIG_AGENT_KEYS, bigModel);
   applyModel(LANE_REVIEW_AGENT_KEYS, reviewModel);
@@ -466,6 +489,105 @@ function getWorktreePermissionProfileStatus(opencodeHome) {
   };
 }
 
+function readProfileCatalog(workspaceRoot) {
+  const root = workspaceRoot || process.cwd();
+  const profilesPath = path.join(root, 'opencode-assets', 'profiles.json');
+  const raw = fs.readFileSync(profilesPath, 'utf8');
+  return JSON.parse(raw);
+}
+
+function normalizeProfile(profile, profileId) {
+  if (!profile || typeof profile !== 'object') {
+    return profile;
+  }
+
+  const normalized = { ...profile };
+
+  if (!normalized.roleModels || typeof normalized.roleModels !== 'object') {
+    normalized.roleModels = {
+      exploration: typeof normalized.small === 'string' ? normalized.small : '',
+      implementation: typeof normalized.small === 'string' ? normalized.small : '',
+      planning: typeof normalized.big === 'string' ? normalized.big : '',
+      review: typeof normalized.review === 'string' ? normalized.review : '',
+      research: typeof normalized.big === 'string' ? normalized.big : '',
+    };
+  }
+
+  if (!normalized.label) {
+    normalized.label = typeof profileId === 'string' ? profileId : 'Unknown Profile';
+  }
+  if (!normalized.description) {
+    normalized.description = '';
+  }
+  if (!Array.isArray(normalized.tags)) {
+    normalized.tags = [];
+  }
+
+  return normalized;
+}
+
+function applyProfile(opencodeHome, profile) {
+  const resolvedHome = resolveOpenCodeHome(opencodeHome);
+  const config = readConfig(resolvedHome);
+
+  const normalized = normalizeProfile(profile);
+
+  if (normalized.roleModels && typeof normalized.roleModels === 'object') {
+    if (!config.agentRoleModels || typeof config.agentRoleModels !== 'object') {
+      config.agentRoleModels = {};
+    }
+    for (const [role, model] of Object.entries(normalized.roleModels)) {
+      if (typeof model === 'string' && model.trim()) {
+        if (!config.agentRoleModels[role] || typeof config.agentRoleModels[role] !== 'object') {
+          config.agentRoleModels[role] = {};
+        }
+        config.agentRoleModels[role].model = model.trim();
+      }
+    }
+  }
+
+  writeConfig(resolvedHome, config);
+  return getStatus(resolvedHome);
+}
+
+function setAgentRoleModels(opencodeHome, roleModels) {
+  const resolvedHome = resolveOpenCodeHome(opencodeHome);
+  const config = readConfig(resolvedHome);
+
+  if (!config.agentRoleModels || typeof config.agentRoleModels !== 'object') {
+    config.agentRoleModels = {};
+  }
+
+  for (const [role, model] of Object.entries(roleModels)) {
+    if (typeof model !== 'string' || !model.trim()) continue;
+    if (!config.agentRoleModels[role] || typeof config.agentRoleModels[role] !== 'object') {
+      config.agentRoleModels[role] = {};
+    }
+    config.agentRoleModels[role].model = model.trim();
+  }
+
+  writeConfig(resolvedHome, config);
+  return getStatus(resolvedHome);
+}
+
+function getActiveProfileId(opencodeHome) {
+  const state = readState(opencodeHome);
+  if (typeof state.activeProfileId === 'string' && state.activeProfileId) {
+    return state.activeProfileId;
+  }
+  if (typeof state.activeProfileRoute === 'string' && state.activeProfileRoute) {
+    return state.activeProfileRoute;
+  }
+  return 'opencode-go-balanced';
+}
+
+function setActiveProfileId(opencodeHome, profileId) {
+  const state = readState(opencodeHome);
+  state.activeProfileId = profileId;
+  state.updatedAt = new Date().toISOString();
+  writeState(opencodeHome, state);
+}
+
 module.exports = {
   KNOWN_DEFAULT_EXPLORE_MODEL,
   KNOWN_DEFAULT_SCOUT_MODEL,
@@ -487,11 +609,17 @@ module.exports = {
   getStatus,
   setAgentModels,
   resetConfig,
+  getActiveProfileId,
   getActiveProfileRoute,
   setActiveProfileRoute,
+  normalizeProfile,
+  readProfileCatalog,
   removeActiveProfileRoute,
   updateStateProfileRoute,
+  applyProfile,
   resolveWorktreeBase,
+  setActiveProfileId,
+  setAgentRoleModels,
   buildWorktreePermissionProfile,
   ensureWorktreePermissionProfile,
   applyWorktreePermissionProfile,

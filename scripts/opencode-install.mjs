@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { createRequire } from 'module';
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
+import { normalizeProfile } from './lib/profile-normalizer.mjs';
 import { updateAgentModel } from './frontmatter-utils.mjs';
 import {
   dirHash,
@@ -474,12 +475,13 @@ export async function runInstall(args = {}) {
       const agentRoles = profilesConfig.agentRoles || {};
 
       if (profile) {
+        const roleToAgent = profilesConfig.roleToAgent || null;
         const agentsDir = path.join(opencodeHome, 'agents');
         if (fs.existsSync(agentsDir)) {
           for (const entry of fs.readdirSync(agentsDir)) {
             if (!entry.endsWith('.md')) continue;
             const agentPath = path.join(agentsDir, entry);
-            const result = updateAgentModel(agentPath, profile, agentRoles);
+            const result = updateAgentModel(agentPath, profile, agentRoles, roleToAgent);
             if (result) {
               profileInjectionResults.push(result);
             }
@@ -501,8 +503,35 @@ export async function runInstall(args = {}) {
             config.agent[agentName].model = modelValue;
             configUpdated += 1;
           }
+
+          // Also write agentRoleModels (new preferred API)
+          const normalizedProfile = normalizeProfile(profile, activeProfile);
+          if (normalizedProfile.roleModels && typeof normalizedProfile.roleModels === 'object') {
+            if (!config.agentRoleModels || typeof config.agentRoleModels !== 'object') {
+              config.agentRoleModels = {};
+            }
+            for (const [role, model] of Object.entries(normalizedProfile.roleModels)) {
+              if (typeof model !== 'string' || !model.trim()) continue;
+              if (!config.agentRoleModels[role] || typeof config.agentRoleModels[role] !== 'object') {
+                config.agentRoleModels[role] = {};
+              }
+              config.agentRoleModels[role].model = model.trim();
+              configUpdated += 1;
+            }
+          }
+
           if (configUpdated > 0 && !args.dryRun) {
             writeConfig(opencodeHome, config);
+          }
+
+          // Also sync activeProfileId to dashboard state file
+          if (!args.dryRun) {
+            try {
+              const { setActiveProfileId: setActiveId } = require('../copilot-ui/lib/opencodeConfig.js');
+              setActiveId(opencodeHome, activeProfile);
+            } catch (err) {
+              // Non-fatal: dashboard state sync is best-effort
+            }
           }
         } catch (err) {
           console.log(`[WARN] Could not sync opencode.jsonc: ${err.message}`);
@@ -511,6 +540,21 @@ export async function runInstall(args = {}) {
     }
   } catch (err) {
     console.log(`[WARN] Profile injection failed: ${err.message}`);
+  }
+
+  // ── Claude Code provider setup ──
+  // Configure Claude Code to use DeepSeek Direct by default (Anthropic-compatible endpoint)
+  try {
+    const { applyDefaultProvider } = require('../copilot-ui/lib/claudeCodeConfig.js');
+    const claudeHome = path.join(os.homedir(), '.claude');
+    const ccResult = applyDefaultProvider(claudeHome);
+    if (ccResult.applied) {
+      console.log(`[OK] Claude Code provider set to ${ccResult.mode} (key from ${ccResult.source})`);
+    } else if (ccResult.reason) {
+      console.log(`[SKIP] Claude Code provider: ${ccResult.reason}`);
+    }
+  } catch (err) {
+    console.log(`[WARN] Claude Code provider setup failed: ${err.message}`);
   }
 
   const pruneResults = [
