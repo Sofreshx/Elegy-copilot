@@ -9,6 +9,14 @@ vi.mock('../ui/src/lib/api/git', () => ({
   pullGit: vi.fn(),
   checkoutGitBranch: vi.fn(),
   discoverGitChecks: vi.fn(),
+  runGitChecks: vi.fn(),
+  commitGit: vi.fn(),
+  pushGit: vi.fn(),
+  listStashes: vi.fn(),
+  createStash: vi.fn(),
+  applyStash: vi.fn(),
+  popStash: vi.fn(),
+  dropStash: vi.fn(),
 }));
 
 vi.mock('../ui/src/lib/api/executor', () => ({
@@ -166,6 +174,28 @@ describe('WorkspaceGitTab', () => {
         { name: 'test', path: 'npm test', description: 'Run tests' },
       ],
     });
+    vi.mocked(gitApi.runGitChecks).mockResolvedValue({
+      repoRoot: '/test/repo',
+      checkedAt: new Date().toISOString(),
+      checksAvailable: 2,
+      checksRun: 2,
+      checksPassed: 2,
+      checksFailed: 0,
+      allPassed: true,
+      results: [
+        { checkName: 'lint', passed: true, output: 'ok' },
+        { checkName: 'test', passed: true, output: 'ok' },
+      ],
+      message: 'All checks passed.',
+      source: 'legacy' as const,
+    });
+    vi.mocked(gitApi.commitGit).mockResolvedValue({ committed: true, output: 'ok' });
+    vi.mocked(gitApi.pushGit).mockResolvedValue({ pushed: true, output: 'ok' });
+    vi.mocked(gitApi.listStashes).mockResolvedValue({ repoPath: '/test/repo', count: 0, stashes: [] });
+    vi.mocked(gitApi.createStash).mockResolvedValue({ stashed: true, index: 0, output: 'ok' });
+    vi.mocked(gitApi.applyStash).mockResolvedValue({ applied: true, index: 0, output: 'ok' });
+    vi.mocked(gitApi.popStash).mockResolvedValue({ popped: true, index: 0, output: 'ok' });
+    vi.mocked(gitApi.dropStash).mockResolvedValue({ dropped: true, index: 0, output: 'ok' });
     vi.mocked(gitApi.pullGit).mockResolvedValue({ pulled: true, output: 'ok' });
     vi.mocked(gitApi.checkoutGitBranch).mockResolvedValue({ checkedOut: true, branch: 'feature' });
     vi.mocked(executorApi.listExecutorWorktrees).mockResolvedValue(makeWorktreesResponse([]));
@@ -480,50 +510,188 @@ describe('WorkspaceGitTab', () => {
     expect(screen.getByText('npm test')).toBeInTheDocument();
   });
 
-  // ─── Test 8: Verify & Commit runs checks before committing ─────────────────
+  // ─── Test 8: Verify & Commit runs checks and commits on pass ───────────────
 
-  it('Verify & Commit runs checks before committing', async () => {
-    const onRunChecks = vi.fn();
-    const onSetCommitMessage = vi.fn();
+  it('Verify & Commit runs checks and commits on pass', async () => {
+    const onCommit = vi.fn();
     const props = {
       ...defaultProps,
-      commitMessage: '',  // Will set via onSetCommitMessage
-      onRunChecks,
-      onSetCommitMessage,
+      onCommit,
+      gitState: { ...defaultProps.gitState, commitMessage: 'feat: test' },
     };
 
-    // Need to re-render with commitMessage set. We'll set it via the input.
-    const { rerender } = render(<WorkspaceGitTab {...props} />);
+    render(<WorkspaceGitTab {...props} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('workspace-git-composer')).toBeInTheDocument();
     });
 
-    // Find commit input and type a message
-    const commitInput = screen.getByTestId('workspace-commit-input');
-    fireEvent.change(commitInput, { target: { value: 'feat: add new feature' } });
-
-    // Now re-render with a non-empty commitMessage so the button is enabled
-    rerender(<WorkspaceGitTab {...{
-      ...props,
-      gitState: { ...props.gitState, commitMessage: 'feat: add new feature' },
-    }} />);
-
-    // Click Verify & Commit
     const verifyBtn = screen.getByTestId('workspace-verify-commit');
     expect(verifyBtn).not.toBeDisabled();
     fireEvent.click(verifyBtn);
 
-    // Verify onRunChecks was called
-    expect(onRunChecks).toHaveBeenCalled();
-
-    // Button text should show "Running checks..." after clicking
     await waitFor(() => {
-      expect(screen.getByTestId('workspace-verify-commit')).toHaveTextContent('Running checks...');
+      expect(gitApi.runGitChecks).toHaveBeenCalledWith('/test/repo');
+    });
+    await waitFor(() => {
+      expect(onCommit).toHaveBeenCalled();
     });
   });
 
-  // ─── Test 9: Push is disabled when verification is not current ─────────────
+  // ─── Test 9: failed checks block commit and render failure details ──────────
+
+  it('failed checks block commit and render failure details', async () => {
+    vi.mocked(gitApi.runGitChecks).mockResolvedValue({
+      repoRoot: '/test/repo',
+      checkedAt: new Date().toISOString(),
+      checksAvailable: 2,
+      checksRun: 2,
+      checksPassed: 0,
+      checksFailed: 2,
+      allPassed: false,
+      results: [
+        { checkName: 'lint', passed: false, error: 'lint errors', output: 'failed' },
+        { checkName: 'test', passed: false, error: 'test failures', output: 'failed' },
+      ],
+      message: '2 checks failed.',
+      source: 'legacy' as const,
+    });
+
+    const onCommit = vi.fn();
+    const props = {
+      ...defaultProps,
+      onCommit,
+      gitState: { ...defaultProps.gitState, commitMessage: 'feat: test' },
+    };
+
+    render(<WorkspaceGitTab {...props} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-git-composer')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('workspace-verify-commit'));
+
+    await waitFor(() => {
+      expect(gitApi.runGitChecks).toHaveBeenCalled();
+    });
+
+    expect(onCommit).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-force-commit-btn')).toBeInTheDocument();
+    });
+  });
+
+  // ─── Test 10: force commit requires override reason ─────────────────────────
+
+  it('force commit requires override reason', async () => {
+    vi.mocked(gitApi.runGitChecks).mockResolvedValue({
+      repoRoot: '/test/repo',
+      checkedAt: new Date().toISOString(),
+      checksAvailable: 2, checksRun: 2, checksPassed: 0, checksFailed: 2,
+      allPassed: false,
+      results: [{ checkName: 'lint', passed: false, error: 'lint errors', output: 'failed' }],
+      message: '1 check failed.',
+      source: 'legacy' as const,
+    });
+    vi.mocked(gitApi.commitGit).mockResolvedValue({ committed: true, output: 'ok' });
+
+    const props = {
+      ...defaultProps,
+      gitState: { ...defaultProps.gitState, commitMessage: 'feat: test' },
+    };
+
+    render(<WorkspaceGitTab {...props} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-git-composer')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('workspace-verify-commit'));
+    await waitFor(() => {
+      expect(gitApi.runGitChecks).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-force-commit-btn')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('workspace-force-commit-btn'));
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-force-reason-input')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('workspace-force-commit-confirm')).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId('workspace-force-reason-input'), { target: { value: 'Known good' } });
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-force-commit-confirm')).not.toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByTestId('workspace-force-commit-confirm'));
+
+    await waitFor(() => {
+      expect(gitApi.commitGit).toHaveBeenCalledWith('/test/repo', 'feat: test', { reason: 'Known good' });
+    });
+  });
+
+  // ─── Test 11: stash list renders and calls APIs ────────────────────────────
+
+  it('stash list renders and calls APIs', async () => {
+    vi.mocked(gitApi.listStashes).mockResolvedValue({
+      repoPath: '/test/repo',
+      count: 2,
+      stashes: [
+        { index: 0, ref: 'stash@{0}', hash: 'abc1234', message: 'WIP on main' },
+        { index: 1, ref: 'stash@{1}', hash: 'def5678', message: 'temp changes' },
+      ],
+    });
+
+    render(<WorkspaceGitTab {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-git-stash-area')).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-stash-count')).toHaveTextContent('Stashes (2)');
+    });
+
+    expect(screen.getByTestId('workspace-stash-create')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('workspace-stash-toggle-list'));
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-stash-list')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('workspace-stash-apply-0')).toBeInTheDocument();
+    expect(screen.getByTestId('workspace-stash-pop-0')).toBeInTheDocument();
+    expect(screen.getByTestId('workspace-stash-drop-0')).toBeInTheDocument();
+  });
+
+  // ─── Test 12: worktree row states show computed chips ──────────────────────
+
+  it('worktree row states show computed chips', async () => {
+    const wt = baseWorktreeRecord({ worktreeId: 'wt-dirty', branch: 'feature/dirty', path: '/repo-worktrees/wt-dirty',
+      git: { ...baseWorktreeRecord({}).git, changed: 3 },
+    });
+    vi.mocked(executorApi.listExecutorWorktrees).mockResolvedValue(makeWorktreesResponse([wt]));
+
+    render(<WorkspaceGitTab {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-worktrees-list')).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      const stateChip = screen.getByTestId('workspace-worktree-state-wt-dirty');
+      expect(stateChip).toBeInTheDocument();
+      expect(stateChip).toHaveTextContent('Dirty');
+    });
+  });
+
+  // ─── Test 13: Push is disabled when verification is not current ────────────
 
   it('Push is disabled when verification is not current', async () => {
     const props = {
@@ -544,7 +712,7 @@ describe('WorkspaceGitTab', () => {
     expect(hint).toHaveTextContent('Push disabled');
   });
 
-  // ─── Test 10: PR section as collapsible secondary action ───────────────────
+  // ─── Test 14: PR section as collapsible secondary action ───────────────────
 
   it('renders PR section as collapsible secondary action', async () => {
     render(<WorkspaceGitTab {...defaultProps} />);

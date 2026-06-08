@@ -38,7 +38,7 @@ node copilot-ui/server.js
 |------|------|
 | Repositories | Browse and open registered repositories |
 | Lexicon | Searchable vocabulary reference |
-| Workspace | Appears when a repository is opened; shows docs, git, planning, and execution tabs |
+| Workspace | Appears when a repository is opened; shows docs, git (stash management, force commit, worktree checks/merge), planning, and execution tabs |
 | Settings (bottom) | App configuration (via settings gear icon) |
 
 ### Settings sub-sections
@@ -82,3 +82,14 @@ The sidebar and settings structure are defined in `copilot-ui/ui/src/stores/navi
 - `~/.copilot/planning-db` in packaged mode
 
 The public route inventory is snapshotted by `copilot-ui/tests/api-contract.test.js`.
+
+## Enhanced Git Tab (2026-06-08)
+
+The Workspace Git tab now includes:
+
+- **Canonical commit-check contract**: Prefers repo-local `.copilot/commit-checks.json` lane-based CI checks over legacy known-script discovery. Runs `scripts/commit-check-run.mjs --json` when available.
+- **Reliable Verify & Commit**: Awaits check completion directly; commits on pass, blocks on failure, shows neutral "No checks configured" when no checks exist.
+- **Force commit**: After failed checks, a "Force Commit" button prompts for an override reason and sends `unsafeOverride: { reason }` to the gated backend.
+- **Stash management**: Compact area under the commit composer shows stash count, "Stash changes" button, and expandable list with per-entry Apply/Pop/Drop actions.
+- **Worktree state chips**: Worktree rows show computed state (Dirty, Checked, Mergeable, Conflict, Merged, etc.) instead of raw "discovered" status.
+- **Worktree check & merge**: Per-worktree "Run checks" + "Merge" buttons enable check→dry-run→merge→remove flow directly from the worktrees table.

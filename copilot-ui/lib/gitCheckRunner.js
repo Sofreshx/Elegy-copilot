@@ -1,16 +1,8 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
-
-/**
- * Internal dependencies object. Exported so tests can override
- * with mocks without mocking native modules at the vitest level.
- * @type {{ fs: typeof import('fs'), execFile: typeof import('child_process').execFile }}
- */
-const deps = {
-  fs: require('fs'),
-  execFile: require('child_process').execFile,
-};
+const { execFile } = require('child_process');
 
 /**
  * Known check scripts in priority order.
@@ -45,165 +37,127 @@ const KNOWN_CHECKS = [
  */
 const REPO_CUSTOM_CHECKS = {};
 
-const RUN_TIMEOUT_MS = 30000;
-const CANONICAL_CHECK_TIMEOUT_MS = 120000;
-
 /**
- * Resolve the canonical commit-check config from a repo root.
+ * Resolve the canonical commit-check config file for a repo root.
  * Checks .copilot/commit-checks.json first, then .github/commit-checks.json as fallback.
- * Returns { exists, path, config } — config is the parsed JSON object, null if missing or invalid.
+ * Returns parsed config object or null.
  */
 function resolveCommitCheckConfig(repoRoot) {
-  const configPaths = [
+  const paths = [
     path.join(repoRoot, '.copilot', 'commit-checks.json'),
     path.join(repoRoot, '.github', 'commit-checks.json'),
   ];
-
-  for (const configPath of configPaths) {
-    if (deps.fs.existsSync(configPath)) {
+  for (const configPath of paths) {
+    if (fs.existsSync(configPath)) {
       try {
-        const config = JSON.parse(deps.fs.readFileSync(configPath, 'utf8'));
-        return { exists: true, path: configPath, config };
+        return JSON.parse(fs.readFileSync(configPath, 'utf8'));
       } catch {
-        // Invalid JSON at this path, skip to next fallback
+        // Invalid JSON — skip
       }
     }
   }
-
-  return { exists: false, path: null, config: null };
+  return null;
 }
 
 /**
- * Run canonical commit checks by spawning the commit-check-run.mjs script.
+ * Run checks via the canonical commit-check-run.mjs script.
  * Transforms the script's JSON output into the API response shape.
  */
-function runCanonicalChecks(repoRoot, configPath) {
+function runCanonicalChecks(repoRoot, config) {
   return new Promise((resolve) => {
     const scriptPath = path.join(repoRoot, 'scripts', 'commit-check-run.mjs');
+    if (!fs.existsSync(scriptPath)) {
+      // Script not found — fall back to legacy
+      resolve(runAllChecksLegacy(repoRoot));
+      return;
+    }
 
-    deps.execFile('node', [scriptPath, '--json', '--repo', repoRoot, '--config', configPath], {
-      timeout: CANONICAL_CHECK_TIMEOUT_MS,
+    const child = execFile('node', [scriptPath, '--json', '--repo', repoRoot], {
+      cwd: repoRoot,
+      timeout: 120000,
       maxBuffer: 1024 * 1024,
       windowsHide: true,
     }, (error, stdout, stderr) => {
-      if (error) {
-        // Script execution failed (timeout, not found, etc.)
-        resolve({
-          repoRoot,
-          checkedAt: new Date().toISOString(),
-          source: 'commit-check',
-          checksAvailable: 0,
-          checksRun: 0,
-          checksPassed: 0,
-          checksFailed: 0,
-          allPassed: false,
-          results: [],
-          message: `Canonical check runner failed: ${error.message}`,
-        });
-        return;
-      }
-
-      let output;
+      let parsed;
       try {
-        output = JSON.parse(stdout);
-      } catch (parseError) {
+        parsed = JSON.parse((stdout || '').trim());
+      } catch {
+        // JSON parse failed — return error
         resolve({
           repoRoot,
-          checkedAt: new Date().toISOString(),
           source: 'commit-check',
+          checkedAt: new Date().toISOString(),
           checksAvailable: 0,
           checksRun: 0,
           checksPassed: 0,
           checksFailed: 0,
           allPassed: false,
           results: [],
-          message: `Failed to parse canonical check output: ${parseError.message}`,
+          message: 'Failed to parse commit-check output.',
         });
         return;
       }
 
-      // Transform script output to API response shape
-      const lanes = output.lanes || {};
+      const lanes = parsed.lanes || {};
       const laneNames = Object.keys(lanes);
-      const results = [];
-      let passedCount = 0;
-      let failedCount = 0;
-
-      for (const name of laneNames) {
+      const results = laneNames.map((name) => {
         const lane = lanes[name];
-        const passed = lane.status === 'PASS' || lane.status === 'SKIP';
-        const result = {
+        return {
           checkName: name,
-          passed,
+          passed: lane.status === 'PASS',
+          error: lane.status === 'FAIL' ? (lane.details || 'Check failed') : undefined,
           output: lane.details || '',
+          score: lane.score,
+          commands: lane.commands,
         };
-        if (lane.status === 'FAIL') {
-          result.error = lane.details || 'Check failed';
-        }
-        if (lane.score != null) {
-          result.score = lane.score;
-        }
+      });
 
-        results.push(result);
-        if (passed) {
-          passedCount++;
-        } else {
-          failedCount++;
-        }
-      }
-
-      const totalChecks = laneNames.length;
-      const allPassed = output.overallPass === true;
+      const passed = results.filter((r) => r.passed).length;
+      const failed = results.filter((r) => !r.passed).length;
 
       resolve({
         repoRoot,
-        checkedAt: output.timestamp || new Date().toISOString(),
         source: 'commit-check',
-        compositeScore: output.compositeScore,
-        checksAvailable: totalChecks,
+        checkedAt: parsed.timestamp || new Date().toISOString(),
+        checksAvailable: laneNames.length,
         checksRun: results.length,
-        checksPassed: passedCount,
-        checksFailed: failedCount,
-        allPassed,
+        checksPassed: passed,
+        checksFailed: failed,
+        allPassed: parsed.overallPass !== false,
         results,
-        message: allPassed
-          ? `All ${passedCount} checks passed.`
-          : `${failedCount} of ${results.length} checks failed.`,
+        message: failed === 0
+          ? `All ${passed} lanes passed (score: ${parsed.compositeScore ?? 'N/A'}).`
+          : `${failed} of ${results.length} lanes failed.`,
       });
     });
   });
 }
 
+const RUN_TIMEOUT_MS = 30000;
+
 /**
- * Discover available checks for a repo root.
- * Prefers canonical commit-check config when present; falls back to legacy KNOWN_CHECKS + githooks.
+ * Discover available checks for a repo root by checking file existence.
  */
 function discoverChecks(repoRoot) {
-  const canonical = resolveCommitCheckConfig(repoRoot);
-
-  if (canonical.exists && canonical.config && canonical.config.lanes) {
-    const lanes = canonical.config.lanes;
-    const available = [];
-    for (const [name, lane] of Object.entries(lanes)) {
-      if (lane.enabled === false) continue;
-      available.push({
-        name,
-        path: (lane.commands || []).join(', '),
-        fullPath: '',
-        description: '',
-        source: 'commit-check',
-      });
-    }
-    return available;
+  // Prefer canonical config
+  const config = resolveCommitCheckConfig(repoRoot);
+  if (config && config.lanes) {
+    const laneNames = Object.keys(config.lanes).filter((name) => config.lanes[name].enabled !== false);
+    return laneNames.map((name) => ({
+      name,
+      path: (config.lanes[name].commands || []).join(', ') || '(configured)',
+      fullPath: '',
+      description: config.lanes[name].description || '',
+      source: 'commit-check',
+    }));
   }
 
-  // Fall back to legacy KNOWN_CHECKS + githooks discovery
   const checks = [...KNOWN_CHECKS];
   const available = [];
 
   for (const check of checks) {
     const fullPath = path.join(repoRoot, check.path);
-    if (deps.fs.existsSync(fullPath)) {
+    if (fs.existsSync(fullPath)) {
       available.push({
         name: check.name,
         path: check.path,
@@ -216,10 +170,10 @@ function discoverChecks(repoRoot) {
 
   // Also check for .githooks/ directory existence
   const hooksDir = path.join(repoRoot, '.githooks');
-  if (deps.fs.existsSync(hooksDir)) {
+  if (fs.existsSync(hooksDir)) {
     const preCommit = path.join(hooksDir, 'pre-commit');
     const prePush = path.join(hooksDir, 'pre-push');
-    if (deps.fs.existsSync(preCommit)) {
+    if (fs.existsSync(preCommit)) {
       available.push({
         name: 'git-hooks-pre-commit',
         path: '.githooks/pre-commit',
@@ -228,7 +182,7 @@ function discoverChecks(repoRoot) {
         source: 'legacy',
       });
     }
-    if (deps.fs.existsSync(prePush)) {
+    if (fs.existsSync(prePush)) {
       available.push({
         name: 'git-hooks-pre-push',
         path: '.githooks/pre-push',
@@ -265,7 +219,7 @@ function runCheck(check, repoRoot) {
       args = [];
     }
 
-    const child = deps.execFile(command, args, {
+    const child = execFile(command, args, {
       cwd: repoRoot,
       timeout: RUN_TIMEOUT_MS,
       maxBuffer: 1024 * 1024,
@@ -306,22 +260,14 @@ function runCheck(check, repoRoot) {
 
 /**
  * Run all discovered checks for a repo and return aggregated results.
- * Prefers canonical commit-check runner when config exists; falls back to legacy check scripts.
  */
-async function runAllChecks(repoRoot) {
-  const canonical = resolveCommitCheckConfig(repoRoot);
-
-  if (canonical.exists && canonical.path) {
-    return runCanonicalChecks(repoRoot, canonical.path);
-  }
-
-  // Fall back to legacy KNOWN_CHECKS discovery + per-script execution
+async function runAllChecksLegacy(repoRoot) {
   const checks = discoverChecks(repoRoot);
   if (checks.length === 0) {
     return {
       repoRoot,
+      source: 'legacy',
       checkedAt: new Date().toISOString(),
-      source: 'none',
       checksAvailable: 0,
       checksRun: 0,
       checksPassed: 0,
@@ -339,8 +285,8 @@ async function runAllChecks(repoRoot) {
 
   return {
     repoRoot,
-    checkedAt: new Date().toISOString(),
     source: 'legacy',
+    checkedAt: new Date().toISOString(),
     checksAvailable: checks.length,
     checksRun: results.length,
     checksPassed: passed,
@@ -351,6 +297,17 @@ async function runAllChecks(repoRoot) {
       ? `All ${passed} checks passed.`
       : `${failed} of ${results.length} checks failed.`,
   };
+}
+
+/**
+ * Run all checks — prefer canonical config, fall back to legacy.
+ */
+async function runAllChecks(repoRoot) {
+  const config = resolveCommitCheckConfig(repoRoot);
+  if (config) {
+    return runCanonicalChecks(repoRoot, config);
+  }
+  return runAllChecksLegacy(repoRoot);
 }
 
 /**
@@ -400,23 +357,10 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
   };
 }
 
-/**
- * Override internal dependencies for testing.
- * Call with { fs: mockFs, execFile: mockExecFile } to replace deps.
- */
-function __setDeps(overrides) {
-  if (overrides.fs) deps.fs = overrides.fs;
-  if (overrides.execFile) deps.execFile = overrides.execFile;
-}
-
 module.exports = {
   discoverChecks,
   runCheck,
   runAllChecks,
   gateGitAction,
-  resolveCommitCheckConfig,
-  runCanonicalChecks,
   KNOWN_CHECKS,
-  __setDeps,
-  deps,
 };
