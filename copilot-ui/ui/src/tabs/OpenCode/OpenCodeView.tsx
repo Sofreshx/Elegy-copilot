@@ -339,7 +339,6 @@ function ProfilesSection({ status, saving }: SectionProps) {
               />
             </div>
           ))}
->>>>>>> spec/opencode-lane-model-profiles
           <div className="opencode-model-actions">
             <Button
               variant="primary"
