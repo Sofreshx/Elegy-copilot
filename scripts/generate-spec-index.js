@@ -1,8 +1,20 @@
 #!/usr/bin/env node
+/**
+ * Spec-System Hardening — Index Generator
+ * =========================================
+ * Generates specs/index.md from all specs/*/spec.md files.
+ * 
+ * RELIABILITY: The generated index is validated against the filesystem
+ * by validate-specs.js --strict (R3 index drift check). CI enforces
+ * that the index stays in sync.
+ * 
+ * PART OF: spec-system-hardening (R3.3 — shared YAML parser)
+ */
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
+const { parseFrontmatterYaml } = require('./lib/spec-yaml.js');
 
 const STATUS_ORDER = { draft: 0, approved: 1, implemented: 2, superseded: 3 };
 
@@ -15,27 +27,6 @@ function matchFrontmatter(text) {
   const match = String(text).match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (!match) return null;
   return { full: match[0], yaml: match[1] };
-}
-
-function parseFrontmatterYaml(yamlText) {
-  const meta = {};
-  const lines = String(yamlText || '').split(/\r?\n/);
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const colonIndex = line.indexOf(':');
-    if (colonIndex <= 0) continue;
-    const key = line.slice(0, colonIndex).trim();
-    let value = line.slice(colonIndex + 1).trim();
-    if (!key) continue;
-    if (value.startsWith('[') && value.endsWith(']')) {
-      const inner = value.slice(1, -1).trim();
-      meta[key] = inner ? inner.split(',').map((p) => p.trim().replace(/^['"]|['"]$/g, '')) : [];
-      continue;
-    }
-    meta[key] = value.replace(/^['"]|['"]$/g, '');
-  }
-  return meta;
 }
 
 function extractFirstSentence(text) {

@@ -7,6 +7,7 @@ This is the Instruction Engine monorepo, also published as Elegy Copilot. It is 
 1. Load `guidelines.md` for repo-specific rules and precedence.
 2. Start at `docs/system/index.md` for the task's canonical doc entrypoint.
 3. Use the narrowest relevant validator after changes (`npm run test:all`, `npm run ci:local`, or the specific module's test script).
+4. Before authoring specs, install the pre-commit hook: `node scripts/install-spec-hooks.mjs`. This is part of the spec-system-hardening reliability layers and ensures spec validation runs before every commit. See `docs/system/spec-driven-development.md` for the full spec-driven development contract.
 
 ## Quick orientation
 

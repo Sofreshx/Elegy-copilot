@@ -300,36 +300,30 @@ describe('opencodeConfig', () => {
       assert.equal(fromDefault, path.resolve(path.join(os.homedir(), '.local', 'share', 'opencode', 'worktree')));
     });
 
-    it('builds a profile with allow-only rules scoped to the worktree base', () => {
+    it('builds a profile with flat allow-only permission keys', () => {
       const base = path.resolve(path.join(tmpDir, 'profile-base'));
       const profile = buildWorktreePermissionProfile(base);
-      assert.equal(profile.worktreeBase, base);
-      assert.equal(profile.externalDirectory.action, 'allow');
-      const basePattern = process.platform === 'win32' ? base.replace(/\\/g, '/') : base;
-      assert.ok(profile.externalDirectory.patterns.includes(`${basePattern}/**`));
-      assert.ok(profile.externalDirectory.patterns.some((p) => p.includes('worktree')));
-      assert.equal(profile.bash['git status'], 'allow');
-      assert.equal(profile.bash['git worktree list'], 'allow');
-      assert.equal(profile.bash['git worktree add *'], 'allow');
+      assert.equal(profile.permission.external_directory, 'allow');
+      assert.equal(profile.permission.bash, 'allow');
+      assert.equal(profile.marker.version, 1);
+      assert.equal(profile.marker.marker, WORKTREE_PERMISSION_PROFILE_MARKER);
+      assert.equal(profile.marker.worktreeBase, base);
     });
 
-    it('applies the profile and scopes external_directory to the worktree base only', () => {
+    it('applies the profile and writes flat permission keys', () => {
       const worktreeBase = path.resolve(path.join(tmpDir, 'wt-base'));
       const result = applyWorktreePermissionProfile(tmpDir, { worktreeBase });
       assert.equal(result.changed, true);
-      assert.equal(result.profile.worktreeBase, worktreeBase);
+      assert.equal(result.profile.permission.external_directory, 'allow');
+      assert.equal(result.profile.permission.bash, 'allow');
 
       const config = readConfig(tmpDir);
       assert.ok(config.permission);
-      const external = config.permission.external_directory;
-      assert.ok(external && typeof external === 'object');
-      assert.equal(external.action, 'allow');
-      const basePattern = process.platform === 'win32' ? worktreeBase.replace(/\\/g, '/') : worktreeBase;
-      assert.ok(external.patterns.includes(`${basePattern}/**`));
-      assert.ok(!external.patterns.some((p) => p === '/**' || p === '**' || p === '~/**' || p === '/*'));
-      assert.equal(config.permission.bash['git status'], 'allow');
-      assert.equal(config.permission.bash['git worktree list'], 'allow');
-      assert.ok(config.permission[WORKTREE_PERMISSION_PROFILE_MARKER]);
+      assert.equal(config.permission.external_directory, 'allow');
+      assert.equal(config.permission.bash, 'allow');
+      // Old nested format must not be present
+      assert.ok(typeof config.permission.external_directory !== 'object');
+      assert.ok(typeof config.permission.bash !== 'object');
     });
 
     it('preserves existing user permissions and other config fields', () => {
@@ -339,13 +333,7 @@ describe('opencodeConfig', () => {
         lsp: true,
         permission: {
           edit: 'deny',
-          external_directory: {
-            patterns: ['/srv/existing/**'],
-            action: 'deny',
-          },
-          bash: {
-            'rm *': 'deny',
-          },
+          external_directory: 'deny',
         },
         agent: { explore: { temperature: 0.4 } },
       }), 'utf8');
@@ -356,11 +344,9 @@ describe('opencodeConfig', () => {
       assert.equal(config.lsp, true);
       assert.equal(config.agent.explore.temperature, 0.4);
       assert.equal(config.permission.edit, 'deny');
-      assert.equal(config.permission.bash['rm *'], 'deny');
-      const external = config.permission.external_directory;
-      assert.ok(external.patterns.includes('/srv/existing/**'));
-      const basePattern = process.platform === 'win32' ? worktreeBase.replace(/\\/g, '/') : worktreeBase;
-      assert.ok(external.patterns.includes(`${basePattern}/**`));
+      // Flat values are overwritten to 'allow' by the profile
+      assert.equal(config.permission.external_directory, 'allow');
+      assert.equal(config.permission.bash, 'allow');
     });
 
     it('re-running is idempotent and reports no changes', () => {
@@ -372,21 +358,16 @@ describe('opencodeConfig', () => {
     });
 
     it('reports not-applied status when the marker is missing', () => {
-      const worktreeBase = path.resolve(path.join(tmpDir, 'wt-base'));
-      const status = getWorktreePermissionProfileStatus(tmpDir, worktreeBase);
+      const status = getWorktreePermissionProfileStatus(tmpDir);
       assert.equal(status.applied, false);
-      assert.equal(status.worktreeBase, worktreeBase);
-      assert.ok(status.missingExternalDirectoryPatterns.length > 0);
-      assert.ok(status.missingBashPatterns.length > 0);
+      assert.ok(Array.isArray(status.missingPermissionKeys));
     });
 
     it('reports applied status after the profile is written', () => {
-      const worktreeBase = path.resolve(path.join(tmpDir, 'wt-base'));
-      applyWorktreePermissionProfile(tmpDir, { worktreeBase });
-      const status = getWorktreePermissionProfileStatus(tmpDir, worktreeBase);
+      applyWorktreePermissionProfile(tmpDir, { worktreeBase: path.resolve(path.join(tmpDir, 'wt-base')) });
+      const status = getWorktreePermissionProfileStatus(tmpDir);
       assert.equal(status.applied, true);
-      assert.equal(status.missingExternalDirectoryPatterns.length, 0);
-      assert.equal(status.missingBashPatterns.length, 0);
+      assert.equal(status.missingPermissionKeys.length, 0);
     });
   });
 });

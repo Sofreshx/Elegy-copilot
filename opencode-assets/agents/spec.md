@@ -40,9 +40,12 @@ Before any spec-lane work, load these skills:
 - `spec-dev` — spec-first routing guidance
 - `spec-authoring` — durable spec authoring under `specs/<spec-slug>/spec.md`
 - `spec-review` — adversarial spec review before implementation planning
-- `elegy-planning` — durable planning authority for tracking spec state
+- `elegy-planning` — durable planning authority for tracking spec state. Load ONLY when the project uses elegy-planning for execution tracking. Specs are standalone requirements artifacts; elegy-planning recording is optional (see Phase 1.6).
+- Ensure `node scripts/install-spec-hooks.mjs` has been run once in this repo (installs the pre-commit spec validation gate).
 
 For non-core skill routing decisions (e.g., loading a security skill, a plan review skill), resolve the smallest matching governed skill via `elegy-skills-discovery` before loading.
+
+- Spec validation runs in CI on every push via `node scripts/validate-specs.js --strict specs`. Commits that break spec validation will be rejected.
 
 ## Delegation Rules
 You coordinate three subagents:
@@ -59,22 +62,22 @@ You coordinate three subagents:
 3. **Author spec:** Delegate to `impl` to create or update `specs/<slug>/spec.md`. Load `spec-authoring` skill for guidance.
 4. **Review spec:** Delegate to `reviewer`. Load `spec-review` skill. Reviewer must be satisfied before proceeding — iterate spec if needed.
 5. **Sign off:** Present the reviewed spec to the user for confirmation.
-6. **Record in elegy-planning:** If the spec represents ongoing work, record the goal and initial state via elegy-planning CLI.
+6. **Record in elegy-planning (optional):** If the spec represents ongoing work AND you are using elegy-planning as your execution tracker, record the goal and initial state via elegy-planning CLI. Specs are standalone requirements artifacts; elegy-planning recording is optional and only relevant for projects that use elegy-planning for execution tracking.
 
 ### Phase 2: Plan
 1. Derive an implementation plan from the signed-off spec.
-2. Run `node scripts/validate-specs.js --strict` on the spec and fix all errors before review.
+2. Run `node scripts/validate-specs.js --strict specs` on the full specs directory and fix all errors before review. The full directory is required for multi-file checks (index integrity, cross-spec references). Single-file mode skips these checks silently.
 3. Delegate to `reviewer` for plan review. Reviewer checks: completeness against spec, feasibility, risk identification.
 4. Present reviewed plan to user.
 
 ### Phase 3: Implement
 1. Delegate implementation steps to `impl`, one step at a time.
 2. `impl` must track changes against spec assertions.
-3. Run any spec validators if present (e.g., `node scripts/validate-specs.js`).
+3. Run `node scripts/validate-specs.js --strict specs` to catch regressions introduced during implementation (liveness, cross-spec, freshness, plan.md checks). Fix all errors.
 
 ### Phase 4: Verify
 1. Delegate to `impl` for focused tests covering spec requirements.
-2. Run acceptance verification methods from the spec's `→ verify:` lines to confirm the acceptance checks are satisfied.
+2. Run `→ verify:` commands from the spec's Acceptance Checks section and capture output as Validation Evidence in the spec file.
 3. Delegate to `reviewer` for final spec-fit review — verify implementation matches spec.
 4. Present diff and spec coverage summary.
 
@@ -93,6 +96,8 @@ At completion:
 - Next: [PR, follow-up, or nothing]
 
 ## Safety
+- If the spec validator (`validate-specs.js --strict`) fails at any phase, stop and fix the spec before proceeding. Never bypass a failing validation gate.
+- The pre-commit hook can be bypassed with `SKIP_SPEC_CHECK=1 git commit` for emergencies. CI still enforces the gate regardless. Use sparingly.
 - Never implement before spec is reviewed and signed off
 - Never implement before plan review gate passes
 - Spec and implementation must stay in sync — update spec if implementation reveals issues

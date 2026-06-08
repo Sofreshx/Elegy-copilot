@@ -23,7 +23,7 @@ export default function Sidebar({ items, activeItem, onNavigate }: SidebarProps)
           <button
             key={item.id}
             className={`sidebar-item${activeItem === item.id ? ' sidebar-item-active' : ''}`}
-            data-testid={`sidebar-${item.id}`}
+            data-testid={`sidebar-item-${item.id}`}
             onClick={() => onNavigate(item.id)}
             aria-label={item.label}
             title={item.label}

@@ -4,6 +4,10 @@
 const fs = require('fs');
 const path = require('path');
 const { AC_VAGUE_TOKEN_RE } = require('./lib/ac-vague-tokens');
+const { collectSpecFiles } = require('./lib/spec-collector.js');
+const { matchFrontmatter, extractH2Sections } = require('./lib/spec-headings.js');
+const { parseFrontmatterYaml } = require('./lib/spec-yaml.js');
+const { looksLikeFilePath, KNOWN_SOURCE_DIRS } = require('./lib/spec-path-heuristics.js');
 
 const VALID_STATUS = new Set(['draft', 'approved', 'implemented', 'superseded']);
 const VALID_TYPES = new Set(['feature', 'workflow', 'contract', 'skill', 'agent', 'migration']);
@@ -14,51 +18,6 @@ const REQUIRED_HEADINGS = [
   'Acceptance Checks', 'Implementation Links', 'Validation Evidence', 'Drift Notes',
 ];
 
-const KNOWN_SOURCE_DIRS = new Set([
-  'opencode-assets', 'catalog-assets', 'codex-assets', 'antigravity-assets',
-  'engine-assets', 'scripts', 'docs', 'specs', 'contracts', 'copilot-ui',
-  'local-tracker', 'elegy-assets',
-]);
-
-function matchFrontmatter(text) {
-  if (!String(text || '').startsWith('---')) return null;
-  const match = String(text).match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-  if (!match) return null;
-  return { full: match[0], yaml: match[1] };
-}
-
-function parseFrontmatterYaml(yamlText) {
-  const meta = {};
-  const lines = String(yamlText || '').split(/\r?\n/);
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const colonIndex = line.indexOf(':');
-    if (colonIndex <= 0) continue;
-    const key = line.slice(0, colonIndex).trim();
-    meta[key] = line.slice(colonIndex + 1).trim().replace(/^['"]|['"]$/g, '');
-  }
-  return meta;
-}
-
-function extractH2Sections(markdownBody) {
-  const sections = new Map();
-  let currentHeading = '';
-  let currentLines = [];
-  for (const line of (String(markdownBody || '').split(/\r?\n/))) {
-    const m = line.match(/^##\s+(.+?)\s*$/);
-    if (m) {
-      if (currentHeading) sections.set(currentHeading, currentLines.join('\n').trim());
-      currentHeading = m[1].trim();
-      currentLines = [];
-    } else if (currentHeading) {
-      currentLines.push(line);
-    }
-  }
-  if (currentHeading) sections.set(currentHeading, currentLines.join('\n').trim());
-  return sections;
-}
-
 function hasMeaningfulContent(text) {
   const s = String(text || '').replace(/^\s*[-*]\s*/gm, '').replace(/`[^`]*`/g, '').replace(/\s+/g, ' ').trim();
   if (!s) return false;
@@ -67,30 +26,6 @@ function hasMeaningfulContent(text) {
 
 function countBulletItems(text) {
   return (String(text || '').match(/^\s*[-*]\s+\S/gm) || []).length;
-}
-
-function looksLikeFilePath(p) {
-  const s = p.trim();
-  if (/^https?:\/\//i.test(s) || /^\$/.test(s) || /^~/.test(s) || /^[A-Z]:\\/i.test(s)) return false;
-  if (/\s/.test(s) || /^\w+\(/.test(s) || !/[/\\]/.test(s)) return false;
-  if (!/\.[a-zA-Z]\w*$/.test(s)) {
-    const firstSeg = s.split(/[/\\]/)[0];
-    return KNOWN_SOURCE_DIRS.has(firstSeg);
-  }
-  return true;
-}
-
-function collectSpecFiles(rootPath) {
-  const files = [];
-  function walk(dir) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const fp = path.join(dir, entry.name);
-      if (entry.isDirectory()) walk(fp);
-      else if (entry.isFile() && entry.name === 'spec.md') files.push(fp);
-    }
-  }
-  walk(path.resolve(rootPath));
-  return files.sort();
 }
 
 function assessSpec(filePath) {

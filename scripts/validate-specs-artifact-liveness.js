@@ -4,11 +4,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const KNOWN_SOURCE_DIRS = new Set([
-  'opencode-assets', 'catalog-assets', 'codex-assets', 'antigravity-assets',
-  'engine-assets', 'scripts', 'docs', 'specs', 'contracts', 'copilot-ui',
-  'local-tracker', 'elegy-assets',
-]);
+const { collectSpecFiles } = require('./lib/spec-collector.js');
+const { matchFrontmatter, extractH2Sections } = require('./lib/spec-headings.js');
+const { looksLikeFilePath, KNOWN_SOURCE_DIRS } = require('./lib/spec-path-heuristics.js');
 
 function toPosix(filePath) {
   return String(filePath || '').replace(/\\/g, '/');
@@ -16,81 +14,6 @@ function toPosix(filePath) {
 
 function toDisplayPath(filePath) {
   return toPosix(path.relative(process.cwd(), filePath) || path.basename(filePath));
-}
-
-function looksLikeFilePath(p) {
-  const s = p.trim();
-  if (/^https?:\/\//i.test(s)) return false;
-  if (/^\$/.test(s)) return false;
-  if (/^~/.test(s)) return false;
-  if (/^[A-Z]:\\/i.test(s)) return false;
-  if (/\s/.test(s)) return false;
-  if (/^\w+\(/.test(s)) return false;
-  if (!/[/\\]/.test(s)) return false;
-  if (!/\.[a-zA-Z]\w*$/.test(s)) {
-    const firstSeg = s.split(/[/\\]/)[0];
-    return KNOWN_SOURCE_DIRS.has(firstSeg);
-  }
-  return true;
-}
-
-function collectSpecFiles(targetPath) {
-  const resolvedTarget = path.resolve(targetPath);
-  if (!fs.existsSync(resolvedTarget)) return [];
-
-  const stat = fs.statSync(resolvedTarget);
-  if (stat.isFile()) return [resolvedTarget];
-
-  const files = [];
-  function walk(currentPath) {
-    const entries = fs.readdirSync(currentPath, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(currentPath, entry.name);
-      if (entry.isDirectory()) {
-        walk(fullPath);
-        continue;
-      }
-      if (entry.isFile() && entry.name === 'spec.md') {
-        files.push(fullPath);
-      }
-    }
-  }
-  walk(resolvedTarget);
-  return files.sort((left, right) => left.localeCompare(right));
-}
-
-function extractH2Sections(markdownBody) {
-  const lines = String(markdownBody || '').split(/\r?\n/);
-  const sections = new Map();
-  let currentHeading = '';
-  let currentLines = [];
-
-  function commitCurrent() {
-    if (!currentHeading) return;
-    sections.set(currentHeading, currentLines.join('\n').trim());
-  }
-
-  for (const line of lines) {
-    const headingMatch = line.match(/^##\s+(.+?)\s*$/);
-    if (headingMatch) {
-      commitCurrent();
-      currentHeading = headingMatch[1].trim();
-      currentLines = [];
-      continue;
-    }
-    if (currentHeading) {
-      currentLines.push(line);
-    }
-  }
-  commitCurrent();
-  return sections;
-}
-
-function matchFrontmatter(text) {
-  if (!String(text || '').startsWith('---')) return null;
-  const match = String(text).match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-  if (!match) return null;
-  return { full: match[0], yaml: match[1] };
 }
 
 function checkLivenessForSpec(specFilePath) {
@@ -172,6 +95,4 @@ if (require.main === module) {
 
 module.exports = {
   checkLivenessForSpec,
-  collectSpecFiles,
-  looksLikeFilePath,
 };

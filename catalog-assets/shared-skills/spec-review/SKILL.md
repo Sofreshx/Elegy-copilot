@@ -22,8 +22,9 @@ acceptance checks, source-of-truth confusion, and scope drift before the impleme
 9. Confirm the spec complements normal planning rather than replacing plan-pack, roadmap, or implementation review flows.
 10. **Artifact liveness check:** Verify that each file path in `Context Evidence` and `Implementation Links` resolves to an existing repo file. Run `node scripts/validate-specs-artifact-liveness.js` or `node scripts/validate-specs.js --strict` for the automated check.
 11. **Cross-spec relationships:** Check whether the spec declares its relationship to any other spec (via `supersedes`, `superseded_by`, or `Drift Notes`). If the spec supersedes an existing spec, confirm the older spec's status is being updated and the chain is acyclic.
-12. **Sibling plan.md:** If the spec has 5+ requirements or 2+ phases, confirm a sibling `plan.md` exists alongside `spec.md`.
+12. **Sibling plan.md:** If the spec has 5+ requirements or 2+ phases, confirm a sibling `plan.md` exists alongside `spec.md`. The spec validator (`validate-specs.js --strict`) produces an advisory warning (not a hard error) when this condition is not met. Use judgment — some specs may intentionally defer the plan to a later phase.
 13. **ADR cross-reference:** If the spec governs a trust boundary, authority model, or architecture-level tradeoff, confirm an ADR exists in `docs/adr/` and is referenced in `Context Evidence`.
+14. **Pre-commit hook:** Verify the repo has the spec pre-commit hook installed (`node scripts/install-spec-hooks.mjs`).
 
 ## Verdict Rules
 

@@ -248,7 +248,9 @@ Test strict mode passes with valid paths.
 - None.
 `;
 
-  const { root } = createTempFixture(specBody);
+  const { root } = createTempFixture(specBody, {
+    'index.md': '| Spec | Status | Type | Updated | Intent |\n|------|--------|------|---------|--------|\n| [Test Strict Pass](temp-test-spec/spec.md) | draft | feature | 2026-06-04 | Test strict mode |\n',
+  });
   try {
     const result = runValidator(['--strict', root]);
 

@@ -147,6 +147,12 @@ Durable specs follow a predictable lifecycle. The `status` field is the primary 
 
 Optional date keys (`created`, `approved_at`, `implemented_at`, `superseded_at`) are validated as ISO-8601 dates when present but are not required for structural compliance. The validator will warn if they are present with invalid format.
 
+Optional hardening keys: `freshness: ignore` (skips staleness warnings), `liveness_skip_paths` (list of path patterns to skip in liveness checks).
+
+## Pre-Commit Hook
+
+Run `node scripts/install-spec-hooks.mjs` once to install a pre-commit gate that validates specs before commit. The hook runs `validate-specs.js --strict specs` whenever spec files are staged. Set `SKIP_SPEC_CHECK=1` to bypass.
+
 ## Spec Relationships
 
 Specs can declare relationships via frontmatter keys:
@@ -257,8 +263,21 @@ Specs (`specs/`) and docs (`docs/`) serve different purposes and must not collid
 
 ## Validation
 
+### Reliability Layers
+
+The spec validation system operates in four layers, from fastest (local) to most authoritative (human review):
+
+1. **Validator** (`scripts/validate-specs.js`) — Structural, liveness, cross-spec, freshness, and plan.md checks. Runs locally and in CI.
+2. **Pre-commit hook** (`scripts/validate-specs-precommit.mjs`) — Gate on staged spec files. Installed via `scripts/install-spec-hooks.mjs`.
+3. **CI gate** (`.github/workflows/repo-ci.yml`) — Validates all specs on every push. Blocks broken specs from merging.
+4. **Reviewer** (`catalog-assets/shared-skills/spec-review/SKILL.md`) — Human adversarial review before implementation planning. Catches semantic issues automation cannot.
+
+Each layer is additive — a spec must pass all four to be considered implementable.
+
 - Prefer the repo-local validator when present: `node scripts/validate-specs.js <spec-root>`.
 - The v1 validator checks frontmatter keys and enums, required headings, non-empty `Intent`, at least two `Acceptance Checks`, and `Validation Evidence` when `status: implemented`.
+- The spec validator now includes freshness warnings (90-day draft, 180-day implemented), index integrity checks, cross-spec reference validation, and plan.md requirement checks — all under `--strict` mode.
+- **CI Gate:** The `validate:specs` CI step runs `validate-specs.js --strict specs` in GitHub Actions on every push. Broken specs are rejected before merge.
 - Validation is evidence that the spec matches the contract shape, not proof that the implementation is correct.
 
 ## Boundaries

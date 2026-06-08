@@ -2,6 +2,8 @@
 
 const fs = require('fs');
 const path = require('path');
+const { parseFrontmatterYaml: parseFrontmatterYamlShared } = require('./lib/spec-yaml.js');
+const { matchFrontmatter } = require('./lib/spec-headings.js');
 
 const defaultRepoRoot = path.resolve(__dirname, '..');
 
@@ -85,13 +87,6 @@ function walkDir(dir) {
 	return results;
 }
 
-function matchFrontmatter(text) {
-	if (!text.startsWith('---')) return null;
-	const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
-	if (!match) return null;
-	return { full: match[0], yaml: match[1] };
-}
-
 function parseInlineList(value) {
 	const trimmed = value.trim();
 	if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) return null;
@@ -104,63 +99,17 @@ function parseInlineList(value) {
 		.map((item) => item.replace(/^['"]|['"]$/g, ''));
 }
 
+// Local wrapper: adds numeric-value handling on top of the shared parser
 function parseFrontmatterYaml(yamlText) {
-	/** @type {Record<string, any>} */
-	const meta = {};
-	const lines = yamlText.split(/\r?\n/);
-	for (let index = 0; index < lines.length; index++) {
-		const rawLine = lines[index];
-		const line = rawLine.trim();
-		if (!line) continue;
-		if (line.startsWith('#')) continue;
-		const colonIndex = line.indexOf(':');
-		if (colonIndex <= 0) {
-			throw new Error(`Invalid YAML line (expected key: value): ${rawLine}`);
+	// First try the shared parser
+	const result = parseFrontmatterYamlShared(yamlText);
+	// Apply numeric handling: convert numeric strings to numbers
+	for (const [key, value] of Object.entries(result)) {
+		if (typeof value === 'string' && /^-?\d+$/.test(value)) {
+			result[key] = Number(value);
 		}
-		const key = line.slice(0, colonIndex).trim();
-		let value = line.slice(colonIndex + 1).trim();
-		if (!key) throw new Error(`Invalid YAML key: ${rawLine}`);
-		if (Object.prototype.hasOwnProperty.call(meta, key)) {
-			throw new Error(`Duplicate YAML key: ${key}`);
-		}
-
-		if (value === '') {
-			/** @type {string[]} */
-			const items = [];
-			while (index + 1 < lines.length) {
-				const nextRaw = lines[index + 1];
-				const next = nextRaw.trim();
-				if (!next) {
-					index++;
-					continue;
-				}
-				if (!next.startsWith('-')) break;
-				const item = next.replace(/^-\s*/, '').trim().replace(/^['"]|['"]$/g, '');
-				if (item) items.push(item);
-				index++;
-			}
-			if (items.length === 0) {
-				throw new Error(`YAML key '${key}' has empty value but no dash list items`);
-			}
-			meta[key] = items;
-			continue;
-		}
-
-		const inlineList = parseInlineList(value);
-		if (inlineList !== null) {
-			meta[key] = inlineList;
-			continue;
-		}
-
-		if (/^-?\d+$/.test(value)) {
-			meta[key] = Number.parseInt(value, 10);
-			continue;
-		}
-
-		value = value.replace(/^['"]|['"]$/g, '');
-		meta[key] = value;
 	}
-	return meta;
+	return result;
 }
 
 function stripFencedAndInlineCode(lines) {

@@ -1,7 +1,8 @@
 ---
 spec_id: planning-explorer-view
 title: Planning Explorer View
-status: draft
+status: superseded
+superseded_by: planning-visibility-canonicalization
 type: feature
 updated: 2026-06-03
 ---

@@ -1,9 +1,15 @@
 ---
 spec_id: align-elegy-db-assets
 title: Align Elegy Planning DB, Assets, and OpenCode/Codex Status
-status: draft
+status: superseded
+superseded_by: planning-visibility-canonicalization
 type: workflow
 updated: 2026-06-03
+liveness_skip_paths:
+  - "~/.copilot/*"
+  - "~/.elegy/*"
+  - "~/.codex/*"
+  - "~/.config/*"
 ---
 
 # Align Elegy Planning DB, Assets, and OpenCode/Codex Status

@@ -5044,18 +5044,25 @@ async function startServer(options = {}) {
     } else {
       try {
         logger('elegy-planning CLI not found locally, attempting managed install...');
-        const installResult = await installLatestElegyPlanningCli({
-          copilotHome,
-          runtimeRoot: engineRoot,
-          env,
-          logger,
-        });
+        const installResult = await Promise.race([
+          installLatestElegyPlanningCli({
+            copilotHome,
+            runtimeRoot: engineRoot,
+            env,
+            logger,
+            gitTimeoutMs: 20_000,
+            timeoutMs: 30_000,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('timed out after 30s during startup')), 30_000),
+          ),
+        ]);
         env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH = installResult.installedPath;
         env.INSTRUCTION_ENGINE_ELEGY_PLANNING_ENABLED = '1';
         delete env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED;
         logger(`elegy-planning CLI installed to: ${installResult.installedPath}`);
       } catch (downloadError) {
-        logger(`elegy-planning CLI managed install failed: ${downloadError.message}`);
+        logger(`elegy-planning CLI managed install failed or timed out: ${downloadError.message}`);
       }
     }
   }
