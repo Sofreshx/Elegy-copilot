@@ -144,7 +144,7 @@ export default function RepositoriesView() {
                   {repoPath ? (
                     <div className="repos-launcher-row-actions">
                       <IconButton
-                        icon="focus"
+                        icon="external-link"
                         size={18}
                         label={isOpen ? 'Focus' : 'Open'}
                         onClick={() => handleOpen(repoPath, repo.repoLabel || repoPath)}

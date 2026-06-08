@@ -11,6 +11,7 @@ import ClaudeCodeView from '../../tabs/ClaudeCode/ClaudeCodeView';
 import { Panel } from '../../components';
 import GitHubSettingsView from './GitHubSettingsView';
 import AppIcon from '../../components/AppIcon';
+import { factoryReset, type FactoryResetResponse } from '../../lib/api/system';
 
 const BRAND_ICON_SRC = '/elegy-copilot-icon.svg';
 
@@ -121,6 +122,24 @@ export default function SettingsView() {
 }
 
 function SettingsAppSection({ appInfo, infoLoading }: { appInfo: AppInfo; infoLoading: boolean }) {
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetResult, setResetResult] = useState<FactoryResetResponse | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleFactoryReset = async () => {
+    setResetLoading(true);
+    setResetResult(null);
+    try {
+      const result = await factoryReset();
+      setResetResult(result);
+    } catch (err) {
+      setResetResult({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setResetLoading(false);
+      setShowConfirm(false);
+    }
+  };
+
   return (
     <div className="settings-section">
       <Panel title="Keyboard Shortcuts" subtitle="Navigation and actions" testId="settings-shortcuts">
@@ -173,6 +192,69 @@ function SettingsAppSection({ appInfo, infoLoading }: { appInfo: AppInfo; infoLo
             </dl>
           </>
         )}
+      </Panel>
+
+      <Panel title="Factory Reset" subtitle="Reset all integrated surfaces to defaults" testId="settings-factory-reset">
+        <div className="settings-factory-reset">
+          <p className="settings-factory-reset-desc">
+            Resets OpenCode config to defaults and removes Codex experimental settings.
+            Installed tools and workspace data remain untouched.
+          </p>
+
+          {!showConfirm ? (
+            <Button
+              variant="danger"
+              size="sm"
+              testId="factory-reset-start"
+              disabled={resetLoading}
+              onClick={() => setShowConfirm(true)}
+            >
+              {resetLoading ? 'Resetting...' : 'Factory Reset'}
+            </Button>
+          ) : (
+            <div className="settings-factory-reset-confirm">
+              <p className="settings-factory-reset-warning">
+                This will reset all configuration. This cannot be undone.
+              </p>
+              <div className="settings-factory-reset-actions">
+                <Button
+                  variant="danger"
+                  size="sm"
+                  testId="factory-reset-confirm"
+                  disabled={resetLoading}
+                  onClick={handleFactoryReset}
+                >
+                  {resetLoading ? 'Resetting...' : 'Confirm Reset'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  testId="factory-reset-cancel"
+                  disabled={resetLoading}
+                  onClick={() => setShowConfirm(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {resetResult && (
+            <div className="settings-factory-reset-results" data-testid="factory-reset-results">
+              {resetResult.error ? (
+                <p className="opencode-error">{resetResult.error}</p>
+              ) : resetResult.results ? (
+                <ul className="settings-factory-reset-list">
+                  {Object.entries(resetResult.results).map(([key, r]) => (
+                    <li key={key} className={`settings-factory-reset-item settings-factory-reset-${r.status}`}>
+                      <strong>{key}</strong>: {r.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          )}
+        </div>
       </Panel>
     </div>
   );

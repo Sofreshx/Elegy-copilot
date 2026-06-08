@@ -40,7 +40,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
 
 export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal' | 'docs-graph';
 
-export type WorkspaceLocalTab = 'docs' | 'git' | 'planning' | 'execution' | 'assets';
+export type WorkspaceLocalTab = 'docs' | 'git' | 'planning' | 'execution' | 'assets' | 'notes';
 
 export interface OpenWorkspace {
   repoPath: string;
@@ -69,7 +69,6 @@ export type SidebarNavItem = {
 };
 
 export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
-  { id: 'workspace', label: 'Workspace', icon: 'folder-open', description: 'Active workspace' },
   { id: 'repositories', label: 'Repositories', icon: 'repo', description: 'Browse and open registered repositories' },
   { id: 'lexicon', label: 'Lexicon', icon: 'diamond', description: 'Searchable vocabulary reference for UI, design, architecture, and software engineering terms' },
   { id: 'settings', label: 'Settings', icon: 'settings', description: 'App configuration and preferences' },

@@ -6,6 +6,8 @@ import type { GitSummaryResponse, GitPullRequestResponse, GitLogResponse, GitChe
 import type { VerificationState } from '../Repositories/verification';
 import { getWorkspaceLaunchers, launchWorkspace } from '../../lib/api/workspace';
 import type { WorkspaceLauncher } from '../../lib/api/workspace';
+import BrandIcon from '../../components/BrandIcon';
+import { resolveLauncherIconPath } from '../../lib/launcherIcons';
 
 interface WorkspaceActiveRepoCardProps {
   repo: CatalogRepoInventoryEntry | null;
@@ -225,9 +227,7 @@ export default function WorkspaceActiveRepoCard({
                     data-testid={`workspace-launch-${launcher.id}`}
                     title={launcher.available ? undefined : launcher.reason || `${launcher.label} is not available`}
                   >
-                    <span className="workspace-launch-menu-item-icon" aria-hidden="true">
-                      {LAUNCHER_ICONS[launcher.group] || LAUNCHER_ICONS.ides}
-                    </span>
+                    <BrandIcon src={resolveLauncherIconPath(launcher.id)} size={15} className="workspace-launch-menu-item-icon" />
                     <span className="workspace-launch-menu-item-label">
                       {launching === launcher.id ? 'Opening...' : launcher.label}
                     </span>

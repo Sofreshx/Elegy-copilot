@@ -32,6 +32,10 @@ export default function GitHubSettingsView() {
           <p className="opencode-loading" data-testid="github-loading">Loading GitHub status...</p>
         ) : null}
 
+        {state.installLoading ? (
+          <p className="opencode-loading" data-testid="github-installing">Installing GitHub CLI... This may take a minute.</p>
+        ) : null}
+
         {state.error ? (
           <p className="opencode-error" data-testid="github-error">{state.error}</p>
         ) : null}
@@ -80,20 +84,22 @@ export default function GitHubSettingsView() {
                 <div className="github-setup-install">
                   <h4>Install GitHub CLI</h4>
                   <p>The <code>gh</code> command-line tool is required for GitHub integration (push, pull requests, auth).</p>
-                  <div className="github-setup-commands">
-                    <Panel title="Windows (winget)" subtitle="" testId="github-install-winget">
-                      <code>winget install --id GitHub.cli</code>
-                    </Panel>
-                    <Panel title="macOS (Homebrew)" subtitle="" testId="github-install-brew">
-                      <code>brew install gh</code>
-                    </Panel>
-                    <Panel title="Linux (apt)" subtitle="" testId="github-install-apt">
-                      <code>sudo apt install gh</code>
-                    </Panel>
+                  <div className="opencode-model-actions" style={{ marginTop: '12px' }}>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      testId="github-install-button"
+                      disabled={state.installLoading}
+                      onClick={() => void githubStore.install()}
+                    >
+                      {state.installLoading ? 'Installing...' : 'Install GitHub CLI'}
+                    </Button>
                   </div>
-                  <p style={{ marginTop: '12px' }}>
+                  <p style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                    This will download and install the latest GitHub CLI. You may be prompted for administrator permissions.
+                    If automatic install fails, you can also{' '}
                     <a href="https://cli.github.com/" target="_blank" rel="noopener noreferrer">
-                      Download from github.com/cli →
+                      download manually →
                     </a>
                   </p>
                 </div>

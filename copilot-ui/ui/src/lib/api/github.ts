@@ -11,3 +11,10 @@ export function loginGitHub(baseUrl?: string): Promise<{ authenticated: boolean;
     method: 'POST',
   });
 }
+
+export function installGitHubCli(baseUrl?: string): Promise<{ installed: boolean; method?: string; version?: string | null; error?: string }> {
+  return apiRequest<{ installed: boolean; method?: string; version?: string | null; error?: string }>('/api/git/github-install', {
+    baseUrl,
+    method: 'POST',
+  });
+}

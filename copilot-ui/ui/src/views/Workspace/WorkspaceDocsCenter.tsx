@@ -104,10 +104,11 @@ export default function WorkspaceDocsCenter({ repoPath }: WorkspaceDocsCenterPro
       await deleteRepoDoc(repoPath, selectedDoc.path);
       setSelectedDoc(null);
       setEditMode(false);
-      // Refresh the file list and clear tree (flat list fallback)
-      const data = await listRepoDocs(repoPath);
-      setFiles(data.files);
-      setTree([]);
+      // Refresh the tree after deletion
+      const treeData = await listRepoDocsTree(repoPath);
+      setTree(treeData.tree);
+      setTotalFiles(treeData.totalFiles);
+      setTotalDirs(treeData.totalDirs);
     } catch (err) {
       setDocError(err instanceof Error ? err.message : String(err));
     } finally {

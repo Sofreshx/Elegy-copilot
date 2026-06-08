@@ -99,6 +99,7 @@ function getConfigPreview(opencodeConfigLib, opencodeHome) {
     if (config.agent) cleaned.agent = config.agent;
     if (config.lanes) cleaned.lanes = config.lanes;
     if (config.profile) cleaned.profile = config.profile;
+    if (typeof config.lsp === 'boolean') cleaned.lsp = config.lsp;
     return cleaned;
   } catch {
     return null;
@@ -380,13 +381,13 @@ function buildSetupChecks(opencodeHome, copilotHomeAbs, engineRoot, assets, ctx,
     worktreePermissionStatus = null;
   }
   if (worktreePermissionStatus) {
-    const { applied, worktreeBase, missingExternalDirectoryPatterns, missingBashPatterns } = worktreePermissionStatus;
+    const { applied, worktreeBase } = worktreePermissionStatus;
+    const missingPermKeys = Array.isArray(worktreePermissionStatus.missingPermissionKeys)
+      ? worktreePermissionStatus.missingPermissionKeys
+      : [];
     const missingParts = [];
-    if (missingExternalDirectoryPatterns.length > 0) {
-      missingParts.push(`${missingExternalDirectoryPatterns.length} external_directory pattern(s)`);
-    }
-    if (missingBashPatterns.length > 0) {
-      missingParts.push(`${missingBashPatterns.length} bash rule(s)`);
+    if (missingPermKeys.length > 0) {
+      missingParts.push(`${missingPermKeys.length} permission key(s): ${missingPermKeys.join(', ')}`);
     }
     checks.push({
       id: 'worktree-permission-profile',
@@ -876,6 +877,43 @@ function isValidationError(error) {
   return /is required|must match|Unknown/.test(message);
 }
 
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function sanitizePermission(value) {
+  // null / undefined / missing clears the permission field
+  if (value == null) {
+    return { ok: true, value: null };
+  }
+
+  if (!isPlainObject(value)) {
+    return { ok: false, error: 'permission must be a plain object or null' };
+  }
+
+  // OpenCode's config schema expects all values under "permission" to be
+  // PermissionActionConfig strings: "allow", "deny", or "ask".
+  // Nested objects, arrays, numbers, etc. will cause SchemaError at startup.
+  // See: https://opencode.ai/config.json
+  const permission = {};
+  for (const [key, val] of Object.entries(value)) {
+    if (typeof key !== 'string' || !key.trim()) {
+      return { ok: false, error: 'permission keys must be non-empty strings' };
+    }
+    // Skip the instruction-engine-worktree-permission-profile marker —
+    // it is stored in the state file, not in config.permission.
+    if (key === 'instruction-engine-worktree-permission-profile') {
+      continue;
+    }
+    if (val !== 'allow' && val !== 'deny' && val !== 'ask') {
+      return { ok: false, error: `permission value for "${key}" must be "allow", "deny", or "ask"` };
+    }
+    permission[key.trim()] = val;
+  }
+
+  return { ok: true, value: permission };
+}
+
 function register(deps = {}) {
   const resolvedDeps = {
     sendJson: deps.sendJson || defaultSendJson,
@@ -933,6 +971,47 @@ function register(deps = {}) {
               reviewModel || undefined,
             );
           }
+
+          const status = await buildOpenCodeStatus(ctx, resolvedDeps);
+          resolvedDeps.sendJson(ctx.res, 200, { ok: true, status });
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, 500, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/opencode/config/key',
+      handler: async (ctx) => {
+        try {
+          const body = await resolvedDeps.readJsonBody(ctx.req);
+          const { opencodeHome } = ctx;
+          const key = asTrimmedString(body.key);
+          const value = body.value;
+
+          if (!key) {
+            resolvedDeps.sendJson(ctx.res, 400, { error: 'key is required' });
+            return;
+          }
+
+          // Only allow known top-level boolean feature flags
+          const allowedKeys = ['lsp'];
+          if (!allowedKeys.includes(key)) {
+            resolvedDeps.sendJson(ctx.res, 400, { error: `Unknown config key: ${key}. Allowed keys: ${allowedKeys.join(', ')}` });
+            return;
+          }
+
+          if (typeof value !== 'boolean') {
+            resolvedDeps.sendJson(ctx.res, 400, { error: 'value must be a boolean' });
+            return;
+          }
+
+          // Read, update, write config
+          const config = resolvedDeps.opencodeConfig.readConfig(opencodeHome);
+          config[key] = value;
+          resolvedDeps.opencodeConfig.writeConfig(opencodeHome, config);
 
           const status = await buildOpenCodeStatus(ctx, resolvedDeps);
           resolvedDeps.sendJson(ctx.res, 200, { ok: true, status });
@@ -1187,8 +1266,20 @@ function register(deps = {}) {
       handler: async (ctx) => {
         try {
           const body = await resolvedDeps.readJsonBody(ctx.req);
+          const rawPermission = body.permission;
+
+          // Validate and sanitize the permission object before writing to config.
+          const validated = sanitizePermission(rawPermission);
+          if (!validated.ok) {
+            resolvedDeps.sendJson(ctx.res, 400, {
+              ok: false,
+              error: validated.error,
+            });
+            return;
+          }
+
           const config = resolvedDeps.opencodeConfig.readConfig(ctx.opencodeHome);
-          config.permission = body.permission || null;
+          config.permission = validated.value;
           resolvedDeps.opencodeConfig.writeConfig(ctx.opencodeHome, config);
           resolvedDeps.sendJson(ctx.res, 200, { ok: true, permission: config.permission });
         } catch (error) {

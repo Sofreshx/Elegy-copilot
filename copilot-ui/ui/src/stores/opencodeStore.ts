@@ -1,6 +1,7 @@
 import {
   getOpenCodeStatus,
   saveOpenCodeConfig,
+  saveOpenCodeConfigKey,
   resetOpenCodeConfig,
   installOpenCodeAssets,
   installOpenCodeTooling,
@@ -100,6 +101,25 @@ function createOpenCodeStore() {
         status: response.status,
         saving: false,
         message: 'OpenCode configuration saved.',
+      }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        saving: false,
+        error: toErrorMessage(error),
+      }));
+    }
+  }
+
+  async function toggleConfigKey(key: string, value: boolean): Promise<void> {
+    store.setState((state) => ({ ...state, saving: true, error: null, message: null }));
+    try {
+      const response = await saveOpenCodeConfigKey({ key, value });
+      store.setState((state) => ({
+        ...state,
+        status: response.status,
+        saving: false,
+        message: `${key} ${value ? 'enabled' : 'disabled'} successfully.`,
       }));
     } catch (error) {
       store.setState((state) => ({
@@ -394,6 +414,7 @@ function createOpenCodeStore() {
     setState: store.setState,
     load,
     saveConfig,
+    toggleConfigKey,
     resetConfig,
     installAssets,
     installTooling,

@@ -111,6 +111,79 @@ function handleLspInstall(ctx, deps) {
   });
 }
 
+function handleFactoryReset(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+
+  const results = {
+    opencode: { status: 'skipped', message: '' },
+    codex: { status: 'skipped', message: '' },
+  };
+
+  return Promise.resolve()
+    .then(async () => {
+      const ctx_opencodeHome = ctx.opencodeHome || require('path').join(require('os').homedir(), '.config', 'opencode');
+
+      // Reset OpenCode config
+      try {
+        const opencodeConfig = require('../lib/opencodeConfig');
+        opencodeConfig.resetConfig(ctx_opencodeHome);
+        results.opencode = { status: 'ok', message: 'OpenCode config reset to defaults.' };
+      } catch (err) {
+        results.opencode = { status: 'error', message: `Failed: ${err.message}` };
+      }
+
+      // Reset Codex provider config
+      try {
+        const codexHome = require('path').join(require('os').homedir(), '.codex');
+        const fs = require('fs');
+        const path = require('path');
+
+        // Remove Elegy-managed Codex files
+        const codexConfigPath = path.join(codexHome, 'settings.json');
+        const backupPath = path.join(codexHome, 'settings.json.elegy-backup');
+
+        if (fs.existsSync(codexConfigPath)) {
+          // Restore from backup if it exists, otherwise remove
+          if (fs.existsSync(backupPath)) {
+            fs.copyFileSync(backupPath, codexConfigPath);
+            fs.unlinkSync(backupPath);
+            results.codex = { status: 'ok', message: 'Codex provider restored from backup.' };
+          } else {
+            // Remove Elegy-specific keys from settings
+            try {
+              const settings = JSON.parse(fs.readFileSync(codexConfigPath, 'utf8'));
+              if (settings.enableExperimental) {
+                delete settings.enableExperimental;
+                fs.writeFileSync(codexConfigPath, JSON.stringify(settings, null, 2));
+              }
+              results.codex = { status: 'ok', message: 'Codex experimental settings removed.' };
+            } catch {
+              results.codex = { status: 'ok', message: 'No Codex settings to reset.' };
+            }
+          }
+        } else {
+          results.codex = { status: 'skipped', message: 'No Codex config found.' };
+        }
+      } catch (err) {
+        results.codex = { status: 'error', message: `Failed: ${err.message}` };
+      }
+
+      const allOk = Object.values(results).every((r) => r.status === 'ok' || r.status === 'skipped');
+
+      sendJson(res, 200, {
+        ok: allOk,
+        results,
+      });
+    })
+    .catch((error) => {
+      sendJson(res, 500, {
+        ok: false,
+        error: String(error.message || error),
+      });
+    });
+}
+
 function register(deps = {}) {
   const resolvedDeps = {
     fs: deps.fs || fs,
@@ -130,6 +203,11 @@ function register(deps = {}) {
       method: 'GET',
       path: '/api/policy/preflight',
       handler: (ctx) => handlePolicyPreflight(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/system/factory-reset',
+      handler: (ctx) => handleFactoryReset(ctx, resolvedDeps),
     },
     {
       method: 'GET',

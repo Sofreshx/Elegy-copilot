@@ -35,17 +35,31 @@ interface DocTreeNodeProps {
   node: RepoDocTreeNode;
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
+  depth: number;
 }
 
-function DocTreeNode({ node, selectedPath, onSelectFile }: DocTreeNodeProps) {
-  const [expanded, setExpanded] = useState(true);
+function DocTreeNode({ node, selectedPath, onSelectFile, depth }: DocTreeNodeProps) {
+  const [expanded, setExpanded] = useState(false);
+
+  // Indent guide lines for ancestor levels
+  const indentGuides = depth > 0
+    ? Array.from({ length: depth }, (_, i) => (
+        <span
+          key={`indent-${i}`}
+          className="workspace-docs-tree-indent"
+          style={{ left: `${i * 16 + 8}px` }}
+          aria-hidden="true"
+        />
+      ))
+    : null;
 
   if (node.kind === 'directory') {
     const dir = node as RepoDocTreeDirNode;
     const hasChildren = dir.children && dir.children.length > 0;
 
     return (
-      <li>
+      <li className="workspace-docs-tree-node" style={{ '--depth': depth } as React.CSSProperties}>
+        {indentGuides}
         <div
           className="workspace-docs-tree-folder"
           onClick={() => hasChildren && setExpanded((v) => !v)}
@@ -73,6 +87,7 @@ function DocTreeNode({ node, selectedPath, onSelectFile }: DocTreeNodeProps) {
                   node={child}
                   selectedPath={selectedPath}
                   onSelectFile={onSelectFile}
+                  depth={depth + 1}
                 />
               ))}
             </ul>
@@ -87,7 +102,8 @@ function DocTreeNode({ node, selectedPath, onSelectFile }: DocTreeNodeProps) {
   const isActive = selectedPath === file.path;
 
   return (
-    <li>
+    <li className="workspace-docs-tree-node" style={{ '--depth': depth } as React.CSSProperties}>
+      {indentGuides}
       <button
         type="button"
         className={
@@ -120,6 +136,7 @@ function DocTreeView({ tree, selectedPath, onSelectFile }: DocTreeViewProps) {
           node={node}
           selectedPath={selectedPath}
           onSelectFile={onSelectFile}
+          depth={0}
         />
       ))}
     </ul>

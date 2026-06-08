@@ -18,7 +18,10 @@ import WorkspaceGitTab from './WorkspaceGitTab';
 import WorkspacePlanningTab from './WorkspacePlanningTab';
 import WorkspaceExecutionTab from './WorkspaceExecutionTab';
 import AppIcon from '../../components/AppIcon';
+import BrandIcon from '../../components/BrandIcon';
+import { resolveLauncherIconPath, TERMINAL_ICON } from '../../lib/launcherIcons';
 import WorkspaceAssetsTab from './WorkspaceAssetsTab';
+import WorkspaceNotesTab from './WorkspaceNotesTab';
 
 export default function WorkspaceView() {
   const state = useStoreValue(repositoriesStore);
@@ -243,7 +246,7 @@ export default function WorkspaceView() {
                           data-testid={`workspace-launch-${launcher.id}`}
                           title={launcher.available ? undefined : launcher.reason || `${launcher.label} is not available`}
                         >
-                          <AppIcon name={(LAUNCHER_ICONS[launcher.group] || 'play') as any} size={15} className="workspace-launch-menu-item-icon" />
+                          <BrandIcon src={resolveLauncherIconPath(launcher.id)} size={15} className="workspace-launch-menu-item-icon" />
                           <span className="workspace-launch-menu-item-label">
                             {launching === launcher.id ? 'Opening...' : launcher.label}
                           </span>
@@ -302,6 +305,9 @@ export default function WorkspaceView() {
             )}
             {navState.activeWorkspaceLocalTab === 'assets' && (
               <WorkspaceAssetsTab repoPath={selectedRepoPath} />
+            )}
+            {navState.activeWorkspaceLocalTab === 'notes' && (
+              <WorkspaceNotesTab repoPath={selectedRepoPath} />
             )}
           </div>
 

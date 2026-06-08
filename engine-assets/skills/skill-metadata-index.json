@@ -28,6 +28,30 @@
       }
     },
     {
+      "skill": "concise-writing",
+      "name": "concise-writing",
+      "description": "Audit and enforce concise, precise, fluff-free writing across docs, skills, agents, and prompts. Bans filler phrases, enforces word budgets, and validates vocabulary precision. Triggers on: concise writing, fluff audit, word budget, writing standards, tighten prose, documentation cleanup.",
+      "triggersOn": [
+        "concise writing",
+        "documentation cleanup",
+        "fluff audit",
+        "tighten prose",
+        "word budget",
+        "writing standards"
+      ],
+      "tags": [
+        "audit",
+        "documentation",
+        "quality",
+        "style",
+        "writing"
+      ],
+      "manifest": {
+        "id": "skill-concise-writing",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "core-guardrails",
       "name": "core-guardrails",
       "description": "Non-negotiable execution safety guardrails for all tasks. Triggers on: run_in_terminal, terminal command, isBackground, branch switch, instruction conflict, askQuestions.",

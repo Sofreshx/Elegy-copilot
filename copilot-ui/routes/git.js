@@ -545,6 +545,177 @@ function handleGitAuthLogin(ctx, deps) {
     });
 }
 
+function handleGitHubInstall(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const os = require('os');
+  const https = require('https');
+  const fs = require('fs');
+  const path = require('path');
+  const { execSync } = require('child_process');
+
+  const platform = os.platform(); // 'win32', 'darwin', 'linux'
+  const homeDir = os.homedir();
+
+  return Promise.resolve()
+    .then(async () => {
+      // Step 1: Try platform package manager first
+      let installed = false;
+      let method = '';
+
+      if (platform === 'win32') {
+        try {
+          // winget is the preferred method on Windows (ships with Win 10+)
+          execSync('winget install --id GitHub.cli --accept-source-agreements --accept-package-agreements', {
+            timeout: 120000,
+            encoding: 'utf8',
+            windowsHide: true,
+          });
+          // winget returns exit code 0 on success; verify it's installed
+          const verifyResult = execSync('where gh', { timeout: 15000, encoding: 'utf8', windowsHide: true });
+          if (verifyResult.trim()) {
+            installed = true;
+            method = 'winget';
+          }
+        } catch {
+          // winget failed or not available, try direct download
+        }
+      } else if (platform === 'darwin') {
+        try {
+          execSync('brew install gh', { timeout: 120000, encoding: 'utf8' });
+          installed = true;
+          method = 'homebrew';
+        } catch {
+          // brew failed
+        }
+      } else if (platform === 'linux') {
+        try {
+          // Try apt (Debian/Ubuntu)
+          execSync('sudo apt-get update && sudo apt-get install -y gh', { timeout: 120000, encoding: 'utf8' });
+          installed = true;
+          method = 'apt';
+        } catch {
+          // apt failed
+        }
+      }
+
+      // Step 2: If package manager failed, download binary directly
+      if (!installed) {
+        const releaseUrl = platform === 'win32'
+          ? 'https://github.com/cli/cli/releases/download/v2.63.0/gh_2.63.0_windows_amd64.zip'
+          : platform === 'darwin'
+            ? 'https://github.com/cli/cli/releases/download/v2.63.0/gh_2.63.0_macos_amd64.tar.gz'
+            : 'https://github.com/cli/cli/releases/download/v2.63.0/gh_2.63.0_linux_amd64.tar.gz';
+
+        const tmpDir = path.join(homeDir, '.elegy', 'tmp');
+        if (!fs.existsSync(tmpDir)) {
+          fs.mkdirSync(tmpDir, { recursive: true });
+        }
+
+        const archiveName = platform === 'win32' ? 'gh.zip' : 'gh.tar.gz';
+        const archivePath = path.join(tmpDir, archiveName);
+        const extractDir = path.join(tmpDir, 'gh-extract');
+
+        // Download the archive
+        await new Promise((resolve, reject) => {
+          const file = fs.createWriteStream(archivePath);
+          https.get(releaseUrl, { headers: { 'User-Agent': 'Elegy-Copilot' } }, (response) => {
+            // Handle redirects
+            if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+              https.get(response.headers.location, { headers: { 'User-Agent': 'Elegy-Copilot' } }, (redirectRes) => {
+                redirectRes.pipe(file);
+                file.on('finish', () => { file.close(() => resolve()); });
+              }).on('error', reject);
+              return;
+            }
+            response.pipe(file);
+            file.on('finish', () => { file.close(() => resolve()); });
+          }).on('error', reject);
+        });
+
+        // Extract
+        if (platform === 'win32') {
+          // Use PowerShell to extract zip (available on all Windows systems)
+          try {
+            if (!fs.existsSync(extractDir)) fs.mkdirSync(extractDir, { recursive: true });
+            execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${extractDir}' -Force"`, {
+              timeout: 30000,
+              encoding: 'utf8',
+              windowsHide: true,
+            });
+            // Move gh.exe to a location in PATH (use ~/.elegy/bin)
+            const binDir = path.join(homeDir, '.elegy', 'bin');
+            if (!fs.existsSync(binDir)) fs.mkdirSync(binDir, { recursive: true });
+            // Find gh.exe in the extracted directory (it's in a subdirectory)
+            const extractedDirs = fs.readdirSync(extractDir);
+            const ghDir = extractedDirs.find(d => d.startsWith('gh_'));
+            if (ghDir) {
+              const ghExe = path.join(extractDir, ghDir, 'bin', 'gh.exe');
+              if (fs.existsSync(ghExe)) {
+                fs.copyFileSync(ghExe, path.join(binDir, 'gh.exe'));
+                // Add to PATH for current session
+                process.env.PATH = `${binDir};${process.env.PATH || ''}`;
+                installed = true;
+                method = 'direct-download';
+              }
+            }
+          } catch (extractErr) {
+            throw new Error(`Failed to extract: ${extractErr.message}`);
+          }
+        } else {
+          // macOS/Linux: use tar
+          try {
+            if (!fs.existsSync(extractDir)) fs.mkdirSync(extractDir, { recursive: true });
+            execSync(`tar -xzf "${archivePath}" -C "${extractDir}"`, { timeout: 30000, encoding: 'utf8' });
+            const binDir = path.join(homeDir, '.elegy', 'bin');
+            if (!fs.existsSync(binDir)) fs.mkdirSync(binDir, { recursive: true });
+            const extractedDirs = fs.readdirSync(extractDir);
+            const ghDir = extractedDirs.find(d => d.startsWith('gh_'));
+            if (ghDir) {
+              const ghBin = path.join(extractDir, ghDir, 'bin', 'gh');
+              if (fs.existsSync(ghBin)) {
+                fs.copyFileSync(ghBin, path.join(binDir, 'gh'));
+                fs.chmodSync(path.join(binDir, 'gh'), 0o755);
+                process.env.PATH = `${binDir}:${process.env.PATH || ''}`;
+                installed = true;
+                method = 'direct-download';
+              }
+            }
+          } catch (err) {
+            throw new Error(`Failed to extract: ${err.message}`);
+          }
+        }
+
+        // Cleanup temp files
+        try { fs.rmSync(archivePath, { force: true }); } catch {}
+        try { fs.rmSync(extractDir, { recursive: true, force: true }); } catch {}
+      }
+
+      // Step 3: Verify installation
+      if (installed) {
+        try {
+          const versionResult = await runCommand(deps.childProcess, 'gh', ['--version'], homeDir, 15000);
+          const versionMatch = String(versionResult.stdout || '').match(/gh version ([\d.]+)/i);
+          const version = versionMatch ? versionMatch[1] : 'unknown';
+          sendJson(res, 200, { installed: true, method, version });
+        } catch {
+          sendJson(res, 200, { installed: true, method, version: null });
+        }
+      } else {
+        sendJson(res, 500, {
+          installed: false,
+          error: `Could not install GitHub CLI automatically on ${platform}. Please install manually from https://cli.github.com`,
+        });
+      }
+    })
+    .catch((error) => {
+      sendJson(res, 500, {
+        installed: false,
+        error: String(error.message || error),
+      });
+    });
+}
+
 function handleGitPullRequest(ctx, deps) {
   const { req, res } = ctx;
   const { sendJson, readJsonBody } = deps;
@@ -1036,6 +1207,7 @@ function register(context = {}) {
     { method: 'POST', path: '/api/git/push', handler: (ctx) => handleGitPush(ctx, deps) },
     { method: 'POST', path: '/api/git/pull-request', handler: (ctx) => handleGitPullRequest(ctx, deps) },
     { method: 'POST', path: '/api/git/auth/login', handler: (ctx) => handleGitAuthLogin(ctx, deps) },
+    { method: 'POST', path: '/api/git/github-install', handler: (ctx) => handleGitHubInstall(ctx, deps) },
     { method: 'GET', path: '/api/git/merge-candidates', handler: (ctx) => handleGitMergeCandidates(ctx, deps) },
     { method: 'POST', path: '/api/git/merge-dry-run', handler: (ctx) => handleGitMergeDryRun(ctx, deps) },
     { method: 'POST', path: '/api/git/merge-local', handler: (ctx) => handleGitMergeLocal(ctx, deps) },

@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import WorkspaceLocalTabs from './WorkspaceLocalTabs';
 
 describe('WorkspaceLocalTabs', () => {
-  it('renders all four tabs with title attributes', () => {
+  it('renders all tabs with title attributes', () => {
     const onTabChange = vi.fn();
     render(<WorkspaceLocalTabs activeTab="docs" onTabChange={onTabChange} />);
     const docsTab = screen.getByTestId('workspace-local-tab-docs');

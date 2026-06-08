@@ -155,3 +155,15 @@ export function saveOpenCodePermissions(
     body: JSON.stringify(payload),
   });
 }
+
+export function saveOpenCodeConfigKey(
+  payload: { key: string; value: boolean },
+  baseUrl?: string,
+): Promise<OpenCodeConfigResponse> {
+  return apiRequest<OpenCodeConfigResponse>('/api/opencode/config/key', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}

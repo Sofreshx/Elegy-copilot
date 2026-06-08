@@ -1,60 +1,46 @@
 # Guidelines
 
-This file is the lightweight human/agent entrypoint for repository-specific guidance. It does not
-replace explicit user instructions or the canonical policy docs in `docs/system/**`.
+Repo-specific rules for agents and humans working in Instruction Engine.
 
-## Canonical breadcrumb
+Start at `docs/system/index.md`. This file is the local overlay.
 
-Start with `docs/system/index.md`, then the closest MOC, then the smallest canonical node for the
-active task. Use this file only as the local overlay after that bootstrap.
+## Authority precedence
 
-## Authority
+| Priority | Source | Override rule |
+|---|---|---|
+| 1 | Explicit user instruction | Always wins |
+| 2 | `docs/system/**` canonical docs | Overrides all below |
+| 3 | Nearest `guidelines.md` | Applies to files it covers |
+| 4 | `README.md` + other maintained docs | Informational only |
+| 5 | Repeated implementation patterns | Weakest, never overrides above |
 
-Use this precedence when work touches this repository:
+## Core rules
 
-1. explicit user instruction for the current task
-2. canonical docs in `docs/system/**`
-3. the nearest applicable `guidelines.md` for the repo or project being changed
-4. other maintained docs such as `README.md`
-5. repeated implementation patterns
+| Rule | Detail |
+|---|---|
+| Validation | Run narrowest relevant check after every change (lint, typecheck, test). Use `commit-check-run` as pre-commit gate. |
+| Asset changes | When changing shipped assets, update manifest + allowlist + validators together. |
+| Lane agents | Use OpenCode lane agents (quick/standard/spec/project) as primary entry points. Subagents (impl, reviewer, explorer) handle bounded work. |
+| Planning surface | Roadmap/backlog → `~/.copilot/backlogs/{repo-name}/`. Session state → `~/.copilot/session-state/<SESSION_ID>/`. |
+| Baseline refresh | Use `scripts/` installers. Use `/init` only to create or refine repo-local guidance. |
+| Conflict resolution | If `guidelines.md` conflicts with `docs/system/**`, follow `docs/system/**` and flag the conflict. |
 
-## How to use this file
-
-- Before write-capable work, load this file plus the smallest relevant canonical doc entrypoint.
-- In this monorepo, project-level `guidelines.md` files may exist under top-level app/package roots;
-  use the nearest one that covers the files you are changing.
-- If guidance here conflicts with `docs/system/**`, follow `docs/system/**` and surface the conflict.
-- For routing and governance questions, prefer canonical nodes such as
-  `docs/system/project-conventions-governance.md`,
-  `docs/system/self-documenting-code-and-rationale-placement.md`,
-  `docs/system/documentation-structure-governance.md`, and
-  `docs/system/search-execute-workflow.md`.
-
-## Current repo guidance
-
-- Use OpenCode lane agents (quick/standard/spec/project) as the main entry points for work in this
-  repo. Subagents (impl, reviewer, explorer) handle bounded write, review, and discovery work.
-- For planning surfaces, keep roadmap/backlog/issue artifacts under `~/.copilot/backlogs/{repo-name}/`
-  and session execution artifacts under `~/.copilot/session-state/<SESSION_ID>/`.
-- For agent or skill surface changes, update canonical docs, manifests, allowlists, validators, and
-  tests together.
-- For routine shared Copilot or Codex baseline refresh, use the install scripts in `scripts/`; use
-  `/init` only when you need to create or refine repo-local guidance such as `guidelines.md` or
-  `AGENTS.md`.
-- Run the narrowest relevant validation after every change: lint, format, typecheck, and test. When
-  applicable, use `commit-check-run` as the pre-commit umbrella gate.
-
-## Documentation sync rules
-
-When certain repo changes occur, update the corresponding docs in the same commit:
+## Doc sync rules
 
 | When you change... | Update... |
 |---|---|
-| Sidebar navigation, tab/view structure, or route layout | `docs/system/copilot-ui-guide.md` |
-| Shipped asset count (agents, skills, prompts) | `README.md` asset inventory table |
-| New top-level directory added | `README.md` repo layout diagram |
-| Agent behavior, skill contracts, or workflow policy | Smallest relevant `docs/system/` node |
-| New spec-driven work begins | `specs/<slug>/spec.md` + `specs/index.md` |
-| CI pipeline, test matrix, or build scripts | `CONTRIBUTING.md` local setup section + `docs/system/ci-conventions.md` |
+| Sidebar, tabs, views, or routes | `docs/system/copilot-ui-guide.md` |
+| Shipped asset count (agents, skills, prompts) | `README.md` asset inventory |
+| New top-level directory | `README.md` repo layout |
+| Agent behavior, skill contracts, workflow policy | Smallest relevant `docs/system/` node |
+| Spec-driven work begins | `specs/<slug>/spec.md` + `specs/index.md` |
+| CI, test matrix, or build scripts | `CONTRIBUTING.md` + `docs/system/ci-conventions.md` |
 
-These rules are minimum-sync guards: the doc update should travel with the code change, not in a follow-up. When in doubt about which doc to update, consult `docs/system/documentation-structure-governance.md`.
+Doc updates must travel with code changes, not follow-ups.
+
+## Key canonical nodes
+
+- `docs/system/project-conventions-governance.md`
+- `docs/system/documentation-structure-governance.md`
+- `docs/system/self-documenting-code-and-rationale-placement.md`
+- `docs/system/search-execute-workflow.md`

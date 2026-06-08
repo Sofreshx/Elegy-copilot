@@ -1,4 +1,4 @@
-import { getGitHubStatus, loginGitHub } from '../lib/api/github';
+import { getGitHubStatus, loginGitHub, installGitHubCli } from '../lib/api/github';
 import { createStore } from '../lib/store';
 import type { GitHubStatusResponse } from '../lib/types';
 
@@ -6,6 +6,7 @@ export interface GitHubState {
   status: GitHubStatusResponse | null;
   loading: boolean;
   loginLoading: boolean;
+  installLoading: boolean;
   error: string | null;
   message: string | null;
 }
@@ -14,6 +15,7 @@ const INITIAL_STATE: GitHubState = {
   status: null,
   loading: false,
   loginLoading: false,
+  installLoading: false,
   error: null,
   message: null,
 };
@@ -37,6 +39,35 @@ function createGitHubStore() {
       store.setState((state) => ({
         ...state,
         loading: false,
+        error: toErrorMessage(error),
+      }));
+    }
+  }
+
+  async function install(): Promise<void> {
+    store.setState((state) => ({ ...state, installLoading: true, error: null, message: null }));
+    try {
+      const result = await installGitHubCli();
+      if (result.installed) {
+        store.setState((state) => ({
+          ...state,
+          installLoading: false,
+          message: `GitHub CLI installed successfully via ${result.method || 'automatic install'}.`,
+        }));
+        // Reload status
+        const status = await getGitHubStatus();
+        store.setState((state) => ({ ...state, status }));
+      } else {
+        store.setState((state) => ({
+          ...state,
+          installLoading: false,
+          error: result.error || 'Installation failed.',
+        }));
+      }
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        installLoading: false,
         error: toErrorMessage(error),
       }));
     }
@@ -81,6 +112,7 @@ function createGitHubStore() {
     setState: store.setState,
     load,
     login,
+    install,
     resetState,
   };
 }

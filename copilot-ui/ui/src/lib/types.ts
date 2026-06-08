@@ -3484,6 +3484,12 @@ export interface OpenCodeStatusResponse {
   elegyPlanningCli: OpenCodeElegyPlanningCli;
   elegySkillsAssets: OpenCodeElegySkillsAssets;
   planningLiveAuthority: OpenCodePlanningLiveAuthority;
+  worktreePermissionProfile?: {
+    applied: boolean;
+    worktreeBase: string;
+    version: number | null;
+    marker: Record<string, unknown> | null;
+  };
   opencodeCli?: {
     installed: boolean;
     version: string | null;
@@ -3573,7 +3579,7 @@ export interface OpenCodeToolingInstallResponse {
   error?: string;
 }
 
-export type OpenCodeTabSectionId = 'overview' | 'lanes' | 'profiles' | 'setup' | 'logs' | 'go-workspaces' | 'permissions';
+export type OpenCodeTabSectionId = 'overview' | 'lanes' | 'profiles' | 'setup' | 'logs' | 'go-workspaces' | 'permissions' | 'experimental';
 
 export interface OpenCodeRequestLogEntry {
   timestamp: string;
@@ -3749,10 +3755,5 @@ export interface OpenCodePermissionsResponse {
 }
 
 export interface OpenCodePermissions {
-  external_directory?: {
-    patterns: string[];
-    action: string;
-  };
-  bash?: Record<string, string>;
-  [key: string]: unknown;
+  [key: string]: string | undefined;
 }
