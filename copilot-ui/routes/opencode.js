@@ -2,6 +2,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const { execSync } = require('child_process');
 const opencodeConfigDefault = require('../lib/opencodeConfig');
 const opencodeLogReaderDefault = require('../lib/opencodeLogReader');
 const opencodeGoWorkspacesDefault = require('../lib/opencodeGoWorkspaces');
@@ -546,6 +547,65 @@ function buildSetupChecks(opencodeHome, copilotHomeAbs, engineRoot, assets, ctx,
       : `Blocked by ${specLaneBlockers.length} missing check(s): ${specLaneBlockers.map((c) => c.id).join(', ')}${specLaneAdvisoryDetail}`,
     action: specLaneBlockers.length === 0 ? null : { kind: 'info', label: 'Resolve blockers', target: '#setup' },
   });
+
+  // Instruction Governance — validate guidelines.md wiring across all harnesses
+  try {
+    const scriptPath = path.join(engineRoot, 'scripts', 'validate-guidelines-wiring.mjs');
+    if (fs.existsSync(scriptPath)) {
+      const result = execSync(`node "${scriptPath}" --json`, {
+        cwd: engineRoot,
+        encoding: 'utf8',
+        timeout: 15000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      const parsed = JSON.parse(result);
+      const governanceCheck = parsed.setupChecks && parsed.setupChecks[0];
+      if (governanceCheck) {
+        checks.push({
+          id: 'instruction-governance',
+          label: 'Instruction Governance',
+          status: governanceCheck.status || 'warning',
+          detail: governanceCheck.detail || '',
+          action: null,
+        });
+      } else {
+        // Fallback: derive status from summary when setupChecks is missing
+        const hasGuidelines = parsed.guidelines && parsed.guidelines.exists;
+        const summary = parsed.summary || {};
+        const status = !hasGuidelines
+          ? 'blocked'
+          : (summary.missing > 0 || summary.stale > 0 ? 'warning' : 'ok');
+        const detail = !hasGuidelines
+          ? 'guidelines.md not found at repo root'
+          : `${summary.pass || 0}/${summary.total || 0} harnesses reference guidelines.md`;
+        checks.push({
+          id: 'instruction-governance',
+          label: 'Instruction Governance',
+          status,
+          detail,
+          action: null,
+        });
+      }
+    } else {
+      checks.push({
+        id: 'instruction-governance',
+        label: 'Instruction Governance',
+        status: 'warning',
+        detail: 'Validation script not found. Unable to check instruction governance status.',
+        action: null,
+      });
+    }
+  } catch (err) {
+    checks.push({
+      id: 'instruction-governance',
+      label: 'Instruction Governance',
+      status: 'warning',
+      detail: err.stderr
+        ? `Validation error: ${err.stderr.trim().split('\n')[0]}`
+        : 'Unable to check instruction governance status.',
+      action: null,
+    });
+  }
 
   return checks;
 }

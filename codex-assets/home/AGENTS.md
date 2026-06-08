@@ -106,9 +106,8 @@ roadmap work.
 
 ## Repo docs breadcrumb
 
-For repo-specific policy, start at `docs/system/index.md`, then the nearest MOC, then the smallest
-canonical node. Use `README.md` and `guidelines.md` as lighter local overlays after that route, not
-as peer authority with `docs/system/**`.
+For repo-specific policy, start at `docs/system/index.md`, then the nearest MOC, then the smallest canonical node.
+Follow `guidelines.md`: clarify ambiguity before implementation; write concise, precise, diagram-forward instructions; avoid vague or ceremonial prose.
 
 For the Instruction Engine repo itself, the current identity and delivery model are:
 

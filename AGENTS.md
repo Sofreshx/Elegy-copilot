@@ -4,10 +4,11 @@ This is the Instruction Engine monorepo, also published as Elegy Copilot. It is 
 
 ## Before any work
 
-1. Load `guidelines.md` for repo-specific rules and precedence.
-2. Start at `docs/system/index.md` for the task's canonical doc entrypoint.
-3. Use the narrowest relevant validator after changes (`npm run test:all`, `npm run ci:local`, or the specific module's test script).
-4. Before authoring specs, install the pre-commit hook: `node scripts/install-spec-hooks.mjs`. This is part of the spec-system-hardening reliability layers and ensures spec validation runs before every commit. See `docs/system/spec-driven-development.md` for the full spec-driven development contract.
+Follow `guidelines.md`: clarify ambiguity before implementation; write concise, precise, diagram-forward instructions; avoid vague or ceremonial prose.
+
+1. Start at `docs/system/index.md` for the task's canonical doc entrypoint.
+2. Use the narrowest relevant validator after changes (`npm run test:all`, `npm run ci:local`, or the specific module's test script).
+3. Before authoring specs, install the pre-commit hook: `node scripts/install-spec-hooks.mjs`. This is part of the spec-system-hardening reliability layers and ensures spec validation runs before every commit. See `docs/system/spec-driven-development.md` for the full spec-driven development contract.
 
 ## Quick orientation
 
@@ -49,6 +50,5 @@ node copilot-ui/server.js       # Raw server (API debugging only)
 
 1. Explicit user instruction for the current task
 2. Canonical docs in `docs/system/**`
-3. `guidelines.md`
-4. `README.md` and other maintained docs
-5. Repeated implementation patterns
+3. `README.md` and other maintained docs
+4. Repeated implementation patterns

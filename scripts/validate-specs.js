@@ -782,8 +782,9 @@ function validateSpecsRoot(options = {}) {
     }
   }
 
-  // R3 — Index integrity check (only in strict mode, only when specs exist)
-  if (options && options.strict && specFiles.length > 0) {
+  // R3 — Index integrity check (only in strict mode against a specs directory,
+  // not when validating a single spec file)
+  if (options && options.strict && specFiles.length > 0 && !fs.statSync(targetPath).isFile()) {
     const indexErrors = checkIndexIntegrity(targetPath, specFiles);
     for (const idxErr of indexErrors) {
       if (idxErr.file) {
