@@ -9,6 +9,9 @@ import type {
   MergeCandidate,
   MergeDryRunResponse,
   GitChecksDiscoverResponse,
+  GitStashEntry,
+  GitStashListResponse,
+  GitStashOperationResponse,
 } from '../../lib/api/git';
 import {
   getMergeCandidates,
@@ -18,6 +21,14 @@ import {
   checkoutGitBranch,
   discoverGitChecks,
   mergeWorktree,
+  commitGit,
+  pushGit,
+  runGitChecks,
+  listStashes,
+  createStash,
+  applyStash,
+  popStash,
+  dropStash,
 } from '../../lib/api/git';
 import type { MergeWorktreeResponse } from '../../lib/api/git';
 import { listExecutorWorktrees, analyzeWorktreeCleanup, removeWorktreeWithBranch } from '../../lib/api/executor';
@@ -193,6 +204,66 @@ function toDisplay(record: ExecutorWorktreeRecord): WorktreeDisplay {
   };
 }
 
+// ─── Worktree state computation (R5) ──────────────────────────────────────────
+
+type WorktreeComputedState = 'current' | 'clean' | 'dirty' | 'checking' | 'checked' | 'check-failed' | 'mergeable' | 'merged' | 'conflict' | 'missing' | 'blocked' | 'assigned' | 'reusable' | 'interrupted' | 'probe-error' | 'unknown';
+
+function computeWorktreeState(
+  entry: WorktreeDisplay,
+  worktreeCheckResults: Record<string, GitCheckResults | null>,
+  worktreeDryRunResults: Record<string, MergeDryRunResponse | null>,
+  worktreeMergeCompleted: Record<string, boolean>,
+  currentBranch: string | null,
+): WorktreeComputedState {
+  // Component-derived states have priority
+  if (worktreeMergeCompleted[entry.path]) return 'merged';
+  const dryRun = worktreeDryRunResults[entry.path];
+  if (dryRun) {
+    if (dryRun.conflicts && dryRun.conflicts.length > 0) return 'conflict';
+    if (dryRun.ok && dryRun.clean) return 'mergeable';
+  }
+  const checkResult = worktreeCheckResults[entry.path];
+  if (checkResult) {
+    if (!checkResult.allPassed) return 'check-failed';
+    if (checkResult.allPassed && checkResult.checksAvailable > 0) return 'checked';
+  }
+  // Checking is tracked separately via a loading set
+
+  // Record-derived states
+  if (entry.isMissing) return 'missing';
+  if (entry.probeError) return 'probe-error';
+  if (entry.isLaunchBlocked) return 'blocked';
+  if (entry.hasAssignment) return 'assigned';
+  if (entry.isReusable) return 'reusable';
+  if (entry.isInterrupted) return 'interrupted';
+
+  // Simple states
+  if (entry.branchLabel === currentBranch) return 'current';
+  if (entry.dirty) return 'dirty';
+  
+  return 'clean';
+}
+
+// State chip labels and CSS classes
+const STATE_LABELS: Record<WorktreeComputedState, string> = {
+  'current': 'Current',
+  'clean': 'Clean',
+  'dirty': 'Dirty',
+  'checking': 'Checking...',
+  'checked': 'Checked',
+  'check-failed': 'Check Failed',
+  'mergeable': 'Ready',
+  'merged': 'Merged',
+  'conflict': 'Conflict',
+  'missing': 'Missing',
+  'blocked': 'Blocked',
+  'assigned': 'Assigned',
+  'reusable': 'Reusable',
+  'interrupted': 'Interrupted',
+  'probe-error': 'Error',
+  'unknown': 'Unknown',
+};
+
 // ─── Props ──────────────────────────────────────────────────────────────────
 
 interface WorkspaceGitTabProps {
@@ -279,6 +350,12 @@ export default function WorkspaceGitTab({
   const [worktreeMergeResults, setWorktreeMergeResults] = useState<Record<string, MergeWorktreeResponse>>({});
   const [mergingWorktree, setMergingWorktree] = useState<string | null>(null);
 
+  // ─── Worktree check/merge UI state (R5) ────────────────────────────────────
+  const [worktreeCheckResults, setWorktreeCheckResults] = useState<Record<string, GitCheckResults | null>>({});
+  const [worktreeDryRunResults, setWorktreeDryRunResults] = useState<Record<string, MergeDryRunResponse | null>>({});
+  const [worktreeMergeCompleted, setWorktreeMergeCompleted] = useState<Record<string, boolean>>({});
+  const [checkingWorktree, setCheckingWorktree] = useState<string | null>(null);
+
   // ─── Skip-verify commit state ─────────────────────────────────────────────
   const [showSkipVerifyConfirm, setShowSkipVerifyConfirm] = useState(false);
   const [skipVerifyCommitting, setSkipVerifyCommitting] = useState(false);
@@ -289,6 +366,18 @@ export default function WorkspaceGitTab({
 
   // ─── Verify & Commit flow ──────────────────────────────────────────────────
   const [commitPhase, setCommitPhase] = useState<'idle' | 'running-checks' | 'checks-passed' | 'committing'>('idle');
+  const [checksVerified, setChecksVerified] = useState(false);
+  const [failedCheckResults, setFailedCheckResults] = useState<GitCheckResults | null>(null);
+
+  // ─── Force commit/override state ───────────────────────────────────────────
+  const [showForceCommitDialog, setShowForceCommitDialog] = useState(false);
+  const [forceOverrideReason, setForceOverrideReason] = useState('');
+  const [forceCommitting, setForceCommitting] = useState(false);
+
+  // ─── Stash state ───────────────────────────────────────────────────────────
+  const [stashes, setStashes] = useState<GitStashEntry[]>([]);
+  const [stashesLoading, setStashesLoading] = useState(false);
+  const [showStashList, setShowStashList] = useState(false);
 
   // ─── PR create form collapse ───────────────────────────────────────────────
   const [showPrForm, setShowPrForm] = useState(false);
@@ -475,47 +564,142 @@ export default function WorkspaceGitTab({
     }
   }
 
-  // ─── Verify & Commit handler ───────────────────────────────────────────────
+  // ─── Verify & Commit handler (direct flow, no useEffect sync) ──────────────
   async function handleVerifyAndCommit() {
-    if (!gitState.commitMessage.trim()) return;
+    if (!gitState.commitMessage.trim() || !repoPath) return;
     setCommitPhase('running-checks');
-    onRunChecks();
-    // Sync effects handle transitions: running-checks → checks-passed → committing
+    setChecksVerified(false);
+    setFailedCheckResults(null);
+
+    try {
+      const results = await runGitChecks(repoPath);
+
+      if (results.checksAvailable === 0) {
+        // No checks configured — allow commit, show neutral info
+        setCommitPhase('idle');
+        setChecksVerified(true);
+        notificationStore.success('No checks configured', { message: 'Proceeding with commit.' });
+        onCommit();
+        return;
+      }
+
+      if (results.allPassed) {
+        setCommitPhase('checks-passed');
+        setChecksVerified(true);
+        onCommit();
+      } else {
+        setCommitPhase('idle');
+        setFailedCheckResults(results);
+        notificationStore.error('Checks failed', {
+          message: `${results.checksFailed} check(s) failed. Fix issues before committing.`,
+        });
+      }
+    } catch (err) {
+      setCommitPhase('idle');
+      notificationStore.error('Checks error', { message: err instanceof Error ? err.message : String(err) });
+    }
   }
 
-  // Synchronize commitPhase with verification state
-  useEffect(() => {
-    if (commitPhase === 'running-checks' && !runningChecks && checkResults?.allPassed) {
-      setCommitPhase('checks-passed');
+  // ─── Force commit handler ──────────────────────────────────────────────────
+  async function handleForceCommit() {
+    if (!forceOverrideReason.trim() || !gitState.commitMessage.trim() || !repoPath) return;
+    setForceCommitting(true);
+    try {
+      const result = await commitGit(repoPath, gitState.commitMessage, { reason: forceOverrideReason.trim() });
+      if (result.error) {
+        notificationStore.error('Force commit failed', { message: result.error });
+      } else {
+        notificationStore.success('Force committed', {
+          message: `Committed with override: "${forceOverrideReason.trim()}"`,
+        });
+        setShowForceCommitDialog(false);
+        setForceOverrideReason('');
+        setFailedCheckResults(null);
+      }
+    } catch (err) {
+      notificationStore.error('Force commit failed', { message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setForceCommitting(false);
     }
-    if (commitPhase === 'running-checks' && !runningChecks && checkResults && !checkResults.allPassed) {
-      setCommitPhase('idle');
-    }
-    // Handle case where checks completed but returned null (API error or no checks configured)
-    if (commitPhase === 'running-checks' && !runningChecks && !checkResults) {
-      setCommitPhase('idle');
-    }
-  }, [commitPhase, runningChecks, checkResults]);
+  }
 
-  // Notify when checks fail
-  useEffect(() => {
-    if (commitPhase === 'running-checks' && !runningChecks && checkResults && !checkResults.allPassed) {
-      notificationStore.error('Checks failed', {
-        message: `${checkResults.checksFailed} check(s) failed. Fix issues before committing.`,
-      });
+  // ─── Stash action handlers ─────────────────────────────────────────────────
+  async function handleCreateStash() {
+    if (!repoPath) return;
+    try {
+      await createStash(repoPath);
+      notificationStore.success('Changes stashed');
+      // Refresh stashes and status
+      const [stashResult] = await Promise.all([listStashes(repoPath)]);
+      setStashes(stashResult.stashes || []);
+      loadWorktrees();
+    } catch (err) {
+      notificationStore.error('Stash failed', { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [commitPhase, runningChecks, checkResults]);
+  }
 
-  // Auto-commit when checks pass and in the right phase
-  useEffect(() => {
-    if (commitPhase === 'checks-passed' && verificationState === 'verified' && gitState.commitMessage.trim()) {
-      setCommitPhase('committing');
-      onCommit();
-      // Reset after committing
-      const timer = setTimeout(() => setCommitPhase('idle'), 2000);
-      return () => clearTimeout(timer);
+  async function handleApplyStash(index?: number) {
+    if (!repoPath) return;
+    try {
+      await applyStash(repoPath, index);
+      notificationStore.success('Stash applied', { message: index !== undefined ? `Applied stash@{${index}}` : 'Applied latest stash' });
+      const [stashResult] = await Promise.all([listStashes(repoPath)]);
+      setStashes(stashResult.stashes || []);
+      loadWorktrees();
+    } catch (err) {
+      notificationStore.error('Apply failed', { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [commitPhase, verificationState, onCommit, gitState.commitMessage]);
+  }
+
+  async function handlePopStash(index?: number) {
+    if (!repoPath) return;
+    try {
+      await popStash(repoPath, index);
+      notificationStore.success('Stash popped');
+      const [stashResult] = await Promise.all([listStashes(repoPath)]);
+      setStashes(stashResult.stashes || []);
+      loadWorktrees();
+    } catch (err) {
+      notificationStore.error('Pop failed', { message: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  async function handleDropStash(index?: number) {
+    if (!repoPath) return;
+    try {
+      await dropStash(repoPath, index);
+      notificationStore.success('Stash dropped');
+      const [stashResult] = await Promise.all([listStashes(repoPath)]);
+      setStashes(stashResult.stashes || []);
+    } catch (err) {
+      notificationStore.error('Drop failed', { message: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  // ─── Reset checksVerified when repoPath changes ────────────────────────────
+  useEffect(() => {
+    setChecksVerified(false);
+    setFailedCheckResults(null);
+  }, [repoPath]);
+
+  // ─── Load stashes on mount ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!repoPath) return;
+    let cancelled = false;
+    async function load() {
+      setStashesLoading(true);
+      try {
+        const result = await listStashes(repoPath);
+        if (!cancelled) setStashes(result.stashes || []);
+      } catch {
+        if (!cancelled) setStashes([]);
+      } finally {
+        if (!cancelled) setStashesLoading(false);
+      }
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, [repoPath]);
 
   // ─── Resolve branches ──────────────────────────────────────────────────────
   const localBranches: GitBranchEntry[] = (gitState.branches?.branches ?? []).filter((b) => !b.remote);
@@ -602,8 +786,60 @@ export default function WorkspaceGitTab({
     }
   }
 
+  // ─── Worktree check handler (R5) ──────────────────────────────────────────
+  async function handleWorktreeRunChecks(worktreePath: string, worktreeBranch: string) {
+    if (!repoPath || !summary?.branch) return;
+    setCheckingWorktree(worktreePath);
+    try {
+      const results = await runGitChecks(worktreePath);
+      setWorktreeCheckResults(prev => ({ ...prev, [worktreePath]: results }));
+      
+      // Auto-run dry-run after checks pass
+      if (results.allPassed && results.checksAvailable > 0) {
+        const dryRunResult = await mergeDryRun(repoPath, worktreeBranch, summary.branch);
+        setWorktreeDryRunResults(prev => ({ ...prev, [worktreePath]: dryRunResult }));
+      }
+    } catch (err) {
+      notificationStore.error('Check failed', { message: err instanceof Error ? err.message : String(err) });
+      setWorktreeCheckResults(prev => ({ 
+        ...prev, 
+        [worktreePath]: { 
+          repoRoot: worktreePath, 
+          checkedAt: new Date().toISOString(), 
+          checksAvailable: 0, checksRun: 0, checksPassed: 0, checksFailed: 1, 
+          allPassed: false, results: [], 
+          message: err instanceof Error ? err.message : String(err),
+          source: 'legacy' as const,
+        } 
+      }));
+    } finally {
+      setCheckingWorktree(null);
+    }
+  }
+
+  // ─── Worktree merge handler (R5/R6) ───────────────────────────────────────
+  async function handleWorktreeMerge(worktreePath: string, worktreeBranch: string) {
+    if (!repoPath || !summary?.branch) return;
+    setMergingWorktree(worktreePath);
+    try {
+      const result = await mergeWorktree(repoPath, worktreePath, worktreeBranch, summary.branch);
+      setWorktreeMergeResults(prev => ({ ...prev, [worktreePath]: result }));
+      if (result.merged) {
+        setWorktreeMergeCompleted(prev => ({ ...prev, [worktreePath]: true }));
+        notificationStore.success('Merge complete', { message: `Merged ${worktreeBranch} into ${summary.branch}` });
+        loadWorktrees();
+      } else if (result.conflicts) {
+        notificationStore.error('Merge conflicts', { message: `${result.conflictFiles?.length || 0} file(s) have conflicts` });
+      }
+    } catch (err) {
+      notificationStore.error('Merge failed', { message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setMergingWorktree(null);
+    }
+  }
+
   // ─── Push disabled state ───────────────────────────────────────────────────
-  const pushDisabled = verificationState !== 'verified' || changeCount === 0 || gitState.syncing;
+  const pushDisabled = (verificationState !== 'verified' && !checksVerified) || changeCount === 0 || gitState.syncing;
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
@@ -1016,13 +1252,74 @@ export default function WorkspaceGitTab({
                     {entry.sourceLabel}
                   </td>
                   <td className="workspace-git-table-cell" data-testid={`workspace-worktree-status-${entry.key}`}>
-                    {entry.statusLabel}
+                    {(() => {
+                      const state = computeWorktreeState(
+                        entry, 
+                        worktreeCheckResults, 
+                        worktreeDryRunResults, 
+                        worktreeMergeCompleted,
+                        summary?.branch ?? null
+                      );
+                      const isChecking = checkingWorktree === entry.path;
+                      const label = isChecking ? 'Checking...' : STATE_LABELS[state];
+                      return (
+                        <span
+                          className={`workspace-git-state-chip workspace-git-state-${isChecking ? 'checking' : state}`}
+                          data-testid={`workspace-worktree-state-${entry.key}`}
+                        >
+                          {label}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="workspace-git-table-cell" data-testid={`workspace-worktree-dirty-${entry.key}`}>
                     {entry.dirty ? `${entry.dirtyCount} dirty` : 'clean'}
                   </td>
                   <td className="workspace-git-table-cell">
                     <div className="workspace-git-worktree-flags">
+                      {/* Worktree check/merge actions (R5/R6) */}
+                      {!entry.isMissing && !worktreeMergeCompleted[entry.path] && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={checkingWorktree === entry.path}
+                          onClick={() => void handleWorktreeRunChecks(entry.path, entry.branchLabel)}
+                          testId={`workspace-worktree-run-checks-${entry.key}`}
+                        >
+                          {checkingWorktree === entry.path ? '...' : 'Run checks'}
+                        </Button>
+                      )}
+                      {worktreeDryRunResults[entry.path]?.ok && worktreeDryRunResults[entry.path]?.clean && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          disabled={mergingWorktree === entry.path}
+                          onClick={() => void handleWorktreeMerge(entry.path, entry.branchLabel)}
+                          testId={`workspace-worktree-merge-${entry.key}`}
+                        >
+                          {mergingWorktree === entry.path ? '...' : 'Merge'}
+                        </Button>
+                      )}
+                      {worktreeDryRunResults[entry.path]?.conflicts && worktreeDryRunResults[entry.path]!.conflicts!.length > 0 && (
+                        <span 
+                          className="workspace-git-worktree-flag workspace-git-worktree-flag-error" 
+                          title={worktreeDryRunResults[entry.path]!.conflicts!.join(', ')}
+                          data-testid={`workspace-worktree-conflicts-${entry.key}`}
+                        >
+                          ✗ {worktreeDryRunResults[entry.path]!.conflicts!.length} conflict(s)
+                        </span>
+                      )}
+                      {worktreeMergeCompleted[entry.path] && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={removing === entry.path}
+                          onClick={() => void handleRemoveWorktree(entry.path, entry.branchLabel)}
+                          testId={`workspace-worktree-remove-merged-${entry.key}`}
+                        >
+                          {removing === entry.path ? '...' : 'Remove + delete branch'}
+                        </Button>
+                      )}
                       {entry.isMissing ? (
                         <span className="workspace-git-worktree-flag workspace-git-worktree-flag-missing" title="Path missing">missing</span>
                       ) : null}
@@ -1109,32 +1406,7 @@ export default function WorkspaceGitTab({
                         {analyzing === entry.path ? '...' : 'Analyze'}
                       </button>
                     )}
-                    {/* Verify & Merge for worktrees with sessions */}
-                    {entry.hasActiveSessions ? (
-                      <div style={{ display: 'flex', gap: 'var(--space-xs)', marginTop: '4px' }}>
-                        {worktreeMergeResults[entry.path] ? (
-                          worktreeMergeResults[entry.path].merged ? (
-                            <span className="workspace-git-merge-clean-label" style={{ color: 'var(--color-success-500)' }}>✓ Merged</span>
-                          ) : worktreeMergeResults[entry.path].conflicts ? (
-                            <span
-                              className="workspace-git-worktree-flag workspace-git-worktree-flag-error"
-                              title={worktreeMergeResults[entry.path].diagnostics || 'Conflicts detected'}
-                            >⚠ Conflicts</span>
-                          ) : (
-                            <span className="workspace-git-merge-error">✗ Failed</span>
-                          )
-                        ) : null}
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          disabled={mergingWorktree === entry.path || !!worktreeMergeResults[entry.path]?.merged}
-                          onClick={() => void handleMergeWorktree(entry.path, entry.branchLabel)}
-                          testId={`workspace-worktree-merge-${entry.key}`}
-                        >
-                          {mergingWorktree === entry.path ? 'Merging...' : 'Verify & Merge'}
-                        </Button>
-                      </div>
-                    ) : null}
+{/* Worktree merge actions are now in the Flags column (R5/R6) — available for all worktrees */}
                   </div>
                 </td>
                 </tr>
@@ -1159,6 +1431,49 @@ export default function WorkspaceGitTab({
           >
             {commitPhase === 'running-checks' ? 'Running checks...' : commitPhase === 'committing' ? 'Committing...' : 'Verify & Commit'}
           </Button>
+
+          {/* Force commit area (shown when checks fail) */}
+          {failedCheckResults && (
+            <div className="workspace-git-force-commit-area" data-testid="workspace-force-commit-area">
+              {!showForceCommitDialog ? (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setShowForceCommitDialog(true)}
+                  testId="workspace-force-commit-btn"
+                >
+                  Force Commit
+                </Button>
+              ) : (
+                <div className="workspace-git-force-dialog" data-testid="workspace-force-commit-dialog">
+                  <input
+                    className="form-input-field"
+                    placeholder="Override reason required..."
+                    value={forceOverrideReason}
+                    onChange={(e) => setForceOverrideReason(e.target.value)}
+                    data-testid="workspace-force-reason-input"
+                  />
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={!forceOverrideReason.trim() || forceCommitting}
+                    onClick={() => void handleForceCommit()}
+                    testId="workspace-force-commit-confirm"
+                  >
+                    {forceCommitting ? '...' : 'Force Commit (skip verification)'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setShowForceCommitDialog(false); setForceOverrideReason(''); }}
+                    testId="workspace-force-commit-cancel"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Commit message input */}
           <input
@@ -1192,6 +1507,60 @@ export default function WorkspaceGitTab({
           >
             {gitState.syncing ? 'Pushing...' : 'Push ⬆'}
           </Button>
+
+          {/* ─── Stash area ────────────────────────────────────────────────── */}
+          <div className="workspace-git-stash-area" data-testid="workspace-git-stash-area">
+            <div className="workspace-git-stash-header">
+              <span className="workspace-git-stash-count" data-testid="workspace-stash-count">
+                Stashes ({stashes.length})
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleCreateStash()}
+                disabled={changeCount === 0}
+                testId="workspace-stash-create"
+              >
+                Stash changes
+              </Button>
+              {stashes.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowStashList(!showStashList)}
+                  testId="workspace-stash-toggle-list"
+                >
+                  {showStashList ? 'Hide' : 'Show'} list
+                </Button>
+              )}
+            </div>
+
+            {showStashList && stashes.length > 0 && (
+              <div className="workspace-git-stash-list" data-testid="workspace-stash-list">
+                {stashes.map((s) => (
+                  <div key={s.index} className="workspace-git-stash-entry" data-testid={`workspace-stash-entry-${s.index}`}>
+                    <span className="workspace-git-stash-entry-ref" data-testid={`workspace-stash-ref-${s.index}`}>
+                      stash@{s.index}
+                    </span>
+                    <span className="workspace-git-stash-entry-msg" data-testid={`workspace-stash-msg-${s.index}`}>
+                      {s.message}
+                    </span>
+                    <div className="workspace-git-stash-entry-actions">
+                      <Button variant="ghost" size="sm" onClick={() => void handleApplyStash(s.index)} testId={`workspace-stash-apply-${s.index}`}>
+                        Apply
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => void handlePopStash(s.index)} testId={`workspace-stash-pop-${s.index}`}>
+                        Pop
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => void handleDropStash(s.index)} testId={`workspace-stash-drop-${s.index}`}>
+                        Drop
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Collapsible PR create */}
           <div className="workspace-git-composer-pr-area">

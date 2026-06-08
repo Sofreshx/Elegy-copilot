@@ -37,12 +37,121 @@ const KNOWN_CHECKS = [
  */
 const REPO_CUSTOM_CHECKS = {};
 
+/**
+ * Resolve the canonical commit-check config file for a repo root.
+ * Checks .copilot/commit-checks.json first, then .github/commit-checks.json as fallback.
+ * Returns parsed config object or null.
+ */
+function resolveCommitCheckConfig(repoRoot) {
+  const paths = [
+    path.join(repoRoot, '.copilot', 'commit-checks.json'),
+    path.join(repoRoot, '.github', 'commit-checks.json'),
+  ];
+  for (const configPath of paths) {
+    if (fs.existsSync(configPath)) {
+      try {
+        return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      } catch {
+        // Invalid JSON — skip
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Run checks via the canonical commit-check-run.mjs script.
+ * Transforms the script's JSON output into the API response shape.
+ */
+function runCanonicalChecks(repoRoot, config) {
+  return new Promise((resolve) => {
+    const scriptPath = path.join(repoRoot, 'scripts', 'commit-check-run.mjs');
+    if (!fs.existsSync(scriptPath)) {
+      // Script not found — fall back to legacy
+      resolve(runAllChecksLegacy(repoRoot));
+      return;
+    }
+
+    const child = execFile('node', [scriptPath, '--json', '--repo', repoRoot], {
+      cwd: repoRoot,
+      timeout: 120000,
+      maxBuffer: 1024 * 1024,
+      windowsHide: true,
+    }, (error, stdout, stderr) => {
+      let parsed;
+      try {
+        parsed = JSON.parse((stdout || '').trim());
+      } catch {
+        // JSON parse failed — return error
+        resolve({
+          repoRoot,
+          source: 'commit-check',
+          checkedAt: new Date().toISOString(),
+          checksAvailable: 0,
+          checksRun: 0,
+          checksPassed: 0,
+          checksFailed: 0,
+          allPassed: false,
+          results: [],
+          message: 'Failed to parse commit-check output.',
+        });
+        return;
+      }
+
+      const lanes = parsed.lanes || {};
+      const laneNames = Object.keys(lanes);
+      const results = laneNames.map((name) => {
+        const lane = lanes[name];
+        return {
+          checkName: name,
+          passed: lane.status === 'PASS',
+          error: lane.status === 'FAIL' ? (lane.details || 'Check failed') : undefined,
+          output: lane.details || '',
+          score: lane.score,
+          commands: lane.commands,
+        };
+      });
+
+      const passed = results.filter((r) => r.passed).length;
+      const failed = results.filter((r) => !r.passed).length;
+
+      resolve({
+        repoRoot,
+        source: 'commit-check',
+        checkedAt: parsed.timestamp || new Date().toISOString(),
+        checksAvailable: laneNames.length,
+        checksRun: results.length,
+        checksPassed: passed,
+        checksFailed: failed,
+        allPassed: parsed.overallPass !== false,
+        results,
+        message: failed === 0
+          ? `All ${passed} lanes passed (score: ${parsed.compositeScore ?? 'N/A'}).`
+          : `${failed} of ${results.length} lanes failed.`,
+      });
+    });
+  });
+}
+
 const RUN_TIMEOUT_MS = 30000;
 
 /**
  * Discover available checks for a repo root by checking file existence.
  */
 function discoverChecks(repoRoot) {
+  // Prefer canonical config
+  const config = resolveCommitCheckConfig(repoRoot);
+  if (config && config.lanes) {
+    const laneNames = Object.keys(config.lanes).filter((name) => config.lanes[name].enabled !== false);
+    return laneNames.map((name) => ({
+      name,
+      path: (config.lanes[name].commands || []).join(', ') || '(configured)',
+      fullPath: '',
+      description: config.lanes[name].description || '',
+      source: 'commit-check',
+    }));
+  }
+
   const checks = [...KNOWN_CHECKS];
   const available = [];
 
@@ -54,6 +163,7 @@ function discoverChecks(repoRoot) {
         path: check.path,
         fullPath,
         description: check.description,
+        source: 'legacy',
       });
     }
   }
@@ -69,6 +179,7 @@ function discoverChecks(repoRoot) {
         path: '.githooks/pre-commit',
         fullPath: preCommit,
         description: 'Pre-commit hook: fast validation',
+        source: 'legacy',
       });
     }
     if (fs.existsSync(prePush)) {
@@ -77,6 +188,7 @@ function discoverChecks(repoRoot) {
         path: '.githooks/pre-push',
         fullPath: prePush,
         description: 'Pre-push hook: full validation',
+        source: 'legacy',
       });
     }
   }
@@ -149,11 +261,12 @@ function runCheck(check, repoRoot) {
 /**
  * Run all discovered checks for a repo and return aggregated results.
  */
-async function runAllChecks(repoRoot) {
+async function runAllChecksLegacy(repoRoot) {
   const checks = discoverChecks(repoRoot);
   if (checks.length === 0) {
     return {
       repoRoot,
+      source: 'legacy',
       checkedAt: new Date().toISOString(),
       checksAvailable: 0,
       checksRun: 0,
@@ -172,6 +285,7 @@ async function runAllChecks(repoRoot) {
 
   return {
     repoRoot,
+    source: 'legacy',
     checkedAt: new Date().toISOString(),
     checksAvailable: checks.length,
     checksRun: results.length,
@@ -183,6 +297,17 @@ async function runAllChecks(repoRoot) {
       ? `All ${passed} checks passed.`
       : `${failed} of ${results.length} checks failed.`,
   };
+}
+
+/**
+ * Run all checks — prefer canonical config, fall back to legacy.
+ */
+async function runAllChecks(repoRoot) {
+  const config = resolveCommitCheckConfig(repoRoot);
+  if (config) {
+    return runCanonicalChecks(repoRoot, config);
+  }
+  return runAllChecksLegacy(repoRoot);
 }
 
 /**

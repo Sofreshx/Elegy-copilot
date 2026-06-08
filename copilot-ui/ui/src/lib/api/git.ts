@@ -120,6 +120,7 @@ export interface GitCheckResult {
 
 export interface GitCheckResults {
   repoRoot: string;
+  source: 'commit-check' | 'legacy' | 'none';
   checkedAt: string;
   checksAvailable: number;
   checksRun: number;
@@ -218,7 +219,8 @@ export async function createGitPullRequest(
 export interface GitChecksDiscoverResponse {
   repoPath: string;
   checksAvailable: number;
-  checks: Array<{ name: string; path: string; description: string }>;
+  source: 'commit-check' | 'legacy' | 'none';
+  checks: Array<{ name: string; path: string; description: string; source: 'commit-check' | 'legacy' | 'none' }>;
 }
 
 export async function discoverGitChecks(repoPath: string, baseUrl?: string): Promise<GitChecksDiscoverResponse> {
@@ -327,5 +329,71 @@ export async function mergeWorktree(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repoPath, worktreePath, worktreeBranch, targetBranch }),
+  });
+}
+
+// ─── Stash APIs ────────────────────────────────────────────────────────────
+
+export interface GitStashEntry {
+  index: number;
+  ref: string;
+  hash: string;
+  message: string;
+}
+
+export interface GitStashListResponse {
+  repoPath: string;
+  count: number;
+  stashes: GitStashEntry[];
+}
+
+export interface GitStashOperationResponse {
+  stashed?: boolean;
+  applied?: boolean;
+  popped?: boolean;
+  dropped?: boolean;
+  index: number;
+  output: string;
+  error?: string;
+}
+
+export async function listStashes(repoPath: string, baseUrl?: string): Promise<GitStashListResponse> {
+  const url = `/api/git/stashes?repoPath=${encodeURIComponent(repoPath)}`;
+  return apiRequest<GitStashListResponse>(url, { baseUrl });
+}
+
+export async function createStash(repoPath: string, message?: string, baseUrl?: string): Promise<GitStashOperationResponse> {
+  return apiRequest<GitStashOperationResponse>('/api/git/stash', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, message: message || undefined }),
+  });
+}
+
+export async function applyStash(repoPath: string, index?: number, baseUrl?: string): Promise<GitStashOperationResponse> {
+  return apiRequest<GitStashOperationResponse>('/api/git/stash/apply', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, index: index !== undefined ? index : undefined }),
+  });
+}
+
+export async function popStash(repoPath: string, index?: number, baseUrl?: string): Promise<GitStashOperationResponse> {
+  return apiRequest<GitStashOperationResponse>('/api/git/stash/pop', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, index: index !== undefined ? index : undefined }),
+  });
+}
+
+export async function dropStash(repoPath: string, index?: number, baseUrl?: string): Promise<GitStashOperationResponse> {
+  return apiRequest<GitStashOperationResponse>('/api/git/stash/drop', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, index: index !== undefined ? index : undefined }),
   });
 }

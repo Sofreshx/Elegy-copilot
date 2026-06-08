@@ -1014,6 +1014,153 @@ function handleGitHubStatus(ctx, deps) {
         error: String(err.message || err),
       });
     });
+  }
+
+// ─── Stash handlers ──────────────────────────────────────────────────────────
+
+function handleListStashes(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const repoPath = resolveRepoPath(ctx);
+
+  if (!repoPath) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+
+  return Promise.resolve()
+    .then(async () => {
+      let result;
+      try {
+        result = await runGit(deps.childProcess, ['stash', 'list', '--format=%gd %h %s'], repoPath, 10000);
+      } catch {
+        return { repoPath, count: 0, stashes: [] };
+      }
+
+      const lines = result.stdout.split('\n').filter(Boolean);
+      const stashes = lines.map((line) => {
+        const match = line.match(/^(stash@\{\d+\})\s+(\S+)\s+(.*)$/);
+        if (!match) return null;
+        const ref = match[1];
+        const hash = match[2];
+        const message = match[3];
+        const indexMatch = ref.match(/stash@\{(\d+)\}/);
+        const index = indexMatch ? Number(indexMatch[1]) : 0;
+        return { index, ref, hash, message };
+      }).filter(Boolean);
+
+      return { repoPath, count: stashes.length, stashes };
+    })
+    .then((result) => sendJson(res, 200, result))
+    .catch((error) => {
+      sendJson(res, 500, { error: String(error.message || error) });
+    });
+}
+
+function handleCreateStash(ctx, deps) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+
+  return readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const repoPath = isNonEmptyString(payload.repoPath) ? payload.repoPath.trim() : '';
+      const message = isNonEmptyString(payload.message) ? payload.message.trim() : '';
+
+      if (!repoPath) {
+        throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+      }
+
+      const args = message ? ['stash', 'push', '-m', message] : ['stash', 'push'];
+      const result = await runGit(deps.childProcess, args, repoPath, 30000);
+      return { stashed: true, message: message || 'WIP', output: result.stdout.trim() };
+    })
+    .then((result) => sendJson(res, 200, result))
+    .catch((error) => {
+      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      sendJson(res, statusCode, { error: String(error.message || error) });
+    });
+}
+
+function handleApplyStash(ctx, deps) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+
+  return readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const repoPath = isNonEmptyString(payload.repoPath) ? payload.repoPath.trim() : '';
+      const index = typeof payload.index === 'number' ? payload.index : undefined;
+
+      if (!repoPath) {
+        throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+      }
+
+      const args = index !== undefined
+        ? ['stash', 'apply', `stash@{${index}}`]
+        : ['stash', 'apply'];
+      const result = await runGit(deps.childProcess, args, repoPath, 60000);
+      return { applied: true, index: index ?? 0, output: result.stdout.trim() };
+    })
+    .then((result) => sendJson(res, 200, result))
+    .catch((error) => {
+      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      sendJson(res, statusCode, { error: String(error.message || error) });
+    });
+}
+
+function handlePopStash(ctx, deps) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+
+  return readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const repoPath = isNonEmptyString(payload.repoPath) ? payload.repoPath.trim() : '';
+      const index = typeof payload.index === 'number' ? payload.index : undefined;
+
+      if (!repoPath) {
+        throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+      }
+
+      const args = index !== undefined
+        ? ['stash', 'pop', `stash@{${index}}`]
+        : ['stash', 'pop'];
+      const result = await runGit(deps.childProcess, args, repoPath, 60000);
+      return { popped: true, index: index ?? 0, output: result.stdout.trim() };
+    })
+    .then((result) => sendJson(res, 200, result))
+    .catch((error) => {
+      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      sendJson(res, statusCode, { error: String(error.message || error) });
+    });
+}
+
+function handleDropStash(ctx, deps) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+
+  return readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const repoPath = isNonEmptyString(payload.repoPath) ? payload.repoPath.trim() : '';
+      const index = typeof payload.index === 'number' ? payload.index : undefined;
+
+      if (!repoPath) {
+        throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+      }
+
+      const args = index !== undefined
+        ? ['stash', 'drop', `stash@{${index}}`]
+        : ['stash', 'drop'];
+      const result = await runGit(deps.childProcess, args, repoPath, 10000);
+      return { dropped: true, index: index ?? 0, output: result.stdout.trim() };
+    })
+    .then((result) => sendJson(res, 200, result))
+    .catch((error) => {
+      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      sendJson(res, statusCode, { error: String(error.message || error) });
+    });
 }
 
 function register(context = {}) {
@@ -1041,7 +1188,20 @@ function register(context = {}) {
     { method: 'POST', path: '/api/git/merge-local', handler: (ctx) => handleGitMergeLocal(ctx, deps) },
     { method: 'POST', path: '/api/git/merge-worktree', handler: (ctx) => handleGitMergeWorktree(ctx, deps) },
     { method: 'GET', path: '/api/git/github-status', handler: (ctx) => handleGitHubStatus(ctx, deps) },
+    { method: 'GET', path: '/api/git/stashes', handler: (ctx) => handleListStashes(ctx, deps) },
+    { method: 'POST', path: '/api/git/stash', handler: (ctx) => handleCreateStash(ctx, deps) },
+    { method: 'POST', path: '/api/git/stash/apply', handler: (ctx) => handleApplyStash(ctx, deps) },
+    { method: 'POST', path: '/api/git/stash/pop', handler: (ctx) => handlePopStash(ctx, deps) },
+    { method: 'POST', path: '/api/git/stash/drop', handler: (ctx) => handleDropStash(ctx, deps) },
   ];
 }
 
-module.exports = { register, handleGitMergeWorktree };
+module.exports = {
+  register,
+  handleGitMergeWorktree,
+  handleListStashes,
+  handleCreateStash,
+  handleApplyStash,
+  handlePopStash,
+  handleDropStash,
+};
