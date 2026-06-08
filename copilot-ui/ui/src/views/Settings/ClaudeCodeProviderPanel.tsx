@@ -23,15 +23,9 @@ const MODE_META: Record<string, { label: string; description: string; baseUrl: s
     baseUrl: 'api.anthropic.com (default)',
     models: 'Claude (native)',
   },
-  'opencode-go': {
-    label: 'OpenCode Go',
-    description: 'Claude models via OpenCode Zen gateway. Uses your OpenCode Go credits.',
-    baseUrl: 'https://opencode.ai/zen',
-    models: 'Claude Opus 4.6 / Sonnet 4.6 / Haiku 4.5',
-  },
   'deepseek-direct': {
-    label: 'DeepSeek Direct',
-    description: 'DeepSeek V4 models via Anthropic-compatible endpoint. Most cost-effective.',
+    label: 'DeepSeek V4',
+    description: 'DeepSeek V4 Pro + Flash via Anthropic-compatible endpoint. Most cost-effective.',
     baseUrl: 'https://api.deepseek.com/anthropic',
     models: 'DeepSeek V4 Pro + Flash',
   },
@@ -57,7 +51,6 @@ export default function ClaudeCodeProviderPanel() {
   }, [confirmReset]);
 
   const isVanilla = activeMode === 'vanilla';
-  const isOpenCodeGo = activeMode === 'opencode-go';
   const isDeepseekDirect = activeMode === 'deepseek-direct';
 
   const currentMeta = MODE_META[activeMode] || MODE_META.vanilla;
@@ -92,15 +85,6 @@ export default function ClaudeCodeProviderPanel() {
             onClick={() => handleSetMode('vanilla')}
           >
             {state.saving && !isVanilla ? 'Saving…' : 'Vanilla Claude'}
-          </Button>
-          <Button
-            variant={isOpenCodeGo ? 'primary' : 'secondary'}
-            size="sm"
-            testId="claude-provider-opencode-go"
-            disabled={state.loading || state.saving}
-            onClick={() => handleSetMode('opencode-go')}
-          >
-            {state.saving && !isOpenCodeGo ? 'Saving…' : 'OpenCode Go'}
           </Button>
           <Button
             variant={isDeepseekDirect ? 'primary' : 'secondary'}
@@ -152,28 +136,6 @@ export default function ClaudeCodeProviderPanel() {
             {status.hasBackup && <Badge tone="brand" testId="claude-provider-backup-badge">Backup Ready</Badge>}
           </div>
         </div>
-      )}
-
-      {/* ── OpenCode Go details ── */}
-      {isOpenCodeGo && (
-        <>
-          <hr style={{ margin: '12px 0', border: 'none', borderTop: '1px solid var(--border-color, #ddd)' }} />
-          <div className="settings-row" data-testid="claude-provider-opencode-go-details">
-            <div className="settings-row-label">
-              <strong>OpenCode Go Status</strong>
-              <span className="settings-row-description">
-                {status?.openCodeGoKeyAvailable
-                  ? `API key available (source: ${status.openCodeGoKeySource || 'unknown'})`
-                  : 'API key not found. Set up an OpenCode Go workspace first.'}
-              </span>
-              {!status?.openCodeGoKeyAvailable && (
-                <span className="settings-row-description" style={{ color: 'var(--color-danger-500, #c00)', fontSize: '0.8rem' }}>
-                  OpenCode Go API key is required. Configure it in the OpenCode settings or provide via env.
-                </span>
-              )}
-            </div>
-          </div>
-        </>
       )}
 
       {/* ── DeepSeek Direct details ── */}

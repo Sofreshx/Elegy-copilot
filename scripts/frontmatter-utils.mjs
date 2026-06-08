@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { normalizeProfile } from './lib/profile-normalizer.mjs';
 
 export function parseFrontmatter(content) {
   const match = content.match(/^---\n([\s\S]*?)\n---/);
@@ -52,15 +53,33 @@ export function replaceFrontmatterField(content, field, newValue) {
   return `---\n${updated}\n---${content.slice(match[0].length)}`;
 }
 
-export function updateAgentModel(filePath, profile, agentRoles) {
+export function updateAgentModel(filePath, profile, agentRoles, roleToAgent = null) {
   if (!fs.existsSync(filePath)) return null;
 
   const agentName = filePath.replace(/\.md$/, '').split('/').pop().split('\\').pop();
-  const role = agentRoles[agentName];
-  if (!role) return null;
 
-  const modelKey = role;
-  const newModel = profile[modelKey];
+  let newModel = null;
+  let role = null;
+
+  // Try roleModels first if roleToAgent is available and profile has roleModels
+  if (roleToAgent && profile.roleModels && typeof profile.roleModels === 'object') {
+    for (const [roleName, agentList] of Object.entries(roleToAgent)) {
+      if (Array.isArray(agentList) && agentList.includes(agentName)) {
+        newModel = profile.roleModels[roleName];
+        role = roleName;
+        break;
+      }
+    }
+  }
+
+  // Fall back to legacy agentRoles lookup
+  if (!newModel) {
+    role = agentRoles[agentName];
+    if (!role) return null;
+    const modelKey = role;
+    newModel = profile[modelKey];
+  }
+
   const reasoningEffort = profile.reasoningEffort;
 
   if (!newModel) return null;

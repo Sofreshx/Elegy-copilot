@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
+import { normalizeProfile } from './lib/profile-normalizer.mjs';
 import { updateAgentModel } from './frontmatter-utils.mjs';
 import { getUserHome } from './install-surface-utils.mjs';
 
@@ -11,7 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const require = createRequire(import.meta.url);
-const { readConfig, writeConfig } = require('../copilot-ui/lib/opencodeConfig.js');
+const { readConfig, writeConfig, getActiveProfileId, setActiveProfileId } = require('../copilot-ui/lib/opencodeConfig.js');
 
 function resolveOpenCodeHome() {
   if (process.env.OPENCODE_HOME) return path.resolve(process.env.OPENCODE_HOME);
@@ -48,11 +49,29 @@ function main() {
   if (args[0] === '--list') {
     console.log('Available profiles:');
     for (const [name, profile] of Object.entries(availableProfiles)) {
+      const normalized = normalizeProfile(profile, name);
       const marker = name === profilesConfig.activeProfile ? ' [active]' : '';
-      console.log(`  ${name}${marker}`);
-      console.log(`    small:  ${profile.small}`);
-      console.log(`    big:    ${profile.big}`);
-      console.log(`    review: ${profile.review}`);
+      const label = normalized.label || name;
+      console.log(`  ${name}${marker} — ${label}`);
+      if (normalized.description) {
+        console.log(`    ${normalized.description}`);
+      }
+      if (Array.isArray(normalized.tags) && normalized.tags.length > 0) {
+        console.log(`    tags: ${normalized.tags.join(', ')}`);
+      }
+      // Show legacy model fields for backward compat
+      if (profile.small || profile.big || profile.review) {
+        console.log(`    small:  ${profile.small || '-'}`);
+        console.log(`    big:    ${profile.big || '-'}`);
+        console.log(`    review: ${profile.review || '-'}`);
+      }
+      // Show roleModels if present
+      if (normalized.roleModels && typeof normalized.roleModels === 'object') {
+        console.log('    roleModels:');
+        for (const [role, model] of Object.entries(normalized.roleModels)) {
+          console.log(`      ${role.padEnd(16)} ${model || '-'}`);
+        }
+      }
     }
     process.exit(0);
   }
@@ -61,9 +80,19 @@ function main() {
     console.log(`Active profile: ${profilesConfig.activeProfile}`);
     const profile = availableProfiles[profilesConfig.activeProfile];
     if (profile) {
-      console.log(`  small:  ${profile.small}`);
-      console.log(`  big:    ${profile.big}`);
-      console.log(`  review: ${profile.review}`);
+      const normalized = normalizeProfile(profile, profilesConfig.activeProfile);
+      console.log(`  label: ${normalized.label}`);
+      if (normalized.roleModels && typeof normalized.roleModels === 'object') {
+        console.log('  roleModels:');
+        for (const [role, model] of Object.entries(normalized.roleModels)) {
+          console.log(`    ${role.padEnd(16)} ${model || '-'}`);
+        }
+      }
+      if (profile.small || profile.big || profile.review) {
+        console.log(`  small:  ${profile.small || '-'}`);
+        console.log(`  big:    ${profile.big || '-'}`);
+        console.log(`  review: ${profile.review || '-'}`);
+      }
     }
     process.exit(0);
   }
@@ -76,6 +105,7 @@ function main() {
     process.exit(1);
   }
 
+  const roleToAgent = profilesConfig.roleToAgent || null;
   const opencodeHome = resolveOpenCodeHome();
   const agentsDir = path.join(opencodeHome, 'agents');
 
@@ -91,7 +121,7 @@ function main() {
   for (const entry of fs.readdirSync(agentsDir).sort()) {
     if (!entry.endsWith('.md')) continue;
     const agentPath = path.join(agentsDir, entry);
-    const result = updateAgentModel(agentPath, profile, agentRoles);
+    const result = updateAgentModel(agentPath, profile, agentRoles, roleToAgent);
     if (result) {
       results.push(result);
       updated += 1;
@@ -101,6 +131,8 @@ function main() {
   const configSyncResults = [];
   try {
     const config = readConfig(opencodeHome);
+
+    // Write legacy agent.<name>.model (backward compat)
     if (!config.agent || typeof config.agent !== 'object') {
       config.agent = {};
     }
@@ -128,11 +160,39 @@ function main() {
       configSyncResults.push({ agent: agentName, role: roleKey, oldModel: prevModel || 'none', newModel: modelValue });
       configUpdated += 1;
     }
+
+    // Write agentRoleModels (new preferred API)
+    const normalizedForSync = normalizeProfile(profile, targetProfile);
+    if (normalizedForSync.roleModels && typeof normalizedForSync.roleModels === 'object') {
+      if (!config.agentRoleModels || typeof config.agentRoleModels !== 'object') {
+        config.agentRoleModels = {};
+      }
+      for (const [role, model] of Object.entries(normalizedForSync.roleModels)) {
+        if (typeof model !== 'string' || !model.trim()) continue;
+        if (!config.agentRoleModels[role] || typeof config.agentRoleModels[role] !== 'object') {
+          config.agentRoleModels[role] = {};
+        }
+        config.agentRoleModels[role].model = model.trim();
+        configUpdated += 1;
+      }
+    }
+
     if (configUpdated > 0) {
       writeConfig(opencodeHome, config);
     }
   } catch (err) {
     console.log(`[WARN] Could not sync opencode.jsonc: ${err.message}`);
+  }
+
+  // Persist active profile to profiles.json
+  profilesConfig.activeProfile = targetProfile;
+  fs.writeFileSync(profilesPath, `${JSON.stringify(profilesConfig, null, 2)}\n`, 'utf8');
+
+  // Also sync activeProfileId to dashboard state file
+  try {
+    setActiveProfileId(opencodeHome, targetProfile);
+  } catch (err) {
+    console.log(`[WARN] Could not sync dashboard state: ${err.message}`);
   }
 
   console.log(`Switched to profile: ${targetProfile}`);

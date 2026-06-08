@@ -1,71 +1,51 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock Node.js built-in modules used by gitCheckRunner.js before importing.
-// Factory must be self-contained (hoisted before import evaluation).
-// Use 'fs' not 'node:fs' to match CJS require('fs') in gitCheckRunner.js.
-vi.mock('fs', () => {
-  const m = { existsSync: vi.fn(), readFileSync: vi.fn() };
-  return { default: m, ...m };
-});
-
-vi.mock('child_process', () => {
-  const m = { execFile: vi.fn() };
-  return { default: m, ...m };
-});
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import { discoverChecks, runAllChecks } from '../lib/gitCheckRunner';
+// Import real modules for mock creation
 import fs from 'fs';
-import cp from 'child_process';
+import { execFile as realExecFile } from 'child_process';
 
-function normalizePath(p: string): string {
-  return p.replace(/\\/g, '/');
-}
+// We use dependency injection (__setDeps) to replace internal deps with mocks,
+// avoiding the complexity of mocking CJS native module resolution.
+
+import {
+  discoverChecks,
+  runAllChecks,
+  resolveCommitCheckConfig,
+  __setDeps,
+} from '../lib/gitCheckRunner';
+
+// Create mock functions
+const mockExistsSync = vi.fn();
+const mockReadFileSync = vi.fn();
+const mockExecFile = vi.fn();
 
 beforeEach(() => {
-  vi.clearAllMocks();
-});
-
-// Quick debug: verify the mock is actually intercepting fs calls
-it('mock verification: fs.existsSync mock is wired to CJS require', () => {
-  // This test verifies that the CJS module (gitCheckRunner.js) sees the same
-  // mock that the test file imports. Call a function from gitCheckRunner that
-  // uses fs.existsSync in a controlled way.
-  const path = require('path');
-
-  // Manually test the mock through the module's dependent code
-  (fs.existsSync as any).mockImplementation((p: any) => {
-    return String(p).includes('commit-checks.json');
+  // Inject mock dependencies before each test
+  __setDeps({
+    fs: { existsSync: mockExistsSync, readFileSync: mockReadFileSync } as any,
+    execFile: mockExecFile as any,
   });
-  (fs.readFileSync as any).mockReturnValue(JSON.stringify({
-    lanes: { lint: { commands: ['npm run lint'] } },
-  }));
-
-  // Import resolveCommitCheckConfig directly
-  const { resolveCommitCheckConfig } = require('../lib/gitCheckRunner');
-  const result = resolveCommitCheckConfig('/fake/repo');
-
-  console.log('DEBUG existsSync calls:', (fs.existsSync as any).mock.calls);
-  console.log('DEBUG readFileSync calls:', (fs.readFileSync as any).mock.calls);
-  console.log('DEBUG resolveCommitCheckConfig result:', JSON.stringify(result));
-
-  // This check tells us if the CJS require sees the mock
-  expect(result.exists).toBe(true);
 });
+
+afterEach(() => {
+  // Restore real deps after each test
+  __setDeps({
+    fs,
+    execFile: realExecFile,
+  });
+});
+
+// ─── Test 1: Prefers canonical config ────────────────────────────────────────
 
 describe('discoverChecks', () => {
   it('prefers canonical config over legacy KNOWN_CHECKS', () => {
-    const existsMock = (fs.existsSync as any);
-    const readMock = (fs.readFileSync as any);
-
     // Mock: .copilot/commit-checks.json exists, legacy scripts do not
-    existsMock.mockImplementation((p: any) => {
-      const pStr = normalizePath(String(p));
+    mockExistsSync.mockImplementation((p: any) => {
+      const pStr = String(p).replace(/\\/g, '/');
       if (pStr.includes('commit-checks.json')) return true;
-      // For all other paths (legacy scripts, .githooks), return false
       return false;
     });
-    readMock.mockReturnValue(JSON.stringify({
+    mockReadFileSync.mockReturnValue(JSON.stringify({
       lanes: {
         lint: { commands: ['npm run lint'] },
         format: { commands: ['npm run format'] },
@@ -88,11 +68,9 @@ describe('discoverChecks', () => {
   });
 
   it('falls back to legacy KNOWN_CHECKS when no config exists', () => {
-    const existsMock = (fs.existsSync as any);
-
     // Mock: No canonical config, but legacy scripts exist
-    existsMock.mockImplementation((p: any) => {
-      const pStr = normalizePath(String(p));
+    mockExistsSync.mockImplementation((p: any) => {
+      const pStr = String(p).replace(/\\/g, '/');
       if (pStr.includes('commit-checks.json')) return false;
       if (pStr.includes('validate-')) return true;
       return false;
@@ -113,20 +91,21 @@ describe('discoverChecks', () => {
 
 describe('runAllChecks', () => {
   function setupCanonicalMocks(configLanes: Record<string, any>, scriptOutput: any) {
-    (fs.existsSync as any).mockImplementation((p: any) => {
-      const pStr = normalizePath(String(p));
+    mockExistsSync.mockImplementation((p: any) => {
+      const pStr = String(p).replace(/\\/g, '/');
       if (pStr.includes('commit-checks.json')) return true;
       return false;
     });
-    (fs.readFileSync as any).mockReturnValue(JSON.stringify({ lanes: configLanes }));
+    mockReadFileSync.mockReturnValue(JSON.stringify({ lanes: configLanes }));
 
     const outputJson = JSON.stringify(scriptOutput);
-    (cp.execFile as any).mockImplementation((...args: any[]) => {
+    mockExecFile.mockImplementation((...args: any[]) => {
+      // execFile(command, args, options, callback) — callback is last arg
       const callback = args[args.length - 1];
       if (typeof callback === 'function') {
         callback(null, outputJson, '');
       }
-      return { on: vi.fn(), stdout: { on: vi.fn() }, stderr: { on: vi.fn() } };
+      return { on: vi.fn() };
     });
   }
 
@@ -231,8 +210,8 @@ describe('runAllChecks', () => {
   });
 
   it('falls back to source:none when no canonical config exists and no legacy checks', async () => {
-    (fs.existsSync as any).mockImplementation((p: any) => {
-      const pStr = normalizePath(String(p));
+    mockExistsSync.mockImplementation((p: any) => {
+      const pStr = String(p).replace(/\\/g, '/');
       if (pStr.includes('commit-checks.json')) return false;
       if (pStr.includes('validate-')) return false;
       return false;

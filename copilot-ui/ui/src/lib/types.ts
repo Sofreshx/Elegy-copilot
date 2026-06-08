@@ -3420,6 +3420,9 @@ export interface OpenCodeProfile {
   smallModel: string;
   bigModel: string;
   reviewModel: string;
+  roleModels?: Record<string, string>;
+  tags?: string[];
+  notes?: string;
 }
 
 export interface OpenCodeSetupCheck {

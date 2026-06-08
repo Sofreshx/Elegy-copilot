@@ -1,8 +1,16 @@
 'use strict';
 
-const fs = require('fs');
 const path = require('path');
-const { execFile } = require('child_process');
+
+/**
+ * Internal dependencies object. Exported so tests can override
+ * with mocks without mocking native modules at the vitest level.
+ * @type {{ fs: typeof import('fs'), execFile: typeof import('child_process').execFile }}
+ */
+const deps = {
+  fs: require('fs'),
+  execFile: require('child_process').execFile,
+};
 
 /**
  * Known check scripts in priority order.
@@ -52,9 +60,9 @@ function resolveCommitCheckConfig(repoRoot) {
   ];
 
   for (const configPath of configPaths) {
-    if (fs.existsSync(configPath)) {
+    if (deps.fs.existsSync(configPath)) {
       try {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        const config = JSON.parse(deps.fs.readFileSync(configPath, 'utf8'));
         return { exists: true, path: configPath, config };
       } catch {
         // Invalid JSON at this path, skip to next fallback
@@ -73,7 +81,7 @@ function runCanonicalChecks(repoRoot, configPath) {
   return new Promise((resolve) => {
     const scriptPath = path.join(repoRoot, 'scripts', 'commit-check-run.mjs');
 
-    execFile('node', [scriptPath, '--json', '--repo', repoRoot, '--config', configPath], {
+    deps.execFile('node', [scriptPath, '--json', '--repo', repoRoot, '--config', configPath], {
       timeout: CANONICAL_CHECK_TIMEOUT_MS,
       maxBuffer: 1024 * 1024,
       windowsHide: true,
@@ -195,7 +203,7 @@ function discoverChecks(repoRoot) {
 
   for (const check of checks) {
     const fullPath = path.join(repoRoot, check.path);
-    if (fs.existsSync(fullPath)) {
+    if (deps.fs.existsSync(fullPath)) {
       available.push({
         name: check.name,
         path: check.path,
@@ -208,10 +216,10 @@ function discoverChecks(repoRoot) {
 
   // Also check for .githooks/ directory existence
   const hooksDir = path.join(repoRoot, '.githooks');
-  if (fs.existsSync(hooksDir)) {
+  if (deps.fs.existsSync(hooksDir)) {
     const preCommit = path.join(hooksDir, 'pre-commit');
     const prePush = path.join(hooksDir, 'pre-push');
-    if (fs.existsSync(preCommit)) {
+    if (deps.fs.existsSync(preCommit)) {
       available.push({
         name: 'git-hooks-pre-commit',
         path: '.githooks/pre-commit',
@@ -220,7 +228,7 @@ function discoverChecks(repoRoot) {
         source: 'legacy',
       });
     }
-    if (fs.existsSync(prePush)) {
+    if (deps.fs.existsSync(prePush)) {
       available.push({
         name: 'git-hooks-pre-push',
         path: '.githooks/pre-push',
@@ -257,7 +265,7 @@ function runCheck(check, repoRoot) {
       args = [];
     }
 
-    const child = execFile(command, args, {
+    const child = deps.execFile(command, args, {
       cwd: repoRoot,
       timeout: RUN_TIMEOUT_MS,
       maxBuffer: 1024 * 1024,
@@ -392,6 +400,15 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
   };
 }
 
+/**
+ * Override internal dependencies for testing.
+ * Call with { fs: mockFs, execFile: mockExecFile } to replace deps.
+ */
+function __setDeps(overrides) {
+  if (overrides.fs) deps.fs = overrides.fs;
+  if (overrides.execFile) deps.execFile = overrides.execFile;
+}
+
 module.exports = {
   discoverChecks,
   runCheck,
@@ -400,4 +417,6 @@ module.exports = {
   resolveCommitCheckConfig,
   runCanonicalChecks,
   KNOWN_CHECKS,
+  __setDeps,
+  deps,
 };
