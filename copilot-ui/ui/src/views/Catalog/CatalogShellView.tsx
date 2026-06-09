@@ -83,15 +83,8 @@ function deriveMetrics(
     },
     {
       label: 'Hooks',
-      value:
-        allItems.filter((i) => i.kind === 'hook').length > 0
-          ? allItems.filter((i) => i.kind === 'hook').length
-          : 'Coming soon',
+      value: allItems.filter((i) => i.kind === 'hook').length,
       icon: 'hook',
-      sublabel:
-        allItems.filter((i) => i.kind === 'hook').length === 0
-          ? 'Coming soon'
-          : undefined,
     },
     {
       label: 'Plugins',
@@ -105,7 +98,19 @@ function deriveMetrics(
     },
     {
       label: 'Harnesses synced',
-      value: harnesses.filter((h) => (h as Record<string, unknown>).optedIn === true).length,
+      value: (() => {
+        const syncedHarnessIds = new Set<string>();
+        for (const section of sections) {
+          for (const item of section.items || []) {
+            for (const hs of item.harnessStates || []) {
+              if (hs.installed || hs.active) {
+                syncedHarnessIds.add(hs.harnessId);
+              }
+            }
+          }
+        }
+        return syncedHarnessIds.size;
+      })(),
       icon: 'sync',
     },
   ];
@@ -358,15 +363,20 @@ export default function CatalogShellView() {
 
       {/* TAB BAR */}
       <div className="assets-tools-chip-row" data-testid="assets-tools-tabs">
-        {(['inventory', 'quality', 'operations', 'sources'] as const).map((tab) => (
+        {([
+          { key: 'inventory' as const, label: 'Inventory' },
+          { key: 'quality' as const, label: 'Diagnostics' },
+          { key: 'operations' as const, label: 'Operations' },
+          { key: 'sources' as const, label: 'Sources' },
+        ]).map(({ key, label }) => (
           <button
-            key={tab}
-            className={`assets-tools-chip catalog-chip ${activeTab === tab ? 'active catalog-chip is-active' : ''}`}
-            data-testid={`assets-tools-tab-${tab}`}
-            onClick={() => setActiveTab(tab)}
+            key={key}
+            className={`assets-tools-chip catalog-chip ${activeTab === key ? 'active catalog-chip is-active' : ''}`}
+            data-testid={`assets-tools-tab-${key}`}
+            onClick={() => setActiveTab(key)}
             type="button"
           >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {label}
           </button>
         ))}
       </div>

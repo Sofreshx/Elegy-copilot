@@ -97,11 +97,20 @@ async function writeJsonAtomic(absPath, value) {
   const base = basename(absPath);
   const tempPath = join(dirPath, "." + base + "." + process.pid + "." + Date.now() + "." + Math.random().toString(16).slice(2) + ".tmp");
   await writeFile(tempPath, JSON.stringify(value, null, 2) + "\n", "utf8");
-  try {
-    await rename(tempPath, absPath);
-  } catch (err) {
-    try { await rm(tempPath, { force: true }); } catch {}
-    throw err;
+  const maxRetries = process.platform === "win32" ? 5 : 0;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      await rename(tempPath, absPath);
+      return;
+    } catch (err) {
+      const isTransient = err && (err.code === "EPERM" || err.code === "EBUSY");
+      if (isTransient && attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 100 * (attempt + 1)));
+        continue;
+      }
+      try { await rm(tempPath, { force: true }); } catch {}
+      throw err;
+    }
   }
 }
 

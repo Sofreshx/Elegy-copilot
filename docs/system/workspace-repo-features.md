@@ -1,6 +1,7 @@
 # Workspace & Repository Features
 
 > Implemented: June 2026
+> Updated: June 2026 (added session-status endpoint)
 > Branch: feature/workspace-repo-assets-sessions-sqlite
 
 ## Overview
@@ -38,6 +39,7 @@ Replaces scattered JSON file state with a unified SQLite database using `better-
 | GET | `/api/elegy-db/worktrees` | List worktrees from SQLite (filters: status, source, repoPath) |
 | GET | `/api/elegy-db/worktrees/:id` | Get worktree + linked sessions |
 | GET | `/api/elegy-db/worktrees/enriched` | Enriched worktrees with session and hook event data |
+| GET | `/api/elegy-db/worktrees/session-status` | Worktree session status (active sessions, session count, recent hook events) |
 | GET | `/api/elegy-db/repo-assets` | Get repo-specific asset records |
 | GET | `/api/elegy-db/hook-events` | List hook events (filters: hookType, sessionId, worktreeId) |
 | GET | `/api/elegy-db/worktree-sessions` | Sessions linked to a worktree |

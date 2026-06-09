@@ -44,7 +44,7 @@ const INSTALL_SURFACE_HARNESSES = new Set(['codex', 'opencode', 'antigravity']);
 const HARNESS_INSTALLABLE_KINDS = Object.freeze({
   copilot: new Set(['agent', 'skill']),
   codex: new Set(['agent', 'skill', 'mcp']),
-  opencode: new Set(['agent', 'skill', 'mcp']),
+  opencode: new Set(['agent', 'skill', 'mcp', 'hook']),
   antigravity: new Set(['skill']),
   'gemini-cli': new Set(['mcp']),
   host: new Set(['cli-tool']),
@@ -704,6 +704,8 @@ function humanizeItemKind(kind) {
       return 'MCP';
     case 'cli-tool':
       return 'CLI Tool';
+    case 'hook':
+      return 'Hook';
     default:
       return normalizeDisplayText(kind, 'Item');
   }
@@ -733,6 +735,15 @@ function buildConceptualCatalogKey(kind, rawValue) {
   }
   if (normalizedKind === 'mcp') {
     return baseName;
+  }
+  if (normalizedKind === 'hook') {
+    // Hooks live in hooks/<name>/hook.md — use parent directory as key
+    const parts = value.split('/').filter(Boolean);
+    // If we have at least 2 parts (hooks/name/hook.md), use the second-to-last
+    if (parts.length >= 2) {
+      return parts[parts.length - 2];
+    }
+    return baseName.replace(/\.md$/i, '');
   }
   return baseName;
 }
@@ -810,7 +821,7 @@ function normalizeManifestAssetItemKind(type) {
 
 function isManifestAssetSupportedForGlobalInventory(type) {
   const normalized = normalizeManifestAssetItemKind(type);
-  return normalized === 'skill' || normalized === 'agent' || normalized === 'mcp';
+  return normalized === 'skill' || normalized === 'agent' || normalized === 'mcp' || normalized === 'hook';
 }
 
 function listHarnessRows(ctx) {
@@ -980,6 +991,7 @@ function buildProjectionInventory(summary, ctx, engineManifestAssetIds = new Set
     skill: [],
     agent: [],
     mcp: [],
+    hook: [],
   };
 
   for (const effectiveAsset of effectiveAssets) {
@@ -987,7 +999,7 @@ function buildProjectionInventory(summary, ctx, engineManifestAssetIds = new Set
       continue;
     }
     const kind = normalizeCatalogItemKind(effectiveAsset.kind);
-    if (kind !== 'skill' && kind !== 'agent') {
+    if (kind !== 'skill' && kind !== 'agent' && kind !== 'hook') {
       continue;
     }
 
@@ -1115,6 +1127,7 @@ function buildInstalledPathCandidatesForManifestAsset(ctx, source, asset) {
 
 function buildManifestInventory(ctx) {
   const manifests = [
+    { source: 'engine', fileName: 'engine-assets/manifest.json', harnessId: 'copilot', supportsItemInstall: false },
     { source: 'codex', fileName: 'codex-assets/manifest.json', harnessId: 'codex', supportsItemInstall: false },
     { source: 'opencode', fileName: 'opencode-assets/manifest.json', harnessId: 'opencode', supportsItemInstall: false },
     { source: 'antigravity', fileName: 'antigravity-assets/manifest.json', harnessId: 'antigravity', supportsItemInstall: false },
@@ -1123,6 +1136,7 @@ function buildManifestInventory(ctx) {
     skill: [],
     agent: [],
     mcp: [],
+    hook: [],
   };
   const ledger = ctx.copilotHomeAbs ? installLedgerLib.readInstallLedger(ctx.copilotHomeAbs) : null;
 
@@ -1200,6 +1214,7 @@ function buildExternalSourceInventory(summary, ctx) {
     agent: [],
     mcp: [],
     'cli-tool': [],
+    hook: [],
   };
   const sources = Array.isArray(summary?.externalSources) ? summary.externalSources : [];
 
@@ -1520,7 +1535,7 @@ function buildGlobalCatalogInventory(summary, externalSourcesSummary, ctx) {
   const manifestInventory = buildManifestInventory(ctx);
   const externalInventory = buildExternalSourceInventory({ externalSources: externalSourcesSummary?.sources || [] }, ctx);
 
-  const sections = ['skill', 'agent', 'mcp', 'cli-tool'].map((kind) => {
+  const sections = ['skill', 'agent', 'mcp', 'cli-tool', 'hook'].map((kind) => {
     const items = mergeInventoryItems([
       ...(projectionInventory[kind] || []),
       ...(manifestInventory[kind] || []),

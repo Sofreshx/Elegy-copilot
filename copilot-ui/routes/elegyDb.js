@@ -196,6 +196,55 @@ function register(context = {}) {
       },
     },
 
+    // ── Worktree Session Status ──────────────────────────────────────
+    {
+      method: 'GET',
+      path: '/api/elegy-db/worktrees/session-status',
+      handler(ctx) {
+        const { res, u, elegyDb } = ctx;
+        if (!elegyDb) return sendDbNotReady(res);
+        try {
+          const worktreeId = u.searchParams.get('worktreeId');
+          if (!worktreeId) {
+            sendJson(res, 400, { error: 'worktreeId query parameter is required', code: 'elegy_db_invalid_input' });
+            return;
+          }
+          const worktree = elegyDb.getWorktree(worktreeId);
+          if (!worktree) {
+            sendJson(res, 404, { error: 'Worktree not found', code: 'elegy_db_not_found' });
+            return;
+          }
+          // Get recent hook events for this worktree
+          const recentEvents = elegyDb.listHookEvents({ worktreeId, limit: 10 });
+          // Get active sessions via session_worktrees junction
+          const sessions = elegyDb.listSessionsByWorktree(worktree.path);
+          const activeSessions = sessions.filter(s => s.status === 'active');
+
+          sendJson(res, 200, {
+            worktreeId: worktree.id,
+            worktreePath: worktree.path,
+            status: worktree.status,
+            sessionCount: worktree.session_count || 0,
+            hasActiveSession: (worktree.session_count || 0) > 0,
+            activeSessions: activeSessions.map(s => ({
+              sessionId: s.id,
+              title: s.title,
+              startedAt: s.started_at,
+              model: s.model,
+            })),
+            totalSessions: sessions.length,
+            recentHookEvents: recentEvents.map(e => ({
+              id: e.id,
+              hookType: e.hook_type,
+              createdAt: e.created_at,
+            })),
+          });
+        } catch (e) {
+          sendJson(res, 500, { error: String(e.message || e), code: 'elegy_db_query_error' });
+        }
+      },
+    },
+
     // ── Worktree Sessions ────────────────────────────────────────────
     {
       method: 'GET',

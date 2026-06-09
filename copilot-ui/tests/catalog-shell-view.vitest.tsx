@@ -298,10 +298,10 @@ describe('CatalogShellView', () => {
     expect(
       screen.getByTestId('assets-tools-metric-Skills'),
     ).toHaveTextContent('2');
-    // Hooks metric — no hook items → "Coming soon"
+    // Hooks metric — 0 hook items in test data
     expect(
       screen.getByTestId('assets-tools-metric-Hooks'),
-    ).toHaveTextContent('Coming soon');
+    ).toHaveTextContent('0');
     // Plugins metric
     expect(
       screen.getByTestId('assets-tools-metric-Plugins'),
@@ -310,10 +310,10 @@ describe('CatalogShellView', () => {
     expect(
       screen.getByTestId('assets-tools-metric-External Tools'),
     ).toHaveTextContent('1');
-    // Harnesses synced — 3 opted in
+    // Harnesses synced — test items have no installed/active harness states
     expect(
       screen.getByTestId('assets-tools-metric-Harnesses synced'),
-    ).toHaveTextContent('3');
+    ).toHaveTextContent('0');
   });
 
   // ---- NEW: three-pane inventory layout ----

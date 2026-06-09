@@ -41,6 +41,60 @@ export default function QualityTab() {
   const { summary, skills, overlapClusters } = report;
   const skillsWithIssues = skills.filter((s) => s.diagnostics.length > 0);
 
+  // Filter out expected cross-harness duplicate-name warnings
+  // (engine-assets and opencode-assets having same-named skills is by design)
+  const displaySkills = skillsWithIssues.map((skill) => {
+    const filteredDiagnostics = skill.diagnostics.filter((d) => {
+      if (d.kind === 'duplicate-name') {
+        // Only show duplicate-name if it's NOT a cross-root duplicate
+        // (same name in different source roots like engine-assets vs opencode-assets)
+        const peerIds: string[] = Array.isArray((d.detail as any)?.peerSkillIds)
+          ? (d.detail as any).peerSkillIds
+          : [];
+        if (peerIds.length > 0) {
+          const myRoot = skill.sourceRoot;
+          const allDifferentRoot = peerIds.every((pid) => {
+            const peerSkill = skills.find((s) => s.skillId === pid);
+            return peerSkill && peerSkill.sourceRoot !== myRoot;
+          });
+          // If all peers are in different roots, this is a cross-harness copy - expected
+          if (allDifferentRoot) return false;
+        }
+      }
+      return true;
+    });
+    return { ...skill, diagnostics: filteredDiagnostics };
+  }).filter((skill) => skill.diagnostics.length > 0);
+
+  // Also filter overlapClusters to remove cross-root overlaps that are expected
+  const displayOverlapClusters = overlapClusters.filter((cluster) => {
+    // Get source roots for each skill in the cluster
+    const roots = cluster.skills.map((skillId) => {
+      const skill = skills.find((s) => s.skillId === skillId);
+      return skill?.sourceRoot || '';
+    });
+    const uniqueRoots = new Set(roots.filter(Boolean));
+    // Keep only clusters where some skills share the same root (genuine within-root overlap)
+    // Exclude clusters where every skill is from a different root (cross-harness copies)
+    return uniqueRoots.size <= 1 || uniqueRoots.size < cluster.skills.length;
+  });
+
+  // Count only non-cross-root duplicate names for the metric display
+  const filteredDuplicateNames = skills.reduce((count, skill) => {
+    return count + skill.diagnostics.filter((d) => {
+      if (d.kind !== 'duplicate-name') return false;
+      const peerIds: string[] = Array.isArray((d.detail as any)?.peerSkillIds)
+        ? (d.detail as any).peerSkillIds
+        : [];
+      if (peerIds.length > 0) {
+        const peerSkills = peerIds.map((pid) => skills.find((s) => s.skillId === pid)).filter(Boolean);
+        const allDifferentRoot = peerSkills.every((ps) => ps && ps.sourceRoot !== skill.sourceRoot);
+        if (allDifferentRoot) return false;
+      }
+      return true;
+    }).length;
+  }, 0);
+
   function severityTone(severity: SkillQualityDiagnostic['severity']): 'danger' | 'accent' | 'neutral' {
     switch (severity) {
       case 'error': return 'danger';
@@ -55,7 +109,7 @@ export default function QualityTab() {
       <div className="assets-tools-metrics" data-testid="quality-summary">
         <div className="assets-tools-metric-card catalog-stat-card">
           <div>
-            <p className="assets-tools-metric-label catalog-stat-label">Total Skills</p>
+            <p className="assets-tools-metric-label catalog-stat-label">Analyzed Skills</p>
             <p className="assets-tools-metric-value catalog-stat-value">{summary.totalSkills}</p>
           </div>
         </div>
@@ -76,7 +130,7 @@ export default function QualityTab() {
         <div className="assets-tools-metric-card catalog-stat-card">
           <div>
             <p className="assets-tools-metric-label catalog-stat-label">Duplicate Names</p>
-            <p className="assets-tools-metric-value catalog-stat-value">{summary.duplicateNames}</p>
+            <p className="assets-tools-metric-value catalog-stat-value">{filteredDuplicateNames}</p>
           </div>
         </div>
         <div className="assets-tools-metric-card catalog-stat-card">
@@ -88,10 +142,10 @@ export default function QualityTab() {
       </div>
 
       {/* Skill diagnostics */}
-      {skillsWithIssues.length > 0 && (
-        <Panel title={`Skills with Issues (${skillsWithIssues.length})`} subtitle="Diagnostics grouped by skill">
+      {displaySkills.length > 0 && (
+        <Panel title={`Skills with Issues (${displaySkills.length})`} subtitle="Diagnostics grouped by skill">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-            {skillsWithIssues.map((skill) => (
+            {displaySkills.map((skill) => (
               <div key={skill.skillId} className="assets-tools-item-card" data-testid={`quality-skill-${skill.skillId}`}>
                 <div className="assets-tools-item-header">
                   <span>{skill.name}</span>
@@ -116,10 +170,10 @@ export default function QualityTab() {
       )}
 
       {/* Overlap clusters */}
-      {overlapClusters.length > 0 && (
-        <Panel title={`Overlap Clusters (${overlapClusters.length})`} subtitle="Skills with potentially overlapping scope">
+      {displayOverlapClusters.length > 0 && (
+        <Panel title={`Overlap Clusters (${displayOverlapClusters.length})`} subtitle="Skills with potentially overlapping scope">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-            {overlapClusters.map((cluster, i) => (
+            {displayOverlapClusters.map((cluster, i) => (
               <div key={i} className="assets-tools-item-card" data-testid={`quality-cluster-${i}`}>
                 <div className="assets-tools-item-header">
                   <span>Cluster {i + 1}</span>
@@ -138,7 +192,7 @@ export default function QualityTab() {
       )}
 
       {/* Clean state */}
-      {skillsWithIssues.length === 0 && overlapClusters.length === 0 && (
+      {displaySkills.length === 0 && displayOverlapClusters.length === 0 && (
         <p className="assets-tools-empty" style={{ color: 'var(--color-success-500)' }}>
           All skills pass quality checks. No issues detected.
         </p>
