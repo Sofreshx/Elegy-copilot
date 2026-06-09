@@ -487,19 +487,11 @@ describe('WorkspaceGitTab', () => {
       expect(screen.getByTestId('workspace-checks-disclosure')).toBeInTheDocument();
     });
 
-    // Summary shows the count
-    expect(screen.getByTestId('workspace-checks-disclosure-summary')).toHaveTextContent('✓ Checks discovered (2)');
+    // Header shows the count
+    expect(screen.getByTestId('workspace-checks-disclosure-header')).toHaveTextContent('✓ Checks discovered (2)');
 
-    // Content is hidden initially
-    expect(screen.queryByTestId('workspace-checks-disclosure-content')).not.toBeInTheDocument();
-
-    // Click to expand
-    fireEvent.click(screen.getByTestId('workspace-checks-disclosure-summary'));
-
-    // Wait for content to appear
-    await waitFor(() => {
-      expect(screen.getByTestId('workspace-checks-disclosure-content')).toBeInTheDocument();
-    });
+    // Content is visible immediately (no need to click)
+    expect(screen.getByTestId('workspace-checks-disclosure-content')).toBeInTheDocument();
 
     // Check names, descriptions, and paths are shown
     expect(screen.getByText('lint')).toBeInTheDocument();

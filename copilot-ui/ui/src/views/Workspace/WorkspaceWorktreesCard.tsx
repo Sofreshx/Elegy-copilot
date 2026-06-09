@@ -268,6 +268,7 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
           type="button"
           className="button button-sm button-ghost"
           onClick={async () => {
+            if (!repoPath) return;
             setLoading(true);
             try {
               const response = await listExecutorWorktrees({ repoId: repoId || undefined, repoPath });
@@ -403,6 +404,7 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
                       className="button button-sm button-secondary"
                       disabled={removing === entry.key}
                       onClick={async () => {
+                        if (!repoPath) return;
                         setRemoving(entry.key);
                         setShowRemoveConfirm(null);
                         try {
@@ -501,6 +503,7 @@ export default function WorkspaceWorktreesCard({ repoId, repoPath }: WorkspaceWo
                       className="workspace-review-launch-btn"
                       disabled={reviewLaunching}
                       onClick={async () => {
+                        if (!repoPath) return;
                         setReviewLaunching(true);
                         setReviewResult(null);
                         try {

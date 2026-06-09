@@ -362,10 +362,9 @@ export default function WorkspaceGitTab({
 
   // ─── Checks discovery state ────────────────────────────────────────────────
   const [discoveredChecks, setDiscoveredChecks] = useState<GitChecksDiscoverResponse | null>(null);
-  const [showChecksDetail, setShowChecksDetail] = useState(false);
 
   // ─── Verify & Commit flow ──────────────────────────────────────────────────
-  const [commitPhase, setCommitPhase] = useState<'idle' | 'running-checks' | 'checks-passed' | 'committing'>('idle');
+  const [commitPhase, setCommitPhase] = useState<'idle' | 'running-checks'>('idle');
   const [checksVerified, setChecksVerified] = useState(false);
   const [failedCheckResults, setFailedCheckResults] = useState<GitCheckResults | null>(null);
 
@@ -576,17 +575,17 @@ export default function WorkspaceGitTab({
 
       if (results.checksAvailable === 0) {
         // No checks configured — allow commit, show neutral info
-        setCommitPhase('idle');
         setChecksVerified(true);
         notificationStore.success('No checks configured', { message: 'Proceeding with commit.' });
         onCommit();
+        setCommitPhase('idle');
         return;
       }
 
       if (results.allPassed) {
-        setCommitPhase('checks-passed');
         setChecksVerified(true);
         onCommit();
+        setCommitPhase('idle');
       } else {
         setCommitPhase('idle');
         setFailedCheckResults(results);
@@ -1425,11 +1424,11 @@ export default function WorkspaceGitTab({
           <Button
             variant="primary"
             size="sm"
-            disabled={!gitState.commitMessage.trim() || commitPhase === 'running-checks' || commitPhase === 'committing'}
+            disabled={!gitState.commitMessage.trim() || commitPhase === 'running-checks'}
             onClick={() => void handleVerifyAndCommit()}
             testId="workspace-verify-commit"
           >
-            {commitPhase === 'running-checks' ? 'Running checks...' : commitPhase === 'committing' ? 'Committing...' : 'Verify & Commit'}
+            {commitPhase === 'running-checks' ? 'Running checks...' : 'Verify & Commit'}
           </Button>
 
           {/* Force commit area (shown when checks fail) */}
@@ -1644,17 +1643,23 @@ export default function WorkspaceGitTab({
                 size="sm"
                 disabled={skipVerifyCommitting}
                 onClick={async () => {
+                  if (!repoPath) return;
                   setSkipVerifyCommitting(true);
                   try {
-                    onCommit();
-                    // slight delay then push
-                    setTimeout(() => {
-                      onPush();
+                    // Use direct commit with skip-verification override
+                    const commitResult = await commitGit(repoPath, gitState.commitMessage, { reason: 'skip verify' });
+                    if (commitResult.error) {
+                      notificationStore.error('Skip-verify commit failed', { message: commitResult.error });
                       setSkipVerifyCommitting(false);
-                      setShowSkipVerifyConfirm(false);
-                    }, 500);
-                  } catch {
+                      return;
+                    }
+                    await pushGit(repoPath, false, { reason: 'skip verify' });
+                    notificationStore.success('Committed & pushed', { message: 'Changes committed and pushed (skipped verification)' });
+                  } catch (err) {
+                    notificationStore.error('Skip-verify failed', { message: err instanceof Error ? err.message : String(err) });
+                  } finally {
                     setSkipVerifyCommitting(false);
+                    setShowSkipVerifyConfirm(false);
                   }
                 }}
                 testId="workspace-skip-verify-confirm"
@@ -1686,31 +1691,42 @@ export default function WorkspaceGitTab({
             className={`workspace-git-composer-checks ${checkResults.allPassed ? 'workspace-checks-passed' : 'workspace-checks-failed'}`}
             data-testid="workspace-checks-result"
           >
-            {checkResults.allPassed ? '✓ All checks passed' : '✗ Some checks failed'}
+            <div className="workspace-git-checks-header">
+              <span>{checkResults.allPassed ? '✓ All checks passed' : `✗ ${checkResults.checksFailed} of ${checkResults.checksRun} checks failed`}</span>
+              <Button variant="ghost" size="sm" onClick={onRunChecks} disabled={runningChecks} testId="workspace-checks-rerun">
+                {runningChecks ? 'Running...' : 'Re-run checks'}
+              </Button>
+            </div>
+            {checkResults.results && checkResults.results.length > 0 ? (
+              <details className="workspace-git-checks-results-detail">
+                <summary>View check results</summary>
+                <ul className="workspace-git-checks-list">
+                  {checkResults.results.map((r, i) => (
+                    <li key={i} className={r.passed ? 'workspace-check-item-passed' : 'workspace-check-item-failed'}>
+                      <strong>{r.checkName}</strong>: {r.passed ? 'Passed' : (r.error || 'Failed')}
+                      {r.output && !r.passed ? <pre className="workspace-check-output">{r.output.slice(0, 500)}</pre> : null}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
           </div>
         ) : null}
 
         {/* Checks discovered disclosure */}
         {discoveredChecks && discoveredChecks.checks.length > 0 ? (
-          <details className="workspace-git-checks-disclosure" data-testid="workspace-checks-disclosure">
-            <summary
-              onClick={() => setShowChecksDetail(!showChecksDetail)}
-              data-testid="workspace-checks-disclosure-summary"
-            >
-              ✓ Checks discovered ({discoveredChecks.checks.length})
-            </summary>
-            {showChecksDetail ? (
-              <div className="workspace-git-checks-disclosure-content" data-testid="workspace-checks-disclosure-content">
-                {discoveredChecks.checks.map((c) => (
-                  <div key={c.name} className="workspace-git-checks-disclosure-item">
-                    <span className="workspace-git-checks-disclosure-name">{c.name}</span>
-                    <span className="workspace-git-checks-disclosure-desc">{c.description}</span>
-                    <code className="workspace-git-checks-disclosure-path">{c.path}</code>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </details>
+          <div className="workspace-git-checks-disclosure" data-testid="workspace-checks-disclosure">
+            <div className="workspace-git-checks-disclosure-header" data-testid="workspace-checks-disclosure-header">✓ Checks discovered ({discoveredChecks.checks.length})</div>
+            <div className="workspace-git-checks-disclosure-content" data-testid="workspace-checks-disclosure-content">
+              {discoveredChecks.checks.map((c) => (
+                <div key={c.name} className="workspace-git-checks-disclosure-item">
+                  <span className="workspace-git-checks-disclosure-name">{c.name}</span>
+                  <span className="workspace-git-checks-disclosure-desc">{c.description}</span>
+                  <code className="workspace-git-checks-disclosure-path">{c.path}</code>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : null}
       </div>
 
