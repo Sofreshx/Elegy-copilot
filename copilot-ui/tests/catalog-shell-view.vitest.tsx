@@ -227,13 +227,17 @@ describe('CatalogShellView', () => {
       screen.getByTestId('assets-tools-refresh'),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId('assets-tools-add-tool'),
-    ).toBeInTheDocument();
-    expect(
       screen.getByTestId('assets-tools-sync-harnesses'),
     ).toBeInTheDocument();
+    // Tab bar should be visible
     expect(
-      screen.getByTestId('assets-tools-repository-view'),
+      screen.getByTestId('assets-tools-tabs'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('assets-tools-tab-inventory'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('assets-tools-tab-sources'),
     ).toBeInTheDocument();
   });
 
@@ -312,9 +316,9 @@ describe('CatalogShellView', () => {
     ).toHaveTextContent('3');
   });
 
-  // ---- NEW: three-column explorer ----
+  // ---- NEW: three-pane inventory layout ----
 
-  it('renders the three-column explorer layout', async () => {
+  it('renders the inventory tab with three-pane layout', async () => {
     apiMocks.getCatalogSummary.mockResolvedValue(
       makeBasicSummary(getDefaultSectionsWithItems(), []),
     );
@@ -326,24 +330,25 @@ describe('CatalogShellView', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId('assets-tools-explorer'),
+        screen.getByTestId('assets-tools-inventory'),
       ).toBeInTheDocument();
     });
 
+    // Three panes: group list, reader, status rail
     expect(
-      screen.getByTestId('assets-tools-filters'),
+      screen.getByTestId('assets-tools-group-list'),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId('assets-tools-list'),
+      screen.getByTestId('assets-tools-reader'),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId('assets-tools-inspector'),
+      screen.getByTestId('assets-tools-status-rail'),
     ).toBeInTheDocument();
   });
 
-  // ---- NEW: grouped items ----
+  // ---- NEW: provenance-based grouped items ----
 
-  it('renders grouped items in the center list', async () => {
+  it('renders items grouped by provenance in the left pane', async () => {
     apiMocks.getCatalogSummary.mockResolvedValue(
       makeBasicSummary(getDefaultSectionsWithItems(), []),
     );
@@ -355,12 +360,13 @@ describe('CatalogShellView', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId('assets-tools-group-core-agents'),
+        screen.getByTestId('assets-tools-item-skill-1'),
       ).toBeInTheDocument();
     });
 
+    // Default test items have sourceId 'elegy', which falls to "User / repo / external"
     expect(
-      screen.getByTestId('assets-tools-group-shared-skills'),
+      screen.getByTestId('assets-tools-prov-group-user-repo-external'),
     ).toBeInTheDocument();
 
     // Each item card is present
@@ -375,9 +381,9 @@ describe('CatalogShellView', () => {
     ).toBeInTheDocument();
   });
 
-  // ---- NEW: filter by type chip ----
+  // ---- NEW: tab navigation ----
 
-  it('filters items by type chip selection', async () => {
+  it('navigates between tabs', async () => {
     apiMocks.getCatalogSummary.mockResolvedValue(
       makeBasicSummary(getDefaultSectionsWithItems(), []),
     );
@@ -387,41 +393,34 @@ describe('CatalogShellView', () => {
     );
     render(<CatalogShellView />);
 
-    // wait for items to render
     await waitFor(() => {
       expect(
-        screen.getByTestId('assets-tools-item-skill-1'),
+        screen.getByTestId('assets-tools-inventory'),
       ).toBeInTheDocument();
     });
 
-    // Both groups visible initially
-    expect(
-      screen.getByTestId('assets-tools-group-shared-skills'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByTestId('assets-tools-group-core-agents'),
-    ).toBeInTheDocument();
+    // Switch to Operations tab
+    fireEvent.click(screen.getByTestId('assets-tools-tab-operations'));
 
-    // Click the 'agent' type chip
-    fireEvent.click(screen.getByTestId('assets-tools-filter-type-agent'));
-
-    // Skill group should be gone (0 items after filter), agent group remains
     await waitFor(() => {
       expect(
-        screen.queryByTestId('assets-tools-group-shared-skills'),
-      ).toBeNull();
+        screen.getByTestId('assets-tools-operations'),
+      ).toBeInTheDocument();
     });
-    expect(
-      screen.getByTestId('assets-tools-group-core-agents'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByTestId('assets-tools-item-agent-1'),
-    ).toBeInTheDocument();
+
+    // Switch back to Inventory
+    fireEvent.click(screen.getByTestId('assets-tools-tab-inventory'));
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('assets-tools-inventory'),
+      ).toBeInTheDocument();
+    });
   });
 
-  // ---- NEW: filter by search text ----
+  // ---- NEW: select item and show reader + status rail ----
 
-  it('filters items by search text', async () => {
+  it('selects an item and shows reader and status rail details', async () => {
     apiMocks.getCatalogSummary.mockResolvedValue(
       makeBasicSummary(getDefaultSectionsWithItems(), []),
     );
@@ -431,47 +430,14 @@ describe('CatalogShellView', () => {
     );
     render(<CatalogShellView />);
 
+    // The component auto-selects the first item
     await waitFor(() => {
       expect(
-        screen.getByTestId('assets-tools-item-skill-1'),
+        screen.getByTestId('assets-tools-reader'),
       ).toBeInTheDocument();
     });
 
-    const searchInput = screen.getByTestId('catalog-shell-search');
-    fireEvent.change(searchInput, { target: { value: 'Build' } });
-
-    await waitFor(() => {
-      // Only the Build Agent item matches
-      expect(
-        screen.queryByTestId('assets-tools-item-skill-1'),
-      ).toBeNull();
-    });
-    expect(
-      screen.getByTestId('assets-tools-item-agent-1'),
-    ).toBeInTheDocument();
-  });
-
-  // ---- NEW: select item and show inspector ----
-
-  it('selects an item and shows inspector details', async () => {
-    apiMocks.getCatalogSummary.mockResolvedValue(
-      makeBasicSummary(getDefaultSectionsWithItems(), []),
-    );
-
-    const { default: CatalogShellView } = await import(
-      '../ui/src/views/Catalog/CatalogShellView'
-    );
-    render(<CatalogShellView />);
-
-    // The component auto-selects the first item (needs-attention or first in list)
-    await waitFor(() => {
-      expect(
-        screen.getByTestId('assets-tools-inspector'),
-      ).toBeInTheDocument();
-    });
-
-    // Wait for auto-select: the component picks the first item once summary loads.
-    // Title appears in both item card <span> and inspector <h3>, so use getAllByText.
+    // Title appears in both item card and reader — use getAllByText
     await waitFor(() => {
       expect(
         screen.getAllByText('Default description').length,
@@ -481,23 +447,20 @@ describe('CatalogShellView', () => {
       screen.getAllByText('Code Review').length,
     ).toBeGreaterThanOrEqual(1);
 
-    // Click a different item and verify the inspector updates
+    // Click a different item and verify the reader updates
     fireEvent.click(screen.getByTestId('assets-tools-item-agent-1'));
 
     await waitFor(() => {
       expect(
-        screen.getAllByText('Automates build workflows').length,
+        screen.getAllByText('Build Agent').length,
       ).toBeGreaterThanOrEqual(1);
     });
-    expect(
-      screen.getAllByText('Build Agent').length,
-    ).toBeGreaterThanOrEqual(1);
   });
 
-  // ---- NEW: hooks group empty state ----
+  // ---- NEW: inventory tab shows provenance groups ----
 
-  it('shows no hooks group when no hooks exist', async () => {
-    // Our default sections have skill, agent — NO hooks
+  it('renders inventory tab with provenance-based groups', async () => {
+    // Our default sections have skill (elegy sourceId) and agent
     apiMocks.getCatalogSummary.mockResolvedValue(
       makeBasicSummary(getDefaultSectionsWithItems(), []),
     );
@@ -509,19 +472,20 @@ describe('CatalogShellView', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId('assets-tools-group-shared-skills'),
+        screen.getByTestId('assets-tools-inventory'),
       ).toBeInTheDocument();
     });
 
-    // Hooks group should not exist in the DOM
+    // The default items have sourceId 'elegy' which doesn't match any known root,
+    // so they should appear in the "User / repo / external" group
     expect(
-      screen.queryByTestId('assets-tools-group-hooks'),
-    ).toBeNull();
+      screen.getByTestId('assets-tools-prov-group-user-repo-external'),
+    ).toBeInTheDocument();
   });
 
-  // ---- NEW: add tool panel and submit ----
+  // ---- NEW: sources tab add tool panel and submit ----
 
-  it('opens add tool panel and submits MCP source', async () => {
+  it('opens add source panel from Sources tab and submits', async () => {
     apiMocks.getCatalogSummary.mockResolvedValue(
       makeBasicSummary(getDefaultSectionsWithItems(), []),
     );
@@ -535,8 +499,15 @@ describe('CatalogShellView', () => {
       expect(screen.getByTestId('catalog-shell-view')).toBeInTheDocument();
     });
 
-    // Click Add Tool button — should show the panel
-    fireEvent.click(screen.getByTestId('assets-tools-add-tool'));
+    // Navigate to Sources tab
+    fireEvent.click(screen.getByTestId('assets-tools-tab-sources'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('assets-tools-sources')).toBeInTheDocument();
+    });
+
+    // Click "Add Source" button in the Sources tab
+    fireEvent.click(screen.getByTestId('sources-add-tool'));
 
     await waitFor(() => {
       expect(
@@ -544,14 +515,14 @@ describe('CatalogShellView', () => {
       ).toBeInTheDocument();
     });
 
-    // Fill in the URL field (the input has testId + '-control')
-    const urlInput = screen.getByTestId('assets-tools-add-panel-url-control');
+    // Fill in the URL field
+    const urlInput = screen.getByTestId('sources-add-url-control');
     fireEvent.change(urlInput, {
       target: { value: 'https://github.com/owner/mcp-tool' },
     });
 
     // Click submit
-    fireEvent.click(screen.getByTestId('assets-tools-add-panel-submit'));
+    fireEvent.click(screen.getByTestId('sources-add-submit'));
 
     await waitFor(() => {
       expect(storeMocks.addExternalSource).toHaveBeenCalledWith(

@@ -2450,6 +2450,54 @@ export interface PolicyPreflightResponse {
   [key: string]: unknown;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Skill Quality Diagnostics                                         */
+/* ------------------------------------------------------------------ */
+
+export interface SkillQualityDiagnostic {
+  kind: 'missing-metadata' | 'weak-description' | 'duplicate-name' | 'duplicate-alias' | 'overlapping-triggers' | 'purpose-overlap';
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  detail?: Record<string, unknown>;
+}
+
+export interface SkillQualityEntry {
+  skillId: string;
+  name: string;
+  sourcePath: string;
+  sourceRoot: string;
+  description: string | null;
+  descriptionLength: number;
+  aliases: string[];
+  triggers: string[];
+  diagnostics: SkillQualityDiagnostic[];
+}
+
+export interface SkillQualityOverlapCluster {
+  skills: string[];
+  reason: string;
+  score: number;
+}
+
+export interface SkillQualitySummary {
+  totalSkills: number;
+  skillsWithIssues: number;
+  missingMetadata: number;
+  weakDescriptions: number;
+  duplicateNames: number;
+  duplicateAliases: number;
+  overlappingTriggers: number;
+  purposeOverlaps: number;
+}
+
+export interface SkillQualityReport {
+  schemaVersion: number;
+  generatedAt: string;
+  summary: SkillQualitySummary;
+  skills: SkillQualityEntry[];
+  overlapClusters: SkillQualityOverlapCluster[];
+}
+
 export interface PlanningRepoSummary {
   repoId: string;
   repoPath: string;

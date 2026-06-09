@@ -24,6 +24,7 @@ import type {
   CatalogSummaryResponse,
   PolicyPreflightResponse,
   RuntimeCatalogHealthResponse,
+  SkillQualityReport,
 } from '../types';
 import {
   apiRequest,
@@ -555,6 +556,12 @@ export function getRuntimeCatalogHealth(
   return apiRequest<RuntimeCatalogHealthResponse>('/api/runtime/catalog-health', {
     baseUrl,
     query: buildCatalogSelectorQuery(query),
+  });
+}
+
+export function getSkillQuality(baseUrl?: string): Promise<SkillQualityReport> {
+  return apiRequest<SkillQualityReport>('/api/catalog/quality', {
+    baseUrl,
   });
 }
 

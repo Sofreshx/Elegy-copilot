@@ -3368,6 +3368,45 @@ function handleHarnessOptIn(ctx, deps) {
     ));
 }
 
+async function handleCatalogQuality(ctx, deps) {
+  const engineRoot = deps.engineRoot || ctx.engineRoot || process.cwd();
+  const scriptPath = deps.path.resolve(engineRoot, 'scripts', 'analyze-shipped-skill-quality.mjs');
+  try {
+    const result = await new Promise((resolve, reject) => {
+      deps.childProcess.execFile(process.execPath, [scriptPath, '--no-write-md'], {
+        encoding: 'utf-8',
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: 30000,
+      }, (error, stdout, stderr) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(stdout);
+        }
+      });
+    });
+
+    let report;
+    try {
+      report = JSON.parse(result);
+    } catch {
+      deps.sendJson(ctx.res, 422, {
+        kind: 'catalog.quality.parse-error',
+        error: 'Quality analysis produced invalid output',
+      });
+      return;
+    }
+
+    deps.sendJson(ctx.res, 200, report);
+  } catch (err) {
+    deps.sendJson(ctx.res, 500, {
+      kind: 'catalog.quality.exec-error',
+      error: 'Quality analysis failed',
+      message: err.message,
+    });
+  }
+}
+
 function register(deps = {}) {
   const resolvedDeps = {
     childProcess: deps.childProcess || childProcess,
@@ -3582,6 +3621,11 @@ function register(deps = {}) {
       method: 'GET',
       path: '/api/runtime/catalog-health',
       handler: (ctx) => handleRuntimeCatalogHealth(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/catalog/quality',
+      handler: (ctx) => handleCatalogQuality(ctx, resolvedDeps),
     },
   ];
 }
