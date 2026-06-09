@@ -200,11 +200,7 @@ and should be used only when they materially improve the result.
 
 Primary skills available:
 - `elegy-planning` — Durable planning authority via Elegy CLI. Use for goals, roadmaps,
-  plans, todos, issues, review points, and validation backed by SQLite. Prefer
-  `elegy-planning` over `roadmap-planning` markdown roadmaps when the CLI is available.
-- `roadmap-planning` — Durable multi-session roadmap work under
-  `docs/roadmaps/<roadmap-slug>.md`. Fall back to this only when `elegy-planning`
-  CLI is not available.
+  plans, todos, issues, review points, and validation backed by SQLite.
 - `skill-discovery` — Skill resolver for on-demand capability routing.
 - `rubberduck-plan-review` — Adversarial plan review before complex implementation work.
 - `implementation-review` — Post-edit review before handoff.
@@ -212,7 +208,7 @@ Primary skills available:
 - `spec-dev` — Spec-driven router for spec-first and spec-anchored work.
 - `spec-authoring` — Durable spec authoring under `docs/specs/<spec-slug>/spec.md`.
 - `spec-review` — Adversarial spec review before implementation planning.
-- `stack-detector` — Automatic tech stack detection.
+- `commit-check-setup` — Bootstrap or update commit-check infrastructure in a repo. Copies scripts, generates `.copilot/commit-checks.json` config, runs smoke test.
 - `ui-system` — Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; treat Figma / Storybook MCP data as context, not authority.
 
 ### elegy-planning Availability
@@ -228,8 +224,8 @@ To initialize a Codex-side planning session:
 elegy-planning session init
 ```
 
-If `elegy-planning` is not available, fall back to `$roadmap-planning` for markdown
-roadmap work.
+If `elegy-planning` is not available, fall back to markdown
+roadmap work under `docs/roadmaps/<roadmap-slug>.md`.
 
 ## Native Codex Tools
 
@@ -244,11 +240,11 @@ roadmap work.
 - Use `/fork` to branch a conversation without losing the original thread.
 - Use `/resume` to continue prior work instead of rebuilding context from scratch.
 - Use `PLANS.md` only for long-horizon work that must survive compaction or handoff. Do not create a file-backed plan by default.
-- Use `$elegy-planning` for persisted multi-session goals, roadmaps, and plans backed by SQLite; fall back to `$roadmap-planning` (markdown roadmaps under `docs/roadmaps/<roadmap-slug>.md`) only when the elegy-planning CLI is not available.
+- Use `$elegy-planning` for persisted multi-session goals, roadmaps, and plans backed by SQLite. Fall back to markdown roadmaps under `docs/roadmaps/<roadmap-slug>.md` only when the elegy-planning CLI is not available.
 - Use `$spec-dev` when the task needs spec-first clarification, a durable repo spec under `docs/specs/<spec-slug>/spec.md`, or a narrow spec-as-source flow.
 - Use `$spec-authoring` to create or refine durable specs under `docs/specs/`, then `$spec-review` before implementation planning when the spec will drive the work.
 - Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Do not create ADRs for ordinary local implementation choices.
-- Use `$stack-detector` for explicit stack/target-context detection, and `$skill-discovery` when the right shared skill is still ambiguous after the first pass.
+- Use `$skill-discovery` when the right shared skill is still ambiguous.
 - Treat a Roadmap as durable multi-session planning above a session plan: it records goals, non-goals, targets, sequencing, progress, evidence, and reevaluation notes, while the current session implements one selected slice.
 
 ## Repo docs breadcrumb

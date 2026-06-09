@@ -217,16 +217,6 @@
       }
     },
     {
-      "skill": "roadmap-planning",
-      "name": "roadmap-planning",
-      "description": "",
-      "triggersOn": [],
-      "manifest": {
-        "id": "skill-roadmap-planning",
-        "loadMode": "on-demand"
-      }
-    },
-    {
       "skill": "rubberduck-plan-review",
       "name": "rubberduck-plan-review",
       "description": "",

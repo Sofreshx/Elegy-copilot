@@ -37,8 +37,6 @@ export const SHIPPED_ASSETS = [
   skill('skill-repo-setup-governance', 'engine-assets/skills/repo-setup-governance', { loadMode: 'on-demand' }),
   skill('skill-roadmap-authoring', 'engine-assets/skills/roadmap-authoring', { loadMode: 'always' }),
   skill('skill-security', 'engine-assets/skills/security', { loadMode: 'on-demand' }),
-  skill('skill-stack-detector', 'engine-assets/skills/stack-detector', { loadMode: 'always' }),
-
   skill('skill-elegy-planning', 'catalog-assets/shared-skills/elegy-planning', { loadMode: 'always' }),
   skill('skill-elegy-skills-discovery', 'catalog-assets/shared-skills/elegy-skills-discovery', {
     loadMode: 'always',
@@ -52,7 +50,6 @@ export const SHIPPED_ASSETS = [
   skill('skill-implementation-review', 'catalog-assets/shared-skills/implementation-review', {
     loadMode: 'on-demand',
   }),
-  skill('skill-roadmap-planning', 'catalog-assets/shared-skills/roadmap-planning', { loadMode: 'on-demand' }),
   skill('skill-rubberduck-plan-review', 'catalog-assets/shared-skills/rubberduck-plan-review', {
     loadMode: 'on-demand',
   }),

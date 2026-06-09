@@ -67,13 +67,6 @@
       "loadMode": "always"
     },
     {
-      "id": "antigravity-stack-detector-skill",
-      "type": "skill",
-      "source": "engine-assets/skills/stack-detector",
-      "destination": "antigravity/skills/stack-detector",
-      "loadMode": "always"
-    },
-    {
       "id": "antigravity-rubberduck-plan-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",
@@ -92,13 +85,6 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-handoff",
       "destination": "antigravity/skills/implementation-handoff",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "antigravity-roadmap-planning-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/roadmap-planning",
-      "destination": "antigravity/skills/roadmap-planning",
       "loadMode": "on-demand"
     },
     {

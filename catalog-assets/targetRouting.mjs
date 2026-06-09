@@ -49,13 +49,11 @@ const ENGINE_ASSET_ROUTES = [
   route('skill-project-guidelines'),
   route('skill-repo-setup-governance'),
   route('skill-roadmap-authoring'),
-  route('skill-roadmap-planning'),
   route('skill-rubberduck-plan-review'),
   route('skill-security'),
   route('skill-spec-authoring'),
   route('skill-spec-dev'),
   route('skill-spec-review'),
-  route('skill-stack-detector'),
   route('skill-commit-check-setup'),
 ];
 
@@ -172,11 +170,9 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-reviewer-agent'),
       route('codex-repo-setup-skill'),
       route('codex-skill-discovery-skill', { sourceAssetId: 'skill-discovery' }),
-      route('codex-stack-detector-skill', { sourceAssetId: 'skill-stack-detector' }),
       route('codex-rubberduck-plan-review-skill', { sourceAssetId: 'skill-rubberduck-plan-review' }),
       route('codex-implementation-review-skill', { sourceAssetId: 'skill-implementation-review' }),
       route('codex-implementation-handoff-skill', { sourceAssetId: 'skill-implementation-handoff' }),
-      route('codex-roadmap-planning-skill', { sourceAssetId: 'skill-roadmap-planning' }),
       route('codex-spec-dev-skill', { sourceAssetId: 'skill-spec-dev' }),
       route('codex-spec-authoring-skill', { sourceAssetId: 'skill-spec-authoring' }),
       route('codex-spec-review-skill', { sourceAssetId: 'skill-spec-review' }),
@@ -211,7 +207,6 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-elegy-obsidian-skill', { sourceAssetId: 'skill-elegy-obsidian' }),
       route('opencode-repo-backed-obsidian-docs-skill', { sourceAssetId: 'skill-repo-backed-obsidian-docs' }),
       route('opencode-rubberduck-plan-review-skill', { sourceAssetId: 'skill-rubberduck-plan-review' }),
-      route('opencode-roadmap-planning-skill', { sourceAssetId: 'skill-roadmap-planning' }),
       route('opencode-implementation-review-skill', { sourceAssetId: 'skill-implementation-review' }),
       route('opencode-implementation-handoff-skill', { sourceAssetId: 'skill-implementation-handoff' }),
       route('opencode-spec-dev-skill', { sourceAssetId: 'skill-spec-dev' }),
@@ -220,7 +215,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-code-review-skill'),
       route('opencode-security-skill'),
       route('opencode-project-conventions-governance-skill'),
-      route('opencode-stack-detector-skill'),
+      route('opencode-worktree-plugin', { destination: 'plugins/worktree.js' }),
       route('opencode-worktree-plugin', { destination: 'plugins/worktree.js' }),
       route('opencode-worktree-skill'),
       route('opencode-ui-system-skill', { sourceAssetId: 'skill-ui-system' }),
@@ -256,10 +251,6 @@ export const COMPATIBILITY_MANIFESTS = [
         sourceAssetId: 'skill-discovery',
         destination: 'antigravity/skills/skill-discovery',
       }),
-      route('antigravity-stack-detector-skill', {
-        sourceAssetId: 'skill-stack-detector',
-        destination: 'antigravity/skills/stack-detector',
-      }),
       route('antigravity-rubberduck-plan-review-skill', {
         sourceAssetId: 'skill-rubberduck-plan-review',
         destination: 'antigravity/skills/rubberduck-plan-review',
@@ -271,10 +262,6 @@ export const COMPATIBILITY_MANIFESTS = [
       route('antigravity-implementation-handoff-skill', {
         sourceAssetId: 'skill-implementation-handoff',
         destination: 'antigravity/skills/implementation-handoff',
-      }),
-      route('antigravity-roadmap-planning-skill', {
-        sourceAssetId: 'skill-roadmap-planning',
-        destination: 'antigravity/skills/roadmap-planning',
       }),
       route('antigravity-spec-dev-skill', {
         sourceAssetId: 'skill-spec-dev',

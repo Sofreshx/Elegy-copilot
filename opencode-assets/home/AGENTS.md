@@ -216,15 +216,14 @@ Primary skills available:
 - `elegy-planning` — Durable planning authority via Elegy CLI
 - `elegy-skills-discovery` — CLI-based governed skill discovery via Elegy
 - `rubberduck-plan-review` — Adversarial plan review before complex implementation work
-- `roadmap-planning` — Durable multi-session roadmap work under `docs/roadmaps/<roadmap-slug>.md`
 - `implementation-handoff` — Executor-ready brief for another session or model
 - `implementation-review` — Post-edit review before handoff
 - `spec-dev` — Spec-driven router for spec-first, spec-anchored, and spec-as-source work
 - `spec-authoring` — Durable spec authoring under `docs/specs/<spec-slug>/spec.md`
 - `spec-review` — Adversarial spec review before implementation planning
-- `security` — Security review and vulnerability detection
+- `security` — Targeted security review for vulnerabilities LLMs commonly miss (secrets in git, auth bypass, dependency confusion, path traversal, cookie security, injection)
 - `project-conventions-governance` — Repo conventions and governance
-- `stack-detector` — Automatic tech stack detection
+- `commit-check-setup` — Bootstrap or update commit-check infrastructure in a repo. Copies scripts, generates `.copilot/commit-checks.json` config, runs smoke test. Use when setting up a repo for use with Elegy Copilot UI.
 - `ui-system` — Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; treat Figma / Storybook MCP data as context, not authority.
 - `elegy-obsidian` — Foundation skill for read/write/search operations against a local Obsidian vault via the official Obsidian Desktop CLI (v1.12+). Non-authoritative mirror; durable planning state stays in `elegy-planning`.
 
@@ -309,7 +308,7 @@ Multi-session roadmap work. Orchestrator that coordinates elegy-planning goal/ro
 - **Spec required:** Yes (per plan)
 - **Worktree required:** Yes — use `worktree_create`, manual commit, `worktree_delete`
 - **Validation:** Full evidence chain: expectations → results → review
-- **Skills:** Load `elegy-planning`, `roadmap-planning`, `worktree`, `implementation-review`, `rubberduck-plan-review`
+- **Skills:** Load `elegy-planning`, `worktree`, `implementation-review`, `rubberduck-plan-review`
 
 ### Provider Profiles
 

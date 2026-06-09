@@ -61,13 +61,6 @@
       "loadMode": "always"
     },
     {
-      "id": "claude-stack-detector-skill",
-      "type": "skill",
-      "source": "engine-assets/skills/stack-detector",
-      "destination": "skills/stack-detector",
-      "loadMode": "always"
-    },
-    {
       "id": "claude-elegy-planning-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/elegy-planning",

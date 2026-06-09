@@ -76,24 +76,10 @@
       "loadMode": "always"
     },
     {
-      "id": "opencode-elegy-obsidian-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/elegy-obsidian",
-      "destination": "skills/elegy-obsidian",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "opencode-rubberduck-plan-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",
       "destination": "skills/rubberduck-plan-review",
-      "loadMode": "always"
-    },
-    {
-      "id": "opencode-roadmap-planning-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/roadmap-planning",
-      "destination": "skills/roadmap-planning",
       "loadMode": "always"
     },
     {
@@ -141,23 +127,16 @@
     {
       "id": "opencode-security-skill",
       "type": "skill",
-      "source": "opencode-assets/skills/security",
+      "source": "engine-assets/skills/security",
       "destination": "skills/security",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-project-conventions-governance-skill",
       "type": "skill",
-      "source": "opencode-assets/skills/project-conventions-governance",
+      "source": "engine-assets/skills/project-conventions-governance",
       "destination": "skills/project-conventions-governance",
-      "loadMode": "always"
-    },
-    {
-      "id": "opencode-stack-detector-skill",
-      "type": "skill",
-      "source": "opencode-assets/skills/stack-detector",
-      "destination": "skills/stack-detector",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-worktree-plugin",

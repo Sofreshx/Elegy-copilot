@@ -421,13 +421,6 @@
       "loadMode": "always"
     },
     {
-      "id": "skill-roadmap-planning",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/roadmap-planning",
-      "destination": "skills/roadmap-planning",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "skill-rubberduck-plan-review",
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",
@@ -461,13 +454,6 @@
       "source": "catalog-assets/shared-skills/spec-review",
       "destination": "skills/spec-review",
       "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-stack-detector",
-      "type": "skill",
-      "source": "engine-assets/skills/stack-detector",
-      "destination": "skills/stack-detector",
-      "loadMode": "always"
     },
     {
       "id": "skill-ui-system",

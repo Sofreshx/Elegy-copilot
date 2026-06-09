@@ -81,20 +81,6 @@
       "loadMode": "always"
     },
     {
-      "id": "codex-stack-detector-skill",
-      "type": "skill",
-      "source": "engine-assets/skills/stack-detector",
-      "destination": "skills/stack-detector",
-      "loadMode": "always"
-    },
-    {
-      "id": "codex-rubberduck-plan-review-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/rubberduck-plan-review",
-      "destination": "skills/rubberduck-plan-review",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "codex-implementation-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-review",
@@ -106,13 +92,6 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-handoff",
       "destination": "skills/implementation-handoff",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "codex-roadmap-planning-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/roadmap-planning",
-      "destination": "skills/roadmap-planning",
       "loadMode": "on-demand"
     },
     {
@@ -142,6 +121,13 @@
       "source": "catalog-assets/shared-skills/elegy-planning",
       "destination": "skills/elegy-planning",
       "loadMode": "always"
+    },
+    {
+      "id": "codex-commit-check-setup-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/commit-check-setup",
+      "destination": "skills/commit-check-setup",
+      "loadMode": "on-demand"
     },
     {
       "id": "codex-ui-system-skill",

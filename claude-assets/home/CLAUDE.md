@@ -207,7 +207,7 @@ Primary skills available:
 - `spec-dev` — Spec-driven router for spec-first and spec-anchored work.
 - `spec-authoring` — Durable spec authoring under `docs/specs/<spec-slug>/spec.md`.
 - `spec-review` — Adversarial spec review before implementation planning.
-- `stack-detector` — Automatic tech stack detection.
+- `commit-check-setup` — Bootstrap or update commit-check infrastructure in a repo. Copies scripts, generates `.copilot/commit-checks.json` config, runs smoke test.
 
 ## Repo docs breadcrumb
 
