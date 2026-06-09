@@ -56,6 +56,7 @@ const ENGINE_ASSET_ROUTES = [
   route('skill-spec-dev'),
   route('skill-spec-review'),
   route('skill-stack-detector'),
+  route('skill-commit-check-setup'),
 ];
 
 export const COMPATIBILITY_MANIFESTS = [
@@ -182,6 +183,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning' }),
       route('codex-repo-backed-obsidian-docs-skill', { sourceAssetId: 'skill-repo-backed-obsidian-docs' }),
       route('codex-ui-system-skill', { sourceAssetId: 'skill-ui-system' }),
+      route('codex-commit-check-setup-skill', { sourceAssetId: 'skill-commit-check-setup' }),
     ],
   },
   {
@@ -222,6 +224,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-worktree-plugin', { destination: 'plugins/worktree.js' }),
       route('opencode-worktree-skill'),
       route('opencode-ui-system-skill', { sourceAssetId: 'skill-ui-system' }),
+      route('opencode-commit-check-setup-skill', { sourceAssetId: 'skill-commit-check-setup' }),
     ],
   },
   {
@@ -285,6 +288,13 @@ export const COMPATIBILITY_MANIFESTS = [
         sourceAssetId: 'skill-spec-review',
         destination: 'antigravity/skills/spec-review',
       }),
+      route('antigravity-commit-check-setup-skill', {
+        sourceAssetId: 'skill-commit-check-setup',
+        destination: 'antigravity/skills/commit-check-setup',
+      }),
     ],
   },
+  // claude-assets/manifest.json is maintained separately (not generated from targetRouting).
+  // claude-commit-check-setup-skill must be added manually to claude-assets/manifest.json
+  // when syncing new skills. See that file for the current entry.
 ];

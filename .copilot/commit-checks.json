@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "configVersion": 1,
+  "generated": "2026-06-09T17:55:32.259Z",
+  "repoLanguages": [
+    "typescript",
+    "rust"
+  ],
+  "threshold": 70,
+  "weights": {
+    "test": 0.4,
+    "coverage": 0.3,
+    "lint": 0.15,
+    "format": 0.15
+  },
+  "gates": [
+    "typecheck"
+  ],
+  "lanes": {
+    "test": {
+      "enabled": true,
+      "commands": [
+        "npx vitest run",
+        "cargo test"
+      ]
+    },
+    "lint": {
+      "enabled": true,
+      "commands": [
+        "cargo clippy -- -D warnings"
+      ]
+    },
+    "format": {
+      "enabled": true,
+      "commands": [
+        "cargo fmt -- --check"
+      ]
+    },
+    "typecheck": {
+      "enabled": true,
+      "commands": [
+        "npx tsc --noEmit",
+        "cargo check"
+      ]
+    }
+  }
+}

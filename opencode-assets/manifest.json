@@ -226,6 +226,13 @@
       "source": "catalog-assets/shared-skills/ui-system",
       "destination": "skills/ui-system",
       "loadMode": "on-demand"
+    },
+    {
+      "id": "opencode-commit-check-setup-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/commit-check-setup",
+      "destination": "skills/commit-check-setup",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": []

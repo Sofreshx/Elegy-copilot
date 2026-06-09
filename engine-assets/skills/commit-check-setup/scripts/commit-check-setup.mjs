@@ -191,7 +191,7 @@ function main() {
   setup(repoRoot, { force, noScript })
     .then(({ configPath }) => {
       console.log(`\nCommit validation config ready: ${configPath}`);
-      console.log('Run checks with: node scripts/commit-check-run.mjs --json --repo "' + repoRoot + '"');
+      console.log('Run checks with: node scripts/commit-check-run.mjs --config "' + configPath + '"');
     })
     .catch((err) => die(`Setup failed: ${err.message}`));
 }

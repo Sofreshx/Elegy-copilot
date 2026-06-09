@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "skill": "commit-check-setup",
+  "baselineVersion": "1.0.0",
+  "mode": "executable",
+  "requiredScripts": [
+    "scripts/commit-check-discover.mjs",
+    "scripts/commit-check-setup.mjs",
+    "scripts/commit-check-run.mjs"
+  ],
+  "requiredConfig": ".copilot/commit-checks.json",
+  "optionalNpmScript": "commit-check",
+  "configSchemaVersion": 1,
+  "authority": {
+    "canonicalDocKey": "commit-validation-governance",
+    "setupSubNodeKey": "commit-check-setup",
+    "note": "Canonical source identifiers, not filesystem paths. Resolve via instruction-engine repo."
+  },
+  "modes": {
+    "bootstrap": {
+      "copiesScripts": true,
+      "generatesConfig": true,
+      "forceOverwrite": true,
+      "backsUpExisting": true,
+      "smokeTests": true
+    },
+    "update": {
+      "copiesScripts": false,
+      "generatesConfig": true,
+      "forceOverwrite": false,
+      "backsUpExisting": false,
+      "smokeTests": true
+    }
+  }
+}

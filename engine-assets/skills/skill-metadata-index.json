@@ -2,6 +2,30 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "skill": "commit-check-setup",
+      "name": "commit-check-setup",
+      "description": "Full bootstrap or update of commit-check setup for a target repo. Copies commit-check scripts, generates .copilot/commit-checks.json config, adds npm script, and smoke tests. Triggers on: commit check setup, setup commit checks, bootstrap commit checks, configure pre-commit checks, update commit checks, init commit checks.",
+      "triggersOn": [
+        "bootstrap commit checks",
+        "commit check setup",
+        "configure pre-commit checks",
+        "init commit checks",
+        "setup commit checks",
+        "update commit checks"
+      ],
+      "tags": [
+        "bootstrap",
+        "commit",
+        "quality",
+        "setup",
+        "validation"
+      ],
+      "manifest": {
+        "id": "skill-commit-check-setup",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "commit-validation-governance",
       "name": "commit-validation-governance",
       "description": "Audit/propose-only governance for setting up umbrella commit-validation checks in a repo. Scans for existing test/lint/format/typecheck/coverage tooling, proposes config, and guides agents to run the umbrella check before commit. Triggers on: commit validation, pre-commit check, umbrella check, commit check setup, commit validation governance, prepare for commit, validate before commit.",
@@ -24,30 +48,6 @@
       ],
       "manifest": {
         "id": "skill-commit-validation-governance",
-        "loadMode": "on-demand"
-      }
-    },
-    {
-      "skill": "concise-writing",
-      "name": "concise-writing",
-      "description": "Audit and enforce concise, precise, fluff-free writing across docs, skills, agents, and prompts. Bans filler phrases, enforces word budgets, and validates vocabulary precision. Triggers on: concise writing, fluff audit, word budget, writing standards, tighten prose, documentation cleanup.",
-      "triggersOn": [
-        "concise writing",
-        "documentation cleanup",
-        "fluff audit",
-        "tighten prose",
-        "word budget",
-        "writing standards"
-      ],
-      "tags": [
-        "audit",
-        "documentation",
-        "quality",
-        "style",
-        "writing"
-      ],
-      "manifest": {
-        "id": "skill-concise-writing",
         "loadMode": "on-demand"
       }
     },
@@ -173,31 +173,6 @@
       "manifest": {
         "id": "skill-project-guidelines",
         "loadMode": "always"
-      }
-    },
-    {
-      "skill": "repo-backed-obsidian-docs",
-      "name": "repo-backed-obsidian-docs",
-      "description": "Teaches agents to document projects through Obsidian while keeping canonical Markdown source in the project repo. Triggers on: obsidian docs, repo docs, doc vault, obsidian vault, documentation vault.",
-      "triggersOn": [
-        "doc vault",
-        "documentation vault",
-        "obsidian docs",
-        "obsidian vault",
-        "repo docs"
-      ],
-      "tags": [
-        "authority",
-        "canonical",
-        "docs",
-        "documentation",
-        "obsidian",
-        "repo",
-        "vault"
-      ],
-      "manifest": {
-        "id": "skill-repo-backed-obsidian-docs",
-        "loadMode": "on-demand"
       }
     },
     {
@@ -350,6 +325,24 @@
       }
     },
     {
+      "skill": "stack-detector",
+      "name": "stack-detector",
+      "description": "",
+      "triggersOn": [
+        "detect stack",
+        "framework detection",
+        "identify tech",
+        "operational context",
+        "stack analysis",
+        "target context",
+        "which skills"
+      ],
+      "manifest": {
+        "id": "skill-stack-detector",
+        "loadMode": "always"
+      }
+    },
+    {
       "skill": "ui-system",
       "name": "ui-system",
       "description": "Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; reuse local patterns first, treat Figma and Storybook MCP data as context (not authority), and pick the narrowest available validation. Triggers on: ui, component, frontend, view, screen, panel, dialog, form, button, icon, style, styling, design system, storybook, figma, visual review, styling consistency, design-system reuse.",
@@ -376,24 +369,6 @@
       "manifest": {
         "id": "skill-ui-system",
         "loadMode": "on-demand"
-      }
-    },
-    {
-      "skill": "stack-detector",
-      "name": "stack-detector",
-      "description": "",
-      "triggersOn": [
-        "detect stack",
-        "framework detection",
-        "identify tech",
-        "operational context",
-        "stack analysis",
-        "target context",
-        "which skills"
-      ],
-      "manifest": {
-        "id": "skill-stack-detector",
-        "loadMode": "always"
       }
     }
   ]

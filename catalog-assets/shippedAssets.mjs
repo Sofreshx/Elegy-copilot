@@ -45,6 +45,7 @@ export const SHIPPED_ASSETS = [
   }),
   skill('skill-elegy-obsidian', 'catalog-assets/shared-skills/elegy-obsidian', { loadMode: 'on-demand' }),
   skill('skill-repo-backed-obsidian-docs', 'catalog-assets/shared-skills/repo-backed-obsidian-docs', { loadMode: 'on-demand' }),
+  skill('skill-commit-check-setup', 'engine-assets/skills/commit-check-setup', { loadMode: 'on-demand' }),
   skill('skill-implementation-handoff', 'catalog-assets/shared-skills/implementation-handoff', {
     loadMode: 'on-demand',
   }),
