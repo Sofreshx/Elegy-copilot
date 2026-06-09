@@ -373,6 +373,7 @@ function MermaidBlock({ code, blockId }: { code: string; blockId: string }) {
         if (!cancelled) {
           const safe = DOMPurify.sanitize(result.svg, {
             USE_PROFILES: { svg: true, svgFilters: true },
+            ADD_TAGS: ['style'],
           });
           setSvg(safe);
         }
