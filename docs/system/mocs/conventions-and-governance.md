@@ -1,13 +1,13 @@
 ---
 created: 2026-03-18
-updated: 2026-06-24
+updated: 2026-06-09
 category: system
 status: current
 doc_kind: moc
 id: moc-conventions-and-governance
 summary: Map of content for canonical conventions, governance routing, and follow-up handoff entrypoints.
 tags: [governance, conventions, routing]
-related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, follow-up-discovery-governance, concise-instruction-governance]
+related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, follow-up-discovery-governance, concise-instruction-governance, harness-asset-flow]
 ---
 
 # MOC — Conventions & Governance
@@ -35,6 +35,8 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
   [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
 - Concise instruction standards, writing rules, and empty language bans:
   [[concise-instruction-governance]] [docs/system/concise-instruction-governance.md](docs/system/concise-instruction-governance.md)
+- Harness asset flow, install architecture, and per-repo deployment model:
+  [[harness-asset-flow]] [docs/system/harness-asset-flow.md](docs/system/harness-asset-flow.md)
 - Planning-ready follow-up when convention gaps become next tasks:
   [[follow-up-discovery-governance]] [docs/system/follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
 - Specific change review versus governance authoring:

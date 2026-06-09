@@ -18,6 +18,7 @@ Follow `guidelines.md`: clarify ambiguity before implementation; write concise, 
 | Codex assets | `codex-assets/` | Shipped Codex instructions, agents, skills |
 | OpenCode assets | `opencode-assets/` | OpenCode home baseline |
 | Antigravity assets | `antigravity-assets/` | Antigravity Gemini.md + skills |
+| Claude assets | `claude-assets/` | Claude Code CLAUDE.md + skills |
 | Dashboard UI | `copilot-ui/` | Local dashboard + desktop shell (Node + Tauri) |
 | Contracts | `contracts/` | Shared runtime contracts |
 | Local tracker | `local-tracker/` | Session/task tracking + Discord gateway |

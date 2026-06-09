@@ -7,6 +7,7 @@ COPILOT_INSTALLER="$ENGINE_ROOT/scripts/cli-install.sh"
 CODEX_INSTALLER="$ENGINE_ROOT/scripts/codex-install.sh"
 ANTIGRAVITY_INSTALLER="$ENGINE_ROOT/scripts/antigravity-install.sh"
 OPENCODE_INSTALLER="$ENGINE_ROOT/scripts/opencode-install.sh"
+CLAUDE_INSTALLER="$ENGINE_ROOT/scripts/claude-install.sh"
 
 shared_args=()
 copilot_args=(--all)
@@ -52,3 +53,6 @@ bash "$ANTIGRAVITY_INSTALLER" "${shared_args[@]}"
 
 echo '==> OpenCode'
 bash "$OPENCODE_INSTALLER" "${shared_args[@]}"
+
+echo '==> Claude Code'
+bash "$CLAUDE_INSTALLER" "${shared_args[@]}"

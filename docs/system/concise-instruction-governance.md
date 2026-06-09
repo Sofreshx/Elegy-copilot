@@ -1,6 +1,6 @@
 ---
 created: 2026-06-08
-updated: 2026-06-08
+updated: 2026-06-09
 category: system
 status: current
 doc_kind: node
@@ -197,3 +197,4 @@ INSTRUCTION_GOVERNANCE
 - `docs/system/documentation-structure-governance.md` — documentation IA governance
 - `docs/system/self-documenting-code-and-rationale-placement.md` — rationale placement matrix
 - `engine-assets/skills/concise-writing/SKILL.md` — automated concise-writing enforcement skill
+- `docs/system/harness-asset-flow.md` — harness install architecture and per-harness comparison

@@ -34,6 +34,7 @@ const MANAGED_HARNESSES = [
   'codex-assets/home/AGENTS.md',
   'opencode-assets/home/AGENTS.md',
   'antigravity-assets/home/GEMINI.md',
+  'claude-assets/home/CLAUDE.md',
   '.github/copilot-instructions.md',
 ];
 

@@ -1,15 +1,13 @@
 # Guidelines
 
-Starting point for documentation: `docs/system/index.md`.
-
-Canonical authority lives in `docs/system/**`. This file is the local starting point.
+This is a general-purpose guideline for concise, precise instruction across any repo.
 
 ## Authority
 
 | Priority | Source |
 |---|---|
 | 1 | Explicit user instruction |
-| 2 | `docs/system/**` |
+| 2 | Repo-local canonical docs |
 | 3 | Nearest `guidelines.md` |
 | 4 | `README.md` and maintained docs |
 | 5 | Repeated implementation patterns |
@@ -47,22 +45,6 @@ Rules:
 - Delete throat-clearing.
 - Delete empty emphasis.
 
-Never use empty language such as:
-
-- important
-- powerful
-- robust
-- flexible
-- comprehensive
-- seamless
-- centralized
-- intuitive
-- scalable
-- best practice
-- production ready
-
-Use those words only when followed by a concrete mechanism, owner, boundary, or test.
-
 Bad:
 
 ```text
@@ -73,7 +55,7 @@ Good:
 
 ```text
 Documentation authority:
-README -> guidelines.md -> docs/system/index.md -> canonical node
+README -> guidelines.md -> canonical entrypoint -> canonical node
 ```
 
 A section must answer at least one question:
@@ -113,7 +95,7 @@ Good clarification:
 
 ```text
 Which source should be authoritative for this change?
-- docs/system node: durable repo policy
+- Repo-local canonical docs: durable repo policy
 - guidelines.md only: local entrypoint
 ```
 
@@ -158,27 +140,12 @@ Documentation should route downward:
 
 ```text
 README / guidelines / harness instructions
-  -> docs/system/index.md
-    -> relevant MOC
+  -> repo-local canonical entrypoint
+    -> relevant topic
       -> smallest canonical node
 ```
 
 Keep secondary surfaces thin. Do not duplicate canonical policy.
-
-## Harness Rule
-
-Every harness must reference this contract.
-
-Required surfaces:
-
-- root `AGENTS.md`
-- Codex home instructions
-- OpenCode home instructions
-- Claude Code instructions or managed config
-- Copilot instructions
-- Gemini or Antigravity instructions when present
-
-Harness files should point here with one compact sentence.
 
 Recommended pointer:
 
@@ -208,33 +175,19 @@ Run the narrowest relevant check after changes.
 
 Use repo-local validators when present. Do not invent global commands.
 
-When documentation or instruction surfaces change, validate:
-
-- doc graph links
-- harness references
-- managed asset manifests
-- setup/status checks
-- UI display if a status surface changed
+When documentation or instruction surfaces change, validate relevant links and references.
 
 ## Core Workflow
 
 | Step | Rule |
 |---|---|
-| Bootstrap | Load `guidelines.md`, then `docs/system/index.md`, then the smallest relevant canonical node. |
+| Bootstrap | Load `guidelines.md`, then repo-local canonical entrypoint, then the smallest relevant canonical node. |
 | Discovery | Read before deciding. |
 | Clarification | Ask before crossing unclear decision boundaries. |
 | Planning | Make the plan decision-complete. |
 | Implementation | Edit in small verifiable steps. |
 | Review | Check correctness, scope, drift, and evidence. |
 | Validation | Run the smallest useful proof. |
-
-## Key Links
-
-- `docs/system/index.md`
-- `docs/system/project-conventions-governance.md`
-- `docs/system/documentation-structure-governance.md`
-- `docs/system/self-documenting-code-and-rationale-placement.md`
-- `docs/system/search-execute-workflow.md`
 
 ## External Practices
 

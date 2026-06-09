@@ -55,6 +55,12 @@
       "destination": "AGENTS.md"
     },
     {
+      "id": "opencode-guidelines",
+      "type": "instructions",
+      "source": "guidelines.md",
+      "destination": "guidelines.md"
+    },
+    {
       "id": "opencode-skill-discovery-skill",
       "type": "skill",
       "source": "engine-assets/skills/skill-discovery",

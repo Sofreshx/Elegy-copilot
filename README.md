@@ -1,6 +1,6 @@
 # Elegy Copilot
 
-Shared GitHub Copilot assets plus home-installed Codex and Antigravity session lanes for multi-repo development. Copilot, Codex, and Antigravity are intentionally supported through different asset models: Copilot gets repo-shipped assets and dashboard support, while Codex and Antigravity get lighter native home installs built around each surface's supported global locations.
+Shared GitHub Copilot assets plus home-installed Codex, Antigravity, and Claude Code session lanes for multi-repo development. Copilot, Codex, Antigravity, and Claude Code are intentionally supported through different asset models: Copilot gets repo-shipped assets and dashboard support, while Codex, Antigravity, and Claude Code get lighter native home installs built around each surface's supported global locations.
 
 ## Install or refresh
 
@@ -11,11 +11,13 @@ Run the installer for the tool you use; re-running the same command refreshes th
 | Copilot install/refresh | `pwsh -File scripts/cli-install.ps1 --all` | `bash scripts/cli-install.sh --all` |
 | Codex install/refresh | `pwsh -File scripts/codex-install.ps1` | `bash scripts/codex-install.sh` |
 | Antigravity install/refresh | `pwsh -File scripts/antigravity-install.ps1` | `bash scripts/antigravity-install.sh` |
+| Claude Code install/refresh | `pwsh -File scripts/claude-install.ps1` | `bash scripts/claude-install.sh` |
 | Refresh everything | `pwsh -File scripts/install-all.ps1` | `bash scripts/install-all.sh` |
 
 - Use the Copilot installer to refresh shared agents, skills, prompts, and instructions in `~/.copilot`.
 - Use the Codex installer to refresh the shared Codex baseline in `~/.codex`, including native skills under `~/.codex/skills/`.
 - Use the Antigravity installer to refresh shared skills in `~/.gemini/antigravity/skills/` and the managed Instruction Engine block in `~/.gemini/GEMINI.md`.
+- Use the Claude Code installer to refresh shared skills in `~/.claude/skills/` and the instruction file in `~/.claude/CLAUDE.md`.
 - Add `--force` to overwrite managed targets that diverged, or `--dry-run` to preview changes without writing.
 - Use `/init` only for occasional repo-local guidance work such as creating or refining `guidelines.md` or `AGENTS.md`; it is not the normal shared-asset refresh path.
 
@@ -83,6 +85,10 @@ This installs `~/.codex/AGENTS.md`, curated Codex TOML agents, generated Codex r
 ### Antigravity install details
 
 This installs shared skills into `~/.gemini/antigravity/skills/` and updates only the bounded Instruction Engine block inside `~/.gemini/GEMINI.md`, preserving user content outside that block.
+
+### Claude Code install details
+
+This installs `~/.claude/CLAUDE.md` with instruction-engine governance rules, `guidelines.md` for the universal instruction writing contract, and shared skills into `~/.claude/skills/`. The installer also configures the Claude Code provider (DeepSeek Direct) if a key is available.
 
 ### Codex quick use
 
@@ -396,6 +402,7 @@ After this, permission prompts for `~/.copilot` should stop (or significantly re
 instruction-engine/
 ├── antigravity-assets/     Antigravity Gemini.md source + skills
 ├── catalog-assets/         Shared cross-surface skill catalog
+├── claude-assets/          Claude Code CLAUDE.md source + skills
 ├── codex-assets/
 │   ├── home/               Codex global AGENTS.md source
 │   ├── agents/             Codex custom agent TOML files

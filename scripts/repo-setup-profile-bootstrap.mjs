@@ -197,6 +197,9 @@ function getRepoInstructionFile(surface) {
   if (surface === 'antigravity') {
     return 'GEMINI.md';
   }
+  if (surface === 'claude') {
+    return 'CLAUDE.md';
+  }
   return 'AGENTS.md';
 }
 
@@ -204,6 +207,7 @@ function getSurfaceLabel(surface) {
   if (surface === 'codex') return 'Codex';
   if (surface === 'opencode') return 'OpenCode';
   if (surface === 'antigravity') return 'Antigravity';
+  if (surface === 'claude') return 'Claude';
   return surface;
 }
 
@@ -212,6 +216,7 @@ function getRepoSkillMirrorTarget(surface) {
   if (surface === 'codex') return 'codex';
   if (surface === 'opencode') return 'opencode';
   if (surface === 'antigravity') return 'antigravity';
+  if (surface === 'claude') return 'claude';
   return '';
 }
 

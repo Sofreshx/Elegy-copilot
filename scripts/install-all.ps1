@@ -5,6 +5,7 @@ $copilotInstaller = Join-Path $engineRoot 'scripts\cli-install.ps1'
 $codexInstaller = Join-Path $engineRoot 'scripts\codex-install.ps1'
 $antigravityInstaller = Join-Path $engineRoot 'scripts\antigravity-install.ps1'
 $opencodeInstaller = Join-Path $engineRoot 'scripts\opencode-install.ps1'
+$claudeInstaller = Join-Path $engineRoot 'scripts\claude-install.ps1'
 
 $sharedArgs = @()
 $copilotArgs = @('--all')
@@ -57,3 +58,6 @@ Write-Host '==> Antigravity'
 
 Write-Host '==> OpenCode'
 & $opencodeInstaller @sharedArgs
+
+Write-Host '==> Claude Code'
+& $claudeInstaller @sharedArgs

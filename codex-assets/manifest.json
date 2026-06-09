@@ -62,6 +62,12 @@
       "destination": "AGENTS.md"
     },
     {
+      "id": "codex-guidelines",
+      "type": "instructions",
+      "source": "guidelines.md",
+      "destination": "guidelines.md"
+    },
+    {
       "id": "codex-reviewer-agent",
       "type": "agent",
       "source": "codex-assets/agents/reviewer.toml",

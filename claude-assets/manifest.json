@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "instruction-engine-claude",
+    "version": "0.1.0",
+    "sourceCommitSha": "<REPLACE_WITH_GIT_SHA>"
+  },
+  "installDefaults": {
+    "claudeHome": "~/.claude",
+    "skillsDir": "~/.claude/skills",
+    "instructionsFile": "~/.claude/CLAUDE.md",
+    "description": "Claude Code instructions, shared skills, and guidelines for concise instruction governance."
+  },
+  "governance": {
+    "g05": {
+      "schemaVersion": "1.0.0",
+      "requiredControls": {
+        "early": [
+          {
+            "id": "safetyTokenParity",
+            "owner": "Security Engineering"
+          },
+          {
+            "id": "hookEnforcement",
+            "owner": "Platform Engineering"
+          },
+          {
+            "id": "telemetrySchemaValidation",
+            "owner": "Observability Engineering"
+          }
+        ],
+        "final": [
+          {
+            "id": "evidencePredicates",
+            "owner": "Release Engineering"
+          },
+          {
+            "id": "finalGateWaiverPrecedence",
+            "owner": "Security Engineering"
+          },
+          {
+            "id": "trustedEvidenceBindingRetention",
+            "owner": "Release Engineering"
+          }
+        ]
+      }
+    }
+  },
+  "assets": [
+    {
+      "id": "claude-global-instructions",
+      "type": "instructions",
+      "source": "claude-assets/home/CLAUDE.md",
+      "destination": "CLAUDE.md"
+    },
+    {
+      "id": "claude-guidelines",
+      "type": "instructions",
+      "source": "guidelines.md",
+      "destination": "guidelines.md"
+    },
+    {
+      "id": "claude-skill-discovery-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/skill-discovery",
+      "destination": "skills/skill-discovery",
+      "loadMode": "always"
+    },
+    {
+      "id": "claude-stack-detector-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/stack-detector",
+      "destination": "skills/stack-detector",
+      "loadMode": "always"
+    },
+    {
+      "id": "claude-elegy-planning-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/elegy-planning",
+      "destination": "skills/elegy-planning",
+      "loadMode": "always"
+    },
+    {
+      "id": "claude-rubberduck-plan-review-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/rubberduck-plan-review",
+      "destination": "skills/rubberduck-plan-review",
+      "loadMode": "always"
+    },
+    {
+      "id": "claude-spec-dev-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-dev",
+      "destination": "skills/spec-dev",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "claude-spec-authoring-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-authoring",
+      "destination": "skills/spec-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "claude-spec-review-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-review",
+      "destination": "skills/spec-review",
+      "loadMode": "on-demand"
+    }
+  ],
+  "sourcePatterns": []
+}

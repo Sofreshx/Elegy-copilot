@@ -504,22 +504,6 @@ export async function runInstall(args = {}) {
             configUpdated += 1;
           }
 
-          // Also write agentRoleModels (new preferred API)
-          const normalizedProfile = normalizeProfile(profile, activeProfile);
-          if (normalizedProfile.roleModels && typeof normalizedProfile.roleModels === 'object') {
-            if (!config.agentRoleModels || typeof config.agentRoleModels !== 'object') {
-              config.agentRoleModels = {};
-            }
-            for (const [role, model] of Object.entries(normalizedProfile.roleModels)) {
-              if (typeof model !== 'string' || !model.trim()) continue;
-              if (!config.agentRoleModels[role] || typeof config.agentRoleModels[role] !== 'object') {
-                config.agentRoleModels[role] = {};
-              }
-              config.agentRoleModels[role].model = model.trim();
-              configUpdated += 1;
-            }
-          }
-
           if (configUpdated > 0 && !args.dryRun) {
             writeConfig(opencodeHome, config);
           }

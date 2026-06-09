@@ -3,7 +3,7 @@
 const path = require('path');
 const { pathToFileURL } = require('url');
 
-const VALID_INSTALL_SURFACE_TARGETS = ['codex', 'antigravity', 'opencode', 'all'];
+const VALID_INSTALL_SURFACE_TARGETS = ['codex', 'antigravity', 'opencode', 'claude', 'all'];
 
 function createStatusError(statusCode, message) {
   const error = new Error(message);
@@ -26,7 +26,7 @@ function normalizeTarget(target) {
 }
 
 function buildTargetList(target) {
-  return target === 'all' ? ['codex', 'antigravity', 'opencode'] : [target];
+  return target === 'all' ? ['codex', 'antigravity', 'opencode', 'claude'] : [target];
 }
 
 async function loadInstallerModule(engineRoot, fileName) {
@@ -69,6 +69,16 @@ async function installOpenCodeSurface(options) {
   });
 }
 
+async function installClaudeSurface(options) {
+  const installerModule = await loadInstallerModule(options.engineRoot, 'claude-install.mjs');
+  return installerModule.runInstall({
+    dryRun: options.dryRun,
+    force: options.force,
+    claudeHome: options.claudeHome,
+    skillsHome: options.claudeSkillsHome,
+  });
+}
+
 async function installSurfaces(options = {}) {
   const target = normalizeTarget(options.target);
   if (!options.engineRoot) {
@@ -87,6 +97,10 @@ async function installSurfaces(options = {}) {
     }
     if (surface === 'opencode') {
       summaries.push(await installOpenCodeSurface(options));
+      continue;
+    }
+    if (surface === 'claude') {
+      summaries.push(await installClaudeSurface(options));
     }
   }
 

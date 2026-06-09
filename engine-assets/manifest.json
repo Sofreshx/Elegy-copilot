@@ -337,6 +337,12 @@
       "destination": "copilot-instructions.md"
     },
     {
+      "id": "copilot-guidelines",
+      "type": "instructions",
+      "source": "guidelines.md",
+      "destination": "guidelines.md"
+    },
+    {
       "id": "prompt-instruction-engine-plan",
       "type": "prompt",
       "source": "engine-assets/prompts/instruction-engine-plan.prompt.md",
