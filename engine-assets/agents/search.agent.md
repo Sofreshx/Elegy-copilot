@@ -15,7 +15,7 @@ Capability-discovery layer: find the smallest relevant capability (skill, agent,
 ## Search Order
 1. Check if the task already names a specific skill, agent, or doc.
 2. Apply caller's routing-policy/eligibility filter. Default: `eligible-only`.
-3. For project/framework questions: `stack-detector` + manifest hints.
+3. For project/framework questions: inspect `package.json`, `Cargo.toml`, `*.csproj`, or similar manifest files.
 4. For domain guidance: `skill-discovery` resolver chain + metadata index.
 5. For orchestration: prefer agent assets + canonical docs over research notes.
 6. Broad search only when deterministic routing fails.

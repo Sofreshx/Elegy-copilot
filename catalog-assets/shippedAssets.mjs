@@ -66,7 +66,6 @@ export const SHIPPED_ASSETS = [
   skill('opencode-code-review-skill', 'opencode-assets/skills/code-review'),
   skill('opencode-project-conventions-governance-skill', 'opencode-assets/skills/project-conventions-governance'),
   skill('opencode-security-skill', 'opencode-assets/skills/security'),
-  skill('opencode-stack-detector-skill', 'opencode-assets/skills/stack-detector'),
   skill('opencode-worktree-skill', 'opencode-assets/skills/worktree'),
   plugin('opencode-worktree-plugin', 'opencode-assets/plugins/worktree.js'),
 

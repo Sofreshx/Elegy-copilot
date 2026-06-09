@@ -368,13 +368,13 @@ Note: The "Completion Gate" rule ("ask one targeted question") applies to genera
 
 ## Skills (Default to Skills)
 If a task maps to a known domain, treat skills as the default path:
-- A few transversal skills are always loaded in `~/.copilot/skills/`: `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`, `project-guidelines`.
+- A few transversal skills are always loaded in `~/.copilot/skills/`: `core-guardrails`, `skill-discovery`, `implementation-friction`, `project-guidelines`.
 - **Most domain skills live in `~/.copilot/skills-vault/`** and are NOT loaded by default (saves tokens).
 - Use the staged routing model by default:
 	1. `@search` resolves the smallest relevant capability.
 	2. `@execute` extracts the minimum constraints and steps needed downstream.
 	3. Only load the resolved on-demand skill when the task truly needs domain-specific guidance.
-- To find the right skill: use the `skill-discovery` skill's keyword map, or run `stack-detector` for project-wide detection.
+- To find the right skill: use the `skill-discovery` skill's keyword map for detection.
 - To load an on-demand skill: `read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")`.
 - Prefer skill-specific guidance over generic judgment.
 - If multiple skills apply, load the primary one first, then the supporting ones.

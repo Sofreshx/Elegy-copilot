@@ -1,7 +1,7 @@
 ﻿---
 name: elegy-planning
 description: "Durable planning authority via Elegy CLI. Use for goals, roadmaps, plans, todos, issues, review points, validation, health checks, and projection rendering backed by SQLite."
-metadata: {"aliasKeys":["roadmap-planning","durable-planning"],"stacks":["planning"],"tags":["planning","goal","roadmap","plan","todo","issue","sqlite","elegy"]}
+metadata: {"aliasKeys":["durable-planning"],"stacks":["planning"],"tags":["planning","goal","roadmap","plan","todo","issue","sqlite","elegy"]}
 ---
 
 # Elegy Planning
@@ -84,7 +84,7 @@ All commands accept `--json` for structured output and `--db <path>` for a custo
 - Use `--json` when you need to parse results programmatically.
 - Validate before marking work done: `elegy-planning validate all --json`.
 - Do not mix markdown planning artifacts with Elegy planning state in the same scope. Pick one.
-- When the user asks for a roadmap, check if Elegy is available first. If not, fall back to `roadmap-planning` (markdown convention).
+- When the user asks for a roadmap, check if Elegy is available first. If not, use markdown conventions under `docs/roadmaps/`.
 
 ## Authority Chain
 

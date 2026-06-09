@@ -84,3 +84,26 @@ After removing `stack-detector` and `roadmap-planning` from source, the installe
 - `roadmap-planning/` (should be removed)
 - `discovery/` (stale duplicate of `skill-discovery/`)
 - Various `always`-loaded skills have vault copies unnecessarily (`core-guardrails`, `project-guidelines`, `roadmap-authoring`)
+
+### 9. Stale referenced detection — scripts and tests
+
+A comprehensive grep after removal found stale references in production scripts, tests, and docs:
+
+**P0 — breaks tests:** 8 test files assert removed skills exist:
+- `scripts/opencode-install.test.js`, `codex-install.test.js`, `antigravity-install.test.js`, `cli-install.test.js`
+- `scripts/skill-search.test.js`, `generate-skill-metadata-index.test.js`
+- `copilot-ui/routes/planning.test.js`, `sessions.test.js`
+
+**P0 — script breaks:** `scripts/validate-manifest.js` expects stack-detector in all manifests.
+`scripts/validate-first-party-exact-name-reference-audit.js` references the deleted SKILL.md path.
+`local-tracker/scripts/spike-cli-auth-entrypoint.sh` has stack-detector in its ALWAYS_LOADED_SKILLS.
+
+**P1 — UI routes reference removed skill:** `copilot-ui/routes/planning.js` includes `roadmap-planning` in `skillsRequired` array. `copilot-ui/routes/sessions.js` conditionally adds it. These will produce broken continuation packages.
+
+**P2 — docs/references still mention removed skills:** `docs/system/opencode-guide.md`, `skills-governance.md`, `search-execute-workflow.md`, `system-upgrade-direction-2026.md`, `lexicon/project-specific.md`, `specs/asset-sync-truthfulness/spec.md`, `research/shipped-skill-quality-audit.md`, `system/instruction-changelog.md`.
+
+All non-code stale references (P2-P3) should be cleaned up when the code references are fixed.
+
+### 10. `roadmap-planning-lane` naming ambiguity
+
+The lane definition in `shippedAssets.mjs` (id: `roadmap-planning-lane`) bundles `skill-roadmap-authoring` and describes "Repository Backlog & Roadmap Skills." This lane may serve a valid purpose, but its name is misleading now that the `roadmap-planning` skill is gone. Consider renaming to `roadmap-authoring-lane`.

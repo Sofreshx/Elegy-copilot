@@ -195,9 +195,9 @@ When documentation or instruction surfaces change, validate relevant links and r
 - [Diátaxis](https://diataxis.fr/) — separate tutorials, how-to guides, reference, and explanation instead of mixing doc purposes.
 
 ## Skills and routing
+Shared routing skills include `skill-discovery`.
 
-Shared routing skills include `skill-discovery` and `stack-detector`.
-Planning, review, and spec skills are installed by default: `rubberduck-plan-review`, `roadmap-planning`, `implementation-handoff`, `implementation-review`, `spec-dev`, `spec-authoring`, and `spec-review`.
+Planning, review, and spec skills are installed by default: `elegy-planning`, `rubberduck-plan-review`, `implementation-handoff`, `implementation-review`, `spec-dev`, `spec-authoring`, and `spec-review`.
 Load them only when the current step needs that guidance.
 Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`; follow the current contract in `docs/system/spec-driven-development.md` when the target repo opts into spec-driven work.
 
