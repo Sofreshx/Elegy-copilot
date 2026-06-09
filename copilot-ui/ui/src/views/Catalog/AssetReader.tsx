@@ -15,11 +15,15 @@ export default function AssetReader({ item }: AssetReaderProps) {
   const [documentContent, setDocumentContent] = useState('');
   const [documentLoading, setDocumentLoading] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
+  const [documentError, setDocumentError] = useState(false);
+  const [retryTrigger, setRetryTrigger] = useState(0);
 
   useEffect(() => {
     setActiveReaderTab('overview');
     setDocumentContent('');
     setShowRaw(false);
+    setDocumentError(false);
+    setRetryTrigger(0);
   }, [item?.itemId]);
 
   useEffect(() => {
@@ -35,18 +39,24 @@ export default function AssetReader({ item }: AssetReaderProps) {
     const contentPath = readPath as string;
     async function load() {
       setDocumentLoading(true);
+      setDocumentError(false);
       try {
-        const content = await getCatalogContent({ mode: 'engine', path: contentPath });
+        const isAbsolute =
+          /^[A-Za-z]:/.test(contentPath) ||           // C:... (drive-letter prefix — absolute or drive-relative)
+          contentPath.startsWith('/') ||               // Unix absolute
+          contentPath.startsWith('\\\\');              // UNC path (\\server\share\...)
+        const mode = isAbsolute ? 'absolute' : 'engine';
+        const content = await getCatalogContent({ mode, path: contentPath });
         if (!cancelled) setDocumentContent(content || 'No content loaded.');
       } catch {
-        if (!cancelled) setDocumentContent('Failed to load document content.');
+        if (!cancelled) setDocumentError(true);
       } finally {
         if (!cancelled) setDocumentLoading(false);
       }
     }
     void load();
     return () => { cancelled = true; };
-  }, [activeReaderTab, item]);
+  }, [activeReaderTab, item, retryTrigger]);
 
   if (!item) {
     return (
@@ -171,6 +181,19 @@ export default function AssetReader({ item }: AssetReaderProps) {
             <h4>Document</h4>
             {documentLoading ? (
               <p className="assets-tools-empty">Loading document...</p>
+            ) : documentError ? (
+              <div>
+                <p className="assets-tools-empty">Failed to load document content.</p>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setDocumentError(false);
+                    setRetryTrigger((n) => n + 1);
+                  }}
+                >
+                  Retry
+                </Button>
+              </div>
             ) : showRaw ? (
               <pre className="assets-tools-inspector-content">{documentContent}</pre>
             ) : (

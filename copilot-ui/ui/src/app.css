@@ -4755,11 +4755,6 @@ textarea:focus-visible,
 
 /* Medium: collapse to 2-column (filters above, list + inspector side by side) */
 @media (max-width: 1100px) {
-  .assets-tools-explorer {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-  }
-  
   .assets-tools-filters {
     flex-direction: row;
     flex-wrap: wrap;
@@ -4776,11 +4771,6 @@ textarea:focus-visible,
 
 /* Smaller: stack everything vertically */
 @media (max-width: 720px) {
-  .assets-tools-explorer {
-    grid-template-columns: 1fr;
-    gap: var(--space-sm);
-  }
-  
   .assets-tools-metrics {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
   }
@@ -12076,4 +12066,51 @@ textarea:focus-visible,
 .workspace-notes-tag-remove:hover {
   opacity: 1;
   color: #ef4444;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Asset Detail Modal                                                 */
+/* ------------------------------------------------------------------ */
+
+.asset-detail-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.asset-detail-modal {
+  position: relative;
+  width: min(90vw, 900px);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-1);
+  border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.asset-detail-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-ink-200);
+  flex-shrink: 0;
+}
+
+.asset-detail-modal-body {
+  overflow-y: auto;
+  padding: var(--space-md) var(--space-lg);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
 }

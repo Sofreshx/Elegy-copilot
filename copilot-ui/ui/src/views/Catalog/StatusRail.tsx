@@ -1,53 +1,9 @@
 import type { CatalogGlobalItem, CatalogGlobalHarness, CatalogGlobalHarnessState } from '../../lib/types';
-import { Badge, Button } from '../../components';
+import { Badge } from '../../components';
 
 interface StatusRailProps {
   item: CatalogGlobalItem | null;
   harnesses: CatalogGlobalHarness[];
-  onItemAction?: (item: CatalogGlobalItem, state: CatalogGlobalHarnessState) => void;
-  mutating?: boolean;
-}
-
-function getActionLabel(
-  item: CatalogGlobalItem,
-  harnessState: CatalogGlobalHarnessState,
-): string | null {
-  const actionKind =
-    (typeof harnessState.metadata?.actionKind === 'string'
-      ? harnessState.metadata.actionKind
-      : item.actions?.kind) ?? null;
-  if (!actionKind) return null;
-
-  const actions = harnessState.actions;
-  if (!actions) return null;
-
-  if (
-    actions.canDeactivate &&
-    (harnessState.active || harnessState.installed) &&
-    actionKind === 'external-source'
-  ) {
-    return 'Disable';
-  }
-  if (actions.canActivate && actionKind === 'external-source') {
-    return harnessState.installed ? 'Repair source' : 'Enable source';
-  }
-  if (actions.canInstall && actionKind === 'catalog-asset') {
-    return 'Install';
-  }
-  if (actions.canInstall && actionKind === 'install-surface') {
-    return harnessState.syncStatus === 'missing' || harnessState.installed
-      ? 'Sync harness'
-      : 'Install harness';
-  }
-  if (
-    actions.canSync &&
-    actionKind === 'install-surface' &&
-    Array.isArray(item.actions?.installSurfaceTargets) &&
-    item.actions.installSurfaceTargets.includes(harnessState.harnessId)
-  ) {
-    return 'Sync harness';
-  }
-  return null;
 }
 
 function getHarnessStatusBadgeTone(status: string | undefined): 'success' | 'neutral' | 'accent' | 'danger' {
@@ -72,7 +28,7 @@ function getStatusLabel(state: CatalogGlobalHarnessState): string {
   }
 }
 
-export default function StatusRail({ item, harnesses, onItemAction, mutating }: StatusRailProps) {
+export default function StatusRail({ item, harnesses }: StatusRailProps) {
   if (!item) {
     return (
       <aside className="assets-tools-inspector" data-testid="assets-tools-status-rail">
@@ -129,20 +85,6 @@ export default function StatusRail({ item, harnesses, onItemAction, mutating }: 
                     {(state as any).autoRoutable ? 'auto-routable' : 'manual'}
                   </Badge>
                 )}
-              </div>
-            )}
-
-            {/* Action button */}
-            {state && onItemAction && !mutating && getActionLabel(item, state) && (
-              <div style={{ marginTop: 'var(--space-2xs)' }}>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => onItemAction(item, state)}
-                  testId={`assets-tools-item-action-${item.itemId}-${state.harnessId}`}
-                >
-                  {getActionLabel(item, state)}
-                </Button>
               </div>
             )}
 

@@ -512,7 +512,7 @@ describe('StatusRail', () => {
     expect(screen.getByText('Missing')).toBeDefined();
   });
 
-  it('shows action button when onItemAction is provided and action is available', () => {
+  it('renders harness rows for each harness', () => {
     const item = makeItem({
       actions: { kind: 'external-source', installSurfaceTargets: [] },
       harnessStates: [makeHarnessState({
@@ -524,10 +524,11 @@ describe('StatusRail', () => {
     });
     const harnesses = [makeHarness()];
     render(
-      <StatusRail item={item} harnesses={harnesses} onItemAction={() => {}} mutating={false} />
+      <StatusRail item={item} harnesses={harnesses} />
     );
 
-    expect(screen.getByText('Enable source')).toBeDefined();
+    // Action buttons were removed from StatusRail; verify harness rows still render
+    expect(screen.getByText('Copilot')).toBeDefined();
   });
 
   it('does not render action button when mutating is true', () => {
@@ -542,7 +543,7 @@ describe('StatusRail', () => {
     });
     const harnesses = [makeHarness()];
     render(
-      <StatusRail item={item} harnesses={harnesses} onItemAction={() => {}} mutating={true} />
+      <StatusRail item={item} harnesses={harnesses} />
     );
 
     // The action button should not render when mutating
@@ -589,25 +590,6 @@ describe('StatusRail', () => {
     expect(screen.getByText('manual')).toBeDefined();
   });
 
-  it('calls onItemAction when action button is clicked', () => {
-    const onAction = vi.fn();
-    const item = makeItem({
-      actions: { kind: 'external-source' },
-      harnessStates: [makeHarnessState({
-        syncStatus: 'missing',
-        installed: false,
-        active: false,
-        actions: { canInstall: false, canActivate: true, canDeactivate: false, canSync: false },
-      })],
-    });
-    const harnesses = [makeHarness()];
-    render(
-      <StatusRail item={item} harnesses={harnesses} onItemAction={onAction} />
-    );
-
-    fireEvent.click(screen.getByText('Enable source'));
-    expect(onAction).toHaveBeenCalledTimes(1);
-  });
 });
 
 // ─── InventoryTab tests ───
@@ -617,27 +599,22 @@ describe('InventoryTab', () => {
     cleanup();
   });
 
-  it('renders three-pane layout', () => {
+  it('renders two-pane layout (group list + empty detail area)', () => {
     render(
-      <InventoryTab sections={[makeSection()]} harnesses={[makeHarness()]} summary={null} />
+      <InventoryTab sections={[makeSection()]} harnesses={[makeHarness()]} />
     );
 
     expect(screen.getByTestId('assets-tools-inventory')).toBeDefined();
     expect(screen.getByTestId('assets-tools-group-list')).toBeDefined();
-    expect(screen.getByTestId('assets-tools-reader')).toBeDefined();
-    expect(screen.getByTestId('assets-tools-status-rail')).toBeDefined();
   });
 
   it('auto-selects first item when no attention-needed items', () => {
     render(
-      <InventoryTab sections={[makeSection()]} harnesses={[makeHarness()]} summary={null} />
+      <InventoryTab sections={[makeSection()]} harnesses={[makeHarness()]} />
     );
 
-    // The reader should not show "Select an asset to view details"
-    expect(screen.queryByText('Select an asset to view details')).toBeNull();
-    // The item title appears both in the group list and the reader — check at least one exists
-    const matches = screen.getAllByText('Test Skill');
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+    // The item title appears in the group list item card
+    expect(screen.getByText('Test Skill')).toBeDefined();
   });
 
   it('auto-selects items needing attention first', () => {
@@ -654,7 +631,7 @@ describe('InventoryTab', () => {
     const sections = [makeSection({ items: [normalItem, attentionItem] })];
 
     render(
-      <InventoryTab sections={sections} harnesses={[makeHarness()]} summary={null} />
+      <InventoryTab sections={sections} harnesses={[makeHarness()]} />
     );
 
     // The attention item should be selected and its card highlighted
@@ -665,30 +642,18 @@ describe('InventoryTab', () => {
     const normalCard = screen.getByTestId('assets-tools-item-normal');
     expect(normalCard.className).not.toContain('selected');
 
-    // Reader should show attention item title (appears in both list and reader)
-    const matches = screen.getAllByText('Attention Skill');
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+    // Attention item title appears in the group list item card
+    expect(screen.getByText('Attention Skill')).toBeDefined();
   });
 
   it('renders empty state when no sections provided', () => {
     render(
-      <InventoryTab sections={[]} harnesses={[makeHarness()]} summary={null} />
+      <InventoryTab sections={[]} harnesses={[makeHarness()]} />
     );
 
     expect(screen.getByTestId('assets-tools-inventory')).toBeDefined();
-    // Reader should show empty state since no item is selected
-    expect(screen.getByText('Select an asset to view details')).toBeDefined();
   });
 
-  it('displays status rail for selected item', () => {
-    render(
-      <InventoryTab sections={[makeSection()]} harnesses={[makeHarness()]} summary={null} />
-    );
-
-    // Status rail should show the harness
-    expect(screen.getByText('Copilot')).toBeDefined();
-    expect(screen.getByText('Synced')).toBeDefined();
-  });
 
   it('switches selected item when clicking a different item', () => {
     const item1 = makeItem({
@@ -707,7 +672,7 @@ describe('InventoryTab', () => {
     const sections = [makeSection({ items: [item1, item2] })];
 
     render(
-      <InventoryTab sections={sections} harnesses={[makeHarness()]} summary={null} />
+      <InventoryTab sections={sections} harnesses={[makeHarness()]} />
     );
 
     // First item should be selected initially (no attention items)
@@ -722,8 +687,7 @@ describe('InventoryTab', () => {
     const secondCard = screen.getByTestId('assets-tools-item-second');
     expect(secondCard.className).toContain('selected');
 
-    // Reader and status rail should update to show second item
-    const titleMatches = screen.getAllByText('Second Skill');
-    expect(titleMatches.length).toBeGreaterThanOrEqual(2);
+    // The selected item's title appears in the group list item card
+    expect(screen.getByText('Second Skill')).toBeDefined();
   });
 });

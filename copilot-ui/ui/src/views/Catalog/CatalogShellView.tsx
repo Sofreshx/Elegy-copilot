@@ -384,7 +384,6 @@ export default function CatalogShellView() {
             <InventoryTab
               sections={allSections}
               harnesses={harnesses}
-              summary={summary}
               onItemAction={(item, state) => void handleItemAction(item, state)}
               mutating={catalogState.mutating}
             />

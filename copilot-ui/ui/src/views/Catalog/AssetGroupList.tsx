@@ -1,6 +1,6 @@
 import type { CatalogGlobalItem, CatalogGlobalSection } from '../../lib/types';
 import { normalizeProvenance, compareProvenanceGroups, type ProvenanceGroupInfo } from './provenance';
-import { Badge } from '../../components';
+import { Badge, Button } from '../../components';
 
 /* Types */
 export interface ProvenanceAssetGroup {
@@ -15,6 +15,7 @@ interface AssetGroupListProps {
   sections: CatalogGlobalSection[];
   selectedItem: CatalogGlobalItem | null;
   onSelectItem: (item: CatalogGlobalItem) => void;
+  onViewItem?: (item: CatalogGlobalItem) => void;
 }
 
 /* Helpers */
@@ -67,12 +68,13 @@ function getKindBadgeTone(kind: string): 'neutral' | 'brand' | 'accent' | 'succe
     case 'agent': return 'brand';
     case 'skill': return 'accent';
     case 'mcp': return 'success';
+    case 'hook': return 'danger';
     default: return 'neutral';
   }
 }
 
 /* Component */
-export default function AssetGroupList({ sections, selectedItem, onSelectItem }: AssetGroupListProps) {
+export default function AssetGroupList({ sections, selectedItem, onSelectItem, onViewItem }: AssetGroupListProps) {
   const allItems = sections.flatMap((s) => s.items || []);
   const groups = groupByProvenance(allItems);
 
@@ -117,6 +119,21 @@ export default function AssetGroupList({ sections, selectedItem, onSelectItem }:
                 </div>
                 {item.description ? (
                   <p className="assets-tools-item-description">{item.description}</p>
+                ) : null}
+                {onViewItem ? (
+                  <div className="assets-tools-item-actions">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onViewItem(item);
+                      }}
+                      testId={`assets-tools-view-${item.itemId}`}
+                    >
+                      View
+                    </Button>
+                  </div>
                 ) : null}
               </article>
             );
