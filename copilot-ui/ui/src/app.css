@@ -6661,6 +6661,13 @@ textarea:focus-visible,
   opacity: 0.8;
 }
 
+.markdown-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  margin: 0.4em 0;
+}
+
 .markdown-message code {
   background: var(--color-surface-2);
   padding: 0.15em 0.4em;
@@ -6714,6 +6721,86 @@ textarea:focus-visible,
   background: var(--color-surface-3);
   border-radius: var(--radius-sm);
   color: var(--color-ink-500);
+}
+
+/* ── Frontmatter drawer toggle ── */
+
+.markdown-frontmatter-drawer {
+  margin-bottom: 0.6em;
+}
+
+.markdown-frontmatter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  width: 100%;
+  padding: 0.35em 0.6em;
+  background: transparent;
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-500);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background-color var(--duration-fast), color var(--duration-fast);
+  text-align: left;
+}
+
+.markdown-frontmatter-toggle:hover {
+  background: var(--color-surface-2);
+  color: var(--color-ink-400);
+  border-color: var(--color-brand-300);
+}
+
+.markdown-frontmatter-toggle:focus-visible {
+  background: var(--color-surface-2);
+  border-color: var(--color-brand-400);
+  outline: 2px solid var(--color-brand-400);
+  outline-offset: 1px;
+}
+
+.markdown-frontmatter-toggle-icon {
+  display: inline-block;
+  width: 1em;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+/* ── Frontmatter metadata ── */
+
+.markdown-frontmatter {
+  margin-bottom: 0.8em;
+  padding: 0.6em 0.8em;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.markdown-frontmatter dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.2em 0.8em;
+  margin: 0;
+}
+
+.markdown-frontmatter dt {
+  font-weight: 600;
+  color: var(--color-ink-500);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  text-transform: capitalize;
+}
+
+.markdown-frontmatter dt::after {
+  content: ':';
+}
+
+.markdown-frontmatter dd {
+  margin: 0;
+  color: var(--color-ink-700);
+  word-break: break-word;
 }
 
 .task-list {
@@ -6798,6 +6885,43 @@ textarea:focus-visible,
 .copy-button-copied {
   opacity: 1;
   color: var(--color-success-500);
+}
+
+/* ── Diagram maximize button ── */
+
+.markdown-code-block-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.markdown-diagram-maximize-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  opacity: 0.6;
+  color: inherit;
+  transition: opacity var(--duration-fast), border-color var(--duration-fast);
+}
+
+.markdown-diagram-maximize-btn:hover {
+  opacity: 1;
+  border-color: var(--color-ink-200);
+}
+
+.markdown-diagram-maximize-btn:focus-visible {
+  opacity: 1;
+  border-color: var(--color-brand-400);
+  outline: 2px solid var(--color-brand-400);
+  outline-offset: 1px;
 }
 
 /* ── Send Error Banner ── */
@@ -11164,6 +11288,109 @@ textarea:focus-visible,
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ── Diagram fullscreen modal ── */
+
+.markdown-diagram-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  animation: markdown-diagram-fade-in 0.15s ease-out;
+}
+
+@keyframes markdown-diagram-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.markdown-diagram-modal {
+  display: flex;
+  flex-direction: column;
+  width: 95vw;
+  height: 90vh;
+  max-width: 1400px;
+  background: var(--color-surface-1, #0d1117);
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-lg, 8px);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.markdown-diagram-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5em 0.8em;
+  border-bottom: 1px solid var(--color-ink-200);
+  flex-shrink: 0;
+}
+
+.markdown-diagram-modal-title {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--color-ink-500);
+}
+
+.markdown-diagram-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-500);
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color var(--duration-fast), color var(--duration-fast);
+}
+
+.markdown-diagram-modal-close:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--color-error-500, #ef4444);
+}
+
+.markdown-diagram-modal-close:focus-visible {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--color-error-500, #ef4444);
+  outline: 2px solid var(--color-error-500, #ef4444);
+  outline-offset: 1px;
+}
+
+.markdown-diagram-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.markdown-diagram-modal-body .markdown-mermaid {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.markdown-diagram-modal-body .markdown-mermaid svg {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
 }
 
 /* ── Mermaid ── */

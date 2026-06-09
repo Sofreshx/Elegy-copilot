@@ -16,6 +16,11 @@ interface CodeBlock {
   code: string;
 }
 
+interface FrontmatterPair {
+  key: string;
+  value: string;
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -28,28 +33,30 @@ function escapeHtml(text: string): string {
  * Converts markdown text to HTML. Fenced code blocks are extracted into
  * a separate list so React can render CopyButton components for each.
  */
-function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[] } {
+function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]; frontmatter: FrontmatterPair[] | null } {
   source = source.replace(/\r\n?/g, '\n');
   const codeBlocks: CodeBlock[] = [];
   const BLOCK_PLACEHOLDER = '___CODE_BLOCK___';
 
   // Extract YAML frontmatter (if present at the start)
-  let frontmatterHtml = '';
+  let frontmatter: FrontmatterPair[] | null = null;
   if (source.startsWith('---\n')) {
     const endIdx = source.indexOf('\n---\n', 4);
     if (endIdx !== -1) {
       const fmLines = source.slice(4, endIdx).split('\n');
-      const fmPairs: string[] = [];
+      const fmPairs: FrontmatterPair[] = [];
       for (const fmLine of fmLines) {
         const sepIdx = fmLine.indexOf(':');
         if (sepIdx !== -1) {
-          const key = escapeHtml(fmLine.slice(0, sepIdx).trim());
-          const val = escapeHtml(fmLine.slice(sepIdx + 1).trim());
-          fmPairs.push(`<dt>${key}</dt><dd>${val}</dd>`);
+          const key = fmLine.slice(0, sepIdx).trim();
+          const val = fmLine.slice(sepIdx + 1).trim();
+          if (key) {
+            fmPairs.push({ key, value: val });
+          }
         }
       }
       if (fmPairs.length > 0) {
-        frontmatterHtml = `<div class="markdown-frontmatter"><dl>${fmPairs.join('')}</dl></div>`;
+        frontmatter = fmPairs;
       }
       // Remove frontmatter from source (including the closing ---)
       source = source.slice(endIdx + 5);
@@ -298,6 +305,14 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
     },
   );
 
+  // Images ![alt](url)
+  html = html.replace(
+    /!\[([^\]]*)\]\(([^)]+)\)/g,
+    (_match: string, alt: string, url: string) => {
+      return `<img src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" class="markdown-image" loading="lazy" />`;
+    },
+  );
+
   // Wiki links [[link]] and [[link|alias]]
   html = html.replace(
     /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
@@ -334,7 +349,7 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
     return protectedHtml[parseInt(index, 10)];
   });
 
-  return { html: frontmatterHtml + html, codeBlocks };
+  return { html, codeBlocks, frontmatter };
 }
 
 function MermaidBlock({ code, blockId }: { code: string; blockId: string }) {
@@ -343,14 +358,12 @@ function MermaidBlock({ code, blockId }: { code: string; blockId: string }) {
   const initialized = useRef(false);
 
   useEffect(() => {
-    if (!initialized.current) {
-      mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: 'strict',
-        theme: 'default',
-      });
-      initialized.current = true;
-    }
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+    });
+    initialized.current = true;
 
     let cancelled = false;
     async function render() {
@@ -392,13 +405,95 @@ function MermaidBlock({ code, blockId }: { code: string; blockId: string }) {
   );
 }
 
+function FrontmatterDrawer({ frontmatter }: { frontmatter: FrontmatterPair[] }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="markdown-frontmatter-drawer">
+      <button
+        className="markdown-frontmatter-toggle"
+        onClick={() => setOpen((prev) => !prev)}
+        type="button"
+        aria-expanded={open}
+        aria-controls="frontmatter-content"
+        aria-label={open ? 'Hide metadata' : 'Show metadata'}
+      >
+        <span className="markdown-frontmatter-toggle-icon">{open ? '\u25BE' : '\u25B8'}</span>
+        <span>Metadata ({frontmatter.length} field{frontmatter.length !== 1 ? 's' : ''})</span>
+      </button>
+      {open && (
+        <div id="frontmatter-content" className="markdown-frontmatter">
+          <dl>
+            {frontmatter.map(({ key, value }) => (
+              <React.Fragment key={key}>
+                <dt>{key}</dt>
+                <dd>{value}</dd>
+              </React.Fragment>
+            ))}
+          </dl>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DiagramModal({ code, blockId, onClose }: { code: string; blockId: string; onClose: () => void }) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    const prevActive = document.activeElement as HTMLElement | null;
+    document.body.style.overflow = 'hidden';
+
+    // Focus the close button when modal opens
+    requestAnimationFrame(() => {
+      closeRef.current?.focus();
+    });
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+      // Restore focus to the element that triggered the modal
+      prevActive?.focus?.();
+    };
+  }, [onClose]);
+
+  return (
+    <div className="markdown-diagram-modal-backdrop" onClick={onClose}>
+      <div className="markdown-diagram-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Maximized diagram">
+        <div className="markdown-diagram-modal-header">
+          <span className="markdown-diagram-modal-title">Diagram</span>
+          <button
+            ref={closeRef}
+            className="markdown-diagram-modal-close"
+            onClick={onClose}
+            type="button"
+            aria-label="Close diagram"
+          >
+            {'\u2715'}
+          </button>
+        </div>
+        <div className="markdown-diagram-modal-body">
+          <MermaidBlock code={code} blockId={blockId + '-modal'} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MarkdownMessage({
   content,
   testId = 'markdown-message',
   onNavigateDoc,
   onCommandAction,
 }: MarkdownMessageProps) {
-  const { html, codeBlocks } = useMemo(() => markdownToHtml(content), [content]);
+  const [maximizedDiagram, setMaximizedDiagram] = useState<{ code: string; blockId: string } | null>(null);
+  const { html, codeBlocks, frontmatter } = useMemo(() => markdownToHtml(content), [content]);
 
   // Split HTML on code-block placeholders so we can interleave React nodes
   const parts = html.split('___CODE_BLOCK___');
@@ -435,16 +530,19 @@ export default function MarkdownMessage({
         'blockquote', 'a', 'hr',
         'table', 'thead', 'tbody', 'tr', 'th', 'td',
         'dl', 'dt', 'dd',
-        'input', 'label', 'span', 'div',
+        'input', 'label', 'span', 'div', 'img',
       ],
       ALLOWED_ATTR: [
         'href', 'target', 'rel', 'data-doc-link', 'data-wiki-link', 'class',
-        'type', 'disabled', 'checked',
+        'type', 'disabled', 'checked', 'src', 'alt', 'loading',
       ],
     });
 
   return (
     <div className="markdown-message" data-testid={testId} onClick={handleClick}>
+      {frontmatter && frontmatter.length > 0 && (
+        <FrontmatterDrawer frontmatter={frontmatter} />
+      )}
       {parts.map((segment, idx) => (
         <React.Fragment key={idx}>
           {/* Render the HTML segment */}
@@ -456,7 +554,18 @@ export default function MarkdownMessage({
               <div className="markdown-code-block" data-testid="markdown-mermaid-block">
                 <div className="markdown-code-block-header">
                   <span className="markdown-code-block-lang">mermaid</span>
-                  <CopyButton text={codeBlocks[idx].code} testId="mermaid-block-copy" />
+                  <div className="markdown-code-block-header-actions">
+                    <button
+                      className="markdown-diagram-maximize-btn"
+                      onClick={() => setMaximizedDiagram({ code: codeBlocks[idx].code, blockId: codeBlocks[idx].id })}
+                      title="Maximize diagram"
+                      aria-label="Maximize diagram"
+                      type="button"
+                    >
+                      {'\u26F6'}
+                    </button>
+                    <CopyButton text={codeBlocks[idx].code} testId="mermaid-block-copy" />
+                  </div>
                 </div>
                 <MermaidBlock code={codeBlocks[idx].code} blockId={codeBlocks[idx].id} />
               </div>
@@ -476,6 +585,13 @@ export default function MarkdownMessage({
           )}
         </React.Fragment>
       ))}
+      {maximizedDiagram && (
+        <DiagramModal
+          code={maximizedDiagram.code}
+          blockId={maximizedDiagram.blockId}
+          onClose={() => setMaximizedDiagram(null)}
+        />
+      )}
     </div>
   );
 }
