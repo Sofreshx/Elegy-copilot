@@ -20,7 +20,7 @@ Define the canonical instruction-writing contract. This node is the single autho
 
 Instruction governance was previously fragmented across multiple canonical docs (`project-conventions-governance`, `documentation-authoring-governance`, `documentation-structure-governance`) and the `concise-writing` skill. This node unifies the writing standards into one authority while the other nodes continue to govern structure, entrypoints, and conventions policy.
 
-This node is the canonical source referenced by `guidelines.md`. The `guidelines.md` file summarizes this contract for local application; this node is the durable policy.
+This node is the canonical authority for instruction-writing standards. The contract is now embedded directly in all harness home files (AGENTS.md, CLAUDE.md, GEMINI.md, copilot-instructions.md) so that sessions always read it without needing to discover a separate `guidelines.md` file.
 
 ## Routing
 
@@ -167,8 +167,7 @@ Use plan-first for non-trivial work. A plan is ready only when another implement
 
 Before handoff, run the narrowest relevant check:
 
-- `node scripts/validate-doc-graph.js docs/system/concise-instruction-governance.md` — frontmatter and link compliance
-- `node scripts/validate-guidelines-wiring.mjs` — harness reference coverage
+- `node scripts/validate-guidelines-wiring.mjs` — harness contract heading coverage
 - Manual review: check for empty language, vague abstractions, duplicated policy
 
 ## Output Contract
@@ -191,8 +190,7 @@ INSTRUCTION_GOVERNANCE
 
 ## References
 
-- `guidelines.md` — local entrypoint summarizing this contract
-- `docs/system/project-conventions-governance.md` — conventions authority model
+- `docs/system/harness-asset-flow.md` — harness install architecture and per-harness comparison
 - `docs/system/documentation-authoring-governance.md` — documentation authoring contract
 - `docs/system/documentation-structure-governance.md` — documentation IA governance
 - `docs/system/self-documenting-code-and-rationale-placement.md` — rationale placement matrix

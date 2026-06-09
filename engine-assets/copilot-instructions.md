@@ -4,7 +4,7 @@ This file is intended to be installed to:
 `~/.copilot/copilot-instructions.md`
 
 These instructions are optimized for **Copilot CLI** stock modes (**/plan** and **/fleet**) while remaining compatible with VS Code Copilot Chat.
-Assume **both** user-level and repo-level instructions apply; conflicts can be non-deterministic, so explicitly reconcile them (see “Conflicts” below).
+Assume **both** user-level and repo-level instructions apply; conflicts can be non-deterministic, so explicitly reconcile them (see "Conflicts" below).
 For repo-specific policy, treat these instructions as a thin routing surface and defer to canonical docs in `docs/system/**`.
 
 Instruction Engine, also published as Elegy Copilot, is the shared asset and
@@ -12,6 +12,192 @@ control-plane workspace for Copilot, Codex, OpenCode, and Antigravity agents,
 skills, prompts, repo setup overlays, and the local dashboard/runtime. This file
 is the global Copilot baseline installed to `~/.copilot/copilot-instructions.md`,
 so it should route to canonical sources instead of carrying target-repo policy.
+
+## Authority
+
+| Priority | Source |
+|---|---|
+| 1 | Explicit user instruction |
+| 2 | Repo-local canonical docs |
+| 3 | `README.md` and maintained docs |
+| 4 | Repeated implementation patterns |
+
+If sources conflict, follow the highest authority and report the conflict.
+
+## Concise Instruction Contract
+
+Concise, precise instruction is required.
+
+Write to transfer decisions, not to sound complete. Prefer exact terms, diagrams, tables, checklists, contracts, and examples over prose.
+
+| Use | Avoid |
+|---|---|
+| Named term | Repeating the same idea in new words |
+| Diagram | Long system description |
+| Table | Paragraph comparing options |
+| Checklist | Requirement paragraph |
+| Contract | Vague guidance |
+| Example | Abstract explanation |
+| Link | Copied policy text |
+
+Rules:
+
+- Start with the point.
+- Use active voice.
+- Use short sentences by default.
+- Use exact vocabulary.
+- Define key terms once.
+- Reuse defined terms consistently.
+- Replace vague nouns with named concepts.
+- Replace long explanation with a diagram, table, checklist, or example.
+- Delete ceremonial openings and closings.
+- Delete restatement.
+- Delete throat-clearing.
+- Delete empty emphasis.
+
+Bad:
+
+```text
+This system provides a robust and flexible way to manage documentation across multiple workflows.
+```
+
+Good:
+
+```text
+Documentation authority:
+README -> canonical entrypoint -> canonical node
+```
+
+A section must answer at least one question:
+
+- What is the purpose?
+- What is the contract?
+- Who owns it?
+- When is it used?
+- What can fail?
+- How is it verified?
+- What is the next link?
+
+If it answers none, remove it.
+
+## Clarification Contract
+
+Never implement through ambiguity.
+
+If user intent is unclear, clarify before planning or implementation. Use available question tools when the environment provides them. Ask few questions, but make them decision-changing.
+
+Clarify when uncertainty affects:
+
+- scope
+- architecture
+- data handling
+- destructive action
+- external cost
+- user-visible behavior
+- acceptance criteria
+- validation
+- ownership
+- security or privacy
+
+Do not ask when the answer is discoverable from files, docs, tests, config, or current state. Investigate first.
+
+Good clarification:
+
+```text
+Which source should be authoritative for this change?
+- Repo-local canonical docs: durable repo policy
+- Harness instructions only: local entrypoint
+```
+
+Bad clarification:
+
+```text
+Can you clarify what you want?
+```
+
+If two steps depend on an unstated assumption, stop and clarify before crossing that boundary.
+
+## Planning Contract
+
+Do not jump from intent to edits.
+
+Before implementation:
+
+1. Read the relevant local sources.
+2. Identify the authority path.
+3. State the goal and success criteria.
+4. Separate facts from assumptions.
+5. Resolve blocking ambiguity.
+6. Choose the smallest implementation path.
+7. Define validation.
+
+Do not assume unclear parts will work out during implementation.
+
+Use plan-first for non-trivial work. A plan is ready only when another implementer can execute it without making product or architecture decisions.
+
+## Documentation Shape
+
+Default shape:
+
+```text
+Point
+Contract, diagram, or table
+Operational details
+Validation or next link
+```
+
+Documentation should route downward:
+
+```text
+README / harness instructions
+  -> repo-local canonical entrypoint
+    -> relevant topic
+      -> smallest canonical node
+```
+
+Keep secondary surfaces thin. Do not duplicate canonical policy.
+
+## Review Rule
+
+Review must flag instruction drift.
+
+Flag:
+
+- vague abstractions without definitions
+- long prose where structure fits better
+- duplicated policy
+- unclear authority
+- missing clarification before implementation
+- assumptions treated as facts
+- sections with no purpose, contract, usage, failure mode, validation, or next link
+- harness files copying policy instead of pointing to it
+- UI copy that explains instead of naming state and action
+
+## Validation Rule
+
+Run the narrowest relevant check after changes.
+
+Use repo-local validators when present. Do not invent global commands.
+
+When documentation or instruction surfaces change, validate relevant links and references.
+
+## Core Workflow
+
+| Step | Rule |
+|---|---|
+| Bootstrap | Load harness instructions, then repo-local canonical entrypoint, then the smallest relevant canonical node. |
+| Discovery | Read before deciding. |
+| Clarification | Ask before crossing unclear decision boundaries. |
+| Planning | Make the plan decision-complete. |
+| Implementation | Edit in small verifiable steps. |
+| Review | Check correctness, scope, drift, and evidence. |
+| Validation | Run the smallest useful proof. |
+
+## External Practices
+
+- [Google Developer Documentation Style Guide](https://developers.google.com/style/highlights) — clear, precise language and active voice.
+- [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/word-choice/use-simple-words-concise-sentences) — simple words and concise sentences.
+- [Diátaxis](https://diataxis.fr/) — separate tutorials, how-to guides, reference, and explanation instead of mixing doc purposes.
 
 ## CRITICAL: run_in_terminal MUST NEVER USE isBackground=true
 
@@ -45,14 +231,6 @@ run_in_terminal(command: "git commit", isBackground: false)  # CORRECT
 - The `core-guardrails` skill mirrors these non-negotiable execution rules.
 - If repo-level instructions are customized, keep this safety set intact by loading `core-guardrails` before tool execution.
 
-## Operating rules (global)
-- Prefer small, verifiable changes.
-- Do **not** change git branches unless explicitly asked.
-- Do **not** run terminal commands in background/detached modes for builds/tests/commits.
-- If instructions conflict, choose the **safer** interpretation and state what you’re doing.
-- Narrow candidate constraints to the minimum hard constraints needed for the active step; keep shaping context and open questions separate;
-- Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions; Do not create ADRs for ordinary local implementation choices.
-
 ## /plan (required workflow)
 When I use **/plan** OR custom plan agent, you MUST:
 1. Produce a plan with: goals, assumptions, scope boundaries, phased steps, risks, validation, and rollback.
@@ -69,7 +247,7 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
 - Minimize cross-stream file conflicts by:
   - assigning **exclusive ownership** of files/directories per stream,
   - preferring additive changes and new files over large refactors,
-  - avoiding shared “core” files unless explicitly designated as a single-stream responsibility.
+  - avoiding shared "core" files unless explicitly designated as a single-stream responsibility.
 - Merge work via **small PR-sized chunks**:
   - keep each chunk reviewable (tight diff, clear purpose),
   - land incremental commits frequently,
@@ -122,15 +300,13 @@ When the current workspace is the Instruction Engine / Elegy Copilot repo:
 ## Conflicts (repo-level + user-level)
 - Assume repo-level instructions (e.g. `.github/copilot-instructions.md`) may add constraints.
 - If instructions disagree:
-  1) follow the **user’s explicit request** for the current task,
+  1) follow the **user's explicit request** for the current task,
   2) then apply the **most specific** instructions for the file/area,
   3) and default to the **safer** option for anything involving security, data loss, or destructive actions.
 - When in doubt, briefly call out the conflict and the resolution you chose, then proceed.
 
 ## Supporting context after canonical bootstrap
 - For repo-rule or workflow decisions, start with `docs/system/index.md`, then the closest MOC, then the smallest relevant canonical node in `docs/system/**`.
-
-Follow `guidelines.md`: clarify ambiguity before implementation; write concise, precise, diagram-forward instructions; avoid vague or ceremonial prose.
 
 ## Documentation Discovery Protocol
 When task decisions depend on repository docs, follow this route first:
@@ -188,3 +364,22 @@ Temp files must never contain API keys, tokens, passwords, or other secrets. Use
 ### TMP-CTRL-006: Prefer real files over streams for auditable workflows
 When an audit trail is needed, write to a real file in a sanctioned temp directory rather than piping through memory-only streams.
 
+## Defensive Tool Use (Hang & Error Prevention)
+
+### TOOL-SAFE-001: Verify directories before listing
+Before calling `list_dir` on paths that may not exist (build output, test results, artifact directories), verify the path exists first. Do not assume output directories are present — they depend on prior build/test steps having run.
+
+### TOOL-SAFE-002: Prefer smaller patches for large files
+When editing files over 200 lines of changes, use multiple smaller targeted edits instead of one large patch. Re-read the file immediately before editing to ensure context lines match. If a patch fails with "Invalid context", re-read the target file and retry with fresh context.
+
+### TOOL-SAFE-003: Keep session-state files lean
+Plan files in `session-state/` should stay under 500 lines. When a plan file grows large, archive completed sections to a separate file to reduce patch conflict risk.
+
+### TOOL-SAFE-004: Never launch long-running processes without timeouts
+When spawning child processes (servers, builds, tests), always configure a timeout or deadline. Never rely on a process exiting on its own — always have a kill path if it exceeds the timeout budget. This applies to both direct terminal commands and programmatic process spawning.
+
+### TOOL-SAFE-005: Desktop host and server launches
+When launching desktop hosts, packaged desktop apps, or dev servers that assign ports and wait for health checks:
+- Ensure health check loops have bounded retry counts (not infinite).
+- Always configure a total timeout for the startup sequence.
+- If a health check fails after the retry budget, kill the spawned process and report the failure — do not leave ghost processes.

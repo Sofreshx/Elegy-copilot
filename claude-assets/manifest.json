@@ -54,12 +54,6 @@
       "destination": "CLAUDE.md"
     },
     {
-      "id": "claude-guidelines",
-      "type": "instructions",
-      "source": "guidelines.md",
-      "destination": "guidelines.md"
-    },
-    {
       "id": "claude-skill-discovery-skill",
       "type": "skill",
       "source": "engine-assets/skills/skill-discovery",

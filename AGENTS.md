@@ -4,8 +4,6 @@ This is the Instruction Engine monorepo, also published as Elegy Copilot. It is 
 
 ## Before any work
 
-Follow `guidelines.md`: clarify ambiguity before implementation; write concise, precise, diagram-forward instructions; avoid vague or ceremonial prose.
-
 1. Start at `docs/system/index.md` for the task's canonical doc entrypoint.
 2. Use the narrowest relevant validator after changes (`npm run test:all`, `npm run ci:local`, or the specific module's test script).
 3. Before authoring specs, install the pre-commit hook: `node scripts/install-spec-hooks.mjs`. This is part of the spec-system-hardening reliability layers and ensures spec validation runs before every commit. See `docs/system/spec-driven-development.md` for the full spec-driven development contract.
@@ -39,17 +37,188 @@ npm --prefix copilot-ui run desktop:dev   # Start desktop app in dev mode
 node copilot-ui/server.js       # Raw server (API debugging only)
 ```
 
-## Rules
-
-- Never commit secrets, signing material, or machine-local state.
-- Run validation after every change (lint, typecheck, test).
-- When changing shipped assets, update manifest + allowlist + validators together.
-- When changing UI structure, update `docs/system/copilot-ui-guide.md`.
-- Prefer additive changes over weakening existing safety gates.
-
 ## Authority
 
-1. Explicit user instruction for the current task
-2. Canonical docs in `docs/system/**`
-3. `README.md` and other maintained docs
-4. Repeated implementation patterns
+| Priority | Source |
+|---|---|
+| 1 | Explicit user instruction |
+| 2 | Repo-local canonical docs |
+| 3 | `README.md` and maintained docs |
+| 4 | Repeated implementation patterns |
+
+If sources conflict, follow the highest authority and report the conflict.
+
+## Concise Instruction Contract
+
+Concise, precise instruction is required.
+
+Write to transfer decisions, not to sound complete. Prefer exact terms, diagrams, tables, checklists, contracts, and examples over prose.
+
+| Use | Avoid |
+|---|---|
+| Named term | Repeating the same idea in new words |
+| Diagram | Long system description |
+| Table | Paragraph comparing options |
+| Checklist | Requirement paragraph |
+| Contract | Vague guidance |
+| Example | Abstract explanation |
+| Link | Copied policy text |
+
+Rules:
+
+- Start with the point.
+- Use active voice.
+- Use short sentences by default.
+- Use exact vocabulary.
+- Define key terms once.
+- Reuse defined terms consistently.
+- Replace vague nouns with named concepts.
+- Replace long explanation with a diagram, table, checklist, or example.
+- Delete ceremonial openings and closings.
+- Delete restatement.
+- Delete throat-clearing.
+- Delete empty emphasis.
+
+Bad:
+
+```text
+This system provides a robust and flexible way to manage documentation across multiple workflows.
+```
+
+Good:
+
+```text
+Documentation authority:
+README -> canonical entrypoint -> canonical node
+```
+
+A section must answer at least one question:
+
+- What is the purpose?
+- What is the contract?
+- Who owns it?
+- When is it used?
+- What can fail?
+- How is it verified?
+- What is the next link?
+
+If it answers none, remove it.
+
+## Clarification Contract
+
+Never implement through ambiguity.
+
+If user intent is unclear, clarify before planning or implementation. Use available question tools when the environment provides them. Ask few questions, but make them decision-changing.
+
+Clarify when uncertainty affects:
+
+- scope
+- architecture
+- data handling
+- destructive action
+- external cost
+- user-visible behavior
+- acceptance criteria
+- validation
+- ownership
+- security or privacy
+
+Do not ask when the answer is discoverable from files, docs, tests, config, or current state. Investigate first.
+
+Good clarification:
+
+```text
+Which source should be authoritative for this change?
+- Repo-local canonical docs: durable repo policy
+- Harness instructions only: local entrypoint
+```
+
+Bad clarification:
+
+```text
+Can you clarify what you want?
+```
+
+If two steps depend on an unstated assumption, stop and clarify before crossing that boundary.
+
+## Planning Contract
+
+Do not jump from intent to edits.
+
+Before implementation:
+
+1. Read the relevant local sources.
+2. Identify the authority path.
+3. State the goal and success criteria.
+4. Separate facts from assumptions.
+5. Resolve blocking ambiguity.
+6. Choose the smallest implementation path.
+7. Define validation.
+
+Do not assume unclear parts will work out during implementation.
+
+Use plan-first for non-trivial work. A plan is ready only when another implementer can execute it without making product or architecture decisions.
+
+## Documentation Shape
+
+Default shape:
+
+```text
+Point
+Contract, diagram, or table
+Operational details
+Validation or next link
+```
+
+Documentation should route downward:
+
+```text
+README / harness instructions
+  -> repo-local canonical entrypoint
+    -> relevant topic
+      -> smallest canonical node
+```
+
+Keep secondary surfaces thin. Do not duplicate canonical policy.
+
+## Review Rule
+
+Review must flag instruction drift.
+
+Flag:
+
+- vague abstractions without definitions
+- long prose where structure fits better
+- duplicated policy
+- unclear authority
+- missing clarification before implementation
+- assumptions treated as facts
+- sections with no purpose, contract, usage, failure mode, validation, or next link
+- harness files copying policy instead of pointing to it
+- UI copy that explains instead of naming state and action
+
+## Validation Rule
+
+Run the narrowest relevant check after changes.
+
+Use repo-local validators when present. Do not invent global commands.
+
+When documentation or instruction surfaces change, validate relevant links and references.
+
+## Core Workflow
+
+| Step | Rule |
+|---|---|
+| Bootstrap | Load harness instructions, then repo-local canonical entrypoint, then the smallest relevant canonical node. |
+| Discovery | Read before deciding. |
+| Clarification | Ask before crossing unclear decision boundaries. |
+| Planning | Make the plan decision-complete. |
+| Implementation | Edit in small verifiable steps. |
+| Review | Check correctness, scope, drift, and evidence. |
+| Validation | Run the smallest useful proof. |
+
+## External Practices
+
+- [Google Developer Documentation Style Guide](https://developers.google.com/style/highlights) — clear, precise language and active voice.
+- [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/word-choice/use-simple-words-concise-sentences) — simple words and concise sentences.
+- [Diátaxis](https://diataxis.fr/) — separate tutorials, how-to guides, reference, and explanation instead of mixing doc purposes.

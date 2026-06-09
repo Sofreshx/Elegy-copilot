@@ -28,7 +28,7 @@ Use canonical docs for repo policy and workflow authority:
 1. Start at `docs/system/index.md`.
 2. Open the closest MOC.
 3. Follow it to the smallest canonical node for the task.
-4. Use `guidelines.md` and this README as lighter overlays after that bootstrap.
+4. The instruction writing contract is embedded in each harness file; `guidelines.md` at repo root is a standalone reference copy.
 
 Useful starting points:
 
@@ -88,7 +88,7 @@ This installs shared skills into `~/.gemini/antigravity/skills/` and updates onl
 
 ### Claude Code install details
 
-This installs `~/.claude/CLAUDE.md` with instruction-engine governance rules, `guidelines.md` for the universal instruction writing contract, and shared skills into `~/.claude/skills/`. The installer also configures the Claude Code provider (DeepSeek Direct) if a key is available.
+This installs `~/.claude/CLAUDE.md` with the instruction writing contract (Authority, Concise Instruction, Clarification, Planning, Review, Validation, Core Workflow) and shared skills into `~/.claude/skills/`. The installer also configures the Claude Code provider (DeepSeek Direct) if a key is available.
 
 ### Codex quick use
 

@@ -6,35 +6,192 @@ skills, prompts, repo setup overlays, and the local dashboard/runtime.
 
 This is the shared OpenCode baseline installed to the user's OpenCode home.
 Keep this file workflow-specific; put target-repo commands, test details, and local conventions in the target repo's own `AGENTS.md` or canonical docs.
-Follow `guidelines.md`: clarify ambiguity before implementation; write concise, precise, diagram-forward instructions; avoid vague or ceremonial prose.
 
-## Workflow
+## Authority
 
-1. Ask clarifying questions when missing details would change the implementation.
-2. If the request mixes unrelated goals, split them into ordered work.
-3. Use `Plan` for non-trivial design before editing.
-4. Use `Explore` for read-only code discovery and `Scout` for external docs before creating more custom agent work.
-5. Use `General` only when a bounded delegated child session will materially help.
-6. Implement in small, verifiable steps in `Build`.
-7. Run the narrowest relevant validation after changes (lint, typecheck, test, build).
-8. Narrow candidate constraints to the minimum hard constraints needed for the active step; keep shaping context and open questions separate.
+| Priority | Source |
+|---|---|
+| 1 | Explicit user instruction |
+| 2 | Repo-local canonical docs |
+| 3 | `README.md` and maintained docs |
+| 4 | Repeated implementation patterns |
 
-Keep instruction surfaces compact. Future specs and docs must be concise, map-like, and scoped to their stated purpose.
+If sources conflict, follow the highest authority and report the conflict.
 
-## Clarification Standard
+## Concise Instruction Contract
 
-- Ask the user when a missing answer would change scope, architecture, data handling, destructive actions, or acceptance criteria.
-- Do not ask about details that can be discovered from repo docs, code, tests, or current config.
-- If only low-risk details are missing, state the assumption and proceed.
-- When asking, keep questions few and concrete; prefer one blocking question over a questionnaire.
+Concise, precise instruction is required.
 
-## Validation Standard
+Write to transfer decisions, not to sound complete. Prefer exact terms, diagrams, tables, checklists, contracts, and examples over prose.
 
-- Run the smallest relevant test, typecheck, lint, build, or runtime proof that covers the changed behavior.
-- Escalate to broader tests only when repo policy, risk, cross-boundary coupling, or missing evidence requires them.
-- Use repo-local or nested AGENTS.md for exact commands; do not invent global test commands.
-- If validation is skipped or blocked, say why and identify the remaining risk.
-- Treat passing tests as evidence, not proof; still inspect edge cases and diff scope.
+| Use | Avoid |
+|---|---|
+| Named term | Repeating the same idea in new words |
+| Diagram | Long system description |
+| Table | Paragraph comparing options |
+| Checklist | Requirement paragraph |
+| Contract | Vague guidance |
+| Example | Abstract explanation |
+| Link | Copied policy text |
+
+Rules:
+
+- Start with the point.
+- Use active voice.
+- Use short sentences by default.
+- Use exact vocabulary.
+- Define key terms once.
+- Reuse defined terms consistently.
+- Replace vague nouns with named concepts.
+- Replace long explanation with a diagram, table, checklist, or example.
+- Delete ceremonial openings and closings.
+- Delete restatement.
+- Delete throat-clearing.
+- Delete empty emphasis.
+
+Bad:
+
+```text
+This system provides a robust and flexible way to manage documentation across multiple workflows.
+```
+
+Good:
+
+```text
+Documentation authority:
+README -> canonical entrypoint -> canonical node
+```
+
+A section must answer at least one question:
+
+- What is the purpose?
+- What is the contract?
+- Who owns it?
+- When is it used?
+- What can fail?
+- How is it verified?
+- What is the next link?
+
+If it answers none, remove it.
+
+## Clarification Contract
+
+Never implement through ambiguity.
+
+If user intent is unclear, clarify before planning or implementation. Use available question tools when the environment provides them. Ask few questions, but make them decision-changing.
+
+Clarify when uncertainty affects:
+
+- scope
+- architecture
+- data handling
+- destructive action
+- external cost
+- user-visible behavior
+- acceptance criteria
+- validation
+- ownership
+- security or privacy
+
+Do not ask when the answer is discoverable from files, docs, tests, config, or current state. Investigate first.
+
+Good clarification:
+
+```text
+Which source should be authoritative for this change?
+- Repo-local canonical docs: durable repo policy
+- Harness instructions only: local entrypoint
+```
+
+Bad clarification:
+
+```text
+Can you clarify what you want?
+```
+
+If two steps depend on an unstated assumption, stop and clarify before crossing that boundary.
+
+## Planning Contract
+
+Do not jump from intent to edits.
+
+Before implementation:
+
+1. Read the relevant local sources.
+2. Identify the authority path.
+3. State the goal and success criteria.
+4. Separate facts from assumptions.
+5. Resolve blocking ambiguity.
+6. Choose the smallest implementation path.
+7. Define validation.
+
+Do not assume unclear parts will work out during implementation.
+
+Use plan-first for non-trivial work. A plan is ready only when another implementer can execute it without making product or architecture decisions.
+
+## Documentation Shape
+
+Default shape:
+
+```text
+Point
+Contract, diagram, or table
+Operational details
+Validation or next link
+```
+
+Documentation should route downward:
+
+```text
+README / harness instructions
+  -> repo-local canonical entrypoint
+    -> relevant topic
+      -> smallest canonical node
+```
+
+Keep secondary surfaces thin. Do not duplicate canonical policy.
+
+## Review Rule
+
+Review must flag instruction drift.
+
+Flag:
+
+- vague abstractions without definitions
+- long prose where structure fits better
+- duplicated policy
+- unclear authority
+- missing clarification before implementation
+- assumptions treated as facts
+- sections with no purpose, contract, usage, failure mode, validation, or next link
+- harness files copying policy instead of pointing to it
+- UI copy that explains instead of naming state and action
+
+## Validation Rule
+
+Run the narrowest relevant check after changes.
+
+Use repo-local validators when present. Do not invent global commands.
+
+When documentation or instruction surfaces change, validate relevant links and references.
+
+## Core Workflow
+
+| Step | Rule |
+|---|---|
+| Bootstrap | Load harness instructions, then repo-local canonical entrypoint, then the smallest relevant canonical node. |
+| Discovery | Read before deciding. |
+| Clarification | Ask before crossing unclear decision boundaries. |
+| Planning | Make the plan decision-complete. |
+| Implementation | Edit in small verifiable steps. |
+| Review | Check correctness, scope, drift, and evidence. |
+| Validation | Run the smallest useful proof. |
+
+## External Practices
+
+- [Google Developer Documentation Style Guide](https://developers.google.com/style/highlights) — clear, precise language and active voice.
+- [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/word-choice/use-simple-words-concise-sentences) — simple words and concise sentences.
+- [Diátaxis](https://diataxis.fr/) — separate tutorials, how-to guides, reference, and explanation instead of mixing doc purposes.
 
 ## Native Agents
 

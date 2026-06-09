@@ -28,14 +28,12 @@ Central assets live in the instruction-engine repo under these directories:
 | `codex-assets/` | Codex-specific instructions, agents, skills |
 | `antigravity-assets/` | Antigravity-specific instructions and skills |
 | `claude-assets/` | Claude Code-specific instructions and skills |
-| `guidelines.md` | Universal instruction writing contract (deployed to all harnesses) |
 
 ## Architecture Diagram
 
 ```mermaid
 graph TB
     subgraph "instruction-engine repo"
-        GA["guidelines.md<br/>Universal contract"]
         EA["engine-assets/<br/>Copilot agents, skills, prompts"]
         CA["catalog-assets/<br/>Shared skills"]
         OA["opencode-assets/<br/>OpenCode instructions, agents, skills"]
@@ -54,11 +52,11 @@ graph TB
     end
 
     subgraph "Harness Home Directories"
-        CH["~/.copilot/<br/>copilot-instructions.md<br/>guidelines.md<br/>agents/<br/>skills/<br/>skills-vault/"]
-        OH["~/.config/opencode/<br/>AGENTS.md<br/>guidelines.md<br/>agents/<br/>skills/<br/>plugins/"]
-        CXH["~/.codex/<br/>AGENTS.md<br/>guidelines.md<br/>agents/<br/>skills/"]
-        ARH["~/.gemini/<br/>GEMINI.md<br/>guidelines.md<br/>antigravity/skills/"]
-        CLH["~/.claude/<br/>CLAUDE.md<br/>guidelines.md<br/>skills/"]
+        CH["~/.copilot/<br/>copilot-instructions.md<br/>agents/<br/>skills/<br/>skills-vault/"]
+        OH["~/.config/opencode/<br/>AGENTS.md<br/>agents/<br/>skills/<br/>plugins/"]
+        CXH["~/.codex/<br/>AGENTS.md<br/>agents/<br/>skills/"]
+        ARH["~/.gemini/<br/>GEMINI.md<br/>antigravity/skills/"]
+        CLH["~/.claude/<br/>CLAUDE.md<br/>skills/"]
     end
 
     subgraph "Per-Repo Deployment"
@@ -78,12 +76,6 @@ graph TB
     CXI --> CXH
     ARI --> ARH
     CLI2 --> CLH
-
-    GA --> CI
-    GA --> OI
-    GA --> CXI
-    GA --> ARI
-    GA --> CLI2
 
     EA --> CI
     EA --> OI
@@ -138,10 +130,11 @@ instruction-engine repo
 
 Each harness gets:
 - **Instructions file** (`AGENTS.md`, `GEMINI.md`, `CLAUDE.md`, or `copilot-instructions.md`)
-- **`guidelines.md`** — the universal instruction writing contract
 - **Skills** — shared skills from `engine-assets/` and `catalog-assets/`
 - **Agents** (where applicable) — harness-specific agent files
 - **Plugins** (OpenCode only) — worktree plugin
+
+The instruction writing contract (Authority, Concise Instruction, Clarification, Planning, Review, Validation, Core Workflow) is embedded directly in each harness file. No separate `guidelines.md` is synced to harness homes.
 
 ### Tier 2: Per-Repo Discovery (repo-setup-profile-bootstrap)
 
@@ -170,7 +163,7 @@ Per-repo files are created by the **repo owner** (human or CI), not by the insta
 |-----------|---------|----------|-------|-------------|--------|
 | **Home** | `~/.copilot` | `~/.config/opencode` | `~/.codex` | `~/.gemini` | `~/.claude` |
 | **Instructions** | `copilot-instructions.md` | `AGENTS.md` | `AGENTS.md` | `GEMINI.md` | `CLAUDE.md` |
-| **guidelines.md** | Yes | Yes | Yes | Yes | Yes |
+| **Contract** | Embedded in file | Embedded in file | Embedded in file | Embedded in file | Embedded in file |
 | **Agents** | 6 | 7 | 1 | 0 | 0 |
 | **Skills** | 22+ | 18 | 12 | 9 | 6+ |
 | **Plugins** | 0 | 2 | 0 | 0 | 0 |
@@ -178,24 +171,20 @@ Per-repo files are created by the **repo owner** (human or CI), not by the insta
 | **Profile injection** | No | Yes | No | No | No |
 | **Install script** | `cli-install.mjs` | `opencode-install.mjs` | `codex-install.mjs` | `antigravity-install.mjs` | `claude-install.mjs` |
 
-## guidelines.md Deployment
+## Instruction Writing Contract
 
-`guidelines.md` is deployed to every harness home as a standalone file. The instruction file in each harness references it with the recommended pointer:
+The instruction writing contract is embedded directly in each harness home file (Authority, Concise Instruction Contract, Clarification Contract, Planning Contract, Review Rule, Validation Rule, Core Workflow). Sessions always read the contract as part of loading their harness instructions — no separate file discovery needed.
 
-```text
-Follow `guidelines.md`: clarify ambiguity before implementation; write concise, precise, diagram-forward instructions; avoid vague or ceremonial prose.
-```
-
-Since `guidelines.md` exists in the same home directory, the pointer resolves locally. The agent can read it to get the full instruction writing contract (concise writing rules, clarification contract, planning contract, review rules).
+The canonical source for the contract is `docs/system/concise-instruction-governance.md`. The `guidelines.md` file at repo root is a standalone reference copy for human readers; it is not synced to harness homes.
 
 ## Validation
 
-- `node scripts/validate-guidelines-wiring.mjs` — checks all 5 harness instruction files reference `guidelines.md` with the recommended pointer format
+- `node scripts/validate-guidelines-wiring.mjs` — checks all 7 harness files contain the required inlined contract headings (Authority, Concise Instruction Contract, Clarification Contract, Planning Contract, Review Rule, Validation Rule)
 - `node scripts/validate-installed-governance-wiring.test.js` — validates installed governance wiring across harnesses
 
 ## References
 
-- `guidelines.md` — the universal instruction writing contract
 - `docs/system/concise-instruction-governance.md` — canonical authority for concise instruction standards
+- `guidelines.md` — standalone reference copy of the instruction writing contract (not synced to harness homes)
 - `docs/system/repo-setup-governance.md` — per-repo overlay and bootstrap governance
 - `scripts/install-surface-utils.mjs` — shared sync primitives (SHA-256, copy, mkdir)

@@ -1,6 +1,6 @@
 # Copilot Instructions (Shared)
 
-These are the lightweight, **global** conventions for using Instruction Engine across repos. Keep this file focused on “where to look / where to write / when to delegate”, and let the agents handle the detailed workflow.
+These are the lightweight, **global** conventions for using Instruction Engine across repos. Keep this file focused on "where to look / where to write / when to delegate", and let the agents handle the detailed workflow.
 
 Instruction Engine, also published as Elegy Copilot, is the shared asset and
 control-plane workspace for Copilot, Codex, OpenCode, and Antigravity agents,
@@ -8,12 +8,191 @@ skills, prompts, repo setup overlays, and the local dashboard/runtime. Treat
 this repo-local file as a routing aid; durable project policy lives under
 `docs/system/**`.
 
-- Prefer small, verifiable changes.
+## Authority
 
-- never use the terminal tool with background: true
-- NEVER change branches while working unless explicitly asked to do so by the user.
-- Narrow candidate constraints to the minimum hard constraints needed for the active step; keep shaping context and open questions separate;
-- Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions; Do not create ADRs for ordinary local implementation choices.
+| Priority | Source |
+|---|---|
+| 1 | Explicit user instruction |
+| 2 | Repo-local canonical docs |
+| 3 | `README.md` and maintained docs |
+| 4 | Repeated implementation patterns |
+
+If sources conflict, follow the highest authority and report the conflict.
+
+## Concise Instruction Contract
+
+Concise, precise instruction is required.
+
+Write to transfer decisions, not to sound complete. Prefer exact terms, diagrams, tables, checklists, contracts, and examples over prose.
+
+| Use | Avoid |
+|---|---|
+| Named term | Repeating the same idea in new words |
+| Diagram | Long system description |
+| Table | Paragraph comparing options |
+| Checklist | Requirement paragraph |
+| Contract | Vague guidance |
+| Example | Abstract explanation |
+| Link | Copied policy text |
+
+Rules:
+
+- Start with the point.
+- Use active voice.
+- Use short sentences by default.
+- Use exact vocabulary.
+- Define key terms once.
+- Reuse defined terms consistently.
+- Replace vague nouns with named concepts.
+- Replace long explanation with a diagram, table, checklist, or example.
+- Delete ceremonial openings and closings.
+- Delete restatement.
+- Delete throat-clearing.
+- Delete empty emphasis.
+
+Bad:
+
+```text
+This system provides a robust and flexible way to manage documentation across multiple workflows.
+```
+
+Good:
+
+```text
+Documentation authority:
+README -> canonical entrypoint -> canonical node
+```
+
+A section must answer at least one question:
+
+- What is the purpose?
+- What is the contract?
+- Who owns it?
+- When is it used?
+- What can fail?
+- How is it verified?
+- What is the next link?
+
+If it answers none, remove it.
+
+## Clarification Contract
+
+Never implement through ambiguity.
+
+If user intent is unclear, clarify before planning or implementation. Use available question tools when the environment provides them. Ask few questions, but make them decision-changing.
+
+Clarify when uncertainty affects:
+
+- scope
+- architecture
+- data handling
+- destructive action
+- external cost
+- user-visible behavior
+- acceptance criteria
+- validation
+- ownership
+- security or privacy
+
+Do not ask when the answer is discoverable from files, docs, tests, config, or current state. Investigate first.
+
+Good clarification:
+
+```text
+Which source should be authoritative for this change?
+- Repo-local canonical docs: durable repo policy
+- Harness instructions only: local entrypoint
+```
+
+Bad clarification:
+
+```text
+Can you clarify what you want?
+```
+
+If two steps depend on an unstated assumption, stop and clarify before crossing that boundary.
+
+## Planning Contract
+
+Do not jump from intent to edits.
+
+Before implementation:
+
+1. Read the relevant local sources.
+2. Identify the authority path.
+3. State the goal and success criteria.
+4. Separate facts from assumptions.
+5. Resolve blocking ambiguity.
+6. Choose the smallest implementation path.
+7. Define validation.
+
+Do not assume unclear parts will work out during implementation.
+
+Use plan-first for non-trivial work. A plan is ready only when another implementer can execute it without making product or architecture decisions.
+
+## Documentation Shape
+
+Default shape:
+
+```text
+Point
+Contract, diagram, or table
+Operational details
+Validation or next link
+```
+
+Documentation should route downward:
+
+```text
+README / harness instructions
+  -> repo-local canonical entrypoint
+    -> relevant topic
+      -> smallest canonical node
+```
+
+Keep secondary surfaces thin. Do not duplicate canonical policy.
+
+## Review Rule
+
+Review must flag instruction drift.
+
+Flag:
+
+- vague abstractions without definitions
+- long prose where structure fits better
+- duplicated policy
+- unclear authority
+- missing clarification before implementation
+- assumptions treated as facts
+- sections with no purpose, contract, usage, failure mode, validation, or next link
+- harness files copying policy instead of pointing to it
+- UI copy that explains instead of naming state and action
+
+## Validation Rule
+
+Run the narrowest relevant check after changes.
+
+Use repo-local validators when present. Do not invent global commands.
+
+When documentation or instruction surfaces change, validate relevant links and references.
+
+## Core Workflow
+
+| Step | Rule |
+|---|---|
+| Bootstrap | Load harness instructions, then repo-local canonical entrypoint, then the smallest relevant canonical node. |
+| Discovery | Read before deciding. |
+| Clarification | Ask before crossing unclear decision boundaries. |
+| Planning | Make the plan decision-complete. |
+| Implementation | Edit in small verifiable steps. |
+| Review | Check correctness, scope, drift, and evidence. |
+| Validation | Run the smallest useful proof. |
+
+## External Practices
+
+- [Google Developer Documentation Style Guide](https://developers.google.com/style/highlights) — clear, precise language and active voice.
+- [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/word-choice/use-simple-words-concise-sentences) — simple words and concise sentences.
+- [Diátaxis](https://diataxis.fr/) — separate tutorials, how-to guides, reference, and explanation instead of mixing doc purposes.
 
 ## CRITICAL: run_in_terminal MUST NEVER USE isBackground=true
 
@@ -49,12 +228,12 @@ run_in_terminal(command: "git commit", isBackground: false)  # CORRECT
 
 ## Completion Gate (Finish End-to-End)
 Do not stop execution for trivial issues like :
-- Should I write a task for this? (if it’s not clearly out of scope, just write the task)
+- Should I write a task for this? (if it's not clearly out of scope, just write the task)
 - File changed since I last read it, should I re-read it? (if the change is relevant to your current work, just re-read it)
 - File changed should I revert to the last version I read? (if the change is relevant to your current work, just incorporate the new changes and move forward)
 When the user asks you to *do* something (implement/fix/refactor), keep going until it is truly done end-to-end.
 
-Before replying with a “done” / “here’s what I did” message, verify you have:
+Before replying with a "done" / "here's what I did" message, verify you have:
 - Applied the change in the workspace (not just proposed it).
 - Checked for new errors (`get_errors`) in touched files.
 - Run the narrowest relevant validation (tests/build/task) when available.
@@ -65,8 +244,8 @@ If you need input from the user:
 - Continue executing any non-blocked work in parallel (exploration, drafting, refactors that are safe).
 - Provide a plan only when the user explicitly asked for a plan.
 
-Avoid “handoff-only” endings:
-- Proceed with the next safe step instead of pausing at “I can do X next, want me to?”.
+Avoid "handoff-only" endings:
+- Proceed with the next safe step instead of pausing at "I can do X next, want me to?".
 - Offer optional next steps only after the core request is complete.
 
 ## Read First (Project Truth)
@@ -74,8 +253,6 @@ For repo-rule or workflow decisions, consult in this order:
 1. `docs/system/index.md`, then the closest MOC, then the smallest relevant canonical node in `docs/system/**`
 2. supporting repo docs (`README.md`, `docs/`, `documentation/`, design notes)
 3. legacy `.instructions/architecture.md` and `.instructions/contexts/*.md` only when the repo explicitly opts in
-
-Follow `guidelines.md`: clarify ambiguity before implementation; write concise, precise, diagram-forward instructions; avoid vague or ceremonial prose.
 
 ## Documentation Discovery Protocol
 When task decisions depend on repository docs, follow this route first:
