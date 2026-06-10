@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 
 const DEFAULT_OPENCODE_HOME = path.join(os.homedir(), '.config', 'opencode');
 const DEFAULT_WORKTREE_BASE = path.join(os.homedir(), '.local', 'share', 'opencode', 'worktree');
@@ -360,8 +361,23 @@ function setAgentModels(opencodeHome, smallModel, bigModel, reviewModel) {
 function resetConfig(opencodeHome) {
   const resolvedHome = resolveOpenCodeHome(opencodeHome);
   const config = readConfig(resolvedHome);
+  const state = readState(resolvedHome);
+
+  // Remove managed prompt entries owned by Elegy (R8)
+  const managedPrompts = state && typeof state._managedPrompts === 'object'
+    ? state._managedPrompts
+    : {};
 
   if (config.agent && typeof config.agent === 'object') {
+    for (const [agentName, managed] of Object.entries(managedPrompts)) {
+      const agentEntry = config.agent[agentName];
+      if (agentEntry && typeof agentEntry === 'object' && typeof agentEntry.prompt === 'string') {
+        if (managed && managed.hash === computeHash(agentEntry.prompt)) {
+          delete agentEntry.prompt;
+        }
+      }
+    }
+
     for (const key of ALL_LANE_AGENT_KEYS) {
       if (config.agent[key] && typeof config.agent[key] === 'object') {
         delete config.agent[key].model;
@@ -529,6 +545,7 @@ function normalizeProfile(profile, profileId) {
 function applyProfile(opencodeHome, profile) {
   const resolvedHome = resolveOpenCodeHome(opencodeHome);
   const config = readConfig(resolvedHome);
+  const previousConfig = { ...config };
 
   const normalized = normalizeProfile(profile);
 
@@ -547,6 +564,15 @@ function applyProfile(opencodeHome, profile) {
   }
 
   writeConfig(resolvedHome, config);
+
+  try {
+    const promptResult = applyCustomPrompts(resolvedHome, normalized);
+  } catch (err) {
+    // Rollback: restore previous config on prompt application failure
+    writeConfig(resolvedHome, previousConfig);
+    throw err;
+  }
+
   return getStatus(resolvedHome);
 }
 
@@ -588,6 +614,219 @@ function setActiveProfileId(opencodeHome, profileId) {
   writeState(opencodeHome, state);
 }
 
+// ── Custom Prompts Layer ────────────────────────────────────────────────
+
+function readCustomPrompts(opencodeHome) {
+  const state = readState(opencodeHome);
+  return (state && typeof state.customPrompts === 'object' && !Array.isArray(state.customPrompts))
+    ? state.customPrompts
+    : {};
+}
+
+function writeCustomPrompts(opencodeHome, customPrompts) {
+  const state = readState(opencodeHome);
+  const mergedState = {
+    ...state,
+    customPrompts,
+    updatedAt: new Date().toISOString(),
+  };
+  writeState(opencodeHome, mergedState);
+}
+
+function computeHash(promptText) {
+  return crypto.createHash('sha256').update(promptText).digest('hex');
+}
+
+function resolveActiveModel(agentName, profile, profileCatalog) {
+  if (!profileCatalog) {
+    try {
+      const engineRoot = path.resolve(__dirname, '..', '..');
+      profileCatalog = readProfileCatalog(engineRoot);
+    } catch {
+      return null;
+    }
+  }
+
+  // 1) Search roleToAgent for a role whose agent array includes agentName,
+  //    then return profile.roleModels[role].
+  if (profile && typeof profile.roleModels === 'object') {
+    const roleToAgent = profileCatalog && typeof profileCatalog.roleToAgent === 'object'
+      ? profileCatalog.roleToAgent
+      : {};
+    for (const [role, agents] of Object.entries(roleToAgent)) {
+      if (Array.isArray(agents) && agents.includes(agentName)) {
+        const modelId = profile.roleModels[role];
+        if (typeof modelId === 'string' && modelId.trim()) {
+          return modelId.trim();
+        }
+      }
+    }
+  }
+
+  // 2) Fall back: agentRoles[agentName] → role key (small/big/review) → profile[roleKey]
+  const agentRoles = profileCatalog && typeof profileCatalog.agentRoles === 'object'
+    ? profileCatalog.agentRoles
+    : {};
+  const roleKey = agentRoles[agentName];
+  if (roleKey && typeof roleKey === 'string' && profile && typeof profile === 'object') {
+    const modelId = profile[roleKey];
+    if (typeof modelId === 'string' && modelId.trim()) {
+      return modelId.trim();
+    }
+  }
+
+  return null;
+}
+
+function applyCustomPrompts(opencodeHome, profileOrRoleModels, engineRootOrProfileCatalog) {
+  const resolvedHome = resolveOpenCodeHome(opencodeHome);
+  const config = readConfig(resolvedHome);
+  const state = readState(resolvedHome);
+
+  const customPrompts = (state && typeof state.customPrompts === 'object' && !Array.isArray(state.customPrompts))
+    ? state.customPrompts
+    : {};
+  const managedPrompts = (state && typeof state._managedPrompts === 'object' && !Array.isArray(state._managedPrompts))
+    ? state._managedPrompts
+    : {};
+
+  let profile;
+  let catalog;
+
+  if (typeof engineRootOrProfileCatalog === 'string') {
+    // Signature B: (opencodeHome, roleModels, engineRoot)
+    catalog = readProfileCatalog(engineRootOrProfileCatalog);
+    profile = normalizeProfile({ roleModels: profileOrRoleModels });
+  } else {
+    // Signature A: (opencodeHome, profileObject) — full profile with roleModels
+    profile = profileOrRoleModels;
+    catalog = engineRootOrProfileCatalog || null;
+  }
+
+  const applied = [];
+  const skipped = [];
+  const errors = [];
+
+  for (const agentName of ALL_LANE_AGENT_KEYS) {
+    try {
+      const activeModel = resolveActiveModel(agentName, profile, catalog);
+      if (!activeModel) {
+        continue; // Skip agents with no resolvable model
+      }
+
+      const agentCustomPrompts = customPrompts[agentName] || {};
+      const customPrompt = agentCustomPrompts[activeModel];
+      const agentConfig = config.agent && typeof config.agent[agentName] === 'object'
+        ? config.agent[agentName]
+        : undefined;
+      const currentPrompt = agentConfig ? agentConfig.prompt : undefined;
+      const managed = managedPrompts[agentName];
+
+      if (typeof customPrompt === 'string' && customPrompt.trim().length > 0) {
+        // R2 step 3: Non-empty override exists for active model
+        const currentHash = typeof currentPrompt === 'string' ? computeHash(currentPrompt) : null;
+        const owned = managed && managed.hash === currentHash;
+        const noCurrentPrompt = currentPrompt === undefined || currentPrompt === null;
+
+        if (owned || noCurrentPrompt) {
+          // Safe to write
+          if (!config.agent || typeof config.agent !== 'object') {
+            config.agent = {};
+          }
+          if (!config.agent[agentName] || typeof config.agent[agentName] !== 'object') {
+            config.agent[agentName] = {};
+          }
+          config.agent[agentName].prompt = customPrompt.trim();
+
+          managedPrompts[agentName] = {
+            hash: computeHash(customPrompt.trim()),
+            modelId: activeModel,
+          };
+          applied.push(agentName);
+        } else {
+          // Hash mismatch — user manually edited; do not overwrite (R2 step 3d)
+          skipped.push(agentName);
+        }
+      } else {
+        // R2 step 4: No non-empty override for active model (absent, undefined, or "")
+        if (managed && typeof currentPrompt === 'string') {
+          const currentHash = computeHash(currentPrompt);
+          if (managed.hash === currentHash) {
+            // We own this prompt — remove it to restore built-in behavior (R7)
+            if (config.agent && typeof config.agent[agentName] === 'object') {
+              delete config.agent[agentName].prompt;
+              if (Object.keys(config.agent[agentName]).length === 0) {
+                delete config.agent[agentName];
+              }
+            }
+            delete managedPrompts[agentName];
+            applied.push(agentName);
+          }
+        }
+        // Otherwise: no action needed — agent keeps whatever prompt it has
+      }
+    } catch (err) {
+      errors.push(agentName);
+    }
+  }
+
+  // Clean up empty agent section
+  if (config.agent && typeof config.agent === 'object') {
+    const agentKeys = Object.keys(config.agent);
+    if (agentKeys.length === 0) {
+      delete config.agent;
+    }
+  }
+
+  // Write config and state only if something changed
+  if (applied.length > 0 || skipped.length > 0 || errors.length > 0) {
+    writeConfig(resolvedHome, config);
+
+    const newState = {
+      ...readState(resolvedHome),
+      _managedPrompts: managedPrompts,
+      customPrompts,
+      updatedAt: new Date().toISOString(),
+    };
+    writeState(resolvedHome, newState);
+  }
+
+  return { applied, skipped, errors };
+}
+
+function getAvailableModels(opencodeHome, engineRoot) {
+  const resolvedHome = resolveOpenCodeHome(opencodeHome);
+  const config = readConfig(resolvedHome);
+  const models = new Set();
+
+  // Collect all unique roleModels model IDs from every profile
+  try {
+    const catalog = readProfileCatalog(engineRoot);
+    if (catalog && typeof catalog.profiles === 'object') {
+      for (const profile of Object.values(catalog.profiles)) {
+        if (profile && typeof profile.roleModels === 'object') {
+          for (const modelId of Object.values(profile.roleModels)) {
+            if (typeof modelId === 'string' && modelId.trim()) {
+              models.add(modelId.trim());
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore catalog read errors
+  }
+
+  // Add user-configured provider models
+  for (const model of listAvailableModels(config)) {
+    models.add(model);
+  }
+
+  return Array.from(models).sort();
+}
+
+// ── ────────────────────────────────────────────────────────────────────
+
 module.exports = {
   KNOWN_DEFAULT_EXPLORE_MODEL,
   KNOWN_DEFAULT_SCOUT_MODEL,
@@ -603,6 +842,8 @@ module.exports = {
   resolveStatePath,
   readConfig,
   writeConfig,
+  readState,
+  writeState,
   parseJsonc,
   getAgentModels,
   listAvailableModels,
@@ -626,4 +867,10 @@ module.exports = {
   getWorktreePermissionProfileStatus,
   WORKTREE_PERMISSION_PROFILE_MARKER,
   WORKTREE_PERMISSION_PROFILE_VERSION,
+  readCustomPrompts,
+  writeCustomPrompts,
+  computeHash,
+  resolveActiveModel,
+  applyCustomPrompts,
+  getAvailableModels,
 };

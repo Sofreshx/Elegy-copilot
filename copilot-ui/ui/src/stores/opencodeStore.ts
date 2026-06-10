@@ -14,6 +14,8 @@ import {
   activateGoWorkspace,
   validateGoWorkspace,
   deleteGoWorkspace,
+  saveOpenCodePrompts,
+  getEffectivePrompt,
 } from '../lib/api/opencode';
 import { createStore } from '../lib/store';
 import type {
@@ -28,6 +30,8 @@ import type {
   OpenCodeGoWorkspaceActionResponse,
   OpenCodeGoWorkspaceCreateFlowResponse,
   OpenCodeGoWorkspaceValidateResponse,
+  CustomPromptMap,
+  EffectivePromptResponse,
 } from '../lib/types';
 
 export interface OpenCodeState {
@@ -47,6 +51,11 @@ export interface OpenCodeState {
   goWorkspaces: OpenCodeGoWorkspacesResponse | null;
   goWorkspacesLoading: boolean;
   goWorkspacesError: string | null;
+  customPrompts: CustomPromptMap;
+  _managedPrompts: Record<string, { hash: string; modelId: string }> | null;
+  effectivePrompts: Record<string, EffectivePromptResponse | null>;
+  promptsLoading: boolean;
+  promptsSaving: boolean;
 }
 
 const INITIAL_STATE: OpenCodeState = {
@@ -66,6 +75,11 @@ const INITIAL_STATE: OpenCodeState = {
   goWorkspaces: null,
   goWorkspacesLoading: false,
   goWorkspacesError: null,
+  customPrompts: {},
+  _managedPrompts: null,
+  effectivePrompts: {},
+  promptsLoading: false,
+  promptsSaving: false,
 };
 
 function toErrorMessage(error: unknown): string {
@@ -82,7 +96,13 @@ function createOpenCodeStore() {
     store.setState((state) => ({ ...state, loading: true, error: null }));
     try {
       const status = await getOpenCodeStatus();
-      store.setState((state) => ({ ...state, status, loading: false }));
+      store.setState((state) => ({
+        ...state,
+        status,
+        loading: false,
+        customPrompts: (status as any).customPrompts || {},
+        _managedPrompts: (status as any)._managedPrompts || null,
+      }));
     } catch (error) {
       store.setState((state) => ({
         ...state,
@@ -154,6 +174,35 @@ function createOpenCodeStore() {
       store.setState((state) => ({
         ...state,
         saving: false,
+        error: toErrorMessage(error),
+      }));
+    }
+  }
+
+  async function savePrompts(payload: { customPrompts: CustomPromptMap }): Promise<void> {
+    store.setState((state) => ({ ...state, promptsSaving: true, error: null, message: null }));
+    try {
+      const response = await saveOpenCodePrompts(payload);
+      if (!response.ok) {
+        store.setState((state) => ({
+          ...state,
+          promptsSaving: false,
+          error: response.errors?.length ? response.errors.join(', ') : 'Failed to save prompts.',
+        }));
+        return;
+      }
+      store.setState((state) => ({
+        ...state,
+        promptsSaving: false,
+        customPrompts: payload.customPrompts,
+        message: response.applied.length
+          ? `Prompts saved: ${response.applied.length} applied, ${response.skipped.length} skipped.`
+          : 'No prompts needed updating.',
+      }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        promptsSaving: false,
         error: toErrorMessage(error),
       }));
     }
@@ -326,6 +375,21 @@ function createOpenCodeStore() {
     store.setState((state) => ({ ...state, selectedLaneId: laneId }));
   }
 
+  async function loadEffectivePrompt(agentName: string): Promise<void> {
+    try {
+      const response = await getEffectivePrompt(agentName);
+      store.setState((state) => ({
+        ...state,
+        effectivePrompts: { ...state.effectivePrompts, [agentName]: response },
+      }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        error: toErrorMessage(error),
+      }));
+    }
+  }
+
   function resetState(): void {
     store.setState(() => ({ ...INITIAL_STATE }));
   }
@@ -424,6 +488,7 @@ function createOpenCodeStore() {
     setState: store.setState,
     load,
     saveConfig,
+    savePrompts,
     toggleConfigKey,
     resetConfig,
     installAssets,
@@ -434,6 +499,7 @@ function createOpenCodeStore() {
     loadRequestLogs,
     setActiveSection,
     setSelectedLaneId,
+    loadEffectivePrompt,
     resetState,
     loadGoWorkspaces,
     createGoWorkspace,
