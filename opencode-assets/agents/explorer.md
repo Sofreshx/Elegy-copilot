@@ -2,7 +2,7 @@
 mode: subagent
 hidden: true
 model: deepseek/deepseek-v4-flash
-reasoningEffort: high
+reasoningEffort: max
 description: "Exploration subagent. Read-only. Replaces Explore for lane agents. Discover code patterns, trace execution paths, map architecture, and search for related code."
 permission:
   edit: deny

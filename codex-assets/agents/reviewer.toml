@@ -1,6 +1,6 @@
 name = "reviewer"
 description = "Read-heavy reviewer for plans and diffs. Use it before implementation on complex plans and after edits for correctness checks."
-model_reasoning_effort = "high"
+model_reasoning_effort = "max"
 sandbox_mode = "read-only"
 
 developer_instructions = """

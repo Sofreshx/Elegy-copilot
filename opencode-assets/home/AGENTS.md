@@ -321,7 +321,7 @@ Profiles define model+provider routing for all lane agents and subagents using f
 | `exploration` | `opencode-go/deepseek-v4-flash` | `explore`, `explorer` |
 | `review` | `opencode-go/deepseek-v4-pro` | `reviewer` |
 | `research` | `opencode-go/deepseek-v4-pro` | `scout` |
-| `reasoningEffort` | `high` | Max reasoning effort on all DeepSeek models |
+| `reasoningEffort` | `max` | Max reasoning effort on all DeepSeek models |
 
 **Available profiles:**
 - `opencode-go-balanced` — Go provider with DeepSeek defaults

@@ -1,7 +1,7 @@
 ---
 mode: primary
 model: deepseek/deepseek-v4-pro
-reasoningEffort: high
+reasoningEffort: max
 description: "Spec lane: contract, workflow, API, or user-facing behavior changes. Requires spec-first workflow with review gates. Uses elegy-planning for durable state."
 permission:
   task:

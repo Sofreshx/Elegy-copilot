@@ -33,8 +33,9 @@ export default function WorkspaceRightRail({
             : records.filter((r) => !r.repoId);
           setPlanningRecords(filtered.slice(0, 10));
         }
-      } catch {
+      } catch (e) {
         // planning is optional, don't show error
+        console.debug('Planning records fetch failed:', e instanceof Error ? e.message : e);
       } finally {
         if (!cancelled) setPlanningLoading(false);
       }

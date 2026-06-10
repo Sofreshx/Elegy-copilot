@@ -1,7 +1,7 @@
 ---
 mode: primary
 model: deepseek/deepseek-v4-pro
-reasoningEffort: high
+reasoningEffort: max
 description: "Standard lane: scoped feature or normal bug fix. Default lane for most development work. Delegates to subagents for implementation, exploration, and review."
 permission:
   task:

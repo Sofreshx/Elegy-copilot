@@ -1,7 +1,7 @@
 ---
 mode: primary
 model: deepseek/deepseek-v4-pro
-reasoningEffort: high
+reasoningEffort: max
 description: "Project lane: multi-session roadmap work. Orchestrates via elegy-planning: goal, roadmap, plans, worktrees, evidence chains, and review gates."
 permission:
   task:

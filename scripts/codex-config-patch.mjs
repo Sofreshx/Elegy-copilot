@@ -223,7 +223,7 @@ function buildManagedBlock({ needsProfile, profileName, enableExternalProviders,
     lines.push(`model_provider = "${DEFAULT_PROVIDER_ID}"`);
     lines.push(`model = "${DEFAULT_MODEL}"`);
     lines.push('personality = "pragmatic"');
-    lines.push('model_reasoning_effort = "high"');
+    lines.push('model_reasoning_effort = "max"');
     lines.push('plan_mode_reasoning_effort = "xhigh"');
     lines.push('');
   }

@@ -38,6 +38,10 @@ const DISCOVERY_PATTERNS = [
   // Repo-level (no harness prefix)
   { glob: 'skills/*/SKILL.md', kind: 'skill', sourceHarness: null },
   { glob: 'agents/*.agent.md', kind: 'agent', sourceHarness: null },
+
+  // Generated mirrors (agents) and canonical repo-local (github)
+  { glob: '.agents/skills/*/SKILL.md', kind: 'skill', sourceHarness: 'agents' },
+  { glob: '.github/skills/*/SKILL.md', kind: 'skill', sourceHarness: 'copilot' },
 ];
 
 function isNonEmptyString(value) {

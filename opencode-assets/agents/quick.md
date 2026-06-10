@@ -1,7 +1,7 @@
 ---
 mode: primary
 model: deepseek/deepseek-v4-flash
-reasoningEffort: high
+reasoningEffort: max
 description: "Quick lane: small UI tweaks and tiny bug fixes (<5 min, 1-2 files). Flash only; no spec or roadmap."
 permission:
   task:

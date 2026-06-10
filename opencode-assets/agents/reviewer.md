@@ -2,7 +2,7 @@
 mode: subagent
 hidden: true
 model: deepseek/deepseek-v4-pro
-reasoningEffort: high
+reasoningEffort: max
 description: "Review subagent. Read-only. Replaces Plan for lane agents. Review code quality, spec-fit, plan feasibility, and architectural decisions."
 permission:
   edit: deny

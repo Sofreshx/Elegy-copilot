@@ -43,13 +43,13 @@ async function main() {
 
       // Create mock agent files matching agentRoles keys
       const agents = {
-        quick: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'high' },
-        standard: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'high' },
-        spec: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'high' },
-        project: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'high' },
-        impl: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'high' },
-        reviewer: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'high' },
-        explorer: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'high' },
+        quick: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'max' },
+        standard: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
+        spec: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
+        project: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
+        impl: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'max' },
+        reviewer: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
+        explorer: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'max' },
       };
 
       const agentRoles = {
@@ -74,7 +74,7 @@ async function main() {
         small: 'deepseek/deepseek-v4-flash',
         big: 'deepseek/deepseek-v4-pro',
         review: 'deepseek/deepseek-v4-pro',
-        reasoningEffort: 'high',
+        reasoningEffort: 'max',
       };
 
       let updatedCount = 0;
@@ -115,7 +115,7 @@ async function main() {
       fs.mkdirSync(agentsDir, { recursive: true });
 
       const filePath = path.join(agentsDir, 'quick.md');
-      const content = `---\nmode: primary\nmodel: deepseek/deepseek-v4-flash\nreasoningEffort: high\ndescription: "Quick lane"\n---\n\n# Quick agent\n`;
+      const content = `---\nmode: primary\nmodel: deepseek/deepseek-v4-flash\nreasoningEffort: max\ndescription: "Quick lane"\n---\n\n# Quick agent\n`;
       fs.writeFileSync(filePath, content, 'utf8');
 
       const agentRoles = { quick: 'small' };
@@ -141,7 +141,7 @@ async function main() {
 
       // Create an agent with a role
       const quickPath = path.join(agentsDir, 'quick.md');
-      fs.writeFileSync(quickPath, `---\nmode: primary\nmodel: deepseek/deepseek-v4-flash\nreasoningEffort: high\ndescription: "Quick"\n---\n\n# Quick\n`, 'utf8');
+      fs.writeFileSync(quickPath, `---\nmode: primary\nmodel: deepseek/deepseek-v4-flash\nreasoningEffort: max\ndescription: "Quick"\n---\n\n# Quick\n`, 'utf8');
 
       // Create an agent WITHOUT a role in agentRoles
       const customPath = path.join(agentsDir, 'custom-agent.md');
@@ -150,7 +150,7 @@ async function main() {
       const agentRoles = { quick: 'small' };
       const profile = {
         small: 'deepseek/deepseek-v4-flash',
-        reasoningEffort: 'high',
+        reasoningEffort: 'max',
       };
 
       const result = utils.updateAgentModel(customPath, profile, agentRoles);

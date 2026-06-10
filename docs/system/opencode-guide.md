@@ -56,7 +56,7 @@ See `opencode-assets/home/AGENTS.md` (installed to `~/.config/opencode/AGENTS.md
 
 ### Provider Profiles
 
-Profiles configure model routing across five task roles. Each profile maps models to roles using OpenCode Go (`opencode-go/<model-id>`) or OpenCode Zen (`opencode/<model-id>`) provider prefixes. All DeepSeek models use max reasoning effort (`reasoningEffort: high`).
+Profiles configure model routing across five task roles. Each profile maps models to roles using OpenCode Go (`opencode-go/<model-id>`) or OpenCode Zen (`opencode/<model-id>`) provider prefixes. All DeepSeek models use max reasoning effort (`reasoningEffort: max`).
 
 | Role | Description | Agents |
 |---|---|---|

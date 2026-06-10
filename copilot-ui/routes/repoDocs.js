@@ -294,6 +294,8 @@ const TREE_SCAN_PATHS = [
   { prefix: 'docs/', dirKind: 'docs' },
   { prefix: 'skills/', dirKind: 'skills' },
   { prefix: 'agents/', dirKind: 'agents' },
+  { prefix: '.agents/', dirKind: 'harness', harness: 'agents' },
+  { prefix: '.github/', dirKind: 'harness', harness: 'copilot' },
   { prefix: '.opencode/', dirKind: 'harness', harness: 'opencode' },
   { prefix: '.codex/', dirKind: 'harness', harness: 'codex' },
   { prefix: '.copilot/', dirKind: 'harness', harness: 'copilot' },
@@ -391,6 +393,8 @@ function classifyFileKind(filePath) {
 
 function classifyHarness(filePath) {
   const normalized = filePath.replace(/\\/g, '/');
+  if (normalized.startsWith('.agents/')) return 'agents';
+  if (normalized.startsWith('.github/')) return 'copilot';
   if (normalized.startsWith('.opencode/')) return 'opencode';
   if (normalized.startsWith('.codex/')) return 'codex';
   if (normalized.startsWith('.copilot/')) return 'copilot';

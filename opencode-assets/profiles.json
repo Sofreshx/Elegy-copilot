@@ -15,7 +15,7 @@
       "small": "opencode-go/deepseek-v4-flash",
       "big": "opencode-go/deepseek-v4-pro",
       "review": "opencode-go/deepseek-v4-pro",
-      "reasoningEffort": "high",
+      "reasoningEffort": "max",
       "smallLabel": "DeepSeek V4 Flash",
       "bigLabel": "DeepSeek V4 Pro",
       "reviewLabel": "DeepSeek V4 Pro"
@@ -34,7 +34,7 @@
       "small": "opencode-go/deepseek-v4-flash",
       "big": "opencode-go/deepseek-v4-pro",
       "review": "opencode-go/deepseek-v4-pro",
-      "reasoningEffort": "high"
+      "reasoningEffort": "max"
     },
     "opencode-zen-free": {
       "label": "OpenCode Zen Free",
@@ -48,7 +48,7 @@
         "review": "opencode/deepseek-v4-pro-free",
         "research": "opencode/deepseek-v4-flash-free"
       },
-      "reasoningEffort": "high"
+      "reasoningEffort": "max"
     },
     "opencode-zen-mixed": {
       "label": "OpenCode Zen Mixed",
@@ -61,7 +61,7 @@
         "review": "opencode/deepseek-v4-pro",
         "research": "opencode/deepseek-v4-flash-free"
       },
-      "reasoningEffort": "high"
+      "reasoningEffort": "max"
     },
     "deepseek-direct": {
       "label": "Direct DeepSeek",
@@ -77,7 +77,7 @@
       "small": "deepseek/deepseek-v4-flash",
       "big": "deepseek/deepseek-v4-pro",
       "review": "deepseek/deepseek-v4-pro",
-      "reasoningEffort": "high",
+      "reasoningEffort": "max",
       "smallLabel": "DeepSeek V4 Flash Max",
       "bigLabel": "DeepSeek V4 Pro Max",
       "reviewLabel": "DeepSeek V4 Pro High"

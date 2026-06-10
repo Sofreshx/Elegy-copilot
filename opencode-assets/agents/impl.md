@@ -2,7 +2,7 @@
 mode: subagent
 hidden: true
 model: deepseek/deepseek-v4-flash
-reasoningEffort: high
+reasoningEffort: max
 description: "Implementation subagent. Write-capable. Replaces Build for lane agents. Execute file edits, run commands, and validate changes."
 permission:
   edit: allow

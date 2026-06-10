@@ -126,6 +126,127 @@ function register(context = {}) {
         }
       },
     },
+
+    // ── Worktree Session Status ──────────────────────────────────────
+    // Must precede the /:id regex route to avoid regex shadowing.
+    {
+      method: 'GET',
+      path: '/api/elegy-db/worktrees/session-status',
+      handler(ctx) {
+        const { res, u, elegyDb } = ctx;
+        if (!elegyDb) return sendDbNotReady(res);
+        try {
+          const worktreeId = u.searchParams.get('worktreeId');
+          if (!worktreeId) {
+            sendJson(res, 400, { error: 'worktreeId query parameter is required', code: 'elegy_db_invalid_input' });
+            return;
+          }
+          const worktree = elegyDb.getWorktree(worktreeId);
+          if (!worktree) {
+            sendJson(res, 404, { error: 'Worktree not found', code: 'elegy_db_not_found' });
+            return;
+          }
+          // Get recent hook events for this worktree
+          const recentEvents = elegyDb.listHookEvents({ worktreeId, limit: 10 });
+          // Get active sessions via session_worktrees junction
+          const sessions = elegyDb.listSessionsByWorktree(worktree.path);
+          const activeSessions = sessions.filter(s => s.status === 'active');
+
+          sendJson(res, 200, {
+            worktreeId: worktree.id,
+            worktreePath: worktree.path,
+            status: worktree.status,
+            sessionCount: worktree.session_count || 0,
+            hasActiveSession: (worktree.session_count || 0) > 0,
+            activeSessions: activeSessions.map(s => ({
+              sessionId: s.id,
+              title: s.title,
+              startedAt: s.started_at,
+              model: s.model,
+            })),
+            totalSessions: sessions.length,
+            recentHookEvents: recentEvents.map(e => ({
+              id: e.id,
+              hookType: e.hook_type,
+              createdAt: e.created_at,
+            })),
+          });
+        } catch (e) {
+          sendJson(res, 500, { error: String(e.message || e), code: 'elegy_db_query_error' });
+        }
+      },
+    },
+
+    // ── Enriched Worktrees ─────────────────────────────────────────────
+    // Must precede the /:id regex route to avoid regex shadowing.
+    {
+      method: 'GET',
+      path: '/api/elegy-db/worktrees/enriched',
+      handler(ctx) {
+        const { res, u, elegyDb } = ctx;
+        if (!elegyDb) return sendDbNotReady(res);
+        try {
+          const repoPath = parseStr(u.searchParams, 'repoPath');
+          if (!repoPath) {
+            sendJson(res, 400, { error: 'repoPath query parameter is required', code: 'elegy_db_invalid_input' });
+            return;
+          }
+
+          // Get worktrees for this repo from SQLite
+          const worktrees = elegyDb.listWorktreesByRepo
+            ? elegyDb.listWorktreesByRepo(repoPath)
+            : elegyDb.listWorktrees({ repoPath }) || [];
+
+          // Enrich each worktree with session data
+          const enriched = worktrees.map(wt => {
+            const sessions = (elegyDb.listSessionsByWorktree && wt.path)
+              ? elegyDb.listSessionsByWorktree(wt.path) || []
+              : [];
+            const hookEvents = (elegyDb.listHookEvents && wt.id)
+              ? elegyDb.listHookEvents({ worktreeId: wt.id, limit: 5 }) || []
+              : [];
+
+            return {
+              id: wt.id,
+              path: wt.path || '',
+              repoPath: wt.repo_path || repoPath,
+              branch: wt.branch || '',
+              source: wt.source || 'unknown',
+              status: wt.status || 'ready',
+              sessionCount: sessions.length,
+              headSha: wt.head_sha || null,
+              lastActivityAt: wt.last_activity_at || null,
+              created_at: wt.created_at,
+              updated_at: wt.updated_at,
+              sessions: sessions.map(s => ({
+                sessionId: s.id,
+                title: s.title || null,
+                status: s.status,
+                source: s.source || 'unknown',
+                model: s.model || null,
+                startedAt: s.started_at,
+              })),
+              recentHookEvents: hookEvents.map(he => ({
+                id: he.id,
+                hookType: he.hook_type,
+                createdAt: he.created_at,
+              })),
+            };
+          });
+
+          sendJson(res, 200, {
+            repoPath,
+            worktrees: enriched,
+            count: enriched.length,
+          });
+        } catch (error) {
+          sendJson(res, 500, { error: String(error.message || error), code: 'elegy_db_query_error' });
+        }
+      },
+    },
+
+    // ── Worktree by ID (regex) ───────────────────────────────────────
+    // After all exact-match string routes for /worktrees/* sub-paths.
     {
       method: 'GET',
       path: /^\/api\/elegy-db\/worktrees\/([^/]+)$/,
@@ -196,55 +317,6 @@ function register(context = {}) {
       },
     },
 
-    // ── Worktree Session Status ──────────────────────────────────────
-    {
-      method: 'GET',
-      path: '/api/elegy-db/worktrees/session-status',
-      handler(ctx) {
-        const { res, u, elegyDb } = ctx;
-        if (!elegyDb) return sendDbNotReady(res);
-        try {
-          const worktreeId = u.searchParams.get('worktreeId');
-          if (!worktreeId) {
-            sendJson(res, 400, { error: 'worktreeId query parameter is required', code: 'elegy_db_invalid_input' });
-            return;
-          }
-          const worktree = elegyDb.getWorktree(worktreeId);
-          if (!worktree) {
-            sendJson(res, 404, { error: 'Worktree not found', code: 'elegy_db_not_found' });
-            return;
-          }
-          // Get recent hook events for this worktree
-          const recentEvents = elegyDb.listHookEvents({ worktreeId, limit: 10 });
-          // Get active sessions via session_worktrees junction
-          const sessions = elegyDb.listSessionsByWorktree(worktree.path);
-          const activeSessions = sessions.filter(s => s.status === 'active');
-
-          sendJson(res, 200, {
-            worktreeId: worktree.id,
-            worktreePath: worktree.path,
-            status: worktree.status,
-            sessionCount: worktree.session_count || 0,
-            hasActiveSession: (worktree.session_count || 0) > 0,
-            activeSessions: activeSessions.map(s => ({
-              sessionId: s.id,
-              title: s.title,
-              startedAt: s.started_at,
-              model: s.model,
-            })),
-            totalSessions: sessions.length,
-            recentHookEvents: recentEvents.map(e => ({
-              id: e.id,
-              hookType: e.hook_type,
-              createdAt: e.created_at,
-            })),
-          });
-        } catch (e) {
-          sendJson(res, 500, { error: String(e.message || e), code: 'elegy_db_query_error' });
-        }
-      },
-    },
-
     // ── Worktree Sessions ────────────────────────────────────────────
     {
       method: 'GET',
@@ -262,73 +334,6 @@ function register(context = {}) {
           sendJson(res, 200, { sessions, count: sessions.length });
         } catch (e) {
           sendJson(res, 500, { error: String(e.message || e), code: 'elegy_db_query_error' });
-        }
-      },
-    },
-
-    // ── Enriched Worktrees ─────────────────────────────────────────────
-    {
-      method: 'GET',
-      path: '/api/elegy-db/worktrees/enriched',
-      handler(ctx) {
-        const { res, u, elegyDb } = ctx;
-        if (!elegyDb) return sendDbNotReady(res);
-        try {
-          const repoPath = parseStr(u.searchParams, 'repoPath');
-          if (!repoPath) {
-            sendJson(res, 400, { error: 'repoPath query parameter is required', code: 'elegy_db_invalid_input' });
-            return;
-          }
-
-          // Get worktrees for this repo from SQLite
-          const worktrees = elegyDb.listWorktreesByRepo
-            ? elegyDb.listWorktreesByRepo(repoPath)
-            : elegyDb.listWorktrees({ repoPath }) || [];
-
-          // Enrich each worktree with session data
-          const enriched = worktrees.map(wt => {
-            const sessions = (elegyDb.listSessionsByWorktree && wt.path)
-              ? elegyDb.listSessionsByWorktree(wt.path) || []
-              : [];
-            const hookEvents = (elegyDb.listHookEvents && wt.id)
-              ? elegyDb.listHookEvents({ worktreeId: wt.id, limit: 5 }) || []
-              : [];
-
-            return {
-              id: wt.id,
-              path: wt.path || '',
-              repoPath: wt.repo_path || repoPath,
-              branch: wt.branch || '',
-              source: wt.source || 'unknown',
-              status: wt.status || 'ready',
-              sessionCount: sessions.length,
-              headSha: wt.head_sha || null,
-              lastActivityAt: wt.last_activity_at || null,
-              created_at: wt.created_at,
-              updated_at: wt.updated_at,
-              sessions: sessions.map(s => ({
-                sessionId: s.id,
-                title: s.title || null,
-                status: s.status,
-                source: s.source || 'unknown',
-                model: s.model || null,
-                startedAt: s.started_at,
-              })),
-              recentHookEvents: hookEvents.map(he => ({
-                id: he.id,
-                hookType: he.hook_type,
-                createdAt: he.created_at,
-              })),
-            };
-          });
-
-          sendJson(res, 200, {
-            repoPath,
-            worktrees: enriched,
-            count: enriched.length,
-          });
-        } catch (error) {
-          sendJson(res, 500, { error: String(error.message || error), code: 'elegy_db_query_error' });
         }
       },
     },

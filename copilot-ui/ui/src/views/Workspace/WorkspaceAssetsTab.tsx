@@ -33,6 +33,8 @@ function filterTreeForAssets(nodes: RepoDocTreeNode[]): RepoDocTreeNode[] {
 
       // Files inside harness dot-directories
       if (
+        file.path.startsWith('.agents/') ||
+        file.path.startsWith('.github/') ||
         file.path.startsWith('.opencode/') ||
         file.path.startsWith('.codex/') ||
         file.path.startsWith('.copilot/') ||
