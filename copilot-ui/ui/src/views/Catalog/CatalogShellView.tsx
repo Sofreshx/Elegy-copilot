@@ -16,6 +16,7 @@ import InventoryTab from './InventoryTab';
 import QualityTab from './QualityTab';
 import OperationsTab from './OperationsTab';
 import SourcesTab from './SourcesTab';
+import InstallationTab from './InstallationTab';
 
 /* ------------------------------------------------------------------ */
 /*  Internal types                                                    */
@@ -126,7 +127,7 @@ export default function CatalogShellView() {
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'inventory' | 'quality' | 'operations' | 'sources'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'quality' | 'operations' | 'sources' | 'installation'>('inventory');
 
   const [showRepositoryAssets, setShowRepositoryAssets] = useState(false);
 
@@ -368,6 +369,7 @@ export default function CatalogShellView() {
           { key: 'quality' as const, label: 'Diagnostics' },
           { key: 'operations' as const, label: 'Operations' },
           { key: 'sources' as const, label: 'Sources' },
+          { key: 'installation' as const, label: 'Installation' },
         ]).map(({ key, label }) => (
           <button
             key={key}
@@ -408,6 +410,10 @@ export default function CatalogShellView() {
               externalSources={externalSources}
               onSourceChanged={() => void handleRefresh()}
             />
+          )}
+
+          {activeTab === 'installation' && (
+            <InstallationTab onSyncHarnesses={() => void handleSyncHarnesses()} />
           )}
         </>
       )}

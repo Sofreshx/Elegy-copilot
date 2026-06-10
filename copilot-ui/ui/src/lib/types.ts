@@ -1220,11 +1220,19 @@ export interface ToolingSkillsAssetsStatus {
   lastError: string | null;
 }
 
+export interface ToolingSurfaceStatus {
+  cliPath: string | null;
+  installed: boolean;
+  installSource: string | null;
+  installedAt: string | null;
+}
+
 export interface ToolingUpdatesStatusResponse {
   checkedAtMs: number;
   elegyPlanningCli: ToolingPlanningCliStatus;
   elegySkillsAssets: ToolingSkillsAssetsStatus;
   codexSkillsAssets?: ToolingSkillsAssetsStatus | { error: string } | null;
+  surfaces?: Record<string, ToolingSurfaceStatus>;
 }
 
 export interface ToolingUpdateActionResponse {

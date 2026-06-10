@@ -843,6 +843,7 @@
     "bodyKeys": [
       "deterministic",
       "kind",
+      "policySnapshot",
       "summary"
     ]
   },
@@ -1402,9 +1403,11 @@
       "backupPath",
       "codexHome",
       "configPath",
+      "deepseek",
       "exists",
       "gateway",
       "hasBackup",
+      "hasLegacyBlock",
       "hasManagedBlock",
       "lastAppliedAt",
       "lastResetAt",
@@ -1432,9 +1435,11 @@
       "changed",
       "codexHome",
       "configPath",
+      "deepseek",
       "exists",
       "gateway",
       "hasBackup",
+      "hasLegacyBlock",
       "hasManagedBlock",
       "lastAppliedAt",
       "lastResetAt",
@@ -1448,8 +1453,10 @@
     "bodyType": "json",
     "bodyKeys": [
       "checkedAtMs",
+      "codexSkillsAssets",
       "elegyPlanningCli",
-      "elegySkillsAssets"
+      "elegySkillsAssets",
+      "surfaces"
     ]
   },
   "POST /api/tooling-updates/check": {
@@ -1458,8 +1465,10 @@
     "bodyType": "json",
     "bodyKeys": [
       "checkedAtMs",
+      "codexSkillsAssets",
       "elegyPlanningCli",
-      "elegySkillsAssets"
+      "elegySkillsAssets",
+      "surfaces"
     ]
   },
   "POST /api/tooling-updates/update/elegy-planning": {
@@ -1468,6 +1477,7 @@
     "bodyType": "json",
     "bodyKeys": [
       "downloadedPath",
+      "installSource",
       "ok",
       "status"
     ]
@@ -1584,6 +1594,7 @@
     "bodyType": "json",
     "bodyKeys": [
       "orchestrationContractVersion",
+      "worktreeDiscovery",
       "worktrees"
     ]
   },
@@ -1672,6 +1683,7 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
+      "action",
       "error"
     ]
   },
@@ -1696,6 +1708,7 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
+      "action",
       "error"
     ]
   },
@@ -1704,6 +1717,7 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
+      "action",
       "error"
     ]
   }

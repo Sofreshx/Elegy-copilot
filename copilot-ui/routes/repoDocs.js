@@ -9,7 +9,7 @@ function isNonEmptyString(value) {
 }
 
 const ALLOWED_EXTENSIONS = new Set(['.md', '.markdown']);
-const ALLOWED_PREFIXES = ['specs/', 'docs/', 'skills/', 'agents/', '.opencode/', '.codex/', '.copilot/', '.gemini/', '.antigravity/', 'specs\\', 'docs\\', 'skills\\', 'agents\\', '.opencode\\', '.codex\\', '.copilot\\', '.gemini\\', '.antigravity\\'];
+const ALLOWED_PREFIXES = ['specs/', 'docs/', 'skills/', 'agents/', '.agents/', '.github/', '.opencode/', '.codex/', '.copilot/', '.gemini/', '.antigravity/', 'specs\\', 'docs\\', 'skills\\', 'agents\\', '.agents\\', '.github\\', '.opencode\\', '.codex\\', '.copilot\\', '.gemini\\', '.antigravity\\'];
 const ALLOWED_ROOT_FILES = ['README.md', 'readme.md', 'CHANGELOG.md', 'changelog.md', 'AGENTS.md', 'agents.md', 'guidelines.md', 'GUIDELINES.md'];
 
 const TREE_ALLOWED_EXTENSIONS = new Set(['.md', '.markdown', '.json', '.toml']);

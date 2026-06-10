@@ -23,6 +23,25 @@ export function updateElegyPlanningCli(baseUrl?: string): Promise<ToolingUpdateA
   });
 }
 
+export function downloadElegyCliSurface(
+  surface: string,
+  baseUrl?: string,
+): Promise<ToolingUpdateActionResponse> {
+  return apiRequest<ToolingUpdateActionResponse>(`/api/tooling-updates/download/${surface}`, {
+    method: 'POST',
+    baseUrl,
+  });
+}
+
+export function downloadAllElegyCliSurfaces(
+  baseUrl?: string,
+): Promise<ToolingUpdateActionResponse> {
+  return apiRequest<ToolingUpdateActionResponse>('/api/tooling-updates/download-all', {
+    method: 'POST',
+    baseUrl,
+  });
+}
+
 export interface UpdateElegySkillsPayload {
   force?: boolean;
   targets?: InstallSurfaceTarget[];
