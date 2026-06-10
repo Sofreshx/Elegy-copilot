@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 export type ExternalSourceType = ExtensibleString<'github-repo'>;
-export type ExternalInstallableKind = ExtensibleString<'skill' | 'mcp-server' | 'cli-tool'>;
+export type ExternalInstallableKind = ExtensibleString<'skill' | 'mcp-server' | 'cli-tool' | 'opencode-plugin'>;
 export type ExternalSourceTarget = ExtensibleString<
   'copilot' | 'codex' | 'opencode' | 'antigravity' | 'gemini-cli' | 'antigravity-cli' | 'host'
 >;

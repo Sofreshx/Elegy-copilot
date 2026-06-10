@@ -68,7 +68,7 @@ export default function InventoryTab({ sections, harnesses, onItemAction, mutati
           <div className="catalog-filter-group">
             <span className="form-label">Kind</span>
             <div className="catalog-chip-row">
-              {(['all', 'skill', 'agent', 'mcp', 'hook'] as const).map((kind) => (
+              {(['all', 'skill', 'agent', 'mcp', 'hook', 'plugin'] as const).map((kind) => (
                 <button
                   aria-pressed={kindFilter === kind}
                   className={`catalog-chip ${kindFilter === kind ? 'is-active' : ''}`}

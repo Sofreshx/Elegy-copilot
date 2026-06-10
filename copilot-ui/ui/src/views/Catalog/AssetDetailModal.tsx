@@ -18,6 +18,7 @@ function getKindBadgeTone(kind: string): 'neutral' | 'brand' | 'accent' | 'succe
     case 'agent': return 'brand';
     case 'skill': return 'accent';
     case 'mcp': return 'success';
+    case 'plugin': return 'accent';
     case 'hook': return 'danger';
     default: return 'neutral';
   }

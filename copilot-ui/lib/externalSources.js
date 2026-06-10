@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const childProcess = require('child_process');
 
 const contracts = require('@elegy-copilot/contracts');
+const opencodeConfig = require('./opencodeConfig');
 
 const SPEC_KIT_SOURCE_ID = 'spec-kit';
 const SPEC_KIT_INSTALLABLE_ID = 'cli:specify';
@@ -846,6 +847,9 @@ function describeInstallableLifecycle(installable) {
   }
   if (kind === 'mcp-server') {
     return 'mcp-server';
+  }
+  if (kind === 'opencode-plugin') {
+    return 'opencode-plugin';
   }
   return 'skill';
 }
@@ -1909,6 +1913,75 @@ async function applyCliInstallable(target, sourceId, installable, options) {
   };
 }
 
+async function applyOpencodePluginInstallable(sourceId, installable, options) {
+  const metadata = readMetadataRecord(installable.metadata);
+  const pluginType = normalizeString(metadata.pluginType);
+
+  if (pluginType === 'rtk-cli') {
+    // RTK: use installCommand (rtk init -g --opencode --auto-patch)
+    const installCommand = normalizeString(installable.installCommand);
+    if (!installCommand) {
+      throw Object.assign(new Error(`RTK installable ${installable.installableId} is missing an install command.`), { statusCode: 400 });
+    }
+    const invocation = buildCommandInvocation(installCommand, {
+      metadata,
+      cwd: normalizeString(options.cwd) || process.cwd(),
+      env: options.env,
+      timeoutMs: options.timeoutMs,
+      sourceId,
+      installable,
+      cached: options.cached,
+    });
+    const commandResult = await runCommand(invocation, options);
+    if (!commandResult.ok) {
+      throw Object.assign(
+        new Error(commandResult.stderr.trim() || commandResult.stdout.trim() || commandResult.error || `Failed to activate ${resolveInstallableLabel(installable)}.`),
+        { statusCode: 500, commandResult }
+      );
+    }
+    return {
+      kind: 'opencode-plugin',
+      target: 'opencode',
+      path: null,
+      managedName: installable.installableId,
+      changed: true,
+      pluginType: 'rtk-cli',
+      commandResult,
+    };
+  }
+
+  // Standard npm plugin
+  const packageName = normalizeString(metadata.packageName);
+  if (!packageName) {
+    throw Object.assign(new Error(`OpenCode plugin installable ${installable.installableId} is missing packageName in metadata.`), { statusCode: 400 });
+  }
+
+  const targetHomes = resolveTargetHomes(options);
+  const opencodeHome = targetHomes.opencodeHome;
+
+  const configPatches = metadata.configPatches && typeof metadata.configPatches === 'object'
+    ? metadata.configPatches
+    : null;
+
+  const result = opencodeConfig.addManagedOpencodePlugin(opencodeHome, packageName, {
+    configPatches,
+    metadata: {
+      sourceId,
+      installableId: installable.installableId,
+    },
+  });
+
+  return {
+    kind: 'opencode-plugin',
+    target: 'opencode',
+    path: result.configPath,
+    managedName: installable.installableId,
+    changed: result.added,
+    pluginType: 'npm',
+    configPatchResult: result,
+  };
+}
+
 function removeSkillInstallable(target, sourceId, installable, targetHomes) {
   const skillName = resolveManagedSkillName(sourceId, installable);
   let targetSkillsHome = null;
@@ -1988,6 +2061,70 @@ function removeCliInstallable(target, sourceId, installable) {
   };
 }
 
+async function removeOpencodePluginInstallable(sourceId, installable, options) {
+  const metadata = readMetadataRecord(installable.metadata);
+  const pluginType = normalizeString(metadata.pluginType);
+
+  if (pluginType === 'rtk-cli') {
+    const deactivateCommand = normalizeString(metadata.deactivateCommand);
+    if (!deactivateCommand) {
+      return {
+        kind: 'opencode-plugin',
+        target: 'opencode',
+        path: null,
+        managedName: installable.installableId,
+        changed: false,
+        pluginType: 'rtk-cli',
+      };
+    }
+    const invocation = buildCommandInvocation(deactivateCommand, {
+      metadata,
+      cwd: normalizeString(options.cwd) || process.cwd(),
+      env: options.env,
+      timeoutMs: options.timeoutMs,
+      sourceId,
+      installable,
+      cached: options.cached,
+    });
+    const commandResult = await runCommand(invocation, options);
+    if (!commandResult.ok) {
+      throw Object.assign(
+        new Error(commandResult.stderr.trim() || commandResult.stdout.trim() || commandResult.error || `Failed to deactivate ${resolveInstallableLabel(installable)}.`),
+        { statusCode: 500, commandResult }
+      );
+    }
+    return {
+      kind: 'opencode-plugin',
+      target: 'opencode',
+      path: null,
+      managedName: installable.installableId,
+      changed: true,
+      pluginType: 'rtk-cli',
+      commandResult,
+    };
+  }
+
+  const packageName = normalizeString(metadata.packageName);
+  if (!packageName) {
+    throw Object.assign(new Error(`OpenCode plugin installable ${installable.installableId} is missing packageName in metadata.`), { statusCode: 400 });
+  }
+
+  const targetHomes = resolveTargetHomes(options);
+  const opencodeHome = targetHomes.opencodeHome;
+
+  const result = opencodeConfig.removeManagedOpencodePlugin(opencodeHome, packageName);
+
+  return {
+    kind: 'opencode-plugin',
+    target: 'opencode',
+    path: result.configPath,
+    managedName: installable.installableId,
+    changed: result.removed,
+    pluginType: 'npm',
+    configPatchResult: result,
+  };
+}
+
 function resolveTargetHomes(options = {}) {
   const homeDir = os.homedir();
   const codexHome = path.resolve(options.codexHome || process.env.CODEX_HOME || path.join(homeDir, '.codex'));
@@ -2022,6 +2159,9 @@ function resolveSupportedTargets(installable) {
   if (installable?.kind === 'cli-tool') {
     return [HOST_TARGET];
   }
+  if (installable?.kind === 'opencode-plugin') {
+    return ['opencode'];
+  }
   return ['codex', 'opencode', 'gemini-cli'];
 }
 
@@ -2042,10 +2182,13 @@ function resolveMaterializeInstallable(options, source, installable, target, cac
   if (installable.kind === 'cli-tool') {
     return applyCliInstallable(target, source.sourceId, installable, { ...options, cached });
   }
+  if (installable.kind === 'opencode-plugin') {
+    return applyOpencodePluginInstallable(source.sourceId, installable, { ...options, cached });
+  }
   throw Object.assign(new Error(`Unsupported installable kind: ${installable.kind}`), { statusCode: 400 });
 }
 
-function resolveRemoveInstallable(options, source, installable, target) {
+async function resolveRemoveInstallable(options, source, installable, target) {
   const targetHomes = resolveTargetHomes(options);
   if (installable.kind === 'skill') {
     return removeSkillInstallable(target, source.sourceId, installable, targetHomes);
@@ -2055,6 +2198,9 @@ function resolveRemoveInstallable(options, source, installable, target) {
   }
   if (installable.kind === 'cli-tool') {
     return removeCliInstallable(target, source.sourceId, installable);
+  }
+  if (installable.kind === 'opencode-plugin') {
+    return removeOpencodePluginInstallable(source.sourceId, installable, options);
   }
   throw Object.assign(new Error(`Unsupported installable kind: ${installable.kind}`), { statusCode: 400 });
 }
@@ -2160,13 +2306,78 @@ async function deactivateConflictingInstallables(options, source, target, exclud
       continue;
     }
     try {
-      deactivateInstallable(options, {
+      await deactivateInstallable(options, {
         sourceId: source.sourceId,
         installableId: conflictingId,
         target: deactivateTarget,
       });
     } catch {
       // best-effort deactivation — continue even if removal fails
+    }
+  }
+}
+
+// Static cross-source conflict map: Magic Context ↔ DCP
+const CROSS_SOURCE_CONFLICTS = [
+  {
+    members: [
+      { sourceId: 'cortexkit-magic-context', installableId: 'plugin:magic-context' },
+      { sourceId: 'opencode-dcp', installableId: 'plugin:dcp' },
+    ],
+    label: 'Context Manager',
+  },
+];
+
+function resolveCrossSourceConflicts(sourceId, installableId) {
+  for (const conflict of CROSS_SOURCE_CONFLICTS) {
+    const matchingMember = conflict.members.find(
+      (m) => m.sourceId === sourceId && m.installableId === installableId
+    );
+    if (matchingMember) {
+      const conflictingMembers = conflict.members.filter(
+        (m) => m.sourceId !== sourceId || m.installableId !== installableId
+      );
+      return {
+        conflict,
+        conflictingMembers,
+        label: conflict.label,
+      };
+    }
+  }
+  return null;
+}
+
+async function deactivateCrossSourceConflicts(options, sourceId, installableId) {
+  const conflictInfo = resolveCrossSourceConflicts(sourceId, installableId);
+  if (!conflictInfo) {
+    return;
+  }
+
+  const state = readExternalSourcesState(options.elegyHome);
+  const stateEntries = state.state.sources;
+
+  for (const { sourceId: conflictingSourceId, installableId: conflictingInstallableId } of conflictInfo.conflictingMembers) {
+    const sourceEntry = stateEntries[conflictingSourceId];
+    if (!sourceEntry || !sourceEntry.targets) {
+      continue;
+    }
+
+    for (const [targetKey, targetState] of Object.entries(sourceEntry.targets)) {
+      if (!targetState || !targetState.installables) {
+        continue;
+      }
+      const installableState = targetState.installables[conflictingInstallableId];
+      if (installableState && installableState.enabled === true) {
+        try {
+          await deactivateInstallable(options, {
+            sourceId: conflictingSourceId,
+            installableId: conflictingInstallableId,
+            target: targetKey,
+          });
+        } catch {
+          // best-effort
+        }
+      }
     }
   }
 }
@@ -2186,6 +2397,7 @@ async function activateInstallable(options, payload) {
   }
 
   await deactivateConflictingInstallables(options, source, target, installableId);
+  await deactivateCrossSourceConflicts(options, normalizedSourceId, installableId);
 
   const materialized = await resolveMaterializeInstallable(options, source, installable, target, cached);
   const now = new Date().toISOString();
@@ -2230,7 +2442,7 @@ async function activateInstallable(options, payload) {
   };
 }
 
-function deactivateInstallable(options, payload) {
+async function deactivateInstallable(options, payload) {
   const normalizedSourceId = normalizeExternalSourceId(payload?.sourceId);
   const installableId = normalizeString(payload?.installableId);
   const target = normalizeExternalSourceTarget(payload?.target);
@@ -2239,7 +2451,7 @@ function deactivateInstallable(options, payload) {
   }
 
   const { source, installable } = resolveInstallableFromSource(options, normalizedSourceId, installableId);
-  const removed = resolveRemoveInstallable(options, source, installable, target);
+  const removed = await resolveRemoveInstallable(options, source, installable, target);
   const now = new Date().toISOString();
   const updatedState = updateSourceState(options, source.sourceId, (previousSourceState) => {
     const nextTargets = cloneSourceTargets(previousSourceState);
@@ -2497,6 +2709,42 @@ async function verifyInstallableTarget(options, source, installable, target) {
         ));
       }
     }
+  } else if (kind === 'opencode-plugin') {
+    const installedPath = normalizeString(installableState.installedPath);
+    const pathState = readInstalledPathState(installedPath);
+    const active = installableState.enabled === true;
+    checks.push(createCheck(
+      'configured',
+      `${resolveInstallableLabel(installable)} plugin config`,
+      active && pathState.exists ? 'ready' : active ? 'warning' : 'inactive',
+      active
+        ? `Managed plugin configuration recorded at ${installedPath || '(unknown path)'}.`
+        : 'Plugin is not active for this target.',
+      { target, installedPath: installedPath || null }
+    ));
+
+    const verifyCommand = normalizeString(installable.verifyCommand);
+    if (verifyCommand && active) {
+      const invocation = buildCommandInvocation(verifyCommand, {
+        metadata,
+        cwd: process.cwd(),
+        env: options.env,
+        timeoutMs: options.timeoutMs,
+        sourceId: source.sourceId,
+        installable,
+        cached,
+      });
+      const result = await runCommand(invocation, options);
+      checks.push(createCheck(
+        'runtime',
+        `${resolveInstallableLabel(installable)} verify`,
+        result.ok ? 'ready' : 'warning',
+        result.ok
+          ? `${invocation.commandText} succeeded.`
+          : `${invocation.commandText} failed: ${normalizeString(result.stderr || result.stdout || result.error) || 'command failed'}`,
+        { target, command: invocation.commandText, exitCode: result.exitCode }
+      ));
+    }
   }
 
   const derived = collectWarningsAndErrors(checks);
@@ -2682,11 +2930,15 @@ module.exports = {
   removeSource,
   getSourceDetail,
   refreshSource,
+  removeOpencodePluginInstallable,
   activateInstallable,
+  applyOpencodePluginInstallable,
   deactivateInstallable,
+  deactivateCrossSourceConflicts,
   syncInstallVerifySource,
   bootstrapSpecKitRepo,
   resolveConflictGroups,
+  resolveCrossSourceConflicts,
   findConflictGroupForInstallable,
   resolveConflictingInstallableIds,
 };

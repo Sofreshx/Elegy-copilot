@@ -691,6 +691,9 @@ function normalizeCatalogItemKind(value) {
   if (normalized === 'cli-tool') {
     return 'cli-tool';
   }
+  if (normalized === 'opencode-plugin') {
+    return 'plugin';
+  }
   return normalized;
 }
 
@@ -706,6 +709,8 @@ function humanizeItemKind(kind) {
       return 'CLI Tool';
     case 'hook':
       return 'Hook';
+    case 'plugin':
+      return 'Plugin';
     default:
       return normalizeDisplayText(kind, 'Item');
   }
@@ -1215,6 +1220,7 @@ function buildExternalSourceInventory(summary, ctx) {
     mcp: [],
     'cli-tool': [],
     hook: [],
+    plugin: [],
   };
   const sources = Array.isArray(summary?.externalSources) ? summary.externalSources : [];
 
@@ -1311,7 +1317,7 @@ function buildExternalSourceInventory(summary, ctx) {
     const activation = source?.activation && typeof source.activation === 'object' ? source.activation : {};
     for (const installable of installables) {
       const kind = normalizeCatalogItemKind(installable?.kind);
-      if (kind !== 'skill' && kind !== 'mcp' && kind !== 'cli-tool') {
+      if (kind !== 'skill' && kind !== 'mcp' && kind !== 'cli-tool' && kind !== 'plugin') {
         continue;
       }
       const targetSupport = normalizeStringList(installable?.targetSupport);
@@ -1535,7 +1541,7 @@ function buildGlobalCatalogInventory(summary, externalSourcesSummary, ctx) {
   const manifestInventory = buildManifestInventory(ctx);
   const externalInventory = buildExternalSourceInventory({ externalSources: externalSourcesSummary?.sources || [] }, ctx);
 
-  const sections = ['skill', 'agent', 'mcp', 'cli-tool', 'hook'].map((kind) => {
+  const sections = ['skill', 'agent', 'mcp', 'cli-tool', 'hook', 'plugin'].map((kind) => {
     const items = mergeInventoryItems([
       ...(projectionInventory[kind] || []),
       ...(manifestInventory[kind] || []),
@@ -2416,8 +2422,8 @@ function handleCatalogSourceActivate(ctx, deps) {
 
 function handleCatalogSourceDeactivate(ctx, deps) {
   return deps.readJsonBody(ctx.req)
-    .then((body) => {
-      const result = deps.externalSources.deactivateInstallable({
+    .then(async (body) => {
+      const result = await deps.externalSources.deactivateInstallable({
         engineRoot: ctx.engineRoot,
         elegyHome: ctx.elegyHomeAbs,
         codexHome: ctx.codexHome,

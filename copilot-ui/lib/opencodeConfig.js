@@ -825,6 +825,170 @@ function getAvailableModels(opencodeHome, engineRoot) {
   return Array.from(models).sort();
 }
 
+// ── Managed OpenCode Plugin Layer ──────────────────────────────────────
+
+function getManagedPlugins(opencodeHome) {
+  const state = readState(opencodeHome);
+  return (state && typeof state._managedPlugins === 'object' && !Array.isArray(state._managedPlugins))
+    ? state._managedPlugins
+    : {};
+}
+
+function setManagedPlugin(opencodeHome, packageName, pluginMeta) {
+  const state = readState(opencodeHome);
+  const managed = getManagedPlugins(opencodeHome);
+  managed[packageName] = {
+    ...(managed[packageName] || {}),
+    ...pluginMeta,
+    updatedAt: new Date().toISOString(),
+  };
+  state._managedPlugins = managed;
+  state.updatedAt = new Date().toISOString();
+  writeState(opencodeHome, state);
+  return managed;
+}
+
+function removeManagedPlugin(opencodeHome, packageName) {
+  const state = readState(opencodeHome);
+  const managed = getManagedPlugins(opencodeHome);
+  if (managed[packageName]) {
+    delete managed[packageName];
+    state._managedPlugins = managed;
+    state.updatedAt = new Date().toISOString();
+    writeState(opencodeHome, state);
+  }
+}
+
+function addManagedOpencodePlugin(opencodeHome, packageName, options = {}) {
+  const resolvedHome = resolveOpenCodeHome(opencodeHome);
+  const config = readConfig(resolvedHome);
+  const previousConfig = JSON.parse(JSON.stringify(config));
+
+  // Ensure plugin array exists
+  const plugins = Array.isArray(config.plugin) ? [...config.plugin] : [];
+  if (!plugins.includes(packageName)) {
+    plugins.push(packageName);
+    config.plugin = plugins;
+  }
+
+  // Apply optional config patches (e.g., compaction for Magic Context)
+  if (options.configPatches && typeof options.configPatches === 'object') {
+    for (const [key, value] of Object.entries(options.configPatches)) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        if (!config[key] || typeof config[key] !== 'object' || Array.isArray(config[key])) {
+          config[key] = {};
+        }
+        // Store previous values for rollback
+        const previousValues = {};
+        for (const [patchKey, patchValue] of Object.entries(value)) {
+          previousValues[patchKey] = config[key][patchKey];
+          config[key][patchKey] = patchValue;
+        }
+        options._previousConfigPatches = options._previousConfigPatches || {};
+        options._previousConfigPatches[key] = previousValues;
+      }
+    }
+  }
+
+  writeConfig(resolvedHome, config);
+
+  // Record managed state
+  setManagedPlugin(resolvedHome, packageName, {
+    packageName,
+    installedAt: new Date().toISOString(),
+    previousConfigPatches: options._previousConfigPatches || null,
+    metadata: options.metadata || null,
+  });
+
+  return {
+    opencodeHome: resolvedHome,
+    configPath: resolveConfigPath(resolvedHome),
+    packageName,
+    added: !previousConfig.plugin || !Array.isArray(previousConfig.plugin) || !previousConfig.plugin.includes(packageName),
+    configPatches: options._previousConfigPatches || null,
+    previousConfig,
+  };
+}
+
+function removeManagedOpencodePlugin(opencodeHome, packageName, options = {}) {
+  const resolvedHome = resolveOpenCodeHome(opencodeHome);
+  const config = readConfig(resolvedHome);
+  const managed = getManagedPlugins(resolvedHome);
+  const managedEntry = managed[packageName];
+
+  let removed = false;
+  let configPatchesRolledBack = null;
+
+  // Remove from plugin array only if Elegy managed it
+  if (managedEntry) {
+    const plugins = Array.isArray(config.plugin) ? config.plugin.filter((p) => p !== packageName) : [];
+    if (plugins.length < (Array.isArray(config.plugin) ? config.plugin.length : 0)) {
+      removed = true;
+      config.plugin = plugins.length > 0 ? plugins : undefined;
+      if (config.plugin === undefined) {
+        delete config.plugin;
+      }
+    }
+
+    // Rollback config patches applied during activation
+    if (managedEntry.previousConfigPatches && typeof managedEntry.previousConfigPatches === 'object') {
+      configPatchesRolledBack = {};
+      for (const [key, previousValues] of Object.entries(managedEntry.previousConfigPatches)) {
+        if (previousValues && typeof previousValues === 'object') {
+          if (!config[key] || typeof config[key] !== 'object' || Array.isArray(config[key])) {
+            config[key] = {};
+          }
+          for (const [patchKey, previousValue] of Object.entries(previousValues)) {
+            if (previousValue === undefined) {
+              delete config[key][patchKey];
+            } else {
+              config[key][patchKey] = previousValue;
+            }
+            configPatchesRolledBack[key] = configPatchesRolledBack[key] || {};
+            configPatchesRolledBack[key][patchKey] = previousValue;
+          }
+          // Clean up empty config sections
+          if (Object.keys(config[key]).length === 0) {
+            delete config[key];
+          }
+        }
+      }
+    }
+
+    writeConfig(resolvedHome, config);
+    removeManagedPlugin(resolvedHome, packageName);
+  } else if (!options.force) {
+    // Managed entry not found — plugin was not installed by Elegy
+    // Only remove if the package is in the plugin array and force is set
+    const plugins = Array.isArray(config.plugin) ? config.plugin : [];
+    if (plugins.includes(packageName)) {
+      throw Object.assign(
+        new Error(`Plugin ${packageName} was not installed by Elegy Copilot. Use force=true to remove anyway.`),
+        { statusCode: 409 }
+      );
+    }
+  } else {
+    // force=true: remove even without managed state
+    const plugins = Array.isArray(config.plugin) ? config.plugin.filter((p) => p !== packageName) : [];
+    if (plugins.length < (Array.isArray(config.plugin) ? config.plugin.length : 0)) {
+      removed = true;
+      config.plugin = plugins.length > 0 ? plugins : undefined;
+      if (config.plugin === undefined) {
+        delete config.plugin;
+      }
+    }
+    writeConfig(resolvedHome, config);
+  }
+
+  return {
+    opencodeHome: resolvedHome,
+    configPath: resolveConfigPath(resolvedHome),
+    packageName,
+    removed,
+    configPatchesRolledBack,
+  };
+}
+
 // ── ────────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -837,6 +1001,7 @@ module.exports = {
   LANE_BIG_AGENT_KEYS,
   LANE_REVIEW_AGENT_KEYS,
   ALL_LANE_AGENT_KEYS,
+  addManagedOpencodePlugin,
   resolveOpenCodeHome,
   resolveConfigPath,
   resolveStatePath,
@@ -856,11 +1021,13 @@ module.exports = {
   normalizeProfile,
   readProfileCatalog,
   removeActiveProfileRoute,
+  removeManagedOpencodePlugin,
   updateStateProfileRoute,
   applyProfile,
   resolveWorktreeBase,
   setActiveProfileId,
   setAgentRoleModels,
+  setManagedPlugin,
   buildWorktreePermissionProfile,
   ensureWorktreePermissionProfile,
   applyWorktreePermissionProfile,
@@ -873,4 +1040,5 @@ module.exports = {
   resolveActiveModel,
   applyCustomPrompts,
   getAvailableModels,
+  getManagedPlugins,
 };

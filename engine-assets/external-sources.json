@@ -306,6 +306,157 @@
           }
         }
       ]
+    },
+    {
+      "sourceId": "cortexkit-aft",
+      "title": "AFT",
+      "description": "Agent Framework Tools — tool replacements and aft_ tools for OpenCode.",
+      "url": "https://github.com/cortexkit/aft",
+      "sourceType": "github-repo",
+      "owner": "cortexkit",
+      "repo": "aft",
+      "defaultRef": "main",
+      "includeSkills": false,
+      "includeMcp": false,
+      "setupHints": [
+        "Use npx @cortexkit/aft@latest setup for full AFT setup.",
+        "This installable only activates the OpenCode plugin adapter (@cortexkit/aft-opencode)."
+      ],
+      "installables": [
+        {
+          "installableId": "plugin:aft",
+          "kind": "opencode-plugin",
+          "name": "aft",
+          "title": "AFT OpenCode Plugin",
+          "description": "AFT agent framework tools for OpenCode. Adds tool replacements and aft_ tools.",
+          "targetSupport": ["opencode"],
+          "verifyCommand": "npx @cortexkit/aft-opencode --help",
+          "setupHints": [
+            "AFT adds tool replacements and custom aft_ tools to OpenCode.",
+            "Coexists with RTK and either context manager."
+          ],
+          "metadata": {
+            "packageName": "@cortexkit/aft-opencode",
+            "pluginType": "npm"
+          }
+        }
+      ]
+    },
+    {
+      "sourceId": "cortexkit-magic-context",
+      "title": "Magic Context",
+      "description": "OpenCode context management plugin — disables built-in compaction for manual context control.",
+      "url": "https://github.com/cortexkit/magic-context",
+      "sourceType": "github-repo",
+      "owner": "cortexkit",
+      "repo": "magic-context",
+      "defaultRef": "main",
+      "includeSkills": false,
+      "includeMcp": false,
+      "setupHints": [
+        "Magic Context conflicts with DCP. Only one context manager can be active at a time.",
+        "Activating Magic Context disables compaction.auto and compaction.prune in opencode.jsonc."
+      ],
+      "installables": [
+        {
+          "installableId": "plugin:magic-context",
+          "kind": "opencode-plugin",
+          "name": "magic-context",
+          "title": "Magic Context Plugin",
+          "description": "OpenCode context manager — disables auto compaction and pruning for manual context control.",
+          "targetSupport": ["opencode"],
+          "setupHints": [
+            "Disables compaction.auto and compaction.prune when activated.",
+            "Conflicts with DCP. If DCP is active, it will be deactivated automatically."
+          ],
+          "metadata": {
+            "packageName": "@cortexkit/opencode-magic-context",
+            "pluginType": "npm",
+            "configPatches": {
+              "compaction": {
+                "auto": false,
+                "prune": false
+              }
+            },
+            "conflictsWithSourceId": "opencode-dcp",
+            "conflictsWithInstallableId": "plugin:dcp"
+          }
+        }
+      ]
+    },
+    {
+      "sourceId": "rtk-ai-rtk",
+      "title": "RTK",
+      "description": "RTK CLI tool and OpenCode plugin integration.",
+      "url": "https://github.com/rtk-ai/rtk",
+      "sourceType": "github-repo",
+      "owner": "rtk-ai",
+      "repo": "rtk",
+      "defaultRef": "main",
+      "includeSkills": false,
+      "includeMcp": false,
+      "setupHints": [
+        "RTK requires the rtk CLI to be installed first.",
+        "Activation runs rtk init -g --opencode --auto-patch.",
+        "Deactivation runs rtk init -g --uninstall only when Elegy performed the activation."
+      ],
+      "installables": [
+        {
+          "installableId": "plugin:rtk",
+          "kind": "opencode-plugin",
+          "name": "rtk",
+          "title": "RTK Plugin",
+          "description": "RTK CLI tool and OpenCode integration. Activates via rtk init and verifies with rtk --version.",
+          "targetSupport": ["opencode"],
+          "installCommand": "rtk init -g --opencode --auto-patch",
+          "verifyCommand": "rtk --version",
+          "setupHints": [
+            "Install rtk CLI first, then activate this installable.",
+            "Deactivation uses rtk init -g --uninstall."
+          ],
+          "metadata": {
+            "pluginType": "rtk-cli",
+            "installerKind": "rtk",
+            "deactivateCommand": "rtk init -g --uninstall"
+          }
+        }
+      ]
+    },
+    {
+      "sourceId": "opencode-dcp",
+      "title": "DCP",
+      "description": "Dynamic context pruning plugin for OpenCode. Conflicts with Magic Context.",
+      "url": "https://github.com/Opencode-DCP/opencode-dynamic-context-pruning",
+      "sourceType": "github-repo",
+      "owner": "Opencode-DCP",
+      "repo": "opencode-dynamic-context-pruning",
+      "defaultRef": "main",
+      "includeSkills": false,
+      "includeMcp": false,
+      "setupHints": [
+        "DCP conflicts with Magic Context. Only one context manager can be active at a time.",
+        "Install globally with: opencode plugin @tarquinen/opencode-dcp@latest --global."
+      ],
+      "installables": [
+        {
+          "installableId": "plugin:dcp",
+          "kind": "opencode-plugin",
+          "name": "dcp",
+          "title": "DCP Plugin",
+          "description": "Dynamic context pruning for OpenCode. Mutually exclusive with Magic Context.",
+          "targetSupport": ["opencode"],
+          "setupHints": [
+            "Conflicts with Magic Context. If Magic Context is active, it will be deactivated automatically.",
+            "The DCP plugin is @tarquinen/opencode-dcp."
+          ],
+          "metadata": {
+            "packageName": "@tarquinen/opencode-dcp",
+            "pluginType": "npm",
+            "conflictsWithSourceId": "cortexkit-magic-context",
+            "conflictsWithInstallableId": "plugin:magic-context"
+          }
+        }
+      ]
     }
   ]
 }
