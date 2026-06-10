@@ -3837,6 +3837,18 @@ export interface EnrichedWorktreesResponse {
   count: number;
 }
 
+export interface PlanningSummaryLinkedPlan {
+  planId: string;
+  sessionId: string;
+  title: string | null;
+  status: string;
+}
+
+export interface PlanningSummaryResponse {
+  repoPath: string;
+  linkedPlans: PlanningSummaryLinkedPlan[];
+}
+
 export interface CodeReviewPrepareResponse {
   repoPath: string;
   worktreePath: string | null;
