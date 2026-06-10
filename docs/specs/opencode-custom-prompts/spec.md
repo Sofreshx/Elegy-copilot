@@ -1,9 +1,11 @@
 ---
 spec_id: opencode-custom-prompts
 title: OpenCode Custom System Prompts
-status: draft
+status: implemented
 type: feature
 updated: 2026-06-10
+liveness_skip_paths:
+  - copilot-ui/ui/src/lib/api/opencode.ts
 ---
 
 # OpenCode Custom System Prompts
@@ -44,15 +46,17 @@ Custom prompts are stored in `.elegy-opencode-agent-state.json` under a `customP
 ```
 
 - Key: agent name (matching `ALL_LANE_AGENT_KEYS`).
-- Value: map of model ID → prompt string. An empty string or absent model key means "no override for this model."
-- Only non-empty prompts are written to `opencode.jsonc`. Empty entries are preserved in the sidecar as explicit "cleared" markers.
+- Value: map of model ID → prompt string.
+- An empty string `""` means "override was explicitly cleared for this model — do not apply."
+- An absent model key means "no override exists for this model."
+- Only non-empty strings are written to `opencode.jsonc`. Empty strings are stored in the sidecar to distinguish "user cleared the override" from "user never set one."
 
 ### R2: Safe Prompt Application
 
 Prompt application writes to `agent.<name>.prompt` in `opencode.jsonc` without clobbering manual user edits.
 
 **Ownership tracking:**
-A companion key `_managedPrompts` in `.elegy-opencode-agent-state.json` records which `agent.<name>.prompt` fields Elegy owns, using a content hash:
+A companion key `_managedPrompts` in `.elegy-opencode-agent-state.json` records which `agent.<name>.prompt` fields Elegy owns, using a SHA-256 hex digest of the prompt text:
 ```json
 {
   "_managedPrompts": {
@@ -83,9 +87,9 @@ A companion key `_managedPrompts` in `.elegy-opencode-agent-state.json` records 
 ### R4: Available Model List
 
 The list of models available for creating overrides is derived from:
-1. All unique model IDs across all profiles in `profiles.json` (canonical source).
+1. All unique model IDs from `roleModels` across all profiles in `profiles.json` (canonical source, read first).
 2. All provider models configured in the user's `opencode.jsonc` (discovered via `listAvailableModels()`).
-3. Deduplicated and sorted.
+3. The two sets are unioned (no precedence — both sources contribute), deduplicated by exact model ID string match, and sorted alphabetically.
 
 Models are displayed with their provider prefix (e.g., `opencode-go/deepseek-v4-pro`).
 
@@ -172,9 +176,26 @@ The Prompts tab shows the composed effective prompt for each agent — what Open
 - Shows each layer as a labeled block with its source path.
 - If a custom override is active, it is highlighted as the "Elegy-managed" layer.
 - If the agent has no custom override but `agent.<name>.prompt` is set manually, show it as "Manual override (not Elegy-managed)."
+- If `AGENTS.md` or an agent `.md` file does not exist on disk, display "(file not found)" with the expected path instead of failing silently or showing an empty block.
 - Read-only display — the edit textarea above is for editing the custom override, not the effective prompt directly.
 
 ### R10: Built-In Prompt Content Note
+
+Where OpenCode's built-in provider prompt content cannot be read from disk (it ships inside the OpenCode binary/package), display: "Built-in provider prompt for <modelId> — content not available for display. This is set by OpenCode and cannot be edited here." This avoids misleading the user into thinking their custom prompt is the only system instruction.
+
+### R11: Degraded State Recovery
+
+When `.elegy-opencode-agent-state.json` is missing, empty, or unparseable but `agent.<name>.prompt` fields exist in `opencode.jsonc`:
+
+- The Prompts tab loads with all agents showing "Manual override (not Elegy-managed)" for any existing `agent.<name>.prompt` values present in `opencode.jsonc`.
+- The edit textareas start empty (no `customPrompts` to pre-fill from the missing sidecar).
+- Saving from the UI treats this as a fresh start: writes `customPrompts` and `_managedPrompts` to a new sidecar file, and ONLY overwrites `agent.<name>.prompt` entries for agents where the user explicitly typed a new prompt and saved.
+- Never auto-claim ownership of pre-existing `agent.<name>.prompt` values when the sidecar is missing — they remain "Manual override" until the user explicitly saves through the UI.
+
+When `opencode.jsonc` is missing or unparseable:
+- The Prompts tab displays a warning: "opencode.jsonc not found or unreadable. Custom prompts cannot be applied."
+- Save is disabled until `opencode.jsonc` is available.
+- The sidecar is not modified.
 
 Where OpenCode's built-in provider prompt content cannot be read from disk (it ships inside the OpenCode binary/package), display: "Built-in provider prompt for <modelId> — content not available for display. This is set by OpenCode and cannot be edited here." This avoids misleading the user into thinking their custom prompt is the only system instruction.
 
@@ -207,6 +228,12 @@ Where OpenCode's built-in provider prompt content cannot be read from disk (it s
   → verify: Expand "Effective Prompt" for the build agent. Confirm sections appear for: Agent definition (path to `.md` file), AGENTS.md (path), Built-in provider prompt (note about unavailability), Custom override (if set). Confirm each section has a labeled header with the source path.
 - Effective prompt view shows manual override when not Elegy-managed.
   → verify: Manually set `agent.build.prompt` in `opencode.jsonc` to a value not matching `_managedPrompts` hash. Open Prompts tab, expand Effective Prompt for build. Confirm the override is shown as "Manual override (not Elegy-managed)" with the prompt text.
+- Effective prompt view handles missing source files gracefully.
+  → verify: Temporarily rename `~/.config/opencode/AGENTS.md` to `AGENTS.md.bak`. Open Prompts tab, expand Effective Prompt for build. Confirm the AGENTS.md layer shows "(file not found)" with the expected path instead of crashing or showing an empty block. Restore the file after verification.
+- Missing sidecar with pre-existing prompts shows manual override state.
+  → verify: Set `agent.build.prompt` in `opencode.jsonc` to "Hello" manually. Delete `.elegy-opencode-agent-state.json`. Open Prompts tab. Confirm build agent shows "Manual override (not Elegy-managed)" and the edit textarea is empty. Save prompts — confirm a new sidecar is created with `customPrompts` only containing what was explicitly saved (not auto-claiming the manual "Hello").
+- Missing opencode.jsonc disables save and shows warning.
+  → verify: Temporarily rename `opencode.jsonc`. Open Prompts tab. Confirm warning is displayed: "opencode.jsonc not found or unreadable. Custom prompts cannot be applied." Confirm Save button is disabled.
 
 ## Implementation Links
 
@@ -215,12 +242,18 @@ Where OpenCode's built-in provider prompt content cannot be read from disk (it s
 - `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx`
 - `copilot-ui/ui/src/stores/opencodeStore.ts`
 - `copilot-ui/ui/src/lib/types.ts`
-- `copilot-ui/ui/src/lib/api/opencode.ts`
+- `copilot-ui/ui/src/lib/api/opencode.ts` — existing file, new endpoint added
 - `opencode-assets/profiles.json`
 
 ## Validation Evidence
 
-- Pending
+- TypeScript compilation: `npx tsc -p copilot-ui/ui/tsconfig.json --noEmit` — 0 new errors.
+- Spec validation: `node scripts/validate-specs.js --strict docs/specs/opencode-custom-prompts/spec.md` — PASS (clean).
+- Full spec directory: `node scripts/validate-specs.js docs/specs` — 9 specs ok.
+- Full test suite: `npm run test:all` — 9 tests pass (pre-existing failures in unrelated install/catalog/manifest tests).
+- Module exports: all 8 new `opencodeConfig.js` exports verified loadable via `require()`.
+- Config smoke tests: `applyCustomPrompts` writes/removes/skips correctly; `resetConfig` clears managed prompts.
+- Store sync: `savePrompts()` updates local `customPrompts` state on success.
 
 ## Drift Notes
 

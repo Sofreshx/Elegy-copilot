@@ -14,6 +14,8 @@ import type {
   OpenCodeGoWorkspaceCreateFlowResponse,
   OpenCodeGoWorkspaceValidateResponse,
   OpenCodePermissionsResponse,
+  CustomPromptMap,
+  EffectivePromptResponse,
 } from '../types';
 import { apiRequest } from './core';
 
@@ -165,5 +167,26 @@ export function saveOpenCodeConfigKey(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+  });
+}
+
+export function saveOpenCodePrompts(
+  payload: { customPrompts: CustomPromptMap },
+  baseUrl?: string,
+): Promise<{ ok: boolean; applied: string[]; skipped: string[]; errors: string[] }> {
+  return apiRequest<{ ok: boolean; applied: string[]; skipped: string[]; errors: string[] }>('/api/opencode/prompts', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getEffectivePrompt(
+  agentName: string,
+  baseUrl?: string,
+): Promise<EffectivePromptResponse> {
+  return apiRequest<EffectivePromptResponse>(`/api/opencode/prompts/effective?agent=${encodeURIComponent(agentName)}`, {
+    baseUrl,
   });
 }

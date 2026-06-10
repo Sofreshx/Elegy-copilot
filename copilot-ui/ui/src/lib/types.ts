@@ -3561,6 +3561,8 @@ export interface OpenCodeStatusResponse {
     mismatches: Array<{ agent: string; role: string; actualModel: string; expectedModel: string }>;
   } | null;
   invalidProviderModels: Array<{ agent: string; model: string; reason: string }> | null;
+  customPrompts?: CustomPromptMap;
+  _managedPrompts?: Record<string, { hash: string; modelId: string }>;
 }
 
 export interface OpenCodeConfigPayload {
@@ -3570,6 +3572,7 @@ export interface OpenCodeConfigPayload {
   smallModel?: string;
   bigModel?: string;
   reviewModel?: string;
+  customPrompts?: CustomPromptMap;
 }
 
 export interface OpenCodeConfigResponse {
@@ -3648,7 +3651,26 @@ export interface OpenCodeToolingInstallResponse {
   error?: string;
 }
 
-export type OpenCodeTabSectionId = 'overview' | 'lanes' | 'profiles' | 'setup' | 'logs' | 'go-workspaces' | 'permissions' | 'experimental';
+export interface CustomPromptMap {
+  [agentName: string]: {
+    [modelId: string]: string;
+  };
+}
+
+export interface EffectivePromptResponse {
+  ok: boolean;
+  agent: string;
+  layers: Array<{
+    name: string;
+    source: string;
+    content: string | null;
+    missing?: boolean;
+    note?: string;
+    elegyManaged?: boolean | null;
+  }>;
+}
+
+export type OpenCodeTabSectionId = 'overview' | 'lanes' | 'profiles' | 'setup' | 'logs' | 'go-workspaces' | 'permissions' | 'experimental' | 'prompts';
 
 export interface OpenCodeRequestLogEntry {
   timestamp: string;

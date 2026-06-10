@@ -889,6 +889,8 @@ async function buildOpenCodeStatus(ctx, deps) {
     opencodeCli: opencodeCliStatus,
     profileMismatch,
     invalidProviderModels,
+    customPrompts: deps.opencodeConfig.readCustomPrompts(opencodeHome),
+    _managedPrompts: (deps.opencodeConfig.readState(opencodeHome))._managedPrompts || {},
   };
 }
 
@@ -1308,10 +1310,148 @@ function register(deps = {}) {
             );
           }
 
+          // Apply custom prompts after role model changes
+          try {
+            const effectiveRoleModels = roleModels || {};
+            resolvedDeps.opencodeConfig.applyCustomPrompts(
+              opencodeHome,
+              effectiveRoleModels,
+              engineRoot,
+            );
+          } catch (promptError) {
+            // Non-fatal: log but don't fail the config save
+            console.error('Failed to apply custom prompts after config save:', promptError instanceof Error ? promptError.message : String(promptError));
+          }
+
           const status = await buildOpenCodeStatus(ctx, resolvedDeps);
           resolvedDeps.sendJson(ctx.res, 200, { ok: true, status });
         } catch (error) {
           resolvedDeps.sendJson(ctx.res, 500, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/opencode/prompts',
+      handler: async (ctx) => {
+        try {
+          const body = await resolvedDeps.readJsonBody(ctx.req);
+          const { opencodeHome, engineRoot } = ctx;
+          const customPrompts = body.customPrompts && typeof body.customPrompts === 'object' ? body.customPrompts : null;
+
+          if (!customPrompts) {
+            resolvedDeps.sendJson(ctx.res, 400, { ok: false, error: 'customPrompts object is required' });
+            return;
+          }
+
+          // Write to sidecar
+          resolvedDeps.opencodeConfig.writeCustomPrompts(opencodeHome, customPrompts);
+
+          // Apply to opencode.jsonc
+          // Read current profile from state to get active roleModels
+          const state = resolvedDeps.opencodeConfig.readState(opencodeHome);
+          const activeProfileId = state.activeProfileId || 'opencode-go-balanced';
+          const profileCatalog = resolvedDeps.opencodeConfig.readProfileCatalog(engineRoot);
+          const profile = profileCatalog.profiles[activeProfileId];
+
+          // Apply custom prompts using roleModels approach
+          const result = resolvedDeps.opencodeConfig.applyCustomPrompts(
+            opencodeHome,
+            profile,
+            profileCatalog,
+          );
+
+          resolvedDeps.sendJson(ctx.res, 200, { ok: true, ...result });
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, 500, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'GET',
+      path: '/api/opencode/prompts/effective',
+      handler: async (ctx) => {
+        try {
+          const { opencodeHome } = ctx;
+          const agent = ctx.u && ctx.u.searchParams ? ctx.u.searchParams.get('agent') : null;
+
+          if (!agent || !agent.trim()) {
+            resolvedDeps.sendJson(ctx.res, 400, { ok: false, error: 'agent query parameter is required' });
+            return;
+          }
+
+          const agentName = agent.trim();
+
+          // Read AGENTS.md from opencodeHome
+          const agentsMdPath = resolvedDeps.path.join(opencodeHome, 'AGENTS.md');
+          const agentsMdContent = resolvedDeps.fs.existsSync(agentsMdPath)
+            ? resolvedDeps.fs.readFileSync(agentsMdPath, 'utf8')
+            : null;
+
+          // Read agent .md definition
+          const agentMdPath = resolvedDeps.path.join(opencodeHome, 'agents', `${agentName}.md`);
+          const agentMdContent = resolvedDeps.fs.existsSync(agentMdPath)
+            ? resolvedDeps.fs.readFileSync(agentMdPath, 'utf8')
+            : null;
+
+          // Read current agent prompt from opencode.jsonc
+          const config = resolvedDeps.opencodeConfig.readConfig(opencodeHome);
+          const agentConfig = config.agent && config.agent[agentName];
+          const customPrompt = agentConfig && typeof agentConfig.prompt === 'string'
+            ? agentConfig.prompt
+            : null;
+
+          // Check managed prompts hash tracking
+          const state = resolvedDeps.opencodeConfig.readState(opencodeHome);
+          const managedPrompts = (state && state._managedPrompts) || {};
+          const managed = managedPrompts[agentName];
+
+          let elegyManaged = null;
+          if (managed && customPrompt) {
+            const currentHash = resolvedDeps.opencodeConfig.computeHash(customPrompt);
+            elegyManaged = managed.hash === currentHash;
+          } else if (customPrompt) {
+            elegyManaged = false;
+          }
+
+          resolvedDeps.sendJson(ctx.res, 200, {
+            ok: true,
+            agent: agentName,
+            layers: [
+              {
+                name: 'Provider prompt',
+                source: 'OpenCode built-in',
+                content: null,
+                note: 'Built-in provider prompt \u2014 content not available for display. This is set by OpenCode and cannot be edited here.',
+              },
+              {
+                name: 'AGENTS.md',
+                source: agentsMdPath,
+                content: agentsMdContent,
+                missing: agentsMdContent === null,
+              },
+              {
+                name: 'Agent definition',
+                source: agentMdPath,
+                content: agentMdContent,
+                missing: agentMdContent === null,
+              },
+              {
+                name: 'Custom override',
+                source: 'opencode.jsonc',
+                content: customPrompt,
+                elegyManaged,
+              },
+            ],
+          });
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, 500, {
+            ok: false,
             error: error instanceof Error ? error.message : String(error),
           });
         }
