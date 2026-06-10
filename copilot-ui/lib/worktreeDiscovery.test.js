@@ -1,10 +1,8 @@
 'use strict';
-
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-
 const {
   parseGitWorktreePorcelain,
   inferWorktreeSource,
@@ -18,9 +16,7 @@ const {
   WORKTREE_DISCOVERY_SOURCES,
   normalizeComparablePath,
 } = require('./worktreeDiscovery');
-
 let passed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -32,7 +28,6 @@ async function test(name, fn) {
     process.exitCode = 1;
   }
 }
-
 function fakeChildProcess(handlers) {
   return {
     execFile(command, args, options, callback) {
@@ -60,11 +55,9 @@ function fakeChildProcess(handlers) {
     },
   };
 }
-
 function nowIso(value) {
   return new Date(typeof value === 'function' ? value() : value).toISOString();
 }
-
 async function run() {
   await test('parseGitWorktreePorcelain parses mixed detached, bare, locked, and prunable entries', () => {
     const output = [
@@ -102,7 +95,6 @@ async function run() {
     assert.equal(parsed[3].bare, true);
     assert.equal(parsed[4].prunable, 'gitdir file points to non-existent location');
   });
-
   await test('inferWorktreeSource maps paths to expected source buckets', () => {
     const pathImpl = path;
     assert.equal(
@@ -118,7 +110,7 @@ async function run() {
       WORKTREE_DISCOVERY_SOURCES.ELEGY,
     );
     assert.equal(
-      inferWorktreeSource(pathImpl.resolve('C:/Users/me/.copilot/repo-state/repoId/worktrees/wt-1'), null),
+      inferWorktreeSource(pathImpl.resolve('C:/Users/me/.elegy/repo-state/repoId/worktrees/wt-1'), null),
       WORKTREE_DISCOVERY_SOURCES.ELEGY,
     );
     assert.equal(
@@ -129,14 +121,12 @@ async function run() {
     assert.equal(inferWorktreeSource(null, 'opencode'), WORKTREE_DISCOVERY_SOURCES.OPENCODE);
     assert.equal(inferWorktreeSource(null, 'elegy'), WORKTREE_DISCOVERY_SOURCES.ELEGY);
   });
-
   await test('parseAheadBehindPorcelain handles branch.ab, plain ahead/behind text, and zero values', () => {
     assert.deepEqual(parseAheadBehindPorcelain('# branch.ab +3 -2'), { ahead: 3, behind: 2 });
     assert.deepEqual(parseAheadBehindPorcelain('Your branch is ahead of origin/main by 4 commits'), { ahead: 4, behind: 0 });
     assert.deepEqual(parseAheadBehindPorcelain('Your branch is behind origin/main by 1 commit'), { ahead: 0, behind: 1 });
     assert.deepEqual(parseAheadBehindPorcelain(''), { ahead: 0, behind: 0 });
   });
-
   await test('parseStatusPorcelainV2Lines collects staged/unstaged/untracked entries', () => {
     const output = [
       '# branch.oid abc123',
@@ -156,7 +146,6 @@ async function run() {
     assert.equal(counts.untracked, 1);
     assert.equal(counts.changed, 6);
   });
-
   await test('mergePersistedAndDiscoveredWorktrees dedupes by comparable path and prefers persisted app metadata', () => {
     const persisted = [
       {
@@ -206,7 +195,6 @@ async function run() {
     assert.equal(discoveredOnly.source, 'codex');
     assert.equal(discoveredOnly._discovered, true);
   });
-
   await test('sortWorktreesForDisplay orders by updatedAt, lifecycle.lastSeenAt, then stable git-list order', () => {
     const pathImpl = path;
     const records = [
@@ -245,7 +233,6 @@ async function run() {
     assert.equal(sorted[2].path, pathImpl.resolve('C:/repos/d'));
     assert.equal(sorted[3].path, pathImpl.resolve('C:/repos/c'));
   });
-
   await test('buildGitDiscoveredWorktreeRecord produces stable ids and source label', () => {
     const fsImpl = {
       statSync() { return { isDirectory: () => true, mtimeMs: 1717200000000 }; },
@@ -290,7 +277,6 @@ async function run() {
     assert.equal(record._stableOrder, 2);
     assert.equal(record.validation.pathExists, true);
   });
-
   await test('buildGitDiscoveredWorktreeRecord generates distinct ids for different paths/heads', () => {
     const fsImpl = { statSync() { return { isDirectory: () => true, mtimeMs: 0 }; } };
     const pathImpl = path;
@@ -308,7 +294,6 @@ async function run() {
     assert.notEqual(a.worktreeId, b.worktreeId);
     assert.notEqual(a.worktreeId, c.worktreeId);
   });
-
   await test('discoverAndMergeWorktrees returns only persisted records when repoPath is missing', async () => {
     const pathImpl = path;
     const persisted = [
@@ -324,7 +309,6 @@ async function run() {
     assert.equal(result.mergedRecords.length, 1);
     assert.equal(result.mergedRecords[0].path, 'C:/repos/keep');
   });
-
   await test('discoverAndMergeWorktrees merges git discovery with persisted records using fake child process', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-wt-discovery-'));
     const repoPath = path.join(tmpRoot, 'instruction-engine');
@@ -336,7 +320,6 @@ async function run() {
     fs.mkdirSync(codex, { recursive: true });
     fs.writeFileSync(path.join(wt1, '.git'), 'gitdir: C:/fake/wt-1');
     fs.writeFileSync(path.join(codex, '.git'), 'gitdir: C:/fake/codex');
-
     const handlers = {
       'git worktree list --porcelain': async () => ({
         ok: true,
@@ -384,7 +367,6 @@ async function run() {
         updatedAt: '2026-06-02T00:00:00.000Z',
       },
     ];
-
     try {
       const result = await discoverAndMergeWorktrees(
         { repoPath, persistedRecords: persisted },
@@ -412,7 +394,6 @@ async function run() {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
-
   await test('discoverAndMergeWorktrees isolates per-worktree probe failures without failing the response', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-wt-discovery-fail-'));
     const repoPath = path.join(tmpRoot, 'repo');
@@ -421,7 +402,6 @@ async function run() {
     fs.mkdirSync(good, { recursive: true });
     fs.mkdirSync(broken, { recursive: true });
     fs.mkdirSync(repoPath, { recursive: true });
-
     const handlers = {
       'git worktree list --porcelain': async () => ({
         ok: true,
@@ -461,7 +441,6 @@ async function run() {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
-
   await test('discoverAndMergeWorktrees returns empty list when git is not on PATH and does not throw', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-wt-discovery-empty-'));
     const repoPath = path.join(tmpRoot, 'repo');
@@ -482,10 +461,8 @@ async function run() {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
-
   console.log(`\n  ${passed} passed, ${process.exitCode ? 'some failed' : '0 failed'}\n`);
 }
-
 run().catch((error) => {
   console.error(`\n  FATAL: ${error.message}\n`);
   process.exitCode = 1;

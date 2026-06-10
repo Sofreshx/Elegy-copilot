@@ -18,9 +18,9 @@ function safeStat(filePath, fsImpl = fs) {
   }
 }
 
-function resolveAutonomousDecisionLogPath(copilotHomeAbs, pathImpl = path) {
+function resolveAutonomousDecisionLogPath(elegyHomeAbs, pathImpl = path) {
   return pathImpl.join(
-    pathImpl.resolve(copilotHomeAbs),
+    pathImpl.resolve(elegyHomeAbs),
     AUTONOMOUS_DECISION_LOG_DIRECTORY,
     AUTONOMOUS_DECISION_LOG_FILENAME,
   );
@@ -180,11 +180,11 @@ function loadSummary(logPath, fsImpl = fs) {
   };
 }
 
-function createAutonomousDecisionLog(copilotHomeAbs, deps = {}) {
+function createAutonomousDecisionLog(elegyHomeAbs, deps = {}) {
   const fsImpl = deps.fs || fs;
   const pathImpl = deps.path || path;
   const cryptoImpl = deps.crypto || crypto;
-  const logPath = resolveAutonomousDecisionLogPath(copilotHomeAbs, pathImpl);
+  const logPath = resolveAutonomousDecisionLogPath(elegyHomeAbs, pathImpl);
   let state = loadSummary(logPath, fsImpl);
 
   return {

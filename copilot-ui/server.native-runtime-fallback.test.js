@@ -1,14 +1,11 @@
 'use strict';
-
 const assert = require('assert');
 const fs = require('fs');
 const http = require('http');
 const os = require('os');
 const path = require('path');
-
 const { startServer } = require('./server');
 const repoInventoryService = require('./lib/repoInventoryService');
-
 function withTempDir(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-native-runtime-fallback-'));
   return Promise.resolve()
@@ -17,7 +14,6 @@ function withTempDir(fn) {
       fs.rmSync(dir, { recursive: true, force: true });
     });
 }
-
 function requestJson({ method = 'GET', baseUrl, pathname, body }) {
   return new Promise((resolve, reject) => {
     const requestUrl = new URL(pathname, baseUrl);
@@ -45,7 +41,6 @@ function requestJson({ method = 'GET', baseUrl, pathname, body }) {
         }
       });
     });
-
     req.on('error', reject);
     if (payload) {
       req.write(payload);
@@ -53,10 +48,8 @@ function requestJson({ method = 'GET', baseUrl, pathname, body }) {
     req.end();
   });
 }
-
 let passed = 0;
 let failed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -69,27 +62,21 @@ async function test(name, fn) {
     console.error(`    ${error.message}`);
   }
 }
-
 async function run() {
   console.log('\nNative Runtime Fallback Route Tests\n');
-
   await withTempDir(async (tmpRoot) => {
-    const copilotHome = path.join(tmpRoot, '.copilot');
+    const elegyHome = path.join(tmpRoot, '.elegy');
     const repoRoot = path.join(tmpRoot, 'repos', 'alpha');
     fs.mkdirSync(repoRoot, { recursive: true });
-
     repoInventoryService.registerRepo({
-      copilotHome,
+      elegyHome,
       repoPath: repoRoot,
       select: true,
     });
-
     const serverHandle = await startServer({
       host: '127.0.0.1',
       port: 0,
-      copilotHome,
-      vscodeHome: copilotHome,
-      sandboxesHome: path.join(copilotHome, 'sandboxes'),
+      elegyHome,      sandboxesHome: path.join(elegyHome, 'sandboxes'),
       trackerUrl: 'http://127.0.0.1:4100',
       trackerToken: 'test-token',
       env: {
@@ -100,9 +87,7 @@ async function run() {
       },
       quiet: true,
     });
-
     const baseUrl = `http://${serverHandle.host}:${serverHandle.port}`;
-
     try {
       await test('GET /api/dashboard/summary returns fallback payload when native runtime is unset', async () => {
         const response = await requestJson({ baseUrl, pathname: '/api/dashboard/summary' });
@@ -112,7 +97,6 @@ async function run() {
         assert.ok(['ok', 'degraded', 'error'].includes(response.body.healthIndicator));
         assert.strictEqual(response.body.source, 'server-fallback');
       });
-
       await test('GET /api/projects lists fallback inventory-backed projects when native runtime is unset', async () => {
         const response = await requestJson({ baseUrl, pathname: '/api/projects' });
         assert.strictEqual(response.statusCode, 200);
@@ -121,13 +105,11 @@ async function run() {
         const project = response.body[0];
         assert.strictEqual(project.repoPath, repoRoot);
       });
-
       await test('PATCH /api/projects/:id updates fallback project fields when native runtime is unset', async () => {
         const projects = await requestJson({ baseUrl, pathname: '/api/projects' });
         assert.strictEqual(projects.statusCode, 200);
         assert.ok(Array.isArray(projects.body));
         assert.ok(projects.body.length >= 1);
-
         const targetProjectId = projects.body[0].projectId;
         const update = await requestJson({
           method: 'PATCH',
@@ -135,7 +117,6 @@ async function run() {
           pathname: `/api/projects/${encodeURIComponent(targetProjectId)}`,
           body: { pinned: true },
         });
-
         assert.strictEqual(update.statusCode, 200);
         assert.strictEqual(update.body.projectId, targetProjectId);
         assert.strictEqual(update.body.pinned, true);
@@ -144,14 +125,11 @@ async function run() {
       await serverHandle.close();
     }
   });
-
   console.log(`\nCompleted Native Runtime Fallback Route Tests: ${passed} passed, ${failed} failed.`);
-
   if (failed > 0) {
     process.exitCode = 1;
   }
 }
-
 run().catch((error) => {
   console.error(error);
   process.exitCode = 1;

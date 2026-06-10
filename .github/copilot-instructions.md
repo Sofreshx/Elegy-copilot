@@ -201,8 +201,8 @@ When documentation or instruction surfaces change, validate relevant links and r
 run_in_terminal(command: "make build", isBackground: true)  # WRONG! Causes silent failures
 run_in_terminal(command: "git commit", isBackground: true)   # WRONG! Command gets cancelled
 ```
-### ALWAYS USE vscode/askQuestions
-When you need clarification from the user, use `vscode/askQuestions` to ask a single, targeted question through the interactive tool instead of falling back to a plain-text end-of-plan question. This keeps the interaction focused and allows you to continue working on non-blocked tasks in parallel, so you don't have to stop execution for potentially trivial issues.
+### ALWAYS use targeted clarification
+When you need clarification from the user, ask a single, targeted question instead of falling back to a plain-text end-of-plan question. This keeps the interaction focused and allows you to continue working on non-blocked tasks in parallel, so you don't have to stop execution for potentially trivial issues.
 
 ** ALWAYS DO THIS:**
 ```
@@ -240,7 +240,7 @@ Before replying with a "done" / "here's what I did" message, verify you have:
 - Written a concise recap + what changed + how to validate.
 
 If you need input from the user:
-- Ask **one** targeted question via `vscode/askQuestions`.
+- Ask **one** targeted question.
 - Continue executing any non-blocked work in parallel (exploration, drafting, refactors that are safe).
 - Provide a plan only when the user explicitly asked for a plan.
 
@@ -276,7 +276,7 @@ authority surface:
   and surface it instead of treating prompt text or local patterns as enough authority
 
 Instruction Engine / Elegy Copilot repo map:
-- `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into `~/.copilot`.
+- `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into `~/.elegy`.
 - `codex-assets/`, `opencode-assets/`, and `antigravity-assets/` ship thinner native home baselines for their harnesses.
 - `copilot-ui/` is the local dashboard and catalog control plane; the packaged Windows desktop app is the normal end-user runtime.
 - `contracts/`, `local-tracker/`, `scripts/`, and `docs/system/**` hold shared contracts, gateway/runtime support, installers/validators, and canonical policy.
@@ -297,7 +297,7 @@ Precedence:
 ## Workspace Organization (Where Things Go)
 - **Engine (shared)**: `instruction-engine/engine-assets/` (agents + skills + prompts), `instruction-engine/.github/templates` (templates)
 - **Project (per-repo)**: repo docs and code (avoid repo-local `.instructions/*` unless explicitly opted-in)
-- **Local output**: prefer central host state (e.g., VS Code repo-state/session-state) over repo-local `.instructions-output/`
+- **Local output**: prefer central host state (e.g., repo-state/session-state) over repo-local `.instructions-output/`
 
 ## Documentation & Output Routing
 Route written output to the correct location based on content type:
@@ -306,7 +306,7 @@ Route written output to the correct location based on content type:
 - **Plan packs** → return in-chat by default; the host/dashboard persists them outside the repo.
 - **User-facing documentation** → `docs/` or `README.md` — end-user and developer guides.
 - **Generated reports & logs** → avoid `.instructions-output/`; prefer host/session artifacts.
-- **Implementation friction log** → append concise recurring codebase pain points to `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md`.
+- **Implementation friction log** → append concise recurring codebase pain points to `~/.elegy/backlogs/{repo-name}/issues/implementation-friction-log.md`.
 - **Task tracking** → avoid repo-local task systems; prefer orchestrator + host persistence.
 
 Key distinctions:
@@ -325,7 +325,7 @@ Legacy note:
 
 ## Delegation (Use Subagents)
 Use subagents to keep work high-signal and consistent. Prefer only the ones that clearly apply:
-- **Orchestrator**: `@orchestrator` (VS Code) or `@orchestrator-cli` (Copilot CLI — uses native Rubber Duck for plan review). Single entry point for complex work.
+- **Orchestrator**: `@orchestrator` or `@orchestrator-cli` (Copilot CLI — uses native Rubber Duck for plan review). Single entry point for complex work.
 - **Search/Execute (preferred capability routing)**: use `@search` to resolve the smallest relevant capability, then `@execute` to turn it into a compact downstream brief before loading heavy context.
 - Core: `@code-explorer`, `@code-reviewer`, `@test-runner`.
 - Implementation: `@impl` (unified — accepts `kind: business | infra`).
@@ -333,7 +333,7 @@ Use subagents to keep work high-signal and consistent. Prefer only the ones that
 - Planning: `@orchestrator` (preferred) for all planning workflows.
 - Context: keep durable notes in repo docs or host artifacts (context-curator removed).
 - UI/UX: route through `@orchestrator` (it will delegate to code-focused leaf agents as needed).
-- Runtime: start/stop local services using repo-documented commands or VS Code tasks.
+- Runtime: start/stop local services using repo-documented commands.
 - Use other agents when their specialty is directly relevant.
 
 > **Removal notice**: legacy executive agents (`@executive2`, `@executive2p5`, etc.) have been removed. Use `@orchestrator`.
@@ -344,16 +344,16 @@ reviewer lanes remain leaf-only, coordinator-to-coordinator chains are forbidden
 fall back to the legacy-depth-1 direct orchestrator -> `@o-planner` path when nested delegation is
 unavailable or disabled.
 
-Use `vscode/askQuestions` for ambiguous or iterative requests, especially UI/UX work, to keep direction aligned.
+Ask targeted questions for ambiguous or iterative requests, especially UI/UX work, to keep direction aligned.
 
-## User Interaction (askQuestions)
-Use `vscode/askQuestions` when:
+## User Interaction (Targeted Questions)
+Ask targeted questions when:
 - Requirements are ambiguous and no safe default exists.
 - A decision meaningfully affects the outcome (architecture choice, scope boundary, tech selection).
 - Before running long E2E checks or unusually heavy/destructive validation where timing expectations matter.
 - Iterative UI/UX work where visual feedback is needed.
 
-Do NOT use askQuestions for:
+Do NOT ask unnecessary questions for:
 - Trivial decisions with an obvious best answer — just proceed.
 - Asking permission to continue or abort — keep working.
 - Status updates — use the todo list instead.
@@ -364,18 +364,16 @@ When asking:
 - Propose a sensible default (mark as `recommended`) with brief justification.
 - Continue non-blocked work while awaiting answers.
 
-Note: The "Completion Gate" rule ("ask one targeted question") applies to general mid-execution pauses. When using the `vscode/askQuestions` tool specifically, batching up to 4 related questions in a single call is preferred.
-
 ## Skills (Default to Skills)
 If a task maps to a known domain, treat skills as the default path:
-- A few transversal skills are always loaded in `~/.copilot/skills/`: `core-guardrails`, `skill-discovery`, `implementation-friction`, `project-guidelines`.
-- **Most domain skills live in `~/.copilot/skills-vault/`** and are NOT loaded by default (saves tokens).
+- A few transversal skills are always loaded in `~/.elegy/skills/`: `core-guardrails`, `skill-discovery`, `implementation-friction`, `project-guidelines`.
+- **Most domain skills live in `~/.elegy/skills-vault/`** and are NOT loaded by default (saves tokens).
 - Use the staged routing model by default:
 	1. `@search` resolves the smallest relevant capability.
 	2. `@execute` extracts the minimum constraints and steps needed downstream.
 	3. Only load the resolved on-demand skill when the task truly needs domain-specific guidance.
 - To find the right skill: use the `skill-discovery` skill's keyword map for detection.
-- To load an on-demand skill: `read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")`.
+- To load an on-demand skill: `read_file("~/.elegy/skills-vault/{skill-name}/SKILL.md")`.
 - Prefer skill-specific guidance over generic judgment.
 - If multiple skills apply, load the primary one first, then the supporting ones.
 
@@ -386,7 +384,7 @@ If a task maps to a known domain, treat skills as the default path:
 
 ## Safety
 - Do destructive scaffolding or large deletions only with an explicit user ask.
-- Record recurring gotchas or major information in repo docs or host/session artifacts. When persisting in the repo, prefer `docs/system/**` for canonical guidance or `~/.copilot/backlogs/{repo-name}/issues/` for operational notes.
+- Record recurring gotchas or major information in repo docs or host/session artifacts. When persisting in the repo, prefer `docs/system/**` for canonical guidance or `~/.elegy/backlogs/{repo-name}/issues/` for operational notes.
 
 ## Secrets & Config
 - Never store secrets in `.env*` files or repo files. Use GitHub Secrets for CI and local secret stores (OS keychain, dotnet user-secrets, or environment variables set outside the repo).

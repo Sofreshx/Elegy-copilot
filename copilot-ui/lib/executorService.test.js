@@ -128,11 +128,11 @@ function createGitWorktree(repoPath, worktreePath, worktreeName = path.basename(
 
 async function run() {
   await test('scheduled jobs persist without creating an immediate run', async () => {
-    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const elegyHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
     const sdkBridge = createMockSdkBridge();
     const timers = createFakeTimers();
     const service = await createExecutorService(
-      { copilotHome, sdkBridge },
+      { elegyHome, sdkBridge },
       { setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout }
     ).init();
 
@@ -160,9 +160,9 @@ async function run() {
   });
 
   await test('immediate runs complete after linked session becomes idle', async () => {
-    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const elegyHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
     const sdkBridge = createMockSdkBridge();
-    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+    const service = await createExecutorService({ elegyHome, sdkBridge }).init();
 
     const result = await service.createJob({
       prompt: 'implement this now',
@@ -195,13 +195,13 @@ async function run() {
   });
 
   await test('rate-limited runs schedule retry and succeed on a later attempt', async () => {
-    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const elegyHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
     const sdkBridge = createMockSdkBridge();
     const timers = createFakeTimers();
     sdkBridge.setSendBehavior({ mode: 'rate-limit' });
 
     const service = await createExecutorService(
-      { copilotHome, sdkBridge },
+      { elegyHome, sdkBridge },
       { setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout }
     ).init();
 
@@ -241,9 +241,9 @@ async function run() {
   });
 
   await test('explicit worktree launches still fail closed without repo context', async () => {
-    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const elegyHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
     const sdkBridge = createMockSdkBridge();
-    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+    const service = await createExecutorService({ elegyHome, sdkBridge }).init();
 
     await assert.rejects(
       service.createJob({
@@ -259,9 +259,9 @@ async function run() {
   });
 
   await test('sandbox create-session jobs require a valid sandbox id', async () => {
-    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const elegyHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
     const sdkBridge = createMockSdkBridge();
-    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+    const service = await createExecutorService({ elegyHome, sdkBridge }).init();
 
     await assert.rejects(
       service.createJob({ prompt: 'run in sandbox', contextType: 'sandbox' }),
@@ -278,8 +278,8 @@ async function run() {
   });
 
   await test('sandbox session creation is revalidated before start when persisted executor state is malformed', async () => {
-    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
-    const stateDir = path.join(copilotHome, 'executor');
+    const elegyHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const stateDir = path.join(elegyHome, 'executor');
     fs.mkdirSync(stateDir, { recursive: true });
     fs.writeFileSync(path.join(stateDir, 'state.json'), JSON.stringify({
       version: 1,
@@ -314,7 +314,7 @@ async function run() {
     }, null, 2));
 
     const sdkBridge = createMockSdkBridge();
-    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+    const service = await createExecutorService({ elegyHome, sdkBridge }).init();
 
     const run = await service.triggerJob('job-malformed-sandbox', { source: 'manual' });
 
@@ -326,12 +326,12 @@ async function run() {
   });
 
   await test('same-repo create-session runs stay shared for the first writer and carry repo cwd metadata', async () => {
-    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
-    const repoPath = path.join(copilotHome, 'repo');
+    const elegyHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const repoPath = path.join(elegyHome, 'repo');
     createGitRepoRoot(repoPath);
 
     const sdkBridge = createMockSdkBridge();
-    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+    const service = await createExecutorService({ elegyHome, sdkBridge }).init();
 
     const result = await service.createJob({
       prompt: 'run in primary checkout',
@@ -354,12 +354,12 @@ async function run() {
   });
 
   await test('parallel same-repo create-session runs reserve a dedicated worktree and fail closed until it exists', async () => {
-    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
-    const repoPath = path.join(copilotHome, 'repo');
+    const elegyHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const repoPath = path.join(elegyHome, 'repo');
     createGitRepoRoot(repoPath);
 
     const sdkBridge = createMockSdkBridge();
-    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+    const service = await createExecutorService({ elegyHome, sdkBridge }).init();
 
     const first = await service.createJob({
       prompt: 'first writer',
@@ -394,14 +394,14 @@ async function run() {
   });
 
   await test('prepared dedicated worktree metadata flows through executor launches and becomes active', async () => {
-    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
-    const repoPath = path.join(copilotHome, 'repo');
-    const worktreePath = path.join(copilotHome, 'repo-worktrees', 'wt-1');
+    const elegyHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const repoPath = path.join(elegyHome, 'repo');
+    const worktreePath = path.join(elegyHome, 'repo-worktrees', 'wt-1');
     createGitRepoRoot(repoPath);
     createGitWorktree(repoPath, worktreePath, 'wt-1');
 
     const sdkBridge = createMockSdkBridge();
-    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+    const service = await createExecutorService({ elegyHome, sdkBridge }).init();
 
     const first = await service.createJob({
       prompt: 'first writer',
@@ -444,11 +444,11 @@ async function run() {
   });
 
   await test('existing-session workflow-layer events carry workflowId and sessionId before dispatch', async () => {
-    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const elegyHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
     const sdkBridge = createMockSdkBridge();
     const seenEvents = [];
     await sdkBridge.createSdkSession({ sessionId: 'existing-session-1' });
-    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+    const service = await createExecutorService({ elegyHome, sdkBridge }).init();
     service.on('workflow-layer:event', (event) => {
       seenEvents.push(event);
     });

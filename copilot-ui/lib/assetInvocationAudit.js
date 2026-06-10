@@ -224,19 +224,19 @@ function resolveFromAvailableTools(toolName, availableTools) {
 
 function loadSnapshotCandidates(options, deps = {}) {
   const loadSnapshot = deps.loadCatalogProjectionSnapshot || loadCatalogProjectionSnapshot;
-  const copilotHome = clampString(options.copilotHome, 1024);
+  const elegyHome = clampString(options.elegyHome, 1024);
   const repoPath = clampString(options.repoPath, 1024);
   const snapshots = [];
 
-  if (copilotHome && repoPath) {
-    const repoSnapshot = loadSnapshot({ copilotHome, repoPath });
+  if (elegyHome && repoPath) {
+    const repoSnapshot = loadSnapshot({ elegyHome, repoPath });
     if (repoSnapshot) {
       snapshots.push(repoSnapshot);
     }
   }
 
-  if (copilotHome) {
-    const globalSnapshot = loadSnapshot({ copilotHome });
+  if (elegyHome) {
+    const globalSnapshot = loadSnapshot({ elegyHome });
     if (globalSnapshot) {
       const duplicate = snapshots.some((snapshot) => snapshot?.storage?.snapshotPath === globalSnapshot?.storage?.snapshotPath);
       if (!duplicate) {
@@ -381,14 +381,14 @@ function resolveInvocationAsset(options = {}, deps = {}) {
 
 function resolveTelemetryCorrelation(options = {}, resolvedAsset, deps = {}) {
   const sessionId = clampString(options.sessionId, 128);
-  const copilotHome = clampString(options.copilotHome, 1024);
-  if (!sessionId || !copilotHome || !resolvedAsset?.assetId) {
+  const elegyHome = clampString(options.elegyHome, 1024);
+  if (!sessionId || !elegyHome || !resolvedAsset?.assetId) {
     return null;
   }
 
   const loadTelemetry = deps.loadSkillSearchTelemetry || loadSkillSearchTelemetry;
   const telemetryResult = loadTelemetry({
-    copilotHome,
+    elegyHome,
     repoId: options.repoId || resolvedAsset.repoId || undefined,
     repoPath: options.repoPath || undefined,
   });
@@ -429,8 +429,8 @@ function resolveTelemetryCorrelation(options = {}, resolvedAsset, deps = {}) {
 
 function recordExplicitAssetInvocation(options = {}, deps = {}) {
   try {
-    const copilotHome = clampString(options.copilotHome, 1024);
-    if (!copilotHome) {
+    const elegyHome = clampString(options.elegyHome, 1024);
+    if (!elegyHome) {
       return { logged: false, skippedReason: 'missing-copilot-home' };
     }
 
@@ -463,7 +463,7 @@ function recordExplicitAssetInvocation(options = {}, deps = {}) {
     const correlationId = explicitCorrelationId || correlatedTelemetry?.correlationId || '';
 
     const appendEvent = deps.appendCatalogAuditEvent || appendCatalogAuditEvent;
-    return appendEvent(copilotHome, {
+    return appendEvent(elegyHome, {
       eventType: 'asset.invoked',
       actor: options.actor || {
         kind: 'runtime',
@@ -502,7 +502,7 @@ function isSkillInvocationEvent(event) {
 }
 
 function getSessionSkillUsageSummary(options = {}, deps = {}) {
-  const copilotHome = clampString(options.copilotHome, 1024);
+  const elegyHome = clampString(options.elegyHome, 1024);
   const sessionId = clampString(options.sessionId, 128);
   const limit = Math.max(1, Math.floor(Number(options.limit) || DEFAULT_AUDIT_SCAN_LIMIT));
   const summary = {
@@ -513,12 +513,12 @@ function getSessionSkillUsageSummary(options = {}, deps = {}) {
     skills: [],
   };
 
-  if (!copilotHome || !sessionId) {
+  if (!elegyHome || !sessionId) {
     return summary;
   }
 
   const readEvents = deps.readCatalogAuditEvents || readCatalogAuditEvents;
-  const events = readEvents(copilotHome, limit, deps);
+  const events = readEvents(elegyHome, limit, deps);
   const usageByAssetId = new Map();
 
   for (const event of Array.isArray(events) ? events : []) {

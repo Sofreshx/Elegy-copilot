@@ -15,7 +15,6 @@ import {
 	readMessagingGatewayStatusFile,
 	resolveMessagingGatewayStatusPath,
 } from '../statusFile';
-
 function makeStatus(overrides: Partial<MessagingGatewayStatusV1> = {}): MessagingGatewayStatusV1 {
 	return {
 		...buildMessagingGatewayReadinessMetadata({ normalizedFrom: 'v1' }),
@@ -52,32 +51,25 @@ function makeStatus(overrides: Partial<MessagingGatewayStatusV1> = {}): Messagin
 		...overrides,
 	};
 }
-
 describe('MessagingGatewayStatusWriter', () => {
 	let tmpDir: string;
-
 	beforeEach(() => {
 		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'status-file-'));
 	});
-
 	afterEach(() => {
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 	});
-
 	test('writeNow() writes valid JSON with schemaVersion and lastUpdatedUtc', () => {
 		const statusPath = path.join(tmpDir, 'status.json');
 		const status = makeStatus();
 		const writer = new MessagingGatewayStatusWriter(statusPath, status);
-
 		writer.writeNow();
-
 		const content = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
 		expect(content.schemaVersion).toBe(1);
 			expect(content.contractVersion).toBe(MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION);
 		expect(typeof content.lastUpdatedUtc).toBe('string');
 		expect(content.lastUpdatedUtc.length).toBeGreaterThan(0);
 	});
-
 		test('constructor normalizes legacy v0 status input into canonical v1 readiness shape', () => {
 			const statusPath = path.join(tmpDir, 'legacy-status.json');
 			const writer = new MessagingGatewayStatusWriter(statusPath, {
@@ -87,7 +79,6 @@ describe('MessagingGatewayStatusWriter', () => {
 				ready: false,
 				activeSessionThreadCount: 2,
 			});
-
 			writer.writeNow();
 			const content = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
 			expect(content.schemaVersion).toBe(1);
@@ -112,7 +103,6 @@ describe('MessagingGatewayStatusWriter', () => {
 				no_route: 0,
 			});
 		});
-
 		test('constructor keeps discovery telemetry shape when provided', () => {
 			const statusPath = path.join(tmpDir, 'status-with-discovery.json');
 			const writer = new MessagingGatewayStatusWriter(
@@ -136,28 +126,22 @@ describe('MessagingGatewayStatusWriter', () => {
 					},
 				}),
 			);
-
 			writer.writeNow();
 			const content = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
 			expect(content.runtime.discoveryTelemetry.sample.size).toBe(1);
 			expect(content.runtime.discoveryTelemetry.countersByReason.keyword_miss).toBe(1);
 		});
-
 	test('writeNow() creates parent directory if needed', () => {
 		const deepPath = path.join(tmpDir, 'a', 'b', 'status.json');
 		const writer = new MessagingGatewayStatusWriter(deepPath, makeStatus());
-
 		writer.writeNow();
-
 		expect(fs.existsSync(deepPath)).toBe(true);
 		const content = JSON.parse(fs.readFileSync(deepPath, 'utf8'));
 		expect(content.schemaVersion).toBe(1);
 	});
-
 	test('atomic write produces valid JSON file', () => {
 		const statusPath = path.join(tmpDir, 'status.json');
 		const writer = new MessagingGatewayStatusWriter(statusPath, makeStatus());
-
 		// Write multiple times — file should always be valid JSON
 		for (let i = 0; i < 5; i++) {
 			writer.writeNow();
@@ -165,19 +149,15 @@ describe('MessagingGatewayStatusWriter', () => {
 			expect(() => JSON.parse(raw)).not.toThrow();
 		}
 	});
-
 	test('readMessagingGatewayStatusFile() returns canonical status from file', () => {
 		const statusPath = path.join(tmpDir, 'status.json');
 		const writer = new MessagingGatewayStatusWriter(statusPath, makeStatus());
-
 		writer.writeNow();
-
 		const content = readMessagingGatewayStatusFile(statusPath);
 		expect(content.schemaVersion).toBe(1);
 		expect(content.contractVersion).toBe(MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION);
 		expect(content.readiness.state).toBe('disconnected');
 	});
-
 	test('readMessagingGatewayStatusFile() normalizes legacy status input from disk', () => {
 		const statusPath = path.join(tmpDir, 'legacy-status.json');
 		fs.writeFileSync(statusPath, JSON.stringify({
@@ -187,7 +167,6 @@ describe('MessagingGatewayStatusWriter', () => {
 			ready: false,
 			activeSessionThreadCount: 2,
 		}), 'utf8');
-
 		const content = readMessagingGatewayStatusFile(statusPath);
 		expect(content.schemaVersion).toBe(1);
 		expect(content.compatibility).toEqual({ normalizedFrom: 'v0', deterministic: true });
@@ -197,80 +176,64 @@ describe('MessagingGatewayStatusWriter', () => {
 			deterministic: true,
 		});
 	});
-
 	test('readMessagingGatewayStatusFile() throws deterministic missing-file error', () => {
 		expect(() => readMessagingGatewayStatusFile(path.join(tmpDir, 'missing-status.json'))).toThrow(
 			'Status file not found',
 		);
 	});
-
 	test('update() calls mutator and writes', () => {
 		const statusPath = path.join(tmpDir, 'status.json');
 		const status = makeStatus();
 		const writer = new MessagingGatewayStatusWriter(statusPath, status);
-
 		writer.update((s) => {
 			s.runtime.discord.connected = true;
 			s.runtime.discord.ready = true;
 		});
-
 		const content = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
 		expect(content.runtime.discord.connected).toBe(true);
 		expect(content.runtime.discord.ready).toBe(true);
 	});
-
 	describe('heartbeat', () => {
 		beforeEach(() => {
 			jest.useFakeTimers();
 		});
-
 		afterEach(() => {
 			jest.useRealTimers();
 		});
-
 		test('startHeartbeat() fires at interval, stopHeartbeat() stops it', () => {
 			const statusPath = path.join(tmpDir, 'status.json');
 			const writer = new MessagingGatewayStatusWriter(statusPath, makeStatus());
 			const onBeat = jest.fn();
-
 			writer.startHeartbeat(1000, onBeat);
-
 			jest.advanceTimersByTime(3500);
 			expect(onBeat).toHaveBeenCalledTimes(3);
-
 			writer.stopHeartbeat();
-
 			jest.advanceTimersByTime(3000);
 			expect(onBeat).toHaveBeenCalledTimes(3);
 		});
 	});
 });
-
 describe('getDefaultMessagingGatewayStatusPath', () => {
 	test('returns expected path under home directory', () => {
 		const result = getDefaultMessagingGatewayStatusPath();
 		expect(result).toBe(
-			path.join(os.homedir(), '.copilot', 'messaging-gateway.status.json'),
+			path.join(os.homedir(), '.elegy', 'messaging-gateway.status.json'),
 		);
 	});
 });
-
 describe('resolveMessagingGatewayStatusPath', () => {
 	test('ignores configPath arg and returns default', () => {
 		const result = resolveMessagingGatewayStatusPath('/some/random/path.json');
 		expect(result).toBe(getDefaultMessagingGatewayStatusPath());
 	});
-
 	test('rehomes legacy status artifact into canonical path when canonical path is absent', () => {
 		const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-status-home-'));
 		const homedirMock = jest.spyOn(os, 'homedir').mockReturnValue(tempHome);
-
 		try {
 			const canonicalPath = getDefaultMessagingGatewayStatusPath();
 			const legacyPath = getLegacyMessagingGatewayStatusPath();
 			fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
 			fs.writeFileSync(legacyPath, JSON.stringify(makeStatus()), 'utf8');
-
 			const resolved = resolveMessagingGatewayStatusPath('/some/random/path.json');
 			expect(resolved).toBe(canonicalPath);
 			expect(fs.existsSync(canonicalPath)).toBe(true);

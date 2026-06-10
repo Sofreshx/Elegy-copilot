@@ -42,8 +42,8 @@ function readJsonIfExists(absPath, fsImpl = fs) {
   }
 }
 
-function resolveCatalogAuditLogPath(copilotHomeAbs, pathImpl = path) {
-  return pathImpl.join(path.resolve(copilotHomeAbs), 'catalog', 'audit', 'events.jsonl');
+function resolveCatalogAuditLogPath(elegyHomeAbs, pathImpl = path) {
+  return pathImpl.join(path.resolve(elegyHomeAbs), 'catalog', 'audit', 'events.jsonl');
 }
 
 function createAuditEventId(cryptoImpl = crypto) {
@@ -241,10 +241,10 @@ function createCatalogAuditEvent(eventInput = {}, deps = {}) {
   };
 }
 
-function appendCatalogAuditEvent(copilotHomeAbs, eventInput, deps = {}) {
+function appendCatalogAuditEvent(elegyHomeAbs, eventInput, deps = {}) {
   const fsImpl = deps.fs || fs;
   const pathImpl = deps.path || path;
-  const auditLogPath = resolveCatalogAuditLogPath(copilotHomeAbs, pathImpl);
+  const auditLogPath = resolveCatalogAuditLogPath(elegyHomeAbs, pathImpl);
   const event = createCatalogAuditEvent(eventInput, deps);
   try {
     fsImpl.mkdirSync(pathImpl.dirname(auditLogPath), { recursive: true });
@@ -305,10 +305,10 @@ function tailJsonlLines(filePath, limit, fsImpl = fs) {
   }
 }
 
-function readCatalogAuditEvents(copilotHomeAbs, limit = DEFAULT_AUDIT_LIMIT, deps = {}) {
+function readCatalogAuditEvents(elegyHomeAbs, limit = DEFAULT_AUDIT_LIMIT, deps = {}) {
   const fsImpl = deps.fs || fs;
   const pathImpl = deps.path || path;
-  return tailJsonlLines(resolveCatalogAuditLogPath(copilotHomeAbs, pathImpl), limit, fsImpl)
+  return tailJsonlLines(resolveCatalogAuditLogPath(elegyHomeAbs, pathImpl), limit, fsImpl)
     .map((line) => {
       try {
         return JSON.parse(line);
@@ -459,9 +459,9 @@ function diffProjectionLifecycleEvents(previousSnapshot, nextSnapshot) {
   return events;
 }
 
-function recordProjectionLifecycleEvents(copilotHomeAbs, previousSnapshot, nextSnapshot, deps = {}) {
+function recordProjectionLifecycleEvents(elegyHomeAbs, previousSnapshot, nextSnapshot, deps = {}) {
   const lifecycleEvents = diffProjectionLifecycleEvents(previousSnapshot, nextSnapshot);
-  return lifecycleEvents.map((event) => appendCatalogAuditEvent(copilotHomeAbs, event, deps));
+  return lifecycleEvents.map((event) => appendCatalogAuditEvent(elegyHomeAbs, event, deps));
 }
 
 function addRecent(list, event, limit) {
@@ -703,8 +703,8 @@ function updateSearchSummary(summary, bucket, occurredAt, amount = 1) {
   }
 }
 
-function sessionDir(copilotHomeAbs, sessionId, pathImpl = path) {
-  return pathImpl.join(path.resolve(copilotHomeAbs), 'session-state', String(sessionId || ''));
+function sessionDir(elegyHomeAbs, sessionId, pathImpl = path) {
+  return pathImpl.join(path.resolve(elegyHomeAbs), 'session-state', String(sessionId || ''));
 }
 
 function resolveRepoContextFromSession(session) {
@@ -762,25 +762,25 @@ function filterEvents(events, filters = {}) {
 }
 
 function buildAssetAuditAnalytics(options = {}) {
-  const copilotHomeAbs = path.resolve(options.copilotHome || options.copilotHomeAbs || '~/.copilot');
+  const elegyHomeAbs = path.resolve(options.elegyHome || options.elegyHomeAbs || options.copilotHome || options.copilotHomeAbs || '~/.elegy');
   const snapshot = options.snapshot || null;
   const analyticsRecentLimit = Math.max(
     1,
     Number(options.recentLimit) || DEFAULT_ANALYTICS_RECENT_LIMIT,
   );
   const filters = options.filters && typeof options.filters === 'object' ? options.filters : {};
-  const auditLogPath = resolveCatalogAuditLogPath(copilotHomeAbs);
+  const auditLogPath = resolveCatalogAuditLogPath(elegyHomeAbs);
   const searchTelemetryPath = telemetryStoragePath({
-    copilotHome: copilotHomeAbs,
+    copilotHome: elegyHomeAbs,
     repoId: options.repoId,
     repoPath: options.repoPath,
   });
   const auditEvents = filterEvents(
-    readCatalogAuditEvents(copilotHomeAbs, Math.max(analyticsRecentLimit * 8, 200)),
+    readCatalogAuditEvents(elegyHomeAbs, Math.max(analyticsRecentLimit * 8, 200)),
     filters,
   );
   const { telemetry } = loadSkillSearchTelemetry({
-    copilotHome: copilotHomeAbs,
+    copilotHome: elegyHomeAbs,
     repoId: options.repoId,
     repoPath: options.repoPath,
   });
@@ -974,7 +974,7 @@ function buildAssetAuditAnalytics(options = {}) {
     addRecent(recentEvents, { ...event, source: 'search-telemetry' }, analyticsRecentLimit);
   }
 
-  const discoveredSessions = sessions.listSessions(copilotHomeAbs, {
+  const discoveredSessions = sessions.listSessions(elegyHomeAbs, {
     recentLimit: MAX_USAGE_EVENTS,
   });
   for (const session of discoveredSessions) {
@@ -991,7 +991,7 @@ function buildAssetAuditAnalytics(options = {}) {
       repoSummary.sessionIds.add(session.id);
     }
 
-    const usage = sessions.getAgentUsage(sessionDir(copilotHomeAbs, session.id), MAX_USAGE_EVENTS);
+    const usage = sessions.getAgentUsage(sessionDir(elegyHomeAbs, session.id), MAX_USAGE_EVENTS);
     for (const [rawAgentName, count] of Object.entries(usage)) {
       const normalizedName = String(rawAgentName || '').trim().toLowerCase();
       const assetId =
@@ -1084,7 +1084,7 @@ function buildAssetAuditAnalytics(options = {}) {
     .sort((left, right) => String(right.lastEventTime || '').localeCompare(String(left.lastEventTime || '')));
 
   const projectionStorage = resolveProjectionStorage({
-    copilotHome: copilotHomeAbs,
+    elegyHome: elegyHomeAbs,
     repoId: options.repoId,
     repoPath: options.repoPath,
   });

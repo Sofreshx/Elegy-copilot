@@ -99,7 +99,7 @@ class ObsidianSourceResolver {
 
   _readPersistedSelection(options = {}) {
     const state = this._obsidianRemoteSync.readRepoSyncState({
-      copilotHomeAbs: options.copilotHomeAbs,
+      elegyHomeAbs: options.elegyHomeAbs,
       repo: options.repo,
       config: options.config,
     });
@@ -122,7 +122,7 @@ class ObsidianSourceResolver {
 
   _writePersistedSelection(options = {}, activeSourceId = '') {
     const current = this._obsidianRemoteSync.readRepoSyncState({
-      copilotHomeAbs: options.copilotHomeAbs,
+      elegyHomeAbs: options.elegyHomeAbs,
       repo: options.repo,
       config: options.config,
     });
@@ -140,7 +140,7 @@ class ObsidianSourceResolver {
     }
 
     this._obsidianRemoteSync.writeRepoSyncState({
-      copilotHomeAbs: options.copilotHomeAbs,
+      elegyHomeAbs: options.elegyHomeAbs,
       repo: options.repo,
       state: nextState,
     });

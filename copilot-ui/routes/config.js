@@ -254,9 +254,9 @@ async function assertCodexProviderActivationPreflight(ctx, deps) {
 }
 
 function handleGetRemoteSessions(ctx, deps) {
-  const { copilotHome } = ctx;
+  const { elegyHome } = ctx;
   try {
-    const enabled = deps.copilotConfig.getRemoteSessions(copilotHome);
+    const enabled = deps.copilotConfig.getRemoteSessions(elegyHome);
     deps.sendJson(ctx.res, 200, { enabled });
   } catch (err) {
     deps.sendJson(ctx.res, 500, { error: 'Failed to read config', details: err.message });
@@ -280,7 +280,7 @@ async function handleSetRemoteSessions(ctx, deps) {
       return;
     }
 
-    deps.copilotConfig.setRemoteSessions(ctx.copilotHome, body.enabled);
+    deps.copilotConfig.setRemoteSessions(ctx.elegyHome, body.enabled);
 
     if (ctx.sdkBridge && typeof ctx.sdkBridge.restartBaseClient === 'function') {
       try {
@@ -671,11 +671,11 @@ async function handleGetBootstrapStatus(ctx, deps) {
   try {
     const codexHome = ctx.codexHome;
     const existing = deps.codexConfig.getBootstrapState(codexHome);
-    const copilotHome = ctx.copilotHome || require('path').join(require('os').homedir(), '.copilot');
+    const elegyHome = ctx.elegyHome || require('path').join(require('os').homedir(), '.elegy');
 
     const bundledSource = resolveBundledMoonBridgeSource();
     const status = deps.moonBridgeBootstrap.getBootstrapStatus({
-      copilotHome,
+      elegyHome,
       existingBootstrapState: existing || undefined,
       bundledSource: bundledSource || undefined,
     });
@@ -689,20 +689,20 @@ async function handleGetBootstrapStatus(ctx, deps) {
 async function handleBootstrapMoonBridge(ctx, deps) {
   try {
     const codexHome = ctx.codexHome;
-    const copilotHome = ctx.copilotHome || require('path').join(require('os').homedir(), '.copilot');
+    const elegyHome = ctx.elegyHome || require('path').join(require('os').homedir(), '.elegy');
     const body = await deps.readJsonBody(ctx.req).catch(() => ({}));
     const forceRebuild = body.forceRebuild === true;
 
     const bundledSource = resolveBundledMoonBridgeSource();
     const preStatus = deps.moonBridgeBootstrap.getBootstrapStatus({
-      copilotHome,
+      elegyHome,
       bundledSource: bundledSource || undefined,
     });
 
     // Fast path: bundled binary is available — run synchronously (just a file copy)
     if (preStatus.bundledSourceAvailable) {
       const result = deps.moonBridgeBootstrap.bootstrapMoonBridge({
-        copilotHome,
+        elegyHome,
         forceRebuild,
         bundledSource,
       });
@@ -778,7 +778,7 @@ async function handleBootstrapMoonBridge(ctx, deps) {
       });
     });
 
-    child.send({ copilotHome, forceRebuild });
+    child.send({ elegyHome, forceRebuild });
   } catch (err) {
     deps.sendJson(ctx.res, 500, { error: 'Failed to bootstrap Moon Bridge', details: err.message });
   }

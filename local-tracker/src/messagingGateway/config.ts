@@ -93,7 +93,7 @@ export const MESSAGING_GATEWAY_CONFIG_JSON_ENV = 'INSTRUCTION_ENGINE_GATEWAY_CON
 const MESSAGING_GATEWAY_CONFIG_FILENAME = 'messaging-gateway.config.json';
 
 export function getDefaultMessagingGatewayConfigPath(): string {
-	return path.join(os.homedir(), '.copilot', MESSAGING_GATEWAY_CONFIG_FILENAME);
+	return path.join(os.homedir(), '.elegy', MESSAGING_GATEWAY_CONFIG_FILENAME);
 }
 
 export function getLegacyMessagingGatewayConfigPath(): string {

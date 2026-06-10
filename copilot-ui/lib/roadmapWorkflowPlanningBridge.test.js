@@ -40,7 +40,7 @@ async function run() {
     const recorded = [];
     const bridge = createRoadmapWorkflowPlanningBridge({
       enabled: true,
-      copilotHome: path.join('C:', 'copilot'),
+      elegyHome: path.join('C:', 'copilot'),
       dbPath: path.join('C:', 'planning', 'elegy-planning.db'),
       cliPath: __filename,
       childProcess: createExecFileStub(({ command, args, options, callback }) => {
@@ -203,7 +203,7 @@ async function run() {
     const recorded = [];
     const bridge = createRoadmapWorkflowPlanningBridge({
       enabled: true,
-      copilotHome: path.join('C:', 'copilot'),
+      elegyHome: path.join('C:', 'copilot'),
       dbPath: path.join('C:', 'planning', 'elegy-planning.db'),
       cliPath: __filename,
       childProcess: createExecFileStub(({ command, args, callback }) => {
@@ -281,7 +281,7 @@ async function run() {
   await test('roadmap workflow planning bridge fails open when elegy-planning returns invalid json', async () => {
     const bridge = createRoadmapWorkflowPlanningBridge({
       enabled: true,
-      copilotHome: path.join('C:', 'copilot'),
+      elegyHome: path.join('C:', 'copilot'),
       dbPath: path.join('C:', 'planning', 'elegy-planning.db'),
       cliPath: __filename,
       childProcess: createExecFileStub(({ callback }) => {

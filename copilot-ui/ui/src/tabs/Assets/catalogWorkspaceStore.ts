@@ -528,7 +528,7 @@ function createCatalogWorkspaceStore() {
           : 'State preview only',
         selectedAssetContent: inspectablePath
           ? `(loading installed content from ${inspectablePath}...)`
-          : 'Installed content preview is only available for assets materialized under ~/.copilot.',
+          : 'Installed content preview is only available for assets materialized under ~/.elegy.',
       }));
 
       if (!inspectablePath) {

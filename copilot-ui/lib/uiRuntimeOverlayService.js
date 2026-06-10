@@ -55,8 +55,8 @@ function nowIso(nowFn) {
   return new Date(typeof nowFn === 'function' ? nowFn() : Date.now()).toISOString();
 }
 
-function resolveUiRuntimeOverlayStatePath(copilotHome, pathImpl = path) {
-  return pathImpl.join(pathImpl.resolve(String(copilotHome || '.')), 'ui-runtime-overlay', 'state.json');
+function resolveUiRuntimeOverlayStatePath(elegyHome, pathImpl = path) {
+  return pathImpl.join(pathImpl.resolve(String(elegyHome || '.')), 'ui-runtime-overlay', 'state.json');
 }
 
 function isDirectory(fsImpl, absPath) {
@@ -808,7 +808,7 @@ class UiRuntimeOverlayService {
     this._crypto = deps.crypto || crypto;
     this._now = typeof deps.now === 'function' ? deps.now : () => Date.now();
     this._repoInventory = deps.repoInventory || repoInventoryService;
-    this._statePath = resolveUiRuntimeOverlayStatePath(this._config.copilotHome || '.', this._path);
+    this._statePath = resolveUiRuntimeOverlayStatePath(this._config.elegyHome || this._config.copilotHome || '.', this._path);
     this._stateLockPath = `${this._statePath}.lock`;
     this._stateLockTimeoutMs = asNonNegativeInteger(deps.stateLockTimeoutMs) ?? DEFAULT_STATE_LOCK_TIMEOUT_MS;
     this._stateLockRetryDelayMs = asNonNegativeInteger(deps.stateLockRetryDelayMs) ?? DEFAULT_STATE_LOCK_RETRY_DELAY_MS;
@@ -1249,7 +1249,7 @@ class UiRuntimeOverlayService {
 
   _resolveSelectedRepo() {
     const inventory = this._repoInventory.listKnownRepos({
-      copilotHome: this._config.copilotHome,
+      elegyHome: this._config.elegyHome || this._config.copilotHome,
       engineRoot: this._config.engineRoot,
     });
     const repo = inventory && isObject(inventory.selectedRepo) ? inventory.selectedRepo : null;

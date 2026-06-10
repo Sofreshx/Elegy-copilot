@@ -45,13 +45,13 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
 Write-Output "`nConfiguring lsp-config.json..."
 
 if (-not [string]::IsNullOrWhiteSpace($env:XDG_CONFIG_HOME)) {
-    $copilotDir = Join-Path $env:XDG_CONFIG_HOME '.copilot'
+    $elegyDir = Join-Path $env:XDG_CONFIG_HOME '.elegy'
 } else {
-    $copilotDir = Join-Path $HOME '.copilot'
+    $elegyDir = Join-Path $HOME '.elegy'
 }
-New-Item -ItemType Directory -Force -Path $copilotDir | Out-Null
+New-Item -ItemType Directory -Force -Path $elegyDir | Out-Null
 
-$lspConfigPath = Join-Path $copilotDir 'lsp-config.json'
+$lspConfigPath = Join-Path $elegyDir 'lsp-config.json'
 
 $config = @{
     lspServers = @{

@@ -76,7 +76,7 @@ function summarizeRepo(repo) {
 
 function loadInventory(ctx, deps) {
   return deps.repoInventory.listKnownRepos({
-    copilotHome: firstDefined(ctx.copilotHomeAbs, ctx.copilotHome),
+    elegyHome: firstDefined(ctx.elegyHomeAbs, ctx.elegyHome),
     engineRoot: ctx.engineRoot,
   });
 }

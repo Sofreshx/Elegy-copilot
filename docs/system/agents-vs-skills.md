@@ -25,12 +25,11 @@ Default recommendation: use agents for multi-step, stateful operations; use skil
 
 ## Cross-tool portability (dedupe)
 
-If you want something reusable across **Copilot CLI** and **VS Code**, prefer a **skill**.
+If you want something reusable, prefer a **skill**.
 
 Practical rule:
 - Put skills in `.github/skills/<skill>/...` (single source of truth)
-- Install once per machine into `~/.copilot/skills/<skill>/...` for always-installed skills, including the shared planning/spec/review lane, or `~/.copilot/skills-vault/<skill>/...` for on-demand-only skills
-- Point VS Code at `~/.copilot/skills` via `chat.agentSkillsLocations` (installer does this)
+- Install once per machine into `~/.elegy/skills/<skill>/...` for always-installed skills, including the shared planning/spec/review lane, or `~/.elegy/skills-vault/<skill>/...` for on-demand-only skills
 
 Agents are still useful, but they’re more likely to diverge (tools, UX, capabilities). Keep agents tool-neutral when possible, and only fork into tool-specific variants when you have a real need.
 

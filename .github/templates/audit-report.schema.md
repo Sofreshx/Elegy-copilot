@@ -317,15 +317,15 @@ interface Finding {
 
 ### 4. Output Locations
 
-Reports are returned in chat by default. If a durable artifact is explicitly requested, prefer `~/.copilot/backlogs/{repo-name}/issues/` (`{repo-name}` is the basename of the repository directory):
+Reports are returned in chat by default. If a durable artifact is explicitly requested, prefer `~/.elegy/backlogs/{repo-name}/issues/` (`{repo-name}` is the basename of the repository directory):
 
 | Audit Type | Output Path |
 |------------|-------------|
-| `security` | `~/.copilot/backlogs/{repo-name}/issues/security-audit.md` |
+| `security` | `~/.elegy/backlogs/{repo-name}/issues/security-audit.md` |
 | `test` | (deprecated) |
-| `e2e` | `~/.copilot/backlogs/{repo-name}/issues/e2e-audit-report.md` |
-| `deploy` | `~/.copilot/backlogs/{repo-name}/issues/deploy-audit.md` |
-| `stack` | `~/.copilot/backlogs/{repo-name}/issues/stack-audit.md` |
+| `e2e` | `~/.elegy/backlogs/{repo-name}/issues/e2e-audit-report.md` |
+| `deploy` | `~/.elegy/backlogs/{repo-name}/issues/deploy-audit.md` |
+| `stack` | `~/.elegy/backlogs/{repo-name}/issues/stack-audit.md` |
 
 ---
 

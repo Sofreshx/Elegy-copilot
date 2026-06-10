@@ -527,16 +527,16 @@ function resolveSharedAuthoring(engineRoot, kind, assetKey, authoringRepoPath) {
   };
 }
 
-function getUserGlobalSkillPaths(copilotHomeAbs, assetKey) {
-  const skillsRoot = path.join(copilotHomeAbs, 'skills', assetKey);
-  const vaultRoot = path.join(copilotHomeAbs, 'skills-vault', assetKey);
+function getUserGlobalSkillPaths(elegyHomeAbs, assetKey) {
+  const skillsRoot = path.join(elegyHomeAbs, 'skills', assetKey);
+  const vaultRoot = path.join(elegyHomeAbs, 'skills-vault', assetKey);
   const existingRoots = [skillsRoot, vaultRoot].filter((entry) => pathExists(entry));
   return { skillsRoot, vaultRoot, existingRoots };
 }
 
-function resolveUserGlobalAuthoring(copilotHomeAbs, kind, assetKey, loadMode) {
+function resolveUserGlobalAuthoring(elegyHomeAbs, kind, assetKey, loadMode) {
   if (kind === 'agent') {
-    const primaryFilePath = path.join(copilotHomeAbs, 'agents', `${assetKey}.agent.md`);
+    const primaryFilePath = path.join(elegyHomeAbs, 'agents', `${assetKey}.agent.md`);
     return {
       authoringScope: 'user-global',
       assetRootPath: primaryFilePath,
@@ -547,7 +547,7 @@ function resolveUserGlobalAuthoring(copilotHomeAbs, kind, assetKey, loadMode) {
   }
 
   const effectiveLoadMode = normalizeLoadMode(loadMode);
-  const paths = getUserGlobalSkillPaths(copilotHomeAbs, assetKey);
+  const paths = getUserGlobalSkillPaths(elegyHomeAbs, assetKey);
   const assetRootPath = effectiveLoadMode === 'always' ? paths.skillsRoot : paths.vaultRoot;
 
   return {
@@ -601,7 +601,7 @@ function resolveAuthoringTarget(runtime, body, defaultLoadMode) {
       kind,
       assetKey,
       assetId: deriveAssetId(kind, assetKey),
-      ...resolveUserGlobalAuthoring(runtime.copilotHomeAbs, kind, assetKey, body.loadMode || defaultLoadMode),
+      ...resolveUserGlobalAuthoring(runtime.elegyHomeAbs, kind, assetKey, body.loadMode || defaultLoadMode),
     };
   }
 
@@ -691,7 +691,7 @@ function finalizeMutation(runtime, options, ledger, result, auditInput) {
 
   ledger.finalize();
 
-  const audit = appendCatalogAuditEvent(runtime.copilotHomeAbs, auditInput, options.auditDeps || {});
+  const audit = appendCatalogAuditEvent(runtime.elegyHomeAbs, auditInput, options.auditDeps || {});
   return {
     ...result,
     refreshes,
@@ -782,7 +782,7 @@ function updateAsset(runtime, body, options = {}) {
     let seedFrom = null;
 
     if (target.authoringScope === 'user-global' && target.kind === 'skill') {
-      const { existingRoots } = getUserGlobalSkillPaths(runtime.copilotHomeAbs, target.assetKey);
+      const { existingRoots } = getUserGlobalSkillPaths(runtime.elegyHomeAbs, target.assetKey);
       if (existingRoots.length > 1) {
         throw Object.assign(
           new Error('Refusing to update a user-global skill while both skills/ and skills-vault/ copies exist'),
@@ -895,7 +895,7 @@ function deleteAsset(runtime, body, options = {}) {
     let deleted = false;
 
     if (target.authoringScope === 'user-global' && target.kind === 'skill') {
-      const { existingRoots } = getUserGlobalSkillPaths(runtime.copilotHomeAbs, target.assetKey);
+      const { existingRoots } = getUserGlobalSkillPaths(runtime.elegyHomeAbs, target.assetKey);
       if (existingRoots.length > 1) {
         throw Object.assign(
           new Error('Refusing to delete a user-global skill while both skills/ and skills-vault/ copies exist'),
@@ -983,13 +983,13 @@ function installAsset(runtime, body, options = {}) {
     const destinations = [];
 
     if (manifestAsset.type === 'agent') {
-      destinations.push(path.join(runtime.copilotHomeAbs, manifestAsset.destination));
+      destinations.push(path.join(runtime.elegyHomeAbs, manifestAsset.destination));
     } else {
       const assetKey = normalizeAssetKey('skill', path.basename(String(manifestAsset.source || '')));
       const loadMode = normalizeLoadMode(manifestAsset.loadMode || 'on-demand');
-      destinations.push(path.join(runtime.copilotHomeAbs, 'skills-vault', assetKey));
+      destinations.push(path.join(runtime.elegyHomeAbs, 'skills-vault', assetKey));
       if (loadMode === 'always') {
-        destinations.push(path.join(runtime.copilotHomeAbs, 'skills', assetKey));
+        destinations.push(path.join(runtime.elegyHomeAbs, 'skills', assetKey));
       }
     }
 
@@ -1061,7 +1061,7 @@ function setAssetEnabled(runtime, body, enabled, options = {}) {
   const assetKey = normalizeAssetKey(kind, body.assetKey || body.assetId);
   const repoPath = ensureAbsolutePath(body.repoPath, 'repoPath');
   const repoStateKey = getRepoStateKey(repoPath);
-  const registryPath = path.join(runtime.copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'registry.json');
+  const registryPath = path.join(runtime.elegyHomeAbs, 'repo-state', repoStateKey.repoId, 'registry.json');
   const registry = pathExists(registryPath) ? readJson(registryPath) : {};
 
   const sectionKey = kind === 'skill' ? 'skills' : 'agents';
@@ -1147,7 +1147,7 @@ function setAssetEnabled(runtime, body, enabled, options = {}) {
   }
 }
 
-function resolveManagedBundleMemberDestinations(copilotHomeAbs, manifestAsset) {
+function resolveManagedBundleMemberDestinations(elegyHomeAbs, manifestAsset) {
   if (!manifestAsset || typeof manifestAsset !== 'object') {
     return [];
   }
@@ -1158,14 +1158,14 @@ function resolveManagedBundleMemberDestinations(copilotHomeAbs, manifestAsset) {
       return [];
     }
     return [
-      path.join(copilotHomeAbs, 'skills', assetKey),
-      path.join(copilotHomeAbs, 'skills-vault', assetKey),
+      path.join(elegyHomeAbs, 'skills', assetKey),
+      path.join(elegyHomeAbs, 'skills-vault', assetKey),
     ];
   }
 
   if (manifestAsset.type === 'agent') {
     const destination = normalizeString(manifestAsset.destination);
-    return destination ? [path.join(copilotHomeAbs, destination)] : [];
+    return destination ? [path.join(elegyHomeAbs, destination)] : [];
   }
 
   return [];
@@ -1213,10 +1213,10 @@ function uninstallBundle(runtime, body, options = {}) {
     : null;
   const repoStateKey = repoPath ? getRepoStateKey(repoPath) : null;
   const registryPath = repoStateKey
-    ? path.join(runtime.copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'registry.json')
+    ? path.join(runtime.elegyHomeAbs, 'repo-state', repoStateKey.repoId, 'registry.json')
     : null;
   const repoActivationPath = repoPath
-    ? resolveRepoActivationStatePath(runtime.copilotHomeAbs, repoPath).path
+    ? resolveRepoActivationStatePath(runtime.elegyHomeAbs, repoPath).path
     : null;
 
   const { manifest } = loadManifestState(runtime.engineRoot);
@@ -1264,7 +1264,7 @@ function uninstallBundle(runtime, body, options = {}) {
       }
 
       let removedForAsset = false;
-      for (const destinationAbs of resolveManagedBundleMemberDestinations(runtime.copilotHomeAbs, manifestAsset)) {
+      for (const destinationAbs of resolveManagedBundleMemberDestinations(runtime.elegyHomeAbs, manifestAsset)) {
         const deleted = ledger.deletePath(destinationAbs, { allowMissing: true });
         if (deleted) {
           removedPaths.push(destinationAbs);
@@ -1277,7 +1277,7 @@ function uninstallBundle(runtime, body, options = {}) {
     }
 
     const defaults = loadActivationDefaults(runtime);
-    const globalActivationPath = resolveGlobalActivationStatePath(runtime.copilotHomeAbs);
+    const globalActivationPath = resolveGlobalActivationStatePath(runtime.elegyHomeAbs);
     const existingGlobalState = pathExists(globalActivationPath) ? readJson(globalActivationPath) : {};
     const existingGlobalBundleIds = Array.isArray(existingGlobalState.activeBundleIds)
       ? existingGlobalState.activeBundleIds
@@ -1435,7 +1435,7 @@ function resolveActivationMutationTarget(runtime, body) {
     return {
       scope: { kind: 'user' },
       targetScope: 'user-global',
-      statePath: resolveGlobalActivationStatePath(runtime.copilotHomeAbs),
+      statePath: resolveGlobalActivationStatePath(runtime.elegyHomeAbs),
       repoPath: null,
       repoStateKey: null,
     };
@@ -1443,7 +1443,7 @@ function resolveActivationMutationTarget(runtime, body) {
 
   const absoluteRepoPath = ensureAbsolutePath(repoPath, 'repoPath');
   const repoStateKey = getRepoStateKey(absoluteRepoPath);
-  const repoActivationPath = resolveRepoActivationStatePath(runtime.copilotHomeAbs, absoluteRepoPath);
+  const repoActivationPath = resolveRepoActivationStatePath(runtime.elegyHomeAbs, absoluteRepoPath);
   return {
     scope: {
       kind: 'repo',
@@ -1465,7 +1465,7 @@ function updateCatalogActivation(runtime, body, options = {}) {
   const action = normalizeActivationAction(body.action);
   const target = resolveActivationMutationTarget(runtime, body);
   const defaults = loadActivationDefaults(runtime);
-  const globalStatePath = resolveGlobalActivationStatePath(runtime.copilotHomeAbs);
+  const globalStatePath = resolveGlobalActivationStatePath(runtime.elegyHomeAbs);
   const globalState = pathExists(globalStatePath) ? buildActivationStateDocument(readJson(globalStatePath)) : null;
   const globalEffectivePlannerProfile = normalizeString(globalState?.plannerProfile) || defaults.plannerProfile;
   const globalEffectiveOrchestrationPolicy =

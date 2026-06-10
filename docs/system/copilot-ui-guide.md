@@ -71,15 +71,15 @@ The sidebar and settings structure are defined in `copilot-ui/ui/src/stores/navi
 
 - Planning surfaces are accessible via the Workspace's "Planning" local tab, which renders a `PlanningGraphView` graph.
 - The `StandaloneGraphWindow` is available as a pop-out planning graph via URL parameter (`?roadmapId=...`).
-- Planning persistence flows through `planningPersistence.js` backed by the `elegy-planning` database under `~/.copilot`.
+- Planning persistence flows through `planningPersistence.js` backed by the `elegy-planning` database under `~/.elegy`.
 - Old repo-file planning routes are retired from active use.
 
 ## State
 
-- `~/.copilot/catalog/`
-- `~/.copilot/repo-state/<repoId>/`
-- `~/.copilot/session-state/<SESSION_ID>/`
-- `~/.copilot/planning-db` in packaged mode
+- `~/.elegy/catalog/`
+- `~/.elegy/repo-state/<repoId>/`
+- `~/.elegy/session-state/<SESSION_ID>/`
+- `~/.elegy/planning-db` in packaged mode
 
 The public route inventory is snapshotted by `copilot-ui/tests/api-contract.test.js`.
 

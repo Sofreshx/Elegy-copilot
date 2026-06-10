@@ -221,12 +221,12 @@ Phase 6: Final Validation
     - Add `liveness_skip_paths` to frontmatter with patterns covering:
       - `C:\Users\*\...` (any user profile paths)
       - `C:/Users/*/...` (forward-slash variants)
-      - `~/.copilot/*`, `~/.elegy/*` (home-directory paths)
+      - `~/.elegy/*`, `~/.elegy/*` (home-directory paths)
     - Verify: `node scripts/validate-specs.js --strict specs/planning-visibility-canonicalization/spec.md` exits 0
 
 46. **Add `liveness_skip_paths` to `align-elegy-db-assets/spec.md`** (5 min)
     - Add `liveness_skip_paths` to frontmatter with patterns covering:
-      - `~/.copilot/*`, `~/.elegy/*`, `~/.codex/*`, `~/.config/*`
+      - `~/.elegy/*`, `~/.elegy/*`, `~/.codex/*`, `~/.config/*`
     - Verify: `node scripts/validate-specs.js --strict specs/align-elegy-db-assets/spec.md` exits 0
 
 47. **Add liveness_skip_paths tests** (5 min)

@@ -72,8 +72,8 @@ struct StartContext {
     start_time: Option<u64>,
 }
 
-pub fn list_sessions(copilot_home: &Path) -> Vec<SessionSummary> {
-    let session_root = copilot_home.join("session-state");
+pub fn list_sessions(elegy_home: &Path) -> Vec<SessionSummary> {
+    let session_root = elegy_home.join("session-state");
     let Ok(entries) = fs::read_dir(&session_root) else {
         return Vec::new();
     };

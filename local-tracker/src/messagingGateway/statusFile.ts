@@ -14,7 +14,7 @@ import {
 } from '@elegy-copilot/contracts';
 
 export const MESSAGING_GATEWAY_STATUS_FILENAME = 'messaging-gateway.status.json';
-export const MESSAGING_GATEWAY_STATUS_DIRNAME = '.copilot';
+export const MESSAGING_GATEWAY_STATUS_DIRNAME = '.elegy';
 export const LEGACY_MESSAGING_GATEWAY_STATUS_DIRNAME = '.instruction-engine';
 export {
 	MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,

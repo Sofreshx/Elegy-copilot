@@ -18,13 +18,13 @@ related: [copilot-ui-guide, repo-skill-sync-governance, domain-authorities-freez
 
 ## Current Authorities
 
-- Copilot global assets come from `engine-assets/` and install to `~/.copilot`.
+- Copilot global assets come from `engine-assets/` and install to `~/.elegy`.
 - Codex global assets come from `codex-assets/` and install to `~/.codex`.
 - OpenCode global assets come from `opencode-assets/` and install to `~/.config/opencode`.
 - Antigravity global assets come from `antigravity-assets/` and install to the current Gemini-compatible `~/.gemini` layout.
 - Repo-local skills are canonical in `<repo>/.github/skills/**`.
 - Generated repo-local mirrors live in `<repo>/.agents/skills/**`, `<repo>/.opencode/skills/**`, and `<repo>/.gemini/skills/**`.
-- External-source state lives under `~/.copilot/catalog/external-sources/`.
+- External-source state lives under `~/.elegy/catalog/external-sources/`.
 - Global shipped assets are still split by harness. There is no single universal global skill root yet.
 
 ## Status UI

@@ -284,13 +284,13 @@ function getSessionStartContext(sessionDir) {
   return readStartEvent(sessionDir);
 }
 
-function listRepoStateTasks(copilotHome, repoId, options = {}) {
+function listRepoStateTasks(elegyHome, repoId, options = {}) {
   const normalizedRepoId = typeof repoId === 'string' ? repoId.trim() : '';
   if (!normalizedRepoId) {
     return [];
   }
 
-  const tasksDir = path.join(path.resolve(String(copilotHome || '.')), 'repo-state', normalizedRepoId, 'tasks');
+  const tasksDir = path.join(path.resolve(String(elegyHome || '.')), 'repo-state', normalizedRepoId, 'tasks');
   let dirEntries;
   try {
     dirEntries = fs.readdirSync(tasksDir, { withFileTypes: true });
@@ -373,7 +373,7 @@ function listRepoStateTasks(copilotHome, repoId, options = {}) {
   return tasks;
 }
 
-function readRepoStateWorktree(copilotHome, repoId, worktreeId) {
+function readRepoStateWorktree(elegyHome, repoId, worktreeId) {
   const normalizedRepoId = typeof repoId === 'string' ? repoId.trim() : '';
   const normalizedWorktreeId = typeof worktreeId === 'string' ? worktreeId.trim() : '';
   if (!normalizedRepoId || !normalizedWorktreeId) {
@@ -381,7 +381,7 @@ function readRepoStateWorktree(copilotHome, repoId, worktreeId) {
   }
 
   const filePath = path.join(
-    path.resolve(String(copilotHome || '.')),
+    path.resolve(String(elegyHome || '.')),
     'repo-state',
     normalizedRepoId,
     'worktrees',
@@ -567,12 +567,12 @@ function listSessionsInDirectory(sessionRootDir, options = {}) {
   return sessions;
 }
 
-function listSessions(copilotHome, options = {}) {
-  return listSessionsInDirectory(path.join(copilotHome, 'session-state'), options);
+function listSessions(elegyHome, options = {}) {
+  return listSessionsInDirectory(path.join(elegyHome, 'session-state'), options);
 }
 
-function listArchivedSessions(copilotHome, options = {}) {
-  return listSessionsInDirectory(path.join(copilotHome, 'sessions-archive'), options)
+function listArchivedSessions(elegyHome, options = {}) {
+  return listSessionsInDirectory(path.join(elegyHome, 'sessions-archive'), options)
     .map((session) => ({
       ...session,
       archiveId: session.storageId || session.id,
@@ -581,8 +581,8 @@ function listArchivedSessions(copilotHome, options = {}) {
     }));
 }
 
-function watchSessions(copilotHome, onChange) {
-  const sessionStateDir = path.join(copilotHome, 'session-state');
+function watchSessions(elegyHome, onChange) {
+  const sessionStateDir = path.join(elegyHome, 'session-state');
   let watcher = null;
   let timer = null;
   let closed = false;
@@ -591,7 +591,7 @@ function watchSessions(copilotHome, onChange) {
   function safeEmit() {
     if (closed) return;
     try {
-      onChange(listSessions(copilotHome));
+      onChange(listSessions(elegyHome));
     } catch {
       // swallow callback errors (resilient watcher)
     }
@@ -632,7 +632,7 @@ function watchSessions(copilotHome, onChange) {
     } catch {
       // session-state may not exist yet; best-effort watch copilot home for creation.
       try {
-        watcher = fs.watch(copilotHome, { recursive: false }, scheduleEmit);
+        watcher = fs.watch(elegyHome, { recursive: false }, scheduleEmit);
       } catch {
         watcher = null;
       }

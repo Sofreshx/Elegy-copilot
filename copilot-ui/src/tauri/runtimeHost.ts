@@ -47,7 +47,7 @@ async function main(): Promise<void> {
   const copilotUiRoot = path.dirname(serverEntrypointPath);
   const currentDirname = path.dirname(__filename);
   const localTrackerRoot = path.join(runtimeRoot, 'local-tracker');
-  const copilotHome = path.join(os.homedir(), '.copilot');
+  const elegyHome = path.join(os.homedir(), '.elegy');
   const isPackaged = isPackagedHost();
 
   bootLog(`runtimeRoot=${runtimeRoot}`);
@@ -90,7 +90,7 @@ async function main(): Promise<void> {
   };
 
   const diagnostics: RuntimeDiagnostics = createRuntimeDiagnostics({
-    logsDir: path.join(copilotHome, 'logs'),
+    logsDir: path.join(elegyHome, 'logs'),
   });
 
   const installCrashHandlers = (): void => {
@@ -127,8 +127,8 @@ async function main(): Promise<void> {
       paths: {
         runtimeRoot,
         workspaceRoot: resolveDefaultWorkspaceRoot(runtimeRoot, process.cwd()),
-        copilotHome,
-        gatewayConfigPath: path.join(copilotHome, 'messaging-gateway.config.json'),
+        elegyHome,
+        gatewayConfigPath: path.join(elegyHome, 'messaging-gateway.config.json'),
         legacyGatewayConfigPath: path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.config.json'),
       },
       isPackaged,

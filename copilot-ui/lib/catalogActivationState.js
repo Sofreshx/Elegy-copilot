@@ -59,15 +59,15 @@ function normalizeActivationLayer(input) {
   };
 }
 
-function resolveGlobalActivationStatePath(copilotHome) {
-  return path.join(path.resolve(copilotHome), 'catalog', 'activation-state.json');
+function resolveGlobalActivationStatePath(elegyHome) {
+  return path.join(path.resolve(elegyHome), 'catalog', 'activation-state.json');
 }
 
-function resolveRepoActivationStatePath(copilotHome, repoPath) {
+function resolveRepoActivationStatePath(elegyHome, repoPath) {
   const repoKey = getRepoStateKey(repoPath);
   return {
     ...repoKey,
-    path: path.join(path.resolve(copilotHome), 'repo-state', repoKey.repoId, 'activation.json'),
+    path: path.join(path.resolve(elegyHome), 'repo-state', repoKey.repoId, 'activation.json'),
   };
 }
 
@@ -199,9 +199,9 @@ function resolveCatalogActivationState(options = {}) {
   const defaults = options.snapshot
     ? deriveDefaultsFromSnapshot(options.snapshot)
     : deriveDefaultsFromEngineRoot(options.engineRoot);
-  const globalLayer = readActivationLayer(resolveGlobalActivationStatePath(options.copilotHome));
+  const globalLayer = readActivationLayer(resolveGlobalActivationStatePath(options.elegyHome));
   const repoLayer = normalizeString(options.repoPath)
-    ? readActivationLayer(resolveRepoActivationStatePath(options.copilotHome, options.repoPath).path)
+    ? readActivationLayer(resolveRepoActivationStatePath(options.elegyHome, options.repoPath).path)
     : null;
 
   const globalPlannerProfile = globalLayer.state.hasPlannerProfile

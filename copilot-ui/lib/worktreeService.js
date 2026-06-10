@@ -421,7 +421,7 @@ function createWorktreeId(cryptoImpl = crypto) {
 
 function resolveRepoContext(input = {}, deps = {}) {
   const repoInventory = deps.repoInventory || repoInventoryService;
-  const copilotHome = input.copilotHome || input.copilotHomeAbs || '.';
+  const elegyHome = input.elegyHome || input.elegyHomeAbs || input.copilotHome || input.copilotHomeAbs || '.';
   const explicitRepoPath = asOptionalString(input.repoPath);
   const explicitRepoId = asOptionalString(input.repoId);
   const explicitRepoLabel = asOptionalString(input.repoLabel);
@@ -440,7 +440,7 @@ function resolveRepoContext(input = {}, deps = {}) {
   }
 
   const inventory = repoInventory.listKnownRepos({
-    copilotHome,
+    elegyHome,
   });
   const repo = repoInventory.resolveRepoEntry(inventory, { repoId: explicitRepoId });
   if (!repo || !repo.repoPath) {
@@ -559,24 +559,24 @@ class WorktreeService {
     this._repoInventory = deps.repoInventory || repoInventoryService;
   }
 
-  _resolveRepoStateRoot(copilotHome) {
-    return this._path.join(this._path.resolve(String(copilotHome || '.')), 'repo-state');
+  _resolveRepoStateRoot(elegyHome) {
+    return this._path.join(this._path.resolve(String(elegyHome || '.')), 'repo-state');
   }
 
-  _resolveWorktreesDir(copilotHome, repoId) {
-    return this._path.join(this._resolveRepoStateRoot(copilotHome), String(repoId || ''), 'worktrees');
+  _resolveWorktreesDir(elegyHome, repoId) {
+    return this._path.join(this._resolveRepoStateRoot(elegyHome), String(repoId || ''), 'worktrees');
   }
 
-  _resolveWorktreePath(copilotHome, repoId, worktreeId) {
-    return this._path.join(this._resolveWorktreesDir(copilotHome, repoId), `${worktreeId}.json`);
+  _resolveWorktreePath(elegyHome, repoId, worktreeId) {
+    return this._path.join(this._resolveWorktreesDir(elegyHome, repoId), `${worktreeId}.json`);
   }
 
-  _resolveOpenCodeSessionsDir(copilotHome, repoId) {
-    return this._path.join(this._resolveRepoStateRoot(copilotHome), String(repoId || ''), 'opencode-sessions');
+  _resolveOpenCodeSessionsDir(elegyHome, repoId) {
+    return this._path.join(this._resolveRepoStateRoot(elegyHome), String(repoId || ''), 'opencode-sessions');
   }
 
-  _resolveOpenCodeSessionPath(copilotHome, repoId, sessionId) {
-    return this._path.join(this._resolveOpenCodeSessionsDir(copilotHome, repoId), `${sessionId}.json`);
+  _resolveOpenCodeSessionPath(elegyHome, repoId, sessionId) {
+    return this._path.join(this._resolveOpenCodeSessionsDir(elegyHome, repoId), `${sessionId}.json`);
   }
 
   _readRecord(absPath) {
@@ -624,12 +624,12 @@ class WorktreeService {
     return normalized;
   }
 
-  _writeRecord(copilotHome, record) {
+  _writeRecord(elegyHome, record) {
     const normalized = normalizeWorktreeRecord(this._path, record);
     if (!normalized.worktreeId || !normalized.repoId) {
       throw Object.assign(new Error('worktreeId and repoId are required'), { statusCode: 400 });
     }
-    const durablePath = this._resolveWorktreePath(copilotHome, normalized.repoId, normalized.worktreeId);
+    const durablePath = this._resolveWorktreePath(elegyHome, normalized.repoId, normalized.worktreeId);
     writeJsonAtomic(this._fs, this._path, durablePath, normalized);
     return {
       ...normalized,
@@ -644,39 +644,39 @@ class WorktreeService {
     return this._path.join(parent, `${repoName}-worktrees`, worktreeId);
   }
 
-  _findPersistedRecordByPath(copilotHome, repoId, candidatePath) {
+  _findPersistedRecordByPath(elegyHome, repoId, candidatePath) {
     const normalizedCandidate = normalizeComparablePath(this._path, candidatePath);
     if (!normalizedCandidate) {
       return null;
     }
-    return this.listWorktrees({ copilotHome, repoId }).find((entry) => {
+    return this.listWorktrees({ elegyHome, repoId }).find((entry) => {
       return normalizeComparablePath(this._path, entry.path) === normalizedCandidate;
     }) || null;
   }
 
-  getWorktree(copilotHome, repoId, worktreeId) {
+  getWorktree(elegyHome, repoId, worktreeId) {
     const normalizedRepoId = asTrimmedString(repoId);
     const normalizedWorktreeId = asTrimmedString(worktreeId);
     if (!normalizedRepoId || !normalizedWorktreeId) {
       return null;
     }
-    return this._readRecord(this._resolveWorktreePath(copilotHome, normalizedRepoId, normalizedWorktreeId));
+    return this._readRecord(this._resolveWorktreePath(elegyHome, normalizedRepoId, normalizedWorktreeId));
   }
 
-  getOpenCodeSession(copilotHome, repoId, sessionId, options = {}) {
+  getOpenCodeSession(elegyHome, repoId, sessionId, options = {}) {
     const normalizedRepoId = asTrimmedString(repoId);
     const normalizedSessionId = asTrimmedString(sessionId);
     if (!normalizedRepoId || !normalizedSessionId) {
       return null;
     }
     return this._readOpenCodeSession(
-      this._resolveOpenCodeSessionPath(copilotHome, normalizedRepoId, normalizedSessionId),
+      this._resolveOpenCodeSessionPath(elegyHome, normalizedRepoId, normalizedSessionId),
       { repoId: normalizedRepoId, includeError: options.includeError === true }
     );
   }
 
   listOpenCodeSessions(options = {}) {
-    const copilotHome = options.copilotHome || options.copilotHomeAbs || this._config.copilotHome || '.';
+    const elegyHome = options.elegyHome || options.elegyHomeAbs || options.copilotHome || options.copilotHomeAbs || this._config.elegyHome || this._config.copilotHome || '.';
     const repoIdFilter = asOptionalString(options.repoId);
     const worktreeIdFilter = asOptionalString(options.worktreeId);
     const worktreePathFilter = asOptionalString(options.worktreePath);
@@ -687,10 +687,10 @@ class WorktreeService {
     const includeDeleted = options.includeDeleted === true;
 
     const collected = [];
-    const repoIds = repoIdFilter ? [repoIdFilter] : this._listRepoIds(copilotHome);
+    const repoIds = repoIdFilter ? [repoIdFilter] : this._listRepoIds(elegyHome);
 
     for (const rid of repoIds) {
-      const dirPath = this._resolveOpenCodeSessionsDir(copilotHome, rid);
+      const dirPath = this._resolveOpenCodeSessionsDir(elegyHome, rid);
       let entries = [];
       try {
         entries = this._fs.readdirSync(dirPath, { withFileTypes: true });
@@ -721,8 +721,8 @@ class WorktreeService {
     });
   }
 
-  _listRepoIds(copilotHome) {
-    const repoStateRoot = this._resolveRepoStateRoot(copilotHome);
+  _listRepoIds(elegyHome) {
+    const repoStateRoot = this._resolveRepoStateRoot(elegyHome);
     let repoEntries = [];
     try {
       repoEntries = this._fs.readdirSync(repoStateRoot, { withFileTypes: true });
@@ -738,7 +738,7 @@ class WorktreeService {
     if (!Array.isArray(worktreeRecords) || worktreeRecords.length === 0) {
       return worktreeRecords || [];
     }
-    const copilotHome = options.copilotHome || this._config.copilotHome || '.';
+    const elegyHome = options.elegyHome || options.copilotHome || this._config.elegyHome || this._config.copilotHome || '.';
     const includeError = options.includeError === true;
     const includeDeleted = options.includeDeleted === true;
     const limit = Number.isFinite(options.sessionLimit) ? Math.max(0, options.sessionLimit) : 8;
@@ -750,7 +750,7 @@ class WorktreeService {
     const sessionsByWorktree = new Map();
     for (const rid of repoIds) {
       const sessions = this.listOpenCodeSessions({
-        copilotHome,
+        elegyHome,
         repoId: rid,
         includeError,
         includeDeleted,
@@ -791,13 +791,13 @@ class WorktreeService {
   }
 
   listWorktrees(options = {}) {
-    const copilotHome = options.copilotHome || options.copilotHomeAbs || this._config.copilotHome || '.';
+    const elegyHome = options.elegyHome || options.elegyHomeAbs || options.copilotHome || options.copilotHomeAbs || this._config.elegyHome || this._config.copilotHome || '.';
     const repoId = asOptionalString(options.repoId);
     const includeSessions = options.includeSessions === true || options.withOpenCodeSessions === true;
     const worktrees = [];
 
     if (repoId) {
-      const dirPath = this._resolveWorktreesDir(copilotHome, repoId);
+      const dirPath = this._resolveWorktreesDir(elegyHome, repoId);
       let entries = [];
       try {
         entries = this._fs.readdirSync(dirPath, { withFileTypes: true });
@@ -814,7 +814,7 @@ class WorktreeService {
         }
       }
     } else {
-      const repoStateRoot = this._resolveRepoStateRoot(copilotHome);
+      const repoStateRoot = this._resolveRepoStateRoot(elegyHome);
       let repoEntries = [];
       try {
         repoEntries = this._fs.readdirSync(repoStateRoot, { withFileTypes: true });
@@ -825,7 +825,7 @@ class WorktreeService {
         if (!entry || !entry.isDirectory()) {
           continue;
         }
-        worktrees.push(...this.listWorktrees({ copilotHome, repoId: entry.name }));
+        worktrees.push(...this.listWorktrees({ elegyHome, repoId: entry.name }));
       }
     }
 
@@ -837,7 +837,7 @@ class WorktreeService {
 
     if (includeSessions) {
       this._attachOpenCodeSessions(sorted, {
-        copilotHome,
+        elegyHome,
         includeError: options.includeError === true,
         includeDeleted: options.includeDeleted === true,
         sessionLimit: options.sessionLimit,
@@ -848,9 +848,9 @@ class WorktreeService {
   }
 
   resolveLaunchPlan(input = {}) {
-    const copilotHome = input.copilotHome || input.copilotHomeAbs || this._config.copilotHome || '.';
+    const elegyHome = input.elegyHome || input.elegyHomeAbs || input.copilotHome || input.copilotHomeAbs || this._config.elegyHome || this._config.copilotHome || '.';
     const repo = resolveRepoContext({
-      copilotHome,
+      elegyHome,
       repoId: input.repoId || (input.repo && input.repo.repoId),
       repoPath: input.repoPath || (input.repo && input.repo.repoPath),
       repoLabel: input.repoLabel || (input.repo && input.repo.repoLabel),
@@ -907,8 +907,8 @@ class WorktreeService {
     }
 
     const persisted = explicitId
-      ? this.getWorktree(copilotHome, repo.repoId, explicitId)
-      : (explicitPath ? this._findPersistedRecordByPath(copilotHome, repo.repoId, explicitPath) : null);
+      ? this.getWorktree(elegyHome, repo.repoId, explicitId)
+      : (explicitPath ? this._findPersistedRecordByPath(elegyHome, repo.repoId, explicitPath) : null);
     const requestedAssignment = normalizeRequestedAssignment({
       ...input,
       sessionId: input.sessionId || (requested && requested.sessionId),
@@ -953,7 +953,7 @@ class WorktreeService {
       ? ((persisted && persisted.recovery && persisted.recovery.mode) || WORKTREE_RECOVERY_MODES.REUSE)
       : WORKTREE_RECOVERY_MODES.MANUAL;
 
-    const record = this._writeRecord(copilotHome, {
+    const record = this._writeRecord(elegyHome, {
       ...(persisted || {}),
       worktreeId,
       repoId: repo.repoId,
@@ -1007,13 +1007,13 @@ class WorktreeService {
   }
 
   markWorktreeActive(input = {}) {
-    const copilotHome = input.copilotHome || input.copilotHomeAbs || this._config.copilotHome || '.';
+    const elegyHome = input.elegyHome || input.elegyHomeAbs || input.copilotHome || input.copilotHomeAbs || this._config.elegyHome || this._config.copilotHome || '.';
     const repoId = asTrimmedString(input.repoId);
     const worktreeId = asTrimmedString(input.worktreeId);
     if (!repoId || !worktreeId) {
       return null;
     }
-    const existing = this.getWorktree(copilotHome, repoId, worktreeId);
+    const existing = this.getWorktree(elegyHome, repoId, worktreeId);
     if (!existing) {
       return null;
     }
@@ -1028,7 +1028,7 @@ class WorktreeService {
     if (!validation.ready) {
       throw Object.assign(new Error(validation.reason || 'Dedicated worktree launch is blocked.'), { statusCode: 409 });
     }
-    return this._writeRecord(copilotHome, {
+    return this._writeRecord(elegyHome, {
       ...existing,
       status: WORKTREE_STATES.ACTIVE,
       launch: {
@@ -1060,17 +1060,17 @@ class WorktreeService {
   }
 
   markWorktreeReusable(input = {}) {
-    const copilotHome = input.copilotHome || input.copilotHomeAbs || this._config.copilotHome || '.';
+    const elegyHome = input.elegyHome || input.elegyHomeAbs || input.copilotHome || input.copilotHomeAbs || this._config.elegyHome || this._config.copilotHome || '.';
     const repoId = asTrimmedString(input.repoId);
     const worktreeId = asTrimmedString(input.worktreeId);
     if (!repoId || !worktreeId) {
       return null;
     }
-    const existing = this.getWorktree(copilotHome, repoId, worktreeId);
+    const existing = this.getWorktree(elegyHome, repoId, worktreeId);
     if (!existing) {
       return null;
     }
-    return this._writeRecord(copilotHome, {
+    return this._writeRecord(elegyHome, {
       ...existing,
       status: WORKTREE_STATES.REUSABLE,
       assignment: {
@@ -1102,17 +1102,17 @@ class WorktreeService {
   }
 
   markWorktreeInterrupted(input = {}) {
-    const copilotHome = input.copilotHome || input.copilotHomeAbs || this._config.copilotHome || '.';
+    const elegyHome = input.elegyHome || input.elegyHomeAbs || input.copilotHome || input.copilotHomeAbs || this._config.elegyHome || this._config.copilotHome || '.';
     const repoId = asTrimmedString(input.repoId);
     const worktreeId = asTrimmedString(input.worktreeId);
     if (!repoId || !worktreeId) {
       return null;
     }
-    const existing = this.getWorktree(copilotHome, repoId, worktreeId);
+    const existing = this.getWorktree(elegyHome, repoId, worktreeId);
     if (!existing) {
       return null;
     }
-    return this._writeRecord(copilotHome, {
+    return this._writeRecord(elegyHome, {
       ...existing,
       status: WORKTREE_STATES.INTERRUPTED,
       cleanup: {
@@ -1165,7 +1165,7 @@ function createOpenCodeWorktreeRecord(worktreeService, input = {}) {
     return { error: 'worktreeService instance with resolveLaunchPlan method is required' };
   }
 
-  const copilotHome = input.copilotHome || '.';
+  const elegyHome = input.elegyHome || input.copilotHome || '.';
   const repoId = input.repoId;
   const branch = input.branch || 'main';
   const repoPath = input.repoPath;
@@ -1181,8 +1181,8 @@ function createOpenCodeWorktreeRecord(worktreeService, input = {}) {
   const worktreePath = path.join(worktreeBase, projectId, branch);
 
   const record = worktreeService.resolveLaunchPlan({
-    copilotHome,
-    repoId,
+      elegyHome,
+      repoId,
     repoPath,
     worktree: {
       mode: 'dedicated',

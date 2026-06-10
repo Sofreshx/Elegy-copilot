@@ -34,9 +34,9 @@ struct ManualRepoEntry {
     canonical_remote: Option<String>,
 }
 
-pub fn list_projects(copilot_home: &Path) -> Vec<ProjectResponse> {
-    let state = load_repo_inventory_state(copilot_home);
-    let sessions = list_sessions(copilot_home);
+pub fn list_projects(elegy_home: &Path) -> Vec<ProjectResponse> {
+    let state = load_repo_inventory_state(elegy_home);
+    let sessions = list_sessions(elegy_home);
 
     state
         .manual_repos
@@ -45,14 +45,14 @@ pub fn list_projects(copilot_home: &Path) -> Vec<ProjectResponse> {
         .collect()
 }
 
-pub fn list_project_sessions(copilot_home: &Path, project_id: &str) -> Vec<ProjectSessionResponse> {
+pub fn list_project_sessions(elegy_home: &Path, project_id: &str) -> Vec<ProjectSessionResponse> {
     let requested_project_id = project_id.trim();
     if requested_project_id.is_empty() {
         return Vec::new();
     }
-    let project = find_project_entry(copilot_home, requested_project_id);
+    let project = find_project_entry(elegy_home, requested_project_id);
 
-    list_sessions(copilot_home)
+    list_sessions(elegy_home)
         .into_iter()
         .filter(|session| {
             matches_requested_project_session(session, requested_project_id, project.as_ref())
@@ -74,16 +74,16 @@ pub fn list_project_sessions(copilot_home: &Path, project_id: &str) -> Vec<Proje
 }
 
 pub fn list_project_activity(
-    copilot_home: &Path,
+    elegy_home: &Path,
     project_id: &str,
 ) -> Vec<ProjectActivityResponse> {
     let requested_project_id = project_id.trim();
     if requested_project_id.is_empty() {
         return Vec::new();
     }
-    let project = find_project_entry(copilot_home, requested_project_id);
+    let project = find_project_entry(elegy_home, requested_project_id);
 
-    let mut items = list_sessions(copilot_home)
+    let mut items = list_sessions(elegy_home)
         .into_iter()
         .filter(|session| {
             matches_requested_project_session(session, requested_project_id, project.as_ref())
@@ -106,7 +106,7 @@ pub fn list_project_activity(
 }
 
 pub fn update_project_fields(
-    copilot_home: &Path,
+    elegy_home: &Path,
     project_id: &str,
     fields: &Value,
 ) -> Option<ProjectResponse> {
@@ -115,8 +115,8 @@ pub fn update_project_fields(
         return None;
     }
 
-    let inventory_path = resolve_repo_inventory_path(copilot_home);
-    let mut state = load_repo_inventory_state(copilot_home);
+    let inventory_path = resolve_repo_inventory_path(elegy_home);
+    let mut state = load_repo_inventory_state(elegy_home);
     let entry_index = state
         .manual_repos
         .iter()
@@ -128,13 +128,13 @@ pub fn update_project_fields(
     entry.updated_at = Some(now);
 
     save_repo_inventory_state(&inventory_path, &state);
-    let refreshed_state = load_repo_inventory_state(copilot_home);
+    let refreshed_state = load_repo_inventory_state(elegy_home);
     let refreshed = refreshed_state
         .manual_repos
         .into_iter()
         .find(|entry| entry.repo_id == normalized_project_id)?;
 
-    Some(build_project_response(&refreshed, &list_sessions(copilot_home)))
+    Some(build_project_response(&refreshed, &list_sessions(elegy_home)))
 }
 
 fn build_project_response(entry: &ManualRepoEntry, sessions: &[SessionSummary]) -> ProjectResponse {
@@ -171,8 +171,8 @@ fn build_project_response(entry: &ManualRepoEntry, sessions: &[SessionSummary]) 
     }
 }
 
-fn load_repo_inventory_state(copilot_home: &Path) -> RepoInventoryState {
-    let inventory_path = resolve_repo_inventory_path(copilot_home);
+fn load_repo_inventory_state(elegy_home: &Path) -> RepoInventoryState {
+    let inventory_path = resolve_repo_inventory_path(elegy_home);
     let Ok(text) = fs::read_to_string(inventory_path) else {
         return RepoInventoryState {
             manual_repos: Vec::new(),
@@ -183,8 +183,8 @@ fn load_repo_inventory_state(copilot_home: &Path) -> RepoInventoryState {
     })
 }
 
-fn resolve_repo_inventory_path(copilot_home: &Path) -> PathBuf {
-    copilot_home.join("catalog").join("repo-inventory.json")
+fn resolve_repo_inventory_path(elegy_home: &Path) -> PathBuf {
+    elegy_home.join("catalog").join("repo-inventory.json")
 }
 
 fn save_repo_inventory_state(inventory_path: &Path, state: &RepoInventoryState) {
@@ -224,13 +224,13 @@ fn apply_allowed_project_fields(entry: &mut ManualRepoEntry, fields: &Value) {
     }
 }
 
-fn find_project_entry(copilot_home: &Path, project_id: &str) -> Option<ManualRepoEntry> {
+fn find_project_entry(elegy_home: &Path, project_id: &str) -> Option<ManualRepoEntry> {
     let normalized_project_id = project_id.trim();
     if normalized_project_id.is_empty() {
         return None;
     }
 
-    load_repo_inventory_state(copilot_home)
+    load_repo_inventory_state(elegy_home)
         .manual_repos
         .into_iter()
         .find(|entry| entry.repo_id == normalized_project_id)
@@ -430,8 +430,8 @@ mod tests {
                 .expect("time should be after unix epoch")
                 .as_nanos()
         ));
-        let copilot_home = temp_root.join(".copilot");
-        let inventory_path = copilot_home.join("catalog").join("repo-inventory.json");
+        let elegy_home = temp_root.join(".elegy");
+        let inventory_path = elegy_home.join("catalog").join("repo-inventory.json");
         fs::create_dir_all(
             inventory_path
                 .parent()
@@ -461,7 +461,7 @@ mod tests {
         .expect("inventory should be written");
 
         let updated = update_project_fields(
-            &copilot_home,
+            &elegy_home,
             "proj-a",
             &serde_json::json!({
                 "pinned": true,
@@ -475,7 +475,7 @@ mod tests {
         assert_eq!(updated.canonical_remote.as_deref(), Some("owner/repo-a"));
         assert_eq!(updated.repo_label, "Repo A");
 
-        let persisted = load_repo_inventory_state(&copilot_home);
+        let persisted = load_repo_inventory_state(&elegy_home);
         let persisted_entry = persisted
             .manual_repos
             .into_iter()

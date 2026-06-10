@@ -179,7 +179,7 @@ Utility:
 	--print-config-path     Print the resolved config path (or env JSON source) and exit
 
 Config:
-  INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH=<path> (default: ~/.copilot/messaging-gateway.config.json; legacy ~/.instruction-engine config is rehomed automatically when possible)
+  INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH=<path> (default: ~/.elegy/messaging-gateway.config.json; legacy ~/.instruction-engine config is rehomed automatically when possible)
   INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON=<inline-json>
 
 Secrets (preferred: OS keychain; fallback: env vars):

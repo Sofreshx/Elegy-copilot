@@ -24,11 +24,11 @@ const GO_BUILD_TIMEOUT_MS = 120_000; // 2 minutes
 // ---------------------------------------------------------------------------
 
 /**
- * @param {string} copilotHome
+ * @param {string} elegyHome
  * @returns {string} Managed Moon Bridge install root (contains .git after clone).
  */
-function resolveManagedMoonBridgeRoot(copilotHome) {
-  return path.join(copilotHome, 'managed-cli', 'moon-bridge');
+function resolveManagedMoonBridgeRoot(elegyHome) {
+  return path.join(elegyHome, 'managed-cli', 'moon-bridge');
 }
 
 /**
@@ -87,7 +87,7 @@ function probeGoAvailable(fsImpl, execImpl) {
  * Resolved and computed bootstrap status.
  *
  * @param {object} options
- * @param {string} options.copilotHome
+ * @param {string} options.elegyHome
  * @param {string} [options.platform=process.platform]
  * @param {object|null} [options.existingBootstrapState] - merged from persistent state
  * @param {{ existsSync: function }?} [options.fsImpl]
@@ -95,13 +95,13 @@ function probeGoAvailable(fsImpl, execImpl) {
  * @returns {object}
  */
 function getBootstrapStatus(options = {}) {
-  const copilotHome = options.copilotHome || '';
+  const elegyHome = options.elegyHome || '';
   const platform = options.platform || process.platform;
   const fsImpl = options.fsImpl || require('fs');
   const execImpl = options.execImpl || { execSync: defaultExecSync };
   const existing = options.existingBootstrapState || {};
 
-  const installRoot = resolveManagedMoonBridgeRoot(copilotHome);
+  const installRoot = resolveManagedMoonBridgeRoot(elegyHome);
   const binaryPath = resolveBinaryPath(installRoot, platform);
   const configPath = resolveConfigPath(installRoot);
   const metadataPath = resolveBundledMetadataPath(installRoot);
@@ -139,7 +139,7 @@ function getBootstrapStatus(options = {}) {
  * and write metadata.
  *
  * @param {object} options
- * @param {string} options.copilotHome
+ * @param {string} options.elegyHome
  * @param {string} options.bundledSource — absolute path to the bundled binary resource
  * @param {string} [options.platform=process.platform]
  * @param {{ existsSync, mkdirSync, writeFileSync, copyFileSync }?} [options.fsImpl]
@@ -147,13 +147,13 @@ function getBootstrapStatus(options = {}) {
  * @returns {{ success: boolean, status: object, error?: string }}
  */
 function installFromBundledBinary(options = {}) {
-  const copilotHome = options.copilotHome || '';
+  const elegyHome = options.elegyHome || '';
   const platform = options.platform || process.platform;
   const bundledSource = options.bundledSource || '';
   const fsImpl = options.fsImpl || require('fs');
   const cryptoImpl = options.cryptoImpl || require('crypto');
 
-  const installRoot = resolveManagedMoonBridgeRoot(copilotHome);
+  const installRoot = resolveManagedMoonBridgeRoot(elegyHome);
   const binaryPath = resolveBinaryPath(installRoot, platform);
   const configPath = resolveConfigPath(installRoot);
   const metadataPath = resolveBundledMetadataPath(installRoot);
@@ -271,7 +271,7 @@ function installFromBundledBinary(options = {}) {
  * should merge the returned status into persistent state.
  *
  * @param {object} options
- * @param {string} options.copilotHome
+ * @param {string} options.elegyHome
  * @param {string} [options.platform=process.platform]
  * @param {boolean} [options.forceRebuild=false] — re-run go build even if binary exists
  * @param {{ existsSync: function, mkdirSync: function, writeFileSync: function }?} [options.fsImpl]
@@ -280,7 +280,7 @@ function installFromBundledBinary(options = {}) {
  * @returns {{ success: boolean, status: object, error?: string }}
  */
 function bootstrapMoonBridge(options = {}) {
-  const copilotHome = options.copilotHome || '';
+  const elegyHome = options.elegyHome || '';
   const platform = options.platform || process.platform;
   const forceRebuild = options.forceRebuild === true;
   const fsImpl = options.fsImpl || require('fs');
@@ -289,7 +289,7 @@ function bootstrapMoonBridge(options = {}) {
   const cryptoImpl = options.cryptoImpl || require('crypto');
   const bundledSource = options.bundledSource || '';
 
-  const installRoot = resolveManagedMoonBridgeRoot(copilotHome);
+  const installRoot = resolveManagedMoonBridgeRoot(elegyHome);
   const binaryPath = resolveBinaryPath(installRoot, platform);
 
   // If a bundled binary source is available, use that as the primary install path
@@ -318,7 +318,7 @@ function bootstrapMoonBridge(options = {}) {
     }
 
     const result = installFromBundledBinary({
-      copilotHome,
+      elegyHome,
       platform,
       bundledSource,
       fsImpl,

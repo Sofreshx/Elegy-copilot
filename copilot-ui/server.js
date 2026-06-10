@@ -108,8 +108,7 @@ const {
   derivePlanningActorId,
 } = require('./lib/server/auth');
 const {
-  resolveCopilotHome,
-  resolveVscodeHome,
+  resolveElegyHome,
   resolveSandboxesHome,
   resolveMessagingGatewayConfigPath,
   resolveSessionsHome,
@@ -181,7 +180,7 @@ function readDefaultDesktopRollbackPolicy(engineRoot, logger = () => {}) {
   return null;
 }
 
-function createChangeTracker(copilotHomeAbs, vscodeHomeAbs, sandboxesHomeAbs) {
+function createChangeTracker(elegyHomeAbs, sandboxesHomeAbs) {
   let version = 0;
   let lastChangedMs = Date.now();
   let timer = null;
@@ -210,22 +209,11 @@ function createChangeTracker(copilotHomeAbs, vscodeHomeAbs, sandboxesHomeAbs) {
 
   // Watch the primary folders users care about.
   // Also watch the Copilot home root so newly created folders (agents/skills) trigger updates.
-  tryWatch(copilotHomeAbs);
-  tryWatch(path.join(copilotHomeAbs, 'session-state'), { recursive: true });
-  tryWatch(path.join(copilotHomeAbs, 'agents'));
-  tryWatch(path.join(copilotHomeAbs, 'skills'));
-  tryWatch(path.join(copilotHomeAbs, 'prompts'));
-
-  // VS Code session store (separate root)
-  if (vscodeHomeAbs) {
-    tryWatch(vscodeHomeAbs);
-    tryWatch(path.join(vscodeHomeAbs, 'session-state'), { recursive: true });
-    tryWatch(path.join(vscodeHomeAbs, 'sessions-archive'), { recursive: true });
-    // VS Code installed assets (non-recursive watch; best-effort)
-    tryWatch(path.join(vscodeHomeAbs, 'agents'));
-    tryWatch(path.join(vscodeHomeAbs, 'skills'));
-    tryWatch(path.join(vscodeHomeAbs, 'prompts'));
-  }
+  tryWatch(elegyHomeAbs);
+  tryWatch(path.join(elegyHomeAbs, 'session-state'), { recursive: true });
+  tryWatch(path.join(elegyHomeAbs, 'agents'));
+  tryWatch(path.join(elegyHomeAbs, 'skills'));
+  tryWatch(path.join(elegyHomeAbs, 'prompts'));
 
   // Watch sandbox directories.
   if (sandboxesHomeAbs) {
@@ -416,7 +404,7 @@ function buildStartupManagedAssetSyncDecisionEvent(startupManagedAssetSync) {
 }
 
 function parseArgs(argv) {
-  const args = { port: 3210, host: '127.0.0.1', token: null, copilotHome: null, vscodeHome: null, sandboxesHome: null, trackerUrl: null, trackerToken: null };
+  const args = { port: 3210, host: '127.0.0.1', token: null, elegyHome: null, sandboxesHome: null, trackerUrl: null, trackerToken: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--help' || a === '-h') {
@@ -437,24 +425,14 @@ function parseArgs(argv) {
       args.port = Math.floor(n);
       continue;
     }
-    if (a === '--copilot-home') {
-      args.copilotHome = argv[++i];
-      if (!args.copilotHome) throw new Error('Missing value for --copilot-home');
+    if (a === '--elegy-home') {
+      args.elegyHome = argv[++i];
+      if (!args.elegyHome) throw new Error('Missing value for --elegy-home');
       continue;
     }
-    if (a.startsWith('--copilot-home=')) {
-      args.copilotHome = a.slice('--copilot-home='.length);
-      if (!args.copilotHome) throw new Error('Missing value for --copilot-home');
-      continue;
-    }
-    if (a === '--vscode-home') {
-      args.vscodeHome = argv[++i];
-      if (!args.vscodeHome) throw new Error('Missing value for --vscode-home');
-      continue;
-    }
-    if (a.startsWith('--vscode-home=')) {
-      args.vscodeHome = a.slice('--vscode-home='.length);
-      if (!args.vscodeHome) throw new Error('Missing value for --vscode-home');
+    if (a.startsWith('--elegy-home=')) {
+      args.elegyHome = a.slice('--elegy-home='.length);
+      if (!args.elegyHome) throw new Error('Missing value for --elegy-home');
       continue;
     }
     if (a === '--host') {
@@ -4393,9 +4371,9 @@ function proxyToNativeRuntime(nativeRuntimeUrl, pathname, req, res) {
   }
 }
 
-function loadNativeRuntimeFallbackSessions(copilotHome) {
+function loadNativeRuntimeFallbackSessions(elegyHome) {
   try {
-    const items = sessions.listSessions(copilotHome);
+    const items = sessions.listSessions(elegyHome);
     return Array.isArray(items) ? items : [];
   } catch {
     return [];
@@ -4466,10 +4444,10 @@ function sessionMatchesProject(session, project) {
   return Boolean(repositoryFullName && canonicalRemote && repositoryFullName === canonicalRemote);
 }
 
-function buildFallbackProjects(copilotHome, sessionsList) {
+function buildFallbackProjects(elegyHome, sessionsList) {
   let state;
   try {
-    state = repoInventoryService.loadRepoInventoryState(copilotHome);
+    state = repoInventoryService.loadRepoInventoryState(elegyHome);
   } catch {
     state = { manualRepos: [] };
   }
@@ -4505,9 +4483,9 @@ function buildFallbackProjectActivity(sessionsList, limit = 20) {
     .slice(0, limit);
 }
 
-function handleNativeRuntimeFallback({ req, res, pathname, copilotHome }) {
+function handleNativeRuntimeFallback({ req, res, pathname, elegyHome }) {
   const method = String(req.method || 'GET').toUpperCase();
-  const sessionsList = loadNativeRuntimeFallbackSessions(copilotHome);
+  const sessionsList = loadNativeRuntimeFallbackSessions(elegyHome);
 
   if (pathname === '/api/dashboard/summary' && method === 'GET') {
     sendJson(res, 200, buildFallbackDashboardSummary(sessionsList));
@@ -4515,7 +4493,7 @@ function handleNativeRuntimeFallback({ req, res, pathname, copilotHome }) {
   }
 
   if (pathname === '/api/projects' && method === 'GET') {
-    sendJson(res, 200, buildFallbackProjects(copilotHome, sessionsList));
+    sendJson(res, 200, buildFallbackProjects(elegyHome, sessionsList));
     return true;
   }
 
@@ -4529,7 +4507,7 @@ function handleNativeRuntimeFallback({ req, res, pathname, copilotHome }) {
 
     readJsonBody(req)
       .then((payload) => {
-        const updated = repoInventoryService.updateProjectFields(copilotHome, projectId, payload || {});
+        const updated = repoInventoryService.updateProjectFields(elegyHome, projectId, payload || {});
         if (!updated) {
           sendJson(res, 404, { error: 'project_not_found', message: `Project ${projectId} was not found.` });
           return;
@@ -4556,7 +4534,7 @@ function handleNativeRuntimeFallback({ req, res, pathname, copilotHome }) {
   const projectSessionsMatch = pathname.match(/^\/api\/projects\/([^/]+)\/sessions$/);
   if (projectSessionsMatch && method === 'GET') {
     const projectId = decodeProjectId(projectSessionsMatch[1]);
-    const project = buildFallbackProjects(copilotHome, sessionsList).find((entry) => entry.projectId === projectId) || null;
+    const project = buildFallbackProjects(elegyHome, sessionsList).find((entry) => entry.projectId === projectId) || null;
     const matchingSessions = sessionsList.filter((session) => {
       if (sessionMatchesProject(session, project)) return true;
       return session && (session.projectId === projectId || session.repoId === projectId || session.repo === projectId);
@@ -4568,7 +4546,7 @@ function handleNativeRuntimeFallback({ req, res, pathname, copilotHome }) {
   const projectActivityMatch = pathname.match(/^\/api\/projects\/([^/]+)\/activity$/);
   if (projectActivityMatch && method === 'GET') {
     const projectId = decodeProjectId(projectActivityMatch[1]);
-    const project = buildFallbackProjects(copilotHome, sessionsList).find((entry) => entry.projectId === projectId) || null;
+    const project = buildFallbackProjects(elegyHome, sessionsList).find((entry) => entry.projectId === projectId) || null;
     const matchingSessions = sessionsList.filter((session) => {
       if (sessionMatchesProject(session, project)) return true;
       return session && (session.projectId === projectId || session.repoId === projectId || session.repo === projectId);
@@ -4580,12 +4558,11 @@ function handleNativeRuntimeFallback({ req, res, pathname, copilotHome }) {
   return false;
 }
 
-function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry, nativeRuntimeUrl, elegyDb, sessionHooks }) {
+function handleApi({ req, res, u, elegyHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry, nativeRuntimeUrl, elegyDb, sessionHooks }) {
   // Auth scope: single-session only. Multi-session aggregate views are deferred.
   // All API endpoints serve one session at a time. No cross-session auth tokens.
   const pathname = u.pathname;
-  const copilotHomeAbs = path.resolve(copilotHome);
-  const vscodeHomeAbs = path.resolve(vscodeHome);
+  const elegyHomeAbs = path.resolve(elegyHome);
   const codexHome = resolveCodexHomeFromEnv(process.env);
   const codexSkillsHome = resolveCodexSkillsHomeFromEnv(process.env, codexHome);
   const geminiHome = resolveGeminiHomeFromEnv(process.env);
@@ -4637,7 +4614,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     pathname.startsWith('/api/projects') ||
     pathname === '/api/dashboard/summary'
   ) {
-    if (!nativeRuntimeUrl && handleNativeRuntimeFallback({ req, res, pathname, copilotHome: copilotHomeAbs })) {
+    if (!nativeRuntimeUrl && handleNativeRuntimeFallback({ req, res, pathname, elegyHome: elegyHomeAbs })) {
       return;
     }
 
@@ -4682,12 +4659,10 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     u,
     pathname,
     engineRoot,
-    copilotHome,
-    vscodeHome,
+    elegyHome,
     sandboxesHome,
     changeTracker,
-    copilotHomeAbs,
-    vscodeHomeAbs,
+    elegyHomeAbs,
     codexHome,
     codexSkillsHome,
     geminiHome,
@@ -4757,8 +4732,7 @@ async function startServer(options = {}) {
     host: typeof options.host === 'string' && options.host.trim() ? options.host.trim() : '127.0.0.1',
     token: typeof options.token === 'string' && options.token.trim() ? options.token.trim() : null,
     desktopUiToken: typeof options.desktopUiToken === 'string' && options.desktopUiToken.trim() ? options.desktopUiToken.trim() : null,
-    copilotHome: typeof options.copilotHome === 'string' && options.copilotHome.trim() ? options.copilotHome.trim() : null,
-    vscodeHome: typeof options.vscodeHome === 'string' && options.vscodeHome.trim() ? options.vscodeHome.trim() : null,
+    elegyHome: typeof options.elegyHome === 'string' && options.elegyHome.trim() ? options.elegyHome.trim() : null,
     sandboxesHome: typeof options.sandboxesHome === 'string' && options.sandboxesHome.trim() ? options.sandboxesHome.trim() : null,
     trackerUrl: typeof options.trackerUrl === 'string' && options.trackerUrl.trim() ? options.trackerUrl.trim() : null,
     trackerToken: typeof options.trackerToken === 'string' && options.trackerToken.trim() ? options.trackerToken.trim() : null,
@@ -4778,11 +4752,10 @@ async function startServer(options = {}) {
       ? path.resolve(options.engineRoot.trim())
       : path.resolve(__dirname, '..');
   const logger = quiet ? () => {} : (message) => console.log(message);
-  const copilotHome = resolveCopilotHome(args);
-  const vscodeHome = resolveVscodeHome(args);
+  const elegyHome = resolveElegyHome(args);
   const sandboxesHome = resolveSandboxesHome(args);
   const opencodeHome = resolveOpenCodeHomeFromEnv(process.env);
-  const autonomousDecisionLog = createAutonomousDecisionLog(copilotHome);
+  const autonomousDecisionLog = createAutonomousDecisionLog(elegyHome);
   const trackerUrl = resolveTrackerUrl(args);
   const trackerTokenResolution = await resolveTrackerToken(args);
   const trackerToken = trackerTokenResolution.value;
@@ -4901,12 +4874,12 @@ async function startServer(options = {}) {
     }
   }
 
-  const changeTracker = createChangeTracker(path.resolve(copilotHome), path.resolve(vscodeHome), path.resolve(sandboxesHome));
+  const changeTracker = createChangeTracker(path.resolve(elegyHome), path.resolve(sandboxesHome));
 
   // Initialize Elegy Copilot SQLite database
   const elegyDbPath = typeof options.elegyDbPath === 'string' && options.elegyDbPath.trim()
     ? options.elegyDbPath.trim()
-    : path.join(copilotHome, 'elegy-copilot.db');
+    : path.join(elegyHome, 'elegy-copilot.db');
   const { createElegyDb } = require('./lib/elegyDb');
   const elegyDb = createElegyDb({ dbPath: elegyDbPath });
   if (!quiet) {
@@ -4929,7 +4902,7 @@ async function startServer(options = {}) {
   const startupManagedAssetSyncRunAt = new Date().toISOString();
   const managedAssetSyncSummary = managedAssetSyncOnStart
     ? [
-      ...runStartupManagedAssetSync(engineRoot, [copilotHome, vscodeHome], {
+      ...runStartupManagedAssetSync(engineRoot, [elegyHome], {
         pointerMode: true,
         quiet,
       }),
@@ -4964,7 +4937,7 @@ async function startServer(options = {}) {
     defaultRollbackPolicyJson: bundledRollbackPolicyJson,
     disableUpdates: env.INSTRUCTION_ENGINE_DISABLE_UPDATES,
     publishRepository: copilotUiPackageJson.desktopRelease && copilotUiPackageJson.desktopRelease.publishRepository,
-    downloadRoot: path.join(copilotHome, 'desktop-updater'),
+    downloadRoot: path.join(elegyHome, 'desktop-updater'),
     fetch: options.fetch,
     logger,
     platform: process.platform,
@@ -4988,7 +4961,7 @@ async function startServer(options = {}) {
 
   try {
     executorService = await createExecutorService({
-      copilotHome,
+      elegyHome,
       sessionHooks,
     }).init();
   } catch (error) {
@@ -5003,7 +4976,7 @@ async function startServer(options = {}) {
 
   try {
     workflowLayerService = await createWorkflowLayerService({
-      copilotHome,
+      elegyHome,
       executorService,
       workflowSidecarManager: args.workflowSidecarManager,
     }).init();
@@ -5019,13 +4992,13 @@ async function startServer(options = {}) {
   }
 
   const uiRuntimeOverlayService = createUiRuntimeOverlayService({
-    copilotHome,
+    elegyHome,
     engineRoot,
   });
   const roadmapWorkflowMemoryBridge = Object.prototype.hasOwnProperty.call(options, 'roadmapWorkflowMemoryBridge')
     ? options.roadmapWorkflowMemoryBridge
     : createRoadmapWorkflowMemoryBridge({
-      copilotHome,
+      elegyHome,
       childProcess: options.childProcess || childProcess,
       env,
     });
@@ -5034,7 +5007,7 @@ async function startServer(options = {}) {
     const resolvedPlanningCli = resolveElegyPlanningCliPath({
       cliPath: env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
       runtimeRoot: engineRoot,
-      copilotHome,
+      elegyHome,
     });
 
     if (resolvedPlanningCli) {
@@ -5046,7 +5019,7 @@ async function startServer(options = {}) {
         logger('elegy-planning CLI not found locally, attempting managed install...');
         const installResult = await Promise.race([
           installLatestElegyPlanningCli({
-            copilotHome,
+            elegyHome,
             runtimeRoot: engineRoot,
             env,
             logger,
@@ -5071,7 +5044,7 @@ async function startServer(options = {}) {
     ? options.roadmapWorkflowPlanningBridge
     : createRoadmapWorkflowPlanningBridge({
       enabled: true,
-      copilotHome,
+      elegyHome,
       runtimeRoot: engineRoot,
       childProcess: options.childProcess || childProcess,
       env,
@@ -5198,8 +5171,7 @@ async function startServer(options = {}) {
           req,
           res,
           u,
-          copilotHome,
-          vscodeHome,
+          elegyHome,
           sandboxesHome,
           engineRoot,
           changeTracker,
@@ -5268,8 +5240,7 @@ async function startServer(options = {}) {
       const actualPort = addr && typeof addr === 'object' ? addr.port : args.port;
       if (!quiet) {
         console.log(`CLI UI server: http://${host}:${actualPort}/`);
-        console.log(`copilotHome:    ${copilotHome}`);
-        console.log(`vscodeHome:     ${vscodeHome}`);
+        console.log(`elegyHome:      ${elegyHome}`);
         console.log(`sandboxesHome:  ${sandboxesHome}`);
         console.log(`engineRoot:     ${engineRoot}`);
         console.log(`trackerUrl:     ${trackerUrl}`);
@@ -5302,8 +5273,7 @@ async function startServer(options = {}) {
         host,
         port: actualPort,
         token,
-        copilotHome,
-        vscodeHome,
+        elegyHome,
         sandboxesHome,
         trackerUrl,
         managedAssetSyncSummary,
@@ -5330,7 +5300,7 @@ async function startServer(options = {}) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.log('Usage: node copilot-ui/server.js [--port 3210] [--host 127.0.0.1] [--token <token>] [--copilot-home <path>] [--tracker-url <url>] [--tracker-token <token>]');
+    console.log('Usage: node copilot-ui/server.js [--port 3210] [--host 127.0.0.1] [--token <token>] [--elegy-home <path>] [--tracker-url <url>] [--tracker-token <token>]');
     process.exit(0);
   }
 

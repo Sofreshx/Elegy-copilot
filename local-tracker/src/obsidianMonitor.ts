@@ -87,7 +87,7 @@ function readFileSnapshot(filePath: string, fallback: FileSnapshot = createMissi
 }
 
 function resolveDefaultSyncStatusPath(): string {
-  return path.join(os.homedir(), ".copilot", "obsidian-sync", "status.json");
+  return path.join(os.homedir(), ".elegy", "obsidian-sync", "status.json");
 }
 
 export class ObsidianMonitor {

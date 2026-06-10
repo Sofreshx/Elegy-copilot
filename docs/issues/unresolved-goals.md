@@ -49,7 +49,7 @@ Use one section per unresolved goal in this exact field order:
 - **Completion State:** partial
 - **First Seen:** 2026-03-23
 - **Last Reviewed:** 2026-03-23
-- **Source Artifact:** ~/.copilot/session-state/923fc643-41d3-40c6-8e64-194660ff936e/plan.md
+- **Source Artifact:** ~/.elegy/session-state/923fc643-41d3-40c6-8e64-194660ff936e/plan.md
 - **Why Still Unresolved:** This repo now covers the local client, UI, sync state, and tracker monitoring, but the Vultr-hosted remote sync service remains outside repo scope and is not yet deployed/implemented.
 - **Carryover Intent (Next Session):** Keep this as the single out-of-repo follow-up to stand up the Vultr sync service and validate end-to-end pull sync against it.
 - **Owner:** workflow-orchestrator

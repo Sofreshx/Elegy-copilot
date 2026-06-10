@@ -14,7 +14,7 @@ function getSessionAggregation() {
 
 function loadHarnessSessionsInventory(ctx, deps) {
   return deps.dashboardHarnessSessions.listHarnessSessions({
-    copilotHome: ctx.copilotHomeAbs || ctx.copilotHome,
+    elegyHome: ctx.elegyHomeAbs || ctx.elegyHome,
     sandboxesHome: ctx.sandboxesHome,
     codexHome: ctx.codexHome,
     opencodeHome: ctx.opencodeHome,

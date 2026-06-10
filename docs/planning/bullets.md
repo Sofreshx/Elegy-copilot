@@ -10,7 +10,7 @@ summary: Legacy repo-local planning bullet snapshot retained only for compatibil
 # Planning Bullets
 
 This repo-local file is a legacy compatibility snapshot. Canonical Planning Bullets now live at
-`~/.copilot/backlogs/{repo-name}/planning/bullets.md`, so this file is historical only and should
+`~/.elegy/backlogs/{repo-name}/planning/bullets.md`, so this file is historical only and should
 not receive active planning updates.
 
 ## PB-001 — Planning

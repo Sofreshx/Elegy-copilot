@@ -14,7 +14,7 @@ Run the installer for the tool you use; re-running the same command refreshes th
 | Claude Code install/refresh | `pwsh -File scripts/claude-install.ps1` | `bash scripts/claude-install.sh` |
 | Refresh everything | `pwsh -File scripts/install-all.ps1` | `bash scripts/install-all.sh` |
 
-- Use the Copilot installer to refresh shared agents, skills, prompts, and instructions in `~/.copilot`.
+- Use the Copilot installer to refresh shared agents, skills, prompts, and instructions in `~/.elegy`.
 - Use the Codex installer to refresh the shared Codex baseline in `~/.codex`, including native skills under `~/.codex/skills/`.
 - Use the Antigravity installer to refresh shared skills in `~/.gemini/antigravity/skills/` and the managed Instruction Engine block in `~/.gemini/GEMINI.md`.
 - Use the Claude Code installer to refresh shared skills in `~/.claude/skills/` and the instruction file in `~/.claude/CLAUDE.md`.
@@ -39,10 +39,10 @@ Useful starting points:
 
 ## How it works
 
-Assets are installed from `engine-assets/` into `~/.copilot`. The default source install copies the shipped first-party agents, prompts, instructions, and skills there. Optional workflow packs and repo-local `.github/*` assets are separate post-install layers. Both **VS Code Copilot Chat** and the **Copilot CLI** discover user-global assets from that location — no per-repo setup needed for the default baseline.
+Assets are installed from `engine-assets/` into `~/.elegy`. The default source install copies the shipped first-party agents, prompts, instructions, and skills there. Optional workflow packs and repo-local `.github/*` assets are separate post-install layers. **Copilot CLI** discovers user-global assets from that location — no per-repo setup needed for the default baseline.
 
 ```
-engine-assets/  →  ~/.copilot/
+engine-assets/  →  ~/.elegy/
   agents/           agents/
   skills/           skills/ + skills-vault/
   prompts/          prompts/
@@ -76,7 +76,7 @@ Use the commands in [Install or refresh](#install-or-refresh), then use the note
 
 ### Copilot install details
 
-This installs the shipped first-party agents, prompts, and global instructions file into `~/.copilot`, and installs shipped skills into `~/.copilot/skills/` and/or `~/.copilot/skills-vault/` based on pointer mode. The installer also prunes stale previously managed shipped agents, prompts, and skills that are no longer part of `engine-assets/`, while leaving repo-local workflow packs and other user-managed `.github/agents` / `.github/skills` content alone.
+This installs the shipped first-party agents, prompts, and global instructions file into `~/.elegy`, and installs shipped skills into `~/.elegy/skills/` and/or `~/.elegy/skills-vault/` based on pointer mode. The installer also prunes stale previously managed shipped agents, prompts, and skills that are no longer part of `engine-assets/`, while leaving repo-local workflow packs and other user-managed `.github/agents` / `.github/skills` content alone.
 
 ### Codex install details
 
@@ -101,17 +101,8 @@ This installs `~/.claude/CLAUDE.md` with the instruction writing contract (Autho
 
 Optional workflow packs, including the vendored `Superpowers Workflow Pack`, can then be installed explicitly from the local dashboard in `Catalog` -> `Workflow packs`. Repo-specific governance lanes only appear when you register/select a repo that provides repo-local `.github/*` assets or repo-scoped overrides.
 
-### Enable subagent delegation in VS Code
-
-```json
-{
-  "chat.customAgentInSubagent.enabled": true
-}
-```
-
 ### Verify
 
-- VS Code Chat → right-click → **Diagnostics** (shows loaded agents/skills/prompts)
 - Copilot CLI: run `/agents`, `/skills`
 
 ## Windows Desktop Download
@@ -179,10 +170,10 @@ Codex baseline:
 
 ## State location
 
-Primary runtime state lives under `~/.copilot`:
+Primary runtime state lives under `~/.elegy`:
 
 ```
-~/.copilot/
+~/.elegy/
   agents/               installed agent files
   skills/               always-available installed skill folders
   skills-vault/         installed skill vault for on-demand skills
@@ -200,18 +191,17 @@ Primary runtime state lives under `~/.copilot`:
       tasks.archive/    archived repo-state tasks
 ```
 
-Override the default location with `skillInstaller.state.root` in VS Code settings, or pass
-`--copilot-home` to the dashboard server.
+Override the default location by passing `--copilot-home` to the dashboard server.
 
 Migration note:
 
-- `~/.copilot` is the canonical runtime state root for assets, session state, catalog state, and
+- `~/.elegy` is the canonical runtime state root for assets, session state, catalog state, and
   repo-state.
 - remaining `~/.instruction-engine/*` inputs are legacy migration-only surfaces. Current runtime
-  components rehome gateway config/status artifacts into `~/.copilot` when possible rather than
+  components rehome gateway config/status artifacts into `~/.elegy` when possible rather than
   treating `~/.instruction-engine` as a second root.
 
-Persisted session-state artifacts live under `~/.copilot/session-state/<SESSION_ID>/`.
+Persisted session-state artifacts live under `~/.elegy/session-state/<SESSION_ID>/`.
 File-backed planning workflows write their `plan.md` and `proposition.md` artifacts there, and
 `copilot-ui` reads the same location in its Sessions and Planning surfaces. The recommended
 `@orchestrator` path keeps planning in chat unless a downstream workflow explicitly hands off to
@@ -221,7 +211,7 @@ persisted artifacts.
 
 ## Dashboard (local UI)
 
-A local UI and control plane for viewing sessions, managing assets, and operating your `~/.copilot`
+A local UI and control plane for viewing sessions, managing assets, and operating your `~/.elegy`
 installation. The default/recommended runtime is the packaged desktop app: it starts the local runtime
 for you, points the window at that local backend, and keeps the gateway wiring in one place.
 `copilot-ui` can still run from the raw Node.js server when you are developing or debugging the backend.
@@ -243,11 +233,11 @@ scripts/cli-ui.ps1          # Windows
 
 Packaged desktop behavior:
 
-- uses `~/.copilot` as the runtime home for session state, installed assets, repo-state, and gateway config
-- starts the messaging gateway dependency automatically, rehomes legacy gateway config into `~/.copilot`, and keeps the desktop-only disconnected bootstrap config env-scoped instead of writing a non-canonical platformless file
+- uses `~/.elegy` as the runtime home for session state, installed assets, repo-state, and gateway config
+- starts the messaging gateway dependency automatically, rehomes legacy gateway config into `~/.elegy`, and keeps the desktop-only disconnected bootstrap config env-scoped instead of writing a non-canonical platformless file
 - starts the same local backend on `127.0.0.1`
-- provisions an embedded planning database in packaged mode, stored under `~/.copilot/planning-db`, so planning persistence is available by default without a separate local database install
-- keeps orchestration local-only and is the intended surface for the visible task board backed by `~/.copilot/repo-state/<repoId>/tasks/`
+- provisions an embedded planning database in packaged mode, stored under `~/.elegy/planning-db`, so planning persistence is available by default without a separate local database install
+- keeps orchestration local-only and is the intended surface for the visible task board backed by `~/.elegy/repo-state/<repoId>/tasks/`
 - bundles workflow-layer runtime assets for packaged parity checks, but keeps the workflow sidecar default-disabled unless explicitly enabled; packaged smoke now treats any default-on sidecar activation as drift
 
 Desktop UI delivery is now desktop-only for normal use. The Tauri shell bootstraps a per-startup
@@ -269,19 +259,19 @@ The Catalog surface includes a `Workflow packs` panel for optional bundles that 
 ### Catalog control plane at a glance
 
 - **Canonical management surface:** `copilot-ui`
-- **Catalog projection storage:** `~/.copilot/catalog/projections/global.json` plus
-  `~/.copilot/catalog/projections/repo-<repoId>.json`
-- **Repo inventory storage:** `~/.copilot/catalog/repo-inventory.json`
-- **Search telemetry storage:** `~/.copilot/catalog/search-telemetry.json`
-- **Audit log storage:** `~/.copilot/catalog/audit/events.jsonl`
+- **Catalog projection storage:** `~/.elegy/catalog/projections/global.json` plus
+  `~/.elegy/catalog/projections/repo-<repoId>.json`
+- **Repo inventory storage:** `~/.elegy/catalog/repo-inventory.json`
+- **Search telemetry storage:** `~/.elegy/catalog/search-telemetry.json`
+- **Audit log storage:** `~/.elegy/catalog/audit/events.jsonl`
 
 Authoritative write paths remain file-backed:
 
 - shared shipped assets → `engine-assets/agents/*`, `engine-assets/skills/*`,
   `engine-assets/manifest.json`
-- user-global assets → `~/.copilot/agents`, `~/.copilot/skills`, `~/.copilot/skills-vault`
+- user-global assets → `~/.elegy/agents`, `~/.elegy/skills`, `~/.elegy/skills-vault`
 - repo-local assets → `<repo>/.github/agents`, `<repo>/.github/skills`
-- repo overlays only → `~/.copilot/repo-state/<repoId>/registry.json`
+- repo overlays only → `~/.elegy/repo-state/<repoId>/registry.json`
 
 `repo-state` is never the source of asset content; it stores enable/disable overlays and derived
 signals only.
@@ -295,7 +285,7 @@ The catalog is an operational projection, not a separate source of truth. Bootst
 # 1) Start the local control plane
 node copilot-ui/server.js
 
-# 2) Rebuild the global projection from engine-assets + ~/.copilot
+# 2) Rebuild the global projection from engine-assets + ~/.elegy
 Invoke-RestMethod -Method Post `
   -Uri 'http://127.0.0.1:3210/api/catalog/refresh' `
   -ContentType 'application/json' `
@@ -341,7 +331,7 @@ If a persisted projection is missing, the backend falls back to a filesystem bui
   - bounded workflow-layer runtime assets, with the sidecar kept default-disabled unless explicitly enabled
   - helper scripts required by dashboard/runtime operations
 - Generated build outputs such as `copilot-ui/ui-dist/**` and `copilot-ui/src-tauri/gen/resources/**` are primary desktop package inputs. None of them should be source-controlled artifacts.
-- Packaged desktop runtime now boots with an embedded planning database by default. The local runtime, SDK bridge, tracker, and planning persistence all come up together under `~/.copilot`.
+- Packaged desktop runtime now boots with an embedded planning database by default. The local runtime, SDK bridge, tracker, and planning persistence all come up together under `~/.elegy`.
 
 Desktop release tag helper flow, when the optional packaging lane is exercised:
 - `.github/workflows/desktop-version-tag.yml` is a maintainer-only manual helper that can target a specific ref to create `desktop-v<version>` tags when an explicit desktop release flow should advance.
@@ -375,24 +365,7 @@ Release-safety rules (G-06-WU-03) for packaged desktop releases:
 - Broad: rollback threshold + kill-switch assertions (`rollbackPolicy.test.js`, `updatePolicy.rollback.test.js`, `updater.rollback.test.js`).
 - Any failure in this ladder is release-blocking and requires regenerated WS6 evidence artifacts.
 
-### One-time VS Code setup (reducing permission prompts)
-
-If VS Code/Copilot keeps prompting to “allow access” for `~/.copilot`, it’s usually one of two things:
-
-- **Custom assets location** (agents/skills/prompts/instructions): VS Code reads these via `chat.*Locations` settings (e.g. `chat.agentSkillsLocations`).
-- **Agent tool access** (reading/writing outside the workspace): approvals are stored in `~/.copilot/permissions-config.json`.
-
-
-**Recommended one-time setup** (in the copilot-ui dashboard):
-
-1. **Assets tab** → **Patch VS Code settings** button (calls `POST /api/vscode/patch-settings`)
-   - Sets `chat.agentFilesLocations`, `chat.agentSkillsLocations`, `chat.promptFilesLocations`, `chat.instructionsFilesLocations`
-   - Installs a conservative `chat.tools.terminal.autoApprove` set
-2. **Assets tab** → **Authorize Copilot folders** button (calls `POST /api/copilot/authorize`)
-  - Patches `~/.copilot/permissions-config.json` to pre-approve read/write/memory for `~/.copilot`, default folders, and dynamically discovered first-level subfolders
-3. **Restart VS Code**
-
-After this, permission prompts for `~/.copilot` should stop (or significantly reduce).
+<!-- VS Code setup section removed -->
 
 ---
 
@@ -444,7 +417,7 @@ Run Copilot sessions from Discord via the Messaging Gateway in `local-tracker/`.
 
 **Quick setup:**
 1. Create a Discord bot and gather guild/channel/user IDs
-2. Configure `~/.copilot/messaging-gateway.config.json` (use `local-tracker/docs/messaging-gateway.config.example.json` as template)
+2. Configure `~/.elegy/messaging-gateway.config.json` (use `local-tracker/docs/messaging-gateway.config.example.json` as template)
 3. Store bot token: `npm --prefix local-tracker run dev:gateway -- --store-discord-bot-token`
 4. Start Copilot CLI in ACP mode: `copilot --acp --port 3000`
 5. Start gateway: `cd local-tracker && npm run start:gateway -- --mode connected`

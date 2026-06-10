@@ -8,7 +8,7 @@ $opencodeInstaller = Join-Path $engineRoot 'scripts\opencode-install.ps1'
 $claudeInstaller = Join-Path $engineRoot 'scripts\claude-install.ps1'
 
 $sharedArgs = @()
-$copilotArgs = @('--all')
+$copilotArgs = @('--cli')
 
 for ($i = 0; $i -lt $args.Count; $i += 1) {
   $value = [string]$args[$i]

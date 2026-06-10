@@ -5,7 +5,7 @@ Lightweight Node.js service that runs locally alongside the desktop control plan
 ## Overview
 
 The tracker monitors:
-- **Task files** — watches the canonical repo-state task store at `~/.copilot/repo-state/<repoId>/tasks/`
+- **Task files** — watches the canonical repo-state task store at `~/.elegy/repo-state/<repoId>/tasks/`
 - **Git status** — polls workspace repos for branch, ahead/behind, and working-tree changes
 - **Optional Obsidian monitor** — polls configured local note files plus the local Obsidian sync status
   file and emits loopback-only tracker events when either changes
@@ -103,7 +103,7 @@ All configuration is via environment variables:
 | `TRACKER_STATUS_PORT` | `9822` | Local status dashboard port (bound to `127.0.0.1` only) |
 | `TRACKER_WATCH_INTERVAL` | `2000` | Polling interval in ms |
 | `TRACKER_OBSIDIAN_NOTE_PATHS` | — | Comma-separated local note file paths to poll for optional Obsidian note updates |
-| `TRACKER_OBSIDIAN_SYNC_STATUS_PATH` | `~/.copilot/obsidian-sync/status.json` | Optional local Obsidian sync status file path; defaults to the user's home-directory `.copilot/obsidian-sync/status.json` |
+| `TRACKER_OBSIDIAN_SYNC_STATUS_PATH` | `~/.elegy/obsidian-sync/status.json` | Optional local Obsidian sync status file path; defaults to the user's home-directory `.copilot/obsidian-sync/status.json` |
 | `TRACKER_OBSIDIAN_POLL_INTERVAL` | `TRACKER_WATCH_INTERVAL` | Polling interval in ms for the optional Obsidian monitor |
 | `OTEL_WORKFLOW_TRACING_ENABLED` | `false` | Set to `true` to enable OpenTelemetry tracing |
 

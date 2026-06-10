@@ -142,7 +142,7 @@
   "packagingNotes": [
     "The first Windows-first Tauri shell bootstrap resolves localhost runtime assets through the Tauri resource/app-path seam.",
     "The Tauri shell must resolve bundled paths through app resource APIs instead of inferring them from the executable path.",
-    "Packaged resources are read-only app assets; mutable runtime state stays rooted under ~/.copilot.",
+    "Packaged resources are read-only app assets; mutable runtime state stays rooted under ~/.elegy.",
     "The workflow sidecar payload remains bundled for parity validation while staying default-disabled until lifecycle binding is complete."
   ]
 }

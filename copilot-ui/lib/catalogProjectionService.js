@@ -41,8 +41,8 @@ function expandHome(inputPath) {
   return raw;
 }
 
-function resolveCopilotHome(inputPath) {
-  return path.resolve(expandHome(inputPath || '~/.copilot'));
+function resolveElegyHome(inputPath) {
+  return path.resolve(expandHome(inputPath || '~/.elegy'));
 }
 
 function safeReadDir(dirAbs, options) {
@@ -90,11 +90,11 @@ function isFileLike(entry, absPath) {
   return Boolean(safeStat(absPath)?.isFile());
 }
 
-function toCopilotRelativePath(copilotHome, absPath) {
+function toCopilotRelativePath(elegyHome, absPath) {
   if (!absPath) {
     return null;
   }
-  const relativePath = path.relative(path.resolve(copilotHome), path.resolve(absPath));
+  const relativePath = path.relative(path.resolve(elegyHome), path.resolve(absPath));
   if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
     return null;
   }
@@ -621,14 +621,14 @@ function resolveRepoContext(options = {}) {
 }
 
 function resolveProjectionStorage(options = {}) {
-  const copilotHome = resolveCopilotHome(options.copilotHome);
+  const elegyHome = resolveElegyHome(options.elegyHome || options.copilotHome);
   const repoContext = resolveRepoContext(options);
   const snapshotName = repoContext?.repoId ? `repo-${repoContext.repoId}` : DEFAULT_SNAPSHOT_NAME;
-  const catalogRoot = path.join(copilotHome, 'catalog');
+  const catalogRoot = path.join(elegyHome, 'catalog');
   const snapshotPath = path.join(catalogRoot, 'projections', `${snapshotName}.json`);
 
   return {
-    copilotHome,
+    elegyHome,
     catalogRoot,
     snapshotPath,
     repoContext,
@@ -961,8 +961,8 @@ function createSourceEntries(engineRoot, metadataBySkill, warnings) {
   return { manifestPath, manifestAssetIndex, bundles, entries };
 }
 
-function scanUserAgents(copilotHome, providerCatalog = DEFAULT_PROVIDER_CATALOG) {
-  const agentsDir = path.join(copilotHome, 'agents');
+function scanUserAgents(elegyHome, providerCatalog = DEFAULT_PROVIDER_CATALOG) {
+  const agentsDir = path.join(elegyHome, 'agents');
   return safeReadDir(agentsDir, { withFileTypes: true })
     .filter((entry) => isFileLike(entry, path.join(agentsDir, entry.name)))
     .map((entry) => {
@@ -982,7 +982,7 @@ function scanUserAgents(copilotHome, providerCatalog = DEFAULT_PROVIDER_CATALOG)
         ? buildProviderQualifiedAssetKey('agent', logicalName, origin)
         : logicalName;
       const assetId = deriveAssetId('agent', assetKey);
-      const viewPath = toCopilotRelativePath(copilotHome, contentPath) || `agents/${entry.name}`;
+      const viewPath = toCopilotRelativePath(elegyHome, contentPath) || `agents/${entry.name}`;
 
       return createCatalogEntry({
         kind: 'agent',
@@ -1023,8 +1023,8 @@ function scanUserAgents(copilotHome, providerCatalog = DEFAULT_PROVIDER_CATALOG)
     .sort((left, right) => String(left.assetId || '').localeCompare(String(right.assetId || '')));
 }
 
-function scanUserPrompts(copilotHome) {
-  const promptsDir = path.join(copilotHome, 'prompts');
+function scanUserPrompts(elegyHome) {
+  const promptsDir = path.join(elegyHome, 'prompts');
   return safeReadDir(promptsDir, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.prompt.md'))
     .map((entry) => {
@@ -1083,9 +1083,9 @@ function buildSourceIndex(entries) {
   return { byId, byKeyAndKind };
 }
 
-function scanUserSkills(copilotHome, metadataBySkill, sourceIndex, providerCatalog = DEFAULT_PROVIDER_CATALOG) {
-  const skillsDir = path.join(copilotHome, 'skills');
-  const vaultDir = path.join(copilotHome, 'skills-vault');
+function scanUserSkills(elegyHome, metadataBySkill, sourceIndex, providerCatalog = DEFAULT_PROVIDER_CATALOG) {
+  const skillsDir = path.join(elegyHome, 'skills');
+  const vaultDir = path.join(elegyHome, 'skills-vault');
   const entries = [];
 
   for (const skill of discoverSkillArtifacts(skillsDir, 'skills')) {
@@ -1393,12 +1393,12 @@ function buildAssetLookup(entries) {
   return lookup;
 }
 
-function buildRepoOverlayEntries(copilotHome, repoContext, allEntries) {
+function buildRepoOverlayEntries(elegyHome, repoContext, allEntries) {
   if (!repoContext?.repoId) {
     return { entries: [], registryPath: null };
   }
 
-  const registryPath = path.join(copilotHome, 'repo-state', repoContext.repoId, 'registry.json');
+  const registryPath = path.join(elegyHome, 'repo-state', repoContext.repoId, 'registry.json');
   const registry = readJsonIfExists(registryPath);
   if (!registry || typeof registry !== 'object') {
     return { entries: [], registryPath };
@@ -1702,7 +1702,7 @@ function buildCatalogProjection(options = {}) {
   const repoContext = storage.repoContext;
   const warnings = [];
   const providerCatalogScan = loadProviderCatalog(engineRoot);
-  const providerStateScan = loadProviderInstallState(storage.copilotHome);
+  const providerStateScan = loadProviderInstallState(storage.elegyHome);
 
   const metadataIndex = buildMetadataIndex(engineRoot);
   warnings.push(...metadataIndex.warnings);
@@ -1710,10 +1710,10 @@ function buildCatalogProjection(options = {}) {
   const sourceScan = createSourceEntries(engineRoot, metadataIndex.metadataBySkill, warnings);
   const sourceIndex = buildSourceIndex(sourceScan.entries);
   const userEntries = [
-    ...scanUserAgents(storage.copilotHome, providerCatalogScan.providerCatalog),
-    ...scanUserPrompts(storage.copilotHome),
+    ...scanUserAgents(storage.elegyHome, providerCatalogScan.providerCatalog),
+    ...scanUserPrompts(storage.elegyHome),
     ...scanUserSkills(
-      storage.copilotHome,
+      storage.elegyHome,
       metadataIndex.metadataBySkill,
       sourceIndex,
       providerCatalogScan.providerCatalog,
@@ -1725,7 +1725,7 @@ function buildCatalogProjection(options = {}) {
     sourceIndex,
     providerCatalogScan.providerCatalog,
   );
-  const overlayScan = buildRepoOverlayEntries(storage.copilotHome, repoContext, [
+  const overlayScan = buildRepoOverlayEntries(storage.elegyHome, repoContext, [
     ...sourceScan.entries,
     ...userEntries,
     ...repoLocalEntries,
@@ -1755,7 +1755,7 @@ function buildCatalogProjection(options = {}) {
     schemaVersion: CATALOG_PROJECTION_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     engineRoot,
-    copilotHome: storage.copilotHome,
+    elegyHome: storage.elegyHome,
     repoContext,
     storage,
     inputs: {

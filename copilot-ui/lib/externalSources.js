@@ -239,20 +239,20 @@ function slugifyName(value) {
     .replace(/^-+|-+$/g, '');
 }
 
-function resolveCatalogRoot(copilotHome) {
-  return path.join(path.resolve(copilotHome), 'catalog', 'external-sources');
+function resolveCatalogRoot(elegyHome) {
+  return path.join(path.resolve(elegyHome), 'catalog', 'external-sources');
 }
 
-function resolveUserSourcesPath(copilotHome) {
-  return path.join(resolveCatalogRoot(copilotHome), USER_SOURCES_FILE);
+function resolveUserSourcesPath(elegyHome) {
+  return path.join(resolveCatalogRoot(elegyHome), USER_SOURCES_FILE);
 }
 
-function resolveStatePath(copilotHome) {
-  return path.join(resolveCatalogRoot(copilotHome), STATE_FILE);
+function resolveStatePath(elegyHome) {
+  return path.join(resolveCatalogRoot(elegyHome), STATE_FILE);
 }
 
-function resolveCacheRoot(copilotHome) {
-  return path.join(resolveCatalogRoot(copilotHome), 'cache');
+function resolveCacheRoot(elegyHome) {
+  return path.join(resolveCatalogRoot(elegyHome), 'cache');
 }
 
 function parseGitHubUrl(url) {
@@ -971,8 +971,8 @@ function readShippedSources(engineRoot) {
   };
 }
 
-function readUserSources(copilotHome) {
-  const userSourcesPath = resolveUserSourcesPath(copilotHome);
+function readUserSources(elegyHome) {
+  const userSourcesPath = resolveUserSourcesPath(elegyHome);
   const loaded = normalizeExternalSourcesCatalogDocument(readJsonIfExists(userSourcesPath));
   return {
     userSourcesPath,
@@ -980,8 +980,8 @@ function readUserSources(copilotHome) {
   };
 }
 
-function readExternalSourcesState(copilotHome) {
-  const statePath = resolveStatePath(copilotHome);
+function readExternalSourcesState(elegyHome) {
+  const statePath = resolveStatePath(elegyHome);
   const raw = readJsonIfExists(statePath);
   return {
     statePath,
@@ -997,14 +997,14 @@ function readExternalSourcesState(copilotHome) {
   };
 }
 
-function writeExternalSourcesState(copilotHome, state) {
-  const statePath = resolveStatePath(copilotHome);
+function writeExternalSourcesState(elegyHome, state) {
+  const statePath = resolveStatePath(elegyHome);
   writeJsonAtomic(statePath, state);
   return statePath;
 }
 
-function writeUserSources(copilotHome, document) {
-  const userSourcesPath = resolveUserSourcesPath(copilotHome);
+function writeUserSources(elegyHome, document) {
+  const userSourcesPath = resolveUserSourcesPath(elegyHome);
   writeJsonAtomic(userSourcesPath, document);
   return userSourcesPath;
 }
@@ -1292,7 +1292,7 @@ function resolveSourceLastSyncedAt(sourceState, cachedSnapshot) {
 }
 
 function updateSourceState(options, sourceId, mutate) {
-  const stateScan = readExternalSourcesState(options.copilotHome);
+  const stateScan = readExternalSourcesState(options.elegyHome);
   const previousSourceState = resolveSourceStateEntry(stateScan.state, sourceId);
   const nextSourceState = mutate(previousSourceState, stateScan.state) || previousSourceState;
   const nextState = {
@@ -1302,7 +1302,7 @@ function updateSourceState(options, sourceId, mutate) {
       [sourceId]: nextSourceState,
     },
   };
-  writeExternalSourcesState(options.copilotHome, nextState);
+  writeExternalSourcesState(options.elegyHome, nextState);
   return {
     state: nextState,
     sourceState: nextSourceState,
@@ -1422,8 +1422,8 @@ function fetchGitHubSourceArchive(source, cacheRoot, fetchImpl) {
     });
 }
 
-function loadCachedSnapshot(copilotHome, sourceId) {
-  const sourceCacheRoot = path.join(resolveCacheRoot(copilotHome), sourceId);
+function loadCachedSnapshot(elegyHome, sourceId) {
+  const sourceCacheRoot = path.join(resolveCacheRoot(elegyHome), sourceId);
   const snapshotPath = path.join(sourceCacheRoot, 'snapshot.json');
   const raw = readJsonIfExists(snapshotPath);
   if (!raw) {
@@ -1447,9 +1447,9 @@ function resolveCachedExtractedRoot(sourceCacheRoot) {
   }
 }
 
-function ensureShippedUserDocuments(engineRoot, copilotHome) {
+function ensureShippedUserDocuments(engineRoot, elegyHome) {
   const shipped = readShippedSources(engineRoot);
-  const user = readUserSources(copilotHome);
+  const user = readUserSources(elegyHome);
   return {
     shipped,
     user,
@@ -1457,9 +1457,9 @@ function ensureShippedUserDocuments(engineRoot, copilotHome) {
 }
 
 function listSources(options) {
-  const { engineRoot, copilotHome } = options;
-  const { shipped, user } = ensureShippedUserDocuments(engineRoot, copilotHome);
-  const { statePath, state } = readExternalSourcesState(copilotHome);
+  const { engineRoot, elegyHome } = options;
+  const { shipped, user } = ensureShippedUserDocuments(engineRoot, elegyHome);
+  const { statePath, state } = readExternalSourcesState(elegyHome);
   const mergedSources = mergeSources(shipped.document, user.document);
 
   return {
@@ -1468,7 +1468,7 @@ function listSources(options) {
     statePath,
     sources: mergedSources.map((source) => {
       const sourceState = resolveSourceStateEntry(state, source.sourceId);
-      const cachedSnapshot = loadCachedSnapshot(copilotHome, source.sourceId);
+      const cachedSnapshot = loadCachedSnapshot(elegyHome, source.sourceId);
       const installables = resolveSourceInstallables(source, cachedSnapshot);
       return {
         ...source,
@@ -1490,9 +1490,9 @@ function listSources(options) {
 }
 
 function addSource(options, payload) {
-  const { copilotHome, engineRoot } = options;
-  ensureShippedUserDocuments(engineRoot, copilotHome);
-  const user = readUserSources(copilotHome);
+  const { elegyHome, engineRoot } = options;
+  ensureShippedUserDocuments(engineRoot, elegyHome);
+  const user = readUserSources(elegyHome);
   const nextSource = parseGitHubSourceInput(payload);
 
   const existingIndex = user.document.sources.findIndex((entry) => entry.sourceId === nextSource.sourceId);
@@ -1507,7 +1507,7 @@ function addSource(options, payload) {
     schemaVersion: EXTERNAL_SOURCES_SCHEMA_VERSION,
     sources: nextSources.sort((left, right) => left.sourceId.localeCompare(right.sourceId)),
   };
-  const userSourcesPath = writeUserSources(copilotHome, nextDocument);
+  const userSourcesPath = writeUserSources(elegyHome, nextDocument);
 
   return {
     userSourcesPath,
@@ -1516,14 +1516,14 @@ function addSource(options, payload) {
 }
 
 function removeSource(options, sourceId) {
-  const { copilotHome } = options;
+  const { elegyHome } = options;
   const normalizedSourceId = normalizeExternalSourceId(sourceId);
   if (!normalizedSourceId) {
     throw Object.assign(new Error('sourceId is required'), { statusCode: 400 });
   }
 
-  const user = readUserSources(copilotHome);
-  const stateScan = readExternalSourcesState(copilotHome);
+  const user = readUserSources(elegyHome);
+  const stateScan = readExternalSourcesState(elegyHome);
   const existing = user.document.sources.find((entry) => entry.sourceId === normalizedSourceId);
   if (!existing) {
     throw Object.assign(new Error(`Unknown editable sourceId: ${normalizedSourceId}`), { statusCode: 404 });
@@ -1540,16 +1540,16 @@ function removeSource(options, sourceId) {
     schemaVersion: EXTERNAL_SOURCES_SCHEMA_VERSION,
     sources: user.document.sources.filter((entry) => entry.sourceId !== normalizedSourceId),
   };
-  writeUserSources(copilotHome, nextDocument);
+  writeUserSources(elegyHome, nextDocument);
 
   const nextState = {
     schemaVersion: stateScan.state.schemaVersion,
     sources: { ...stateScan.state.sources },
   };
   delete nextState.sources[normalizedSourceId];
-  writeExternalSourcesState(copilotHome, nextState);
+  writeExternalSourcesState(elegyHome, nextState);
 
-  safeRemove(path.join(resolveCacheRoot(copilotHome), normalizedSourceId));
+  safeRemove(path.join(resolveCacheRoot(elegyHome), normalizedSourceId));
 
   return {
     sourceId: normalizedSourceId,
@@ -1571,8 +1571,8 @@ function resolveSourceById(options, sourceId) {
 }
 
 async function refreshSource(options, sourceId) {
-  const { engineRoot, copilotHome, fetch } = options;
-  const sourceRecord = resolveSourceById({ engineRoot, copilotHome }, sourceId).source;
+  const { engineRoot, elegyHome, fetch } = options;
+  const sourceRecord = resolveSourceById({ engineRoot, elegyHome }, sourceId).source;
   const shippedInstallables = resolveShippedInstallables(sourceRecord);
   const usesShippedInstallablesOnly = shippedInstallables.length > 0
     && sourceRecord.includeSkills !== true
@@ -1592,7 +1592,7 @@ async function refreshSource(options, sourceId) {
       resolvedRef: normalizeString(sourceRecord.defaultRef) || null,
       installables: shippedInstallables,
     };
-    const sourceCacheRoot = path.join(resolveCacheRoot(copilotHome), sourceRecord.sourceId);
+    const sourceCacheRoot = path.join(resolveCacheRoot(elegyHome), sourceRecord.sourceId);
     ensureDir(sourceCacheRoot);
     const snapshotPath = path.join(sourceCacheRoot, 'snapshot.json');
     writeJsonAtomic(snapshotPath, snapshot);
@@ -1611,7 +1611,7 @@ async function refreshSource(options, sourceId) {
     };
   }
 
-  const cacheRoot = resolveCacheRoot(copilotHome);
+  const cacheRoot = resolveCacheRoot(elegyHome);
   ensureDir(cacheRoot);
   try {
     const fetched = await fetchGitHubSourceArchive(sourceRecord, cacheRoot, fetch);
@@ -2062,7 +2062,7 @@ function resolveRemoveInstallable(options, source, installable, target) {
 function resolveInstallableFromSource(options, sourceId, installableId) {
   const sourceList = resolveSourceById(options, sourceId);
   const source = sourceList.source;
-  const cached = loadCachedSnapshot(options.copilotHome, source.sourceId);
+  const cached = loadCachedSnapshot(options.elegyHome, source.sourceId);
   const installables = resolveSourceInstallables(source, cached);
   const installable = installables.find((entry) => entry.installableId === installableId);
   if (!installable) {
@@ -2110,14 +2110,14 @@ async function deactivateConflictingInstallables(options, source, target, exclud
   }
 
   const sourceState = resolveSourceStateEntry(
-    readExternalSourcesState(options.copilotHome).state,
+    readExternalSourcesState(options.elegyHome).state,
     source.sourceId,
   );
   const allTargets = sourceState?.targets && typeof sourceState.targets === 'object'
     ? Object.keys(sourceState.targets)
     : [];
 
-  const installables = resolveSourceInstallables(source, loadCachedSnapshot(options.copilotHome, source.sourceId));
+  const installables = resolveSourceInstallables(source, loadCachedSnapshot(options.elegyHome, source.sourceId));
   const installableMap = new Map(installables.map((entry) => [entry.installableId, entry]));
 
   const incomingGroup = findConflictGroupForInstallable(conflictGroups, excludeInstallableId);
@@ -2296,9 +2296,9 @@ function getSourceDetail(options, sourceId) {
 }
 
 async function verifyInstallableTarget(options, source, installable, target) {
-  const sourceState = resolveSourceStateEntry(readExternalSourcesState(options.copilotHome).state, source.sourceId);
+  const sourceState = resolveSourceStateEntry(readExternalSourcesState(options.elegyHome).state, source.sourceId);
   const installableState = resolveInstallableStateEntry(sourceState, target, installable.installableId);
-  const cached = loadCachedSnapshot(options.copilotHome, source.sourceId);
+  const cached = loadCachedSnapshot(options.elegyHome, source.sourceId);
   const checks = [];
   const warnings = [];
   const errors = [];
@@ -2527,7 +2527,7 @@ async function syncInstallVerifySource(options, payload) {
   const repoPath = normalizeString(payload?.repoPath);
   const source = resolveSourceById(options, sourceId).source;
   const refreshed = await refreshSource(options, sourceId);
-  const installables = resolveSourceInstallables(source, loadCachedSnapshot(options.copilotHome, sourceId));
+  const installables = resolveSourceInstallables(source, loadCachedSnapshot(options.elegyHome, sourceId));
   const requestedInstallableIds = normalizeStringList(payload?.installableIds);
   const selectedInstallables = requestedInstallableIds.length > 0
     ? installables.filter((entry) => requestedInstallableIds.includes(entry.installableId))
@@ -2570,7 +2570,7 @@ async function syncInstallVerifySource(options, payload) {
       installableId: installable.installableId,
       kind: installable.kind,
       overallStatus: finalizeCheckCollection(targetResults.flatMap((entry) => entry.checks)),
-      sourceStatus: refreshed?.snapshot ? 'ready' : resolveSourceSyncStatus(source, resolveSourceStateEntry(readExternalSourcesState(options.copilotHome).state, source.sourceId), null),
+      sourceStatus: refreshed?.snapshot ? 'ready' : resolveSourceSyncStatus(source, resolveSourceStateEntry(readExternalSourcesState(options.elegyHome).state, source.sourceId), null),
       targets: targetResults,
       checks: targetResults.flatMap((entry) => entry.checks),
       warnings: targetResults.flatMap((entry) => entry.warnings),
@@ -2582,7 +2582,7 @@ async function syncInstallVerifySource(options, payload) {
     source,
     snapshot: refreshed.snapshot,
     overallStatus: errors.length > 0 ? 'needs-attention' : warnings.length > 0 ? 'partial' : 'ready',
-    sourceStatus: resolveSourceSyncStatus(source, resolveSourceStateEntry(readExternalSourcesState(options.copilotHome).state, source.sourceId), loadCachedSnapshot(options.copilotHome, source.sourceId)),
+    sourceStatus: resolveSourceSyncStatus(source, resolveSourceStateEntry(readExternalSourcesState(options.elegyHome).state, source.sourceId), loadCachedSnapshot(options.elegyHome, source.sourceId)),
     installables: perInstallableResults,
     targets: perInstallableResults.flatMap((entry) => entry.targets),
     checks: allChecks,

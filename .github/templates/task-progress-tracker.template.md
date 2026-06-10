@@ -4,7 +4,7 @@
 - Session ID:
 - Date:
 - Owner:
-- Plan Artifact: `~/.copilot/session-state/<SESSION_ID>/plan.md`
+- Plan Artifact: `~/.elegy/session-state/<SESSION_ID>/plan.md`
 
 ## Work Unit Groups Overview
 | Group | Title | Status | WUs Done | WUs Total | Depends On |

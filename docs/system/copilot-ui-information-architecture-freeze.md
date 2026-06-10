@@ -121,7 +121,7 @@ The Sessions section becomes the main runtime engagement workspace and absorbs t
 The Executor section owns queued/runtime work plus embedded sandbox lifecycle behavior:
 
 - executor job and run management
-- external CLI and VS Code session observation
+- external CLI session observation
 - manual sandbox lifecycle controls
 - sandbox inventory
 - follow sandbox session into runtime engagement
@@ -183,7 +183,7 @@ contracts but was previously split across Runtime, Catalog, and Session detail v
 - instruction-engine runtime health summary
 - catalog projection/runtime health summary
 - SDK bridge and executor health summary
-- deduped merged session inventory summary across CLI, VS Code, and sandbox sources
+- deduped merged session inventory summary across CLI and sandbox sources
 - aggregate catalog audit analytics for assets, repos, sessions, search, and invocation counts
 - bounded recent agent and skill rollups sampled from recent merged sessions
 
@@ -233,7 +233,7 @@ Runtime or Catalog.
 **Responsibilities**
 
 - idea capture
-- repo-state task board projection/control surface for durable tasks under `~/.copilot/repo-state/<repoId>/tasks/`
+- repo-state task board projection/control surface for durable tasks under `~/.elegy/repo-state/<repoId>/tasks/`
 - planning records
 - search / compare / merge
 - research notes and diagrams

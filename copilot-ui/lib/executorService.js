@@ -298,7 +298,7 @@ class ExecutorService extends EventEmitter {
     this._setTimeout = typeof deps.setTimeout === 'function' ? deps.setTimeout : setTimeout;
     this._clearTimeout = typeof deps.clearTimeout === 'function' ? deps.clearTimeout : clearTimeout;
     this._worktreeService = deps.worktreeService || createWorktreeService(
-      { copilotHome: this._config.copilotHome || '.' },
+      { elegyHome: this._config.elegyHome || '.' },
       {
         fs: this._fs,
         path: this._path,
@@ -314,7 +314,7 @@ class ExecutorService extends EventEmitter {
     this._sessionHooks = isObject(config) ? (config.sessionHooks || null) : null;
     this._lastError = null;
     this._initialized = false;
-    this._statePath = this._path.join(this._path.resolve(String(this._config.copilotHome || '.')), 'executor', 'state.json');
+    this._statePath = this._path.join(this._path.resolve(String(this._config.elegyHome || '.')), 'executor', 'state.json');
   }
 
   async init() {
@@ -362,7 +362,7 @@ class ExecutorService extends EventEmitter {
     const runs = Array.from(this._runs.values());
     const jobs = Array.from(this._jobs.values());
     const worktrees = this._worktreeService ? this._worktreeService.listWorktrees({
-      copilotHome: this._config.copilotHome || '.',
+      elegyHome: this._config.elegyHome || '.',
     }) : [];
     return {
       enabled: Boolean(this._sdkBridge),
@@ -388,7 +388,7 @@ class ExecutorService extends EventEmitter {
       return [];
     }
     return this._worktreeService.listWorktrees({
-      copilotHome: this._config.copilotHome || '.',
+      elegyHome: this._config.elegyHome || '.',
       repoId: options.repoId || null,
     });
   }
@@ -398,7 +398,7 @@ class ExecutorService extends EventEmitter {
       throw Object.assign(new Error('Worktree service is unavailable.'), { statusCode: 503 });
     }
     return this._worktreeService.resolveLaunchPlan({
-      copilotHome: this._config.copilotHome || '.',
+      elegyHome: this._config.elegyHome || '.',
       ...input,
       activeSessions: Array.isArray(input.activeSessions) ? input.activeSessions : this._collectActiveRepoSessions(input.repoId),
     });
@@ -1027,7 +1027,7 @@ class ExecutorService extends EventEmitter {
 
       if (run.worktree && run.worktree.mode === WORKTREE_MODES.DEDICATED && run.worktree.worktreeId) {
         const activated = this._worktreeService.markWorktreeActive({
-          copilotHome: this._config.copilotHome || '.',
+          elegyHome: this._config.elegyHome || '.',
           repoId: run.repoId || job.repoId,
           worktreeId: run.worktree.worktreeId,
           sessionId,
@@ -1313,7 +1313,7 @@ class ExecutorService extends EventEmitter {
       return null;
     }
     return this._worktreeService.resolveLaunchPlan({
-      copilotHome: this._config.copilotHome || '.',
+      elegyHome: this._config.elegyHome || '.',
       repoId,
       repoPath,
       repoLabel: orchestrationRepo.repoLabel || null,
@@ -1334,7 +1334,7 @@ class ExecutorService extends EventEmitter {
       return;
     }
     const updated = this._worktreeService.markWorktreeReusable({
-      copilotHome: this._config.copilotHome || '.',
+      elegyHome: this._config.elegyHome || '.',
       repoId: run.repoId,
       worktreeId: worktree.worktreeId,
     });
@@ -1349,7 +1349,7 @@ class ExecutorService extends EventEmitter {
       return;
     }
     const updated = this._worktreeService.markWorktreeInterrupted({
-      copilotHome: this._config.copilotHome || '.',
+      elegyHome: this._config.elegyHome || '.',
       repoId: run.repoId,
       worktreeId: worktree.worktreeId,
       reason,

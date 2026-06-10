@@ -4,7 +4,7 @@ import path from 'node:path';
 import { parseWorkflowDefinition, type WorkflowDefinition } from './workflowSchema';
 
 export function getDefaultWorkflowDefinitionsDir(): string {
-    const canonicalDir = path.join(os.homedir(), '.copilot', 'workflows', 'definitions');
+    const canonicalDir = path.join(os.homedir(), '.elegy', 'workflows', 'definitions');
     rehomeLegacyWorkflowDefinitionsDirIfNeeded(canonicalDir);
     return canonicalDir;
 }

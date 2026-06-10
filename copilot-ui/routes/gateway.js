@@ -8,7 +8,7 @@ const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require
 const repoDiscovery = require('../lib/repoDiscoveryService');
 
 function handleGatewayState(ctx, deps) {
-  const { res, copilotHomeAbs } = ctx;
+  const { res, elegyHomeAbs } = ctx;
   const {
     sendJson,
     resolveMessagingGatewayConfigPath,
@@ -25,7 +25,7 @@ function handleGatewayState(ctx, deps) {
     trackerToken,
   } = deps;
 
-  const configPath = resolveMessagingGatewayConfigPath(copilotHomeAbs);
+  const configPath = resolveMessagingGatewayConfigPath(elegyHomeAbs);
   const gatewayConfig = readJsonFileSafe(configPath);
   const planningPersistence = buildPlanningPersistenceHealthEnvelope(
     getPlanningPersistenceHealth(ctx.planningPersistenceConfig, ctx.planningPersistenceState),
@@ -72,7 +72,7 @@ function handleGatewayState(ctx, deps) {
 }
 
 function handleGatewayConnect(ctx, deps) {
-  const { res, copilotHomeAbs } = ctx;
+  const { res, elegyHomeAbs } = ctx;
   const {
     sendJson,
     resolveMessagingGatewayConfigPath,
@@ -89,7 +89,7 @@ function handleGatewayConnect(ctx, deps) {
     trackerToken,
   } = deps;
 
-  const configPath = resolveMessagingGatewayConfigPath(copilotHomeAbs);
+  const configPath = resolveMessagingGatewayConfigPath(elegyHomeAbs);
   const gatewayConfig = readJsonFileSafe(configPath);
   const planningPersistence = buildPlanningPersistenceHealthEnvelope(
     getPlanningPersistenceHealth(ctx.planningPersistenceConfig, ctx.planningPersistenceState),
@@ -161,15 +161,15 @@ function handleGatewayConnect(ctx, deps) {
 }
 
 function handleGatewayConfigGet(ctx, deps) {
-  const { res, copilotHomeAbs } = ctx;
+  const { res, elegyHomeAbs } = ctx;
   const { sendJson, resolveMessagingGatewayConfigPath, readJsonFileSafe } = deps;
-  const configPath = resolveMessagingGatewayConfigPath(copilotHomeAbs);
+  const configPath = resolveMessagingGatewayConfigPath(elegyHomeAbs);
   const config = readJsonFileSafe(configPath);
   sendJson(res, 200, { exists: config !== null, configPath, config: config || null });
 }
 
 function handleGatewayConfigPost(ctx, deps) {
-  const { req, res, copilotHomeAbs } = ctx;
+  const { req, res, elegyHomeAbs } = ctx;
   const { sendJson, readJsonBody, ensureDir, resolveMessagingGatewayConfigPath, fs, path } = deps;
 
   readJsonBody(req)
@@ -244,7 +244,7 @@ function handleGatewayConfigPost(ctx, deps) {
         ...(normalizedTelegram ? { telegram: normalizedTelegram } : {}),
         workspaces: { allowedRoots: normalizedRoots, activeRoot: normalizedActive },
       };
-      const configPath = resolveMessagingGatewayConfigPath(copilotHomeAbs);
+      const configPath = resolveMessagingGatewayConfigPath(elegyHomeAbs);
       const tmpPath = `${configPath}.tmp.${Date.now()}`;
       ensureDir(path.dirname(configPath));
       fs.writeFileSync(tmpPath, JSON.stringify(normalized, null, 2), 'utf8');
@@ -255,12 +255,12 @@ function handleGatewayConfigPost(ctx, deps) {
 }
 
 function handleGatewayScanRepos(ctx, deps) {
-  const { res, u, copilotHomeAbs } = ctx;
+  const { res, u, elegyHomeAbs } = ctx;
   const { sendJson, fs, path } = deps;
 
   const extraParam = u.searchParams.get('extra');
   const scanConfig = repoDiscovery.resolveWorkspaceScanRoots({
-    copilotHome: copilotHomeAbs,
+    copilotHome: elegyHomeAbs,
     extraRoots: extraParam && extraParam.trim() ? [extraParam.trim()] : [],
     fsModule: fs,
     pathModule: path,

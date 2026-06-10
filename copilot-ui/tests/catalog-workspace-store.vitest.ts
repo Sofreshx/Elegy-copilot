@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 const mockGetCatalogSummary = vi.fn();
 const mockGetCatalogBundles = vi.fn();
 const mockGetCatalogAssets = vi.fn();
@@ -32,7 +31,6 @@ const mockSaveCatalogRepoScanRoots = vi.fn();
 const mockSelectCatalogRepo = vi.fn();
 const mockRefreshCatalogRepo = vi.fn();
 const mockUnregisterCatalogRepo = vi.fn();
-
 vi.mock('../ui/src/lib/api', () => ({
   activateCatalogSourceInstallable: mockActivateCatalogSourceInstallable,
   addCatalogSource: mockAddCatalogSource,
@@ -67,7 +65,6 @@ vi.mock('../ui/src/lib/api', () => ({
   unregisterCatalogRepo: mockUnregisterCatalogRepo,
   updateCatalogAsset: mockUpdateCatalogAsset,
 }));
-
 describe('catalogWorkspaceStore', () => {
   beforeEach(() => {
     mockGetCatalogSummary.mockReset();
@@ -113,11 +110,9 @@ describe('catalogWorkspaceStore', () => {
       },
     });
   });
-
   afterEach(() => {
     vi.resetModules();
   });
-
   function primeWorkspaceLoad() {
     mockGetCatalogSummary.mockResolvedValue({
       summary: {
@@ -175,12 +170,11 @@ describe('catalogWorkspaceStore', () => {
       },
     });
   }
-
   it('loads the catalog workspace, selects the first asset, and hydrates audit plus content preview', async () => {
     mockGetCatalogRepos.mockResolvedValue({
       workspaceScan: {
         storage: {
-          path: 'C:\\Users\\tester\\.copilot\\catalog\\repo-discovery.json',
+          path: 'C:\\Users\\tester\\.elegy\\catalog\\repo-discovery.json',
           exists: true,
         },
         defaultRoots: ['C:\\Users\\tester\\Documents\\GitHub'],
@@ -265,14 +259,14 @@ describe('catalogWorkspaceStore', () => {
         installState: {
           availability: 'installed',
           installedPaths: {
-            'user-installed': 'C:\\Users\\lolzi\\.copilot\\skills\\test\\SKILL.md',
+            'user-installed': 'C:\\Users\\lolzi\\.elegy\\skills\\test\\SKILL.md',
           },
         },
         selectedEntry: {
           assetId: 'skill-test',
           kind: 'skill',
           title: 'Test skill',
-          contentPath: 'C:\\Users\\lolzi\\.copilot\\skills\\test\\SKILL.md',
+          contentPath: 'C:\\Users\\lolzi\\.elegy\\skills\\test\\SKILL.md',
         },
       },
       entries: [
@@ -331,11 +325,8 @@ describe('catalogWorkspaceStore', () => {
       },
     });
     mockGetAssetView.mockResolvedValue('# Test skill');
-
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     await catalogWorkspaceStore.loadWorkspace();
-
     expect(mockGetCatalogRepos).toHaveBeenCalledTimes(1);
     expect(mockGetCatalogSummary).toHaveBeenCalledTimes(1);
     expect(mockGetCatalogBundles).toHaveBeenCalledTimes(1);
@@ -352,7 +343,6 @@ describe('catalogWorkspaceStore', () => {
       limit: 25,
     });
     expect(mockGetAssetView).toHaveBeenCalledWith('skills/test/SKILL.md');
-
     const state = catalogWorkspaceStore.getState();
     expect(state.selectedAssetId).toBe('skill-test');
     expect(state.selectedAsset?.assetId).toBe('skill-test');
@@ -362,7 +352,6 @@ describe('catalogWorkspaceStore', () => {
     expect(state.selectedAssetContent).toContain('Test skill');
     expect(state.repoInventory?.workspaceScan?.customScanRoots).toEqual(['D:\\work\\repos']);
   });
-
   it('prefers explicit metadata view paths for nested installed assets', async () => {
     mockGetCatalogRepos.mockResolvedValue({
       repos: [],
@@ -420,14 +409,14 @@ describe('catalogWorkspaceStore', () => {
         installState: {
           availability: 'installed',
           installedPaths: {
-            'user-installed': 'C:\\Users\\lolzi\\.copilot\\skills\\external-provider\\brainstorming\\SKILL.md',
+            'user-installed': 'C:\\Users\\lolzi\\.elegy\\skills\\external-provider\\brainstorming\\SKILL.md',
           },
         },
         selectedEntry: {
           assetId: 'skill-copilot-home-plugin-external-provider-brainstorming',
           kind: 'skill',
           title: 'Brainstorming',
-          contentPath: 'C:\\Users\\lolzi\\.copilot\\skills\\external-provider\\brainstorming\\SKILL.md',
+          contentPath: 'C:\\Users\\lolzi\\.elegy\\skills\\external-provider\\brainstorming\\SKILL.md',
           metadata: {
             viewPath: 'skills/external-provider/brainstorming/SKILL.md',
           },
@@ -439,13 +428,10 @@ describe('catalogWorkspaceStore', () => {
       events: [],
     });
     mockGetAssetView.mockResolvedValue('# Brainstorming');
-
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
     await catalogWorkspaceStore.loadWorkspace();
-
     expect(mockGetAssetView).toHaveBeenCalledWith('skills/external-provider/brainstorming/SKILL.md');
   });
-
   it('runs deterministic catalog search with the active repo scope and load mode preference', async () => {
     mockGetCatalogRepos.mockResolvedValue({
       repos: [
@@ -499,10 +485,8 @@ describe('catalogWorkspaceStore', () => {
       },
     });
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     catalogWorkspaceStore.setRepoPathInput('C:\\repo');
     await catalogWorkspaceStore.applyRepoContext();
-
     mockSearchCatalogAssets.mockResolvedValue({
       results: [
         {
@@ -518,11 +502,9 @@ describe('catalogWorkspaceStore', () => {
         },
       ],
     });
-
     catalogWorkspaceStore.setSearchQuery('search');
     catalogWorkspaceStore.setSearchPreferLoadMode('on-demand');
     await catalogWorkspaceStore.runSearch();
-
     expect(mockSearchCatalogAssets).toHaveBeenCalledWith({
       query: 'search',
       repoId: 'repo-1',
@@ -538,7 +520,6 @@ describe('catalogWorkspaceStore', () => {
     });
     expect(catalogWorkspaceStore.getState().searchResults).toHaveLength(1);
   });
-
   it('records search selection telemetry without blocking inspection', async () => {
     mockGetCatalogRepos.mockResolvedValue({
       repos: [
@@ -606,13 +587,10 @@ describe('catalogWorkspaceStore', () => {
     });
     mockGetAssetView.mockResolvedValue('# Search skill');
     mockRecordCatalogSearchSelection.mockRejectedValue(new Error('telemetry unavailable'));
-
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     await catalogWorkspaceStore.loadWorkspace();
     catalogWorkspaceStore.setSearchQuery('search');
     catalogWorkspaceStore.setSearchPreferLoadMode('on-demand');
-
     await catalogWorkspaceStore.inspectSearchResult({
       rank: 1,
       assetId: 'skill-search',
@@ -642,7 +620,6 @@ describe('catalogWorkspaceStore', () => {
         },
       },
     });
-
     expect(mockRecordCatalogSearchSelection).toHaveBeenCalledWith({
       assetId: 'skill-search',
       assetKey: 'search-skill',
@@ -688,7 +665,6 @@ describe('catalogWorkspaceStore', () => {
     });
     expect(catalogWorkspaceStore.getState().auditError).toContain('telemetry unavailable');
   });
-
   it('preserves the active repo context when repo inventory refresh fails', async () => {
     primeWorkspaceLoad();
     mockGetCatalogRepos.mockResolvedValue({
@@ -706,17 +682,13 @@ describe('catalogWorkspaceStore', () => {
       },
     });
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     catalogWorkspaceStore.setRepoPathInput('C:\\repo');
     await catalogWorkspaceStore.applyRepoContext();
-
     mockGetCatalogRepos.mockRejectedValue(new Error('repo inventory unavailable'));
     await catalogWorkspaceStore.loadWorkspace();
-
     expect(catalogWorkspaceStore.getState().activeRepoPath).toBe('C:\\repo');
     expect(catalogWorkspaceStore.getState().activeRepoId).toBe('repo-1');
   });
-
   it('installs a bundle by iterating installable bundle members and reloading workspace state', async () => {
     mockGetCatalogRepos.mockResolvedValue({
       repos: [],
@@ -802,17 +774,13 @@ describe('catalogWorkspaceStore', () => {
       events: [],
     });
     mockInstallCatalogAsset.mockResolvedValue({ action: 'installed' });
-
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     await catalogWorkspaceStore.loadWorkspace();
     await catalogWorkspaceStore.installBundle('repo-setup-governance-global');
-
     expect(mockInstallCatalogAsset).toHaveBeenCalledTimes(1);
     expect(mockInstallCatalogAsset).toHaveBeenNthCalledWith(1, { assetId: 'skill-repo-setup-governance' });
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Installed 1 bundle asset(s)');
   });
-
   it('uninstalls a bundle through the lifecycle route and reloads workspace state', async () => {
     mockGetCatalogRepos.mockResolvedValue({
       repos: [
@@ -903,12 +871,9 @@ describe('catalogWorkspaceStore', () => {
       removedAssetIds: ['skill-repo-setup-governance'],
       preserveExternalPackages: true,
     });
-
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     await catalogWorkspaceStore.loadWorkspace();
     await catalogWorkspaceStore.uninstallBundle('repo-setup-governance-global');
-
     expect(mockUninstallCatalogBundle).toHaveBeenCalledWith({
       bundleId: 'repo-setup-governance-global',
       repoId: 'repo-1',
@@ -918,7 +883,6 @@ describe('catalogWorkspaceStore', () => {
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Uninstalled 1 bundle asset(s)');
     expect(catalogWorkspaceStore.getState().installMessage).toContain('External provider packages were preserved');
   });
-
   it('registers repo metadata without auto-selecting the repo scope', async () => {
     primeWorkspaceLoad();
     mockGetCatalogRepos
@@ -958,12 +922,9 @@ describe('catalogWorkspaceStore', () => {
       },
       selectedRepo: null,
     });
-
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     await catalogWorkspaceStore.loadWorkspace();
     await catalogWorkspaceStore.registerRepo('C:\\repo', 'Repo');
-
     expect(mockRegisterCatalogRepo).toHaveBeenCalledWith({
       repoPath: 'C:\\repo',
       repoLabel: 'Repo',
@@ -974,7 +935,6 @@ describe('catalogWorkspaceStore', () => {
     expect(catalogWorkspaceStore.getState().repoInventory?.selectedRepo).toBeNull();
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Registered Repo for discovery metadata');
   });
-
   it('saves persisted custom scan roots and reloads discovered repo inventory', async () => {
     primeWorkspaceLoad();
     mockGetCatalogRepos
@@ -990,7 +950,7 @@ describe('catalogWorkspaceStore', () => {
       .mockResolvedValueOnce({
         workspaceScan: {
           storage: {
-            path: 'C:\\Users\\tester\\.copilot\\catalog\\repo-discovery.json',
+            path: 'C:\\Users\\tester\\.elegy\\catalog\\repo-discovery.json',
             exists: true,
           },
           customScanRoots: ['D:\\work\\repos'],
@@ -1026,12 +986,9 @@ describe('catalogWorkspaceStore', () => {
       ],
       selectedRepo: null,
     });
-
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     await catalogWorkspaceStore.loadWorkspace();
     await catalogWorkspaceStore.saveCustomScanRoots(['D:\\work\\repos']);
-
     expect(mockSaveCatalogRepoScanRoots).toHaveBeenCalledWith({
       customScanRoots: ['D:\\work\\repos'],
     });
@@ -1040,7 +997,6 @@ describe('catalogWorkspaceStore', () => {
     expect(catalogWorkspaceStore.getState().activeRepoPath).toBe('');
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Saved 1 custom scan root');
   });
-
   it('creates a repo-local asset and reloads the workspace around the mutation', async () => {
     mockGetCatalogRepos.mockResolvedValue({
       repos: [
@@ -1092,9 +1048,7 @@ describe('catalogWorkspaceStore', () => {
       action: 'created',
       assetId: 'skill-new-helper',
     });
-
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     await catalogWorkspaceStore.loadWorkspace();
     await catalogWorkspaceStore.createAsset({
       authoringScope: 'repo-local',
@@ -1104,7 +1058,6 @@ describe('catalogWorkspaceStore', () => {
       repoPath: 'C:\\repo',
       loadMode: 'on-demand',
     });
-
     expect(mockCreateCatalogAsset).toHaveBeenCalledWith({
       authoringScope: 'repo-local',
       kind: 'skill',
@@ -1116,7 +1069,6 @@ describe('catalogWorkspaceStore', () => {
     expect(mockGetCatalogSummary).toHaveBeenCalledTimes(2);
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Created');
   });
-
   it('adds an external source and reloads the workspace', async () => {
     primeWorkspaceLoad();
     mockGetCatalogRepos.mockResolvedValue({ repos: [], selectedRepo: null });
@@ -1126,16 +1078,13 @@ describe('catalogWorkspaceStore', () => {
         title: 'Demo Source',
       },
     });
-
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     await catalogWorkspaceStore.loadWorkspace();
     await catalogWorkspaceStore.addExternalSource({
       url: 'https://github.com/example/demo',
       title: 'Demo Source',
       includeMcp: true,
     });
-
     expect(mockAddCatalogSource).toHaveBeenCalledWith({
       url: 'https://github.com/example/demo',
       title: 'Demo Source',
@@ -1144,7 +1093,6 @@ describe('catalogWorkspaceStore', () => {
     expect(mockGetCatalogSummary).toHaveBeenCalledTimes(2);
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Added source Demo Source');
   });
-
   it('activates and deactivates an external installable for a target', async () => {
     mockGetCatalogRepos.mockResolvedValue({ repos: [], selectedRepo: null });
     mockGetCatalogSummary
@@ -1248,9 +1196,7 @@ describe('catalogWorkspaceStore', () => {
     mockGetCatalogAuditEvents.mockResolvedValue({ events: [] });
     mockActivateCatalogSourceInstallable.mockResolvedValue({});
     mockDeactivateCatalogSourceInstallable.mockResolvedValue({});
-
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     await catalogWorkspaceStore.loadWorkspace();
     await catalogWorkspaceStore.activateExternalSourceInstallable({
       sourceId: 'demo-source',
@@ -1262,7 +1208,6 @@ describe('catalogWorkspaceStore', () => {
       installableId: 'skill:brainstorming',
       target: 'codex',
     });
-
     expect(mockActivateCatalogSourceInstallable).toHaveBeenCalledWith({
       sourceId: 'demo-source',
       installableId: 'skill:brainstorming',
@@ -1275,7 +1220,6 @@ describe('catalogWorkspaceStore', () => {
     });
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Deactivated skill:brainstorming for codex');
   });
-
   it('reinstalls active external installables for one target and across all active targets', async () => {
     mockGetCatalogRepos.mockResolvedValue({ repos: [], selectedRepo: null });
     mockGetCatalogSummary.mockResolvedValue({
@@ -1325,13 +1269,10 @@ describe('catalogWorkspaceStore', () => {
     mockGetRuntimeCatalogHealth.mockResolvedValue({ ok: true, projection: { schemaVersion: 1, generatedAt: '2026-03-09T00:00:00.000Z' } });
     mockGetCatalogAuditEvents.mockResolvedValue({ events: [] });
     mockActivateCatalogSourceInstallable.mockResolvedValue({});
-
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     await catalogWorkspaceStore.loadWorkspace();
     await catalogWorkspaceStore.reinstallExternalSourceTarget('demo-source', 'codex');
     await catalogWorkspaceStore.reinstallExternalSourceAllTargets('demo-source');
-
     expect(mockActivateCatalogSourceInstallable).toHaveBeenCalledWith({
       sourceId: 'demo-source',
       installableId: 'skill:brainstorming',
@@ -1349,7 +1290,6 @@ describe('catalogWorkspaceStore', () => {
     });
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Reinstalled 2 active target(s)');
   });
-
   it('syncs, installs, and verifies an external source with the selected repo context', async () => {
     mockGetCatalogRepos.mockResolvedValue({
       repos: [
@@ -1399,15 +1339,12 @@ describe('catalogWorkspaceStore', () => {
       overallStatus: 'partial',
       warnings: ['Ghidra is not running.'],
     });
-
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     await catalogWorkspaceStore.loadWorkspace();
     await catalogWorkspaceStore.syncInstallVerifyExternalSource({
       sourceId: 'demo-source',
       repoPath: 'C:\\repo',
     });
-
     expect(mockSyncInstallVerifyCatalogSource).toHaveBeenCalledWith({
       sourceId: 'demo-source',
       targets: undefined,
@@ -1417,7 +1354,6 @@ describe('catalogWorkspaceStore', () => {
     });
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Synced, installed, and verified demo-source with 1 warning');
   });
-
   it('bootstraps Spec Kit in the selected repo and defaults to the Windows script', async () => {
     mockGetCatalogRepos.mockResolvedValue({
       repos: [
@@ -1479,12 +1415,9 @@ describe('catalogWorkspaceStore', () => {
       repoPath: 'C:\\repo',
       overallStatus: 'ready',
     });
-
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
-
     await catalogWorkspaceStore.loadWorkspace();
     await catalogWorkspaceStore.bootstrapSpecKitRepo();
-
     expect(mockBootstrapCatalogSpecKit).toHaveBeenCalledWith({
       repoPath: 'C:\\repo',
       integration: 'copilot',

@@ -1,10 +1,8 @@
 'use strict';
-
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-
 const {
   buildCatalogProjection,
   loadCatalogProjectionSnapshot,
@@ -17,10 +15,8 @@ const {
   searchSkills,
   telemetryStoragePath,
 } = require('../lib/skillSearchService');
-
 let passed = 0;
 let failed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -33,25 +29,20 @@ async function test(name, fn) {
     console.error(`    ${error.message}`);
   }
 }
-
 function writeJson(absPath, value) {
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
   fs.writeFileSync(absPath, JSON.stringify(value, null, 2) + '\n', 'utf8');
 }
-
 function writeText(absPath, text) {
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
   fs.writeFileSync(absPath, text, 'utf8');
 }
-
 async function run() {
   console.log('\nSkill Search Service Tests\n');
-
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-skill-search-'));
   const engineRoot = path.join(tmpRoot, 'engine');
-  const copilotHome = path.join(tmpRoot, '.copilot');
+  const elegyHome = path.join(tmpRoot, '.elegy');
   const repoPath = path.join(tmpRoot, 'workspace-repo');
-
   try {
     writeJson(path.join(engineRoot, 'engine-assets', 'manifest.json'), {
       bundles: [
@@ -84,7 +75,6 @@ async function run() {
         },
       ],
     });
-
     writeJson(path.join(engineRoot, 'engine-assets', 'skills', 'skill-metadata-index.json'), {
       schemaVersion: 1,
       entries: [
@@ -112,7 +102,6 @@ async function run() {
         },
       ],
     });
-
     writeText(
       path.join(engineRoot, 'engine-assets', 'skills', 'react-query', 'SKILL.md'),
       [
@@ -134,9 +123,8 @@ async function run() {
       path.join(engineRoot, 'engine-assets', 'skills', 'testing-dotnet-unit', 'SKILL.md'),
       '# testing-dotnet-unit\n\nBackend testing skill.\n\nTriggers on: xunit, unit test\n',
     );
-
     writeText(
-      path.join(copilotHome, 'skills', 'react-query', 'SKILL.md'),
+      path.join(elegyHome, 'skills', 'react-query', 'SKILL.md'),
       [
         '---',
         'schema-version: 1',
@@ -148,11 +136,11 @@ async function run() {
       ].join('\n'),
     );
     writeText(
-      path.join(copilotHome, 'skills-vault', 'react-query', 'SKILL.md'),
+      path.join(elegyHome, 'skills-vault', 'react-query', 'SKILL.md'),
       '# React Query Vault\n\nVault-first React Query guidance.\n',
     );
     writeText(
-      path.join(copilotHome, 'skills', 'testing-dotnet-unit', 'SKILL.md'),
+      path.join(elegyHome, 'skills', 'testing-dotnet-unit', 'SKILL.md'),
       '# testing-dotnet-unit\n\nInstalled backend testing guidance.\n',
     );
     writeText(
@@ -173,7 +161,7 @@ async function run() {
       ].join('\n'),
     );
     writeText(
-      path.join(copilotHome, 'skills', 'external-provider', 'brainstorming', 'SKILL.md'),
+      path.join(elegyHome, 'skills', 'external-provider', 'brainstorming', 'SKILL.md'),
       [
         '---',
         'name: brainstorming',
@@ -185,9 +173,8 @@ async function run() {
         '',
       ].join('\n'),
     );
-
-    const repoStorage = resolveProjectionStorage({ copilotHome, repoPath });
-    const snapshot = buildCatalogProjection({ engineRoot, copilotHome, repoPath });
+    const repoStorage = resolveProjectionStorage({ elegyHome, repoPath });
+    const snapshot = buildCatalogProjection({ engineRoot, elegyHome, repoPath });
     const reactQuery = snapshot.effectiveAssets.find((asset) => asset.assetId === 'skill-react-query');
     reactQuery.recommendations.push({
       source: 'framework',
@@ -201,7 +188,6 @@ async function run() {
     });
     reactQuery.recommended = true;
     reactQuery.labels = Array.from(new Set([...reactQuery.labels, 'recommended']));
-
     await test('searchSkills ranks repo-local targeted matches with deterministic explanations', async () => {
       const response = searchSkills(
         {
@@ -217,11 +203,10 @@ async function run() {
         },
         {
           snapshot,
-          copilotHome,
+          elegyHome,
           persistTelemetry: false,
         },
       );
-
       assert.ok(response.results.length >= 1, 'expected at least one ranked result');
       assert.strictEqual(response.results[0].assetId, 'skill-react-query');
       assert.strictEqual(response.results[0].effectiveState.selectedLayer, 'repo-local');
@@ -242,7 +227,6 @@ async function run() {
         'expected repo-local explanation',
       );
     });
-
     await test('searchSkills enforces active bundle eligibility by default and allows explicit override', async () => {
       const defaultResponse = searchSkills(
         {
@@ -253,15 +237,13 @@ async function run() {
         },
         {
           snapshot,
-          copilotHome,
+          elegyHome,
           persistTelemetry: false,
         },
       );
-
       assert.strictEqual(defaultResponse.results.length, 0);
       assert.strictEqual(defaultResponse.routingPolicy.mode, 'eligible-only');
       assert.ok(!defaultResponse.routingPolicy.eligibleAssetIds.includes('skill-testing-dotnet-unit'));
-
       const overrideResponse = searchSkills(
         {
           query: 'xunit unit test',
@@ -272,16 +254,14 @@ async function run() {
         },
         {
           snapshot,
-          copilotHome,
+          elegyHome,
           persistTelemetry: false,
         },
       );
-
       assert.ok(overrideResponse.results.length >= 1, 'expected explicit override to return the backend skill');
       assert.strictEqual(overrideResponse.results[0].assetId, 'skill-testing-dotnet-unit');
       assert.strictEqual(overrideResponse.routingPolicy.mode, 'explicit-override');
     });
-
     await test('resolveSkill keeps deterministic lexical tie-breaking', async () => {
       const minimalSnapshot = {
         effectiveAssets: [
@@ -333,7 +313,6 @@ async function run() {
           },
         ],
       };
-
       const resolved = resolveSkill(
         {
           query: '',
@@ -344,11 +323,9 @@ async function run() {
           persistTelemetry: false,
         },
       );
-
       assert.strictEqual(resolved.results[0].assetId, 'skill-alpha');
       assert.strictEqual(resolved.results[1].assetId, 'skill-beta');
     });
-
     await test('searchSkills can resolve provider-qualified plugin skills by logical name aliases', async () => {
       const pluginResponse = searchSkills(
         {
@@ -358,20 +335,17 @@ async function run() {
         },
         {
           snapshot,
-          copilotHome,
+          elegyHome,
           persistTelemetry: false,
         },
       );
-
       assert.ok(pluginResponse.results.length >= 1, 'expected plugin skill to appear in search results');
       assert.strictEqual(pluginResponse.results[0].entry?.metadata?.logicalName, 'brainstorming');
       assert.strictEqual(pluginResponse.results[0].entry?.metadata?.namespace, 'external-provider');
       assert.notStrictEqual(pluginResponse.results[0].assetId, 'skill-brainstorming');
     });
-
     await test('searchSkills persists a rebuilt snapshot when the stored snapshot is missing', async () => {
       fs.rmSync(repoStorage.snapshotPath, { force: true });
-
       const response = searchSkills(
         {
           query: 'react query',
@@ -381,26 +355,22 @@ async function run() {
         },
         {
           engineRoot,
-          copilotHome,
+          elegyHome,
           repoPath,
           persistTelemetry: false,
         },
       );
-
       assert.ok(response.results.length >= 1, 'expected rebuilt snapshot to provide results');
       assert.ok(fs.existsSync(repoStorage.snapshotPath), 'expected missing snapshot fallback to persist');
-
-      const persistedSnapshot = loadCatalogProjectionSnapshot({ copilotHome, repoPath });
+      const persistedSnapshot = loadCatalogProjectionSnapshot({ elegyHome, repoPath });
       assert.ok(persistedSnapshot, 'expected persisted snapshot to be readable after fallback rebuild');
     });
-
     await test('searchSkills rebuilds a stale persisted snapshot after tracker-reported repo-local asset changes', async () => {
       writeJson(repoStorage.snapshotPath, snapshot);
       writeText(
         path.join(repoPath, '.github', 'skills', 'live-search-skill', 'SKILL.md'),
         '# Live Search Skill\n\nTriggers on: live search skill\n',
       );
-
       const response = searchSkills(
         {
           query: 'live search skill',
@@ -411,7 +381,7 @@ async function run() {
         },
         {
           engineRoot,
-          copilotHome,
+          elegyHome,
           repoPath,
           persistTelemetry: false,
           changeState: {
@@ -420,20 +390,17 @@ async function run() {
           },
         },
       );
-
       assert.ok(
         response.results.some((result) => result.effectiveState?.assetKey === 'live-search-skill'),
         'expected stale snapshot invalidation to expose the newly added repo-local skill',
       );
-
-      const persistedSnapshot = loadCatalogProjectionSnapshot({ copilotHome, repoPath });
+      const persistedSnapshot = loadCatalogProjectionSnapshot({ elegyHome, repoPath });
       assert.ok(persistedSnapshot, 'expected rebuilt snapshot to be persisted');
       assert.ok(
         persistedSnapshot.effectiveAssets.some((asset) => asset.assetKey === 'live-search-skill'),
         'expected persisted rebuilt snapshot to include the newly added repo-local skill',
       );
     });
-
     await test('search telemetry persists bounded query, result, miss, and selection events', async () => {
       const queryOne = searchSkills(
         {
@@ -442,13 +409,12 @@ async function run() {
         },
         {
           snapshot,
-          copilotHome,
+          elegyHome,
           telemetryCapacity: 4,
           maxResultsPerEvent: 2,
         },
       );
       assert.ok(queryOne.results.length >= 1, 'expected first search to return results');
-
       const queryTwo = searchSkills(
         {
           query: 'zzz-missing-skill-12345',
@@ -456,14 +422,13 @@ async function run() {
         },
         {
           snapshot,
-          copilotHome,
+          elegyHome,
           telemetryCapacity: 4,
           maxResultsPerEvent: 2,
         },
       );
       assert.strictEqual(queryTwo.results.length, 0);
       assert.strictEqual(queryTwo.missReason, 'no-match');
-
       recordSkillSearchSelection(
         {
           query: {
@@ -474,18 +439,17 @@ async function run() {
           resultCount: queryOne.results.length,
         },
         {
-          copilotHome,
+          elegyHome,
           telemetryCapacity: 4,
           maxResultsPerEvent: 2,
         },
       );
-
       const { telemetryPath, telemetry } = loadSkillSearchTelemetry({
-        copilotHome,
+        elegyHome,
         telemetryCapacity: 4,
         maxResultsPerEvent: 2,
       });
-      assert.strictEqual(telemetryPath, telemetryStoragePath({ copilotHome }));
+      assert.strictEqual(telemetryPath, telemetryStoragePath({ elegyHome }));
       assert.ok(fs.existsSync(telemetryPath), 'expected telemetry file to be written');
       assert.strictEqual(telemetry.sample.size, 4);
       assert.ok(telemetry.sample.dropped >= 1, 'expected bounded telemetry eviction');
@@ -508,10 +472,8 @@ async function run() {
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
-
   console.log(`\n  ${passed} passed, ${failed} failed (${passed + failed} total)\n`);
 }
-
 run().catch((error) => {
   console.error(`\n  FATAL: ${error.message}\n`);
   process.exitCode = 1;

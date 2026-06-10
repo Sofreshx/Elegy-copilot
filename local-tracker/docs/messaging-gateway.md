@@ -46,8 +46,8 @@ Follow these steps in order to set up Discord control of Copilot CLI sessions:
 **Config file location**: `$HOME/.copilot/messaging-gateway.config.json`
 
 Legacy compatibility: if an older `$HOME/.instruction-engine/messaging-gateway.config.json` exists
-and the canonical `~/.copilot` config is absent, the gateway will rehome that legacy file into the
-canonical `~/.copilot` location before continuing.
+and the canonical `~/.elegy` config is absent, the gateway will rehome that legacy file into the
+canonical `~/.elegy` location before continuing.
 
 You can override this path with:
 - `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH=<path>`
@@ -243,13 +243,13 @@ You can override via:
 For WS4 freeze/gate evidence, treat these as contract-level invariants:
 
 - **Canonical config path semantics**
-  - tracker config path resolves in this order: CLI path → `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` → `~/.copilot/messaging-gateway.config.json`
-  - if the canonical `~/.copilot` file is absent, the loader may rehome `~/.instruction-engine/messaging-gateway.config.json` into the canonical path
+  - tracker config path resolves in this order: CLI path → `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` → `~/.elegy/messaging-gateway.config.json`
+  - if the canonical `~/.elegy` file is absent, the loader may rehome `~/.instruction-engine/messaging-gateway.config.json` into the canonical path
   - paths are normalized to absolute paths before use
 
 - **Canonical status path semantics**
   - gateway status artifact is machine-global and deterministic at:
-    - `~/.copilot/messaging-gateway.status.json`
+    - `~/.elegy/messaging-gateway.status.json`
   - if the canonical status file is absent, an older `~/.instruction-engine/messaging-gateway.status.json` may be rehomed forward once
 
 - **Lifecycle idempotency semantics**

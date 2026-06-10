@@ -67,12 +67,12 @@ export const COMPATIBILITY_MANIFESTS = [
       sourceCommitSha: '<REPLACE_WITH_GIT_SHA>',
     },
     installDefaults: {
-      copilotHome: '~/.copilot',
+      elegyHome: '~/.elegy',
       description:
         'Repo-scoped implementation agents and support skills for execution, testing, conventions bootstrap, and closure.',
-      skillsDir: '~/.copilot/skills',
-      promptsDir: '~/.copilot/prompts',
-      instructionsFile: '~/.copilot/copilot-instructions.md',
+      skillsDir: '~/.elegy/skills',
+      promptsDir: '~/.elegy/prompts',
+      instructionsFile: '~/.elegy/copilot-instructions.md',
     },
     installerHints: {
       preferExplicitDestinations: true,
@@ -86,9 +86,9 @@ export const COMPATIBILITY_MANIFESTS = [
       schemaVersion: 1,
       vaultDir: 'skills-vault',
       loadModes: {
-        always: 'Installed to skills/ (VS Code scans and loads into context). Reserved for meta-skills and transversal skills.',
+        always: 'Installed to skills/ (Elegy scans and loads into context). Reserved for meta-skills and transversal skills.',
         'on-demand':
-          'Installed to skills-vault/ only (NOT scanned by VS Code). Discovered via skill-discovery pattern. Default for domain-specific skills.',
+          'Installed to skills-vault/ only (NOT scanned by Elegy). Discovered via skill-discovery pattern. Default for domain-specific skills.',
       },
       notes:
         "When enabled, 'always' skills install full content to skills/. 'on-demand' skills install ONLY to skills-vault/ - no pointer stub in skills/. Agents use the skill-discovery skill to find and load on-demand skills at runtime.",
@@ -113,11 +113,11 @@ export const COMPATIBILITY_MANIFESTS = [
       sourceCommitSha: '<REPLACE_WITH_GIT_SHA>',
     },
     installDefaults: {
-      copilotHome: '~/.copilot',
-      agentsDir: '~/.copilot/agents',
-      skillsDir: '~/.copilot/skills',
-      promptsDir: '~/.copilot/prompts',
-      instructionsFile: '~/.copilot/copilot-instructions.md',
+      elegyHome: '~/.elegy',
+      agentsDir: '~/.elegy/agents',
+      skillsDir: '~/.elegy/skills',
+      promptsDir: '~/.elegy/prompts',
+      instructionsFile: '~/.elegy/copilot-instructions.md',
     },
     installerHints: {
       preferExplicitDestinations: true,

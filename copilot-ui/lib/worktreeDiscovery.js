@@ -167,7 +167,7 @@ function inferWorktreeSource(absolutePath, persistedSource) {
   if (normalized.includes('/.local/share/opencode/worktree/')) {
     return WORKTREE_DISCOVERY_SOURCES.OPENCODE;
   }
-  if (normalized.includes('/.copilot/repo-state/')) {
+  if (normalized.includes('/.elegy/repo-state/')) {
     return WORKTREE_DISCOVERY_SOURCES.ELEGY;
   }
   if (/\/[^/]+-worktrees(\/|$)/.test(normalized)) {

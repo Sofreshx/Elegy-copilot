@@ -148,13 +148,13 @@ function mapToUnifiedSummary(reconciledSession, projects) {
   };
 }
 
-function buildUnifiedSessions(copilotHome, options) {
+function buildUnifiedSessions(elegyHome, options) {
   const opts = options || {};
 
   // 1. Load projects from repo inventory
   let projects = [];
   try {
-    const state = repoInventoryService.loadRepoInventoryState(copilotHome);
+    const state = repoInventoryService.loadRepoInventoryState(elegyHome);
     projects = (state && Array.isArray(state.manualRepos)) ? state.manualRepos : [];
   } catch {
     projects = [];
@@ -163,7 +163,7 @@ function buildUnifiedSessions(copilotHome, options) {
   // 2. Load CLI sessions
   let cliSessions = [];
   try {
-    cliSessions = sessions.listSessions(copilotHome, opts);
+    cliSessions = sessions.listSessions(elegyHome, opts);
   } catch {
     cliSessions = [];
   }
@@ -171,7 +171,7 @@ function buildUnifiedSessions(copilotHome, options) {
   // 3. Load sandbox sessions (wrap in try/catch, default to empty)
   let sandboxSessions = [];
   try {
-    sandboxSessions = sessions.listSandboxSessions(opts.sandboxesHome || copilotHome, opts);
+    sandboxSessions = sessions.listSandboxSessions(opts.sandboxesHome || elegyHome, opts);
   } catch {
     sandboxSessions = [];
   }

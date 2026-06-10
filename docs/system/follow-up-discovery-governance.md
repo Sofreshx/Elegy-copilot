@@ -62,17 +62,17 @@ Challenged assumptions, evidence gaps, and blocking unknowns inherit from [docs/
 ## Durable Handoff Decision
 
 Instruction Engine still does not add a dedicated issue ledger. Durable follow-up routes through the
-existing Repository Backlog family and approved `~/.copilot/backlogs/{repo-name}/issues/*` surfaces.
+existing Repository Backlog family and approved `~/.elegy/backlogs/{repo-name}/issues/*` surfaces.
 
 | Output or condition | Canonical durable surface | Notes |
 | --- | --- | --- |
-| unfinished active-goal scope | `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` under `backlog_carryover.work_not_done` | primary per-session carryover surface |
-| accepted `defect`, `rule_drift`, or `authority_gap` carryover | `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` under `backlog_carryover.issues` | use queued backlog carryover unless explicitly outside current scope |
-| accepted `improvement` carryover | `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` under `backlog_carryover.suggestions` | use for real queued repo work rather than loose notes |
-| planning-worthy idea or research outcome not yet accepted as queued work | `~/.copilot/backlogs/{repo-name}/issues/planning-ideas-log.md` | use after `DEEP_RESEARCH` when the result should persist as future planning input |
-| explicitly deferred item outside approved current scope | `~/.copilot/backlogs/{repo-name}/issues/out-of-scope-findings.md` | use for deliberate scope deferral |
-| unresolved high-level goal that is no longer active | `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` | reserved for `partial` / `not-complete` goal state |
-| recurring implementation friction discovered during delivery | `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md` | use only for repeated delivery pain points |
+| unfinished active-goal scope | `~/.elegy/backlogs/{repo-name}/backlogs/<session-slug>.md` under `backlog_carryover.work_not_done` | primary per-session carryover surface |
+| accepted `defect`, `rule_drift`, or `authority_gap` carryover | `~/.elegy/backlogs/{repo-name}/backlogs/<session-slug>.md` under `backlog_carryover.issues` | use queued backlog carryover unless explicitly outside current scope |
+| accepted `improvement` carryover | `~/.elegy/backlogs/{repo-name}/backlogs/<session-slug>.md` under `backlog_carryover.suggestions` | use for real queued repo work rather than loose notes |
+| planning-worthy idea or research outcome not yet accepted as queued work | `~/.elegy/backlogs/{repo-name}/issues/planning-ideas-log.md` | use after `DEEP_RESEARCH` when the result should persist as future planning input |
+| explicitly deferred item outside approved current scope | `~/.elegy/backlogs/{repo-name}/issues/out-of-scope-findings.md` | use for deliberate scope deferral |
+| unresolved high-level goal that is no longer active | `~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md` | reserved for `partial` / `not-complete` goal state |
+| recurring implementation friction discovered during delivery | `~/.elegy/backlogs/{repo-name}/issues/implementation-friction-log.md` | use only for repeated delivery pain points |
 
 ## Routing
 
@@ -93,7 +93,7 @@ FOLLOW_UP_DISCOVERY
 - current_state:
   - <done items>
 - session_backlog_path:
-  - ~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md | NONE
+  - ~/.elegy/backlogs/{repo-name}/backlogs/<session-slug>.md | NONE
 - gaps:
   - <missing docs/tests/validation/work>
 - immediate_next_tasks:
@@ -142,11 +142,11 @@ DEEP_RESEARCH
 
 The goal/discovery governance surface uses these persistent docs for cross-session carryover:
 
-- `~/.copilot/backlogs/{repo-name}/backlogs/*.md`
-- `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`
-- `~/.copilot/backlogs/{repo-name}/issues/planning-ideas-log.md`
-- `~/.copilot/backlogs/{repo-name}/issues/out-of-scope-findings.md`
-- `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md`
+- `~/.elegy/backlogs/{repo-name}/backlogs/*.md`
+- `~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md`
+- `~/.elegy/backlogs/{repo-name}/issues/planning-ideas-log.md`
+- `~/.elegy/backlogs/{repo-name}/issues/out-of-scope-findings.md`
+- `~/.elegy/backlogs/{repo-name}/issues/implementation-friction-log.md`
 
 ## References
 

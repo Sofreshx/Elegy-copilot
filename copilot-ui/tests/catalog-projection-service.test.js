@@ -1,10 +1,8 @@
 'use strict';
-
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-
 const {
   buildCatalogProjection,
   getEffectiveAsset,
@@ -14,10 +12,8 @@ const {
   rebuildCatalogProjection,
   resolveProjectionStorage,
 } = require('../lib/catalogProjectionService');
-
 let passed = 0;
 let failed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -30,25 +26,20 @@ async function test(name, fn) {
     console.error(`    ${error.message}`);
   }
 }
-
 function writeJson(absPath, value) {
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
   fs.writeFileSync(absPath, JSON.stringify(value, null, 2) + '\n', 'utf8');
 }
-
 function writeText(absPath, text) {
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
   fs.writeFileSync(absPath, text, 'utf8');
 }
-
 async function run() {
   console.log('\nCatalog Projection Service Tests\n');
-
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-catalog-projection-'));
   const engineRoot = path.join(tmpRoot, 'engine');
-  const copilotHome = path.join(tmpRoot, '.copilot');
+  const elegyHome = path.join(tmpRoot, '.elegy');
   const repoPath = path.join(tmpRoot, 'workspace-repo');
-
   try {
     writeJson(path.join(engineRoot, 'engine-assets', 'providers.json'), {
       schemaVersion: 1,
@@ -88,7 +79,6 @@ async function run() {
         },
       ],
     });
-
     writeJson(path.join(engineRoot, 'engine-assets', 'manifest.json'), {
       bundles: [
         {
@@ -140,7 +130,6 @@ async function run() {
         },
       ],
     });
-
     writeJson(path.join(engineRoot, 'engine-assets', 'skills', 'skill-metadata-index.json'), {
       schemaVersion: 1,
       entries: [
@@ -160,7 +149,6 @@ async function run() {
         },
       ],
     });
-
     writeText(
       path.join(engineRoot, 'engine-assets', 'skills', 'react-query', 'SKILL.md'),
       '# React Query\n\nSource React Query skill.\n\nTriggers on: react query, tanstack query\n',
@@ -173,9 +161,8 @@ async function run() {
       path.join(engineRoot, 'engine-assets', 'agents', 'code-reviewer.agent.md'),
       '# Code Reviewer\n\nShipped review agent.\n',
     );
-
     writeText(
-      path.join(copilotHome, 'skills', 'react-query', 'SKILL.md'),
+      path.join(elegyHome, 'skills', 'react-query', 'SKILL.md'),
       [
         '---',
         'schema-version: 1',
@@ -187,20 +174,20 @@ async function run() {
       ].join('\n'),
     );
     writeText(
-      path.join(copilotHome, 'skills-vault', 'react-query', 'SKILL.md'),
+      path.join(elegyHome, 'skills-vault', 'react-query', 'SKILL.md'),
       '# React Query Vault\n\nVault-backed React Query guidance.\n',
     );
     writeText(
-      path.join(copilotHome, 'skills', 'core-guardrails', 'SKILL.md'),
+      path.join(elegyHome, 'skills', 'core-guardrails', 'SKILL.md'),
       '# Core Guardrails Installed\n\nInstalled always-on guardrails.\n',
     );
     writeText(
-      path.join(copilotHome, 'agents', 'code-reviewer.agent.md'),
+      path.join(elegyHome, 'agents', 'code-reviewer.agent.md'),
       '# Code Reviewer Installed\n\nInstalled review agent.\n',
     );
     writeText(
       path.join(
-        copilotHome,
+        elegyHome,
         'marketplace-cache',
         'example-external-provider',
         'plugins',
@@ -223,10 +210,10 @@ async function run() {
     );
     let pluginAgentWasLinked = false;
     try {
-      fs.mkdirSync(path.join(copilotHome, 'agents'), { recursive: true });
+      fs.mkdirSync(path.join(elegyHome, 'agents'), { recursive: true });
       fs.symlinkSync(
         path.join(
-          copilotHome,
+          elegyHome,
           'marketplace-cache',
           'example-external-provider',
           'plugins',
@@ -234,13 +221,13 @@ async function run() {
           'agents',
           'code-reviewer.md',
         ),
-        path.join(copilotHome, 'agents', 'code-reviewer.md'),
+        path.join(elegyHome, 'agents', 'code-reviewer.md'),
         'file',
       );
       pluginAgentWasLinked = true;
     } catch {
       writeText(
-        path.join(copilotHome, 'agents', 'code-reviewer.md'),
+        path.join(elegyHome, 'agents', 'code-reviewer.md'),
         [
           '---',
           'name: code-reviewer',
@@ -256,7 +243,7 @@ async function run() {
       );
     }
     writeText(
-      path.join(copilotHome, 'skills', 'external-provider', 'brainstorming', 'SKILL.md'),
+      path.join(elegyHome, 'skills', 'external-provider', 'brainstorming', 'SKILL.md'),
       [
         '---',
         'name: brainstorming',
@@ -269,7 +256,7 @@ async function run() {
       ].join('\n'),
     );
     writeText(
-      path.join(copilotHome, 'skills', 'providers', 'external-provider', 'workflow-kit', 'SKILL.md'),
+      path.join(elegyHome, 'skills', 'providers', 'external-provider', 'workflow-kit', 'SKILL.md'),
       [
         '---',
         'name: workflow-kit',
@@ -282,7 +269,7 @@ async function run() {
       ].join('\n'),
     );
     writeText(
-      path.join(copilotHome, 'skills', 'operations', 'release-drill', 'index.md'),
+      path.join(elegyHome, 'skills', 'operations', 'release-drill', 'index.md'),
       [
         '---',
         'name: release-drill',
@@ -295,7 +282,7 @@ async function run() {
       ].join('\n'),
     );
     writeText(
-      path.join(copilotHome, 'skills-vault', 'providers', 'external-provider', 'incident-kit', 'index.md'),
+      path.join(elegyHome, 'skills-vault', 'providers', 'external-provider', 'incident-kit', 'index.md'),
       [
         '---',
         'name: incident-kit',
@@ -308,7 +295,7 @@ async function run() {
       ].join('\n'),
     );
     writeText(
-      path.join(copilotHome, 'agents', 'providers--external--workflow-guide.md'),
+      path.join(elegyHome, 'agents', 'providers--external--workflow-guide.md'),
       [
         '---',
         'name: workflow-guide',
@@ -322,7 +309,6 @@ async function run() {
         '',
       ].join('\n'),
     );
-
     writeText(
       path.join(repoPath, '.github', 'skills', 'react-query', 'SKILL.md'),
       '# Repo React Query\n\nRepo-local override for this workspace.\n',
@@ -335,21 +321,17 @@ async function run() {
       path.join(repoPath, '.github', 'agents', 'code-reviewer.agent.md'),
       '# Repo Code Reviewer\n\nRepo-local reviewer override.\n',
     );
-
-    const repoStorage = resolveProjectionStorage({ copilotHome, repoPath });
-    writeJson(path.join(copilotHome, 'repo-state', repoStorage.repoContext.repoId, 'registry.json'), {
+    const repoStorage = resolveProjectionStorage({ elegyHome, repoPath });
+    writeJson(path.join(elegyHome, 'repo-state', repoStorage.repoContext.repoId, 'registry.json'), {
       skills: {
         disabled: ['react-query'],
       },
     });
-
     await test('buildCatalogProjection composes source, user, vault, repo-local, and overlay layers', async () => {
-      const snapshot = buildCatalogProjection({ engineRoot, copilotHome, repoPath });
-
+      const snapshot = buildCatalogProjection({ engineRoot, elegyHome, repoPath });
       assert.ok(Array.isArray(snapshot.entries));
       assert.ok(Array.isArray(snapshot.effectiveAssets));
       assert.strictEqual(snapshot.repoContext.repoPath, repoPath);
-
       const reactQueryEntries = queryCatalogEntries(snapshot, {
         assetId: 'skill-react-query',
       });
@@ -357,7 +339,6 @@ async function run() {
         reactQueryEntries.map((entry) => entry.layer),
         ['source', 'user-installed', 'vault-only', 'repo-local', 'repo-state-overlay'],
       );
-
       const reactQuery = getEffectiveAsset(snapshot, 'skill-react-query');
       assert.ok(reactQuery, 'expected effective React Query state');
       assert.strictEqual(reactQuery.selectedLayer, 'repo-local');
@@ -372,19 +353,17 @@ async function run() {
       );
       assert.strictEqual(
         reactQuery.installState.installedPaths['vault-only'],
-        path.join(copilotHome, 'skills-vault', 'react-query', 'SKILL.md'),
+        path.join(elegyHome, 'skills-vault', 'react-query', 'SKILL.md'),
       );
       assert.strictEqual(
         reactQuery.installState.installedPaths['repo-local'],
         path.join(repoPath, '.github', 'skills', 'react-query', 'SKILL.md'),
       );
-
       const repoAgent = getEffectiveAsset(snapshot, 'agent-code-reviewer');
       assert.ok(repoAgent, 'expected repo-local agent state');
       assert.strictEqual(repoAgent.selectedLayer, 'repo-local');
       assert.strictEqual(repoAgent.enabled, true);
       assert.strictEqual(repoAgent.selectedEntry.title, 'Repo Code Reviewer');
-
       const coreBundle = snapshot.bundles.find((bundle) => bundle.bundleId === 'core-global');
       assert.ok(coreBundle, 'expected core bundle projection');
       assert.strictEqual(coreBundle.classification, 'core');
@@ -398,7 +377,6 @@ async function run() {
         clearsRepoOverlayState: true,
         preservesExternalPackages: true,
       });
-
       const languageBundle = snapshot.bundles.find((bundle) => bundle.bundleId === 'react-language-kit');
       assert.ok(languageBundle, 'expected language bundle projection');
       assert.strictEqual(languageBundle.classification, 'language');
@@ -408,7 +386,6 @@ async function run() {
         tags: ['frontend'],
       });
       assert.strictEqual(languageBundle.defaultMemberLoadMode, null);
-
       const pluginAgent = snapshot.effectiveAssets.find(
         (asset) => asset.selectedEntry?.metadata?.logicalName === 'code-reviewer' && asset.assetId !== 'agent-code-reviewer',
       );
@@ -425,7 +402,6 @@ async function run() {
       } else {
         assert.strictEqual(pluginAgent.selectedEntry.metadata.provider, 'copilot-home-plain-agent');
       }
-
       const pluginSkill = snapshot.effectiveAssets.find(
         (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills/external-provider/brainstorming/SKILL.md',
       );
@@ -438,7 +414,6 @@ async function run() {
       assert.strictEqual(pluginSkill.selectedEntry.metadata.provider, 'external-provider');
       assert.strictEqual(pluginSkill.selectedEntry.provenance.providerId, 'external-provider');
       assert.strictEqual(pluginSkill.selectedEntry.provenance.discoveryMode, 'compatibility-bridge');
-
       const importedProviderSkill = snapshot.effectiveAssets.find(
         (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills/providers/external-provider/workflow-kit/SKILL.md',
       );
@@ -446,7 +421,6 @@ async function run() {
       assert.strictEqual(importedProviderSkill.selectedEntry.provenance.providerId, 'external-provider');
       assert.strictEqual(importedProviderSkill.selectedEntry.provenance.discoveryMode, 'managed-import');
       assert.strictEqual(importedProviderSkill.selectedEntry.provenance.originKind, 'provider-import');
-
       const namespacedIndexSkill = snapshot.effectiveAssets.find(
         (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills/operations/release-drill/index.md',
       );
@@ -458,7 +432,6 @@ async function run() {
       assert.strictEqual(namespacedIndexSkill.selectedEntry.metadata.readOnly, true);
       assert.strictEqual(namespacedIndexSkill.selectedEntry.provenance.providerId, 'copilot-home-plugin');
       assert.strictEqual(namespacedIndexSkill.selectedEntry.provenance.discoveryMode, 'compatibility-bridge');
-
       const vaultedProviderIndexSkill = snapshot.effectiveAssets.find(
         (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills-vault/providers/external-provider/incident-kit/index.md',
       );
@@ -468,7 +441,6 @@ async function run() {
       assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.metadata.readOnly, true);
       assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.provenance.providerId, 'external-provider');
       assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.provenance.discoveryMode, 'managed-import');
-
       const repoProviderIndexSkill = snapshot.effectiveAssets.find(
         (asset) => asset.selectedEntry?.metadata?.viewPath === '.github/skills/providers/external-provider/repo-kit/index.md',
       );
@@ -478,34 +450,28 @@ async function run() {
       assert.strictEqual(repoProviderIndexSkill.selectedEntry.metadata.readOnly, true);
       assert.strictEqual(repoProviderIndexSkill.selectedEntry.provenance.providerId, 'external-provider');
       assert.strictEqual(repoProviderIndexSkill.selectedEntry.provenance.discoveryMode, 'managed-import');
-
       const importedProviderAgent = snapshot.effectiveAssets.find(
         (asset) => asset.selectedEntry?.metadata?.logicalName === 'workflow-guide',
       );
       assert.ok(importedProviderAgent, 'expected managed-import provider agent to be projected');
       assert.strictEqual(importedProviderAgent.selectedEntry.provenance.providerId, 'external-provider');
       assert.strictEqual(importedProviderAgent.selectedEntry.provenance.discoveryMode, 'managed-import');
-
       const providerRecord = snapshot.providers.find((provider) => provider.providerId === 'external-provider');
       assert.ok(providerRecord, 'expected provider record in projection');
       assert.ok(providerRecord.discoveredAssets.count >= 3, 'expected provider asset rollup');
-
       const disabledSkills = queryEffectiveCatalog(snapshot, {
         kind: 'skill',
         enabled: false,
       });
       assert.deepStrictEqual(disabledSkills.map((entry) => entry.assetId), ['skill-react-query']);
     });
-
     await test('rebuildCatalogProjection persists and reloads filesystem-derived snapshot data', async () => {
-      const snapshot = rebuildCatalogProjection({ engineRoot, copilotHome });
-      const persisted = loadCatalogProjectionSnapshot({ copilotHome });
-
+      const snapshot = rebuildCatalogProjection({ engineRoot, elegyHome });
+      const persisted = loadCatalogProjectionSnapshot({ elegyHome });
       assert.ok(fs.existsSync(snapshot.storage.snapshotPath), 'expected projection snapshot to be written');
       assert.ok(persisted, 'expected persisted snapshot to load');
       assert.strictEqual(persisted.stats.entryCount, snapshot.stats.entryCount);
       assert.strictEqual(persisted.repoContext, null);
-
       const reactQuery = getEffectiveAsset(persisted, 'skill-react-query');
       assert.ok(reactQuery, 'expected persisted React Query state');
       assert.strictEqual(reactQuery.selectedLayer, 'vault-only');
@@ -514,13 +480,11 @@ async function run() {
         reactQuery.reasons.some((reason) => reason.code === 'vault-preferred-over-pointer'),
         'expected vault-preferred-over-pointer reason after reload',
       );
-
       const textResults = queryEffectiveCatalog(persisted, {
         kind: 'skill',
         text: 'tanstack query',
       });
       assert.deepStrictEqual(textResults.map((entry) => entry.assetId), ['skill-react-query']);
-
       const sourceOnlySkill = getEffectiveAsset(persisted, 'skill-core-guardrails');
       assert.ok(sourceOnlySkill, 'expected always skill state');
       assert.strictEqual(sourceOnlySkill.selectedLayer, 'user-installed');
@@ -529,10 +493,8 @@ async function run() {
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
-
   console.log(`\n  ${passed} passed, ${failed} failed (${passed + failed} total)\n`);
 }
-
 run().catch((error) => {
   console.error(`\n  FATAL: ${error.message}\n`);
   process.exitCode = 1;

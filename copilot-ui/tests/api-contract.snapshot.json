@@ -18,7 +18,7 @@
     "bodyKeys": [
       "autonomousDecisionLog",
       "changes",
-      "copilotHome",
+      "elegyHome",
       "engineRoot",
       "now",
       "ok",
@@ -27,7 +27,6 @@
       "policy",
       "runtime",
       "startupManagedAssetSync",
-      "vscodeHome"
     ]
   },
   "GET /api/version": {

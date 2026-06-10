@@ -4,14 +4,11 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-
 const obsidianNotesLib = require('../lib/obsidianNotes');
 const obsidianPlanningRepresentationsLib = require('../lib/obsidianPlanningRepresentations');
 const obsidianRemoteSyncLib = require('../lib/obsidianRemoteSync');
 const { register } = require('./planning-obsidian');
-
 let passed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -23,14 +20,12 @@ async function test(name, fn) {
     process.exitCode = 1;
   }
 }
-
 function createResponse() {
   const state = {
     statusCode: null,
     headers: null,
     chunks: [],
   };
-
   return {
     get statusCode() {
       return state.statusCode;
@@ -53,11 +48,9 @@ function createResponse() {
     },
   };
 }
-
 function parseJsonBody(response) {
   return JSON.parse(response.bodyText || '{}');
 }
-
 function findRoute(routes, method, pathname) {
   for (const route of routes) {
     if (route.method !== method) continue;
@@ -73,7 +66,6 @@ function findRoute(routes, method, pathname) {
   }
   throw new Error(`Route not found for ${method} ${pathname}`);
 }
-
 async function invoke(routes, ctx, method, pathname) {
   const u = new URL(`http://127.0.0.1${pathname}`);
   const { route, match } = findRoute(routes, method, u.pathname);
@@ -92,22 +84,19 @@ async function invoke(routes, ctx, method, pathname) {
   await new Promise((resolve) => setImmediate(resolve));
   return { res };
 }
-
 function createFixture() {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-planning-obsidian-routes-'));
-  const copilotHomeAbs = path.join(tmpRoot, '.copilot');
+  const elegyHomeAbs = path.join(tmpRoot, '.elegy');
   const repoPath = path.join(tmpRoot, 'workspace-repo');
-  fs.mkdirSync(copilotHomeAbs, { recursive: true });
+  fs.mkdirSync(elegyHomeAbs, { recursive: true });
   fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
-  return { tmpRoot, copilotHomeAbs, repoPath };
+  return { tmpRoot, elegyHomeAbs, repoPath };
 }
-
 function roadmapSourcePath(repoPath, slug = 'platform-foundation') {
   const filePath = path.join(repoPath, 'docs', 'planning', slug, 'index.md');
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   return filePath;
 }
-
 function createRepoInventory(repoPath) {
   const repo = {
     repoId: 'repo-workspace-repo',
@@ -133,7 +122,6 @@ function createRepoInventory(repoPath) {
     },
   };
 }
-
 function createMultiRepoInventory(selectedRepoPath, secondaryRepoPath) {
   const selectedRepo = {
     repoId: 'repo-selected',
@@ -165,7 +153,6 @@ function createMultiRepoInventory(selectedRepoPath, secondaryRepoPath) {
     },
   };
 }
-
 function createFetchStub(feedPayload) {
   return async () => ({
     ok: true,
@@ -175,10 +162,9 @@ function createFetchStub(feedPayload) {
     },
   });
 }
-
-function writeRepoLeaseFile(copilotHomeAbs, repo, lease) {
+function writeRepoLeaseFile(elegyHomeAbs, repo, lease) {
   const leasePath = path.join(
-    obsidianRemoteSyncLib.resolveSyncRoot(copilotHomeAbs),
+    obsidianRemoteSyncLib.resolveSyncRoot(elegyHomeAbs),
     'leases',
     `${obsidianRemoteSyncLib.deriveRepoSyncKey(repo)}.lock.json`,
   );
@@ -186,10 +172,9 @@ function writeRepoLeaseFile(copilotHomeAbs, repo, lease) {
   fs.writeFileSync(leasePath, JSON.stringify(lease, null, 2) + '\n', 'utf8');
   return leasePath;
 }
-
 async function run() {
   await test('GET /api/planning/obsidian/status returns a deterministic not-configured state when config is absent', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
+    const { elegyHomeAbs, repoPath } = createFixture();
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       sendJson(res, code, payload) {
@@ -197,10 +182,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/status');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'GET', '/api/planning/obsidian/status');
     const body = parseJsonBody(res);
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.kind, 'planning.obsidian.status');
     assert.equal(body.status.state, 'not-configured');
@@ -208,13 +191,12 @@ async function run() {
     assert.equal(body.status.canonicalAuthority, false);
     assert.equal(body.status.remoteSync.state, 'disabled');
   });
-
   await test('GET /api/planning/obsidian/notes lists configured markdown notes for the selected catalog repo', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const notesDir = path.join(vaultPath, 'Planning', 'repo-workspace-repo');
     fs.mkdirSync(notesDir, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
       cliCommands: {
@@ -229,7 +211,6 @@ async function run() {
       '## Follow-ups',
       '- Keep repo docs canonical.',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       sendJson(res, code, payload) {
@@ -237,10 +218,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/notes');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'GET', '/api/planning/obsidian/notes');
     const body = parseJsonBody(res);
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.kind, 'planning.obsidian.notes');
     assert.equal(body.status.state, 'ready');
@@ -252,14 +231,13 @@ async function run() {
     assert.equal(body.notes[0].summary, 'Review the next implementation slice.');
     assert.deepEqual(body.notes[0].targetRepoIds, ['repo-workspace-repo']);
   });
-
   await test('GET /api/planning/obsidian/notes excludes reserved planning mirrors even when metadata is malformed', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const notesDir = path.join(vaultPath, 'Planning', 'repo-workspace-repo');
     const mirrorDir = path.join(notesDir, '_instruction-engine', 'planning-mirrors');
     fs.mkdirSync(mirrorDir, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -275,7 +253,6 @@ async function run() {
       'This should stay out of the normal note inventory.',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       sendJson(res, code, payload) {
@@ -283,22 +260,19 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/notes');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'GET', '/api/planning/obsidian/notes');
     const body = parseJsonBody(res);
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.count, 1);
     assert.deepEqual(body.notes.map((entry) => entry.title), ['Visible note']);
     assert.equal(body.notes.some((entry) => /planning-mirrors/.test(entry.notePath)), false);
   });
-
   await test('GET /api/planning/obsidian/notes/:noteId returns deterministic note detail', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const notesDir = path.join(vaultPath, 'Planning', 'repo-workspace-repo');
     fs.mkdirSync(notesDir, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -310,7 +284,6 @@ async function run() {
       '## Validation',
       '- Keep plan.md authoritative.',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       sendJson(res, code, payload) {
@@ -318,31 +291,27 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const listed = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/notes');
+    const listed = await invoke(routes, { elegyHomeAbs }, 'GET', '/api/planning/obsidian/notes');
     const noteId = parseJsonBody(listed.res).notes[0].id;
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'GET', `/api/planning/obsidian/notes/${encodeURIComponent(noteId)}`);
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'GET', `/api/planning/obsidian/notes/${encodeURIComponent(noteId)}`);
     const body = parseJsonBody(res);
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.kind, 'planning.obsidian.note.read');
     assert.equal(body.note.title, 'Detail note');
     assert.match(body.note.content, /Capture the external context/);
     assert.deepEqual(body.note.headings, ['Detail note', 'Validation']);
   });
-
   await test('GET /api/planning/obsidian/notes/:noteId does not surface reserved planning mirrors as synced notes', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const notesDir = path.join(vaultPath, 'Planning', 'repo-workspace-repo');
     const mirrorPath = path.join(notesDir, '_instruction-engine', 'planning-mirrors', 'bullets.md');
     fs.mkdirSync(path.dirname(mirrorPath), { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
     fs.writeFileSync(mirrorPath, '# Reserved mirror\n\nNormal reads must not return this file.\n');
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       sendJson(res, code, payload) {
@@ -350,30 +319,26 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
     const mirrorNoteId = obsidianNotesLib.deriveObsidianNoteId({
       repoId: 'repo-workspace-repo',
       vaultName: 'planning-vault',
       notePath: 'Planning/repo-workspace-repo/_instruction-engine/planning-mirrors/bullets.md',
     });
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'GET', `/api/planning/obsidian/notes/${encodeURIComponent(mirrorNoteId)}`);
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'GET', `/api/planning/obsidian/notes/${encodeURIComponent(mirrorNoteId)}`);
     const body = parseJsonBody(res);
-
     assert.equal(res.statusCode, 404);
     assert.equal(body.code, 'obsidian_note_not_found');
   });
-
   await test('GET /api/planning/obsidian/status requires an explicit repo-scoped source selection even when tracker has a single source', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const notesDir = path.join(vaultPath, 'Planning', 'repo-workspace-repo');
     fs.mkdirSync(notesDir, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
       remoteSyncUrl: 'https://notes.example.test/feed?sourceId={sourceId}',
     }, null, 2));
-
     const source = {
       id: 'snsrc_0123456789abcdef0123456789abcdef',
       provider: 'github',
@@ -383,7 +348,6 @@ async function run() {
       branch: 'main',
       notesPath: 'docs/planning/synced-note.md',
     };
-
     const routes = register({
       listTrackerSyncedNoteSources: async () => [source],
       repoInventory: createRepoInventory(repoPath),
@@ -392,10 +356,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/status');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'GET', '/api/planning/obsidian/status');
     const body = parseJsonBody(res);
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.kind, 'planning.obsidian.status');
     assert.equal(body.status.state, 'ready');
@@ -408,17 +370,15 @@ async function run() {
     assert.match(body.status.sourceResolution.message, /explicitly select/i);
     assert.equal(body.status.sourceResolution.effectiveSource, null);
   });
-
   await test('GET /api/planning/obsidian/status surfaces additive remoteSync lease and retry metadata without breaking existing fields', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(path.join(vaultPath, 'Planning', 'repo-workspace-repo'), { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
       remoteSyncUrl: 'https://notes.example.test/feed',
     }, null, 2));
-
     const activeLease = {
       token: 'lease-active',
       acquiredAt: '2026-03-24T12:00:00.000Z',
@@ -438,12 +398,12 @@ async function run() {
       remoteSyncTimeoutMs: 15_000,
     };
     const repoState = obsidianRemoteSyncLib.readRepoSyncState({
-      copilotHomeAbs,
+      elegyHomeAbs,
       repo,
       config,
     });
     obsidianRemoteSyncLib.writeRepoSyncState({
-      copilotHomeAbs,
+      elegyHomeAbs,
       repo,
       state: {
         ...repoState,
@@ -467,7 +427,6 @@ async function run() {
         },
       },
     });
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       sendJson(res, code, payload) {
@@ -475,10 +434,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/status');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'GET', '/api/planning/obsidian/status');
     const body = parseJsonBody(res);
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.status.remoteSync.state, 'error');
     assert.equal(body.status.remoteSync.reason, 'timer_backoff_scheduled');
@@ -492,18 +449,16 @@ async function run() {
     assert.equal(body.status.remoteSync.leaseTrigger, activeLease.trigger);
     assert.equal(body.status.remoteSync.lastStaleLeaseRecoveredAt, '2026-03-24T11:30:00.000Z');
   });
-
   await test('POST /api/planning/obsidian/source-selection persists repo-scoped active source selection under obsidian sync runtime state', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const notesDir = path.join(vaultPath, 'Planning', 'repo-workspace-repo');
     fs.mkdirSync(notesDir, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
       remoteSyncUrl: 'https://notes.example.test/feed?sourceId={sourceId}',
     }, null, 2));
-
     const sources = [
       {
         id: 'snsrc_0123456789abcdef0123456789abcdef',
@@ -524,7 +479,6 @@ async function run() {
         notesPath: 'docs/planning/second.md',
       },
     ];
-
     const routes = register({
       listTrackerSyncedNoteSources: async () => sources,
       readJsonBody: async () => ({
@@ -537,11 +491,10 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const selection = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/source-selection');
+    const selection = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/source-selection');
     const selectionBody = parseJsonBody(selection.res);
     const repoState = obsidianRemoteSyncLib.readRepoSyncState({
-      copilotHomeAbs,
+      elegyHomeAbs,
       repo: {
         repoId: 'repo-workspace-repo',
         repoPath,
@@ -553,7 +506,6 @@ async function run() {
         remoteSyncUrl: 'https://notes.example.test/feed?sourceId={sourceId}',
       },
     });
-
     assert.equal(selection.res.statusCode, 200);
     assert.equal(selectionBody.kind, 'planning.obsidian.source-selection');
     assert.equal(selectionBody.status.sourceResolution.activeSourceConfigured, true);
@@ -563,13 +515,12 @@ async function run() {
     assert.deepEqual(selectionBody.status.sourceResolution.effectiveSource, sources[1]);
     assert.equal(repoState.sourceSelection.activeSourceId, sources[1].id);
   });
-
   await test('POST /api/planning/obsidian/sync pulls remote note changes and records sync status', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const remoteContent = '# Daily sync\n\nPulled from the remote feed.';
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
       remoteSyncUrl: 'https://vultr.example.test/notes-feed',
@@ -577,7 +528,6 @@ async function run() {
         refreshInventory: [process.execPath, '-e', 'process.exit(0)'],
       },
     }, null, 2));
-
     const routes = register({
       fetch: createFetchStub({
         nextCursor: 'cursor-002',
@@ -596,10 +546,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/sync');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/sync');
     const body = parseJsonBody(res);
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.kind, 'planning.obsidian.sync');
     assert.equal(body.result.state, 'success');
@@ -612,12 +560,11 @@ async function run() {
     assert.equal(typeof body.status.remoteSync.nextAttemptAt, 'string');
     assert.equal(typeof body.result.nextAttemptAt, 'string');
     assert.equal(typeof body.result.cooldownUntil, 'string');
-
     const notePath = path.join(vaultPath, 'Planning', 'repo-workspace-repo', 'daily-sync.md');
     assert.equal(fs.existsSync(notePath), true);
     assert.match(fs.readFileSync(notePath, 'utf8'), /Pulled from the remote feed/);
     const repoState = obsidianRemoteSyncLib.readRepoSyncState({
-      copilotHomeAbs,
+      elegyHomeAbs,
       repo: {
         repoId: 'repo-workspace-repo',
         repoPath,
@@ -634,15 +581,14 @@ async function run() {
       obsidianNotesLib.hashContent(fs.readFileSync(notePath, 'utf8')),
     );
   });
-
   await test('POST /api/planning/obsidian/sync surfaces active lease metadata when another process already holds the repo lease', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
+    const { elegyHomeAbs, repoPath } = createFixture();
     const repo = {
       repoId: 'repo-workspace-repo',
       repoPath,
       repoLabel: 'workspace-repo',
     };
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const config = {
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
@@ -656,15 +602,14 @@ async function run() {
       trigger: 'timer',
     };
     fs.mkdirSync(path.join(vaultPath, 'Planning', 'repo-workspace-repo'), { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify(config, null, 2));
-
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify(config, null, 2));
     const repoState = obsidianRemoteSyncLib.readRepoSyncState({
-      copilotHomeAbs,
+      elegyHomeAbs,
       repo,
       config,
     });
     obsidianRemoteSyncLib.writeRepoSyncState({
-      copilotHomeAbs,
+      elegyHomeAbs,
       repo,
       state: {
         ...repoState,
@@ -680,8 +625,7 @@ async function run() {
         },
       },
     });
-    writeRepoLeaseFile(copilotHomeAbs, repo, activeLease);
-
+    writeRepoLeaseFile(elegyHomeAbs, repo, activeLease);
     let fetchCount = 0;
     const routes = register({
       fetch: async () => {
@@ -700,10 +644,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/sync');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/sync');
     const body = parseJsonBody(res);
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.kind, 'planning.obsidian.sync');
     assert.equal(body.result.state, 'syncing');
@@ -714,17 +656,15 @@ async function run() {
     assert.equal(body.status.remoteSync.leaseExpiresAt, activeLease.expiresAt);
     assert.equal(fetchCount, 0);
   });
-
   await test('POST /api/planning/obsidian/sync fails closed when remote sync requires a source and multiple tracker sources remain unresolved', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(path.join(vaultPath, 'Planning', 'repo-workspace-repo'), { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
       remoteSyncUrl: 'https://notes.example.test/feed?sourceId={sourceId}',
     }, null, 2));
-
     const sources = [
       {
         id: 'snsrc_0123456789abcdef0123456789abcdef',
@@ -746,7 +686,6 @@ async function run() {
       },
     ];
     let remoteFetchCount = 0;
-
     const routes = register({
       fetch: async () => {
         remoteFetchCount += 1;
@@ -765,10 +704,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/sync');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/sync');
     const body = parseJsonBody(res);
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.kind, 'planning.obsidian.sync');
     assert.equal(body.result.state, 'error');
@@ -780,20 +717,18 @@ async function run() {
     assert.match(body.status.sourceResolution.message, /explicitly select/i);
     assert.equal(remoteFetchCount, 0);
   });
-
   await test('POST /api/planning/obsidian/sync fails closed when a previously synced local note was deleted before a remote update arrives', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const notePath = path.join(vaultPath, 'Planning', 'repo-workspace-repo', 'daily-sync.md');
     const initialContent = '# Daily sync\n\nBaseline remote content.';
     const updatedContent = '# Daily sync\n\nUpdated remote content that must not recreate a deleted local note.';
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
       remoteSyncUrl: 'https://vultr.example.test/notes-feed',
     }, null, 2));
-
     const initialRoutes = register({
       fetch: createFetchStub({
         nextCursor: 'cursor-baseline',
@@ -812,16 +747,13 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const initialSync = await invoke(initialRoutes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/sync');
+    const initialSync = await invoke(initialRoutes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/sync');
     const initialBody = parseJsonBody(initialSync.res);
     assert.equal(initialSync.res.statusCode, 200);
     assert.equal(initialBody.result.state, 'success');
     assert.equal(fs.existsSync(notePath), true);
-
     fs.unlinkSync(notePath);
     assert.equal(fs.existsSync(notePath), false);
-
     const updateRoutes = register({
       fetch: createFetchStub({
         nextCursor: 'cursor-updated',
@@ -840,11 +772,10 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const updatedSync = await invoke(updateRoutes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/sync');
+    const updatedSync = await invoke(updateRoutes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/sync');
     const updatedBody = parseJsonBody(updatedSync.res);
     const repoState = obsidianRemoteSyncLib.readRepoSyncState({
-      copilotHomeAbs,
+      elegyHomeAbs,
       repo: {
         repoId: 'repo-workspace-repo',
         repoPath,
@@ -856,7 +787,6 @@ async function run() {
         remoteSyncUrl: 'https://vultr.example.test/notes-feed',
       },
     });
-
     assert.equal(updatedSync.res.statusCode, 200);
     assert.equal(updatedBody.kind, 'planning.obsidian.sync');
     assert.equal(updatedBody.result.state, 'conflict');
@@ -870,19 +800,17 @@ async function run() {
       obsidianNotesLib.hashContent(initialContent),
     );
   });
-
   await test('POST /api/planning/obsidian/sync rejects malformed remote entries without blanking previously synced local notes', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const notePath = path.join(vaultPath, 'Planning', 'repo-workspace-repo', 'daily-sync.md');
     const initialContent = '# Daily sync\n\nBaseline remote content that must survive malformed updates.';
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
       remoteSyncUrl: 'https://vultr.example.test/notes-feed',
     }, null, 2));
-
     const initialRoutes = register({
       fetch: createFetchStub({
         nextCursor: 'cursor-baseline',
@@ -901,11 +829,9 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const initialSync = await invoke(initialRoutes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/sync');
+    const initialSync = await invoke(initialRoutes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/sync');
     assert.equal(initialSync.res.statusCode, 200);
     assert.equal(fs.readFileSync(notePath, 'utf8'), initialContent);
-
     const malformedRoutes = register({
       fetch: createFetchStub({
         nextCursor: 'cursor-malformed',
@@ -923,11 +849,10 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const malformedSync = await invoke(malformedRoutes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/sync');
+    const malformedSync = await invoke(malformedRoutes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/sync');
     const malformedBody = parseJsonBody(malformedSync.res);
     const repoState = obsidianRemoteSyncLib.readRepoSyncState({
-      copilotHomeAbs,
+      elegyHomeAbs,
       repo: {
         repoId: 'repo-workspace-repo',
         repoPath,
@@ -939,7 +864,6 @@ async function run() {
         remoteSyncUrl: 'https://vultr.example.test/notes-feed',
       },
     });
-
     assert.equal(malformedSync.res.statusCode, 200);
     assert.equal(malformedBody.kind, 'planning.obsidian.sync');
     assert.equal(malformedBody.result.state, 'conflict');
@@ -954,10 +878,9 @@ async function run() {
       obsidianNotesLib.hashContent(initialContent),
     );
   });
-
   await test('POST /api/planning/obsidian/sync revalidates all targeted notes immediately before apply and leaves the vault unchanged on concurrent drift', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const firstNotePath = path.join(vaultPath, 'Planning', 'repo-workspace-repo', 'alpha.md');
     const secondNotePath = path.join(vaultPath, 'Planning', 'repo-workspace-repo', 'beta.md');
     const initialAlpha = '# Alpha\n\nInitial remote content.';
@@ -966,12 +889,11 @@ async function run() {
     const updatedBeta = '# Beta\n\nUpdated remote content.';
     const concurrentLocalBeta = '# Beta\n\nConcurrent local edit that must block the batch.';
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
       remoteSyncUrl: 'https://vultr.example.test/notes-feed',
     }, null, 2));
-
     const initialRoutes = register({
       fetch: createFetchStub({
         nextCursor: 'cursor-initial',
@@ -996,15 +918,12 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const initialSync = await invoke(initialRoutes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/sync');
+    const initialSync = await invoke(initialRoutes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/sync');
     assert.equal(initialSync.res.statusCode, 200);
     assert.equal(fs.readFileSync(firstNotePath, 'utf8'), initialAlpha);
     assert.equal(fs.readFileSync(secondNotePath, 'utf8'), initialBeta);
-
     const originalWriteFileSync = fs.writeFileSync;
     let injectedConcurrentDrift = false;
-
     try {
       fs.writeFileSync = function patchedWriteFileSync(filePath, ...args) {
         const normalizedPath = typeof filePath === 'string' ? path.resolve(filePath) : filePath;
@@ -1015,7 +934,6 @@ async function run() {
         }
         return originalWriteFileSync.call(fs, filePath, ...args);
       };
-
       const updateRoutes = register({
         fetch: createFetchStub({
           nextCursor: 'cursor-updated',
@@ -1040,11 +958,10 @@ async function run() {
           res.end(JSON.stringify(payload, null, 2));
         },
       });
-
-      const updatedSync = await invoke(updateRoutes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/sync');
+      const updatedSync = await invoke(updateRoutes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/sync');
       const updatedBody = parseJsonBody(updatedSync.res);
       const repoState = obsidianRemoteSyncLib.readRepoSyncState({
-        copilotHomeAbs,
+        elegyHomeAbs,
         repo: {
           repoId: 'repo-workspace-repo',
           repoPath,
@@ -1056,7 +973,6 @@ async function run() {
           remoteSyncUrl: 'https://vultr.example.test/notes-feed',
         },
       });
-
       assert.equal(updatedSync.res.statusCode, 200);
       assert.equal(updatedBody.kind, 'planning.obsidian.sync');
       assert.equal(updatedBody.result.state, 'conflict');
@@ -1072,17 +988,15 @@ async function run() {
       fs.writeFileSync = originalWriteFileSync;
     }
   });
-
   await test('POST /api/planning/obsidian/sync fails closed when feed sha256 does not match remote content', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
       remoteSyncUrl: 'https://vultr.example.test/notes-feed',
     }, null, 2));
-
     const routes = register({
       fetch: createFetchStub({
         nextCursor: 'cursor-bad-sha',
@@ -1101,12 +1015,11 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/sync');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/sync');
     const body = parseJsonBody(res);
     const notePath = path.join(vaultPath, 'Planning', 'repo-workspace-repo', 'daily-sync.md');
     const repoState = obsidianRemoteSyncLib.readRepoSyncState({
-      copilotHomeAbs,
+      elegyHomeAbs,
       repo: {
         repoId: 'repo-workspace-repo',
         repoPath,
@@ -1118,7 +1031,6 @@ async function run() {
         remoteSyncUrl: 'https://vultr.example.test/notes-feed',
       },
     });
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.kind, 'planning.obsidian.sync');
     assert.equal(body.result.state, 'conflict');
@@ -1131,17 +1043,15 @@ async function run() {
     assert.equal(repoState.cursor, undefined);
     assert.deepEqual(repoState.noteStates, {});
   });
-
   await test('POST /api/planning/obsidian/sync rejects remote changes targeting the protected tool-managed namespace', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
       remoteSyncUrl: 'https://vultr.example.test/notes-feed',
     }, null, 2));
-
     const routes = register({
       fetch: createFetchStub({
         nextCursor: 'cursor-protected',
@@ -1159,8 +1069,7 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/sync');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/sync');
     const body = parseJsonBody(res);
     const protectedMirrorPath = path.join(
       vaultPath,
@@ -1170,7 +1079,6 @@ async function run() {
       'planning-mirrors',
       'bullets.md',
     );
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.kind, 'planning.obsidian.sync');
     assert.equal(body.result.state, 'conflict');
@@ -1180,13 +1088,11 @@ async function run() {
     assert.equal(body.status.remoteSync.state, 'conflict');
     assert.equal(fs.existsSync(protectedMirrorPath), false);
   });
-
   await test('POST /api/planning/obsidian/sync requires repoId-gated mutation targeting while GET routes still honor read-context repoPath selectors', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
+    const { elegyHomeAbs, repoPath } = createFixture();
     const otherRepoPath = path.join(path.dirname(repoPath), 'secondary-repo');
     const inventory = createMultiRepoInventory(repoPath, otherRepoPath);
     fs.mkdirSync(path.join(otherRepoPath, '.git'), { recursive: true });
-
     const routes = register({
       repoInventory: inventory,
       sendJson(res, code, payload) {
@@ -1194,33 +1100,30 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
     const readResult = await invoke(
       routes,
-      { copilotHomeAbs },
+      { elegyHomeAbs },
       'GET',
       `/api/planning/obsidian/status?repoPath=${encodeURIComponent(otherRepoPath)}`,
     );
     const syncResult = await invoke(
       routes,
-      { copilotHomeAbs },
+      { elegyHomeAbs },
       'POST',
       `/api/planning/obsidian/sync?repoPath=${encodeURIComponent(otherRepoPath)}`,
     );
     const readBody = parseJsonBody(readResult.res);
     const syncBody = parseJsonBody(syncResult.res);
-
     assert.equal(readResult.res.statusCode, 200);
     assert.equal(readBody.repo.repoId, 'repo-secondary');
     assert.equal(syncResult.res.statusCode, 409);
     assert.equal(syncBody.code, 'catalog_repo_id_required_for_mutation');
   });
-
   await test('GET /api/planning/obsidian/representations lists deterministic planning mirrors with freshness state', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -1265,7 +1168,6 @@ async function run() {
       '- Abandoned By Plan Ref: none',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       sendJson(res, code, payload) {
@@ -1273,10 +1175,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/representations');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'GET', '/api/planning/obsidian/representations');
     const body = parseJsonBody(res);
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.kind, 'planning.obsidian.representations');
     assert.equal(body.count, 2);
@@ -1288,13 +1188,12 @@ async function run() {
     assert.equal(body.representations[0].external, true);
     assert.equal(body.representations[0].canonicalAuthority, false);
   });
-
   await test('GET /api/planning/obsidian/representations keeps orphaned roadmap mirrors visible as source-missing after the canonical source is removed', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const roadmapSourcePathValue = roadmapSourcePath(repoPath);
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -1340,7 +1239,6 @@ async function run() {
       '- Abandoned By Plan Ref: none',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       readJsonBody: async () => ({}),
@@ -1349,12 +1247,10 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const initialRefresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const initialRefresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     const initialRefreshBody = parseJsonBody(initialRefresh.res);
     assert.equal(initialRefresh.res.statusCode, 200);
     assert.equal(initialRefreshBody.result.refreshedCount, 2);
-
     const roadmapMirrorPath = path.join(
       vaultPath,
       'Planning',
@@ -1365,14 +1261,11 @@ async function run() {
       'platform-foundation.md',
     );
     const orphanedMirrorContent = fs.readFileSync(roadmapMirrorPath, 'utf8');
-
     fs.unlinkSync(roadmapSourcePathValue);
     assert.equal(fs.existsSync(roadmapSourcePathValue), false);
-
-    const listed = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/representations');
+    const listed = await invoke(routes, { elegyHomeAbs }, 'GET', '/api/planning/obsidian/representations');
     const listedBody = parseJsonBody(listed.res);
     const roadmapRepresentation = listedBody.representations.find((entry) => entry.representationKind === 'roadmap');
-
     assert.equal(listed.res.statusCode, 200);
     assert.equal(listedBody.count, 2);
     assert.ok(roadmapRepresentation);
@@ -1380,11 +1273,9 @@ async function run() {
     assert.equal(roadmapRepresentation.noteExists, true);
     assert.equal(roadmapRepresentation.freshness, 'source-missing');
     assert.match(roadmapRepresentation.message, /source file is missing/i);
-
-    const refreshAfterDelete = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const refreshAfterDelete = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     const refreshAfterDeleteBody = parseJsonBody(refreshAfterDelete.res);
     const refreshedRoadmapRepresentation = refreshAfterDeleteBody.representations.find((entry) => entry.representationKind === 'roadmap');
-
     assert.equal(refreshAfterDelete.res.statusCode, 200);
     assert.equal(refreshAfterDeleteBody.result.refreshedCount, 0);
     assert.equal(refreshAfterDeleteBody.representationsStatus.sourceMissingCount, 1);
@@ -1393,12 +1284,11 @@ async function run() {
     assert.equal(refreshedRoadmapRepresentation.freshness, 'source-missing');
     assert.equal(fs.readFileSync(roadmapMirrorPath, 'utf8'), orphanedMirrorContent);
   });
-
   await test('POST /api/planning/obsidian/representations/refresh writes deterministic mirrors from canonical planning docs', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -1443,7 +1333,6 @@ async function run() {
       '- Abandoned By Plan Ref: none',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       readJsonBody: async () => ({}),
@@ -1452,15 +1341,12 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const refreshed = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const refreshed = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     const refreshBody = parseJsonBody(refreshed.res);
-
     assert.equal(refreshed.res.statusCode, 200);
     assert.equal(refreshBody.kind, 'planning.obsidian.representations.refresh');
     assert.equal(refreshBody.result.refreshedCount, 2);
     assert.equal(refreshBody.representationsStatus.currentCount, 2);
-
     const bulletsMirrorPath = path.join(
       vaultPath,
       'Planning',
@@ -1478,19 +1364,17 @@ async function run() {
       'roadmaps',
       'platform-foundation.md',
     );
-
     assert.equal(fs.existsSync(bulletsMirrorPath), true);
     assert.equal(fs.existsSync(roadmapMirrorPath), true);
     assert.match(fs.readFileSync(bulletsMirrorPath, 'utf8'), /ie_kind: planning-obsidian-representation/);
     assert.match(fs.readFileSync(bulletsMirrorPath, 'utf8'), /Canonical authority remains in repo docs/);
     assert.match(fs.readFileSync(roadmapMirrorPath, 'utf8'), /Roadmap Mirror/);
   });
-
   await test('POST /api/planning/obsidian/representations/refresh persists deterministic mirror content for unchanged canonical sources', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -1526,7 +1410,6 @@ async function run() {
       '## Roadmap Items',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       readJsonBody: async () => ({}),
@@ -1535,10 +1418,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const firstRefresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const firstRefresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     assert.equal(firstRefresh.res.statusCode, 200);
-
     const bulletsMirrorPath = path.join(
       vaultPath,
       'Planning',
@@ -1548,23 +1429,20 @@ async function run() {
       'bullets.md',
     );
     const firstContent = fs.readFileSync(bulletsMirrorPath, 'utf8');
-
-    const secondRefresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const secondRefresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     const secondBody = parseJsonBody(secondRefresh.res);
     const secondContent = fs.readFileSync(bulletsMirrorPath, 'utf8');
-
     assert.equal(secondRefresh.res.statusCode, 200);
     assert.equal(secondBody.result.refreshedCount, 0);
     assert.equal(secondBody.result.skippedCount, 2);
     assert.equal(secondContent, firstContent);
     assert.doesNotMatch(secondContent, /ie_generated_at:/);
   });
-
   await test('GET /api/planning/obsidian/representations keeps mirrors current when canonical content is unchanged but source mtime changes', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -1603,7 +1481,6 @@ async function run() {
       '## Roadmap Items',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       readJsonBody: async () => ({}),
@@ -1612,10 +1489,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const firstRefresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const firstRefresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     assert.equal(firstRefresh.res.statusCode, 200);
-
     const bulletsMirrorPath = path.join(
       vaultPath,
       'Planning',
@@ -1639,12 +1514,10 @@ async function run() {
     const sourceFutureTime = new Date('2026-03-24T12:00:00.000Z');
     fs.utimesSync(bulletsSourcePath, sourceFutureTime, sourceFutureTime);
     fs.utimesSync(roadmapSourcePathValue, sourceFutureTime, sourceFutureTime);
-
-    const listed = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/representations');
+    const listed = await invoke(routes, { elegyHomeAbs }, 'GET', '/api/planning/obsidian/representations');
     const listBody = parseJsonBody(listed.res);
-    const secondRefresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const secondRefresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     const secondRefreshBody = parseJsonBody(secondRefresh.res);
-
     assert.equal(listed.res.statusCode, 200);
     assert.equal(listBody.representationsStatus.currentCount, 2);
     assert.equal(listBody.representationsStatus.staleCount, 0);
@@ -1659,12 +1532,11 @@ async function run() {
     assert.equal(fs.statSync(bulletsMirrorPath).mtimeMs, bulletsMirrorMtimeBefore);
     assert.equal(fs.statSync(roadmapMirrorPath).mtimeMs, roadmapMirrorMtimeBefore);
   });
-
   await test('GET /api/planning/obsidian/representations marks mirrors stale when deterministic rendering drifts without source changes', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -1700,7 +1572,6 @@ async function run() {
       '## Roadmap Items',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       readJsonBody: async () => ({}),
@@ -1709,10 +1580,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const firstRefresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const firstRefresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     assert.equal(firstRefresh.res.statusCode, 200);
-
     const bulletsMirrorPath = path.join(
       vaultPath,
       'Planning',
@@ -1732,12 +1601,10 @@ async function run() {
       )
       .replace(parsedMirror.body, driftedBody);
     fs.writeFileSync(bulletsMirrorPath, driftedContent);
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/representations');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'GET', '/api/planning/obsidian/representations');
     const body = parseJsonBody(res);
     const bulletsRepresentation = body.representations.find((entry) => entry.representationKind === 'bullets');
     const roadmapRepresentation = body.representations.find((entry) => entry.representationKind === 'roadmap');
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.representationsStatus.staleCount, 1);
     assert.equal(body.representationsStatus.currentCount, 1);
@@ -1746,10 +1613,9 @@ async function run() {
     assert.equal(bulletsRepresentation.sourceContentHash, parsedMirror.attributes.ie_source_content_hash);
     assert.match(bulletsRepresentation.message, /Deterministic mirror rendering changed/);
   });
-
   await test('POST /api/planning/obsidian/representations/refresh fails closed on malformed mirror metadata', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const mirrorDir = path.join(
       vaultPath,
       'Planning',
@@ -1758,7 +1624,7 @@ async function run() {
       'planning-mirrors',
     );
     fs.mkdirSync(mirrorDir, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -1778,7 +1644,6 @@ async function run() {
       '# Broken mirror',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       readJsonBody: async () => ({}),
@@ -1787,21 +1652,18 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     const body = parseJsonBody(res);
-
     assert.equal(res.statusCode, 409);
     assert.equal(body.kind, 'planning.obsidian.representations.refresh');
     assert.equal(body.code, 'obsidian_representation_metadata_invalid');
   });
-
   await test('POST /api/planning/obsidian/representations/refresh aborts when canonical source drifts after preflight', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const bulletsSourcePath = path.join(repoPath, 'docs', 'planning', 'bullets.md');
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -1821,7 +1683,6 @@ async function run() {
       '- Promoted to backlog: none',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       sendJson(res, code, payload) {
@@ -1829,10 +1690,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const initialRefresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const initialRefresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     assert.equal(initialRefresh.res.statusCode, 200);
-
     const bulletsMirrorPath = path.join(
       vaultPath,
       'Planning',
@@ -1842,7 +1701,6 @@ async function run() {
       'bullets.md',
     );
     const initialMirrorContent = fs.readFileSync(bulletsMirrorPath, 'utf8');
-
     const refreshedSourceContent = [
       '# Planning Bullets',
       '',
@@ -1859,7 +1717,6 @@ async function run() {
       '',
     ].join('\n');
     fs.writeFileSync(bulletsSourcePath, refreshedSourceContent);
-
     const concurrentSourceContent = [
       '# Planning Bullets',
       '',
@@ -1877,7 +1734,6 @@ async function run() {
     ].join('\n');
     const originalWriteFileSync = fs.writeFileSync;
     let injectedSourceDrift = false;
-
     try {
       fs.writeFileSync = function patchedWriteFileSync(filePath, ...args) {
         const normalizedPath = typeof filePath === 'string' ? path.resolve(filePath) : filePath;
@@ -1889,27 +1745,23 @@ async function run() {
         }
         return result;
       };
-
-      const conflictedRefresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+      const conflictedRefresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
       const conflictedBody = parseJsonBody(conflictedRefresh.res);
-
       assert.equal(conflictedRefresh.res.statusCode, 409);
       assert.equal(conflictedBody.kind, 'planning.obsidian.representations.refresh');
       assert.equal(conflictedBody.code, 'obsidian_representation_conflict');
     } finally {
       fs.writeFileSync = originalWriteFileSync;
     }
-
     assert.equal(injectedSourceDrift, true);
     assert.equal(fs.readFileSync(bulletsMirrorPath, 'utf8'), initialMirrorContent);
     assert.equal(fs.readFileSync(bulletsSourcePath, 'utf8'), concurrentSourceContent);
   });
-
   await test('POST /api/planning/obsidian/representations/refresh rejects mirrors missing source content hash metadata', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -1920,7 +1772,6 @@ async function run() {
       'Repository-scoped bullet seeds for future planning sessions.',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       readJsonBody: async () => ({}),
@@ -1929,10 +1780,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const initialRefresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const initialRefresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     assert.equal(initialRefresh.res.statusCode, 200);
-
     const bulletsMirrorPath = path.join(
       vaultPath,
       'Planning',
@@ -1946,23 +1795,20 @@ async function run() {
       bulletsMirrorPath,
       mirrorContent.replace(/^ie_source_content_hash:.*\n/m, ''),
     );
-
-    const { res } = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const { res } = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     const body = parseJsonBody(res);
-
     assert.equal(res.statusCode, 409);
     assert.equal(body.kind, 'planning.obsidian.representations.refresh');
     assert.equal(body.code, 'obsidian_representation_metadata_invalid');
   });
-
   await test('POST /api/planning/obsidian/representations/refresh requires repoId-gated mutation targeting while GET routes still honor read-context repoPath selectors', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
+    const { elegyHomeAbs, repoPath } = createFixture();
     const otherRepoPath = path.join(path.dirname(repoPath), 'secondary-repo');
     const inventory = createMultiRepoInventory(repoPath, otherRepoPath);
     fs.mkdirSync(path.join(otherRepoPath, '.git'), { recursive: true });
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -1984,7 +1830,6 @@ async function run() {
       '## Roadmap Items',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: inventory,
       readJsonBody: async () => ({}),
@@ -1993,33 +1838,30 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
     const readResult = await invoke(
       routes,
-      { copilotHomeAbs },
+      { elegyHomeAbs },
       'GET',
       `/api/planning/obsidian/representations?repoPath=${encodeURIComponent(otherRepoPath)}`,
     );
     const refreshResult = await invoke(
       routes,
-      { copilotHomeAbs },
+      { elegyHomeAbs },
       'POST',
       `/api/planning/obsidian/representations/refresh?repoPath=${encodeURIComponent(otherRepoPath)}`,
     );
     const readBody = parseJsonBody(readResult.res);
     const refreshBody = parseJsonBody(refreshResult.res);
-
     assert.equal(readResult.res.statusCode, 200);
     assert.equal(readBody.repo.repoId, 'repo-secondary');
     assert.equal(refreshResult.res.statusCode, 409);
     assert.equal(refreshBody.code, 'catalog_repo_id_required_for_mutation');
   });
-
   await test('POST /api/planning/obsidian/representations/refresh fails closed on concurrent mirror drift before overwrite', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -2046,7 +1888,6 @@ async function run() {
       '## Roadmap Items',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       readJsonBody: async () => ({}),
@@ -2055,10 +1896,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const firstRefresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const firstRefresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     assert.equal(firstRefresh.res.statusCode, 200);
-
     const bulletsMirrorPath = path.join(
       vaultPath,
       'Planning',
@@ -2098,10 +1937,8 @@ async function run() {
         }
         return originalReadFileSync.call(fs, filePath, ...args);
       };
-
-      const drifted = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+      const drifted = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
       const driftBody = parseJsonBody(drifted.res);
-
       assert.equal(drifted.res.statusCode, 409);
       assert.equal(driftBody.code, 'obsidian_representation_conflict');
       assert.match(driftBody.error, /concurrent/i);
@@ -2109,12 +1946,11 @@ async function run() {
       fs.readFileSync = originalReadFileSync;
     }
   });
-
   await test('POST /api/planning/obsidian/representations/refresh preflights all writes before mutating any mirror', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -2141,7 +1977,6 @@ async function run() {
       '## Roadmap Items',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       readJsonBody: async () => ({}),
@@ -2150,10 +1985,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const firstRefresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const firstRefresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     assert.equal(firstRefresh.res.statusCode, 200);
-
     const mirrorBaseDir = path.join(
       vaultPath,
       'Planning',
@@ -2165,7 +1998,6 @@ async function run() {
     const roadmapMirrorPath = path.join(mirrorBaseDir, 'roadmaps', 'platform-foundation.md');
     const originalBulletsMirror = fs.readFileSync(bulletsMirrorPath, 'utf8');
     const originalRoadmapMirror = fs.readFileSync(roadmapMirrorPath, 'utf8');
-
     fs.writeFileSync(path.join(repoPath, 'docs', 'planning', 'bullets.md'), [
       '# Planning Bullets',
       '',
@@ -2188,7 +2020,6 @@ async function run() {
       '## Roadmap Items',
       '',
     ].join('\n'));
-
     const originalReadFileSync = fs.readFileSync;
     let roadmapReadCount = 0;
     const concurrentRoadmapContent = [
@@ -2209,7 +2040,6 @@ async function run() {
       '# Concurrent roadmap edit',
       '',
     ].join('\n');
-
     try {
       fs.readFileSync = function patchedReadFileSync(filePath, ...args) {
         const resolvedPath = typeof filePath === 'string' ? path.resolve(filePath) : filePath;
@@ -2221,28 +2051,24 @@ async function run() {
         }
         return originalReadFileSync.call(fs, filePath, ...args);
       };
-
-      const refresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+      const refresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
       const body = parseJsonBody(refresh.res);
-
       assert.equal(refresh.res.statusCode, 409);
       assert.equal(body.code, 'obsidian_representation_conflict');
       assert.match(body.error, /concurrent/i);
     } finally {
       fs.readFileSync = originalReadFileSync;
     }
-
     assert.equal(fs.readFileSync(bulletsMirrorPath, 'utf8'), originalBulletsMirror);
     assert.equal(fs.readFileSync(roadmapMirrorPath, 'utf8'), concurrentRoadmapContent);
     assert.notEqual(originalRoadmapMirror, concurrentRoadmapContent);
     assert.doesNotMatch(fs.readFileSync(bulletsMirrorPath, 'utf8'), /Updated bullet mirror source that would be written first/);
   });
-
   await test('POST /api/planning/obsidian/representations/refresh revalidates mirrors again after staging and before rename', async () => {
-    const { copilotHomeAbs, repoPath } = createFixture();
-    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const { elegyHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     fs.mkdirSync(vaultPath, { recursive: true });
-    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
@@ -2269,7 +2095,6 @@ async function run() {
       '## Roadmap Items',
       '',
     ].join('\n'));
-
     const routes = register({
       repoInventory: createRepoInventory(repoPath),
       readJsonBody: async () => ({}),
@@ -2278,10 +2103,8 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
-    const firstRefresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+    const firstRefresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
     assert.equal(firstRefresh.res.statusCode, 200);
-
     const mirrorBaseDir = path.join(
       vaultPath,
       'Planning',
@@ -2293,7 +2116,6 @@ async function run() {
     const roadmapMirrorPath = path.join(mirrorBaseDir, 'roadmaps', 'platform-foundation.md');
     const originalBulletsMirror = fs.readFileSync(bulletsMirrorPath, 'utf8');
     const originalRoadmapMirror = fs.readFileSync(roadmapMirrorPath, 'utf8');
-
     fs.writeFileSync(path.join(repoPath, 'docs', 'planning', 'bullets.md'), [
       '# Planning Bullets',
       '',
@@ -2316,7 +2138,6 @@ async function run() {
       '## Roadmap Items',
       '',
     ].join('\n'));
-
     const originalWriteFileSync = fs.writeFileSync;
     let injectedConcurrentDrift = false;
     const concurrentRoadmapContent = [
@@ -2337,7 +2158,6 @@ async function run() {
       '# Concurrent roadmap edit',
       '',
     ].join('\n');
-
     try {
       fs.writeFileSync = function patchedWriteFileSync(filePath, ...args) {
         const normalizedPath = typeof filePath === 'string' ? path.resolve(filePath) : filePath;
@@ -2348,26 +2168,21 @@ async function run() {
         }
         return originalWriteFileSync.call(fs, filePath, ...args);
       };
-
-      const refresh = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
+      const refresh = await invoke(routes, { elegyHomeAbs }, 'POST', '/api/planning/obsidian/representations/refresh');
       const body = parseJsonBody(refresh.res);
-
       assert.equal(refresh.res.statusCode, 409);
       assert.equal(body.code, 'obsidian_representation_conflict');
       assert.match(body.error, /concurrent/i);
     } finally {
       fs.writeFileSync = originalWriteFileSync;
     }
-
     assert.equal(fs.readFileSync(bulletsMirrorPath, 'utf8'), originalBulletsMirror);
     assert.equal(fs.readFileSync(roadmapMirrorPath, 'utf8'), concurrentRoadmapContent);
     assert.notEqual(originalRoadmapMirror, concurrentRoadmapContent);
     assert.doesNotMatch(fs.readFileSync(bulletsMirrorPath, 'utf8'), /Updated bullet mirror source that should remain unapplied/);
   });
-
   console.log(`\nPlanning Obsidian Route Tests: ${passed} passed`);
 }
-
 run().catch((error) => {
   console.error(error);
   process.exitCode = 1;

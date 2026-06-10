@@ -1,5 +1,4 @@
 'use strict';
-
 const assert = require('assert');
 const childProcess = require('child_process');
 const fs = require('fs');
@@ -22,31 +21,23 @@ const {
   createPlanningApiState,
 } = require('./lib/planningApiContracts');
 const { acquirePlanningMutationRouteLock, startServer } = require('./server');
-
 const serverPath = path.join(__dirname, 'server.js');
-
 const TEST_SUITE_TIMEOUT_MS = 180_000; // 180 seconds for entire suite on Windows
-
 // Track all spawned server processes for cleanup on unexpected exit
 const trackedProcesses = new Set();
-
 function trackProcess(proc) {
   trackedProcesses.add(proc);
   proc.on('exit', () => trackedProcesses.delete(proc));
   return proc;
 }
-
 function killTracked() {
   for (const proc of trackedProcesses) {
     try { proc.kill('SIGKILL'); } catch { /* already dead */ }
   }
   trackedProcesses.clear();
 }
-
 process.on('exit', killTracked);
-
 let passed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -58,16 +49,13 @@ async function test(name, fn) {
     process.exitCode = 1;
   }
 }
-
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
 async function stopTrackedProcess(proc, timeoutMs = 5_000) {
   if (!proc || proc.exitCode != null || proc.killed) {
     return;
   }
-
   await new Promise((resolve) => {
     let settled = false;
     const finish = () => {
@@ -77,7 +65,6 @@ async function stopTrackedProcess(proc, timeoutMs = 5_000) {
       proc.removeListener('close', finish);
       resolve();
     };
-
     proc.once('exit', finish);
     proc.once('close', finish);
     try {
@@ -89,7 +76,6 @@ async function stopTrackedProcess(proc, timeoutMs = 5_000) {
     setTimeout(finish, timeoutMs);
   });
 }
-
 function getFreePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -107,7 +93,6 @@ function getFreePort() {
     server.on('error', reject);
   });
 }
-
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
     const req = http.get(url, (res) => {
@@ -125,12 +110,10 @@ function fetchJson(url) {
     req.on('error', reject);
   });
 }
-
 function postJson(url, payload) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload || {});
     const requestUrl = new URL(url);
-
     const req = http.request({
       method: 'POST',
       hostname: requestUrl.hostname,
@@ -152,13 +135,11 @@ function postJson(url, payload) {
         }
       });
     });
-
     req.on('error', reject);
     req.write(body);
     req.end();
   });
 }
-
 function startMockTrackerStatusServer(expectedToken = 'ws2-tracker-token') {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
@@ -216,11 +197,9 @@ function startMockTrackerStatusServer(expectedToken = 'ws2-tracker-token') {
         }));
         return;
       }
-
       res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: 'not_found' }));
     });
-
     server.once('error', reject);
     server.listen(0, '127.0.0.1', () => {
       const address = server.address();
@@ -233,7 +212,6 @@ function startMockTrackerStatusServer(expectedToken = 'ws2-tracker-token') {
     });
   });
 }
-
 async function waitForHealth(baseUrl, attempts = 60) {
   for (let i = 0; i < attempts; i++) {
     try {
@@ -246,7 +224,6 @@ async function waitForHealth(baseUrl, attempts = 60) {
   }
   throw new Error('Timed out waiting for server health endpoint');
 }
-
 function withTempDir(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-runtime-health-'));
   return Promise.resolve()
@@ -255,7 +232,6 @@ function withTempDir(fn) {
       fs.rmSync(dir, { recursive: true, force: true });
     });
 }
-
 async function withPatchedEnv(overrides, fn) {
   const updates = overrides && typeof overrides === 'object' ? overrides : {};
   const previous = {};
@@ -269,7 +245,6 @@ async function withPatchedEnv(overrides, fn) {
       process.env[key] = String(value);
     }
   }
-
   try {
     return await fn();
   } finally {
@@ -282,12 +257,10 @@ async function withPatchedEnv(overrides, fn) {
     }
   }
 }
-
 async function run() {
   await test('planning mutation route lock rejects overlapping same-idempotency requests with deterministic conflict', async () => {
     const planningApiState = createPlanningApiState();
     const context = { userId: 'user-1', repoId: 'repo-1' };
-
     const first = acquirePlanningMutationRouteLock({
       planningApiState,
       pathname: '/api/planning/records',
@@ -297,13 +270,11 @@ async function run() {
       requestId: null,
       nowMs: 1000,
     });
-
     assert.strictEqual(first.ok, true);
     assert.ok(first.lock);
     assert.ok(first.lock.lock);
     assert.strictEqual(typeof first.lock.lock.ownerId, 'string');
     assert.ok(first.lock.lock.ownerId.length > 0);
-
     const second = acquirePlanningMutationRouteLock({
       planningApiState,
       pathname: '/api/planning/records',
@@ -313,34 +284,25 @@ async function run() {
       requestId: null,
       nowMs: 1001,
     });
-
     assert.strictEqual(second.ok, false);
     assert.strictEqual(second.statusCode, 409);
     assert.strictEqual(second.body.code, 'planning_route_lock_conflict');
     assert.strictEqual(second.body.reason, 'lock_already_held');
   });
-
   await test('health payload includes deterministic runtime compatibility contract', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const port = await getFreePort();
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
-
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
         '--port',
         String(port),
-        '--copilot-home',
-        copilotHome,
-        '--vscode-home',
-        vscodeHome,
+        '--elegy-home',
+        elegyHome,
         '--sandboxes-home',
         sandboxesHome,
       ], {
@@ -359,12 +321,10 @@ async function run() {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       }));
-
       let stderr = '';
       server.stderr.on('data', (chunk) => {
         stderr += chunk.toString('utf8');
       });
-
       try {
         const response = await waitForHealth(baseUrl);
         assert.strictEqual(response.statusCode, 200);
@@ -421,34 +381,25 @@ async function run() {
       } finally {
         await stopTrackedProcess(server);
       }
-
       if (stderr.trim()) {
         assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
       }
     });
   });
-
   await test('health payload defaults provider to non-docker when explicit selection is absent or invalid', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const port = await getFreePort();
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
-
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
         '--port',
         String(port),
-        '--copilot-home',
-        copilotHome,
-        '--vscode-home',
-        vscodeHome,
+        '--elegy-home',
+        elegyHome,
         '--sandboxes-home',
         sandboxesHome,
       ], {
@@ -465,12 +416,10 @@ async function run() {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       }));
-
       let stderr = '';
       server.stderr.on('data', (chunk) => {
         stderr += chunk.toString('utf8');
       });
-
       try {
         const response = await waitForHealth(baseUrl);
         assert.strictEqual(response.statusCode, 200);
@@ -487,34 +436,25 @@ async function run() {
       } finally {
         await stopTrackedProcess(server);
       }
-
       if (stderr.trim()) {
         assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
       }
     });
   });
-
   await test('gateway state/connect and planning persistence init return deterministic degraded envelopes when gateway is not configured', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const port = await getFreePort();
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
-
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
         '--port',
         String(port),
-        '--copilot-home',
-        copilotHome,
-        '--vscode-home',
-        vscodeHome,
+        '--elegy-home',
+        elegyHome,
         '--sandboxes-home',
         sandboxesHome,
       ], {
@@ -528,15 +468,12 @@ async function run() {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       }));
-
       let stderr = '';
       server.stderr.on('data', (chunk) => {
         stderr += chunk.toString('utf8');
       });
-
       try {
         await waitForHealth(baseUrl);
-
         const state = await fetchJson(`${baseUrl}/api/gateway/state`);
         assert.strictEqual(state.statusCode, 200);
         assert.strictEqual(state.body.kind, 'gateway.state');
@@ -549,7 +486,6 @@ async function run() {
         assert.ok(Array.isArray(state.body.errors));
         assert.ok(state.body.errors.some((entry) => entry && entry.code === 'gateway_config_missing'));
         assert.ok(state.body.errors.some((entry) => entry && entry.code === 'tracker_token_missing'));
-
         const connect = await postJson(`${baseUrl}/api/gateway/connect`, {});
         assert.strictEqual(connect.statusCode, 503);
         assert.strictEqual(connect.body.kind, 'gateway.connect');
@@ -560,7 +496,6 @@ async function run() {
         assert.ok(Array.isArray(connect.body.errors));
         assert.ok(connect.body.errors.length >= 1);
         assert.ok(connect.body.error);
-
         const initDb = await postJson(`${baseUrl}/api/planning/persistence/init`, {});
         assert.strictEqual(initDb.statusCode, 200);
         assert.strictEqual(initDb.body.kind, 'planning.persistence.init');
@@ -574,22 +509,16 @@ async function run() {
       } finally {
         await stopTrackedProcess(server);
       }
-
       if (stderr.trim()) {
         assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
       }
     });
   });
-
   await test('gateway connect returns deterministic ready envelope when config and tracker are ready', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const gatewayConfigPath = path.join(root, '.copilot', 'messaging-gateway.config.json');
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const gatewayConfigPath = path.join(root, '.elegy', 'messaging-gateway.config.json');
       fs.mkdirSync(path.dirname(gatewayConfigPath), { recursive: true });
       fs.writeFileSync(gatewayConfigPath, JSON.stringify({
         mode: 'auto',
@@ -598,22 +527,17 @@ async function run() {
           activeRoot: root,
         },
       }, null, 2));
-
       const tracker = await startMockTrackerStatusServer('ws2-tracker-token');
-
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
-
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
         '--port',
         String(port),
-        '--copilot-home',
-        copilotHome,
-        '--vscode-home',
-        vscodeHome,
+        '--elegy-home',
+        elegyHome,
         '--sandboxes-home',
         sandboxesHome,
         '--tracker-url',
@@ -629,15 +553,12 @@ async function run() {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       }));
-
       let stderr = '';
       server.stderr.on('data', (chunk) => {
         stderr += chunk.toString('utf8');
       });
-
       try {
         await waitForHealth(baseUrl);
-
         const connect = await postJson(`${baseUrl}/api/gateway/connect`, {});
         assert.strictEqual(connect.statusCode, 200);
         assert.strictEqual(connect.body.kind, 'gateway.connect');
@@ -648,7 +569,6 @@ async function run() {
         assert.strictEqual(connect.body.gateway.config.path, path.resolve(gatewayConfigPath));
         assert.ok(Array.isArray(connect.body.errors));
         assert.strictEqual(connect.body.errors.length, 0);
-
         const state = await fetchJson(`${baseUrl}/api/gateway/state`);
         assert.strictEqual(state.statusCode, 200);
         assert.strictEqual(state.body.kind, 'gateway.state');
@@ -660,22 +580,16 @@ async function run() {
         await stopTrackedProcess(server);
         await tracker.close();
       }
-
       if (stderr.trim()) {
         assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
       }
     });
   });
-
   await test('gateway config deterministically rehomes legacy instruction-engine path to canonical copilot path when env override is absent', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const legacyConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const legacyConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
       const legacyConfig = {
         mode: 'auto',
         workspaces: {
@@ -685,20 +599,16 @@ async function run() {
       };
       fs.mkdirSync(path.dirname(legacyConfigPath), { recursive: true });
       fs.writeFileSync(legacyConfigPath, JSON.stringify(legacyConfig, null, 2));
-
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
-
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
         '--port',
         String(port),
-        '--copilot-home',
-        copilotHome,
-        '--vscode-home',
-        vscodeHome,
+        '--elegy-home',
+        elegyHome,
         '--sandboxes-home',
         sandboxesHome,
       ], {
@@ -713,52 +623,40 @@ async function run() {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       }));
-
       let stderr = '';
       server.stderr.on('data', (chunk) => {
         stderr += chunk.toString('utf8');
       });
-
       try {
         await waitForHealth(baseUrl);
-
         const configResponse = await fetchJson(`${baseUrl}/api/gateway/config`);
         assert.strictEqual(configResponse.statusCode, 200);
         assert.strictEqual(configResponse.body.exists, true);
         const resolvedConfigPath = path.resolve(configResponse.body.configPath);
         assert.ok(
-          resolvedConfigPath.toLowerCase().endsWith(path.join('.copilot', 'messaging-gateway.config.json').toLowerCase())
+          resolvedConfigPath.toLowerCase().endsWith(path.join('.elegy', 'messaging-gateway.config.json').toLowerCase())
         );
         assert.notStrictEqual(resolvedConfigPath.toLowerCase(), path.resolve(legacyConfigPath).toLowerCase());
         assert.deepStrictEqual(configResponse.body.config, legacyConfig);
-
         assert.strictEqual(fs.existsSync(resolvedConfigPath), true);
         assert.strictEqual(fs.existsSync(legacyConfigPath), false);
-
         const persistedCanonicalConfig = JSON.parse(fs.readFileSync(resolvedConfigPath, 'utf8'));
         assert.deepStrictEqual(persistedCanonicalConfig, legacyConfig);
       } finally {
         await stopTrackedProcess(server);
       }
-
       if (stderr.trim()) {
         assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
       }
     });
   });
-
   await test('gateway config path honors env override ahead of canonical default and does not rehome legacy path', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const legacyConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
-      const canonicalConfigPath = path.join(root, '.copilot', 'messaging-gateway.config.json');
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const legacyConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
+      const canonicalConfigPath = path.join(root, '.elegy', 'messaging-gateway.config.json');
       const envConfigPath = path.join(root, 'config-overrides', 'gateway-config.json');
-
       const legacyConfig = {
         mode: 'disconnected',
         workspaces: {
@@ -780,27 +678,22 @@ async function run() {
           activeRoot: root,
         },
       };
-
       fs.mkdirSync(path.dirname(legacyConfigPath), { recursive: true });
       fs.writeFileSync(legacyConfigPath, JSON.stringify(legacyConfig, null, 2));
       fs.mkdirSync(path.dirname(canonicalConfigPath), { recursive: true });
       fs.writeFileSync(canonicalConfigPath, JSON.stringify(canonicalConfig, null, 2));
       fs.mkdirSync(path.dirname(envConfigPath), { recursive: true });
       fs.writeFileSync(envConfigPath, JSON.stringify(envConfig, null, 2));
-
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
-
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
         '--port',
         String(port),
-        '--copilot-home',
-        copilotHome,
-        '--vscode-home',
-        vscodeHome,
+        '--elegy-home',
+        elegyHome,
         '--sandboxes-home',
         sandboxesHome,
       ], {
@@ -815,15 +708,12 @@ async function run() {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       }));
-
       let stderr = '';
       server.stderr.on('data', (chunk) => {
         stderr += chunk.toString('utf8');
       });
-
       try {
         await waitForHealth(baseUrl);
-
         const configResponse = await fetchJson(`${baseUrl}/api/gateway/config`);
         assert.strictEqual(configResponse.statusCode, 200);
         assert.strictEqual(configResponse.body.exists, true);
@@ -832,41 +722,31 @@ async function run() {
           path.resolve(envConfigPath).toLowerCase()
         );
         assert.deepStrictEqual(configResponse.body.config, envConfig);
-
         assert.strictEqual(fs.existsSync(legacyConfigPath), true);
         assert.strictEqual(fs.existsSync(canonicalConfigPath), true);
         assert.deepStrictEqual(JSON.parse(fs.readFileSync(canonicalConfigPath, 'utf8')), canonicalConfig);
       } finally {
         await stopTrackedProcess(server);
       }
-
       if (stderr.trim()) {
         assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
       }
     });
   });
-
   await test('non-docker provider returns deterministic unsupported marker for capability-gated lifecycle actions', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const port = await getFreePort();
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
-
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
         '--port',
         String(port),
-        '--copilot-home',
-        copilotHome,
-        '--vscode-home',
-        vscodeHome,
+        '--elegy-home',
+        elegyHome,
         '--sandboxes-home',
         sandboxesHome,
       ], {
@@ -881,19 +761,15 @@ async function run() {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       }));
-
       let stderr = '';
       server.stderr.on('data', (chunk) => {
         stderr += chunk.toString('utf8');
       });
-
       try {
         await waitForHealth(baseUrl);
-
         const response = await postJson(`${baseUrl}/api/sandboxes/lifecycle/pr-open`, {
           sandboxId: 'ws2-guardrail-sandbox',
         });
-
         assert.strictEqual(response.statusCode, 501);
         assert.strictEqual(response.body.error, 'Lifecycle capability unsupported');
         assert.strictEqual(response.body.code, 'lifecycle_capability_unsupported');
@@ -920,34 +796,27 @@ async function run() {
       } finally {
         await stopTrackedProcess(server);
       }
-
       if (stderr.trim()) {
         assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
       }
     });
   });
-
   await test('sessions API exposes deterministic artifact-authority reconciliation metadata in merged all-source view', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
-      fs.mkdirSync(path.join(copilotHome, 'session-state', 'reconcile-1'), { recursive: true });
-      fs.mkdirSync(path.join(vscodeHome, 'session-state', 'reconcile-1'), { recursive: true });
-
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
+      fs.mkdirSync(path.join(elegyHome, 'session-state', 'reconcile-1'), { recursive: true });
+      fs.mkdirSync(path.join( 'session-state', 'reconcile-1'), { recursive: true });
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
-
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
         '--port',
         String(port),
-        '--copilot-home',
-        copilotHome,
-        '--vscode-home',
-        vscodeHome,
+        '--elegy-home',
+        elegyHome,
         '--sandboxes-home',
         sandboxesHome,
       ], {
@@ -960,19 +829,15 @@ async function run() {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       }));
-
       let stderr = '';
       server.stderr.on('data', (chunk) => {
         stderr += chunk.toString('utf8');
       });
-
       try {
         await waitForHealth(baseUrl);
-
         const sessionsResponse = await fetchJson(`${baseUrl}/api/sessions?source=all&dedupe=on`);
         assert.strictEqual(sessionsResponse.statusCode, 200);
         assert.ok(Array.isArray(sessionsResponse.body.sessions));
-
         const merged = sessionsResponse.body.sessions.find((entry) => entry.canonicalKey === 'reconcile-1');
         assert.ok(merged);
         assert.strictEqual(merged.mergedCount, 2);
@@ -988,34 +853,25 @@ async function run() {
       } finally {
         await stopTrackedProcess(server);
       }
-
       if (stderr.trim()) {
         assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
       }
     });
   });
-
   await test('planning durability routes fail closed with explicit dependency marker when WS3 authority gate is not ready', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const port = await getFreePort();
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
-
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
         '--port',
         String(port),
-        '--copilot-home',
-        copilotHome,
-        '--vscode-home',
-        vscodeHome,
+        '--elegy-home',
+        elegyHome,
         '--sandboxes-home',
         sandboxesHome,
       ], {
@@ -1028,12 +884,10 @@ async function run() {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       }));
-
       let stderr = '';
       server.stderr.on('data', (chunk) => {
         stderr += chunk.toString('utf8');
       });
-
       try {
         const health = await waitForHealth(baseUrl);
         assert.strictEqual(health.statusCode, 200);
@@ -1041,11 +895,9 @@ async function run() {
         assert.strictEqual(health.body.planningDurabilityDependencyGate.ready, false);
         assert.strictEqual(health.body.planningDurabilityDependencyGate.marker, 'dependency-blocked');
         assert.strictEqual(health.body.planningDurabilityDependencyGate.reason, 'ws3_authority_gate_forced_blocked');
-
         const sessionsResponse = await fetchJson(`${baseUrl}/api/sessions?source=cli`);
         assert.strictEqual(sessionsResponse.statusCode, 200);
         assert.ok(Array.isArray(sessionsResponse.body.sessions));
-
         const planningBlocked = await postJson(`${baseUrl}/api/planning/records`, {
           idempotencyKey: 'ws3-gate-blocked-1',
           scope: 'user',
@@ -1053,7 +905,6 @@ async function run() {
           summary: 'planning durability should fail closed',
           state: 'thought',
         });
-
         assert.strictEqual(planningBlocked.statusCode, 503);
         assert.strictEqual(planningBlocked.body.error, 'Planning durability dependency gate blocked');
         assert.strictEqual(planningBlocked.body.code, 'planning_durability_dependency_gate_blocked');
@@ -1064,7 +915,6 @@ async function run() {
         assert.strictEqual(planningBlocked.body.dependencyGate.marker, 'dependency-blocked');
         assert.strictEqual(planningBlocked.body.dependencyGate.ready, false);
         assert.deepStrictEqual(planningBlocked.body.dependencyGate.reasonCodes, ['ws3_authority_gate_forced_blocked']);
-
         const retentionBlocked = await postJson(`${baseUrl}/api/planning/persistence/retention`, {
           mode: 'dry-run',
         });
@@ -1077,34 +927,25 @@ async function run() {
       } finally {
         await stopTrackedProcess(server);
       }
-
       if (stderr.trim()) {
         assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
       }
     });
   });
-
   await test('planning routes fail closed with explicit persistence error when env-configured DB startup cannot connect', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const port = await getFreePort();
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
-
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
         '--port',
         String(port),
-        '--copilot-home',
-        copilotHome,
-        '--vscode-home',
-        vscodeHome,
+        '--elegy-home',
+        elegyHome,
         '--sandboxes-home',
         sandboxesHome,
       ], {
@@ -1116,17 +957,14 @@ async function run() {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       }));
-
       let stderr = '';
       server.stderr.on('data', (chunk) => {
         stderr += chunk.toString('utf8');
       });
-
       try {
         const health = await waitForHealth(baseUrl);
         assert.strictEqual(health.statusCode, 200);
         assert.strictEqual(health.body.planningPersistence.status, 'migration_error');
-
         const create = await postJson(`${baseUrl}/api/planning/records`, {
           idempotencyKey: 'persistence-authority-no-client-1',
           scope: 'user',
@@ -1134,7 +972,6 @@ async function run() {
           summary: 'must fail closed',
           state: 'thought',
         });
-
         assert.strictEqual(create.statusCode, 503);
         assert.strictEqual(create.body.error, 'Planning persistence unavailable');
         assert.strictEqual(create.body.code, 'planning_persistence_unavailable');
@@ -1149,7 +986,6 @@ async function run() {
         assert.ok(create.body.planningPersistence.governance);
         assert.strictEqual(create.body.planningPersistence.governance.deterministic, true);
         assert.strictEqual(create.body.planningPersistence.governance.failClosed, true);
-
         const retention = await postJson(`${baseUrl}/api/planning/persistence/retention`, {
           mode: 'dry-run',
         });
@@ -1157,19 +993,16 @@ async function run() {
         assert.strictEqual(retention.body.code, 'planning_persistence_unavailable');
         assert.strictEqual(retention.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(retention.body.kind, 'planning.persistence.retention');
-
         const exported = await postJson(`${baseUrl}/api/planning/persistence/export`, {});
         assert.strictEqual(exported.statusCode, 503);
         assert.strictEqual(exported.body.code, 'planning_persistence_unavailable');
         assert.strictEqual(exported.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(exported.body.kind, 'planning.persistence.export');
-
         const imported = await postJson(`${baseUrl}/api/planning/persistence/import`, { records: [] });
         assert.strictEqual(imported.statusCode, 503);
         assert.strictEqual(imported.body.code, 'planning_persistence_unavailable');
         assert.strictEqual(imported.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(imported.body.kind, 'planning.persistence.import');
-
         const corruptionScan = await postJson(`${baseUrl}/api/planning/persistence/corruption/scan`, {});
         assert.strictEqual(corruptionScan.statusCode, 503);
         assert.strictEqual(corruptionScan.body.code, 'planning_persistence_unavailable');
@@ -1178,25 +1011,18 @@ async function run() {
       } finally {
         await stopTrackedProcess(server);
       }
-
       if (stderr.trim()) {
         assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
       }
     });
   });
-
   await test('WS5A durability-critical routes keep canonical reason code when persistence diagnostics are noisy', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const port = await getFreePort();
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
       const noisyDiagnostic = `ws5a-m1-noisy-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
       let runningServer = null;
       try {
         await withPatchedEnv({
@@ -1206,9 +1032,7 @@ async function run() {
           runningServer = await startServer({
             host: '127.0.0.1',
             port,
-            copilotHome,
-            vscodeHome,
-            sandboxesHome,
+            elegyHome,            sandboxesHome,
             planningPersistenceClient: {
               query: async () => {
                 throw new Error(noisyDiagnostic);
@@ -1216,16 +1040,13 @@ async function run() {
             },
             quiet: true,
           });
-
           const health = await fetchJson(`${baseUrl}/api/health`);
           assert.strictEqual(health.statusCode, 200);
           assert.strictEqual(health.body.planningPersistence.status, 'migration_error');
-
           const compareBlocked = await postJson(`${baseUrl}/api/planning/compare`, {
             scopes: ['user'],
             query: 'durability gate canonical reasons',
           });
-
           assert.strictEqual(compareBlocked.statusCode, 503);
           assert.strictEqual(compareBlocked.body.code, 'planning_durability_route_gate_blocked');
           assert.strictEqual(compareBlocked.body.reason, 'planning_persistence_migration_error');
@@ -1238,26 +1059,22 @@ async function run() {
           assert.strictEqual(compareBlocked.body.durabilityRouteGate.debug.persistenceAuthorityLastError, noisyDiagnostic);
           assert.ok(compareBlocked.body.durabilityRouteGate.persistenceAuthority);
           assert.strictEqual(compareBlocked.body.durabilityRouteGate.persistenceAuthority.lastError, noisyDiagnostic);
-
           const suggestionBlocked = await postJson(`${baseUrl}/api/planning/suggestions`, {
             suggestionId: 'suggestion-noisy-1',
             state: {
               recommendation: 'defer-merge',
             },
           });
-
           assert.strictEqual(suggestionBlocked.statusCode, 503);
           assert.strictEqual(suggestionBlocked.body.code, 'planning_durability_route_gate_blocked');
           assert.strictEqual(suggestionBlocked.body.reason, 'planning_persistence_migration_error');
           assert.strictEqual(suggestionBlocked.body.kind, 'planning.suggestion.persist');
-
           const recapBlocked = await postJson(`${baseUrl}/api/planning/recaps`, {
             recapId: 'recap-noisy-1',
             state: {
               summary: 'merge skipped',
             },
           });
-
           assert.strictEqual(recapBlocked.statusCode, 503);
           assert.strictEqual(recapBlocked.body.code, 'planning_durability_route_gate_blocked');
           assert.strictEqual(recapBlocked.body.reason, 'planning_persistence_migration_error');
@@ -1270,28 +1087,20 @@ async function run() {
       }
     });
   });
-
   await test('WS5A durability-critical routes fail closed when persistence authority is not configured', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const port = await getFreePort();
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
-
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
         '--port',
         String(port),
-        '--copilot-home',
-        copilotHome,
-        '--vscode-home',
-        vscodeHome,
+        '--elegy-home',
+        elegyHome,
         '--sandboxes-home',
         sandboxesHome,
       ], {
@@ -1303,17 +1112,14 @@ async function run() {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
       }));
-
       let stderr = '';
       server.stderr.on('data', (chunk) => {
         stderr += chunk.toString('utf8');
       });
-
       try {
         const health = await waitForHealth(baseUrl);
         assert.strictEqual(health.statusCode, 200);
         assert.strictEqual(health.body.planningDurabilityDependencyGate.ready, true);
-
         const compareBlocked = await postJson(`${baseUrl}/api/planning/compare`, {
           scopes: ['user'],
           query: 'durability gate',
@@ -1329,7 +1135,6 @@ async function run() {
         assert.strictEqual(compareBlocked.body.durabilityRouteGate.ready, false);
         assert.ok(Array.isArray(compareBlocked.body.durabilityRouteGate.reasonCodes));
         assert.deepStrictEqual(compareBlocked.body.durabilityRouteGate.reasonCodes, ['planning_persistence_not_configured']);
-
         const intentBlocked = await postJson(`${baseUrl}/api/planning/merge-intent`, {
           compareReceiptId: 'compare-123',
           targetId: 'planning-001',
@@ -1340,7 +1145,6 @@ async function run() {
         assert.strictEqual(intentBlocked.body.code, 'planning_durability_route_gate_blocked');
         assert.strictEqual(intentBlocked.body.reason, 'planning_persistence_not_configured');
         assert.strictEqual(intentBlocked.body.kind, 'planning.merge-intent');
-
         const mergeBlocked = await postJson(`${baseUrl}/api/planning/merge`, {
           tokenId: 'intent-123',
           compareReceiptId: 'compare-123',
@@ -1354,7 +1158,6 @@ async function run() {
         assert.strictEqual(mergeBlocked.body.code, 'planning_durability_route_gate_blocked');
         assert.strictEqual(mergeBlocked.body.reason, 'planning_persistence_not_configured');
         assert.strictEqual(mergeBlocked.body.kind, 'planning.merge');
-
         const suggestionBlocked = await postJson(`${baseUrl}/api/planning/suggestions`, {
           suggestionId: 'suggestion-blocked-1',
           state: {
@@ -1366,7 +1169,6 @@ async function run() {
         assert.strictEqual(suggestionBlocked.body.code, 'planning_durability_route_gate_blocked');
         assert.strictEqual(suggestionBlocked.body.reason, 'planning_persistence_not_configured');
         assert.strictEqual(suggestionBlocked.body.kind, 'planning.suggestion.persist');
-
         const recapBlocked = await postJson(`${baseUrl}/api/planning/recaps`, {
           recapId: 'recap-blocked-1',
           state: {
@@ -1378,38 +1180,27 @@ async function run() {
         assert.strictEqual(recapBlocked.body.code, 'planning_durability_route_gate_blocked');
         assert.strictEqual(recapBlocked.body.reason, 'planning_persistence_not_configured');
         assert.strictEqual(recapBlocked.body.kind, 'planning.recap.persist');
-
         const sessionsResponse = await fetchJson(`${baseUrl}/api/sessions?source=cli`);
         assert.strictEqual(sessionsResponse.statusCode, 200);
       } finally {
         await stopTrackedProcess(server);
       }
-
       if (stderr.trim()) {
         assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
       }
     });
   });
-
   await test('runtime health surfaces startup sync outcomes and the autonomous decision log summary', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(copilotHome, 'sandboxes');
-
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const server = await startServer({
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(elegyHome, 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const server = await startServer({
         host: '127.0.0.1',
         port: await getFreePort(),
         engineRoot: root,
-        copilotHome,
-        vscodeHome,
-        sandboxesHome,
+        elegyHome,        sandboxesHome,
         quiet: true,
       });
-
       try {
         const address = server.server.address();
         const port = address && typeof address === 'object' ? address.port : null;
@@ -1424,7 +1215,6 @@ async function run() {
         assert.strictEqual(health.body.autonomousDecisionLog.lastEventOutcome, health.body.startupManagedAssetSync.outcome);
         assert.ok(typeof health.body.autonomousDecisionLog.path === 'string' && health.body.autonomousDecisionLog.path.length > 0);
         assert.ok(fs.existsSync(health.body.autonomousDecisionLog.path));
-
         const entries = fs.readFileSync(health.body.autonomousDecisionLog.path, 'utf8')
           .split(/\r?\n/)
           .filter(Boolean)
@@ -1438,17 +1228,11 @@ async function run() {
       }
     });
   });
-
   await test('startup managed-asset sync uses non-forcing sync options during normal startup', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(copilotHome, 'sandboxes');
-
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const syncCalls = [];
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(elegyHome, 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const syncCalls = [];
       const originalSyncManagedInstall = assets.syncManagedInstall;
       assets.syncManagedInstall = (engineRoot, home, options = {}) => {
         syncCalls.push({ engineRoot, home, options: { ...options } });
@@ -1458,18 +1242,14 @@ async function run() {
           installState: {},
         };
       };
-
       try {
         const server = await startServer({
           host: '127.0.0.1',
           port: await getFreePort(),
           engineRoot: root,
-          copilotHome,
-          vscodeHome,
-          sandboxesHome,
+          elegyHome,          sandboxesHome,
           quiet: true,
         });
-
         try {
           const address = server.server.address();
           const port = address && typeof address === 'object' ? address.port : null;
@@ -1479,7 +1259,6 @@ async function run() {
         } finally {
           await server.close();
         }
-
         assert.ok(syncCalls.length >= 1, 'expected startup sync to invoke managed-asset sync');
         for (const syncCall of syncCalls) {
           assert.strictEqual(syncCall.options.force, false);
@@ -1490,27 +1269,18 @@ async function run() {
       }
     });
   });
-
   await test('runtime health records skipped startup sync as an autonomous decision when startup sync is disabled', async () => {
     await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(copilotHome, 'sandboxes');
-
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const server = await startServer({
+      const elegyHome = path.join(root, '.elegy');
+      const sandboxesHome = path.join(elegyHome, 'sandboxes');
+      fs.mkdirSync(elegyHome, { recursive: true });      const server = await startServer({
         host: '127.0.0.1',
         port: await getFreePort(),
         engineRoot: root,
-        copilotHome,
-        vscodeHome,
-        sandboxesHome,
+        elegyHome,        sandboxesHome,
         managedAssetSyncOnStart: false,
         quiet: true,
       });
-
       try {
         const address = server.server.address();
         const port = address && typeof address === 'object' ? address.port : null;
@@ -1526,7 +1296,6 @@ async function run() {
       }
     });
   });
-
   console.log(`\n${passed} tests passed`);
   if (process.exitCode) {
     console.error('Some tests FAILED');
@@ -1534,14 +1303,12 @@ async function run() {
     console.log('All tests passed');
   }
 }
-
 const suiteTimer = setTimeout(() => {
   console.error(`Test suite timed out after ${TEST_SUITE_TIMEOUT_MS}ms — killing tracked processes and exiting.`);
   killTracked();
   process.exit(2);
 }, TEST_SUITE_TIMEOUT_MS);
 suiteTimer.unref();
-
 run().catch((e) => {
   console.error(e.stack || e.message || String(e));
   process.exit(1);

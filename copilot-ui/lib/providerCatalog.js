@@ -28,12 +28,12 @@ function loadProviderCatalog(engineRoot) {
   };
 }
 
-function resolveProviderInstallStatePath(copilotHome) {
-  return path.join(path.resolve(copilotHome), 'catalog', 'providers-state.json');
+function resolveProviderInstallStatePath(elegyHome) {
+  return path.join(path.resolve(elegyHome), 'catalog', 'providers-state.json');
 }
 
-function loadProviderInstallState(copilotHome) {
-  const statePath = resolveProviderInstallStatePath(copilotHome);
+function loadProviderInstallState(elegyHome) {
+  const statePath = resolveProviderInstallStatePath(elegyHome);
   const raw = readJsonIfExists(statePath);
   const providers =
     raw && raw.providers && typeof raw.providers === 'object' && !Array.isArray(raw.providers)

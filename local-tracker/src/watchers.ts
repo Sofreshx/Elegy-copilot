@@ -32,7 +32,7 @@ function toPosixPath(inputPath: string): string {
 }
 
 function getCanonicalTasksPath(workspacePath: string): string {
-  return path.join(os.homedir(), ".copilot", "repo-state", getRepoId(workspacePath), "tasks");
+  return path.join(os.homedir(), ".elegy", "repo-state", getRepoId(workspacePath), "tasks");
 }
 
 function getLegacyTasksPath(workspacePath: string): string {
@@ -47,7 +47,7 @@ function shouldWatchLegacyTaskSurface(): boolean {
 function warnLegacyTaskSurfaceEnabled(workspacePath: string): void {
   console.warn(
     `[Watcher] ${LEGACY_TASK_SURFACE_ENV}=true enables legacy repo-local task watching for ${toPosixPath(workspacePath)}. `
-    + `This is a compatibility-only surface; canonical task authority is ~/.copilot/repo-state/<repoId>/tasks/.`
+    + `This is a compatibility-only surface; canonical task authority is ~/.elegy/repo-state/<repoId>/tasks/.`
   );
 }
 

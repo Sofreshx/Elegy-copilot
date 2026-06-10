@@ -100,8 +100,8 @@ function writeJsonAtomic(absPath, value) {
   fs.renameSync(tempPath, absPath);
 }
 
-function resolveSyncRoot(copilotHomeAbs) {
-  return path.join(path.resolve(copilotHomeAbs || '.'), 'obsidian-sync');
+function resolveSyncRoot(elegyHomeAbs) {
+  return path.join(path.resolve(elegyHomeAbs || '.'), 'obsidian-sync');
 }
 
 function deriveRepoSyncKey(repo) {
@@ -111,16 +111,16 @@ function deriveRepoSyncKey(repo) {
   return crypto.createHash('sha256').update(input, 'utf8').digest('hex').slice(0, 24);
 }
 
-function resolveRepoStatePath(copilotHomeAbs, repo) {
-  return path.join(resolveSyncRoot(copilotHomeAbs), 'repos', `${deriveRepoSyncKey(repo)}.json`);
+function resolveRepoStatePath(elegyHomeAbs, repo) {
+  return path.join(resolveSyncRoot(elegyHomeAbs), 'repos', `${deriveRepoSyncKey(repo)}.json`);
 }
 
-function resolveRepoLeasePath(copilotHomeAbs, repo) {
-  return path.join(resolveSyncRoot(copilotHomeAbs), 'leases', `${deriveRepoSyncKey(repo)}.lock.json`);
+function resolveRepoLeasePath(elegyHomeAbs, repo) {
+  return path.join(resolveSyncRoot(elegyHomeAbs), 'leases', `${deriveRepoSyncKey(repo)}.lock.json`);
 }
 
-function resolveAggregateStatusPath(copilotHomeAbs) {
-  return path.join(resolveSyncRoot(copilotHomeAbs), 'status.json');
+function resolveAggregateStatusPath(elegyHomeAbs) {
+  return path.join(resolveSyncRoot(elegyHomeAbs), 'status.json');
 }
 
 function buildDefaultRepoState(repo, config) {
@@ -204,21 +204,21 @@ function removeFileIfExists(absPath) {
   }
 }
 
-function readPersistedRepoSyncLease({ copilotHomeAbs, repo }) {
-  return normalizeSyncLease(readJsonFile(resolveRepoLeasePath(copilotHomeAbs, repo), null));
+function readPersistedRepoSyncLease({ elegyHomeAbs, repo }) {
+  return normalizeSyncLease(readJsonFile(resolveRepoLeasePath(elegyHomeAbs, repo), null));
 }
 
-function resolveRepoLeaseClaimPath(copilotHomeAbs, repo, leaseToken) {
-  return path.join(resolveSyncRoot(copilotHomeAbs), 'leases', `${deriveRepoSyncKey(repo)}.${leaseToken}.reclaim.json`);
+function resolveRepoLeaseClaimPath(elegyHomeAbs, repo, leaseToken) {
+  return path.join(resolveSyncRoot(elegyHomeAbs), 'leases', `${deriveRepoSyncKey(repo)}.${leaseToken}.reclaim.json`);
 }
 
-function tryReclaimStaleRepoSyncLease({ copilotHomeAbs, repo, lease }) {
+function tryReclaimStaleRepoSyncLease({ elegyHomeAbs, repo, lease }) {
   const normalizedLease = normalizeSyncLease(lease);
   if (!normalizedLease || isSyncLeaseActive(normalizedLease)) {
     return false;
   }
 
-  const claimPath = resolveRepoLeaseClaimPath(copilotHomeAbs, repo, normalizedLease.token);
+  const claimPath = resolveRepoLeaseClaimPath(elegyHomeAbs, repo, normalizedLease.token);
   if (!writeJsonExclusive(claimPath, {
     token: normalizedLease.token,
     claimedAt: new Date().toISOString(),
@@ -228,7 +228,7 @@ function tryReclaimStaleRepoSyncLease({ copilotHomeAbs, repo, lease }) {
   }
 
   try {
-    const persistedLease = readPersistedRepoSyncLease({ copilotHomeAbs, repo });
+    const persistedLease = readPersistedRepoSyncLease({ elegyHomeAbs, repo });
     if (!persistedLease) {
       return true;
     }
@@ -236,16 +236,16 @@ function tryReclaimStaleRepoSyncLease({ copilotHomeAbs, repo, lease }) {
       return false;
     }
 
-    removeFileIfExists(resolveRepoLeasePath(copilotHomeAbs, repo));
+    removeFileIfExists(resolveRepoLeasePath(elegyHomeAbs, repo));
     return true;
   } finally {
     removeFileIfExists(claimPath);
   }
 }
 
-function readRepoSyncState({ copilotHomeAbs, repo, config }) {
+function readRepoSyncState({ elegyHomeAbs, repo, config }) {
   const fallback = buildDefaultRepoState(repo, config);
-  const raw = readJsonFile(resolveRepoStatePath(copilotHomeAbs, repo), fallback);
+  const raw = readJsonFile(resolveRepoStatePath(elegyHomeAbs, repo), fallback);
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return fallback;
   }
@@ -262,12 +262,12 @@ function readRepoSyncState({ copilotHomeAbs, repo, config }) {
   };
 }
 
-function writeRepoSyncState({ copilotHomeAbs, repo, state }) {
-  writeJsonAtomic(resolveRepoStatePath(copilotHomeAbs, repo), state);
+function writeRepoSyncState({ elegyHomeAbs, repo, state }) {
+  writeJsonAtomic(resolveRepoStatePath(elegyHomeAbs, repo), state);
 }
 
-function readAggregateRepoSummaries(copilotHomeAbs) {
-  const reposDirectory = path.join(resolveSyncRoot(copilotHomeAbs), 'repos');
+function readAggregateRepoSummaries(elegyHomeAbs) {
+  const reposDirectory = path.join(resolveSyncRoot(elegyHomeAbs), 'repos');
   if (!fs.existsSync(reposDirectory) || !fs.statSync(reposDirectory).isDirectory()) {
     return {};
   }
@@ -298,24 +298,24 @@ function readAggregateRepoSummaries(copilotHomeAbs) {
   return repoSummaries;
 }
 
-function updateAggregateStatus({ copilotHomeAbs }) {
-  const statusPath = resolveAggregateStatusPath(copilotHomeAbs);
+function updateAggregateStatus({ elegyHomeAbs }) {
+  const statusPath = resolveAggregateStatusPath(elegyHomeAbs);
   const next = {
     schemaVersion: OBSIDIAN_SYNC_SCHEMA_VERSION,
     updatedAt: new Date().toISOString(),
-    repos: readAggregateRepoSummaries(copilotHomeAbs),
+    repos: readAggregateRepoSummaries(elegyHomeAbs),
   };
   writeJsonAtomic(statusPath, next);
 }
 
-function persistRepoState({ copilotHomeAbs, repo, state }) {
-  writeRepoSyncState({ copilotHomeAbs, repo, state });
-  updateAggregateStatus({ copilotHomeAbs });
+function persistRepoState({ elegyHomeAbs, repo, state }) {
+  writeRepoSyncState({ elegyHomeAbs, repo, state });
+  updateAggregateStatus({ elegyHomeAbs });
   return state;
 }
 
-function persistRepoSummary({ copilotHomeAbs, repo, config, summaryPatch }) {
-  const current = readRepoSyncState({ copilotHomeAbs, repo, config });
+function persistRepoSummary({ elegyHomeAbs, repo, config, summaryPatch }) {
+  const current = readRepoSyncState({ elegyHomeAbs, repo, config });
   const summary = {
     ...current.summary,
     ...summaryPatch,
@@ -332,12 +332,12 @@ function persistRepoSummary({ copilotHomeAbs, repo, config, summaryPatch }) {
     ...current,
     summary,
   };
-  return persistRepoState({ copilotHomeAbs, repo, state: nextState });
+  return persistRepoState({ elegyHomeAbs, repo, state: nextState });
 }
 
-function acquireRepoSyncLease({ copilotHomeAbs, repo, config, trigger }) {
-  const current = readRepoSyncState({ copilotHomeAbs, repo, config });
-  const persistedLease = readPersistedRepoSyncLease({ copilotHomeAbs, repo });
+function acquireRepoSyncLease({ elegyHomeAbs, repo, config, trigger }) {
+  const current = readRepoSyncState({ elegyHomeAbs, repo, config });
+  const persistedLease = readPersistedRepoSyncLease({ elegyHomeAbs, repo });
   const activeLease = persistedLease || normalizeSyncLease(current.syncLease);
   if (isSyncLeaseActive(activeLease)) {
     return {
@@ -348,11 +348,11 @@ function acquireRepoSyncLease({ copilotHomeAbs, repo, config, trigger }) {
     };
   }
 
-  if (persistedLease && !tryReclaimStaleRepoSyncLease({ copilotHomeAbs, repo, lease: persistedLease })) {
-    const latestState = readRepoSyncState({ copilotHomeAbs, repo, config });
+  if (persistedLease && !tryReclaimStaleRepoSyncLease({ elegyHomeAbs, repo, lease: persistedLease })) {
+    const latestState = readRepoSyncState({ elegyHomeAbs, repo, config });
     return {
       acquired: false,
-      activeLease: readPersistedRepoSyncLease({ copilotHomeAbs, repo }) || normalizeSyncLease(latestState.syncLease),
+      activeLease: readPersistedRepoSyncLease({ elegyHomeAbs, repo }) || normalizeSyncLease(latestState.syncLease),
       staleLeaseRecovered: false,
       state: latestState,
     };
@@ -361,11 +361,11 @@ function acquireRepoSyncLease({ copilotHomeAbs, repo, config, trigger }) {
   const nowMs = Date.now();
   const nowIso = new Date(nowMs).toISOString();
   const lease = buildSyncLease(config, trigger, nowMs);
-  if (!writeJsonExclusive(resolveRepoLeasePath(copilotHomeAbs, repo), lease)) {
-    const latestState = readRepoSyncState({ copilotHomeAbs, repo, config });
+  if (!writeJsonExclusive(resolveRepoLeasePath(elegyHomeAbs, repo), lease)) {
+    const latestState = readRepoSyncState({ elegyHomeAbs, repo, config });
     return {
       acquired: false,
-      activeLease: readPersistedRepoSyncLease({ copilotHomeAbs, repo }) || normalizeSyncLease(latestState.syncLease),
+      activeLease: readPersistedRepoSyncLease({ elegyHomeAbs, repo }) || normalizeSyncLease(latestState.syncLease),
       staleLeaseRecovered: false,
       state: latestState,
     };
@@ -396,13 +396,13 @@ function acquireRepoSyncLease({ copilotHomeAbs, repo, config, trigger }) {
     acquired: true,
     activeLease: lease,
     staleLeaseRecovered,
-    state: persistRepoState({ copilotHomeAbs, repo, state: nextState }),
+    state: persistRepoState({ elegyHomeAbs, repo, state: nextState }),
   };
 }
 
-function releaseRepoSyncLease({ copilotHomeAbs, repo, config, leaseToken, summaryPatch }) {
-  const current = readRepoSyncState({ copilotHomeAbs, repo, config });
-  const persistedLease = readPersistedRepoSyncLease({ copilotHomeAbs, repo });
+function releaseRepoSyncLease({ elegyHomeAbs, repo, config, leaseToken, summaryPatch }) {
+  const current = readRepoSyncState({ elegyHomeAbs, repo, config });
+  const persistedLease = readPersistedRepoSyncLease({ elegyHomeAbs, repo });
   const activeLease = persistedLease || normalizeSyncLease(current.syncLease);
   const safeLeaseToken = normalizeString(leaseToken);
 
@@ -424,14 +424,14 @@ function releaseRepoSyncLease({ copilotHomeAbs, repo, config, leaseToken, summar
   };
 
   if (!persistedLease || persistedLease.token === safeLeaseToken || !isSyncLeaseActive(persistedLease)) {
-    removeFileIfExists(resolveRepoLeasePath(copilotHomeAbs, repo));
+    removeFileIfExists(resolveRepoLeasePath(elegyHomeAbs, repo));
   }
 
   if (!activeLease || activeLease.token === safeLeaseToken || !isSyncLeaseActive(activeLease)) {
     delete nextState.syncLease;
   }
 
-  return persistRepoState({ copilotHomeAbs, repo, state: nextState });
+  return persistRepoState({ elegyHomeAbs, repo, state: nextState });
 }
 
 function buildRemoteFeedUrl(config, repo, cursor, effectiveSource) {
@@ -648,12 +648,12 @@ function isProtectedRemoteNotePath(notePath) {
   return obsidianNotes.isToolManagedNotePath(notePath);
 }
 
-function applyRemoteFeed({ copilotHomeAbs, repo, config, feed }) {
-  const currentState = readRepoSyncState({ copilotHomeAbs, repo, config });
+function applyRemoteFeed({ elegyHomeAbs, repo, config, feed }) {
+  const currentState = readRepoSyncState({ elegyHomeAbs, repo, config });
   const baseStatus = obsidianNotes.resolveObsidianStatus({
     repo,
-    copilotHomeAbs,
-    copilotHome: copilotHomeAbs,
+    elegyHomeAbs,
+    copilotHome: elegyHomeAbs,
   });
   const notesDirectory = obsidianNotes.resolveNotesDirectory(config, repo);
   fs.mkdirSync(notesDirectory.absolute, { recursive: true });
@@ -907,8 +907,8 @@ function applyRemoteFeed({ copilotHomeAbs, repo, config, feed }) {
     lastError: undefined,
     updatedAt: new Date().toISOString(),
   };
-  writeRepoSyncState({ copilotHomeAbs, repo, state: nextState });
-  updateAggregateStatus({ copilotHomeAbs, summary: nextState.summary });
+  writeRepoSyncState({ elegyHomeAbs, repo, state: nextState });
+  updateAggregateStatus({ elegyHomeAbs, summary: nextState.summary });
 
   return {
     status: baseStatus,

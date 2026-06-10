@@ -463,12 +463,12 @@ function resolveRoutingPolicy(query, options, snapshot) {
   if (options.routingPolicy && typeof options.routingPolicy === 'object') {
     return options.routingPolicy;
   }
-  if (!options.copilotHome || !snapshot) {
+  if (!(options.elegyHome || options.copilotHome) || !snapshot) {
     return null;
   }
   return buildRoutingPolicySnapshot({
     snapshot,
-    copilotHome: options.copilotHome,
+    elegyHome: options.elegyHome || options.copilotHome,
     repoPath: query.repoPath || options.repoPath || snapshot?.repoContext?.repoPath,
   });
 }

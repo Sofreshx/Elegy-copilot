@@ -7,7 +7,7 @@
  * bootstrapMoonBridge() pipeline without blocking the main event loop.
  *
  * Expected to receive via process.send():
- *   { copilotHome: string, forceRebuild: boolean }
+ *   { elegyHome: string, forceRebuild: boolean }
  *
  * Sends back via process.send():
  *   { ok: true, result: bootstrapMoonBridge result }
@@ -19,8 +19,8 @@ const { bootstrapMoonBridge } = require('./moonBridgeBootstrap');
 
 process.on('message', (msg) => {
   try {
-    const { copilotHome, forceRebuild } = msg;
-    const result = bootstrapMoonBridge({ copilotHome, forceRebuild });
+    const { elegyHome, forceRebuild } = msg;
+    const result = bootstrapMoonBridge({ elegyHome, forceRebuild });
     process.send({ ok: true, result });
   } catch (err) {
     process.send({ ok: false, error: err.message || String(err) });

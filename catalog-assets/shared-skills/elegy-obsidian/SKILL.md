@@ -24,7 +24,7 @@ Obsidian is treated as a **non-authoritative** mirror:
   SQLite.
 - Vault reads, file appends, and search results must not be written
   into paths that would shadow planning authority (for example,
-  `.copilot/backlogs/`, `roadmaps/`, or any spec/ADR location owned
+  `.elegy/backlogs/`, `roadmaps/`, or any spec/ADR location owned
   by another skill).
 
 ## Prerequisite
@@ -153,7 +153,7 @@ foundation skill.
   parse, normalize, or reinterpret its output into Elegy planning
   schemas.
 - Do not write vault content into paths that would shadow Elegy
-  planning authority (`.copilot/backlogs/`, `roadmaps/`, ADR/spec
+  planning authority (`.elegy/backlogs/`, `roadmaps/`, ADR/spec
   locations, `docs/system/**` governance nodes).
 - Use `obsidian-result/v1` envelopes for every invocation. If the CLI
   exits non-zero, set `status` to the most specific terminal state

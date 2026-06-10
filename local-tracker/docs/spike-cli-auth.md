@@ -19,7 +19,7 @@ Prove (or disprove) that **Copilot CLI can run in a container** in ACP server mo
 1. Authenticate
 2. Accept an ACP JSON-RPC client connection
 3. Complete one `session/new` + `session/prompt`
-4. Write session artifacts to a **host bind mount** at `~/.copilot/sandboxes/<id>/session-state/`
+4. Write session artifacts to a **host bind mount** at `~/.elegy/sandboxes/<id>/session-state/`
 
 This is a **go/no-go** gate for the Sandbox Orchestrator plan.
 
@@ -96,13 +96,13 @@ docker run --rm \
   ie-spike-cli-auth
 ```
 
-Expected: same as attempt A, plus the session-state artifacts should land under the bind-mounted `~/.copilot/session-state/`.
+Expected: same as attempt A, plus the session-state artifacts should land under the bind-mounted `~/.elegy/session-state/`.
 
 ## Known failure modes
 
 - **`copilot` exits immediately**: likely an unsupported CLI flag. This spike intentionally uses only `--acp --port <N> --allow-all-tools`.
 - **ACP port opens but `session/new` fails**: indicates ACP protocol mismatch or auth state not usable.
-- **No session-state output**: verify `HOME=/home/copilot` and that `~/.copilot/session-state/` is writable/mounted.
+- **No session-state output**: verify `HOME=/home/copilot` and that `~/.elegy/session-state/` is writable/mounted.
 
 ## Results
 
@@ -118,7 +118,7 @@ Expected: same as attempt A, plus the session-state artifacts should land under 
 - Token env auth:
   - `GH_TOKEN` from `gh auth token`: **GO** (ACP initialize + `session/new` + `session/prompt` succeeded; session-state directory written to sandbox bind mount)
   - `COPILOT_GITHUB_TOKEN` / `GITHUB_TOKEN`: **NOT TESTED** in this environment (no env vars were present)
-- Host-login bind-mount auth (mounting only `~/.copilot`): **NO-GO** (ACP returned `{"code":-32000,"message":"Authentication required"}`)
+- Host-login bind-mount auth (mounting only `~/.elegy`): **NO-GO** (ACP returned `{"code":-32000,"message":"Authentication required"}`)
 
 **Overall WU-101 verdict:** **GO (with `GH_TOKEN` injection)**
 

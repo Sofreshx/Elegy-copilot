@@ -1,26 +1,20 @@
 'use strict';
-
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-
 const { startServer } = require('../server');
 const { startDesktopPlanningPersistence } = require('../lib/desktopPlanningPersistence');
-
 function mkdtemp(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
-
 function writeFile(filePath, content) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content, 'utf8');
 }
-
 function writeJson(filePath, value) {
   writeFile(filePath, JSON.stringify(value, null, 2) + '\n');
 }
-
 async function requestJson(baseUrl, pathname, options = {}) {
   const response = await fetch(`${baseUrl}${pathname}`, {
     method: options.method || 'GET',
@@ -36,7 +30,6 @@ async function requestJson(baseUrl, pathname, options = {}) {
     body: text ? JSON.parse(text) : null,
   };
 }
-
 async function waitFor(url, timeoutMs = 15000) {
   const startedAt = Date.now();
   let lastError = null;
@@ -54,7 +47,6 @@ async function waitFor(url, timeoutMs = 15000) {
   }
   throw lastError || new Error(`Timed out waiting for ${url}`);
 }
-
 function buildRoadmapMarkdown() {
   return [
     '---',
@@ -83,7 +75,6 @@ function buildRoadmapMarkdown() {
     '',
   ].join('\n');
 }
-
 function buildWorkflowArtifactMarkdown() {
   return [
     '# Review',
@@ -120,13 +111,11 @@ function buildWorkflowArtifactMarkdown() {
     '',
   ].join('\n');
 }
-
 async function main() {
   const root = mkdtemp('instruction-engine-roadmap-e2e-');
   const repoRoot = path.join(root, 'repo');
-  const copilotHome = path.join(root, '.copilot');
-  const vscodeHome = path.join(root, '.copilot-vscode');
-  const sandboxesHome = path.join(copilotHome, 'sandboxes');
+  const elegyHome = path.join(root, '.elegy');
+  const sandboxesHome = path.join(elegyHome, 'sandboxes');
   const planningStateRoot = path.join(root, 'planning-db');
   const elegyDbPath = path.join(root, 'elegy-memory.db');
   const elegyPlanningDbPath = path.join(root, 'elegy-planning.db');
@@ -154,14 +143,11 @@ async function main() {
     'debug',
     'elegy-planning.exe',
   );
-
   fs.mkdirSync(repoRoot, { recursive: true });
-  fs.mkdirSync(copilotHome, { recursive: true });
-  fs.mkdirSync(vscodeHome, { recursive: true });
-  fs.mkdirSync(sandboxesHome, { recursive: true });
+  fs.mkdirSync(elegyHome, { recursive: true });  fs.mkdirSync(sandboxesHome, { recursive: true });
   fs.mkdirSync(path.join(repoRoot, '.git'), { recursive: true });
   writeFile(path.join(repoRoot, 'docs', 'planning', 'platform-foundation', 'index.md'), buildRoadmapMarkdown());
-  writeJson(path.join(copilotHome, 'catalog', 'repo-inventory.json'), {
+  writeJson(path.join(elegyHome, 'catalog', 'repo-inventory.json'), {
     schemaVersion: 1,
     selectedRepoId: 'repo-instruction-engine-fixture',
     selectedRepoPath: repoRoot,
@@ -177,20 +163,16 @@ async function main() {
       canonicalRemote: null,
     }],
   });
-
   const planningPersistence = await startDesktopPlanningPersistence({
     stateRoot: planningStateRoot,
     logger: () => {},
   });
-
   const server = await startServer({
     port: 0,
     host: '127.0.0.1',
     quiet: true,
     engineRoot: path.resolve(__dirname, '..', '..'),
-    copilotHome,
-    vscodeHome,
-    sandboxesHome,
+    elegyHome,    sandboxesHome,
     planningPersistenceClient: planningPersistence.queryClient,
     env: {
       ...process.env,
@@ -204,12 +186,9 @@ async function main() {
       INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH: elegyPlanningDbPath,
     },
   });
-
   const baseUrl = `http://127.0.0.1:${server.port}`;
-
   try {
     await waitFor(`${baseUrl}/api/health`);
-
     const persistResponse = await requestJson(baseUrl, '/api/planning/workflow-artifacts', {
       method: 'POST',
       body: {
@@ -219,7 +198,6 @@ async function main() {
         },
       },
     });
-
     assert.equal(persistResponse.status, 200);
     assert.equal(persistResponse.body.kind, 'planning.workflow-artifact.persist');
     assert.equal(persistResponse.body.artifact.roadmapId, 'RM-platform-foundation');
@@ -238,7 +216,6 @@ async function main() {
       roadmapId: 'RM-platform-foundation',
       workPointId: 'RM-platform-foundation-001',
     });
-
     const retiredRoadmapsResponse = await requestJson(
       baseUrl,
       `/api/planning/roadmaps?repoId=repo-instruction-engine-fixture&repoPath=${encodeURIComponent(repoRoot)}`,
@@ -246,21 +223,18 @@ async function main() {
     assert.equal(retiredRoadmapsResponse.status, 410);
     assert.equal(retiredRoadmapsResponse.body.kind, 'planning.roadmaps.list');
     assert.equal(retiredRoadmapsResponse.body.code, 'planning_repo_file_authority_retired');
-
     const retiredRoadmapResponse = await requestJson(
       baseUrl,
       `/api/planning/roadmaps/platform-foundation?repoId=repo-instruction-engine-fixture&repoPath=${encodeURIComponent(repoRoot)}`,
     );
     assert.equal(retiredRoadmapResponse.status, 410);
     assert.equal(retiredRoadmapResponse.body.kind, 'planning.roadmaps.read');
-
     const workflowReadResponse = await requestJson(
       baseUrl,
       `/api/planning/workflow-artifacts?artifactId=${encodeURIComponent(persistResponse.body.artifact.artifactId)}&repoId=repo-instruction-engine-fixture`,
     );
     assert.equal(workflowReadResponse.status, 200);
     assert.equal(workflowReadResponse.body.artifact.kind, 'roadmap.review.result');
-
     const planningRoadmapShow = await new Promise((resolve, reject) => {
       const childProcess = require('node:child_process');
       childProcess.execFile(
@@ -287,7 +261,6 @@ async function main() {
         },
       );
     });
-
     assert.equal(planningRoadmapShow.status, 'ok');
     assert.equal(planningRoadmapShow.data.roadmap.id, 'RM-platform-foundation');
     assert.equal(planningRoadmapShow.data.roadmap.goalId, 'ie-goal-RM-platform-foundation');
@@ -295,7 +268,6 @@ async function main() {
     assert.equal(Array.isArray(planningRoadmapShow.data.workPoints), true);
     assert.equal(planningRoadmapShow.data.workPoints.length, 1);
     assert.equal(planningRoadmapShow.data.workPoints[0].id, 'RM-platform-foundation-001');
-
     const listMemories = await new Promise((resolve, reject) => {
       const childProcess = require('node:child_process');
       childProcess.execFile(
@@ -311,11 +283,9 @@ async function main() {
         },
       );
     });
-
     assert.equal(listMemories.command, 'list');
     assert.equal(Array.isArray(listMemories.data.memories), true);
     assert.equal(listMemories.data.memories.length >= 1, true);
-
     const inspectMemory = await new Promise((resolve, reject) => {
       const childProcess = require('node:child_process');
       childProcess.execFile(
@@ -331,11 +301,9 @@ async function main() {
         },
       );
     });
-
     assert.equal(inspectMemory.command, 'inspect');
     assert.match(inspectMemory.data.memory.content, /RM-platform-foundation-001/);
     assert.match(inspectMemory.data.memory.content, /render-workflow-state/);
-
     console.log(JSON.stringify({
       ok: true,
       root,
@@ -353,7 +321,6 @@ async function main() {
     await planningPersistence.stop();
   }
 }
-
 main().catch((error) => {
   console.error(String(error && error.stack ? error.stack : error));
   process.exit(1);

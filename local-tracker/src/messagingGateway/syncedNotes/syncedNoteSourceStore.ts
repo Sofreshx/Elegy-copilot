@@ -65,7 +65,7 @@ export interface SyncedNoteSourceStoreOptions {
 }
 
 export function getDefaultSyncedNoteSourcesDir(): string {
-  return path.join(os.homedir(), '.copilot', 'synced-notes', 'sources');
+  return path.join(os.homedir(), '.elegy', 'synced-notes', 'sources');
 }
 
 function toStoreErrorFromContractError(

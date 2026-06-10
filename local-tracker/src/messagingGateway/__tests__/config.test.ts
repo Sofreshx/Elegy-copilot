@@ -1,7 +1,6 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-
 import {
 	loadMessagingGatewayConfig,
 	resolveMessagingGatewayConfigPath,
@@ -14,10 +13,8 @@ import {
 	DEFAULT_SANDBOX_CLEANUP_ON_STARTUP,
 	DEFAULT_SANDBOX_STALE_TTL_MS,
 } from '../config';
-
 const CONFIG_JSON_ENV = 'INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON';
 const CONFIG_PATH_ENV = 'INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH';
-
 function createBaseConfig(activeRoot: string) {
 	return {
 		discord: {
@@ -31,23 +28,19 @@ function createBaseConfig(activeRoot: string) {
 		},
 	};
 }
-
 describe('messaging gateway config sandboxLifecycle', () => {
 	const originalEnv = process.env;
 	let tmpRoot: string;
-
 	beforeEach(() => {
 		process.env = { ...originalEnv };
 		tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-'));
 	});
-
 	afterEach(() => {
 		delete process.env[CONFIG_JSON_ENV];
 		delete process.env[CONFIG_PATH_ENV];
 		process.env = originalEnv;
 		fs.rmSync(tmpRoot, { recursive: true, force: true });
 	});
-
 	function loadFromEnvJson(partial: Record<string, unknown>) {
 		const base = createBaseConfig(tmpRoot);
 		process.env[CONFIG_JSON_ENV] = JSON.stringify({
@@ -56,7 +49,6 @@ describe('messaging gateway config sandboxLifecycle', () => {
 		});
 		return loadMessagingGatewayConfig().config;
 	}
-
 	it('accepts valid sandboxLifecycle values', () => {
 		const config = loadFromEnvJson({
 			sandboxLifecycle: {
@@ -66,7 +58,6 @@ describe('messaging gateway config sandboxLifecycle', () => {
 				staleTtlMs: 3_600_000,
 			},
 		});
-
 		expect(config.sandboxLifecycle).toEqual({
 			maxSandboxes: 25,
 			portRange: { start: 14000, end: 14099 },
@@ -74,7 +65,6 @@ describe('messaging gateway config sandboxLifecycle', () => {
 			staleTtlMs: 3_600_000,
 		});
 	});
-
 	it('rejects invalid sandboxLifecycle.maxSandboxes values', () => {
 		expect(() =>
 			loadFromEnvJson({
@@ -84,7 +74,6 @@ describe('messaging gateway config sandboxLifecycle', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: sandboxLifecycle.maxSandboxes must be an integer (1-100)');
 	});
-
 	it('rejects invalid sandboxLifecycle.portRange values', () => {
 		expect(() =>
 			loadFromEnvJson({
@@ -93,7 +82,6 @@ describe('messaging gateway config sandboxLifecycle', () => {
 				},
 			}),
 		).toThrow('[Gateway] Invalid config: sandboxLifecycle.portRange.start must be <= sandboxLifecycle.portRange.end');
-
 		expect(() =>
 			loadFromEnvJson({
 				sandboxLifecycle: {
@@ -102,7 +90,6 @@ describe('messaging gateway config sandboxLifecycle', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: sandboxLifecycle.portRange.start must be an integer port (1-65535)');
 	});
-
 	it('rejects invalid sandbox lifecycle cleanup values', () => {
 		expect(() =>
 			loadFromEnvJson({
@@ -111,7 +98,6 @@ describe('messaging gateway config sandboxLifecycle', () => {
 				},
 			}),
 		).toThrow('[Gateway] Invalid config: sandboxLifecycle.cleanupOnStartup must be a boolean');
-
 		expect(() =>
 			loadFromEnvJson({
 				sandboxLifecycle: {
@@ -120,7 +106,6 @@ describe('messaging gateway config sandboxLifecycle', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: sandboxLifecycle.staleTtlMs must be an integer (0-31536000000)');
 	});
-
 	it('resolveSandboxLifecycleConfig returns defaults and merges optional overrides', () => {
 		expect(resolveSandboxLifecycleConfig(undefined)).toEqual({
 			maxSandboxes: DEFAULT_SANDBOX_MAX_SANDBOXES,
@@ -131,7 +116,6 @@ describe('messaging gateway config sandboxLifecycle', () => {
 			cleanupOnStartup: DEFAULT_SANDBOX_CLEANUP_ON_STARTUP,
 			staleTtlMs: DEFAULT_SANDBOX_STALE_TTL_MS,
 		});
-
 		expect(
 			resolveSandboxLifecycleConfig({
 				maxSandboxes: 7,
@@ -149,23 +133,19 @@ describe('messaging gateway config sandboxLifecycle', () => {
 		});
 	});
 });
-
 describe('ENV JSON mode basics', () => {
 	const originalEnv = process.env;
 	let tmpRoot: string;
-
 	beforeEach(() => {
 		process.env = { ...originalEnv };
 		tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-'));
 	});
-
 	afterEach(() => {
 		delete process.env[CONFIG_JSON_ENV];
 		delete process.env[CONFIG_PATH_ENV];
 		process.env = originalEnv;
 		fs.rmSync(tmpRoot, { recursive: true, force: true });
 	});
-
 	it('loads valid minimal config from env JSON', () => {
 		const base = createBaseConfig(tmpRoot);
 		process.env[CONFIG_JSON_ENV] = JSON.stringify(base);
@@ -174,14 +154,12 @@ describe('ENV JSON mode basics', () => {
 		expect(result.config.discord!.guildId).toBe('2222222222');
 		expect(result.config.workspaces.activeRoot).toBe(path.resolve(tmpRoot));
 	});
-
 	it('throws on invalid JSON in env var', () => {
 		process.env[CONFIG_JSON_ENV] = '{ not valid json';
 		expect(() => loadMessagingGatewayConfig()).toThrow(
 			`[Gateway] Invalid config: ${CONFIG_JSON_ENV} is not valid JSON`,
 		);
 	});
-
 	it('falls through to file path when env var is empty string', () => {
 		process.env[CONFIG_JSON_ENV] = '';
 		// Point to a guaranteed-missing file so the file-path branch throws
@@ -189,28 +167,23 @@ describe('ENV JSON mode basics', () => {
 		expect(() => loadMessagingGatewayConfig()).toThrow('[Gateway] Missing config file');
 	});
 });
-
 describe('Discord config validation', () => {
 	const originalEnv = process.env;
 	let tmpRoot: string;
-
 	beforeEach(() => {
 		process.env = { ...originalEnv };
 		tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-'));
 	});
-
 	afterEach(() => {
 		delete process.env[CONFIG_JSON_ENV];
 		delete process.env[CONFIG_PATH_ENV];
 		process.env = originalEnv;
 		fs.rmSync(tmpRoot, { recursive: true, force: true });
 	});
-
 	function loadRawEnvJson(raw: Record<string, unknown>) {
 		process.env[CONFIG_JSON_ENV] = JSON.stringify(raw);
 		return loadMessagingGatewayConfig().config;
 	}
-
 	it('throws when neither discord nor telegram is present', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -218,7 +191,6 @@ describe('Discord config validation', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: at least one platform (discord or telegram) must be configured');
 	});
-
 	it('allows platformless config when explicitly enabled', () => {
 		process.env.INSTRUCTION_ENGINE_GATEWAY_ALLOW_PLATFORMLESS = '1';
 		const config = loadRawEnvJson({
@@ -227,7 +199,6 @@ describe('Discord config validation', () => {
 		expect(config.discord).toBeUndefined();
 		expect(config.telegram).toBeUndefined();
 	});
-
 	it('throws when guildId is missing', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -239,7 +210,6 @@ describe('Discord config validation', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: discord.guildId must be a non-empty string');
 	});
-
 	it('throws when channelId is missing', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -251,7 +221,6 @@ describe('Discord config validation', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: discord.channelId must be a non-empty string');
 	});
-
 	it('throws when allowlistedUserIds is empty', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -264,7 +233,6 @@ describe('Discord config validation', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: discord.allowlistedUserIds must not be empty');
 	});
-
 	it('throws when user ID is non-numeric', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -277,7 +245,6 @@ describe('Discord config validation', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: discord.allowlistedUserIds contains a non-numeric ID');
 	});
-
 	it('throws when guildId is non-numeric', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -290,7 +257,6 @@ describe('Discord config validation', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: discord.guildId must be numeric');
 	});
-
 	it('parses valid permissionsChannelId', () => {
 		const config = loadRawEnvJson({
 			discord: {
@@ -303,7 +269,6 @@ describe('Discord config validation', () => {
 		});
 		expect(config.discord!.permissionsChannelId).toBe('4444444444');
 	});
-
 	it('throws when permissionsChannelId is non-numeric', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -318,28 +283,23 @@ describe('Discord config validation', () => {
 		).toThrow('[Gateway] Invalid config: discord.permissionsChannelId must be numeric');
 	});
 });
-
 describe('Workspaces validation', () => {
 	const originalEnv = process.env;
 	let tmpRoot: string;
-
 	beforeEach(() => {
 		process.env = { ...originalEnv };
 		tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-'));
 	});
-
 	afterEach(() => {
 		delete process.env[CONFIG_JSON_ENV];
 		delete process.env[CONFIG_PATH_ENV];
 		process.env = originalEnv;
 		fs.rmSync(tmpRoot, { recursive: true, force: true });
 	});
-
 	function loadRawEnvJson(raw: Record<string, unknown>) {
 		process.env[CONFIG_JSON_ENV] = JSON.stringify(raw);
 		return loadMessagingGatewayConfig().config;
 	}
-
 	it('throws when workspaces block is missing', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -351,7 +311,6 @@ describe('Workspaces validation', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: workspaces must be an object');
 	});
-
 	it('throws when allowedRoots is empty', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -364,7 +323,6 @@ describe('Workspaces validation', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: workspaces.allowedRoots must not be empty');
 	});
-
 	it('throws when activeRoot is not in allowedRoots', () => {
 		const otherDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-other-'));
 		try {
@@ -382,7 +340,6 @@ describe('Workspaces validation', () => {
 			fs.rmSync(otherDir, { recursive: true, force: true });
 		}
 	});
-
 	it('throws when activeRoot does not exist', () => {
 		const fake = path.join(os.tmpdir(), 'gateway-nonexistent-' + Date.now());
 		expect(() =>
@@ -397,31 +354,25 @@ describe('Workspaces validation', () => {
 		).toThrow('[Gateway] Invalid config: workspaces.activeRoot must exist and be a directory');
 	});
 });
-
 describe('Config path resolution', () => {
 	const originalEnv = process.env;
-
 	beforeEach(() => {
 		process.env = { ...originalEnv };
 	});
-
 	afterEach(() => {
 		delete process.env[CONFIG_PATH_ENV];
 		process.env = originalEnv;
 	});
-
 	it('uses CONFIG_PATH env var when set', () => {
 		const customPath = path.join(os.tmpdir(), 'gateway-config', 'custom.config.json');
 		process.env[CONFIG_PATH_ENV] = customPath;
 		expect(resolveMessagingGatewayConfigPath()).toBe(path.resolve(customPath));
 	});
-
 	it('falls back to default path when env var is not set', () => {
 		delete process.env[CONFIG_PATH_ENV];
 		const homedirMock = jest.spyOn(os, 'homedir');
 		const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-home-'));
 		homedirMock.mockReturnValue(tempHome);
-
 		try {
 			expect(resolveMessagingGatewayConfigPath()).toBe(path.resolve(getDefaultMessagingGatewayConfigPath()));
 		} finally {
@@ -429,13 +380,11 @@ describe('Config path resolution', () => {
 			fs.rmSync(tempHome, { recursive: true, force: true });
 		}
 	});
-
 	it('CLI arg takes priority over env var', () => {
 		process.env[CONFIG_PATH_ENV] = path.join(os.tmpdir(), 'gateway-config', 'env.config.json');
 		const cliPath = path.join(os.tmpdir(), 'gateway-config', 'cli.config.json');
 		expect(resolveMessagingGatewayConfigPath(cliPath)).toBe(path.resolve(cliPath));
 	});
-
 	it('uses canonical os.homedir default when HOME and USERPROFILE diverge', () => {
 		delete process.env[CONFIG_PATH_ENV];
 		const homedirMock = jest.spyOn(os, 'homedir');
@@ -445,18 +394,15 @@ describe('Config path resolution', () => {
 		const userProfilePath = path.join(os.tmpdir(), 'gateway-config-userprofile');
 		process.env.HOME = homeOnlyPath;
 		process.env.USERPROFILE = userProfilePath;
-
 		try {
 			const resolvedPath = resolveMessagingGatewayConfigPath();
 			const expectedPath = path.resolve(
-				path.join(os.homedir(), '.copilot', 'messaging-gateway.config.json'),
+				path.join(os.homedir(), '.elegy', 'messaging-gateway.config.json'),
 			);
-
 			expect(resolvedPath).toBe(expectedPath);
-
 			if (process.platform === 'win32') {
 				const homeDerivedPath = path.resolve(
-					path.join(homeOnlyPath, '.copilot', 'messaging-gateway.config.json'),
+					path.join(homeOnlyPath, '.elegy', 'messaging-gateway.config.json'),
 				);
 				expect(resolvedPath.toLowerCase()).not.toBe(homeDerivedPath.toLowerCase());
 			}
@@ -465,20 +411,16 @@ describe('Config path resolution', () => {
 			fs.rmSync(tempHome, { recursive: true, force: true });
 		}
 	});
-
 	it('rehomes legacy path into canonical default when canonical default is absent', () => {
 		delete process.env[CONFIG_PATH_ENV];
 		const homedirMock = jest.spyOn(os, 'homedir');
 		const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-home-'));
 		homedirMock.mockReturnValue(tempHome);
-
 		try {
 			const canonicalPath = getDefaultMessagingGatewayConfigPath();
 			const legacyPath = getLegacyMessagingGatewayConfigPath();
-
 			fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
 			fs.writeFileSync(legacyPath, '{"mode":"auto"}');
-
 			expect(resolveMessagingGatewayConfigPath()).toBe(path.resolve(canonicalPath));
 			expect(fs.existsSync(canonicalPath)).toBe(true);
 			expect(fs.existsSync(legacyPath)).toBe(false);
@@ -487,22 +429,18 @@ describe('Config path resolution', () => {
 			fs.rmSync(tempHome, { recursive: true, force: true });
 		}
 	});
-
 	it('prefers canonical default path over legacy compatibility path when both exist', () => {
 		delete process.env[CONFIG_PATH_ENV];
 		const homedirMock = jest.spyOn(os, 'homedir');
 		const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-home-'));
 		homedirMock.mockReturnValue(tempHome);
-
 		try {
 			const canonicalPath = getDefaultMessagingGatewayConfigPath();
 			const legacyPath = getLegacyMessagingGatewayConfigPath();
-
 			fs.mkdirSync(path.dirname(canonicalPath), { recursive: true });
 			fs.writeFileSync(canonicalPath, '{"mode":"connected"}');
 			fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
 			fs.writeFileSync(legacyPath, '{"mode":"auto"}');
-
 			expect(resolveMessagingGatewayConfigPath()).toBe(path.resolve(canonicalPath));
 		} finally {
 			homedirMock.mockRestore();
@@ -510,23 +448,19 @@ describe('Config path resolution', () => {
 		}
 	});
 });
-
 describe('Mode validation', () => {
 	const originalEnv = process.env;
 	let tmpRoot: string;
-
 	beforeEach(() => {
 		process.env = { ...originalEnv };
 		tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-'));
 	});
-
 	afterEach(() => {
 		delete process.env[CONFIG_JSON_ENV];
 		delete process.env[CONFIG_PATH_ENV];
 		process.env = originalEnv;
 		fs.rmSync(tmpRoot, { recursive: true, force: true });
 	});
-
 	function loadFromEnvJson(partial: Record<string, unknown>) {
 		const base = createBaseConfig(tmpRoot);
 		process.env[CONFIG_JSON_ENV] = JSON.stringify({
@@ -535,35 +469,29 @@ describe('Mode validation', () => {
 		});
 		return loadMessagingGatewayConfig().config;
 	}
-
 	it.each(['auto', 'connected', 'disconnected'] as const)('accepts valid mode "%s"', (mode) => {
 		const config = loadFromEnvJson({ mode });
 		expect(config.mode).toBe(mode);
 	});
-
 	it('throws on invalid mode', () => {
 		expect(() => loadFromEnvJson({ mode: 'bogus' })).toThrow(
 			'[Gateway] Invalid config: mode must be one of auto|connected|disconnected',
 		);
 	});
 });
-
 describe('Golden snapshot', () => {
 	const originalEnv = process.env;
 	let tmpRoot: string;
-
 	beforeEach(() => {
 		process.env = { ...originalEnv };
 		tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-'));
 	});
-
 	afterEach(() => {
 		delete process.env[CONFIG_JSON_ENV];
 		delete process.env[CONFIG_PATH_ENV];
 		process.env = originalEnv;
 		fs.rmSync(tmpRoot, { recursive: true, force: true });
 	});
-
 	it('valid complete config matches snapshot', () => {
 		const fullConfig = {
 			mode: 'connected',
@@ -586,7 +514,6 @@ describe('Golden snapshot', () => {
 		};
 		process.env[CONFIG_JSON_ENV] = JSON.stringify(fullConfig);
 		const result = loadMessagingGatewayConfig();
-
 		// Normalize temp paths so the snapshot is stable across runs
 		const serialized = JSON.parse(JSON.stringify(result.config));
 		const resolvedRoot = path.resolve(tmpRoot);
@@ -597,28 +524,23 @@ describe('Golden snapshot', () => {
 		expect(serialized).toMatchSnapshot();
 	});
 });
-
 describe('Telegram config validation', () => {
 	const originalEnv = process.env;
 	let tmpRoot: string;
-
 	beforeEach(() => {
 		process.env = { ...originalEnv };
 		tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-'));
 	});
-
 	afterEach(() => {
 		delete process.env[CONFIG_JSON_ENV];
 		delete process.env[CONFIG_PATH_ENV];
 		process.env = originalEnv;
 		fs.rmSync(tmpRoot, { recursive: true, force: true });
 	});
-
 	function loadRawEnvJson(raw: Record<string, unknown>) {
 		process.env[CONFIG_JSON_ENV] = JSON.stringify(raw);
 		return loadMessagingGatewayConfig().config;
 	}
-
 	it('accepts telegram-only config (no discord)', () => {
 		const config = loadRawEnvJson({
 			telegram: { allowlistedUserIds: ['9876543210'] },
@@ -627,7 +549,6 @@ describe('Telegram config validation', () => {
 		expect(config.telegram).toEqual({ allowlistedUserIds: ['9876543210'] });
 		expect(config.discord).toBeUndefined();
 	});
-
 	it('accepts config with both discord and telegram', () => {
 		const config = loadRawEnvJson({
 			discord: {
@@ -641,7 +562,6 @@ describe('Telegram config validation', () => {
 		expect(config.discord!.guildId).toBe('2222222222');
 		expect(config.telegram).toEqual({ allowlistedUserIds: ['9876543210'] });
 	});
-
 	it('throws when neither discord nor telegram is present', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -649,7 +569,6 @@ describe('Telegram config validation', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: at least one platform (discord or telegram) must be configured');
 	});
-
 	it('throws when telegram.allowlistedUserIds is empty', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -658,7 +577,6 @@ describe('Telegram config validation', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: telegram.allowlistedUserIds must not be empty');
 	});
-
 	it('throws when telegram.allowlistedUserIds is not an array', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -667,7 +585,6 @@ describe('Telegram config validation', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: telegram.allowlistedUserIds must be an array of strings');
 	});
-
 	it('throws when telegram is not an object', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -676,7 +593,6 @@ describe('Telegram config validation', () => {
 			}),
 		).toThrow('[Gateway] Invalid config: telegram must be an object');
 	});
-
 	it('throws when telegram user ID is non-numeric', () => {
 		expect(() =>
 			loadRawEnvJson({
@@ -686,23 +602,19 @@ describe('Telegram config validation', () => {
 		).toThrow('[Gateway] Invalid config: telegram.allowlistedUserIds contains a non-numeric ID');
 	});
 });
-
 describe('configVersion validation', () => {
 	const originalEnv = process.env;
 	let tmpRoot: string;
-
 	beforeEach(() => {
 		process.env = { ...originalEnv };
 		tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-'));
 	});
-
 	afterEach(() => {
 		delete process.env[CONFIG_JSON_ENV];
 		delete process.env[CONFIG_PATH_ENV];
 		process.env = originalEnv;
 		fs.rmSync(tmpRoot, { recursive: true, force: true });
 	});
-
 	function loadFromEnvJson(partial: Record<string, unknown>) {
 		const base = {
 			discord: {
@@ -715,12 +627,10 @@ describe('configVersion validation', () => {
 		process.env[CONFIG_JSON_ENV] = JSON.stringify({ ...base, ...partial });
 		return loadMessagingGatewayConfig().config;
 	}
-
 	it('accepts and preserves configVersion', () => {
 		const config = loadFromEnvJson({ configVersion: 2 });
 		expect(config.configVersion).toBe(2);
 	});
-
 	it('config without configVersion is normalized to v1 marker', () => {
 		const config = loadFromEnvJson({});
 		expect(config.configVersion).toBe(1);
@@ -728,7 +638,6 @@ describe('configVersion validation', () => {
 		expect(config.contractVersion).toBe('messaging_gateway_config_v1');
 		expect(config.compatibility).toEqual({ normalizedFrom: 'v0', deterministic: true });
 	});
-
 	it('normalizes v0 legacy root fields into canonical v1 config shape', () => {
 		process.env[CONFIG_JSON_ENV] = JSON.stringify({
 			allowlistedUserIds: ['1234567890'],
@@ -737,7 +646,6 @@ describe('configVersion validation', () => {
 			allowedRoots: [tmpRoot],
 			activeRoot: tmpRoot,
 		});
-
 		const config = loadMessagingGatewayConfig().config;
 		expect(config.discord).toEqual({
 			allowlistedUserIds: ['1234567890'],
@@ -748,7 +656,6 @@ describe('configVersion validation', () => {
 		expect(config.workspaces.activeRoot).toBe(path.resolve(tmpRoot));
 		expect(config.compatibility).toEqual({ normalizedFrom: 'v0', deterministic: true });
 	});
-
 	it('throws when configVersion is not a positive integer', () => {
 		expect(() => loadFromEnvJson({ configVersion: 0 })).toThrow(
 			'[Gateway] Invalid config: configVersion must be a positive integer',

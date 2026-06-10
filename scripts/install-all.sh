@@ -10,7 +10,7 @@ OPENCODE_INSTALLER="$ENGINE_ROOT/scripts/opencode-install.sh"
 CLAUDE_INSTALLER="$ENGINE_ROOT/scripts/claude-install.sh"
 
 shared_args=()
-copilot_args=(--all)
+copilot_args=(--cli)
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

@@ -32,8 +32,8 @@ function expandHome(inputPath) {
   return raw;
 }
 
-function resolveCopilotHome(inputPath) {
-  return path.resolve(expandHome(inputPath || '~/.copilot'));
+function resolveElegyHome(inputPath) {
+  return path.resolve(expandHome(inputPath || '~/.elegy'));
 }
 
 function safeStat(absPath) {
@@ -128,8 +128,8 @@ function detectGitRootKind(repoPath) {
   return 'missing';
 }
 
-function resolveRepoInventoryPath(copilotHome) {
-  return path.join(resolveCopilotHome(copilotHome), 'catalog', 'repo-inventory.json');
+function resolveRepoInventoryPath(elegyHome) {
+  return path.join(resolveElegyHome(elegyHome), 'catalog', 'repo-inventory.json');
 }
 
 function createDefaultInventoryState() {
@@ -160,8 +160,8 @@ function normalizeManualRepoEntry(entry, now = new Date().toISOString()) {
   };
 }
 
-function loadRepoInventoryState(copilotHome) {
-  const inventoryPath = resolveRepoInventoryPath(copilotHome);
+function loadRepoInventoryState(elegyHome) {
+  const inventoryPath = resolveRepoInventoryPath(elegyHome);
   const raw = readJsonIfExists(inventoryPath);
   const state = createDefaultInventoryState();
   if (!raw || typeof raw !== 'object') {
@@ -180,8 +180,8 @@ function loadRepoInventoryState(copilotHome) {
   return state;
 }
 
-function saveRepoInventoryState(copilotHome, state) {
-  const inventoryPath = resolveRepoInventoryPath(copilotHome);
+function saveRepoInventoryState(elegyHome, state) {
+  const inventoryPath = resolveRepoInventoryPath(elegyHome);
   const normalized = createDefaultInventoryState();
   normalized.selectedRepoId = normalizeString(state?.selectedRepoId) || null;
   normalized.selectedRepoPath = normalizeRepoPath(state?.selectedRepoPath) || null;
@@ -258,8 +258,8 @@ function mergeCandidate(map, candidate) {
   map.set(mergeKey, existing);
 }
 
-function readProjectionHints(copilotHome) {
-  const projectionsDir = path.join(resolveCopilotHome(copilotHome), 'catalog', 'projections');
+function readProjectionHints(elegyHome) {
+  const projectionsDir = path.join(resolveElegyHome(elegyHome), 'catalog', 'projections');
   const hints = new Map();
 
   for (const entry of safeReadDir(projectionsDir, { withFileTypes: true })) {
@@ -297,8 +297,8 @@ function readProjectionHints(copilotHome) {
   return hints;
 }
 
-function readRepoStateHints(copilotHome, projectionHints) {
-  const repoStateDir = path.join(resolveCopilotHome(copilotHome), 'repo-state');
+function readRepoStateHints(elegyHome, projectionHints) {
+  const repoStateDir = path.join(resolveElegyHome(elegyHome), 'repo-state');
   return safeReadDir(repoStateDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => {
@@ -316,8 +316,8 @@ function readRepoStateHints(copilotHome, projectionHints) {
     .filter(Boolean);
 }
 
-function readSessionHints(copilotHome) {
-  return sessions.listSessions(resolveCopilotHome(copilotHome))
+function readSessionHints(elegyHome) {
+  return sessions.listSessions(resolveElegyHome(elegyHome))
     .map((session) => {
       const candidatePath = normalizeRepoPath(session?.cwd || session?.repo);
       if (!candidatePath || !path.isAbsolute(candidatePath)) {
@@ -474,7 +474,7 @@ function collectRepoAssetPresence(repoPath) {
   };
 }
 
-function collectOverlayInfo(copilotHome, repoId) {
+function collectOverlayInfo(elegyHome, repoId) {
   if (!repoId) {
     return {
       path: null,
@@ -487,7 +487,7 @@ function collectOverlayInfo(copilotHome, repoId) {
     };
   }
 
-  const repoStatePath = path.join(resolveCopilotHome(copilotHome), 'repo-state', repoId);
+  const repoStatePath = path.join(resolveElegyHome(elegyHome), 'repo-state', repoId);
   const registryPath = path.join(repoStatePath, 'registry.json');
   const registry = readJsonIfExists(registryPath);
   const sections = ['skills', 'agents', 'mcpProviders'];
@@ -525,14 +525,14 @@ function newestInputAt(paths) {
   return times.sort((left, right) => right.localeCompare(left))[0];
 }
 
-function readSnapshotInfo(copilotHome, repo) {
+function readSnapshotInfo(elegyHome, repo) {
   const storage = resolveProjectionStorage({
-    copilotHome: resolveCopilotHome(copilotHome),
+    elegyHome: resolveElegyHome(elegyHome),
     repoId: repo.repoId,
     repoPath: repo.repoPath,
   });
   const snapshot = repo.snapshot || loadCatalogProjectionSnapshot({
-    copilotHome: resolveCopilotHome(copilotHome),
+    elegyHome: resolveElegyHome(elegyHome),
     repoId: repo.repoId,
     repoPath: repo.repoPath,
   });
@@ -568,11 +568,11 @@ function resolveScanStatus(repoPath, snapshot, inputPaths) {
 }
 
 function enrichRepo(repo, options = {}) {
-  const copilotHome = resolveCopilotHome(options.copilotHome);
+  const elegyHome = resolveElegyHome(options.elegyHome || options.elegyHomeAbs || options.copilotHome || options.copilotHomeAbs);
   const repoPath = normalizeRepoPath(repo.repoPath) || null;
   const repoKey = repoPath ? getRepoStateKey(repoPath) : null;
-  const overlay = collectOverlayInfo(copilotHome, repo.repoId || repoKey?.repoId);
-  const snapshot = readSnapshotInfo(copilotHome, {
+  const overlay = collectOverlayInfo(elegyHome, repo.repoId || repoKey?.repoId);
+  const snapshot = readSnapshotInfo(elegyHome, {
     repoId: repo.repoId || repoKey?.repoId,
     repoPath,
     snapshot: repo.snapshot,
@@ -639,12 +639,12 @@ function compareRepos(left, right) {
 }
 
 function listKnownRepos(options = {}) {
-  const copilotHome = resolveCopilotHome(options.copilotHome || options.copilotHomeAbs);
-  const state = loadRepoInventoryState(copilotHome);
+  const elegyHome = resolveElegyHome(options.elegyHome || options.elegyHomeAbs || options.copilotHome || options.copilotHomeAbs);
+  const state = loadRepoInventoryState(elegyHome);
   const repos = new Map();
-  const projectionHints = readProjectionHints(copilotHome);
+  const projectionHints = readProjectionHints(elegyHome);
   const workspaceScan = repoDiscovery.resolveWorkspaceScanRoots({
-    copilotHome,
+    elegyHome,
     roots: Array.isArray(options.workspaceScanRoots) ? options.workspaceScanRoots : undefined,
   });
   const discoveredRepos = repoDiscovery.discoverReposFromRoots({
@@ -687,7 +687,7 @@ function listKnownRepos(options = {}) {
     });
   }
 
-  for (const sessionRepo of readSessionHints(copilotHome)) {
+  for (const sessionRepo of readSessionHints(elegyHome)) {
     mergeCandidate(repos, sessionRepo);
   }
 
@@ -695,7 +695,7 @@ function listKnownRepos(options = {}) {
     mergeCandidate(repos, projection);
   }
 
-  for (const repoStateRepo of readRepoStateHints(copilotHome, projectionHints)) {
+  for (const repoStateRepo of readRepoStateHints(elegyHome, projectionHints)) {
     mergeCandidate(repos, repoStateRepo);
   }
 
@@ -721,7 +721,7 @@ function listKnownRepos(options = {}) {
       return enrichRepo({
         ...repo,
         selected,
-      }, { copilotHome });
+      }, { elegyHome });
     })
     .sort(compareRepos);
 
@@ -730,8 +730,8 @@ function listKnownRepos(options = {}) {
   return {
     schemaVersion: REPO_INVENTORY_SCHEMA_VERSION,
     storage: {
-      path: resolveRepoInventoryPath(copilotHome),
-      exists: isFile(resolveRepoInventoryPath(copilotHome)),
+      path: resolveRepoInventoryPath(elegyHome),
+      exists: isFile(resolveRepoInventoryPath(elegyHome)),
     },
     workspaceScan: {
       storage: workspaceScan.storage,
@@ -766,7 +766,7 @@ function resolveRepoEntry(inventory, selector = {}) {
 }
 
 function registerRepo(options = {}) {
-  const copilotHome = resolveCopilotHome(options.copilotHome || options.copilotHomeAbs);
+  const elegyHome = resolveElegyHome(options.elegyHome || options.elegyHomeAbs || options.copilotHome || options.copilotHomeAbs);
   const repoPath = normalizeRepoPath(options.repoPath);
   if (!repoPath) {
     throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
@@ -777,7 +777,7 @@ function registerRepo(options = {}) {
 
   const now = new Date().toISOString();
   const repoKey = getRepoStateKey(repoPath);
-  const state = loadRepoInventoryState(copilotHome);
+  const state = loadRepoInventoryState(elegyHome);
   const manualRepos = state.manualRepos.filter(
     (entry) => normalizePathForKey(entry.repoPath) !== normalizePathForKey(repoPath),
   );
@@ -798,9 +798,9 @@ function registerRepo(options = {}) {
     nextState.selectedRepoPath = repoPath;
     nextState.selectedAt = now;
   }
-  saveRepoInventoryState(copilotHome, nextState);
+  saveRepoInventoryState(elegyHome, nextState);
   const inventory = listKnownRepos({
-    copilotHome,
+    elegyHome,
     engineRoot: options.engineRoot,
     explicitRepoPaths: [repoPath],
     workspaceScanRoots: options.workspaceScanRoots,
@@ -812,14 +812,14 @@ function registerRepo(options = {}) {
 }
 
 function unregisterRepo(options = {}) {
-  const copilotHome = resolveCopilotHome(options.copilotHome || options.copilotHomeAbs);
+  const elegyHome = resolveElegyHome(options.elegyHome || options.elegyHomeAbs || options.copilotHome || options.copilotHomeAbs);
   const repoPath = normalizeRepoPath(options.repoPath);
   const repoId = normalizeString(options.repoId);
   if (!repoPath && !repoId) {
     throw Object.assign(new Error('repoPath or repoId is required'), { statusCode: 400 });
   }
 
-  const state = loadRepoInventoryState(copilotHome);
+  const state = loadRepoInventoryState(elegyHome);
   const removed = [];
   const manualRepos = state.manualRepos.filter((entry) => {
     const matchesPath = repoPath && normalizePathForKey(entry.repoPath) === normalizePathForKey(repoPath);
@@ -852,9 +852,9 @@ function unregisterRepo(options = {}) {
     selectedRepoPath: shouldClearSelection ? null : state.selectedRepoPath,
     selectedAt: shouldClearSelection ? null : state.selectedAt,
   };
-  saveRepoInventoryState(copilotHome, nextState);
+  saveRepoInventoryState(elegyHome, nextState);
   const inventory = listKnownRepos({
-    copilotHome,
+    elegyHome,
     engineRoot: options.engineRoot,
     explicitRepoPaths: removedRepoPath ? [removedRepoPath] : [],
     workspaceScanRoots: options.workspaceScanRoots,
@@ -870,11 +870,11 @@ function unregisterRepo(options = {}) {
 }
 
 function selectRepo(options = {}) {
-  const copilotHome = resolveCopilotHome(options.copilotHome || options.copilotHomeAbs);
-  const state = loadRepoInventoryState(copilotHome);
+  const elegyHome = resolveElegyHome(options.elegyHome || options.elegyHomeAbs);
+  const state = loadRepoInventoryState(elegyHome);
 
   if (options.clear === true) {
-    saveRepoInventoryState(copilotHome, {
+    saveRepoInventoryState(elegyHome, {
       ...state,
       selectedRepoId: null,
       selectedRepoPath: null,
@@ -883,7 +883,7 @@ function selectRepo(options = {}) {
     return {
       repo: null,
       inventory: listKnownRepos({
-        copilotHome,
+        elegyHome,
         engineRoot: options.engineRoot,
         workspaceScanRoots: options.workspaceScanRoots,
       }),
@@ -891,7 +891,7 @@ function selectRepo(options = {}) {
   }
 
   const inventory = listKnownRepos({
-    copilotHome,
+    elegyHome,
     engineRoot: options.engineRoot,
     explicitRepoPaths: options.repoPath ? [options.repoPath] : [],
     workspaceScanRoots: options.workspaceScanRoots,
@@ -904,7 +904,7 @@ function selectRepo(options = {}) {
     throw Object.assign(new Error('Unknown repo selection'), { statusCode: 404 });
   }
 
-  saveRepoInventoryState(copilotHome, {
+  saveRepoInventoryState(elegyHome, {
     ...state,
     selectedRepoId: repo.repoId,
     selectedRepoPath: repo.repoPath,
@@ -912,7 +912,7 @@ function selectRepo(options = {}) {
   });
 
   const refreshedInventory = listKnownRepos({
-    copilotHome,
+    elegyHome,
     engineRoot: options.engineRoot,
     explicitRepoPaths: repo.repoPath ? [repo.repoPath] : [],
     workspaceScanRoots: options.workspaceScanRoots,
@@ -1030,13 +1030,13 @@ function getProjectView(entry) {
 /**
  * Update allowed project-level fields on a manual repo entry.
  * Allowed fields: pinned, lastActivityMs, canonicalRemote.
- * @param {string} copilotHome
+ * @param {string} elegyHome
  * @param {string} repoId
  * @param {object} fields
  * @returns {object|null} — updated entry, or null if repoId not found
  */
-function updateProjectFields(copilotHome, repoId, fields) {
-  const resolved = resolveCopilotHome(copilotHome);
+function updateProjectFields(elegyHome, repoId, fields) {
+  const resolved = resolveElegyHome(elegyHome);
   const state = loadRepoInventoryState(resolved);
   const targetId = normalizeString(repoId);
   if (!targetId) {

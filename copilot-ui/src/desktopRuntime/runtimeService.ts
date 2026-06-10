@@ -38,7 +38,7 @@ export interface DesktopRuntimeLogger {
 export interface DesktopRuntimePaths {
   runtimeRoot: string;
   workspaceRoot: string;
-  copilotHome: string;
+  elegyHome: string;
   gatewayConfigPath: string;
   legacyGatewayConfigPath: string;
   planningCliPath?: string;
@@ -93,7 +93,7 @@ export interface DesktopRuntimeServiceDependencies {
     runtimeRoot: string;
     processExecPath: string;
     isPackaged: boolean;
-    copilotHome: string;
+    elegyHome: string;
     shellAdapter?: Pick<DesktopRuntimeShellAdapter, 'launchPackagedWorkflowSidecarChild'>;
   }) => Promise<WorkflowSidecarManager>;
   startDesktopPlanningPersistence: (options: {
@@ -103,8 +103,7 @@ export interface DesktopRuntimeServiceDependencies {
   startServer: (options: {
     host: string;
     port: number;
-    copilotHome: string;
-    vscodeHome: string;
+    elegyHome: string;
     sandboxesHome: string;
     trackerUrl: string;
     trackerToken: string;
@@ -203,15 +202,15 @@ function buildGatewayInlineConfig(workspaceRoot: string): string {
 
 function resolveBundledPlanningCliPath(
   runtimeRoot: string,
-  copilotHome: string,
+  elegyHome: string,
   runtimeFs: Pick<DesktopRuntimeFs, 'existsSync'>,
 ): string {
   // Use the shared cross-platform resolver from elegyPlanningCliResolver
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const resolver = require('../../elegyPlanningCliResolver') as { resolveElegyPlanningCliPath: (options: { runtimeRoot?: string; copilotHome?: string; existsSync?: (path: string) => boolean }) => string };
+  const resolver = require('../../elegyPlanningCliResolver') as { resolveElegyPlanningCliPath: (options: { runtimeRoot?: string; elegyHome?: string; existsSync?: (path: string) => boolean }) => string };
   return resolver.resolveElegyPlanningCliPath({
     runtimeRoot,
-    copilotHome,
+    elegyHome,
     existsSync: runtimeFs.existsSync,
   });
 }
@@ -224,10 +223,10 @@ function ensurePlanningAuthorityEnv(
   const explicitDbPath = String(options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH || '').trim();
   const configuredCliPath = explicitCliPath
     || String(options.paths.planningCliPath || '').trim()
-    || resolveBundledPlanningCliPath(options.paths.runtimeRoot, options.paths.copilotHome, runtimeFs);
+    || resolveBundledPlanningCliPath(options.paths.runtimeRoot, options.paths.elegyHome, runtimeFs);
   const configuredDbPath = explicitDbPath
     || String(options.paths.planningDbPath || '').trim()
-    || path.join(options.paths.copilotHome, 'elegy-planning.db');
+    || path.join(options.paths.elegyHome, 'elegy-planning.db');
 
   if (configuredDbPath) {
     options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH = configuredDbPath;
@@ -236,7 +235,7 @@ function ensurePlanningAuthorityEnv(
   // Set the planning session sidecar override path on Windows so the
   // Copilot server reads from the override location.
   if (process.platform === 'win32') {
-    options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH = path.join(options.paths.copilotHome, 'planning-session.json');
+    options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH = path.join(options.paths.elegyHome, 'planning-session.json');
   }
 
   if (configuredCliPath) {
@@ -543,7 +542,7 @@ export function createDesktopRuntimeService(
         runtimeRoot: options.paths.runtimeRoot,
         processExecPath: options.processExecPath,
         isPackaged: options.isPackaged,
-        copilotHome: options.paths.copilotHome,
+        elegyHome: options.paths.elegyHome,
         shellAdapter: options.shellAdapter,
       });
       bootLog('workflow sidecar started');
@@ -551,7 +550,7 @@ export function createDesktopRuntimeService(
       if (options.isPackaged && !explicitPlanningDatabaseUrl) {
         bootLog('starting planning persistence (packaged mode)');
         desktopPlanningPersistenceHandle = await dependencies.startDesktopPlanningPersistence({
-          stateRoot: path.join(options.paths.copilotHome, 'planning-db'),
+          stateRoot: path.join(options.paths.elegyHome, 'planning-db'),
           logger: (message: string) => logger.log(message),
         });
         options.env.INSTRUCTION_ENGINE_PLANNING_DB_URL = desktopPlanningPersistenceHandle.connectionString;
@@ -567,9 +566,8 @@ export function createDesktopRuntimeService(
       serverHandle = await dependencies.startServer({
         host: '127.0.0.1',
         port: resolveDesktopServerPort(options.env),
-        copilotHome: options.paths.copilotHome,
-        vscodeHome: options.paths.copilotHome,
-        sandboxesHome: path.join(options.paths.copilotHome, 'sandboxes'),
+        elegyHome: options.paths.elegyHome,
+        sandboxesHome: path.join(options.paths.elegyHome, 'sandboxes'),
         trackerUrl: 'http://127.0.0.1:4100',
         trackerToken,
         desktopUiToken,

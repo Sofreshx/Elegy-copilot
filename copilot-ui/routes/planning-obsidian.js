@@ -62,8 +62,8 @@ function buildOptions(ctx, deps) {
     repo,
     options: {
       repo,
-      copilotHomeAbs: ctx.copilotHomeAbs || ctx.copilotHome,
-      copilotHome: ctx.copilotHome,
+      elegyHomeAbs: ctx.elegyHomeAbs || ctx.elegyHome,
+      elegyHome: ctx.elegyHome,
       process: deps.process,
     },
   };
@@ -76,8 +76,8 @@ function buildMutationOptions(ctx, deps, body = {}) {
     repo,
     options: {
       repo,
-      copilotHomeAbs: ctx.copilotHomeAbs || ctx.copilotHome,
-      copilotHome: ctx.copilotHome,
+      elegyHomeAbs: ctx.elegyHomeAbs || ctx.elegyHome,
+      elegyHome: ctx.elegyHome,
       process: deps.process,
     },
   };

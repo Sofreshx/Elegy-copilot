@@ -23,7 +23,7 @@ This ADR defines the **canonical host path** and **in-container path** for Copil
 All sandbox session artifacts MUST be written under:
 
 ```
-~/.copilot/sandboxes/<sandbox-id>/session-state/
+~/.elegy/sandboxes/<sandbox-id>/session-state/
 ```
 
 ### In-container path (authoritative)
@@ -38,7 +38,7 @@ Set:
 
 - `HOME=/home/copilot`
 
-so `~/.copilot/session-state/` inside the container maps to `/home/copilot/.copilot/session-state/`.
+so `~/.elegy/session-state/` inside the container maps to `/home/copilot/.copilot/session-state/`.
 
 ## Isolation boundary lock (G-04-WU-01)
 
@@ -52,7 +52,7 @@ so `~/.copilot/session-state/` inside the container maps to `/home/copilot/.copi
 
 Bind-mount only the sandbox’s session-state directory:
 
-- Host: `~/.copilot/sandboxes/<sandbox-id>/session-state/`
+- Host: `~/.elegy/sandboxes/<sandbox-id>/session-state/`
 - Container: `/home/copilot/.copilot/session-state/`
 
 Example (PowerShell-friendly paths):
@@ -72,17 +72,17 @@ docker run --rm \
 
 This is a **two-mount** approach:
 
-1) Mount host `~/.copilot` into the container for **credentials/config**.
-2) Mount sandbox session-state over the container’s `~/.copilot/session-state` to ensure **sandbox isolation**.
+1) Mount host `~/.elegy` into the container for **credentials/config**.
+2) Mount sandbox session-state over the container’s `~/.elegy/session-state` to ensure **sandbox isolation**.
 
 Mounts:
 
-- `~/.copilot` → `/home/copilot/.copilot`
-- `~/.copilot/sandboxes/<sandbox-id>/session-state` → `/home/copilot/.copilot/session-state`
+- `~/.elegy` → `/home/copilot/.copilot`
+- `~/.elegy/sandboxes/<sandbox-id>/session-state` → `/home/copilot/.copilot/session-state`
 
 Notes:
 - The second mount intentionally **shadows** the `session-state/` folder from the first mount.
-- Ensure the session-state mount is applied (listed) after the broad `~/.copilot` mount.
+- Ensure the session-state mount is applied (listed) after the broad `~/.elegy` mount.
 
 ## Fallback (when bind mounts aren’t feasible)
 

@@ -4,9 +4,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-
 import { startWorkflowSidecar } from './workflowSidecar';
-
 async function withEnv(name: string, value: string | undefined, fn: () => Promise<void>): Promise<void> {
   const previous = process.env[name];
   if (value === undefined) {
@@ -14,7 +12,6 @@ async function withEnv(name: string, value: string | undefined, fn: () => Promis
   } else {
     process.env[name] = value;
   }
-
   try {
     await fn();
   } finally {
@@ -25,7 +22,6 @@ async function withEnv(name: string, value: string | undefined, fn: () => Promis
     }
   }
 }
-
 async function waitFor(condition: () => boolean, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -36,7 +32,6 @@ async function waitFor(condition: () => boolean, timeoutMs: number): Promise<voi
   }
   throw new Error('Timed out waiting for condition.');
 }
-
 async function getFreePort(): Promise<number> {
   return await new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -58,7 +53,6 @@ async function getFreePort(): Promise<number> {
     });
   });
 }
-
 async function removeDirWithRetries(targetPath: string, attempts = 20): Promise<void> {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -76,7 +70,6 @@ async function removeDirWithRetries(targetPath: string, attempts = 20): Promise<
     }
   }
 }
-
 test('workflow sidecar stays unavailable until the authenticated status probe succeeds', async () => {
   const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-workflow-sidecar-'));
   const sidecarDir = path.join(runtimeRoot, 'local-tracker', 'dist', 'messagingGateway');
@@ -89,7 +82,6 @@ test('workflow sidecar stays unavailable until the authenticated status probe su
       const host = process.env.INSTRUCTION_ENGINE_WORKFLOW_SIDECAR_HOST || '127.0.0.1';
       const port = Number(process.env.INSTRUCTION_ENGINE_WORKFLOW_SIDECAR_PORT || '4111');
       const delayMs = Number(process.env.INSTRUCTION_ENGINE_TEST_WORKFLOW_SIDECAR_DELAY_MS || '0');
-
       const isAuthorized = (req) => req.headers.authorization === 'Bearer ' + token;
       const server = http.createServer((req, res) => {
         if (!isAuthorized(req)) {
@@ -122,21 +114,17 @@ test('workflow sidecar stays unavailable until the authenticated status probe su
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not found' }));
       });
-
       setTimeout(() => {
         server.listen(port, host);
       }, delayMs);
-
       const shutdown = () => server.close(() => process.exit(0));
       process.on('SIGINT', shutdown);
       process.on('SIGTERM', shutdown);
     `,
     'utf8',
   );
-
   const token = 'workflow-sidecar-test-token';
   const port = await getFreePort();
-
   try {
     await withEnv('INSTRUCTION_ENGINE_ENABLE_WORKFLOW_SIDECAR', '1', async () => {
       await withEnv('INSTRUCTION_ENGINE_WORKFLOW_SIDECAR_TOKEN', token, async () => {
@@ -146,15 +134,12 @@ test('workflow sidecar stays unavailable until the authenticated status probe su
               runtimeRoot,
               processExecPath: process.execPath,
               isPackaged: false,
-              copilotHome: runtimeRoot,
+              elegyHome: runtimeRoot,
             });
-
             try {
               assert.equal(manager.getPublicState().state, 'unavailable');
               assert.equal(manager.getDispatchTarget(), null);
-
               await waitFor(() => manager.getPublicState().state === 'ready', 5_000);
-
               assert.equal(manager.getPublicState().state, 'ready');
               assert.ok(manager.getDispatchTarget());
             } finally {

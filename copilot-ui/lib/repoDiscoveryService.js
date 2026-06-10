@@ -24,8 +24,8 @@ function expandHome(inputPath) {
   return raw;
 }
 
-function resolveCopilotHome(inputPath) {
-  return path.resolve(expandHome(inputPath || '~/.copilot'));
+function resolveElegyHome(inputPath) {
+  return path.resolve(expandHome(inputPath || '~/.elegy'));
 }
 
 function safeStat(absPath, fsModule = fs) {
@@ -88,8 +88,8 @@ function uniqueSortedPaths(values, pathModule = path) {
   )).sort((left, right) => left.localeCompare(right));
 }
 
-function resolveRepoDiscoveryStatePath(copilotHome) {
-  return path.join(resolveCopilotHome(copilotHome), 'catalog', 'repo-discovery.json');
+function resolveRepoDiscoveryStatePath(elegyHome) {
+  return path.join(resolveElegyHome(elegyHome), 'catalog', 'repo-discovery.json');
 }
 
 function createDefaultRepoDiscoveryState() {
@@ -99,10 +99,10 @@ function createDefaultRepoDiscoveryState() {
   };
 }
 
-function loadRepoDiscoveryState(copilotHome, options = {}) {
+function loadRepoDiscoveryState(elegyHome, options = {}) {
   const fsModule = options.fsModule || fs;
   const pathModule = options.pathModule || path;
-  const statePath = resolveRepoDiscoveryStatePath(copilotHome);
+  const statePath = resolveRepoDiscoveryStatePath(elegyHome);
   const raw = readJsonIfExists(statePath, fsModule);
   const state = createDefaultRepoDiscoveryState();
   if (!raw || typeof raw !== 'object') {
@@ -112,10 +112,10 @@ function loadRepoDiscoveryState(copilotHome, options = {}) {
   return state;
 }
 
-function saveRepoDiscoveryState(copilotHome, state, options = {}) {
+function saveRepoDiscoveryState(elegyHome, state, options = {}) {
   const fsModule = options.fsModule || fs;
   const pathModule = options.pathModule || path;
-  const statePath = resolveRepoDiscoveryStatePath(copilotHome);
+  const statePath = resolveRepoDiscoveryStatePath(elegyHome);
   const normalized = createDefaultRepoDiscoveryState();
   normalized.customScanRoots = uniqueSortedPaths(state?.customScanRoots, pathModule);
   writeJsonAtomic(statePath, normalized, fsModule, pathModule);
@@ -144,7 +144,7 @@ function listDefaultWorkspaceScanRoots(options = {}) {
 
 function resolveWorkspaceScanRoots(options = {}) {
   const pathModule = options.pathModule || path;
-  const state = options.state || loadRepoDiscoveryState(options.copilotHome, options);
+  const state = options.state || loadRepoDiscoveryState(options.elegyHome, options);
   const defaultRoots = options.includeDefaultRoots === false
     ? []
     : listDefaultWorkspaceScanRoots(options);
@@ -159,8 +159,8 @@ function resolveWorkspaceScanRoots(options = {}) {
 
   return {
     storage: {
-      path: resolveRepoDiscoveryStatePath(options.copilotHome),
-      exists: isFile(resolveRepoDiscoveryStatePath(options.copilotHome), options.fsModule || fs),
+      path: resolveRepoDiscoveryStatePath(options.elegyHome),
+      exists: isFile(resolveRepoDiscoveryStatePath(options.elegyHome), options.fsModule || fs),
     },
     defaultRoots,
     customScanRoots,

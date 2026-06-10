@@ -29,7 +29,7 @@ related: [copilot-ui-guide, catalog-control-plane, index]
 └──────────────────────┬──────────────────────────────────┘
                        │ SQLite / Filesystem
 ┌──────────────────────▼──────────────────────────────────┐
-│  State & Persistence (~/.copilot/)                      │
+│  State & Persistence (~/.elegy/)                      │
 │  catalog/       ← Asset projections, search telemetry   │
 │  session-state/ ← Session artifacts (plan.md, etc.)     │
 │  repo-state/    ← Per-repo task store                   │
@@ -49,7 +49,7 @@ related: [copilot-ui-guide, catalog-control-plane, index]
 - **Routes** (`copilot-ui/routes/`): catalog, sessions, planning, git, sandboxes, tooling, etc.
 - **Services** (`copilot-ui/lib/`): planning persistence, obsidian sync, repo inventory, executor, workflow layer.
 
-### 3. Persistence (`~/.copilot/`)
+### 3. Persistence (`~/.elegy/`)
 - **Catalog projections:** `projections/global.json`, `projections/repo-<id>.json` — built from `engine-assets/` + installed assets.
 - **Session artifacts:** Per-session `plan.md`, `proposition.md`, task boards.
 - **Planning database:** SQLite (`elegy-planning.db`) for roadmaps, goals, plans, todos.
@@ -58,10 +58,10 @@ related: [copilot-ui-guide, catalog-control-plane, index]
 ### 4. Asset Pipeline
 
 ```
-engine-assets/   ──install──►  ~/.copilot/agents/
-(agents, skills, prompts)      ~/.copilot/skills/
-                               ~/.copilot/skills-vault/
-                               ~/.copilot/copilot-instructions.md
+engine-assets/   ──install──►  ~/.elegy/agents/
+(agents, skills, prompts)      ~/.elegy/skills/
+                               ~/.elegy/skills-vault/
+                               ~/.elegy/copilot-instructions.md
 
 codex-assets/    ──install──►  ~/.codex/
 opencode-assets/ ──install──►  ~/.config/opencode/
@@ -75,7 +75,7 @@ antigravity-assets/ ─install─► ~/.gemini/antigravity/
 | Obsidian | Read/write via `obsidianCli.js` — vault mirror for planning notes |
 | Discord Gateway | `local-tracker/` — bot commands for remote session control |
 | Native Runtime | Optional Rust sidecar for health/version/policy routes |
-| Elegy Planning CLI | Managed binary under `~/.copilot/managed-cli/planning/` |
+| Elegy Planning CLI | Managed binary under `~/.elegy/managed-cli/planning/` |
 
 ## State Diagram (Startup → Running)
 

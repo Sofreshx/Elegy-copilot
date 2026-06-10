@@ -34,7 +34,7 @@ This guide explains how Instruction Engine integrates MCP providers without load
 
 ## MCP Config Location
 
-MCP config is managed by the selected external source/provider integration. The desktop app no longer writes a VS Code workspace MCP file as part of runtime health or setup.
+MCP config is managed by the selected external source/provider integration.
 
 ## Local MCP Env
 
@@ -155,7 +155,7 @@ discovery or targeted updates.
 ## Local vs CI Secrets Guidance
 
 - Local development: store MCP secrets outside the repo and load them with the
-  helper scripts before launching VS Code. Prefer non-production projects and
+   helper scripts. Prefer non-production projects and
   short-lived tokens.
 - CI: inject secrets via the CI secret store and map them to env vars. Do not
   commit tokens or headers to repo files; use least-privilege scopes.

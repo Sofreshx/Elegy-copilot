@@ -51,7 +51,7 @@ High-level goal completion is orchestrator-owned:
 
 - the orchestrator decides whether each goal is `complete`, `partial`, or `not-complete`
 - `@code-reviewer` and `@test-runner` provide evidence, but they do not own goal closure
-- an explicit docs-writing lane performs any required `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` updates when carryover should persist
+- an explicit docs-writing lane performs any required `~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md` updates when carryover should persist
 
 ### Goal Closure Workflow Enforcement
 
@@ -65,25 +65,25 @@ Carryover persistence/removal is routed separately from the closure judgment:
 
 1. The orchestrator should emit explicit sync instructions (`unresolved_goals_path`, `session_backlog_path`, `carryover_goals`, `resolved_goals_to_remove`) when durable follow-up is needed.
 2. Workflows should pass an explicit carryover owner when one is known. If no stronger owner is available, use a deterministic fallback such as `workflow-orchestrator` rather than leaving Owner undefined.
-3. If a compatibility workflow still needs a carryover file target, `session_backlog_path` should prefer `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`. `docs/backlog.md` is a deprecated legacy compatibility target only.
+3. If a compatibility workflow still needs a carryover file target, `session_backlog_path` should prefer `~/.elegy/backlogs/{repo-name}/backlogs/<session-slug>.md`. `docs/backlog.md` is a deprecated legacy compatibility target only.
 4. The workflow routes unresolved-goal sync and any compatibility carryover-file persistence through an explicit docs-writing lane.
-5. No workflow should let reviewer or validation lanes write `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` or legacy backlog docs directly.
+5. No workflow should let reviewer or validation lanes write `~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md` or legacy backlog docs directly.
 
 ### Unresolved Goal Persistence Contract
 
 Canonical carryover file path:
 
-- `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`
+- `~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md`
 
 Persistence rules:
 
 1. Only unresolved goals (`partial` or `not-complete`) that are no longer active in the current
-   execution context should be written to `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`.
+   execution context should be written to `~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md`.
 2. Active goals in an in-flight plan/session should remain in active planning/session artifacts and
    should not be duplicated into unresolved-goals during active execution.
-3. Resolved goals must be removed from `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`.
+3. Resolved goals must be removed from `~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md`.
 4. No archive file is required for removed/resolved goals.
-5. When `GOAL_REVIEW.unresolved_goals_path = ~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`, the workflow should
+5. When `GOAL_REVIEW.unresolved_goals_path = ~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md`, the workflow should
    sync that file so it contains exactly the current unresolved, non-active goals and removes any
    entries now complete or active again.
 6. When `GOAL_REVIEW.unresolved_goals_path = NONE`, the workflow should either:
@@ -94,7 +94,7 @@ Persistence rules:
 
 Compatibility carryover file path family:
 
-- `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`
+- `~/.elegy/backlogs/{repo-name}/backlogs/<session-slug>.md`
 
 Legacy compatibility path (deprecated):
 
@@ -103,7 +103,7 @@ Legacy compatibility path (deprecated):
 Path rules:
 
 1. When end-of-session closure still needs a file-backed compatibility carryover target, workflows should provide or preserve an explicit `session_backlog_path`.
-2. New compatibility carryover should target `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`.
+2. New compatibility carryover should target `~/.elegy/backlogs/{repo-name}/backlogs/<session-slug>.md`.
 3. `docs/backlog.md` may remain in play only for legacy compatibility flows that already depend on it.
 4. Path selection does not create a new backlog ID family; carryover continues to use stable `RB-*` IDs or references.
 
@@ -119,10 +119,10 @@ This goal contract is canonical for:
 
 The following issue-doc paths are canonical persistent supporting surfaces:
 
-- `~/.copilot/backlogs/{repo-name}/issues/planning-ideas-log.md`
-- `~/.copilot/backlogs/{repo-name}/issues/out-of-scope-findings.md`
+- `~/.elegy/backlogs/{repo-name}/issues/planning-ideas-log.md`
+- `~/.elegy/backlogs/{repo-name}/issues/out-of-scope-findings.md`
 
-Compatibility backlog carryover files remain available under `~/.copilot/backlogs/{repo-name}/backlogs/*.md`, with
+Compatibility backlog carryover files remain available under `~/.elegy/backlogs/{repo-name}/backlogs/*.md`, with
 legacy compatibility support at `docs/backlog.md` (deprecated).
 
 Use these docs for cross-session carryover context that should not be mixed into active in-flight

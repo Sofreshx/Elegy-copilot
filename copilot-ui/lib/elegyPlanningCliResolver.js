@@ -83,7 +83,7 @@ function commandExistsOnPath(command, options = {}) {
   }
 }
 
-function candidatePaths(runtimeRoot, copilotHome) {
+function candidatePaths(runtimeRoot, elegyHome) {
   const exe = binaryName();
   const candidates = [];
 
@@ -95,21 +95,21 @@ function candidatePaths(runtimeRoot, copilotHome) {
     );
   }
 
-  if (copilotHome) {
+  if (elegyHome) {
     candidates.push(
-      path.join(copilotHome, 'managed-cli', 'planning', 'bin', exe),
-      path.join(copilotHome, 'managed-cli', 'planning', exe),
-      path.join(copilotHome, 'bin', exe),
-      path.join(copilotHome, 'elegy-planning', exe),
+      path.join(elegyHome, 'managed-cli', 'planning', 'bin', exe),
+      path.join(elegyHome, 'managed-cli', 'planning', exe),
+      path.join(elegyHome, 'bin', exe),
+      path.join(elegyHome, 'elegy-planning', exe),
     );
   }
 
   return candidates;
 }
 
-function findExistingBinary(runtimeRoot, copilotHome, existsSyncImpl) {
+function findExistingBinary(runtimeRoot, elegyHome, existsSyncImpl) {
   const existsSyncFn = typeof existsSyncImpl === 'function' ? existsSyncImpl : fs.existsSync;
-  for (const candidate of candidatePaths(runtimeRoot, copilotHome)) {
+  for (const candidate of candidatePaths(runtimeRoot, elegyHome)) {
     try {
       if (existsSyncFn(candidate)) {
         return candidate;
@@ -121,20 +121,20 @@ function findExistingBinary(runtimeRoot, copilotHome, existsSyncImpl) {
   return null;
 }
 
-function buildDownloadDir(copilotHome) {
-  return path.join(copilotHome, 'managed-cli', 'planning');
+function buildDownloadDir(elegyHome) {
+  return path.join(elegyHome, 'managed-cli', 'planning');
 }
 
-function buildDownloadPath(copilotHome) {
-  return path.join(buildDownloadDir(copilotHome), binaryName());
+function buildDownloadPath(elegyHome) {
+  return path.join(buildDownloadDir(elegyHome), binaryName());
 }
 
-function buildManagedSourceDir(copilotHome) {
-  return path.join(buildDownloadDir(copilotHome), 'source', 'Elegy');
+function buildManagedSourceDir(elegyHome) {
+  return path.join(buildDownloadDir(elegyHome), 'source', 'Elegy');
 }
 
-function buildInstallMetadataPath(copilotHome) {
-  return path.join(buildDownloadDir(copilotHome), INSTALL_METADATA_NAME);
+function buildInstallMetadataPath(elegyHome) {
+  return path.join(buildDownloadDir(elegyHome), INSTALL_METADATA_NAME);
 }
 
 function buildElegyAssetsMetadataPath(targetHome) {
@@ -152,12 +152,12 @@ function isElegyRustWorkspace(candidate) {
 }
 
 async function syncGitHubElegySource(options = {}) {
-  const copilotHome = normalizeString(options.copilotHome);
-  if (!copilotHome) {
-    throw new Error('copilotHome is required to sync Elegy source from GitHub.');
+  const elegyHome = normalizeString(options.elegyHome);
+  if (!elegyHome) {
+    throw new Error('elegyHome is required to sync Elegy source from GitHub.');
   }
 
-  const sourceDir = normalizeString(options.sourceDir) || buildManagedSourceDir(copilotHome);
+  const sourceDir = normalizeString(options.sourceDir) || buildManagedSourceDir(elegyHome);
   const childProcessModule = options.childProcess || childProcess;
   const execFile = typeof childProcessModule.execFile === 'function'
     ? childProcessModule.execFile.bind(childProcessModule)
@@ -217,16 +217,16 @@ function readJsonFile(filePath) {
   }
 }
 
-function readInstallMetadata(copilotHome) {
-  return readJsonFile(buildInstallMetadataPath(copilotHome));
+function readInstallMetadata(elegyHome) {
+  return readJsonFile(buildInstallMetadataPath(elegyHome));
 }
 
 function readElegyAssetsMetadata(targetHome) {
   return readJsonFile(buildElegyAssetsMetadataPath(targetHome));
 }
 
-function writeInstallMetadata(copilotHome, metadata) {
-  const metadataPath = buildInstallMetadataPath(copilotHome);
+function writeInstallMetadata(elegyHome, metadata) {
+  const metadataPath = buildInstallMetadataPath(elegyHome);
   fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
   fs.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, 'utf8');
   return metadataPath;
@@ -260,8 +260,8 @@ function resolveGitHead(repoRoot, options = {}) {
   }
 }
 
-function copyBinaryToManagedPath(sourcePath, copilotHome) {
-  const destinationPath = buildDownloadPath(copilotHome);
+function copyBinaryToManagedPath(sourcePath, elegyHome) {
+  const destinationPath = buildDownloadPath(elegyHome);
   fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
   fs.copyFileSync(sourcePath, destinationPath);
 
@@ -353,9 +353,9 @@ async function syncElegySkillAssetsFromGitHub(options = {}) {
 }
 
 async function buildElegyPlanningCliFromSource(options = {}) {
-  const copilotHome = normalizeString(options.copilotHome);
-  if (!copilotHome) {
-    throw new Error('copilotHome is required to install elegy-planning from source.');
+  const elegyHome = normalizeString(options.elegyHome);
+  if (!elegyHome) {
+    throw new Error('elegyHome is required to install elegy-planning from source.');
   }
 
   const elegyRepoRoot = normalizeString(options.elegyRepoPath || options.sourceRoot);
@@ -403,7 +403,7 @@ async function buildElegyPlanningCliFromSource(options = {}) {
     throw new Error(`cargo build completed but binary was not found at ${sourceBinary}.`);
   }
 
-  const installedPath = copyBinaryToManagedPath(sourceBinary, copilotHome);
+  const installedPath = copyBinaryToManagedPath(sourceBinary, elegyHome);
   const sourceGitHead = resolveGitHead(elegyRepoRoot, {
     env: options.env,
     spawnSyncImpl: options.spawnSyncImpl || childProcessModule.spawnSync,
@@ -417,7 +417,7 @@ async function buildElegyPlanningCliFromSource(options = {}) {
     installedAt: new Date().toISOString(),
     binarySha256: hashFileSha256Sync(installedPath),
   };
-  writeInstallMetadata(copilotHome, metadata);
+  writeInstallMetadata(elegyHome, metadata);
   logger(`elegy-planning installed to: ${installedPath}`);
 
   return {
@@ -624,9 +624,9 @@ async function extractZipTo(zipPath, destDir) {
 }
 
 async function downloadElegyPlanningCli(options = {}) {
-  const copilotHome = normalizeString(options.copilotHome);
-  if (!copilotHome) {
-    throw new Error('copilotHome is required to download elegy-planning.');
+  const elegyHome = normalizeString(options.elegyHome);
+  if (!elegyHome) {
+    throw new Error('elegyHome is required to download elegy-planning.');
   }
 
   const fetchImpl = options.fetchImpl;
@@ -636,8 +636,8 @@ async function downloadElegyPlanningCli(options = {}) {
   const release = await fetchLatestReleaseInfo(fetchImpl);
   logger(`Found release ${release.releaseTag}`);
 
-  const downloadPath = buildDownloadPath(copilotHome);
-  const downloadDir = buildDownloadDir(copilotHome);
+  const downloadPath = buildDownloadPath(elegyHome);
+  const downloadDir = buildDownloadDir(elegyHome);
   const exe = binaryName();
 
   let downloadUrl = null;
@@ -699,7 +699,7 @@ async function downloadElegyPlanningCli(options = {}) {
   }
 
   logger(`elegy-planning installed to: ${downloadPath}`);
-  writeInstallMetadata(copilotHome, {
+  writeInstallMetadata(elegyHome, {
     source: 'github-release',
     releaseVersion: release.version,
     releaseTag: release.releaseTag,
@@ -723,7 +723,7 @@ async function installLatestElegyPlanningCli(options = {}) {
 function resolveElegyPlanningCliPath(options = {}) {
   const explicitCliPath = normalizeString(options.cliPath);
   const runtimeRoot = normalizeString(options.runtimeRoot);
-  const copilotHome = normalizeString(options.copilotHome);
+  const elegyHome = normalizeString(options.elegyHome);
   const defaultCommand = normalizeString(options.defaultCommand) || 'elegy-planning';
   const existsSyncFn = typeof options.existsSync === 'function' ? options.existsSync : fs.existsSync;
   const commandLookupOptions = {
@@ -746,12 +746,12 @@ function resolveElegyPlanningCliPath(options = {}) {
     }
   }
 
-  const found = findExistingBinary(runtimeRoot, copilotHome, existsSyncFn);
+  const found = findExistingBinary(runtimeRoot, elegyHome, existsSyncFn);
   if (found) {
     return found;
   }
 
-  const downloadedPath = buildDownloadPath(copilotHome);
+  const downloadedPath = buildDownloadPath(elegyHome);
   try {
     if (existsSyncFn(downloadedPath)) {
       return downloadedPath;

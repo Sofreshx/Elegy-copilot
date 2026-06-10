@@ -35,33 +35,16 @@ function parseNumberQuery(searchParams, key, defaultValue) {
   return n;
 }
 
-function resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome) {
+function resolveSessionsHome(source, elegyHome, sandboxesHome) {
   const s = String(source || '').trim().toLowerCase();
-  if (s === 'vscode') return { source: 'vscode', home: vscodeHome };
   if (s === 'sandbox') return { source: 'sandbox', home: sandboxesHome };
-  return { source: 'cli', home: copilotHome };
-}
-
-function normalizeComparableHome(pathLib, home) {
-  const normalizedHome = normalizeString(home);
-  if (!normalizedHome) {
-    return '';
-  }
-
-  const resolvedHome = pathLib.resolve(normalizedHome);
-  return process.platform === 'win32' ? resolvedHome.toLowerCase() : resolvedHome;
-}
-
-function areSameSessionRoots(pathLib, firstHome, secondHome) {
-  const normalizedFirst = normalizeComparableHome(pathLib, firstHome);
-  const normalizedSecond = normalizeComparableHome(pathLib, secondHome);
-  return Boolean(normalizedFirst && normalizedSecond && normalizedFirst === normalizedSecond);
+  return { source: 'cli', home: elegyHome };
 }
 
 function resolveSessionRequestHome(ctx, deps, source) {
-  const { u, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { u, elegyHome, sandboxesHome } = ctx;
   const { resolveSessionsHome, path } = deps;
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
+  const home = resolveSessionsHome(source, elegyHome, sandboxesHome);
   if (home.source !== 'sandbox') {
     return home;
   }
@@ -412,7 +395,7 @@ function normalizeRepoSelector(searchParams, body = {}) {
 
 function resolveRepoContext(ctx, deps, selector) {
   const inventory = deps.repoInventory.listKnownRepos({
-    copilotHome: ctx.copilotHomeAbs || ctx.copilotHome,
+    elegyHome: ctx.elegyHomeAbs || ctx.elegyHome,
     engineRoot: ctx.engineRoot,
     explicitRepoPaths: selector.repoPath ? [selector.repoPath] : [],
   });
@@ -479,7 +462,6 @@ function toWorkspaceTimestamp(value) {
 function sourceLabelForWorkspace(source) {
   const normalized = normalizeString(source).toLowerCase();
   if (normalized === 'cli') return 'CLI';
-  if (normalized === 'vscode') return 'VS Code';
   if (normalized === 'sandbox') return 'Sandbox';
   if (normalized === 'sdk') return 'SDK';
   if (normalized === 'overlay') return 'Overlay';
@@ -688,15 +670,11 @@ function sortWorkspaceEntries(entries) {
 }
 
 function listWorkspaceArtifactSessions(ctx, deps, activeWindowMinutes) {
-  const { copilotHome, vscodeHome, sandboxesHome } = ctx;
-  const cli = deps.sessions.listSessions(copilotHome, { activeWindowMinutes, recentLimit: 250 })
+  const { elegyHome, sandboxesHome } = ctx;
+  const cli = deps.sessions.listSessions(elegyHome, { activeWindowMinutes, recentLimit: 250 })
     .map((session) => ({ ...session, source: 'cli' }));
-  const vs = areSameSessionRoots(deps.path, copilotHome, vscodeHome)
-    ? []
-    : deps.sessions.listSessions(vscodeHome, { activeWindowMinutes, recentLimit: 250 })
-      .map((session) => ({ ...session, source: 'vscode' }));
   const sandbox = deps.sessions.listSandboxSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 });
-  const all = [...cli, ...vs, ...sandbox];
+  const all = [...cli, ...sandbox];
   return typeof deps.sessions.dedupeAllSources === 'function'
     ? deps.sessions.dedupeAllSources(all)
     : all.map((session) => (typeof deps.sessions.applySessionReconciliation === 'function'
@@ -705,7 +683,7 @@ function listWorkspaceArtifactSessions(ctx, deps, activeWindowMinutes) {
 }
 
 function listWorkspaceArchivedSessions(ctx, deps, activeWindowMinutes) {
-  const { copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { elegyHome, sandboxesHome } = ctx;
   const listArchivedSessions = typeof deps.sessions.listArchivedSessions === 'function'
     ? deps.sessions.listArchivedSessions.bind(deps.sessions)
     : null;
@@ -716,16 +694,12 @@ function listWorkspaceArchivedSessions(ctx, deps, activeWindowMinutes) {
     return [];
   }
 
-  const cli = listArchivedSessions(copilotHome, { activeWindowMinutes, recentLimit: 250 })
+  const cli = listArchivedSessions(elegyHome, { activeWindowMinutes, recentLimit: 250 })
     .map((session) => ({ ...session, source: 'cli' }));
-  const vs = areSameSessionRoots(deps.path, copilotHome, vscodeHome)
-    ? []
-    : listArchivedSessions(vscodeHome, { activeWindowMinutes, recentLimit: 250 })
-      .map((session) => ({ ...session, source: 'vscode' }));
   const sandbox = listSandboxArchivedSessions
     ? listSandboxArchivedSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 })
     : [];
-  return [...cli, ...vs, ...sandbox];
+  return [...cli, ...sandbox];
 }
 
 function buildSessionsWorkspaceResponse(active, history) {
@@ -813,22 +787,17 @@ function handleSessionsWorkspace(ctx, deps) {
 }
 
 function handleSessionsList(ctx, deps) {
-  const { req, res, u, copilotHome, vscodeHome, sandboxesHome } = ctx;
-  const { path, sendJson, parseNumberQuery, resolveSessionsHome, sessions } = deps;
+  const { req, res, u, elegyHome, sandboxesHome } = ctx;
+  const { sendJson, parseNumberQuery, resolveSessionsHome, sessions } = deps;
 
   const activeWindowMinutes = parseNumberQuery(u.searchParams, 'activeWindowMinutes', 30);
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
   if (source === 'all') {
     const dedupe = (u.searchParams.get('dedupe') || 'on').toLowerCase();
-    const sharedCliAndVscodeRoot = areSameSessionRoots(path, copilotHome, vscodeHome);
-    const listedCliSessions = sessions.listSessions(copilotHome, { activeWindowMinutes, recentLimit: 250 });
-    const cli = listedCliSessions.map((s) => ({ ...s, source: 'cli' }));
-    const vs = sharedCliAndVscodeRoot
-      ? []
-      : sessions.listSessions(vscodeHome, { activeWindowMinutes, recentLimit: 250 })
-        .map((s) => ({ ...s, source: 'vscode' }));
+    const cli = sessions.listSessions(elegyHome, { activeWindowMinutes, recentLimit: 250 })
+      .map((s) => ({ ...s, source: 'cli' }));
     const sandbox = sessions.listSandboxSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 });
-    const all = [...cli, ...vs, ...sandbox];
+    const all = [...cli, ...sandbox];
     const result = (dedupe === 'off')
       ? all.map((s) => sessions.applySessionReconciliation({
         ...s,
@@ -844,14 +813,14 @@ function handleSessionsList(ctx, deps) {
     sendJson(res, 200, buildSessionsListResponse(data, { source }));
     return;
   }
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
+  const home = resolveSessionsHome(source, elegyHome, sandboxesHome);
   const data = sessions.listSessions(home.home, { activeWindowMinutes, recentLimit: 250 })
     .map((s) => sessions.applySessionReconciliation({ ...s, source: home.source }));
   sendJson(res, 200, buildSessionsListResponse(data, { source: home.source }));
 }
 
 function handleSessionEvents(ctx, deps) {
-  const { req, res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { req, res, u, match, elegyHome, sandboxesHome } = ctx;
   const { sendJson, parseNumberQuery, resolveSessionsHome, isValidSessionId, sessions, path } = deps;
 
   const id = decodeURIComponent(match[1]);
@@ -868,7 +837,7 @@ function handleSessionEvents(ctx, deps) {
 }
 
 function handleSessionAgentUsage(ctx, deps) {
-  const { req, res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { req, res, u, match, elegyHome, sandboxesHome } = ctx;
   const {
     sendJson,
     parseNumberQuery,
@@ -887,7 +856,7 @@ function handleSessionAgentUsage(ctx, deps) {
     const { home, sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
     const usage = sessions.getAgentUsage(sessionDir, limit);
     const skillUsage = assetInvocationAudit.getSessionSkillUsageSummary({
-      copilotHome: path.resolve(home.home),
+      elegyHome: path.resolve(home.home),
       sessionId: id,
       limit: Math.max(limit * 4, 200),
     });
@@ -898,7 +867,7 @@ function handleSessionAgentUsage(ctx, deps) {
 }
 
 function handleSessionPlan(ctx, deps) {
-  const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { res, u, match, elegyHome, sandboxesHome } = ctx;
   const { sendJson, sendText, resolveSessionsHome, isValidSessionId, assets, path } = deps;
 
   const id = decodeURIComponent(match[1]);
@@ -919,7 +888,7 @@ function handleSessionPlan(ctx, deps) {
 }
 
 function handleSessionPlanMutation(ctx, deps) {
-  const { req, res, u, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { req, res, u, elegyHome, sandboxesHome } = ctx;
   const {
     sendJson,
     readJsonBody,
@@ -1017,7 +986,7 @@ function handleSessionPlanMutation(ctx, deps) {
 }
 
 function handleSessionPlans(ctx, deps) {
-  const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { res, u, match, elegyHome, sandboxesHome } = ctx;
   const { sendJson, resolveSessionsHome, isValidSessionId, listPlanArtifacts, fs, path } = deps;
 
   const id = decodeURIComponent(match[1]);
@@ -1037,7 +1006,7 @@ function handleSessionPlans(ctx, deps) {
 }
 
 function handleSessionPlanById(ctx, deps) {
-  const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { res, u, match, elegyHome, sandboxesHome } = ctx;
   const { sendJson, sendText, resolveSessionsHome, isValidSessionId, readPlanArtifact, path } = deps;
 
   const id = decodeURIComponent(match[1]);
@@ -1058,7 +1027,7 @@ function handleSessionPlanById(ctx, deps) {
 }
 
 function handleSessionFinal(ctx, deps) {
-  const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { res, u, match, elegyHome, sandboxesHome } = ctx;
   const {
     sendJson,
     sendText,
@@ -1281,7 +1250,7 @@ function resolveStructuredSessionRepo(ctx, deps, runtimeSession, startContext) {
 
   try {
     const inventory = deps.repoInventory.listKnownRepos({
-      copilotHome: ctx.copilotHomeAbs || ctx.copilotHome,
+      elegyHome: ctx.elegyHomeAbs || ctx.elegyHome,
       engineRoot: ctx.engineRoot,
       explicitRepoPaths: selector.repoPath ? [selector.repoPath] : [],
     });
@@ -1488,7 +1457,7 @@ function buildSessionOrchestrationState(ctx, deps, id, sessionDir, structured) {
       .map((overlaySession) => normalizeString(overlaySession && overlaySession.worktree && overlaySession.worktree.worktreeId)),
   ].filter(Boolean));
   const repoTasks = repoId && deps.sessions && typeof deps.sessions.listRepoStateTasks === 'function'
-    ? deps.sessions.listRepoStateTasks(ctx.copilotHomeAbs || ctx.copilotHome, repoId, {
+    ? deps.sessions.listRepoStateTasks(ctx.elegyHomeAbs || ctx.elegyHome, repoId, {
       sessionId: id,
       workflowRunIds: directWorkflowRuns.map((run) => normalizeString(run && run.runId)).filter(Boolean),
       worktreeIds: Array.from(scopedWorktreeIds),
@@ -1505,7 +1474,7 @@ function buildSessionOrchestrationState(ctx, deps, id, sessionDir, structured) {
     || (overlaySessions.find((overlaySession) => normalizeString(overlaySession && overlaySession.linkedSessionId) === id) || {}).worktree?.worktreeId
   );
   const worktreeMetadata = currentWorktreeId && deps.sessions && typeof deps.sessions.readRepoStateWorktree === 'function'
-    ? deps.sessions.readRepoStateWorktree(ctx.copilotHomeAbs || ctx.copilotHome, repoId, currentWorktreeId)
+    ? deps.sessions.readRepoStateWorktree(ctx.elegyHomeAbs || ctx.elegyHome, repoId, currentWorktreeId)
     : null;
   const taskItems = buildTaskBoardProjection(id, repoTasks, workflowRuns, currentWorktreeId);
   const workflowLayerTriggers = collectWorkflowLayerTriggers(deps, id, repoId, repoTasks);
@@ -1583,7 +1552,7 @@ function buildSessionOrchestrationState(ctx, deps, id, sessionDir, structured) {
 }
 
 function handleSessionStructuredState(ctx, deps) {
-  const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { res, u, match, elegyHome, sandboxesHome } = ctx;
   const { sendJson, resolveSessionsHome, isValidSessionId, readPlanArtifact, planState, assets, fs, path } = deps;
 
   const id = decodeURIComponent(match[1]);
@@ -1643,7 +1612,7 @@ function handleSessionStructuredState(ctx, deps) {
 }
 
 function handleSessionProposition(ctx, deps) {
-  const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { res, u, match, elegyHome, sandboxesHome } = ctx;
   const { sendJson, resolveSessionsHome, isValidSessionId, assets, sessionArtifacts, path } = deps;
 
   const id = decodeURIComponent(match[1]);
@@ -1671,7 +1640,7 @@ function handleSessionProposition(ctx, deps) {
 }
 
 function handleSessionHandoff(ctx, deps) {
-  const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { res, u, match, elegyHome, sandboxesHome } = ctx;
   const { sendJson, resolveSessionsHome, isValidSessionId, assets, sessionArtifacts, path } = deps;
 
   const id = decodeURIComponent(match[1]);
@@ -1699,7 +1668,7 @@ function handleSessionHandoff(ctx, deps) {
 }
 
 function handleSessionRoadmapSync(ctx, deps) {
-  const { req, res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { req, res, u, match, elegyHome, sandboxesHome } = ctx;
   const {
     sendJson,
     readJsonBody,
@@ -1836,7 +1805,7 @@ function handleSessionContinuationPackage(ctx, deps) {
 }
 
 function handleSessionVerificationGuide(ctx, deps) {
-  const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { res, u, match, elegyHome, sandboxesHome } = ctx;
   const { sendJson, resolveSessionsHome, isValidSessionId, assets, path } = deps;
 
   const id = decodeURIComponent(match[1]);
@@ -1863,7 +1832,7 @@ function handleSessionVerificationGuide(ctx, deps) {
 }
 
 function handleSessionArchive(ctx, deps) {
-  const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { res, u, match, elegyHome, sandboxesHome } = ctx;
   const { sendJson, resolveSessionsHome, isValidSessionId, ensureDir, uniqueArchiveDir, fs, path } = deps;
 
   const id = decodeURIComponent(match[1]);
@@ -1888,7 +1857,7 @@ function handleSessionArchive(ctx, deps) {
 }
 
 function handleSessionDelete(ctx, deps) {
-  const { req, res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { req, res, u, match, elegyHome, sandboxesHome } = ctx;
   const { sendJson, resolveSessionsHome, isValidSessionId, readJsonBody, fs, path } = deps;
 
   const id = decodeURIComponent(match[1]);
@@ -1921,11 +1890,11 @@ function handleSessionDelete(ctx, deps) {
 }
 
 function handleUnifiedSessions(ctx, deps) {
-  const { res, u, copilotHome, sandboxesHome } = ctx;
+  const { res, u, elegyHome, sandboxesHome } = ctx;
   const { sendJson, parseNumberQuery, sessionAggregation } = deps;
 
   try {
-    const all = sessionAggregation.buildUnifiedSessions(copilotHome, { sandboxesHome });
+    const all = sessionAggregation.buildUnifiedSessions(elegyHome, { sandboxesHome });
 
     const projectIdFilter = u.searchParams.get('projectId') || '';
     const statusFilter = u.searchParams.get('status') || '';

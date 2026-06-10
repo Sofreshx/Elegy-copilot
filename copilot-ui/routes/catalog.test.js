@@ -1,16 +1,12 @@
 'use strict';
-
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-
 const assets = require('../lib/assets');
 const { getRepoStateKey } = require('../lib/catalogProjectionService');
 const { register } = require('./catalog');
-
 let passed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -22,17 +18,14 @@ async function test(name, fn) {
     process.exitCode = 1;
   }
 }
-
 function writeJson(absPath, value) {
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
   fs.writeFileSync(absPath, JSON.stringify(value, null, 2) + '\n', 'utf8');
 }
-
 function writeText(absPath, text) {
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
   fs.writeFileSync(absPath, text, 'utf8');
 }
-
 function createResponse() {
   const state = {
     statusCode: null,
@@ -40,7 +33,6 @@ function createResponse() {
     chunks: [],
     ended: false,
   };
-
   return {
     get statusCode() {
       return state.statusCode;
@@ -64,11 +56,9 @@ function createResponse() {
     },
   };
 }
-
 function parseJsonBody(response) {
   return JSON.parse(response.bodyText || '{}');
 }
-
 function findRoute(routes, method, pathname) {
   for (const route of routes) {
     if (route.method !== method) continue;
@@ -84,7 +74,6 @@ function findRoute(routes, method, pathname) {
   }
   throw new Error(`Route not found: ${method} ${pathname}`);
 }
-
 async function invoke(routes, ctx, method, pathname, body) {
   const res = createResponse();
   const u = new URL(`http://127.0.0.1${pathname}`);
@@ -100,14 +89,12 @@ async function invoke(routes, ctx, method, pathname, body) {
   await new Promise((resolve) => setTimeout(resolve, 0));
   return { res, body: parseJsonBody(res) };
 }
-
 function createFixtureRoot() {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-catalog-routes-'));
   const engineRoot = path.join(tmpRoot, 'engine');
-  const copilotHomeAbs = path.join(tmpRoot, '.copilot');
+  const elegyHomeAbs = path.join(tmpRoot, '.elegy');
   const repoPath = path.join(tmpRoot, 'workspace-repo');
   const manualRepoPath = path.join(tmpRoot, 'manual-repo');
-
   writeJson(path.join(engineRoot, 'engine-assets', 'manifest.json'), {
     bundles: [
       {
@@ -209,12 +196,11 @@ function createFixtureRoot() {
       typescript: '^5.0.0',
     },
   });
-
-  writeText(path.join(copilotHomeAbs, 'skills', 'core-guardrails', 'SKILL.md'), '# Installed Core Guardrails\n');
-  writeText(path.join(copilotHomeAbs, 'skills-vault', 'repo-helper', 'SKILL.md'), '# Repo Helper Vault\n');
-  writeText(path.join(copilotHomeAbs, 'agents', 'repo-guide.agent.md'), '# Repo Guide Installed\n');
+  writeText(path.join(elegyHomeAbs, 'skills', 'core-guardrails', 'SKILL.md'), '# Installed Core Guardrails\n');
+  writeText(path.join(elegyHomeAbs, 'skills-vault', 'repo-helper', 'SKILL.md'), '# Repo Helper Vault\n');
+  writeText(path.join(elegyHomeAbs, 'agents', 'repo-guide.agent.md'), '# Repo Guide Installed\n');
   writeText(
-    path.join(copilotHomeAbs, 'skills', 'providers', 'external-vendor', 'market-helper', 'SKILL.md'),
+    path.join(elegyHomeAbs, 'skills', 'providers', 'external-vendor', 'market-helper', 'SKILL.md'),
     '# External Market Helper\n',
   );
   fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
@@ -231,7 +217,7 @@ function createFixtureRoot() {
   writeText(path.join(repoPath, '.github', 'skills', 'repo-helper', 'SKILL.md'), '# Repo Helper Override\n');
   writeText(path.join(repoPath, '.github', 'agents', 'repo-guide.agent.md'), '# Repo Guide Override\n');
   const repoStateKey = getRepoStateKey(repoPath);
-  writeJson(path.join(copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'registry.json'), {
+  writeJson(path.join(elegyHomeAbs, 'repo-state', repoStateKey.repoId, 'registry.json'), {
     skills: {
       enabled: ['repo-helper'],
       disabled: ['core-guardrails'],
@@ -240,8 +226,8 @@ function createFixtureRoot() {
       enabled: ['repo-guide'],
     },
   });
-  writeJson(path.join(copilotHomeAbs, 'repo-state', 'placeholder', 'registry.json'), {});
-  writeJson(path.join(copilotHomeAbs, 'repo-state', 'orphan-repo-id', 'registry.json'), {
+  writeJson(path.join(elegyHomeAbs, 'repo-state', 'placeholder', 'registry.json'), {});
+  writeJson(path.join(elegyHomeAbs, 'repo-state', 'orphan-repo-id', 'registry.json'), {
     skills: {
       disabled: ['ghost-skill'],
     },
@@ -249,7 +235,7 @@ function createFixtureRoot() {
   fs.mkdirSync(path.join(manualRepoPath, '.git'), { recursive: true });
   writeText(path.join(manualRepoPath, 'pyproject.toml'), '[project]\nname = "manual-repo"\n');
   writeText(
-    path.join(copilotHomeAbs, 'session-state', 'session-asset-1', 'events.jsonl'),
+    path.join(elegyHomeAbs, 'session-state', 'session-asset-1', 'events.jsonl'),
     [
       JSON.stringify({
         type: 'session.start',
@@ -273,14 +259,11 @@ function createFixtureRoot() {
       }),
     ].join('\n') + '\n',
   );
-
-  return { tmpRoot, engineRoot, copilotHomeAbs, repoPath, manualRepoPath };
+  return { tmpRoot, engineRoot, elegyHomeAbs, repoPath, manualRepoPath };
 }
-
 async function run() {
   console.log('\nCatalog Route Tests\n');
-
-  const { tmpRoot, engineRoot, copilotHomeAbs, repoPath, manualRepoPath } = createFixtureRoot();
+  const { tmpRoot, engineRoot, elegyHomeAbs, repoPath, manualRepoPath } = createFixtureRoot();
   const runtimeState = {
     status: 'idle',
     refreshCount: 0,
@@ -292,7 +275,6 @@ async function run() {
     lastError: null,
     lastSnapshotPath: null,
   };
-
   const routes = register({
     catalogRuntimeState: runtimeState,
     readJsonBody: async (req) => req.__body || {},
@@ -307,18 +289,16 @@ async function run() {
   };
   const baseCtx = {
     engineRoot,
-    copilotHomeAbs,
+    elegyHomeAbs,
     changeTracker: {
       get() {
         return { ...changeState };
       },
     },
   };
-
   try {
     await test('GET /api/catalog/assets persists a fallback snapshot and reuses it on the next read', async () => {
       const firstResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/assets?kind=skill');
-
       assert.equal(firstResponse.res.statusCode, 200);
       assert.equal(firstResponse.body.kind, 'catalog.assets.list');
       assert.equal(firstResponse.body.snapshot.readMode, 'filesystem-fallback');
@@ -327,23 +307,18 @@ async function run() {
       assert.ok(firstResponse.body.assets.some((asset) => asset.assetId === 'skill-core-guardrails'));
       assert.ok(firstResponse.body.assets.some((asset) => asset.assetId === 'skill-repo-helper'));
       assert.ok(fs.existsSync(firstResponse.body.snapshot.storage.snapshotPath), 'expected fallback rebuild to persist');
-
       const secondResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/assets?kind=skill');
-
       assert.equal(secondResponse.res.statusCode, 200);
       assert.equal(secondResponse.body.snapshot.readMode, 'persisted-snapshot');
       assert.equal(secondResponse.body.snapshot.storage.snapshotExists, true);
     });
-
     await test('GET /api/catalog/assets rebuilds a stale persisted snapshot after tracker-reported repo-local asset changes', async () => {
       const liveSkillPath = path.join(repoPath, '.github', 'skills', 'live-repo-skill', 'SKILL.md');
       const routePath = `/api/catalog/assets?kind=skill&repoPath=${encodeURIComponent(repoPath)}`;
       const initialResponse = await invoke(routes, baseCtx, 'GET', routePath);
       const initialGeneratedMs = Date.parse(initialResponse.body.snapshot.generatedAt || '');
-
       assert.equal(initialResponse.res.statusCode, 200);
       assert.ok(Number.isFinite(initialGeneratedMs), 'expected an initial generatedAt timestamp');
-
       try {
         writeText(
           liveSkillPath,
@@ -351,9 +326,7 @@ async function run() {
         );
         changeState.version += 1;
         changeState.lastChangedMs = initialGeneratedMs + 1;
-
         const refreshedResponse = await invoke(routes, baseCtx, 'GET', routePath);
-
         assert.equal(refreshedResponse.res.statusCode, 200);
         assert.equal(refreshedResponse.body.snapshot.readMode, 'change-tracker-rebuild');
         assert.equal(refreshedResponse.body.snapshot.storage.snapshotExists, true);
@@ -368,16 +341,13 @@ async function run() {
         await invoke(routes, baseCtx, 'GET', routePath);
       }
     });
-
     await test('GET /api/catalog/bundles returns bundle metadata, computed member state, and additive summary stats', async () => {
       const bundleResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/bundles?bundleId=core-global');
-
       assert.equal(bundleResponse.res.statusCode, 200);
       assert.equal(bundleResponse.body.kind, 'catalog.bundles.list');
       assert.equal(bundleResponse.body.count, 1);
       assert.deepEqual(bundleResponse.body.filters, { bundleId: 'core-global' });
       assert.ok(Array.isArray(bundleResponse.body.bundles));
-
       const [bundle] = bundleResponse.body.bundles;
       assert.equal(bundle.bundleId, 'core-global');
       assert.equal(bundle.title, 'Core Global Assets');
@@ -432,15 +402,12 @@ async function run() {
           },
         ],
       );
-
       const searchResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/bundles?q=repo%20helper');
       assert.equal(searchResponse.res.statusCode, 200);
       assert.deepEqual(searchResponse.body.bundles.map((entry) => entry.bundleId), ['repo-helper-pack']);
-
       const classificationResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/bundles?classification=scope');
       assert.equal(classificationResponse.res.statusCode, 200);
       assert.deepEqual(classificationResponse.body.bundles.map((entry) => entry.bundleId), ['repo-helper-pack']);
-
       const summaryResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/summary');
       assert.equal(summaryResponse.res.statusCode, 200);
       assert.equal(summaryResponse.body.kind, 'catalog.summary');
@@ -471,25 +438,21 @@ async function run() {
         missingMemberCount: 0,
       });
     });
-
     await test('POST /api/catalog/activation persists global defaults and repo overrides for bundles/profile state', async () => {
       const globalDeactivate = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
         action: 'deactivate-bundle',
         bundleId: 'core-global',
       });
-
       assert.equal(globalDeactivate.res.statusCode, 200);
       assert.equal(globalDeactivate.body.kind, 'catalog.activation.update');
       assert.equal(globalDeactivate.body.action, 'bundle-deactivated');
       assert.deepEqual(
-        JSON.parse(fs.readFileSync(path.join(copilotHomeAbs, 'catalog', 'activation-state.json'), 'utf8')).activeBundleIds,
+        JSON.parse(fs.readFileSync(path.join(elegyHomeAbs, 'catalog', 'activation-state.json'), 'utf8')).activeBundleIds,
         [],
       );
-
       const globalSummary = await invoke(routes, baseCtx, 'GET', '/api/catalog/summary');
       assert.deepEqual(globalSummary.body.summary.activation.activeBundleIds, []);
       assert.equal(globalSummary.body.summary.activation.bundleSource, 'user-global');
-
       const repoActivate = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
         action: 'activate-bundle',
         bundleId: 'repo-helper-pack',
@@ -497,11 +460,9 @@ async function run() {
       });
       assert.equal(repoActivate.res.statusCode, 200);
       assert.equal(repoActivate.body.action, 'bundle-activated');
-
       const repoStateKey = getRepoStateKey(repoPath);
-      const repoActivationPath = path.join(copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'activation.json');
+      const repoActivationPath = path.join(elegyHomeAbs, 'repo-state', repoStateKey.repoId, 'activation.json');
       assert.deepEqual(JSON.parse(fs.readFileSync(repoActivationPath, 'utf8')).activeBundleIds, ['repo-helper-pack']);
-
       const repoProfile = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
         action: 'set-profile',
         plannerProfile: 'manual-review',
@@ -509,34 +470,29 @@ async function run() {
       });
       assert.equal(repoProfile.res.statusCode, 200);
       assert.equal(repoProfile.body.action, 'planner-profile-set');
-
       const repoSummary = await invoke(routes, baseCtx, 'GET', `/api/catalog/summary?repoPath=${encodeURIComponent(repoPath)}`);
       assert.equal(repoSummary.body.summary.activation.plannerProfile, 'manual-review');
       assert.equal(repoSummary.body.summary.activation.plannerProfileSource, 'repo-override');
       assert.deepEqual(repoSummary.body.summary.activation.activeBundleIds, ['repo-helper-pack']);
       assert.equal(repoSummary.body.summary.activation.bundleSource, 'repo-override');
-
       const repoBundles = await invoke(routes, baseCtx, 'GET', `/api/catalog/bundles?repoPath=${encodeURIComponent(repoPath)}`);
       const repoHelperBundle = repoBundles.body.bundles.find((entry) => entry.bundleId === 'repo-helper-pack');
       const coreBundle = repoBundles.body.bundles.find((entry) => entry.bundleId === 'core-global');
       assert.equal(repoHelperBundle.activationStatus, 'active');
       assert.equal(repoHelperBundle.activationSource, 'repo-override');
       assert.equal(coreBundle.activationStatus, 'inactive');
-
       const clearOverride = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
         action: 'clear-repo-override',
         repoPath,
       });
       assert.equal(clearOverride.res.statusCode, 200);
       assert.equal(clearOverride.body.action, 'repo-override-cleared');
-
       const clearedSummary = await invoke(routes, baseCtx, 'GET', `/api/catalog/summary?repoPath=${encodeURIComponent(repoPath)}`);
       assert.equal(clearedSummary.body.summary.activation.plannerProfile, 'balanced-default');
       assert.deepEqual(clearedSummary.body.summary.activation.activeBundleIds, []);
       assert.equal(clearedSummary.body.summary.activation.bundleSource, 'user-global');
       assert.equal(fs.existsSync(repoActivationPath), false);
     });
-
     await test('POST /api/catalog/bundles/uninstall removes managed member installs and clears bundle activation/overlay state', async () => {
       const repoBundleActivation = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
         action: 'activate-bundle',
@@ -544,39 +500,33 @@ async function run() {
         repoPath,
       });
       assert.equal(repoBundleActivation.res.statusCode, 200);
-
       const response = await invoke(routes, baseCtx, 'POST', '/api/catalog/bundles/uninstall', {
         bundleId: 'core-global',
         repoPath,
       });
-
       assert.equal(response.res.statusCode, 200);
       assert.equal(response.body.kind, 'catalog.bundle.uninstall');
       assert.equal(response.body.action, 'bundle-uninstalled');
       assert.equal(response.body.bundleId, 'core-global');
       assert.deepEqual(response.body.removedAssetIds.sort(), ['agent-repo-guide', 'skill-core-guardrails']);
       assert.equal(response.body.preserveExternalPackages, true);
-      assert.equal(fs.existsSync(path.join(copilotHomeAbs, 'skills', 'core-guardrails')), false);
-      assert.equal(fs.existsSync(path.join(copilotHomeAbs, 'agents', 'repo-guide.agent.md')), false);
+      assert.equal(fs.existsSync(path.join(elegyHomeAbs, 'skills', 'core-guardrails')), false);
+      assert.equal(fs.existsSync(path.join(elegyHomeAbs, 'agents', 'repo-guide.agent.md')), false);
       assert.equal(
-        fs.existsSync(path.join(copilotHomeAbs, 'skills', 'providers', 'external-vendor', 'market-helper', 'SKILL.md')),
+        fs.existsSync(path.join(elegyHomeAbs, 'skills', 'providers', 'external-vendor', 'market-helper', 'SKILL.md')),
         true,
       );
-
-      const globalActivationPath = path.join(copilotHomeAbs, 'catalog', 'activation-state.json');
+      const globalActivationPath = path.join(elegyHomeAbs, 'catalog', 'activation-state.json');
       assert.deepEqual(JSON.parse(fs.readFileSync(globalActivationPath, 'utf8')).activeBundleIds, []);
-
       const repoStateKey = getRepoStateKey(repoPath);
-      const repoActivationPath = path.join(copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'activation.json');
+      const repoActivationPath = path.join(elegyHomeAbs, 'repo-state', repoStateKey.repoId, 'activation.json');
       assert.equal(fs.existsSync(repoActivationPath), false);
-
       const registry = JSON.parse(
-        fs.readFileSync(path.join(copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'registry.json'), 'utf8'),
+        fs.readFileSync(path.join(elegyHomeAbs, 'repo-state', repoStateKey.repoId, 'registry.json'), 'utf8'),
       );
       assert.deepEqual(registry.skills.enabled, ['repo-helper']);
       assert.equal(Array.isArray(registry.skills.disabled), false);
       assert.equal(Array.isArray(registry.agents?.enabled), false);
-
       const repoSummary = await invoke(routes, baseCtx, 'GET', `/api/catalog/summary?repoPath=${encodeURIComponent(repoPath)}`);
       assert.deepEqual(repoSummary.body.summary.activation.activeBundleIds, []);
       assert.equal(repoSummary.body.summary.activation.bundleSource, 'user-global');
@@ -584,17 +534,14 @@ async function run() {
         !repoSummary.body.summary.routingPolicy.eligibleAssetIds.includes('skill-core-guardrails'),
         'expected uninstalled core bundle members to be absent from routing eligibility',
       );
-
       const repoBundles = await invoke(routes, baseCtx, 'GET', `/api/catalog/bundles?repoPath=${encodeURIComponent(repoPath)}`);
       const coreBundle = repoBundles.body.bundles.find((entry) => entry.bundleId === 'core-global');
       assert.equal(coreBundle.activationStatus, 'inactive');
       const uninstalledCoreSkill = coreBundle.members.find((member) => member.assetId === 'skill-core-guardrails');
       assert.equal(uninstalledCoreSkill.installed, false);
     });
-
     await test('POST /api/catalog/refresh persists a snapshot and logs a catalog rebuild audit event', async () => {
       const response = await invoke(routes, baseCtx, 'POST', '/api/catalog/refresh', {});
-
       assert.equal(response.res.statusCode, 200);
       assert.equal(response.body.kind, 'catalog.refresh');
       assert.equal(response.body.refreshed, true);
@@ -602,30 +549,24 @@ async function run() {
       assert.equal(response.body.snapshot.storage.snapshotExists, true);
       assert.equal(runtimeState.status, 'ready');
       assert.ok(runtimeState.lastSuccessfulAt, 'expected refresh to stamp lastSuccessfulAt');
-
       const snapshotPath = response.body.snapshot.storage.snapshotPath;
       assert.ok(fs.existsSync(snapshotPath), 'expected persisted snapshot to exist');
-
-      const auditPath = path.join(copilotHomeAbs, 'catalog', 'audit', 'events.jsonl');
+      const auditPath = path.join(elegyHomeAbs, 'catalog', 'audit', 'events.jsonl');
       assert.ok(fs.existsSync(auditPath), 'expected audit log to exist after refresh');
       const auditText = fs.readFileSync(auditPath, 'utf8');
       assert.match(auditText, /"eventType":"catalog\.rebuilt"/);
     });
-
     await test('repo inventory routes register, list, select, refresh, and unregister repos outside active sessions', async () => {
       const registerResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/repos/register', {
         repoPath: manualRepoPath,
         label: 'Manual Repo',
       });
-
       assert.equal(registerResponse.res.statusCode, 200);
       assert.equal(registerResponse.body.kind, 'catalog.repos.register');
       assert.equal(registerResponse.body.registered, true);
       assert.equal(registerResponse.body.repo.repoPath, manualRepoPath);
       assert.equal(registerResponse.body.repo.registered, true);
-
       const listResponse = await invoke(routes, baseCtx, 'GET', `/api/catalog/repos?repoPath=${encodeURIComponent(manualRepoPath)}`);
-
       assert.equal(listResponse.res.statusCode, 200);
       assert.equal(listResponse.body.kind, 'catalog.repos.list');
       assert.ok(Array.isArray(listResponse.body.repos));
@@ -638,11 +579,9 @@ async function run() {
       assert.equal(workspaceRepo.assets.hasRepoAssets, true);
       assert.deepEqual(workspaceRepo.hints.frameworks, ['express', 'react']);
       assert.deepEqual(workspaceRepo.hints.targets, ['backend', 'frontend']);
-
       const orphanRepo = listResponse.body.repos.find((repo) => repo.repoId === 'orphan-repo-id');
       assert.ok(orphanRepo, 'expected repo-state-only orphan entry');
       assert.equal(orphanRepo.scanStatus, 'unresolved');
-
       const selectResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/repos/select', {
         repoPath,
       });
@@ -650,7 +589,6 @@ async function run() {
       assert.equal(selectResponse.body.kind, 'catalog.repos.select');
       assert.equal(selectResponse.body.repo.selected, true);
       assert.equal(selectResponse.body.selectedRepo.repoPath, repoPath);
-
       const refreshResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/repos/refresh', {
         repoPath,
       });
@@ -662,7 +600,6 @@ async function run() {
       assert.equal(refreshResponse.body.snapshot.repoContext.repoPath, repoPath);
       assert.equal(refreshResponse.body.snapshot.storage.snapshotExists, true);
       assert.ok(refreshResponse.body.audit.logged, 'expected repo refresh audit to log');
-
       const unregisterResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/repos/unregister', {
         repoPath: manualRepoPath,
       });
@@ -671,7 +608,6 @@ async function run() {
       assert.equal(unregisterResponse.body.removed, true);
       assert.equal(unregisterResponse.body.repo.repoPath, manualRepoPath);
     });
-
     await test('repo inventory routes persist custom scan roots and surface discovered repos without selecting them', async () => {
       const customScanRoot = path.join(tmpRoot, 'scanned-roots');
       const discoveredRepoPath = path.join(customScanRoot, 'catalog-app');
@@ -682,7 +618,6 @@ async function run() {
           react: '^18.0.0',
         },
       });
-
       const updateResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/repos/scan-roots', {
         customScanRoots: [customScanRoot],
       });
@@ -690,7 +625,6 @@ async function run() {
       assert.equal(updateResponse.body.kind, 'catalog.repos.scan-roots');
       assert.equal(updateResponse.body.updated, true);
       assert.deepEqual(updateResponse.body.workspaceScan.customScanRoots, [customScanRoot]);
-
       const listResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/repos');
       assert.equal(listResponse.res.statusCode, 200);
       assert.deepEqual(listResponse.body.workspaceScan.customScanRoots, [customScanRoot]);
@@ -700,7 +634,6 @@ async function run() {
       assert.equal(discoveredRepo.selected, false);
       assert.notEqual(listResponse.body.selectedRepo?.repoPath, discoveredRepoPath);
     });
-
     await test('catalog mutation routes create, update, and delete user-global skills on authoritative paths', async () => {
       const createResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/assets/create', {
         authoringScope: 'user-global',
@@ -712,13 +645,11 @@ async function run() {
         content: '## Usage\n\nUse this for custom work.\n',
         triggersOn: ['custom helper', 'user global'],
       });
-
       assert.equal(createResponse.res.statusCode, 200);
       assert.equal(createResponse.body.kind, 'catalog.asset.create');
       assert.equal(createResponse.body.action, 'created');
       assert.ok(createResponse.body.audit.logged);
-      assert.ok(fs.existsSync(path.join(copilotHomeAbs, 'skills-vault', 'custom-helper', 'SKILL.md')));
-
+      assert.ok(fs.existsSync(path.join(elegyHomeAbs, 'skills-vault', 'custom-helper', 'SKILL.md')));
       const updateResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/assets/update', {
         authoringScope: 'user-global',
         kind: 'skill',
@@ -729,13 +660,11 @@ async function run() {
         description: 'User-global always-loaded skill.',
         content: '## Updated\n\nNow always loaded.\n',
       });
-
       assert.equal(updateResponse.res.statusCode, 200);
       assert.equal(updateResponse.body.kind, 'catalog.asset.update');
       assert.equal(updateResponse.body.loadMode, 'always');
-      assert.ok(fs.existsSync(path.join(copilotHomeAbs, 'skills', 'custom-helper', 'SKILL.md')));
-      assert.equal(fs.existsSync(path.join(copilotHomeAbs, 'skills-vault', 'custom-helper')), false);
-
+      assert.ok(fs.existsSync(path.join(elegyHomeAbs, 'skills', 'custom-helper', 'SKILL.md')));
+      assert.equal(fs.existsSync(path.join(elegyHomeAbs, 'skills-vault', 'custom-helper')), false);
       const deleteResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/assets/delete', {
         authoringScope: 'user-global',
         kind: 'skill',
@@ -743,13 +672,11 @@ async function run() {
         loadMode: 'always',
         expectedHash: updateResponse.body.contentHash,
       });
-
       assert.equal(deleteResponse.res.statusCode, 200);
       assert.equal(deleteResponse.body.kind, 'catalog.asset.delete');
       assert.equal(deleteResponse.body.action, 'deleted');
-      assert.equal(fs.existsSync(path.join(copilotHomeAbs, 'skills', 'custom-helper')), false);
+      assert.equal(fs.existsSync(path.join(elegyHomeAbs, 'skills', 'custom-helper')), false);
     });
-
     await test('catalog mutation routes create shared skills and install shipped assets through safe backend APIs', async () => {
       const createResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/assets/create', {
         authoringScope: 'shared',
@@ -761,28 +688,23 @@ async function run() {
         description: 'New shipped skill.',
         content: '## Shared\n\nCreated from the backend mutation API.\n',
       });
-
       assert.equal(createResponse.res.statusCode, 200);
       assert.equal(createResponse.body.kind, 'catalog.asset.create');
       assert.ok(fs.existsSync(path.join(engineRoot, 'engine-assets', 'skills', 'shared-authoring', 'SKILL.md')));
-
       const manifest = JSON.parse(fs.readFileSync(path.join(engineRoot, 'engine-assets', 'manifest.json'), 'utf8'));
       assert.ok(
         manifest.assets.some((asset) => asset.id === 'skill-shared-authoring' && asset.loadMode === 'always'),
         'expected shared skill manifest entry',
       );
-
       const installResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/assets/install', {
         assetId: 'skill-shared-authoring',
       });
-
       assert.equal(installResponse.res.statusCode, 200);
       assert.equal(installResponse.body.kind, 'catalog.asset.install');
       assert.equal(installResponse.body.action, 'installed');
-      assert.ok(fs.existsSync(path.join(copilotHomeAbs, 'skills', 'shared-authoring', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(copilotHomeAbs, 'skills-vault', 'shared-authoring', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(elegyHomeAbs, 'skills', 'shared-authoring', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(elegyHomeAbs, 'skills-vault', 'shared-authoring', 'SKILL.md')));
     });
-
     await test('catalog provider install route executes managed-import provider commands and persists provider state', async () => {
       writeJson(path.join(engineRoot, 'engine-assets', 'providers.json'), {
         schemaVersion: 1,
@@ -803,10 +725,8 @@ async function run() {
           },
         ],
       });
-
-      const managedCliPath = path.join(copilotHomeAbs, 'managed-cli', 'stable', 'bin', 'copilot.exe');
+      const managedCliPath = path.join(elegyHomeAbs, 'managed-cli', 'stable', 'bin', 'copilot.exe');
       const executedCommands = [];
-
       const providerRoutes = register({
         process: {
           ...process,
@@ -836,12 +756,10 @@ async function run() {
           };
         },
       });
-
       const installResponse = await invoke(providerRoutes, baseCtx, 'POST', '/api/catalog/providers/install', {
         providerId: 'external-provider',
         action: 'install',
       });
-
       assert.equal(installResponse.res.statusCode, 200);
       assert.equal(installResponse.body.kind, 'catalog.provider.install');
       assert.equal(installResponse.body.providerId, 'external-provider');
@@ -849,13 +767,11 @@ async function run() {
       assert.ok(Array.isArray(installResponse.body.commands));
       assert.equal(installResponse.body.commands.length, 2);
       assert.deepEqual(executedCommands.map((entry) => entry.command), [managedCliPath, managedCliPath]);
-
-      const providerStatePath = path.join(copilotHomeAbs, 'catalog', 'providers-state.json');
+      const providerStatePath = path.join(elegyHomeAbs, 'catalog', 'providers-state.json');
       const providerState = JSON.parse(fs.readFileSync(providerStatePath, 'utf8'));
       assert.equal(providerState.providers['external-provider'].installed, true);
       assert.equal(providerState.providers['external-provider'].pluginRef, 'external@external-provider');
     });
-
     await test('catalog provider install route fails deterministically when the managed CLI runtime state is unavailable', async () => {
       writeJson(path.join(engineRoot, 'engine-assets', 'providers.json'), {
         schemaVersion: 1,
@@ -876,7 +792,6 @@ async function run() {
           },
         ],
       });
-
       const providerRoutes = register({
         process: {
           ...process,
@@ -892,54 +807,44 @@ async function run() {
           res.end(JSON.stringify(payload, null, 2));
         },
       });
-
       const installResponse = await invoke(providerRoutes, baseCtx, 'POST', '/api/catalog/providers/install', {
         providerId: 'external-provider',
         action: 'install',
       });
-
       assert.equal(installResponse.res.statusCode, 503);
       assert.equal(installResponse.body.kind, 'catalog.provider.install');
       assert.match(installResponse.body.error, /Managed Copilot CLI is unavailable/);
     });
-
     await test('catalog mutation routes disable and enable repo overlays via repo-state only', async () => {
       const disableResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/assets/disable', {
         kind: 'skill',
         assetKey: 'repo-helper',
         repoPath,
       });
-
       assert.equal(disableResponse.res.statusCode, 200);
       assert.equal(disableResponse.body.kind, 'catalog.asset.disable');
       assert.equal(disableResponse.body.action, 'disabled');
       assert.ok(disableResponse.body.audit.logged);
-
       const disabledAssets = await invoke(routes, baseCtx, 'GET', `/api/catalog/assets?kind=skill&repoPath=${encodeURIComponent(repoPath)}`);
       const disabledRepoHelper = disabledAssets.body.assets.find((asset) => asset.assetId === 'skill-repo-helper');
       assert.equal(disabledRepoHelper.enabled, false);
-
       const enableResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/assets/enable', {
         kind: 'skill',
         assetKey: 'repo-helper',
         repoPath,
         expectedRegistryHash: disableResponse.body.registryHash,
       });
-
       assert.equal(enableResponse.res.statusCode, 200);
       assert.equal(enableResponse.body.kind, 'catalog.asset.enable');
       assert.equal(enableResponse.body.action, 'enabled');
-
       const enabledAssets = await invoke(routes, baseCtx, 'GET', `/api/catalog/assets?kind=skill&repoPath=${encodeURIComponent(repoPath)}`);
       const enabledRepoHelper = enabledAssets.body.assets.find((asset) => asset.assetId === 'skill-repo-helper');
       assert.equal(enabledRepoHelper.enabled, true);
-
-      const registryPath = path.join(copilotHomeAbs, 'repo-state', enableResponse.body.repoId, 'registry.json');
+      const registryPath = path.join(elegyHomeAbs, 'repo-state', enableResponse.body.repoId, 'registry.json');
       const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
       assert.deepEqual(registry.skills.enabled, ['repo-helper']);
       assert.equal(Array.isArray(registry.skills.disabled), false);
     });
-
     await test('POST /api/search/query enforces routing policy by default and exposes an explicit override', async () => {
       const defaultResponse = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
         query: 'repo',
@@ -950,7 +855,6 @@ async function run() {
         repoPath,
         sessionId: 'session-asset-1',
       });
-
       assert.equal(defaultResponse.res.statusCode, 200);
       assert.equal(defaultResponse.body.kind, 'catalog.search.query');
       assert.ok(defaultResponse.body.count >= 1, 'unified policy service should return eligible assets');
@@ -958,7 +862,6 @@ async function run() {
       assert.equal(defaultResponse.body.routingPolicy.policySource, 'catalog-policy-service', 'expected unified policy source');
       assert.ok(defaultResponse.body.policySnapshot, 'expected policySnapshot metadata from policy service');
       assert.ok(defaultResponse.body.policySnapshot.totalEligible >= 1);
-
       const overrideResponse = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
         query: 'repo',
         kind: 'skill',
@@ -969,20 +872,17 @@ async function run() {
         sessionId: 'session-asset-1',
         overrideRoutingPolicy: true,
       });
-
       assert.equal(overrideResponse.res.statusCode, 200);
       assert.equal(overrideResponse.body.routingPolicy.mode, 'explicit-override');
       assert.ok(overrideResponse.body.count >= 1);
       assert.equal(overrideResponse.body.results[0].assetId, 'skill-repo-helper');
       assert.ok(Array.isArray(overrideResponse.body.results[0].explanations));
       assert.ok(overrideResponse.body.audit.logged, 'expected search audit logging to succeed');
-
       await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
         action: 'activate-bundle',
         bundleId: 'repo-helper-pack',
         repoPath,
       });
-
       const eligibleResponse = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
         query: 'repo',
         kind: 'skill',
@@ -992,20 +892,17 @@ async function run() {
         repoPath,
         sessionId: 'session-asset-1',
       });
-
       assert.equal(eligibleResponse.res.statusCode, 200);
       assert.ok(eligibleResponse.body.count >= 1);
       assert.equal(eligibleResponse.body.results[0].assetId, 'skill-repo-helper');
       assert.equal(eligibleResponse.body.routingPolicy.mode, 'eligible-only');
     });
-
     await test('POST /api/search/query resolves contract alias keys and targeting metadata from the runtime skill index', async () => {
       await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
         action: 'activate-bundle',
         bundleId: 'repo-helper-pack',
         repoPath,
       });
-
       const response = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
         query: 'workspace concierge',
         kind: 'skill',
@@ -1018,7 +915,6 @@ async function run() {
         repoPath,
         sessionId: 'session-asset-1',
       });
-
       assert.equal(response.res.statusCode, 200);
       assert.equal(response.body.kind, 'catalog.search.query');
       assert.ok(response.body.count >= 1);
@@ -1033,7 +929,6 @@ async function run() {
         'expected alias-key match explanation from contract metadata',
       );
     });
-
     await test('POST /api/search/selection persists selection telemetry for backend/UI consumers', async () => {
       await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
         action: 'activate-bundle',
@@ -1047,39 +942,33 @@ async function run() {
         repoPath,
         sessionId: 'session-asset-1',
       });
-
       const response = await invoke(routes, baseCtx, 'POST', '/api/search/selection', {
         query: searchResponse.body.query,
         result: searchResponse.body.results[0],
         resultCount: searchResponse.body.count,
       });
-
       assert.equal(response.res.statusCode, 200);
       assert.equal(response.body.kind, 'catalog.search.selection');
       assert.equal(response.body.recorded, true);
       assert.ok(response.body.telemetry.eventId);
       assert.ok(response.body.audit.logged);
     });
-
     await test('catalog audit analytics aggregates lifecycle, search, and session usage by asset', async () => {
       const initialRefresh = await invoke(routes, baseCtx, 'POST', '/api/catalog/refresh?repoPath=' + encodeURIComponent(repoPath), {});
       const repoId = initialRefresh.body.snapshot.repoContext.repoId;
-      writeJson(path.join(copilotHomeAbs, 'repo-state', repoId, 'registry.json'), {
+      writeJson(path.join(elegyHomeAbs, 'repo-state', repoId, 'registry.json'), {
         skills: {
           disabled: ['repo-helper'],
         },
       });
       await invoke(routes, baseCtx, 'POST', '/api/catalog/refresh?repoPath=' + encodeURIComponent(repoPath), {});
-
-      const installResult = assets.syncAsset(engineRoot, copilotHomeAbs, 'skill-repo-helper', {
+      const installResult = assets.syncAsset(engineRoot, elegyHomeAbs, 'skill-repo-helper', {
         pointerMode: false,
         force: true,
       });
-      const removalResult = assets.removeAsset(copilotHomeAbs, installResult, { force: true });
+      const removalResult = assets.removeAsset(elegyHomeAbs, installResult, { force: true });
       assert.equal(removalResult.action, 'removed');
-
       const response = await invoke(routes, baseCtx, 'GET', '/api/audit/assets?limit=20');
-
       assert.equal(response.res.statusCode, 200);
       assert.equal(response.body.kind, 'catalog.audit.assets');
       const repoHelper = response.body.analytics.assets.find((asset) => asset.assetId === 'skill-repo-helper');
@@ -1100,10 +989,8 @@ async function run() {
         'expected lifecycle removal event in recent analytics feed',
       );
     });
-
     await test('GET /api/audit/events returns typed audit responses for catalog/search activity', async () => {
       const response = await invoke(routes, baseCtx, 'GET', '/api/audit/events?limit=10');
-
       assert.equal(response.res.statusCode, 200);
       assert.equal(response.body.kind, 'catalog.audit.events.list');
       assert.ok(Array.isArray(response.body.events));
@@ -1111,10 +998,8 @@ async function run() {
       assert.ok(response.body.events.some((event) => event.eventType === 'catalog.rebuilt'));
       assert.ok(response.body.events.some((event) => event.eventType === 'asset.search.query'));
     });
-
     await test('GET /api/runtime/catalog-health surfaces projection and audit health details', async () => {
       const response = await invoke(routes, baseCtx, 'GET', '/api/runtime/catalog-health');
-
       assert.equal(response.res.statusCode, 200);
       assert.equal(response.body.kind, 'runtime.catalog-health');
       assert.equal(response.body.ok, true);
@@ -1126,10 +1011,8 @@ async function run() {
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
-
   console.log(`\n  ${passed} passed\n`);
 }
-
 run().catch((error) => {
   console.error(`\n  FATAL: ${error.message}\n`);
   process.exitCode = 1;

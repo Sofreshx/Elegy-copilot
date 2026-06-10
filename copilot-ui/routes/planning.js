@@ -425,7 +425,7 @@ function buildPlanningTaskBoardItems(taskRecords) {
 }
 
 function handlePlanningTaskBoard(ctx, deps) {
-  const { res, u, copilotHome, copilotHomeAbs } = ctx;
+  const { res, u, elegyHome, elegyHomeAbs } = ctx;
   const { sendJson, sessions, PLANNING_API_CONTRACT_VERSION } = deps;
   const repoId = normalizeOptionalString(u.searchParams.get('repoId'));
   const repoPath = normalizeOptionalString(u.searchParams.get('repoPath'));
@@ -446,7 +446,7 @@ function handlePlanningTaskBoard(ctx, deps) {
   }
 
   const taskRecords = sessions && typeof sessions.listRepoStateTasks === 'function'
-    ? sessions.listRepoStateTasks(copilotHomeAbs || copilotHome, repoId, { maxEntries: 500 })
+    ? sessions.listRepoStateTasks(elegyHomeAbs || elegyHome, repoId, { maxEntries: 500 })
     : [];
   const taskItems = buildPlanningTaskBoardItems(taskRecords);
   const projection = buildSessionOrchestrationProjection({
@@ -1557,7 +1557,7 @@ function handlePlanningCompare(ctx, deps) {
     planningPersistenceState,
     planningApiState,
     planningAuthContext,
-    copilotHomeAbs,
+    elegyHomeAbs,
   } = ctx;
   const {
     sendJson,
@@ -1604,7 +1604,7 @@ function handlePlanningCompare(ctx, deps) {
             : [],
           idempotencyKey: resolveRequestIdempotencyKey(req, payload),
         },
-        implementedOutcomesRootAbs: copilotHomeAbs,
+        implementedOutcomesRootAbs: elegyHomeAbs,
         nowMs: Date.now(),
       });
 
@@ -2667,7 +2667,7 @@ function handlePlanningSessionRead(ctx, deps) {
       const planningSession = require('../lib/planningSession');
       const env = process.env;
       const dbPath = env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH
-        || path.join(require('os').homedir(), '.copilot', 'elegy-planning.db');
+        || path.join(require('os').homedir(), '.elegy', 'elegy-planning.db');
       const homedir = require('os').homedir && require('os').homedir() || require('os').tmpdir();
 
       const resolved = planningSession.readPlanningSession(env, { homedir, dbPath });

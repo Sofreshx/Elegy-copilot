@@ -1,15 +1,11 @@
 'use strict';
-
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-
 const obsidianRemoteSync = require('./obsidianRemoteSync');
 const { ObsidianSyncService } = require('./obsidianSyncService');
-
 let passed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -21,38 +17,34 @@ async function test(name, fn) {
     process.exitCode = 1;
   }
 }
-
 function createFixture() {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-obsidian-sync-service-'));
-  const copilotHomeAbs = path.join(tmpRoot, '.copilot');
+  const elegyHomeAbs = path.join(tmpRoot, '.elegy');
   const repoPath = path.join(tmpRoot, 'workspace-repo');
-  const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+  const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
   const repo = {
     repoId: 'repo-workspace-repo',
     repoPath,
     repoLabel: 'workspace-repo',
   };
-
   fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
   fs.mkdirSync(vaultPath, { recursive: true });
-  fs.mkdirSync(copilotHomeAbs, { recursive: true });
-  fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+  fs.mkdirSync(elegyHomeAbs, { recursive: true });
+  fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
     vaultPath,
     notesPathTemplate: 'Planning/{repoId}',
     remoteSyncUrl: 'https://notes.example.test/feed',
     remoteSyncPollIntervalMs: 60_000,
     remoteSyncTimeoutMs: 15_000,
   }, null, 2));
-
   return {
     tmpRoot,
-    copilotHomeAbs,
+    elegyHomeAbs,
     repoPath,
     vaultPath,
     repo,
   };
 }
-
 function createService(overrides = {}) {
   return new ObsidianSyncService({
     obsidianCli: overrides.obsidianCli || {
@@ -93,7 +85,6 @@ function createService(overrides = {}) {
     clearTimeout: overrides.clearTimeout,
   });
 }
-
 function writeRepoState(fixture, statePatch) {
   const config = {
     vaultPath: fixture.vaultPath,
@@ -103,7 +94,7 @@ function writeRepoState(fixture, statePatch) {
     remoteSyncTimeoutMs: 15_000,
   };
   const current = obsidianRemoteSync.readRepoSyncState({
-    copilotHomeAbs: fixture.copilotHomeAbs,
+    elegyHomeAbs: fixture.elegyHomeAbs,
     repo: fixture.repo,
     config,
   });
@@ -116,28 +107,25 @@ function writeRepoState(fixture, statePatch) {
     },
   };
   obsidianRemoteSync.writeRepoSyncState({
-    copilotHomeAbs: fixture.copilotHomeAbs,
+    elegyHomeAbs: fixture.elegyHomeAbs,
     repo: fixture.repo,
     state: nextState,
   });
   return config;
 }
-
 function resolveLeasePath(fixture) {
   return path.join(
-    obsidianRemoteSync.resolveSyncRoot(fixture.copilotHomeAbs),
+    obsidianRemoteSync.resolveSyncRoot(fixture.elegyHomeAbs),
     'leases',
     `${obsidianRemoteSync.deriveRepoSyncKey(fixture.repo)}.lock.json`,
   );
 }
-
 function writeLeaseFile(fixture, lease) {
   const leasePath = resolveLeasePath(fixture);
   fs.mkdirSync(path.dirname(leasePath), { recursive: true });
   fs.writeFileSync(leasePath, JSON.stringify(lease, null, 2) + '\n', 'utf8');
   return leasePath;
 }
-
 async function run() {
   await test('syncNow respects an active persisted lease and deterministically recovers stale leases', async () => {
     const fixture = createFixture();
@@ -157,7 +145,6 @@ async function run() {
         };
       },
     });
-
     const activeLease = {
       token: 'lease-active',
       acquiredAt: new Date(Date.now() - 1_000).toISOString(),
@@ -176,13 +163,11 @@ async function run() {
       },
     });
     writeLeaseFile(fixture, activeLease);
-
-    const blocked = await service.syncNow({ repo: fixture.repo, copilotHomeAbs: fixture.copilotHomeAbs }, 'manual');
+    const blocked = await service.syncNow({ repo: fixture.repo, elegyHomeAbs: fixture.elegyHomeAbs }, 'manual');
     assert.equal(blocked.state, 'syncing');
     assert.equal(blocked.reason, 'lease_active');
     assert.equal(blocked.leaseExpiresAt, activeLease.expiresAt);
     assert.equal(fetchCount, 0);
-
     const staleLease = {
       token: 'lease-stale',
       acquiredAt: new Date(Date.now() - 180_000).toISOString(),
@@ -201,15 +186,13 @@ async function run() {
       },
     });
     writeLeaseFile(fixture, staleLease);
-
-    const recovered = await service.syncNow({ repo: fixture.repo, copilotHomeAbs: fixture.copilotHomeAbs }, 'manual');
+    const recovered = await service.syncNow({ repo: fixture.repo, elegyHomeAbs: fixture.elegyHomeAbs }, 'manual');
     assert.equal(recovered.state, 'success');
     assert.equal(recovered.retryCount, 0);
     assert.ok(recovered.lastStaleLeaseRecoveredAt);
     assert.equal(fetchCount, 1);
-
     const finalState = obsidianRemoteSync.readRepoSyncState({
-      copilotHomeAbs: fixture.copilotHomeAbs,
+      elegyHomeAbs: fixture.elegyHomeAbs,
       repo: fixture.repo,
       config,
     });
@@ -217,7 +200,6 @@ async function run() {
     assert.equal(finalState.summary.state, 'success');
     assert.equal(finalState.summary.lastStaleLeaseRecoveredAt, recovered.lastStaleLeaseRecoveredAt);
   });
-
   await test('releaseRepoSyncLease only clears the file-backed lease for the owning token and tolerates missing lock files', async () => {
     const fixture = createFixture();
     const config = {
@@ -228,19 +210,16 @@ async function run() {
       remoteSyncTimeoutMs: 15_000,
     };
     const leasePath = resolveLeasePath(fixture);
-
     const acquired = obsidianRemoteSync.acquireRepoSyncLease({
-      copilotHomeAbs: fixture.copilotHomeAbs,
+      elegyHomeAbs: fixture.elegyHomeAbs,
       repo: fixture.repo,
       config,
       trigger: 'manual',
     });
-
     assert.equal(acquired.acquired, true);
     assert.equal(fs.existsSync(leasePath), true);
-
     const ignored = obsidianRemoteSync.releaseRepoSyncLease({
-      copilotHomeAbs: fixture.copilotHomeAbs,
+      elegyHomeAbs: fixture.elegyHomeAbs,
       repo: fixture.repo,
       config,
       leaseToken: 'different-lease-token',
@@ -249,12 +228,10 @@ async function run() {
         message: 'ignored',
       },
     });
-
     assert.equal(fs.existsSync(leasePath), true);
     assert.equal(ignored.syncLease.token, acquired.activeLease.token);
-
     const released = obsidianRemoteSync.releaseRepoSyncLease({
-      copilotHomeAbs: fixture.copilotHomeAbs,
+      elegyHomeAbs: fixture.elegyHomeAbs,
       repo: fixture.repo,
       config,
       leaseToken: acquired.activeLease.token,
@@ -263,24 +240,20 @@ async function run() {
         message: 'released',
       },
     });
-
     assert.equal(fs.existsSync(leasePath), false);
     assert.equal(released.syncLease, undefined);
     assert.equal(released.summary.state, 'idle');
-
     const reacquired = obsidianRemoteSync.acquireRepoSyncLease({
-      copilotHomeAbs: fixture.copilotHomeAbs,
+      elegyHomeAbs: fixture.elegyHomeAbs,
       repo: fixture.repo,
       config,
       trigger: 'manual',
     });
-
     assert.equal(reacquired.acquired, true);
     assert.equal(fs.existsSync(leasePath), true);
     fs.unlinkSync(leasePath);
-
     const missingLockRelease = obsidianRemoteSync.releaseRepoSyncLease({
-      copilotHomeAbs: fixture.copilotHomeAbs,
+      elegyHomeAbs: fixture.elegyHomeAbs,
       repo: fixture.repo,
       config,
       leaseToken: reacquired.activeLease.token,
@@ -289,12 +262,10 @@ async function run() {
         message: 'released after missing lock file',
       },
     });
-
     assert.equal(fs.existsSync(leasePath), false);
     assert.equal(missingLockRelease.syncLease, undefined);
     assert.equal(missingLockRelease.summary.state, 'idle');
   });
-
   await test('timer sync failures persist retry metadata and immediate retries are cooled down until the next scheduled attempt', async () => {
     const fixture = createFixture();
     let fetchCount = 0;
@@ -317,41 +288,35 @@ async function run() {
         };
       },
     });
-
-    const failed = await service.syncNow({ repo: fixture.repo, copilotHomeAbs: fixture.copilotHomeAbs }, 'timer');
+    const failed = await service.syncNow({ repo: fixture.repo, elegyHomeAbs: fixture.elegyHomeAbs }, 'timer');
     assert.equal(failed.state, 'error');
     assert.equal(failed.reason, 'timer_backoff_scheduled');
     assert.equal(failed.retryCount, 1);
     assert.ok(failed.nextAttemptAt);
     assert.equal(fetchCount, 1);
-
-    const cooledDown = await service.syncNow({ repo: fixture.repo, copilotHomeAbs: fixture.copilotHomeAbs }, 'timer');
+    const cooledDown = await service.syncNow({ repo: fixture.repo, elegyHomeAbs: fixture.elegyHomeAbs }, 'timer');
     assert.equal(cooledDown.reason, 'cooldown_active');
     assert.equal(fetchCount, 1);
-
     const config = writeRepoState(fixture, {
       summary: {
         nextAttemptAt: new Date(Date.now() - 1_000).toISOString(),
         cooldownUntil: new Date(Date.now() - 1_000).toISOString(),
       },
     });
-
     shouldFail = false;
-    const recovered = await service.syncNow({ repo: fixture.repo, copilotHomeAbs: fixture.copilotHomeAbs }, 'timer');
+    const recovered = await service.syncNow({ repo: fixture.repo, elegyHomeAbs: fixture.elegyHomeAbs }, 'timer');
     assert.equal(recovered.state, 'success');
     assert.equal(recovered.retryCount, 0);
     assert.ok(recovered.nextAttemptAt);
     assert.equal(fetchCount, 2);
-
     const finalState = obsidianRemoteSync.readRepoSyncState({
-      copilotHomeAbs: fixture.copilotHomeAbs,
+      elegyHomeAbs: fixture.elegyHomeAbs,
       repo: fixture.repo,
       config,
     });
     assert.equal(finalState.summary.retryCount, 0);
     assert.equal(finalState.summary.lastFailureReason, undefined);
   });
-
   await test('timer sync conflicts keep deterministic conflict metadata and do not enter retry backoff', async () => {
     const fixture = createFixture();
     const config = writeRepoState(fixture, {
@@ -369,15 +334,13 @@ async function run() {
         });
       },
     });
-
-    const conflict = await service.syncNow({ repo: fixture.repo, copilotHomeAbs: fixture.copilotHomeAbs }, 'timer');
+    const conflict = await service.syncNow({ repo: fixture.repo, elegyHomeAbs: fixture.elegyHomeAbs }, 'timer');
     assert.equal(conflict.state, 'conflict');
     assert.equal(conflict.reason, 'obsidian_sync_conflict');
     assert.equal(conflict.retryCount, 0);
     assert.ok(conflict.nextAttemptAt);
-
     const finalState = obsidianRemoteSync.readRepoSyncState({
-      copilotHomeAbs: fixture.copilotHomeAbs,
+      elegyHomeAbs: fixture.elegyHomeAbs,
       repo: fixture.repo,
       config,
     });
@@ -386,7 +349,6 @@ async function run() {
     assert.equal(finalState.summary.retryCount, 0);
     assert.notEqual(finalState.summary.reason, 'timer_backoff_scheduled');
   });
-
   await test('poll scheduling honors persisted next-attempt backpressure instead of always starting a near-immediate timer', async () => {
     const fixture = createFixture();
     const scheduledDelays = [];
@@ -396,7 +358,6 @@ async function run() {
         cooldownUntil: new Date(Date.now() + 45_000).toISOString(),
       },
     });
-
     const service = createService({
       setTimeout(_fn, delayMs) {
         scheduledDelays.push(delayMs);
@@ -410,19 +371,16 @@ async function run() {
         return undefined;
       },
     });
-
-    const status = await service.getStatus({ repo: fixture.repo, copilotHomeAbs: fixture.copilotHomeAbs });
+    const status = await service.getStatus({ repo: fixture.repo, elegyHomeAbs: fixture.elegyHomeAbs });
     assert.equal(status.remoteSync.nextAttemptAt !== undefined, true);
     assert.equal(scheduledDelays.length, 1);
     assert.equal(scheduledDelays[0] > 40_000, true);
   });
-
   console.log(`\n${passed} tests passed`);
   if (process.exitCode) {
     console.error('Some tests FAILED');
   }
 }
-
 run().catch((error) => {
   console.error(error);
   process.exit(1);

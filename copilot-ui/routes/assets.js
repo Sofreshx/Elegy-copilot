@@ -97,17 +97,17 @@ function resolvePointerTarget(relPath, absPath, assetsHomeAbs, assets, fsImpl, s
 }
 
 function handleAssetsManaged(ctx, deps) {
-  const { res, copilotHomeAbs } = ctx;
+  const { res, elegyHomeAbs } = ctx;
   const { sendJson, assets, engineRoot } = deps;
-  const assetsHomeAbs = copilotHomeAbs;
+  const assetsHomeAbs = elegyHomeAbs;
   const managed = assets.getManagedAssetStatuses(engineRoot, assetsHomeAbs);
   sendJson(res, 200, { managed });
 }
 
 function handleAssetsInstalled(ctx, deps) {
-  const { res, copilotHomeAbs } = ctx;
+  const { res, elegyHomeAbs } = ctx;
   const { sendJson, assets } = deps;
-  const assetsHomeAbs = copilotHomeAbs;
+  const assetsHomeAbs = elegyHomeAbs;
   const agents = assets.listInstalledAgents(assetsHomeAbs);
   const skills = typeof assets.listInstalledSkillInventory === 'function'
     ? assets.listInstalledSkillInventory(assetsHomeAbs)
@@ -118,9 +118,9 @@ function handleAssetsInstalled(ctx, deps) {
 }
 
 function handleAssetsSyncAll(ctx, deps) {
-  const { req, res, copilotHomeAbs } = ctx;
+  const { req, res, elegyHomeAbs } = ctx;
   const { sendJson, readJsonBody, assets, engineRoot } = deps;
-  const assetsHomeAbs = copilotHomeAbs;
+  const assetsHomeAbs = elegyHomeAbs;
 
   readJsonBody(req)
     .then((body) => {
@@ -170,9 +170,9 @@ function handleAssetsInstallSurfaces(ctx, deps) {
 }
 
 function handleAssetsSync(ctx, deps) {
-  const { req, res, copilotHomeAbs } = ctx;
+  const { req, res, elegyHomeAbs } = ctx;
   const { sendJson, readJsonBody, assets, engineRoot } = deps;
-  const assetsHomeAbs = copilotHomeAbs;
+  const assetsHomeAbs = elegyHomeAbs;
 
   readJsonBody(req)
     .then((body) => {
@@ -189,9 +189,9 @@ function handleAssetsSync(ctx, deps) {
 }
 
 function handleSkillsPreview(ctx, deps) {
-  const { res, copilotHomeAbs } = ctx;
+  const { res, elegyHomeAbs } = ctx;
   const { sendJson, assets, path, extractTriggers, engineRoot } = deps;
-  const assetsHomeAbs = copilotHomeAbs;
+  const assetsHomeAbs = elegyHomeAbs;
 
   try {
     if (engineRoot && typeof assets.getSkillCatalogPreview === 'function') {
@@ -234,9 +234,9 @@ function handleSkillsPreview(ctx, deps) {
 }
 
 function handleAssetsRemove(ctx, deps) {
-  const { req, res, copilotHomeAbs } = ctx;
+  const { req, res, elegyHomeAbs } = ctx;
   const { sendJson, readJsonBody, assets, engineRoot } = deps;
-  const assetsHomeAbs = copilotHomeAbs;
+  const assetsHomeAbs = elegyHomeAbs;
 
   readJsonBody(req)
     .then((body) => {
@@ -252,9 +252,9 @@ function handleAssetsRemove(ctx, deps) {
 }
 
 function handleAssetsView(ctx, deps) {
-  const { res, u, copilotHomeAbs } = ctx;
+  const { res, u, elegyHomeAbs } = ctx;
   const { sendJson, sendText, assets, fs, path, safeResolveUnder, engineRoot } = deps;
-  const assetsHomeAbs = copilotHomeAbs;
+  const assetsHomeAbs = elegyHomeAbs;
 
   const rel = u.searchParams.get('path');
   if (!rel) {
@@ -294,9 +294,9 @@ function handleAssetsView(ctx, deps) {
 }
 
 function handleAssetsDelete(ctx, deps) {
-  const { req, res, copilotHomeAbs } = ctx;
+  const { req, res, elegyHomeAbs } = ctx;
   const { sendJson, readJsonBody, fs, safeResolveUnder } = deps;
-  const assetsHomeAbs = copilotHomeAbs;
+  const assetsHomeAbs = elegyHomeAbs;
 
   readJsonBody(req)
     .then((body) => {

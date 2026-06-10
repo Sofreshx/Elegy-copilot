@@ -44,7 +44,7 @@ const RUNTIME_DIAGNOSTIC_PRUNE_KEEP: usize = 16;
 fn runtime_diagnostic_logs_dir() -> PathBuf {
     std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
-        .map(|home| PathBuf::from(home).join(".copilot").join("logs"))
+        .map(|home| PathBuf::from(home).join(".elegy").join("logs"))
         .unwrap_or_else(|_| PathBuf::from("logs"))
 }
 
@@ -1065,7 +1065,7 @@ fn shutdown_runtime(app: &AppHandle) {
 fn main() {
     let boot_log_path = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
-        .map(|home| PathBuf::from(home).join(".copilot").join("tauri-boot.log"))
+        .map(|home| PathBuf::from(home).join(".elegy").join("tauri-boot.log"))
         .unwrap_or_else(|_| PathBuf::from("tauri-boot.log"));
 
     let _ = std::fs::create_dir_all(boot_log_path.parent().unwrap_or(Path::new(".")));

@@ -44,7 +44,7 @@ async function run() {
   await test('workflow automation stays disabled off-path until the sidecar is ready', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-workflow-layer-'));
     try {
-      const service = await createWorkflowLayerService({ copilotHome: tmpRoot }).init();
+      const service = await createWorkflowLayerService({ elegyHome: tmpRoot }).init();
       const health = service.getHealth();
 
       assert.equal(health.enabled, false);
@@ -63,7 +63,7 @@ async function run() {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-workflow-layer-'));
     try {
       const service = await createWorkflowLayerService({
-        copilotHome: tmpRoot,
+        elegyHome: tmpRoot,
         workflowSidecarManager: {
           getPublicState: () => ({
             contractVersion: '1',
@@ -89,7 +89,7 @@ async function run() {
     try {
       await withEnv('INSTRUCTION_ENGINE_DISABLE_LOCAL_WORKFLOW_AUTOMATION', '1', async () => {
         const service = await createWorkflowLayerService({
-          copilotHome: tmpRoot,
+          elegyHome: tmpRoot,
           workflowSidecarManager: {
             getPublicState: () => ({
               contractVersion: '1',
@@ -116,7 +116,7 @@ async function run() {
   await test('trigger records bind workflowId and existing-session sessionId before automation dispatch', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-workflow-layer-'));
     try {
-      const service = await createWorkflowLayerService({ copilotHome: tmpRoot }).init();
+      const service = await createWorkflowLayerService({ elegyHome: tmpRoot }).init();
       const trigger = service._buildTriggerRecord({
         type: 'executor.attempt.started',
         workflowId: 'workflow-123',
@@ -162,7 +162,7 @@ async function run() {
   await test('malformed existing-session triggers fail closed when canonical identifiers are missing', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-workflow-layer-'));
     try {
-      const service = await createWorkflowLayerService({ copilotHome: tmpRoot }).init();
+      const service = await createWorkflowLayerService({ elegyHome: tmpRoot }).init();
       const trigger = service._buildTriggerRecord({
         type: 'executor.attempt.started',
         run: {

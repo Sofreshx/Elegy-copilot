@@ -34,16 +34,16 @@ else
 fi
 
 # Configure lsp-config.json
-echo -e "\n\033[1;33mConfiguring ~/.copilot/lsp-config.json...\033[0m"
+echo -e "\n\033[1;33mConfiguring ~/.elegy/lsp-config.json...\033[0m"
 
 if [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
-  COPILOT_DIR="$XDG_CONFIG_HOME/.copilot"
+  ELEGY_DIR="$XDG_CONFIG_HOME/.elegy"
 else
-  COPILOT_DIR="$HOME/.copilot"
+  ELEGY_DIR="$HOME/.elegy"
 fi
-mkdir -p "$COPILOT_DIR"
+mkdir -p "$ELEGY_DIR"
 
-LSP_CONFIG_PATH="$COPILOT_DIR/lsp-config.json"
+LSP_CONFIG_PATH="$ELEGY_DIR/lsp-config.json"
 
 cat > "$LSP_CONFIG_PATH" << 'EOF'
 {

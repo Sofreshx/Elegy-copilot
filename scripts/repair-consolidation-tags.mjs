@@ -140,7 +140,7 @@ function computeIdempotencyKey(entityType, entityId, canonicalTags) {
 }
 
 function backupDb(dbPath) {
-  const backupDir = path.join(os.homedir(), '.copilot', 'backups');
+  const backupDir = path.join(os.homedir(), '.elegy', 'backups');
   fs.mkdirSync(backupDir, { recursive: true });
   const ts = isoNow().replace(/[:.]/g, '-');
   const backupPath = path.join(backupDir, `elegy-planning.db.bak-${ts}`);

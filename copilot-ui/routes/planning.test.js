@@ -1193,8 +1193,8 @@ async function run() {
         res.end(JSON.stringify(payload));
       },
       sessions: {
-        listRepoStateTasks(copilotHome, repoId) {
-          recorded.push({ copilotHome, repoId });
+        listRepoStateTasks(elegyHome, repoId) {
+          recorded.push({ elegyHome, repoId });
           return [{
             taskId: 'TASK-1',
             title: 'Primary planning task',
@@ -1220,8 +1220,8 @@ async function run() {
     });
 
     const { res, body } = await invoke(routes, 'GET', '/api/planning/task-board?repoId=instruction-engine&repoLabel=Instruction%20Engine', {
-      copilotHome: 'C:\\copilot',
-      copilotHomeAbs: 'C:\\copilot',
+      elegyHome: 'C:\\copilot',
+      elegyHomeAbs: 'C:\\copilot',
     });
 
     assert.equal(res.statusCode, 200);
@@ -1229,7 +1229,7 @@ async function run() {
     assert.equal(body.kind, 'planning.task-board');
     assert.equal(body.deterministic, true);
     assert.deepEqual(recorded, [{
-      copilotHome: 'C:\\copilot',
+      elegyHome: 'C:\\copilot',
       repoId: 'instruction-engine',
     }]);
     assert.equal(body.projection.repo.repoId, 'instruction-engine');

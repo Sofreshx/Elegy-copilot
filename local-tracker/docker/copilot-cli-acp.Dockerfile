@@ -29,7 +29,7 @@ ENV COPILOT_HOME=/home/copilot/.copilot
 ENV SKILL_POINTER_MODE=false
 
 # Seed engine assets into the image so sandboxes have the org's agents/skills/prompts by default.
-# (If a caller bind-mounts /home/copilot/.copilot, these baked assets will be hidden.)
+# (If a caller bind-mounts /home/copilot/.elegy, these baked assets will be hidden.)
 RUN mkdir -p "$COPILOT_HOME" \
   && chown -R copilot:copilot "$COPILOT_HOME"
 

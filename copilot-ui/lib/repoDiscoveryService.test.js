@@ -1,10 +1,8 @@
 'use strict';
-
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-
 const {
   discoverReposFromRoots,
   loadRepoDiscoveryState,
@@ -12,10 +10,8 @@ const {
   resolveWorkspaceScanRoots,
   saveRepoDiscoveryState,
 } = require('./repoDiscoveryService');
-
 let passed = 0;
 let failed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -28,59 +24,49 @@ async function test(name, fn) {
     console.error(`    ${error.message}`);
   }
 }
-
 function writeText(absPath, text) {
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
   fs.writeFileSync(absPath, text, 'utf8');
 }
-
 async function run() {
   console.log('\nRepo Discovery Service Tests\n');
-
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-repo-discovery-'));
-  const copilotHome = path.join(tmpRoot, '.copilot');
+  const elegyHome = path.join(tmpRoot, '.elegy');
   const scanRoot = path.join(tmpRoot, 'scan-root');
   const nestedOrgRoot = path.join(scanRoot, 'org');
-
   try {
     await test('saveRepoDiscoveryState persists deterministic custom scan roots', async () => {
       const repoADiscoveryRoot = path.join(tmpRoot, 'repos-b');
       const repoBDiscoveryRoot = path.join(tmpRoot, 'repos-a');
-      const saved = saveRepoDiscoveryState(copilotHome, {
+      const saved = saveRepoDiscoveryState(elegyHome, {
         customScanRoots: [
           repoADiscoveryRoot,
           repoBDiscoveryRoot,
           repoADiscoveryRoot,
         ],
       });
-
       assert.deepEqual(saved.customScanRoots, [
         path.resolve(repoBDiscoveryRoot),
         path.resolve(repoADiscoveryRoot),
       ]);
-
-      const reloaded = loadRepoDiscoveryState(copilotHome);
+      const reloaded = loadRepoDiscoveryState(elegyHome);
       assert.deepEqual(reloaded, saved);
-      assert.equal(fs.existsSync(resolveRepoDiscoveryStatePath(copilotHome)), true);
-
+      assert.equal(fs.existsSync(resolveRepoDiscoveryStatePath(elegyHome)), true);
       const resolved = resolveWorkspaceScanRoots({
-        copilotHome,
+        elegyHome,
         roots: [],
       });
       assert.deepEqual(resolved.customScanRoots, saved.customScanRoots);
       assert.deepEqual(resolved.scanRoots, []);
     });
-
     await test('discoverReposFromRoots scans the root and two nested levels with .git file or directory markers', async () => {
       fs.mkdirSync(path.join(scanRoot, '.git'), { recursive: true });
       fs.mkdirSync(path.join(scanRoot, 'repo-one', '.git'), { recursive: true });
       writeText(path.join(nestedOrgRoot, 'repo-two', '.git'), 'gitdir: ../.bare\n');
       fs.mkdirSync(path.join(nestedOrgRoot, 'team', 'repo-three', '.git'), { recursive: true });
-
       const discovery = discoverReposFromRoots({
         roots: [scanRoot],
       });
-
       assert.deepEqual(
         discovery.roots.map((root) => root.scanRoot),
         [path.resolve(scanRoot)],
@@ -109,10 +95,8 @@ async function run() {
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
-
   console.log(`\n  ${passed} passed, ${failed} failed (${passed + failed} total)\n`);
 }
-
 run().catch((error) => {
   console.error(`\n  FATAL: ${error.message}\n`);
   process.exitCode = 1;

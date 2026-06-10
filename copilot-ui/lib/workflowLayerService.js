@@ -56,7 +56,7 @@ class WorkflowLayerService {
     this._https = deps.https || https;
     this._now = typeof deps.now === 'function' ? deps.now : () => Date.now();
     this._statePath = this._path.join(
-      this._path.resolve(String(this._config.copilotHome || '.')),
+      this._path.resolve(String(this._config.elegyHome || this._config.copilotHome || '.')),
       'executor',
       'workflow-layer.json'
     );

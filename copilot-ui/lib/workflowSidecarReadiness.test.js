@@ -186,7 +186,7 @@ async function run() {
               runtimeRoot,
               processExecPath: process.execPath,
               isPackaged: false,
-              copilotHome: runtimeRoot,
+              elegyHome: runtimeRoot,
             });
 
             try {
@@ -270,7 +270,7 @@ async function run() {
                 runtimeRoot,
                 processExecPath: process.execPath,
                 isPackaged: false,
-                copilotHome: runtimeRoot,
+                elegyHome: runtimeRoot,
               });
 
               try {

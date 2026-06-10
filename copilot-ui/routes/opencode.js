@@ -74,8 +74,8 @@ function filterOpenCodeAssets(assets) {
   });
 }
 
-function checkWorktreePluginFile(copilotHome) {
-  const pluginPath = path.join(copilotHome, 'plugins', 'worktree.js');
+function checkWorktreePluginFile(elegyHome) {
+  const pluginPath = path.join(elegyHome, 'plugins', 'worktree.js');
   try {
     return fs.existsSync(pluginPath);
   } catch {
@@ -83,8 +83,8 @@ function checkWorktreePluginFile(copilotHome) {
   }
 }
 
-function checkAgentsMdFile(copilotHome) {
-  const agentsPath = path.join(copilotHome, 'AGENTS.md');
+function checkAgentsMdFile(elegyHome) {
+  const agentsPath = path.join(elegyHome, 'AGENTS.md');
   try {
     return fs.existsSync(agentsPath);
   } catch {
@@ -333,7 +333,7 @@ function buildProfiles(opencodeHome, engineRoot) {
   };
 }
 
-function buildSetupChecks(opencodeHome, copilotHomeAbs, engineRoot, assets, ctx, opencodeConfigLib, codexHome) {
+function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, opencodeConfigLib, codexHome) {
   const checks = [];
   const ocLib = opencodeConfigLib || opencodeConfigDefault;
 
@@ -495,7 +495,7 @@ function buildSetupChecks(opencodeHome, copilotHomeAbs, engineRoot, assets, ctx,
       const cliPath = resolveElegyPlanningCliPath({
         cliPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
         runtimeRoot: engineRoot,
-        copilotHome: copilotHomeAbs,
+        elegyHome: elegyHomeAbs,
         env: ctx.env,
       });
       const ready = planningSkillStatus.installed && Boolean(cliPath);
@@ -636,9 +636,9 @@ function resolvePlanningVersion(cliPath, childProcess) {
   return health.version;
 }
 
-function buildGitHubElegySkillAssetsStatus(targetHome, copilotHomeAbs, env, childProcess) {
-  const installMetadata = copilotHomeAbs ? readInstallMetadata(copilotHomeAbs) : null;
-  const sourceRepoRoot = installMetadata?.sourceRepoRoot || (copilotHomeAbs ? buildManagedSourceDir(copilotHomeAbs) : '');
+function buildGitHubElegySkillAssetsStatus(targetHome, elegyHomeAbs, env, childProcess) {
+  const installMetadata = elegyHomeAbs ? readInstallMetadata(elegyHomeAbs) : null;
+  const sourceRepoRoot = installMetadata?.sourceRepoRoot || (elegyHomeAbs ? buildManagedSourceDir(elegyHomeAbs) : '');
   const sourceGitHead = sourceRepoRoot
     ? resolveGitHead(sourceRepoRoot, {
         env,
@@ -669,7 +669,7 @@ function buildGitHubElegySkillAssetsStatus(targetHome, copilotHomeAbs, env, chil
     trackedCount: assets.length,
     outdatedCount: outdated.length,
     updateAvailable: outdated.length > 0,
-    canUpdate: Boolean(targetHome && copilotHomeAbs),
+    canUpdate: Boolean(targetHome && elegyHomeAbs),
     source: 'github-source',
     sourceRemote: 'https://github.com/Sofreshx/Elegy.git',
     managedSource: {
@@ -688,7 +688,7 @@ function computeToolingStatus(ctx, deps, managedStatusesOverride) {
   const cliPath = resolveElegyPlanningCliPath({
     cliPath: ctx.env && ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
     runtimeRoot: ctx.engineRoot,
-    copilotHome: ctx.copilotHomeAbs,
+    elegyHome: ctx.elegyHomeAbs,
     env: ctx.env,
   });
 
@@ -709,11 +709,11 @@ function computeToolingStatus(ctx, deps, managedStatusesOverride) {
       cliPath: cliPath || null,
       currentVersion: planningVersion,
       ready: cliReady,
-      canUpdate: Boolean(ctx.copilotHomeAbs),
+      canUpdate: Boolean(ctx.elegyHomeAbs),
     },
     elegySkillsAssets: buildGitHubElegySkillAssetsStatus(
       ctx.opencodeHome,
-      ctx.copilotHomeAbs,
+      ctx.elegyHomeAbs,
       ctx.env,
       deps.childProcess,
     ),
@@ -733,7 +733,7 @@ function resolvePlanningLiveAuthorityState(roadmapWorkflowPlanningBridge) {
 }
 
 async function buildOpenCodeStatus(ctx, deps) {
-  const { opencodeHome, copilotHomeAbs, engineRoot } = ctx;
+  const { opencodeHome, elegyHomeAbs, engineRoot } = ctx;
   const opencodeConfig = deps.opencodeConfig;
   const assets = deps.assets;
 
@@ -760,7 +760,7 @@ async function buildOpenCodeStatus(ctx, deps) {
   const codexHome = ctx.codexHome || path.join(require('os').homedir(), '.codex');
   const setupChecks = buildSetupChecks(
     opencodeHome,
-    copilotHomeAbs,
+    elegyHomeAbs,
     engineRoot,
     assets,
     augmentedContext,
@@ -1416,7 +1416,7 @@ function register(deps = {}) {
       path: '/api/opencode/tooling/install',
       handler: async (ctx) => {
         try {
-          const { copilotHomeAbs, engineRoot, opencodeHome } = ctx;
+          const { elegyHomeAbs, engineRoot, opencodeHome } = ctx;
           const body = await resolvedDeps.readJsonBody(ctx.req);
           const kind = asTrimmedString(body.kind);
           const force = asBoolean(body.force, false);
@@ -1431,16 +1431,16 @@ function register(deps = {}) {
 
           let result = {};
           if (kind === 'elegy-planning-cli') {
-            if (!copilotHomeAbs) {
+            if (!elegyHomeAbs) {
               resolvedDeps.sendJson(ctx.res, 400, {
                 ok: false,
-                error: 'copilotHome is required for elegy-planning CLI install.',
+                error: 'elegyHome is required for elegy-planning CLI install.',
               });
               return;
             }
             const fetchImpl = resolvedDeps.fetchImpl || (typeof globalThis.fetch === 'function' ? globalThis.fetch.bind(globalThis) : null);
             const installResult = await installLatestElegyPlanningCli({
-              copilotHome: copilotHomeAbs,
+              elegyHome: elegyHomeAbs,
               runtimeRoot: engineRoot,
               fetchImpl,
               childProcess: resolvedDeps.childProcess,
@@ -1450,15 +1450,15 @@ function register(deps = {}) {
               installMetadata: installResult.metadata,
             };
           } else if (kind === 'elegy-skills') {
-            if (!copilotHomeAbs || !opencodeHome) {
+            if (!elegyHomeAbs || !opencodeHome) {
               resolvedDeps.sendJson(ctx.res, 400, {
                 ok: false,
-                error: 'copilotHome and opencodeHome are required to install Elegy skills from GitHub.',
+                error: 'elegyHome and opencodeHome are required to install Elegy skills from GitHub.',
               });
               return;
             }
             const syncResult = await syncElegySkillAssetsFromGitHub({
-              copilotHome: copilotHomeAbs,
+              elegyHome: elegyHomeAbs,
               targetHome: opencodeHome,
               env: ctx.env,
               childProcess: resolvedDeps.childProcess,
@@ -1561,7 +1561,7 @@ function register(deps = {}) {
           const cliPath = resolveElegyPlanningCliPath({
             cliPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
             runtimeRoot: ctx.engineRoot,
-            copilotHome: ctx.copilotHomeAbs,
+            elegyHome: ctx.elegyHomeAbs,
             env: ctx.env,
           });
           resolvedDeps.sendJson(ctx.res, 200, {

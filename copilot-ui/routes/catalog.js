@@ -201,8 +201,8 @@ function createAuditEventId(cryptoImpl = crypto) {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function resolveAuditLogPath(copilotHomeAbs, pathImpl = path) {
-  return pathImpl.join(path.resolve(copilotHomeAbs), 'catalog', 'audit', 'events.jsonl');
+function resolveAuditLogPath(elegyHomeAbs, pathImpl = path) {
+  return pathImpl.join(path.resolve(elegyHomeAbs), 'catalog', 'audit', 'events.jsonl');
 }
 
 function appendAuditEvent(auditLogPath, event, deps) {
@@ -436,8 +436,8 @@ async function executeManagedProviderInstall(deps, providerInstall, action, cliC
   return results;
 }
 
-function persistProviderInstallState(deps, copilotHomeAbs, providerId, entry) {
-  const { statePath, state } = deps.providerCatalog.loadProviderInstallState(copilotHomeAbs);
+function persistProviderInstallState(deps, elegyHomeAbs, providerId, entry) {
+  const { statePath, state } = deps.providerCatalog.loadProviderInstallState(elegyHomeAbs);
   const nextState = {
     schemaVersion: Number(state?.schemaVersion) || 1,
     providers: {
@@ -462,7 +462,7 @@ function normalizeRepoSelector(searchParams, body) {
 function buildCatalogOptions(ctx, selector) {
   return {
     engineRoot: ctx.engineRoot,
-    copilotHome: ctx.copilotHomeAbs,
+    elegyHome: ctx.elegyHomeAbs,
     ...(selector && typeof selector === 'object' ? selector : {}),
   };
 }
@@ -474,7 +474,7 @@ function buildActivationStateForProjection(ctx, projectionContext) {
   }
   return resolveCatalogActivationState({
     snapshot: projectionContext.snapshot,
-    copilotHome: ctx.copilotHomeAbs,
+    elegyHome: ctx.elegyHomeAbs,
     repoPath,
   });
 }
@@ -487,7 +487,7 @@ function buildRoutingPolicyForProjection(ctx, projectionContext, activationState
   return buildRoutingPolicySnapshot({
     snapshot: projectionContext.snapshot,
     activationState: activationState || buildActivationStateForProjection(ctx, projectionContext),
-    copilotHome: ctx.copilotHomeAbs,
+    elegyHome: ctx.elegyHomeAbs,
     repoPath,
   });
 }
@@ -611,10 +611,10 @@ function buildFreshness(snapshot, files) {
 
 function buildSnapshotEnvelope(snapshot, projectionContext, deps, runtimeState, extra = {}) {
   const externalSourcesEngineRoot = snapshot?.engineRoot || deps.engineRoot || extra.engineRoot || process.cwd();
-  const externalSourcesCopilotHome = projectionContext?.storage?.copilotHome || snapshot?.copilotHome;
+  const externalSourcesElegyHome = projectionContext?.storage?.elegyHome || snapshot?.elegyHome;
   const externalSourcesSummary = deps.externalSources.listSources({
     engineRoot: externalSourcesEngineRoot,
-    copilotHome: externalSourcesCopilotHome,
+    elegyHome: externalSourcesElegyHome,
   });
   const inputFiles = {
     manifest: describeFile(snapshot?.inputs?.manifestPath, deps.fs),
@@ -1138,7 +1138,7 @@ function buildManifestInventory(ctx) {
     mcp: [],
     hook: [],
   };
-  const ledger = ctx.copilotHomeAbs ? installLedgerLib.readInstallLedger(ctx.copilotHomeAbs) : null;
+  const ledger = ctx.elegyHomeAbs ? installLedgerLib.readInstallLedger(ctx.elegyHomeAbs) : null;
 
   for (const manifestSource of manifests) {
     const manifestScan = loadManifestDocument(ctx.engineRoot, manifestSource.fileName);
@@ -1549,7 +1549,7 @@ function buildGlobalCatalogInventory(summary, externalSourcesSummary, ctx) {
     };
   });
 
-  const ledger = ctx.copilotHomeAbs ? installLedgerLib.readInstallLedger(ctx.copilotHomeAbs) : null;
+  const ledger = ctx.elegyHomeAbs ? installLedgerLib.readInstallLedger(ctx.elegyHomeAbs) : null;
   const harnesses = listHarnessRows(ctx).map((row) => ({
     ...row,
     optedIn: ledger ? Boolean(ledger.harnesses?.[row.harnessId]?.optedInAt) : false,
@@ -1580,9 +1580,9 @@ function resolveExternalSourceReadablePath(ctx, sourceId, relativePath) {
 
 function depsResolveExternalSourceCacheRoot(ctx) {
   if (ctx.externalSources && typeof ctx.externalSources.resolveCacheRoot === 'function') {
-    return ctx.externalSources.resolveCacheRoot(ctx.copilotHomeAbs);
+    return ctx.externalSources.resolveCacheRoot(ctx.elegyHomeAbs);
   }
-  return path.join(path.resolve(ctx.copilotHomeAbs), 'catalog', 'external-sources', 'cache');
+  return path.join(path.resolve(ctx.elegyHomeAbs), 'catalog', 'external-sources', 'cache');
 }
 
 function handleCatalogContent(ctx, deps) {
@@ -1854,7 +1854,7 @@ function buildSearchResults(snapshot, request, routingPolicy = null) {
 }
 
 function recordAuditEvent(ctx, deps, eventInput) {
-  return appendCatalogAuditEvent(ctx.copilotHomeAbs, {
+  return appendCatalogAuditEvent(ctx.elegyHomeAbs, {
     actor: {
       kind: 'ui',
       id: 'copilot-ui-backend',
@@ -1924,7 +1924,7 @@ function executeCatalogMutation(ctx, deps, responseKind, mutateFn) {
   deps.readJsonBody(ctx.req)
     .then((body) => mutateFn(body, {
       engineRoot: ctx.engineRoot,
-      copilotHomeAbs: ctx.copilotHomeAbs,
+      elegyHomeAbs: ctx.elegyHomeAbs,
       refreshProjections: (selectors, reason) => refreshMutationSelectors(ctx, deps, selectors, reason),
       auditDeps: {
         fs: deps.fs,
@@ -1963,7 +1963,7 @@ function handleCatalogSummary(ctx, deps) {
   const routingPolicy = buildRoutingPolicyForProjection(ctx, projectionContext, activation);
   const externalSourcesSummary = deps.externalSources.listSources({
     engineRoot: ctx.engineRoot,
-    copilotHome: ctx.copilotHomeAbs,
+    elegyHome: ctx.elegyHomeAbs,
     codexHome: ctx.codexHome,
     codexSkillsHome: ctx.codexSkillsHome,
     opencodeHome: ctx.opencodeHome,
@@ -2112,7 +2112,7 @@ function handleCatalogRefresh(ctx, deps) {
         storage: deps.catalogProjection.resolveProjectionStorage(catalogOptions),
         readMode: 'persisted-snapshot',
       };
-      const lifecycleAudit = recordProjectionLifecycleEvents(ctx.copilotHomeAbs, previousSnapshot, snapshot, deps);
+      const lifecycleAudit = recordProjectionLifecycleEvents(ctx.elegyHomeAbs, previousSnapshot, snapshot, deps);
       const audit = recordAuditEvent(ctx, deps, {
         eventType: 'catalog.rebuilt',
         repoId: snapshot?.repoContext?.repoId || null,
@@ -2194,7 +2194,7 @@ function handleCatalogProviderInstall(ctx, deps) {
 
       try {
         const commandResults = await executeManagedProviderInstall(deps, providerInstall, action, managedCli.cliPath);
-        const stateEntry = persistProviderInstallState(deps, ctx.copilotHomeAbs, providerId, {
+        const stateEntry = persistProviderInstallState(deps, ctx.elegyHomeAbs, providerId, {
           providerId,
           title: providerInstall.provider.title || providerId,
           installStrategy: providerInstall.provider.installStrategy || null,
@@ -2235,7 +2235,7 @@ function handleCatalogProviderInstall(ctx, deps) {
         });
       } catch (error) {
         const commandResults = Array.isArray(error?.commandResults) ? error.commandResults : [];
-        const stateEntry = persistProviderInstallState(deps, ctx.copilotHomeAbs, providerId, {
+        const stateEntry = persistProviderInstallState(deps, ctx.elegyHomeAbs, providerId, {
           providerId,
           title: providerInstall.provider.title || providerId,
           installStrategy: providerInstall.provider.installStrategy || null,
@@ -2274,7 +2274,7 @@ function handleCatalogSourcesList(ctx, deps) {
   try {
     const result = deps.externalSources.listSources({
       engineRoot: ctx.engineRoot,
-      copilotHome: ctx.copilotHomeAbs,
+      elegyHome: ctx.elegyHomeAbs,
       codexHome: ctx.codexHome,
       codexSkillsHome: ctx.codexSkillsHome,
       opencodeHome: ctx.opencodeHome,
@@ -2304,7 +2304,7 @@ function handleCatalogSourceDetail(ctx, deps) {
     const sourceId = normalizeString(ctx.match?.[1]);
     const result = deps.externalSources.getSourceDetail({
       engineRoot: ctx.engineRoot,
-      copilotHome: ctx.copilotHomeAbs,
+      elegyHome: ctx.elegyHomeAbs,
       codexHome: ctx.codexHome,
       codexSkillsHome: ctx.codexSkillsHome,
       opencodeHome: ctx.opencodeHome,
@@ -2333,7 +2333,7 @@ function handleCatalogSourceAdd(ctx, deps) {
     .then((body) => {
       const result = deps.externalSources.addSource({
         engineRoot: ctx.engineRoot,
-        copilotHome: ctx.copilotHomeAbs,
+        elegyHome: ctx.elegyHomeAbs,
       }, body);
       deps.sendJson(ctx.res, 200, {
         kind: 'catalog.sources.add',
@@ -2350,7 +2350,7 @@ function handleCatalogSourceRemove(ctx, deps) {
     .then((body) => {
       const sourceId = normalizeString(body?.sourceId);
       const result = deps.externalSources.removeSource({
-        copilotHome: ctx.copilotHomeAbs,
+        elegyHome: ctx.elegyHomeAbs,
       }, sourceId);
       deps.sendJson(ctx.res, 200, {
         kind: 'catalog.sources.remove',
@@ -2367,7 +2367,7 @@ function handleCatalogSourceRefresh(ctx, deps) {
       const sourceId = normalizeString(body?.sourceId);
       const result = await deps.externalSources.refreshSource({
         engineRoot: ctx.engineRoot,
-        copilotHome: ctx.copilotHomeAbs,
+        elegyHome: ctx.elegyHomeAbs,
         codexHome: ctx.codexHome,
         codexSkillsHome: ctx.codexSkillsHome,
         opencodeHome: ctx.opencodeHome,
@@ -2392,7 +2392,7 @@ function handleCatalogSourceActivate(ctx, deps) {
     .then(async (body) => {
       const result = await deps.externalSources.activateInstallable({
         engineRoot: ctx.engineRoot,
-        copilotHome: ctx.copilotHomeAbs,
+        elegyHome: ctx.elegyHomeAbs,
         codexHome: ctx.codexHome,
         codexSkillsHome: ctx.codexSkillsHome,
         opencodeHome: ctx.opencodeHome,
@@ -2419,7 +2419,7 @@ function handleCatalogSourceDeactivate(ctx, deps) {
     .then((body) => {
       const result = deps.externalSources.deactivateInstallable({
         engineRoot: ctx.engineRoot,
-        copilotHome: ctx.copilotHomeAbs,
+        elegyHome: ctx.elegyHomeAbs,
         codexHome: ctx.codexHome,
         codexSkillsHome: ctx.codexSkillsHome,
         opencodeHome: ctx.opencodeHome,
@@ -2446,7 +2446,7 @@ function handleCatalogSourceSyncInstallVerify(ctx, deps) {
     .then(async (body) => {
       const result = await deps.externalSources.syncInstallVerifySource({
         engineRoot: ctx.engineRoot,
-        copilotHome: ctx.copilotHomeAbs,
+        elegyHome: ctx.elegyHomeAbs,
         codexHome: ctx.codexHome,
         codexSkillsHome: ctx.codexSkillsHome,
         opencodeHome: ctx.opencodeHome,
@@ -2479,7 +2479,7 @@ function handleCatalogSpecKitBootstrap(ctx, deps) {
     .then(async (body) => {
       const result = await deps.externalSources.bootstrapSpecKitRepo({
         engineRoot: ctx.engineRoot,
-        copilotHome: ctx.copilotHomeAbs,
+        elegyHome: ctx.elegyHomeAbs,
         codexHome: ctx.codexHome,
         codexSkillsHome: ctx.codexSkillsHome,
         opencodeHome: ctx.opencodeHome,
@@ -2579,7 +2579,7 @@ function handleSearchQuery(ctx, deps) {
       const searchResponse = request.kind === 'skill'
         ? searchSkills(request, {
           snapshot: projectionContext.snapshot,
-          copilotHome: ctx.copilotHomeAbs,
+          elegyHome: ctx.elegyHomeAbs,
           routingPolicy: unifiedRoutingPolicy,
           repoId: request.repoId || projectionContext.snapshot?.repoContext?.repoId,
           repoPath: request.repoPath || projectionContext.snapshot?.repoContext?.repoPath,
@@ -2718,7 +2718,7 @@ function handleSearchSelection(ctx, deps) {
         assetId: source.assetId,
         assetKey: source.assetKey,
       }, {
-        copilotHome: ctx.copilotHomeAbs,
+        elegyHome: ctx.elegyHomeAbs,
         repoId,
       });
 
@@ -2771,7 +2771,7 @@ function handleAuditAssets(ctx, deps) {
   });
   const recentLimit = clampInteger(ctx.u.searchParams.get('limit'), DEFAULT_AUDIT_LIMIT, 1, MAX_AUDIT_LIMIT);
   const analytics = buildAssetAuditAnalytics({
-    copilotHome: ctx.copilotHomeAbs,
+    elegyHome: ctx.elegyHomeAbs,
     repoId: selector.repoId,
     repoPath: selector.repoPath,
     snapshot: projectionContext.snapshot,
@@ -2790,7 +2790,7 @@ function handleAuditAssets(ctx, deps) {
 }
 
 function handleAuditEvents(ctx, deps) {
-  const auditLogPath = resolveCatalogAuditLogPath(ctx.copilotHomeAbs, deps.path);
+  const auditLogPath = resolveCatalogAuditLogPath(ctx.elegyHomeAbs, deps.path);
   const filters = stripEmptyFields({
     eventType: normalizeString(ctx.u.searchParams.get('eventType')),
     assetId: normalizeString(ctx.u.searchParams.get('assetId')),
@@ -2800,7 +2800,7 @@ function handleAuditEvents(ctx, deps) {
   });
   const limit = clampInteger(ctx.u.searchParams.get('limit'), DEFAULT_AUDIT_LIMIT, 1, MAX_AUDIT_LIMIT);
 
-  const events = readCatalogAuditEventsFromLib(ctx.copilotHomeAbs, limit, deps)
+  const events = readCatalogAuditEventsFromLib(ctx.elegyHomeAbs, limit, deps)
     .filter((event) => {
       if (filters.eventType && event.eventType !== filters.eventType) {
         return false;
@@ -2837,7 +2837,7 @@ function handleAuditEvents(ctx, deps) {
 function handleRuntimeCatalogHealth(ctx, deps) {
   const selector = normalizeRepoSelector(ctx.u.searchParams);
   const projectionContext = buildProjectionContext(ctx, deps, selector);
-  const auditLogPath = resolveCatalogAuditLogPath(ctx.copilotHomeAbs, deps.path);
+  const auditLogPath = resolveCatalogAuditLogPath(ctx.elegyHomeAbs, deps.path);
   const auditFile = describeFile(auditLogPath, deps.fs);
 
   if (!projectionContext.snapshot) {
@@ -2957,7 +2957,7 @@ function handleRouteExplain(ctx, deps) {
       try {
         externalSourcesResult = deps.externalSources.listSources({
           engineRoot: ctx.engineRoot,
-          copilotHome: ctx.copilotHomeAbs,
+          elegyHome: ctx.elegyHomeAbs,
           codexHome: ctx.codexHome,
           codexSkillsHome: ctx.codexSkillsHome,
           opencodeHome: ctx.opencodeHome,
@@ -3042,7 +3042,7 @@ function buildRepoInventoryResponse(kind, payload) {
 
 function listRepoInventory(ctx, deps, extra = {}) {
   return deps.repoInventory.listKnownRepos({
-    copilotHome: ctx.copilotHomeAbs,
+    elegyHome: ctx.elegyHomeAbs,
     engineRoot: ctx.engineRoot,
     explicitRepoPaths: extra.explicitRepoPaths || [],
   });
@@ -3119,7 +3119,7 @@ function handleCatalogRepoScanRoots(ctx, deps) {
     .then((body) => {
       const source = body && typeof body === 'object' ? body : {};
       const customScanRoots = normalizeArray(source.customScanRoots || source.scanRoots);
-      deps.repoDiscovery.saveRepoDiscoveryState(ctx.copilotHomeAbs, {
+      deps.repoDiscovery.saveRepoDiscoveryState(ctx.elegyHomeAbs, {
         customScanRoots,
       });
       const inventory = listRepoInventory(ctx, deps);
@@ -3150,7 +3150,7 @@ function handleCatalogRepoRegister(ctx, deps) {
         throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
       }
       const result = deps.repoInventory.registerRepo({
-        copilotHome: ctx.copilotHomeAbs,
+        elegyHome: ctx.elegyHomeAbs,
         engineRoot: ctx.engineRoot,
         repoPath: request.repoPath,
         repoLabel: request.repoLabel,
@@ -3178,7 +3178,7 @@ function handleCatalogRepoUnregister(ctx, deps) {
     .then((body) => {
       const request = normalizeRepoInventoryBody(body);
       const result = deps.repoInventory.unregisterRepo({
-        copilotHome: ctx.copilotHomeAbs,
+        elegyHome: ctx.elegyHomeAbs,
         engineRoot: ctx.engineRoot,
         repoId: request.repoId,
         repoPath: request.repoPath,
@@ -3206,7 +3206,7 @@ function handleCatalogRepoSelect(ctx, deps) {
     .then((body) => {
       const request = normalizeRepoInventoryBody(body);
       const result = deps.repoInventory.selectRepo({
-        copilotHome: ctx.copilotHomeAbs,
+        elegyHome: ctx.elegyHomeAbs,
         engineRoot: ctx.engineRoot,
         repoId: request.repoId,
         repoPath: request.repoPath,
@@ -3258,7 +3258,7 @@ function handleCatalogRepoRefresh(ctx, deps) {
         storage: deps.catalogProjection.resolveProjectionStorage(catalogOptions),
         readMode: 'persisted-snapshot',
       };
-      const lifecycleAudit = recordProjectionLifecycleEvents(ctx.copilotHomeAbs, previousSnapshot, snapshot, deps);
+      const lifecycleAudit = recordProjectionLifecycleEvents(ctx.elegyHomeAbs, previousSnapshot, snapshot, deps);
       const audit = recordAuditEvent(ctx, deps, {
         eventType: 'catalog.repo.refreshed',
         repoId: repo.repoId || null,
@@ -3359,9 +3359,9 @@ function handleHarnessOptIn(ctx, deps) {
         };
         await deps.installSurfaces(installOptions);
         const managedAssetIds = collectManifestAssetIdsForHarness(deps.engineRoot || ctx.engineRoot, target);
-        installLedgerLib.setHarnessOptIn(ctx.copilotHomeAbs, target, managedAssetIds);
+        installLedgerLib.setHarnessOptIn(ctx.elegyHomeAbs, target, managedAssetIds);
       } else {
-        installLedgerLib.removeHarnessOptIn(ctx.copilotHomeAbs, target);
+        installLedgerLib.removeHarnessOptIn(ctx.elegyHomeAbs, target);
       }
 
       rebuildProjection(ctx, deps, {}, 'harness_opt_in');

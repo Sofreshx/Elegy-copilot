@@ -69,7 +69,7 @@ interface StartWorkflowSidecarOptions {
   runtimeRoot: string;
   processExecPath: string;
   isPackaged: boolean;
-  copilotHome: string;
+  elegyHome: string;
   shellAdapter?: WorkflowSidecarShellAdapter;
 }
 
@@ -419,7 +419,7 @@ export async function startWorkflowSidecar(options: StartWorkflowSidecarOptions)
     INSTRUCTION_ENGINE_WORKFLOW_SIDECAR_HOST: host,
     INSTRUCTION_ENGINE_WORKFLOW_SIDECAR_PORT: String(port),
     INSTRUCTION_ENGINE_WORKFLOW_SIDECAR_PREFERRED_RUNTIME: 'n8n',
-    INSTRUCTION_ENGINE_WORKFLOW_SIDECAR_COPILOT_HOME: options.copilotHome,
+    INSTRUCTION_ENGINE_WORKFLOW_SIDECAR_ELEGY_HOME: options.elegyHome,
   };
 
   let child: ChildProcess | null = null;

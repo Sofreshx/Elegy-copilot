@@ -94,7 +94,7 @@ function buildConfigPath(options = {}) {
     return path.resolve(configuredPath);
   }
 
-  return path.join(path.resolve(options.copilotHomeAbs || options.copilotHome || '.'), DEFAULT_OBSIDIAN_CONFIG_FILENAME);
+  return path.join(path.resolve(options.elegyHomeAbs || options.elegyHome || '.'), DEFAULT_OBSIDIAN_CONFIG_FILENAME);
 }
 
 function readConfigFile(configPath) {

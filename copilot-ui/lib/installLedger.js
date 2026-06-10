@@ -5,8 +5,8 @@ const path = require('path');
 
 const LEDGER_SCHEMA_VERSION = 1;
 
-function readInstallLedger(copilotHomeAbs) {
-  const ledgerPath = path.join(path.resolve(copilotHomeAbs), 'catalog', 'install-ledger.json');
+function readInstallLedger(elegyHomeAbs) {
+  const ledgerPath = path.join(path.resolve(elegyHomeAbs), 'catalog', 'install-ledger.json');
   try {
     const stat = fs.statSync(ledgerPath);
     if (!stat.isFile()) return null;
@@ -29,10 +29,10 @@ function writeJsonAtomic(absPath, value) {
   fs.renameSync(tempPath, absPath);
 }
 
-function writeInstallLedger(copilotHomeAbs, harnessId, managedAssetIds, lastResult) {
-  const ledgerPath = path.join(path.resolve(copilotHomeAbs), 'catalog', 'install-ledger.json');
+function writeInstallLedger(elegyHomeAbs, harnessId, managedAssetIds, lastResult) {
+  const ledgerPath = path.join(path.resolve(elegyHomeAbs), 'catalog', 'install-ledger.json');
   const now = new Date().toISOString();
-  const existing = readInstallLedger(copilotHomeAbs) || {
+  const existing = readInstallLedger(elegyHomeAbs) || {
     schemaVersion: LEDGER_SCHEMA_VERSION,
     generatedAt: now,
     harnesses: {},
@@ -64,14 +64,14 @@ function listHarnessOptedInAssetIds(ledger, harnessId) {
   return Array.isArray(entry?.managedAssetIds) ? entry.managedAssetIds : [];
 }
 
-function setHarnessOptedIn(copilotHomeAbs, harnessId, assetIds) {
-  return writeInstallLedger(copilotHomeAbs, harnessId, assetIds, 'ok');
+function setHarnessOptedIn(elegyHomeAbs, harnessId, assetIds) {
+  return writeInstallLedger(elegyHomeAbs, harnessId, assetIds, 'ok');
 }
 
-function removeHarnessOptIn(copilotHomeAbs, harnessId) {
-  const ledgerPath = path.join(path.resolve(copilotHomeAbs), 'catalog', 'install-ledger.json');
+function removeHarnessOptIn(elegyHomeAbs, harnessId) {
+  const ledgerPath = path.join(path.resolve(elegyHomeAbs), 'catalog', 'install-ledger.json');
   const now = new Date().toISOString();
-  const existing = readInstallLedger(copilotHomeAbs) || {
+  const existing = readInstallLedger(elegyHomeAbs) || {
     schemaVersion: LEDGER_SCHEMA_VERSION,
     generatedAt: now,
     harnesses: {},

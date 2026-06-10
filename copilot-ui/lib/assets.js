@@ -956,7 +956,7 @@ function buildManagedMissingSkillPreview(engineRoot, projectedAssetIds) {
 }
 
 function getSkillCatalogPreview(engineRoot, home) {
-  const snapshot = buildCatalogProjection({ engineRoot, copilotHome: home });
+  const snapshot = buildCatalogProjection({ engineRoot, elegyHome: home });
   const skills = Array.isArray(snapshot?.effectiveAssets)
     ? snapshot.effectiveAssets.filter((asset) => asset && asset.kind === 'skill')
     : [];

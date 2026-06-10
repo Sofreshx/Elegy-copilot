@@ -2,7 +2,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-
 const {
   compareAssetCatalogEntries,
   getAssetLayerPrecedence,
@@ -10,7 +9,6 @@ const {
   ASSET_CATALOG_LAYER_PRECEDENCE,
   DEFAULT_PROVIDER_CATALOG,
 } = require('../dist');
-
 function entry(overrides = {}) {
   const layer = overrides.layer ?? 'source';
   return {
@@ -30,7 +28,6 @@ function entry(overrides = {}) {
     contentPath: overrides.contentPath,
   };
 }
-
 test('layer precedence order stays canonical', () => {
   assert.deepEqual(ASSET_CATALOG_LAYER_PRECEDENCE, [
     'source',
@@ -44,11 +41,10 @@ test('layer precedence order stays canonical', () => {
   assert.equal(getAssetLayerPrecedence('repo-local'), 3);
   assert.ok(compareAssetCatalogEntries(entry({ layer: 'repo-local' }), entry({ layer: 'source' })) > 0);
 });
-
 test('repo-local content overrides user-installed and source entries', () => {
   const state = resolveEffectiveAssetState([
     entry({ layer: 'source', contentPath: 'engine-assets/skills/search/SKILL.md' }),
-    entry({ layer: 'user-installed', contentPath: '~/.copilot/skills/search/SKILL.md' }),
+    entry({ layer: 'user-installed', contentPath: '~/.elegy/skills/search/SKILL.md' }),
     entry({
       layer: 'repo-local',
       scope: { kind: 'repo', repoId: 'repo-1', repoPath: 'C:/repo' },
@@ -56,18 +52,16 @@ test('repo-local content overrides user-installed and source entries', () => {
       installState: { availability: 'repo-local', isInstalled: true },
     }),
   ]);
-
   assert.equal(state.selectedLayer, 'repo-local');
   assert.equal(state.overridden, true);
   assert.equal(state.enabled, true);
   assert.ok(state.labels.includes('overridden'));
 });
-
 test('repo-state overlay disables effective asset without replacing content', () => {
   const state = resolveEffectiveAssetState([
     entry({
       layer: 'user-installed',
-      contentPath: '~/.copilot/skills/security/SKILL.md',
+      contentPath: '~/.elegy/skills/security/SKILL.md',
       installState: { availability: 'installed', isInstalled: true, loadMode: 'always' },
     }),
     entry({
@@ -85,19 +79,17 @@ test('repo-state overlay disables effective asset without replacing content', ()
       },
     }),
   ]);
-
   assert.equal(state.selectedLayer, 'user-installed');
   assert.equal(state.enabled, false);
   assert.equal(state.recommended, true);
   assert.ok(state.labels.includes('disabled'));
   assert.ok(state.labels.includes('recommended'));
 });
-
 test('vault content wins over pointer stubs in user install location', () => {
   const state = resolveEffectiveAssetState([
     entry({
       layer: 'user-installed',
-      contentPath: '~/.copilot/skills/react-query/SKILL.md',
+      contentPath: '~/.elegy/skills/react-query/SKILL.md',
       installState: {
         availability: 'installed',
         isInstalled: true,
@@ -107,7 +99,7 @@ test('vault content wins over pointer stubs in user install location', () => {
     }),
     entry({
       layer: 'vault-only',
-      contentPath: '~/.copilot/skills-vault/react-query/SKILL.md',
+      contentPath: '~/.elegy/skills-vault/react-query/SKILL.md',
       installState: {
         availability: 'vault-only',
         isInstalled: true,
@@ -116,20 +108,18 @@ test('vault content wins over pointer stubs in user install location', () => {
       },
     }),
   ]);
-
   assert.equal(state.selectedLayer, 'vault-only');
   assert.equal(state.hiddenFromAutoLoad, true);
-  assert.equal(state.installState?.installedPaths?.['vault-only'], '~/.copilot/skills-vault/react-query/SKILL.md');
+  assert.equal(state.installState?.installedPaths?.['vault-only'], '~/.elegy/skills-vault/react-query/SKILL.md');
   assert.ok(state.reasons.some((reason) => reason.code === 'vault-preferred-over-pointer'));
 });
-
 test('effective asset state carries provenance and activation metadata from the selected entry', () => {
   const state = resolveEffectiveAssetState([
     entry({
       layer: 'user-installed',
       assetId: 'skill-external-provider-brainstorming',
       assetKey: 'external-provider-brainstorming',
-      contentPath: '~/.copilot/skills/providers/external/brainstorming/SKILL.md',
+      contentPath: '~/.elegy/skills/providers/external/brainstorming/SKILL.md',
       provenance: {
         providerId: 'external-provider',
         namespace: 'external',
@@ -147,23 +137,18 @@ test('effective asset state carries provenance and activation metadata from the 
       },
     }),
   ]);
-
   assert.equal(state.provenance?.providerId, 'external-provider');
   assert.equal(state.provenance?.discoveryMode, 'managed-import');
   assert.equal(state.activation?.scope, 'global-and-repo');
 });
-
 test('default provider catalog stays synced with engine-assets/providers.json', () => {
   const canonicalProviderCatalog = JSON.parse(
     fs.readFileSync(path.join(__dirname, '..', '..', 'engine-assets', 'providers.json'), 'utf8'),
   );
-
   assert.deepEqual(DEFAULT_PROVIDER_CATALOG, canonicalProviderCatalog);
 });
-
 test('audit contract declarations include explicit invocation fields', () => {
   const declarationText = fs.readFileSync(path.join(__dirname, '..', 'dist', 'assetCatalog.d.ts'), 'utf8');
-
   assert.match(declarationText, /'asset\.invoked'/);
   assert.match(declarationText, /toolName\?: string;/);
   assert.match(declarationText, /toolCallId\?: string;/);

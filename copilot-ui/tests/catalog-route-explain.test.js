@@ -1,15 +1,11 @@
 'use strict';
-
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-
 const { register: registerCatalogRoutes } = require('../routes/catalog');
-
 let passed = 0;
 let failed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -22,11 +18,9 @@ async function test(name, fn) {
     process.exitCode = 1;
   }
 }
-
 // ---------------------------------------------------------------------------
 // Test harness (matching catalog.test.js patterns)
 // ---------------------------------------------------------------------------
-
 function createResponse() {
   const chunks = [];
   return {
@@ -48,21 +42,17 @@ function createResponse() {
     },
   };
 }
-
 function writeJson(filePath, obj) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(obj, null, 2), 'utf8');
 }
-
 function writeText(filePath, text) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, text, 'utf8');
 }
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
 function makeMinimalManifest() {
   return {
     schemaVersion: 1,
@@ -94,7 +84,6 @@ function makeMinimalManifest() {
     providers: [],
   };
 }
-
 function makeMinimalEffectiveAsset(overrides = {}) {
   return {
     assetId: overrides.assetId || 'core-skill',
@@ -121,7 +110,6 @@ function makeMinimalEffectiveAsset(overrides = {}) {
     scope: { kind: 'global' },
   };
 }
-
 function findRoute(routes, method, pathname) {
   for (const route of routes) {
     if (route.method !== method) continue;
@@ -137,7 +125,6 @@ function findRoute(routes, method, pathname) {
   }
   throw new Error(`Route not found: ${method} ${pathname}`);
 }
-
 async function invoke(routes, ctx, method, pathname, body) {
   const res = createResponse();
   const u = new URL(`http://127.0.0.1${pathname}`);
@@ -153,30 +140,25 @@ async function invoke(routes, ctx, method, pathname, body) {
   await new Promise((resolve) => setTimeout(resolve, 0));
   return { res, body: res.body() };
 }
-
 // ---------------------------------------------------------------------------
 // Fixture setup
 // ---------------------------------------------------------------------------
-
 function setupFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-route-explain-'));
   const engineRoot = path.join(root, 'engine-assets');
-  const copilotHome = path.join(root, 'copilot-home');
-
+  const elegyHome = path.join(root, 'copilot-home');
   // Write manifest
   writeJson(path.join(root, 'engine-assets', 'manifest.json'), makeMinimalManifest());
-
   // Write activation state
-  writeJson(path.join(copilotHome, 'catalog', 'activation-state.json'), {
+  writeJson(path.join(elegyHome, 'catalog', 'activation-state.json'), {
     schemaVersion: 1,
     plannerProfile: 'balanced',
     orchestrationPolicy: 'balanced',
     activeBundleIds: ['core'],
     bundleSource: 'provider-defaults',
   });
-
   // Write a projection snapshot
-  writeJson(path.join(copilotHome, 'catalog', 'projections', 'global.json'), {
+  writeJson(path.join(elegyHome, 'catalog', 'projections', 'global.json'), {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     repoContext: { repoId: null, repoPath: null },
@@ -187,30 +169,23 @@ function setupFixture() {
     bundles: [],
     stats: { totalAssets: 1, totalEntries: 1 },
   });
-
   // Write providers
   writeJson(path.join(root, 'engine-assets', 'providers.json'), {
     schemaVersion: 1,
     providers: [],
   });
-
-  return { root, engineRoot, copilotHome };
+  return { root, engineRoot, elegyHome };
 }
-
 function cleanupFixture(root) {
   try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) { /* ignore */ }
 }
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
-
 async function run() {
   let fixture;
-
   try {
     fixture = setupFixture();
-
     // Register routes with injected deps (matching catalog.test.js pattern)
     const routes = registerCatalogRoutes({
       engineRoot: fixture.engineRoot,
@@ -224,10 +199,9 @@ async function run() {
         res.end(JSON.stringify(payload, null, 2));
       },
     });
-
     const baseCtx = {
       engineRoot: fixture.engineRoot,
-      copilotHomeAbs: fixture.copilotHome,
+      elegyHomeAbs: fixture.elegyHome,
       codexHome: null,
       codexSkillsHome: null,
       opencodeHome: null,
@@ -237,11 +211,9 @@ async function run() {
       antigravitySkillsHome: null,
       changeTracker: null,
     };
-
     // =========================================================================
     // Basic route shape
     // =========================================================================
-
     await test('POST /api/catalog/route/explain returns 200 and deterministic decision shape', async () => {
       const { res, body } = await invoke(routes, baseCtx, 'POST', '/api/catalog/route/explain', {
         query: 'core',
@@ -256,11 +228,9 @@ async function run() {
       assert.ok(Array.isArray(body.candidates));
       assert.ok(body.policy);
     });
-
     // =========================================================================
     // Candidate results
     // =========================================================================
-
     await test('POST /api/catalog/route/explain returns candidates from projection', async () => {
       const { res, body } = await invoke(routes, baseCtx, 'POST', '/api/catalog/route/explain', {
         query: 'core',
@@ -272,11 +242,9 @@ async function run() {
       assert.equal(candidate.id, 'core-skill');
       assert.equal(candidate.kind, 'skill');
     });
-
     // =========================================================================
     // Decision selection
     // =========================================================================
-
     await test('POST /api/catalog/route/explain selects best candidate as decision', async () => {
       const { res, body } = await invoke(routes, baseCtx, 'POST', '/api/catalog/route/explain', {
         query: 'core',
@@ -286,11 +254,9 @@ async function run() {
       assert.ok(body.decision, 'should have a decision');
       assert.equal(body.decision.id, 'core-skill');
     });
-
     // =========================================================================
     // Policy snapshot
     // =========================================================================
-
     await test('POST /api/catalog/route/explain returns policy snapshot', async () => {
       const { res, body } = await invoke(routes, baseCtx, 'POST', '/api/catalog/route/explain', {
         query: 'core',
@@ -306,11 +272,9 @@ async function run() {
       assert.ok(typeof body.policy.blockedCount, 'number');
       assert.equal(body.policy.intent, 'task-routing');
     });
-
     // =========================================================================
     // Audit events
     // =========================================================================
-
     await test('POST /api/catalog/route/explain includes audit info', async () => {
       const { res, body } = await invoke(routes, baseCtx, 'POST', '/api/catalog/route/explain', {
         query: 'core',
@@ -321,16 +285,14 @@ async function run() {
       assert.equal(typeof body.audit.logged, 'boolean');
       assert.ok(body.audit.path);
     });
-
     // =========================================================================
     // Missing projection returns 503
     // =========================================================================
-
     await test('POST /api/catalog/route/explain returns 503 with repair action when projection unavailable', async () => {
-      // Set up a context with invalid copilotHome so no projection is found
+      // Set up a context with invalid elegyHome so no projection is found
       const badCtx = {
         ...baseCtx,
-        copilotHomeAbs: path.join(fixture.root, 'nonexistent'),
+        elegyHomeAbs: path.join(fixture.root, 'nonexistent'),
       };
       const { res, body } = await invoke(routes, badCtx, 'POST', '/api/catalog/route/explain', {
         query: 'test',
@@ -353,11 +315,9 @@ async function run() {
       assert.ok(body.error, 'should include projection error details');
       assert.ok(body.audit.error, 'audit should report projection-unavailable');
     });
-
     // =========================================================================
     // Correlation ID
     // =========================================================================
-
     await test('POST /api/catalog/route/explain respects provided correlationId', async () => {
       const { res, body } = await invoke(routes, baseCtx, 'POST', '/api/catalog/route/explain', {
         query: 'core',
@@ -367,11 +327,9 @@ async function run() {
       });
       assert.equal(body.correlationId, 'test-corr-123');
     });
-
     // =========================================================================
     // Different intents
     // =========================================================================
-
     await test('POST /api/catalog/route/explain handles tool-routing intent', async () => {
       const { res, body } = await invoke(routes, baseCtx, 'POST', '/api/catalog/route/explain', {
         query: 'mcp',
@@ -381,7 +339,6 @@ async function run() {
       assert.equal(res.statusCode, 200);
       assert.equal(body.policy.intent, 'tool-routing');
     });
-
     await test('POST /api/catalog/route/explain handles install-recommendation intent', async () => {
       const { res, body } = await invoke(routes, baseCtx, 'POST', '/api/catalog/route/explain', {
         query: '',
@@ -390,7 +347,6 @@ async function run() {
       assert.equal(res.statusCode, 200);
       assert.equal(body.policy.intent, 'install-recommendation');
     });
-
     await test('POST /api/catalog/route/explain handles source-diagnostics intent', async () => {
       const { res, body } = await invoke(routes, baseCtx, 'POST', '/api/catalog/route/explain', {
         query: '',
@@ -399,11 +355,9 @@ async function run() {
       assert.equal(res.statusCode, 200);
       assert.equal(body.policy.intent, 'source-diagnostics');
     });
-
     // =========================================================================
     // Error handling
     // =========================================================================
-
     await test('POST /api/catalog/route/explain handles missing query gracefully', async () => {
       const { res, body } = await invoke(routes, baseCtx, 'POST', '/api/catalog/route/explain', {
         intent: 'task-routing',
@@ -411,22 +365,18 @@ async function run() {
       assert.equal(res.statusCode, 200);
       assert.equal(body.kind, 'catalog.route.explanation');
     });
-
     await test('POST /api/catalog/route/explain handles empty body gracefully', async () => {
       const { res, body } = await invoke(routes, baseCtx, 'POST', '/api/catalog/route/explain', {});
       assert.equal(res.statusCode, 200);
       assert.equal(body.kind, 'catalog.route.explanation');
     });
-
     // Summary
     console.log(`\n${passed} passed, ${failed} failed`);
     if (failed > 0) process.exit(1);
-
   } finally {
     if (fixture) cleanupFixture(fixture.root);
   }
 }
-
 run().catch((error) => {
   console.error('Test runner error:', error);
   process.exit(1);

@@ -10,7 +10,7 @@ const bannedPatterns = [
   { label: 'Copilot tool reference: vscode/askQuestions', pattern: /vscode\/askQuestions/i },
   { label: 'Copilot tool reference: run_in_terminal', pattern: /run_in_terminal/i },
   { label: 'Copilot review pattern: Rubber Duck', pattern: /Rubber Duck/i },
-  { label: 'Copilot home path: ~/.copilot', pattern: /~\/\.copilot/i },
+  { label: 'Elegy home path: ~/.elegy', pattern: /~\/\.elegy/i },
 ];
 
 function listFiles(rootDir) {

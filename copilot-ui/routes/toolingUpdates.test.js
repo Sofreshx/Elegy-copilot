@@ -1,20 +1,16 @@
 'use strict';
-
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-
 const { register } = require('./toolingUpdates');
-
 function createResponse() {
   const state = {
     statusCode: null,
     headers: null,
     chunks: [],
   };
-
   return {
     get statusCode() {
       return state.statusCode;
@@ -33,17 +29,14 @@ function createResponse() {
     },
   };
 }
-
 function findRoute(routes, method, pathname) {
   for (const route of routes) {
     if (route.method === method && route.path === pathname) {
       return route;
     }
   }
-
   throw new Error(`Route not found for ${method} ${pathname}`);
 }
-
 async function invoke(routes, method, pathname, options = {}) {
   const route = findRoute(routes, method, pathname);
   const req = {
@@ -57,7 +50,7 @@ async function invoke(routes, method, pathname, options = {}) {
     u,
     pathname,
     engineRoot: options.engineRoot,
-    copilotHomeAbs: options.copilotHomeAbs,
+    elegyHomeAbs: options.elegyHomeAbs,
     codexHome: options.codexHome,
     codexSkillsHome: options.codexSkillsHome,
     geminiHome: options.geminiHome,
@@ -71,12 +64,10 @@ async function invoke(routes, method, pathname, options = {}) {
     body: JSON.parse(res.bodyText || '{}'),
   };
 }
-
 test('tooling updates status reports planning and elegy skills update availability', async () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-tooling-updates-'));
   const cliPath = path.join(tmpRoot, process.platform === 'win32' ? 'elegy-planning.cmd' : 'elegy-planning');
   fs.writeFileSync(cliPath, 'echo fake', 'utf8');
-
   const routes = register({
     env: {
       INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH: cliPath,
@@ -98,12 +89,10 @@ test('tooling updates status reports planning and elegy skills update availabili
     }),
     assets: {},
   });
-
   const result = await invoke(routes, 'GET', '/api/tooling-updates/status', {
     engineRoot: '/repo',
-    copilotHomeAbs: '/copilot-home',
+    elegyHomeAbs: '/copilot-home',
   });
-
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.elegyPlanningCli.currentVersion, '1.0.0');
   assert.equal(result.body.elegyPlanningCli.latestVersion, '1.1.0');
@@ -124,12 +113,11 @@ test('tooling updates status reports planning and elegy skills update availabili
     'entity-search',
   ]);
 });
-
 test('tooling updates elegy-skills endpoint installs from managed GitHub source', async () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-tooling-github-skills-'));
-  const copilotHome = path.join(tmpRoot, '.copilot');
+  const elegyHome = path.join(tmpRoot, '.elegy');
   const opencodeHome = path.join(tmpRoot, '.opencode');
-  const sourceRoot = path.join(copilotHome, 'managed-cli', 'planning', 'source', 'Elegy');
+  const sourceRoot = path.join(elegyHome, 'managed-cli', 'planning', 'source', 'Elegy');
   const routes = register({
     env: {},
     fetchImpl: async () => ({
@@ -164,10 +152,9 @@ test('tooling updates elegy-skills endpoint installs from managed GitHub source'
     },
     assets: {},
   });
-
   const result = await invoke(routes, 'POST', '/api/tooling-updates/update/elegy-skills', {
     engineRoot: '/repo',
-    copilotHomeAbs: copilotHome,
+    elegyHomeAbs: elegyHome,
     codexHome: '/codex-home',
     codexSkillsHome: '/codex-skills-home',
     geminiHome: '/gemini-home',
@@ -176,7 +163,6 @@ test('tooling updates elegy-skills endpoint installs from managed GitHub source'
     opencodeHome,
     opencodeSkillsHome: '/opencode-skills-home',
   });
-
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.ok, true);
   assert.equal(result.body.syncResult.source, 'github-source');
@@ -186,15 +172,13 @@ test('tooling updates elegy-skills endpoint installs from managed GitHub source'
   assert.ok(fs.existsSync(path.join(opencodeHome, 'skills', 'elegy-skills', 'SKILL.md')));
   assert.ok(fs.existsSync(path.join(opencodeHome, 'skills', 'elegy-obsidian', 'SKILL.md')));
 });
-
 test('tooling updates elegy-planning endpoint installs from managed GitHub source', async () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-tooling-local-elegy-'));
   const engineRoot = path.join(tmpRoot, 'instruction-engine');
-  const copilotHome = path.join(tmpRoot, '.copilot');
-  const elegyRoot = path.join(copilotHome, 'managed-cli', 'planning', 'source', 'Elegy');
+  const elegyHome = path.join(tmpRoot, '.elegy');
+  const elegyRoot = path.join(elegyHome, 'managed-cli', 'planning', 'source', 'Elegy');
   const rustRoot = path.join(elegyRoot, 'rust');
   fs.mkdirSync(engineRoot, { recursive: true });
-
   const exeName = process.platform === 'win32' ? 'elegy-planning.exe' : 'elegy-planning';
   const builtBinary = path.join(rustRoot, 'target', 'release', exeName);
   const helpByCommand = new Map([
@@ -207,7 +191,6 @@ test('tooling updates elegy-planning endpoint installs from managed GitHub sourc
     ['project-run --help', 'Commands: claim activate release add-evidence list show'],
     ['session --help', 'Commands: init use show'],
   ]);
-
   const routes = register({
     env: {},
     childProcess: {
@@ -253,12 +236,10 @@ test('tooling updates elegy-planning endpoint installs from managed GitHub sourc
       },
     },
   });
-
   const result = await invoke(routes, 'POST', '/api/tooling-updates/update/elegy-planning', {
     engineRoot,
-    copilotHomeAbs: copilotHome,
+    elegyHomeAbs: elegyHome,
   });
-
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.ok, true);
   assert.match(result.body.downloadedPath, /managed-cli/);

@@ -31,10 +31,10 @@ They may:
 
 They must not:
 
-- override `~/.copilot/backlogs/{repo-name}/planning/bullets.md`
-- override `~/.copilot/backlogs/{repo-name}/planning/intake/*.json`
-- override `~/.copilot/backlogs/{repo-name}/backlogs/*.md`
-- override roadmap folder indexes under `~/.copilot/backlogs/{repo-name}/roadmaps/*/index.md`
+- override `~/.elegy/backlogs/{repo-name}/planning/bullets.md`
+- override `~/.elegy/backlogs/{repo-name}/planning/intake/*.json`
+- override `~/.elegy/backlogs/{repo-name}/backlogs/*.md`
+- override roadmap folder indexes under `~/.elegy/backlogs/{repo-name}/roadmaps/*/index.md`
 - become the canonical execution authority instead of the active session `plan.md`
 - use note bodies or mirror edits as canonical write authority for repo planning docs
 
@@ -58,7 +58,7 @@ The distinction:
   Obsidian is a local editor/viewer over canonical repo docs. Git is the
   authority.
 - **Planning mirror** (this contract): Obsidian hosts external,
-  non-canonical planning notes. `copilot-ui` and `~/.copilot/backlogs/`
+  non-canonical planning notes. `copilot-ui` and `~/.elegy/backlogs/`
   are the authority.
 
 ## Repo context
@@ -83,7 +83,7 @@ Tracker-synced note source records are resolved from the tracker source registry
 remains the authority for vault path, notes path template, CLI commands, remote sync settings, and
 other runtime behavior.
 
-Repo-scoped active source selection is persisted under `~/.copilot/obsidian-sync/` as local runtime
+Repo-scoped active source selection is persisted under `~/.elegy/obsidian-sync/` as local runtime
 state. Source-placeholder remote sync never binds implicitly: if the configured URL depends on source
 fields, operators must explicitly select a tracker source even when only one source record exists.
 
@@ -91,7 +91,7 @@ fields, operators must explicitly select a tracker source even when only one sou
 
 Default file:
 
-- `~/.copilot/obsidian-planning.json`
+- `~/.elegy/obsidian-planning.json`
 
 Environment overrides:
 
@@ -170,7 +170,7 @@ Rules:
 - `remoteSync`: pull-loop/manual-sync status, timestamps, counts, conflict state, cooldown/backoff,
   lease metadata, and stale-lease recovery timestamps
 
-Persistent sync state lives under `~/.copilot/obsidian-sync/` and remains non-canonical runtime state.
+Persistent sync state lives under `~/.elegy/obsidian-sync/` and remains non-canonical runtime state.
 That runtime state includes repo-scoped source selection plus per-repo sync cursors, summaries, and
 lease files.
 
@@ -188,9 +188,9 @@ Planning mirrors are a SAFE representation of canonical repo docs, not a second 
 
 Rules:
 
-1. Bullets mirrors are generated from `~/.copilot/backlogs/{repo-name}/planning/bullets.md`.
+1. Bullets mirrors are generated from `~/.elegy/backlogs/{repo-name}/planning/bullets.md`.
 2. Roadmap mirrors are generated one-per-slug from roadmap folder indexes under
-   `~/.copilot/backlogs/{repo-name}/roadmaps/*/index.md`; legacy single-file roadmaps may still be
+   `~/.elegy/backlogs/{repo-name}/roadmaps/*/index.md`; legacy single-file roadmaps may still be
    mirrored as compatibility inputs.
 3. Mirror frontmatter MUST include explicit non-canonical provenance and enough metadata for freshness
    checks.
@@ -222,7 +222,7 @@ Rules:
 1. `notePath` is relative to the selected repo's resolved `notesPathTemplate` directory.
 2. `deleted: true` may be used to request safe local deletion.
 3. local files with unsynced edits must fail closed and surface `conflict` instead of being overwritten.
-4. the cursor persisted under `~/.copilot/obsidian-sync/` is reused for timer polls and manual syncs.
+4. the cursor persisted under `~/.elegy/obsidian-sync/` is reused for timer polls and manual syncs.
 5. this repo only implements the local client, status persistence, and polling loop.
 
 ## Sync safety rules
@@ -231,7 +231,7 @@ Remote sync remains local, pull-only, and fail-closed.
 
 Rules:
 
-1. Each repo sync acquires a file-backed lease under `~/.copilot/obsidian-sync/` before any local note
+1. Each repo sync acquires a file-backed lease under `~/.elegy/obsidian-sync/` before any local note
    mutation runs.
 2. Stale lease recovery is explicit and bounded; active leases block overlapping sync work instead of
    allowing concurrent mutation.

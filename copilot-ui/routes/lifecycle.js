@@ -22,8 +22,7 @@ function handleHealth(ctx, deps) {
     sandboxesHome,
     providerState,
     changeTracker,
-    copilotHome,
-    vscodeHome,
+    elegyHome,
     planningPersistenceConfig,
     planningPersistenceState,
     planningDurabilityDependencyGate,
@@ -52,8 +51,7 @@ function handleHealth(ctx, deps) {
     ok: true,
     now: Date.now(),
     engineRoot,
-    copilotHome,
-    vscodeHome,
+    elegyHome,
     changes,
     runtime,
     policy,
@@ -72,9 +70,9 @@ function handleVersion(ctx, deps) {
 }
 
 function handleLspConfig(ctx, deps) {
-  const { res, copilotHomeAbs } = ctx;
+  const { res, elegyHomeAbs } = ctx;
   const { sendJson, path: pathImpl, readJsonFileSafe } = deps;
-  const lspConfigPath = pathImpl.join(copilotHomeAbs, 'lsp-config.json');
+  const lspConfigPath = pathImpl.join(elegyHomeAbs, 'lsp-config.json');
   const config = readJsonFileSafe(lspConfigPath);
   sendJson(res, 200, { config: config || {} });
 }

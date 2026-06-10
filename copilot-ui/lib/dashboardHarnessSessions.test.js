@@ -1,14 +1,10 @@
 'use strict';
-
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-
 const { listHarnessSessions } = require('./dashboardHarnessSessions');
-
 let passed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -20,28 +16,23 @@ async function test(name, fn) {
     process.exitCode = 1;
   }
 }
-
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'dashboard-harness-sessions-'));
 }
-
 function writeFile(targetPath, content) {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.writeFileSync(targetPath, content, 'utf8');
 }
-
 async function run() {
   console.log('\nDashboard Harness Session Inventory Tests\n');
-
   await test('lists Copilot, Codex, and Antigravity sessions and leaves unsupported harnesses explicit', async () => {
     const root = makeTempDir();
-    const copilotHome = path.join(root, '.copilot');
+    const elegyHome = path.join(root, '.elegy');
     const codexHome = path.join(root, '.codex');
     const opencodeHome = path.join(root, '.config', 'opencode');
     const opencodeDataHome = path.join(root, '.local', 'share', 'opencode');
     const geminiHome = path.join(root, '.gemini');
     const antigravityHome = path.join(geminiHome, 'antigravity');
-
     writeFile(
       path.join(codexHome, 'session_index.jsonl'),
       [
@@ -56,9 +47,8 @@ async function run() {
     fs.mkdirSync(opencodeDataHome, { recursive: true });
     fs.mkdirSync(path.join(geminiHome, 'history', 'workspace-a'), { recursive: true });
     writeFile(path.join(geminiHome, 'history', 'workspace-a', '.project_root'), 'C:/workspace-a');
-
     const inventory = listHarnessSessions({
-      copilotHome,
+      elegyHome,
       sandboxesHome: path.join(root, 'sandboxes'),
       codexHome,
       opencodeHome,
@@ -82,23 +72,18 @@ async function run() {
         },
       },
     });
-
     assert.equal(inventory.totalSessionCount, 5);
-
     const copilot = inventory.harnesses.find((harness) => harness.harnessId === 'copilot');
     const codex = inventory.harnesses.find((harness) => harness.harnessId === 'codex');
     const opencode = inventory.harnesses.find((harness) => harness.harnessId === 'opencode');
     const antigravity = inventory.harnesses.find((harness) => harness.harnessId === 'antigravity');
     const geminiCli = inventory.harnesses.find((harness) => harness.harnessId === 'gemini-cli');
-
     assert.equal(copilot.inventoryAvailable, true);
     assert.equal(copilot.sessionCount, 1);
     assert.equal(copilot.sessions[0].title, 'Copilot active session');
-
     assert.equal(codex.inventoryAvailable, true);
     assert.equal(codex.sessionCount, 2);
     assert.deepEqual(codex.sessions.map((session) => session.sessionId), ['codex-1', 'codex-2']);
-
     assert.equal(antigravity.inventoryAvailable, true);
     assert.equal(antigravity.sessionCount, 2);
     assert.equal(opencode.inventoryAvailable, false);
@@ -106,7 +91,6 @@ async function run() {
     assert.equal(geminiCli.inventoryAvailable, false);
     assert.equal(geminiCli.inventoryReason, 'inventory_not_supported');
   });
-
   await test('OpenCode inventory returns sessions from log directory and project state', async () => {
     const root = makeTempDir();
     const opencodeDataHome = path.join(root, 'opencode-data');
@@ -114,7 +98,6 @@ async function run() {
     const projectStateDir = path.join(opencodeDataHome, 'project');
     fs.mkdirSync(logDir, { recursive: true });
     fs.mkdirSync(projectStateDir, { recursive: true });
-
     const logTs = '2026-05-23T12:00:00.000Z';
     const logEpoch = Date.parse(logTs);
     writeFile(
@@ -126,14 +109,12 @@ async function run() {
         '',
       ].join('\n')
     );
-
     writeFile(
       path.join(projectStateDir, 'worktree-c.json'),
       JSON.stringify({ sessions: { ses_aaa1: { updatedAtMs: logEpoch + 1000 } } }, null, 2)
     );
-
     const inventory = listHarnessSessions({
-      copilotHome: path.join(root, '.copilot'),
+      elegyHome: path.join(root, '.elegy'),
       sandboxesHome: path.join(root, 'sandboxes'),
       codexHome: path.join(root, '.codex'),
       opencodeHome: path.join(root, '.config', 'opencode'),
@@ -142,7 +123,6 @@ async function run() {
       geminiHome: path.join(root, '.gemini'),
       sessionAggregation: { buildUnifiedSessions() { return []; } },
     });
-
     const opencode = inventory.harnesses.find((harness) => harness.harnessId === 'opencode');
     assert.equal(opencode.inventoryAvailable, true);
     assert.equal(opencode.sessionCount, 2);
@@ -154,15 +134,13 @@ async function run() {
     assert.equal(typeof aaa1.updatedAtMs, 'number');
     assert.equal(aaa1.updatedAtMs, logEpoch);
   });
-
   await test('OpenCode inventory reports inventory_read_failed when log read throws', async () => {
     const root = makeTempDir();
     const opencodeDataHome = path.join(root, 'opencode-data');
     fs.mkdirSync(path.join(opencodeDataHome, 'log'), { recursive: true });
-
     const fakeDirStat = { isDirectory: () => true };
     const inventory = listHarnessSessions({
-      copilotHome: path.join(root, '.copilot'),
+      elegyHome: path.join(root, '.elegy'),
       sandboxesHome: path.join(root, 'sandboxes'),
       codexHome: path.join(root, '.codex'),
       opencodeHome: path.join(root, '.config', 'opencode'),
@@ -189,12 +167,10 @@ async function run() {
         },
       },
     });
-
     const opencode = inventory.harnesses.find((harness) => harness.harnessId === 'opencode');
     assert.equal(opencode.inventoryAvailable, false);
     assert.equal(opencode.inventoryReason, 'inventory_read_failed');
   });
-
   await test('Codex inventory falls back to session folders when index is missing', async () => {
     const root = makeTempDir();
     const codexHome = path.join(root, '.codex');
@@ -206,9 +182,8 @@ async function run() {
     writeFile(path.join(codexHome, 'sessions', '2026-05-23', 'ses_1111', 'meta.json'), '{}');
     writeFile(path.join(codexHome, 'sessions', '2026-05-23', 'ses_2222', 'meta.json'), '{}');
     writeFile(path.join(codexHome, 'sessions', '2026-05-22', 'ses_3333', 'meta.json'), '{}');
-
     const inventory = listHarnessSessions({
-      copilotHome: path.join(root, '.copilot'),
+      elegyHome: path.join(root, '.elegy'),
       sandboxesHome: path.join(root, 'sandboxes'),
       codexHome,
       opencodeHome: path.join(root, '.config', 'opencode'),
@@ -217,7 +192,6 @@ async function run() {
       geminiHome: path.join(root, '.gemini'),
       sessionAggregation: { buildUnifiedSessions() { return []; } },
     });
-
     const codex = inventory.harnesses.find((harness) => harness.harnessId === 'codex');
     assert.equal(codex.inventoryAvailable, true);
     assert.equal(codex.sessionCount, 3);
@@ -225,16 +199,14 @@ async function run() {
     const ids = codex.sessions.map((session) => session.sessionId).sort();
     assert.deepEqual(ids, ['ses_1111', 'ses_2222', 'ses_3333']);
   });
-
   await test('Codex inventory reports inventory_read_failed when index exists but is unreadable', async () => {
     const root = makeTempDir();
     const codexHome = path.join(root, '.codex');
     fs.mkdirSync(codexHome, { recursive: true });
     writeFile(path.join(codexHome, 'session_index.jsonl'), '');
-
     const fakeDirStat = { isDirectory: () => true };
     const inventory = listHarnessSessions({
-      copilotHome: path.join(root, '.copilot'),
+      elegyHome: path.join(root, '.elegy'),
       sandboxesHome: path.join(root, 'sandboxes'),
       codexHome,
       opencodeHome: path.join(root, '.config', 'opencode'),
@@ -256,17 +228,14 @@ async function run() {
         readdirSync() { return []; },
       },
     });
-
     const codex = inventory.harnesses.find((harness) => harness.harnessId === 'codex');
     assert.equal(codex.inventoryAvailable, false);
     assert.equal(codex.inventoryReason, 'inventory_read_failed');
   });
-
   if (!process.exitCode) {
     console.log(`\ndashboard harness session inventory tests passed (${passed})`);
   }
 }
-
 run().catch((error) => {
   console.error('dashboard harness session inventory tests failed');
   console.error(error);

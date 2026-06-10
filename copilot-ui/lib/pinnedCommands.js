@@ -4,8 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const COPIROT_HOME = path.join(os.homedir(), '.copilot');
-const REPO_STATE_DIR = path.join(COPIROT_HOME, 'repo-state');
+const ELEGY_HOME = path.join(os.homedir(), '.elegy');
+const REPO_STATE_DIR = path.join(ELEGY_HOME, 'repo-state');
 
 function getPinnedFilePath(repoId) {
   const sanitized = repoId.replace(/[<>:"/\\|?*]/g, '_');

@@ -43,7 +43,7 @@ graph TB
     end
 
     subgraph "Install Scripts"
-        CI["cli-install.mjs<br/>(Copilot CLI + VS Code)"]
+        CI["cli-install.mjs<br/>(Copilot CLI)"]
         OI["opencode-install.mjs"]
         CXI["codex-install.mjs"]
         ARI["antigravity-install.mjs"]
@@ -52,7 +52,7 @@ graph TB
     end
 
     subgraph "Harness Home Directories"
-        CH["~/.copilot/<br/>copilot-instructions.md<br/>agents/<br/>skills/<br/>skills-vault/"]
+        CH["~/.elegy/<br/>copilot-instructions.md<br/>agents/<br/>skills/<br/>skills-vault/"]
         OH["~/.config/opencode/<br/>AGENTS.md<br/>agents/<br/>skills/<br/>plugins/"]
         CXH["~/.codex/<br/>AGENTS.md<br/>agents/<br/>skills/"]
         ARH["~/.gemini/<br/>GEMINI.md<br/>antigravity/skills/"]
@@ -121,7 +121,7 @@ instruction-engine repo
   │
   └── install scripts
         │
-        ├── cli-install.mjs       ──→ ~/.copilot/
+        ├── cli-install.mjs       ──→ ~/.elegy/
         ├── opencode-install.mjs  ──→ ~/.config/opencode/
         ├── codex-install.mjs     ──→ ~/.codex/
         ├── antigravity-install.mjs ──→ ~/.gemini/
@@ -141,7 +141,7 @@ The instruction writing contract (Authority, Concise Instruction, Clarification,
 Per-repo files are **discovered by** Elegy Copilot, not created by it. When `--repo-root` is provided to any installer, `repo-setup-profile-bootstrap.mjs` runs the Elegy CLI to patch bounded overlays into repo-local instruction files.
 
 ```text
-~/.copilot/ or ~/.config/opencode/ etc.
+~/.elegy/ or ~/.config/opencode/ etc.
   │
   └── repo-setup-profile-bootstrap.mjs
         │
@@ -161,7 +161,7 @@ Per-repo files are created by the **repo owner** (human or CI), not by the insta
 
 | Dimension | Copilot | OpenCode | Codex | Antigravity | Claude |
 |-----------|---------|----------|-------|-------------|--------|
-| **Home** | `~/.copilot` | `~/.config/opencode` | `~/.codex` | `~/.gemini` | `~/.claude` |
+| **Home** | `~/.elegy` | `~/.config/opencode` | `~/.codex` | `~/.gemini` | `~/.claude` |
 | **Instructions** | `copilot-instructions.md` | `AGENTS.md` | `AGENTS.md` | `GEMINI.md` | `CLAUDE.md` |
 | **Contract** | Embedded in file | Embedded in file | Embedded in file | Embedded in file | Embedded in file |
 | **Agents** | 6 | 7 | 1 | 0 | 0 |

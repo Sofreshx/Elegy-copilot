@@ -1,7 +1,7 @@
 'use strict';
 
 const GLOBAL_HARNESSES = Object.freeze([
-  { id: 'copilot', title: 'Copilot', home: '~/.copilot', skillsHome: '~/.copilot/skills', supportsMcp: false },
+  { id: 'copilot', title: 'Elegy', home: '~/.elegy', skillsHome: '~/.elegy/skills', supportsMcp: false },
   { id: 'codex', title: 'Codex', home: '~/.codex', skillsHome: '~/.codex/skills', supportsMcp: true },
   { id: 'opencode', title: 'OpenCode', home: '~/.config/opencode', skillsHome: '~/.config/opencode/skills', supportsMcp: true },
   { id: 'antigravity', title: 'Antigravity', home: '~/.gemini/antigravity', skillsHome: '~/.gemini/antigravity/skills', supportsMcp: false },

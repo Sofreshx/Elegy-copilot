@@ -66,7 +66,7 @@ Sources:
 
 ### Config Defaults
 
-**User-Level Defaults (`~/.copilot/copilot-instructions.md`):**
+**User-Level Defaults (`~/.elegy/copilot-instructions.md`):**
 ```markdown
 ## Default Workflow
 - Plan first: always start with `/plan` before coding
@@ -95,40 +95,7 @@ Source: https://docs.github.com/en/copilot/how-tos/copilot-cli/add-custom-instru
 
 ---
 
-## Why Copilot CLI Over VS Code Agent Mode
-
-### What CLI Wins At
-
-Copilot CLI is better for:
-- **Terminal-native workflows:** build/test/lint/git/containers
-- **Permissioned execution:** explicit approvals or allowlists for tool execution
-- **Multi-repo work:** start from parent folder, add directories as needed
-- **Plan-driven workflows:** fast iteration with structured planning
-- **Lighter weight:** no full IDE overhead for many tasks
-- **Parallel execution:** fleet mode for independent workstreams
-
-### What VS Code Still Wins At
-
-VS Code agent mode is better for:
-- Rich IDE context (open editors, diagnostics, quick-fix UI)
-- Interactive refactors driven by language server
-- Tight edit/preview loops for UI work
-- Single integrated environment for edit/run/debug
-
-### Quality Is About Workflow, Not Tool
-
-Quality differences come from:
-- The model you select (`/model`)
-- How well your instructions are written
-- Following "explore → plan → code → verify" workflow
-
-Both CLI and VS Code support the same core capabilities: plan mode, code review, task agents, skills injection, and fleet mode.
-
-Sources:
-- CLI vs VS Code comparison: https://docs.github.com/en/copilot/how-tos/copilot-cli/cli-best-practices
-- Model selection: https://docs.github.com/en/copilot/reference/cli-command-reference
-
----
+<!-- VS Code comparison section removed -->
 
 ## Remote Control: Discord + ACP-Based Permissions
 
@@ -295,7 +262,7 @@ Source: https://docs.github.com/en/copilot/concepts/agents/copilot-cli/about-cop
 Only enable when needed for current task:
 
 ```bash
-# Via Skill Installer sidebar (VS Code)
+# Via Skill Installer sidebar
 Operations → MCP Providers → Enable [Provider]
 
 # Store secrets outside repo
@@ -633,7 +600,7 @@ See also: [security-model.md](./security-model.md)
 `.github/agents/*.agent.md`
 
 **User-level agents:**
-`~/.copilot/agents/*.agent.md`
+`~/.elegy/agents/*.agent.md`
 
 **Precedence:** User-level agents override repo-level agents with the same name.
 
@@ -680,27 +647,20 @@ bash (macOS/Linux):
 ./scripts/cli-install.sh --cli --force
 ```
 
-To also set up VS Code discovery + install VS Code-only prompt files:
 ```powershell
 pwsh -File scripts/cli-install.ps1 --all --force
 ```
 
-This installs to `~/.copilot/{agents,skills,skills-vault,copilot-instructions.md}` and (for VS Code) `~/.copilot/prompts`.
-Always-loaded skills are materialized under `~/.copilot/skills/`; shared planning/review/spec skills stay discoverable in `~/.copilot/skills-vault/` unless the target harness has no separate vault path.
-
-Note: VS Code prompt files are VS Code-only; Copilot CLI uses skills + instructions instead.
+This installs to `~/.elegy/{agents,skills,skills-vault,copilot-instructions.md}`.
+Always-loaded skills are materialized under `~/.elegy/skills/`; shared planning/review/spec skills stay discoverable in `~/.elegy/skills-vault/` unless the target harness has no separate vault path.
 
 ### Inspecting effective prompts / context
 
 Built-in Copilot CLI system prompts are not shipped as editable files. The parts you control are:
-- `~/.copilot/agents/*.agent.md`
-- `~/.copilot/skills/*/SKILL.md` for always-installed skills
-- `~/.copilot/skills-vault/*/SKILL.md` for shared planning/review/spec skills and other on-demand skills discovered via `skill-discovery`
+- `~/.elegy/agents/*.agent.md`
+- `~/.elegy/skills/*/SKILL.md` for always-installed skills
+- `~/.elegy/skills-vault/*/SKILL.md` for shared planning/review/spec skills and other on-demand skills discovered via `skill-discovery`
 - instruction files (repo + user-level)
-
-To inspect what VS Code actually sent (system prompt + user message + context + tool calls):
-- Open **Chat Debug View** (`Developer: Show Chat Debug View`)
-- Use **Chat customization diagnostics** (Chat view → right-click → Diagnostics)
 
 ### LSP (Code Intelligence) for Copilot CLI
 
@@ -718,7 +678,7 @@ dotnet tool install -g omnisharp
 # Install rust-analyzer (via rustup / package manager) and ensure `rust-analyzer` is on PATH
 ```
 
-User-level config file: `~/.copilot/lsp-config.json`
+User-level config file: `~/.elegy/lsp-config.json`
 
 Example:
 ```json
@@ -764,7 +724,7 @@ Verify in Copilot CLI:
 1. Install Copilot CLI: `npm install -g @github/copilot`
 2. Authenticate: start `copilot` and run `/login` (or use `copilot login`)
 3. Try plan mode: `copilot` then `/plan Create a simple Express API`
-4. Add user-level instructions: Edit `~/.copilot/copilot-instructions.md`
+4. Add user-level instructions: Edit `~/.elegy/copilot-instructions.md`
 5. Practice approve/deny workflow with shell commands
 6. Experiment with `/diff`, `/review`, `/share`
 
@@ -835,7 +795,7 @@ Optional: configure LSP for richer code intelligence (see below).
 Copilot CLI stores session state locally:
 
 ```
-~/.copilot/session-state/{session-id}/
+~/.elegy/session-state/{session-id}/
 ├── events.jsonl        # All events (prompts, tool calls, results)
 ├── workspace.yaml      # Session config
 ├── plan.md            # Current plan
@@ -849,7 +809,7 @@ This repo includes a small local dashboard for inspecting Copilot CLI state and 
 
 - Preferred runtime: the packaged Elegy Copilot desktop app, which starts the local backend automatically
 - Raw server fallback: `node copilot-ui/server.js` (or `scripts/cli-ui.ps1` / `./scripts/cli-ui.sh`)
-- Observes: `~/.copilot/session-state/` + `~/.copilot/agents/` + `~/.copilot/skills/` + `~/.copilot/skills-vault/` + `~/.copilot` config files
+- Observes: `~/.elegy/session-state/` + `~/.elegy/agents/` + `~/.elegy/skills/` + `~/.elegy/skills-vault/` + `~/.elegy` config files
 - Actions: refresh, sync/update assets, delete/remove assets (**guarded**)
 - Safety: local-only, **no auth** — don’t expose the port beyond localhost
 
@@ -933,7 +893,7 @@ This is custom plumbing, not a first-party feature.
 **Solutions:**
 1. Check agent file exists: `.github/agents/name.agent.md`
 2. Verify YAML frontmatter is correct
-3. Check user-level agents: `~/.copilot/agents/`
+3. Check user-level agents: `~/.elegy/agents/`
 4. Restart CLI to reload agent definitions
 
 ### ACP Connection Issues
@@ -976,7 +936,7 @@ This is custom plumbing, not a first-party feature.
 - **Fleet mode maturity:** `/fleet` is available and evolving; treat as preview and validate behavior after CLI updates
 - **ACP authentication:** Best practices for securing ACP endpoints in production
 - **Multi-session tracking:** Optimal patterns for managing 5+ concurrent sessions
-- **Installer ergonomics:** Improve profile detection/patching for VS Code Profiles (if needed)
+- **Installer ergonomics:** Improve profile detection/patching (if needed)
 - **Discord bot template:** Reference implementation for remote control
 - **Metrics and analytics:** What to track for productivity and safety insights
 
@@ -1044,13 +1004,13 @@ copilot --acp --port 3000
 ### Configuration Files
 
 ```
-~/.copilot/copilot-instructions.md      # User-level instructions
-~/.copilot/agents/*.agent.md            # User-level agents
-~/.copilot/skills/*/SKILL.md            # User-level always-installed skills
-~/.copilot/skills-vault/*/SKILL.md      # User-level vault copies and on-demand-only skills
-~/.copilot/prompts/*.prompt.md          # VS Code-only prompt files (installed globally)
-~/.copilot/lsp-config.json              # Copilot CLI LSP (user-level)
-~/.copilot/session-state/               # Session storage
+~/.elegy/copilot-instructions.md      # User-level instructions
+~/.elegy/agents/*.agent.md            # User-level agents
+~/.elegy/skills/*/SKILL.md            # User-level always-installed skills
+~/.elegy/skills-vault/*/SKILL.md      # User-level vault copies and on-demand-only skills
+~/.elegy/prompts/*.prompt.md          # Prompt files
+~/.elegy/lsp-config.json              # Copilot CLI LSP (user-level)
+~/.elegy/session-state/               # Session storage
 
 .github/copilot-instructions.md         # Repo instructions
 .github/agents/*.agent.md               # Repo agents

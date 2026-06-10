@@ -57,7 +57,7 @@ The system has three skill discovery mechanisms that overlap:
 
 **Questions to resolve:**
 - Should `elegy-skills-discovery` replace `skill-discovery` entirely when the CLI is available?
-- The vault (`~/.copilot/skills-vault/`) has stale duplicates (e.g., `discovery/` is a copy of `skill-discovery/`). Cleanup?
+- The vault (`~/.elegy/skills-vault/`) has stale duplicates (e.g., `discovery/` is a copy of `skill-discovery/`). Cleanup?
 - What happens when the `elegy-skills` CLI binary is not installed?
 
 ### 5. `skill-metadata-index.json` staleness
@@ -78,7 +78,7 @@ Several skills have metadata in SKILL.md frontmatter that is not propagated to t
 
 ### 8. Installed skills cleanup
 
-After removing `stack-detector` and `roadmap-planning` from source, the installer auto-pruned them from `~/.config/opencode/skills/`. But `~/.copilot/skills-vault/` may still have stale copies:
+After removing `stack-detector` and `roadmap-planning` from source, the installer auto-pruned them from `~/.config/opencode/skills/`. But `~/.elegy/skills-vault/` may still have stale copies:
 
 - `stack-detector/` (should be removed)
 - `roadmap-planning/` (should be removed)

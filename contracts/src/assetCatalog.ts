@@ -516,7 +516,7 @@ function choosePrimaryContentEntry(
       reasons.push({
         code: 'vault-preferred-over-pointer',
         layer: 'vault-only',
-        message: 'A vault entry is preferred over a pointer stub in ~/.copilot/skills.',
+        message: 'A vault entry is preferred over a pointer stub in ~/.elegy/skills.',
       });
     }
     return { entry: vaultOnly, reasons };

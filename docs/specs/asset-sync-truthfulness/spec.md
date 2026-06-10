@@ -113,7 +113,7 @@ codex-elegy-planning-skill: source path missing
 
 ### R3 — Per-harness install ledger
 
-New file: `~/.copilot/catalog/install-ledger.json`
+New file: `~/.elegy/catalog/install-ledger.json`
 
 Schema:
 
@@ -180,7 +180,7 @@ Change `CatalogStatusView` to derive the "Installed inventory" panel from the
 *same* `catalogState.summary` snapshot the Global view uses. The `summary`
 already contains the full cross-harness state. Remove the separate
 `getInstalledAssets()` call and the parallel `InstallInventoryState` type. The
-Copilot-only `~/.copilot/skills` path remains only as a fallback detail row
+Copilot-only `~/.elegy/skills` path remains only as a fallback detail row
 ("Copilot: N installed skills").
 
 ### R6 — Regression test
@@ -249,7 +249,7 @@ New users see `expected: false` for every harness until they opt in.
 
 ## Acceptance Checks
 
-- **A1.** With a fresh `~/.copilot` and no opt-in, the global view shows zero
+- **A1.** With a fresh `~/.elegy` and no opt-in, the global view shows zero
   "Expected on <Harness>" warnings. (`expected-and-missing` banner count = 0)
   → verify: `screen.queryByTestId('catalog-global-warning-*')` returns null
 - **A2.** Opting into Codex via the Status view's "Active" toggle triggers a sync;
@@ -277,8 +277,7 @@ New users see `expected: false` for every harness until they opt in.
 
 - Plan (pre-spec): `docs/issues/planning-ideas-log.md` — search for
   "asset sync truthfulness"
-- This spec: `specs/asset-sync-truthfulness/spec.md`
-- Fixtures: `specs/asset-sync-truthfulness/fixtures/`
+- This spec: `docs/specs/asset-sync-truthfulness/spec.md`
 
 ## Validation Evidence
 

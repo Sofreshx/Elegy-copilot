@@ -5,8 +5,7 @@ pub struct RuntimeConfig {
     pub engine_root: PathBuf,
     pub host: String,
     pub port: u16,
-    pub copilot_home: PathBuf,
-    pub vscode_home: PathBuf,
+    pub elegy_home: PathBuf,
     pub sandboxes_home: PathBuf,
 }
 
@@ -15,17 +14,15 @@ impl RuntimeConfig {
         engine_root_override: Option<PathBuf>,
         host_override: Option<String>,
         port_override: Option<u16>,
-        copilot_home_override: Option<PathBuf>,
-        vscode_home_override: Option<PathBuf>,
+        elegy_home_override: Option<PathBuf>,
         sandboxes_home_override: Option<PathBuf>,
     ) -> Self {
         let env = std::env::vars().collect::<std::collections::HashMap<_, _>>();
         let home_dir = resolve_home_dir(&env);
 
         let engine_root = engine_root_override.unwrap_or_else(default_engine_root);
-        let copilot_home =
-            copilot_home_override.unwrap_or_else(|| resolve_copilot_home(&env, &home_dir));
-        let vscode_home = vscode_home_override.unwrap_or_else(|| resolve_vscode_home(&home_dir));
+        let elegy_home =
+            elegy_home_override.unwrap_or_else(|| resolve_elegy_home(&env, &home_dir));
         let sandboxes_home =
             sandboxes_home_override.unwrap_or_else(|| resolve_sandboxes_home(&home_dir));
 
@@ -33,8 +30,7 @@ impl RuntimeConfig {
             engine_root,
             host: host_override.unwrap_or_else(|| "127.0.0.1".to_string()),
             port: port_override.unwrap_or(3211),
-            copilot_home,
-            vscode_home,
+            elegy_home,
             sandboxes_home,
         }
     }
@@ -61,7 +57,7 @@ fn resolve_home_dir(env: &std::collections::HashMap<String, String>) -> PathBuf 
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
 }
 
-fn resolve_copilot_home(
+fn resolve_elegy_home(
     env: &std::collections::HashMap<String, String>,
     home_dir: &Path,
 ) -> PathBuf {
@@ -71,13 +67,9 @@ fn resolve_copilot_home(
     {
         return PathBuf::from(xdg);
     }
-    home_dir.join(".copilot")
-}
-
-fn resolve_vscode_home(home_dir: &Path) -> PathBuf {
-    home_dir.join(".copilot")
+    home_dir.join(".elegy")
 }
 
 fn resolve_sandboxes_home(home_dir: &Path) -> PathBuf {
-    home_dir.join(".copilot").join("sandboxes")
+    home_dir.join(".elegy").join("sandboxes")
 }

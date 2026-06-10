@@ -9,11 +9,12 @@ import { getUserHome } from './install-surface-utils.mjs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const CLI_PATH = path.join(getUserHome(), '.copilot', 'managed-cli', 'planning', 'elegy-planning.exe');
+const exeSuffix = process.platform === 'win32' ? '.exe' : '';
+const CLI_PATH = path.join(getUserHome(), '.elegy', 'managed-cli', 'planning', `elegy-planning${exeSuffix}`);
 
 function usage() {
   console.log(`Usage: node scripts/elegy-planning-create.mjs [options]
-  --db <path>         Path to elegy-planning DB (default: ~/.copilot/elegy-planning.db)
+  --db <path>         Path to elegy-planning DB (default: ~/.elegy/elegy-planning.db)
   --type <type>       Entity type: goal | roadmap (required)
   --id <id>           Entity ID (auto-generated if omitted)
   --title <title>     Entity title (required)
@@ -144,7 +145,7 @@ function main() {
   }
 
   // Set defaults
-  const db = args.db || path.join(getUserHome(), '.copilot', 'elegy-planning.db');
+  const db = args.db || path.join(getUserHome(), '.elegy', 'elegy-planning.db');
   const id = args.id || generateId(args.type, args.title);
   const status = args.status || 'draft';
 

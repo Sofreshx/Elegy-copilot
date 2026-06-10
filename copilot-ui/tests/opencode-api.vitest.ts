@@ -2,21 +2,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-
 const { register } = await vi.importActual<{ register: Function }>('../routes/opencode');
-
 afterEach(() => {
   vi.restoreAllMocks();
 });
-
 function createMockSendJson() {
   return vi.fn();
 }
-
 function createMockCtx(overrides: Record<string, unknown> = {}) {
   return {
     opencodeHome: '/tmp/.config/opencode',
-    copilotHomeAbs: '/tmp/.config/elegy-copilot',
+    elegyHomeAbs: '/tmp/.config/elegy-copilot',
     engineRoot: '/tmp/instruction-engine',
     env: { HOME: '/tmp' },
     req: { method: 'GET' },
@@ -25,7 +21,6 @@ function createMockCtx(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-
 function createMockOpenCodeConfig(statusOverrides: Record<string, unknown> = {}) {
   return {
     resolveOpenCodeHome: (home: string) => home || '/tmp/.config/opencode',
@@ -95,18 +90,15 @@ function createMockOpenCodeConfig(statusOverrides: Record<string, unknown> = {})
     })),
   };
 }
-
 function createMockAssets(assetList: Array<Record<string, unknown>> = []) {
   return {
     getManagedAssetStatuses: () => assetList,
     syncAll: vi.fn().mockReturnValue({ synced: true, assetCount: assetList.length }),
   };
 }
-
 function createReadJsonBody(body: Record<string, unknown> = {}) {
   return async () => body;
 }
-
 describe('opencode route - register', () => {
   it('registers GET /api/opencode/status handler', () => {
     const routes = register({});
@@ -116,7 +108,6 @@ describe('opencode route - register', () => {
     expect(statusRoute).toBeDefined();
     expect(typeof statusRoute!.handler).toBe('function');
   });
-
   it('registers POST /api/opencode/config handler', () => {
     const routes = register({});
     const configRoute = routes.find(
@@ -124,7 +115,6 @@ describe('opencode route - register', () => {
     );
     expect(configRoute).toBeDefined();
   });
-
   it('registers POST /api/opencode/config/reset handler', () => {
     const routes = register({});
     const resetRoute = routes.find(
@@ -132,7 +122,6 @@ describe('opencode route - register', () => {
     );
     expect(resetRoute).toBeDefined();
   });
-
   it('registers POST /api/opencode/assets/install handler', () => {
     const routes = register({});
     const installRoute = routes.find(
@@ -140,10 +129,8 @@ describe('opencode route - register', () => {
     );
     expect(installRoute).toBeDefined();
   });
-
   it('reports ready when all dependencies are satisfied', async () => {
     const sendJson = createMockSendJson();
-
     const opencodeConfig = createMockOpenCodeConfig();
     const assets = createMockAssets([
       { id: 'elegy-planning', upToDate: true, installed: true, source: 'github:src/Elegy-planning/skills/elegy-planning', destination: 'skills/elegy-planning' },
@@ -151,14 +138,13 @@ describe('opencode route - register', () => {
       { id: 'opencode-worktree-plugin', upToDate: true, installed: true, source: 's', destination: 'd' },
       { id: 'opencode-global-instructions', upToDate: true, installed: true, source: 's', destination: 'd' },
     ]);
-
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-opencode-ready-'));
-    const copilotHome = path.join(tmpRoot, '.copilot');
+    const elegyHome = path.join(tmpRoot, '.elegy');
     const opencodeHome = path.join(tmpRoot, '.opencode');
-    const sourceRepoRoot = path.join(copilotHome, 'managed-cli', 'planning', 'source', 'Elegy');
-    fs.mkdirSync(path.join(copilotHome, 'managed-cli', 'planning'), { recursive: true });
+    const sourceRepoRoot = path.join(elegyHome, 'managed-cli', 'planning', 'source', 'Elegy');
+    fs.mkdirSync(path.join(elegyHome, 'managed-cli', 'planning'), { recursive: true });
     fs.mkdirSync(opencodeHome, { recursive: true });
-    fs.writeFileSync(path.join(copilotHome, 'managed-cli', 'planning', 'elegy-planning.install.json'), JSON.stringify({
+    fs.writeFileSync(path.join(elegyHome, 'managed-cli', 'planning', 'elegy-planning.install.json'), JSON.stringify({
       source: 'github-source',
       sourceRepoRoot,
       sourceGitHead: '1.0.0',
@@ -175,9 +161,7 @@ describe('opencode route - register', () => {
         { id: 'elegy-obsidian', destination: 'skills/elegy-obsidian' },
       ],
     }), 'utf8');
-
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-
     const toolCliInstallers = {
       getCliToolStatus: () => ({
         id: 'opencode-cli',
@@ -192,7 +176,6 @@ describe('opencode route - register', () => {
       installCliTool: () => ({ ok: true, toolId: 'opencode-cli', version: '1.0.0', error: null }),
     };
     opencodeConfig.ensureWorktreePermissions = () => ({ patched: true, rulesAdded: 4 });
-
     const mockBridge = { getStatus: () => ({ ready: true }) };
     const routes = register({
       sendJson,
@@ -205,10 +188,8 @@ describe('opencode route - register', () => {
     const statusRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'GET' && r.path === '/api/opencode/status',
     );
-
-    const ctx = createMockCtx({ copilotHomeAbs: copilotHome, opencodeHome });
+    const ctx = createMockCtx({ elegyHomeAbs: elegyHome, opencodeHome });
     await statusRoute.handler(ctx);
-
     const statusCode = sendJson.mock.calls[0][1];
     const body = sendJson.mock.calls[0][2];
     expect(statusCode).toBe(200);
@@ -222,14 +203,11 @@ describe('opencode route - register', () => {
     expect(Array.isArray(body.lanes)).toBe(true);
     expect(Array.isArray(body.profiles)).toBe(true);
   });
-
   it('reports degraded when setup checks have warnings', async () => {
     const sendJson = createMockSendJson();
     const assets = createMockAssets([]);
     const opencodeConfig = createMockOpenCodeConfig();
-
     vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-
     const routes = register({
       sendJson,
       assets,
@@ -239,10 +217,8 @@ describe('opencode route - register', () => {
     const statusRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'GET' && r.path === '/api/opencode/status',
     );
-
     const ctx = createMockCtx();
     await statusRoute.handler(ctx);
-
     const statusCode = sendJson.mock.calls[0][1];
     const body = sendJson.mock.calls[0][2];
     expect(statusCode).toBe(200);
@@ -253,17 +229,14 @@ describe('opencode route - register', () => {
     expect(body.overallStatus).toBe('degraded');
     expect(body.warnings.length).toBeGreaterThan(0);
   });
-
   it('returns all four lane definitions', async () => {
     const sendJson = createMockSendJson();
     const routes = register({ sendJson, assets: createMockAssets(), opencodeConfig: createMockOpenCodeConfig(), childProcess: { spawnSync: () => ({ stdout: '1.0.0', stderr: '' }) } });
     const statusRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'GET' && r.path === '/api/opencode/status',
     );
-
     const ctx = createMockCtx();
     await statusRoute.handler(ctx);
-
     const body = sendJson.mock.calls[0][2] as { lanes: Array<{ id: string }> };
     const laneIds = body.lanes.map((l) => l.id);
     expect(laneIds).toContain('quick');
@@ -271,26 +244,21 @@ describe('opencode route - register', () => {
     expect(laneIds).toContain('spec');
     expect(laneIds).toContain('project');
   });
-
   it('returns profiles with opencode-go and deepseek-direct', async () => {
     const sendJson = createMockSendJson();
     const routes = register({ sendJson, assets: createMockAssets(), opencodeConfig: createMockOpenCodeConfig(), childProcess: { spawnSync: () => ({ stdout: '1.0.0', stderr: '' }) } });
     const statusRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'GET' && r.path === '/api/opencode/status',
     );
-
     const ctx = createMockCtx();
     await statusRoute.handler(ctx);
-
     const body = sendJson.mock.calls[0][2] as { profiles: Array<{ id: string }> };
     const profileIds = body.profiles.map((p) => p.id);
     expect(profileIds).toContain('opencode-go');
     expect(profileIds).toContain('deepseek-direct');
   });
-
   it('handles errors gracefully', async () => {
     const sendJson = createMockSendJson();
-
     const routes = register({
       sendJson,
       assets: createMockAssets(),
@@ -302,16 +270,13 @@ describe('opencode route - register', () => {
     const statusRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'GET' && r.path === '/api/opencode/status',
     );
-
     const ctx = createMockCtx();
     await statusRoute.handler(ctx);
-
     expect(sendJson).toHaveBeenCalled();
     const [, errorCode, errorBody] = sendJson.mock.calls[0];
     expect(errorCode).toBe(500);
     expect(errorBody.error).toContain('config error');
   });
-
   it('POST /api/opencode/config persists model selection', async () => {
     const sendJson = createMockSendJson();
     const opencodeConfig = createMockOpenCodeConfig();
@@ -324,10 +289,8 @@ describe('opencode route - register', () => {
     const configRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/config',
     );
-
     const ctx = createMockCtx();
     await configRoute.handler(ctx);
-
     expect(opencodeConfig.setAgentModels).toHaveBeenCalledWith(
       ctx.opencodeHome,
       'DeepSeek V4 Flash Max',
@@ -336,7 +299,6 @@ describe('opencode route - register', () => {
     );
     expect(sendJson).toHaveBeenCalledWith(ctx.res, 200, expect.objectContaining({ ok: true }));
   });
-
   it('POST /api/opencode/config writes profileRoute to state when provided', async () => {
     const sendJson = createMockSendJson();
     const opencodeConfig = createMockOpenCodeConfig();
@@ -355,16 +317,13 @@ describe('opencode route - register', () => {
     const configRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/config',
     );
-
     const ctx = createMockCtx();
     await configRoute.handler(ctx);
-
     expect(opencodeConfig.setActiveProfileId).toHaveBeenCalledWith(
       ctx.opencodeHome,
       'deepseek-direct',
     );
   });
-
   it('POST /api/opencode/config/reset calls resetConfig and returns status', async () => {
     const sendJson = createMockSendJson();
     const opencodeConfig = createMockOpenCodeConfig();
@@ -377,14 +336,11 @@ describe('opencode route - register', () => {
     const resetRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/config/reset',
     );
-
     const ctx = createMockCtx();
     await resetRoute.handler(ctx);
-
     expect(opencodeConfig.resetConfig).toHaveBeenCalledWith(ctx.opencodeHome);
     expect(sendJson).toHaveBeenCalledWith(ctx.res, 200, expect.objectContaining({ ok: true }));
   });
-
   it('POST /api/opencode/assets/install returns 400 when engineRoot missing', async () => {
     const sendJson = createMockSendJson();
     const assets = createMockAssets();
@@ -397,14 +353,11 @@ describe('opencode route - register', () => {
     const installRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/assets/install',
     );
-
     const ctx = createMockCtx({ engineRoot: '' });
     await installRoute.handler(ctx);
-
     expect(sendJson).toHaveBeenCalledWith(ctx.res, 400, expect.objectContaining({ ok: false }));
     expect(assets.syncAll).not.toHaveBeenCalled();
   });
-
   it('POST /api/opencode/assets/install forwards force flag to assets.syncAll', async () => {
     const sendJson = createMockSendJson();
     const assets = createMockAssets();
@@ -417,17 +370,14 @@ describe('opencode route - register', () => {
     const installRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/assets/install',
     );
-
     const ctx = createMockCtx();
     await installRoute.handler(ctx);
-
     expect(assets.syncAll).toHaveBeenCalledWith(
       ctx.engineRoot,
       ctx.opencodeHome,
       expect.objectContaining({ force: true, dryRun: false, pointerMode: true }),
     );
   });
-
   it('POST /api/opencode/tooling/install returns 400 for unknown kind', async () => {
     const sendJson = createMockSendJson();
     const assets = createMockAssets();
@@ -440,18 +390,15 @@ describe('opencode route - register', () => {
     const installRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/tooling/install',
     );
-
     const ctx = createMockCtx();
     await installRoute.handler(ctx);
-
     expect(sendJson).toHaveBeenCalledWith(
       ctx.res,
       400,
       expect.objectContaining({ ok: false, error: expect.stringContaining('Unknown tooling install kind') }),
     );
   });
-
-  it('POST /api/opencode/tooling/install returns 400 when copilotHome missing', async () => {
+  it('POST /api/opencode/tooling/install returns 400 when elegyHome missing', async () => {
     const sendJson = createMockSendJson();
     const routes = register({
       sendJson,
@@ -462,17 +409,14 @@ describe('opencode route - register', () => {
     const installRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/tooling/install',
     );
-
-    const ctx = createMockCtx({ copilotHomeAbs: '' });
+    const ctx = createMockCtx({ elegyHomeAbs: '' });
     await installRoute.handler(ctx);
-
     expect(sendJson).toHaveBeenCalledWith(ctx.res, 400, expect.objectContaining({ ok: false }));
   });
-
   it('POST /api/opencode/tooling/install with elegy-skills installs from managed GitHub source', async () => {
     const sendJson = createMockSendJson();
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-opencode-github-skills-'));
-    const copilotHome = path.join(tmpRoot, '.copilot');
+    const elegyHome = path.join(tmpRoot, '.elegy');
     const opencodeHome = path.join(tmpRoot, '.opencode');
     const assets = createMockAssets();
     const routes = register({
@@ -506,10 +450,8 @@ describe('opencode route - register', () => {
     const installRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/tooling/install',
     );
-
-    const ctx = createMockCtx({ copilotHomeAbs: copilotHome, opencodeHome });
+    const ctx = createMockCtx({ elegyHomeAbs: elegyHome, opencodeHome });
     await installRoute.handler(ctx);
-
     expect(assets.syncAll).not.toHaveBeenCalled();
     expect(sendJson).toHaveBeenCalledWith(
       ctx.res,
@@ -528,17 +470,14 @@ describe('opencode route - register', () => {
       }),
     );
   });
-
   it('GET /api/opencode/status returns profiles with roleModels field', async () => {
     const sendJson = createMockSendJson();
     const routes = register({ sendJson, assets: createMockAssets(), opencodeConfig: createMockOpenCodeConfig(), childProcess: { spawnSync: () => ({ stdout: '1.0.0', stderr: '' }) } });
     const statusRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'GET' && r.path === '/api/opencode/status',
     );
-
     const ctx = createMockCtx();
     await statusRoute.handler(ctx);
-
     const body = sendJson.mock.calls[0][2] as { profiles: Array<Record<string, unknown>> };
     expect(Array.isArray(body.profiles)).toBe(true);
     for (const profile of body.profiles) {
@@ -548,7 +487,6 @@ describe('opencode route - register', () => {
       expect(Array.isArray(profile.tags)).toBe(true);
     }
   });
-
   it('POST /api/opencode/config accepts { profileId } payload', async () => {
     const sendJson = createMockSendJson();
     const opencodeConfig = createMockOpenCodeConfig();
@@ -567,17 +505,14 @@ describe('opencode route - register', () => {
     const configRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/config',
     );
-
     const ctx = createMockCtx();
     await configRoute.handler(ctx);
-
     expect(opencodeConfig.setActiveProfileId).toHaveBeenCalledWith(
       ctx.opencodeHome,
       'deepseek-direct',
     );
     expect(sendJson).toHaveBeenCalledWith(ctx.res, 200, expect.objectContaining({ ok: true }));
   });
-
   it('POST /api/opencode/config accepts { roleModels } payload', async () => {
     const sendJson = createMockSendJson();
     const opencodeConfig = createMockOpenCodeConfig();
@@ -591,17 +526,14 @@ describe('opencode route - register', () => {
     const configRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/config',
     );
-
     const ctx = createMockCtx();
     await configRoute.handler(ctx);
-
     expect(opencodeConfig.setAgentRoleModels).toHaveBeenCalledWith(
       ctx.opencodeHome,
       roleModels,
     );
     expect(sendJson).toHaveBeenCalledWith(ctx.res, 200, expect.objectContaining({ ok: true }));
   });
-
   it('POST /api/opencode/config still accepts legacy { smallModel, bigModel } payload', async () => {
     const sendJson = createMockSendJson();
     const opencodeConfig = createMockOpenCodeConfig();
@@ -614,10 +546,8 @@ describe('opencode route - register', () => {
     const configRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/config',
     );
-
     const ctx = createMockCtx();
     await configRoute.handler(ctx);
-
     expect(opencodeConfig.setAgentModels).toHaveBeenCalledWith(
       ctx.opencodeHome,
       'flash',
@@ -626,7 +556,6 @@ describe('opencode route - register', () => {
     );
     expect(sendJson).toHaveBeenCalledWith(ctx.res, 200, expect.objectContaining({ ok: true }));
   });
-
   it('POST /api/opencode/config rejects unknown profileId', async () => {
     const sendJson = createMockSendJson();
     const opencodeConfig = createMockOpenCodeConfig();
@@ -640,10 +569,8 @@ describe('opencode route - register', () => {
     const configRoute = routes.find(
       (r: { method: string; path: string }) => r.method === 'POST' && r.path === '/api/opencode/config',
     );
-
     const ctx = createMockCtx();
     await configRoute.handler(ctx);
-
     expect(sendJson).toHaveBeenCalledWith(
       ctx.res,
       400,

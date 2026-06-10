@@ -146,7 +146,7 @@ describe('opencode go workspaces routes', () => {
     expect(route).toBeDefined();
     const ctx = {
       opencodeHome,
-      copilotHomeAbs: '',
+      elegyHomeAbs: '',
       engineRoot: '',
       env: envWithKey,
       req: { method: 'GET' },
@@ -185,7 +185,7 @@ describe('opencode go workspaces routes', () => {
     const route = findRoute(routes, 'GET', (s) => s === '/^\\/api\\/opencode\\/go-workspaces\\/?$/');
     const ctx = {
       opencodeHome,
-      copilotHomeAbs: '',
+      elegyHomeAbs: '',
       engineRoot: '',
       env: { XDG_DATA_HOME: xdgData },
       req: { method: 'GET' },
@@ -223,7 +223,7 @@ describe('opencode go workspaces routes', () => {
     const route = findRoute(routes, 'POST', (s) => s === '/^\\/api\\/opencode\\/go-workspaces\\/?$/');
     const ctx = {
       opencodeHome,
-      copilotHomeAbs: '',
+      elegyHomeAbs: '',
       engineRoot: '',
       env: { XDG_DATA_HOME: xdgData },
       req: { method: 'POST' },
@@ -261,7 +261,7 @@ describe('opencode go workspaces routes', () => {
     const route = findRoute(routes, 'POST', (s) => s === '/^\\/api\\/opencode\\/go-workspaces\\/?$/');
     const ctx = {
       opencodeHome,
-      copilotHomeAbs: '',
+      elegyHomeAbs: '',
       engineRoot: '',
       env: { XDG_DATA_HOME: xdgData },
       req: { method: 'POST' },
@@ -292,7 +292,7 @@ describe('opencode go workspaces routes', () => {
     const route = findRoute(routes, 'POST', (s) => s.includes('activate'));
     const ctx = {
       opencodeHome,
-      copilotHomeAbs: '',
+      elegyHomeAbs: '',
       engineRoot: '',
       env: { XDG_DATA_HOME: xdgData },
       req: { method: 'POST' },
@@ -334,7 +334,7 @@ describe('opencode go workspaces routes', () => {
     const route = findRoute(routes, 'POST', (s) => s.includes('validate'));
     const ctx = {
       opencodeHome,
-      copilotHomeAbs: '',
+      elegyHomeAbs: '',
       engineRoot: '',
       env: { XDG_DATA_HOME: xdgData },
       req: { method: 'POST' },
@@ -365,7 +365,7 @@ describe('opencode go workspaces routes', () => {
     const route = findRoute(routes, 'DELETE', (s) => s.includes('go-workspaces'));
     const ctx = {
       opencodeHome,
-      copilotHomeAbs: '',
+      elegyHomeAbs: '',
       engineRoot: '',
       env: { XDG_DATA_HOME: xdgData },
       req: { method: 'DELETE' },
@@ -398,7 +398,7 @@ describe('opencode go workspaces routes', () => {
     const route = findRoute(routes, 'POST', (s) => s.includes('create-flow'));
     const ctx = {
       opencodeHome,
-      copilotHomeAbs: '',
+      elegyHomeAbs: '',
       engineRoot: '',
       env: { XDG_DATA_HOME: xdgData },
       req: { method: 'POST' },

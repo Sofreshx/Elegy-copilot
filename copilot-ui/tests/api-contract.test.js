@@ -1,17 +1,13 @@
 'use strict';
-
 const assert = require('assert');
 const fs = require('fs');
 const http = require('http');
 const os = require('os');
 const path = require('path');
 const { startServer } = require('../server');
-
 const SNAPSHOT_PATH = path.join(__dirname, 'api-contract.snapshot.json');
-
 let passed = 0;
 let failed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -24,7 +20,6 @@ async function test(name, fn) {
     process.exitCode = 1;
   }
 }
-
 function httpRequest(baseUrl, method, routePath) {
   return new Promise((resolve, reject) => {
     const url = new URL(routePath, baseUrl);
@@ -37,15 +32,12 @@ function httpRequest(baseUrl, method, routePath) {
       headers: {},
       timeout: 30000,
     };
-
     if (expectsJsonBody) {
       options.headers['Content-Type'] = 'application/json; charset=utf-8';
     }
-
     const req = http.request(options, (res) => {
       const chunks = [];
       let settled = false;
-
       const finish = () => {
         if (settled) {
           return;
@@ -61,7 +53,6 @@ function httpRequest(baseUrl, method, routePath) {
         } catch {
           bodyType = raw.length === 0 ? 'empty' : 'non-json';
         }
-
         const contentType = res.headers['content-type'] || null;
         resolve({
           status: res.statusCode,
@@ -70,7 +61,6 @@ function httpRequest(baseUrl, method, routePath) {
           bodyKeys,
         });
       };
-
       res.on('data', (chunk) => {
         chunks.push(chunk);
         const contentType = String(res.headers['content-type'] || '').split(';')[0].trim();
@@ -81,7 +71,6 @@ function httpRequest(baseUrl, method, routePath) {
       });
       res.on('end', finish);
     });
-
     req.on('error', (err) => {
       resolve({
         status: null,
@@ -91,7 +80,6 @@ function httpRequest(baseUrl, method, routePath) {
         error: err.message,
       });
     });
-
     req.on('timeout', () => {
       req.destroy();
       resolve({
@@ -102,46 +90,37 @@ function httpRequest(baseUrl, method, routePath) {
         error: 'request timed out',
       });
     });
-
     if (expectsJsonBody) {
       req.write(JSON.stringify({}));
     }
     req.end();
   });
 }
-
 function routeDescriptorMatchesSample(route, sample) {
   if (!route || !sample || route.method !== sample.method) {
     return false;
   }
-
   if (typeof route.path === 'string') {
     return route.path === sample.path;
   }
-
   if (route.path instanceof RegExp) {
     return route.path.test(sample.path);
   }
-
   return false;
 }
-
 function describeRouteDescriptor(route) {
   return `${route.method} ${typeof route.path === 'string' ? route.path : String(route.path)}`;
 }
-
 function isRetiredRepoFilePlanningRoute(sample) {
   const key = `${sample.method} ${sample.path}`;
   return [
   ].includes(key);
 }
-
 function isRetiredStandaloneWorkflowRoute(sample) {
   const key = `${sample.method} ${sample.path}`;
   return [
   ].includes(key);
 }
-
 // Route inventory snapshot for public backend endpoints.
 const ROUTE_INVENTORY = [
   // Lifecycle/Misc (5)
@@ -150,7 +129,6 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/version' },
   { method: 'GET', path: '/api/lsp/config' },
   { method: 'POST', path: '/api/lsp/install' },
-
   // Planning (51)
   { method: 'GET', path: '/api/planning/task-board' },
   { method: 'GET', path: '/api/planning/live/roadmaps' },
@@ -186,7 +164,6 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/planning/obsidian/representations/status' },
   { method: 'GET', path: '/api/planning/obsidian/representations' },
   { method: 'POST', path: '/api/planning/obsidian/representations/refresh' },
-
   // Sessions (18: 4 exact + 14 regex)
   { method: 'GET', path: '/api/sessions/workspace' },
   { method: 'GET', path: '/api/sessions/unified' },
@@ -206,7 +183,6 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/sessions/test-session-id/roadmap-sync' },
   { method: 'POST', path: '/api/sessions/test-session-id/archive' },
   { method: 'POST', path: '/api/sessions/test-session-id/delete' },
-
   // Assets + Skills (9)
   { method: 'GET', path: '/api/assets/managed' },
   { method: 'GET', path: '/api/assets/installed' },
@@ -217,7 +193,6 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/assets/remove' },
   { method: 'GET', path: '/api/assets/view' },
   { method: 'POST', path: '/api/assets/delete' },
-
   // Catalog/Search/Audit/Runtime (33)
   { method: 'GET', path: '/api/dashboard/harness-sessions' },
   { method: 'GET', path: '/api/catalog/repos' },
@@ -256,17 +231,14 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/audit/assets' },
   { method: 'GET', path: '/api/audit/events' },
   { method: 'GET', path: '/api/runtime/catalog-health' },
-
   // Gateway (5)
   { method: 'GET', path: '/api/gateway/state' },
   { method: 'POST', path: '/api/gateway/connect' },
   { method: 'GET', path: '/api/gateway/config' },
   { method: 'POST', path: '/api/gateway/config' },
   { method: 'GET', path: '/api/gateway/scan-repos' },
-
   // Sandbox lifecycle (1)
   { method: 'POST', path: '/api/sandboxes/lifecycle/start' },
-
   // UI Runtime Overlay (8)
   { method: 'GET', path: '/api/ui-runtime-overlay/sessions' },
   { method: 'POST', path: '/api/ui-runtime-overlay/sessions' },
@@ -276,7 +248,6 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/change-requests' },
   { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/release' },
   { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/executor-job' },
-
   // Desktop + Dashboard + Config (13)
   { method: 'GET', path: '/api/desktop-updater' },
   { method: 'POST', path: '/api/desktop-updater/check' },
@@ -291,23 +262,19 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/tooling-updates/check' },
   { method: 'POST', path: '/api/tooling-updates/update/elegy-planning' },
   { method: 'POST', path: '/api/tooling-updates/update/elegy-skills' },
-
   // OpenCode (5)
   { method: 'GET', path: '/api/opencode/status' },
   { method: 'POST', path: '/api/opencode/config' },
   { method: 'POST', path: '/api/opencode/config/reset' },
   { method: 'POST', path: '/api/opencode/assets/install' },
   { method: 'POST', path: '/api/opencode/tooling/install' },
-
   // Executor (5)
   { method: 'GET', path: '/api/executor/health' },
   { method: 'GET', path: '/api/executor/jobs' },
   { method: 'GET', path: '/api/executor/worktrees' },
   { method: 'GET', path: '/api/executor/runs' },
   { method: 'GET', path: '/api/executor/runs/test-run-id' },
-
   // Workflows (16)
-
   // Git (6)
   { method: 'GET', path: '/api/git/status' },
   { method: 'GET', path: '/api/git/diff' },
@@ -323,7 +290,6 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/git/push' },
   { method: 'POST', path: '/api/git/pull-request' },
 ];
-
 async function run() {
   console.log(`\nAPI Contract Tests — ${ROUTE_INVENTORY.length} routes\n`);
   const allowSnapshotUpdate = process.env.UPDATE_API_SNAPSHOT === '1';
@@ -331,38 +297,28 @@ async function run() {
     COPILOT_SDK_BRIDGE: '0',
     NODE_ENV: 'test',
   };
-
   // Setup temp directories
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-api-contract-'));
-  const copilotHome = path.join(tmpRoot, '.copilot');
-  const vscodeHome = path.join(tmpRoot, '.copilot-vscode');
-  const sandboxesHome = path.join(tmpRoot, '.copilot', 'sandboxes');
-  fs.mkdirSync(copilotHome, { recursive: true });
-  fs.mkdirSync(vscodeHome, { recursive: true });
-  fs.mkdirSync(sandboxesHome, { recursive: true });
-
+  const elegyHome = path.join(tmpRoot, '.elegy');
+  const sandboxesHome = path.join(tmpRoot, '.elegy', 'sandboxes');
+  fs.mkdirSync(elegyHome, { recursive: true });  fs.mkdirSync(sandboxesHome, { recursive: true });
   let runningServer = null;
   try {
     runningServer = await startServer({
       host: '127.0.0.1',
       port: 0,
-      copilotHome,
-      vscodeHome,
-      sandboxesHome,
+      elegyHome,      sandboxesHome,
       quiet: true,
       env: testEnv,
     });
     const baseUrl = `http://127.0.0.1:${runningServer.port}`;
-
     // Verify server is up
     const healthCheck = await httpRequest(baseUrl, 'GET', '/api/health');
     assert.strictEqual(healthCheck.status, 200, `Health check failed with status ${healthCheck.status}`);
     console.log('  Server started successfully\n');
-
     const registeredRoutes = runningServer && runningServer.routeRegistry && Array.isArray(runningServer.routeRegistry._routes)
       ? runningServer.routeRegistry._routes
       : [];
-
     await test('route inventory matches registered route count after excluding retired planning and workflow handlers', async () => {
       const activeInventoryCount = ROUTE_INVENTORY.filter((sample) => (
         !isRetiredRepoFilePlanningRoute(sample)
@@ -374,7 +330,6 @@ async function run() {
         `Active inventory count ${activeInventoryCount} does not match registered route count ${registeredRoutes.length}`
       );
     });
-
      await test('every registered route has an inventory sample', async () => {
        const uncoveredRoutes = registeredRoutes
          .filter((route) => !ROUTE_INVENTORY.some((sample) => routeDescriptorMatchesSample(route, sample)))
@@ -385,24 +340,19 @@ async function run() {
          `Registered routes missing inventory coverage: ${uncoveredRoutes.join(', ')}`
        );
      });
-
      // Capture contract shapes for all routes
      const currentSnapshot = {};
-
     for (const route of ROUTE_INVENTORY) {
       const key = `${route.method} ${route.path}`;
       const shape = await httpRequest(baseUrl, route.method, route.path);
       currentSnapshot[key] = shape;
     }
-
     // Load or create snapshot
     const snapshotExists = fs.existsSync(SNAPSHOT_PATH);
-
     if (!snapshotExists) {
       // First run — write the baseline snapshot
       fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify(currentSnapshot, null, 2) + '\n');
       console.log(`  Baseline snapshot written to tests/api-contract.snapshot.json\n`);
-
       // Validate we got a response for every route (dispatch works)
       for (const route of ROUTE_INVENTORY) {
         const key = `${route.method} ${route.path}`;
@@ -420,7 +370,6 @@ async function run() {
     } else {
       // Subsequent run — compare against baseline
       const baseline = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, 'utf8'));
-
       if (allowSnapshotUpdate) {
         fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify(currentSnapshot, null, 2) + '\n');
         console.log('\n  Snapshot refreshed from current route inventory.');
@@ -436,40 +385,33 @@ async function run() {
             `Routes removed from inventory: ${removed.join(', ')}`
           );
         });
-
         // Check each route's contract shape matches
         for (const route of ROUTE_INVENTORY) {
           const key = `${route.method} ${route.path}`;
           await test(`${key} — contract shape matches baseline`, async () => {
             const baselineShape = baseline[key];
             const currentShape = currentSnapshot[key];
-
             if (!baselineShape) {
               assert.fail(
                 `New route missing from baseline snapshot: ${key}. Re-run with UPDATE_API_SNAPSHOT=1 after review to update the snapshot.`
               );
             }
-
             assert.ok(currentShape, `No response captured for ${key}`);
-
             assert.strictEqual(
               currentShape.status,
               baselineShape.status,
               `Status changed: expected ${baselineShape.status}, got ${currentShape.status}`
             );
-
             assert.strictEqual(
               currentShape.contentType,
               baselineShape.contentType,
               `Content-Type changed: expected ${baselineShape.contentType}, got ${currentShape.contentType}`
             );
-
             assert.strictEqual(
               currentShape.bodyType,
               baselineShape.bodyType,
               `Body type changed: expected ${baselineShape.bodyType}, got ${currentShape.bodyType}`
             );
-
             if (baselineShape.bodyKeys && currentShape.bodyKeys) {
               assert.deepStrictEqual(
                 currentShape.bodyKeys,
@@ -481,22 +423,18 @@ async function run() {
         }
       }
     }
-
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
     assert.strictEqual(ROUTE_INVENTORY.length, 153, `Expected 153 routes, got ${ROUTE_INVENTORY.length}`);
   });
-
   } finally {
     if (runningServer) {
       await runningServer.close();
     }
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
-
   console.log(`\n  ${passed} passed, ${failed} failed (${passed + failed} total)\n`);
 }
-
 run().catch((e) => {
   console.error(`\n  FATAL: ${e.message}\n`);
   process.exitCode = 1;

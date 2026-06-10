@@ -35,7 +35,7 @@ class ObsidianSyncService {
 
   _readRepoSyncState(context) {
     return this._obsidianRemoteSync.readRepoSyncState({
-      copilotHomeAbs: context.copilotHomeAbs,
+      elegyHomeAbs: context.elegyHomeAbs,
       repo: context.repo,
       config: context.config,
     });
@@ -163,7 +163,7 @@ class ObsidianSyncService {
     }
 
     const releasedState = this._obsidianRemoteSync.releaseRepoSyncLease({
-      copilotHomeAbs: context.copilotHomeAbs,
+      elegyHomeAbs: context.elegyHomeAbs,
       repo: context.repo,
       config: context.config,
       leaseToken: lease && lease.token,
@@ -195,12 +195,12 @@ class ObsidianSyncService {
 
   _resolveContext(options = {}) {
     const repo = options.repo || null;
-    const copilotHomeAbs = options.copilotHomeAbs || options.copilotHome;
+    const elegyHomeAbs = options.elegyHomeAbs || options.copilotHome;
     const config = this._obsidianNotes.resolveObsidianConfig({
       ...options,
       repo,
-      copilotHomeAbs,
-      copilotHome: copilotHomeAbs,
+      elegyHomeAbs,
+      copilotHome: elegyHomeAbs,
       process: options.process || this._process,
     });
     const repoKey = this._obsidianRemoteSync.deriveRepoSyncKey(repo);
@@ -208,8 +208,8 @@ class ObsidianSyncService {
       ...options,
       repo,
       repoKey,
-      copilotHomeAbs,
-      copilotHome: copilotHomeAbs,
+      elegyHomeAbs,
+      copilotHome: elegyHomeAbs,
       config,
     };
   }
@@ -242,7 +242,7 @@ class ObsidianSyncService {
     return this._obsidianSourceResolver.resolveSourceSelection({
       repo: context.repo,
       config: context.config,
-      copilotHomeAbs: context.copilotHomeAbs,
+      elegyHomeAbs: context.elegyHomeAbs,
     });
   }
 
@@ -340,7 +340,7 @@ class ObsidianSyncService {
     const sourceResolution = await this._obsidianSourceResolver.setActiveSourceSelection({
       repo: context.repo,
       config: context.config,
-      copilotHomeAbs: context.copilotHomeAbs,
+      elegyHomeAbs: context.elegyHomeAbs,
     }, sourceId);
     return this._buildStatus(context, { sourceResolution });
   }
@@ -440,7 +440,7 @@ class ObsidianSyncService {
     }
 
     const lease = this._obsidianRemoteSync.acquireRepoSyncLease({
-      copilotHomeAbs: context.copilotHomeAbs,
+      elegyHomeAbs: context.elegyHomeAbs,
       repo: context.repo,
       config: context.config,
       trigger,
@@ -530,7 +530,7 @@ class ObsidianSyncService {
 
       if (context.config.remoteSyncUrl) {
         const repoState = this._obsidianRemoteSync.readRepoSyncState({
-          copilotHomeAbs: context.copilotHomeAbs,
+          elegyHomeAbs: context.elegyHomeAbs,
           repo: context.repo,
           config: context.config,
         });
@@ -546,7 +546,7 @@ class ObsidianSyncService {
           processImpl: this._process,
           });
         remoteResult = this._obsidianRemoteSync.applyRemoteFeed({
-          copilotHomeAbs: context.copilotHomeAbs,
+          elegyHomeAbs: context.elegyHomeAbs,
           repo: context.repo,
           config: context.config,
           feed,

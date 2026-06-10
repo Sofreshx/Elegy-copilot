@@ -1,12 +1,9 @@
 'use strict';
-
 const { describe, it, mock } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
-
 const configModule = require('./config');
 const { register } = configModule;
-
 function makeMocks(overrides = {}) {
   const sent = [];
   const sendJson = (res, code, obj) => sent.push({ code, obj });
@@ -58,7 +55,7 @@ function makeMocks(overrides = {}) {
       status: { installed: true, built: true, gitAvailable: true, goAvailable: true },
       error: null,
     })),
-    resolveManagedMoonBridgeRoot: overrides.resolveManagedMoonBridgeRoot || ((copilotHome) => '/managed-cli/moon-bridge'),
+    resolveManagedMoonBridgeRoot: overrides.resolveManagedMoonBridgeRoot || ((elegyHome) => '/managed-cli/moon-bridge'),
     resolveBinaryPath: overrides.resolveBinaryPath || ((root) => '/managed-cli/moon-bridge/bin/moon-bridge.exe'),
     resolveConfigPath: overrides.resolveConfigPath || ((root) => '/managed-cli/moon-bridge/config.yaml'),
   };
@@ -72,7 +69,6 @@ function makeMocks(overrides = {}) {
     env: overrides.env || {},
   };
 }
-
 describe('config routes', () => {
   it('register returns expected route count', () => {
     const routes = register();
@@ -94,15 +90,13 @@ describe('config routes', () => {
     assert.equal(routes[11].path, '/api/config/codex-provider/deepseek/bootstrap');
     assert.equal(routes[12].path, '/api/config/codex-provider/deepseek/bootstrap');
   });
-
   it('GET returns current remote preference', () => {
     const mocks = makeMocks({ getRemoteSessions: () => true });
     const routes = register(mocks);
-    routes[0].handler({ copilotHome: '/tmp/test', res: {} });
+    routes[0].handler({ elegyHome: '/tmp/test', res: {} });
     assert.equal(mocks.sent[0].code, 200);
     assert.deepEqual(mocks.sent[0].obj, { enabled: true });
   });
-
   it('PUT sets remote preference', async () => {
     let savedValue;
     const mocks = makeMocks({
@@ -110,19 +104,17 @@ describe('config routes', () => {
       setRemoteSessions: (_home, val) => { savedValue = val; },
     });
     const routes = register(mocks);
-    await routes[1].handler({ copilotHome: '/tmp/test', req: {}, res: {} });
+    await routes[1].handler({ elegyHome: '/tmp/test', req: {}, res: {} });
     assert.equal(savedValue, true);
     assert.equal(mocks.sent[0].code, 200);
     assert.deepEqual(mocks.sent[0].obj, { enabled: true });
   });
-
   it('PUT rejects non-boolean enabled', async () => {
     const mocks = makeMocks({ body: { enabled: 'yes' } });
     const routes = register(mocks);
-    await routes[1].handler({ copilotHome: '/tmp/test', req: {}, res: {} });
+    await routes[1].handler({ elegyHome: '/tmp/test', req: {}, res: {} });
     assert.equal(mocks.sent[0].code, 400);
   });
-
   it('PUT activates deepseek-bridge mode', async () => {
     let savedMode;
     const mocks = makeMocks({
@@ -144,7 +136,6 @@ describe('config routes', () => {
         return { activeMode: mode, providerId: 'instruction_engine_deepseek' };
       },
     });
-
     // Satisfy assertCodexProviderActivationPreflight checks
     mock.method(fs, 'existsSync', () => true);
     configModule._testBridgeProcess = { exitCode: null, signalCode: null, on: () => {}, once: () => {} };
@@ -152,7 +143,6 @@ describe('config routes', () => {
       ok: true,
       json: async () => ({ data: [{ id: 'deepseek-v4-pro' }, { id: 'deepseek-v4-flash' }] }),
     }));
-
     try {
       const routes = register(mocks);
       await routes[3].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
@@ -162,13 +152,12 @@ describe('config routes', () => {
       configModule._testBridgeProcess = null;
     }
   });
-
   it('PUT triggers base client restart when available', async () => {
     let restarted = false;
     const mocks = makeMocks({ body: { enabled: true } });
     const routes = register(mocks);
     await routes[1].handler({
-      copilotHome: '/tmp/test',
+      elegyHome: '/tmp/test',
       req: {},
       res: {},
       sdkBridge: { restartBaseClient: async () => { restarted = true; } },
@@ -176,12 +165,11 @@ describe('config routes', () => {
     assert.equal(restarted, true);
     assert.equal(mocks.sent[0].code, 200);
   });
-
   it('PUT returns warning when client restart fails', async () => {
     const mocks = makeMocks({ body: { enabled: false } });
     const routes = register(mocks);
     await routes[1].handler({
-      copilotHome: '/tmp/test',
+      elegyHome: '/tmp/test',
       req: {},
       res: {},
       sdkBridge: { restartBaseClient: async () => { throw new Error('oops'); } },
@@ -190,9 +178,6 @@ describe('config routes', () => {
     assert.equal(mocks.sent[0].obj.enabled, false);
     assert.ok(mocks.sent[0].obj.warning.includes('oops'));
   });
-
-
-
   it('POST reset performs hard restore when requested', async () => {
     let hardResetCalled = false;
     const mocks = makeMocks({
@@ -208,7 +193,6 @@ describe('config routes', () => {
     assert.equal(mocks.sent[0].code, 200);
     assert.equal(mocks.sent[0].obj.action, 'hard-reset');
   });
-
   describe('deepseek routes', () => {
     it('GET deepseek returns config status', () => {
       const mocks = makeMocks();
@@ -219,7 +203,6 @@ describe('config routes', () => {
       assert.equal(mocks.sent[0].obj.keyConfigured, false);
       assert.equal(mocks.sent[0].obj.bridgeRunning, false);
     });
-
     it('PUT deepseek saves settings', async () => {
       let savedSettings;
       const mocks = makeMocks({
@@ -235,7 +218,6 @@ describe('config routes', () => {
       assert.equal(savedSettings.bridgePath, '/path/to/bridge');
       assert.equal(savedSettings.keyConfigured, true);
     });
-
     it('PUT deepseek does not return API key in response', async () => {
       const mocks = makeMocks({
         body: { bridgePath: '/path/to/bridge', apiKey: 'sk-secret-123', keyConfigured: true },
@@ -250,14 +232,12 @@ describe('config routes', () => {
       assert.ok(!mocks.sent[0].obj.apiKey);
       assert.ok(!JSON.stringify(mocks.sent[0].obj).includes('sk-secret'));
     });
-
     it('POST deepseek start returns bridgeRunning', async () => {
       const mocks = makeMocks();
       const routes = register(mocks);
       await routes[8].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
       assert.equal(mocks.sent[0].code, 400);
     });
-
     it('POST deepseek stop returns bridgeRunning false', async () => {
       const mocks = makeMocks();
       const routes = register(mocks);
@@ -265,15 +245,14 @@ describe('config routes', () => {
       assert.equal(mocks.sent[0].code, 200);
       assert.equal(mocks.sent[0].obj.bridgeRunning, false);
     });
-
     it('GET bootstrap returns computed status with prerequisite checks', () => {
       const mocks = makeMocks({
         getBootstrapState: () => ({ lastBootstrapAt: '2025-01-01T00:00:00.000Z' }),
         getBootstrapStatus: () => ({
-          installRoot: '/.copilot/managed-cli/moon-bridge',
+          installRoot: '/.elegy/managed-cli/moon-bridge',
           sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
-          binaryPath: '/.copilot/managed-cli/moon-bridge/bin/moon-bridge.exe',
-          configPath: '/.copilot/managed-cli/moon-bridge/config.yml',
+          binaryPath: '/.elegy/managed-cli/moon-bridge/bin/moon-bridge.exe',
+          configPath: '/.elegy/managed-cli/moon-bridge/config.yml',
           gitAvailable: true,
           goAvailable: false,
           installed: false,
@@ -289,17 +268,16 @@ describe('config routes', () => {
       assert.equal(mocks.sent[0].obj.goAvailable, false);
       assert.equal(mocks.sent[0].obj.installed, false);
     });
-
     it('POST bootstrap performs install and returns success', async () => {
       let savedState;
       const mocks = makeMocks({
         readJsonBody: async () => ({}),
         saveBootstrapState: (_home, state) => { savedState = state; },
         getBootstrapStatus: () => ({
-          installRoot: '/.copilot/managed-cli/moon-bridge',
+          installRoot: '/.elegy/managed-cli/moon-bridge',
           sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
-          binaryPath: '/.copilot/managed-cli/moon-bridge/bin/moon-bridge.exe',
-          configPath: '/.copilot/managed-cli/moon-bridge/config.yml',
+          binaryPath: '/.elegy/managed-cli/moon-bridge/bin/moon-bridge.exe',
+          configPath: '/.elegy/managed-cli/moon-bridge/config.yml',
           gitAvailable: true,
           goAvailable: true,
           installed: false,
@@ -332,17 +310,16 @@ describe('config routes', () => {
       assert.equal(mocks.sent[0].obj.status.built, true);
       assert.ok(savedState, 'expected saveBootstrapState to be called');
     });
-
     it('POST bootstrap returns success=false when prerequisites missing', async () => {
       let savedState;
       const mocks = makeMocks({
         readJsonBody: async () => ({}),
         saveBootstrapState: (_home, state) => { savedState = state; },
         getBootstrapStatus: () => ({
-          installRoot: '/.copilot/managed-cli/moon-bridge',
+          installRoot: '/.elegy/managed-cli/moon-bridge',
           sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
-          binaryPath: '/.copilot/managed-cli/moon-bridge/bin/moon-bridge.exe',
-          configPath: '/.copilot/managed-cli/moon-bridge/config.yml',
+          binaryPath: '/.elegy/managed-cli/moon-bridge/bin/moon-bridge.exe',
+          configPath: '/.elegy/managed-cli/moon-bridge/config.yml',
           gitAvailable: false,
           goAvailable: true,
           installed: false,
@@ -373,17 +350,16 @@ describe('config routes', () => {
       assert.ok(mocks.sent[0].obj.error.includes('git is not available'));
       assert.ok(savedState, 'expected saveBootstrapState to be called even on failure');
     });
-
     it('POST bootstrap persists bridgeConfigPath on success', async () => {
       let savedBootstrapState;
       const mocks = makeMocks({
         readJsonBody: async () => ({}),
         saveBootstrapState: (_home, state) => { savedBootstrapState = state; },
         getBootstrapStatus: () => ({
-          installRoot: '/.copilot/managed-cli/moon-bridge',
+          installRoot: '/.elegy/managed-cli/moon-bridge',
           sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
-          binaryPath: '/.copilot/managed-cli/moon-bridge/bin/moon-bridge.exe',
-          configPath: '/.copilot/managed-cli/moon-bridge/config.yml',
+          binaryPath: '/.elegy/managed-cli/moon-bridge/bin/moon-bridge.exe',
+          configPath: '/.elegy/managed-cli/moon-bridge/config.yml',
           gitAvailable: true,
           goAvailable: true,
           installed: false,
@@ -415,7 +391,6 @@ describe('config routes', () => {
       assert.equal(mocks.sent[0].obj.status.configPath, '/root/config.yaml');
       assert.ok(savedBootstrapState, 'expected saveBootstrapState to be called');
     });
-
     it('POST check status preserves probeError on failure', async () => {
       let probeCallCount = 0;
       // Mock fetch to throw so the probe fails deterministically

@@ -70,14 +70,14 @@ async function writeProjectState(projectId, state) {
   await writeFile(p, JSON.stringify(state, null, 2), "utf8");
 }
 
-function sessionDir(copilotHome, repoId) {
-  return join(copilotHome, "repo-state", String(repoId || ""), "opencode-sessions");
+function sessionDir(elegyHome, repoId) {
+  return join(elegyHome, "repo-state", String(repoId || ""), "opencode-sessions");
 }
 
-function sessionRecordPath(copilotHome, repoId, sessionId) {
+function sessionRecordPath(elegyHome, repoId, sessionId) {
   const safe = sanitizeSessionId(sessionId);
   if (!safe) return null;
-  return join(sessionDir(copilotHome, repoId), safe + ".json");
+  return join(sessionDir(elegyHome, repoId), safe + ".json");
 }
 
 async function readSessionRecordFile(absPath) {
@@ -147,11 +147,11 @@ function buildSessionRecord(input = {}, fallback = {}) {
   };
 }
 
-async function updateSessionRecord(copilotHome, repoId, sessionId, mutator) {
-  if (!copilotHome) return null;
+async function updateSessionRecord(elegyHome, repoId, sessionId, mutator) {
+  if (!elegyHome) return null;
   const sanitized = sanitizeSessionId(sessionId);
   if (!sanitized || !repoId) return null;
-  const absPath = sessionRecordPath(copilotHome, repoId, sanitized);
+  const absPath = sessionRecordPath(elegyHome, repoId, sanitized);
   if (!absPath) return null;
 
   const existing = (await readSessionRecordFile(absPath)) || buildSessionRecord({
@@ -169,16 +169,16 @@ async function updateSessionRecord(copilotHome, repoId, sessionId, mutator) {
   return normalized;
 }
 
-async function readSessionRecord(copilotHome, repoId, sessionId) {
-  if (!copilotHome) return null;
-  const absPath = sessionRecordPath(copilotHome, repoId, sessionId);
+async function readSessionRecord(elegyHome, repoId, sessionId) {
+  if (!elegyHome) return null;
+  const absPath = sessionRecordPath(elegyHome, repoId, sessionId);
   if (!absPath) return null;
   return readSessionRecordFile(absPath);
 }
 
-async function listSessionRecords(copilotHome, repoId) {
-  if (!copilotHome) return [];
-  const dir = sessionDir(copilotHome, repoId);
+async function listSessionRecords(elegyHome, repoId) {
+  if (!elegyHome) return [];
+  const dir = sessionDir(elegyHome, repoId);
   let entries = [];
   try {
     entries = await readdir(dir, { withFileTypes: true });
@@ -194,9 +194,9 @@ async function listSessionRecords(copilotHome, repoId) {
   return out;
 }
 
-async function removeSessionRecord(copilotHome, repoId, sessionId) {
-  if (!copilotHome) return false;
-  const absPath = sessionRecordPath(copilotHome, repoId, sessionId);
+async function removeSessionRecord(elegyHome, repoId, sessionId) {
+  if (!elegyHome) return false;
+  const absPath = sessionRecordPath(elegyHome, repoId, sessionId);
   if (!absPath) return false;
   try {
     await rm(absPath, { force: true });
@@ -206,15 +206,15 @@ async function removeSessionRecord(copilotHome, repoId, sessionId) {
   }
 }
 
-async function readSharedWorktreeRecord(copilotHome, repoId, worktreeId) {
-  if (!copilotHome || !repoId || !worktreeId) return null;
-  const p = join(copilotHome, "repo-state", String(repoId), "worktrees", worktreeId + ".json");
+async function readSharedWorktreeRecord(elegyHome, repoId, worktreeId) {
+  if (!elegyHome || !repoId || !worktreeId) return null;
+  const p = join(elegyHome, "repo-state", String(repoId), "worktrees", worktreeId + ".json");
   return readSessionRecordFile(p);
 }
 
-async function listSharedWorktreeRecords(copilotHome, repoId) {
-  if (!copilotHome || !repoId) return [];
-  const dir = join(copilotHome, "repo-state", String(repoId), "worktrees");
+async function listSharedWorktreeRecords(elegyHome, repoId) {
+  if (!elegyHome || !repoId) return [];
+  const dir = join(elegyHome, "repo-state", String(repoId), "worktrees");
   let entries = [];
   try {
     entries = await readdir(dir, { withFileTypes: true });
@@ -230,9 +230,9 @@ async function listSharedWorktreeRecords(copilotHome, repoId) {
   return out;
 }
 
-async function writeSharedWorktreeRecord(copilotHome, repoId, worktreeId, mutator) {
-  if (!copilotHome || !repoId || !worktreeId) return null;
-  const p = join(copilotHome, "repo-state", String(repoId), "worktrees", worktreeId + ".json");
+async function writeSharedWorktreeRecord(elegyHome, repoId, worktreeId, mutator) {
+  if (!elegyHome || !repoId || !worktreeId) return null;
+  const p = join(elegyHome, "repo-state", String(repoId), "worktrees", worktreeId + ".json");
   const existing = (await readSessionRecordFile(p)) || { worktreeId, repoId };
   const next = mutator(existing) || existing;
   const normalized = normalizeWorktreeRecordForPlugin(next, existing);
@@ -248,8 +248,8 @@ function normalizeComparablePath(value) {
   return String(value).replace(/\\/g, "/").trim().toLowerCase();
 }
 
-async function resolveLinkedWorktreeId(copilotHome, repoId, sessionId, projectState, hints = {}) {
-  if (!copilotHome || !repoId) return null;
+async function resolveLinkedWorktreeId(elegyHome, repoId, sessionId, projectState, hints = {}) {
+  if (!elegyHome || !repoId) return null;
 
   // 1) known active plugin state (in-process auxiliary state captured at worktree_create)
   if (projectState && projectState.sessionId && sessionId && projectState.sessionId === sessionId) {
@@ -263,7 +263,7 @@ async function resolveLinkedWorktreeId(copilotHome, repoId, sessionId, projectSt
   if (hints.worktreePath) {
     const target = normalizeComparablePath(hints.worktreePath);
     if (target) {
-      const all = await listSharedWorktreeRecords(copilotHome, repoId);
+      const all = await listSharedWorktreeRecords(elegyHome, repoId);
       const match = all.find((r) => normalizeComparablePath(r.path) === target);
       if (match && match.worktreeId) return String(match.worktreeId);
     }
@@ -271,7 +271,7 @@ async function resolveLinkedWorktreeId(copilotHome, repoId, sessionId, projectSt
 
   // 3) try the existing session record's linked worktreeId (sticky linkage)
   if (sessionId) {
-    const sess = await readSessionRecord(copilotHome, repoId, sessionId);
+    const sess = await readSessionRecord(elegyHome, repoId, sessionId);
     if (sess && sess.worktreeId) {
       return String(sess.worktreeId);
     }
@@ -421,9 +421,9 @@ async function readWorktreeConfig(projectPath) {
 
 function resolveSharedRegistryHome() {
   const candidates = [
-    process.env.ELEGY_COPILOT_HOME,
+    process.env.ELEGY_HOME,
     process.env.COPILOT_HOME,
-    join(process.env.HOME || process.env.USERPROFILE || "~", ".copilot"),
+    join(process.env.HOME || process.env.USERPROFILE || "~", ".elegy"),
   ];
   for (const candidate of candidates) {
     if (candidate && safeExists(candidate)) return candidate;
@@ -432,11 +432,11 @@ function resolveSharedRegistryHome() {
 }
 
 async function writeSharedRegistryRecord(repoId, branch, worktreePath, projectPath, sessionId) {
-  const copilotHome = resolveSharedRegistryHome();
-  if (!copilotHome) return null;
+  const elegyHome = resolveSharedRegistryHome();
+  if (!elegyHome) return null;
 
   try {
-    const repoStateDir = join(copilotHome, "repo-state", repoId, "worktrees");
+    const repoStateDir = join(elegyHome, "repo-state", repoId, "worktrees");
     await mkdir(repoStateDir, { recursive: true });
 
     const worktreeId = "wt-oc-" + repoId + "-" + branchToWorktreeIdSuffix(branch);
@@ -483,11 +483,11 @@ async function writeSharedRegistryRecord(repoId, branch, worktreePath, projectPa
 }
 
 async function removeSharedRegistryRecord(repoId, branch) {
-  const copilotHome = resolveSharedRegistryHome();
-  if (!copilotHome) return;
+  const elegyHome = resolveSharedRegistryHome();
+  if (!elegyHome) return;
 
   try {
-    const repoStateDir = join(copilotHome, "repo-state", repoId, "worktrees");
+    const repoStateDir = join(elegyHome, "repo-state", repoId, "worktrees");
     if (!safeExists(repoStateDir)) return;
 
     const worktreeId = "wt-oc-" + repoId + "-" + branch.replace(/[^a-zA-Z0-9_-]/g, "-");
@@ -592,10 +592,10 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
 
           // If we have a session id, also write the OpenCode session projection
           if (sessionId) {
-            const copilotHome = resolveSharedRegistryHome();
-            if (copilotHome) {
+            const elegyHome = resolveSharedRegistryHome();
+            if (elegyHome) {
               try {
-                await updateSessionRecord(copilotHome, repoId, sessionId, (existing) => {
+                await updateSessionRecord(elegyHome, repoId, sessionId, (existing) => {
                   return {
                     ...(existing || {}),
                     sessionId,
@@ -820,8 +820,8 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
     event: async function({ event }) {
       if (!event || !event.type) return;
 
-      const copilotHome = resolveSharedRegistryHome();
-      if (!copilotHome) return;
+      const elegyHome = resolveSharedRegistryHome();
+      if (!elegyHome) return;
 
       const sessionId = resolveSessionIdFromEvent(event);
       if (!sessionId) return;
@@ -852,7 +852,7 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
       try {
         const projectState = await readProjectState(projectId);
         const receivedAt = nowIso();
-        const updated = await updateSessionRecord(copilotHome, repoId, sessionId, (existing) => {
+        const updated = await updateSessionRecord(elegyHome, repoId, sessionId, (existing) => {
           const wasCreated = !existing || !existing.lifecycle || !existing.lifecycle.startedAt;
           const lifecycle = (existing && existing.lifecycle) || {};
           const next = {
@@ -888,13 +888,13 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
         });
 
         if (touchedWorktreeAction && touchedWorktreeAction !== "keep") {
-          const linkedWorktreeId = await resolveLinkedWorktreeId(copilotHome, repoId, sessionId, projectState, {
+          const linkedWorktreeId = await resolveLinkedWorktreeId(elegyHome, repoId, sessionId, projectState, {
             worktreeId: hintWorktreeId || (updated && updated.worktreeId) || null,
             worktreePath: hintWorktreePath || (updated && updated.worktreePath) || null,
           });
           if (linkedWorktreeId) {
             if (touchedWorktreeAction === "active") {
-              await writeSharedWorktreeRecord(copilotHome, repoId, linkedWorktreeId, (existing) => {
+              await writeSharedWorktreeRecord(elegyHome, repoId, linkedWorktreeId, (existing) => {
                 const wasActive = existing && existing.status === WORKTREE_STATUS.ACTIVE
                   && existing.assignment && existing.assignment.sessionId === sessionId;
                 return {
@@ -917,7 +917,7 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
                 };
               });
             } else if (touchedWorktreeAction === "interrupted") {
-              await writeSharedWorktreeRecord(copilotHome, repoId, linkedWorktreeId, (existing) => {
+              await writeSharedWorktreeRecord(elegyHome, repoId, linkedWorktreeId, (existing) => {
                 return {
                   ...existing,
                   status: WORKTREE_STATUS.INTERRUPTED,
@@ -934,7 +934,7 @@ export const WorktreePlugin = async ({ project, directory, worktree }) => {
                 };
               });
             } else if (touchedWorktreeAction === "reusable") {
-              await writeSharedWorktreeRecord(copilotHome, repoId, linkedWorktreeId, (existing) => {
+              await writeSharedWorktreeRecord(elegyHome, repoId, linkedWorktreeId, (existing) => {
                 return {
                   ...existing,
                   status: WORKTREE_STATUS.REUSABLE,

@@ -31,13 +31,13 @@ an incidental code change.
 
 | Domain | Canonical authority | Canonical location / surface | Legacy / secondary surfaces |
 |---|---|---|---|
-| State roots and storage paths | Unified `~/.copilot` runtime state model | `~/.copilot/*` with the shared layout defined below | `~/.instruction-engine/*` only as migration-era exceptions, not a competing root |
-| Runtime and readiness state | Split by authority domain: control-plane runtime via `copilot-ui`, gateway readiness via status file | `copilot-ui` `GET /api/health` for backend runtime/control-plane state; `~/.copilot/messaging-gateway.status.json` for messaging-gateway readiness | `GET /api/gateway/state`, UI panels, and extension trees are projections/consumers; tracker live APIs are operational APIs, not readiness authority |
+| State roots and storage paths | Unified `~/.elegy` runtime state model | `~/.elegy/*` with the shared layout defined below | `~/.instruction-engine/*` only as migration-era exceptions, not a competing root |
+| Runtime and readiness state | Split by authority domain: control-plane runtime via `copilot-ui`, gateway readiness via status file | `copilot-ui` `GET /api/health` for backend runtime/control-plane state; `~/.elegy/messaging-gateway.status.json` for messaging-gateway readiness | `GET /api/gateway/state`, UI panels, and extension trees are projections/consumers; tracker live APIs are operational APIs, not readiness authority |
 | Asset mutation authority | `copilot-ui` local backend control plane | catalog mutation and install/enable/disable APIs | legacy direct editor mutations are retired |
-| Enablement persistence | Repo registry overlay | `~/.copilot/repo-state/<repoId>/registry.json` | legacy imported settings are compatibility input only |
+| Enablement persistence | Repo registry overlay | `~/.elegy/repo-state/<repoId>/registry.json` | legacy imported settings are compatibility input only |
 | Session authority | ACP/runtime session state | runtime-backed session reconciliation, with runtime winning when present | filesystem artifacts remain durable projections and archive/offline fallback |
 | Provider catalog source | Shipped provider catalog data | `engine-assets/providers.json` | `contracts/src/providerCatalog.ts` remains schema/helpers plus a synced mirror until generation lands |
-| Task authority | Repo-state task store | `~/.copilot/repo-state/<repoId>/tasks/` and `tasks.archive/` | task-board UI/workflow surfaces are projections; repo-local `.instructions/tasks` remains migration-only input |
+| Task authority | Repo-state task store | `~/.elegy/repo-state/<repoId>/tasks/` and `tasks.archive/` | task-board UI/workflow surfaces are projections; repo-local `.instructions/tasks` remains migration-only input |
 
 ## Decision details
 
@@ -45,7 +45,7 @@ an incidental code change.
 
 **Decision**
 
-The canonical runtime state root is `~/.copilot`.
+The canonical runtime state root is `~/.elegy`.
 
 All shared runtime state must converge on that root model, including:
 
@@ -60,7 +60,7 @@ All shared runtime state must converge on that root model, including:
 Unless an explicit root override is supplied, the expected layout is:
 
 ```text
-~/.copilot/
+~/.elegy/
   agents/
   skills/
   skills-vault/
@@ -92,7 +92,7 @@ That means:
 authoritative root.
 
 Current runtime behavior treats that namespace as migration-only input. For example, older
-`local-tracker` messaging-gateway config/status artifacts may be rehomed into `~/.copilot`, but the
+`local-tracker` messaging-gateway config/status artifacts may be rehomed into `~/.elegy`, but the
 legacy path is no longer a peer default that current surfaces should present as canonical.
 
 ### 2) Runtime and readiness state
@@ -103,7 +103,7 @@ Runtime/state authority is frozen into distinct, non-overlapping domains:
 
 - `copilot-ui` `GET /api/health` is the canonical HTTP authority for backend runtime/control-plane
   state
-- `~/.copilot/messaging-gateway.status.json` is the canonical authority for messaging-gateway
+- `~/.elegy/messaging-gateway.status.json` is the canonical authority for messaging-gateway
   readiness
 - `copilot-ui` `GET /api/gateway/state`, HTTP responses derived from gateway probes, and UI surfaces
   that render gateway state are projections or operational envelopes over those authorities, not peer
@@ -124,7 +124,7 @@ Messaging-gateway readiness is different. The canonical shared readiness contrac
 written by `local-tracker` at:
 
 ```text
-~/.copilot/messaging-gateway.status.json
+~/.elegy/messaging-gateway.status.json
 ```
 
 The locked architectural choice is:
@@ -165,7 +165,7 @@ decision.
 That includes:
 
 - shared shipped asset authoring writes into `engine-assets/*`
-- user-global install/update/delete flows under `~/.copilot/*`
+- user-global install/update/delete flows under `~/.elegy/*`
 - repo-local asset writes under `<repo>/.github/agents` and `<repo>/.github/skills`
 - enable/disable mutation routes that write repo overlays
 
@@ -184,7 +184,7 @@ consume backend APIs rather than reintroducing direct-copy or direct-write mutat
 The canonical persisted enablement store is:
 
 ```text
-~/.copilot/repo-state/<repoId>/registry.json
+~/.elegy/repo-state/<repoId>/registry.json
 ```
 
 This registry is the only durable source of truth for repo-scoped enable/disable state for skills,
@@ -192,7 +192,7 @@ agents, and MCP providers.
 
 **Migration posture**
 
-VS Code settings keys such as:
+Settings keys such as:
 
 - `skillInstaller.skills.disabledByRepo`
 - `skillInstaller.agents.disabledByRepo`
@@ -213,7 +213,7 @@ Later cleanup streams should:
 
 The canonical live session authority is ACP/runtime session state.
 
-Filesystem session artifacts under `~/.copilot/session-state/<SESSION_ID>/` remain important, but
+Filesystem session artifacts under `~/.elegy/session-state/<SESSION_ID>/` remain important, but
 their role is narrower:
 
 - they are the canonical file contract for persisted artifacts such as `plan.md`,
@@ -278,8 +278,8 @@ Until generation/sync tooling lands:
 The canonical durable task store is repo-state task storage under:
 
 ```text
-~/.copilot/repo-state/<repoId>/tasks/
-~/.copilot/repo-state/<repoId>/tasks.archive/
+~/.elegy/repo-state/<repoId>/tasks/
+~/.elegy/repo-state/<repoId>/tasks.archive/
 ```
 
 Tasks are repo-scoped durable state, not a repo-local `.instructions/tasks` source of truth.
@@ -311,9 +311,9 @@ semantics must reconcile to repo-state task storage.
 The following constraints are now frozen:
 
 1. **Do not add new writers to legacy surfaces.**
-   - no new durable writes to VS Code enablement settings
+    - no new durable writes to enablement settings
    - no new durable task writes to `.instructions/tasks`
-   - no new package-local state roots that compete with `~/.copilot`
+   - no new package-local state roots that compete with `~/.elegy`
 
 2. **Prefer adaptation over shared authority.**
    - if a legacy surface must remain temporarily, treat it as import, projection, mirror, or fallback
@@ -330,21 +330,21 @@ The following constraints are now frozen:
 
 ## Evidence snapshot for this freeze
 
-- `README.md` freezes the repo's primary runtime state model around `~/.copilot` and documents
+- `README.md` freezes the repo's primary runtime state model around `~/.elegy` and documents
   `copilot-ui` as the catalog control plane.
 - `docs/system/catalog-control-plane.md` already assigns `copilot-ui` the local catalog mutation
   control-plane role and limits repo-state to overlays.
 - `docs/system/session-state-artifacts.md` defines the canonical artifact file contract under
-  `~/.copilot/session-state/<SESSION_ID>/`.
-- The retired `RannIA` extension previously encoded the same `~/.copilot` path schema and direct
+  `~/.elegy/session-state/<SESSION_ID>/`.
+- The retired `RannIA` extension previously encoded the same `~/.elegy` path schema and direct
   editor mutation flows, which is why this document freezes those domains under current runtime
   authorities instead of preserving extension-specific behavior.
 - `local-tracker/src/watchers.ts` now targets canonical repo-state task paths and keeps repo-local
   `.instructions/tasks` watching behind an explicit legacy compatibility switch.
 - `local-tracker/src/messagingGateway/config.ts` now defaults messaging-gateway config under
-  `~/.copilot` and treats `~/.instruction-engine` as a legacy compatibility rehome input rather than
+  `~/.elegy` and treats `~/.instruction-engine` as a legacy compatibility rehome input rather than
   a competing default.
-- `local-tracker/src/messagingGateway/statusFile.ts` defines `~/.copilot/messaging-gateway.status.json`
+- `local-tracker/src/messagingGateway/statusFile.ts` defines `~/.elegy/messaging-gateway.status.json`
   as the canonical status path and keeps `~/.instruction-engine` only as a legacy compatibility
   source for rehome.
 - `copilot-ui/routes/lifecycle.js` and `copilot-ui/lib/server/runtimeHealth.js` already centralize

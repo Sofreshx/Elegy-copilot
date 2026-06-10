@@ -9,7 +9,7 @@ async fn main() -> anyhow::Result<()> {
         .compact()
         .init();
 
-    let config = RuntimeConfig::from_env_and_args(None, None, None, None, None, None);
+    let config = RuntimeConfig::from_env_and_args(None, None, None, None, None);
     let state = AppState::new(config);
     serve(state).await
 }

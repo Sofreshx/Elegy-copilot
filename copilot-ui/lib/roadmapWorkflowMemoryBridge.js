@@ -288,10 +288,10 @@ function createRoadmapWorkflowMemoryBridge(options = {}) {
   const pathModule = options.pathModule && typeof options.pathModule.join === 'function'
     ? options.pathModule
     : path;
-  const copilotHome = normalizeString(options.copilotHome);
+  const elegyHome = normalizeString(options.elegyHome || options.copilotHome);
   const cliPath = normalizeString(options.cliPath || env.INSTRUCTION_ENGINE_ELEGY_MEMORY_CLI_PATH) || DEFAULT_CLI_PATH;
   const dbPath = normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_MEMORY_DB_PATH)
-    || (copilotHome ? pathModule.join(copilotHome, DEFAULT_DB_FILENAME) : '');
+    || (elegyHome ? pathModule.join(elegyHome, DEFAULT_DB_FILENAME) : '');
   const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
     ? Number(options.timeoutMs)
     : DEFAULT_TIMEOUT_MS;
@@ -305,7 +305,7 @@ function createRoadmapWorkflowMemoryBridge(options = {}) {
     env,
     cliPath,
     dbPath,
-    cwd: copilotHome || undefined,
+    cwd: elegyHome || undefined,
     timeoutMs,
     maxCandidates,
   };

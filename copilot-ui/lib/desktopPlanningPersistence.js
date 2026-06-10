@@ -21,7 +21,7 @@ async function startDesktopPlanningPersistence(options = {}) {
   const logger = options.logger;
   const stateRoot = typeof options.stateRoot === 'string' && options.stateRoot.trim()
     ? path.resolve(options.stateRoot.trim())
-    : path.join(os.homedir(), '.copilot', 'planning-db');
+    : path.join(os.homedir(), '.elegy', 'planning-db');
   const dataDir = path.join(stateRoot, 'pglite');
 
   fs.mkdirSync(stateRoot, { recursive: true });

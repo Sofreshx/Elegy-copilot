@@ -214,7 +214,7 @@ function buildFilterQuery(filter = {}, tableAlias = '', extraColumns = []) {
 /**
  * Create or open the Elegy Copilot SQLite database.
  * @param {object} [opts]
- * @param {string} [opts.dbPath] - Override database path (default: ~/.copilot/elegy-copilot.db)
+ * @param {string} [opts.dbPath] - Override database path (default: ~/.elegy/elegy-copilot.db)
  * @param {boolean} [opts.readonly] - Open in read-only mode
  * @returns {object} db instance with helper methods
  */
@@ -227,7 +227,7 @@ function createElegyDb(opts = {}) {
 
   const dbPath = opts.dbPath && typeof opts.dbPath === 'string' && opts.dbPath.trim()
     ? opts.dbPath.trim()
-    : path.join(os.homedir(), '.copilot', 'elegy-copilot.db');
+    : path.join(os.homedir(), '.elegy', 'elegy-copilot.db');
   const readonly = opts.readonly === true;
 
   // Ensure parent directory exists for default path

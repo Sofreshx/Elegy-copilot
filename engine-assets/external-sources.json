@@ -272,7 +272,7 @@
       "includeMcp": false,
       "setupHints": [
         "elegy-planning is a pre-built Rust binary downloaded from GitHub releases.",
-        "The CLI manages a SQLite database at ~/.elegy/planning.db by default.",
+        "The CLI manages a SQLite database at ~/.elegy/elegy-planning.db by default.",
         "Run elegy-planning session init to establish correlation context before mutations."
       ],
       "installables": [

@@ -1,14 +1,10 @@
 'use strict';
-
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-
 const { createWorktreeService } = require('./worktreeService');
-
 let passed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -20,11 +16,9 @@ async function test(name, fn) {
     process.exitCode = 1;
   }
 }
-
 function createGitRepoRoot(repoPath) {
   fs.mkdirSync(path.join(repoPath, '.git', 'worktrees'), { recursive: true });
 }
-
 function createGitWorktree(repoPath, worktreePath, worktreeName = path.basename(worktreePath)) {
   const gitDir = path.join(repoPath, '.git', 'worktrees', worktreeName);
   fs.mkdirSync(worktreePath, { recursive: true });
@@ -32,23 +26,19 @@ function createGitWorktree(repoPath, worktreePath, worktreeName = path.basename(
   fs.writeFileSync(path.join(gitDir, 'commondir'), path.join('..', '..'));
   fs.writeFileSync(path.join(worktreePath, '.git'), `gitdir: ${gitDir}\n`);
 }
-
 async function run() {
   await test('shared launch plan reuses the primary repo checkout when no same-repo writer is active', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-worktree-service-'));
-    const copilotHome = path.join(tmpRoot, '.copilot');
+    const elegyHome = path.join(tmpRoot, '.elegy');
     const repoPath = path.join(tmpRoot, 'repo');
-
     try {
       fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
-      const service = createWorktreeService({ copilotHome });
-
+      const service = createWorktreeService({ elegyHome });
       const result = service.resolveLaunchPlan({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         repoPath,
       });
-
       assert.equal(result.cwd, path.resolve(repoPath));
       assert.equal(result.worktree.mode, 'shared');
       assert.equal(result.worktree.status, 'shared');
@@ -57,18 +47,15 @@ async function run() {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
-
   await test('same-repo parallel launch reserves a dedicated worktree record and blocks until prepared', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-worktree-service-'));
-    const copilotHome = path.join(tmpRoot, '.copilot');
+    const elegyHome = path.join(tmpRoot, '.elegy');
     const repoPath = path.join(tmpRoot, 'repo');
-
     try {
       fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
-      const service = createWorktreeService({ copilotHome });
-
+      const service = createWorktreeService({ elegyHome });
       const result = service.resolveLaunchPlan({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         repoPath,
         activeSessions: [{
@@ -77,30 +64,26 @@ async function run() {
           worktree: { mode: 'shared' },
         }],
       });
-
       assert.equal(result.worktree.mode, 'dedicated');
       assert.equal(result.worktree.status, 'pending_preparation');
       assert.equal(result.worktree.launch.blocked, true);
       assert.ok(result.worktree.worktreeId);
-      assert.equal(service.listWorktrees({ copilotHome, repoId: 'repo' }).length, 1);
+      assert.equal(service.listWorktrees({ elegyHome, repoId: 'repo' }).length, 1);
     } finally {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
-
   await test('prepared dedicated worktrees can transition active then reusable', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-worktree-service-'));
-    const copilotHome = path.join(tmpRoot, '.copilot');
+    const elegyHome = path.join(tmpRoot, '.elegy');
     const repoPath = path.join(tmpRoot, 'repo');
     const worktreePath = path.join(tmpRoot, 'repo-worktrees', 'wt-1');
-
     try {
       createGitRepoRoot(repoPath);
       createGitWorktree(repoPath, worktreePath, 'wt-1');
-      const service = createWorktreeService({ copilotHome });
-
+      const service = createWorktreeService({ elegyHome });
       const resolved = service.resolveLaunchPlan({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         repoPath,
         worktree: {
@@ -114,12 +97,10 @@ async function run() {
           worktree: { mode: 'shared' },
         }],
       });
-
       assert.equal(resolved.cwd, path.resolve(worktreePath));
       assert.equal(resolved.worktree.status, 'ready');
-
       const active = service.markWorktreeActive({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         worktreeId: 'wt-1',
         sessionId: 'session-123',
@@ -127,9 +108,8 @@ async function run() {
       });
       assert.equal(active.status, 'active');
       assert.equal(active.assignment.sessionId, 'session-123');
-
       const reusable = service.markWorktreeReusable({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         worktreeId: 'wt-1',
       });
@@ -139,20 +119,17 @@ async function run() {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
-
   await test('dedicated launch stays blocked when the path is not an attached git worktree for the repo', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-worktree-service-'));
-    const copilotHome = path.join(tmpRoot, '.copilot');
+    const elegyHome = path.join(tmpRoot, '.elegy');
     const repoPath = path.join(tmpRoot, 'repo');
     const worktreePath = path.join(tmpRoot, 'repo-worktrees', 'wt-bad');
-
     try {
       createGitRepoRoot(repoPath);
       fs.mkdirSync(worktreePath, { recursive: true });
-      const service = createWorktreeService({ copilotHome });
-
+      const service = createWorktreeService({ elegyHome });
       const resolved = service.resolveLaunchPlan({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         repoPath,
         worktree: {
@@ -166,7 +143,6 @@ async function run() {
           worktree: { mode: 'shared' },
         }],
       });
-
       assert.equal(resolved.cwd, null);
       assert.equal(resolved.worktree.launch.blocked, true);
       assert.match(resolved.worktree.launch.reason, /attached git worktree/i);
@@ -174,20 +150,17 @@ async function run() {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
-
   await test('active dedicated worktrees fail closed when a different run tries to reuse them', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-worktree-service-'));
-    const copilotHome = path.join(tmpRoot, '.copilot');
+    const elegyHome = path.join(tmpRoot, '.elegy');
     const repoPath = path.join(tmpRoot, 'repo');
     const worktreePath = path.join(tmpRoot, 'repo-worktrees', 'wt-locked');
-
     try {
       createGitRepoRoot(repoPath);
       createGitWorktree(repoPath, worktreePath, 'wt-locked');
-      const service = createWorktreeService({ copilotHome });
-
+      const service = createWorktreeService({ elegyHome });
       service.resolveLaunchPlan({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         repoPath,
         worktree: {
@@ -202,17 +175,15 @@ async function run() {
         }],
         runId: 'run-1',
       });
-
       service.markWorktreeActive({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         worktreeId: 'wt-locked',
         sessionId: 'session-123',
         runId: 'run-1',
       });
-
       const resolved = service.resolveLaunchPlan({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         repoPath,
         worktree: {
@@ -228,7 +199,6 @@ async function run() {
         sessionId: 'session-999',
         runId: 'run-2',
       });
-
       assert.equal(resolved.cwd, null);
       assert.equal(resolved.worktree.status, 'active');
       assert.equal(resolved.worktree.launch.blocked, true);
@@ -239,20 +209,17 @@ async function run() {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
-
   await test('OpenCode session records are read from repo-state and projected into worktree list', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-worktree-service-'));
-    const copilotHome = path.join(tmpRoot, '.copilot');
+    const elegyHome = path.join(tmpRoot, '.elegy');
     const repoPath = path.join(tmpRoot, 'repo');
     const worktreePath = path.join(tmpRoot, 'repo-worktrees', 'wt-session');
-
     try {
       createGitRepoRoot(repoPath);
       createGitWorktree(repoPath, worktreePath, 'wt-session');
-      const service = createWorktreeService({ copilotHome });
-
+      const service = createWorktreeService({ elegyHome });
       const resolved = service.resolveLaunchPlan({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         repoPath,
         worktree: {
@@ -266,9 +233,8 @@ async function run() {
           worktree: { mode: 'shared' },
         }],
       });
-
       // Write two session records for that worktree
-      const sessionsDir = path.join(copilotHome, 'repo-state', 'repo', 'opencode-sessions');
+      const sessionsDir = path.join(elegyHome, 'repo-state', 'repo', 'opencode-sessions');
       fs.mkdirSync(sessionsDir, { recursive: true });
       fs.writeFileSync(path.join(sessionsDir, 'sess-running.json'), JSON.stringify({
         contractVersion: '1',
@@ -301,29 +267,24 @@ async function run() {
         },
         lastEvent: { type: 'session.deleted', receivedAt: '2026-06-07T09:30:00.000Z' },
       }), 'utf8');
-
-      const direct = service.getOpenCodeSession(copilotHome, 'repo', 'sess-running');
+      const direct = service.getOpenCodeSession(elegyHome, 'repo', 'sess-running');
       assert.ok(direct, 'getOpenCodeSession should return running session');
       assert.equal(direct.status, 'running');
       assert.equal(direct.worktreeId, 'wt-session');
-
-      const list = service.listOpenCodeSessions({ copilotHome, repoId: 'repo', includeDeleted: true });
+      const list = service.listOpenCodeSessions({ elegyHome, repoId: 'repo', includeDeleted: true });
       assert.equal(list.length, 2, 'should list both sessions with includeDeleted');
       const statuses = list.map((s) => s.status).sort();
       assert.deepEqual(statuses, ['deleted', 'running']);
-
       // Default (no includeDeleted) hides deleted sessions
-      const filtered = service.listOpenCodeSessions({ copilotHome, repoId: 'repo', worktreeId: 'wt-session' });
+      const filtered = service.listOpenCodeSessions({ elegyHome, repoId: 'repo', worktreeId: 'wt-session' });
       assert.equal(filtered.length, 1, 'should filter to one worktree');
       assert.equal(filtered[0].status, 'running');
-
       // includeDeleted=true brings back the deleted session
-      const withDeleted = service.listOpenCodeSessions({ copilotHome, repoId: 'repo', includeDeleted: true });
+      const withDeleted = service.listOpenCodeSessions({ elegyHome, repoId: 'repo', includeDeleted: true });
       assert.equal(withDeleted.length, 2);
-
       // Project onto worktree list
       const worktrees = service.listWorktrees({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         includeSessions: true,
       });
@@ -333,10 +294,9 @@ async function run() {
       assert.equal(wt.opencodeSessionId, 'sess-running');
       assert.equal(wt.opencodeSessions.length, 1, 'deleted session excluded by default');
       assert.equal(wt.opencodeSessions[0].sessionId, 'sess-running');
-
       // includeDeleted=true projection
       const worktreesWithDeleted = service.listWorktrees({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         includeSessions: true,
         includeDeleted: true,
@@ -347,20 +307,17 @@ async function run() {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
-
   await test('malformed OpenCode session JSON is ignored fail-soft', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-worktree-service-'));
-    const copilotHome = path.join(tmpRoot, '.copilot');
+    const elegyHome = path.join(tmpRoot, '.elegy');
     const repoPath = path.join(tmpRoot, 'repo');
     const worktreePath = path.join(tmpRoot, 'repo-worktrees', 'wt-malformed');
-
     try {
       createGitRepoRoot(repoPath);
       createGitWorktree(repoPath, worktreePath, 'wt-malformed');
-      const service = createWorktreeService({ copilotHome });
-
+      const service = createWorktreeService({ elegyHome });
       service.resolveLaunchPlan({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         repoPath,
         worktree: {
@@ -374,8 +331,7 @@ async function run() {
           worktree: { mode: 'shared' },
         }],
       });
-
-      const sessionsDir = path.join(copilotHome, 'repo-state', 'repo', 'opencode-sessions');
+      const sessionsDir = path.join(elegyHome, 'repo-state', 'repo', 'opencode-sessions');
       fs.mkdirSync(sessionsDir, { recursive: true });
       // Malformed JSON
       fs.writeFileSync(path.join(sessionsDir, 'broken.json'), '{not valid json', 'utf8');
@@ -407,14 +363,12 @@ async function run() {
         lifecycle: { startedAt: '2026-06-07T08:00:00.000Z', lastSeenAt: '2026-06-07T08:00:00.000Z', idleAt: '2026-06-07T08:00:00.000Z' },
         lastEvent: { type: 'session.idle', receivedAt: '2026-06-07T08:00:00.000Z' },
       }), 'utf8');
-
-      const list = service.listOpenCodeSessions({ copilotHome, repoId: 'repo' });
+      const list = service.listOpenCodeSessions({ elegyHome, repoId: 'repo' });
       assert.equal(list.length, 1, 'should ignore broken/missing session records');
       assert.equal(list[0].sessionId, 'valid-sess');
       assert.equal(list[0].status, 'idle');
-
       const worktrees = service.listWorktrees({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         includeSessions: true,
       });
@@ -425,22 +379,19 @@ async function run() {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
-
   await test('session projection is deterministic after restart (read-only, no live plugin)', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-worktree-service-'));
-    const copilotHome = path.join(tmpRoot, '.copilot');
+    const elegyHome = path.join(tmpRoot, '.elegy');
     const repoPath = path.join(tmpRoot, 'repo');
     const worktreePath = path.join(tmpRoot, 'repo-worktrees', 'wt-restart');
-
     try {
       createGitRepoRoot(repoPath);
       createGitWorktree(repoPath, worktreePath, 'wt-restart');
-
       // First service instance: write worktree record + 2 session records
       {
-        const service = createWorktreeService({ copilotHome });
+        const service = createWorktreeService({ elegyHome });
         service.resolveLaunchPlan({
-          copilotHome,
+          elegyHome,
           repoId: 'repo',
           repoPath,
           worktree: {
@@ -455,13 +406,12 @@ async function run() {
           }],
         });
         service.markWorktreeActive({
-          copilotHome,
+          elegyHome,
           repoId: 'repo',
           worktreeId: 'wt-restart',
           sessionId: 'rest-sess-1',
         });
-
-        const sessionsDir = path.join(copilotHome, 'repo-state', 'repo', 'opencode-sessions');
+        const sessionsDir = path.join(elegyHome, 'repo-state', 'repo', 'opencode-sessions');
         fs.mkdirSync(sessionsDir, { recursive: true });
         fs.writeFileSync(path.join(sessionsDir, 'rest-sess-1.json'), JSON.stringify({
           contractVersion: '1',
@@ -476,11 +426,10 @@ async function run() {
           lastEvent: { type: 'session.created', receivedAt: '2026-06-07T11:00:00.000Z' },
         }), 'utf8');
       }
-
       // Second service instance simulates a fresh restart: read-only projection
-      const service2 = createWorktreeService({ copilotHome });
+      const service2 = createWorktreeService({ elegyHome });
       const worktrees = service2.listWorktrees({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         includeSessions: true,
       });
@@ -491,10 +440,9 @@ async function run() {
       assert.equal(wt.opencodeSessionId, 'rest-sess-1');
       assert.equal(wt.opencodeSessions.length, 1);
       assert.equal(wt.opencodeSessions[0].sessionId, 'rest-sess-1');
-
       // Project again — should be stable
       const worktrees2 = service2.listWorktrees({
-        copilotHome,
+        elegyHome,
         repoId: 'repo',
         includeSessions: true,
       });
@@ -504,10 +452,8 @@ async function run() {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
-
   console.log(`\n  ${passed} passed, ${process.exitCode ? 'some failed' : '0 failed'}\n`);
 }
-
 run().catch((error) => {
   console.error(`\n  FATAL: ${error.message}\n`);
   process.exitCode = 1;

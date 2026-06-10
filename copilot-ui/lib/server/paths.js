@@ -24,9 +24,9 @@ function resolveHomeDirectory(options = {}) {
   return path.resolve(osModule.homedir());
 }
 
-function resolveCopilotHome(args, options = {}) {
-  if (args && typeof args.copilotHome === 'string' && args.copilotHome.trim()) {
-    return path.resolve(args.copilotHome);
+function resolveElegyHome(args, options = {}) {
+  if (args && typeof args.elegyHome === 'string' && args.elegyHome.trim()) {
+    return path.resolve(args.elegyHome);
   }
 
   const env = options.env && typeof options.env === 'object' ? options.env : process.env;
@@ -34,55 +34,49 @@ function resolveCopilotHome(args, options = {}) {
     return path.resolve(env.XDG_CONFIG_HOME);
   }
 
-  return path.join(resolveHomeDirectory(options), '.copilot');
-}
-
-function defaultVscodeHome(options = {}) {
-  return path.join(resolveHomeDirectory(options), '.copilot');
-}
-
-function resolveVscodeHome(args, options = {}) {
-  if (args && typeof args.vscodeHome === 'string' && args.vscodeHome.trim()) {
-    return path.resolve(args.vscodeHome);
-  }
-  return defaultVscodeHome(options);
+  return path.join(resolveHomeDirectory(options), '.elegy');
 }
 
 function resolveSandboxesHome(args, options = {}) {
   if (args && typeof args.sandboxesHome === 'string' && args.sandboxesHome.trim()) {
     return path.resolve(args.sandboxesHome);
   }
-  return path.join(resolveHomeDirectory(options), '.copilot', 'sandboxes');
+  return path.join(resolveHomeDirectory(options), '.elegy', 'sandboxes');
 }
 
 function getDefaultMessagingGatewayConfigPath(options = {}) {
   return path.resolve(path.join(
     resolveHomeDirectory(options),
-    '.copilot',
+    '.elegy',
     MESSAGING_GATEWAY_CONFIG_FILENAME
   ));
 }
 
-function getLegacyMessagingGatewayConfigPaths(copilotHomeAbs, options = {}) {
+function getLegacyMessagingGatewayConfigPaths(elegyHomeAbs, options = {}) {
   const candidates = [
     path.resolve(path.join(
       resolveHomeDirectory(options),
       '.instruction-engine',
       MESSAGING_GATEWAY_CONFIG_FILENAME
     )),
+    path.resolve(path.join(
+      resolveHomeDirectory(options),
+      '.copilot',
+      MESSAGING_GATEWAY_CONFIG_FILENAME
+    )),
   ];
 
-  if (typeof copilotHomeAbs === 'string' && copilotHomeAbs.trim()) {
-    candidates.push(path.resolve(path.join(copilotHomeAbs, MESSAGING_GATEWAY_CONFIG_FILENAME)));
+  if (typeof elegyHomeAbs === 'string' && elegyHomeAbs.trim()) {
+    candidates.push(path.resolve(path.join(elegyHomeAbs, MESSAGING_GATEWAY_CONFIG_FILENAME)));
   }
 
   return [...new Set(candidates)];
 }
 
-function rehomeLegacyMessagingGatewayConfigIfNeeded(copilotHomeAbs, canonicalPath, options = {}) {
+function rehomeLegacyMessagingGatewayConfigIfNeeded(elegyHomeAbs, canonicalPath, options = {}) {
   const fsModule = options.fsModule || fs;
   const canonicalPathAbs = path.resolve(canonicalPath);
-  const legacyPaths = getLegacyMessagingGatewayConfigPaths(copilotHomeAbs, options);
+  const legacyPaths = getLegacyMessagingGatewayConfigPaths(elegyHomeAbs, options);
 
   for (const legacyPath of legacyPaths) {
     if (legacyPath === canonicalPathAbs) {
@@ -137,7 +131,7 @@ function rehomeLegacyMessagingGatewayConfigIfNeeded(copilotHomeAbs, canonicalPat
   }
 }
 
-function resolveMessagingGatewayConfigPath(copilotHomeAbs, options = {}) {
+function resolveMessagingGatewayConfigPath(elegyHomeAbs, options = {}) {
   const env = options.env && typeof options.env === 'object' ? options.env : process.env;
   const explicitPath = env[MESSAGING_GATEWAY_CONFIG_PATH_ENV];
   if (typeof explicitPath === 'string' && explicitPath.trim()) {
@@ -145,23 +139,20 @@ function resolveMessagingGatewayConfigPath(copilotHomeAbs, options = {}) {
   }
 
   const defaultPath = getDefaultMessagingGatewayConfigPath(options);
-  rehomeLegacyMessagingGatewayConfigIfNeeded(copilotHomeAbs, defaultPath, options);
+  rehomeLegacyMessagingGatewayConfigIfNeeded(elegyHomeAbs, defaultPath, options);
   return defaultPath;
 }
 
-function resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome) {
+function resolveSessionsHome(source, elegyHome, sandboxesHome) {
   const normalized = String(source || '').trim().toLowerCase();
-  if (normalized === 'vscode') return { source: 'vscode', home: vscodeHome };
   if (normalized === 'sandbox') return { source: 'sandbox', home: sandboxesHome };
-  return { source: 'cli', home: copilotHome };
+  return { source: 'cli', home: elegyHome };
 }
 
 module.exports = {
   MESSAGING_GATEWAY_CONFIG_PATH_ENV,
   MESSAGING_GATEWAY_CONFIG_FILENAME,
-  resolveCopilotHome,
-  defaultVscodeHome,
-  resolveVscodeHome,
+  resolveElegyHome,
   resolveSandboxesHome,
   getDefaultMessagingGatewayConfigPath,
   getLegacyMessagingGatewayConfigPaths,

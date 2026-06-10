@@ -238,7 +238,7 @@ Follow `docs/system/spec-driven-development.md` in the Instruction Engine repo w
 
 When the current workspace is Instruction Engine / Elegy Copilot:
 
-- `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into `~/.copilot`.
+- `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into `~/.elegy`.
 - `opencode-assets/`, `codex-assets/`, and `antigravity-assets/` ship thinner native home baselines for their harnesses.
 - `copilot-ui/` is the local dashboard and catalog control plane; the packaged Windows desktop app is the normal end-user runtime.
 - `contracts/`, `local-tracker/`, `scripts/`, and `docs/system/**` hold shared contracts, gateway/runtime support, installers/validators, and canonical policy.
@@ -376,10 +376,9 @@ Add these to your `opencode.jsonc` `allowedDirectories` or `permissions.allow`:
 - `~/.local/share/opencode/worktree/.state/` — Plugin-local auxiliary state (not the durable authority)
 
 ### Shared worktree registry (Elegy Copilot authority)
-- `~/.copilot/repo-state/` — Durable worktree records for dashboard, executor, and session coordination
+- `~/.elegy/repo-state/` — Durable worktree records for dashboard, executor, and session coordination
 
 ### Elegy planning state
-- `~/.elegy/` — Elegy planning database and configuration
-- `~/.copilot/managed-cli/planning/` — Managed elegy-planning CLI binary
+- `~/.elegy/managed-cli/planning/` — Managed elegy-planning CLI binary
 
 Do not block directory access prompts for these paths during normal project-lane work.

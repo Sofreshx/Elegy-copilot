@@ -35,7 +35,7 @@ interface CapturedServerOptions {
 
 test('desktop runtime service starts the extracted runtime orchestration and shuts it down cleanly', async () => {
   const runtimeRoot = 'C:\\runtime';
-  const copilotHome = 'C:\\Users\\tester\\.copilot';
+  const elegyHome = 'C:\\Users\\tester\\.elegy';
   const fakeChild = new FakeChildProcess();
   const existingPaths = new Set([
     runtimeRoot,
@@ -50,8 +50,8 @@ test('desktop runtime service starts the extracted runtime orchestration and shu
       paths: {
         runtimeRoot,
         workspaceRoot: runtimeRoot,
-        copilotHome,
-        gatewayConfigPath: path.join(copilotHome, 'messaging-gateway.config.json'),
+        elegyHome,
+        gatewayConfigPath: path.join(elegyHome, 'messaging-gateway.config.json'),
         legacyGatewayConfigPath: path.join('C:\\Users\\tester\\.instruction-engine', 'messaging-gateway.config.json'),
       },
       isPackaged: true,
@@ -151,7 +151,7 @@ test('desktop runtime service starts the extracted runtime orchestration and shu
   assert.equal(serverOptions?.desktopUiToken, 'desktop-token');
   assert.equal(serverOptions?.engineRoot, runtimeRoot);
   assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH, undefined);
-  assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(copilotHome, 'elegy-planning.db'));
+  assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(elegyHome, 'elegy-planning.db'));
   assert.equal(service.isRunning(), true);
   assert.equal(service.getWindowUrl(), result.windowUrl);
 
@@ -170,7 +170,7 @@ test('desktop runtime service starts the extracted runtime orchestration and shu
 
 test('desktop runtime service discovers packaged elegy-planning authority and forwards it to the server env', async () => {
   const runtimeRoot = 'C:\\runtime';
-  const copilotHome = 'C:\\Users\\tester\\.copilot';
+  const elegyHome = 'C:\\Users\\tester\\.elegy';
   const fakeChild = new FakeChildProcess();
   const existingPaths = new Set([
     runtimeRoot,
@@ -185,8 +185,8 @@ test('desktop runtime service discovers packaged elegy-planning authority and fo
       paths: {
         runtimeRoot,
         workspaceRoot: runtimeRoot,
-        copilotHome,
-        gatewayConfigPath: path.join(copilotHome, 'messaging-gateway.config.json'),
+        elegyHome,
+        gatewayConfigPath: path.join(elegyHome, 'messaging-gateway.config.json'),
         legacyGatewayConfigPath: path.join('C:\\Users\\tester\\.instruction-engine', 'messaging-gateway.config.json'),
       },
       isPackaged: true,
@@ -273,17 +273,17 @@ test('desktop runtime service discovers packaged elegy-planning authority and fo
   );
   assert.equal(
     env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH,
-    path.join(copilotHome, 'elegy-planning.db'),
+    path.join(elegyHome, 'elegy-planning.db'),
   );
   assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH, path.join(runtimeRoot, 'elegy-planning', 'elegy-planning.exe'));
-  assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(copilotHome, 'elegy-planning.db'));
+  assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(elegyHome, 'elegy-planning.db'));
 
   await service.stop();
 });
 
 test('desktop runtime service defers planning DISABLED decision when no CLI is discoverable', async () => {
   const runtimeRoot = 'C:\\runtime';
-  const copilotHome = 'C:\\Users\\tester\\.copilot';
+  const elegyHome = 'C:\\Users\\tester\\.elegy';
   const fakeChild = new FakeChildProcess();
   const existingPaths = new Set([
     runtimeRoot,
@@ -296,8 +296,8 @@ test('desktop runtime service defers planning DISABLED decision when no CLI is d
       paths: {
         runtimeRoot,
         workspaceRoot: runtimeRoot,
-        copilotHome,
-        gatewayConfigPath: path.join(copilotHome, 'messaging-gateway.config.json'),
+        elegyHome,
+        gatewayConfigPath: path.join(elegyHome, 'messaging-gateway.config.json'),
         legacyGatewayConfigPath: path.join('C:\\Users\\tester\\.instruction-engine', 'messaging-gateway.config.json'),
       },
       isPackaged: true,
@@ -376,14 +376,14 @@ test('desktop runtime service defers planning DISABLED decision when no CLI is d
 
   assert.equal(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH, undefined);
   assert.equal(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED, undefined);
-  assert.equal(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(copilotHome, 'elegy-planning.db'));
+  assert.equal(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(elegyHome, 'elegy-planning.db'));
 
   await service.stop();
 });
 
 test('desktop runtime service cleans up partially started dependencies when startup fails', async () => {
   const runtimeRoot = 'C:\\runtime';
-  const copilotHome = 'C:\\Users\\tester\\.copilot';
+  const elegyHome = 'C:\\Users\\tester\\.elegy';
   const fakeChild = new FakeChildProcess();
   const existingPaths = new Set([
     path.join(runtimeRoot, 'local-tracker'),
@@ -395,8 +395,8 @@ test('desktop runtime service cleans up partially started dependencies when star
       paths: {
         runtimeRoot,
         workspaceRoot: runtimeRoot,
-        copilotHome,
-        gatewayConfigPath: path.join(copilotHome, 'messaging-gateway.config.json'),
+        elegyHome,
+        gatewayConfigPath: path.join(elegyHome, 'messaging-gateway.config.json'),
         legacyGatewayConfigPath: path.join('C:\\Users\\tester\\.instruction-engine', 'messaging-gateway.config.json'),
       },
       isPackaged: true,
@@ -513,7 +513,7 @@ test('bundled child entrypoint strips its dedicated flag while invoking the bund
 
 test('runtime service records startup_dep_failed diagnostic when start throws', async () => {
   const runtimeRoot = 'C:\\runtime';
-  const copilotHome = 'C:\\Users\\tester\\.copilot';
+  const elegyHome = 'C:\\Users\\tester\\.elegy';
   const fakeChild = new FakeChildProcess();
   const events: { name: string; payload: Record<string, unknown> }[] = [];
   const diagnostics = {
@@ -533,8 +533,8 @@ test('runtime service records startup_dep_failed diagnostic when start throws', 
       paths: {
         runtimeRoot,
         workspaceRoot: runtimeRoot,
-        copilotHome,
-        gatewayConfigPath: path.join(copilotHome, 'messaging-gateway.config.json'),
+        elegyHome,
+        gatewayConfigPath: path.join(elegyHome, 'messaging-gateway.config.json'),
         legacyGatewayConfigPath: path.join('C:\\Users\\tester\\.instruction-engine', 'messaging-gateway.config.json'),
       },
       isPackaged: true,
@@ -591,7 +591,7 @@ test('runtime service records startup_dep_failed diagnostic when start throws', 
 
 test('runtime service records child_unexpected_exit when gateway exits outside shutdown', async () => {
   const runtimeRoot = 'C:\\runtime';
-  const copilotHome = 'C:\\Users\\tester\\.copilot';
+  const elegyHome = 'C:\\Users\\tester\\.elegy';
   const fakeChild = new FakeChildProcess();
   const events: { name: string; payload: Record<string, unknown> }[] = [];
   const diagnostics = {
@@ -611,8 +611,8 @@ test('runtime service records child_unexpected_exit when gateway exits outside s
       paths: {
         runtimeRoot,
         workspaceRoot: runtimeRoot,
-        copilotHome,
-        gatewayConfigPath: path.join(copilotHome, 'messaging-gateway.config.json'),
+        elegyHome,
+        gatewayConfigPath: path.join(elegyHome, 'messaging-gateway.config.json'),
         legacyGatewayConfigPath: path.join('C:\\Users\\tester\\.instruction-engine', 'messaging-gateway.config.json'),
       },
       isPackaged: true,
@@ -671,7 +671,7 @@ test('runtime service records child_unexpected_exit when gateway exits outside s
 
 test('runtime service does NOT record a diagnostic when the gateway exits during stop()', async () => {
   const runtimeRoot = 'C:\\runtime';
-  const copilotHome = 'C:\\Users\\tester\\.copilot';
+  const elegyHome = 'C:\\Users\\tester\\.elegy';
   const fakeChild = new FakeChildProcess();
   const events: { name: string; payload: Record<string, unknown> }[] = [];
   const diagnostics = {
@@ -691,8 +691,8 @@ test('runtime service does NOT record a diagnostic when the gateway exits during
       paths: {
         runtimeRoot,
         workspaceRoot: runtimeRoot,
-        copilotHome,
-        gatewayConfigPath: path.join(copilotHome, 'messaging-gateway.config.json'),
+        elegyHome,
+        gatewayConfigPath: path.join(elegyHome, 'messaging-gateway.config.json'),
         legacyGatewayConfigPath: path.join('C:\\Users\\tester\\.instruction-engine', 'messaging-gateway.config.json'),
       },
       isPackaged: true,

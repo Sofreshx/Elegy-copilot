@@ -12,7 +12,7 @@ summary: Legacy repo-local Repository Backlog snapshot retained only for compati
 <!-- REPOSITORY_BACKLOG_FORMAT_VERSION: 1 -->
 
 This repo-local file is a legacy compatibility snapshot. Canonical Repository Backlog artifacts now
-live under `~/.copilot/backlogs/{repo-name}/backlogs/*.md`, and this file should not be treated as
+live under `~/.elegy/backlogs/{repo-name}/backlogs/*.md`, and this file should not be treated as
 the active planning authority.
 
 The entries below remain as historical repo planning context. They span

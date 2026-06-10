@@ -7,8 +7,7 @@ export interface HealthResponse {
   ok: boolean;
   now: number;
   engineRoot: string;
-  copilotHome: string;
-  vscodeHome: string;
+  elegyHome: string;
   changes: VersionResponse | null;
   runtime: Record<string, unknown>;
   policy: Record<string, unknown>;

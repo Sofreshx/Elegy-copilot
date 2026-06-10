@@ -1,16 +1,11 @@
 'use strict';
-
 const assert = require('node:assert/strict');
 const path = require('node:path');
-
 const {
   CONTINUATION_PACKAGE_CONTRACT_VERSION,
 } = require('@elegy-copilot/contracts');
-
 const { register } = require('./sessions');
-
 let passed = 0;
-
 async function test(name, fn) {
   try {
     await fn();
@@ -22,18 +17,15 @@ async function test(name, fn) {
     process.exitCode = 1;
   }
 }
-
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
 function createResponse() {
   const state = {
     statusCode: null,
     headers: null,
     chunks: [],
   };
-
   return {
     get statusCode() {
       return state.statusCode;
@@ -58,7 +50,6 @@ function createResponse() {
     },
   };
 }
-
 function createSendJson() {
   return (res, code, payload) => {
     res.writeHead(code, {
@@ -68,11 +59,9 @@ function createSendJson() {
     res.end(JSON.stringify(payload, null, 2));
   };
 }
-
 function parseJson(text) {
   return JSON.parse(String(text || '').trim() || '{}');
 }
-
 function findRoute(routes, method, pathname) {
   for (const route of routes) {
     if (route.method !== method) {
@@ -88,10 +77,8 @@ function findRoute(routes, method, pathname) {
       }
     }
   }
-
   throw new Error(`Route not found for ${method} ${pathname}`);
 }
-
 async function invoke(routes, ctxOrMethod, method, pathname, body) {
   let ctx = {};
   if (typeof ctxOrMethod === 'string') {
@@ -101,13 +88,11 @@ async function invoke(routes, ctxOrMethod, method, pathname, body) {
   } else {
     ctx = ctxOrMethod || {};
   }
-
   const res = createResponse();
   const u = new URL(`http://127.0.0.1${pathname}`);
   const { route, match } = findRoute(routes, method, u.pathname);
   route.handler({
-    copilotHome: 'C:/copilot',
-    vscodeHome: 'C:/vscode',
+    elegyHome: 'C:/copilot',
     sandboxesHome: 'C:/sandboxes',
     ...ctx,
     req: { __body: body || {} },
@@ -119,7 +104,6 @@ async function invoke(routes, ctxOrMethod, method, pathname, body) {
   await sleep(0);
   return { res, body: parseJson(res.bodyText) };
 }
-
 function createSessionFs() {
   return {
     existsSync(targetPath) {
@@ -134,7 +118,6 @@ function createSessionFs() {
     },
   };
 }
-
 async function run() {
   await test('GET /api/sessions exposes runtime-first authority metadata for artifact inventory listings', async () => {
     const routes = register({
@@ -173,13 +156,10 @@ async function run() {
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'GET', '/api/sessions');
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.authorityModel.liveAuthority, 'acp');
     assert.equal(body.authorityModel.artifactFallbackAuthority, 'fs');
@@ -188,15 +168,11 @@ async function run() {
     assert.equal(body.sessions.length, 1);
     assert.equal(body.sessions[0].authority, 'fs');
   });
-
   await test('GET /api/sessions?source=all&dedupe=off marks the listing as multi-source artifact inventory', async () => {
     const routes = register({
       sessions: {
         listSessions(home) {
           if (home === 'C:\\cli-home') {
-            return [{ id: 'session-1', status: 'idle' }];
-          }
-          if (home === 'C:\\vscode-home') {
             return [{ id: 'session-1', status: 'idle' }];
           }
           return [];
@@ -225,19 +201,15 @@ async function run() {
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'GET', '/api/sessions?source=all&dedupe=off');
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.authorityModel.liveAuthority, 'acp');
     assert.equal(body.authorityModel.listingSurface, 'artifact_inventory_multi_source');
     assert.equal(body.sessions.length, 2);
   });
-
   await test('GET /api/sessions/workspace returns runtime-first active entries plus durable history', async () => {
     const routes = register({
       sessions: {
@@ -328,13 +300,10 @@ async function run() {
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'GET', '/api/sessions/workspace');
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.authorityModel.activeAuthority, 'acp');
     assert.equal(body.authorityModel.historyAuthority, 'fs');
@@ -345,7 +314,6 @@ async function run() {
     assert.equal(body.history[0].workspace.primaryRepo.repoPath, 'C:\\repo-two');
     assert.deepEqual(body.history[0].workspace.linkedRepos, []);
   });
-
   await test('GET /api/sessions/workspace excludes history artifact and archive rows when a linked overlay session is live in runtime', async () => {
     const routes = register({
       sessions: {
@@ -417,20 +385,16 @@ async function run() {
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'GET', '/api/sessions/workspace');
-
     assert.equal(res.statusCode, 200);
     assert.deepEqual(body.active.map((entry) => entry.kind), ['overlay']);
     assert.deepEqual(body.active.map((entry) => entry.title), ['overlay-1']);
     assert.deepEqual(body.history, []);
   });
-
-  await test('GET /api/sessions?source=all does not duplicate projected sessions when cli and vscode homes resolve to the same path', async () => {
+  await test('GET /api/sessions?source=all does not duplicate projected sessions when only elegyHome is configured', async () => {
     const listSessionHomes = [];
     const routes = register({
       path: path.win32,
@@ -463,19 +427,15 @@ async function run() {
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\Shared\\Copilot',
-      vscodeHome: 'c:\\shared\\copilot',
+      elegyHome: 'C:\\Shared\\Copilot',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'GET', '/api/sessions?source=all');
-
     assert.equal(res.statusCode, 200);
     assert.equal(listSessionHomes.length, 1);
     assert.equal(listSessionHomes[0], 'C:\\Shared\\Copilot');
     assert.deepEqual(body.sessions.map((session) => session.source), ['cli']);
   });
-
   await test('GET /api/sessions?source=all&dedupe=off still avoids duplicate shared-root projections', async () => {
     const listSessionHomes = [];
     const routes = register({
@@ -509,19 +469,15 @@ async function run() {
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\Shared\\Copilot',
-      vscodeHome: 'c:\\shared\\copilot',
+      elegyHome: 'C:\\Shared\\Copilot',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'GET', '/api/sessions?source=all&dedupe=off');
-
     assert.equal(res.statusCode, 200);
     assert.equal(listSessionHomes.length, 1);
     assert.equal(body.sessions.length, 1);
     assert.deepEqual(body.sessions.map((session) => session.source), ['cli']);
   });
-
   await test('GET /api/sessions/:id/proposition returns raw and parsed structured entries', async () => {
     const routes = register({
       sendJson: createSendJson(),
@@ -530,22 +486,16 @@ async function run() {
         readTextFileSafe(targetPath) {
           if (String(targetPath).endsWith('proposition.md')) {
             return `## 2026-03-12T12:00:00Z — after-execution — workflow-executor
-
 ### Summary
 - Execution completed.
-
 ### Immediate Next Actions
 - Verify the changed files.
-
 ### Next Plan Ideas
 - Tighten resume heuristics.
-
 ### Watch Outs
 - Keep parallel-safe ownership explicit.
-
 ### Open Risks
 - None.
-
 ### Details
 Completed successfully.
 `;
@@ -560,9 +510,7 @@ Completed successfully.
         return [];
       },
     });
-
     const { res, body } = await invoke(routes, 'GET', '/api/sessions/session-123/proposition');
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.id, 'session-123');
     assert.ok(Array.isArray(body.entries));
@@ -570,7 +518,6 @@ Completed successfully.
     assert.equal(body.latestEntry.phase, 'after-execution');
     assert.ok(body.latestEntry.sections.some((section) => section.key === 'immediateNextActions'));
   });
-
   await test('GET /api/sessions/:id/handoff returns parsed manifest and required sections', async () => {
     const routes = register({
       sendJson: createSendJson(),
@@ -582,25 +529,18 @@ Completed successfully.
 - Session: session-123
 - Plan: plan.md (status: APPROVED)
 - Reviewer: Verdict: APPROVED
-
 ## Key Decisions
 - Use serial execution until file ownership is disjoint.
-
 ## Exploration Summary
 - docs/system/session-state-artifacts.md
-
 ## User Constraints
 - none
-
 ## Immediate Next Actions
 - Execute WU-001.
-
 ## Next Plan Ideas
 - Add richer resume scoring later.
-
 ## Watch Outs
 - Keep review ledger aligned with handoff state.
-
 ## Open Risks
 - none
 `;
@@ -615,16 +555,13 @@ Completed successfully.
         return [];
       },
     });
-
     const { res, body } = await invoke(routes, 'GET', '/api/sessions/session-123/handoff');
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.parsed.manifest.session, 'session-123');
     assert.equal(body.parsed.manifest.planStatus, 'APPROVED');
     assert.ok(Array.isArray(body.parsed.sections));
     assert.equal(body.parsed.warnings.length, 0);
   });
-
   await test('GET /api/sessions/:id/structured-state derives framing summaries from existing artifacts', async () => {
     const assetReads = [];
     const routes = register({
@@ -638,48 +575,35 @@ Completed successfully.
 - Session: session-123
 - Plan: plan.md (status: APPROVED)
 - Reviewer: Verdict: APPROVED
-
 ## Key Decisions
 - Publish derived summaries through structured-state metadata.
-
 ## Exploration Summary
 - copilot-ui/routes/sessions.js
-
 ## User Constraints
 - Do not add new required files.
-
 ## Immediate Next Actions
 - Confirm the derived summaries render in Session Details.
-
 ## Next Plan Ideas
 - Reuse the same summaries in later planning surfaces.
-
 ## Watch Outs
 - Keep raw artifacts available as supporting detail.
-
 ## Open Risks
 - Verification evidence is still narrow.
 `;
           }
           if (String(targetPath).endsWith('proposition.md')) {
             return `## 2026-03-23T12:00:00Z — after-execution — workflow-executor
-
 ### Summary
 - Session framing cards render before raw artifacts.
 - Structured-state now exposes intent and closure summaries.
-
 ### Immediate Next Actions
 - Check the Sessions UI output.
-
 ### Next Plan Ideas
 - Add planning-surface reuse later.
-
 ### Watch Outs
 - Keep derived output additive only.
-
 ### Open Risks
 - Verification remains targeted.
-
 ### Details
 Minimal runtime adoption is now backed by derived session artifact summaries.
 `;
@@ -687,26 +611,19 @@ Minimal runtime adoption is now backed by derived session artifact summaries.
           if (String(targetPath).endsWith('verification-guide.md')) {
             return `## Summary
 Verify the new framing surfaces in Sessions.
-
 ## Changed Files
 - copilot-ui/routes/sessions.js
-
 ## Where to Verify
 - UI: Sessions > Session Details
-
 ## Validation Requirements
 - unit: Required for the structured-state route.
 - browser: Not required for this route-only slice.
-
 ## Tested Coverage
 - unit: Focused unit structured-state route parsing through the Sessions API.
-
 ## Coverage Gaps
 - browser: No browser-driven validation ran for this route-only slice.
-
 ## Verification Steps
 - Run node copilot-ui/lib/planState.test.js
-
 ## Expected Outcomes
 - Session Intent Frame leads the details pane.
 `;
@@ -749,23 +666,18 @@ Verify the new framing surfaces in Sessions.
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
 | 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
-
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
-
 ## Work Unit Groups Overview
 | Group | Title | Status | WUs Done | WUs Total | Depends On |
 | --- | --- | --- | --- | --- | --- |
 | G-01 | Runtime Adoption | implemented | 1 | 2 | — |
-
 ## Work Unit Status Table
 | Group | Work Unit ID | Status | Next Unit | Notes |
 | --- | --- | --- | --- | --- |
 | G-01 | WU-001 | done | WU-002 | framing landed |
-
 ## Next Unit
 **WU-002** — finish the session detail presentation
-
 ## Checkpoints
 | Group | Checkpoint | Trigger | Notes |
 | --- | --- | --- | --- |
@@ -776,9 +688,7 @@ Verify the new framing surfaces in Sessions.
         return [];
       },
     });
-
     const { res, body } = await invoke(routes, 'GET', '/api/sessions/session-123/structured-state');
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.meta.intentFrame.summary, 'Session framing cards render before raw artifacts. Structured-state now exposes intent and closure summaries.');
     assert.deepEqual(body.meta.intentFrame.inScope, [
@@ -811,7 +721,6 @@ Verify the new framing surfaces in Sessions.
     assert.ok(!assetReads.some((targetPath) => targetPath.endsWith('final.md')));
     assert.ok(assetReads.some((targetPath) => targetPath.endsWith('execution-state.json')));
   });
-
   await test('GET /api/sessions/:id/structured-state adds authority-safe orchestration projections for repo, tasks, actors, workflows, and worktrees', async () => {
     const routes = register({
       sendJson: createSendJson(),
@@ -855,8 +764,8 @@ Verify the new framing surfaces in Sessions.
             branch: 'main',
           };
         },
-        listRepoStateTasks(copilotHome, repoId, options) {
-          assert.equal(copilotHome, 'C:\\cli-home');
+        listRepoStateTasks(elegyHome, repoId, options) {
+          assert.equal(elegyHome, 'C:\\cli-home');
           assert.equal(repoId, 'instruction-engine');
           assert.equal(options.sessionId, 'session-123');
           assert.deepEqual(options.workflowRunIds, ['run-1']);
@@ -897,8 +806,8 @@ Verify the new framing surfaces in Sessions.
             },
           ];
         },
-        readRepoStateWorktree(copilotHome, repoId, worktreeId) {
-          assert.equal(copilotHome, 'C:\\cli-home');
+        readRepoStateWorktree(elegyHome, repoId, worktreeId) {
+          assert.equal(elegyHome, 'C:\\cli-home');
           assert.equal(repoId, 'instruction-engine');
           assert.equal(worktreeId, 'wt-1');
           return {
@@ -1002,13 +911,10 @@ Verify the new framing surfaces in Sessions.
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'GET', '/api/sessions/session-123/structured-state');
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.orchestration.contractVersion, '1');
     assert.equal(body.orchestration.authority.liveSession, 'acp');
@@ -1024,7 +930,6 @@ Verify the new framing surfaces in Sessions.
     assert.equal(body.orchestration.workflow.runs[0].runId, 'run-1');
     assert.equal(body.orchestration.overlays.sessions[0].linkedSessionId, 'session-123');
   });
-
   await test('GET /api/sessions/:id/structured-state excludes same-repo overlay sessions without an explicit current-session ref', async () => {
     const routes = register({
       sendJson: createSendJson(),
@@ -1118,15 +1023,12 @@ Verify the new framing surfaces in Sessions.
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
+      elegyHome: 'C:\\cli-home',
     }, 'GET', '/api/sessions/session-123/structured-state');
-
     assert.equal(res.statusCode, 200);
     assert.deepEqual(body.orchestration.overlays.sessions.map((session) => session.id), ['overlay-keep']);
   });
-
   await test('GET /api/sessions/:id/structured-state excludes same-repo workflow runs from sibling sessions', async () => {
     const routes = register({
       sendJson: createSendJson(),
@@ -1248,15 +1150,12 @@ Verify the new framing surfaces in Sessions.
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
+      elegyHome: 'C:\\cli-home',
     }, 'GET', '/api/sessions/session-123/structured-state');
-
     assert.equal(res.statusCode, 200);
     assert.deepEqual(body.orchestration.workflow.runs.map((run) => run.runId), ['run-3', 'run-1']);
   });
-
   await test('GET /api/sessions/:id/structured-state leaves structured validation requirements empty when the verification guide section is absent', async () => {
     const routes = register({
       sendJson: createSendJson(),
@@ -1268,14 +1167,12 @@ Verify the new framing surfaces in Sessions.
 - Session: session-123
 - Plan: plan.md (status: APPROVED)
 - Reviewer: Verdict: APPROVED
-
 ## Immediate Next Actions
 - NONE
 `;
           }
           if (String(targetPath).endsWith('proposition.md')) {
             return `## 2026-04-03T12:00:00Z - after-execution - workflow-executor
-
 ### Summary
 - Structured validation requirements should stay empty when the section is missing.
 `;
@@ -1283,16 +1180,12 @@ Verify the new framing surfaces in Sessions.
           if (String(targetPath).endsWith('verification-guide.md')) {
             return `## Summary
 Structured validation requirements should stay empty when the section is missing.
-
 ## Changed Files
 - copilot-ui/lib/sessionArtifacts.js
-
 ## Where to Verify
 - API: GET /api/sessions/:id/structured-state
-
 ## Verification Steps
 - Run node copilot-ui/lib/planState.test.js
-
 ## Expected Outcomes
 - Structured validation requirements stay empty when the section is absent.
 `;
@@ -1306,23 +1199,18 @@ Structured validation requirements should stay empty when the section is missing
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
 | 1 | reviewer-sonnet-4-6 | APPROVED | - | accepted |
-
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
-
 ## Work Unit Groups Overview
 | Group | Title | Status | WUs Done | WUs Total | Depends On |
 | --- | --- | --- | --- | --- | --- |
 | G-01 | Runtime Adoption | implemented | 1 | 1 | - |
-
 ## Work Unit Status Table
 | Group | Work Unit ID | Status | Next Unit | Notes |
 | --- | --- | --- | --- | --- |
 | G-01 | WU-001 | done | - | execution finished |
-
 ## Next Unit
 **NONE** - terminal outcome reached
-
 ## Checkpoints
 | Group | Checkpoint | Trigger | Notes |
 | --- | --- | --- | --- |
@@ -1333,9 +1221,7 @@ Structured validation requirements should stay empty when the section is missing
         return [];
       },
     });
-
     const { res, body } = await invoke(routes, 'GET', '/api/sessions/session-123/structured-state');
-
     assert.equal(res.statusCode, 200);
     assert.deepEqual(body.meta.intentFrame.successSignals, [
       'unit-tests — after group completion',
@@ -1345,7 +1231,6 @@ Structured validation requirements should stay empty when the section is missing
     assert.deepEqual(body.meta.closureSummary.validationRequirements, []);
     assert.ok(body.meta.closureSummary.validationEvidence.includes('unit-tests passed (after group completion)'));
   });
-
   await test('GET /api/sessions/:id/structured-state keeps review approval in validation evidence without promoting confidence to high', async () => {
     const routes = register({
       sendJson: createSendJson(),
@@ -1357,44 +1242,32 @@ Structured validation requirements should stay empty when the section is missing
 - Session: session-123
 - Plan: plan.md (status: APPROVED)
 - Reviewer: Verdict: APPROVED
-
 ## Key Decisions
 - Review approval stays visible in closure metadata.
-
 ## Exploration Summary
 - docs/system/validation-governance.md
-
 ## User Constraints
 - none
-
 ## Immediate Next Actions
 - NONE
-
 ## Next Plan Ideas
 - NONE
-
 ## Watch Outs
 - Review approval alone must not create high confidence.
-
 ## Open Risks
 - Focused validation coverage is still absent.
 `;
           }
           if (String(targetPath).endsWith('proposition.md')) {
             return `## 2026-04-03T12:00:00Z - after-execution - workflow-executor
-
 ### Summary
 - Structured-state now separates review approval from affirmative validation evidence.
-
 ### Immediate Next Actions
 - NONE
-
 ### Next Plan Ideas
 - NONE
-
 ### Watch Outs
 - Do not let review approval alone imply tested confidence.
-
 ### Open Risks
 - Persisted validation coverage is still absent.
 `;
@@ -1402,16 +1275,12 @@ Structured validation requirements should stay empty when the section is missing
           if (String(targetPath).endsWith('verification-guide.md')) {
             return `## Summary
 Review approval remains visible in structured-state, but no validation coverage ran.
-
 ## Changed Files
 - copilot-ui/lib/sessionArtifacts.js
-
 ## Where to Verify
 - API: GET /api/sessions/:id/structured-state
-
 ## Verification Steps
 - Inspect the closure summary confidence field.
-
 ## Expected Outcomes
 - Review approval remains visible without producing high confidence.
 `;
@@ -1433,20 +1302,16 @@ Review approval remains visible in structured-state, but no validation coverage 
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
 | 1 | reviewer-sonnet-4-6 | APPROVED | - | accepted |
-
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
-
 ## Work Unit Groups Overview
 | Group | Title | Status | WUs Done | WUs Total | Depends On |
 | --- | --- | --- | --- | --- | --- |
 | G-01 | Structured State Confidence | implemented | 1 | 1 | - |
-
 ## Work Unit Status Table
 | Group | Work Unit ID | Status | Next Unit | Notes |
 | --- | --- | --- | --- | --- |
 | G-01 | WU-001 | done | - | execution finished |
-
 ## Next Unit
 **NONE** - terminal outcome reached
 `;
@@ -1455,16 +1320,13 @@ Review approval remains visible in structured-state, but no validation coverage 
         return [];
       },
     });
-
     const { res, body } = await invoke(routes, 'GET', '/api/sessions/session-123/structured-state');
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.meta.closureSummary.outcome, 'completed');
     assert.equal(body.meta.closureSummary.confidence, 'medium');
     assert.deepEqual(body.meta.closureSummary.validationCoverage, []);
     assert.ok(body.meta.closureSummary.validationEvidence.some((entry) => entry.includes('Review ledger verdict: APPROVED')));
   });
-
   await test('GET /api/sessions/:id/structured-state downgrades terminal closure when mandatory validation is still missing', async () => {
     const routes = register({
       sendJson: createSendJson(),
@@ -1476,44 +1338,32 @@ Review approval remains visible in structured-state, but no validation coverage 
 - Session: session-123
 - Plan: plan.md (status: APPROVED)
 - Reviewer: Verdict: APPROVED
-
 ## Key Decisions
 - Keep closure reporting aligned with validation governance.
-
 ## Exploration Summary
 - docs/system/validation-governance.md
-
 ## User Constraints
 - none
-
 ## Immediate Next Actions
 - NONE
-
 ## Next Plan Ideas
 - NONE
-
 ## Watch Outs
 - Missing mandatory validation must stay explicit.
-
 ## Open Risks
 - Integration validation has not run yet.
 `;
           }
           if (String(targetPath).endsWith('proposition.md')) {
             return `## 2026-04-03T12:00:00Z - after-execution - workflow-executor
-
 ### Summary
 - Structured-state now exposes validation-governance closure metadata.
-
 ### Immediate Next Actions
 - NONE
-
 ### Next Plan Ideas
 - NONE
-
 ### Watch Outs
 - Do not mark the run as complete when required validation is missing.
-
 ### Open Risks
 - Integration validation still has not run.
 `;
@@ -1521,26 +1371,19 @@ Review approval remains visible in structured-state, but no validation coverage 
           if (String(targetPath).endsWith('verification-guide.md')) {
             return `## Summary
 Structured-state now exposes validation-governance closure metadata.
-
 ## Changed Files
 - copilot-ui/lib/sessionArtifacts.js
-
 ## Where to Verify
 - API: GET /api/sessions/:id/structured-state
-
 ## Validation Requirements
 - integration: Required for this cross-boundary workflow slice.
 - browser: Not required for this non-UI change.
-
 ## Tested Coverage
 - unit: Focused unit tests for the structured-state parser.
-
 ## Coverage Gaps
 - integration: Validation did not run for this session.
-
 ## Verification Steps
 - Run the focused structured-state tests.
-
 ## Expected Outcomes
 - The closure summary stays paused when required validation is missing.
 `;
@@ -1562,23 +1405,18 @@ Structured-state now exposes validation-governance closure metadata.
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
 | 1 | reviewer-sonnet-4-6 | APPROVED | - | accepted |
-
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
-
 ## Work Unit Groups Overview
 | Group | Title | Status | WUs Done | WUs Total | Depends On |
 | --- | --- | --- | --- | --- | --- |
 | G-01 | Validation Governance | implemented | 1 | 1 | - |
-
 ## Work Unit Status Table
 | Group | Work Unit ID | Status | Next Unit | Notes |
 | --- | --- | --- | --- | --- |
 | G-01 | WU-001 | done | - | execution finished |
-
 ## Next Unit
 **NONE** - terminal outcome reached
-
 ## Checkpoints
 | Group | Checkpoint | Trigger | Notes |
 | --- | --- | --- | --- |
@@ -1589,9 +1427,7 @@ Structured-state now exposes validation-governance closure metadata.
         return [];
       },
     });
-
     const { res, body } = await invoke(routes, 'GET', '/api/sessions/session-123/structured-state');
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.meta.closureSummary.reviewVerdict, 'APPROVED');
     assert.equal(body.meta.closureSummary.outcome, 'paused');
@@ -1609,7 +1445,6 @@ Structured-state now exposes validation-governance closure metadata.
     ]);
     assert.ok(body.meta.closureSummary.blockers.includes('Mandatory validation is required but persisted validation coverage is incomplete.'));
   });
-
   await test('GET /api/sessions/:id/structured-state ignores unlabeled tested coverage and gaps', async () => {
     const routes = register({
       sendJson: createSendJson(),
@@ -1621,44 +1456,32 @@ Structured-state now exposes validation-governance closure metadata.
 - Session: session-123
 - Plan: plan.md (status: APPROVED)
 - Reviewer: Verdict: APPROVED
-
 ## Key Decisions
 - Keep closure reporting aligned with validation governance.
-
 ## Exploration Summary
 - docs/system/validation-governance.md
-
 ## User Constraints
 - none
-
 ## Immediate Next Actions
 - NONE
-
 ## Next Plan Ideas
 - NONE
-
 ## Watch Outs
 - Missing mandatory validation must stay explicit.
-
 ## Open Risks
 - Integration validation has not run yet.
 `;
           }
           if (String(targetPath).endsWith('proposition.md')) {
             return `## 2026-04-03T12:00:00Z - after-execution - workflow-executor
-
 ### Summary
 - Structured-state now exposes validation-governance closure metadata.
-
 ### Immediate Next Actions
 - NONE
-
 ### Next Plan Ideas
 - NONE
-
 ### Watch Outs
 - Do not mark the run as complete when required validation is missing.
-
 ### Open Risks
 - Integration validation still has not run.
 `;
@@ -1666,26 +1489,19 @@ Structured-state now exposes validation-governance closure metadata.
           if (String(targetPath).endsWith('verification-guide.md')) {
             return `## Summary
 Structured-state now exposes validation-governance closure metadata.
-
 ## Changed Files
 - copilot-ui/lib/sessionArtifacts.js
-
 ## Where to Verify
 - API: GET /api/sessions/:id/structured-state
-
 ## Validation Requirements
 - integration: Required for this cross-boundary workflow slice.
 - browser: Not required for this non-UI change.
-
 ## Tested Coverage
 - Focused unit tests for the structured-state parser.
-
 ## Coverage Gaps
 - Integration validation did not run for this session.
-
 ## Verification Steps
 - Run the focused structured-state tests.
-
 ## Expected Outcomes
 - The closure summary stays paused when required validation is missing.
 `;
@@ -1707,23 +1523,18 @@ Structured-state now exposes validation-governance closure metadata.
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
 | 1 | reviewer-sonnet-4-6 | APPROVED | - | accepted |
-
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
-
 ## Work Unit Groups Overview
 | Group | Title | Status | WUs Done | WUs Total | Depends On |
 | --- | --- | --- | --- | --- | --- |
 | G-01 | Validation Governance | implemented | 1 | 1 | - |
-
 ## Work Unit Status Table
 | Group | Work Unit ID | Status | Next Unit | Notes |
 | --- | --- | --- | --- | --- |
 | G-01 | WU-001 | done | - | execution finished |
-
 ## Next Unit
 **NONE** - terminal outcome reached
-
 ## Checkpoints
 | Group | Checkpoint | Trigger | Notes |
 | --- | --- | --- | --- |
@@ -1734,9 +1545,7 @@ Structured-state now exposes validation-governance closure metadata.
         return [];
       },
     });
-
     const { res, body } = await invoke(routes, 'GET', '/api/sessions/session-123/structured-state');
-
     assert.equal(res.statusCode, 200);
     assert.deepEqual(body.meta.closureSummary.validationRequirements, [
       'integration: Required for this cross-boundary workflow slice.',
@@ -1746,7 +1555,6 @@ Structured-state now exposes validation-governance closure metadata.
     assert.deepEqual(body.meta.closureSummary.coverageGaps, []);
     assert.ok(body.meta.closureSummary.blockers.includes('Mandatory validation is required but persisted validation coverage is incomplete.'));
   });
-
   await test('GET /api/sessions/:id/structured-state skips unversioned session-root artifacts for historical plan revisions', async () => {
     const assetReads = [];
     const routes = register({
@@ -1758,14 +1566,12 @@ Structured-state now exposes validation-governance closure metadata.
           if (String(targetPath).endsWith('handoff.md')) {
             return `## Handoff Manifest
 - Session: session-123
-
 ## Immediate Next Actions
 - This current handoff must not contaminate historical reads.
 `;
           }
           if (String(targetPath).endsWith('proposition.md')) {
             return `## 2026-03-23T12:00:00Z — after-execution — workflow-executor
-
 ### Summary
 - This current proposition must not contaminate historical reads.
 `;
@@ -1793,20 +1599,16 @@ This current verification guide must not contaminate historical reads.
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
 | 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
-
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
-
 ## Work Unit Groups Overview
 | Group | Title | Status | WUs Done | WUs Total | Depends On |
 | --- | --- | --- | --- | --- | --- |
 | G-01 | Historical Revision | queued | 0 | 2 | — |
-
 ## Work Unit Status Table
 | Group | Work Unit ID | Status | Next Unit | Notes |
 | --- | --- | --- | --- | --- |
 | G-01 | WU-001 | queued | WU-002 | historical snapshot |
-
 ## Next Unit
 **WU-002** — continue historical plan
 `;
@@ -1815,16 +1617,14 @@ This current verification guide must not contaminate historical reads.
         return [];
       },
     });
-
     const { res, body } = await invoke(
       routes,
       {
-        copilotHome: 'C:\\cli-home',
+        elegyHome: 'C:\\cli-home',
       },
       'GET',
       '/api/sessions/session-123/structured-state?planId=plan-2026-03-22T10-00-00Z'
     );
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.planId, 'plan-2026-03-22T10-00-00Z');
     assert.equal(body.groups[0].status, 'queued');
@@ -1841,7 +1641,6 @@ This current verification guide must not contaminate historical reads.
     assert.ok(!assetReads.some((targetPath) => targetPath.endsWith('proposition.md')));
     assert.ok(!assetReads.some((targetPath) => targetPath.endsWith('verification-guide.md')));
   });
-
   await test('GET /api/sessions/:id/structured-state still derives metadata without a progress tracker heading', async () => {
     const routes = register({
       sendJson: createSendJson(),
@@ -1853,38 +1652,28 @@ This current verification guide must not contaminate historical reads.
 - Session: session-123
 - Plan: plan.md (status: APPROVED)
 - Reviewer: Verdict: APPROVED
-
 ## Key Decisions
 - Preserve derived session metadata for trackerless plans.
-
 ## Exploration Summary
 - copilot-ui/lib/planState.js
-
 ## User Constraints
 - Keep the fix narrowly scoped.
-
 ## Immediate Next Actions
 - Resume the next targeted change.
-
 ## Next Plan Ideas
 - Add broader coverage later.
-
 ## Watch Outs
 - Do not block metadata on tracker parsing.
-
 ## Open Risks
 - none
 `;
           }
           if (String(targetPath).endsWith('proposition.md')) {
             return `## 2026-03-23T12:00:00Z — after-execution — workflow-executor
-
 ### Summary
 - Trackerless plans still expose derived session metadata.
-
 ### Immediate Next Actions
 - Resume the next targeted change.
-
 ### Details
 Structured-state should keep review and framing metadata even without tracker sections.
 `;
@@ -1904,9 +1693,7 @@ Structured-state should keep review and framing metadata even without tracker se
         return [];
       },
     });
-
     const { res, body } = await invoke(routes, 'GET', '/api/sessions/session-123/structured-state');
-
     assert.equal(res.statusCode, 200);
     assert.deepEqual(body.groups, []);
     assert.deepEqual(body.workUnits, []);
@@ -1917,7 +1704,6 @@ Structured-state should keep review and framing metadata even without tracker se
     assert.equal(body.meta.intentFrame.summary, 'Trackerless plans still expose derived session metadata.');
     assert.equal(body.meta.closureSummary.reviewVerdict, 'APPROVED');
   });
-
   await test('GET /api/sessions/:id/final prefers derived compatibility closeout over raw final.md when structured closeout is available', async () => {
     const routes = register({
       fs: createSessionFs(),
@@ -1967,13 +1753,11 @@ Structured-state should keep review and framing metadata even without tracker se
         return '# Plan Pack\n';
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -1982,7 +1766,6 @@ Structured-state should keep review and framing metadata even without tracker se
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 200);
     assert.match(res.bodyText, /## Summary\r?\n- Structured closeout should override the legacy final artifact\./);
     assert.match(res.bodyText, /## Validation Requirements\r?\n- integration: Preserve the canonical validation requirements section\./);
@@ -1990,7 +1773,6 @@ Structured-state should keep review and framing metadata even without tracker se
     assert.match(res.bodyText, /## Coverage Gaps\r?\n- integration: Cross-boundary validation still needs follow-up\./);
     assert.ok(!res.bodyText.includes('Compatibility-only final artifact.'));
   });
-
   await test('GET /api/sessions/:id/final falls back to raw final.md when no derived compatibility closeout is available', async () => {
     const routes = register({
       fs: createSessionFs(),
@@ -2021,13 +1803,11 @@ Structured-state should keep review and framing metadata even without tracker se
         return '# Plan Pack\n';
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -2036,11 +1816,9 @@ Structured-state should keep review and framing metadata even without tracker se
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 200);
     assert.equal(res.bodyText, '## Summary\n- Compatibility-only final artifact.\n');
   });
-
   await test('GET /api/sessions/:id/final falls back to raw final.md when compatibility derivation throws after the legacy artifact is loaded', async () => {
     const assetReads = [];
     const routes = register({
@@ -2070,13 +1848,11 @@ Structured-state should keep review and framing metadata even without tracker se
         return '# Plan Pack\n';
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -2085,12 +1861,10 @@ Structured-state should keep review and framing metadata even without tracker se
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 200);
     assert.equal(res.bodyText, '## Summary\n- Compatibility-only final artifact.\n');
     assert.ok(assetReads.some((targetPath) => targetPath.endsWith('final.md')));
   });
-
   await test('GET /api/sessions/:id/final derives a compatibility closeout from structured state when final.md is absent', async () => {
     const assetReads = [];
     const routes = register({
@@ -2103,7 +1877,6 @@ Structured-state should keep review and framing metadata even without tracker se
 - Session: session-123
 - Plan: plan.md (status: APPROVED)
 - Reviewer: Verdict: APPROVED
-
 ## Immediate Next Actions
 - Resume stale handoff follow-up that should not survive terminal closeout.
 `;
@@ -2127,32 +1900,26 @@ Structured-state should keep review and framing metadata even without tracker se
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
 | 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
-
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
-
 ## Work Unit Groups Overview
 | Group | Title | Status | WUs Done | WUs Total | Depends On |
 | --- | --- | --- | --- | --- | --- |
 | G-01 | Compatibility closeout | implemented | 1 | 1 | — |
-
 ## Work Unit Status Table
 | Group | Work Unit ID | Status | Next Unit | Notes |
 | --- | --- | --- | --- | --- |
 | G-01 | WU-001 | done | — | closeout completed |
-
 ## Next Unit
 NONE — terminal execution already completed
 `;
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -2161,7 +1928,6 @@ NONE — terminal execution already completed
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 200);
     assert.match(res.bodyText, /## Summary\r?\n- Runtime-derived closeout for compatibility clients\./);
     assert.match(res.bodyText, /## Status\r?\n- Outcome: completed/);
@@ -2170,7 +1936,6 @@ NONE — terminal execution already completed
     assert.ok(assetReads.some((targetPath) => targetPath.endsWith('final.md')));
     assert.ok(assetReads.some((targetPath) => targetPath.endsWith('execution-state.json')));
   });
-
   await test('GET /api/sessions/:id/final preserves canonical validation sections when structured closure data provides them', async () => {
     const routes = register({
       fs: createSessionFs(),
@@ -2212,13 +1977,11 @@ NONE — terminal execution already completed
         return '# Plan Pack\n';
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -2227,14 +1990,12 @@ NONE — terminal execution already completed
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 200);
     assert.match(res.bodyText, /## Validation Requirements\r?\n- integration: Required for this cross-boundary workflow slice\./);
     assert.match(res.bodyText, /## Tested Coverage\r?\n- unit: Focused unit coverage recorded for the compatibility formatter\./);
     assert.match(res.bodyText, /## Coverage Gaps\r?\n- integration: Cross-boundary validation did not run in this session\./);
     assert.match(res.bodyText, /## Validation Evidence\r?\n- Review ledger verdict: APPROVED\./);
   });
-
   await test('GET /api/sessions/:id/final keeps not-required validation entries informational without synthesizing gaps', async () => {
     const routes = register({
       fs: createSessionFs(),
@@ -2269,13 +2030,11 @@ NONE — terminal execution already completed
         return '# Plan Pack\n';
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -2284,14 +2043,12 @@ NONE — terminal execution already completed
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 200);
     assert.match(res.bodyText, /## Validation Requirements\r?\n- browser: Not required for this non-UI workflow slice\./);
     assert.ok(!res.bodyText.includes('## Tested Coverage'));
     assert.ok(!res.bodyText.includes('## Coverage Gaps'));
     assert.ok(!res.bodyText.includes('Required validation coverage is still missing.'));
   });
-
   await test('GET /api/sessions/:id/final explicitly calls out missing required validation coverage', async () => {
     const routes = register({
       fs: createSessionFs(),
@@ -2329,13 +2086,11 @@ NONE — terminal execution already completed
         return '# Plan Pack\n';
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -2344,7 +2099,6 @@ NONE — terminal execution already completed
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 200);
     assert.match(res.bodyText, /## Validation Requirements\r?\n- integration: Required before this workflow can be treated as complete\./);
     assert.match(res.bodyText, /## Tested Coverage\r?\n- None recorded\./);
@@ -2353,7 +2107,6 @@ NONE — terminal execution already completed
       /## Coverage Gaps\r?\n- Mandatory validation is required but persisted validation coverage is incomplete\.\r?\n- integration: Required validation coverage is still missing\./,
     );
   });
-
   await test('GET /api/sessions/:id/final keeps labeled mandatory requirements explicit when unrelated coverage exists', async () => {
     const routes = register({
       fs: createSessionFs(),
@@ -2390,13 +2143,11 @@ NONE — terminal execution already completed
         return '# Plan Pack\n';
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -2405,13 +2156,11 @@ NONE — terminal execution already completed
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 200);
     assert.match(res.bodyText, /## Validation Requirements\r?\n- integration: Required before this workflow can be treated as complete\./);
     assert.match(res.bodyText, /## Tested Coverage\r?\n- unit: Focused unit coverage recorded for the compatibility formatter\./);
     assert.match(res.bodyText, /## Coverage Gaps\r?\n- integration: Required validation coverage is still missing\./);
   });
-
   await test('GET /api/sessions/:id/final keeps unlabeled mandatory requirements explicit when other coverage exists', async () => {
     const routes = register({
       fs: createSessionFs(),
@@ -2448,13 +2197,11 @@ NONE — terminal execution already completed
         return '# Plan Pack\n';
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -2463,13 +2210,11 @@ NONE — terminal execution already completed
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 200);
     assert.match(res.bodyText, /## Validation Requirements\r?\n- Required before this workflow can be treated as complete\./);
     assert.match(res.bodyText, /## Tested Coverage\r?\n- unit: Focused unit coverage recorded for the compatibility formatter\./);
     assert.match(res.bodyText, /## Coverage Gaps\r?\n- Unlabeled mandatory validation requirement remains unresolved: Required before this workflow can be treated as complete\./);
   });
-
   await test('GET /api/sessions/:id/final promotes blocker-only validation gaps when requirements are absent', async () => {
     const routes = register({
       fs: createSessionFs(),
@@ -2505,13 +2250,11 @@ NONE — terminal execution already completed
         return '# Plan Pack\n';
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -2520,13 +2263,11 @@ NONE — terminal execution already completed
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 200);
     assert.ok(!res.bodyText.includes('## Validation Requirements'));
     assert.match(res.bodyText, /## Tested Coverage\r?\n- None recorded\./);
     assert.match(res.bodyText, /## Coverage Gaps\r?\n- browser: Browser-driven validation did not run in this session\./);
   });
-
   await test('GET /api/sessions/:id/final keeps legacy validation evidence output when canonical buckets are absent', async () => {
     const routes = register({
       fs: createSessionFs(),
@@ -2559,13 +2300,11 @@ NONE — terminal execution already completed
         return '# Plan Pack\n';
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -2574,14 +2313,12 @@ NONE — terminal execution already completed
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 200);
     assert.match(res.bodyText, /## Validation Evidence\r?\n- Legacy validation evidence remains visible\./);
     assert.ok(!res.bodyText.includes('## Validation Requirements'));
     assert.ok(!res.bodyText.includes('## Tested Coverage'));
     assert.ok(!res.bodyText.includes('## Coverage Gaps'));
   });
-
   await test('GET /api/sessions/:id/final does not derive compatibility closeout from non-terminal closure summaries alone', async () => {
     const routes = register({
       fs: createSessionFs(),
@@ -2590,16 +2327,12 @@ NONE — terminal execution already completed
           if (String(targetPath).endsWith('verification-guide.md')) {
             return `## Summary
 In-progress verification notes that should not unlock compatibility final reads.
-
 ## Changed Files
 - copilot-ui/routes/sessions.js
-
 ## Where To Verify
 - Session Detail
-
 ## Verification Steps
 - Review the latest structured state
-
 ## Expected Outcomes
 - Compatibility clients still receive 404 until terminal closeout exists.
 `;
@@ -2615,32 +2348,26 @@ In-progress verification notes that should not unlock compatibility final reads.
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
 | 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
-
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
-
 ## Work Unit Groups Overview
 | Group | Title | Status | WUs Done | WUs Total | Depends On |
 | --- | --- | --- | --- | --- | --- |
 | G-01 | Compatibility closeout | in_progress | 0 | 1 | — |
-
 ## Work Unit Status Table
 | Group | Work Unit ID | Status | Next Unit | Notes |
 | --- | --- | --- | --- | --- |
 | G-01 | WU-001 | in_progress | WU-001 | verification still running |
-
 ## Next Unit
 WU-001 — Continue execution
 `;
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -2649,11 +2376,9 @@ WU-001 — Continue execution
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 404);
     assert.equal(res.bodyText, 'Not found');
   });
-
   await test('GET /api/sessions/:id/final still requires terminal runtime evidence even when closure summary looks terminal', async () => {
     const routes = register({
       fs: createSessionFs(),
@@ -2682,13 +2407,11 @@ WU-001 — Continue execution
         return '# Plan Pack\n';
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -2697,11 +2420,9 @@ WU-001 — Continue execution
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 404);
     assert.equal(res.bodyText, 'Not found');
   });
-
   await test('GET /api/sessions/:id/final does not derive compatibility closeout for in-progress execution summaries', async () => {
     const routes = register({
       fs: createSessionFs(),
@@ -2724,29 +2445,24 @@ WU-001 — Continue execution
         return `# Plan Pack
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
-
 ## Work Unit Groups Overview
 | Group | Title | Status | WUs Done | WUs Total | Depends On |
 | --- | --- | --- | --- | --- | --- |
 | G-01 | Runtime execution | in_progress | 0 | 1 | — |
-
 ## Work Unit Status Table
 | Group | Work Unit ID | Status | Next Unit | Notes |
 | --- | --- | --- | --- | --- |
 | G-01 | WU-001 | in_progress | WU-001 | still working |
-
 ## Next Unit
 WU-001 — Continue execution
 `;
       },
     });
-
     const res = createResponse();
     const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
     const { route, match } = findRoute(routes, 'GET', u.pathname);
     route.handler({
-      copilotHome: 'C:/copilot',
-      vscodeHome: 'C:/vscode',
+      elegyHome: 'C:/copilot',
       sandboxesHome: 'C:/sandboxes',
       req: { __body: {} },
       res,
@@ -2755,11 +2471,9 @@ WU-001 — Continue execution
       pathname: u.pathname,
     });
     await sleep(0);
-
     assert.equal(res.statusCode, 404);
     assert.equal(res.bodyText, 'Not found');
   });
-
   await test('GET /api/sessions/:id/agent-usage exposes additive skill usage summaries', async () => {
     const routes = register({
       sessions: {
@@ -2773,7 +2487,7 @@ WU-001 — Continue execution
       },
       assetInvocationAudit: {
         getSessionSkillUsageSummary(input) {
-          assert.equal(input.copilotHome, 'C:\\cli-home');
+          assert.equal(input.elegyHome, 'C:\\cli-home');
           assert.equal(input.sessionId, 'session-usage');
           return {
             contractVersion: 'session_skill_usage_v1',
@@ -2792,20 +2506,16 @@ WU-001 — Continue execution
       },
       sendJson: createSendJson(),
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'GET', '/api/sessions/session-usage/agent-usage');
-
     assert.equal(res.statusCode, 200);
     assert.deepEqual(body.usage, { reviewer: 2 });
     assert.equal(body.skillUsage.totalInvocations, 1);
     assert.equal(body.skillUsage.uniqueSkillCount, 1);
     assert.equal(body.skillUsage.skills[0].assetId, 'skill-react-query');
   });
-
   await test('GET /api/sessions/:id/proposition resolves sandbox artifact reads from the specific sandbox root', async () => {
     const assetReads = [];
     const routes = register({
@@ -2824,18 +2534,14 @@ WU-001 — Continue execution
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'GET', '/api/sessions/session-sandbox/proposition?source=sandbox&sandbox=sandbox-42');
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.source, 'sandbox');
     assert.equal(assetReads[0], 'C:\\sandboxes-home\\sandbox-42\\session-state\\session-sandbox\\proposition.md');
   });
-
   await test('GET /api/sessions/:id sandbox detail and artifact reads require a sandbox discriminator', async () => {
     const assetReads = [];
     const routes = register({
@@ -2865,26 +2571,20 @@ WU-001 — Continue execution
         },
       },
     });
-
     const structuredStateResponse = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'GET', '/api/sessions/session-sandbox/structured-state?source=sandbox');
-
     const propositionResponse = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'GET', '/api/sessions/session-sandbox/proposition?source=sandbox');
-
     assert.equal(structuredStateResponse.res.statusCode, 400);
     assert.equal(structuredStateResponse.body.error, 'Missing sandbox id');
     assert.equal(propositionResponse.res.statusCode, 400);
     assert.equal(propositionResponse.body.error, 'Missing sandbox id');
     assert.deepEqual(assetReads, []);
   });
-
   await test('GET /api/sessions/:id/continuation-package returns a portable continuation package for the requested harness', async () => {
     const assetReads = [];
     const routes = register({
@@ -3024,13 +2724,10 @@ WU-001 — Continue execution
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'GET', '/api/sessions/session-continue/continuation-package?targetHarness=codex');
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.contractVersion, CONTINUATION_PACKAGE_CONTRACT_VERSION);
     assert.equal(body.kind, 'session.continuation-package');
@@ -3054,7 +2751,6 @@ WU-001 — Continue execution
     assert.ok(assetReads.some((targetPath) => targetPath.endsWith('handoff.md')));
     assert.ok(assetReads.some((targetPath) => targetPath.endsWith('execution-state.json')));
   });
-
   await test('POST /api/sessions/plan creates a linked local plan session and writes plan/events artifacts', async () => {
     const writes = [];
     const ensuredDirs = [];
@@ -3081,10 +2777,8 @@ WU-001 — Continue execution
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'POST', '/api/sessions/plan', {
       title: 'Planning follow-up',
@@ -3097,7 +2791,6 @@ WU-001 — Continue execution
         title: 'Audit planning workflow',
       },
     });
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.sessionId, 'planning-uuid-123');
     assert.equal(body.created, true);
@@ -3122,7 +2815,6 @@ WU-001 — Continue execution
       true
     );
   });
-
   await test('POST /api/sessions/plan updates an existing linked plan session without regenerating the session id', async () => {
     const writes = [];
     const routes = register({
@@ -3141,10 +2833,8 @@ WU-001 — Continue execution
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'POST', '/api/sessions/plan', {
       sessionId: 'existing-plan-session',
@@ -3152,7 +2842,6 @@ WU-001 — Continue execution
       content: '# Updated plan\n',
       repoId: 'repo-1',
     });
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.sessionId, 'existing-plan-session');
     assert.equal(body.created, false);
@@ -3165,7 +2854,6 @@ WU-001 — Continue execution
       true
     );
   });
-
   await test('POST /api/sessions/plan writes sandbox plans beneath the requested sandbox session-state root', async () => {
     const writes = [];
     const ensuredDirs = [];
@@ -3192,16 +2880,13 @@ WU-001 — Continue execution
         },
       },
     });
-
     const { res, body } = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'POST', '/api/sessions/plan?source=sandbox&sandbox=sandbox-42', {
       title: 'Sandbox planning follow-up',
       content: '# Sandbox planning follow-up\n',
     });
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.source, 'sandbox');
     assert.deepEqual(ensuredDirs, ['C:\\sandboxes-home\\sandbox-42\\session-state\\planning-uuid-123']);
@@ -3210,7 +2895,6 @@ WU-001 — Continue execution
       true
     );
   });
-
   await test('POST /api/sessions/plan sandbox writes fail closed when the sandbox discriminator is missing or invalid', async () => {
     const writes = [];
     const ensuredDirs = [];
@@ -3232,31 +2916,25 @@ WU-001 — Continue execution
         },
       },
     });
-
     const missingSandbox = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'POST', '/api/sessions/plan?source=sandbox', {
       content: '# Missing sandbox\n',
     });
     assert.equal(missingSandbox.res.statusCode, 400);
     assert.equal(missingSandbox.body.error, 'Missing sandbox id');
-
     const invalidSandbox = await invoke(routes, {
-      copilotHome: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'POST', '/api/sessions/plan?source=sandbox&sandbox=bad%2Fid', {
       content: '# Invalid sandbox\n',
     });
     assert.equal(invalidSandbox.res.statusCode, 400);
     assert.equal(invalidSandbox.body.error, 'sandboxId must use only alphanumeric and hyphen characters');
-
     assert.deepEqual(ensuredDirs, []);
     assert.deepEqual(writes, []);
   });
-
   await test('POST /api/sessions/:id/roadmap-sync reads linked plan markers and syncs roadmap/backlog state', async () => {
     const linkedPlan = [
       '# Plan Pack',
@@ -3289,7 +2967,6 @@ WU-001 — Continue execution
       '| G-01 | unit-tests | After G-01 | status: passed |',
       '',
     ].join('\n');
-
     const routes = register({
       readJsonBody: async (req) => req.__body || {},
       readPlanArtifact(sessionDir, planId) {
@@ -3347,15 +3024,12 @@ WU-001 — Continue execution
         res.end(JSON.stringify(payload));
       },
     });
-
     const { res, body } = await invoke(routes, {
       engineRoot: 'C:\\engine',
-      copilotHome: 'C:\\cli-home',
-      copilotHomeAbs: 'C:\\cli-home',
-      vscodeHome: 'C:\\vscode-home',
+      elegyHome: 'C:\\cli-home',
+      elegyHomeAbs: 'C:\\cli-home',
       sandboxesHome: 'C:\\sandboxes-home',
     }, 'POST', '/api/sessions/session-1/roadmap-sync', {});
-
     assert.equal(res.statusCode, 200);
     assert.equal(body.kind, 'sessions.roadmap-sync');
     assert.equal(body.repo.repoPath, 'C:\\repo');
@@ -3363,7 +3037,6 @@ WU-001 — Continue execution
     assert.equal(body.outcome, 'completed');
     assert.deepEqual(body.linkedBacklogIds, ['RB-001']);
   });
-
   console.log(`\n${passed} tests passed`);
   if (process.exitCode) {
     console.error('Some tests FAILED');
@@ -3371,9 +3044,7 @@ WU-001 — Continue execution
     console.log('All tests passed');
   }
 }
-
 run().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
-

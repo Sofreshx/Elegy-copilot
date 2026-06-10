@@ -2,9 +2,9 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-/** Default sandboxes home: ~/.copilot/sandboxes */
+/** Default sandboxes home: ~/.elegy/sandboxes */
 export function getDefaultSandboxesHome(): string {
-	return path.join(os.homedir(), '.copilot', 'sandboxes');
+	return path.join(os.homedir(), '.elegy', 'sandboxes');
 }
 
 export interface SandboxDirPaths {

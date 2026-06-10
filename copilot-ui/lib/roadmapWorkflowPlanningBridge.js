@@ -633,10 +633,10 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
   const pathModule = options.pathModule && typeof options.pathModule.join === 'function'
     ? options.pathModule
     : path;
-  const copilotHome = normalizeString(options.copilotHome);
+  const elegyHome = normalizeString(options.elegyHome);
   const configuredCliPath = normalizeString(options.cliPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH);
   const configuredDbPath = normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH)
-    || (copilotHome ? pathModule.join(copilotHome, DEFAULT_DB_FILENAME) : '');
+    || (elegyHome ? pathModule.join(elegyHome, DEFAULT_DB_FILENAME) : '');
   const commandLookupPlatform = normalizeString(options.platform)
     || normalizeString(processObject && processObject.platform)
     || process.platform;
@@ -656,7 +656,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
   const resolvedCliPath = resolveElegyPlanningCliPath({
     cliPath: configuredCliPath,
     runtimeRoot: normalizeString(options.runtimeRoot) || normalizeString(env.INSTRUCTION_ENGINE_RUNTIME_ROOT),
-    copilotHome,
+    elegyHome,
     env,
     platform: commandLookupPlatform,
     spawnSyncImpl: commandLookupSpawnSync,
@@ -673,7 +673,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
     env,
     cliPath: resolvedCliPath || configuredCliPath || '',
     dbPath: configuredDbPath,
-    cwd: copilotHome || undefined,
+    cwd: elegyHome || undefined,
     timeoutMs,
   };
   const planningAuthority = buildPlanningAuthorityStatus({

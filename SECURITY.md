@@ -21,7 +21,7 @@ Security-sensitive areas include:
 
 - local dashboard/server routes in `copilot-ui/`
 - packaged desktop updater/release flows
-- repo and user-global asset installation under `~/.copilot`
+- repo and user-global asset installation under `~/.elegy`
 - local-tracker gateway and messaging integrations
 - workflow/release trust-chain automation
 

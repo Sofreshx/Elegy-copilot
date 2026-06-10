@@ -23,7 +23,7 @@ async function run() {
   await test('roadmap workflow memory bridge writes fallback artifact memories through elegy-memory json add', async () => {
     const recorded = [];
     const bridge = createRoadmapWorkflowMemoryBridge({
-      copilotHome: path.join('C:', 'copilot'),
+      elegyHome: path.join('C:', 'copilot'),
       childProcess: {
         execFile(command, args, options, callback) {
           recorded.push({ command, args, options });
@@ -88,7 +88,7 @@ async function run() {
 
   await test('roadmap workflow memory bridge fails open when elegy-memory is unavailable', async () => {
     const bridge = createRoadmapWorkflowMemoryBridge({
-      copilotHome: path.join('C:', 'copilot'),
+      elegyHome: path.join('C:', 'copilot'),
       childProcess: {
         execFile(command, args, options, callback) {
           const error = new Error('spawn elegy-memory ENOENT');

@@ -29,7 +29,7 @@ This document defines the **canonical contract** for documentation in this repo.
 Redirect docs may also exist in other legacy paths (e.g., `docs/orchestrator/*`) when preserving older inbound links.
 
 Operational planning artifacts (backlogs, roadmaps, issues, planning bullets) now live outside the
-repo at `~/.copilot/backlogs/{repo-name}/` and are no longer part of the doc graph. See
+repo at `~/.elegy/backlogs/{repo-name}/` and are no longer part of the doc graph. See
 [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md) for the current path contract.
 
 ## Document Kinds (`doc_kind`)
@@ -121,7 +121,7 @@ Redirect requirements:
 
 Planning artifacts (backlogs, roadmaps, issues, planning bullets) previously lived under
 `docs/backlogs/`, `docs/backlog.md`, `docs/roadmaps/`, `docs/issues/`, and `docs/planning/`. These
-operational artifacts now live at `~/.copilot/backlogs/{repo-name}/` and are no longer repo files.
+operational artifacts now live at `~/.elegy/backlogs/{repo-name}/` and are no longer repo files.
 They are outside the doc graph and outside the validator's scope. Any remaining in-repo stubs at
 those paths should be treated as redirect or cleanup candidates.
 

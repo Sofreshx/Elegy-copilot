@@ -1,7 +1,7 @@
 # Copilot Instructions (CLI-first, VS Code compatible)
 
 This file is intended to be installed to:
-`~/.copilot/copilot-instructions.md`
+`~/.elegy/copilot-instructions.md`
 
 These instructions are optimized for **Copilot CLI** stock modes (**/plan** and **/fleet**) while remaining compatible with VS Code Copilot Chat.
 Assume **both** user-level and repo-level instructions apply; conflicts can be non-deterministic, so explicitly reconcile them (see "Conflicts" below).
@@ -10,7 +10,7 @@ For repo-specific policy, treat these instructions as a thin routing surface and
 Instruction Engine, also published as Elegy Copilot, is the shared asset and
 control-plane workspace for Copilot, Codex, OpenCode, and Antigravity agents,
 skills, prompts, repo setup overlays, and the local dashboard/runtime. This file
-is the global Copilot baseline installed to `~/.copilot/copilot-instructions.md`,
+is the global Copilot baseline installed to `~/.elegy/copilot-instructions.md`,
 so it should route to canonical sources instead of carrying target-repo policy.
 
 ## Authority
@@ -237,7 +237,7 @@ When I use **/plan** OR custom plan agent, you MUST:
 2. **In Copilot CLI**: rely on Rubber Duck (native cross-model review) to automatically challenge the plan. No manual reviewer delegation needed.
 3. **In VS Code / other environments**: request review from the active reviewer lane, normally `@code-reviewer`, or the host's native plan-review affordance when available. Revise until the reviewer approves or blocks with a concrete issue.
 4. Only after review passes: summarize the approved plan and proceed to execution (unless I asked for plan-only).
-5. When work reaches closure, assess the plan's high-level goals, route unresolved non-active goals to `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`, and produce the final requested-vs-delivered summary.
+5. When work reaches closure, assess the plan's high-level goals, route unresolved non-active goals to `~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md`, and produce the final requested-vs-delivered summary.
 
 If a reviewer cannot approve due to missing info, use `vscode/askQuestions` to ask the smallest set of clarifying questions through the interactive tool, then keep refining everything else first.
 
@@ -267,15 +267,15 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   - keep summaries under ~300 words per workstream unless I ask for depth.
 
 ## Using Instruction Engine assets
-- A few transversal skills are always loaded (`~/.copilot/skills/`): `core-guardrails`, `skill-discovery`, `roadmap-authoring`, `project-guidelines`.
-- **Most domain-specific skills live in the vault** (`~/.copilot/skills-vault/`) and are NOT loaded by default to save tokens.
+- A few transversal skills are always loaded (`~/.elegy/skills/`): `core-guardrails`, `skill-discovery`, `roadmap-authoring`, `project-guidelines`.
+- **Most domain-specific skills live in the vault** (`~/.elegy/skills-vault/`) and are NOT loaded by default to save tokens.
 - The canonical workflow is **search then execute**:
   1. Use `@search` to resolve the smallest relevant capability across docs, agents, and skills.
   2. Use `@execute` to turn the resolved capability into a minimal execution brief.
   3. Only then load or delegate to the downstream specialist agent.
 - When domain-specific behavior matters, **discover and load the right skill on demand**:
    1. Match the task domain to a skill name (use the `skill-discovery` skill's keyword map for detection).
-  2. Load the full skill: `read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")`.
+  2. Load the full skill: `read_file("~/.elegy/skills-vault/{skill-name}/SKILL.md")`.
   3. Follow the skill's instructions for the current task.
 - For GitHub Actions, workflow runs/logs, PR state, issues, commits, branches, or release-download troubleshooting in
   **Copilot CLI**, prefer the built-in read-only `github-mcp-server` tools when available. The UI
@@ -286,7 +286,7 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
 - Treat `.instructions/*` paths as legacy and use them only when a repository explicitly opts in.
 
 When the current workspace is the Instruction Engine / Elegy Copilot repo:
-- `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into `~/.copilot`.
+- `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into `~/.elegy`.
 - `codex-assets/`, `opencode-assets/`, and `antigravity-assets/` ship thinner native home baselines for their harnesses.
 - `copilot-ui/` is the local dashboard and catalog control plane; the packaged Windows desktop app is the normal end-user runtime.
 - `contracts/`, `local-tracker/`, `scripts/`, and `docs/system/**` hold shared contracts, gateway/runtime support, installers/validators, and canonical policy.

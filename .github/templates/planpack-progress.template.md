@@ -5,7 +5,7 @@
 - Session ID:
 - Date:
 - Owner:
-- Plan Pack: ~/.copilot/session-state/<SESSION_ID>/plan.md
+- Plan Pack: ~/.elegy/session-state/<SESSION_ID>/plan.md
 
 ## Work Unit Groups Overview
 | Group | Title | Status | Depends On |

@@ -101,7 +101,7 @@ function buildHarnessRow(harness, extra = {}) {
 
 function buildCopilotHarnessSessions(options = {}) {
   const harness = GLOBAL_HARNESSES.find((entry) => entry.id === 'copilot');
-  const homePath = normalizeString(options.copilotHome);
+  const homePath = normalizeString(options.elegyHome);
   if (!homePath) {
     return buildHarnessRow(harness, {
       inventoryAvailable: false,
@@ -691,7 +691,7 @@ function listHarnessSessions(options = {}) {
 
   const harnesses = [
     buildCopilotHarnessSessions({
-      copilotHome: options.copilotHome,
+      elegyHome: options.elegyHome,
       sandboxesHome: options.sandboxesHome,
       sessionAggregation,
       fsImpl,

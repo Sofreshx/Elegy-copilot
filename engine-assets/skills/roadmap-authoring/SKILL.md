@@ -15,10 +15,10 @@ main targets, sequencing, and explicit `RM-*` roadmap item state. It is not an a
 not a Plan Pack; a Plan Pack selects one roadmap slice for execution.
 
 This skill governs:
-- **Planning Bullets** at `~/.copilot/backlogs/{repo-name}/planning/bullets.md` as the canonical pre-backlog seed surface
-- the **Repository Backlog** under `~/.copilot/backlogs/{repo-name}/backlogs/*.md` as the primary artifact family
-- `~/.copilot/backlogs/{repo-name}/backlog.md` as a legacy compatibility Repository Backlog surface
-- **Roadmap** folders at `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>/`
+- **Planning Bullets** at `~/.elegy/backlogs/{repo-name}/planning/bullets.md` as the canonical pre-backlog seed surface
+- the **Repository Backlog** under `~/.elegy/backlogs/{repo-name}/backlogs/*.md` as the primary artifact family
+- `~/.elegy/backlogs/{repo-name}/backlog.md` as a legacy compatibility Repository Backlog surface
+- **Roadmap** folders at `~/.elegy/backlogs/{repo-name}/roadmaps/<slug>/`
 - repo-persisted roadmaps under `<repo>/docs/roadmaps/<slug>.md` for the current Planning app/API compatibility surface in this repo
 - the explicit ID/linking discipline required for future **Roadmap Sync** and direct plan handoff
 
@@ -54,26 +54,26 @@ Rules:
 ## Canonical Locations
 
 For the selected repository root:
-- Planning Bullets: `~/.copilot/backlogs/{repo-name}/planning/bullets.md`
-- Repository Backlog (primary): `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`
-- Repository Backlog (legacy compatibility): `~/.copilot/backlogs/{repo-name}/backlog.md`
-- Roadmaps: `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>/index.md`
-- Roadmap section files: `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>/<section-slug>.md`
-- Roadmap reevaluation log: `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>/reevaluation-log.md`
+- Planning Bullets: `~/.elegy/backlogs/{repo-name}/planning/bullets.md`
+- Repository Backlog (primary): `~/.elegy/backlogs/{repo-name}/backlogs/<session-slug>.md`
+- Repository Backlog (legacy compatibility): `~/.elegy/backlogs/{repo-name}/backlog.md`
+- Roadmaps: `~/.elegy/backlogs/{repo-name}/roadmaps/<slug>/index.md`
+- Roadmap section files: `~/.elegy/backlogs/{repo-name}/roadmaps/<slug>/<section-slug>.md`
+- Roadmap reevaluation log: `~/.elegy/backlogs/{repo-name}/roadmaps/<slug>/reevaluation-log.md`
 - Repo-persisted roadmaps: `<repo>/docs/roadmaps/<slug>.md`
 
 Backlog filenames should use lowercase kebab-case session slugs, for example:
-- `~/.copilot/backlogs/{repo-name}/backlogs/2026-04-03-session-close.md`
-- `~/.copilot/backlogs/{repo-name}/backlogs/platform-audit-follow-up.md`
+- `~/.elegy/backlogs/{repo-name}/backlogs/2026-04-03-session-close.md`
+- `~/.elegy/backlogs/{repo-name}/backlogs/platform-audit-follow-up.md`
 
-If `~/.copilot/backlogs/{repo-name}/roadmaps/` does not exist, create it only when roadmap work is actually requested.
+If `~/.elegy/backlogs/{repo-name}/roadmaps/` does not exist, create it only when roadmap work is actually requested.
 
 Roadmap folder and section filenames should use lowercase kebab-case slugs, for example:
-- `~/.copilot/backlogs/{repo-name}/roadmaps/platform-foundation/index.md`
-- `~/.copilot/backlogs/{repo-name}/roadmaps/q2-delivery/runtime-contracts.md`
+- `~/.elegy/backlogs/{repo-name}/roadmaps/platform-foundation/index.md`
+- `~/.elegy/backlogs/{repo-name}/roadmaps/q2-delivery/runtime-contracts.md`
 - `<repo>/docs/roadmaps/platform-foundation.md`
 
-Legacy single-file roadmaps remain readable at `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>.md`
+Legacy single-file roadmaps remain readable at `~/.elegy/backlogs/{repo-name}/roadmaps/<slug>.md`
 and compatibility-era repo docs under `<repo>/docs/planning/<slug>.md`. Convert only the targeted roadmap when it is
 substantially edited or explicitly migrated.
 
@@ -90,7 +90,7 @@ Examples:
 
 Rules:
 - IDs must remain stable after creation.
-- Continue the highest existing sequence across the Repository Backlog artifact family (`~/.copilot/backlogs/{repo-name}/backlogs/*.md` plus legacy `~/.copilot/backlogs/{repo-name}/backlog.md` when present) or the targeted roadmap family.
+- Continue the highest existing sequence across the Repository Backlog artifact family (`~/.elegy/backlogs/{repo-name}/backlogs/*.md` plus legacy `~/.elegy/backlogs/{repo-name}/backlog.md` when present) or the targeted roadmap family.
 - Never reuse or renumber existing IDs just to make the file look cleaner.
 - The roadmap slug portion must match the roadmap folder slug.
 
@@ -313,8 +313,8 @@ contract.
 
 ## Maintenance Workflow
 
-1. Read the existing Repository Backlog artifact family (`~/.copilot/backlogs/{repo-name}/backlogs/*.md` first, `~/.copilot/backlogs/{repo-name}/backlog.md` when compatibility requires it) and relevant roadmap `index.md` plus section file(s).
-2. Read `~/.copilot/backlogs/{repo-name}/planning/bullets.md` when the request starts from seed ideas or needs `PB-*` linkage.
+1. Read the existing Repository Backlog artifact family (`~/.elegy/backlogs/{repo-name}/backlogs/*.md` first, `~/.elegy/backlogs/{repo-name}/backlog.md` when compatibility requires it) and relevant roadmap `index.md` plus section file(s).
+2. Read `~/.elegy/backlogs/{repo-name}/planning/bullets.md` when the request starts from seed ideas or needs `PB-*` linkage.
 3. If the target roadmap is a legacy single file and will be substantially edited, convert only that
    roadmap into `<slug>/index.md` plus section files before adding new structure.
 4. Decide whether the request belongs in bullets, backlog, roadmap, reevaluation log, or future Plan Pack.

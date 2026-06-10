@@ -91,7 +91,7 @@ async function buildToolingStatus(ctx, deps, codexHome) {
   const cliPath = resolveElegyPlanningCliPath({
     cliPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
     runtimeRoot: ctx.engineRoot,
-    copilotHome: ctx.copilotHomeAbs,
+    elegyHome: ctx.elegyHomeAbs,
     env: ctx.env,
   });
 
@@ -115,8 +115,8 @@ async function buildToolingStatus(ctx, deps, codexHome) {
       ),
   );
 
-  const installedMetadata = ctx.copilotHomeAbs ? readInstallMetadata(ctx.copilotHomeAbs) : null;
-  const managedSourceRoot = ctx.copilotHomeAbs ? buildManagedSourceDir(ctx.copilotHomeAbs) : '';
+  const installedMetadata = ctx.elegyHomeAbs ? readInstallMetadata(ctx.elegyHomeAbs) : null;
+  const managedSourceRoot = ctx.elegyHomeAbs ? buildManagedSourceDir(ctx.elegyHomeAbs) : '';
   const sourceRepoRoot = typeof installedMetadata?.sourceRepoRoot === 'string'
     ? installedMetadata.sourceRepoRoot
     : managedSourceRoot;
@@ -156,7 +156,7 @@ async function buildToolingStatus(ctx, deps, codexHome) {
       currentVersion: planningCurrentVersion || (installedSourceGitHead ? `source:${installedSourceGitHead.slice(0, 12)}` : null),
       latestVersion: planningLatestVersion,
       updateAvailable: planningUpdateAvailable || managedSourceUpdateAvailable,
-      canUpdate: Boolean(ctx.copilotHomeAbs),
+      canUpdate: Boolean(ctx.elegyHomeAbs),
       lastError: planningLatestError,
       features: planningFeatures,
       managedSource: {
@@ -219,7 +219,7 @@ function register(deps = {}) {
       handler: async (ctx) => {
         try {
           const installResult = await installLatestElegyPlanningCli({
-            copilotHome: ctx.copilotHomeAbs,
+            elegyHome: ctx.elegyHomeAbs,
             runtimeRoot: ctx.engineRoot,
             env: resolvedDeps.env,
             fetchImpl: resolvedDeps.fetchImpl,
@@ -247,7 +247,7 @@ function register(deps = {}) {
         try {
           const body = await resolvedDeps.readJsonBody(ctx.req);
           const syncResult = await syncElegySkillAssetsFromGitHub({
-            copilotHome: ctx.copilotHomeAbs,
+            elegyHome: ctx.elegyHomeAbs,
             targetHome: ctx.opencodeHome,
             env: resolvedDeps.env,
             childProcess: resolvedDeps.childProcess,
@@ -275,7 +275,7 @@ function register(deps = {}) {
         try {
           const body = await resolvedDeps.readJsonBody(ctx.req);
           const syncResult = await syncElegySkillAssetsFromGitHub({
-            copilotHome: ctx.copilotHomeAbs,
+            elegyHome: ctx.elegyHomeAbs,
             targetHome: ctx.codexHome,
             env: resolvedDeps.env,
             childProcess: resolvedDeps.childProcess,

@@ -34,24 +34,14 @@ function normalizeInstallProfile(value) {
   throw new Error(`Unsupported install profile: ${value} (supported: minimal, full, public, internal)`);
 }
 
-function resolveCopilotHome(explicit) {
+function resolveElegyHome(explicit) {
   if (explicit) {
     return path.resolve(explicit);
   }
   if (process.env.XDG_CONFIG_HOME) {
     return path.resolve(process.env.XDG_CONFIG_HOME);
   }
-  return path.join(getUserHome(), '.copilot');
-}
-
-function resolveVscodeHome(explicit) {
-  if (explicit) {
-    return path.resolve(explicit);
-  }
-  if (process.env.INSTRUCTION_ENGINE_VSCODE_HOME) {
-    return path.resolve(process.env.INSTRUCTION_ENGINE_VSCODE_HOME);
-  }
-  return path.join(getUserHome(), '.copilot');
+  return path.join(getUserHome(), '.elegy');
 }
 
 function buildCounts(results) {
@@ -92,25 +82,17 @@ function buildCounts(results) {
   return counts;
 }
 
-function buildCopilotAssetFilter(surface) {
-  const includePrompts = surface === 'vscode';
+function buildCopilotAssetFilter() {
   return (asset) => {
     if (!asset || typeof asset !== 'object') {
       return false;
-    }
-
-    if (asset.type === 'prompt') {
-      return includePrompts;
     }
 
     return asset.type === 'agent' || asset.type === 'skill' || asset.type === 'instructions';
   };
 }
 
-function buildInstallStateOverride(currentState, previousState, installProfile, preservePrompts) {
-  const normalizedPreviousPrompts = Array.isArray(previousState?.managedPrompts)
-    ? previousState.managedPrompts.map((entry) => String(entry || '').trim()).filter(Boolean)
-    : [];
+function buildInstallStateOverride(currentState, previousState, installProfile) {
   const normalizedCurrentPrompts = Array.isArray(currentState?.managedPrompts)
     ? currentState.managedPrompts.map((entry) => String(entry || '').trim()).filter(Boolean)
     : [];
@@ -118,7 +100,7 @@ function buildInstallStateOverride(currentState, previousState, installProfile, 
   return {
     ...currentState,
     installProfile,
-    managedPrompts: preservePrompts ? normalizedPreviousPrompts : normalizedCurrentPrompts,
+    managedPrompts: normalizedCurrentPrompts,
   };
 }
 
@@ -167,9 +149,7 @@ export function parseArgs(argv) {
     pointerMode: true,
     installProfile: 'minimal',
     doCli: false,
-    doVscode: false,
-    vscodeHome: '',
-    copilotHome: '',
+    elegyHome: '',
     repoRoot: '',
     elegyCliPath: '',
     setupProfile: '',
@@ -187,15 +167,6 @@ export function parseArgs(argv) {
     }
     if (value === '--cli') {
       args.doCli = true;
-      continue;
-    }
-    if (value === '--vscode') {
-      args.doVscode = true;
-      continue;
-    }
-    if (value === '--all') {
-      args.doCli = true;
-      args.doVscode = true;
       continue;
     }
     if (value === '--pointer') {
@@ -222,28 +193,16 @@ export function parseArgs(argv) {
       args.installProfile = 'full';
       continue;
     }
-    if (value.startsWith('--vscode-home=')) {
-      args.vscodeHome = value.slice('--vscode-home='.length);
+    if (value.startsWith('--elegy-home=')) {
+      args.elegyHome = value.slice('--elegy-home='.length);
       continue;
     }
-    if (value === '--vscode-home') {
+    if (value === '--elegy-home') {
       i += 1;
       if (i >= argv.length) {
-        throw new Error('Missing value for --vscode-home');
+        throw new Error('Missing value for --elegy-home');
       }
-      args.vscodeHome = argv[i] || '';
-      continue;
-    }
-    if (value.startsWith('--copilot-home=')) {
-      args.copilotHome = value.slice('--copilot-home='.length);
-      continue;
-    }
-    if (value === '--copilot-home') {
-      i += 1;
-      if (i >= argv.length) {
-        throw new Error('Missing value for --copilot-home');
-      }
-      args.copilotHome = argv[i] || '';
+      args.elegyHome = argv[i] || '';
       continue;
     }
     if (value.startsWith('--repo-root=')) {
@@ -282,12 +241,11 @@ export function parseArgs(argv) {
       args.setupProfile = argv[i] || '';
       continue;
     }
-    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --cli, --vscode, --all, --pointer, --profile <minimal|full>, --profile=<minimal|full>, --minimal, --full, --public, --internal, --vscode-home <path>, --copilot-home <path>, --repo-root <path>, --elegy-cli <path>, --setup-profile <key>)`);
+    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --cli, --pointer, --profile <minimal|full>, --profile=<minimal|full>, --minimal, --full, --public, --internal, --elegy-home <path>, --repo-root <path>, --elegy-cli <path>, --setup-profile <key>)`);
   }
 
-  if (!args.doCli && !args.doVscode) {
+  if (!args.doCli) {
     args.doCli = true;
-    args.doVscode = true;
   }
 
   args.installProfile = normalizeInstallProfile(args.installProfile);
@@ -304,35 +262,29 @@ export function parseArgs(argv) {
 
 export function runInstall(args = {}) {
   const installProfile = normalizeInstallProfile(args.installProfile || 'minimal');
-  const copilotHome = resolveCopilotHome(args.copilotHome);
-  const vscodeHome = resolveVscodeHome(args.vscodeHome);
+  const elegyHome = resolveElegyHome(args.elegyHome);
   const manifest = loadManifest(repoRoot);
   const repoSetupRoot = args.repoRoot ? path.resolve(args.repoRoot) : '';
 
-  console.log(`Copilot home: ${copilotHome}`);
+  console.log(`Elegy home: ${elegyHome}`);
   console.log(`Engine root:  ${repoRoot}`);
-  console.log(`Modes:        cli=${Boolean(args.doCli)} vscode=${Boolean(args.doVscode)}`);
   console.log(`Profile:      ${installProfile}`);
-  console.log(`VS Code home: ${vscodeHome}`);
   console.log(`Assets:       ${Array.isArray(manifest.assets) ? manifest.assets.length : 0}`);
 
   const surfaces = [];
 
-  const runSurface = (surface, destinationHome, instructionsSource, preservePrompts) => {
+  const runSurface = (surface, destinationHome, instructionsSource) => {
     ensureDir(destinationHome, Boolean(args.dryRun));
-    if (surface === 'vscode') {
-      ensureDir(path.join(destinationHome, 'prompts'), Boolean(args.dryRun));
-    }
 
     const previousState = readInstallState(destinationHome);
     const result = syncManagedInstall(repoRoot, destinationHome, {
       dryRun: Boolean(args.dryRun),
       force: Boolean(args.force),
       pointerMode: args.pointerMode !== false,
-      assetFilter: buildCopilotAssetFilter(surface),
-      preserveManagedPrompts: preservePrompts,
+      assetFilter: buildCopilotAssetFilter(),
+      preserveManagedPrompts: true,
     });
-    const installState = buildInstallStateOverride(result.installState, previousState, installProfile, preservePrompts);
+    const installState = buildInstallStateOverride(result.installState, previousState, installProfile);
     const installStateAction = writeInstallState(destinationHome, installState, { dryRun: Boolean(args.dryRun) });
     const instructionsAction = syncInstructions(instructionsSource, destinationHome, {
       dryRun: Boolean(args.dryRun),
@@ -342,11 +294,7 @@ export function runInstall(args = {}) {
   };
 
   if (args.doCli) {
-    runSurface('cli', copilotHome, path.join(repoRoot, 'engine-assets', 'copilot-instructions.md'), true);
-  }
-
-  if (args.doVscode) {
-    runSurface('vscode', vscodeHome, path.join(repoRoot, '.github', 'copilot-instructions.md'), false);
+    runSurface('cli', elegyHome, path.join(repoRoot, 'engine-assets', 'copilot-instructions.md'));
   }
 
   const repoSetup = repoSetupRoot
@@ -368,8 +316,7 @@ export function runInstall(args = {}) {
     pointerMode: args.pointerMode !== false,
     installProfile,
     homes: {
-      copilotHome,
-      vscodeHome,
+      elegyHome,
     },
     surfaces,
     repoSetup,

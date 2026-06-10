@@ -131,8 +131,7 @@ async fn get_health(State(state): State<AppState>) -> Json<RuntimeHealthResponse
         ok: true,
         now: Utc::now().timestamp_millis() as u64,
         engine_root: state.config.engine_root.display().to_string(),
-        copilot_home: state.config.copilot_home.display().to_string(),
-        vscode_home: state.config.vscode_home.display().to_string(),
+        elegy_home: state.config.elegy_home.display().to_string(),
         changes: Some(version),
         runtime,
         policy: serde_json::to_value(policy).expect("policy response should serialize"),
@@ -167,11 +166,11 @@ async fn get_version(State(state): State<AppState>) -> Json<VersionResponse> {
 }
 
 async fn get_dashboard_summary(State(state): State<AppState>) -> Json<DashboardSummaryResponse> {
-    Json(build_dashboard_summary(&state.config.copilot_home))
+    Json(build_dashboard_summary(&state.config.elegy_home))
 }
 
 async fn get_projects(State(state): State<AppState>) -> Json<Vec<ProjectResponse>> {
-    Json(list_projects(&state.config.copilot_home))
+    Json(list_projects(&state.config.elegy_home))
 }
 
 async fn get_project_sessions(
@@ -179,7 +178,7 @@ async fn get_project_sessions(
     Path(project_id): Path<String>,
 ) -> Json<Vec<ProjectSessionResponse>> {
     Json(list_project_sessions(
-        &state.config.copilot_home,
+        &state.config.elegy_home,
         &project_id,
     ))
 }
@@ -189,7 +188,7 @@ async fn get_project_activity(
     Path(project_id): Path<String>,
 ) -> Json<Vec<ProjectActivityResponse>> {
     Json(list_project_activity(
-        &state.config.copilot_home,
+        &state.config.elegy_home,
         &project_id,
     ))
 }
@@ -208,7 +207,7 @@ async fn patch_project(
         );
     }
 
-    match update_project_fields(&state.config.copilot_home, normalized_project_id, &payload) {
+    match update_project_fields(&state.config.elegy_home, normalized_project_id, &payload) {
         Some(project) => (
             StatusCode::OK,
             Json(serde_json::to_value(project).expect("project response should serialize")),
@@ -300,11 +299,10 @@ mod tests {
                 .to_path_buf(),
             host: "127.0.0.1".to_string(),
             port: 0,
-            copilot_home: temp.join(".copilot"),
-            vscode_home: temp.join(".copilot-vscode"),
-            sandboxes_home: temp.join(".copilot").join("sandboxes"),
+            elegy_home: temp.join(".elegy"),
+            sandboxes_home: temp.join(".elegy").join("sandboxes"),
         };
-        let _ = std::fs::create_dir_all(config.copilot_home.join("session-state"));
+        let _ = std::fs::create_dir_all(config.elegy_home.join("session-state"));
         let state = AppState::new(config);
         state.update_version(0, None);
         state
@@ -358,7 +356,7 @@ mod tests {
             Some(vec![
                 "autonomousDecisionLog".to_string(),
                 "changes".to_string(),
-                "copilotHome".to_string(),
+                "elegyHome".to_string(),
                 "engineRoot".to_string(),
                 "now".to_string(),
                 "ok".to_string(),
@@ -367,7 +365,6 @@ mod tests {
                 "policy".to_string(),
                 "runtime".to_string(),
                 "startupManagedAssetSync".to_string(),
-                "vscodeHome".to_string(),
             ])
         );
 

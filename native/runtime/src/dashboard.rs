@@ -4,8 +4,8 @@ use elegy_native_contracts::{DashboardRecentActivityItem, DashboardSummaryRespon
 
 use crate::sessions::list_sessions;
 
-pub fn build_dashboard_summary(copilot_home: &Path) -> DashboardSummaryResponse {
-    let sessions = list_sessions(copilot_home);
+pub fn build_dashboard_summary(elegy_home: &Path) -> DashboardSummaryResponse {
+    let sessions = list_sessions(elegy_home);
     let active_session_count = sessions
         .iter()
         .filter(|session| session.status == "active")
