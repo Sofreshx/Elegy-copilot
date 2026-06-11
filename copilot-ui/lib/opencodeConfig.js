@@ -505,6 +505,113 @@ function getWorktreePermissionProfileStatus(opencodeHome) {
   };
 }
 
+// ── Planning plugin permission profile ─────────────────────────────────
+
+const PLANNING_PERMISSION_PROFILE_MARKER = 'instruction-engine-planning-permission-profile';
+const PLANNING_PERMISSION_PROFILE_VERSION = 1;
+
+function resolveElegyHome() {
+  if (typeof process !== 'undefined' && process.env && process.env.ELEGY_HOME) {
+    return path.resolve(process.env.ELEGY_HOME);
+  }
+  return path.join(os.homedir(), '.elegy');
+}
+
+function buildPlanningPermissionProfile() {
+  const elegyHome = resolveElegyHome();
+  return {
+    permission: {
+      external_directory: 'allow',
+      bash: 'allow',
+    },
+    marker: {
+      version: PLANNING_PERMISSION_PROFILE_VERSION,
+      marker: PLANNING_PERMISSION_PROFILE_MARKER,
+      elegyHome,
+    },
+  };
+}
+
+function ensurePlanningPermissionProfile(config) {
+  const profile = buildPlanningPermissionProfile();
+  const target = config && typeof config === 'object' && !Array.isArray(config) ? { ...config } : {};
+  const existingPermission = target.permission && typeof target.permission === 'object' && !Array.isArray(target.permission)
+    ? { ...target.permission }
+    : {};
+
+  for (const [key, value] of Object.entries(profile.permission)) {
+    existingPermission[key] = value;
+  }
+
+  target.permission = existingPermission;
+  return { config: target, profile };
+}
+
+function applyPlanningPermissionProfile(opencodeHome, options = {}) {
+  const resolvedHome = resolveOpenCodeHome(opencodeHome);
+  const configPath = resolveConfigPath(resolvedHome);
+  const config = readConfig(resolvedHome);
+  const { config: nextConfig, profile } = ensurePlanningPermissionProfile(config);
+
+  let changed = false;
+  const previousJson = JSON.stringify(config || {}, null, 2);
+  const nextJson = JSON.stringify(nextConfig, null, 2);
+  if (previousJson !== nextJson) {
+    changed = true;
+    if (!options.dryRun) {
+      writeConfig(resolvedHome, nextConfig);
+      const state = readState(resolvedHome);
+      state.planningProfile = {
+        ...profile.marker,
+        appliedAt: new Date().toISOString(),
+      };
+      state.updatedAt = new Date().toISOString();
+      writeState(resolvedHome, state);
+    }
+  }
+
+  return {
+    configPath,
+    opencodeHome: resolvedHome,
+    profile,
+    changed,
+    dryRun: Boolean(options.dryRun),
+  };
+}
+
+function getPlanningPermissionProfileStatus(opencodeHome) {
+  const resolvedHome = resolveOpenCodeHome(opencodeHome);
+  const config = readConfig(resolvedHome);
+  const state = readState(resolvedHome);
+  const profile = buildPlanningPermissionProfile();
+  const permission = config && typeof config.permission === 'object' && !Array.isArray(config.permission)
+    ? config.permission
+    : {};
+  const marker = state && typeof state.planningProfile === 'object'
+    ? state.planningProfile
+    : null;
+
+  const expectedPermKeys = Object.keys(profile.permission);
+  const missingPermKeys = expectedPermKeys.filter(
+    (key) => permission[key] !== 'allow' && permission[key] !== 'deny'
+  );
+
+  const applied = Boolean(marker)
+    && Number(marker.version) === profile.marker.version
+    && marker.marker === PLANNING_PERMISSION_PROFILE_MARKER
+    && missingPermKeys.length === 0;
+
+  return {
+    elegyHome: marker && typeof marker.elegyHome === 'string' ? marker.elegyHome : resolveElegyHome(),
+    configPath: resolveConfigPath(resolvedHome),
+    applied,
+    version: marker && Number(marker.version) === profile.marker.version ? profile.marker.version : null,
+    expectedVersion: profile.marker.version,
+    marker,
+    missingPermissionKeys: missingPermKeys,
+  };
+}
+
 function readProfileCatalog(workspaceRoot) {
   const root = workspaceRoot || process.cwd();
   const profilesPath = path.join(root, 'opencode-assets', 'profiles.json');
@@ -1034,6 +1141,12 @@ module.exports = {
   getWorktreePermissionProfileStatus,
   WORKTREE_PERMISSION_PROFILE_MARKER,
   WORKTREE_PERMISSION_PROFILE_VERSION,
+  buildPlanningPermissionProfile,
+  ensurePlanningPermissionProfile,
+  applyPlanningPermissionProfile,
+  getPlanningPermissionProfileStatus,
+  PLANNING_PERMISSION_PROFILE_MARKER,
+  PLANNING_PERMISSION_PROFILE_VERSION,
   readCustomPrompts,
   writeCustomPrompts,
   computeHash,

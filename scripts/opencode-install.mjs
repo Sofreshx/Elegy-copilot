@@ -380,6 +380,26 @@ async function checkReadiness(opencodeHome, skillsHome, options = {}) {
     warnings.push(`Worktree plugin not found at ${pluginPath}`);
   }
 
+  // Check planning plugin installed
+  const planningPluginPath = path.join(opencodeHome, 'plugins', 'planning.js');
+  if (fs.existsSync(planningPluginPath)) {
+    checks.push({ name: 'planning-plugin', ok: true, path: planningPluginPath });
+    try {
+      const planningPluginUrl = pathToFileURL(planningPluginPath).href;
+      const planningMod = await import(planningPluginUrl);
+      if (typeof planningMod.PlanningPlugin !== 'function') {
+        warnings.push(`Planning plugin at ${planningPluginPath} loaded but did not export a PlanningPlugin function`);
+      } else {
+        checks.push({ name: 'planning-plugin-smoke', ok: true });
+      }
+    } catch (err) {
+      warnings.push(`Planning plugin at ${planningPluginPath} failed to load: ${err.message}`);
+    }
+  } else {
+    checks.push({ name: 'planning-plugin', ok: false, path: planningPluginPath });
+    warnings.push(`Planning plugin not found at ${planningPluginPath}`);
+  }
+
   // Check worktree skill installed
   const skillPath = path.join(skillsHome, 'worktree', 'SKILL.md');
   if (fs.existsSync(skillPath)) {
