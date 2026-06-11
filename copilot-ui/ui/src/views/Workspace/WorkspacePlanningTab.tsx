@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Panel } from '../../components';
 import { navigationStore } from '../../stores/navigation';
-import { getPlanningRecords } from '../../lib/api/planning';
+import { getPlanningRecords, listPlanningLivePlans } from '../../lib/api/planning';
 import { getPlanningSummary } from '../../lib/api/elegyDb';
 import type { PlanningRecordItem, PlanningSummaryLinkedPlan } from '../../lib/types';
 import SessionDetailView from '../Sessions/SessionDetailView';
@@ -15,7 +15,7 @@ interface MergedPlanningItem {
   id: string;
   title: string;
   status: string | null;
-  source: 'records' | 'elegy-db';
+  source: 'records' | 'elegy-db' | 'live';
   sessionId?: string;
 }
 
@@ -32,9 +32,14 @@ export default function WorkspacePlanningTab({ repoPath, repoId }: WorkspacePlan
         const query: Record<string, string> = {};
         if (repoId) query.repoId = repoId;
 
-        const [recordsResult, summaryResult] = await Promise.allSettled([
+        const liveQuery: Record<string, string | undefined> = {};
+        if (repoId) liveQuery.repoId = repoId;
+        liveQuery.repoPath = repoPath;
+
+        const [recordsResult, summaryResult, livePlansResult] = await Promise.allSettled([
           getPlanningRecords(query),
           getPlanningSummary(repoPath),
+          listPlanningLivePlans(liveQuery),
         ]);
 
         if (cancelled) return;
@@ -76,6 +81,23 @@ export default function WorkspacePlanningTab({ repoPath, repoId }: WorkspacePlan
           }
         } else {
           console.debug('Planning summary fetch failed:', summaryResult.reason);
+        }
+
+        if (livePlansResult.status === 'fulfilled') {
+          const livePlans = livePlansResult.value.plans || [];
+          for (const plan of livePlans) {
+            if (!seenIds.has(plan.id)) {
+              items.push({
+                id: plan.id,
+                title: String(plan.title || plan.id),
+                status: plan.status ?? null,
+                source: 'live',
+              });
+              seenIds.add(plan.id);
+            }
+          }
+        } else {
+          console.debug('Live plans fetch failed:', livePlansResult.reason);
         }
 
         setMergedItems(items.slice(0, 15));
