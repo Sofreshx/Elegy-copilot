@@ -504,8 +504,8 @@ async function run() {
             status: 'ok',
             data: {
               scopes: [
-                { key: 'default', tags: [] },
-                { key: 'holon', tags: ['holon', 'SAASTools'] },
+                { scopeKey: 'default', tags: [] },
+                { scopeKey: 'holon', tags: ['holon', 'SAASTools'] },
               ],
             },
           }), '');
@@ -579,8 +579,8 @@ async function run() {
             status: 'ok',
             data: {
               scopes: [
-                { key: 'default', tags: [] },
-                { key: 'holon', tags: ['holon'] },
+                { scopeKey: 'default', tags: ['holon'] },
+                { scopeKey: 'holon', tags: ['holon'] },
               ],
             },
           }), '');
@@ -628,10 +628,214 @@ async function run() {
 
     assert.ok(Array.isArray(result.plans));
     const ids = result.plans.map((p) => p.id);
-    // PLAN-shared appears in both scopes; dedupe is per scopeKey+id, so both kept
+    // Both 'default' and 'holon' scopes have tag 'holon' → both match labels
+    // PLAN-shared appears in both scopes; dedupe is per scopeKey+id, so both copies kept
     assert.ok(ids.includes('PLAN-shared'));
     assert.ok(ids.includes('PLAN-holon-only'));
     assert.ok(ids.includes('PLAN-default-only'));
+  });
+
+  await test('scope matching handles scopeKey field from elegy-planning CLI output', async () => {
+    const explicitDbPath = path.join('C:', 'planning', 'elegy-planning.db');
+    const bridge = createRoadmapWorkflowPlanningBridge({
+      enabled: true,
+      elegyHome: path.join('C:', 'copilot'),
+      dbPath: explicitDbPath,
+      cliPath: __filename,
+      fsModule: {
+        existsSync(p) { return p === explicitDbPath; },
+        statSync(p) { return { size: 4096 }; },
+      },
+      childProcess: createExecFileStub(({ args, callback }) => {
+        const commandKey = getCommandKey(args);
+        if (commandKey === 'scope list') {
+          callback(null, JSON.stringify({
+            status: 'ok',
+            data: {
+              scopes: [
+                { scopeKey: 'default', tags: [] },
+                { scopeKey: 'holon', tags: ['holon'] },
+              ],
+            },
+          }), '');
+          return;
+        }
+        if (commandKey === 'roadmap list') {
+          const scopeIdx = args.indexOf('--scope');
+          const scopeVal = scopeIdx >= 0 ? args[scopeIdx + 1] : 'default';
+          if (scopeVal === 'holon') {
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: {
+                roadmaps: [
+                  { id: 'RM-holon', title: 'Holon Roadmap', status: 'active', tags: ['holon'] },
+                ],
+              },
+            }), '');
+          } else {
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: { roadmaps: [] },
+            }), '');
+          }
+          return;
+        }
+        callback(null, JSON.stringify({ status: 'ok', data: {} }), '');
+      }),
+      env: {},
+      processObject: { env: {}, platform: 'win32' },
+    });
+
+    const result = await bridge.listRoadmaps({
+      requestId: 'scopeKey-test',
+      repoLabel: 'holon',
+    });
+
+    assert.ok(Array.isArray(result.roadmaps));
+    assert.equal(result.roadmaps.length, 1);
+    assert.equal(result.roadmaps[0].id, 'RM-holon');
+  });
+
+  await test('label derivation splits holon-repo into holon and repo tokens', async () => {
+    const explicitDbPath = path.join('C:', 'planning', 'elegy-planning.db');
+    const bridge = createRoadmapWorkflowPlanningBridge({
+      enabled: true,
+      elegyHome: path.join('C:', 'copilot'),
+      dbPath: explicitDbPath,
+      cliPath: __filename,
+      fsModule: {
+        existsSync(p) { return p === explicitDbPath; },
+        statSync(p) { return { size: 4096 }; },
+      },
+      childProcess: createExecFileStub(({ args, callback }) => {
+        const commandKey = getCommandKey(args);
+        if (commandKey === 'scope list') {
+          callback(null, JSON.stringify({
+            status: 'ok',
+            data: {
+              scopes: [
+                { scopeKey: 'default', tags: [] },
+                { scopeKey: 'holon', tags: ['holon'] },
+              ],
+            },
+          }), '');
+          return;
+        }
+        if (commandKey === 'roadmap list') {
+          const scopeIdx = args.indexOf('--scope');
+          const scopeVal = scopeIdx >= 0 ? args[scopeIdx + 1] : 'default';
+          if (scopeVal === 'holon') {
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: {
+                roadmaps: [
+                  { id: 'RM-derived', title: 'Derived Match', status: 'draft', tags: [] },
+                ],
+              },
+            }), '');
+          } else {
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: { roadmaps: [] },
+            }), '');
+          }
+          return;
+        }
+        callback(null, JSON.stringify({ status: 'ok', data: {} }), '');
+      }),
+      env: {},
+      processObject: { env: {}, platform: 'win32' },
+    });
+
+    // holon-repo should derive tokens: holon-repo, holon, repo
+    const result = await bridge.listRoadmaps({
+      requestId: 'derive-test',
+      repoLabel: 'holon-repo',
+    });
+
+    assert.ok(Array.isArray(result.roadmaps));
+    assert.equal(result.roadmaps.length, 1);
+    assert.equal(result.roadmaps[0].id, 'RM-derived');
+  });
+
+  await test('fallback DB trial when primary DB has no matching scopes', async () => {
+    const primaryDbPath = path.join('C:', 'copilot', 'elegy-planning.db');
+    const legacyDbPath = path.join('C:', 'Users', 'test', '.elegy', 'planning.db');
+    const recorded = [];
+    const bridge = createRoadmapWorkflowPlanningBridge({
+      enabled: true,
+      elegyHome: path.join('C:', 'copilot'),
+      homedir: path.join('C:', 'Users', 'test'),
+      cliPath: __filename,
+      childProcess: createExecFileStub(({ args, callback }) => {
+        const commandKey = getCommandKey(args);
+        // Determine which DB is being used from args
+        const dbIdx = args.indexOf('--db');
+        const dbPathFromArgs = dbIdx >= 0 ? args[dbIdx + 1] : '';
+        recorded.push({ commandKey, dbPath: dbPathFromArgs });
+        if (commandKey === 'scope list') {
+          if (dbPathFromArgs === legacyDbPath) {
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: {
+                scopes: [
+                  { scopeKey: 'default', tags: [] },
+                  { scopeKey: 'holon', tags: ['holon'] },
+                ],
+              },
+            }), '');
+          } else {
+            // Primary DB has only default scope
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: {
+                scopes: [
+                  { scopeKey: 'default', tags: [] },
+                ],
+              },
+            }), '');
+          }
+          return;
+        }
+        if (commandKey === 'roadmap list') {
+          if (dbPathFromArgs === legacyDbPath) {
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: {
+                roadmaps: [
+                  { id: 'RM-legacy', title: 'Legacy Roadmap', status: 'active', tags: ['holon'] },
+                ],
+              },
+            }), '');
+          } else {
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: { roadmaps: [] },
+            }), '');
+          }
+          return;
+        }
+        callback(null, JSON.stringify({ status: 'ok', data: {} }), '');
+      }),
+      fsModule: {
+        existsSync(p) { return p === primaryDbPath || p === legacyDbPath; },
+        statSync(p) { return { size: p === legacyDbPath ? 8192 : 4096 }; },
+      },
+      env: {},
+      processObject: { env: {}, platform: 'win32' },
+    });
+
+    const result = await bridge.listRoadmaps({
+      requestId: 'fallback-test',
+      repoLabel: 'holon',
+    });
+
+    assert.ok(Array.isArray(result.roadmaps));
+    assert.equal(result.roadmaps.length, 1);
+    assert.equal(result.roadmaps[0].id, 'RM-legacy');
+    // Verify legacy DB was tried
+    const legacyDbAttempts = recorded.filter((r) => r.dbPath === legacyDbPath);
+    assert.ok(legacyDbAttempts.length > 0, 'Should have queried legacy DB');
   });
 
   if (!process.exitCode) {

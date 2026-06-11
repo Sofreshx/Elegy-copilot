@@ -613,19 +613,53 @@ async function scopeList(config, requestId) {
   };
 }
 
+function normalizeScopeEntry(entry) {
+  if (!entry || typeof entry !== 'object') return { key: '', tags: [] };
+  const key = normalizeString(entry.scopeKey || entry.key);
+  const tags = Array.isArray(entry.tags)
+    ? entry.tags.map((t) => String(t).toLowerCase().trim()).filter(Boolean)
+    : [];
+  return { key, tags };
+}
+
+function deriveLabelTokens(repoLabels) {
+  const tokens = new Set();
+  for (const label of repoLabels) {
+    const normalized = String(label).toLowerCase().trim();
+    if (!normalized) continue;
+    tokens.add(normalized);
+
+    // Derive parts from hyphenated labels: "holon-repo" -> "holon", "repo"
+    const parts = normalized.split(/[-_.]/).filter((p) => p.length > 0);
+    for (const part of parts) {
+      tokens.add(part);
+    }
+
+    // Derive basename from path-like labels
+    if (normalized.includes('/') || normalized.includes('\\')) {
+      const basename = normalized.replace(/\\/g, '/').split('/').filter(Boolean).pop();
+      if (basename) {
+        tokens.add(basename);
+        const baseParts = basename.split(/[-_.]/).filter((p) => p.length > 0);
+        for (const part of baseParts) {
+          tokens.add(part);
+        }
+      }
+    }
+  }
+  return [...tokens];
+}
+
 function scopeMatchesLabels(scopeEntry, labels) {
   if (!Array.isArray(labels) || labels.length === 0) {
     return false;
   }
-  const lowerLabels = labels.map((l) => l.toLowerCase());
-  const key = normalizeString(scopeEntry && scopeEntry.key).toLowerCase();
-  if (key && lowerLabels.includes(key)) {
+  const derivedTokens = deriveLabelTokens(labels);
+  const { key, tags } = normalizeScopeEntry(scopeEntry);
+  if (key && derivedTokens.includes(key.toLowerCase())) {
     return true;
   }
-  const tags = Array.isArray(scopeEntry && scopeEntry.tags)
-    ? scopeEntry.tags.map((t) => String(t).toLowerCase())
-    : [];
-  return lowerLabels.some((label) => tags.includes(label));
+  return derivedTokens.some((token) => tags.includes(token));
 }
 
 function dedupeEntitiesByScope(entities) {
@@ -656,38 +690,32 @@ function resolveScopeToQuery(config, activeScope, repoLabels, scopeEntries) {
   const seenScopes = new Set();
   const activeKey = normalizeString(activeScope).toLowerCase() || 'default';
 
-  // Active scope (or 'default' when no session) always first
-  for (const entry of scopeEntries) {
-    const key = normalizeString(entry && entry.key).toLowerCase();
-    if ((key === activeKey || (!activeScope && key === 'default')) && !seenScopes.has(key)) {
-      seenScopes.add(key);
-      matchingScopes.push({ key, tags: entry.tags || [] });
-      break;
+  // Label-matching scopes: collect all matches first
+  const labelMatches = [];
+  for (const rawEntry of scopeEntries) {
+    const { key } = normalizeScopeEntry(rawEntry);
+    if (!key) continue;
+    if (scopeMatchesLabels(rawEntry, labels)) {
+      labelMatches.push({ key, tags: rawEntry.tags || [], isActive: key === activeKey || (!activeScope && key === 'default') });
     }
   }
 
-  // If active scope wasn't found as named, try any scope (first available)
-  if (matchingScopes.length === 0 && scopeEntries.length > 0) {
-    const firstEntry = scopeEntries[0];
-    const key = normalizeString(firstEntry && firstEntry.key).toLowerCase();
-    if (key && !seenScopes.has(key)) {
-      seenScopes.add(key);
-      matchingScopes.push({ key, tags: firstEntry.tags || [] });
-    }
+  // Active/default scope first if it's a label match, otherwise first label match
+  const activeMatch = labelMatches.find((m) => m.isActive);
+  if (activeMatch && !seenScopes.has(activeMatch.key)) {
+    seenScopes.add(activeMatch.key);
+    matchingScopes.push({ key: activeMatch.key, tags: activeMatch.tags });
   }
 
-  // Label-matching scopes
-  for (const entry of scopeEntries) {
-    const key = normalizeString(entry && entry.key).toLowerCase();
-    if (!key || seenScopes.has(key)) {
-      continue;
-    }
-    if (scopeMatchesLabels(entry, labels)) {
-      seenScopes.add(key);
-      matchingScopes.push({ key, tags: entry.tags || [] });
-    }
+  // Remaining label-matching scopes
+  for (const match of labelMatches) {
+    if (match.isActive || seenScopes.has(match.key)) continue;
+    seenScopes.add(match.key);
+    matchingScopes.push({ key: match.key, tags: match.tags });
   }
 
+  // If no label matches at all, return null to trigger fallback DB trial.
+  // (Active/default scope baseline is NOT included when it doesn't match labels.)
   return matchingScopes.length > 0 ? matchingScopes : null;
 }
 
@@ -813,10 +841,6 @@ function resolvePlanningDbPath(options = {}) {
   // 1. Explicit path (env var or option)
   if (explicitPath) {
     pushCandidate('explicit', explicitPath);
-    const explicit = candidates[candidates.length - 1];
-    if (explicit.exists) {
-      return { dbPath: explicitPath, source: 'explicit', reason: 'explicit path exists and selected', candidates };
-    }
   }
 
   // 2. <elegyHome>/elegy-planning.db (copilot home)
@@ -829,22 +853,29 @@ function resolvePlanningDbPath(options = {}) {
     pushCandidate('legacy-elegy', pathModule.join(homedir, '.elegy', 'planning.db'));
   }
 
-  // Selection: first populated, otherwise first existing, otherwise first available
+  // Selection: prefer explicit if populated, otherwise most populated candidate
   let selected = null;
   let reason = '';
 
-  const populated = candidates.filter((c) => c.populated);
-  if (populated.length > 0) {
-    selected = populated[0];
-    reason = `selected ${selected.source} database (populated)`;
+  // Prefer explicit populated
+  const explicitCand = candidates.find((c) => c.source === 'explicit' && c.populated);
+  if (explicitCand) {
+    selected = explicitCand;
+    reason = `selected explicit database (populated)`;
   } else {
-    const existing = candidates.filter((c) => c.exists);
-    if (existing.length > 0) {
-      selected = existing[0];
-      reason = `selected ${selected.source} database (exists, not populated)`;
-    } else if (candidates.length > 0) {
-      selected = candidates[0];
-      reason = `default ${selected.source} (does not exist)`;
+    const populated = candidates.filter((c) => c.populated);
+    if (populated.length > 0) {
+      selected = populated[0];
+      reason = `selected ${selected.source} database (populated)`;
+    } else {
+      const existing = candidates.filter((c) => c.exists);
+      if (existing.length > 0) {
+        selected = existing[0];
+        reason = `selected ${selected.source} database (exists, not populated)`;
+      } else if (candidates.length > 0) {
+        selected = candidates[0];
+        reason = `default ${selected.source} (does not exist)`;
+      }
     }
   }
 
@@ -960,15 +991,31 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
         : (normalizeString(input.repoLabel) ? [normalizeString(input.repoLabel)] : []);
 
       if (repoLabels.length > 0) {
+        // Try primary DB first
         try {
           const scopes = await scopeList(config, requestId);
           const scopesToQuery = resolveScopeToQuery(config, scope, repoLabels, scopes.scopes);
           if (scopesToQuery && scopesToQuery.length > 0) {
             return listRoadmapsMultiScope(config, requestId, scopesToQuery);
           }
-          // Fall through: no scopes matched, try default list
         } catch (_scopeErr) {
-          // scope list failed; fall through to default listing
+          // scope list failed; fall through
+        }
+
+        // Try fallback DB candidates (e.g. legacy ~/.elegy/planning.db)
+        const fallbackCandidates = (dbResolution && dbResolution.candidates || [])
+          .filter((c) => c.populated && c.path !== config.dbPath);
+        for (const candidate of fallbackCandidates) {
+          try {
+            const fallbackConfig = { ...config, dbPath: candidate.path };
+            const scopes = await scopeList(fallbackConfig, requestId);
+            const scopesToQuery = resolveScopeToQuery(fallbackConfig, scope, repoLabels, scopes.scopes);
+            if (scopesToQuery && scopesToQuery.length > 0) {
+              return listRoadmapsMultiScope(fallbackConfig, requestId, scopesToQuery);
+            }
+          } catch (_fallbackErr) {
+            // try next candidate
+          }
         }
       }
 
@@ -1026,15 +1073,31 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
         : (normalizeString(input.repoLabel) ? [normalizeString(input.repoLabel)] : []);
 
       if (repoLabels.length > 0) {
+        // Try primary DB first
         try {
           const scopes = await scopeList(config, requestId);
           const scopesToQuery = resolveScopeToQuery(config, scope, repoLabels, scopes.scopes);
           if (scopesToQuery && scopesToQuery.length > 0) {
             return listPlansMultiScope(config, requestId, scopesToQuery);
           }
-          // Fall through: no scopes matched, try default list
         } catch (_scopeErr) {
-          // scope list failed; fall through to default listing
+          // scope list failed; fall through
+        }
+
+        // Try fallback DB candidates (e.g. legacy ~/.elegy/planning.db)
+        const fallbackCandidates = (dbResolution && dbResolution.candidates || [])
+          .filter((c) => c.populated && c.path !== config.dbPath);
+        for (const candidate of fallbackCandidates) {
+          try {
+            const fallbackConfig = { ...config, dbPath: candidate.path };
+            const scopes = await scopeList(fallbackConfig, requestId);
+            const scopesToQuery = resolveScopeToQuery(fallbackConfig, scope, repoLabels, scopes.scopes);
+            if (scopesToQuery && scopesToQuery.length > 0) {
+              return listPlansMultiScope(fallbackConfig, requestId, scopesToQuery);
+            }
+          } catch (_fallbackErr) {
+            // try next candidate
+          }
         }
       }
 

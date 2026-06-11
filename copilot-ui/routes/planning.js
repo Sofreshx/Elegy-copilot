@@ -500,6 +500,11 @@ function handlePlanningLiveRoadmapsList(ctx, deps) {
           (repo && (repo.repoId || repo.repoPath || repo.repoLabel)) || 'planning-live-roadmaps',
         ),
         repoLabel: repo && repo.repoLabel,
+        repoLabels: repo ? [
+          repo.repoLabel,
+          repo.repoPath ? require('path').basename(repo.repoPath) : '',
+          repo.repoId,
+        ].filter(Boolean) : [],
       });
       const includeUnscoped = String(u.searchParams.get('includeUnscoped') || '').toLowerCase() === 'true';
       const rawRoadmaps = response && response.roadmaps;
@@ -664,6 +669,11 @@ function handlePlanningLivePlansList(ctx, deps) {
           roadmapId || goalId || (repo && (repo.repoId || repo.repoPath || repo.repoLabel)) || 'planning-live-plans',
         ),
         repoLabel: repo && repo.repoLabel,
+        repoLabels: repo ? [
+          repo.repoLabel,
+          repo.repoPath ? require('path').basename(repo.repoPath) : '',
+          repo.repoId,
+        ].filter(Boolean) : [],
       });
       const plans = filterPlanningLivePlans(response && response.plans, {
         repoId: repo && repo.repoId,
