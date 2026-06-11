@@ -41,6 +41,7 @@ function writeInstallLedger(elegyHomeAbs, harnessId, managedAssetIds, lastResult
   existing.harnesses[harnessId] = {
     optedInAt: existing.harnesses[harnessId]?.optedInAt || now,
     managedAssetIds: Array.isArray(managedAssetIds) ? [...new Set(managedAssetIds)].sort() : [],
+    assetHashes: existing.harnesses[harnessId]?.assetHashes || {},
     lastResult: lastResult || 'ok',
     lastRunAt: now,
   };
@@ -82,6 +83,34 @@ function removeHarnessOptIn(elegyHomeAbs, harnessId) {
   return existing;
 }
 
+function setAssetHashes(elegyHomeAbs, harnessId, hashMap) {
+  const ledgerPath = path.join(path.resolve(elegyHomeAbs), 'catalog', 'install-ledger.json');
+  const now = new Date().toISOString();
+  const existing = readInstallLedger(elegyHomeAbs) || {
+    schemaVersion: LEDGER_SCHEMA_VERSION,
+    generatedAt: now,
+    harnesses: {},
+  };
+  if (!existing.harnesses[harnessId]) {
+    existing.harnesses[harnessId] = {
+      optedInAt: now,
+      managedAssetIds: [],
+      assetHashes: {},
+      lastResult: 'ok',
+      lastRunAt: now,
+    };
+  }
+  existing.harnesses[harnessId].assetHashes = { ...existing.harnesses[harnessId].assetHashes, ...hashMap };
+  existing.generatedAt = now;
+  writeJsonAtomic(ledgerPath, existing);
+  return existing;
+}
+
+function getAssetHash(elegyHomeAbs, harnessId, assetId) {
+  const ledger = readInstallLedger(elegyHomeAbs);
+  return ledger?.harnesses?.[harnessId]?.assetHashes?.[assetId] || null;
+}
+
 module.exports = {
   readInstallLedger,
   writeInstallLedger,
@@ -89,4 +118,6 @@ module.exports = {
   listHarnessOptedInAssetIds,
   setHarnessOptedIn,
   removeHarnessOptIn,
+  setAssetHashes,
+  getAssetHash,
 };

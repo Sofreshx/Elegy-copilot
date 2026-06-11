@@ -161,7 +161,7 @@ export function deactivateCatalogSourceInstallable(
 }
 
 export interface HarnessOptInPayload {
-  target: 'codex' | 'opencode' | 'antigravity';
+  target: 'codex' | 'opencode' | 'antigravity' | 'claude';
   optIn: boolean;
 }
 
@@ -178,6 +178,69 @@ export function setHarnessOptIn(
   baseUrl?: string
 ): Promise<HarnessOptInResponse> {
   return apiRequest<HarnessOptInResponse>('/api/catalog/harness-opt-in', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface UninstallHarnessAssetPayload {
+  harnessId: string;
+  assetId: string;
+}
+
+export interface UninstallHarnessAssetResponse {
+  kind: string;
+  deterministic: boolean;
+  ok: boolean;
+  removed?: string[];
+  warnings?: string[];
+}
+
+export function uninstallHarnessAsset(
+  payload: UninstallHarnessAssetPayload,
+  baseUrl?: string
+): Promise<UninstallHarnessAssetResponse> {
+  return apiRequest<UninstallHarnessAssetResponse>('/api/catalog/harness-assets/uninstall', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface CheckHarnessAssetsPayload {
+  harnessId?: string;
+  assetId?: string;
+}
+
+export interface CheckHarnessAssetResult {
+  assetId: string;
+  harnessId: string;
+  state: string;
+  sourceHash?: string | null;
+  destHash?: string | null;
+  drift?: boolean;
+  warnings?: string[];
+}
+
+export interface CheckHarnessAssetsResponse {
+  kind: string;
+  deterministic: boolean;
+  ok: boolean;
+  results: CheckHarnessAssetResult[];
+}
+
+export function checkHarnessAssets(
+  payload: CheckHarnessAssetsPayload,
+  baseUrl?: string
+): Promise<CheckHarnessAssetsResponse> {
+  return apiRequest<CheckHarnessAssetsResponse>('/api/catalog/harness-assets/check', {
     baseUrl,
     method: 'POST',
     headers: {

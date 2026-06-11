@@ -1313,7 +1313,7 @@ export interface InstalledAssetsResponse {
   instructions: InstalledInstructions;
 }
 
-export type InstallSurfaceTarget = 'codex' | 'antigravity' | 'opencode' | 'all';
+export type InstallSurfaceTarget = 'codex' | 'antigravity' | 'opencode' | 'claude' | 'all';
 
 export interface InstallSurfaceRunSummary {
   homeKind?: string;
@@ -1736,6 +1736,14 @@ export interface CatalogGlobalHarnessState {
   syncStatus?: 'synced' | 'missing' | 'installed' | 'active' | 'available' | 'unsupported' | string;
   installPath?: string | null;
   actions?: CatalogGlobalHarnessActions;
+  // R2: Rich state model
+  state: 'supported' | 'available' | 'not-installed' | 'installed' | 'stale' | 'conflict' | 'unmanaged' | 'unknown';
+  sourceHash?: string | null;
+  destinationHash?: string | null;
+  managedInventoryPath?: string | null;
+  lastCheckedAt?: string | null;
+  warnings?: string[];
+  errors?: string[];
   detail?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
   [key: string]: unknown;

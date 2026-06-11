@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { CatalogGlobalItem, CatalogGlobalSection, CatalogGlobalHarness, CatalogGlobalHarnessState } from '../../lib/types';
 import AssetGroupList from './AssetGroupList';
 import AssetDetailModal from './AssetDetailModal';
@@ -10,24 +10,10 @@ interface InventoryTabProps {
   mutating?: boolean;
 }
 
-/* Helper: detect items needing attention */
-function itemNeedsAttention(item: CatalogGlobalItem): boolean {
-  return (item.harnessStates || []).some(
-    (s) => s.syncStatus === 'missing' || s.syncStatus === 'unsupported',
-  );
-}
-
 export default function InventoryTab({ sections, harnesses, onItemAction, mutating }: InventoryTabProps) {
-  const [selectedItem, setSelectedItem] = useState<CatalogGlobalItem | null>(null);
   const [kindFilter, setKindFilter] = useState<string>('all');
   const [scopeFilter, setScopeFilter] = useState<string>('all');
   const [modalItem, setModalItem] = useState<CatalogGlobalItem | null>(null);
-
-  /* Unfiltered items for auto-select (so filters don't break initial selection) */
-  const unfilteredAllItems = useMemo(
-    () => sections.flatMap((s) => s.items || []),
-    [sections],
-  );
 
   /* Filtered sections (grouped by provenance) for AssetGroupList */
   const filteredSections = useMemo(
@@ -49,16 +35,6 @@ export default function InventoryTab({ sections, harnesses, onItemAction, mutati
     },
     [sections, kindFilter, scopeFilter],
   );
-
-  /* Auto-select item with attention first, otherwise first item */
-  useEffect(() => {
-    if (unfilteredAllItems.length > 0) {
-      const needsAttention = unfilteredAllItems.find((i) => itemNeedsAttention(i));
-      setSelectedItem(needsAttention ?? unfilteredAllItems[0]);
-    }
-    // Only run when unfilteredAllItems changes - auto-select on initial load and data changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unfilteredAllItems]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
@@ -104,9 +80,8 @@ export default function InventoryTab({ sections, harnesses, onItemAction, mutati
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }} data-testid="assets-tools-inventory">
         <AssetGroupList
           sections={filteredSections}
-          selectedItem={selectedItem}
-          onSelectItem={setSelectedItem}
-          onViewItem={setModalItem}
+          selectedItem={modalItem}
+          onSelectItem={setModalItem}
         />
       </div>
 

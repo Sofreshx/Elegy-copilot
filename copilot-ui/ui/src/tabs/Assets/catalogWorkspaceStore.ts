@@ -34,6 +34,9 @@ import {
   installSurfaces,
   unregisterCatalogRepo,
   updateCatalogAsset,
+  uninstallHarnessAsset as apiUninstallHarnessAsset,
+  checkHarnessAssets as apiCheckHarnessAssets,
+  type CheckHarnessAssetResult,
 } from '../../lib/api';
 import type {
   CatalogActivationMutationResponse,
@@ -378,6 +381,8 @@ function getInstallSurfaceLabel(target: InstallSurfaceTarget): string {
       return 'Antigravity';
     case 'opencode':
       return 'OpenCode';
+    case 'claude':
+      return 'Claude Code';
     case 'all':
       return 'everything';
     default:
@@ -966,7 +971,7 @@ function createCatalogWorkspaceStore() {
     await installSurface('all', force);
   }
 
-  async function toggleHarnessOptIn(target: 'codex' | 'opencode' | 'antigravity', optIn: boolean): Promise<void> {
+  async function toggleHarnessOptIn(target: 'codex' | 'opencode' | 'antigravity' | 'claude', optIn: boolean): Promise<void> {
     const harnessLabel = getInstallSurfaceLabel(target);
     store.setState((state) => ({
       ...state,
@@ -1934,6 +1939,70 @@ function createCatalogWorkspaceStore() {
     }));
   }
 
+  async function uninstallHarnessAsset(harnessId: string, assetId: string): Promise<void> {
+    store.setState((state) => ({
+      ...state,
+      mutating: true,
+      error: null,
+      installMessage: `Uninstalling ${assetId} from ${harnessId}...`,
+    }));
+
+    try {
+      const response = await apiUninstallHarnessAsset({ harnessId, assetId });
+      await loadWorkspace();
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+        installMessage: response.ok
+          ? `Uninstalled ${assetId} from ${harnessId}.`
+          : `Uninstall blocked: ${(response.warnings || []).join('; ')}`,
+        installWarning: response.ok ? null : (response.warnings || []).join('; '),
+      }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+        error: toErrorMessage(error, 'Unable to uninstall asset.'),
+        installMessage: `Uninstall failed for ${assetId}.`,
+      }));
+      throw error;
+    }
+  }
+
+  async function checkHarnessAssets(harnessId?: string, assetId?: string): Promise<CheckHarnessAssetResult[]> {
+    store.setState((state) => ({
+      ...state,
+      installing: true,
+      error: null,
+      installMessage: harnessId
+        ? `Checking ${harnessId} assets...`
+        : 'Checking all harness assets...',
+    }));
+
+    try {
+      const response = await apiCheckHarnessAssets({ harnessId, assetId });
+      await loadWorkspace();
+      store.setState((state) => ({
+        ...state,
+        installing: false,
+        installMessage: `Check complete: ${response.results.length} asset(s) scanned.`,
+      }));
+      return response.results;
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        installing: false,
+        error: toErrorMessage(error, 'Unable to check assets.'),
+        installMessage: 'Check failed.',
+      }));
+      throw error;
+    }
+  }
+
+  async function syncHarness(target: InstallSurfaceTarget): Promise<void> {
+    await installSurface(target, false);
+  }
+
   return {
     getState: store.getState,
     subscribe: store.subscribe,
@@ -1941,6 +2010,9 @@ function createCatalogWorkspaceStore() {
     refreshWorkspace,
     installSurface,
     toggleHarnessOptIn,
+    uninstallHarnessAsset,
+    checkHarnessAssets,
+    syncHarness,
     installAll,
     installBundle,
     uninstallBundle,

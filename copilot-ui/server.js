@@ -3839,6 +3839,16 @@ function resolveOpenCodeSkillsHomeFromEnv(env, opencodeHome) {
   return path.resolve(String(source.INSTRUCTION_ENGINE_OPENCODE_SKILLS_HOME || path.join(opencodeHome, 'skills')));
 }
 
+function resolveClaudeHomeFromEnv(env) {
+  const source = env && typeof env === 'object' ? env : process.env;
+  return path.resolve(String(source.CLAUDE_HOME || path.join(os.homedir(), '.claude')));
+}
+
+function resolveClaudeSkillsHomeFromEnv(env, claudeHome) {
+  const source = env && typeof env === 'object' ? env : process.env;
+  return path.resolve(String(source.INSTRUCTION_ENGINE_CLAUDE_SKILLS_HOME || path.join(claudeHome, 'skills')));
+}
+
 const policyPreflightCache = new Map();
 
 function evaluatePolicyPreflight(engineRoot) {
@@ -4571,6 +4581,8 @@ function handleApi({ req, res, u, elegyHome, sandboxesHome, engineRoot, changeTr
   const opencodeHome = resolveOpenCodeHomeFromEnv(process.env);
   const opencodeSkillsHome = resolveOpenCodeSkillsHomeFromEnv(process.env, opencodeHome);
   const opencodeDataHome = resolveOpenCodeDataHomeFromEnv(process.env);
+  const claudeHome = resolveClaudeHomeFromEnv(process.env);
+  const claudeSkillsHome = resolveClaudeSkillsHomeFromEnv(process.env, claudeHome);
   const activePlanningDurabilityDependencyGate = planningDurabilityDependencyGate
     && typeof planningDurabilityDependencyGate === 'object'
     ? planningDurabilityDependencyGate
@@ -4671,6 +4683,8 @@ function handleApi({ req, res, u, elegyHome, sandboxesHome, engineRoot, changeTr
     opencodeHome,
     opencodeSkillsHome,
     opencodeDataHome,
+    claudeHome,
+    claudeSkillsHome,
     planningDurabilityDependencyGate: activePlanningDurabilityDependencyGate,
     activePlanningDurabilityDependencyGate,
     planningPersistenceConfig,

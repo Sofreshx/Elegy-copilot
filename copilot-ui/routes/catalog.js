@@ -40,15 +40,26 @@ const DEFAULT_AUDIT_LIMIT = 50;
 const MAX_AUDIT_LIMIT = 200;
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
-const INSTALL_SURFACE_HARNESSES = new Set(['codex', 'opencode', 'antigravity']);
+const INSTALL_SURFACE_HARNESSES = new Set(['codex', 'opencode', 'antigravity', 'claude-code']);
 const HARNESS_INSTALLABLE_KINDS = Object.freeze({
   copilot: new Set(['agent', 'skill']),
   codex: new Set(['agent', 'skill', 'mcp']),
   opencode: new Set(['agent', 'skill', 'mcp', 'hook']),
   antigravity: new Set(['skill']),
+  'claude-code': new Set(['skill', 'instructions']),
   'gemini-cli': new Set(['mcp']),
   host: new Set(['cli-tool']),
 });
+function harnessIdToInstallSurfaceTarget(harnessId) {
+  if (harnessId === 'claude-code') return 'claude';
+  return harnessId;
+}
+
+function installSurfaceTargetToHarnessId(target) {
+  if (target === 'claude') return 'claude-code';
+  return target;
+}
+
 const GLOBAL_CATALOG_KEY_FEATURES = Object.freeze({
   'skill::skill-discovery': {
     central: true,
@@ -861,6 +872,15 @@ function detectHarnessInstallPath(ctx, harnessId, kind, paths) {
   return null;
 }
 
+function deriveHarnessState({ supported, expected, installed, installPath }) {
+  if (!supported) return 'unknown';
+  if (!expected) {
+    return installed ? 'unmanaged' : 'available';
+  }
+  if (!installed || !installPath) return 'not-installed';
+  return 'installed';
+}
+
 function buildHarnessState({
   ctx,
   harnessId,
@@ -883,6 +903,7 @@ function buildHarnessState({
   const supported = HARNESS_INSTALLABLE_KINDS[harnessId]?.has(normalizeCatalogItemKind(kind)) === true;
   const resolvedInstalled = typeof installed === 'boolean' ? installed : Boolean(resolvedInstallPath);
   const resolvedActive = typeof active === 'boolean' ? active : resolvedInstalled;
+  const derivedState = deriveHarnessState({ supported, expected: expected === true, installed: resolvedInstalled, installPath: resolvedInstallPath });
   return {
     harnessId,
     title: humanizeHarnessId(harnessId),
@@ -897,6 +918,13 @@ function buildHarnessState({
       canDeactivate: supported && canDeactivate,
       canSync: supported && canSync,
     },
+    state: derivedState,
+    sourceHash: null,
+    destinationHash: null,
+    managedInventoryPath: null,
+    lastCheckedAt: null,
+    warnings: [],
+    errors: [],
     detail,
     metadata,
     syncStatus: null,
@@ -1136,6 +1164,7 @@ function buildManifestInventory(ctx) {
     { source: 'codex', fileName: 'codex-assets/manifest.json', harnessId: 'codex', supportsItemInstall: false },
     { source: 'opencode', fileName: 'opencode-assets/manifest.json', harnessId: 'opencode', supportsItemInstall: false },
     { source: 'antigravity', fileName: 'antigravity-assets/manifest.json', harnessId: 'antigravity', supportsItemInstall: false },
+    { source: 'claude', fileName: 'claude-assets/manifest.json', harnessId: 'claude-code', supportsItemInstall: false },
   ];
   const grouped = {
     skill: [],
@@ -1184,7 +1213,7 @@ function buildManifestInventory(ctx) {
           kind: 'install-surface',
           installAssetId: null,
           installSurfaceTargets: INSTALL_SURFACE_HARNESSES.has(manifestSource.harnessId)
-            ? [manifestSource.harnessId]
+            ? [harnessIdToInstallSurfaceTarget(manifestSource.harnessId)]
             : [],
         },
         harnessStates: listHarnessRows(ctx)
@@ -3326,6 +3355,7 @@ function sendJsonError(res, sendJson, statusCode, kind, error) {
 
 function collectManifestAssetIdsForHarness(engineRoot, harnessId) {
   const MANIFEST_FILE_BY_HARNESS = {
+    'claude-code': 'claude-assets/manifest.json',
     codex: 'codex-assets/manifest.json',
     opencode: 'opencode-assets/manifest.json',
     antigravity: 'antigravity-assets/manifest.json',
@@ -3344,9 +3374,11 @@ function handleHarnessOptIn(ctx, deps) {
     .then(async (body) => {
       const target = normalizeString(body?.target).toLowerCase();
       const optIn = body?.optIn === true;
-      if (!['codex', 'opencode', 'antigravity'].includes(target)) {
-        throw Object.assign(new Error('target must be codex, opencode, or antigravity'), { statusCode: 400 });
+      if (!['codex', 'opencode', 'antigravity', 'claude'].includes(target)) {
+        throw Object.assign(new Error('target must be codex, opencode, antigravity, or claude'), { statusCode: 400 });
       }
+
+      const harnessId = installSurfaceTargetToHarnessId(target);
 
       if (optIn) {
         const installOptions = {
@@ -3362,12 +3394,17 @@ function handleHarnessOptIn(ctx, deps) {
           antigravitySkillsHome: ctx.antigravitySkillsHome,
           opencodeHome: ctx.opencodeHome,
           opencodeSkillsHome: ctx.opencodeSkillsHome,
+          claudeHome: ctx.claudeHome,
+          claudeSkillsHome: ctx.claudeSkillsHome,
         };
         await deps.installSurfaces(installOptions);
-        const managedAssetIds = collectManifestAssetIdsForHarness(deps.engineRoot || ctx.engineRoot, target);
-        installLedgerLib.setHarnessOptIn(ctx.elegyHomeAbs, target, managedAssetIds);
+        // TODO(P2.2a): Capture per-asset hashes after install for staleness/conflict detection.
+        // Requires resolving destination paths from manifest asset definitions.
+        // For v1, basic state model (available/not-installed/installed) is sufficient.
+        const managedAssetIds = collectManifestAssetIdsForHarness(deps.engineRoot || ctx.engineRoot, harnessId);
+        installLedgerLib.setHarnessOptIn(ctx.elegyHomeAbs, harnessId, managedAssetIds);
       } else {
-        installLedgerLib.removeHarnessOptIn(ctx.elegyHomeAbs, target);
+        installLedgerLib.removeHarnessOptIn(ctx.elegyHomeAbs, harnessId);
       }
 
       rebuildProjection(ctx, deps, {}, 'harness_opt_in');
@@ -3377,7 +3414,7 @@ function handleHarnessOptIn(ctx, deps) {
         deterministic: true,
         target,
         optedIn: optIn,
-        assetCount: optIn ? collectManifestAssetIdsForHarness(deps.engineRoot || ctx.engineRoot, target).length : 0,
+        assetCount: optIn ? collectManifestAssetIdsForHarness(deps.engineRoot || ctx.engineRoot, harnessId).length : 0,
       });
     })
     .catch((error) => sendJsonError(
@@ -3385,6 +3422,221 @@ function handleHarnessOptIn(ctx, deps) {
       deps.sendJson,
       error.statusCode || 500,
       'catalog.harness_opt_in',
+      String(error.message || error),
+    ));
+}
+
+async function handleHarnessAssetUninstall(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then(async (body) => {
+      const harnessId = normalizeString(body?.harnessId);
+      const assetId = normalizeString(body?.assetId);
+      if (!harnessId || !assetId) {
+        throw Object.assign(new Error('harnessId and assetId are required'), { statusCode: 400 });
+      }
+
+      const ledger = installLedgerLib.readInstallLedger(ctx.elegyHomeAbs);
+      const isManaged = installLedgerLib.isAssetExpectedForUser(assetId, harnessId, ledger);
+      if (!isManaged) {
+        deps.sendJson(ctx.res, 200, {
+          kind: 'catalog.harness_asset_uninstall',
+          deterministic: true,
+          ok: false,
+          warnings: [`Asset ${assetId} is not managed by Elegy for harness ${harnessId}. Use check to inspect or delete manually.`],
+        });
+        return;
+      }
+
+      // Resolve destination path from manifest
+      const manifestFileName = harnessId === 'claude-code' ? 'claude-assets/manifest.json'
+        : harnessId === 'codex' ? 'codex-assets/manifest.json'
+        : harnessId === 'opencode' ? 'opencode-assets/manifest.json'
+        : harnessId === 'antigravity' ? 'antigravity-assets/manifest.json'
+        : null;
+      if (!manifestFileName) {
+        deps.sendJson(ctx.res, 200, {
+          kind: 'catalog.harness_asset_uninstall',
+          deterministic: true,
+          ok: false,
+          warnings: [`Unknown harness: ${harnessId}`],
+        });
+        return;
+      }
+
+      try {
+        const manifestScan = loadManifestDocument(deps.engineRoot || ctx.engineRoot, manifestFileName);
+        const assets = expandManifestAssets(deps.engineRoot || ctx.engineRoot, manifestScan.document);
+        const asset = assets.find((a) => normalizeString(a?.id) === assetId);
+        if (!asset) {
+          deps.sendJson(ctx.res, 200, {
+            kind: 'catalog.harness_asset_uninstall',
+            deterministic: true,
+            ok: false,
+            warnings: [`Asset ${assetId} not found in manifest for harness ${harnessId}`],
+          });
+          return;
+        }
+
+        // Build destination path candidates
+        const destCandidates = buildInstalledPathCandidatesForManifestAsset(ctx, harnessId, asset, manifestScan.document);
+        const destPath = destCandidates.find((c) => {
+          try { return deps.fs.statSync(c).isFile(); } catch (_) { return false; }
+        });
+
+        if (!destPath) {
+          // Already not on disk — remove from ledger
+          const updatedIds = (ledger?.harnesses?.[harnessId]?.managedAssetIds || [])
+            .filter((id) => id !== assetId);
+          installLedgerLib.setHarnessOptedIn(ctx.elegyHomeAbs, harnessId, updatedIds);
+          deps.sendJson(ctx.res, 200, {
+            kind: 'catalog.harness_asset_uninstall',
+            deterministic: true,
+            ok: true,
+            removed: [assetId],
+            warnings: ['Asset was not found on disk; removed from managed inventory only.'],
+          });
+          return;
+        }
+
+        // Compute hash and check against ledger
+        const fileContent = deps.fs.readFileSync(destPath);
+        const fileHash = deps.crypto.createHash('sha256').update(fileContent).digest('hex');
+        const ledgerHash = installLedgerLib.getAssetHash(ctx.elegyHomeAbs, harnessId, assetId);
+
+        if (ledgerHash && fileHash !== ledgerHash) {
+          deps.sendJson(ctx.res, 200, {
+            kind: 'catalog.harness_asset_uninstall',
+            deterministic: true,
+            ok: false,
+            warnings: [`Asset is unmanaged at ${destPath} — hash mismatch. Use check to inspect or delete manually.`],
+          });
+          return;
+        }
+
+        // Remove the file
+        try { deps.fs.unlinkSync(destPath); } catch (_) { /* best effort */ }
+
+        // Remove from ledger
+        const updatedIds = (ledger?.harnesses?.[harnessId]?.managedAssetIds || [])
+          .filter((id) => id !== assetId);
+        installLedgerLib.setHarnessOptedIn(ctx.elegyHomeAbs, harnessId, updatedIds);
+
+        deps.sendJson(ctx.res, 200, {
+          kind: 'catalog.harness_asset_uninstall',
+          deterministic: true,
+          ok: true,
+          removed: [assetId],
+        });
+      } catch (error) {
+        throw Object.assign(new Error(`Failed to uninstall: ${error.message}`), { statusCode: 500 });
+      }
+    })
+    .catch((error) => sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'catalog.harness_asset_uninstall',
+      String(error.message || error),
+    ));
+}
+
+async function handleHarnessAssetCheck(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then(async (body) => {
+      const harnessId = normalizeString(body?.harnessId) || null;
+      const assetId = normalizeString(body?.assetId) || null;
+      const ledger = installLedgerLib.readInstallLedger(ctx.elegyHomeAbs);
+      const results = [];
+
+      // Determine which harnesses to check
+      const harnessIds = harnessId
+        ? [harnessId]
+        : ['codex', 'opencode', 'antigravity', 'claude-code'];
+
+      for (const hid of harnessIds) {
+        const manifestFileName = hid === 'claude-code' ? 'claude-assets/manifest.json'
+          : hid === 'codex' ? 'codex-assets/manifest.json'
+          : hid === 'opencode' ? 'opencode-assets/manifest.json'
+          : hid === 'antigravity' ? 'antigravity-assets/manifest.json'
+          : null;
+        if (!manifestFileName) continue;
+
+        try {
+          const manifestScan = loadManifestDocument(deps.engineRoot || ctx.engineRoot, manifestFileName);
+          const assets = expandManifestAssets(deps.engineRoot || ctx.engineRoot, manifestScan.document);
+
+          for (const asset of assets) {
+            const aid = normalizeString(asset?.id);
+            if (assetId && aid !== assetId) continue;
+
+            const result = { assetId: aid, harnessId: hid, state: 'unknown', warnings: [] };
+            const isManaged = installLedgerLib.isAssetExpectedForUser(aid, hid, ledger);
+
+            // Check source
+            const sourcePath = path.resolve(deps.engineRoot || ctx.engineRoot, normalizeString(asset?.source) || '');
+            let sourceHash = null;
+            try {
+              const sourceContent = deps.fs.readFileSync(sourcePath);
+              sourceHash = deps.crypto.createHash('sha256').update(sourceContent).digest('hex');
+            } catch (_) {
+              result.warnings.push(`Source not found: ${sourcePath}`);
+            }
+
+            // Check destination
+            const destCandidates = buildInstalledPathCandidatesForManifestAsset(ctx, hid, asset, manifestScan.document);
+            const destPath = destCandidates.find((c) => {
+              try { return deps.fs.statSync(c).isFile(); } catch (_) { return false; }
+            });
+            let destHash = null;
+            if (destPath) {
+              try {
+                const destContent = deps.fs.readFileSync(destPath);
+                destHash = deps.crypto.createHash('sha256').update(destContent).digest('hex');
+              } catch (_) {
+                result.warnings.push(`Cannot read destination: ${destPath}`);
+              }
+            }
+
+            // Derive state
+            if (!destPath && !isManaged) {
+              result.state = 'available';
+            } else if (!destPath && isManaged) {
+              result.state = 'not-installed';
+              result.warnings.push('Expected but not installed');
+            } else if (destPath && !isManaged) {
+              result.state = 'unmanaged';
+              result.warnings.push('File exists but not tracked in ledger');
+            } else if (destPath && isManaged) {
+              if (sourceHash && destHash && sourceHash !== destHash) {
+                result.state = 'stale';
+                result.drift = true;
+                result.warnings.push('Destination differs from source');
+              } else {
+                result.state = 'installed';
+              }
+            }
+
+            result.sourceHash = sourceHash;
+            result.destHash = destHash;
+            results.push(result);
+          }
+        } catch (_) {
+          results.push({ assetId: 'manifest-error', harnessId: hid, state: 'unknown', warnings: [`Failed to load manifest for ${hid}`] });
+        }
+      }
+
+      deps.sendJson(ctx.res, 200, {
+        kind: 'catalog.harness_asset_check',
+        deterministic: true,
+        ok: true,
+        results,
+      });
+    })
+    .catch((error) => sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'catalog.harness_asset_check',
       String(error.message || error),
     ));
 }
@@ -3567,6 +3819,16 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/harness-opt-in',
       handler: (ctx) => handleHarnessOptIn(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/harness-assets/uninstall',
+      handler: (ctx) => handleHarnessAssetUninstall(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/harness-assets/check',
+      handler: (ctx) => handleHarnessAssetCheck(ctx, resolvedDeps),
     },
     {
       method: 'POST',

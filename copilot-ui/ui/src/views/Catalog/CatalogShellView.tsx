@@ -13,10 +13,10 @@ import { catalogWorkspaceStore } from '../../tabs/Assets/catalogWorkspaceStore';
 import CatalogIcon, { type IconName } from './CatalogIcon';
 import AssetsView from '../../tabs/Assets/AssetsView';
 import InventoryTab from './InventoryTab';
-import QualityTab from './QualityTab';
+import DiagnosticsTab from './DiagnosticsTab';
 import OperationsTab from './OperationsTab';
 import SourcesTab from './SourcesTab';
-import InstallationTab from './InstallationTab';
+import HarnessTab from './HarnessTab';
 
 /* ------------------------------------------------------------------ */
 /*  Internal types                                                    */
@@ -127,7 +127,7 @@ export default function CatalogShellView() {
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'inventory' | 'quality' | 'operations' | 'sources' | 'installation'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'quality' | 'operations' | 'sources' | 'codex' | 'opencode' | 'claude'>('inventory');
 
   const [showRepositoryAssets, setShowRepositoryAssets] = useState(false);
 
@@ -195,10 +195,7 @@ export default function CatalogShellView() {
     }
   }
 
-  async function handleSyncHarnesses(): Promise<void> {
-    await catalogWorkspaceStore.installAll();
-    await handleRefresh();
-  }
+
 
   async function handleItemAction(
     item: CatalogGlobalItem,
@@ -244,7 +241,7 @@ export default function CatalogShellView() {
       Array.isArray(item.actions?.installSurfaceTargets) &&
       item.actions.installSurfaceTargets.includes(harnessState.harnessId)
     ) {
-      await catalogWorkspaceStore.installSurface(harnessState.harnessId as 'codex' | 'opencode' | 'antigravity');
+      await catalogWorkspaceStore.installSurface(harnessState.harnessId as 'codex' | 'opencode' | 'antigravity' | 'claude');
       await handleRefresh();
     }
   }
@@ -314,14 +311,7 @@ export default function CatalogShellView() {
           >
             {summaryLoading ? 'Loading...' : 'Refresh'}
           </Button>
-          <Button
-            disabled={catalogState.installing}
-            onClick={() => void handleSyncHarnesses()}
-            testId="assets-tools-sync-harnesses"
-            variant="secondary"
-          >
-            {catalogState.installing ? 'Syncing...' : 'Sync Harnesses'}
-          </Button>
+
           {/* Repository Assets moved to Workspace area — see WorkspaceAssetsTab */}
         </div>
       </Toolbar>
@@ -369,7 +359,9 @@ export default function CatalogShellView() {
           { key: 'quality' as const, label: 'Diagnostics' },
           { key: 'operations' as const, label: 'Operations' },
           { key: 'sources' as const, label: 'Sources' },
-          { key: 'installation' as const, label: 'Installation' },
+          { key: 'codex' as const, label: 'Codex' },
+          { key: 'opencode' as const, label: 'OpenCode' },
+          { key: 'claude' as const, label: 'Claude' },
         ]).map(({ key, label }) => (
           <button
             key={key}
@@ -401,7 +393,7 @@ export default function CatalogShellView() {
             />
           )}
 
-          {activeTab === 'quality' && <QualityTab />}
+          {activeTab === 'quality' && <DiagnosticsTab />}
 
           {activeTab === 'operations' && <OperationsTab summary={summary} />}
 
@@ -412,8 +404,16 @@ export default function CatalogShellView() {
             />
           )}
 
-          {activeTab === 'installation' && (
-            <InstallationTab onSyncHarnesses={() => void handleSyncHarnesses()} />
+          {activeTab === 'codex' && (
+            <HarnessTab harnessId="codex" sections={allSections} />
+          )}
+
+          {activeTab === 'opencode' && (
+            <HarnessTab harnessId="opencode" sections={allSections} />
+          )}
+
+          {activeTab === 'claude' && (
+            <HarnessTab harnessId="claude-code" sections={allSections} />
           )}
         </>
       )}

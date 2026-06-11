@@ -148,6 +148,8 @@ function handleAssetsInstallSurfaces(ctx, deps) {
     antigravitySkillsHome,
     opencodeHome,
     opencodeSkillsHome,
+    claudeHome,
+    claudeSkillsHome,
   } = deps;
 
   readJsonBody(req)
@@ -164,6 +166,8 @@ function handleAssetsInstallSurfaces(ctx, deps) {
       antigravitySkillsHome,
       opencodeHome,
       opencodeSkillsHome,
+      claudeHome,
+      claudeSkillsHome,
     }))
     .then((result) => sendJson(res, 200, result))
     .catch((e) => sendJson(res, e.statusCode || 500, { error: String(e.message || e) }));
@@ -369,6 +373,8 @@ function register(deps = {}) {
     antigravitySkillsHome: deps.antigravitySkillsHome,
     opencodeHome: deps.opencodeHome,
     opencodeSkillsHome: deps.opencodeSkillsHome,
+    claudeHome: deps.claudeHome,
+    claudeSkillsHome: deps.claudeSkillsHome,
   };
 
   return [
