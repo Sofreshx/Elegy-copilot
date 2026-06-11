@@ -21,27 +21,64 @@ const DEFAULT_FORM: AddToolForm = { url: '', title: '', sourceId: '', descriptio
 export default function SourcesTab({ externalSources, onSourceChanged }: SourcesTabProps) {
   const [showAddTool, setShowAddTool] = useState(false);
   const [addToolForm, setAddToolForm] = useState<AddToolForm>(DEFAULT_FORM);
+  const [confirmRemoveSourceId, setConfirmRemoveSourceId] = useState<string | null>(null);
   const catalogState = useStoreValue(catalogWorkspaceStore);
 
   async function handleSubmit() {
     if (!addToolForm.url.trim()) return;
-    await catalogWorkspaceStore.addExternalSource({
-      url: addToolForm.url.trim(),
-      title: addToolForm.title.trim() || undefined,
-      sourceId: addToolForm.sourceId.trim() || undefined,
-      description: addToolForm.description.trim() || undefined,
-    });
-    setAddToolForm(DEFAULT_FORM);
-    setShowAddTool(false);
-    onSourceChanged();
+    try {
+      await catalogWorkspaceStore.addExternalSource({
+        url: addToolForm.url.trim(),
+        title: addToolForm.title.trim() || undefined,
+        sourceId: addToolForm.sourceId.trim() || undefined,
+        description: addToolForm.description.trim() || undefined,
+      });
+      setAddToolForm(DEFAULT_FORM);
+      setShowAddTool(false);
+    } catch (err) {
+      console.error('SourcesTab: addExternalSource failed', err);
+    } finally {
+      onSourceChanged();
+    }
   }
 
   function handleField<K extends keyof AddToolForm>(field: K, value: AddToolForm[K]) {
     setAddToolForm((prev) => ({ ...prev, [field]: value }));
   }
 
+  async function handleRefreshSource(sourceId: string) {
+    try {
+      await catalogWorkspaceStore.refreshExternalSource(sourceId);
+    } catch (err) {
+      console.error('SourcesTab: refreshExternalSource failed', err);
+    } finally {
+      onSourceChanged();
+    }
+  }
+
+  async function handleSyncSource(sourceId: string) {
+    try {
+      await catalogWorkspaceStore.syncInstallVerifyExternalSource({ sourceId });
+    } catch (err) {
+      console.error('SourcesTab: syncInstallVerifyExternalSource failed', err);
+    } finally {
+      onSourceChanged();
+    }
+  }
+
+  async function handleRemoveSource(sourceId: string) {
+    try {
+      await catalogWorkspaceStore.removeExternalSource(sourceId);
+      setConfirmRemoveSourceId(null);
+    } catch (err) {
+      console.error('SourcesTab: removeExternalSource failed', err);
+    } finally {
+      onSourceChanged();
+    }
+  }
+
   return (
-    <div data-testid="assets-tools-sources" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', overflow: 'auto' }}>
+    <div data-testid="assets-tools-sources" className="sources-tab-layout">
       <Panel
         title={`External Sources (${externalSources.length})`}
         subtitle="Manage externally-added tools, MCP servers, and skill folders"
@@ -55,22 +92,73 @@ export default function SourcesTab({ externalSources, onSourceChanged }: Sources
           <p className="assets-tools-empty">No external sources configured.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-            {externalSources.map((src) => (
-              <div key={src.sourceId || src.url || ''} className="assets-tools-item-card">
-                <div className="assets-tools-item-header">
-                  <span>{src.title || src.sourceId || src.url || 'Unknown source'}</span>
-                </div>
-                <p className="assets-tools-item-description">
-                  {src.url && <span>URL: {src.url}</span>}
-                  {src.description && <span> \u2014 {src.description}</span>}
-                </p>
-                {src.sync?.status && (
-                  <div className="assets-tools-item-badges">
-                    <span className="catalog-inline-note">Status: {src.sync.status}</span>
+            {externalSources.map((src) => {
+              const safeId = String(src.sourceId || src.url || '');
+              return (
+                <div key={safeId} className="assets-tools-item-card">
+                  <div className="assets-tools-item-header">
+                    <span>{src.title || src.sourceId || src.url || 'Unknown source'}</span>
                   </div>
-                )}
-              </div>
-            ))}
+                  <p className="assets-tools-item-description">
+                    {src.url && <span>URL: {src.url}</span>}
+                    {src.description && <span> \u2014 {src.description}</span>}
+                  </p>
+                  {src.sync?.status && (
+                    <div className="assets-tools-item-badges">
+                      <span className="catalog-inline-note">Status: {src.sync.status}</span>
+                    </div>
+                  )}
+                  <div className="sources-card-actions">
+                    <button
+                      className="button button-sm"
+                      disabled={catalogState.mutating}
+                      onClick={() => void handleRefreshSource(safeId)}
+                      data-testid={`sources-refresh-${safeId}`}
+                    >
+                      Refresh
+                    </button>
+                    <button
+                      className="button button-sm"
+                      disabled={catalogState.mutating}
+                      onClick={() => void handleSyncSource(safeId)}
+                      data-testid={`sources-sync-${safeId}`}
+                    >
+                      Sync & Install
+                    </button>
+                    {confirmRemoveSourceId === safeId ? (
+                      <span className="sources-confirm-group">
+                        <span className="sources-confirm-text">Remove?</span>
+                        <button
+                          className="button button-sm button-danger"
+                          disabled={catalogState.mutating}
+                          onClick={() => void handleRemoveSource(safeId)}
+                          data-testid={`sources-remove-confirm-${safeId}`}
+                        >
+                          Yes
+                        </button>
+                        <button
+                          className="button button-sm button-ghost"
+                          disabled={catalogState.mutating}
+                          onClick={() => setConfirmRemoveSourceId(null)}
+                          data-testid={`sources-remove-cancel-${safeId}`}
+                        >
+                          No
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        className="button button-sm"
+                        disabled={catalogState.mutating}
+                        onClick={() => setConfirmRemoveSourceId(safeId)}
+                        data-testid={`sources-remove-${safeId}`}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </Panel>

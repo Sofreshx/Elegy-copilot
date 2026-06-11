@@ -309,152 +309,161 @@ export default function CatalogShellView() {
 
   return (
     <div className="assets-tools-view catalog-shell-view" data-testid="catalog-shell-view">
-      {/* HEADER with toolbar */}
-      <Toolbar testId="catalog-shell-toolbar">
-        <div className="assets-tools-header">
-          <h2>Assets &amp; Tools</h2>
-          <p>
-            Explore, install, sync, and verify agents, skills, hooks, plugins, and
-            external MCP tools.
-          </p>
-        </div>
-        <div className="assets-tools-header-actions">
-          <Button
-            disabled={catalogState.refreshing || summaryLoading}
-            onClick={() => void handleRefresh()}
-            testId="assets-tools-refresh"
-            variant="ghost"
-          >
-            {summaryLoading ? 'Loading...' : 'Refresh'}
-          </Button>
+      {/* STICKY HEADER: toolbar + summary + state banners + tabs */}
+      <div className="catalog-shell-sticky-header" data-testid="catalog-shell-sticky-header">
+        {/* HEADER with toolbar */}
+        <Toolbar testId="catalog-shell-toolbar">
+          <div className="assets-tools-header">
+            <h2>Assets &amp; Tools</h2>
+            <p>
+              Explore, install, sync, and verify agents, skills, hooks, plugins, and
+              external MCP tools.
+            </p>
+          </div>
+          <div className="assets-tools-header-actions">
+            <Button
+              disabled={catalogState.refreshing || summaryLoading}
+              onClick={() => void handleRefresh()}
+              testId="assets-tools-refresh"
+              variant="ghost"
+            >
+              {summaryLoading ? 'Loading...' : 'Refresh'}
+            </Button>
 
-          {/* Repository Assets moved to Workspace area — see WorkspaceAssetsTab */}
-        </div>
-      </Toolbar>
+            {/* Repository Assets moved to Workspace area — see WorkspaceAssetsTab */}
+          </div>
+        </Toolbar>
 
-      {/* SUMMARY */}
-      <div className="catalog-shell-summary" data-testid="catalog-shell-summary">
+        {/* SUMMARY */}
+        <div className="catalog-shell-summary" data-testid="catalog-shell-summary">
+          {summaryLoading ? (
+            <span className="catalog-shell-summary-text state-message">
+              Loading catalog summary…
+            </span>
+          ) : summaryError ? (
+            <span className="catalog-shell-summary-text state-error">
+              {summaryError}
+            </span>
+          ) : summary ? (
+            <span className="catalog-shell-summary-text">
+              {allSections
+                .map((s) => `${s.count} ${s.title.toLowerCase()}`)
+                .join(' · ')}
+            </span>
+          ) : (
+            <span className="catalog-shell-summary-text state-error">
+              Catalog summary unavailable
+            </span>
+          )}
+        </div>
+
+        {/* STATE BANNERS */}
+        {catalogState.error ? (
+          <p className="state-message state-error" role="alert">{catalogState.error}</p>
+        ) : null}
+        {catalogState.installMessage ? (
+          <p className="state-message">{catalogState.installMessage}</p>
+        ) : null}
+
+        {/* TAB BAR */}
+        <div className="assets-tools-chip-row" data-testid="assets-tools-tabs">
+          {([
+            { key: 'inventory' as const, label: 'Inventory' },
+            { key: 'quality' as const, label: 'Diagnostics' },
+            { key: 'operations' as const, label: 'Operations' },
+            { key: 'sources' as const, label: 'Sources' },
+            { key: 'codex' as const, label: 'Codex' },
+            { key: 'opencode' as const, label: 'OpenCode' },
+            { key: 'claude' as const, label: 'Claude' },
+          ]).map(({ key, label }) => (
+            <button
+              key={key}
+              className={`assets-tools-chip catalog-chip ${activeTab === key ? 'active catalog-chip is-active' : ''}`}
+              data-testid={`assets-tools-tab-${key}`}
+              onClick={() => setActiveTab(key)}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* SCROLLABLE CONTENT */}
+      <div className="catalog-shell-content" data-testid="catalog-shell-content">
+        {/* METRIC STRIP - now inside scrollable content */}
+        <div className="assets-tools-metrics" data-testid="assets-tools-metrics">
+          {metrics.map(renderMetricCard)}
+        </div>
+
+        {/* TAB CONTENT */}
         {summaryLoading ? (
-          <span className="catalog-shell-summary-text state-message">
-            Loading catalog summary…
-          </span>
+          <p className="assets-tools-empty state-message">Loading catalog summary&hellip;</p>
         ) : summaryError ? (
-          <span className="catalog-shell-summary-text state-error">
-            {summaryError}
-          </span>
-        ) : summary ? (
-          <span className="catalog-shell-summary-text">
-            {allSections
-              .map((s) => `${s.count} ${s.title.toLowerCase()}`)
-              .join(' · ')}
-          </span>
+          <p className="assets-tools-empty state-error">Catalog summary unavailable</p>
+        ) : !summary ? (
+          <p className="assets-tools-empty state-error">Catalog summary unavailable</p>
         ) : (
-          <span className="catalog-shell-summary-text state-error">
-            Catalog summary unavailable
-          </span>
+          <>
+            {activeTab === 'inventory' && (
+              <InventoryTab
+                sections={allSections}
+                harnesses={harnesses}
+                onItemAction={(item, state) => void handleItemAction(item, state)}
+                onUninstall={(item, state) => void handleUninstall(item, state)}
+                mutating={catalogState.mutating}
+              />
+            )}
+
+            {activeTab === 'quality' && <DiagnosticsTab />}
+
+            {activeTab === 'operations' && <OperationsTab summary={summary} />}
+
+            {activeTab === 'sources' && (
+              <SourcesTab
+                externalSources={externalSources}
+                onSourceChanged={() => void handleRefresh()}
+              />
+            )}
+
+            {activeTab === 'codex' && (
+              <HarnessTab
+                harnessId="codex"
+                sections={allSections}
+                harnesses={harnesses}
+                onItemAction={(item, state) => void handleItemAction(item, state)}
+                onUninstall={(item, state) => void handleUninstall(item, state)}
+                onRefresh={() => void handleRefresh()}
+                mutating={catalogState.mutating}
+              />
+            )}
+
+            {activeTab === 'opencode' && (
+              <HarnessTab
+                harnessId="opencode"
+                sections={allSections}
+                harnesses={harnesses}
+                onItemAction={(item, state) => void handleItemAction(item, state)}
+                onUninstall={(item, state) => void handleUninstall(item, state)}
+                onRefresh={() => void handleRefresh()}
+                mutating={catalogState.mutating}
+              />
+            )}
+
+            {activeTab === 'claude' && (
+              <HarnessTab
+                harnessId="claude-code"
+                sections={allSections}
+                harnesses={harnesses}
+                onItemAction={(item, state) => void handleItemAction(item, state)}
+                onUninstall={(item, state) => void handleUninstall(item, state)}
+                onRefresh={() => void handleRefresh()}
+                mutating={catalogState.mutating}
+              />
+            )}
+          </>
         )}
       </div>
-
-      {/* STATE BANNERS */}
-      {catalogState.error ? (
-        <p className="state-message state-error" role="alert">{catalogState.error}</p>
-      ) : null}
-      {catalogState.installMessage ? (
-        <p className="state-message">{catalogState.installMessage}</p>
-      ) : null}
-
-      {/* METRIC STRIP */}
-      <div className="assets-tools-metrics" data-testid="assets-tools-metrics">
-        {metrics.map(renderMetricCard)}
-      </div>
-
-      {/* TAB BAR */}
-      <div className="assets-tools-chip-row" data-testid="assets-tools-tabs">
-        {([
-          { key: 'inventory' as const, label: 'Inventory' },
-          { key: 'quality' as const, label: 'Diagnostics' },
-          { key: 'operations' as const, label: 'Operations' },
-          { key: 'sources' as const, label: 'Sources' },
-          { key: 'codex' as const, label: 'Codex' },
-          { key: 'opencode' as const, label: 'OpenCode' },
-          { key: 'claude' as const, label: 'Claude' },
-        ]).map(({ key, label }) => (
-          <button
-            key={key}
-            className={`assets-tools-chip catalog-chip ${activeTab === key ? 'active catalog-chip is-active' : ''}`}
-            data-testid={`assets-tools-tab-${key}`}
-            onClick={() => setActiveTab(key)}
-            type="button"
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* TAB CONTENT */}
-      {summaryLoading ? (
-        <p className="assets-tools-empty state-message">Loading catalog summary&hellip;</p>
-      ) : summaryError ? (
-        <p className="assets-tools-empty state-error">Catalog summary unavailable</p>
-      ) : !summary ? (
-        <p className="assets-tools-empty state-error">Catalog summary unavailable</p>
-      ) : (
-        <>
-          {activeTab === 'inventory' && (
-            <InventoryTab
-              sections={allSections}
-              harnesses={harnesses}
-              onItemAction={(item, state) => void handleItemAction(item, state)}
-              onUninstall={(item, state) => void handleUninstall(item, state)}
-              mutating={catalogState.mutating}
-            />
-          )}
-
-          {activeTab === 'quality' && <DiagnosticsTab />}
-
-          {activeTab === 'operations' && <OperationsTab summary={summary} />}
-
-          {activeTab === 'sources' && (
-            <SourcesTab
-              externalSources={externalSources}
-              onSourceChanged={() => void handleRefresh()}
-            />
-          )}
-
-          {activeTab === 'codex' && (
-            <HarnessTab
-              harnessId="codex"
-              sections={allSections}
-              harnesses={harnesses}
-              onItemAction={(item, state) => void handleItemAction(item, state)}
-              onUninstall={(item, state) => void handleUninstall(item, state)}
-              mutating={catalogState.mutating}
-            />
-          )}
-
-          {activeTab === 'opencode' && (
-            <HarnessTab
-              harnessId="opencode"
-              sections={allSections}
-              harnesses={harnesses}
-              onItemAction={(item, state) => void handleItemAction(item, state)}
-              onUninstall={(item, state) => void handleUninstall(item, state)}
-              mutating={catalogState.mutating}
-            />
-          )}
-
-          {activeTab === 'claude' && (
-            <HarnessTab
-              harnessId="claude-code"
-              sections={allSections}
-              harnesses={harnesses}
-              onItemAction={(item, state) => void handleItemAction(item, state)}
-              onUninstall={(item, state) => void handleUninstall(item, state)}
-              mutating={catalogState.mutating}
-            />
-          )}
-        </>
-      )}
     </div>
   );
 }

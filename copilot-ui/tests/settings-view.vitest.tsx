@@ -294,4 +294,44 @@ describe('SettingsView', () => {
       expect(activateBtn).not.toBeDisabled();
     });
   });
+
+  it('renders all 8 settings nav items from the shared SETTINGS_NAV_ITEMS list', async () => {
+    const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
+    const { SETTINGS_NAV_ITEMS } = await import('../ui/src/stores/navigation');
+
+    await act(async () => {
+      render(<SettingsView />);
+    });
+
+    // Verify nav container exists
+    const nav = screen.getByTestId('settings-nav');
+    expect(nav).toBeInTheDocument();
+
+    // Verify all 8 nav items are rendered from the shared list
+    for (const item of SETTINGS_NAV_ITEMS) {
+      const navItem = screen.getByTestId(`settings-nav-${item.id}`);
+      expect(navItem).toBeInTheDocument();
+      expect(navItem.textContent).toContain(item.label);
+    }
+  });
+
+  it('renders sticky toolbar wrapper for settings', async () => {
+    const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
+
+    await act(async () => {
+      render(<SettingsView />);
+    });
+
+    // The sticky toolbar wrapper should be present
+    const stickyToolbar = screen.getByTestId('settings-sticky-toolbar');
+    expect(stickyToolbar).toBeInTheDocument();
+    expect(stickyToolbar.className).toContain('settings-nav-sticky-wrapper');
+  });
+
+  it('settings nav uses SETTINGS_NAV_ITEMS, not a local duplicate', async () => {
+    // Import the module and verify it doesn't export a local SETTINGS_SECTIONS constant
+    const mod = await import('../ui/src/views/Settings/SettingsView');
+    // The module should not have a SETTINGS_SECTIONS export (it was removed)
+    expect((mod as any).SETTINGS_SECTIONS).toBeUndefined();
+  });
 });

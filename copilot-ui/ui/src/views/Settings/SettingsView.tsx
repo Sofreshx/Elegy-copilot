@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, IconButton, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
-import { navigationStore, type SettingsSection } from '../../stores/navigation';
+import { navigationStore, SETTINGS_NAV_ITEMS } from '../../stores/navigation';
 import CodexProviderPanel from './CodexProviderPanel';
 import CatalogShellView from '../Catalog/CatalogShellView';
 import OpenCodeView from '../../tabs/OpenCode/OpenCodeView';
@@ -20,17 +20,6 @@ interface AppInfo {
   channel?: string;
   routeCount?: number;
 }
-
-const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; icon: string }> = [
-  { id: 'app', label: 'App Settings', icon: 'settings' },
-  { id: 'catalog', label: 'Assets & Tools', icon: 'layout' },
-  { id: 'opencode', label: 'OpenCode', icon: 'opencode' },
-  { id: 'maintenance', label: 'Maintenance', icon: 'maintenance' },
-  { id: 'runtime', label: 'Runtime', icon: 'play' },
-  { id: 'codex', label: 'Codex', icon: 'codex' },
-  { id: 'claude-code', label: 'Claude Code', icon: 'claude-code' },
-  { id: 'github', label: 'GitHub CLI', icon: 'git-branch' },
-];
 
 export default function SettingsView() {
   const navState = useStoreValue(navigationStore);
@@ -93,25 +82,29 @@ export default function SettingsView() {
 
   return (
     <div className="settings-view" data-testid="settings-view">
-      <Toolbar testId="settings-toolbar">
-        <IconButton icon="chevron-left" size={22} label="Back" onClick={handleBack} testId="settings-back" />
-      </Toolbar>
+      <div className="settings-nav-sticky-wrapper" data-testid="settings-sticky-toolbar">
+        <Toolbar testId="settings-toolbar">
+          <IconButton icon="chevron-left" size={22} label="Back" onClick={handleBack} testId="settings-back" />
+        </Toolbar>
+      </div>
 
       <div className="settings-layout">
-        <nav className="settings-nav" data-testid="settings-nav">
-          {SETTINGS_SECTIONS.map((section) => (
-            <button
-              key={section.id}
-              className={`settings-nav-item${activeSection === section.id ? ' settings-nav-item-active' : ''}`}
-              onClick={() => navigationStore.setSettingsSection(section.id)}
-              data-testid={`settings-nav-${section.id}`}
-              type="button"
-            >
-              <span className="settings-nav-icon" aria-hidden="true"><AppIcon name={section.icon as any} size={18} /></span>
-              <span className="settings-nav-label">{section.label}</span>
-            </button>
-          ))}
-        </nav>
+        <div className="settings-nav-sticky-wrapper settings-nav-offset">
+          <nav className="settings-nav" data-testid="settings-nav">
+            {SETTINGS_NAV_ITEMS.map((section) => (
+              <button
+                key={section.id}
+                className={`settings-nav-item${activeSection === section.id ? ' settings-nav-item-active' : ''}`}
+                onClick={() => navigationStore.setSettingsSection(section.id)}
+                data-testid={`settings-nav-${section.id}`}
+                type="button"
+              >
+                <span className="settings-nav-icon" aria-hidden="true"><AppIcon name={section.icon as any} size={18} /></span>
+                <span className="settings-nav-label">{section.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
 
         <div className="settings-content" data-testid="settings-content">
           {renderSection()}

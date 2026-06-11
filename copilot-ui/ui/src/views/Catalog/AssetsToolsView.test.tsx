@@ -691,3 +691,350 @@ describe('InventoryTab', () => {
     expect(screen.getByText('Second Skill')).toBeDefined();
   });
 });
+
+// ─── HarnessTab tests ───
+
+import HarnessTab from './HarnessTab';
+import SourcesTab from './SourcesTab';
+
+// Mock catalogWorkspaceStore for HarnessTab/SourcesTab tests
+const storeMocks = vi.hoisted(() => ({
+  installSurface: vi.fn(),
+  checkHarnessAssets: vi.fn(),
+  uninstallHarnessAsset: vi.fn(),
+  activateExternalSourceInstallable: vi.fn(),
+  deactivateExternalSourceInstallable: vi.fn(),
+  refreshExternalSource: vi.fn(),
+  syncInstallVerifyExternalSource: vi.fn(),
+  removeExternalSource: vi.fn(),
+}));
+
+vi.mock('../../tabs/Assets/catalogWorkspaceStore', () => ({
+  catalogWorkspaceStore: {
+    getState: () => ({ mutating: false, refreshing: false, error: null, installMessage: null }),
+    subscribe: vi.fn(() => vi.fn()),
+    installSurface: storeMocks.installSurface,
+    checkHarnessAssets: storeMocks.checkHarnessAssets,
+    uninstallHarnessAsset: storeMocks.uninstallHarnessAsset,
+    activateExternalSourceInstallable: storeMocks.activateExternalSourceInstallable,
+    deactivateExternalSourceInstallable: storeMocks.deactivateExternalSourceInstallable,
+    refreshExternalSource: storeMocks.refreshExternalSource,
+    syncInstallVerifyExternalSource: storeMocks.syncInstallVerifyExternalSource,
+    removeExternalSource: storeMocks.removeExternalSource,
+  },
+}));
+
+// Also mock the useStoreValue hook for catalog state
+vi.mock('../../lib/store', async () => {
+  const actual = await vi.importActual('../../lib/store');
+  return {
+    ...actual,
+    useStoreValue: vi.fn(() => ({ mutating: false, refreshing: false, error: null, installMessage: null })),
+  };
+});
+
+describe('HarnessTab', () => {
+  beforeEach(() => {
+    cleanup();
+    Object.values(storeMocks).forEach((mock) => mock.mockReset());
+    storeMocks.installSurface.mockResolvedValue(undefined);
+    storeMocks.checkHarnessAssets.mockResolvedValue([]);
+    storeMocks.uninstallHarnessAsset.mockResolvedValue(undefined);
+    storeMocks.activateExternalSourceInstallable.mockResolvedValue(undefined);
+    storeMocks.deactivateExternalSourceInstallable.mockResolvedValue(undefined);
+  });
+
+  function makeHarnessStateHS(overrides: Record<string, unknown> = {}) {
+    return {
+      harnessId: 'codex',
+      title: 'Codex',
+      supported: true,
+      expected: true,
+      installed: true,
+      active: true,
+      syncStatus: 'synced',
+      state: 'installed',
+      installPath: '/home/user/.codex/skills/test-skill',
+      actions: { canInstall: false, canActivate: false, canDeactivate: false, canSync: true },
+      warnings: [],
+      errors: [],
+      detail: null,
+      metadata: null,
+      ...overrides,
+    };
+  }
+
+  function makeItemHS(overrides: Record<string, unknown> = {}) {
+    return {
+      itemId: 'test-skill-1',
+      itemKey: 'test-skill',
+      kind: 'skill',
+      title: 'Test Skill',
+      description: 'A test skill',
+      sourceType: 'shipped',
+      sourceId: 'engine-assets',
+      providerId: null,
+      readPath: 'engine-assets/skills/test-skill/SKILL.md',
+      actions: null,
+      harnessStates: [makeHarnessStateHS()],
+      ...overrides,
+    };
+  }
+
+  it('renders Codex harness tab with asset rows', () => {
+    const sections = [makeSection({ items: [makeItemHS()] })];
+    render(
+      <HarnessTab
+        harnessId="codex"
+        sections={sections}
+        harnesses={[makeHarness({ harnessId: 'codex', title: 'Codex' })]}
+      />
+    );
+
+    expect(screen.getByTestId('harness-tab-codex')).toBeInTheDocument();
+    expect(screen.getByText('Test Skill')).toBeInTheDocument();
+  });
+
+  it('renders OpenCode harness tab', () => {
+    const item = makeItemHS({
+      harnessStates: [makeHarnessStateHS({ harnessId: 'opencode', title: 'OpenCode' })],
+    });
+    const sections = [makeSection({ items: [item] })];
+    render(
+      <HarnessTab
+        harnessId="opencode"
+        sections={sections}
+        harnesses={[makeHarness({ harnessId: 'opencode', title: 'OpenCode' })]}
+      />
+    );
+
+    expect(screen.getByTestId('harness-tab-opencode')).toBeInTheDocument();
+  });
+
+  it('renders Claude harness tab', () => {
+    const item = makeItemHS({
+      harnessStates: [makeHarnessStateHS({ harnessId: 'claude-code', title: 'Claude Code' })],
+    });
+    const sections = [makeSection({ items: [item] })];
+    render(
+      <HarnessTab
+        harnessId="claude-code"
+        sections={sections}
+        harnesses={[makeHarness({ harnessId: 'claude-code', title: 'Claude Code' })]}
+      />
+    );
+
+    expect(screen.getByTestId('harness-tab-claude-code')).toBeInTheDocument();
+  });
+
+  it('shows compatibility labels for supported and unsupported assets', () => {
+    const supported = makeItemHS({
+      itemId: 'supported-skill',
+      title: 'Supported Skill',
+      harnessStates: [makeHarnessStateHS({ supported: true })],
+    });
+    const unsupported = makeItemHS({
+      itemId: 'unsupported-skill',
+      title: 'Unsupported Skill',
+      harnessStates: [makeHarnessStateHS({ supported: false })],
+    });
+    const sections = [makeSection({ items: [supported, unsupported] })];
+
+    render(
+      <HarnessTab
+        harnessId="codex"
+        sections={sections}
+        harnesses={[makeHarness({ harnessId: 'codex', title: 'Codex' })]}
+      />
+    );
+
+    expect(screen.getByText('Compatible with Codex')).toBeInTheDocument();
+    expect(screen.getByText('Not supported by Codex')).toBeInTheDocument();
+  });
+
+  it('renders install button for available/not-installed assets', () => {
+    const item = makeItemHS({
+      harnessStates: [makeHarnessStateHS({
+        state: 'not-installed',
+        syncStatus: 'missing',
+        installed: false,
+        active: false,
+        actions: { canInstall: true, canActivate: false, canDeactivate: false, canSync: false, installSurfaceTargets: ['codex'] },
+      })],
+    });
+    const sections = [makeSection({ items: [item] })];
+
+    render(
+      <HarnessTab
+        harnessId="codex"
+        sections={sections}
+        harnesses={[makeHarness({ harnessId: 'codex', title: 'Codex' })]}
+      />
+    );
+
+    // Should have an Install button
+    const installBtn = screen.getByTestId('harness-install-btn-test-skill-1');
+    expect(installBtn).toBeInTheDocument();
+  });
+
+  it('calls installSurface when install button is clicked', async () => {
+    const onRefresh = vi.fn();
+    const item = makeItemHS({
+      harnessStates: [makeHarnessStateHS({
+        state: 'not-installed',
+        syncStatus: 'missing',
+        installed: false,
+        active: false,
+        actions: { canInstall: true, canActivate: false, canDeactivate: false, canSync: false, installSurfaceTargets: ['codex'] },
+      })],
+    });
+    const sections = [makeSection({ items: [item] })];
+
+    render(
+      <HarnessTab
+        harnessId="codex"
+        sections={sections}
+        harnesses={[makeHarness({ harnessId: 'codex', title: 'Codex' })]}
+        onRefresh={onRefresh}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('harness-install-btn-test-skill-1'));
+    expect(storeMocks.installSurface).toHaveBeenCalledWith('codex');
+  });
+
+  it('calls checkHarnessAssets when check button is clicked', async () => {
+    const onRefresh = vi.fn();
+    const item = makeItemHS({
+      harnessStates: [makeHarnessStateHS({
+        state: 'installed',
+        syncStatus: 'synced',
+        installed: true,
+        actions: { canInstall: false, canSync: false },
+      })],
+    });
+    const sections = [makeSection({ items: [item] })];
+
+    render(
+      <HarnessTab
+        harnessId="codex"
+        sections={sections}
+        harnesses={[makeHarness({ harnessId: 'codex', title: 'Codex' })]}
+        onRefresh={onRefresh}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('harness-check-btn-test-skill-1'));
+    expect(storeMocks.checkHarnessAssets).toHaveBeenCalledWith('codex', 'test-skill-1');
+  });
+
+  it('shows remove confirmation and calls uninstallHarnessAsset', async () => {
+    const onRefresh = vi.fn();
+    const item = makeItemHS({
+      harnessStates: [makeHarnessStateHS({
+        state: 'installed',
+        installed: true,
+      })],
+    });
+    const sections = [makeSection({ items: [item] })];
+
+    render(
+      <HarnessTab
+        harnessId="codex"
+        sections={sections}
+        harnesses={[makeHarness({ harnessId: 'codex', title: 'Codex' })]}
+        onRefresh={onRefresh}
+      />
+    );
+
+    // Click Remove
+    const removeBtn = screen.getByTestId('harness-remove-btn-test-skill-1');
+    expect(removeBtn).toBeInTheDocument();
+    fireEvent.click(removeBtn);
+
+    // Confirm modal should appear
+    const confirmBtn = screen.getByTestId('harness-remove-confirm-btn-test-skill-1');
+    expect(confirmBtn).toBeInTheDocument();
+
+    // Click confirm
+    fireEvent.click(confirmBtn);
+    expect(storeMocks.uninstallHarnessAsset).toHaveBeenCalledWith('codex', 'test-skill-1');
+  });
+});
+
+// ─── SourcesTab tests ───
+
+describe('SourcesTab', () => {
+  beforeEach(() => {
+    cleanup();
+    Object.values(storeMocks).forEach((mock) => mock.mockReset());
+    storeMocks.refreshExternalSource.mockResolvedValue(undefined);
+    storeMocks.syncInstallVerifyExternalSource.mockResolvedValue(undefined);
+    storeMocks.removeExternalSource.mockResolvedValue(undefined);
+  });
+
+  function makeExternalSource(overrides: Record<string, unknown> = {}) {
+    return {
+      sourceId: 'test-source',
+      url: 'https://github.com/test/repo',
+      title: 'Test Source',
+      description: 'A test external source',
+      sync: { status: 'ok' },
+      installables: [],
+      ...overrides,
+    };
+  }
+
+  it('renders external source cards with refresh, sync, and remove actions', () => {
+    const sources = [makeExternalSource()];
+    render(
+      <SourcesTab externalSources={sources} onSourceChanged={() => {}} />
+    );
+
+    expect(screen.getByText('Test Source')).toBeInTheDocument();
+    expect(screen.getByTestId('sources-refresh-test-source')).toBeInTheDocument();
+    expect(screen.getByTestId('sources-sync-test-source')).toBeInTheDocument();
+    expect(screen.getByTestId('sources-remove-test-source')).toBeInTheDocument();
+  });
+
+  it('calls refreshExternalSource when refresh is clicked', async () => {
+    const onChanged = vi.fn();
+    const sources = [makeExternalSource()];
+    render(
+      <SourcesTab externalSources={sources} onSourceChanged={onChanged} />
+    );
+
+    fireEvent.click(screen.getByTestId('sources-refresh-test-source'));
+    expect(storeMocks.refreshExternalSource).toHaveBeenCalledWith('test-source');
+  });
+
+  it('calls syncInstallVerifyExternalSource when sync is clicked', async () => {
+    const onChanged = vi.fn();
+    const sources = [makeExternalSource()];
+    render(
+      <SourcesTab externalSources={sources} onSourceChanged={onChanged} />
+    );
+
+    fireEvent.click(screen.getByTestId('sources-sync-test-source'));
+    expect(storeMocks.syncInstallVerifyExternalSource).toHaveBeenCalledWith({ sourceId: 'test-source' });
+  });
+
+  it('shows remove confirmation and calls removeExternalSource', async () => {
+    const onChanged = vi.fn();
+    const sources = [makeExternalSource()];
+    render(
+      <SourcesTab externalSources={sources} onSourceChanged={onChanged} />
+    );
+
+    // Click Remove
+    fireEvent.click(screen.getByTestId('sources-remove-test-source'));
+
+    // Confirm section should appear
+    const confirmBtn = screen.getByTestId('sources-remove-confirm-test-source');
+    expect(confirmBtn).toBeInTheDocument();
+
+    // Click confirm
+    fireEvent.click(confirmBtn);
+    expect(storeMocks.removeExternalSource).toHaveBeenCalledWith('test-source');
+  });
+});

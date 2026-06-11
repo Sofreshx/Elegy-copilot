@@ -32,10 +32,14 @@ export interface SettingsNavItem {
 }
 
 export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
-  { id: 'app', label: 'Settings', icon: 'settings' },
+  { id: 'app', label: 'App Settings', icon: 'settings' },
+  { id: 'catalog', label: 'Assets & Tools', icon: 'layout' },
+  { id: 'opencode', label: 'OpenCode', icon: 'opencode' },
+  { id: 'maintenance', label: 'Maintenance', icon: 'maintenance' },
+  { id: 'runtime', label: 'Runtime', icon: 'play' },
   { id: 'codex', label: 'Codex', icon: 'codex' },
   { id: 'claude-code', label: 'Claude Code', icon: 'claude-code' },
-  { id: 'opencode', label: 'OpenCode', icon: 'opencode' },
+  { id: 'github', label: 'GitHub CLI', icon: 'git-branch' },
 ];
 
 export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal' | 'docs-graph';
