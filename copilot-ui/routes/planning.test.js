@@ -1244,6 +1244,84 @@ async function run() {
     assert.equal(body.projection.actors.activeActorId, null);
   });
 
+  await test('planning live authority-status returns bridge getStatus', async () => {
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: {
+        getStatus() {
+          return {
+            ready: true,
+            enabled: true,
+            configured: true,
+            cliPath: '/usr/bin/elegy-planning',
+            dbPath: '/copilot/elegy-planning.db',
+            code: 'planning_authority_ready',
+            message: 'ready',
+            dbResolution: {
+              source: 'copilot-home',
+              reason: 'selected copilot-home database (populated)',
+              candidates: [
+                { path: '/copilot/elegy-planning.db', source: 'copilot-home', exists: true, populated: true },
+                { path: '/Users/test/.elegy/planning.db', source: 'legacy-elegy', exists: true, populated: false },
+              ],
+            },
+          };
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, 'GET', '/api/planning/live/authority-status', {});
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.contractVersion, PLANNING_API_CONTRACT_VERSION);
+    assert.equal(body.kind, 'planning.live.authority-status');
+    assert.equal(body.ready, true);
+    assert.equal(body.dbResolution.source, 'copilot-home');
+    assert.equal(body.dbResolution.candidates.length, 2);
+  });
+
+  await test('planning live roadmaps list passes repoLabel to bridge', async () => {
+    let receivedRepoLabel = null;
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: {
+        async listRoadmaps(input) {
+          receivedRepoLabel = input.repoLabel || null;
+          return {
+            roadmaps: [
+              {
+                id: 'RM-one',
+                goalId: 'GOAL-one',
+                title: 'Roadmap One',
+                status: 'active',
+                tags: ['holon'],
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    const { res, body } = await invoke(
+      routes,
+      'GET',
+      '/api/planning/live/roadmaps?repoId=repo-1&repoLabel=holon&includeUnscoped=true',
+      {},
+    );
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(receivedRepoLabel, 'holon');
+    assert.equal(body.count, 1);
+  });
+
   if (!process.exitCode) {
     console.log(`Planning route tests passed: ${passed}`);
   }

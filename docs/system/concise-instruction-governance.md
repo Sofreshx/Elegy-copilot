@@ -1,6 +1,6 @@
 ---
 created: 2026-06-08
-updated: 2026-06-09
+updated: 2026-06-11
 category: system
 status: current
 doc_kind: node
@@ -18,7 +18,7 @@ Define the canonical instruction-writing contract. This node is the single autho
 
 ## Context
 
-Instruction governance was previously fragmented across multiple canonical docs (`project-conventions-governance`, `documentation-authoring-governance`, `documentation-structure-governance`) and the `concise-writing` skill. This node unifies the writing standards into one authority while the other nodes continue to govern structure, entrypoints, and conventions policy.
+Instruction governance was previously fragmented across multiple canonical docs (`project-conventions-governance`, `documentation-authoring-governance`, `documentation-structure-governance`). This node unifies the writing standards into one authority while the other nodes continue to govern structure, entrypoints, and conventions policy.
 
 This node is the canonical authority for instruction-writing standards. The contract is now embedded directly in all harness home files (AGENTS.md, CLAUDE.md, GEMINI.md, copilot-instructions.md) so that sessions always read it without needing to discover a separate `guidelines.md` file.
 
@@ -30,7 +30,6 @@ This node is the canonical authority for instruction-writing standards. The cont
 | Deciding documentation information architecture or entrypoints | `docs/system/documentation-structure-governance.md` |
 | Auditing repo conventions or `guidelines.md` policy | `docs/system/project-conventions-governance.md` |
 | Choosing between code, comments, docs, or ADRs | `docs/system/self-documenting-code-and-rationale-placement.md` |
-| Enforcing word budgets and banned phrases automatically | `engine-assets/skills/concise-writing/SKILL.md` |
 
 ## Concise Instruction Contract
 
@@ -64,31 +63,6 @@ Write to transfer decisions, not to sound complete. Prefer exact terms, diagrams
 - Delete restatement.
 - Delete throat-clearing.
 - Delete empty emphasis.
-
-### Empty Language Ban
-
-Never use empty language such as:
-
-- important
-- powerful
-- robust
-- flexible
-- comprehensive
-- seamless
-- centralized
-- intuitive
-- scalable
-- best practice
-- production ready
-
-Use those words only when followed by a concrete mechanism, owner, boundary, or test.
-
-**Bad:**
-> This system provides a robust and flexible way to manage documentation across multiple workflows.
-
-**Good:**
-> Documentation authority:
-> README → guidelines.md → docs/system/index.md → canonical node
 
 ### Section Question Requirement
 
@@ -194,5 +168,4 @@ INSTRUCTION_GOVERNANCE
 - `docs/system/documentation-authoring-governance.md` — documentation authoring contract
 - `docs/system/documentation-structure-governance.md` — documentation IA governance
 - `docs/system/self-documenting-code-and-rationale-placement.md` — rationale placement matrix
-- `engine-assets/skills/concise-writing/SKILL.md` — automated concise-writing enforcement skill
 - `docs/system/harness-asset-flow.md` — harness install architecture and per-harness comparison

@@ -468,7 +468,7 @@ function buildBridgeReadError(code, message, statusCode = 503) {
   return error;
 }
 
-function buildPlanningAuthorityStatus({ disabled, configured, config, configuredCliPath, configuredDbPath, commandLookupOptions }) {
+function buildPlanningAuthorityStatus({ disabled, configured, config, configuredCliPath, configuredDbPath, commandLookupOptions, dbResolution }) {
   const cliPath = normalizeString(config && config.cliPath);
   const dbPath = normalizeString(config && config.dbPath);
 
@@ -509,6 +509,21 @@ function buildPlanningAuthorityStatus({ disabled, configured, config, configured
     message = 'elegy-planning authority requires a database path.';
   }
 
+  const dbResolutionInfo = dbResolution
+    ? {
+        source: dbResolution.source || null,
+        reason: dbResolution.reason || null,
+        candidates: Array.isArray(dbResolution.candidates)
+          ? dbResolution.candidates.map((c) => ({
+              path: c.path,
+              source: c.source,
+              exists: c.exists,
+              populated: c.populated,
+            }))
+          : [],
+      }
+    : null;
+
   return {
     ready,
     enabled: !disabled,
@@ -523,6 +538,7 @@ function buildPlanningAuthorityStatus({ disabled, configured, config, configured
       defaultCliCommand: DEFAULT_CLI_PATH,
       defaultDbFileName: DEFAULT_DB_FILENAME,
     },
+    dbResolution: dbResolutionInfo,
   };
 }
 
@@ -574,6 +590,145 @@ function resolveReadRequestId(input = {}, fallback = 'planning-read') {
     || normalizeString(input.goalId)
     || normalizeString(input.planId)
     || fallback;
+}
+
+function makeScopedConfig(config, scopeOverride) {
+  return {
+    ...config,
+    scope: scopeOverride || config.scope,
+  };
+}
+
+async function scopeList(config, requestId) {
+  const result = await runMachineCommand(config, requestId, ['scope', 'list']);
+  if (normalizeMachineStatus(result.parsed) !== 'ok') {
+    throw buildCommandFailure(result.parsed, result.commandArgs);
+  }
+
+  return {
+    parsed: result.parsed,
+    scopes: Array.isArray(extractMachineData(result.parsed).scopes)
+      ? extractMachineData(result.parsed).scopes
+      : [],
+  };
+}
+
+function scopeMatchesLabels(scopeEntry, labels) {
+  if (!Array.isArray(labels) || labels.length === 0) {
+    return false;
+  }
+  const lowerLabels = labels.map((l) => l.toLowerCase());
+  const key = normalizeString(scopeEntry && scopeEntry.key).toLowerCase();
+  if (key && lowerLabels.includes(key)) {
+    return true;
+  }
+  const tags = Array.isArray(scopeEntry && scopeEntry.tags)
+    ? scopeEntry.tags.map((t) => String(t).toLowerCase())
+    : [];
+  return lowerLabels.some((label) => tags.includes(label));
+}
+
+function dedupeEntitiesByScope(entities) {
+  const seen = new Set();
+  const deduped = [];
+  for (const entry of entities) {
+    const scopeKey = normalizeString(entry && entry._scopeKey);
+    const id = normalizeString(entry && entry.id);
+    const key = scopeKey ? `${scopeKey}:${id}` : id;
+    if (!key || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(entry);
+  }
+  return deduped;
+}
+
+function resolveScopeToQuery(config, activeScope, repoLabels, scopeEntries) {
+  const labels = Array.isArray(repoLabels) && repoLabels.length > 0
+    ? repoLabels.map((l) => String(l).toLowerCase().trim()).filter(Boolean)
+    : [];
+  if (labels.length === 0) {
+    return null;
+  }
+
+  const matchingScopes = [];
+  const seenScopes = new Set();
+  const activeKey = normalizeString(activeScope).toLowerCase() || 'default';
+
+  // Active scope (or 'default' when no session) always first
+  for (const entry of scopeEntries) {
+    const key = normalizeString(entry && entry.key).toLowerCase();
+    if ((key === activeKey || (!activeScope && key === 'default')) && !seenScopes.has(key)) {
+      seenScopes.add(key);
+      matchingScopes.push({ key, tags: entry.tags || [] });
+      break;
+    }
+  }
+
+  // If active scope wasn't found as named, try any scope (first available)
+  if (matchingScopes.length === 0 && scopeEntries.length > 0) {
+    const firstEntry = scopeEntries[0];
+    const key = normalizeString(firstEntry && firstEntry.key).toLowerCase();
+    if (key && !seenScopes.has(key)) {
+      seenScopes.add(key);
+      matchingScopes.push({ key, tags: firstEntry.tags || [] });
+    }
+  }
+
+  // Label-matching scopes
+  for (const entry of scopeEntries) {
+    const key = normalizeString(entry && entry.key).toLowerCase();
+    if (!key || seenScopes.has(key)) {
+      continue;
+    }
+    if (scopeMatchesLabels(entry, labels)) {
+      seenScopes.add(key);
+      matchingScopes.push({ key, tags: entry.tags || [] });
+    }
+  }
+
+  return matchingScopes.length > 0 ? matchingScopes : null;
+}
+
+async function listRoadmapsMultiScope(config, requestId, scopesToQuery) {
+  const allRoadmaps = [];
+
+  for (const scopeEntry of scopesToQuery) {
+    const scopedConfig = makeScopedConfig(config, scopeEntry.key);
+    try {
+      const result = await listRoadmaps(scopedConfig, requestId);
+      for (const roadmap of result.roadmaps) {
+        allRoadmaps.push({ ...roadmap, _scopeKey: scopeEntry.key });
+      }
+    } catch (_err) {
+      // Skip scopes that fail; continue with remaining
+    }
+  }
+
+  return {
+    roadmaps: dedupeEntitiesByScope(allRoadmaps),
+  };
+}
+
+async function listPlansMultiScope(config, requestId, scopesToQuery) {
+  const allPlans = [];
+
+  for (const scopeEntry of scopesToQuery) {
+    const scopedConfig = makeScopedConfig(config, scopeEntry.key);
+    try {
+      const result = await listPlans(scopedConfig, requestId);
+      for (const plan of result.plans) {
+        allPlans.push({ ...plan, _scopeKey: scopeEntry.key });
+      }
+    } catch (_err) {
+      // Skip scopes that fail; continue with remaining
+    }
+  }
+
+  return {
+    plans: dedupeEntitiesByScope(allPlans),
+  };
 }
 
 async function listRoadmaps(config, requestId) {
@@ -629,6 +784,78 @@ async function readPlan(config, requestId, planId) {
   throw buildCommandFailure(result.parsed, result.commandArgs);
 }
 
+function resolvePlanningDbPath(options = {}) {
+  const env = options.env || {};
+  const elegyHome = normalizeString(options.elegyHome);
+  const homedir = normalizeString(options.homedir) || os.homedir();
+  const pathModule = options.pathModule || path;
+  const fsModule = options.fsModule || fs;
+
+  const explicitPath = normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH);
+
+  const candidates = [];
+
+  function pushCandidate(source, candidatePath) {
+    const entry = { path: candidatePath, source, exists: false, populated: false };
+    if (candidatePath) {
+      try {
+        if (fsModule.existsSync(candidatePath)) {
+          entry.exists = true;
+          entry.populated = fsModule.statSync(candidatePath).size > 0;
+        }
+      } catch {
+        // keep defaults
+      }
+    }
+    candidates.push(entry);
+  }
+
+  // 1. Explicit path (env var or option)
+  if (explicitPath) {
+    pushCandidate('explicit', explicitPath);
+    const explicit = candidates[candidates.length - 1];
+    if (explicit.exists) {
+      return { dbPath: explicitPath, source: 'explicit', reason: 'explicit path exists and selected', candidates };
+    }
+  }
+
+  // 2. <elegyHome>/elegy-planning.db (copilot home)
+  if (elegyHome) {
+    pushCandidate('copilot-home', pathModule.join(elegyHome, DEFAULT_DB_FILENAME));
+  }
+
+  // 3. ~/.elegy/planning.db (legacy)
+  if (homedir) {
+    pushCandidate('legacy-elegy', pathModule.join(homedir, '.elegy', 'planning.db'));
+  }
+
+  // Selection: first populated, otherwise first existing, otherwise first available
+  let selected = null;
+  let reason = '';
+
+  const populated = candidates.filter((c) => c.populated);
+  if (populated.length > 0) {
+    selected = populated[0];
+    reason = `selected ${selected.source} database (populated)`;
+  } else {
+    const existing = candidates.filter((c) => c.exists);
+    if (existing.length > 0) {
+      selected = existing[0];
+      reason = `selected ${selected.source} database (exists, not populated)`;
+    } else if (candidates.length > 0) {
+      selected = candidates[0];
+      reason = `default ${selected.source} (does not exist)`;
+    }
+  }
+
+  return {
+    dbPath: selected ? selected.path : (explicitPath || ''),
+    source: selected ? selected.source : 'none',
+    reason,
+    candidates,
+  };
+}
+
 function createRoadmapWorkflowPlanningBridge(options = {}) {
   const processObject = options.processObject && typeof options.processObject === 'object'
     ? options.processObject
@@ -640,25 +867,18 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
     ? options.pathModule
     : path;
   const elegyHome = normalizeString(options.elegyHome);
-  const configuredCliPath = normalizeString(options.cliPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH);
-  let configuredDbPath = normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH)
-    || (elegyHome ? pathModule.join(elegyHome, DEFAULT_DB_FILENAME) : '');
 
-  // Fallback: when using the default path and it doesn't exist on disk,
-  // try 'planning.db' in the same directory (common alternative naming)
-  const explicitDbPath = normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH);
-  if (!explicitDbPath && configuredDbPath && elegyHome) {
-    try {
-      if (!fs.existsSync(configuredDbPath)) {
-        const altDbPath = pathModule.join(pathModule.dirname(configuredDbPath), 'planning.db');
-        if (fs.existsSync(altDbPath)) {
-          configuredDbPath = altDbPath;
-        }
-      }
-    } catch (_fsErr) {
-      // keep configuredDbPath as-is
-    }
-  }
+  const configuredCliPath = normalizeString(options.cliPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH);
+
+  const dbResolution = resolvePlanningDbPath({
+    dbPath: options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH,
+    elegyHome,
+    homedir: options.homedir,
+    pathModule,
+    fsModule: options.fsModule,
+    env,
+  });
+  let configuredDbPath = dbResolution.dbPath;
 
   // Resolve active planning scope from session sidecar
   // (runs after DB fallback so it can use the final resolved path)
@@ -722,6 +942,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
     configuredCliPath: resolvedCliPath || configuredCliPath,
     configuredDbPath,
     commandLookupOptions,
+    dbResolution,
   });
 
   return {
@@ -733,6 +954,24 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
     async listRoadmaps(input = {}) {
       ensureReadableAuthority({ disabled, configured, config, planningAuthority });
       const requestId = resolveReadRequestId(input, 'roadmap-list');
+
+      const repoLabels = Array.isArray(input.repoLabels) && input.repoLabels.length > 0
+        ? input.repoLabels
+        : (normalizeString(input.repoLabel) ? [normalizeString(input.repoLabel)] : []);
+
+      if (repoLabels.length > 0) {
+        try {
+          const scopes = await scopeList(config, requestId);
+          const scopesToQuery = resolveScopeToQuery(config, scope, repoLabels, scopes.scopes);
+          if (scopesToQuery && scopesToQuery.length > 0) {
+            return listRoadmapsMultiScope(config, requestId, scopesToQuery);
+          }
+          // Fall through: no scopes matched, try default list
+        } catch (_scopeErr) {
+          // scope list failed; fall through to default listing
+        }
+      }
+
       return listRoadmaps(config, requestId);
     },
     async showRoadmap(input = {}) {
@@ -781,6 +1020,24 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
     async listPlans(input = {}) {
       ensureReadableAuthority({ disabled, configured, config, planningAuthority });
       const requestId = resolveReadRequestId(input, 'plan-list');
+
+      const repoLabels = Array.isArray(input.repoLabels) && input.repoLabels.length > 0
+        ? input.repoLabels
+        : (normalizeString(input.repoLabel) ? [normalizeString(input.repoLabel)] : []);
+
+      if (repoLabels.length > 0) {
+        try {
+          const scopes = await scopeList(config, requestId);
+          const scopesToQuery = resolveScopeToQuery(config, scope, repoLabels, scopes.scopes);
+          if (scopesToQuery && scopesToQuery.length > 0) {
+            return listPlansMultiScope(config, requestId, scopesToQuery);
+          }
+          // Fall through: no scopes matched, try default list
+        } catch (_scopeErr) {
+          // scope list failed; fall through to default listing
+        }
+      }
+
       return listPlans(config, requestId);
     },
     async showPlan(input = {}) {
@@ -809,6 +1066,11 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
       ensureReadableAuthority({ disabled, configured, config, planningAuthority });
       const requestId = resolveReadRequestId(input, 'todo-list');
       return listTodos(config, requestId);
+    },
+    async listScopes(input = {}) {
+      ensureReadableAuthority({ disabled, configured, config, planningAuthority });
+      const requestId = resolveReadRequestId(input, 'scope-list');
+      return scopeList(config, requestId);
     },
     async persistArtifact(artifact, input = {}) {
       if (planningAuthority.ready === false) {
@@ -932,4 +1194,5 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
 
 module.exports = {
   createRoadmapWorkflowPlanningBridge,
+  resolvePlanningDbPath,
 };

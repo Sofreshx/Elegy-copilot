@@ -142,3 +142,31 @@ export async function reinstallCodexSurface(baseUrl?: string): Promise<{ target:
     body: JSON.stringify({ target: 'codex', force: true }),
   });
 }
+
+export interface CodexPlanningSkillStatus {
+  installed: boolean;
+  skillDir: string;
+  skillFile: string | null;
+  codexHome: string;
+}
+
+export interface CodexPlanningStatusResponse {
+  codexHome: string;
+  planningSkill: CodexPlanningSkillStatus;
+  planningCliPath: string | null;
+  planningDbPath: string | null;
+  ready: boolean;
+}
+
+export async function getCodexPlanningStatus(baseUrl?: string): Promise<CodexPlanningStatusResponse> {
+  return apiRequest<CodexPlanningStatusResponse>('/api/codex-planning-status', { baseUrl });
+}
+
+export async function installCodexPlanningSkill(force = false, baseUrl?: string): Promise<{ ok: boolean; syncResult?: unknown; error?: string }> {
+  return apiRequest('/api/tooling-updates/update/elegy-skills-codex', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ force }),
+  });
+}

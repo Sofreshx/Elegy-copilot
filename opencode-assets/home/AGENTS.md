@@ -1,11 +1,11 @@
 # OpenCode Session Defaults
 
 Instruction Engine, also published as Elegy Copilot, is the shared asset and
-control-plane workspace for Copilot, Codex, OpenCode, and Antigravity agents,
-skills, prompts, repo setup overlays, and the local dashboard/runtime.
+control-plane workspace for Copilot, Codex, OpenCode, Antigravity, and Claude Code
+agents, skills, prompts, repo setup overlays, and the local dashboard/runtime.
 
 This is the shared OpenCode baseline installed to the user's OpenCode home.
-Keep this file workflow-specific; put target-repo commands, test details, and local conventions in the target repo's own `AGENTS.md` or canonical docs.
+Keep this file workflow-specific; put target-repo commands, test details, and local conventions in the target repo's own `AGENTS.md`, `guidelines.md`, or canonical docs.
 
 ## Authority
 
@@ -13,12 +13,16 @@ Keep this file workflow-specific; put target-repo commands, test details, and lo
 |---|---|
 | 1 | Explicit user instruction |
 | 2 | Repo-local canonical docs |
-| 3 | `README.md` and maintained docs |
-| 4 | Repeated implementation patterns |
+| 3 | Nearest `guidelines.md` |
+| 4 | `README.md` and maintained docs |
+| 5 | Repeated implementation patterns |
 
 If sources conflict, follow the highest authority and report the conflict.
 
 ## Concise Instruction Contract
+
+Canonical authority: `docs/system/concise-instruction-governance.md` when the
+target repo provides that node.
 
 Concise, precise instruction is required.
 
@@ -100,7 +104,7 @@ Good clarification:
 ```text
 Which source should be authoritative for this change?
 - Repo-local canonical docs: durable repo policy
-- Harness instructions only: local entrypoint
+- Nearest `guidelines.md` or AGENTS.md: local entrypoint
 ```
 
 Bad clarification:
@@ -143,9 +147,9 @@ Validation or next link
 Documentation should route downward:
 
 ```text
-README / harness instructions
+README / AGENTS.md / guidelines.md / harness instructions
   -> repo-local canonical entrypoint
-    -> relevant topic
+    -> relevant MOC or topic
       -> smallest canonical node
 ```
 
@@ -179,7 +183,7 @@ When documentation or instruction surfaces change, validate relevant links and r
 
 | Step | Rule |
 |---|---|
-| Bootstrap | Load harness instructions, then repo-local canonical entrypoint, then the smallest relevant canonical node. |
+| Bootstrap | Load harness instructions, then the repo-local canonical entrypoint, then the smallest relevant canonical node. |
 | Discovery | Read before deciding. |
 | Clarification | Ask before crossing unclear decision boundaries. |
 | Planning | Make the plan decision-complete. |
@@ -209,7 +213,7 @@ for standalone discovery; use the `explorer` subagent only inside a lane workflo
 
 ## Skills
 
-Instruction-engine installs curated skills under OpenCode. Skills are loaded on-demand via the skill tool and should be loaded only when they materially improve the result.
+Instruction Engine installs curated skills under OpenCode. Skills are loaded via the skill tool and should be loaded only when they materially improve the result.
 
 Primary skills available:
 - `skill-discovery` — Vault-first skill resolver for on-demand capability routing
@@ -223,9 +227,10 @@ Primary skills available:
 - `spec-review` — Adversarial spec review before implementation planning
 - `security` — Targeted security review for vulnerabilities LLMs commonly miss (secrets in git, auth bypass, dependency confusion, path traversal, cookie security, injection)
 - `project-conventions-governance` — Repo conventions and governance
+- `planning-tools` — OpenCode planning helpers backed by the planning plugin
+- `worktree` — OpenCode worktree helper skill backed by the worktree plugin
 - `commit-check-setup` — Bootstrap or update commit-check infrastructure in a repo. Copies scripts, generates `.copilot/commit-checks.json` config, runs smoke test. Use when setting up a repo for use with Elegy Copilot UI.
 - `ui-system` — Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; treat Figma / Storybook MCP data as context, not authority.
-- `elegy-obsidian` — Foundation skill for read/write/search operations against a local Obsidian vault via the official Obsidian Desktop CLI (v1.12+). Non-authoritative mirror; durable planning state stays in `elegy-planning`.
 
 See the [Lane Agents](#lane-agents) section for lane selection, agent profiles, and escalation rules.
 
@@ -239,7 +244,8 @@ Follow `docs/system/spec-driven-development.md` in the Instruction Engine repo w
 When the current workspace is Instruction Engine / Elegy Copilot:
 
 - `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into `~/.elegy`.
-- `opencode-assets/`, `codex-assets/`, and `antigravity-assets/` ship thinner native home baselines for their harnesses.
+- `catalog-assets/shared-skills/` ships cross-harness shared skills.
+- `opencode-assets/`, `codex-assets/`, `antigravity-assets/`, and `claude-assets/` ship thinner native home baselines for their harnesses.
 - `copilot-ui/` is the local dashboard and catalog control plane; the packaged Windows desktop app is the normal end-user runtime.
 - `contracts/`, `local-tracker/`, `scripts/`, and `docs/system/**` hold shared contracts, gateway/runtime support, installers/validators, and canonical policy.
 - Start repo-rule work at `docs/system/index.md`, then the nearest MOC, then the smallest canonical node.

@@ -101,6 +101,18 @@ function getConfigPreview(opencodeConfigLib, opencodeHome) {
     if (config.lanes) cleaned.lanes = config.lanes;
     if (config.profile) cleaned.profile = config.profile;
     if (typeof config.lsp === 'boolean') cleaned.lsp = config.lsp;
+    // Expose experimental config keys to the frontend
+    if (config.experimental && typeof config.experimental === 'object') {
+      cleaned.experimental = {};
+      const exp = config.experimental;
+      if (typeof exp.batch_tool === 'boolean') cleaned.experimental.batch_tool = exp.batch_tool;
+      if (typeof exp.openTelemetry === 'boolean') cleaned.experimental.openTelemetry = exp.openTelemetry;
+      if (typeof exp.continue_loop_on_deny === 'boolean') cleaned.experimental.continue_loop_on_deny = exp.continue_loop_on_deny;
+      if (typeof exp.disable_paste_summary === 'boolean') cleaned.experimental.disable_paste_summary = exp.disable_paste_summary;
+      if (typeof exp.mcp_timeout === 'number') cleaned.experimental.mcp_timeout = exp.mcp_timeout;
+      if (Array.isArray(exp.primary_tools)) cleaned.experimental.primary_tools = exp.primary_tools;
+      if (Array.isArray(exp.policies)) cleaned.experimental.policies = exp.policies;
+    }
     return cleaned;
   } catch {
     return null;
@@ -1472,10 +1484,19 @@ function register(deps = {}) {
             return;
           }
 
-          // Only allow known top-level boolean feature flags
-          const allowedKeys = ['lsp'];
-          if (!allowedKeys.includes(key)) {
-            resolvedDeps.sendJson(ctx.res, 400, { error: `Unknown config key: ${key}. Allowed keys: ${allowedKeys.join(', ')}` });
+          // Only allow known top-level boolean feature flags and experimental sub-keys
+          const allowedTopKeys = ['lsp'];
+          const allowedExperimentalKeys = ['batch_tool', 'openTelemetry', 'continue_loop_on_deny', 'disable_paste_summary'];
+          const isExperimentalKey = key.startsWith('experimental.');
+          const topLevelKey = isExperimentalKey ? key.slice('experimental.'.length) : key;
+
+          if (!allowedTopKeys.includes(key) && !isExperimentalKey) {
+            resolvedDeps.sendJson(ctx.res, 400, { error: `Unknown config key: ${key}. Allowed keys: ${allowedTopKeys.join(', ')} or experimental.* (${allowedExperimentalKeys.join(', ')})` });
+            return;
+          }
+
+          if (isExperimentalKey && !allowedExperimentalKeys.includes(topLevelKey)) {
+            resolvedDeps.sendJson(ctx.res, 400, { error: `Unknown experimental key: ${topLevelKey}. Allowed experimental keys: ${allowedExperimentalKeys.join(', ')}` });
             return;
           }
 
@@ -1486,7 +1507,14 @@ function register(deps = {}) {
 
           // Read, update, write config
           const config = resolvedDeps.opencodeConfig.readConfig(opencodeHome);
-          config[key] = value;
+          if (isExperimentalKey) {
+            if (!config.experimental || typeof config.experimental !== 'object') {
+              config.experimental = {};
+            }
+            config.experimental[topLevelKey] = value;
+          } else {
+            config[key] = value;
+          }
           resolvedDeps.opencodeConfig.writeConfig(opencodeHome, config);
 
           const status = await buildOpenCodeStatus(ctx, resolvedDeps);

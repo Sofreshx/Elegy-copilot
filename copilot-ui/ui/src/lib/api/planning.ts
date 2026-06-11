@@ -92,6 +92,24 @@ export interface PlanningLiveTodosQuery extends PlanningRepoDocRefOptions {
   workPointId?: string;
 }
 
+export interface PlanningLiveAuthorityStatusResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  ready: boolean;
+  enabled: boolean;
+  configured: boolean;
+  cliPath: string | null;
+  dbPath: string | null;
+  code: string;
+  message: string;
+  dbResolution: {
+    source: string | null;
+    reason: string | null;
+    candidates: Array<{ path: string; source: string; exists: boolean; populated: boolean }>;
+  } | null;
+}
+
 function normalizePlanningLiveRepoSummary(value: unknown): PlanningRepoSummary | null {
   const record = asRecord(value);
   const repoId = asTrimmedString(record.repoId);
@@ -551,6 +569,38 @@ export async function listPlanningLiveRoadmaps(
   });
 
   return normalizePlanningLiveRoadmapsResponse(payload);
+}
+
+export async function getPlanningLiveAuthorityStatus(
+  baseUrl?: string,
+): Promise<PlanningLiveAuthorityStatusResponse> {
+  const payload = await apiRequest<unknown>('/api/planning/live/authority-status', { baseUrl });
+  const record = asRecord(payload);
+  return {
+    ...record,
+    ready: asBoolean(record.ready, false),
+    enabled: asBoolean(record.enabled, false),
+    configured: asBoolean(record.configured, false),
+    cliPath: asTrimmedString(record.cliPath) || null,
+    dbPath: asTrimmedString(record.dbPath) || null,
+    code: asTrimmedString(record.code) || '',
+    message: asTrimmedString(record.message) || '',
+    dbResolution: record.dbResolution && typeof record.dbResolution === 'object'
+      ? {
+          source: asTrimmedString((record.dbResolution as Record<string, unknown>).source) || null,
+          reason: asTrimmedString((record.dbResolution as Record<string, unknown>).reason) || null,
+          candidates: asArray((record.dbResolution as Record<string, unknown>).candidates).map((c: unknown) => {
+            const cand = asRecord(c);
+            return {
+              path: asTrimmedString(cand.path) || '',
+              source: asTrimmedString(cand.source) || '',
+              exists: asBoolean(cand.exists, false),
+              populated: asBoolean(cand.populated, false),
+            };
+          }),
+        }
+      : null,
+  };
 }
 
 export async function getPlanningLiveRoadmap(

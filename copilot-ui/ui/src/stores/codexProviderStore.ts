@@ -13,9 +13,11 @@ import {
   stopDeepseekBridge,
   factoryResetCodexProvider,
   reinstallCodexSurface,
+  getCodexPlanningStatus,
+  installCodexPlanningSkill,
   type DeepseekSettingsPayload,
 } from '../lib/api/codexConfig';
-import type { CodexProviderDeepseekStatus, CodexProviderStatusResponse, MoonBridgeBootstrapStatus } from '../lib/types';
+import type { CodexProviderDeepseekStatus, CodexProviderStatusResponse, CodexPlanningStatusResponse, MoonBridgeBootstrapStatus } from '../lib/types';
 
 export interface CodexProviderState {
   status: CodexProviderStatusResponse | null;
@@ -27,6 +29,8 @@ export interface CodexProviderState {
   bootstrapLoading: boolean;
   installingCli: boolean;
   cliStatus: { installed: boolean; version: string | null; installCommand: string; lastError: string | null } | null;
+  planningStatus: CodexPlanningStatusResponse | null;
+  installingPlanning: boolean;
   error: string | null;
   message: string | null;
 }
@@ -41,6 +45,8 @@ const INITIAL_STATE: CodexProviderState = {
   bootstrapLoading: false,
   installingCli: false,
   cliStatus: null,
+  planningStatus: null,
+  installingPlanning: false,
   error: null,
   message: null,
 };
@@ -51,11 +57,12 @@ function createCodexProviderStore() {
   async function load(): Promise<void> {
     store.setState((state) => ({ ...state, loading: true, error: null }));
     try {
-      const [status, dsStatus, bootstrapStatus, cliStatusResult] = await Promise.all([
+      const [status, dsStatus, bootstrapStatus, cliStatusResult, planningStatus] = await Promise.all([
         getCodexProviderStatus(),
         getDeepseekStatus().catch(() => null),
         getBootstrapStatus().catch(() => null),
         getCodexCliStatus().catch(() => null),
+        getCodexPlanningStatus().catch(() => null),
       ]);
       store.setState((state) => ({
         ...state,
@@ -63,6 +70,7 @@ function createCodexProviderStore() {
         deepseekStatus: dsStatus,
         bootstrapStatus,
         cliStatus: cliStatusResult?.cli || state.cliStatus,
+        planningStatus,
         loading: false,
       }));
     } catch (error) {
@@ -268,11 +276,12 @@ function createCodexProviderStore() {
       const { installCodexCli: apiInstall } = await import('../lib/api/codexConfig');
       const response = await apiInstall();
       if (response.ok) {
+        const cliResult = response.cli as { installed: boolean; version: string | null; installCommand: string; lastError: string | null } | undefined;
         store.setState((state) => ({
           ...state,
           installingCli: false,
           message: 'Codex CLI installed successfully.',
-          cliStatus: response.cli || null,
+          cliStatus: cliResult || state.cliStatus,
         }));
       } else {
         store.setState((state) => ({
@@ -285,6 +294,47 @@ function createCodexProviderStore() {
       store.setState((state) => ({
         ...state,
         installingCli: false,
+        error: error instanceof Error ? error.message : 'An unexpected error occurred.',
+      }));
+    }
+  }
+
+  async function loadPlanningStatus(): Promise<void> {
+    try {
+      const planningStatus = await getCodexPlanningStatus();
+      store.setState((state) => ({
+        ...state,
+        planningStatus,
+      }));
+    } catch {
+      // best-effort, planning status is non-critical
+    }
+  }
+
+  async function installPlanning(): Promise<void> {
+    store.setState((state) => ({ ...state, installingPlanning: true, error: null, message: null }));
+    try {
+      const result = await installCodexPlanningSkill();
+      if (result.ok) {
+        // Refresh planning status after install
+        const planningStatus = await getCodexPlanningStatus();
+        store.setState((state) => ({
+          ...state,
+          installingPlanning: false,
+          planningStatus,
+          message: 'Elegy Planning skill installed successfully for Codex.',
+        }));
+      } else {
+        store.setState((state) => ({
+          ...state,
+          installingPlanning: false,
+          error: result.error || 'Failed to install Elegy Planning skill.',
+        }));
+      }
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        installingPlanning: false,
         error: error instanceof Error ? error.message : 'An unexpected error occurred.',
       }));
     }
@@ -311,6 +361,8 @@ function createCodexProviderStore() {
     bootstrap,
     loadCliStatus,
     installCodexCli,
+    loadPlanningStatus,
+    installPlanning,
     resetState,
   };
 }

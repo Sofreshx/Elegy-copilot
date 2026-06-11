@@ -484,10 +484,18 @@ function getWorktreePermissionProfileStatus(opencodeHome) {
     : null;
 
   // Check that expected permission keys exist with the correct values
+  // Supports both flat string values ("allow") and nested object forms ({ "pattern": "allow" })
   const expectedPermKeys = Object.keys(profile.permission);
-  const missingPermKeys = expectedPermKeys.filter(
-    (key) => permission[key] !== 'allow' && permission[key] !== 'deny'
-  );
+  const missingPermKeys = expectedPermKeys.filter((key) => {
+    const val = permission[key];
+    if (val === 'allow' || val === 'deny') return false;
+    // Nested object form: check if at least one entry has 'allow' or 'deny'
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      const entries = Object.values(val);
+      return !entries.some((v) => v === 'allow' || v === 'deny');
+    }
+    return true;
+  });
 
   const applied = Boolean(marker)
     && Number(marker.version) === profile.marker.version
@@ -592,9 +600,15 @@ function getPlanningPermissionProfileStatus(opencodeHome) {
     : null;
 
   const expectedPermKeys = Object.keys(profile.permission);
-  const missingPermKeys = expectedPermKeys.filter(
-    (key) => permission[key] !== 'allow' && permission[key] !== 'deny'
-  );
+  const missingPermKeys = expectedPermKeys.filter((key) => {
+    const val = permission[key];
+    if (val === 'allow' || val === 'deny') return false;
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      const entries = Object.values(val);
+      return !entries.some((v) => v === 'allow' || v === 'deny');
+    }
+    return true;
+  });
 
   const applied = Boolean(marker)
     && Number(marker.version) === profile.marker.version

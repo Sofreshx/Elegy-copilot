@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Panel } from '../../components';
 import { navigationStore } from '../../stores/navigation';
-import { getPlanningRecords, listPlanningLivePlans, listPlanningLiveRoadmaps } from '../../lib/api/planning';
+import { getPlanningRecords, listPlanningLivePlans, listPlanningLiveRoadmaps, getPlanningLiveAuthorityStatus } from '../../lib/api/planning';
 import { getPlanningSummary } from '../../lib/api/elegyDb';
 import type { PlanningRecordItem, PlanningSummaryLinkedPlan } from '../../lib/types';
 import SessionDetailView from '../Sessions/SessionDetailView';
@@ -9,6 +9,7 @@ import SessionDetailView from '../Sessions/SessionDetailView';
 interface WorkspacePlanningTabProps {
   repoPath: string;
   repoId: string | null;
+  repoLabel: string | null;
 }
 
 interface MergedPlanningItem {
@@ -19,10 +20,11 @@ interface MergedPlanningItem {
   sessionId?: string;
 }
 
-export default function WorkspacePlanningTab({ repoPath, repoId }: WorkspacePlanningTabProps) {
+export default function WorkspacePlanningTab({ repoPath, repoId, repoLabel }: WorkspacePlanningTabProps) {
   const [mergedItems, setMergedItems] = useState<MergedPlanningItem[]>([]);
   const [planningLoading, setPlanningLoading] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [dbDiagnosticMessage, setDbDiagnosticMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,6 +37,7 @@ export default function WorkspacePlanningTab({ repoPath, repoId }: WorkspacePlan
         const liveQuery: Record<string, string | undefined> = {};
         if (repoId) liveQuery.repoId = repoId;
         liveQuery.repoPath = repoPath;
+        if (repoLabel) liveQuery.repoLabel = repoLabel;
 
         const [recordsResult, summaryResult, livePlansResult, liveRoadmapsResult] = await Promise.allSettled([
           getPlanningRecords(query),
@@ -119,6 +122,29 @@ export default function WorkspacePlanningTab({ repoPath, repoId }: WorkspacePlan
         }
 
         setMergedItems(items.slice(0, 15));
+
+        // Diagnostic: if empty and repoLabel set, check DB authority status
+        if (items.length === 0 && repoLabel) {
+          try {
+            const authorityStatus = await getPlanningLiveAuthorityStatus();
+            if (authorityStatus.dbResolution) {
+              const selectedSource = authorityStatus.dbResolution.source;
+              const populatedCandidates = authorityStatus.dbResolution.candidates.filter(
+                (c) => c.populated && c.source !== selectedSource,
+              );
+              if (populatedCandidates.length > 0) {
+                const otherDb = populatedCandidates[0].path;
+                setDbDiagnosticMessage(
+                  `Planning authority is using ${authorityStatus.dbPath || 'unknown DB'} (${selectedSource || 'unknown source'}). A populated database exists at ${otherDb} with planning scopes.`,
+                );
+              }
+            }
+          } catch {
+            // diagnostic fetch is best-effort
+          }
+        } else {
+          setDbDiagnosticMessage(null);
+        }
       } catch (e) {
         console.debug('Planning load failed:', e instanceof Error ? e.message : e);
       } finally {
@@ -127,7 +153,7 @@ export default function WorkspacePlanningTab({ repoPath, repoId }: WorkspacePlan
     }
     void loadPlanning();
     return () => { cancelled = true; };
-  }, [repoPath, repoId]);
+  }, [repoPath, repoId, repoLabel]);
 
   function handleSelectSession(item: MergedPlanningItem) {
     if (item.source === 'live-roadmap') {
@@ -136,6 +162,7 @@ export default function WorkspacePlanningTab({ repoPath, repoId }: WorkspacePlan
       params.set('roadmapId', item.id);
       if (repoId) params.set('repoId', repoId);
       if (repoPath) params.set('repoPath', repoPath);
+      if (repoLabel) params.set('repoLabel', repoLabel);
       window.open(`/?${params.toString()}`, '_blank');
     } else if (item.sessionId) {
       setSelectedSessionId(item.sessionId);
@@ -164,7 +191,14 @@ export default function WorkspacePlanningTab({ repoPath, repoId }: WorkspacePlan
           {planningLoading ? (
             <div className="state-message">Loading...</div>
           ) : mergedItems.length === 0 ? (
-            <div className="state-message">No planning sessions for this repo.</div>
+            <div className="state-message">
+              <span>No planning sessions for this repo.</span>
+              {dbDiagnosticMessage ? (
+                <div className="state-message-diagnostic" style={{ marginTop: '0.5rem', fontSize: '0.85em', opacity: 0.75 }}>
+                  {dbDiagnosticMessage}
+                </div>
+              ) : null}
+            </div>
           ) : (
             <ul className="workspace-planning-list" data-testid="workspace-planning-list">
               {mergedItems.map((item) => (

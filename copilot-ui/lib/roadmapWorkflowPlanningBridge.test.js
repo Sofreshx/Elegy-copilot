@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
-const { createRoadmapWorkflowPlanningBridge } = require('./roadmapWorkflowPlanningBridge');
+const { createRoadmapWorkflowPlanningBridge, resolvePlanningDbPath } = require('./roadmapWorkflowPlanningBridge');
 
 let passed = 0;
 
@@ -48,11 +48,16 @@ function getCommandKey(args) {
 async function run() {
   await test('roadmap workflow planning bridge seeds goal roadmap and work point through elegy-planning json commands', async () => {
     const recorded = [];
+    const explicitDbPath = path.join('C:', 'planning', 'elegy-planning.db');
     const bridge = createRoadmapWorkflowPlanningBridge({
       enabled: true,
       elegyHome: path.join('C:', 'copilot'),
-      dbPath: path.join('C:', 'planning', 'elegy-planning.db'),
+      dbPath: explicitDbPath,
       cliPath: __filename,
+      fsModule: {
+        existsSync(p) { return p === explicitDbPath; },
+        statSync(p) { return { size: 4096 }; },
+      },
       childProcess: createExecFileStub(({ command, args, options, callback }) => {
         recorded.push({ command, args, options });
         const commandKey = getCommandKey(args);
@@ -211,11 +216,16 @@ async function run() {
 
   await test('roadmap workflow planning bridge verifies existing roadmap instead of seeding duplicate goal', async () => {
     const recorded = [];
+    const explicitDbPath = path.join('C:', 'planning', 'elegy-planning.db');
     const bridge = createRoadmapWorkflowPlanningBridge({
       enabled: true,
       elegyHome: path.join('C:', 'copilot'),
-      dbPath: path.join('C:', 'planning', 'elegy-planning.db'),
+      dbPath: explicitDbPath,
       cliPath: __filename,
+      fsModule: {
+        existsSync(p) { return p === explicitDbPath; },
+        statSync(p) { return { size: 4096 }; },
+      },
       childProcess: createExecFileStub(({ command, args, callback }) => {
         recorded.push({ command, args });
         callback(null, buildMachineEnvelope({
@@ -289,11 +299,16 @@ async function run() {
   });
 
   await test('roadmap workflow planning bridge fails open when elegy-planning returns invalid json', async () => {
+    const explicitDbPath = path.join('C:', 'planning', 'elegy-planning.db');
     const bridge = createRoadmapWorkflowPlanningBridge({
       enabled: true,
       elegyHome: path.join('C:', 'copilot'),
-      dbPath: path.join('C:', 'planning', 'elegy-planning.db'),
+      dbPath: explicitDbPath,
       cliPath: __filename,
+      fsModule: {
+        existsSync(p) { return p === explicitDbPath; },
+        statSync(p) { return { size: 4096 }; },
+      },
       childProcess: createExecFileStub(({ callback }) => {
         callback(null, 'not-json', '');
       }),
@@ -371,6 +386,252 @@ async function run() {
         message: 'elegy-planning authority is not configured.',
       }],
     });
+  });
+
+  await test('resolvePlanningDbPath prefers explicit existing path', async () => {
+    const explicitDb = path.join('/', 'test', 'planning.db');
+    const result = resolvePlanningDbPath({
+      dbPath: explicitDb,
+      elegyHome: path.join('/', 'copilot'),
+      homedir: path.join('/', 'Users', 'test'),
+      pathModule: path,
+      fsModule: {
+        existsSync(p) {
+          return p === explicitDb;
+        },
+        statSync(p) {
+          if (p === explicitDb) return { size: 4096 };
+          return { size: 0 };
+        },
+      },
+      env: {},
+    });
+
+    assert.equal(result.dbPath, explicitDb);
+    assert.equal(result.source, 'explicit');
+    assert.ok(result.reason.includes('explicit'));
+  });
+
+  await test('resolvePlanningDbPath falls back to populated legacy-elegy when copilot-home is empty', async () => {
+    const copilotDb = path.join('/', 'copilot', 'elegy-planning.db');
+    const legacyDb = path.join('/', 'Users', 'test', '.elegy', 'planning.db');
+    const result = resolvePlanningDbPath({
+      dbPath: '',
+      elegyHome: path.join('/', 'copilot'),
+      homedir: path.join('/', 'Users', 'test'),
+      pathModule: path,
+      fsModule: {
+        existsSync(p) {
+          return p === legacyDb || p === copilotDb;
+        },
+        statSync(p) {
+          if (p === legacyDb) return { size: 8192 };
+          if (p === copilotDb) return { size: 0 };
+          return { size: 0 };
+        },
+      },
+      env: {},
+    });
+
+    assert.equal(result.dbPath, legacyDb);
+    assert.equal(result.source, 'legacy-elegy');
+    assert.ok(result.reason.includes('populated'));
+  });
+
+  await test('resolvePlanningDbPath prefers copilot-home when both are populated', async () => {
+    const copilotDb = path.join('/', 'copilot', 'elegy-planning.db');
+    const result = resolvePlanningDbPath({
+      dbPath: '',
+      elegyHome: path.join('/', 'copilot'),
+      homedir: path.join('/', 'Users', 'test'),
+      pathModule: path,
+      fsModule: {
+        existsSync(p) {
+          return p === path.join('/', 'copilot', 'elegy-planning.db')
+            || p === path.join('/', 'Users', 'test', '.elegy', 'planning.db');
+        },
+        statSync(p) {
+          return { size: 4096 };
+        },
+      },
+      env: {},
+    });
+
+    assert.equal(result.dbPath, copilotDb);
+    assert.equal(result.source, 'copilot-home');
+  });
+
+  await test('bridge getStatus includes dbResolution with candidates', async () => {
+    const bridge = createRoadmapWorkflowPlanningBridge({
+      enabled: true,
+      elegyHome: path.join('C:', 'copilot'),
+      homedir: path.join('C:', 'Users', 'test'),
+      cliPath: __filename,
+      childProcess: createExecFileStub(({ callback }) => {
+        callback(null, JSON.stringify({ status: 'ok', data: {} }), '');
+      }),
+      env: {},
+      processObject: {
+        env: {},
+        platform: 'win32',
+      },
+    });
+
+    const status = bridge.getStatus();
+    assert.ok(status.dbResolution);
+    assert.ok(Array.isArray(status.dbResolution.candidates));
+    assert.ok(status.dbResolution.candidates.length > 0);
+    assert.equal(typeof status.dbResolution.source, 'string');
+  });
+
+  await test('bridge listRoadmaps with repoLabel attempts multi-scope query', async () => {
+    const recorded = [];
+    const explicitDbPath = path.join('C:', 'planning', 'elegy-planning.db');
+    const bridge = createRoadmapWorkflowPlanningBridge({
+      enabled: true,
+      elegyHome: path.join('C:', 'copilot'),
+      dbPath: explicitDbPath,
+      cliPath: __filename,
+      fsModule: {
+        existsSync(p) { return p === explicitDbPath; },
+        statSync(p) { return { size: 4096 }; },
+      },
+      childProcess: createExecFileStub(({ command, args, callback }) => {
+        recorded.push({ command, args });
+        const commandKey = getCommandKey(args);
+        if (commandKey === 'scope list') {
+          callback(null, JSON.stringify({
+            status: 'ok',
+            data: {
+              scopes: [
+                { key: 'default', tags: [] },
+                { key: 'holon', tags: ['holon', 'SAASTools'] },
+              ],
+            },
+          }), '');
+          return;
+        }
+        if (commandKey === 'roadmap list') {
+          // Check which scope
+          const scopeIdx = args.indexOf('--scope');
+          const scopeVal = scopeIdx >= 0 ? args[scopeIdx + 1] : 'default';
+          if (scopeVal === 'holon') {
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: {
+                roadmaps: [
+                  { id: 'RM-holon-1', title: 'Holon Roadmap', status: 'active', tags: ['holon'] },
+                ],
+              },
+            }), '');
+          } else {
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: {
+                roadmaps: [
+                  { id: 'RM-default', title: 'Default Roadmap', status: 'draft', tags: [] },
+                ],
+              },
+            }), '');
+          }
+          return;
+        }
+        callback(null, JSON.stringify({ status: 'ok', data: {} }), '');
+      }),
+      env: {},
+      processObject: {
+        env: {},
+        platform: 'win32',
+      },
+    });
+
+    const result = await bridge.listRoadmaps({
+      requestId: 'multi-scope-test',
+      repoLabel: 'holon',
+    });
+
+    assert.ok(Array.isArray(result.roadmaps));
+    // Should have default scope first (active), then holon scope matches
+    const ids = result.roadmaps.map((r) => r.id);
+    assert.ok(ids.includes('RM-default') || ids.includes('RM-holon-1'));
+    // Verify scope list was called
+    const scopeCalls = recorded.filter((r) => getCommandKey(r.args) === 'scope list');
+    assert.equal(scopeCalls.length, 1);
+  });
+
+  await test('bridge listPlans with repoLabel de-dupes by scopeKey and id', async () => {
+    const recorded = [];
+    const explicitDbPath = path.join('C:', 'planning', 'elegy-planning.db');
+    const bridge = createRoadmapWorkflowPlanningBridge({
+      enabled: true,
+      elegyHome: path.join('C:', 'copilot'),
+      dbPath: explicitDbPath,
+      cliPath: __filename,
+      fsModule: {
+        existsSync(p) { return p === explicitDbPath; },
+        statSync(p) { return { size: 4096 }; },
+      },
+      childProcess: createExecFileStub(({ command, args, callback }) => {
+        recorded.push({ command, args });
+        const commandKey = getCommandKey(args);
+        if (commandKey === 'scope list') {
+          callback(null, JSON.stringify({
+            status: 'ok',
+            data: {
+              scopes: [
+                { key: 'default', tags: [] },
+                { key: 'holon', tags: ['holon'] },
+              ],
+            },
+          }), '');
+          return;
+        }
+        if (commandKey === 'plan list') {
+          const scopeIdx = args.indexOf('--scope');
+          const scopeVal = scopeIdx >= 0 ? args[scopeIdx + 1] : 'default';
+          if (scopeVal === 'holon') {
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: {
+                plans: [
+                  { id: 'PLAN-shared', title: 'Shared Plan', tags: ['holon'] },
+                  { id: 'PLAN-holon-only', title: 'Holon Only', tags: [] },
+                ],
+              },
+            }), '');
+          } else {
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: {
+                plans: [
+                  { id: 'PLAN-shared', title: 'Shared Plan', tags: [] },
+                  { id: 'PLAN-default-only', title: 'Default Only', tags: [] },
+                ],
+              },
+            }), '');
+          }
+          return;
+        }
+        callback(null, JSON.stringify({ status: 'ok', data: {} }), '');
+      }),
+      env: {},
+      processObject: {
+        env: {},
+        platform: 'win32',
+      },
+    });
+
+    const result = await bridge.listPlans({
+      requestId: 'de-dupe-test',
+      repoLabel: 'holon',
+    });
+
+    assert.ok(Array.isArray(result.plans));
+    const ids = result.plans.map((p) => p.id);
+    // PLAN-shared appears in both scopes; dedupe is per scopeKey+id, so both kept
+    assert.ok(ids.includes('PLAN-shared'));
+    assert.ok(ids.includes('PLAN-holon-only'));
+    assert.ok(ids.includes('PLAN-default-only'));
   });
 
   if (!process.exitCode) {

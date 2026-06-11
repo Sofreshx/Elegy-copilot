@@ -1,11 +1,11 @@
 # Codex Session Defaults
 
 Instruction Engine, also published as Elegy Copilot, is the shared asset and
-control-plane workspace for Copilot, Codex, OpenCode, and Antigravity agents,
-skills, prompts, repo setup overlays, and the local dashboard/runtime. Treat this
-file as the global Codex baseline installed to `~/.codex/AGENTS.md`; keep
-project-specific commands and conventions in the target repo's own `AGENTS.md`
-or canonical docs.
+control-plane workspace for Copilot, Codex, OpenCode, Antigravity, and Claude Code
+agents, skills, prompts, repo setup overlays, and the local dashboard/runtime.
+Treat this file as the global Codex baseline installed to `~/.codex/AGENTS.md`;
+keep project-specific commands and conventions in the target repo's own
+`AGENTS.md`, `guidelines.md`, or canonical docs.
 
 ## Authority
 
@@ -13,12 +13,16 @@ or canonical docs.
 |---|---|
 | 1 | Explicit user instruction |
 | 2 | Repo-local canonical docs |
-| 3 | `README.md` and maintained docs |
-| 4 | Repeated implementation patterns |
+| 3 | Nearest `guidelines.md` |
+| 4 | `README.md` and maintained docs |
+| 5 | Repeated implementation patterns |
 
 If sources conflict, follow the highest authority and report the conflict.
 
 ## Concise Instruction Contract
+
+Canonical authority: `docs/system/concise-instruction-governance.md` when the
+target repo provides that node.
 
 Concise, precise instruction is required.
 
@@ -100,7 +104,7 @@ Good clarification:
 ```text
 Which source should be authoritative for this change?
 - Repo-local canonical docs: durable repo policy
-- Harness instructions only: local entrypoint
+- Nearest `guidelines.md` or AGENTS.md: local entrypoint
 ```
 
 Bad clarification:
@@ -143,9 +147,9 @@ Validation or next link
 Documentation should route downward:
 
 ```text
-README / harness instructions
+README / AGENTS.md / guidelines.md / harness instructions
   -> repo-local canonical entrypoint
-    -> relevant topic
+    -> relevant MOC or topic
       -> smallest canonical node
 ```
 
@@ -179,7 +183,7 @@ When documentation or instruction surfaces change, validate relevant links and r
 
 | Step | Rule |
 |---|---|
-| Bootstrap | Load harness instructions, then repo-local canonical entrypoint, then the smallest relevant canonical node. |
+| Bootstrap | Load harness instructions, then the repo-local canonical entrypoint, then the smallest relevant canonical node. |
 | Discovery | Read before deciding. |
 | Clarification | Ask before crossing unclear decision boundaries. |
 | Planning | Make the plan decision-complete. |
@@ -254,7 +258,8 @@ For repo-specific policy, start at `docs/system/index.md`, then the nearest MOC,
 For the Instruction Engine repo itself, the current identity and delivery model are:
 
 - `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into the Copilot home install.
-- `codex-assets/`, `opencode-assets/`, and `antigravity-assets/` ship thinner native home baselines for their harnesses.
+- `catalog-assets/shared-skills/` ships cross-harness shared skills.
+- `codex-assets/`, `opencode-assets/`, `antigravity-assets/`, and `claude-assets/` ship thinner native home baselines for their harnesses.
 - `copilot-ui/` is the local dashboard and catalog control plane; the packaged Windows desktop app is the normal end-user runtime.
 - `contracts/`, `local-tracker/`, `scripts/`, and `docs/system/**` hold shared contracts, gateway/runtime support, installers/validators, and canonical policy.
 

@@ -12114,3 +12114,99 @@ textarea:focus-visible,
   flex-direction: column;
   gap: var(--space-md);
 }
+
+/* ================================================================== */
+/*  Harness Tab (Codex / OpenCode / Claude asset views)               */
+/* ================================================================== */
+
+.harness-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.harness-tab-group {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-ink-200);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.harness-tab-group-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-ink-700);
+  background: var(--color-surface-1);
+  border-bottom: 1px solid var(--color-ink-200);
+}
+
+.harness-tab-group-count {
+  font-weight: 400;
+  color: var(--color-ink-500);
+  font-size: 0.8rem;
+}
+
+.harness-tab-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.harness-tab-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-ink-100);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.harness-tab-item:last-child {
+  border-bottom: none;
+}
+
+.harness-tab-item:hover {
+  background: var(--color-ink-100);
+}
+
+.harness-tab-item-kind {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: capitalize;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+  white-space: nowrap;
+}
+
+.harness-tab-item-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-ink-800);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.harness-tab-item-state {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.harness-tab-empty {
+  padding: var(--space-lg);
+  text-align: center;
+  color: var(--color-ink-500);
+  font-size: 0.9rem;
+}

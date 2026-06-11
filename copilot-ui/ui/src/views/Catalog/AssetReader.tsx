@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CatalogGlobalItem } from '../../lib/types';
 import { getCatalogContent } from '../../lib/api';
 import { Badge, Button } from '../../components';
@@ -26,14 +26,21 @@ export default function AssetReader({ item }: AssetReaderProps) {
     setRetryTrigger(0);
   }, [item?.itemId]);
 
+  const readPath = useMemo(() => {
+    if (!item) return '';
+    const detailAny = (item as any).detail as Record<string, unknown> | null | undefined;
+    return (item.readPath?.trim()
+      || (typeof detailAny?.contentPath === 'string' ? (detailAny.contentPath as string).trim() : '')
+      || (typeof detailAny?.readPath === 'string' ? (detailAny.readPath as string).trim() : ''));
+  }, [item]);
+
   useEffect(() => {
     if (activeReaderTab !== 'document' || !item) {
       return;
     }
     let cancelled = false;
-    const readPath = item.readPath?.trim();
     if (!readPath) {
-      setDocumentContent('No document path available.');
+      setDocumentContent('No document path available for this asset.');
       return;
     }
     const contentPath = readPath as string;
@@ -182,8 +189,11 @@ export default function AssetReader({ item }: AssetReaderProps) {
             {documentLoading ? (
               <p className="assets-tools-empty">Loading document...</p>
             ) : documentError ? (
-              <div>
-                <p className="assets-tools-empty">Failed to load document content.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', alignItems: 'flex-start' }}>
+                <p className="assets-tools-empty">Failed to load document content. The file may be missing, inaccessible, or outside allowed paths.</p>
+                <p className="assets-tools-empty" style={{ fontSize: '0.8rem', color: 'var(--color-ink-500)', wordBreak: 'break-all' }}>
+                  Path: {readPath || 'unknown'}
+                </p>
                 <Button
                   variant="primary"
                   onClick={() => {

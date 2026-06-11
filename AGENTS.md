@@ -1,17 +1,19 @@
 # Instruction Engine — Agent Entrypoint
 
-This is the Instruction Engine monorepo, also published as Elegy Copilot. It is the shared-asset and control-plane workspace for Copilot, Codex, OpenCode, and Antigravity.
+This is the Instruction Engine monorepo, also published as Elegy Copilot. It is the shared-asset and control-plane workspace for Copilot, Codex, OpenCode, Antigravity, and Claude Code.
 
 ## Before any work
 
 1. Start at `docs/system/index.md` for the task's canonical doc entrypoint.
-2. Use the narrowest relevant validator after changes (`npm run test:all`, `npm run ci:local`, or the specific module's test script).
-3. Before authoring specs, install the pre-commit hook: `node scripts/install-spec-hooks.mjs`. This is part of the spec-system-hardening reliability layers and ensures spec validation runs before every commit. See `docs/system/spec-driven-development.md` for the full spec-driven development contract.
+2. For governance or instruction-surface work, route through `docs/system/mocs/conventions-and-governance.md`, then open the smallest owning node.
+3. Use the narrowest relevant validator after changes (`npm run test:all`, `npm run ci:local`, or the specific module's test script).
+4. Before authoring specs, install the pre-commit hook: `node scripts/install-spec-hooks.mjs`. See `docs/system/spec-driven-development.md`.
 
 ## Quick orientation
 
 | Area | Path | Purpose |
 |------|------|---------|
+| Shared catalog | `catalog-assets/` | Cross-harness shared skill sources |
 | Engine assets | `engine-assets/` | Shipped Copilot agents, skills, prompts, instructions |
 | Codex assets | `codex-assets/` | Shipped Codex instructions, agents, skills |
 | OpenCode assets | `opencode-assets/` | OpenCode home baseline |
@@ -43,12 +45,15 @@ node copilot-ui/server.js       # Raw server (API debugging only)
 |---|---|
 | 1 | Explicit user instruction |
 | 2 | Repo-local canonical docs |
-| 3 | `README.md` and maintained docs |
-| 4 | Repeated implementation patterns |
+| 3 | Nearest `guidelines.md` |
+| 4 | `README.md` and maintained docs |
+| 5 | Repeated implementation patterns |
 
 If sources conflict, follow the highest authority and report the conflict.
 
 ## Concise Instruction Contract
+
+Canonical authority: `docs/system/concise-instruction-governance.md`.
 
 Concise, precise instruction is required.
 
@@ -130,7 +135,7 @@ Good clarification:
 ```text
 Which source should be authoritative for this change?
 - Repo-local canonical docs: durable repo policy
-- Harness instructions only: local entrypoint
+- Nearest `guidelines.md` or AGENTS.md: local entrypoint
 ```
 
 Bad clarification:
@@ -173,9 +178,9 @@ Validation or next link
 Documentation should route downward:
 
 ```text
-README / harness instructions
-  -> repo-local canonical entrypoint
-    -> relevant topic
+README / AGENTS.md / guidelines.md / harness instructions
+  -> docs/system/index.md
+    -> relevant MOC
       -> smallest canonical node
 ```
 
@@ -209,7 +214,7 @@ When documentation or instruction surfaces change, validate relevant links and r
 
 | Step | Rule |
 |---|---|
-| Bootstrap | Load harness instructions, then repo-local canonical entrypoint, then the smallest relevant canonical node. |
+| Bootstrap | Load harness instructions, then `docs/system/index.md`, then the smallest relevant canonical node. |
 | Discovery | Read before deciding. |
 | Clarification | Ask before crossing unclear decision boundaries. |
 | Planning | Make the plan decision-complete. |

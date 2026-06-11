@@ -246,6 +246,22 @@ export default function CatalogShellView() {
     }
   }
 
+  async function handleUninstall(
+    item: CatalogGlobalItem,
+    harnessState: CatalogGlobalHarnessState,
+  ): Promise<void> {
+    const assetId = (harnessState.metadata as Record<string, unknown> | null)?.installableId
+      || (typeof item.itemId === 'string' ? item.itemId : '')
+      || '';
+    if (!assetId || !harnessState.harnessId) {
+      console.warn('CatalogShellView: Cannot uninstall — missing assetId or harnessId', { itemId: item.itemId, harnessId: harnessState.harnessId });
+      return;
+    }
+
+    await catalogWorkspaceStore.uninstallHarnessAsset(harnessState.harnessId, String(assetId));
+    await handleRefresh();
+  }
+
   /* ---- render helpers ---- */
   function renderMetricCard(m: Metric): React.ReactNode {
     return (
@@ -389,6 +405,7 @@ export default function CatalogShellView() {
               sections={allSections}
               harnesses={harnesses}
               onItemAction={(item, state) => void handleItemAction(item, state)}
+              onUninstall={(item, state) => void handleUninstall(item, state)}
               mutating={catalogState.mutating}
             />
           )}
@@ -405,15 +422,36 @@ export default function CatalogShellView() {
           )}
 
           {activeTab === 'codex' && (
-            <HarnessTab harnessId="codex" sections={allSections} />
+            <HarnessTab
+              harnessId="codex"
+              sections={allSections}
+              harnesses={harnesses}
+              onItemAction={(item, state) => void handleItemAction(item, state)}
+              onUninstall={(item, state) => void handleUninstall(item, state)}
+              mutating={catalogState.mutating}
+            />
           )}
 
           {activeTab === 'opencode' && (
-            <HarnessTab harnessId="opencode" sections={allSections} />
+            <HarnessTab
+              harnessId="opencode"
+              sections={allSections}
+              harnesses={harnesses}
+              onItemAction={(item, state) => void handleItemAction(item, state)}
+              onUninstall={(item, state) => void handleUninstall(item, state)}
+              mutating={catalogState.mutating}
+            />
           )}
 
           {activeTab === 'claude' && (
-            <HarnessTab harnessId="claude-code" sections={allSections} />
+            <HarnessTab
+              harnessId="claude-code"
+              sections={allSections}
+              harnesses={harnesses}
+              onItemAction={(item, state) => void handleItemAction(item, state)}
+              onUninstall={(item, state) => void handleUninstall(item, state)}
+              mutating={catalogState.mutating}
+            />
           )}
         </>
       )}

@@ -7,10 +7,11 @@ interface InventoryTabProps {
   sections: CatalogGlobalSection[];
   harnesses: CatalogGlobalHarness[];
   onItemAction?: (item: CatalogGlobalItem, state: CatalogGlobalHarnessState) => void;
+  onUninstall?: (item: CatalogGlobalItem, state: CatalogGlobalHarnessState) => void;
   mutating?: boolean;
 }
 
-export default function InventoryTab({ sections, harnesses, onItemAction, mutating }: InventoryTabProps) {
+export default function InventoryTab({ sections, harnesses, onItemAction, onUninstall, mutating }: InventoryTabProps) {
   const [kindFilter, setKindFilter] = useState<string>('all');
   const [scopeFilter, setScopeFilter] = useState<string>('all');
   const [modalItem, setModalItem] = useState<CatalogGlobalItem | null>(null);
@@ -92,6 +93,7 @@ export default function InventoryTab({ sections, harnesses, onItemAction, mutati
           harnesses={harnesses}
           onClose={() => setModalItem(null)}
           onItemAction={onItemAction}
+          onUninstall={onUninstall}
           mutating={mutating}
         />
       )}

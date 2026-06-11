@@ -499,6 +499,7 @@ function handlePlanningLiveRoadmapsList(ctx, deps) {
           req,
           (repo && (repo.repoId || repo.repoPath || repo.repoLabel)) || 'planning-live-roadmaps',
         ),
+        repoLabel: repo && repo.repoLabel,
       });
       const includeUnscoped = String(u.searchParams.get('includeUnscoped') || '').toLowerCase() === 'true';
       const rawRoadmaps = response && response.roadmaps;
@@ -662,6 +663,7 @@ function handlePlanningLivePlansList(ctx, deps) {
           req,
           roadmapId || goalId || (repo && (repo.repoId || repo.repoPath || repo.repoLabel)) || 'planning-live-plans',
         ),
+        repoLabel: repo && repo.repoLabel,
       });
       const plans = filterPlanningLivePlans(response && response.plans, {
         repoId: repo && repo.repoId,
@@ -2868,6 +2870,33 @@ async function handlePlanningExplorerSearch(ctx, deps) {
     });
 }
 
+function handlePlanningLiveAuthorityStatus(ctx, deps) {
+  const { res } = ctx;
+  const {
+    sendJson,
+    roadmapWorkflowPlanningBridge,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+
+  if (!roadmapWorkflowPlanningBridge || typeof roadmapWorkflowPlanningBridge.getStatus !== 'function') {
+    sendJson(res, 503, {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: 'planning.live.authority-status',
+      deterministic: true,
+      error: 'elegy-planning authority bridge is not available.',
+      code: 'planning_live_authority_bridge_missing',
+    });
+    return;
+  }
+
+  sendJson(res, 200, {
+    contractVersion: PLANNING_API_CONTRACT_VERSION,
+    kind: 'planning.live.authority-status',
+    deterministic: true,
+    ...roadmapWorkflowPlanningBridge.getStatus(),
+  });
+}
+
 function register(deps = {}) {
   const resolvedDeps = {
     ...deps,
@@ -2885,6 +2914,11 @@ function register(deps = {}) {
       method: 'GET',
       path: '/api/planning/live/roadmaps',
       handler: (ctx) => handlePlanningLiveRoadmapsList(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/planning/live/authority-status',
+      handler: (ctx) => handlePlanningLiveAuthorityStatus(ctx, resolvedDeps),
     },
     {
       method: 'GET',

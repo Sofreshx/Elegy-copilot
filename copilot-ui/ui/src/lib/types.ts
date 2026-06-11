@@ -3332,6 +3332,21 @@ export interface CodexProviderStatusResponse {
   [key: string]: unknown;
 }
 
+export interface CodexPlanningSkillStatus {
+  installed: boolean;
+  skillDir: string;
+  skillFile: string | null;
+  codexHome: string;
+}
+
+export interface CodexPlanningStatusResponse {
+  codexHome: string;
+  planningSkill: CodexPlanningSkillStatus;
+  planningCliPath: string | null;
+  planningDbPath: string | null;
+  ready: boolean;
+}
+
 export interface GatewaySaveConfigResponse {
   ok?: boolean;
   configPath?: string;

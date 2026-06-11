@@ -1443,6 +1443,14 @@ function mergeHarnessStateMaps(existingStates, incomingStates) {
   }));
 }
 
+function resolveBestValue(prev, next) {
+  const p = typeof prev === 'string' ? prev.trim() : '';
+  const n = typeof next === 'string' ? next.trim() : '';
+  // Prefer non-empty strings; if both are non-empty, keep the previous (first seen)
+  if (p) return p;
+  return n;
+}
+
 function mergeInventoryItems(items) {
   const grouped = new Map();
   for (const item of Array.isArray(items) ? items : []) {
@@ -1487,7 +1495,7 @@ function mergeInventoryItems(items) {
       sourceType: previous.sourceType === 'catalog-asset' ? previous.sourceType : item.sourceType || previous.sourceType,
       sourceId: previous.sourceId || item.sourceId || null,
       providerId: previous.providerId || item.providerId || null,
-      readPath: previous.readPath || item.readPath || null,
+      readPath: resolveBestValue(previous.readPath, item.readPath) || null,
       detail: {
         ...mergedDetail,
         scopeKinds: normalizeScopeKinds(previousDetailScopeKinds, nextDetailScopeKinds),

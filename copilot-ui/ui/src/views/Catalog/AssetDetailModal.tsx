@@ -9,6 +9,7 @@ interface AssetDetailModalProps {
   harnesses: CatalogGlobalHarness[];
   onClose: () => void;
   onItemAction?: (item: CatalogGlobalItem, state: CatalogGlobalHarnessState) => void;
+  onUninstall?: (item: CatalogGlobalItem, state: CatalogGlobalHarnessState) => void;
   mutating?: boolean;
 }
 
@@ -37,10 +38,19 @@ function getHarnessStateLabel(state: string | undefined | null): string {
   }
 }
 
-function renderHarnessActions(
-  hs: CatalogGlobalHarnessState,
-  item: CatalogGlobalItem,
-): React.ReactNode {
+function renderHarnessActions({
+  hs,
+  item,
+  onAction,
+  onUninstall,
+  mutating,
+}: {
+  hs: CatalogGlobalHarnessState;
+  item: CatalogGlobalItem;
+  onAction?: (item: CatalogGlobalItem, state: CatalogGlobalHarnessState) => void;
+  onUninstall?: (item: CatalogGlobalItem, state: CatalogGlobalHarnessState) => void;
+  mutating?: boolean;
+}): React.ReactNode {
   const state = hs.state || hs.syncStatus || '';
   const targets = item.actions?.installSurfaceTargets || [];
   const canInstall = targets.length > 0 && (state === 'available' || state === 'not-installed' || state === 'missing');
@@ -52,16 +62,34 @@ function renderHarnessActions(
   return (
     <>
       {canInstall && (
-        <button className="button button-sm button-primary" disabled={mutating} type="button">
+        <button
+          className="button button-sm button-primary"
+          disabled={mutating}
+          onClick={() => onAction?.(item, hs)}
+          data-testid="asset-detail-install-btn"
+          type="button"
+        >
           Install
         </button>
       )}
       {canUpdate && (
         <>
-          <button className="button button-sm button-primary" disabled={mutating} type="button">
+          <button
+            className="button button-sm button-primary"
+            disabled={mutating}
+            onClick={() => onAction?.(item, hs)}
+            data-testid="asset-detail-update-btn"
+            type="button"
+          >
             Update
           </button>
-          <button className="button button-sm button-ghost" disabled={mutating} type="button">
+          <button
+            className="button button-sm button-ghost"
+            disabled={mutating}
+            onClick={() => onAction?.(item, hs)}
+            data-testid="asset-detail-sync-btn"
+            type="button"
+          >
             Sync
           </button>
         </>
@@ -70,6 +98,8 @@ function renderHarnessActions(
         <button
           className={`button button-sm ${uninstallBlocked ? 'button-ghost' : 'button-danger'}`}
           disabled={mutating || uninstallBlocked}
+          onClick={() => onUninstall?.(item, hs)}
+          data-testid="asset-detail-uninstall-btn"
           title={uninstallBlocked ? 'Uninstall blocked — asset is externally modified' : 'Uninstall managed asset'}
           type="button"
         >
@@ -77,7 +107,13 @@ function renderHarnessActions(
         </button>
       )}
       {canCheck && (
-        <button className="button button-sm button-ghost" disabled={mutating} type="button">
+        <button
+          className="button button-sm button-ghost"
+          disabled={mutating}
+          onClick={() => onAction?.(item, hs)}
+          data-testid="asset-detail-check-btn"
+          type="button"
+        >
           Check
         </button>
       )}
@@ -101,6 +137,7 @@ export default function AssetDetailModal({
   harnesses,
   onClose,
   onItemAction,
+  onUninstall,
   mutating,
 }: AssetDetailModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -218,7 +255,7 @@ export default function AssetDetailModal({
                   ) : null}
                 </div>
                 <div className="asset-detail-harness-row-actions">
-                  {renderHarnessActions(hs, item)}
+                  {renderHarnessActions({ hs, item, onAction: onItemAction, onUninstall, mutating })}
                 </div>
               </div>
             ))}

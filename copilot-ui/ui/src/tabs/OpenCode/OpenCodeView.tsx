@@ -830,47 +830,93 @@ function PermissionsSection(_props: SectionProps): React.ReactElement {
   );
 }
 
+interface ExperimentalFeatureDef {
+  key: string;
+  label: string;
+  badge?: string;
+  description: string;
+  configKey?: string; // defaults to key
+}
+
+const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
+  {
+    key: 'lsp',
+    label: 'Language Server Protocol (LSP)',
+    badge: 'BETA',
+    description: 'Enables real-time code intelligence (diagnostics, completions, hover info) for supported languages directly in OpenCode. Requires the LSP runtime to be installed and configured.',
+  },
+  {
+    key: 'batch_tool',
+    label: 'Batch Tool',
+    description: 'Enable the batch tool for executing multiple operations in a single step.',
+  },
+  {
+    key: 'openTelemetry',
+    label: 'OpenTelemetry Tracing',
+    description: 'Enable OpenTelemetry spans for AI SDK calls. Useful for debugging and performance analysis.',
+  },
+  {
+    key: 'continue_loop_on_deny',
+    label: 'Continue on Deny',
+    description: 'Continue the agent loop when a tool call is denied, instead of stopping the session.',
+  },
+  {
+    key: 'disable_paste_summary',
+    label: 'Disable Paste Summary',
+    description: 'Disable the automatic summary when pasting large blocks of text.',
+  },
+];
+
 function ExperimentalSection({ status }: SectionProps) {
   const state = useStoreValue(opencodeStore);
 
-  // Read lsp from config preview
-  const lspEnabled = typeof status.configPreview?.lsp === 'boolean' ? status.configPreview.lsp : false;
+  const expConfig = status.configPreview?.experimental && typeof status.configPreview.experimental === 'object'
+    ? status.configPreview.experimental as Record<string, unknown>
+    : {};
 
-  const handleToggleLsp = () => {
-    void opencodeStore.toggleConfigKey('lsp', !lspEnabled);
+  const getExpValue = (key: string): boolean => {
+    if (key === 'lsp') {
+      return typeof status.configPreview?.lsp === 'boolean' ? status.configPreview.lsp : false;
+    }
+    return typeof expConfig[key] === 'boolean' ? Boolean(expConfig[key]) : false;
+  };
+
+  const handleToggle = (key: string, currentValue: boolean) => {
+    void opencodeStore.toggleConfigKey(key === 'lsp' ? 'lsp' : `experimental.${key}`, !currentValue);
   };
 
   return (
     <div className="opencode-section" data-testid="opencode-experimental">
       <Panel title="Experimental Features" subtitle="Enable or disable beta and experimental OpenCode features" testId="opencode-experimental-panel">
         <div className="opencode-experimental-list">
-          <div className="opencode-experimental-item" data-testid="opencode-experimental-lsp">
-            <div className="opencode-experimental-info">
-              <div className="opencode-experimental-header">
-                <h4 className="opencode-experimental-name">Language Server Protocol (LSP)</h4>
-                <Badge tone="accent" testId="opencode-experimental-lsp-badge">BETA</Badge>
+          {EXPERIMENTAL_FEATURES.map((feature) => {
+            const enabled = getExpValue(feature.key);
+            return (
+              <div className="opencode-experimental-item" key={feature.key} data-testid={`opencode-experimental-${feature.key}`}>
+                <div className="opencode-experimental-info">
+                  <div className="opencode-experimental-header">
+                    <h4 className="opencode-experimental-name">{feature.label}</h4>
+                    {feature.badge ? <Badge tone="accent" testId={`opencode-experimental-${feature.key}-badge`}>{feature.badge}</Badge> : null}
+                  </div>
+                  <p className="opencode-experimental-desc">{feature.description}</p>
+                </div>
+                <div className="opencode-experimental-toggle">
+                  <label className="toggle-switch" data-testid={`opencode-experimental-${feature.key}-toggle`}>
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={() => handleToggle(feature.key, enabled)}
+                      disabled={state.saving}
+                    />
+                    <span className="toggle-slider" />
+                    <span className="toggle-label">{enabled ? 'Enabled' : 'Disabled'}</span>
+                  </label>
+                </div>
               </div>
-              <p className="opencode-experimental-desc">
-                Enables real-time code intelligence (diagnostics, completions, hover info) for supported languages
-                directly in OpenCode. Requires the LSP runtime to be installed and configured.
-              </p>
-            </div>
-            <div className="opencode-experimental-toggle">
-              <label className="toggle-switch" data-testid="opencode-experimental-lsp-toggle">
-                <input
-                  type="checkbox"
-                  checked={lspEnabled}
-                  onChange={handleToggleLsp}
-                  disabled={state.saving}
-                />
-                <span className="toggle-slider" />
-                <span className="toggle-label">{lspEnabled ? 'Enabled' : 'Disabled'}</span>
-              </label>
-            </div>
-          </div>
+            );
+          })}
         </div>
       </Panel>
-
     </div>
   );
 }

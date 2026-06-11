@@ -296,6 +296,7 @@ export default function WorkspaceView() {
               <WorkspacePlanningTab
                 repoPath={selectedRepoPath}
                 repoId={displayRepo?.repoId ?? null}
+                repoLabel={displayRepo?.repoLabel ?? null}
               />
             )}
             {navState.activeWorkspaceLocalTab === 'execution' && (

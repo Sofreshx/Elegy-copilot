@@ -1,9 +1,14 @@
-import { useMemo } from 'react';
-import type { CatalogGlobalItem, CatalogGlobalSection } from '../../lib/types';
+import React, { useMemo, useState } from 'react';
+import type { CatalogGlobalItem, CatalogGlobalSection, CatalogGlobalHarness, CatalogGlobalHarnessState } from '../../lib/types';
+import AssetDetailModal from './AssetDetailModal';
 
 interface HarnessTabProps {
   harnessId: string;
   sections: CatalogGlobalSection[];
+  harnesses: CatalogGlobalHarness[];
+  onItemAction?: (item: CatalogGlobalItem, state: CatalogGlobalHarnessState) => void;
+  onUninstall?: (item: CatalogGlobalItem, state: CatalogGlobalHarnessState) => void;
+  mutating?: boolean;
 }
 
 function getStateBadgeClass(state: string | undefined): string {
@@ -39,7 +44,18 @@ const STATE_GROUPS: Array<{ state: string; label: string }> = [
   { state: 'unmanaged', label: 'Unmanaged' },
 ];
 
-export default function HarnessTab({ harnessId, sections }: HarnessTabProps) {
+export default function HarnessTab({ harnessId, sections, harnesses, onItemAction, onUninstall, mutating }: HarnessTabProps) {
+  const [modalItem, setModalItem] = useState<CatalogGlobalItem | null>(null);
+
+  function handleItemKeyDown(item: CatalogGlobalItem) {
+    return (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setModalItem(item);
+      }
+    };
+  }
+
   const harnessItems = useMemo(() => {
     const result: Array<{ item: CatalogGlobalItem; state: string }> = [];
     for (const section of sections) {
@@ -67,13 +83,14 @@ export default function HarnessTab({ harnessId, sections }: HarnessTabProps) {
 
   if (harnessItems.length === 0) {
     return (
-      <div className="assets-tools-empty" data-testid={`harness-tab-${harnessId}-empty`}>
+      <div className="harness-tab-empty" data-testid={`harness-tab-${harnessId}-empty`}>
         <p>No assets found for this harness.</p>
       </div>
     );
   }
 
   return (
+    <>
     <div className="harness-tab" data-testid={`harness-tab-${harnessId}`}>
       {STATE_GROUPS.map((group) => {
         const items = grouped.get(group.state);
@@ -86,10 +103,10 @@ export default function HarnessTab({ harnessId, sections }: HarnessTabProps) {
             </h3>
             <div className="harness-tab-items">
               {items.map(({ item, state }) => (
-                <div key={item.itemId} className="harness-tab-item" data-testid={`harness-tab-item-${item.itemId}`}>
+                <div key={item.itemId} className="harness-tab-item" data-testid={`harness-tab-item-${item.itemId}`} onClick={() => setModalItem(item)} role="button" tabIndex={0} onKeyDown={handleItemKeyDown(item)}>
                   <span className="harness-tab-item-kind">{item.kind}</span>
                   <span className="harness-tab-item-title">{item.title}</span>
-                  <span className={getStateBadgeClass(state)}>{getStateLabel(state)}</span>
+                  <span className={`harness-tab-item-state ${getStateBadgeClass(state)}`}>{getStateLabel(state)}</span>
                 </div>
               ))}
             </div>
@@ -97,5 +114,18 @@ export default function HarnessTab({ harnessId, sections }: HarnessTabProps) {
         );
       })}
     </div>
+
+      {/* Modal overlay */}
+      {modalItem && (
+        <AssetDetailModal
+          item={modalItem}
+          harnesses={harnesses}
+          onClose={() => setModalItem(null)}
+          onItemAction={onItemAction}
+          onUninstall={onUninstall}
+          mutating={mutating}
+        />
+      )}
+    </>
   );
 }

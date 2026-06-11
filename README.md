@@ -1,6 +1,16 @@
-# Elegy Copilot
+# Instruction Engine / Elegy Copilot
 
-Shared GitHub Copilot assets plus home-installed Codex, Antigravity, and Claude Code session lanes for multi-repo development. Copilot, Codex, Antigravity, and Claude Code are intentionally supported through different asset models: Copilot gets repo-shipped assets and dashboard support, while Codex, Antigravity, and Claude Code get lighter native home installs built around each surface's supported global locations.
+Shared agent, skill, prompt, instruction, and local-control-plane assets for Copilot, Codex, OpenCode, Antigravity, and Claude Code.
+
+Delivery model:
+
+| Surface | Installed model |
+|---|---|
+| Copilot | Full `~/.elegy` asset home plus dashboard/catalog support |
+| Codex | Native `~/.codex` baseline with a small reviewer/skill layer |
+| OpenCode | Native `~/.config/opencode` baseline with lane agents, skills, profiles, and plugins |
+| Antigravity | Native `~/.gemini` managed instruction block plus skills |
+| Claude Code | Native `~/.claude` instruction file plus skills |
 
 ## Install or refresh
 
@@ -10,12 +20,14 @@ Run the installer for the tool you use; re-running the same command refreshes th
 |------|-----------------------|---------------|
 | Copilot install/refresh | `pwsh -File scripts/cli-install.ps1 --all` | `bash scripts/cli-install.sh --all` |
 | Codex install/refresh | `pwsh -File scripts/codex-install.ps1` | `bash scripts/codex-install.sh` |
+| OpenCode install/refresh | `pwsh -File scripts/opencode-install.ps1` | `bash scripts/opencode-install.sh` |
 | Antigravity install/refresh | `pwsh -File scripts/antigravity-install.ps1` | `bash scripts/antigravity-install.sh` |
 | Claude Code install/refresh | `pwsh -File scripts/claude-install.ps1` | `bash scripts/claude-install.sh` |
 | Refresh everything | `pwsh -File scripts/install-all.ps1` | `bash scripts/install-all.sh` |
 
 - Use the Copilot installer to refresh shared agents, skills, prompts, and instructions in `~/.elegy`.
 - Use the Codex installer to refresh the shared Codex baseline in `~/.codex`, including native skills under `~/.codex/skills/`.
+- Use the OpenCode installer to refresh `~/.config/opencode/AGENTS.md`, curated skills, lane agents, plugins, and profile wiring.
 - Use the Antigravity installer to refresh shared skills in `~/.gemini/antigravity/skills/` and the managed Instruction Engine block in `~/.gemini/GEMINI.md`.
 - Use the Claude Code installer to refresh shared skills in `~/.claude/skills/` and the instruction file in `~/.claude/CLAUDE.md`.
 - Add `--force` to overwrite managed targets that diverged, or `--dry-run` to preview changes without writing.
@@ -28,14 +40,17 @@ Use canonical docs for repo policy and workflow authority:
 1. Start at `docs/system/index.md`.
 2. Open the closest MOC.
 3. Follow it to the smallest canonical node for the task.
-4. The instruction writing contract is embedded in each harness file; `guidelines.md` at repo root is a standalone reference copy.
+4. Treat README, `AGENTS.md`, and `guidelines.md` as secondary entrypoints.
 
 Useful starting points:
 
 - Repo rules and precedence: `docs/system/project-conventions-governance.md`
-- Clarity and rationale placement: `docs/system/self-documenting-code-and-rationale-placement.md`
+- Instruction writing: `docs/system/concise-instruction-governance.md`
+- Harness install and sync model: `docs/system/harness-asset-flow.md`
 - Documentation structure and entrypoints: `docs/system/documentation-structure-governance.md`
-- Search/execute routing: `docs/system/search-execute-workflow.md`
+- Spec-driven development: `docs/system/spec-driven-development.md`
+- OpenCode native model: `docs/system/opencode-guide.md`
+- Rationale placement: `docs/system/self-documenting-code-and-rationale-placement.md`
 
 ## How it works
 
@@ -61,6 +76,19 @@ engine-assets/  →  ~/.codex/
   skills/            ~/.codex/skills/
 ```
 
+OpenCode uses a native-first home baseline from `opencode-assets/` plus shared skills:
+
+```
+opencode-assets/  →  ~/.config/opencode/
+  home/AGENTS.md     AGENTS.md
+  agents/            agents/
+  skills/            skills/
+  plugins/           plugins/
+  profiles.json      model/profile wiring input
+engine-assets/skills/           →  ~/.config/opencode/skills/
+catalog-assets/shared-skills/   →  ~/.config/opencode/skills/
+```
+
 Antigravity uses `antigravity-assets/` plus shared engine skills:
 
 ```
@@ -82,6 +110,10 @@ This installs the shipped first-party agents, prompts, and global instructions f
 
 This installs `~/.codex/AGENTS.md`, curated Codex TOML agents, generated Codex role wrappers from shared `engine-assets/agents/*.agent.md`, and shared skills into `~/.codex/skills/`, then patches `~/.codex/config.toml` conservatively. The patcher only adds `review_model` when it is absent and only adds the managed planning profile when that profile name is unused.
 
+### OpenCode install details
+
+This installs `~/.config/opencode/AGENTS.md`, curated OpenCode lane agents, shared and OpenCode-specific skills, the planning/worktree plugins, and profile wiring. The installer writes role-level model overrides to `opencode.jsonc` and preserves local content outside managed values.
+
 ### Antigravity install details
 
 This installs shared skills into `~/.gemini/antigravity/skills/` and updates only the bounded Instruction Engine block inside `~/.gemini/GEMINI.md`, preserving user content outside that block.
@@ -99,11 +131,20 @@ This installs `~/.claude/CLAUDE.md` with the instruction writing contract (Autho
 - Use `/init` only when you actually want Codex to create or refine repo-local guidance such as `guidelines.md` or `AGENTS.md`; it is more expensive and is not the normal path for refreshing shared assets
 - There is no custom `/setup-repo` slash command; use the `repo-setup` skill, and pair it with native `/init` only for that occasional repo-local guidance work
 
+### OpenCode quick use
+
+- Built-in OpenCode agents stay primary: `Build`, `Plan`, `Explore`, `Scout`, `General`
+- Shared lane agents add task-shaped routes: `quick`, `standard`, `spec`, `project`
+- Profile switching uses `node scripts/opencode-profile-switch.mjs <profile-id>`
+- Use OpenCode `/init` only when repo-local guidance actually needs to be created or refreshed
+- See `docs/system/opencode-guide.md` for lane selection, profiles, plugins, and quick checks
+
 Optional workflow packs, including the vendored `Superpowers Workflow Pack`, can then be installed explicitly from the local dashboard in `Catalog` -> `Workflow packs`. Repo-specific governance lanes only appear when you register/select a repo that provides repo-local `.github/*` assets or repo-scoped overrides.
 
 ### Verify
 
 - Copilot CLI: run `/agents`, `/skills`
+- OpenCode: restart OpenCode, then confirm lane agents are available through Tab selection and shared skills are listed by the skill tool
 
 ## Windows Desktop Download
 
@@ -152,6 +193,17 @@ Codex baseline:
 | Custom agents | 1 | `codex-assets/agents/*.toml` |
 | Skills | 1 native + shared manifest entries | `codex-assets/skills/<name>/SKILL.md` plus shared `catalog-assets/shared-skills/**` sources |
 | Canonical asset manifest | — | `codex-assets/manifest.json` |
+
+OpenCode baseline:
+
+| Type | Count | Location |
+|------|-------|----------|
+| Global instructions | 1 | `opencode-assets/home/AGENTS.md` |
+| Lane agents | 7 | `opencode-assets/agents/*.md` |
+| Native skills | 3 native + shared manifest entries | `opencode-assets/skills/<name>/SKILL.md` plus shared `engine-assets/skills/**` and `catalog-assets/shared-skills/**` sources |
+| Plugins | 2 JS plugins + package metadata | `opencode-assets/plugins/` |
+| Profiles | 1 | `opencode-assets/profiles.json` |
+| Canonical asset manifest | — | `opencode-assets/manifest.json` |
 
 ---
 
@@ -386,6 +438,7 @@ instruction-engine/
 ├── docs/
 │   ├── system/             Canonical design and operational docs
 │   ├── research/           Research and historical notes
+│   ├── specs/              Durable spec-driven development specs
 │   └── roadmaps/           Persistent roadmap planning artifacts
 ├── engine-assets/
 │   ├── agents/             Agent .agent.md files (source of truth)
@@ -400,7 +453,7 @@ instruction-engine/
 │   ├── cli-install.ps1/.sh Install scripts
 │   ├── codex-install.ps1/.sh Codex install scripts
 │   └── cli-ui.ps1/.sh     Dashboard launch scripts
-├── specs/                  Durable specs for spec-driven development
+├── specs/                  Legacy redirect to docs/specs/
 ├── .github/
 │   ├── copilot-instructions.md  (repo-level instructions for this repo)
 │   └── workflows/          CI/CD workflows
@@ -434,11 +487,13 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, validation comman
 
 Quick reminders:
 
-1. Edit Copilot assets in `engine-assets/` and Codex assets in `codex-assets/`.
-2. Canonical Copilot metadata lives in `engine-assets/manifest.json`; Codex metadata lives in `codex-assets/manifest.json`.
-3. If shipped Copilot assets change, update `.cli/manifest.allowlist.json` and re-generate `.cli/manifest.json` via `node scripts/generate-cli-manifest.mjs`.
-4. Keep `engine-assets/copilot-instructions.md` concise because it loads into every Copilot session, and keep `codex-assets/home/AGENTS.md` workflow-specific because it loads across repos.
-5. Document behavior and workflow changes in `docs/` and the relevant root community docs.
+1. Edit Copilot assets in `engine-assets/`.
+2. Edit harness-specific assets in `codex-assets/`, `opencode-assets/`, `antigravity-assets/`, or `claude-assets/`.
+3. Edit shared cross-harness skills in `catalog-assets/shared-skills/`.
+4. Keep manifest metadata current in the matching `*/manifest.json`.
+5. If shipped Copilot assets change, update `.cli/manifest.allowlist.json` and re-generate `.cli/manifest.json` via `node scripts/generate-cli-manifest.mjs`.
+6. Keep harness instruction files concise and workflow-specific; durable policy belongs in `docs/system/**`.
+7. Document behavior and workflow changes in `docs/` and the relevant root community docs.
 
 ---
 
@@ -446,6 +501,10 @@ Quick reminders:
 
 - [System Docs Index (canonical start here)](docs/system/index.md)
 - [Conventions & Governance entrypoint](docs/system/mocs/conventions-and-governance.md)
+- [Concise Instruction Governance](docs/system/concise-instruction-governance.md)
+- [Harness Asset Flow](docs/system/harness-asset-flow.md)
+- [Spec-Driven Development](docs/system/spec-driven-development.md)
+- [OpenCode Guide](docs/system/opencode-guide.md)
 - [Domain Authorities Freeze](docs/system/domain-authorities-freeze.md)
 - [Catalog Control Plane](docs/system/catalog-control-plane.md)
 - [Copilot CLI Playbook](docs/system/copilot-cli-playbook.md)
