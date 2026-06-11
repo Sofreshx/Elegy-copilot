@@ -35,6 +35,16 @@ function createExecFileStub(handler) {
   };
 }
 
+function getCommandKey(args) {
+  // args layout: [--json, --non-interactive, --correlation-id, <requestId>, --db, <dbPath>, (--scope, <scope>), <command>, <subcommand>, ...]
+  // The command starts at index 6 normally, or index 8 when --scope is present
+  let i = 6;
+  if (args[i] === '--scope') {
+    i += 2; // skip --scope and its value
+  }
+  return args.slice(i, i + 2).join(' ');
+}
+
 async function run() {
   await test('roadmap workflow planning bridge seeds goal roadmap and work point through elegy-planning json commands', async () => {
     const recorded = [];
@@ -45,7 +55,7 @@ async function run() {
       cliPath: __filename,
       childProcess: createExecFileStub(({ command, args, options, callback }) => {
         recorded.push({ command, args, options });
-        const commandKey = args.slice(6, 8).join(' ');
+        const commandKey = getCommandKey(args);
         if (commandKey === 'roadmap show' && recorded.length === 1) {
           callback(null, JSON.stringify({ status: 'invalid', error: 'entity not found: roadmap RM-core' }), '');
           return;
@@ -186,7 +196,7 @@ async function run() {
       '--db',
       path.join('C:', 'planning', 'elegy-planning.db'),
     ]);
-    assert.deepEqual(recorded.map((entry) => entry.args.slice(6, 8).join(' ')), [
+    assert.deepEqual(recorded.map((entry) => getCommandKey(entry.args)), [
       'roadmap show',
       'goal show',
       'goal create',
@@ -272,7 +282,7 @@ async function run() {
       ],
     });
     assert.equal(recorded.length, 2);
-    assert.deepEqual(recorded.map((entry) => entry.args.slice(6, 8).join(' ')), [
+    assert.deepEqual(recorded.map((entry) => getCommandKey(entry.args)), [
       'roadmap show',
       'roadmap show',
     ]);
@@ -358,7 +368,7 @@ async function run() {
       reason: 'bridge_not_configured',
       errors: [{
         code: 'bridge_not_configured',
-        message: 'elegy-planning authority is not configured for workflow artifact persistence.',
+        message: 'elegy-planning authority is not configured.',
       }],
     });
   });

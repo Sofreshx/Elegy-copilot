@@ -3,7 +3,9 @@
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
 const { resolveElegyPlanningCliPath, commandExistsOnPath } = require('./elegyPlanningCliResolver');
+const { readPlanningSession } = require('./planningSession');
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_CLI_PATH = 'elegy-planning';
@@ -210,16 +212,20 @@ function runCommand(config, args) {
   });
 }
 
-function buildMachineArgs(dbPath, requestId, commandArgs) {
-  return [
+function buildMachineArgs(dbPath, requestId, commandArgs, scope) {
+  const args = [
     '--json',
     '--non-interactive',
     '--correlation-id',
     requestId,
     '--db',
     dbPath,
-    ...commandArgs,
   ];
+  if (scope) {
+    args.push('--scope', scope);
+  }
+  args.push(...commandArgs);
+  return args;
 }
 
 function normalizeMachineStatus(parsed) {
@@ -245,7 +251,7 @@ function buildCommandFailure(parsed, commandArgs) {
 }
 
 async function runMachineCommand(config, requestId, commandArgs) {
-  const args = buildMachineArgs(config.dbPath, requestId, commandArgs);
+  const args = buildMachineArgs(config.dbPath, requestId, commandArgs, config.scope);
   const result = await runCommand(config, args);
 
   if (!normalizeString(result.stdout)) {
@@ -635,8 +641,40 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
     : path;
   const elegyHome = normalizeString(options.elegyHome);
   const configuredCliPath = normalizeString(options.cliPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH);
-  const configuredDbPath = normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH)
+  let configuredDbPath = normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH)
     || (elegyHome ? pathModule.join(elegyHome, DEFAULT_DB_FILENAME) : '');
+
+  // Fallback: when using the default path and it doesn't exist on disk,
+  // try 'planning.db' in the same directory (common alternative naming)
+  const explicitDbPath = normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH);
+  if (!explicitDbPath && configuredDbPath && elegyHome) {
+    try {
+      if (!fs.existsSync(configuredDbPath)) {
+        const altDbPath = pathModule.join(pathModule.dirname(configuredDbPath), 'planning.db');
+        if (fs.existsSync(altDbPath)) {
+          configuredDbPath = altDbPath;
+        }
+      }
+    } catch (_fsErr) {
+      // keep configuredDbPath as-is
+    }
+  }
+
+  // Resolve active planning scope from session sidecar
+  // (runs after DB fallback so it can use the final resolved path)
+  let scope = '';
+  try {
+    const planningSession = readPlanningSession(env, {
+      homedir: os.homedir(),
+      dbPath: configuredDbPath,
+    });
+    if (planningSession && planningSession.sidecar && planningSession.sidecar.scope) {
+      scope = String(planningSession.sidecar.scope).trim();
+    }
+  } catch (_err) {
+    // scope remains empty; CLI will use its default scope
+  }
+
   const commandLookupPlatform = normalizeString(options.platform)
     || normalizeString(processObject && processObject.platform)
     || process.platform;
@@ -673,6 +711,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
     env,
     cliPath: resolvedCliPath || configuredCliPath || '',
     dbPath: configuredDbPath,
+    scope,
     cwd: elegyHome || undefined,
     timeoutMs,
   };

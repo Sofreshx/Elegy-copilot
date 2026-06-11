@@ -60,6 +60,8 @@ async function run() {
         elegyHome,
         cliPath: missingPath,
         dbPath: path.join(elegyHome, 'planning.db'),
+        platform: 'linux',
+        spawnSyncImpl: () => ({ status: 1 }),
       });
       const status = bridge.getStatus();
       assert.strictEqual(status.ready, false);

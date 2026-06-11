@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Panel } from '../../components';
 import { navigationStore } from '../../stores/navigation';
-import { getPlanningRecords, listPlanningLivePlans } from '../../lib/api/planning';
+import { getPlanningRecords, listPlanningLivePlans, listPlanningLiveRoadmaps } from '../../lib/api/planning';
 import { getPlanningSummary } from '../../lib/api/elegyDb';
 import type { PlanningRecordItem, PlanningSummaryLinkedPlan } from '../../lib/types';
 import SessionDetailView from '../Sessions/SessionDetailView';
@@ -15,7 +15,7 @@ interface MergedPlanningItem {
   id: string;
   title: string;
   status: string | null;
-  source: 'records' | 'elegy-db' | 'live';
+  source: 'records' | 'elegy-db' | 'live' | 'live-roadmap';
   sessionId?: string;
 }
 
@@ -36,10 +36,11 @@ export default function WorkspacePlanningTab({ repoPath, repoId }: WorkspacePlan
         if (repoId) liveQuery.repoId = repoId;
         liveQuery.repoPath = repoPath;
 
-        const [recordsResult, summaryResult, livePlansResult] = await Promise.allSettled([
+        const [recordsResult, summaryResult, livePlansResult, liveRoadmapsResult] = await Promise.allSettled([
           getPlanningRecords(query),
           getPlanningSummary(repoPath),
           listPlanningLivePlans(liveQuery),
+          listPlanningLiveRoadmaps({ ...liveQuery, includeUnscoped: true }),
         ]);
 
         if (cancelled) return;
@@ -100,6 +101,23 @@ export default function WorkspacePlanningTab({ repoPath, repoId }: WorkspacePlan
           console.debug('Live plans fetch failed:', livePlansResult.reason);
         }
 
+        if (liveRoadmapsResult.status === 'fulfilled') {
+          const roadmaps = liveRoadmapsResult.value.roadmaps || [];
+          for (const roadmap of roadmaps) {
+            if (!seenIds.has(roadmap.id)) {
+              items.push({
+                id: roadmap.id,
+                title: String(roadmap.title || roadmap.id),
+                status: roadmap.status ?? null,
+                source: 'live-roadmap',
+              });
+              seenIds.add(roadmap.id);
+            }
+          }
+        } else {
+          console.debug('Live roadmaps fetch failed:', liveRoadmapsResult.reason);
+        }
+
         setMergedItems(items.slice(0, 15));
       } catch (e) {
         console.debug('Planning load failed:', e instanceof Error ? e.message : e);
@@ -112,7 +130,14 @@ export default function WorkspacePlanningTab({ repoPath, repoId }: WorkspacePlan
   }, [repoPath, repoId]);
 
   function handleSelectSession(item: MergedPlanningItem) {
-    if (item.sessionId) {
+    if (item.source === 'live-roadmap') {
+      // Open standalone planning graph for the roadmap
+      const params = new URLSearchParams();
+      params.set('roadmapId', item.id);
+      if (repoId) params.set('repoId', repoId);
+      if (repoPath) params.set('repoPath', repoPath);
+      window.open(`/?${params.toString()}`, '_blank');
+    } else if (item.sessionId) {
       setSelectedSessionId(item.sessionId);
       navigationStore.openPlanningSession(item.sessionId);
     } else {
@@ -151,6 +176,9 @@ export default function WorkspacePlanningTab({ repoPath, repoId }: WorkspacePlan
                     data-testid={`workspace-planning-item-${item.id}`}
                   >
                     <span className="workspace-planning-item-title">{item.title}</span>
+                    {item.source === 'live-roadmap' ? (
+                      <span className="workspace-planning-item-source">roadmap</span>
+                    ) : null}
                     {item.status ? (
                       <span className="workspace-planning-item-status">{item.status}</span>
                     ) : null}
