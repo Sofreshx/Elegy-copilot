@@ -151,6 +151,19 @@
       "destination": "plugins/package.json"
     },
     {
+      "id": "opencode-planning-plugin",
+      "type": "plugin",
+      "source": "opencode-assets/plugins/planning.js",
+      "destination": "plugins/planning.js"
+    },
+    {
+      "id": "opencode-planning-tools-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/planning-tools",
+      "destination": "skills/planning-tools",
+      "loadMode": "always"
+    },
+    {
       "id": "opencode-worktree-skill",
       "type": "skill",
       "source": "opencode-assets/skills/worktree",
