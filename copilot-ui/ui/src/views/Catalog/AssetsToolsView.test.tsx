@@ -168,6 +168,7 @@ function makeHarnessState(overrides: Record<string, unknown> = {}) {
     installed: true,
     active: true,
     syncStatus: 'synced',
+    state: 'installed',
     installPath: '/home/user/.copilot/skills/test-skill',
     actions: { canInstall: false, canActivate: false, canDeactivate: false, canSync: true },
     detail: null,
@@ -617,7 +618,7 @@ describe('InventoryTab', () => {
     expect(screen.getByText('Test Skill')).toBeDefined();
   });
 
-  it('auto-selects items needing attention first', () => {
+  it('selects item on click and highlights it', () => {
     const normalItem = makeItem({
       itemId: 'normal',
       title: 'Normal Skill',
@@ -634,16 +635,20 @@ describe('InventoryTab', () => {
       <InventoryTab sections={sections} harnesses={[makeHarness()]} />
     );
 
-    // The attention item should be selected and its card highlighted
-    const attentionCard = screen.getByTestId('assets-tools-item-attention');
-    expect(attentionCard.className).toContain('selected');
-
-    // The normal item should not be selected
-    const normalCard = screen.getByTestId('assets-tools-item-normal');
-    expect(normalCard.className).not.toContain('selected');
-
-    // Attention item title appears in the group list item card
+    // Both items render
+    expect(screen.getByText('Normal Skill')).toBeDefined();
     expect(screen.getByText('Attention Skill')).toBeDefined();
+
+    // No item is selected initially (no auto-selection in card layout)
+    const normalCard = screen.getByTestId('assets-tools-item-normal');
+    const attentionCard = screen.getByTestId('assets-tools-item-attention');
+    expect(normalCard.className).not.toContain('selected');
+    expect(attentionCard.className).not.toContain('selected');
+
+    // Click the attention item — it becomes selected
+    fireEvent.click(attentionCard);
+    expect(attentionCard.className).toContain('selected');
+    expect(normalCard.className).not.toContain('selected');
   });
 
   it('renders empty state when no sections provided', () => {
@@ -666,7 +671,6 @@ describe('InventoryTab', () => {
       title: 'Second Skill',
       readPath: 'codex-assets/skills/second/SKILL.md',
       sourceId: 'codex-assets',
-      // item2 is NOT an attention item — both items are synced so auto-select picks first
       harnessStates: [makeHarnessState({ syncStatus: 'synced', installed: true, active: true })],
     });
     const sections = [makeSection({ items: [item1, item2] })];
@@ -675,20 +679,22 @@ describe('InventoryTab', () => {
       <InventoryTab sections={sections} harnesses={[makeHarness()]} />
     );
 
-    // First item should be selected initially (no attention items)
+    // No item is selected initially (no auto-selection in card layout)
     const firstCard = screen.getByTestId('assets-tools-item-first');
+    expect(firstCard.className).not.toContain('selected');
+
+    // Click first item — it becomes selected
+    fireEvent.click(firstCard);
     expect(firstCard.className).toContain('selected');
 
-    // Click second item
-    fireEvent.click(screen.getByTestId('assets-tools-item-second'));
-
-    // Now second item should be selected
-    expect(firstCard.className).not.toContain('selected');
+    // Click second item — selection switches
     const secondCard = screen.getByTestId('assets-tools-item-second');
+    fireEvent.click(secondCard);
+    expect(firstCard.className).not.toContain('selected');
     expect(secondCard.className).toContain('selected');
 
     // The selected item's title appears in the group list item card
-    expect(screen.getByText('Second Skill')).toBeDefined();
+    expect(screen.getAllByText('Second Skill').length).toBeGreaterThan(0);
   });
 });
 
@@ -848,8 +854,14 @@ describe('HarnessTab', () => {
       />
     );
 
-    expect(screen.getByText('Compatible with Codex')).toBeInTheDocument();
-    expect(screen.getByText('Not supported by Codex')).toBeInTheDocument();
+    // Both cards render with titles
+    expect(screen.getByTestId('harness-card-supported-skill')).toBeInTheDocument();
+    expect(screen.getByTestId('harness-card-unsupported-skill')).toBeInTheDocument();
+    expect(screen.getByText('Supported Skill')).toBeInTheDocument();
+    expect(screen.getByText('Unsupported Skill')).toBeInTheDocument();
+
+    // Unsupported card shows "Unsupported" state label
+    expect(screen.getByText('Unsupported')).toBeInTheDocument();
   });
 
   it('renders install button for available/not-installed assets', () => {

@@ -12669,3 +12669,98 @@ textarea:focus-visible,
   gap: var(--space-2xs);
   align-items: center;
 }
+
+/* ── Harness card layout (inventory-style) ── */
+
+.harness-card {
+  border: 1px solid var(--color-ink-200);
+  border-radius: 8px;
+  background: var(--color-surface-1);
+  padding: var(--space-md);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.harness-card:hover {
+  border-color: var(--color-accent-300);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+
+.harness-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-xs);
+}
+
+.harness-card-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-ink-800);
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.harness-card-title:hover {
+  color: var(--color-brand-600);
+  text-decoration: underline;
+}
+
+.harness-card-provenance {
+  font-size: 0.75rem;
+  color: var(--color-ink-500);
+  white-space: nowrap;
+}
+
+.harness-card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-xs);
+}
+
+.harness-card-issues {
+  font-size: 0.75rem;
+  color: var(--color-warning-600);
+}
+
+.harness-card-check-result {
+  font-size: 0.75rem;
+  color: var(--color-ink-500);
+  background: var(--color-surface-2);
+  border-radius: 4px;
+  padding: var(--space-xs) var(--space-sm);
+  margin-bottom: var(--space-xs);
+  font-family: var(--font-mono, monospace);
+}
+
+.harness-card-actions {
+  display: flex;
+  gap: var(--space-2xs);
+  align-items: center;
+  flex-wrap: wrap;
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--color-ink-100);
+}
+
+.harness-card-empty {
+  padding: var(--space-xl);
+  text-align: center;
+  color: var(--color-ink-500);
+  font-size: 0.9rem;
+}
+
+/* ── Catalog tab panel shell ── */
+
+.catalog-tab-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}

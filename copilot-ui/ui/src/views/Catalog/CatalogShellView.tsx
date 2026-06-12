@@ -368,10 +368,10 @@ export default function CatalogShellView() {
         {/* TAB BAR */}
         <div className="assets-tools-chip-row" data-testid="assets-tools-tabs">
           {([
-            { key: 'inventory' as const, label: 'Inventory' },
+            { key: 'inventory' as const, label: 'Elegy Inventory' },
             { key: 'quality' as const, label: 'Diagnostics' },
             { key: 'operations' as const, label: 'Operations' },
-            { key: 'sources' as const, label: 'Sources' },
+            { key: 'sources' as const, label: 'External Inventory' },
             { key: 'codex' as const, label: 'Codex' },
             { key: 'opencode' as const, label: 'OpenCode' },
             { key: 'claude' as const, label: 'Claude' },
@@ -406,60 +406,78 @@ export default function CatalogShellView() {
         ) : (
           <>
             {activeTab === 'inventory' && (
-              <InventoryTab
-                sections={allSections}
-                harnesses={harnesses}
-                onItemAction={(item, state) => void handleItemAction(item, state)}
-                onUninstall={(item, state) => void handleUninstall(item, state)}
-                mutating={catalogState.mutating}
-              />
+              <div className="catalog-tab-panel">
+                <InventoryTab
+                  sections={allSections}
+                  harnesses={harnesses}
+                  onItemAction={(item, state) => void handleItemAction(item, state)}
+                  onUninstall={(item, state) => void handleUninstall(item, state)}
+                  mutating={catalogState.mutating}
+                />
+              </div>
             )}
 
-            {activeTab === 'quality' && <DiagnosticsTab />}
+            {activeTab === 'quality' && (
+              <div className="catalog-tab-panel" data-testid="assets-tools-tab-diagnostics">
+                <DiagnosticsTab />
+              </div>
+            )}
 
-            {activeTab === 'operations' && <OperationsTab summary={summary} />}
+            {activeTab === 'operations' && (
+              <div className="catalog-tab-panel" data-testid="assets-tools-tab-operations">
+                <OperationsTab summary={summary} />
+              </div>
+            )}
 
             {activeTab === 'sources' && (
-              <SourcesTab
-                externalSources={externalSources}
-                onSourceChanged={() => void handleRefresh()}
-              />
+              <div className="catalog-tab-panel">
+                <SourcesTab
+                  externalSources={externalSources}
+                  onSourceChanged={() => void handleRefresh()}
+                />
+              </div>
             )}
 
             {activeTab === 'codex' && (
-              <HarnessTab
-                harnessId="codex"
-                sections={allSections}
-                harnesses={harnesses}
-                onItemAction={(item, state) => void handleItemAction(item, state)}
-                onUninstall={(item, state) => void handleUninstall(item, state)}
-                onRefresh={() => void handleRefresh()}
-                mutating={catalogState.mutating}
-              />
+              <div className="catalog-tab-panel">
+                <HarnessTab
+                  harnessId="codex"
+                  sections={allSections}
+                  harnesses={harnesses}
+                  onItemAction={(item, state) => void handleItemAction(item, state)}
+                  onUninstall={(item, state) => void handleUninstall(item, state)}
+                  onRefresh={() => void handleRefresh()}
+                  mutating={catalogState.mutating}
+                />
+              </div>
             )}
 
             {activeTab === 'opencode' && (
-              <HarnessTab
-                harnessId="opencode"
-                sections={allSections}
-                harnesses={harnesses}
-                onItemAction={(item, state) => void handleItemAction(item, state)}
-                onUninstall={(item, state) => void handleUninstall(item, state)}
-                onRefresh={() => void handleRefresh()}
-                mutating={catalogState.mutating}
-              />
+              <div className="catalog-tab-panel">
+                <HarnessTab
+                  harnessId="opencode"
+                  sections={allSections}
+                  harnesses={harnesses}
+                  onItemAction={(item, state) => void handleItemAction(item, state)}
+                  onUninstall={(item, state) => void handleUninstall(item, state)}
+                  onRefresh={() => void handleRefresh()}
+                  mutating={catalogState.mutating}
+                />
+              </div>
             )}
 
             {activeTab === 'claude' && (
-              <HarnessTab
-                harnessId="claude-code"
-                sections={allSections}
-                harnesses={harnesses}
-                onItemAction={(item, state) => void handleItemAction(item, state)}
-                onUninstall={(item, state) => void handleUninstall(item, state)}
-                onRefresh={() => void handleRefresh()}
-                mutating={catalogState.mutating}
-              />
+              <div className="catalog-tab-panel">
+                <HarnessTab
+                  harnessId="claude-code"
+                  sections={allSections}
+                  harnesses={harnesses}
+                  onItemAction={(item, state) => void handleItemAction(item, state)}
+                  onUninstall={(item, state) => void handleUninstall(item, state)}
+                  onRefresh={() => void handleRefresh()}
+                  mutating={catalogState.mutating}
+                />
+              </div>
             )}
           </>
         )}

@@ -108,9 +108,9 @@ describe('OpenCodeView', () => {
     const { default: OpenCodeView } = await import('../ui/src/tabs/OpenCode/OpenCodeView');
     render(<OpenCodeView />);
 
-    expect(screen.getByTestId('opencode-view')).toBeInTheDocument();
-    expect(screen.getByTestId('opencode-toolbar')).toBeInTheDocument();
-    expect(screen.getByTestId('opencode-tabs')).toBeInTheDocument();
+    expect(screen.getByTestId('opencode-settings-view')).toBeInTheDocument();
+    expect(screen.getByTestId('opencode-settings-toolbar')).toBeInTheDocument();
+    expect(screen.getByTestId('opencode-tab-overview')).toBeInTheDocument();
   });
 
   it('shows overview section by default', async () => {
@@ -133,9 +133,6 @@ describe('OpenCodeView', () => {
 
     fireEvent.click(screen.getByTestId('opencode-tab-profiles'));
     expect(screen.getByTestId('opencode-profiles')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId('opencode-tab-setup'));
-    expect(screen.getByTestId('opencode-setup')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('opencode-tab-overview'));
     expect(screen.getByTestId('opencode-overview')).toBeInTheDocument();
@@ -178,17 +175,6 @@ describe('OpenCodeView', () => {
     expect(screen.getByTestId('opencode-profile-badge-opencode-go')).toHaveTextContent('Active');
   });
 
-  it('renders setup checklist in setup section', async () => {
-    opencodeStore.setState((s) => ({ ...s, status: mockStatus, loading: false }));
-    const { default: OpenCodeView } = await import('../ui/src/tabs/OpenCode/OpenCodeView');
-    render(<OpenCodeView />);
-
-    fireEvent.click(screen.getByTestId('opencode-tab-setup'));
-
-    expect(screen.getByTestId('opencode-setup-checklist')).toBeInTheDocument();
-    expect(screen.getByTestId('opencode-setup-opencode-config')).toBeInTheDocument();
-  });
-
   it('shows loading state before status loads', async () => {
     opencodeStore.setState((s) => ({ ...s, status: null, loading: true }));
     const { default: OpenCodeView } = await import('../ui/src/tabs/OpenCode/OpenCodeView');
@@ -212,7 +198,7 @@ describe('OpenCodeView', () => {
     expect(screen.queryByTestId('opencode-lane-detail-spec')).not.toBeInTheDocument();
   });
 
-  it('profiles section saves small/big models via saveConfig (P2c fix)', async () => {
+  it('profiles section saves role models via saveConfig (P2c fix)', async () => {
     const saveSpy = vi.spyOn(opencodeStore, 'saveConfig').mockResolvedValue(undefined);
     opencodeStore.setState((s) => ({ ...s, status: mockStatus, loading: false }));
     const { default: OpenCodeView } = await import('../ui/src/tabs/OpenCode/OpenCodeView');
@@ -220,15 +206,23 @@ describe('OpenCodeView', () => {
 
     fireEvent.click(screen.getByTestId('opencode-tab-profiles'));
 
-    const smallInput = screen.getByTestId('opencode-small-model-input') as HTMLInputElement;
-    const bigInput = screen.getByTestId('opencode-big-model-input') as HTMLInputElement;
-    fireEvent.change(smallInput, { target: { value: 'deepseek/deepseek-v4-flash' } });
-    fireEvent.change(bigInput, { target: { value: 'deepseek/deepseek-v4-pro' } });
+    const planningInput = screen.getByTestId('opencode-role-planning-input') as HTMLInputElement;
+    const implementationInput = screen.getByTestId('opencode-role-implementation-input') as HTMLInputElement;
+    const reviewInput = screen.getByTestId('opencode-role-review-input') as HTMLInputElement;
+    fireEvent.change(planningInput, { target: { value: 'opencode-go/deepseek-v4-pro' } });
+    fireEvent.change(implementationInput, { target: { value: 'opencode-go/deepseek-v4-flash' } });
+    fireEvent.change(reviewInput, { target: { value: 'opencode-go/deepseek-v4-pro' } });
 
     fireEvent.click(screen.getByTestId('opencode-models-save'));
 
     await waitFor(() => {
-      expect(saveSpy).toHaveBeenCalledWith({ smallModel: 'deepseek/deepseek-v4-flash', bigModel: 'deepseek/deepseek-v4-pro', reviewModel: 'DeepSeek V4 Pro High' });
+      expect(saveSpy).toHaveBeenCalledWith({
+        roleModels: {
+          planning: 'opencode-go/deepseek-v4-pro',
+          implementation: 'opencode-go/deepseek-v4-flash',
+          review: 'opencode-go/deepseek-v4-pro',
+        },
+      });
     });
     saveSpy.mockRestore();
   });

@@ -8,7 +8,6 @@ import type {
   OpenCodePermissions,
   OpenCodeProfile,
   OpenCodeRequestLogEntry,
-  OpenCodeSetupCheck,
   OpenCodeStatusResponse,
   OpenCodeTabSectionId,
   OpenCodeWarning,
@@ -19,7 +18,6 @@ const TAB_SECTIONS: Array<{ id: OpenCodeTabSectionId; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'lanes', label: 'Lanes' },
   { id: 'profiles', label: 'Profiles' },
-  { id: 'setup', label: 'Setup' },
   { id: 'logs', label: 'Request Log' },
   { id: 'go-workspaces', label: 'Workspaces' },
   { id: 'permissions', label: 'Permissions' },
@@ -388,74 +386,6 @@ function ProfilesSection({ status, saving }: SectionProps) {
           <pre className="opencode-config-preview">{JSON.stringify(status.configPreview, null, 2)}</pre>
         </Panel>
       ) : null}
-    </div>
-  );
-}
-
-function SetupSection({ status, toolingInstalling, saving }: SectionProps & { toolingInstalling: boolean }) {
-  const handleAction = (check: OpenCodeSetupCheck) => {
-    if (!check.action) return;
-    const actionKind = check.action.kind;
-    // R4: Check install-codex-planning BEFORE the narrowed type guard to avoid TS2367
-    if (check.id === 'codex-elegy-planning' || actionKind === 'install-codex-planning') {
-      void opencodeStore.installCodexPlanning();
-      return;
-    }
-    if (actionKind === 'install-opencode-cli') {
-      void opencodeStore.installOpenCodeCli();
-      return;
-    }
-    if (actionKind === 'worktree-permission-profile') {
-      void opencodeStore.installWorktreePermissions();
-      return;
-    }
-    if (actionKind === 'install' || actionKind === 'update') {
-      if (check.id === 'elegy-planning-cli') {
-        void opencodeStore.installTooling({ kind: 'elegy-planning-cli' });
-      } else if (check.id === 'elegy-skills') {
-        void opencodeStore.installTooling({ kind: 'elegy-skills', force: actionKind === 'update' });
-      }
-      // NOTE: Asset install actions (opencode-agents-md, opencode-assets, worktree-plugin)
-      // have been moved to Assets & Tools. The checks remain for readiness status only.
-    }
-  };
-
-  const isRowBusy = (id: string, actionKind: string | undefined) => {
-    if (id === 'elegy-planning-cli' || id === 'elegy-skills' || id === 'codex-elegy-planning') return toolingInstalling;
-    if (id === 'opencode-cli') return opencodeStore.getState().installingCli;
-    if (id === 'worktree-permission-profile') return opencodeStore.getState().permissionsInstalling;
-    return false;
-  };
-
-  return (
-    <div className="opencode-section" data-testid="opencode-setup">
-      <Panel title="Setup Checklist" testId="opencode-setup-checklist">
-        {status.setupChecks.map((check: OpenCodeSetupCheck) => {
-          const busy = isRowBusy(check.id, check.action?.kind);
-          return (
-            <div key={check.id} className="opencode-setup-row" data-testid={`opencode-setup-${check.id}`}>
-              <StatusDot status={check.status} />
-              <div className="opencode-setup-content">
-                <strong>{check.label}</strong>
-                <p>{check.detail}</p>
-              </div>
-              <div className="opencode-setup-action">
-                {check.action && check.status !== 'ok' ? (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    testId={`opencode-setup-action-${check.id}`}
-                    disabled={busy}
-                    onClick={() => handleAction(check)}
-                  >
-                    {busy ? 'Working…' : check.action.label}
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
-      </Panel>
     </div>
   );
 }
@@ -1522,11 +1452,10 @@ function PromptsSection(_props: SectionProps): React.ReactElement {
   );
 }
 
-const SECTION_COMPONENTS: Record<OpenCodeTabSectionId, React.FC<SectionProps>> = {
+const SECTION_COMPONENTS: Partial<Record<OpenCodeTabSectionId, React.FC<SectionProps>>> = {
   overview: OverviewSection,
   lanes: LaneSection,
   profiles: ProfilesSection,
-  setup: SetupSection as unknown as React.FC<SectionProps>,
   logs: RequestLogSection,
   'go-workspaces': GoWorkspacesSection,
   permissions: PermissionsSection,
@@ -1547,26 +1476,26 @@ export default function OpenCodeView() {
   const SectionComponent = SECTION_COMPONENTS[state.activeSection];
 
   return (
-    <div className="opencode-view" data-testid="opencode-view">
-      <Toolbar testId="opencode-toolbar">
-        <h2>OpenCode Workspace</h2>
-      </Toolbar>
-
-      <div className="opencode-tabs" role="tablist" data-testid="opencode-tabs">
-        {TAB_SECTIONS.map((tab) => (
-          <button
-            key={tab.id}
-            role="tab"
-            className={`opencode-tab${state.activeSection === tab.id ? ' opencode-tab-active' : ''}`}
-            data-testid={`opencode-tab-${tab.id}`}
-            onClick={() => opencodeStore.setActiveSection(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
+    <div className="view-shell opencode-settings-view" data-testid="opencode-settings-view">
+      <div className="view-static">
+        <Toolbar testId="opencode-settings-toolbar">
+          <h2>OpenCode Workspace</h2>
+        </Toolbar>
+        <div className="workspace-nav" role="tablist" aria-label="OpenCode sections">
+          {TAB_SECTIONS.map((tab) => (
+            <button
+              key={tab.id}
+              role="tab"
+              className={`opencode-tab${state.activeSection === tab.id ? ' opencode-tab-active' : ''}`}
+              data-testid={`opencode-tab-${tab.id}`}
+              onClick={() => opencodeStore.setActiveSection(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
-
-      <div className="opencode-content" role="tabpanel">
+      <div className="view-scroll opencode-settings-content" data-testid="opencode-settings-content">
         {state.loading && !state.status ? (
           <p className="opencode-loading" data-testid="opencode-loading">Loading OpenCode workspace...</p>
         ) : null}
@@ -1579,7 +1508,7 @@ export default function OpenCodeView() {
           <p className="opencode-message" data-testid="opencode-message">{state.message}</p>
         ) : null}
 
-        {state.status ? (
+        {state.status && SectionComponent ? (
           <SectionComponent status={state.status} selectedLaneId={state.selectedLaneId} saving={state.saving} />
         ) : null}
       </div>

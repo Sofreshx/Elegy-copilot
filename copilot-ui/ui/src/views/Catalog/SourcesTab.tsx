@@ -4,6 +4,19 @@ import { Button, FormInput, Panel } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { catalogWorkspaceStore } from '../../tabs/Assets/catalogWorkspaceStore';
 
+const SHIPPED_SOURCE_IDS = new Set([
+  'caveman',
+  'mattpocock-skills',
+  'context7',
+  'ghidra-mcp',
+  'spec-kit',
+  'elegy-planning',
+  'cortexkit-aft',
+  'cortexkit-magic-context',
+  'rtk-ai-rtk',
+  'opencode-dcp',
+]);
+
 interface SourcesTabProps {
   externalSources: CatalogExternalSourceProjection[];
   onSourceChanged: () => void;
@@ -23,6 +36,8 @@ export default function SourcesTab({ externalSources, onSourceChanged }: Sources
   const [addToolForm, setAddToolForm] = useState<AddToolForm>(DEFAULT_FORM);
   const [confirmRemoveSourceId, setConfirmRemoveSourceId] = useState<string | null>(null);
   const catalogState = useStoreValue(catalogWorkspaceStore);
+  const shippedSources = externalSources.filter(src => SHIPPED_SOURCE_IDS.has(String(src.sourceId || '')));
+  const userSources = externalSources.filter(src => !SHIPPED_SOURCE_IDS.has(String(src.sourceId || '')));
 
   async function handleSubmit() {
     if (!addToolForm.url.trim()) return;
@@ -79,20 +94,77 @@ export default function SourcesTab({ externalSources, onSourceChanged }: Sources
 
   return (
     <div data-testid="assets-tools-sources" className="sources-tab-layout">
+      {/* Default / Shipped Sources */}
       <Panel
-        title={`External Sources (${externalSources.length})`}
-        subtitle="Manage externally-added tools, MCP servers, and skill folders"
+        title={`Default Sources (${shippedSources.length})`}
+        subtitle="Pre-configured external skill, MCP, and plugin sources shipped with Elegy Copilot."
+      >
+        {shippedSources.length === 0 ? (
+          <p className="assets-tools-empty">No default sources configured.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+            {shippedSources.map((src) => {
+              const safeId = String(src.sourceId || src.url || '');
+              return (
+                <div key={safeId} className="assets-tools-item-card">
+                  <div className="assets-tools-item-header">
+                    <span>{src.title || src.sourceId || src.url || 'Unknown source'}</span>
+                  </div>
+                  <p className="assets-tools-item-description">
+                    {src.url && <span>URL: {src.url}</span>}
+                    {src.description && <span> \u2014 {src.description}</span>}
+                  </p>
+                  {(src.defaultRef || (src as any).configuredRef) && (
+                    <div className="assets-tools-item-badges">
+                      {(src as any).configuredRef && <span className="catalog-inline-note">Configured Ref: {(src as any).configuredRef}</span>}
+                      {src.defaultRef && <span className="catalog-inline-note">Default Ref: {src.defaultRef}</span>}
+                    </div>
+                  )}
+                  {src.sync?.status && (
+                    <div className="assets-tools-item-badges">
+                      <span className="catalog-inline-note">Status: {src.sync.status}</span>
+                    </div>
+                  )}
+                  <div className="sources-card-actions">
+                    <button
+                      className="button button-sm"
+                      disabled={catalogState.mutating}
+                      onClick={() => void handleRefreshSource(safeId)}
+                      data-testid={`sources-refresh-${safeId}`}
+                    >
+                      Refresh
+                    </button>
+                    <button
+                      className="button button-sm"
+                      disabled={catalogState.mutating}
+                      onClick={() => void handleSyncSource(safeId)}
+                      data-testid={`sources-sync-${safeId}`}
+                    >
+                      Sync & Install
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Panel>
+
+      {/* User Sources */}
+      <Panel
+        title={`User Sources (${userSources.length})`}
+        subtitle="Externally-added tools, MCP servers, and skill folders."
         actions={
           <Button onClick={() => setShowAddTool(true)} testId="sources-add-tool" variant="secondary">
             Add Source
           </Button>
         }
       >
-        {externalSources.length === 0 ? (
+        {userSources.length === 0 ? (
           <p className="assets-tools-empty">No external sources configured.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-            {externalSources.map((src) => {
+            {userSources.map((src) => {
               const safeId = String(src.sourceId || src.url || '');
               return (
                 <div key={safeId} className="assets-tools-item-card">
