@@ -35,6 +35,7 @@ import { listExecutorWorktrees, analyzeWorktreeCleanup, removeWorktreeWithBranch
 import type { ExecutorWorktreeRecord, EnrichedWorktreeEntry } from '../../lib/types';
 import { getEnrichedWorktrees } from '../../lib/api/elegyDb';
 import type { VerificationState } from '../Repositories/verification';
+import WorkspaceChecksSection from './WorkspaceChecksSection';
 
 // ─── Inline worktree display helpers (from WorkspaceWorktreesCard) ──────────
 
@@ -1413,6 +1414,18 @@ export default function WorkspaceGitTab({
             </tbody>
           </table>
         )}
+      </div>
+
+      {/* ================================================================ */}
+      {/* SECTION 3.5 — Checks Section                                    */}
+      {/* ================================================================ */}
+      <div className="workspace-git-checks-section-wrapper">
+        <WorkspaceChecksSection
+          repoPath={repoPath}
+          checkResults={checkResults}
+          runningChecks={runningChecks}
+          onRunChecks={onRunChecks}
+        />
       </div>
 
       {/* ================================================================ */}
