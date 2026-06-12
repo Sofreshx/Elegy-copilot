@@ -149,6 +149,35 @@ async function buildToolingStatus(ctx, deps, codexHome) {
     }
   }
 
+  // Check AFT status
+  let aftStatus = { clangd: { installed: false } };
+  try {
+    const clangdResult = deps.childProcess.spawnSync(
+      process.platform === 'win32' ? 'where' : 'which',
+      ['clangd'],
+      { timeout: 5000, windowsHide: true }
+    );
+    aftStatus.clangd.installed = clangdResult.status === 0;
+    if (clangdResult.status === 0 && clangdResult.stdout) {
+      aftStatus.clangd.path = String(clangdResult.stdout).trim().split('\n')[0];
+      try {
+        const versionResult = deps.childProcess.spawnSync(aftStatus.clangd.path || 'clangd', ['--version'], { timeout: 5000 });
+        if (versionResult.status === 0) {
+          aftStatus.clangd.version = String(versionResult.stdout).trim().split('\n')[0];
+        }
+      } catch { /* best effort */ }
+    }
+    if (!aftStatus.clangd.installed) {
+      aftStatus.warnings = [
+        'clangd not found. Install from https://clangd.llvm.org/installation.html',
+        'Use /aft-status in agent to check AFT health',
+        'Check plugin log for LSP auto-install errors',
+        'Set lsp.auto_install: false in config if auto-install is failing',
+        'Verify lsp.versions.clangd in OpenCode/Codex configuration',
+      ];
+    }
+  } catch { /* best effort */ }
+
   return {
     checkedAtMs,
     elegyPlanningCli: {
@@ -171,6 +200,7 @@ async function buildToolingStatus(ctx, deps, codexHome) {
     },
     elegySkillsAssets: elegySkillsStatus,
     codexSkillsAssets: codexStatus,
+    aft: aftStatus,
   };
 }
 
