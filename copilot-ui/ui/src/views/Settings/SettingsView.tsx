@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, IconButton, Toolbar } from '../../components';
+import { Button, IconButton, PageContainer, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { navigationStore, SETTINGS_NAV_ITEMS } from '../../stores/navigation';
 import CodexProviderPanel from './CodexProviderPanel';
@@ -107,7 +107,9 @@ export default function SettingsView() {
         </div>
 
         <div className="view-scroll settings-content" data-testid="settings-content">
-          {renderSection()}
+          <PageContainer>
+            {renderSection()}
+          </PageContainer>
         </div>
       </div>
     </div>

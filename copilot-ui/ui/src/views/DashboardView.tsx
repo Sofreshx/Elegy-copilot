@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Panel } from '../components';
+import { Panel, PageContainer } from '../components';
 import HealthDot from '../components/HealthDot';
 import { navigationStore } from '../stores/navigation';
 
@@ -136,6 +136,7 @@ export default function DashboardView() {
   }
 
   return (
+    <PageContainer testId="dashboard-page-container">
     <div className="dashboard-view" data-testid="execution-hub">
       <div className="execution-hub-header" data-testid="execution-hub-header">
         <div className="execution-hub-header-left">
@@ -265,5 +266,6 @@ export default function DashboardView() {
         )}
       </Panel>
     </div>
+    </PageContainer>
   );
 }

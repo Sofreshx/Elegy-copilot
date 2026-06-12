@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { Button, Panel, Toolbar } from '../../components';
+import { Button, PageContainer, Panel, Toolbar } from '../../components';
 import CompactSessionCard from '../../components/CompactSessionCard';
 import { useStoreValue } from '../../lib/store';
 import { navigationStore } from '../../stores/navigation';
@@ -203,6 +203,7 @@ export default function SessionsListView() {
   // ── Main render ──
 
   return (
+    <PageContainer testId="sessions-list-page-container">
     <div className="sessions-list-view" data-testid="sessions-list-view">
       <Toolbar testId="sessions-list-toolbar">
         <h2 className="sessions-list-title">Sessions</h2>
@@ -224,5 +225,6 @@ export default function SessionsListView() {
         {renderContent()}
       </Panel>
     </div>
+    </PageContainer>
   );
 }

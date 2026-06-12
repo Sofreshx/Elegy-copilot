@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { PageContainer } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { notificationStore } from '../../stores/notificationStore';
 import { navigationStore } from '../../stores/navigation';
@@ -270,6 +271,7 @@ export default function WorkspaceView() {
           <GitHubAuthBanner repoPath={selectedRepoPath} />
 
           <div className="view-scroll workspace-tab-content" data-testid="workspace-tab-content">
+            <PageContainer>
             {navState.activeWorkspaceLocalTab === 'docs' && (
               <WorkspaceDocsTab repoPath={selectedRepoPath} />
             )}
@@ -308,6 +310,7 @@ export default function WorkspaceView() {
             {navState.activeWorkspaceLocalTab === 'notes' && (
               <WorkspaceNotesTab repoPath={selectedRepoPath} />
             )}
+            </PageContainer>
           </div>
 
           {gitState.error ? (

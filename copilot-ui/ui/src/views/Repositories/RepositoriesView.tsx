@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Button, IconButton, Toolbar } from '../../components';
+import { Button, IconButton, PageContainer, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { navigationStore } from '../../stores/navigation';
 import { repositoriesStore } from './repositoriesStore';
@@ -94,7 +94,7 @@ export default function RepositoriesView() {
       </div>
 
       <div className="view-scroll">
-
+        <PageContainer>
       {/* Error */}
       {state.error ? (
         <p className="state-message state-error" role="alert" data-testid="repos-error">
@@ -207,6 +207,7 @@ export default function RepositoriesView() {
 
       {/* Scan roots config */}
       <SourcesConfigPanel />
+        </PageContainer>
       </div>
     </div>
   );

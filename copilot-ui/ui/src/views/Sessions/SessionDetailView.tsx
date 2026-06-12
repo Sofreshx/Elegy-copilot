@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Fragment } from 'react';
-import { Button, StatusBadge, Toolbar } from '../../components';
+import { Button, PageContainer, StatusBadge, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { resolveSessionStatus, humanizeToken } from '../../lib/stateDiagnostics';
 import { navigationStore } from '../../stores/navigation';
@@ -197,6 +197,7 @@ export default function SessionDetailView({ embedded = false, sessionIdOverride,
       </nav>
 
       <div className="view-scroll session-detail-content" data-testid="session-detail-content">
+        <PageContainer>
         {state.loading && (
           <div className="session-loading-state" data-testid="session-loading">
             Loading session...
@@ -241,6 +242,7 @@ export default function SessionDetailView({ embedded = false, sessionIdOverride,
             repoPath={state.orchestration?.repo?.repoPath ?? null}
           />
         )}
+        </PageContainer>
       </div>
     </div>
   );

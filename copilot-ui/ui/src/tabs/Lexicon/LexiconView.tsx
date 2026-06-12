@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Panel, Toolbar } from '../../components';
+import { PageContainer, Panel, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { lexiconStore } from './lexiconStore';
 
@@ -9,144 +9,117 @@ function highlightTerm(text: string, query: string): React.ReactNode {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   const lowerText = text.toLowerCase();
 
-  if (!terms.some((t) => lowerText.includes(t))) return text;
-
-  const parts: React.ReactNode[] = [];
-  let lastIndex = 0;
-  let key = 0;
-
-  const matches: { start: number; end: number }[] = [];
+  const ranges: Array<{ start: number; end: number }> = [];
   for (const term of terms) {
-    const termLower = term;
-    let searchFrom = 0;
-    while (searchFrom < lowerText.length) {
-      const idx = lowerText.indexOf(termLower, searchFrom);
-      if (idx === -1) break;
-      matches.push({ start: idx, end: idx + termLower.length });
-      searchFrom = idx + 1;
+    let idx = 0;
+    while (idx < lowerText.length) {
+      const pos = lowerText.indexOf(term, idx);
+      if (pos === -1) break;
+      ranges.push({ start: pos, end: pos + term.length });
+      idx = pos + 1;
     }
   }
 
-  matches.sort((a, b) => a.start - b.start);
+  if (ranges.length === 0) return text;
 
-  for (const match of matches) {
-    if (match.start < lastIndex) continue;
-    if (match.start > lastIndex) {
-      parts.push(<span key={key++}>{text.slice(lastIndex, match.start)}</span>);
+  ranges.sort((a, b) => a.start - b.start);
+  const merged: typeof ranges = [];
+  for (const r of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && r.start <= last.end) {
+      last.end = Math.max(last.end, r.end);
+    } else {
+      merged.push(r);
     }
-    parts.push(
-      <strong key={key++} className="lexicon-highlight">
-        {text.slice(match.start, match.end)}
-      </strong>,
-    );
-    lastIndex = match.end;
   }
 
-  if (lastIndex < text.length) {
-    parts.push(<span key={key++}>{text.slice(lastIndex)}</span>);
+  const result: React.ReactNode[] = [];
+  let lastEnd = 0;
+  for (const r of merged) {
+    if (r.start > lastEnd) {
+      result.push(text.slice(lastEnd, r.start));
+    }
+    result.push(<mark key={`${r.start}-${r.end}`}>{text.slice(r.start, r.end)}</mark>);
+    lastEnd = r.end;
+  }
+  if (lastEnd < text.length) {
+    result.push(text.slice(lastEnd));
   }
 
-  return parts;
+  return result.length === 1 ? result[0] : <>{result}</>;
 }
 
-const FILE_ICONS: Record<string, string> = {
-  'ui': '⊞',
-  'design': '◎',
-  'architecture': '◈',
-  'programming': '〈〉',
-  'data': '⛁',
-  'networking-api': '⇄',
-  'infrastructure': '☁',
-  'testing': '✓',
-  'security': '🔒',
-  'concurrency': '⚡',
-  'process': '▤',
-  'ai-ml': '✦',
-  'project-specific': '◆',
-};
-
-function getCategoryIcon(file: string): string {
-  return FILE_ICONS[file] || '◇';
+function truncate(text: string, max: number): string {
+  return text.length <= max ? text : text.slice(0, max) + '…';
 }
 
-function truncate(text: string, maxLen: number): string {
-  if (!text || text.length <= maxLen) return text || '';
-  return text.slice(0, maxLen).trimEnd() + '…';
+function getCategoryIcon(key: string): string {
+  const icons: Record<string, string> = {
+    ARCHITECTURE: '🏗️',
+    CONFIG_VALUES: '⚙️',
+    CONSTRAINTS: '🚫',
+    NAMING: '📛',
+    PROJECT_RULES: '📋',
+  };
+  return icons[key] || '📄';
 }
 
 export default function LexiconView() {
   const state = useStoreValue(lexiconStore);
   const searchRef = useRef<HTMLInputElement>(null);
   const [searchInput, setSearchInput] = useState('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const sortedCategories = useMemo(() => {
-    return Object.entries(state.categories).sort(([, a], [, b]) => String(a || '').localeCompare(String(b || '')));
+    return Object.entries(state.categories).sort(([, a], [, b]) => a.localeCompare(b));
   }, [state.categories]);
 
-  const isLoading = state.loading;
+  const isLoading = state.loading && state.entries.length === 0;
 
-  const browseCategories = useMemo(() => {
-    if (state.query.trim() || state.activeCategory) return null;
-    return sortedCategories;
-  }, [sortedCategories, state.query, state.activeCategory]);
-
-  useEffect(() => {
-    void lexiconStore.load();
-  }, []);
-
-  const triggerSearch = useCallback((value: string) => {
-    lexiconStore.setQuery(value);
-    void lexiconStore.search();
+  const triggerSearch = useCallback((query: string) => {
+    lexiconStore.search(query);
   }, []);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
       setSearchInput(value);
-
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        triggerSearch(value);
-      }, 200);
+      const debounced = setTimeout(() => triggerSearch(value), 250);
+      return () => clearTimeout(debounced);
     },
     [triggerSearch],
   );
 
-  const handleSearchClear = useCallback(() => {
-    setSearchInput('');
-    triggerSearch('');
-    searchRef.current?.focus();
-  }, [triggerSearch]);
-
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter') {
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        triggerSearch(searchInput);
+      if (e.key === 'Escape') {
+        setSearchInput('');
+        lexiconStore.search('');
+        searchRef.current?.blur();
       }
     },
-    [searchInput, triggerSearch],
+    [],
   );
+
+  const handleSearchClear = useCallback(() => {
+    setSearchInput('');
+    lexiconStore.search('');
+    searchRef.current?.focus();
+  }, []);
 
   const handleCategoryClick = useCallback(
     (category: string) => {
-      if (state.activeCategory === category) {
-        lexiconStore.setActiveCategory('');
-      } else {
-        lexiconStore.setActiveCategory(category);
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        triggerSearch(searchInput);
-      }
+      lexiconStore.setActiveCategory(state.activeCategory === category ? '' : category);
     },
-    [state.activeCategory, searchInput, triggerSearch],
+    [state.activeCategory],
   );
 
   const handleClearCategory = useCallback(() => {
     lexiconStore.setActiveCategory('');
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    triggerSearch(searchInput);
-  }, [searchInput, triggerSearch]);
+  }, []);
+
+  useEffect(() => {
+    void lexiconStore.load();
+  }, []);
 
   const showSearchResults = state.query.trim().length > 0;
   const showCategoryBrowse = !showSearchResults && !state.activeCategory;
@@ -203,6 +176,7 @@ export default function LexiconView() {
       </div>
 
       <div className="view-scroll lexicon-content">
+        <PageContainer>
         {isLoading ? (
           <div className="lexicon-loading" data-testid="lexicon-loading">
             Loading lexicon…
@@ -240,6 +214,7 @@ export default function LexiconView() {
             }}
           />
         ) : null}
+        </PageContainer>
       </div>
     </section>
   );

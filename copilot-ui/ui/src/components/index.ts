@@ -10,6 +10,7 @@ export { default as FormInput } from './FormInput';
 export { default as HealthDot } from './HealthDot';
 export { default as LogViewer } from './LogViewer';
 export { default as MarkdownMessage } from './MarkdownMessage';
+export { default as PageContainer } from './PageContainer';
 export { default as Panel } from './Panel';
 export { default as Sidebar } from './Sidebar';
 export { default as StatusBadge } from './StatusBadge';

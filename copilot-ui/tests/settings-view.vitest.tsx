@@ -227,12 +227,6 @@ describe('SettingsView', () => {
       expect(screen.getByTestId('codex-provider-mode-badge')).toHaveTextContent('DeepSeek V4');
     });
 
-    // Open Advanced section to reveal bridge path and save settings
-    await waitFor(() => {
-      expect(screen.getByTestId('deepseek-advanced-toggle')).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId('deepseek-advanced-toggle'));
-
     expect(screen.getByTestId('deepseek-bridge-path')).toBeInTheDocument();
     expect(screen.getByTestId('deepseek-save-settings')).toBeInTheDocument();
     expect(screen.getByTestId('deepseek-start-bridge')).toBeInTheDocument();
@@ -247,12 +241,6 @@ describe('SettingsView', () => {
     await act(async () => {
       render(<SettingsView />);
     });
-
-    // Open Advanced section to reveal the hard-reset button
-    await waitFor(() => {
-      expect(screen.getByTestId('deepseek-advanced-toggle')).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId('deepseek-advanced-toggle'));
 
     await waitFor(() => {
       expect(screen.getByTestId('codex-provider-hard-reset')).not.toBeDisabled();
