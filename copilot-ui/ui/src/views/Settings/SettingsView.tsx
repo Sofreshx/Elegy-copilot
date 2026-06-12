@@ -81,15 +81,15 @@ export default function SettingsView() {
   }
 
   return (
-    <div className="settings-view" data-testid="settings-view">
-      <div className="settings-nav-sticky-wrapper" data-testid="settings-sticky-toolbar">
+    <div className="view-shell settings-view" data-testid="settings-view">
+      <div className="view-static" data-testid="settings-sticky-toolbar">
         <Toolbar testId="settings-toolbar">
           <IconButton icon="chevron-left" size={22} label="Back" onClick={handleBack} testId="settings-back" />
         </Toolbar>
       </div>
 
       <div className="settings-layout">
-        <div className="settings-nav-sticky-wrapper settings-nav-offset">
+        <div className="view-static">
           <nav className="settings-nav" data-testid="settings-nav">
             {SETTINGS_NAV_ITEMS.map((section) => (
               <button
@@ -106,7 +106,7 @@ export default function SettingsView() {
           </nav>
         </div>
 
-        <div className="settings-content" data-testid="settings-content">
+        <div className="view-scroll settings-content" data-testid="settings-content">
           {renderSection()}
         </div>
       </div>

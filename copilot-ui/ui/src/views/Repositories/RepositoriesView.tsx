@@ -63,7 +63,8 @@ export default function RepositoriesView() {
   const repoCount = filtered.length;
 
   return (
-    <div className="repos-view" data-testid="repositories-view">
+    <div className="view-shell repos-view" data-testid="repositories-view">
+      <div className="view-static">
       {/* Header toolbar */}
       <Toolbar testId="repos-toolbar">
         <h2>Repositories</h2>
@@ -90,6 +91,9 @@ export default function RepositoriesView() {
         onChange={(e) => repositoriesStore.setSearchQuery(e.target.value)}
         data-testid="repos-search-input"
       />
+      </div>
+
+      <div className="view-scroll">
 
       {/* Error */}
       {state.error ? (
@@ -203,6 +207,7 @@ export default function RepositoriesView() {
 
       {/* Scan roots config */}
       <SourcesConfigPanel />
+      </div>
     </div>
   );
 }
