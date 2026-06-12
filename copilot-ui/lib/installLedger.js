@@ -111,6 +111,89 @@ function getAssetHash(elegyHomeAbs, harnessId, assetId) {
   return ledger?.harnesses?.[harnessId]?.assetHashes?.[assetId] || null;
 }
 
+function readOpenCodeManagedInventory(opencodeHomeAbs) {
+  const inventoryPath = path.join(path.resolve(opencodeHomeAbs), '.instruction-engine-opencode-managed.json');
+  try {
+    if (!fs.existsSync(inventoryPath)) return null;
+    const content = JSON.parse(fs.readFileSync(inventoryPath, 'utf8'));
+    if (content && typeof content === 'object') return content;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function readElegyAssetsMetadata(targetHomeAbs) {
+  const metadataPath = path.join(path.resolve(targetHomeAbs), 'elegy-assets.install.json');
+  try {
+    if (!fs.existsSync(metadataPath)) return null;
+    const content = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+    if (content && typeof content === 'object') return content;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function isAssetInOpenCodeManagedInventory(assetId, opencodeHomeAbs) {
+  const inventory = readOpenCodeManagedInventory(opencodeHomeAbs);
+  if (!inventory) return false;
+
+  // Strip harness prefix to get the core asset name for matching
+  let coreName = assetId;
+  if (coreName.startsWith('opencode-')) coreName = coreName.slice('opencode-'.length);
+  else if (coreName.startsWith('codex-')) coreName = coreName.slice('codex-'.length);
+
+  // Collect all keys from all inventory sections
+  const sections = ['instructions', 'agents', 'skills', 'plugins'];
+  const allKeys = [];
+  for (const section of sections) {
+    if (inventory[section] && typeof inventory[section] === 'object') {
+      allKeys.push(...Object.keys(inventory[section]));
+    }
+  }
+
+  if (allKeys.length === 0) return false;
+
+  // Check if coreName matches any key (flexible: exact, extension-stripped, or substring)
+  return allKeys.some((key) => {
+    const keyWithoutExt = key.replace(/\.[^.]+$/, '');
+    return (
+      key === coreName ||
+      keyWithoutExt === coreName ||
+      coreName.includes(key) ||
+      coreName.includes(keyWithoutExt) ||
+      key.includes(coreName) ||
+      keyWithoutExt.includes(coreName)
+    );
+  });
+}
+
+function isAssetExternallyManaged(assetId, harnessId, opencodeHomeAbs, codexHomeAbs, elegyHomeAbs) {
+  if (harnessId === 'opencode') {
+    return isAssetInOpenCodeManagedInventory(assetId, opencodeHomeAbs);
+  }
+
+  if (harnessId === 'codex') {
+    if (isAssetInOpenCodeManagedInventory(assetId, codexHomeAbs)) return true;
+
+    // Also check elegy-assets.install.json metadata for GitHub-sourced assets
+    const elegyMeta = readElegyAssetsMetadata(elegyHomeAbs);
+    if (elegyMeta && Array.isArray(elegyMeta.assets)) {
+      if (elegyMeta.assets.some((a) => a && a.id === assetId)) return true;
+    }
+
+    const codexMeta = readElegyAssetsMetadata(codexHomeAbs);
+    if (codexMeta && Array.isArray(codexMeta.assets)) {
+      if (codexMeta.assets.some((a) => a && a.id === assetId)) return true;
+    }
+
+    return false;
+  }
+
+  return false;
+}
+
 module.exports = {
   readInstallLedger,
   writeInstallLedger,
@@ -120,4 +203,8 @@ module.exports = {
   removeHarnessOptIn,
   setAssetHashes,
   getAssetHash,
+  readOpenCodeManagedInventory,
+  readElegyAssetsMetadata,
+  isAssetInOpenCodeManagedInventory,
+  isAssetExternallyManaged,
 };

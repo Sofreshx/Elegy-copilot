@@ -9,6 +9,10 @@ interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'typ
   size?: ButtonSize;
   testId?: string;
   children?: ReactNode;
+  /** When true, disables the button and shows loading state */
+  loading?: boolean;
+  /** Custom label shown when loading (defaults to showing children + "…") */
+  loadingLabel?: string;
 }
 
 export default function Button({
@@ -16,17 +20,26 @@ export default function Button({
   variant = 'primary',
   size = 'md',
   testId = 'ui-button',
+  loading = false,
+  loadingLabel,
   children,
+  disabled,
   ...buttonProps
 }: ButtonProps) {
+  const isDisabled = disabled || loading;
+  const displayContent = loading
+    ? (loadingLabel || <>{children}…</>)
+    : children;
+
   return (
     <button
       {...buttonProps}
-      className={`button button-${variant} button-${size} ${buttonProps.className ?? ''}`.trim()}
+      disabled={isDisabled}
+      className={`button button-${variant} button-${size} ${loading ? 'button--loading' : ''} ${buttonProps.className ?? ''}`.trim()}
       data-testid={testId}
       type={type}
     >
-      {children}
+      {displayContent}
     </button>
   );
 }

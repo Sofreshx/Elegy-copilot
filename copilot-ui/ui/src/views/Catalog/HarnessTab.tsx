@@ -2,13 +2,14 @@ import React, { useMemo, useState, useCallback } from 'react';
 import type { CatalogGlobalItem, CatalogGlobalSection, CatalogGlobalHarness, CatalogGlobalHarnessState } from '../../lib/types';
 import { catalogWorkspaceStore } from '../../tabs/Assets/catalogWorkspaceStore';
 import { useStoreValue } from '../../lib/store';
+import Button from '../../components/Button';
 import AssetDetailModal from './AssetDetailModal';
 import {
   getHarnessStateLabel,
   getHarnessStateBadgeClass,
   getCompatibilityLabel,
-  getHarnessPrimaryAction,
-  canRemoveAsset,
+  canDeactivateAsset,
+  getHarnessRowActions,
 } from './harnessStateHelper';
 import { normalizeProvenance } from './provenance';
 
@@ -25,6 +26,8 @@ interface HarnessTabProps {
 export default function HarnessTab({ harnessId, sections, harnesses, onItemAction, onUninstall, onRefresh, mutating }: HarnessTabProps) {
   const [modalItem, setModalItem] = useState<CatalogGlobalItem | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [mutatingAssetId, setMutatingAssetId] = useState<string | null>(null);
+  const [harnessMessage, setHarnessMessage] = useState<string | null>(null);
   const storeState = useStoreValue(catalogWorkspaceStore);
 
   const harnessItems = useMemo(() => {
@@ -45,50 +48,70 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
   // installSurface is idempotent — it syncs/updates the full harness surface
   // and is the correct API for both Install and Sync/Update actions
   const handleInstall = useCallback(async () => {
+    setHarnessMessage('Installing harness assets...');
     try {
       await catalogWorkspaceStore.installSurface(harnessId as 'codex' | 'opencode' | 'antigravity' | 'claude');
-      setConfirmRemove(null);
+      setHarnessMessage(`Install completed for ${harnessId}.`);
     } catch (err) {
       console.error('HarnessTab: installSurface failed', err);
+      setHarnessMessage(`Install failed: ${String(err)}`);
     } finally {
       onRefresh?.();
+      setTimeout(() => setHarnessMessage(null), 8000);
     }
   }, [harnessId, onRefresh]);
 
   const handleSyncUpdate = useCallback(async () => {
+    setHarnessMessage('Syncing harness assets...');
     try {
       await catalogWorkspaceStore.installSurface(harnessId as 'codex' | 'opencode' | 'antigravity' | 'claude');
-      setConfirmRemove(null);
+      setHarnessMessage(`Sync completed for ${harnessId}.`);
     } catch (err) {
       console.error('HarnessTab: installSurface (sync) failed', err);
+      setHarnessMessage(`Sync failed: ${String(err)}`);
     } finally {
       onRefresh?.();
+      setTimeout(() => setHarnessMessage(null), 8000);
     }
   }, [harnessId, onRefresh]);
 
   const handleCheck = useCallback(async (item: CatalogGlobalItem) => {
+    setMutatingAssetId(item.itemId);
     try {
-      await catalogWorkspaceStore.checkHarnessAssets(harnessId, item.itemId);
+      const results = await catalogWorkspaceStore.checkHarnessAssets(harnessId, item.itemId);
+      const result = results.find(r => r.assetId === item.itemId);
+      if (result) {
+        setHarnessMessage(`Check: ${result.state}${result.warnings?.length ? ` (${result.warnings.length} warning(s))` : ''}`);
+      }
       setConfirmRemove(null);
     } catch (err) {
       console.error('HarnessTab: checkHarnessAssets failed', err);
+      setHarnessMessage(`Check failed: ${String(err)}`);
     } finally {
       onRefresh?.();
+      setMutatingAssetId(null);
+      setTimeout(() => setHarnessMessage(null), 8000);
     }
   }, [harnessId, onRefresh]);
 
-  const handleRemove = useCallback(async (item: CatalogGlobalItem) => {
+  const handleDeactivate = useCallback(async (item: CatalogGlobalItem) => {
+    setMutatingAssetId(item.itemId);
     try {
       await catalogWorkspaceStore.uninstallHarnessAsset(harnessId, item.itemId);
+      setHarnessMessage(`Deactivated ${item.itemId}.`);
       setConfirmRemove(null);
     } catch (err) {
       console.error('HarnessTab: uninstallHarnessAsset failed', err);
+      setHarnessMessage(`Deactivate failed: ${String(err)}`);
     } finally {
       onRefresh?.();
+      setMutatingAssetId(null);
+      setTimeout(() => setHarnessMessage(null), 8000);
     }
   }, [harnessId, onRefresh]);
 
   const handleActivate = useCallback(async (item: CatalogGlobalItem, hs: CatalogGlobalHarnessState) => {
+    setMutatingAssetId(item.itemId);
     const metadata = hs.metadata as Record<string, unknown> | null;
     const installableId = (metadata?.installableId as string | undefined) || item.itemId;
     if (!item.sourceId) return;
@@ -98,15 +121,20 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
         installableId,
         target: harnessId,
       });
+      setHarnessMessage(`Activated ${item.title}.`);
       setConfirmRemove(null);
     } catch (err) {
       console.error('HarnessTab: activateExternalSourceInstallable failed', err);
+      setHarnessMessage(`Activate failed: ${String(err)}`);
     } finally {
       onRefresh?.();
+      setMutatingAssetId(null);
+      setTimeout(() => setHarnessMessage(null), 8000);
     }
   }, [harnessId, onRefresh]);
 
-  const handleDeactivate = useCallback(async (item: CatalogGlobalItem, hs: CatalogGlobalHarnessState) => {
+  const handleExternalDeactivate = useCallback(async (item: CatalogGlobalItem, hs: CatalogGlobalHarnessState) => {
+    setMutatingAssetId(item.itemId);
     const metadata = hs.metadata as Record<string, unknown> | null;
     const installableId = (metadata?.installableId as string | undefined) || item.itemId;
     if (!item.sourceId) return;
@@ -116,20 +144,24 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
         installableId,
         target: harnessId,
       });
+      setHarnessMessage(`Deactivated ${item.title}.`);
       setConfirmRemove(null);
     } catch (err) {
       console.error('HarnessTab: deactivateExternalSourceInstallable failed', err);
+      setHarnessMessage(`Deactivate failed: ${String(err)}`);
     } finally {
       onRefresh?.();
+      setMutatingAssetId(null);
+      setTimeout(() => setHarnessMessage(null), 8000);
     }
   }, [harnessId, onRefresh]);
 
   function renderActionButtons(item: CatalogGlobalItem, hs: CatalogGlobalHarnessState): React.ReactNode {
-    const actionInfo = getHarnessPrimaryAction(hs, mutating || storeState.mutating);
-    const removeInfo = canRemoveAsset(hs);
     const isConfirming = confirmRemove === item.itemId;
+    const rowMutating = mutatingAssetId === item.itemId || mutating || storeState.mutating || false;
+    const rowActions = getHarnessRowActions(hs, rowMutating);
 
-    // External source actions
+    // External source actions (existing behavior)
     const actionKind =
       ((hs.metadata as Record<string, unknown> | null)?.actionKind as string | undefined) ||
       item.actions?.kind;
@@ -137,123 +169,103 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
     if (actionKind === 'external-source') {
       return (
         <div className="harness-table-cell-actions">
-          {hs.actions?.canDeactivate && (hs.active || hs.installed) ? (
-            <button
-              className="button button-sm button-secondary"
-              disabled={mutating || storeState.mutating}
+          {rowActions.map((actionInfo, idx) => (
+            <Button
+              key={`${actionInfo.action}-${idx}`}
+              variant={actionInfo.action === 'deactivate' ? 'secondary' : 'primary'}
+              size="sm"
+              disabled={actionInfo.disabled}
+              loading={rowMutating && actionInfo.action !== 'check'}
               onClick={(e) => {
                 e.stopPropagation();
-                void handleDeactivate(item, hs);
+                if (actionInfo.action === 'activate') void handleActivate(item, hs);
+                else if (actionInfo.action === 'deactivate') void handleExternalDeactivate(item, hs);
+                else if (actionInfo.action === 'check') void handleCheck(item);
               }}
-              type="button"
             >
-              Deactivate
-            </button>
-          ) : hs.actions?.canActivate ? (
-            <button
-              className="button button-sm button-primary"
-              disabled={mutating || storeState.mutating}
-              onClick={(e) => {
-                e.stopPropagation();
-                void handleActivate(item, hs);
-              }}
-              type="button"
-            >
-              Activate
-            </button>
-          ) : null}
+              {actionInfo.label}
+            </Button>
+          ))}
         </div>
       );
     }
 
     return (
       <div className="harness-table-cell-actions">
-        {actionInfo.action === 'install' && (
-          <button
-            className="button button-sm button-primary"
-            disabled={actionInfo.disabled}
-            title={actionInfo.disabledReason}
-            data-testid={`harness-install-btn-${item.itemId}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              void handleInstall();
-            }}
-            type="button"
-          >
-            {actionInfo.label}
-          </button>
-        )}
-        {actionInfo.action === 'sync-update' && (
-          <button
-            className="button button-sm button-secondary"
-            disabled={actionInfo.disabled}
-            data-testid={`harness-sync-btn-${item.itemId}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              void handleSyncUpdate();
-            }}
-            type="button"
-          >
-            {actionInfo.label}
-          </button>
-        )}
-        {actionInfo.action === 'check' && (
-          <button
-            className="button button-sm button-ghost"
-            disabled={actionInfo.disabled}
-            data-testid={`harness-check-btn-${item.itemId}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              void handleCheck(item);
-            }}
-            type="button"
-          >
-            {actionInfo.label}
-          </button>
-        )}
-        {removeInfo.canRemove && !isConfirming && (
-          <button
-            className="button button-sm button-danger"
-            disabled={mutating || storeState.mutating}
-            data-testid={`harness-remove-btn-${item.itemId}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              setConfirmRemove(item.itemId);
-            }}
-            type="button"
-          >
-            Remove
-          </button>
-        )}
-        {isConfirming && (
-          <span className="harness-table-confirm">
-            <span style={{ fontSize: '0.75rem', color: 'var(--color-warning-600)' }}>
-              Confirm?
-            </span>
-            <button
-              className="button button-sm button-danger"
-              disabled={mutating || storeState.mutating}
-              data-testid={`harness-remove-confirm-btn-${confirmRemove}`}
+        {rowActions.map((actionInfo, idx) => {
+          const isDeactivate = actionInfo.action === 'remove';
+          const isLoading = rowMutating && !isDeactivate;
+
+          if (isDeactivate && isConfirming) {
+            return (
+              <span key={`confirm-${idx}`} className="harness-table-confirm">
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-warning-600)' }}>
+                  Confirm?
+                </span>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  disabled={rowMutating}
+                  loading={rowMutating}
+                  testId={`harness-remove-confirm-btn-${confirmRemove}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleDeactivate(item);
+                  }}
+                >
+                  Yes
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmRemove(null);
+                  }}
+                >
+                  No
+                </Button>
+              </span>
+            );
+          }
+
+          if (isDeactivate) {
+            return (
+              <Button
+                key={`${actionInfo.action}-${idx}`}
+                variant="danger"
+                size="sm"
+                disabled={actionInfo.disabled}
+                testId={`harness-remove-btn-${item.itemId}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmRemove(item.itemId);
+                }}
+              >
+                {actionInfo.label}
+              </Button>
+            );
+          }
+
+          return (
+            <Button
+              key={`${actionInfo.action}-${idx}`}
+              variant={actionInfo.action === 'install' ? 'primary' : actionInfo.action === 'sync-update' ? 'secondary' : 'ghost'}
+              size="sm"
+              disabled={actionInfo.disabled}
+              loading={isLoading}
+              testId={`harness-${actionInfo.action}-btn-${item.itemId}`}
               onClick={(e) => {
                 e.stopPropagation();
-                void handleRemove(item);
+                if (actionInfo.action === 'install') void handleInstall();
+                else if (actionInfo.action === 'sync-update') void handleSyncUpdate();
+                else if (actionInfo.action === 'check') void handleCheck(item);
               }}
-              type="button"
             >
-              Yes
-            </button>
-            <button
-              className="button button-sm button-ghost"
-              onClick={(e) => {
-                e.stopPropagation();
-                setConfirmRemove(null);
-              }}
-              type="button"
-            >
-              No
-            </button>
-          </span>
-        )}
+              {actionInfo.label}
+            </Button>
+          );
+        })}
       </div>
     );
   }
@@ -271,7 +283,30 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
 
   return (
     <>
-      <div className="harness-tab" data-testid={`harness-tab-${harnessId}`}>
+      <div className="harness-tab" data-testid={`harness-tab-${harnessId}`} style={{ minHeight: '300px' }}>
+        <div className="harness-tab-header">
+          <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>
+            {harnessId === 'codex' ? 'Codex' : harnessId === 'opencode' ? 'OpenCode' : harnessId === 'claude-code' ? 'Claude Code' : harnessId}
+          </h3>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={mutating || storeState.mutating || false}
+            loading={mutating || storeState.installing || false}
+            testId={`harness-refresh-all-${harnessId}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              void handleSyncUpdate();
+            }}
+          >
+            Refresh all
+          </Button>
+        </div>
+        {harnessMessage && (
+          <div className="harness-tab-message" data-testid={`harness-message-${harnessId}`}>
+            {harnessMessage}
+          </div>
+        )}
         <div className="harness-table">
           {/* Header row */}
           <div className="harness-table-header">

@@ -414,9 +414,9 @@ function SetupSection({ status, toolingInstalling, saving }: SectionProps & { to
         void opencodeStore.installTooling({ kind: 'elegy-planning-cli' });
       } else if (check.id === 'elegy-skills') {
         void opencodeStore.installTooling({ kind: 'elegy-skills', force: actionKind === 'update' });
-      } else {
-        void opencodeStore.installAssets(actionKind === 'update');
       }
+      // NOTE: Asset install actions (opencode-agents-md, opencode-assets, worktree-plugin)
+      // have been moved to Assets & Tools. The checks remain for readiness status only.
     }
   };
 
@@ -424,7 +424,6 @@ function SetupSection({ status, toolingInstalling, saving }: SectionProps & { to
     if (id === 'elegy-planning-cli' || id === 'elegy-skills' || id === 'codex-elegy-planning') return toolingInstalling;
     if (id === 'opencode-cli') return opencodeStore.getState().installingCli;
     if (id === 'worktree-permission-profile') return opencodeStore.getState().permissionsInstalling;
-    if (actionKind === 'install' || actionKind === 'update') return saving;
     return false;
   };
 
@@ -740,7 +739,7 @@ function PermissionsSection(_props: SectionProps): React.ReactElement {
           <p className="opencode-hint">No permission rules configured. All actions use default behavior.</p>
         ) : (
           <div className="opencode-permissions-patterns">
-            {permissionEntries.map(([key, value]: [string, string]) => (
+            {permissionEntries.map(([key, value]) => (
               <div key={key} className="opencode-permissions-row" data-testid={`opencode-perm-${key}`}>
                 <code className="opencode-permissions-value">{key}</code>
                 <Badge tone={value === 'allow' ? 'success' : value === 'deny' ? 'danger' : 'accent'}>{value}</Badge>

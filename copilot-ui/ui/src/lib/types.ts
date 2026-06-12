@@ -1737,7 +1737,7 @@ export interface CatalogGlobalHarnessState {
   installPath?: string | null;
   actions?: CatalogGlobalHarnessActions;
   // R2: Rich state model
-  state: 'supported' | 'available' | 'not-installed' | 'installed' | 'stale' | 'conflict' | 'unmanaged' | 'unknown';
+  state: 'supported' | 'available' | 'not-installed' | 'installed' | 'stale' | 'conflict' | 'unmanaged' | 'external-managed' | 'unknown';
   sourceHash?: string | null;
   destinationHash?: string | null;
   managedInventoryPath?: string | null;
