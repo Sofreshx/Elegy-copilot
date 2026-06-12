@@ -65,6 +65,36 @@
   },
   "bundles": [
     {
+      "id": "commit-validation-governance",
+      "title": "Commit Validation & Governance Skills",
+      "description": "Commit check setup and governance validation skills for enforcing commit policies.",
+      "assetIds": [
+        "skill-commit-validation-governance",
+        "skill-commit-check-setup"
+      ],
+      "installTarget": "repo-local",
+      "activationScope": "repo",
+      "materialization": "on-demand",
+      "classification": "workflow",
+      "targeting": {
+        "scopeKinds": [
+          "repo"
+        ],
+        "tags": [
+          "commit",
+          "validation",
+          "governance"
+        ]
+      },
+      "tags": [
+        "commit",
+        "validation",
+        "governance"
+      ],
+      "defaultRecommended": false,
+      "dependsOn": []
+    },
+    {
       "id": "core-global",
       "title": "Core Global Agents",
       "description": "Broadly useful global agents for search, execution, and review.",
@@ -94,103 +124,6 @@
       ],
       "defaultRecommended": true,
       "dependsOn": []
-    },
-    {
-      "id": "repo-setup-governance-global",
-      "title": "Repo Setup Governance Skill",
-      "description": "Shared repo-setup governance guidance kept as an on-demand skill rather than a dedicated agent lane.",
-      "assetIds": [
-        "skill-repo-setup-governance"
-      ],
-      "installTarget": "user-global",
-      "activationScope": "global",
-      "materialization": "on-demand",
-      "classification": "workflow",
-      "targeting": {
-        "tags": [
-          "repo-setup",
-          "governance",
-          "audit",
-          "workspace"
-        ]
-      },
-      "tags": [
-        "repo-setup",
-        "governance",
-        "audit",
-        "workspace"
-      ],
-      "defaultRecommended": false,
-      "dependsOn": []
-    },
-    {
-      "id": "orchestrator-workflow",
-      "title": "Implementation Workflow Agents",
-      "description": "Repo-scoped implementation agents and support skills for execution, testing, and governance.",
-      "assetIds": [
-        "agent-test-runner",
-        "agent-impl",
-        "skill-roadmap-authoring",
-        "skill-project-conventions-governance",
-        "skill-documentation-structure-governance",
-        "skill-documentation-authoring",
-        "skill-project-guidelines",
-        "skill-guidelines-authoring"
-      ],
-      "installTarget": "repo-local",
-      "activationScope": "repo",
-      "materialization": "on-demand",
-      "classification": "workflow",
-      "targeting": {
-        "scopeKinds": [
-          "repo"
-        ],
-        "tags": [
-          "workflow",
-          "implementation"
-        ]
-      },
-      "tags": [
-        "workflow",
-        "implementation"
-      ],
-      "defaultRecommended": false,
-      "dependsOn": [
-        "core-global"
-      ]
-    },
-    {
-      "id": "roadmap-planning-lane",
-      "title": "Repository Backlog & Roadmap Skills",
-      "description": "Repo-local planning guidance for per-session Repository Backlog artifacts and roadmap authoring without separate planner agents.",
-      "assetIds": [
-        "skill-roadmap-authoring"
-      ],
-      "installTarget": "repo-local",
-      "activationScope": "repo",
-      "materialization": "on-demand",
-      "classification": "workflow",
-      "targeting": {
-        "scopeKinds": [
-          "repo"
-        ],
-        "tags": [
-          "planning",
-          "roadmap",
-          "backlog",
-          "instruction-engine"
-        ]
-      },
-      "tags": [
-        "planning",
-        "roadmap",
-        "backlog",
-        "instruction-engine"
-      ],
-      "defaultRecommended": false,
-      "dependsOn": [
-        "orchestrator-workflow"
-      ]
     },
     {
       "id": "instruction-engine-governance-lanes",
@@ -230,12 +163,47 @@
       ]
     },
     {
-      "id": "commit-validation-governance",
-      "title": "Commit Validation Governance Skill",
-      "description": "Shared commit-validation governance guidance for detecting, configuring, and running umbrella pre-commit checks in target repos.",
+      "id": "orchestrator-workflow",
+      "title": "Implementation Workflow Agents",
+      "description": "Repo-scoped implementation agents and support skills for execution, testing, and governance.",
       "assetIds": [
-        "skill-commit-validation-governance",
-        "skill-commit-check-setup"
+        "agent-test-runner",
+        "agent-impl",
+        "skill-roadmap-authoring",
+        "skill-project-conventions-governance",
+        "skill-documentation-structure-governance",
+        "skill-documentation-authoring",
+        "skill-project-guidelines",
+        "skill-guidelines-authoring"
+      ],
+      "installTarget": "repo-local",
+      "activationScope": "repo",
+      "materialization": "on-demand",
+      "classification": "workflow",
+      "targeting": {
+        "scopeKinds": [
+          "repo"
+        ],
+        "tags": [
+          "workflow",
+          "implementation"
+        ]
+      },
+      "tags": [
+        "workflow",
+        "implementation"
+      ],
+      "defaultRecommended": false,
+      "dependsOn": [
+        "core-global"
+      ]
+    },
+    {
+      "id": "repo-setup-governance-global",
+      "title": "Repo Setup Governance Skill",
+      "description": "Shared repo-setup governance guidance kept as an on-demand skill rather than a dedicated agent lane.",
+      "assetIds": [
+        "skill-repo-setup-governance"
       ],
       "installTarget": "user-global",
       "activationScope": "global",
@@ -243,20 +211,53 @@
       "classification": "workflow",
       "targeting": {
         "tags": [
-          "commit-validation",
+          "repo-setup",
           "governance",
           "audit",
-          "testing"
+          "workspace"
         ]
       },
       "tags": [
-        "commit-validation",
+        "repo-setup",
         "governance",
         "audit",
-        "testing"
+        "workspace"
       ],
       "defaultRecommended": false,
       "dependsOn": []
+    },
+    {
+      "id": "roadmap-planning-lane",
+      "title": "Repository Backlog & Roadmap Skills",
+      "description": "Repo-local planning guidance for per-session Repository Backlog artifacts and roadmap authoring without separate planner agents.",
+      "assetIds": [
+        "skill-roadmap-authoring"
+      ],
+      "installTarget": "repo-local",
+      "activationScope": "repo",
+      "materialization": "on-demand",
+      "classification": "workflow",
+      "targeting": {
+        "scopeKinds": [
+          "repo"
+        ],
+        "tags": [
+          "planning",
+          "roadmap",
+          "backlog",
+          "instruction-engine"
+        ]
+      },
+      "tags": [
+        "planning",
+        "roadmap",
+        "backlog",
+        "instruction-engine"
+      ],
+      "defaultRecommended": false,
+      "dependsOn": [
+        "orchestrator-workflow"
+      ]
     },
     {
       "id": "spec-driven-development-lane",
@@ -330,6 +331,18 @@
       "type": "agent",
       "source": "engine-assets/agents/test-runner.agent.md",
       "destination": "agents/test-runner.agent.md"
+    },
+    {
+      "id": "hook-session-lifecycle",
+      "type": "hook",
+      "source": "engine-assets/hooks/session-lifecycle/hook.md",
+      "destination": "hooks/session-lifecycle/hook.md"
+    },
+    {
+      "id": "hook-worktree-session-tracker",
+      "type": "hook",
+      "source": "engine-assets/hooks/worktree-session-tracker/hook.md",
+      "destination": "hooks/worktree-session-tracker/hook.md"
     },
     {
       "id": "copilot-instructions",
@@ -463,13 +476,6 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "skill-commit-validation-governance",
-      "type": "skill",
-      "source": "engine-assets/skills/commit-validation-governance",
-      "destination": "skills/commit-validation-governance",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "skill-commit-check-setup",
       "type": "skill",
       "source": "engine-assets/skills/commit-check-setup",
@@ -477,16 +483,10 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "hook-worktree-session-tracker",
-      "type": "hook",
-      "source": "engine-assets/hooks/worktree-session-tracker/hook.md",
-      "destination": "hooks/worktree-session-tracker/hook.md"
-    },
-    {
-      "id": "hook-session-lifecycle",
-      "type": "hook",
-      "source": "engine-assets/hooks/session-lifecycle/hook.md",
-      "destination": "hooks/session-lifecycle/hook.md"
+      "id": "skill-commit-validation-governance",
+      "type": "skill",
+      "source": "engine-assets/skills/commit-validation-governance",
+      "destination": "skills/commit-validation-governance"
     }
   ],
   "sourcePatterns": []

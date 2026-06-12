@@ -81,6 +81,13 @@
       "loadMode": "always"
     },
     {
+      "id": "codex-rubberduck-plan-review-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/rubberduck-plan-review",
+      "destination": "skills/rubberduck-plan-review",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "codex-implementation-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-review",
@@ -123,10 +130,10 @@
       "loadMode": "always"
     },
     {
-      "id": "codex-commit-check-setup-skill",
+      "id": "codex-repo-backed-obsidian-docs-skill",
       "type": "skill",
-      "source": "engine-assets/skills/commit-check-setup",
-      "destination": "skills/commit-check-setup",
+      "source": "catalog-assets/shared-skills/repo-backed-obsidian-docs",
+      "destination": "skills/repo-backed-obsidian-docs",
       "loadMode": "on-demand"
     },
     {

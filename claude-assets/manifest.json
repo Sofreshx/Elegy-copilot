@@ -103,5 +103,6 @@
       "loadMode": "on-demand"
     }
   ],
-  "sourcePatterns": []
+  "sourcePatterns": [],
+  "generated": false
 }

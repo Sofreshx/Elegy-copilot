@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
@@ -15,7 +16,6 @@ const CODEX_REQUIRED_ASSETS = [
 	{ id: 'codex-reviewer-agent', type: 'agent' },
 	{ id: 'codex-repo-setup-skill', type: 'skill' },
 	{ id: 'codex-skill-discovery-skill', type: 'skill' },
-	{ id: 'codex-stack-detector-skill', type: 'skill' },
 ];
 
 const ANTIGRAVITY_REQUIRED_ASSETS = [
@@ -25,7 +25,6 @@ const ANTIGRAVITY_REQUIRED_ASSETS = [
 const OPENCODE_REQUIRED_ASSETS = [
 	{ id: 'opencode-global-instructions', type: 'instructions' },
 	{ id: 'opencode-skill-discovery-skill', type: 'skill' },
-	{ id: 'opencode-stack-detector-skill', type: 'skill' },
 ];
 
 const manifestFiles = [
@@ -36,7 +35,6 @@ const manifestFiles = [
 	{ path: 'antigravity-assets/manifest.json', enforceSourceExists: true, requiredAssets: [
 		...ANTIGRAVITY_REQUIRED_ASSETS,
 		{ id: 'antigravity-skill-discovery-skill', type: 'skill' },
-		{ id: 'antigravity-stack-detector-skill', type: 'skill' },
 	] },
 ];
 
@@ -403,27 +401,118 @@ function validateRequiredAssets(manifest, manifestRelPath, requiredAssets) {
 	}
 }
 
-const checkedByManifest = [];
-for (const target of manifestFiles) {
-	const manifestRelPath = target.path;
-	const manifest = readManifest(manifestRelPath);
-	if (!manifest) continue;
+async function main() {
+	const checkedByManifest = [];
+	const loadedManifests = [];
 
-	if (!manifest || typeof manifest !== 'object') {
-		fail(`${manifestRelPath}: top-level manifest must be an object`);
-		continue;
+	for (const target of manifestFiles) {
+		const manifestRelPath = target.path;
+		const manifest = readManifest(manifestRelPath);
+		if (!manifest) continue;
+
+		if (!manifest || typeof manifest !== 'object') {
+			fail(`${manifestRelPath}: top-level manifest must be an object`);
+			continue;
+		}
+
+		validateGovernance(manifest, manifestRelPath);
+		const { checked, assetIds } = validateAssets(manifest, manifestRelPath, target.enforceSourceExists);
+		validateSourcePatterns(manifest, manifestRelPath);
+		validateBundles(manifest, manifestRelPath, assetIds);
+		validateRequiredAssets(manifest, manifestRelPath, target.requiredAssets);
+		checkedByManifest.push(`${manifestRelPath}=${checked}`);
+		loadedManifests.push({ manifestRelPath, manifest });
 	}
 
-	validateGovernance(manifest, manifestRelPath);
-	const { checked, assetIds } = validateAssets(manifest, manifestRelPath, target.enforceSourceExists);
-	validateSourcePatterns(manifest, manifestRelPath);
-	validateBundles(manifest, manifestRelPath, assetIds);
-	validateRequiredAssets(manifest, manifestRelPath, target.requiredAssets);
-	checkedByManifest.push(`${manifestRelPath}=${checked}`);
+	// Guardrail 1: Duplicate asset IDs within each manifest
+	for (const { manifestRelPath, manifest } of loadedManifests) {
+		if (!Array.isArray(manifest.assets)) continue;
+		console.log(`Checking duplicate asset IDs in ${manifestRelPath}...`);
+		const seen = new Map();
+		for (let i = 0; i < manifest.assets.length; i++) {
+			const asset = manifest.assets[i];
+			if (asset && asset.id) {
+				if (seen.has(asset.id)) {
+					console.error(`ERROR: Duplicate asset ID '${asset.id}' in ${manifestRelPath} at indices ${seen.get(asset.id)},${i}`);
+					hasFailures = true;
+				}
+				seen.set(asset.id, i);
+			}
+		}
+	}
+
+	// Guardrail 2: Duplicate destinations within each manifest
+	for (const { manifestRelPath, manifest } of loadedManifests) {
+		if (!Array.isArray(manifest.assets)) continue;
+		console.log(`Checking duplicate destinations in ${manifestRelPath}...`);
+		const destMap = new Map();
+		for (const asset of manifest.assets) {
+			if (asset && asset.id && asset.destination) {
+				if (destMap.has(asset.destination)) {
+					console.error(`ERROR: Duplicate destination '${asset.destination}' for assets '${destMap.get(asset.destination)}' and '${asset.id}' in ${manifestRelPath}`);
+					hasFailures = true;
+				}
+				destMap.set(asset.destination, asset.id);
+			}
+		}
+	}
+
+	// Guardrail 3: Missing source paths (skip URLs)
+	for (const { manifestRelPath, manifest } of loadedManifests) {
+		if (!Array.isArray(manifest.assets)) continue;
+		console.log(`Checking source paths in ${manifestRelPath}...`);
+		for (const asset of manifest.assets) {
+			if (asset && asset.source && !asset.source.startsWith('http')) {
+				const sourceAbs = path.join(root, asset.source);
+				if (!fs.existsSync(sourceAbs)) {
+					console.error(`ERROR: Missing source path '${asset.source}' for asset '${asset.id}' in ${manifestRelPath}`);
+					hasFailures = true;
+				}
+			}
+		}
+	}
+
+	// Guardrail 4: Generated-vs-checked-in parity
+	const manifestPathToId = {
+		'engine-assets/manifest.json': 'engine',
+		'codex-assets/manifest.json': 'codex',
+		'opencode-assets/manifest.json': 'opencode',
+		'antigravity-assets/manifest.json': 'antigravity',
+	};
+
+	const { buildCompatibilityManifest } = await import('./catalogManifestLib.mjs');
+	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'manifest-parity-'));
+
+	try {
+		for (const { manifestRelPath, manifest } of loadedManifests) {
+			const manifestId = manifestPathToId[manifestRelPath];
+			if (!manifestId) continue;
+
+			console.log(`Checking generated-vs-checked-in parity for ${manifestId}...`);
+
+			const generated = buildCompatibilityManifest(manifestId);
+			const tempFile = path.join(tempDir, `${manifestId}.json`);
+			fs.writeFileSync(tempFile, JSON.stringify(generated, null, 2) + '\n', 'utf8');
+			const generatedStr = fs.readFileSync(tempFile, 'utf8');
+			const checkedInStr = JSON.stringify(manifest, null, 2) + '\n';
+
+			if (generatedStr !== checkedInStr) {
+				console.error(`ERROR: ${manifestRelPath} differs from generated manifest. Regenerate with: node scripts/generate-compatibility-manifests.mjs`);
+				hasFailures = true;
+			}
+		}
+	} finally {
+		fs.rmSync(tempDir, { recursive: true, force: true });
+	}
+
+	if (hasFailures) {
+		process.exit(1);
+	}
+
+	console.log(`manifest ok (${checkedByManifest.join(', ')})`);
 }
 
-if (hasFailures) {
+main().catch((err) => {
+	console.error(`Fatal error: ${err.message}`);
 	process.exit(1);
-}
-
-console.log(`manifest ok (${checkedByManifest.join(', ')})`);
+});

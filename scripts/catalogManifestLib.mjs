@@ -52,6 +52,13 @@ function deriveDefaultDestination(asset) {
   if (asset?.type === 'skill') {
     return `skills/${path.posix.basename(source)}`;
   }
+  if (asset?.type === 'hook') {
+    const hookDirName = path.posix.basename(path.posix.dirname(source));
+    return `hooks/${hookDirName}/hook.md`;
+  }
+  if (asset?.type === 'plugin') {
+    return `plugins/${path.posix.basename(source)}`;
+  }
   throw new Error(`Unsupported asset type for destination derivation: ${asset?.type || '<unknown>'}`);
 }
 

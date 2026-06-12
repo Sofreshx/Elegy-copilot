@@ -49,16 +49,72 @@
   },
   "assets": [
     {
-      "id": "opencode-global-instructions",
-      "type": "instructions",
-      "source": "opencode-assets/home/AGENTS.md",
-      "destination": "AGENTS.md"
+      "id": "opencode-agent-explorer",
+      "type": "agent",
+      "source": "opencode-assets/agents/explorer.md",
+      "destination": "agents/explorer.md"
     },
     {
-      "id": "opencode-skill-discovery-skill",
+      "id": "opencode-agent-impl",
+      "type": "agent",
+      "source": "opencode-assets/agents/impl.md",
+      "destination": "agents/impl.md"
+    },
+    {
+      "id": "opencode-agent-project",
+      "type": "agent",
+      "source": "opencode-assets/agents/project.md",
+      "destination": "agents/project.md"
+    },
+    {
+      "id": "opencode-agent-quick",
+      "type": "agent",
+      "source": "opencode-assets/agents/quick.md",
+      "destination": "agents/quick.md"
+    },
+    {
+      "id": "opencode-agent-reviewer",
+      "type": "agent",
+      "source": "opencode-assets/agents/reviewer.md",
+      "destination": "agents/reviewer.md"
+    },
+    {
+      "id": "opencode-agent-spec",
+      "type": "agent",
+      "source": "opencode-assets/agents/spec.md",
+      "destination": "agents/spec.md"
+    },
+    {
+      "id": "opencode-agent-standard",
+      "type": "agent",
+      "source": "opencode-assets/agents/standard.md",
+      "destination": "agents/standard.md"
+    },
+    {
+      "id": "opencode-code-review-skill",
       "type": "skill",
-      "source": "engine-assets/skills/skill-discovery",
-      "destination": "skills/skill-discovery",
+      "source": "opencode-assets/skills/code-review",
+      "destination": "skills/code-review"
+    },
+    {
+      "id": "opencode-commit-check-setup-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/commit-check-setup",
+      "destination": "skills/commit-check-setup",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "opencode-elegy-obsidian-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/elegy-obsidian",
+      "destination": "skills/elegy-obsidian",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "opencode-elegy-planning-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/elegy-planning",
+      "destination": "skills/elegy-planning",
       "loadMode": "always"
     },
     {
@@ -69,25 +125,10 @@
       "loadMode": "always"
     },
     {
-      "id": "opencode-elegy-planning-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/elegy-planning",
-      "destination": "skills/elegy-planning",
-      "loadMode": "always"
-    },
-    {
-      "id": "opencode-rubberduck-plan-review-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/rubberduck-plan-review",
-      "destination": "skills/rubberduck-plan-review",
-      "loadMode": "always"
-    },
-    {
-      "id": "opencode-implementation-review-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/implementation-review",
-      "destination": "skills/implementation-review",
-      "loadMode": "always"
+      "id": "opencode-global-instructions",
+      "type": "instructions",
+      "source": "opencode-assets/home/AGENTS.md",
+      "destination": "AGENTS.md"
     },
     {
       "id": "opencode-implementation-handoff-skill",
@@ -97,58 +138,11 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "opencode-spec-dev-skill",
+      "id": "opencode-implementation-review-skill",
       "type": "skill",
-      "source": "catalog-assets/shared-skills/spec-dev",
-      "destination": "skills/spec-dev",
-      "loadMode": "always"
-    },
-    {
-      "id": "opencode-spec-authoring-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/spec-authoring",
-      "destination": "skills/spec-authoring",
-      "loadMode": "always"
-    },
-    {
-      "id": "opencode-spec-review-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/spec-review",
-      "destination": "skills/spec-review",
-      "loadMode": "always"
-    },
-    {
-      "id": "opencode-code-review-skill",
-      "type": "skill",
-      "source": "opencode-assets/skills/code-review",
-      "destination": "skills/code-review",
+      "source": "catalog-assets/shared-skills/implementation-review",
+      "destination": "skills/implementation-review",
       "loadMode": "on-demand"
-    },
-    {
-      "id": "opencode-security-skill",
-      "type": "skill",
-      "source": "engine-assets/skills/security",
-      "destination": "skills/security",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "opencode-project-conventions-governance-skill",
-      "type": "skill",
-      "source": "engine-assets/skills/project-conventions-governance",
-      "destination": "skills/project-conventions-governance",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "opencode-worktree-plugin",
-      "type": "plugin",
-      "source": "opencode-assets/plugins/worktree.js",
-      "destination": "plugins/worktree.js"
-    },
-    {
-      "id": "opencode-plugins-package-json",
-      "type": "plugin",
-      "source": "opencode-assets/plugins/package.json",
-      "destination": "plugins/package.json"
     },
     {
       "id": "opencode-planning-plugin",
@@ -160,57 +154,67 @@
       "id": "opencode-planning-tools-skill",
       "type": "skill",
       "source": "opencode-assets/skills/planning-tools",
-      "destination": "skills/planning-tools",
-      "loadMode": "always"
+      "destination": "skills/planning-tools"
     },
     {
-      "id": "opencode-worktree-skill",
+      "id": "opencode-plugins-package-json",
+      "type": "plugin",
+      "source": "opencode-assets/plugins/package.json",
+      "destination": "plugins/package.json"
+    },
+    {
+      "id": "opencode-project-conventions-governance-skill",
       "type": "skill",
-      "source": "opencode-assets/skills/worktree",
-      "destination": "skills/worktree",
+      "source": "engine-assets/skills/project-conventions-governance",
+      "destination": "skills/project-conventions-governance"
+    },
+    {
+      "id": "opencode-repo-backed-obsidian-docs-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/repo-backed-obsidian-docs",
+      "destination": "skills/repo-backed-obsidian-docs",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "opencode-rubberduck-plan-review-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/rubberduck-plan-review",
+      "destination": "skills/rubberduck-plan-review",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "opencode-security-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/security",
+      "destination": "skills/security"
+    },
+    {
+      "id": "opencode-skill-discovery-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/skill-discovery",
+      "destination": "skills/skill-discovery",
       "loadMode": "always"
     },
     {
-      "id": "opencode-agent-quick",
-      "type": "agent",
-      "source": "opencode-assets/agents/quick.md",
-      "destination": "agents/quick.md"
+      "id": "opencode-spec-authoring-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-authoring",
+      "destination": "skills/spec-authoring",
+      "loadMode": "on-demand"
     },
     {
-      "id": "opencode-agent-standard",
-      "type": "agent",
-      "source": "opencode-assets/agents/standard.md",
-      "destination": "agents/standard.md"
+      "id": "opencode-spec-dev-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-dev",
+      "destination": "skills/spec-dev",
+      "loadMode": "on-demand"
     },
     {
-      "id": "opencode-agent-spec",
-      "type": "agent",
-      "source": "opencode-assets/agents/spec.md",
-      "destination": "agents/spec.md"
-    },
-    {
-      "id": "opencode-agent-project",
-      "type": "agent",
-      "source": "opencode-assets/agents/project.md",
-      "destination": "agents/project.md"
-    },
-    {
-      "id": "opencode-agent-impl",
-      "type": "agent",
-      "source": "opencode-assets/agents/impl.md",
-      "destination": "agents/impl.md"
-    },
-    {
-      "id": "opencode-agent-reviewer",
-      "type": "agent",
-      "source": "opencode-assets/agents/reviewer.md",
-      "destination": "agents/reviewer.md"
-    },
-    {
-      "id": "opencode-agent-explorer",
-      "type": "agent",
-      "source": "opencode-assets/agents/explorer.md",
-      "destination": "agents/explorer.md"
+      "id": "opencode-spec-review-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-review",
+      "destination": "skills/spec-review",
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-ui-system-skill",
@@ -220,11 +224,16 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "opencode-commit-check-setup-skill",
+      "id": "opencode-worktree-plugin",
+      "type": "plugin",
+      "source": "opencode-assets/plugins/worktree.js",
+      "destination": "plugins/worktree.js"
+    },
+    {
+      "id": "opencode-worktree-skill",
       "type": "skill",
-      "source": "engine-assets/skills/commit-check-setup",
-      "destination": "skills/commit-check-setup",
-      "loadMode": "on-demand"
+      "source": "opencode-assets/skills/worktree",
+      "destination": "skills/worktree"
     }
   ],
   "sourcePatterns": []

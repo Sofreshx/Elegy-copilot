@@ -10,6 +10,7 @@ const instructions = (id, source, extra) => asset(id, 'instructions', source, ex
 const plugin = (id, source, extra) => asset(id, 'plugin', source, extra);
 const prompt = (id, source, extra) => asset(id, 'prompt', source, extra);
 const skill = (id, source, extra) => asset(id, 'skill', source, extra);
+const hook = (id, source, extra) => asset(id, 'hook', source, extra);
 
 export const SHIPPED_ASSET_CATALOG_VERSION = 1;
 
@@ -44,6 +45,9 @@ export const SHIPPED_ASSETS = [
   skill('skill-elegy-obsidian', 'catalog-assets/shared-skills/elegy-obsidian', { loadMode: 'on-demand' }),
   skill('skill-repo-backed-obsidian-docs', 'catalog-assets/shared-skills/repo-backed-obsidian-docs', { loadMode: 'on-demand' }),
   skill('skill-commit-check-setup', 'engine-assets/skills/commit-check-setup', { loadMode: 'on-demand' }),
+  skill('skill-commit-validation-governance', 'engine-assets/skills/commit-validation-governance'),
+  hook('hook-worktree-session-tracker', 'engine-assets/hooks/worktree-session-tracker/hook.md'),
+  hook('hook-session-lifecycle', 'engine-assets/hooks/session-lifecycle/hook.md'),
   skill('skill-implementation-handoff', 'catalog-assets/shared-skills/implementation-handoff', {
     loadMode: 'on-demand',
   }),
@@ -64,10 +68,23 @@ export const SHIPPED_ASSETS = [
 
   instructions('opencode-global-instructions', 'opencode-assets/home/AGENTS.md'),
   skill('opencode-code-review-skill', 'opencode-assets/skills/code-review'),
-  skill('opencode-project-conventions-governance-skill', 'opencode-assets/skills/project-conventions-governance'),
-  skill('opencode-security-skill', 'opencode-assets/skills/security'),
+  skill('opencode-project-conventions-governance-skill', 'engine-assets/skills/project-conventions-governance'),
+  skill('opencode-security-skill', 'engine-assets/skills/security'),
   skill('opencode-worktree-skill', 'opencode-assets/skills/worktree'),
   plugin('opencode-worktree-plugin', 'opencode-assets/plugins/worktree.js'),
+
+  // OpenCode native agents
+  agent('opencode-agent-quick', 'opencode-assets/agents/quick.md'),
+  agent('opencode-agent-standard', 'opencode-assets/agents/standard.md'),
+  agent('opencode-agent-spec', 'opencode-assets/agents/spec.md'),
+  agent('opencode-agent-project', 'opencode-assets/agents/project.md'),
+  agent('opencode-agent-impl', 'opencode-assets/agents/impl.md'),
+  agent('opencode-agent-reviewer', 'opencode-assets/agents/reviewer.md'),
+  agent('opencode-agent-explorer', 'opencode-assets/agents/explorer.md'),
+  // OpenCode plugins and skills
+  plugin('opencode-plugins-package-json', 'opencode-assets/plugins/package.json'),
+  plugin('opencode-planning-plugin', 'opencode-assets/plugins/planning.js'),
+  skill('opencode-planning-tools-skill', 'opencode-assets/skills/planning-tools'),
 
   instructions('antigravity-global-instructions', 'antigravity-assets/home/GEMINI.md'),
 ];
@@ -195,6 +212,23 @@ export const SHIPPED_BUNDLES = [
     tags: ['specs', 'requirements', 'design', 'validation'],
     defaultRecommended: false,
     dependsOn: ['orchestrator-workflow'],
+  },
+  {
+    id: 'commit-validation-governance',
+    title: 'Commit Validation & Governance Skills',
+    description: 'Commit check setup and governance validation skills for enforcing commit policies.',
+    assetIds: ['skill-commit-validation-governance', 'skill-commit-check-setup'],
+    installTarget: 'repo-local',
+    activationScope: 'repo',
+    materialization: 'on-demand',
+    classification: 'workflow',
+    targeting: {
+      scopeKinds: ['repo'],
+      tags: ['commit', 'validation', 'governance'],
+    },
+    tags: ['commit', 'validation', 'governance'],
+    defaultRecommended: false,
+    dependsOn: [],
   },
 ];
 
