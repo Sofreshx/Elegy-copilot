@@ -1,6 +1,6 @@
 ---
 created: 2026-06-03
-updated: 2026-06-04
+updated: 2026-06-12
 category: lexicon
 status: current
 doc_kind: node
@@ -198,3 +198,53 @@ tags: [lexicon, elegy-copilot, holon]
 **Usage:** Use for automated workflows that process data between services. Distinguish from Workflow (human-involved multi-step flow) and Automation (generic, may include pipelines).
 **Related:** Trigger (pipeline start), Transform (data mutation), Action (pipeline end), Schedule (time-based pipeline)
 **Tags:** holon, saastools, pipeline
+
+## Catalog & Assets
+
+### Asset Ownership State
+**Definition:** The classification of a Copilot asset (skill, agent, prompt, MCP server) based on who manages its lifecycle and installation. Four states exist: managed, externally-managed, unmanaged, and conflict.
+**Usage:** Determines which actions are available on the Assets &amp; Tools tab and in harness status cards. Managed assets support install, sync, and uninstall. Externally-managed assets support activate and deactivate. Unmanaged and conflict assets support only Check with manual-removal guidance.
+**Related:** Managed (asset), Externally-managed (asset), Unmanaged (asset), Asset Conflict, Harness, Install Ledger, Install Surface
+**Tags:** catalog, assets, tools, ownership, state
+
+### Managed (asset)
+**Definition:** An asset installed by the Elegy Copilot managed installer. These assets originate from the engine-assets manifest and are tracked in the per-harness install ledger.
+**Usage:** Managed assets appear in the catalog with an Install/Update button when opted in and a Sync button to update from source. They can be uninstalled through the managed uninstall flow. Check the install ledger to see which assets are managed for each harness.
+**Related:** Asset Ownership State, Externally-managed (asset), Unmanaged (asset), Install Ledger, Harness
+**Tags:** catalog, assets, managed, ownership, install
+
+### Externally-managed (asset)
+**Definition:** An asset installed by an external source (such as OpenCode or another AI coding tool) and activated through Elegy Copilot. These assets are tracked in a secondary ledger (e.g., .instruction-engine-opencode-managed.json or elegy-assets.install.json) rather than in the primary Copilot install ledger.
+**Usage:** Externally-managed assets support activate and deactivate actions in the External Inventory. They are not managed by the Copilot managed installer and cannot be uninstalled through it. Check the External Inventory tab to see activation status.
+**Related:** Asset Ownership State, Managed (asset), Unmanaged (asset), External Inventory, External Source, Install Ledger
+**Tags:** catalog, assets, external, ownership, activation
+
+### Unmanaged (asset)
+**Definition:** A file that exists at an expected asset destination path but is not tracked in any Copilot or secondary ledger. The file was placed there manually or by another tool without Copilot awareness.
+**Usage:** Unmanaged assets show a Check button only. The UI displays a warning with manual-removal guidance. Copilot will not automatically modify or delete unmanaged assets. To take ownership, either move the file and let Copilot install a managed copy, or add it to the appropriate external source.
+**Related:** Asset Ownership State, Managed (asset), Externally-managed (asset), Asset Conflict, Install Ledger
+**Tags:** catalog, assets, unmanaged, ownership, warning
+
+### Asset Conflict
+**Definition:** A state where a managed asset's installed copy differs from its source (hash mismatch), or where multiple sources claim ownership of the same asset path. The asset exists but its content does not match what the Copilot installer expects.
+**Usage:** Conflict assets show a Check button only with manual-removal guidance. The conflict must be resolved manually: compare the destination file against the expected source, then either force-reinstall (overwrite) or manually replace the file. The harness check endpoint reports conflict state with a drift flag.
+**Related:** Asset Ownership State, Managed (asset), Unmanaged (asset), Install Ledger, Harness Check
+**Tags:** catalog, assets, conflict, ownership, diagnostics
+
+### Worktree Lifecycle
+**Definition:** The sequence of states a git worktree passes through during its use by the project lane agent. States include allocation, activation (start), completion (end/release), interruption, and removal. Each transition is recorded in both the file-based shared registry and the SQLite hook_events table.
+**Usage:** Worktree lifecycle events are emitted by the executor service during lane agent session management. The lifecycle recording enables dashboard visibility into active worktrees, orphaned worktrees, and session history. Use the Executor tab to inspect worktree state and session associations.
+**Related:** Worktree Service, Executor Service, Session Hook, Project Lane, Git Worktree, Elegy Planning
+**Tags:** worktree, lifecycle, project-lane, executor, session
+
+### Install Ledger
+**Definition:** A per-harness JSON file stored at ~/.elegy/catalog/install-ledger.json that tracks which assets are opted into for each target harness (Codex, OpenCode, Claude Code, Antigravity). The ledger records the opted-in asset IDs, the time of opt-in, per-asset source hashes, and the last install result.
+**Usage:** The install ledger is the authority for determining whether an asset is managed by the Copilot installer. Harness opt-in writes to this ledger. The catalog routes read it to derive asset ownership state. Manual edits to the ledger should be avoided — use the Assets &amp; Tools tab harness controls.
+**Related:** Managed (asset), Asset Ownership State, Harness, Install Surface, Elegy Home
+**Tags:** catalog, assets, ledger, harness, ownership, install
+
+### Harness State
+**Definition:** The per-harness status of an asset across each supported AI coding tool (Codex, OpenCode, Claude Code, Antigravity). States include unknown, available, not-installed, installed, stale, external-managed, unmanaged, and conflict.
+**Usage:** The catalog snapshot and asset detail views show a harness state card for each supported target. The state determines which actions are available: install/sync for installed state, activate/deactivate for external-managed, and Check only for unmanaged/conflict. Use the harness check endpoint for up-to-date state per asset per harness.
+**Related:** Asset Ownership State, Managed (asset), Externally-managed (asset), Install Surface, Harness, Catalog
+**Tags:** catalog, harness, state, assets, tools, diagnostics
