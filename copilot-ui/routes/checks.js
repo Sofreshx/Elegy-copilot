@@ -1,7 +1,7 @@
 'use strict';
 
 const { sendJson: defaultSendJson } = require('./_helpers');
-const { discoverChecks, runAllChecks } = require('../lib/gitCheckRunner');
+const { discoverChecks, runAllChecks, resolveCommitCheckConfig } = require('../lib/gitCheckRunner');
 const { syncCiState } = require('../lib/ciSync');
 
 function isNonEmptyString(value) {
@@ -61,6 +61,20 @@ function handleChecksRun(ctx, deps) {
       }
 
       const results = await runAllChecks(repoPath);
+
+      // Persist check results to disk (non-blocking)
+      try {
+        const { deriveRepoId, writeCheckState } = require('../lib/checkState');
+        const repoId = deriveRepoId(repoPath);
+        const config = resolveCommitCheckConfig(repoPath);
+        let ciSyncResult = null;
+        try { ciSyncResult = syncCiState(repoPath); } catch {}
+        writeCheckState(repoId, repoPath, results, config, ciSyncResult);
+      } catch (err) {
+        // Persistence failure is non-blocking — log but don't fail the request
+        console.error('Failed to persist check state:', err.message);
+      }
+
       sendJson(res, 200, results);
     })
     .catch((error) => {
@@ -87,6 +101,27 @@ function handleCiSync(ctx, deps) {
   }
 }
 
+function handleCheckState(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const repoPath = resolveRepoPath(ctx);
+
+  if (!repoPath) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+
+  try {
+    const { getCheckState, deriveRepoId } = require('../lib/checkState');
+    const repoId = deriveRepoId(repoPath);
+    const config = resolveCommitCheckConfig(repoPath);
+    const state = getCheckState(repoId, repoPath, config);
+    sendJson(res, 200, state);
+  } catch (error) {
+    sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const readJsonBody = context.readJsonBody || require('./_helpers').readJsonBody;
@@ -95,6 +130,7 @@ function register(context = {}) {
   return [
     { method: 'GET', path: '/api/git/checks/discover', handler: (ctx) => handleChecksDiscover(ctx, deps) },
     { method: 'POST', path: '/api/git/checks/run', handler: (ctx) => handleChecksRun(ctx, deps) },
+    { method: 'GET', path: '/api/git/checks/state', handler: (ctx) => handleCheckState(ctx, deps) },
     { method: 'GET', path: '/api/git/checks/ci-sync', handler: (ctx) => handleCiSync(ctx, deps) },
   ];
 }

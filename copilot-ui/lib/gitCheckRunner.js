@@ -346,6 +346,73 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
     };
   }
 
+  // Freshness check — reuse prior cached results if git state hasn't changed
+  try {
+    const { deriveRepoId, checkFreshness } = require('./checkState');
+    const repoId = deriveRepoId(repoRoot);
+    const config = resolveCommitCheckConfig(repoRoot);
+    const freshness = checkFreshness(repoId, repoRoot, config);
+
+    if (freshness.fresh && freshness.lastRun.overallPass) {
+      // Prior run is fresh and passed — reconstruct cached results from stored lanes
+      const cachedLanes = freshness.lastRun.lanes || {};
+      const laneNames = Object.keys(cachedLanes);
+      const cachedResults = {
+        repoRoot,
+        source: freshness.lastRun.configHash ? 'commit-check' : 'legacy',
+        checkedAt: freshness.lastRun.timestamp,
+        checksAvailable: laneNames.length,
+        checksRun: laneNames.length,
+        checksPassed: laneNames.filter((n) => cachedLanes[n].status === 'PASS').length,
+        checksFailed: laneNames.filter((n) => cachedLanes[n].status !== 'PASS').length,
+        allPassed: true,
+        groups: freshness.lastRun.groups || {},
+        groupResults: freshness.lastRun.groupResults || {},
+        results: laneNames.map((name) => ({
+          checkName: name,
+          passed: cachedLanes[name].status === 'PASS',
+          error: cachedLanes[name].status === 'FAIL' ? (cachedLanes[name].details || 'Check failed') : undefined,
+          output: cachedLanes[name].details || '',
+          score: cachedLanes[name].score,
+          group: cachedLanes[name].group,
+          blocking: cachedLanes[name].blocking,
+          ciWorkflow: cachedLanes[name].ciWorkflow,
+          ciJob: cachedLanes[name].ciJob,
+          ciRequired: cachedLanes[name].ciRequired,
+        })),
+        message: 'Using cached check results (no changes since last run).',
+        cached: true,
+      };
+
+      // CI gap detection still runs on cached results
+      try {
+        const syncResult = syncCiState(repoRoot);
+        if (syncResult.syncResult.summary.readiness === 'ci-gap') {
+          return {
+            allowed: false,
+            skipped: false,
+            checkResults: cachedResults,
+            requiresOverride: true,
+            ciGap: true,
+            ciGapDetails: syncResult.syncResult.mappings.filter((m) => m.status === 'ci-gap'),
+            message: `CI gap detected: ${syncResult.syncResult.summary.gaps} CI job(s) (${syncResult.syncResult.mappings.filter((m) => m.status === 'ci-gap').map((m) => m.workflowFile + '/' + m.jobName).join(', ')}) not mapped to local lanes. Provide an override reason to proceed anyway.`,
+          };
+        }
+      } catch {
+        // ciSync failure is non-blocking
+      }
+
+      return {
+        allowed: true,
+        skipped: false,
+        checkResults: cachedResults,
+        message: 'All pre-action checks passed (cached).',
+      };
+    }
+  } catch {
+    // Freshness check failure is non-blocking — run checks normally
+  }
+
   const checkResults = await runAllChecks(repoRoot);
 
   if (checkResults.checksAvailable === 0) {
@@ -422,6 +489,7 @@ module.exports = {
   runCheck,
   runAllChecks,
   gateGitAction,
+  resolveCommitCheckConfig,
   resolveGroupResults,
   KNOWN_CHECKS,
 };
