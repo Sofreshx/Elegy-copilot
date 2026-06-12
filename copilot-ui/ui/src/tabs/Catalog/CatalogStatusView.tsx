@@ -102,6 +102,11 @@ const INSTALL_SURFACE_CARDS: Array<{
     title: 'OpenCode',
     description: 'Global OpenCode AGENTS and curated skills.',
   },
+  {
+    target: 'claude',
+    title: 'Claude Code',
+    description: 'Claude Code instructions and curated skills.',
+  },
 ];
 
 function formatTimestamp(value: string | null | undefined): string {
@@ -125,6 +130,8 @@ function getExternalTargetLabel(target: string): string {
       return 'OpenCode';
     case 'antigravity':
       return 'Antigravity';
+    case 'claude':
+      return 'Claude Code';
     case 'antigravity-cli':
     case 'gemini-cli':
       return 'Antigravity CLI';
@@ -392,6 +399,7 @@ export default function CatalogStatusView() {
   });
   const [detailState, setDetailState] = useState<DetailState>(INITIAL_DETAIL_STATE);
   const [context7Mode, setContext7Mode] = useState<'cli-skills' | 'mcp'>('cli-skills');
+  const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     void catalogWorkspaceStore.loadWorkspace();
@@ -838,6 +846,73 @@ export default function CatalogStatusView() {
         testId="catalog-status-targets-panel"
         title="Targets & install surfaces"
       >
+        {catalogState.lastInstallResults && catalogState.lastInstallResults.length > 0 ? (
+          <div className="catalog-install-results" data-testid="catalog-install-results">
+            <p className="catalog-inline-note">Last install results:</p>
+            <table className="catalog-mini-table">
+              <thead>
+                <tr>
+                  <th>Target</th>
+                  <th>Total</th>
+                  <th>Created</th>
+                  <th>Updated</th>
+                  <th>Skipped</th>
+                </tr>
+              </thead>
+              <tbody>
+                {catalogState.lastInstallResults.map((r) => (
+                  <tr key={r.target}>
+                    <td>{r.target}</td>
+                    <td>{r.total}</td>
+                    <td>{r.created}</td>
+                    <td>{r.updated}</td>
+                    <td>{r.skipped + r.skippedConflict}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+
+        {/* Multi-select action bar */}
+        {selectedTargets.size > 0 ? (
+          <div className="catalog-action-bar">
+            <Button
+              disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
+              onClick={() => {
+                for (const target of selectedTargets) {
+                  void catalogWorkspaceStore.installSurface(target as InstallSurfaceTarget, false);
+                }
+                setSelectedTargets(new Set());
+              }}
+              testId="catalog-install-selected"
+              variant="primary"
+            >
+              Install Selected ({selectedTargets.size})
+            </Button>
+            <Button
+              disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
+              onClick={() => {
+                for (const target of selectedTargets) {
+                  void catalogWorkspaceStore.installSurface(target as InstallSurfaceTarget, true);
+                }
+                setSelectedTargets(new Set());
+              }}
+              testId="catalog-force-selected"
+              variant="ghost"
+            >
+              Force Selected ({selectedTargets.size})
+            </Button>
+            <Button
+              disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
+              onClick={() => setSelectedTargets(new Set())}
+              variant="ghost"
+            >
+              Clear selection
+            </Button>
+          </div>
+        ) : null}
+
         <div className="catalog-surface-grid">
           {INSTALL_SURFACE_CARDS.map((card) => {
             const harnessInfo = (catalogState.summary?.globalInventory?.harnesses || [])
@@ -855,10 +930,24 @@ export default function CatalogStatusView() {
                   <p className="catalog-inline-note" data-testid={`catalog-status-optin-${card.target}`}>Not in use — turn on to manage assets for {card.title} here.</p>
                 )}
                 <div className="catalog-action-row">
+                  <label className="planning-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={selectedTargets.has(card.target)}
+                      disabled={catalogState.loading || catalogState.installing || catalogState.refreshing || !optedIn}
+                      onChange={(e) => {
+                        const next = new Set(selectedTargets);
+                        if (e.target.checked) next.add(card.target);
+                        else next.delete(card.target);
+                        setSelectedTargets(next);
+                      }}
+                    />
+                    <span>Select</span>
+                  </label>
                   <Button
                     disabled={catalogState.loading || catalogState.installing || catalogState.mutating || catalogState.refreshing}
                     onClick={() => {
-                      void catalogWorkspaceStore.toggleHarnessOptIn(card.target as 'codex' | 'opencode' | 'antigravity', !optedIn);
+                      void catalogWorkspaceStore.toggleHarnessOptIn(card.target as 'codex' | 'opencode' | 'antigravity' | 'claude', !optedIn);
                     }}
                     testId={`catalog-status-optin-toggle-${card.target}`}
                     variant={optedIn ? 'primary' : 'secondary'}
@@ -887,6 +976,11 @@ export default function CatalogStatusView() {
                       >
                         Force {card.title}
                       </Button>
+                      {(harnessInfo as Record<string, unknown>)?.state === 'external-managed' ? (
+                        <p className="catalog-inline-note" data-testid={`catalog-external-note-${card.target}`}>
+                          This harness has externally managed assets. Manage activation in External Inventory.
+                        </p>
+                      ) : null}
                     </>
                   ) : null}
                 </div>

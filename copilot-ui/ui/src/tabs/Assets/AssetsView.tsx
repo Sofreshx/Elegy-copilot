@@ -1146,6 +1146,17 @@ export default function AssetsView() {
             Force Everything
           </Button>
         </div>
+
+        {catalogState.lastInstallResults && catalogState.lastInstallResults.length > 0 ? (
+          <div className="catalog-install-summary" data-testid="catalog-install-summary">
+            {catalogState.lastInstallResults.map((r) => (
+              <span key={r.target} className="catalog-inline-stat">
+                {r.target}: {r.total} assets ({r.created} new, {r.updated} updated
+                {r.skipped + r.skippedConflict > 0 ? `, ${r.skipped + r.skippedConflict} skipped` : ''})
+              </span>
+            ))}
+          </div>
+        ) : null}
       </Toolbar>
 
       {catalogState.activeRepoPath ? (
