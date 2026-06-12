@@ -2,6 +2,7 @@
 
 const { sendJson: defaultSendJson } = require('./_helpers');
 const { discoverChecks, runAllChecks } = require('../lib/gitCheckRunner');
+const { syncCiState } = require('../lib/ciSync');
 
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -68,6 +69,24 @@ function handleChecksRun(ctx, deps) {
     });
 }
 
+function handleCiSync(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const repoPath = resolveRepoPath(ctx);
+
+  if (!repoPath) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+
+  try {
+    const result = syncCiState(repoPath);
+    sendJson(res, 200, result);
+  } catch (error) {
+    sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const readJsonBody = context.readJsonBody || require('./_helpers').readJsonBody;
@@ -76,6 +95,7 @@ function register(context = {}) {
   return [
     { method: 'GET', path: '/api/git/checks/discover', handler: (ctx) => handleChecksDiscover(ctx, deps) },
     { method: 'POST', path: '/api/git/checks/run', handler: (ctx) => handleChecksRun(ctx, deps) },
+    { method: 'GET', path: '/api/git/checks/ci-sync', handler: (ctx) => handleCiSync(ctx, deps) },
   ];
 }
 

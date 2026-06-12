@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
+const { syncCiState } = require('./ciSync');
 
 /**
  * Known check scripts in priority order.
@@ -358,6 +359,24 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
   }
 
   if (checkResults.allPassed) {
+    // CI gap detection: check if all PR-relevant CI jobs have local lane mappings
+    try {
+      const syncResult = syncCiState(repoRoot);
+      if (syncResult.syncResult.summary.readiness === 'ci-gap') {
+        return {
+          allowed: false,
+          skipped: false,
+          checkResults,
+          requiresOverride: true,
+          ciGap: true,
+          ciGapDetails: syncResult.syncResult.mappings.filter((m) => m.status === 'ci-gap'),
+          message: `CI gap detected: ${syncResult.syncResult.summary.gaps} CI job(s) (${syncResult.syncResult.mappings.filter((m) => m.status === 'ci-gap').map((m) => m.workflowFile + '/' + m.jobName).join(', ')}) not mapped to local lanes. Provide an override reason to proceed anyway.`,
+        };
+      }
+    } catch {
+      // ciSync failure is non-blocking — allow the action to proceed
+    }
+
     return {
       allowed: true,
       skipped: false,
@@ -367,10 +386,6 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
   }
 
   // Checks failed — gate the action
-  // TODO: Add CI gap detection here — compare lane ciRequired fields against
-  // GitHub Actions workflow status. If a ciRequired lane passes locally but
-  // the corresponding CI workflow/job has not run or has failed, flag a CI gap
-  // warning in a follow-up work point.
   return {
     allowed: false,
     skipped: false,
