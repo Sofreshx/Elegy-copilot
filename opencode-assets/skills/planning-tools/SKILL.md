@@ -12,13 +12,13 @@ triggers:
 
 Native OpenCode tools wrapping the `elegy-planning` CLI. Each tool validates inputs via Zod schemas and returns structured JSON output.
 
-**Announce at start:** "I'm using the planning-tools skill to manage planning state."
+**Announce at start:** "I'm using the planning-tools skill (30 tools) to manage planning state."
 
 ## Available Tools
 
-17 tools organized by function. All tools invoke the `elegy-planning` CLI in machine mode (`--json --non-interactive --correlation-id`).
+30 tools organized by function. All tools invoke the `elegy-planning` CLI in machine mode (`--json --non-interactive --correlation-id`).
 
-### Read Tools
+### Read Tools (11)
 
 #### planning_health
 
@@ -102,7 +102,41 @@ planning_work_point_next_runnable()
 planning_work_point_next_runnable(limit: "5", includeBlocked: false)
 ```
 
-### Write Tools
+#### planning_scope_list
+
+List all known scopes.
+
+**Parameters:**
+- `limit` (optional): Maximum number of scopes to return
+
+```
+planning_scope_list()
+planning_scope_list(limit: "10")
+```
+
+#### planning_tags_list
+
+List all indexed tags across entities. No required arguments.
+
+```
+planning_tags_list()
+```
+
+#### planning_search_extended
+
+Title/tag/status/FTS search across entities.
+
+**Parameters:**
+- `query` (required): Search query string
+- `entityType` (optional): Restrict search to a specific entity type
+- `limit` (optional): Maximum number of results to return
+
+```
+planning_search_extended(query: "oauth auth")
+planning_search_extended(query: "oauth", entityType: "plan", limit: "10")
+```
+
+### Write Tools (15)
 
 #### planning_goal_create
 
@@ -207,7 +241,174 @@ Transition a plan to a new lifecycle state.
 planning_plan_update_status(planId: "oauth-provider-plan", status: "completed")
 ```
 
-### Utility Tools
+#### planning_roadmap_add_section
+
+Add a section to a roadmap.
+
+**Parameters:**
+- `roadmapId` (required): Parent roadmap ID
+- `id` (required): Section slug ID
+- `title` (required): Section title
+- `summary` (optional): Section summary
+- `ordering` (optional): Ordering hint (e.g. `1`, `2`)
+
+```
+planning_roadmap_add_section(roadmapId: "auth-roadmap", id: "phase-1", title: "Phase 1: Provider Integration", ordering: "1")
+```
+
+#### planning_todo_create
+
+Create a todo under a plan.
+
+**Parameters:**
+- `planId` (required): Parent plan ID
+- `title` (required): Todo title
+- `description` (optional): Todo description
+- `status` (optional): Initial status (default: `pending`)
+- `effortTier` (optional): `fast`, `balanced`, or `deep`
+- `tag` (optional): Array of tags
+
+```
+planning_todo_create(
+  planId: "oauth-provider-plan",
+  title: "Implement token refresh logic",
+  description: "Add refresh token rotation with retry",
+  effortTier: "balanced",
+  tag: ["auth", "tokens"]
+)
+```
+
+#### planning_todo_list
+
+List todos in the active scope.
+
+**Parameters:**
+- `planId` (optional): Filter by plan ID
+- `limit` (optional): Maximum number of todos to return
+
+```
+planning_todo_list()
+planning_todo_list(planId: "oauth-provider-plan", limit: "20")
+```
+
+#### planning_insight_record
+
+Record a reasoning insight attached to any planning entity.
+
+**Parameters:**
+- `insightType` (required): Type of insight (e.g. `design-decision`, `constraint`, `risk`)
+- `entityType` (optional): Entity type the insight is about
+- `entityId` (optional): Entity ID the insight is about
+- `content` (optional): Insight content/description
+- `tag` (optional): Array of tags
+
+```
+planning_insight_record(
+  insightType: "design-decision",
+  entityType: "plan",
+  entityId: "oauth-provider-plan",
+  content: "Chose PKCE flow for mobile clients",
+  tag: ["auth", "design"]
+)
+```
+
+#### planning_project_run_claim
+
+Claim a durable execution lease on a work point. Creates a lease record tracking the execution context.
+
+**Parameters:**
+- `goalId` (required): Goal ID
+- `roadmapId` (required): Roadmap ID
+- `workPointId` (required): Work point ID to claim
+- `repo` (required): Repository identifier
+- `branch` (required): Branch name for the work
+- `worktree` (required): Worktree path
+- `session` (required): Session identifier
+- `profile` (required): Provider profile identifier
+- `tag` (optional): Array of tags
+
+```
+planning_project_run_claim(
+  goalId: "auth-migration-v1",
+  roadmapId: "auth-roadmap",
+  workPointId: "oauth-provider-integration",
+  repo: "my-org/my-repo",
+  branch: "feature/oauth-provider",
+  worktree: "/tmp/worktrees/oauth-worktree",
+  session: "sess-abc123",
+  profile: "opencode-go-balanced"
+)
+```
+
+#### planning_project_run_activate
+
+Activate a claimed project run. Marks the run as active when implementation starts in the worktree.
+
+**Parameters:**
+- `runId` (required): Project run ID
+- `worktreePath` (optional): Worktree path for activation
+
+```
+planning_project_run_activate(runId: "run-xyz-789")
+planning_project_run_activate(runId: "run-xyz-789", worktreePath: "/tmp/worktrees/oauth-worktree")
+```
+
+#### planning_project_run_add_evidence
+
+Append immutable evidence to a project run.
+
+**Parameters:**
+- `runId` (required): Project run ID
+- `evidenceType` (required): Type of evidence (`validation`, `review`, `commit`)
+- `content` (optional): Evidence content or description
+- `tag` (optional): Array of tags
+
+```
+planning_project_run_add_evidence(
+  runId: "run-xyz-789",
+  evidenceType: "validation",
+  content: "All oauth tests pass (npm run test -- --grep oauth)",
+  tag: ["validation", "oauth"]
+)
+```
+
+#### planning_project_run_release
+
+Release a project run lease. Frees the execution context.
+
+**Parameters:**
+- `runId` (required): Project run ID
+- `status` (optional): Final status (e.g. `completed`, `failed`, `interrupted`)
+
+```
+planning_project_run_release(runId: "run-xyz-789", status: "completed")
+```
+
+#### planning_project_run_list
+
+List active project runs.
+
+**Parameters:**
+- `planId` (optional): Filter by plan ID
+- `limit` (optional): Maximum number of runs to return
+
+```
+planning_project_run_list()
+planning_project_run_list(planId: "oauth-provider-plan", limit: "10")
+```
+
+#### planning_project_run_show
+
+Show one project run with full evidence trail.
+
+**Parameters:**
+- `runId` (required): Project run ID
+
+```
+planning_project_run_show(runId: "run-xyz-789")
+```
+
+### Utility Tools (4)
 
 #### planning_validate
 
@@ -276,8 +477,9 @@ planning_review_point_record(
 ### Session Start
 
 1. `planning_health()` — confirm DB is initialized
-2. `planning_goal_list()` — find active goals
-3. `planning_roadmap_show(roadmapId: "<id>")` — inspect roadmap structure
+2. `planning_scope_list()` — confirm/resolve active scope
+3. `planning_goal_list()` — find active goals
+4. `planning_roadmap_show(roadmapId: "<id>")` — inspect roadmap structure
 
 ### Plan Phase
 
@@ -287,15 +489,30 @@ planning_review_point_record(
 
 ### Execute Phase
 
-1. Implement in worktree (delegate to `impl` subagent)
-2. `planning_issue_record(...)` — log issues found
-3. `planning_review_point_record(...)` — log review outcomes
+1. **Claim lease:** Claim a project-run lease on the work point before starting work:
+   `planning_project_run_claim(goalId, roadmapId, workPointId, repo, branch, worktree, session, profile)`
+2. Create worktree via `worktree_create` tool
+3. Implement in worktree (delegate to `impl` subagent)
+4. **Activate run:** When implementation starts in the worktree:
+   `planning_project_run_activate(runId: "<id>", worktreePath: "<path>")`
+5. `planning_issue_record(...)` — log issues found
+6. **Record run evidence:** During validation/review, append evidence:
+   `planning_project_run_add_evidence(runId: "<id>", evidenceType: "validation|review|commit", content: "...")`
+7. `planning_review_point_record(...)` — log review outcomes
 
 ### Complete Phase
 
 1. `planning_plan_update_status(planId: "<id>", status: "completed")` — mark done
-2. `planning_validate()` — full validation pass
-3. `planning_roadmap_show(roadmapId: "<id>")` — find remaining work points
+2. `planning_project_run_release(runId: "<id>")` — release the project-run lease
+3. `planning_validate()` — full validation pass
+4. `planning_roadmap_show(roadmapId: "<id>")` — find remaining work points
+
+### Lease Management
+
+- `planning_project_run_claim(...)` creates a durable execution lease tracking the context (goal, roadmap, work point, repo, branch, worktree, session, profile)
+- `planning_project_run_activate(...)` marks a claimed run as actively executing
+- `planning_project_run_add_evidence(...)` appends immutable evidence entries (validation results, review verdicts, commit refs)
+- `planning_project_run_release(...)` frees the lease, accepting an optional final status
 
 ## Output Format
 
@@ -318,6 +535,7 @@ All tools return the `planning-result/v1` JSON envelope:
 - All write operations require `--correlation-id` (generated automatically by the plugin)
 - Multi-value flags (`--tag`, `--acceptance`, `--rejection`) are repeated per value, never comma-joined
 - The plugin resolves the `elegy-planning` binary via env var fallback chain, then PATH
+- All tools accept an optional `scope` parameter for explicit scope selection
 - Read tools have no side-effect class; write tools are `disk_write` against SQLite
 - Validation is expensive on large databases; run at session boundaries, not per-keystroke
 

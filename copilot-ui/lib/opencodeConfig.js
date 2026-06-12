@@ -173,6 +173,8 @@ function readConfig(opencodeHome) {
 function writeConfig(opencodeHome, config) {
   const configPath = resolveConfigPath(opencodeHome);
   const cleaned = { ...config };
+  // Strip agentRoleModels — unsupported key in current OpenCode runtime
+  delete cleaned.agentRoleModels;
   if (cleaned.provider && typeof cleaned.provider === 'object' && !Array.isArray(cleaned.provider)) {
     const { route: _removed, ...rest } = cleaned.provider;
     if (Object.keys(rest).length > 0) {
@@ -316,18 +318,7 @@ function setAgentModels(opencodeHome, smallModel, bigModel, reviewModel) {
     roleModels.review = reviewModel.trim();
   }
 
-  // Write role-level overrides via new API
-  if (!config.agentRoleModels || typeof config.agentRoleModels !== 'object') {
-    config.agentRoleModels = {};
-  }
-  for (const [role, model] of Object.entries(roleModels)) {
-    if (!config.agentRoleModels[role] || typeof config.agentRoleModels[role] !== 'object') {
-      config.agentRoleModels[role] = {};
-    }
-    config.agentRoleModels[role].model = model;
-  }
-
-  // Also write legacy agent.<name>.model for backward compat
+  // Write legacy agent.<name>.model for backward compat
   function ensureAgentEntry(name) {
     if (!config.agent || typeof config.agent !== 'object') {
       config.agent = {};
@@ -670,20 +661,6 @@ function applyProfile(opencodeHome, profile) {
 
   const normalized = normalizeProfile(profile);
 
-  if (normalized.roleModels && typeof normalized.roleModels === 'object') {
-    if (!config.agentRoleModels || typeof config.agentRoleModels !== 'object') {
-      config.agentRoleModels = {};
-    }
-    for (const [role, model] of Object.entries(normalized.roleModels)) {
-      if (typeof model === 'string' && model.trim()) {
-        if (!config.agentRoleModels[role] || typeof config.agentRoleModels[role] !== 'object') {
-          config.agentRoleModels[role] = {};
-        }
-        config.agentRoleModels[role].model = model.trim();
-      }
-    }
-  }
-
   writeConfig(resolvedHome, config);
 
   try {
@@ -698,22 +675,10 @@ function applyProfile(opencodeHome, profile) {
 }
 
 function setAgentRoleModels(opencodeHome, roleModels) {
+  // No-op: agentRoleModels is unsupported by current OpenCode runtime.
+  // Legacy agent.<name>.model entries are written by setAgentModels and
+  // applyProfile instead.
   const resolvedHome = resolveOpenCodeHome(opencodeHome);
-  const config = readConfig(resolvedHome);
-
-  if (!config.agentRoleModels || typeof config.agentRoleModels !== 'object') {
-    config.agentRoleModels = {};
-  }
-
-  for (const [role, model] of Object.entries(roleModels)) {
-    if (typeof model !== 'string' || !model.trim()) continue;
-    if (!config.agentRoleModels[role] || typeof config.agentRoleModels[role] !== 'object') {
-      config.agentRoleModels[role] = {};
-    }
-    config.agentRoleModels[role].model = model.trim();
-  }
-
-  writeConfig(resolvedHome, config);
   return getStatus(resolvedHome);
 }
 

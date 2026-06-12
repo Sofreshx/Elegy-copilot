@@ -424,11 +424,10 @@ describe('opencodeConfig', () => {
   });
 
   describe('setAgentRoleModels', () => {
-    it('writes agentRoleModels to opencode.jsonc', () => {
+    it('is a no-op — agentRoleModels unsupported by current OpenCode runtime', () => {
       setAgentRoleModels(tmpDir, { planning: 'model-a', implementation: 'model-b' });
       const config = readConfig(tmpDir);
-      assert.equal(config.agentRoleModels.planning.model, 'model-a');
-      assert.equal(config.agentRoleModels.implementation.model, 'model-b');
+      assert.ok(!config.agentRoleModels);
     });
   });
 
@@ -441,11 +440,10 @@ describe('opencodeConfig', () => {
       assert.equal(config.agent.reviewer.model, 'review-model');
     });
 
-    it('also writes config.agentRoleModels', () => {
+    it('does not write unsupported agentRoleModels key', () => {
       setAgentModels(tmpDir, 'small-model', 'big-model', 'review-model');
       const config = readConfig(tmpDir);
-      assert.equal(config.agentRoleModels.exploration.model, 'small-model');
-      assert.equal(config.agentRoleModels.planning.model, 'big-model');
+      assert.ok(!config.agentRoleModels);
     });
   });
 
@@ -467,12 +465,11 @@ describe('opencodeConfig', () => {
   });
 
   describe('applyProfile', () => {
-    it('applies normalized profile roleModels to config', () => {
+    it('does not write unsupported agentRoleModels key', () => {
       const profile = { roleModels: { planning: 'plan-model', implementation: 'impl-model' } };
       applyProfile(tmpDir, profile);
       const config = readConfig(tmpDir);
-      assert.equal(config.agentRoleModels.planning.model, 'plan-model');
-      assert.equal(config.agentRoleModels.implementation.model, 'impl-model');
+      assert.ok(!config.agentRoleModels);
     });
   });
 });

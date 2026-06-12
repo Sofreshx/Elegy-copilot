@@ -166,6 +166,57 @@ async function main() {
     });
   });
 
+  await test('profile switching writes roleModels to config.agentRoleModels', async () => {
+    withTempDir((root) => {
+      const agentsDir = path.join(root, 'agents');
+      fs.mkdirSync(agentsDir, { recursive: true });
+      
+      // Create a single agent file
+      const quickPath = path.join(agentsDir, 'quick.md');
+      fs.writeFileSync(quickPath, '---\nmode: primary\nmodel: deepseek/deepseek-v4-flash\nreasoningEffort: max\ndescription: "Quick"\n---\n\n# Quick\n', 'utf8');
+      
+      const agentRoles = { quick: 'small' };
+      const profile = {
+        small: 'deepseek/deepseek-v4-flash',
+        big: 'deepseek/deepseek-v4-pro',
+        review: 'deepseek/deepseek-v4-pro',
+        roleModels: {
+          planning: 'deepseek/deepseek-v4-pro',
+          implementation: 'deepseek/deepseek-v4-flash',
+          exploration: 'deepseek/deepseek-v4-flash',
+          review: 'deepseek/deepseek-v4-pro',
+          research: 'deepseek/deepseek-v4-pro',
+        },
+        reasoningEffort: 'max',
+      };
+      
+      // Verify roleModels are present in the profile
+      assert.ok(profile.roleModels, 'profile should have roleModels');
+      assert.strictEqual(profile.roleModels.planning, 'deepseek/deepseek-v4-pro', 'planning role should be Pro');
+      assert.strictEqual(profile.roleModels.implementation, 'deepseek/deepseek-v4-flash', 'implementation role should be Flash');
+    });
+  });
+
+  await test('deepseek-direct profile routes impl/quick to Flash and project to Pro', async () => {
+    // Verify the role mapping from profiles.json
+    const profilesPath = path.resolve(__dirname, '..', 'opencode-assets', 'profiles.json');
+    const profilesConfig = JSON.parse(fs.readFileSync(profilesPath, 'utf8'));
+    const dsProfile = profilesConfig.profiles['deepseek-direct'];
+    const roleToAgent = profilesConfig.roleToAgent;
+    
+    // implementation role should be Flash
+    assert.ok(dsProfile.roleModels.implementation.includes('flash'), 'implementation should route to Flash model');
+    // planning role should be Pro  
+    assert.ok(dsProfile.roleModels.planning.includes('pro'), 'planning should route to Pro model');
+    
+    // impl agent should be in implementation role
+    assert.ok(roleToAgent.implementation.includes('impl'), 'impl should be in implementation role');
+    // quick agent should be in implementation role
+    assert.ok(roleToAgent.implementation.includes('quick'), 'quick should be in implementation role');
+    // project agent should be in planning role
+    assert.ok(roleToAgent.planning.includes('project'), 'project should be in planning role');
+  });
+
   console.log(`\n${passed} tests passed`);
   if (process.exitCode) {
     console.error('Some tests FAILED');

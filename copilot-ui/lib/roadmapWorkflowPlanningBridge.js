@@ -1050,7 +1050,10 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
           const scopes = await scopeList(config, requestId);
           const scopesToQuery = resolveScopeToQuery(config, scope, repoLabels, scopes.scopes);
           if (scopesToQuery && scopesToQuery.length > 0) {
-            return listRoadmapsMultiScope(config, requestId, scopesToQuery);
+            const result = await listRoadmapsMultiScope(config, requestId, scopesToQuery);
+            if (result.roadmaps.length > 0) {
+              return result;
+            }
           }
         } catch (_scopeErr) {
           // scope list failed; fall through
@@ -1065,7 +1068,10 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
             const scopes = await scopeList(fallbackConfig, requestId);
             const scopesToQuery = resolveScopeToQuery(fallbackConfig, scope, repoLabels, scopes.scopes);
             if (scopesToQuery && scopesToQuery.length > 0) {
-              return listRoadmapsMultiScope(fallbackConfig, requestId, scopesToQuery);
+              const result = await listRoadmapsMultiScope(fallbackConfig, requestId, scopesToQuery);
+              if (result.roadmaps.length > 0) {
+                return result;
+              }
             }
           } catch (_fallbackErr) {
             // try next candidate
@@ -1095,10 +1101,12 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
           (cfg, rid) => readRoadmap(cfg, rid, roadmapId));
       }
 
-      // Fall back to single-scope query
+      // Fall back to active scope query
       if (!result) {
         result = await readRoadmap(config, requestId, roadmapId);
-        if (!result.found) {
+        if (result && result.found) {
+          result._scopeKey = scope || 'default';
+        } else {
           throw buildBridgeReadError('roadmap_not_found', `elegy-planning roadmap ${roadmapId} was not found.`, 404);
         }
       }
@@ -1134,7 +1142,9 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
 
       if (!result) {
         result = await readGoal(config, requestId, goalId);
-        if (!result.found) {
+        if (result && result.found) {
+          result._scopeKey = scope || 'default';
+        } else {
           throw buildBridgeReadError('goal_not_found', `elegy-planning goal ${goalId} was not found.`, 404);
         }
       }
@@ -1162,7 +1172,10 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
           const scopes = await scopeList(config, requestId);
           const scopesToQuery = resolveScopeToQuery(config, scope, repoLabels, scopes.scopes);
           if (scopesToQuery && scopesToQuery.length > 0) {
-            return listPlansMultiScope(config, requestId, scopesToQuery);
+            const result = await listPlansMultiScope(config, requestId, scopesToQuery);
+            if (result.plans.length > 0) {
+              return result;
+            }
           }
         } catch (_scopeErr) {
           // scope list failed; fall through
@@ -1177,7 +1190,10 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
             const scopes = await scopeList(fallbackConfig, requestId);
             const scopesToQuery = resolveScopeToQuery(fallbackConfig, scope, repoLabels, scopes.scopes);
             if (scopesToQuery && scopesToQuery.length > 0) {
-              return listPlansMultiScope(fallbackConfig, requestId, scopesToQuery);
+              const result = await listPlansMultiScope(fallbackConfig, requestId, scopesToQuery);
+              if (result.plans.length > 0) {
+                return result;
+              }
             }
           } catch (_fallbackErr) {
             // try next candidate
@@ -1208,7 +1224,9 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
 
       if (!result) {
         result = await readPlan(config, requestId, planId);
-        if (!result.found) {
+        if (result && result.found) {
+          result._scopeKey = scope || 'default';
+        } else {
           throw buildBridgeReadError('plan_not_found', `elegy-planning plan ${planId} was not found.`, 404);
         }
       }

@@ -56,7 +56,11 @@ async function main() {
         skillsHome,
       });
 
-      assert.ok(fs.existsSync(path.join(opencodeHome, 'AGENTS.md')));
+      const agentsMdPath = path.join(opencodeHome, 'AGENTS.md');
+      assert.ok(fs.existsSync(agentsMdPath));
+      const agentsMdContent = fs.readFileSync(agentsMdPath, 'utf8');
+      assert.ok(agentsMdContent.includes('Agent Session Defaults'), 'AGENTS.md should contain the baseline');
+      assert.ok(agentsMdContent.includes('Harness Appendix'), 'AGENTS.md should contain harness appendix');
       assert.ok(fs.existsSync(path.join(skillsHome, 'rubberduck-plan-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-handoff', 'SKILL.md')));
@@ -303,6 +307,37 @@ async function main() {
           `agentRole '${agentName}' (${agentName}.md) must have 'model' in frontmatter (role: ${roleKey})`);
         assert.ok(frontmatter.reasoningEffort,
           `agentRole '${agentName}' (${agentName}.md) must have 'reasoningEffort' in frontmatter (role: ${roleKey})`);
+      }
+    });
+  });
+
+  await test('install writes roleModels into profile injection', async () => {
+    await withTempDir(async (root) => {
+      const opencodeHome = path.join(root, '.config', 'opencode');
+      const skillsHome = path.join(opencodeHome, 'skills');
+      
+      const summary = await installer.runInstall({
+        force: true,
+        opencodeHome,
+        skillsHome,
+      });
+      
+      // Verify profile injection shows all agents assigned to correct roles
+      if (summary.profileInjection && summary.profileInjection.length > 0) {
+        // impl should be on implementation role (Flash)
+        const implInjection = summary.profileInjection.find(r => r.agent === 'impl');
+        assert.ok(implInjection, 'impl should be in profile injection');
+        assert.ok(implInjection.newModel.includes('flash'), 'impl should route to Flash');
+        
+        // project should be on planning role (Pro)
+        const projectInjection = summary.profileInjection.find(r => r.agent === 'project');
+        assert.ok(projectInjection, 'project should be in profile injection');
+        assert.ok(projectInjection.newModel.includes('pro'), 'project should route to Pro');
+        
+        // quick should be on implementation role (Flash)
+        const quickInjection = summary.profileInjection.find(r => r.agent === 'quick');
+        assert.ok(quickInjection, 'quick should be in profile injection');
+        assert.ok(quickInjection.newModel.includes('flash'), 'quick should route to Flash');
       }
     });
   });

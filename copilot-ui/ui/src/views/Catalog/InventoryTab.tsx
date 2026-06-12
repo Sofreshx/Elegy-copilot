@@ -83,6 +83,9 @@ export default function InventoryTab({ sections, harnesses, onItemAction, onUnin
           sections={filteredSections}
           selectedItem={modalItem}
           onSelectItem={setModalItem}
+          onItemAction={onItemAction}
+          onUninstall={onUninstall}
+          mutating={mutating}
         />
       </div>
 

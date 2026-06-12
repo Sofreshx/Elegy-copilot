@@ -58,24 +58,42 @@ async function main(): Promise<void> {
   bootLog(`isPackaged=${isPackaged}, appVersion=${appVersion}`);
 
   bootLog('loading planning persistence module');
-  const { startDesktopPlanningPersistence } = require(path.join(copilotUiRoot, 'lib', 'desktopPlanningPersistence.js')) as {
-    startDesktopPlanningPersistence: (options: Record<string, unknown>) => Promise<{
-      connectionString: string;
-      queryClient: {
-        query: (sql: string, params?: unknown[]) => Promise<unknown>;
-      };
-      stop: () => Promise<void>;
-    }>;
-  };
+  let startDesktopPlanningPersistence: (options: Record<string, unknown>) => Promise<{
+    connectionString: string;
+    queryClient: {
+      query: (sql: string, params?: unknown[]) => Promise<unknown>;
+    };
+    stop: () => Promise<void>;
+  }>;
+
+  try {
+    const planningModule = require(path.join(copilotUiRoot, 'lib', 'desktopPlanningPersistence.js')) as {
+      startDesktopPlanningPersistence: typeof startDesktopPlanningPersistence;
+    };
+    startDesktopPlanningPersistence = planningModule.startDesktopPlanningPersistence;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    bootLog(`failed to load planning persistence module: ${msg}`);
+    throw error;
+  }
 
   bootLog('loading server module');
-  const { startServer } = require(serverEntrypointPath) as {
-    startServer: (options: Record<string, unknown>) => Promise<{
-      host: string;
-      port: number;
-      close: () => Promise<void>;
-    }>;
-  };
+  let startServer: (options: Record<string, unknown>) => Promise<{
+    host: string;
+    port: number;
+    close: () => Promise<void>;
+  }>;
+
+  try {
+    const serverModule = require(serverEntrypointPath) as {
+      startServer: typeof startServer;
+    };
+    startServer = serverModule.startServer;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    bootLog(`failed to load server module (${serverEntrypointPath}): ${msg}`);
+    throw error;
+  }
 
   let runtimeService: DesktopRuntimeService | null = null;
   let shutdownStarted = false;
@@ -175,7 +193,8 @@ async function main(): Promise<void> {
     void shutdown()
       .catch((error: unknown) => {
         const detail = error instanceof Error ? error.message : String(error);
-        console.error(`${ERROR_PREFIX}${JSON.stringify({ message: detail })}`);
+        const stack = error instanceof Error ? error.stack : undefined;
+        console.error(`${ERROR_PREFIX}${JSON.stringify({ message: detail, stack })}`);
       })
       .finally(() => {
         process.exit(0);
@@ -208,13 +227,15 @@ async function main(): Promise<void> {
     bootLog('runtime service start failed, shutting down');
     await shutdown();
     const detail = error instanceof Error ? error.message : String(error);
-    console.error(`${ERROR_PREFIX}${JSON.stringify({ message: detail })}`);
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error(`${ERROR_PREFIX}${JSON.stringify({ message: detail, stack })}`);
     process.exit(1);
   }
 }
 
 void main().catch((error: unknown) => {
   const detail = error instanceof Error ? error.message : String(error);
-  console.error(`${ERROR_PREFIX}${JSON.stringify({ message: detail })}`);
+  const stack = error instanceof Error ? error.stack : undefined;
+  console.error(`${ERROR_PREFIX}${JSON.stringify({ message: detail, stack })}`);
   process.exit(1);
 });

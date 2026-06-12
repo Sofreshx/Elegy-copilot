@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-03
+updated: 2026-06-12
 category: system
 status: current
 doc_kind: node
@@ -33,6 +33,14 @@ Practical rule:
 
 Agents are still useful, but they’re more likely to diverge (tools, UX, capabilities). Keep agents tool-neutral when possible, and only fork into tool-specific variants when you have a real need.
 
+## Lane Routing Ownership
+
+Lane selection belongs in catalog/search metadata, frontmatter descriptions, and canonical routing docs.
+Do not duplicate `When To Use` / `When NOT To Use` sections inside lane agent bodies.
+
+Selected lane agents should execute their lane. If discovered scope exceeds the selected lane, the agent
+returns `needs-reroute` with the exceeded boundary and recommended lane.
+
 ## Decision Matrix
 
 | Scenario | Choose | Rationale |
@@ -42,7 +50,7 @@ Agents are still useful, but they’re more likely to diverge (tools, UX, capabi
 | Deployment checks (pre-flight checks and canary runs) | Agent | Orchestration across steps with state and decision points. |
 | Read-only discovery (list buckets, inventory) | Skill | Simple queries that should be idempotent. |
 | Emergency incident recovery (runbook rollback) | Agent | High impact, requires sequencing and approval gating. |
-| Lane workflow (quick/standard/spec/project) | Agent | Multi-phase workflow with mandatory gates, handoffs, and enforcement. Skills are advisory; agents ensure phases are followed. |
+| Lane workflow (quick/standard/spec/project) | Agent | Multi-phase workflow with mandatory gates and handoffs. Routing is metadata/doc-owned; selected agents enforce only in-flight boundaries. |
 
 ## Rule of Thumb
 

@@ -514,12 +514,37 @@ export async function runInstall(args = {}) {
 
           try {
           const config = readConfig(opencodeHome);
+
+          // Write config.agentRoleModels from profile.roleModels (role-level model routing)
+          if (!config.agentRoleModels || typeof config.agentRoleModels !== 'object') {
+            config.agentRoleModels = {};
+          }
+          if (profile.roleModels && typeof profile.roleModels === 'object') {
+            for (const [role, model] of Object.entries(profile.roleModels)) {
+              config.agentRoleModels[role] = model;
+            }
+          }
+
+          // Write legacy config.agent.<name>.model (backward compat)
           if (!config.agent || typeof config.agent !== 'object') {
             config.agent = {};
           }
           let configUpdated = 0;
-          for (const [agentName, roleKey] of Object.entries(agentRoles)) {
-            const modelValue = profile[roleKey];
+          for (const [agentName, legacyRoleKey] of Object.entries(agentRoles)) {
+            let modelValue = null;
+            // Primary: resolve via roleToAgent + roleModels
+            if (roleToAgent && profile.roleModels && typeof profile.roleModels === 'object') {
+              for (const [roleName, agentList] of Object.entries(roleToAgent)) {
+                if (Array.isArray(agentList) && agentList.includes(agentName) && profile.roleModels[roleName]) {
+                  modelValue = profile.roleModels[roleName];
+                  break;
+                }
+              }
+            }
+            // Fallback: legacy profile.<small|big|review> by agentRoles key
+            if (!modelValue && profile[legacyRoleKey]) {
+              modelValue = profile[legacyRoleKey];
+            }
             if (!modelValue) continue;
             if (!config.agent[agentName] || typeof config.agent[agentName] !== 'object') {
               config.agent[agentName] = {};
@@ -528,7 +553,7 @@ export async function runInstall(args = {}) {
             configUpdated += 1;
           }
 
-          if (configUpdated > 0 && !args.dryRun) {
+          if ((configUpdated > 0 || Object.keys(config.agentRoleModels).length > 0) && !args.dryRun) {
             writeConfig(opencodeHome, config);
           }
 

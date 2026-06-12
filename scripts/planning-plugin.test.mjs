@@ -64,6 +64,19 @@ await test('plugin registers expected tools', () => {
     'planning_context',
     'planning_issue_record',
     'planning_review_point_record',
+    'planning_scope_list',
+    'planning_tags_list',
+    'planning_search_extended',
+    'planning_roadmap_add_section',
+    'planning_todo_create',
+    'planning_todo_list',
+    'planning_insight_record',
+    'planning_project_run_claim',
+    'planning_project_run_activate',
+    'planning_project_run_add_evidence',
+    'planning_project_run_release',
+    'planning_project_run_list',
+    'planning_project_run_show',
   ];
   for (const toolName of expectedTools) {
     assert.ok(content.includes(toolName + ':'), `plugin should register tool: ${toolName}`);
@@ -98,6 +111,29 @@ await test('plugin handles multi-value flags correctly', () => {
   assert.ok(content.includes('for (const v of args.rejection)'), 'plugin should repeat --rejection flag per value');
 });
 
+await test('plugin has scope support', () => {
+  const content = fs.readFileSync(pluginPath, 'utf8');
+  assert.ok(content.includes('resolveScope'), 'plugin should have scope resolution helper');
+  assert.ok(content.includes('--scope'), 'plugin should pass --scope flag');
+  assert.ok(content.includes('scopeArg'), 'plugin should have scopeArg schema factory');
+});
+
+await test('roadmap add-work-point uses --work-point-id not --id', () => {
+  const content = fs.readFileSync(pluginPath, 'utf8');
+  assert.ok(content.includes('--work-point-id'), 'buildRoadmapAddWorkPointArgs should use --work-point-id');
+});
+
+await test('project-run claim uses correct CLI flags', () => {
+  const content = fs.readFileSync(pluginPath, 'utf8');
+  assert.ok(content.includes('--goal-id'), 'project-run claim should pass --goal-id');
+  assert.ok(content.includes('--roadmap-id'), 'project-run claim should pass --roadmap-id');
+  assert.ok(content.includes('--repo'), 'project-run claim should pass --repo');
+  assert.ok(content.includes('--branch'), 'project-run claim should pass --branch');
+  assert.ok(content.includes('--worktree'), 'project-run claim should pass --worktree');
+  assert.ok(content.includes('--session'), 'project-run claim should pass --session');
+  assert.ok(content.includes('--profile'), 'project-run claim should pass --profile');
+});
+
 // Try to import the plugin if @opencode-ai/plugin is available
 try {
   const pluginUrl = pathToFileURL(pluginPath).href;
@@ -114,7 +150,7 @@ try {
     assert.strictEqual(typeof plugin.tool, 'object', 'tool should be an object');
   });
 
-  await test('plugin registers all 17 tools', async () => {
+  await test('plugin registers all 30 tools', async () => {
     const plugin = await PlanningPlugin({ project: { path: '/tmp/test' } });
     const expectedTools = [
       'planning_health',
@@ -134,13 +170,26 @@ try {
       'planning_context',
       'planning_issue_record',
       'planning_review_point_record',
+      'planning_scope_list',
+      'planning_tags_list',
+      'planning_search_extended',
+      'planning_roadmap_add_section',
+      'planning_todo_create',
+      'planning_todo_list',
+      'planning_insight_record',
+      'planning_project_run_claim',
+      'planning_project_run_activate',
+      'planning_project_run_add_evidence',
+      'planning_project_run_release',
+      'planning_project_run_list',
+      'planning_project_run_show',
     ];
     for (const name of expectedTools) {
       assert.ok(plugin.tool[name], `tool ${name} should be registered`);
       assert.strictEqual(typeof plugin.tool[name].execute, 'function', `tool ${name} should have execute function`);
       assert.strictEqual(typeof plugin.tool[name].description, 'string', `tool ${name} should have description`);
     }
-    assert.strictEqual(Object.keys(plugin.tool).length, expectedTools.length, `should have exactly ${expectedTools.length} tools`);
+    assert.strictEqual(Object.keys(plugin.tool).length, 30, `should have exactly 30 tools`);
   });
 
   await test('tools have proper args schemas', async () => {

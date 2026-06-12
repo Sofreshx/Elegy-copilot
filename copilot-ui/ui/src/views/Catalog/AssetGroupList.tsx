@@ -1,6 +1,7 @@
-import type { CatalogGlobalItem, CatalogGlobalSection } from '../../lib/types';
+import type { CatalogGlobalItem, CatalogGlobalSection, CatalogGlobalHarnessState } from '../../lib/types';
 import { normalizeProvenance, compareProvenanceGroups, type ProvenanceGroupInfo } from './provenance';
 import { Badge } from '../../components';
+import { canDeactivateAsset } from './harnessStateHelper';
 
 /* Types */
 export interface ProvenanceAssetGroup {
@@ -15,6 +16,9 @@ interface AssetGroupListProps {
   sections: CatalogGlobalSection[];
   selectedItem: CatalogGlobalItem | null;
   onSelectItem: (item: CatalogGlobalItem) => void;
+  onItemAction?: (item: CatalogGlobalItem, state: CatalogGlobalHarnessState) => void;
+  onUninstall?: (item: CatalogGlobalItem, state: CatalogGlobalHarnessState) => void;
+  mutating?: boolean;
 }
 
 /* Helpers */
@@ -74,7 +78,7 @@ function getKindBadgeTone(kind: string): 'neutral' | 'brand' | 'accent' | 'succe
 }
 
 /* Component */
-export default function AssetGroupList({ sections, selectedItem, onSelectItem }: AssetGroupListProps) {
+export default function AssetGroupList({ sections, selectedItem, onSelectItem, onItemAction, onUninstall, mutating }: AssetGroupListProps) {
   const allItems = sections.flatMap((s) => s.items || []);
   const groups = groupByProvenance(allItems);
 
@@ -120,6 +124,42 @@ export default function AssetGroupList({ sections, selectedItem, onSelectItem }:
                 {item.description ? (
                   <p className="assets-tools-item-description">{item.description}</p>
                 ) : null}
+                {(item.harnessStates || []).some((hs) => {
+                  const actionKind = (hs.metadata as Record<string, unknown> | null)?.actionKind as string | undefined;
+                  return actionKind === 'external-source'
+                    ? hs.actions?.canDeactivate && (hs.active || hs.installed)
+                    : canDeactivateAsset(hs).canDeactivate;
+                }) && (
+                  <div className="assets-tools-item-actions">
+                    {(item.harnessStates || []).map((hs) => {
+                      const actionKind = (hs.metadata as Record<string, unknown> | null)?.actionKind as string | undefined;
+                      const isExternal = actionKind === 'external-source';
+                      const canDeactivate = isExternal
+                        ? hs.actions?.canDeactivate && (hs.active || hs.installed)
+                        : canDeactivateAsset(hs).canDeactivate;
+                      if (!canDeactivate) return null;
+                      return (
+                        <button
+                          key={hs.harnessId}
+                          className="button button-sm button-danger-ghost"
+                          disabled={mutating}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isExternal) {
+                              onItemAction?.(item, hs);
+                            } else {
+                              onUninstall?.(item, hs);
+                            }
+                          }}
+                          title={`Uninstall from ${hs.title || hs.harnessId}`}
+                          type="button"
+                        >
+                          Uninstall
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </article>
             );
           })}

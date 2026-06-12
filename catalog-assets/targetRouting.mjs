@@ -217,7 +217,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-elegy-obsidian-skill', { sourceAssetId: 'skill-elegy-obsidian' }),
       route('opencode-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning' }),
       route('opencode-elegy-skills-discovery-skill', { sourceAssetId: 'skill-elegy-skills-discovery' }),
-      route('opencode-global-instructions'),
+      route('opencode-global-instructions', { destination: 'AGENTS.md' }),
       route('opencode-implementation-handoff-skill', { sourceAssetId: 'skill-implementation-handoff' }),
       route('opencode-implementation-review-skill', { sourceAssetId: 'skill-implementation-review' }),
       route('opencode-planning-plugin'),

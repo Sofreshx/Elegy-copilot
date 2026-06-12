@@ -1,6 +1,6 @@
 ---
 created: 2026-03-07
-updated: 2026-05-26
+updated: 2026-06-12
 category: system
 status: current
 doc_kind: node
@@ -58,6 +58,9 @@ Tool-facing instructions should route into canonical docs and execution lanes, n
   relevant MOC, and then the smallest node
 - when passing a downstream brief, include the canonical paths to load rather than copying long
   policy blocks into the brief itself
+- keep lane-selection guidance in catalog/search metadata, frontmatter descriptions, and canonical
+  routing docs; lane agent bodies should use `needs-reroute` only when discovered scope exceeds the
+  selected lane
 - if a compact instruction surface appears to disagree with canonical docs, treat the compact surface
   as drift and follow the canonical node
 

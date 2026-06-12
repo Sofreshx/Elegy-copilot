@@ -57,6 +57,6 @@ IMPL_RESULT
 - Do not commit changes unless the calling agent explicitly instructs you to
 
 ## Git Workflow
-- **Small targeted commits:** When instructed to commit, inspect the diff, stage only the intended files, propose a commit message, and wait for approval. Never `git add -A` followed by bulk commit.
-- **Never auto-push, auto-merge, or delete branches** without explicit instruction from the calling agent.
-- **Never promote through protected branches** unless the calling agent explicitly requests it.
+- Follow caller instructions for git work.
+- Durable git mutations require explicit caller approval: commit, merge, push, branch deletion, and protected-branch promotion.
+- Stage only intended files; never use bulk `git add -A` for commits.

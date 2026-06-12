@@ -1460,10 +1460,56 @@ function ensureShippedUserDocuments(engineRoot, elegyHome) {
   };
 }
 
+function reconcileManagedPluginsIntoState(state, opencodeHome) {
+  if (!opencodeHome) return false;
+  const managed = opencodeConfig.getManagedPlugins(opencodeHome);
+  let dirty = false;
+  for (const pkgName of Object.keys(managed)) {
+    const entry = managed[pkgName];
+    const meta = entry && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata) ? entry.metadata : null;
+    const sourceId = meta && typeof meta.sourceId === 'string' ? meta.sourceId : '';
+    const installableId = meta && typeof meta.installableId === 'string' ? meta.installableId : '';
+    if (!sourceId || !installableId) continue;
+    if (!state.sources[sourceId]) {
+      state.sources[sourceId] = { targets: {} };
+    }
+    const src = state.sources[sourceId];
+    if (!src.targets || typeof src.targets !== 'object' || Array.isArray(src.targets)) {
+      src.targets = {};
+    }
+    if (!src.targets.opencode) {
+      src.targets.opencode = { installables: {} };
+    }
+    const tgt = src.targets.opencode;
+    if (!tgt.installables || typeof tgt.installables !== 'object' || Array.isArray(tgt.installables)) {
+      tgt.installables = {};
+    }
+    const existing = tgt.installables[installableId];
+    if (!existing || !existing.enabled) {
+      tgt.installables[installableId] = {
+        ...(existing && typeof existing === 'object' ? existing : {}),
+        enabled: true,
+        installed: true,
+        installedAt: entry.installedAt || existing?.installedAt || null,
+        managedName: installableId,
+        installedPath: pkgName,
+        kind: existing?.kind || 'opencode-plugin',
+        overallStatus: 'installed',
+      };
+      dirty = true;
+    }
+  }
+  return dirty;
+}
+
 function listSources(options) {
-  const { engineRoot, elegyHome } = options;
+  const { engineRoot, elegyHome, opencodeHome } = options;
   const { shipped, user } = ensureShippedUserDocuments(engineRoot, elegyHome);
   const { statePath, state } = readExternalSourcesState(elegyHome);
+  const reconciled = reconcileManagedPluginsIntoState(state, opencodeHome);
+  if (reconciled) {
+    writeExternalSourcesState(elegyHome, state);
+  }
   const mergedSources = mergeSources(shipped.document, user.document);
 
   return {

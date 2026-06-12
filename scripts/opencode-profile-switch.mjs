@@ -132,9 +132,15 @@ function main() {
   try {
     const config = readConfig(opencodeHome);
 
-    // Write legacy agent.<name>.model (backward compat)
-    if (!config.agent || typeof config.agent !== 'object') {
-      config.agent = {};
+    // Write config.agentRoleModels from profile.roleModels (role-level model routing)
+    if (!config.agentRoleModels || typeof config.agentRoleModels !== 'object') {
+      config.agentRoleModels = {};
+    }
+    if (profile.roleModels && typeof profile.roleModels === 'object') {
+      for (const [role, model] of Object.entries(profile.roleModels)) {
+        config.agentRoleModels[role] = model;
+      }
+      configSyncResults.push({ agent: '(roleModels)', role: 'roles', oldModel: '—', newModel: `${Object.keys(profile.roleModels).length} roles` });
     }
 
     // Provider config management:
@@ -148,36 +154,39 @@ function main() {
       delete config.provider;
     }
 
+    // Write legacy config.agent.<name>.model (backward compat)
+    // Use roleToAgent for role-model mapping, fall back to agentRoles for legacy keys
+    if (!config.agent || typeof config.agent !== 'object') {
+      config.agent = {};
+    }
+
     let configUpdated = 0;
-    for (const [agentName, roleKey] of Object.entries(agentRoles)) {
-      const modelValue = profile[roleKey];
+    for (const [agentName, legacyRoleKey] of Object.entries(agentRoles)) {
+      let modelValue = null;
+      // Primary: resolve via roleToAgent + roleModels
+      if (roleToAgent && profile.roleModels && typeof profile.roleModels === 'object') {
+        for (const [roleName, agentList] of Object.entries(roleToAgent)) {
+          if (Array.isArray(agentList) && agentList.includes(agentName) && profile.roleModels[roleName]) {
+            modelValue = profile.roleModels[roleName];
+            break;
+          }
+        }
+      }
+      // Fallback: legacy profile.<small|big|review> by agentRoles key
+      if (!modelValue && profile[legacyRoleKey]) {
+        modelValue = profile[legacyRoleKey];
+      }
       if (!modelValue) continue;
       const prevModel = config.agent[agentName]?.model;
       if (!config.agent[agentName] || typeof config.agent[agentName] !== 'object') {
         config.agent[agentName] = {};
       }
       config.agent[agentName].model = modelValue;
-      configSyncResults.push({ agent: agentName, role: roleKey, oldModel: prevModel || 'none', newModel: modelValue });
+      configSyncResults.push({ agent: agentName, role: legacyRoleKey, oldModel: prevModel || 'none', newModel: modelValue });
       configUpdated += 1;
     }
 
-    // Write agentRoleModels (new preferred API)
-    const normalizedForSync = normalizeProfile(profile, targetProfile);
-    if (normalizedForSync.roleModels && typeof normalizedForSync.roleModels === 'object') {
-      if (!config.agentRoleModels || typeof config.agentRoleModels !== 'object') {
-        config.agentRoleModels = {};
-      }
-      for (const [role, model] of Object.entries(normalizedForSync.roleModels)) {
-        if (typeof model !== 'string' || !model.trim()) continue;
-        if (!config.agentRoleModels[role] || typeof config.agentRoleModels[role] !== 'object') {
-          config.agentRoleModels[role] = {};
-        }
-        config.agentRoleModels[role].model = model.trim();
-        configUpdated += 1;
-      }
-    }
-
-    if (configUpdated > 0) {
+    if (configUpdated > 0 || Object.keys(config.agentRoleModels).length > 0) {
       writeConfig(opencodeHome, config);
     }
   } catch (err) {

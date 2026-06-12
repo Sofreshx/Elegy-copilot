@@ -44,7 +44,7 @@ const INSTALL_SURFACE_HARNESSES = new Set(['codex', 'opencode', 'antigravity', '
 const HARNESS_INSTALLABLE_KINDS = Object.freeze({
   copilot: new Set(['agent', 'skill']),
   codex: new Set(['agent', 'skill', 'mcp']),
-  opencode: new Set(['agent', 'skill', 'mcp', 'hook']),
+  opencode: new Set(['agent', 'skill', 'mcp', 'hook', 'plugin']),
   antigravity: new Set(['skill']),
   'claude-code': new Set(['skill', 'instructions']),
   'gemini-cli': new Set(['mcp']),

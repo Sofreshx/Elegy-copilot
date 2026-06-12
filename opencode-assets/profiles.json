@@ -1,10 +1,14 @@
 {
-  "activeProfile": "opencode-go-balanced",
+  "activeProfile": "deepseek-direct",
   "profiles": {
     "opencode-go-balanced": {
       "label": "OpenCode Go Balanced",
       "description": "Go provider with DeepSeek defaults",
-      "tags": ["go", "deepseek", "balanced"],
+      "tags": [
+        "go",
+        "deepseek",
+        "balanced"
+      ],
       "roleModels": {
         "planning": "opencode-go/deepseek-v4-pro",
         "implementation": "opencode-go/deepseek-v4-flash",
@@ -23,7 +27,11 @@
     "opencode-go-fast": {
       "label": "OpenCode Go Fast",
       "description": "Go provider with cheaper exploration models",
-      "tags": ["go", "deepseek", "fast"],
+      "tags": [
+        "go",
+        "deepseek",
+        "fast"
+      ],
       "roleModels": {
         "planning": "opencode-go/deepseek-v4-pro",
         "implementation": "opencode-go/deepseek-v4-flash",
@@ -39,7 +47,10 @@
     "opencode-zen-free": {
       "label": "OpenCode Zen Free",
       "description": "Zen provider using free-tier models",
-      "tags": ["zen", "free"],
+      "tags": [
+        "zen",
+        "free"
+      ],
       "notes": "Free Zen model availability can change daily; best-effort curated IDs.",
       "roleModels": {
         "planning": "opencode/deepseek-v4-pro-free",
@@ -53,7 +64,11 @@
     "opencode-zen-mixed": {
       "label": "OpenCode Zen Mixed",
       "description": "Zen free models for exploration, stronger models for planning/review",
-      "tags": ["zen", "mixed", "cost-optimized"],
+      "tags": [
+        "zen",
+        "mixed",
+        "cost-optimized"
+      ],
       "roleModels": {
         "planning": "opencode/deepseek-v4-pro",
         "implementation": "opencode/deepseek-v4-flash-free",
@@ -66,13 +81,17 @@
     "deepseek-direct": {
       "label": "Direct DeepSeek",
       "description": "Direct DeepSeek API fallback route",
-      "tags": ["direct", "deepseek", "fallback"],
+      "tags": [
+        "direct",
+        "deepseek",
+        "fallback"
+      ],
       "roleModels": {
-        "planning": "deepseek-direct/deepseek-v4-pro",
-        "implementation": "deepseek-direct/deepseek-v4-flash",
-        "exploration": "deepseek-direct/deepseek-v4-flash",
-        "review": "deepseek-direct/deepseek-v4-pro",
-        "research": "deepseek-direct/deepseek-v4-pro"
+        "planning": "deepseek/deepseek-v4-pro",
+        "implementation": "deepseek/deepseek-v4-flash",
+        "exploration": "deepseek/deepseek-v4-flash",
+        "review": "deepseek/deepseek-v4-pro",
+        "research": "deepseek/deepseek-v4-pro"
       },
       "small": "deepseek/deepseek-v4-flash",
       "big": "deepseek/deepseek-v4-pro",
@@ -84,11 +103,27 @@
     }
   },
   "roleToAgent": {
-    "planning": ["plan", "standard", "spec", "project"],
-    "implementation": ["build", "impl", "quick"],
-    "exploration": ["explore", "explorer"],
-    "review": ["reviewer"],
-    "research": ["scout"]
+    "planning": [
+      "plan",
+      "standard",
+      "spec",
+      "project"
+    ],
+    "implementation": [
+      "build",
+      "impl",
+      "quick"
+    ],
+    "exploration": [
+      "explore",
+      "explorer"
+    ],
+    "review": [
+      "reviewer"
+    ],
+    "research": [
+      "scout"
+    ]
   },
   "agentRoles": {
     "quick": "small",
