@@ -282,8 +282,9 @@ async function runMachineCommand(config, requestId, commandArgs) {
 }
 
 function isNotFoundResponse(parsed) {
-  return normalizeMachineStatus(parsed) === 'invalid'
-    && /entity not found:/i.test(normalizeString(parsed && parsed.error));
+  const status = normalizeMachineStatus(parsed);
+  const message = normalizeString(parsed && parsed.error);
+  return status === 'invalid' && (/entity not found:/i.test(message) || /is in scope/i.test(message));
 }
 
 function buildOperation(entityType, entityId, action, parsed = null) {
@@ -759,6 +760,55 @@ async function listPlansMultiScope(config, requestId, scopesToQuery) {
   };
 }
 
+/**
+ * Try to find an entity across multiple scopes and fallback DB candidates.
+ * Returns { found, parsed, _scopeKey } on success, or null if not found in any scope.
+ */
+async function tryFindEntityMultiScope(config, scope, requestId, repoLabels, dbResolution, findFn) {
+  if (repoLabels.length === 0) return null;
+
+  // Try primary DB first
+  try {
+    const scopes = await scopeList(config, requestId);
+    const scopesToQuery = resolveScopeToQuery(config, scope, repoLabels, scopes.scopes);
+    if (scopesToQuery && scopesToQuery.length > 0) {
+      for (const scopeEntry of scopesToQuery) {
+        const scopedConfig = makeScopedConfig(config, scopeEntry.key);
+        try {
+          const result = await findFn(scopedConfig, requestId);
+          if (result && result.found) {
+            return { ...result, _scopeKey: scopeEntry.key };
+          }
+        } catch (_err) { /* try next scope */ }
+      }
+    }
+  } catch (_scopeErr) { /* scope list failed; fall through */ }
+
+  // Try fallback DB candidates
+  const fallbackCandidates = (dbResolution && dbResolution.candidates || [])
+    .filter((c) => c.populated && c.path !== config.dbPath);
+  for (const candidate of fallbackCandidates) {
+    try {
+      const fallbackConfig = { ...config, dbPath: candidate.path };
+      const scopes = await scopeList(fallbackConfig, requestId);
+      const scopesToQuery = resolveScopeToQuery(fallbackConfig, scope, repoLabels, scopes.scopes);
+      if (scopesToQuery && scopesToQuery.length > 0) {
+        for (const scopeEntry of scopesToQuery) {
+          const scopedConfig = makeScopedConfig(fallbackConfig, scopeEntry.key);
+          try {
+            const result = await findFn(scopedConfig, requestId);
+            if (result && result.found) {
+              return { ...result, _scopeKey: scopeEntry.key };
+            }
+          } catch (_err) { /* try next scope */ }
+        }
+      }
+    } catch (_fallbackErr) { /* try next candidate */ }
+  }
+
+  return null;
+}
+
 async function listRoadmaps(config, requestId) {
   const result = await runMachineCommand(config, requestId, ['roadmap', 'list']);
   if (normalizeMachineStatus(result.parsed) !== 'ok') {
@@ -824,6 +874,10 @@ function resolvePlanningDbPath(options = {}) {
   const candidates = [];
 
   function pushCandidate(source, candidatePath) {
+    const resolved = candidatePath ? pathModule.resolve(candidatePath) : '';
+    if (resolved && candidates.some((c) => pathModule.resolve(c.path) === resolved)) {
+      return;
+    }
     const entry = { path: candidatePath, source, exists: false, populated: false };
     if (candidatePath) {
       try {
@@ -1029,9 +1083,24 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
       }
 
       const requestId = resolveReadRequestId(input, roadmapId);
-      const result = await readRoadmap(config, requestId, roadmapId);
-      if (!result.found) {
-        throw buildBridgeReadError('roadmap_not_found', `elegy-planning roadmap ${roadmapId} was not found.`, 404);
+      const repoLabels = Array.isArray(input.repoLabels) && input.repoLabels.length > 0
+        ? input.repoLabels
+        : (normalizeString(input.repoLabel) ? [normalizeString(input.repoLabel)] : []);
+
+      let result = null;
+
+      // Try multi-scope resolution when repo labels are present
+      if (repoLabels.length > 0) {
+        result = await tryFindEntityMultiScope(config, scope, requestId, repoLabels, dbResolution,
+          (cfg, rid) => readRoadmap(cfg, rid, roadmapId));
+      }
+
+      // Fall back to single-scope query
+      if (!result) {
+        result = await readRoadmap(config, requestId, roadmapId);
+        if (!result.found) {
+          throw buildBridgeReadError('roadmap_not_found', `elegy-planning roadmap ${roadmapId} was not found.`, 404);
+        }
       }
 
       const data = extractMachineData(result.parsed);
@@ -1041,6 +1110,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
         sections: Array.isArray(data.sections) ? data.sections : [],
         workPoints: Array.isArray(data.workPoints) ? data.workPoints : [],
         validation: isPlainObject(data.validation) ? data.validation : {},
+        _scopeKey: result._scopeKey || undefined,
       };
     },
     async showGoal(input = {}) {
@@ -1051,9 +1121,22 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
       }
 
       const requestId = resolveReadRequestId(input, goalId);
-      const result = await readGoal(config, requestId, goalId);
-      if (!result.found) {
-        throw buildBridgeReadError('goal_not_found', `elegy-planning goal ${goalId} was not found.`, 404);
+      const repoLabels = Array.isArray(input.repoLabels) && input.repoLabels.length > 0
+        ? input.repoLabels
+        : (normalizeString(input.repoLabel) ? [normalizeString(input.repoLabel)] : []);
+
+      let result = null;
+
+      if (repoLabels.length > 0) {
+        result = await tryFindEntityMultiScope(config, scope, requestId, repoLabels, dbResolution,
+          (cfg, rid) => readGoal(cfg, rid, goalId));
+      }
+
+      if (!result) {
+        result = await readGoal(config, requestId, goalId);
+        if (!result.found) {
+          throw buildBridgeReadError('goal_not_found', `elegy-planning goal ${goalId} was not found.`, 404);
+        }
       }
 
       const data = extractMachineData(result.parsed);
@@ -1062,6 +1145,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
         goal: isPlainObject(data.goal) ? data.goal : {},
         roadmaps: Array.isArray(data.roadmaps) ? data.roadmaps : [],
         validation: isPlainObject(data.validation) ? data.validation : {},
+        _scopeKey: result._scopeKey || undefined,
       };
     },
     async listPlans(input = {}) {
@@ -1111,9 +1195,22 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
       }
 
       const requestId = resolveReadRequestId(input, planId);
-      const result = await readPlan(config, requestId, planId);
-      if (!result.found) {
-        throw buildBridgeReadError('plan_not_found', `elegy-planning plan ${planId} was not found.`, 404);
+      const repoLabels = Array.isArray(input.repoLabels) && input.repoLabels.length > 0
+        ? input.repoLabels
+        : (normalizeString(input.repoLabel) ? [normalizeString(input.repoLabel)] : []);
+
+      let result = null;
+
+      if (repoLabels.length > 0) {
+        result = await tryFindEntityMultiScope(config, scope, requestId, repoLabels, dbResolution,
+          (cfg, rid) => readPlan(cfg, rid, planId));
+      }
+
+      if (!result) {
+        result = await readPlan(config, requestId, planId);
+        if (!result.found) {
+          throw buildBridgeReadError('plan_not_found', `elegy-planning plan ${planId} was not found.`, 404);
+        }
       }
 
       const data = extractMachineData(result.parsed);
@@ -1123,6 +1220,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
         todos: Array.isArray(data.todos) ? data.todos : [],
         reviewPoints: Array.isArray(data.reviewPoints) ? data.reviewPoints : [],
         validation: isPlainObject(data.validation) ? data.validation : {},
+        _scopeKey: result._scopeKey || undefined,
       };
     },
     async listTodos(input = {}) {

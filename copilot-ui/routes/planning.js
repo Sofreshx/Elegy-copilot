@@ -561,8 +561,18 @@ function handlePlanningLiveRoadmapRead(ctx, deps) {
       const response = await bridge.showRoadmap({
         roadmapId,
         requestId: resolvePlanningLiveRequestId(req, roadmapId),
+        repoLabel: repo && repo.repoLabel,
+        repoLabels: repo ? [
+          repo.repoLabel,
+          repo.repoPath ? require('path').basename(repo.repoPath) : '',
+          repo.repoId,
+        ].filter(Boolean) : [],
       });
-      assertPlanningEntityInRepo(response && response.roadmap, repo, `Roadmap ${roadmapId}`);
+      // Skip repo assertion when entity was found via multi-scope resolution —
+      // the scope match already proves repo membership.
+      if (!response._scopeKey) {
+        assertPlanningEntityInRepo(response && response.roadmap, repo, `Roadmap ${roadmapId}`);
+      }
 
       sendJson(res, 200, {
         contractVersion: PLANNING_API_CONTRACT_VERSION,
@@ -615,8 +625,16 @@ function handlePlanningLiveGoalRead(ctx, deps) {
       const response = await bridge.showGoal({
         goalId,
         requestId: resolvePlanningLiveRequestId(req, goalId),
+        repoLabel: repo && repo.repoLabel,
+        repoLabels: repo ? [
+          repo.repoLabel,
+          repo.repoPath ? require('path').basename(repo.repoPath) : '',
+          repo.repoId,
+        ].filter(Boolean) : [],
       });
-      assertPlanningEntityInRepo(response && response.goal, repo, `Goal ${goalId}`);
+      if (!response._scopeKey) {
+        assertPlanningEntityInRepo(response && response.goal, repo, `Goal ${goalId}`);
+      }
       const roadmaps = filterPlanningLiveRoadmaps(response && response.roadmaps, repo);
 
       sendJson(res, 200, {
@@ -734,8 +752,16 @@ function handlePlanningLivePlanRead(ctx, deps) {
       const response = await bridge.showPlan({
         planId,
         requestId: resolvePlanningLiveRequestId(req, planId),
+        repoLabel: repo && repo.repoLabel,
+        repoLabels: repo ? [
+          repo.repoLabel,
+          repo.repoPath ? require('path').basename(repo.repoPath) : '',
+          repo.repoId,
+        ].filter(Boolean) : [],
       });
-      assertPlanningEntityInRepo(response && response.plan, repo, `Plan ${planId}`);
+      if (!response._scopeKey) {
+        assertPlanningEntityInRepo(response && response.plan, repo, `Plan ${planId}`);
+      }
 
       sendJson(res, 200, {
         contractVersion: PLANNING_API_CONTRACT_VERSION,
@@ -2678,8 +2704,34 @@ function handlePlanningSessionRead(ctx, deps) {
     .then(() => {
       const planningSession = require('../lib/planningSession');
       const env = process.env;
-      const dbPath = env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH
-        || path.join(require('os').homedir(), '.elegy', 'elegy-planning.db');
+      let dbPath = env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH
+        || (() => {
+            const defaultPath = path.join(require('os').homedir(), '.elegy', 'elegy-planning.db');
+            if (!fs.existsSync(defaultPath)) {
+              const legacyPath = path.join(require('os').homedir(), '.elegy', 'planning.db');
+              if (fs.existsSync(legacyPath)) {
+                return legacyPath;
+              }
+              const copilotPath = path.join(require('os').homedir(), '.copilot', 'elegy-planning.db');
+              if (fs.existsSync(copilotPath)) {
+                return copilotPath;
+              }
+            }
+            return defaultPath;
+          })();
+
+      // When a stale env-var path is set but a populated legacy DB exists,
+      // prefer the legacy DB — it contains the user's actual planning data.
+      if (env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH) {
+        const legacyPath = path.join(require('os').homedir(), '.elegy', 'planning.db');
+        if (fs.existsSync(legacyPath)) {
+          try {
+            if (fs.statSync(legacyPath).size > 0) {
+              dbPath = legacyPath;
+            }
+          } catch { /* keep env-var path on stat error */ }
+        }
+      }
       const homedir = require('os').homedir && require('os').homedir() || require('os').tmpdir();
 
       const resolved = planningSession.readPlanningSession(env, { homedir, dbPath });

@@ -178,6 +178,7 @@ export interface PlanningLiveRoadmapSummary {
   id: string;
   goalId?: string | null;
   correlationId?: string | null;
+  scopeKey?: string | null;
   title?: string | null;
   summary?: string | null;
   status?: string | null;
