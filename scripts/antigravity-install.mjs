@@ -6,11 +6,14 @@ import { fileURLToPath } from 'url';
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
 import { composeInstructionsFromAsset } from './instruction-compose-utils.mjs';
 import {
+  dirHash,
   ensureDir,
   getUserHome,
   normalizeRel,
+  shaFile,
   shaText,
   syncDirectory,
+  syncText,
 } from './install-surface-utils.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -20,6 +23,7 @@ const antigravityAssetsRoot = path.join(repoRoot, 'antigravity-assets');
 const manifestPath = path.join(antigravityAssetsRoot, 'manifest.json');
 const MANAGED_BLOCK_START = '<!-- instruction-engine:begin antigravity -->';
 const MANAGED_BLOCK_END = '<!-- instruction-engine:end antigravity -->';
+const INVENTORY_FILE = '.instruction-engine-antigravity-managed.json';
 
 function toPosixJoin(...parts) {
   return normalizeRel(path.posix.join(...parts.filter(Boolean)));
@@ -46,8 +50,11 @@ function buildCounts(results) {
     updated: 0,
     skipped: 0,
     skippedConflict: 0,
+    pruned: 0,
+    skippedPruneConflict: 0,
     wouldCreate: 0,
     wouldUpdate: 0,
+    wouldPrune: 0,
   };
 
   for (const result of Array.isArray(results) ? results : []) {
@@ -64,11 +71,20 @@ function buildCounts(results) {
       case 'skipped_conflict':
         counts.skippedConflict += 1;
         break;
+      case 'pruned':
+        counts.pruned += 1;
+        break;
+      case 'skipped_prune_conflict':
+        counts.skippedPruneConflict += 1;
+        break;
       case 'would_create':
         counts.wouldCreate += 1;
         break;
       case 'would_update':
         counts.wouldUpdate += 1;
+        break;
+      case 'would_prune':
+        counts.wouldPrune += 1;
         break;
       default:
         break;
@@ -76,6 +92,131 @@ function buildCounts(results) {
   }
 
   return counts;
+}
+
+function toStringMap(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(([key, mappedValue]) => typeof key === 'string' && key && typeof mappedValue === 'string')
+  );
+}
+
+function buildManagedInventory(assetResults) {
+  const inventory = {
+    schemaVersion: 1,
+    surface: 'antigravity',
+    skills: {},
+  };
+
+  for (const result of Array.isArray(assetResults) ? assetResults : []) {
+    const destination = normalizeRel(result.destination);
+    if (result.type === 'instructions') {
+      // Instructions are tracked via managed block in GEMINI.md — skip inventory
+      continue;
+    }
+    if (result.type === 'skill') {
+      const suffix = destination.startsWith('skills/') ? destination.slice('skills/'.length) : destination;
+      const topDirectory = normalizeRel(suffix).split('/').filter(Boolean)[0];
+      if (topDirectory) {
+        inventory.skills[topDirectory] = String(result.sourceHash || '');
+      }
+      continue;
+    }
+  }
+
+  return inventory;
+}
+
+function readManagedInventory(inventoryPath) {
+  if (!fs.existsSync(inventoryPath)) {
+    return buildManagedInventory([]);
+  }
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(inventoryPath, 'utf8'));
+    return {
+      schemaVersion: 1,
+      surface: 'antigravity',
+      skills: toStringMap(parsed.skills),
+    };
+  } catch {
+    return buildManagedInventory([]);
+  }
+}
+
+function isSafeManagedEntryName(entryName) {
+  return Boolean(entryName) && path.basename(entryName) === entryName && !normalizeRel(entryName).includes('/');
+}
+
+function logPruneAction(action, targetPath, kind, log) {
+  if (action === 'pruned') {
+    log(`[PRUNE]  ${targetPath} (${kind})`);
+    return;
+  }
+  if (action === 'would_prune') {
+    log(`[DRY-RUN] PRUNE ${targetPath} (${kind})`);
+    return;
+  }
+  if (action === 'skipped_prune_conflict') {
+    log(`[SKIP]   ${targetPath} (${kind} diverged; leaving user-modified content in place)`);
+  }
+}
+
+function pruneManagedEntries(targetRoot, recordedEntries, desiredEntries, kind, hashReader, options = {}) {
+  const log = options.log || console.log;
+  const results = [];
+
+  if (!fs.existsSync(targetRoot)) {
+    return results;
+  }
+
+  const entries = Object.entries(recordedEntries || {}).sort(([left], [right]) => left.localeCompare(right));
+  for (const [entryName, recordedHash] of entries) {
+    if (Object.prototype.hasOwnProperty.call(desiredEntries || {}, entryName)) {
+      continue;
+    }
+    if (!isSafeManagedEntryName(entryName)) {
+      continue;
+    }
+
+    const targetPath = path.join(targetRoot, entryName);
+    if (!fs.existsSync(targetPath)) {
+      continue;
+    }
+
+    const currentHash = hashReader(targetPath);
+    if (recordedHash && currentHash && currentHash !== recordedHash) {
+      const result = {
+        action: 'skipped_prune_conflict',
+        kind,
+        path: targetPath,
+        recordedHash,
+        currentHash,
+      };
+      results.push(result);
+      logPruneAction(result.action, targetPath, kind, log);
+      continue;
+    }
+
+    const action = options.dryRun ? 'would_prune' : 'pruned';
+    if (!options.dryRun) {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+    }
+    const result = {
+      action,
+      kind,
+      path: targetPath,
+      recordedHash,
+      currentHash,
+    };
+    results.push(result);
+    logPruneAction(action, targetPath, kind, log);
+  }
+
+  return results;
 }
 
 function readManifest() {
@@ -436,6 +577,21 @@ export function runInstall(args = {}) {
   }
 
   const allResults = instructionsResult ? [...skillResults, instructionsResult] : skillResults;
+
+  // ── Inventory management ──
+  const inventoryPath = path.join(antigravityHome, INVENTORY_FILE);
+  const previousInventory = readManagedInventory(inventoryPath);
+  const desiredInventory = buildManagedInventory(skillResults);
+
+  const pruneResults = [
+    ...pruneManagedEntries(skillsHome, previousInventory.skills, desiredInventory.skills, 'skill', dirHash, args),
+  ];
+
+  const inventoryResult = syncText(`${JSON.stringify(desiredInventory, null, 2)}\n`, inventoryPath, {
+    dryRun: args.dryRun,
+    force: true,
+  });
+
   const repoSetup = repoSetupRoot
     ? runRepoSetupProfileBootstrap({
       surface: 'antigravity',
@@ -456,8 +612,9 @@ export function runInstall(args = {}) {
       antigravityHome,
       skillsHome,
       instructionsPath: path.join(geminiHome, 'GEMINI.md'),
+      inventoryPath,
     },
-    counts: buildCounts(allResults),
+    counts: buildCounts([...allResults, ...pruneResults, inventoryResult]),
     assets: skillResults,
     instructions: instructionsResult
       ? {
@@ -466,6 +623,10 @@ export function runInstall(args = {}) {
           path: instructionsResult.path,
         }
       : null,
+    cleanup: {
+      inventory: inventoryResult,
+      pruneResults,
+    },
     repoSetup,
   };
 

@@ -107,7 +107,7 @@ export function validateManifestAsset(asset) {
 /**
  * Build a managed inventory from asset results.
  */
-export function buildManagedInventory(assetResults, surface, trackedTypes = ['instructions', 'skills']) {
+export function buildManagedInventory(assetResults, surface, trackedTypes = ['instructions', 'skill']) {
   const inventory = { schemaVersion: 1, surface };
 
   for (const result of Array.isArray(assetResults) ? assetResults : []) {
@@ -115,7 +115,7 @@ export function buildManagedInventory(assetResults, surface, trackedTypes = ['in
     for (const type of trackedTypes) {
       if (result.type === type) {
         if (!inventory[type]) inventory[type] = {};
-        if (type === 'skills') {
+        if (type === 'skill') {
           const suffix = destination.startsWith('skills/') ? destination.slice('skills/'.length) : destination;
           const topDir = normalizeRel(suffix).split('/').filter(Boolean)[0];
           if (topDir) {
@@ -134,7 +134,7 @@ export function buildManagedInventory(assetResults, surface, trackedTypes = ['in
 /**
  * Read a managed inventory file.
  */
-export function readManagedInventory(inventoryPath, surface, trackedTypes = ['instructions', 'skills']) {
+export function readManagedInventory(inventoryPath, surface, trackedTypes = ['instructions', 'skill']) {
   if (!fs.existsSync(inventoryPath)) {
     return buildManagedInventory([], surface, trackedTypes);
   }
@@ -290,9 +290,9 @@ export function runHarnessInstall(descriptor, args = {}) {
     });
   }
 
-  const trackedTypes = ['instructions', 'skills'];
-  if (assetResults.some(r => r.type === 'agents')) trackedTypes.push('agents');
-  if (assetResults.some(r => r.type === 'plugins')) trackedTypes.push('plugins');
+  const trackedTypes = ['instructions', 'skill'];
+  if (assetResults.some(r => r.type === 'agent')) trackedTypes.push('agent');
+  if (assetResults.some(r => r.type === 'plugin')) trackedTypes.push('plugin');
 
   const previousInventory = readManagedInventory(inventoryPath, surface, trackedTypes);
   const desiredInventory = buildManagedInventory(assetResults, surface, trackedTypes);
@@ -300,9 +300,11 @@ export function runHarnessInstall(descriptor, args = {}) {
   const pruneResults = [];
   for (const type of trackedTypes) {
     if (previousInventory[type] && desiredInventory[type]) {
-      const reader = type === 'skills' ? dirHash : shaFile;
-      const kind = type === 'skills' ? 'skill' : type.slice(0, -1);
-      const targetDir = type === 'skills' ? skillsHome : path.join(home, `${type}/`);
+      const reader = type === 'skill' ? dirHash : shaFile;
+      const kind = type;
+      const targetDir = type === 'skill'
+        ? skillsHome
+        : path.join(home, `${type}${type.endsWith('s') ? '' : 's'}/`);
       pruneResults.push(...pruneManagedEntries(targetDir, previousInventory[type], desiredInventory[type], kind, reader, args));
     }
   }

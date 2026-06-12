@@ -8,9 +8,11 @@ import { fileURLToPath } from 'url';
 import { DEFAULT_PROFILE_NAME, DEFAULT_REVIEW_MODEL, patchConfigFile } from './codex-config-patch.mjs';
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
 import {
+  dirHash,
   ensureDir,
   getUserHome,
   normalizeRel,
+  shaFile,
   syncDirectory,
   syncFile,
   syncText,
@@ -22,6 +24,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const codexAssetsRoot = path.join(repoRoot, 'codex-assets');
 const manifestPath = path.join(codexAssetsRoot, 'manifest.json');
+const INVENTORY_FILE = '.instruction-engine-codex-managed.json';
 
 function toPosixJoin(...parts) {
   return normalizeRel(path.posix.join(...parts.filter(Boolean)));
@@ -48,8 +51,11 @@ function buildCounts(results) {
     updated: 0,
     skipped: 0,
     skippedConflict: 0,
+    pruned: 0,
+    skippedPruneConflict: 0,
     wouldCreate: 0,
     wouldUpdate: 0,
+    wouldPrune: 0,
   };
 
   for (const result of Array.isArray(results) ? results : []) {
@@ -66,11 +72,20 @@ function buildCounts(results) {
       case 'skipped_conflict':
         counts.skippedConflict += 1;
         break;
+      case 'pruned':
+        counts.pruned += 1;
+        break;
+      case 'skipped_prune_conflict':
+        counts.skippedPruneConflict += 1;
+        break;
       case 'would_create':
         counts.wouldCreate += 1;
         break;
       case 'would_update':
         counts.wouldUpdate += 1;
+        break;
+      case 'would_prune':
+        counts.wouldPrune += 1;
         break;
       default:
         break;
@@ -221,6 +236,138 @@ function buildCodexRoleToml(agentSourceAbs, sourceRel) {
     `developer_instructions = ${JSON.stringify(developerInstructions)}`,
     '',
   ].join('\n');
+}
+
+function toStringMap(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).filter(([key, mappedValue]) => typeof key === 'string' && key && typeof mappedValue === 'string')
+  );
+}
+
+function buildManagedInventory(assetResults) {
+  const inventory = {
+    schemaVersion: 1,
+    surface: 'codex',
+    instructions: {},
+    agents: {},
+    skills: {},
+  };
+
+  for (const result of Array.isArray(assetResults) ? assetResults : []) {
+    const destination = normalizeRel(result.destination);
+    if (result.type === 'instructions') {
+      inventory.instructions[path.basename(destination)] = String(result.sourceHash || '');
+      continue;
+    }
+    if (result.type === 'agent') {
+      inventory.agents[path.basename(destination)] = String(result.sourceHash || '');
+      continue;
+    }
+    if (result.type === 'skill') {
+      const suffix = destination.startsWith('skills/') ? destination.slice('skills/'.length) : destination;
+      const topDirectory = normalizeRel(suffix).split('/').filter(Boolean)[0];
+      if (topDirectory) {
+        inventory.skills[topDirectory] = String(result.sourceHash || '');
+      }
+      continue;
+    }
+  }
+
+  return inventory;
+}
+
+function readManagedInventory(inventoryPath) {
+  if (!fs.existsSync(inventoryPath)) {
+    return buildManagedInventory([]);
+  }
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(inventoryPath, 'utf8'));
+    return {
+      schemaVersion: 1,
+      surface: 'codex',
+      instructions: toStringMap(parsed.instructions),
+      agents: toStringMap(parsed.agents),
+      skills: toStringMap(parsed.skills),
+    };
+  } catch {
+    return buildManagedInventory([]);
+  }
+}
+
+function isSafeManagedEntryName(entryName) {
+  return Boolean(entryName) && path.basename(entryName) === entryName && !normalizeRel(entryName).includes('/');
+}
+
+function logPruneAction(action, targetPath, kind, log) {
+  if (action === 'pruned') {
+    log(`[PRUNE]  ${targetPath} (${kind})`);
+    return;
+  }
+  if (action === 'would_prune') {
+    log(`[DRY-RUN] PRUNE ${targetPath} (${kind})`);
+    return;
+  }
+  if (action === 'skipped_prune_conflict') {
+    log(`[SKIP]   ${targetPath} (${kind} diverged; leaving user-modified content in place)`);
+  }
+}
+
+function pruneManagedEntries(targetRoot, recordedEntries, desiredEntries, kind, hashReader, options = {}) {
+  const log = options.log || console.log;
+  const results = [];
+
+  if (!fs.existsSync(targetRoot)) {
+    return results;
+  }
+
+  const entries = Object.entries(recordedEntries || {}).sort(([left], [right]) => left.localeCompare(right));
+  for (const [entryName, recordedHash] of entries) {
+    if (Object.prototype.hasOwnProperty.call(desiredEntries || {}, entryName)) {
+      continue;
+    }
+    if (!isSafeManagedEntryName(entryName)) {
+      continue;
+    }
+
+    const targetPath = path.join(targetRoot, entryName);
+    if (!fs.existsSync(targetPath)) {
+      continue;
+    }
+
+    const currentHash = hashReader(targetPath);
+    if (recordedHash && currentHash && currentHash !== recordedHash) {
+      const result = {
+        action: 'skipped_prune_conflict',
+        kind,
+        path: targetPath,
+        recordedHash,
+        currentHash,
+      };
+      results.push(result);
+      logPruneAction(result.action, targetPath, kind, log);
+      continue;
+    }
+
+    const action = options.dryRun ? 'would_prune' : 'pruned';
+    if (!options.dryRun) {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+    }
+    const result = {
+      action,
+      kind,
+      path: targetPath,
+      recordedHash,
+      currentHash,
+    };
+    results.push(result);
+    logPruneAction(action, targetPath, kind, log);
+  }
+
+  return results;
 }
 
 function mapDestination(asset, codexHome, skillsHome) {
@@ -432,6 +579,7 @@ export function runInstall(args = {}) {
     console.log(`Repo setup:  ${repoSetupRoot} (${args.setupProfile})`);
   }
 
+  const inventoryPath = path.join(codexHome, INVENTORY_FILE);
   ensureDir(codexHome, args.dryRun);
   ensureDir(path.join(codexHome, 'agents'), args.dryRun);
   ensureDir(skillsHome, args.dryRun);
@@ -467,6 +615,24 @@ export function runInstall(args = {}) {
       ...syncResult,
     });
   }
+
+  const previousInventory = readManagedInventory(inventoryPath);
+  const desiredInventory = buildManagedInventory(assetResults);
+
+  const pruneResults = [
+    ...pruneManagedEntries(path.join(codexHome, 'agents'), previousInventory.agents, desiredInventory.agents, 'agent', shaFile, args),
+    ...pruneManagedEntries(skillsHome, previousInventory.skills, desiredInventory.skills, 'skill', dirHash, args),
+  ];
+
+  // For instructions tracked in inventory (e.g. AGENTS.md), prune from codexHome root.
+  // Only handle flat file entries that live directly in codexHome.
+  const instructionsRoot = codexHome;
+  pruneResults.push(...pruneManagedEntries(instructionsRoot, previousInventory.instructions, desiredInventory.instructions, 'instructions', shaFile, args));
+
+  const inventoryResult = syncText(`${JSON.stringify(desiredInventory, null, 2)}\n`, inventoryPath, {
+    dryRun: args.dryRun,
+    force: true,
+  });
 
   const configPath = path.join(codexHome, 'config.toml');
   const configResult = patchConfigFile(configPath, {
@@ -512,11 +678,16 @@ export function runInstall(args = {}) {
       codexHome,
       skillsHome,
       agentsHome: path.join(codexHome, 'agents'),
+      inventoryPath,
       configPath,
     },
-    counts: buildCounts(assetResults),
+    counts: buildCounts([...assetResults, ...pruneResults, inventoryResult]),
     assets: assetResults,
     generatedRoles: assetResults.filter((asset) => asset.generated === true).length,
+    cleanup: {
+      inventory: inventoryResult,
+      pruneResults,
+    },
     config: {
       action: configAction,
       changed: Boolean(configResult.changed),
