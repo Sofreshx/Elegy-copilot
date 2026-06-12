@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
+const { syncCiState } = require('./ciSync');
 
 /**
  * Known check scripts in priority order.
@@ -109,6 +110,11 @@ function runCanonicalChecks(repoRoot, config) {
           output: lane.details || '',
           score: lane.score,
           commands: lane.commands,
+          group: lane.group || null,
+          blocking: lane.blocking !== false,
+          ciWorkflow: lane.ciWorkflow || null,
+          ciJob: lane.ciJob || null,
+          ciRequired: lane.ciRequired || false,
         };
       });
 
@@ -124,6 +130,8 @@ function runCanonicalChecks(repoRoot, config) {
         checksPassed: passed,
         checksFailed: failed,
         allPassed: parsed.overallPass !== false,
+        groups: parsed.groups || {},
+        groupResults: parsed.groupResults || {},
         results,
         message: failed === 0
           ? `All ${passed} lanes passed (score: ${parsed.compositeScore ?? 'N/A'}).`
@@ -143,13 +151,25 @@ function discoverChecks(repoRoot) {
   const config = resolveCommitCheckConfig(repoRoot);
   if (config && config.lanes) {
     const laneNames = Object.keys(config.lanes).filter((name) => config.lanes[name].enabled !== false);
-    return laneNames.map((name) => ({
-      name,
-      path: (config.lanes[name].commands || []).join(', ') || '(configured)',
-      fullPath: '',
-      description: config.lanes[name].description || '',
-      source: 'commit-check',
-    }));
+    const checks = laneNames.map((name) => {
+      const lane = config.lanes[name];
+      return {
+        name,
+        path: (lane.commands || []).join(', ') || '(configured)',
+        fullPath: '',
+        description: lane.description || '',
+        group: lane.group || null,
+        cwd: lane.cwd || null,
+        timeoutMs: lane.timeoutMs || null,
+        blocking: lane.blocking !== false,
+        ciWorkflow: lane.ciWorkflow || null,
+        ciJob: lane.ciJob || null,
+        ciRequired: lane.ciRequired || false,
+        source: 'commit-check',
+      };
+    });
+    checks.groups = config.groups || {};
+    return checks;
   }
 
   const checks = [...KNOWN_CHECKS];
@@ -326,6 +346,73 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
     };
   }
 
+  // Freshness check — reuse prior cached results if git state hasn't changed
+  try {
+    const { deriveRepoId, checkFreshness } = require('./checkState');
+    const repoId = deriveRepoId(repoRoot);
+    const config = resolveCommitCheckConfig(repoRoot);
+    const freshness = checkFreshness(repoId, repoRoot, config);
+
+    if (freshness.fresh && freshness.lastRun.overallPass) {
+      // Prior run is fresh and passed — reconstruct cached results from stored lanes
+      const cachedLanes = freshness.lastRun.lanes || {};
+      const laneNames = Object.keys(cachedLanes);
+      const cachedResults = {
+        repoRoot,
+        source: freshness.lastRun.configHash ? 'commit-check' : 'legacy',
+        checkedAt: freshness.lastRun.timestamp,
+        checksAvailable: laneNames.length,
+        checksRun: laneNames.length,
+        checksPassed: laneNames.filter((n) => cachedLanes[n].status === 'PASS').length,
+        checksFailed: laneNames.filter((n) => cachedLanes[n].status !== 'PASS').length,
+        allPassed: true,
+        groups: freshness.lastRun.groups || {},
+        groupResults: freshness.lastRun.groupResults || {},
+        results: laneNames.map((name) => ({
+          checkName: name,
+          passed: cachedLanes[name].status === 'PASS',
+          error: cachedLanes[name].status === 'FAIL' ? (cachedLanes[name].details || 'Check failed') : undefined,
+          output: cachedLanes[name].details || '',
+          score: cachedLanes[name].score,
+          group: cachedLanes[name].group,
+          blocking: cachedLanes[name].blocking,
+          ciWorkflow: cachedLanes[name].ciWorkflow,
+          ciJob: cachedLanes[name].ciJob,
+          ciRequired: cachedLanes[name].ciRequired,
+        })),
+        message: 'Using cached check results (no changes since last run).',
+        cached: true,
+      };
+
+      // CI gap detection still runs on cached results
+      try {
+        const syncResult = syncCiState(repoRoot);
+        if (syncResult.syncResult.summary.readiness === 'ci-gap') {
+          return {
+            allowed: false,
+            skipped: false,
+            checkResults: cachedResults,
+            requiresOverride: true,
+            ciGap: true,
+            ciGapDetails: syncResult.syncResult.mappings.filter((m) => m.status === 'ci-gap'),
+            message: `CI gap detected: ${syncResult.syncResult.summary.gaps} CI job(s) (${syncResult.syncResult.mappings.filter((m) => m.status === 'ci-gap').map((m) => m.workflowFile + '/' + m.jobName).join(', ')}) not mapped to local lanes. Provide an override reason to proceed anyway.`,
+          };
+        }
+      } catch {
+        // ciSync failure is non-blocking
+      }
+
+      return {
+        allowed: true,
+        skipped: false,
+        checkResults: cachedResults,
+        message: 'All pre-action checks passed (cached).',
+      };
+    }
+  } catch {
+    // Freshness check failure is non-blocking — run checks normally
+  }
+
   const checkResults = await runAllChecks(repoRoot);
 
   if (checkResults.checksAvailable === 0) {
@@ -339,6 +426,24 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
   }
 
   if (checkResults.allPassed) {
+    // CI gap detection: check if all PR-relevant CI jobs have local lane mappings
+    try {
+      const syncResult = syncCiState(repoRoot);
+      if (syncResult.syncResult.summary.readiness === 'ci-gap') {
+        return {
+          allowed: false,
+          skipped: false,
+          checkResults,
+          requiresOverride: true,
+          ciGap: true,
+          ciGapDetails: syncResult.syncResult.mappings.filter((m) => m.status === 'ci-gap'),
+          message: `CI gap detected: ${syncResult.syncResult.summary.gaps} CI job(s) (${syncResult.syncResult.mappings.filter((m) => m.status === 'ci-gap').map((m) => m.workflowFile + '/' + m.jobName).join(', ')}) not mapped to local lanes. Provide an override reason to proceed anyway.`,
+        };
+      }
+    } catch {
+      // ciSync failure is non-blocking — allow the action to proceed
+    }
+
     return {
       allowed: true,
       skipped: false,
@@ -357,10 +462,34 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
   };
 }
 
+/**
+ * Compute per-group pass/fail summary from lane results.
+ * @param {Array<{checkName: string, passed: boolean, group?: string|null}>} checkResults
+ * @returns {Object<string, {passedLanes: string[], failedLanes: string[], allPassed: boolean}>}
+ */
+function resolveGroupResults(checkResults) {
+  const groupResults = {};
+  for (const result of checkResults) {
+    const group = result.group || '__ungrouped__';
+    if (!groupResults[group]) {
+      groupResults[group] = { passedLanes: [], failedLanes: [], allPassed: true };
+    }
+    if (result.passed) {
+      groupResults[group].passedLanes.push(result.checkName);
+    } else {
+      groupResults[group].failedLanes.push(result.checkName);
+      groupResults[group].allPassed = false;
+    }
+  }
+  return groupResults;
+}
+
 module.exports = {
   discoverChecks,
   runCheck,
   runAllChecks,
   gateGitAction,
+  resolveCommitCheckConfig,
+  resolveGroupResults,
   KNOWN_CHECKS,
 };

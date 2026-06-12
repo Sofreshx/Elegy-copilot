@@ -237,6 +237,68 @@ export async function runGitChecks(repoPath: string, baseUrl?: string): Promise<
   });
 }
 
+export interface GitCheckStateResponse {
+  repoId: string;
+  repoPath: string;
+  hasState: boolean;
+  lastRun: {
+    timestamp: string;
+    gitFingerprint: { head: string | null; dirtyHash: string | null };
+    configHash: string | null;
+    overallPass: boolean;
+    compositeScore: number | null;
+    lanes: Record<string, {
+      status: string;
+      exitCode: number;
+      durationMs: number;
+      score: number | null;
+      details: string;
+      group: string | null;
+      blocking: boolean;
+      ciWorkflow: string | null;
+      ciJob: string | null;
+      ciRequired: boolean;
+      commands: Array<{ command: string; exitCode: number; success: boolean; durationMs: number }>;
+    }>;
+    groups: Record<string, { description: string }>;
+    groupResults: Record<string, { passedLanes: string[]; failedLanes: string[]; allPassed: boolean }>;
+    ciSync: any | null;
+  } | null;
+  freshness: { fresh: boolean; reason: string };
+  history: any[];
+}
+
+export interface GitCiSyncResponse {
+  repoRoot: string;
+  config: { laneCount: number; gateCount: number } | null;
+  ciWorkflows: any;
+  syncResult: {
+    mappings: Array<{
+      workflowFile: string;
+      jobName: string;
+      required: boolean;
+      localLanes: string[];
+      status: 'mapped' | 'ci-gap';
+    }>;
+    summary: {
+      totalCiJobs: number;
+      mapped: number;
+      gaps: number;
+      readiness: 'ready' | 'ci-gap' | 'no-ci';
+    };
+  };
+}
+
+export async function getGitCheckState(repoPath: string, baseUrl?: string): Promise<GitCheckStateResponse> {
+  const url = `/api/git/checks/state?repoPath=${encodeURIComponent(repoPath)}`;
+  return apiRequest<GitCheckStateResponse>(url, { baseUrl });
+}
+
+export async function getGitCiSync(repoPath: string, baseUrl?: string): Promise<GitCiSyncResponse> {
+  const url = `/api/git/checks/ci-sync?repoPath=${encodeURIComponent(repoPath)}`;
+  return apiRequest<GitCiSyncResponse>(url, { baseUrl });
+}
+
 // ─── Merge candidate and dry-run APIs ──────────────────────────────────────
 
 export interface MergeCandidate {

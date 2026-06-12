@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const DEFAULT_CONFIG_NAME = '.copilot/commit-checks.json';
 
 function die(message, code = 1) {
@@ -60,12 +60,12 @@ const SHIPPED_DEFAULTS = {
   gates: ['typecheck'],
 };
 
-function runCommand(command, cwd) {
+function runCommand(command, cwd, timeoutMs = 120000) {
   const result = spawnSync(command, [], {
     cwd,
     stdio: 'pipe',
     encoding: 'utf8',
-    timeout: 120000,
+    timeout: timeoutMs,
     shell: true,
   });
 
@@ -140,6 +140,7 @@ export function runChecks(config, repoRoot) {
   const weights = config.weights ?? SHIPPED_DEFAULTS.weights;
   const gates = config.gates ?? SHIPPED_DEFAULTS.gates;
   const lanes = config.lanes ?? {};
+  const groups = config.groups ?? {};
 
   const laneNames = Object.keys(lanes).filter(name => lanes[name].enabled !== false).sort();
 
@@ -151,6 +152,8 @@ export function runChecks(config, repoRoot) {
     const lane = lanes[name];
     const commands = lane.commands || [];
     const isGate = gates.includes(name);
+    // Lane is blocking unless explicitly set to false (backward compatible with v1 configs)
+    const isBlocking = lane.blocking !== false;
 
     if (commands.length === 0) {
       results[name] = {
@@ -168,7 +171,9 @@ export function runChecks(config, repoRoot) {
 
     for (const cmd of commands) {
       const start = Date.now();
-      const result = runCommand(cmd, repoRoot);
+      const cmdCwd = lane.cwd ? path.resolve(repoRoot, lane.cwd) : repoRoot;
+      const cmdTimeout = lane.timeoutMs ?? 120000;
+      const result = runCommand(cmd, cmdCwd, cmdTimeout);
       const durationMs = Date.now() - start;
 
       laneResults.push({ command: cmd, ...result, durationMs });
@@ -202,7 +207,7 @@ export function runChecks(config, repoRoot) {
       details = parseLaneSummary(name, lastResult);
     }
 
-    if (isGate && !lanePassed) {
+    if (isGate && isBlocking && !lanePassed) {
       anyGateFailed = true;
     }
 
@@ -218,6 +223,11 @@ export function runChecks(config, repoRoot) {
         durationMs: r.durationMs,
       })),
       details,
+      group: lane.group ?? null,
+      blocking: lane.blocking ?? true,
+      ciWorkflow: lane.ciWorkflow ?? null,
+      ciJob: lane.ciJob ?? null,
+      ciRequired: lane.ciRequired ?? false,
       ...(name === 'coverage' && Object.keys(coverageMetrics).length > 0 ? { coverage: coverageMetrics } : {}),
     };
   }
@@ -242,6 +252,20 @@ export function runChecks(config, repoRoot) {
   const passesThreshold = compositeScore != null && compositeScore >= threshold;
   const overallPass = passesThreshold && !anyGateFailed;
 
+  const groupResults = {};
+  for (const [name, result] of Object.entries(results)) {
+    const group = result.group || '__ungrouped__';
+    if (!groupResults[group]) {
+      groupResults[group] = { passedLanes: [], failedLanes: [], allPassed: true };
+    }
+    if (result.status === 'PASS') {
+      groupResults[group].passedLanes.push(name);
+    } else {
+      groupResults[group].failedLanes.push(name);
+      groupResults[group].allPassed = false;
+    }
+  }
+
   const summary = {
     schemaVersion: SCHEMA_VERSION,
     timestamp: new Date().toISOString(),
@@ -250,6 +274,8 @@ export function runChecks(config, repoRoot) {
     compositeScore,
     overallPass,
     anyGateFailed,
+    groups,
+    groupResults,
     scoreBreakdown,
     totalLanes: laneNames.length,
     passedLanes: laneNames.filter(name => results[name]?.status === 'PASS').length,
