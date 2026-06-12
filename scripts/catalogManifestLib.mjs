@@ -92,6 +92,7 @@ function materializeAsset(route) {
     ...(route.governance || sourceAsset.governance
       ? { governance: cloneJson(route.governance || sourceAsset.governance) }
       : {}),
+    ...(sourceAsset.appendix ? { appendix: sourceAsset.appendix } : {}),
   };
 }
 

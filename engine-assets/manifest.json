@@ -348,7 +348,8 @@
       "id": "copilot-instructions",
       "type": "instructions",
       "source": "catalog-assets/instructions/agent-session-defaults.md",
-      "destination": "agent-session-defaults.md"
+      "destination": "agent-session-defaults.md",
+      "appendix": "engine-assets/copilot-instructions-appendix.md"
     },
     {
       "id": "prompt-instruction-engine-plan",

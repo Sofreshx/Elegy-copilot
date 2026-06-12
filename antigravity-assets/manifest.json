@@ -57,7 +57,8 @@
       "id": "antigravity-global-instructions",
       "type": "instructions",
       "source": "catalog-assets/instructions/agent-session-defaults.md",
-      "destination": "agent-session-defaults.md"
+      "destination": "agent-session-defaults.md",
+      "appendix": "antigravity-assets/home/GEMINI-appendix.md"
     },
     {
       "id": "antigravity-skill-discovery-skill",
