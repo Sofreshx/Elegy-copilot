@@ -4,7 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { ensureDir, getUserHome, syncFile } from './install-surface-utils.mjs';
+import { ensureDir, getUserHome, syncFile, syncText } from './install-surface-utils.mjs';
+import { composeInstructions } from './instruction-compose-utils.mjs';
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -127,8 +128,9 @@ function writeInstallState(destinationHome, state, options = {}) {
   return { action: 'updated', path: statePath };
 }
 
-function syncInstructions(sourcePath, destinationHome, options = {}) {
-  return syncFile(sourcePath, path.join(destinationHome, 'copilot-instructions.md'), options);
+function syncInstructions(baselinePath, appendixPath, destinationHome, options = {}) {
+  const composed = composeInstructions(baselinePath, appendixPath);
+  return syncText(composed, path.join(destinationHome, 'copilot-instructions.md'), options);
 }
 
 function summarizeSurface(surface, result, installStateAction, instructionsAction) {
@@ -273,7 +275,7 @@ export function runInstall(args = {}) {
 
   const surfaces = [];
 
-  const runSurface = (surface, destinationHome, instructionsSource) => {
+  const runSurface = (surface, destinationHome, instructionsSource, instructionsAppendix) => {
     ensureDir(destinationHome, Boolean(args.dryRun));
 
     const previousState = readInstallState(destinationHome);
@@ -286,7 +288,7 @@ export function runInstall(args = {}) {
     });
     const installState = buildInstallStateOverride(result.installState, previousState, installProfile);
     const installStateAction = writeInstallState(destinationHome, installState, { dryRun: Boolean(args.dryRun) });
-    const instructionsAction = syncInstructions(instructionsSource, destinationHome, {
+    const instructionsAction = syncInstructions(instructionsSource, instructionsAppendix, destinationHome, {
       dryRun: Boolean(args.dryRun),
       force: Boolean(args.force),
     });
@@ -294,7 +296,9 @@ export function runInstall(args = {}) {
   };
 
   if (args.doCli) {
-    runSurface('cli', elegyHome, path.join(repoRoot, 'engine-assets', 'copilot-instructions.md'));
+    runSurface('cli', elegyHome,
+      path.join(repoRoot, 'catalog-assets', 'instructions', 'agent-session-defaults.md'),
+      path.join(repoRoot, 'engine-assets', 'copilot-instructions-appendix.md'));
   }
 
   const repoSetup = repoSetupRoot

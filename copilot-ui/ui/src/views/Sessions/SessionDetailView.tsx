@@ -104,8 +104,8 @@ export default function SessionDetailView({ embedded = false, sessionIdOverride,
   }
 
   return (
-    <div className={`session-detail-view${embedded ? ' session-detail-embedded' : ''}`} data-testid="session-detail-view">
-      <header className="session-detail-header">
+    <div className={`view-shell session-detail-view${embedded ? ' session-detail-embedded' : ''}`} data-testid="session-detail-view">
+      <header className="view-static session-detail-header">
         <Toolbar justify="between" testId="session-detail-toolbar">
           <div className="session-detail-title-group">
             <Button
@@ -180,7 +180,7 @@ export default function SessionDetailView({ embedded = false, sessionIdOverride,
 
       {!embedded && <RemoteSessionBanner />}
 
-      <nav className="session-detail-tabs" data-testid="session-detail-tabs" role="tablist">
+      <nav className="view-static session-detail-tabs" data-testid="session-detail-tabs" role="tablist">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -196,7 +196,7 @@ export default function SessionDetailView({ embedded = false, sessionIdOverride,
         ))}
       </nav>
 
-      <div className="session-detail-content" data-testid="session-detail-content">
+      <div className="view-scroll session-detail-content" data-testid="session-detail-content">
         {state.loading && (
           <div className="session-loading-state" data-testid="session-loading">
             Loading session...

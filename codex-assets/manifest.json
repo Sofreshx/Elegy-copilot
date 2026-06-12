@@ -58,7 +58,8 @@
     {
       "id": "codex-global-instructions",
       "type": "instructions",
-      "source": "codex-assets/home/AGENTS.md",
+      "source": "catalog-assets/instructions/agent-session-defaults.md",
+      "appendix": "codex-assets/home/AGENTS-appendix.md",
       "destination": "AGENTS.md"
     },
     {

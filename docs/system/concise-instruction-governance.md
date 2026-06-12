@@ -1,6 +1,6 @@
 ---
 created: 2026-06-08
-updated: 2026-06-11
+updated: 2026-06-12
 category: system
 status: current
 doc_kind: node
@@ -20,7 +20,7 @@ Define the canonical instruction-writing contract. This node is the single autho
 
 Instruction governance was previously fragmented across multiple canonical docs (`project-conventions-governance`, `documentation-authoring-governance`, `documentation-structure-governance`). This node unifies the writing standards into one authority while the other nodes continue to govern structure, entrypoints, and conventions policy.
 
-This node is the canonical authority for instruction-writing standards. The contract is now embedded directly in all harness home files (AGENTS.md, CLAUDE.md, GEMINI.md, copilot-instructions.md) so that sessions always read it without needing to discover a separate `guidelines.md` file.
+This node is the canonical authority for instruction-writing standards. The contract lives in a single shared portable baseline at `catalog-assets/instructions/agent-session-defaults.md`. At install time, each harness installer composes the shared baseline with a harness-specific appendix to produce the installed instruction file (AGENTS.md, CLAUDE.md, GEMINI.md, copilot-instructions.md).
 
 ## Routing
 
@@ -141,7 +141,7 @@ Use plan-first for non-trivial work. A plan is ready only when another implement
 
 Before handoff, run the narrowest relevant check:
 
-- `node scripts/validate-guidelines-wiring.mjs` — harness contract heading coverage
+- `node scripts/validate-guidelines-wiring.mjs` — validates shared baseline exists, appendix files are present per harness, compose integrity (no missing sections), and no banned terms in the baseline
 - Manual review: check for empty language, vague abstractions, duplicated policy
 
 ## Output Contract

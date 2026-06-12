@@ -47,11 +47,11 @@ async function main() {
       });
 
       assert.ok(fs.existsSync(path.join(skillsHome, 'skill-discovery', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(skillsHome, 'stack-detector', 'SKILL.md')));
+
       assert.ok(fs.existsSync(path.join(skillsHome, 'rubberduck-plan-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-handoff', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(skillsHome, 'roadmap-planning', 'SKILL.md')));
+
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-dev', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-authoring', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-review', 'SKILL.md')));
@@ -59,7 +59,6 @@ async function main() {
 
       const geminiInstructions = fs.readFileSync(path.join(geminiHome, 'GEMINI.md'), 'utf8');
       assert.ok(geminiInstructions.includes('<!-- instruction-engine:begin antigravity -->'));
-      assert.ok(geminiInstructions.includes('Use the shared instruction-engine skills installed under'));
       assert.ok(geminiInstructions.includes('<!-- instruction-engine:end antigravity -->'));
     });
   });
@@ -163,7 +162,7 @@ async function main() {
       assert.ok(geminiInstructions.includes('Keep this footer.'));
       assert.ok(geminiInstructions.includes('instruction-engine:begin spec-driven'));
       assert.ok(copilotInstructions.includes('instruction-engine:begin spec-driven'));
-      assert.ok(fs.existsSync(path.join(repoRoot, 'specs', 'index.md')));
+      assert.ok(fs.existsSync(path.join(repoRoot, 'docs', 'specs', 'index.md')));
       assert.ok(fs.existsSync(path.join(repoRoot, 'scripts', 'validate-specs.js')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.github', 'agents')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.gemini', 'skills', 'repo-helper', 'SKILL.md')));

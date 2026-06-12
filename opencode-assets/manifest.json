@@ -127,8 +127,8 @@
     {
       "id": "opencode-global-instructions",
       "type": "instructions",
-      "source": "opencode-assets/home/AGENTS.md",
-      "destination": "AGENTS.md"
+      "source": "catalog-assets/instructions/agent-session-defaults.md",
+      "destination": "agent-session-defaults.md"
     },
     {
       "id": "opencode-implementation-handoff-skill",

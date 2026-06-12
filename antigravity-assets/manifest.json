@@ -56,7 +56,8 @@
     {
       "id": "antigravity-global-instructions",
       "type": "instructions",
-      "source": "antigravity-assets/home/GEMINI.md",
+      "source": "catalog-assets/instructions/agent-session-defaults.md",
+      "appendix": "antigravity-assets/home/GEMINI-appendix.md",
       "destination": "GEMINI.md"
     },
     {

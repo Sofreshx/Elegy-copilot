@@ -12,7 +12,6 @@ body {
     radial-gradient(circle at 86% 9%, rgba(201, 156, 99, 0.12), transparent 26%),
     linear-gradient(180deg, #0f1216 0%, #14181d 52%, #101318 100%);
   line-height: 1.5;
-  min-height: 100vh;
   scrollbar-gutter: stable;
 }
 
@@ -31,7 +30,6 @@ body::before {
 #app {
   position: relative;
   z-index: var(--z-content);
-  min-height: 100vh;
   min-width: 0;
 }
 

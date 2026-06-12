@@ -368,8 +368,8 @@ function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, o
     status: agentsMd ? 'ok' : 'warning',
     detail: agentsMd
       ? 'AGENTS.md is present'
-      : 'AGENTS.md not found. Install OpenCode assets to create it.',
-    action: agentsMd ? null : { kind: 'install', label: 'Install OpenCode assets' },
+      : 'AGENTS.md not found. Manage asset installation in Assets & Tools.',
+    action: null,
   });
 
   const hasElegyPlanningCli = Boolean(ctx.toolingStatus && ctx.toolingStatus.elegyPlanningCli
@@ -445,11 +445,9 @@ function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, o
     detail: openCodeAssets.length > 0
       ? (openCodeOutdated.length === 0
         ? `${openCodeAssets.length} assets up to date`
-        : `${openCodeOutdated.length} of ${openCodeAssets.length} assets outdated or missing`)
-      : 'No OpenCode managed assets found. Install OpenCode surface assets.',
-    action: openCodeOutdated.length > 0 || openCodeAssets.length === 0
-      ? { kind: 'install', label: 'Install/refresh OpenCode assets' }
-      : null,
+        : `${openCodeOutdated.length} of ${openCodeAssets.length} assets outdated or missing — manage in Assets & Tools`)
+      : 'No OpenCode managed assets found. Manage asset installation in Assets & Tools.',
+    action: null,
   });
 
   const worktreePlugin = checkWorktreePluginFile(opencodeHome);
@@ -459,8 +457,8 @@ function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, o
     status: worktreePlugin ? 'ok' : 'warning',
     detail: worktreePlugin
       ? 'Worktree plugin is present'
-      : 'Worktree plugin not found. Install OpenCode assets.',
-    action: worktreePlugin ? null : { kind: 'install', label: 'Install OpenCode assets' },
+      : 'Worktree plugin not found. Manage asset installation in Assets & Tools.',
+    action: null,
   });
 
   let worktreePermissionStatus = null;

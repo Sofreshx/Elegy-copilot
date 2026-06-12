@@ -2068,12 +2068,16 @@ textarea:focus-visible,
 /* ── SteppedWizard ── */
 
 .stepped-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
   background: var(--color-surface-1);
   border: 1px solid var(--color-ink-200);
   border-radius: var(--radius-md);
-  display: grid;
-  gap: var(--space-lg);
-  padding: var(--space-lg);
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .stepped-wizard-strip {
@@ -2081,6 +2085,7 @@ textarea:focus-visible,
   align-items: flex-start;
   gap: 0;
   overflow-x: auto;
+  flex-shrink: 0;
 }
 
 .stepped-wizard-step-wrapper {
@@ -2189,6 +2194,9 @@ textarea:focus-visible,
 }
 
 .stepped-wizard-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   min-width: 0;
 }
 
@@ -2199,6 +2207,7 @@ textarea:focus-visible,
   justify-content: space-between;
   gap: var(--space-sm);
   padding-top: var(--space-sm);
+  flex-shrink: 0;
 }
 
 .stepped-wizard-footer-end {
@@ -2239,7 +2248,9 @@ textarea:focus-visible,
 }
 
 .app-layout-content {
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: var(--space-md) var(--space-lg);
   min-width: 0;
   scrollbar-gutter: stable;
@@ -2264,6 +2275,40 @@ textarea:focus-visible,
   color: var(--color-ink-400);
   letter-spacing: 0.03em;
   opacity: 0.5;
+}
+
+/* ── View Layout Contracts ── */
+
+.view-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.view-static {
+  flex-shrink: 0;
+}
+
+.view-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.view-split {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.view-pane-scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
 }
 
 /* ── App Titlebar (custom frameless chrome) ── */
@@ -2674,8 +2719,6 @@ textarea:focus-visible,
   gap: var(--space-2xs);
   align-content: start;
   min-width: 0;
-  position: sticky;
-  top: 0;
   max-height: 100vh;
   overflow-y: auto;
 }
@@ -2731,17 +2774,6 @@ textarea:focus-visible,
   overflow-y: auto;
   max-width: var(--container-max);
   margin: 0 auto;
-}
-
-.settings-nav-sticky-wrapper {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: var(--color-bg);
-}
-
-.settings-nav-sticky-wrapper.settings-nav-offset {
-  top: var(--toolbar-height, 48px);
 }
 
 .settings-content > .assets-tools-view,
@@ -4064,6 +4096,17 @@ textarea:focus-visible,
   max-width: 560px;
   margin: 0 auto;
   padding: 20px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.asset-creation-wizard {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .add-project-step {
@@ -4479,10 +4522,6 @@ textarea:focus-visible,
   padding-bottom: var(--space-sm);
   border-bottom: 1px solid var(--color-ink-200);
   background: var(--color-bg);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  flex-shrink: 0;
 }
 
 .catalog-shell-content {
@@ -8179,9 +8218,7 @@ textarea:focus-visible,
 /* ── Repositories View ── */
 
 .repos-view {
-  display: grid;
   gap: var(--space-lg);
-  min-width: 0;
 }
 
 .repos-master-detail {
@@ -9001,6 +9038,8 @@ textarea:focus-visible,
 .workspace-view {
   display: grid;
   gap: var(--space-lg);
+  flex: 1;
+  min-height: 0;
   min-width: 0;
   background:
     linear-gradient(rgba(47, 165, 157, 0.03) 1px, transparent 1px),
@@ -9057,6 +9096,7 @@ textarea:focus-visible,
   grid-template-columns: minmax(min(100%, 22rem), 24rem) minmax(0, 1fr);
   align-items: start;
   min-width: 0;
+  height: 100%;
 }
 
 .workspace-sidebar {
@@ -11322,8 +11362,323 @@ textarea:focus-visible,
 /* ── Planning Tab ── */
 
 .workspace-planning-tab {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   gap: var(--space-md);
+}
+
+/* ── Toolbar ── */
+
+.workspace-planning-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface-1, #f9fafb);
+  border: 1px solid var(--color-border-100, #e5e7eb);
+  border-radius: var(--radius-md, 0.5rem);
+  flex-wrap: wrap;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.workspace-planning-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.workspace-planning-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.workspace-planning-autorefresh-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  font-size: 0.82rem;
+  color: var(--color-ink-600);
+  cursor: pointer;
+  user-select: none;
+}
+
+.workspace-planning-last-refreshed {
+  font-size: 0.75rem;
+  color: var(--color-ink-400);
+  font-family: var(--font-mono);
+}
+
+/* ── Chips ── */
+
+.workspace-planning-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-xs);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workspace-planning-chip--scope {
+  background: var(--color-accent-50, #eff6ff);
+  color: var(--color-accent-600, #2563eb);
+  border: 1px solid var(--color-accent-200, #bfdbfe);
+}
+
+.workspace-planning-chip--goal {
+  background: var(--color-success-50, #f0fdf4);
+  color: var(--color-success-600, #16a34a);
+  border: 1px solid var(--color-success-200, #bbf7d0);
+}
+
+.workspace-planning-chip--roadmap {
+  background: var(--color-warning-50, #fffbeb);
+  color: var(--color-warning-600, #d97706);
+  border: 1px solid var(--color-warning-200, #fde68a);
+}
+
+/* ── Error & Diagnostic ── */
+
+.workspace-planning-error {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-danger-50, #fef2f2);
+  color: var(--color-danger-600, #dc2626);
+  border: 1px solid var(--color-danger-200, #fecaca);
+  border-radius: var(--radius-sm, 0.25rem);
+  font-size: 0.85rem;
+}
+
+.workspace-planning-diagnostic {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-warning-50, #fffbeb);
+  color: var(--color-warning-700, #b45309);
+  border: 1px solid var(--color-warning-200, #fde68a);
+  border-radius: var(--radius-sm, 0.25rem);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+/* ── Two-column page layout ── */
+
+.workspace-planning-page {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: var(--space-md);
+}
+
+.workspace-planning-tree-column {
+  width: 18rem;
+  min-width: 14rem;
+  max-width: 24rem;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border: 1px solid var(--color-border-100, #e5e7eb);
+  border-radius: var(--radius-md, 0.5rem);
+  background: var(--color-surface-1, #f9fafb);
+}
+
+.workspace-planning-graph-column {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border-100, #e5e7eb);
+  border-radius: var(--radius-md, 0.5rem);
+  overflow: hidden;
+  position: relative;
+}
+
+.workspace-planning-empty-select {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-lg);
+  color: var(--color-ink-400);
+}
+
+/* ── Tree ── */
+
+.workspace-planning-tree {
+  padding: var(--space-sm);
+  min-height: 0;
+}
+
+.workspace-planning-tree-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-xs) var(--space-sm);
+  margin-bottom: var(--space-sm);
+  font-size: 0.78rem;
+  color: var(--color-ink-500);
+  font-family: var(--font-mono);
+  border-bottom: 1px solid var(--color-border-100, #e5e7eb);
+}
+
+.workspace-planning-tree-count {
+  font-weight: 600;
+  color: var(--color-ink-700);
+}
+
+.workspace-planning-tree-sep {
+  color: var(--color-ink-300);
+}
+
+.workspace-planning-tree-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.workspace-planning-tree-sublist {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--space-md);
+  display: grid;
+  gap: 2px;
+}
+
+/* ── Tree: Scope section ── */
+
+.workspace-planning-tree-section {
+  /* container */
+}
+
+.workspace-planning-tree-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-ink-700);
+}
+
+.workspace-planning-tree-section-icon {
+  font-size: 0.65rem;
+  color: var(--color-accent-400);
+}
+
+.workspace-planning-tree-section-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-planning-tree-section-count {
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  color: var(--color-ink-400);
+  flex-shrink: 0;
+}
+
+/* ── Tree: Goal group ── */
+
+.workspace-planning-tree-group {
+  /* container */
+}
+
+.workspace-planning-tree-group-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-2xs) var(--space-sm);
+  font-size: 0.78rem;
+  color: var(--color-ink-600);
+}
+
+.workspace-planning-tree-group-icon {
+  font-size: 0.6rem;
+  color: var(--color-success-400);
+}
+
+.workspace-planning-tree-group-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.workspace-planning-tree-group-count {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--color-ink-400);
+  flex-shrink: 0;
+}
+
+.workspace-planning-tree-status {
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+/* ── Tree: Roadmap items ── */
+
+.workspace-planning-tree-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 0.25rem);
+  padding: var(--space-2xs) var(--space-sm);
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--color-ink-800);
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.workspace-planning-tree-item:hover {
+  background: var(--color-brand-50, #eff6ff);
+  border-color: var(--color-brand-200, #bfdbfe);
+}
+
+.workspace-planning-tree-item--selected {
+  background: var(--color-brand-100, #dbeafe);
+  border-color: var(--color-brand-400, #60a5fa);
+  font-weight: 500;
+}
+
+.workspace-planning-tree-item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-planning-tree-item-status {
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  flex-shrink: 0;
 }
 
 /* ── Execution Tab ── */

@@ -47,11 +47,8 @@ async function main() {
       assert.ok(fs.existsSync(path.join(codexHome, 'agents', 'reviewer.toml')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'repo-setup', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'skill-discovery', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(skillsHome, 'stack-detector', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(skillsHome, 'rubberduck-plan-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-handoff', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(skillsHome, 'roadmap-planning', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-dev', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-authoring', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-review', 'SKILL.md')));
@@ -118,7 +115,7 @@ async function main() {
 
       const copilotInstructions = fs.readFileSync(path.join(repoRoot, '.github', 'copilot-instructions.md'), 'utf8');
       const agentsInstructions = fs.readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
-      const specsIndex = fs.readFileSync(path.join(repoRoot, 'specs', 'index.md'), 'utf8');
+      const specsIndex = fs.readFileSync(path.join(repoRoot, 'docs', 'specs', 'index.md'), 'utf8');
       const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
 
       assert.ok(copilotInstructions.includes('instruction-engine:begin spec-driven'));
@@ -135,7 +132,7 @@ async function main() {
       assert.strictEqual(summary.repoSetup.repoInstructionFile, 'AGENTS.md');
       assert.ok(summary.repoSetup.skillMirrors.counts.created > 0 || summary.repoSetup.skillMirrors.counts.skipped > 0);
 
-      fs.writeFileSync(path.join(repoRoot, 'specs', 'index.md'), '# Specs\n\n- Custom entry\n', 'utf8');
+      fs.writeFileSync(path.join(repoRoot, 'docs', 'specs', 'index.md'), '# Specs\n\n- Custom entry\n', 'utf8');
       withWorkingDirectory(shim.shimDir, () => installer.runInstall({
         codexHome,
         skillsHome,
@@ -143,7 +140,7 @@ async function main() {
         elegyCliPath: shim.elegyCliPath,
         setupProfile: 'spec-driven',
       }));
-      assert.ok(fs.readFileSync(path.join(repoRoot, 'specs', 'index.md'), 'utf8').includes('Custom entry'));
+      assert.ok(fs.readFileSync(path.join(repoRoot, 'docs', 'specs', 'index.md'), 'utf8').includes('Custom entry'));
     });
   });
 

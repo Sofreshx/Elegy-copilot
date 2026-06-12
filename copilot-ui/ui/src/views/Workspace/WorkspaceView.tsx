@@ -208,9 +208,9 @@ export default function WorkspaceView() {
   return (
     <div className="workspace-view" data-testid="workspace-view">
       {selectedRepoPath ? (
-        <div className="workspace-layout">
+        <div className="view-shell workspace-layout">
           {/* Floating local tab switcher and launcher */}
-          <div className="workspace-local-tabs-row" data-testid="workspace-local-tabs-row">
+          <div className="view-static workspace-local-tabs-row" data-testid="workspace-local-tabs-row">
             <WorkspaceLocalTabs
               activeTab={navState.activeWorkspaceLocalTab}
               onTabChange={(tab) => navigationStore.setActiveWorkspaceLocalTab(tab)}
@@ -269,7 +269,7 @@ export default function WorkspaceView() {
 
           <GitHubAuthBanner repoPath={selectedRepoPath} />
 
-          <div className="workspace-tab-content" data-testid="workspace-tab-content">
+          <div className="view-scroll workspace-tab-content" data-testid="workspace-tab-content">
             {navState.activeWorkspaceLocalTab === 'docs' && (
               <WorkspaceDocsTab repoPath={selectedRepoPath} />
             )}

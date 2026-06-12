@@ -315,7 +315,7 @@ describe('SettingsView', () => {
     }
   });
 
-  it('renders sticky toolbar wrapper for settings', async () => {
+  it('renders static toolbar for settings', async () => {
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
 
     await act(async () => {
@@ -325,7 +325,7 @@ describe('SettingsView', () => {
     // The sticky toolbar wrapper should be present
     const stickyToolbar = screen.getByTestId('settings-sticky-toolbar');
     expect(stickyToolbar).toBeInTheDocument();
-    expect(stickyToolbar.className).toContain('settings-nav-sticky-wrapper');
+    expect(stickyToolbar.className).toContain('view-static');
   });
 
   it('settings nav uses SETTINGS_NAV_ITEMS, not a local duplicate', async () => {
@@ -333,5 +333,50 @@ describe('SettingsView', () => {
     const mod = await import('../ui/src/views/Settings/SettingsView');
     // The module should not have a SETTINGS_SECTIONS export (it was removed)
     expect((mod as any).SETTINGS_SECTIONS).toBeUndefined();
+  });
+
+  describe('layout contract', () => {
+    it('renders settings-content as a scroll region (view-scroll class)', async () => {
+      const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
+
+      await act(async () => {
+        render(<SettingsView />);
+      });
+
+      const content = screen.getByTestId('settings-content');
+      expect(content).toBeInTheDocument();
+      expect(content.className).toContain('view-scroll');
+    });
+
+    it('keeps toolbar outside the scroll content region', async () => {
+      const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
+
+      await act(async () => {
+        render(<SettingsView />);
+      });
+
+      const toolbar = screen.getByTestId('settings-sticky-toolbar');
+      const content = screen.getByTestId('settings-content');
+
+      // The toolbar should NOT be inside the scrollable settings-content
+      expect(content.contains(toolbar)).toBe(false);
+
+      // The toolbar should be a view-static region
+      expect(toolbar.className).toContain('view-static');
+    });
+
+    it('keeps settings nav outside the scroll content region', async () => {
+      const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
+
+      await act(async () => {
+        render(<SettingsView />);
+      });
+
+      const nav = screen.getByTestId('settings-nav');
+      const content = screen.getByTestId('settings-content');
+
+      // The nav should NOT be inside the scrollable settings-content
+      expect(content.contains(nav)).toBe(false);
+    });
   });
 });

@@ -896,6 +896,8 @@ function buildHarnessState({
   canSync = false,
   detail = null,
   metadata = null,
+  assetId = null,
+  isExternallyManaged = false,
 }) {
   const resolvedInstallPath = typeof installPath === 'string' || installPath === null
     ? normalizeString(installPath) || null
@@ -904,6 +906,7 @@ function buildHarnessState({
   const resolvedInstalled = typeof installed === 'boolean' ? installed : Boolean(resolvedInstallPath);
   const resolvedActive = typeof active === 'boolean' ? active : resolvedInstalled;
   const derivedState = deriveHarnessState({ supported, expected: expected === true, installed: resolvedInstalled, installPath: resolvedInstallPath });
+  const effectiveState = isExternallyManaged && derivedState === 'unmanaged' ? 'external-managed' : derivedState;
   return {
     harnessId,
     title: humanizeHarnessId(harnessId),
@@ -918,7 +921,7 @@ function buildHarnessState({
       canDeactivate: supported && canDeactivate,
       canSync: supported && canSync,
     },
-    state: derivedState,
+    state: effectiveState,
     sourceHash: null,
     destinationHash: null,
     managedInventoryPath: null,
@@ -1173,6 +1176,10 @@ function buildManifestInventory(ctx) {
     hook: [],
   };
   const ledger = ctx.elegyHomeAbs ? installLedgerLib.readInstallLedger(ctx.elegyHomeAbs) : null;
+  // Secondary ledgers for external-managed detection
+  const opencodeHomeAbs = ctx.opencodeHome || null;
+  const codexHomeAbs = ctx.codexHome || null;
+  const elegyHomeAbs = ctx.elegyHomeAbs || null;
 
   for (const manifestSource of manifests) {
     const manifestScan = loadManifestDocument(ctx.engineRoot, manifestSource.fileName);
@@ -1226,6 +1233,10 @@ function buildManifestInventory(ctx) {
             expected: installLedgerLib.isAssetExpectedForUser(assetId, manifestSource.harnessId, ledger),
             canInstall: INSTALL_SURFACE_HARNESSES.has(harness.harnessId),
             canSync: INSTALL_SURFACE_HARNESSES.has(harness.harnessId),
+            assetId: assetId,
+            isExternallyManaged: opencodeHomeAbs ? installLedgerLib.isAssetExternallyManaged(
+              assetId, manifestSource.harnessId, opencodeHomeAbs, codexHomeAbs, elegyHomeAbs
+            ) : false,
             detail: {
               readPath: sourceAbs || null,
               sourcePath,
@@ -3445,13 +3456,30 @@ async function handleHarnessAssetUninstall(ctx, deps) {
 
       const ledger = installLedgerLib.readInstallLedger(ctx.elegyHomeAbs);
       const isManaged = installLedgerLib.isAssetExpectedForUser(assetId, harnessId, ledger);
+
+      // Check secondary ledgers for externally managed assets
+      const opencodeHomeAbs = ctx.opencodeHome || null;
+      const codexHomeAbs = ctx.codexHome || null;
+      const isExternalManaged = !isManaged && (opencodeHomeAbs || codexHomeAbs)
+        ? installLedgerLib.isAssetExternallyManaged(assetId, harnessId, opencodeHomeAbs, codexHomeAbs, ctx.elegyHomeAbs)
+        : false;
+
       if (!isManaged) {
-        deps.sendJson(ctx.res, 200, {
-          kind: 'catalog.harness_asset_uninstall',
-          deterministic: true,
-          ok: false,
-          warnings: [`Asset ${assetId} is not managed by Elegy for harness ${harnessId}. Use check to inspect or delete manually.`],
-        });
+        if (isExternalManaged) {
+          deps.sendJson(ctx.res, 200, {
+            kind: 'catalog.harness_asset_uninstall',
+            deterministic: true,
+            ok: false,
+            warnings: [`Asset ${assetId} is externally managed for harness ${harnessId}. It cannot be deactivated from here — manage it through its source (e.g., Elegy skills).`],
+          });
+        } else {
+          deps.sendJson(ctx.res, 200, {
+            kind: 'catalog.harness_asset_uninstall',
+            deterministic: true,
+            ok: false,
+            warnings: [`Asset ${assetId} is not managed by Elegy for harness ${harnessId}. Cannot safely deactivate unmanaged files.`],
+          });
+        }
         return;
       }
 
@@ -3511,14 +3539,9 @@ async function handleHarnessAssetUninstall(ctx, deps) {
         const fileHash = deps.crypto.createHash('sha256').update(fileContent).digest('hex');
         const ledgerHash = installLedgerLib.getAssetHash(ctx.elegyHomeAbs, harnessId, assetId);
 
+        let hashWarning = null;
         if (ledgerHash && fileHash !== ledgerHash) {
-          deps.sendJson(ctx.res, 200, {
-            kind: 'catalog.harness_asset_uninstall',
-            deterministic: true,
-            ok: false,
-            warnings: [`Asset is unmanaged at ${destPath} — hash mismatch. Use check to inspect or delete manually.`],
-          });
-          return;
+          hashWarning = `Hash mismatch at ${destPath} — file was modified since install. Removing anyway.`;
         }
 
         // Remove the file
@@ -3534,6 +3557,7 @@ async function handleHarnessAssetUninstall(ctx, deps) {
           deterministic: true,
           ok: true,
           removed: [assetId],
+          warnings: hashWarning ? [hashWarning] : undefined,
         });
       } catch (error) {
         throw Object.assign(new Error(`Failed to uninstall: ${error.message}`), { statusCode: 500 });
@@ -3577,11 +3601,12 @@ async function handleHarnessAssetCheck(ctx, deps) {
             const aid = normalizeString(asset?.id);
             if (assetId && aid !== assetId) continue;
 
-            const result = { assetId: aid, harnessId: hid, state: 'unknown', warnings: [] };
+            const result = { assetId: aid, harnessId: hid, state: 'unknown', warnings: [], sourcePath: null, installPath: null };
             const isManaged = installLedgerLib.isAssetExpectedForUser(aid, hid, ledger);
 
             // Check source
             const sourcePath = path.resolve(deps.engineRoot || ctx.engineRoot, normalizeString(asset?.source) || '');
+            result.sourcePath = sourcePath;
             let sourceHash = null;
             try {
               const sourceContent = deps.fs.readFileSync(sourcePath);
@@ -3605,12 +3630,27 @@ async function handleHarnessAssetCheck(ctx, deps) {
               }
             }
 
+            result.installPath = destPath || null;
+
+            // Check secondary ledgers for external-managed classification
+            const opencodeHomeAbs = ctx.opencodeHome || null;
+            const codexHomeAbs = ctx.codexHome || null;
+            const isExternalManaged = opencodeHomeAbs || codexHomeAbs
+              ? installLedgerLib.isAssetExternallyManaged(aid, hid, opencodeHomeAbs, codexHomeAbs, ctx.elegyHomeAbs)
+              : false;
+
             // Derive state
-            if (!destPath && !isManaged) {
+            if (!destPath && !isManaged && isExternalManaged) {
+              result.state = 'external-managed';
+              result.warnings.push('Asset tracked in secondary ledger but not installed');
+            } else if (!destPath && !isManaged) {
               result.state = 'available';
             } else if (!destPath && isManaged) {
               result.state = 'not-installed';
               result.warnings.push('Expected but not installed');
+            } else if (destPath && !isManaged && isExternalManaged) {
+              result.state = 'external-managed';
+              result.warnings.push('File exists and tracked in secondary ledger (not primary)');
             } else if (destPath && !isManaged) {
               result.state = 'unmanaged';
               result.warnings.push('File exists but not tracked in ledger');
@@ -3638,6 +3678,10 @@ async function handleHarnessAssetCheck(ctx, deps) {
         deterministic: true,
         ok: true,
         results,
+        scannedCount: results.length,
+        summaryWarnings: results
+          .filter(r => r.warnings && r.warnings.length > 0)
+          .flatMap(r => (r.warnings || []).map(w => `${r.harnessId}/${r.assetId}: ${w}`)),
       });
     })
     .catch((error) => sendJsonError(
@@ -3645,6 +3689,53 @@ async function handleHarnessAssetCheck(ctx, deps) {
       deps.sendJson,
       error.statusCode || 500,
       'catalog.harness_asset_check',
+      String(error.message || error),
+    ));
+}
+
+async function handleHarnessSync(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then(async (body) => {
+      const harnessId = normalizeString(body?.harnessId);
+      if (!harnessId || !['codex', 'opencode', 'antigravity', 'claude'].includes(harnessId)) {
+        throw Object.assign(new Error('harnessId must be codex, opencode, antigravity, or claude'), { statusCode: 400 });
+      }
+
+      const effectiveTarget = harnessId === 'claude-code' ? 'claude' : harnessId;
+
+      const installOptions = {
+        target: effectiveTarget,
+        dryRun: false,
+        force: false,
+        pointerMode: body?.pointerMode !== false,
+        engineRoot: deps.engineRoot || ctx.engineRoot,
+        codexHome: ctx.codexHome,
+        codexSkillsHome: ctx.codexSkillsHome,
+        geminiHome: ctx.geminiHome,
+        antigravityHome: ctx.antigravityHome,
+        antigravitySkillsHome: ctx.antigravitySkillsHome,
+        opencodeHome: ctx.opencodeHome,
+        opencodeSkillsHome: ctx.opencodeSkillsHome,
+        claudeHome: ctx.claudeHome,
+        claudeSkillsHome: ctx.claudeSkillsHome,
+      };
+
+      await deps.installSurfaces(installOptions);
+      rebuildProjection(ctx, deps, {}, 'harness_sync');
+
+      deps.sendJson(ctx.res, 200, {
+        kind: 'catalog.harness_sync',
+        deterministic: true,
+        ok: true,
+        harnessId,
+        message: `Synced ${harnessId} harness assets.`,
+      });
+    })
+    .catch((error) => sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'catalog.harness_sync',
       String(error.message || error),
     ));
 }
@@ -3837,6 +3928,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/harness-assets/check',
       handler: (ctx) => handleHarnessAssetCheck(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/harness-assets/sync',
+      handler: (ctx) => handleHarnessSync(ctx, resolvedDeps),
     },
     {
       method: 'POST',

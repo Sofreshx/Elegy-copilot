@@ -308,9 +308,9 @@ export default function CatalogShellView() {
   const harnesses = summary?.globalInventory?.harnesses || [];
 
   return (
-    <div className="assets-tools-view catalog-shell-view" data-testid="catalog-shell-view">
+    <div className="view-shell assets-tools-view catalog-shell-view" data-testid="catalog-shell-view">
       {/* STICKY HEADER: toolbar + summary + state banners + tabs */}
-      <div className="catalog-shell-sticky-header" data-testid="catalog-shell-sticky-header">
+      <div className="view-static catalog-shell-sticky-header" data-testid="catalog-shell-sticky-header">
         {/* HEADER with toolbar */}
         <Toolbar testId="catalog-shell-toolbar">
           <div className="assets-tools-header">
@@ -390,7 +390,7 @@ export default function CatalogShellView() {
       </div>
 
       {/* SCROLLABLE CONTENT */}
-      <div className="catalog-shell-content" data-testid="catalog-shell-content">
+      <div className="view-scroll catalog-shell-content" data-testid="catalog-shell-content">
         {/* METRIC STRIP - now inside scrollable content */}
         <div className="assets-tools-metrics" data-testid="assets-tools-metrics">
           {metrics.map(renderMetricCard)}

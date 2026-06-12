@@ -1,6 +1,6 @@
 ---
 created: 2026-06-09
-updated: 2026-06-09
+updated: 2026-06-12
 category: system
 status: current
 doc_kind: node
@@ -104,6 +104,8 @@ graph TB
     ELEGY --> REPO
 ```
 
+> **Note:** All install scripts now compose a shared baseline (`catalog-assets/instructions/agent-session-defaults.md`) with a harness-specific appendix before syncing the final instruction file to the harness home directory. See [Instruction Writing Contract](#instruction-writing-contract) below.
+
 ## Two-Tier Model
 
 ### Tier 1: Home-Level Deployment (install scripts)
@@ -134,7 +136,7 @@ Each harness gets:
 - **Agents** (where applicable) — harness-specific agent files
 - **Plugins** (OpenCode only) — worktree plugin
 
-The instruction writing contract (Authority, Concise Instruction, Clarification, Planning, Review, Validation, Core Workflow) is embedded directly in each harness file. No separate `guidelines.md` is synced to harness homes.
+The instruction writing contract (Authority, Concise Instruction, Clarification, Planning, Review, Validation, Core Workflow) is maintained in a single shared baseline at `catalog-assets/instructions/agent-session-defaults.md`. At install time, each harness installer composes the shared baseline with a harness-specific appendix to produce the installed instruction file.
 
 ### Tier 2: Per-Repo Discovery (repo-setup-profile-bootstrap)
 
@@ -163,7 +165,7 @@ Per-repo files are created by the **repo owner** (human or CI), not by the insta
 |-----------|---------|----------|-------|-------------|--------|
 | **Home** | `~/.elegy` | `~/.config/opencode` | `~/.codex` | `~/.gemini` | `~/.claude` |
 | **Instructions** | `copilot-instructions.md` | `AGENTS.md` | `AGENTS.md` | `GEMINI.md` | `CLAUDE.md` |
-| **Contract** | Embedded in file | Embedded in file | Embedded in file | Embedded in file | Embedded in file |
+| **Contract** | Composed baseline+appendix | Composed baseline+appendix | Composed baseline+appendix | Composed baseline+appendix | Composed baseline+appendix |
 | **Agents** | 6 | 7 | 1 | 0 | 0 |
 | **Skills** | 22+ | 18 | 12 | 9 | 6+ |
 | **Plugins** | 0 | 2 | 0 | 0 | 0 |
@@ -173,13 +175,11 @@ Per-repo files are created by the **repo owner** (human or CI), not by the insta
 
 ## Instruction Writing Contract
 
-The instruction writing contract is embedded directly in each harness home file (Authority, Concise Instruction Contract, Clarification Contract, Planning Contract, Review Rule, Validation Rule, Core Workflow). Sessions always read the contract as part of loading their harness instructions — no separate file discovery needed.
-
-The canonical source for the contract is `docs/system/concise-instruction-governance.md`. The `guidelines.md` file at repo root is a standalone reference copy for human readers; it is not synced to harness homes.
+The instruction writing contract lives in a single shared portable baseline at `catalog-assets/instructions/agent-session-defaults.md`. Harness-specific content stays in per-harness appendix files. Installers compose baseline + appendix via `scripts/instruction-compose-utils.mjs` to produce each installed instruction file. The canonical source for repo policy is `docs/system/concise-instruction-governance.md`.
 
 ## Validation
 
-- `node scripts/validate-guidelines-wiring.mjs` — checks all 7 harness files contain the required inlined contract headings (Authority, Concise Instruction Contract, Clarification Contract, Planning Contract, Review Rule, Validation Rule)
+- `node scripts/validate-guidelines-wiring.mjs` — checks shared baseline exists at `catalog-assets/instructions/agent-session-defaults.md`, manifests reference correct paths, appendix files exist for each harness, and no banned terms appear in the baseline
 - `node scripts/validate-installed-governance-wiring.test.js` — validates installed governance wiring across harnesses
 
 ## References

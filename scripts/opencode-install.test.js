@@ -58,7 +58,6 @@ async function main() {
 
       assert.ok(fs.existsSync(path.join(opencodeHome, 'AGENTS.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'rubberduck-plan-review', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(skillsHome, 'roadmap-planning', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-handoff', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'skill-discovery', 'SKILL.md')));
@@ -67,7 +66,6 @@ async function main() {
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'security', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'project-conventions-governance', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(skillsHome, 'stack-detector', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(opencodeHome, '.instruction-engine-opencode-managed.json')));
       assert.ok(firstSummary.counts.created > 0);
 
@@ -181,7 +179,7 @@ async function main() {
 
       assert.ok(copilotInstructions.includes('instruction-engine:begin spec-driven'));
       assert.ok(agentsInstructions.includes('instruction-engine:begin spec-driven'));
-      assert.ok(fs.existsSync(path.join(repoRoot, 'specs', 'index.md')));
+      assert.ok(fs.existsSync(path.join(repoRoot, 'docs', 'specs', 'index.md')));
       assert.ok(fs.existsSync(path.join(repoRoot, 'scripts', 'validate-specs.js')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.github', 'agents')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.opencode', 'skills', 'repo-helper', 'SKILL.md')));

@@ -50,7 +50,8 @@
     {
       "id": "claude-global-instructions",
       "type": "instructions",
-      "source": "claude-assets/home/CLAUDE.md",
+      "source": "catalog-assets/instructions/agent-session-defaults.md",
+      "appendix": "claude-assets/home/CLAUDE-appendix.md",
       "destination": "CLAUDE.md"
     },
     {

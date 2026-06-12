@@ -227,6 +227,8 @@ export interface CheckHarnessAssetResult {
   destHash?: string | null;
   drift?: boolean;
   warnings?: string[];
+  sourcePath?: string | null;
+  installPath?: string | null;
 }
 
 export interface CheckHarnessAssetsResponse {
@@ -234,6 +236,8 @@ export interface CheckHarnessAssetsResponse {
   deterministic: boolean;
   ok: boolean;
   results: CheckHarnessAssetResult[];
+  scannedCount?: number;
+  summaryWarnings?: string[];
 }
 
 export function checkHarnessAssets(

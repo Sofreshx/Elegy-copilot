@@ -153,7 +153,8 @@ export default function LexiconView() {
   const showCategoryTerms = !showSearchResults && !!state.activeCategory;
 
   return (
-    <section className="lexicon-view" data-testid="lexicon-view">
+    <section className="view-shell lexicon-view" data-testid="lexicon-view">
+      <div className="view-static">
       <Toolbar testId="lexicon-toolbar">
         <h2 className="lexicon-title">Lexicon</h2>
         <div className="lexicon-search-wrapper">
@@ -199,8 +200,9 @@ export default function LexiconView() {
           </button>
         ))}
       </div>
+      </div>
 
-      <div className="lexicon-content">
+      <div className="view-scroll lexicon-content">
         {isLoading ? (
           <div className="lexicon-loading" data-testid="lexicon-loading">
             Loading lexicon…
