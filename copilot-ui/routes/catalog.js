@@ -872,12 +872,14 @@ function detectHarnessInstallPath(ctx, harnessId, kind, paths) {
   return null;
 }
 
-function deriveHarnessState({ supported, expected, installed, installPath }) {
+function deriveHarnessState({ supported, expected, installed, installPath, conflict }) {
   if (!supported) return 'unknown';
   if (!expected) {
-    return installed ? 'unmanaged' : 'available';
+    if (installed) return 'unmanaged';
+    return 'available';
   }
   if (!installed || !installPath) return 'not-installed';
+  if (conflict) return 'conflict';
   return 'installed';
 }
 
@@ -898,6 +900,7 @@ function buildHarnessState({
   metadata = null,
   assetId = null,
   isExternallyManaged = false,
+  conflict = false,
 }) {
   const resolvedInstallPath = typeof installPath === 'string' || installPath === null
     ? normalizeString(installPath) || null
@@ -905,7 +908,7 @@ function buildHarnessState({
   const supported = HARNESS_INSTALLABLE_KINDS[harnessId]?.has(normalizeCatalogItemKind(kind)) === true;
   const resolvedInstalled = typeof installed === 'boolean' ? installed : Boolean(resolvedInstallPath);
   const resolvedActive = typeof active === 'boolean' ? active : resolvedInstalled;
-  const derivedState = deriveHarnessState({ supported, expected: expected === true, installed: resolvedInstalled, installPath: resolvedInstallPath });
+  const derivedState = deriveHarnessState({ supported, expected: expected === true, installed: resolvedInstalled, installPath: resolvedInstallPath, conflict: conflict === true });
   const effectiveState = isExternallyManaged && derivedState === 'unmanaged' ? 'external-managed' : derivedState;
   return {
     harnessId,
@@ -928,6 +931,7 @@ function buildHarnessState({
     lastCheckedAt: null,
     warnings: [],
     errors: [],
+    conflict: conflict === true,
     detail,
     metadata,
     syncStatus: null,
@@ -1093,6 +1097,7 @@ function buildProjectionInventory(summary, ctx, engineManifestAssetIds = new Set
           metadata: {
             actionKind: 'catalog-asset',
           },
+          conflict: false,
         })),
     });
   }
@@ -1245,6 +1250,7 @@ function buildManifestInventory(ctx) {
             metadata: {
               actionKind: 'install-surface',
             },
+            conflict: false,
           })),
       });
     }
@@ -1316,6 +1322,7 @@ function buildExternalSourceInventory(summary, ctx) {
           sourceId: normalizeString(source.sourceId) || null,
           installableId: normalizeString(installable.installableId) || null,
         },
+        conflict: false,
       })];
     }
 
@@ -1348,6 +1355,7 @@ function buildExternalSourceInventory(summary, ctx) {
             sourceId: normalizeString(source.sourceId) || null,
             installableId: normalizeString(installable.installableId) || null,
           },
+          conflict: false,
         });
       });
   };
@@ -3601,7 +3609,7 @@ async function handleHarnessAssetCheck(ctx, deps) {
             const aid = normalizeString(asset?.id);
             if (assetId && aid !== assetId) continue;
 
-            const result = { assetId: aid, harnessId: hid, state: 'unknown', warnings: [], sourcePath: null, installPath: null };
+            const result = { assetId: aid, harnessId: hid, state: 'unknown', conflict: false, warnings: [], sourcePath: null, installPath: null };
             const isManaged = installLedgerLib.isAssetExpectedForUser(aid, hid, ledger);
 
             // Check source
@@ -3656,9 +3664,10 @@ async function handleHarnessAssetCheck(ctx, deps) {
               result.warnings.push('File exists but not tracked in ledger');
             } else if (destPath && isManaged) {
               if (sourceHash && destHash && sourceHash !== destHash) {
-                result.state = 'stale';
+                result.state = 'conflict';
                 result.drift = true;
-                result.warnings.push('Destination differs from source');
+                result.conflict = true;
+                result.warnings.push('Destination differs from source — conflict detected');
               } else {
                 result.state = 'installed';
               }

@@ -946,10 +946,36 @@ class ExecutorService extends EventEmitter {
         };
         job.orchestration = clone(run.orchestration);
       }
+
       if (worktreePlan && worktreePlan.worktree && worktreePlan.worktree.launch && worktreePlan.worktree.launch.blocked) {
         throw Object.assign(new Error(worktreePlan.worktree.launch.reason || 'Dedicated worktree launch is blocked.'), {
           statusCode: 409,
         });
+      }
+
+      // Notify session hooks only after the launch plan is known to be usable.
+      if (this._sessionHooks
+        && worktreePlan
+        && worktreePlan.worktree
+        && worktreePlan.worktree.mode === WORKTREE_MODES.DEDICATED
+        && worktreePlan.worktree.worktreeId
+        && (worktreePlan.worktree.path || worktreePlan.cwd)) {
+        try {
+          this._sessionHooks.onWorktreeCreate({
+            path: worktreePlan.worktree.path || worktreePlan.cwd,
+            repoPath: job.repoPath || worktreePlan.repo.repoPath,
+            repoId: job.repoId || worktreePlan.repo.repoId,
+            branch: worktreePlan.worktree.branch,
+            source: 'executor',
+          });
+          this._sessionHooks.onWorktreeAllocate({
+            path: worktreePlan.worktree.path || worktreePlan.cwd,
+            repoPath: job.repoPath || worktreePlan.repo.repoPath,
+            repoId: job.repoId || worktreePlan.repo.repoId,
+            branch: worktreePlan.worktree.branch,
+            source: 'executor',
+          });
+        } catch { /* best effort */ }
       }
 
       if (job.targetType === 'existing-session') {
@@ -1040,6 +1066,20 @@ class ExecutorService extends EventEmitter {
           run.orchestration.isolation.launchBlocked = false;
           run.orchestration.isolation.launchBlockedReason = null;
           job.orchestration = clone(run.orchestration);
+
+          // Notify session hooks about worktree activation
+          if (this._sessionHooks) {
+            try {
+              this._sessionHooks.onWorktreeActivate({
+                path: activated.path,
+                repoPath: job.repoPath || activated.repoPath,
+                repoId: job.repoId || activated.repoId,
+                branch: activated.branch,
+                sessionId,
+                runId: run.id,
+              });
+            } catch { /* best effort */ }
+          }
         }
       }
 
@@ -1341,6 +1381,18 @@ class ExecutorService extends EventEmitter {
     if (updated) {
       run.worktree = clone(updated);
     }
+
+    if (this._sessionHooks && updated) {
+      try {
+        this._sessionHooks.onWorktreeRelease({
+          path: updated.path,
+          repoPath: run.repoPath || updated.repoPath,
+          repoId: run.repoId || updated.repoId,
+          branch: updated.branch,
+          runId: run.id,
+        });
+      } catch { /* best effort */ }
+    }
   }
 
   _markRunWorktreeInterrupted(run, reason) {
@@ -1356,6 +1408,18 @@ class ExecutorService extends EventEmitter {
     });
     if (updated) {
       run.worktree = clone(updated);
+    }
+
+    if (this._sessionHooks && updated) {
+      try {
+        this._sessionHooks.onWorktreeInterrupt({
+          path: updated.path,
+          repoPath: run.repoPath || updated.repoPath,
+          repoId: run.repoId || updated.repoId,
+          branch: updated.branch,
+          runId: run.id,
+        }, reason);
+      } catch { /* best effort */ }
     }
   }
 

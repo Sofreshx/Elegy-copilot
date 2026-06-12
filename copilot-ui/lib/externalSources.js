@@ -2195,6 +2195,26 @@ function resolveTargetHomes(options = {}) {
   };
 }
 
+function probeRtkVersion(childProcess, timeout = 10000) {
+  try {
+    const result = childProcess.spawnSync('rtk', ['--version'], { timeout, windowsHide: true });
+    if (result.status === 0 && result.stdout) {
+      return { ok: true, version: String(result.stdout).trim() };
+    }
+    const errorDetail = result.error
+      ? `PATH error: ${result.error.message}`
+      : `Exit code ${result.status}`;
+    return {
+      ok: false,
+      error: 'RTK installed but --version check failed. Ensure RTK is on your system PATH.',
+      detail: errorDetail,
+      remediation: 'Add the RTK installation directory to your PATH environment variable and restart the terminal.',
+    };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 function resolveSupportedTargets(installable) {
   if (Array.isArray(installable?.targetSupport) && installable.targetSupport.length > 0) {
     return normalizeExternalSourceTargetList(installable.targetSupport);
@@ -2446,6 +2466,19 @@ async function activateInstallable(options, payload) {
   await deactivateCrossSourceConflicts(options, normalizedSourceId, installableId);
 
   const materialized = await resolveMaterializeInstallable(options, source, installable, target, cached);
+
+  // Post-install: for RTK plugin installs, verify the CLI is on PATH
+  if (materialized && materialized.pluginType === 'rtk-cli') {
+    const probe = probeRtkVersion(options.childProcess || childProcess);
+    if (!probe.ok) {
+      throw Object.assign(new Error(probe.error + (probe.detail ? ` (${probe.detail})` : '')), {
+        statusCode: 500,
+        remediation: probe.remediation,
+        blocked: true,
+      });
+    }
+  }
+
   const now = new Date().toISOString();
   const updatedState = updateSourceState(options, source.sourceId, (previousSourceState) => {
     const nextTargets = cloneSourceTargets(previousSourceState);
@@ -2987,4 +3020,5 @@ module.exports = {
   resolveCrossSourceConflicts,
   findConflictGroupForInstallable,
   resolveConflictingInstallableIds,
+  probeRtkVersion,
 };

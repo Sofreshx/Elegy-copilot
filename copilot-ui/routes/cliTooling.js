@@ -1,7 +1,7 @@
 'use strict';
 
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
-const { CLI_TOOLING_CATALOG, runCliInstall, detectCliTool } = require('../lib/cliTooling');
+const { CLI_TOOLING_CATALOG, runCliInstall, detectCliTool, probeAftClangd } = require('../lib/cliTooling');
 const { isNpmAvailable } = require('../lib/toolCliInstallers');
 
 function buildCliToolingStatus(deps) {
@@ -9,10 +9,31 @@ function buildCliToolingStatus(deps) {
   const tools = CLI_TOOLING_CATALOG.map((tool) =>
     detectCliTool(tool.id, { childProcess }),
   );
+
+  // RTK version probe
+  let rtkStatus = { installed: false, lastError: 'Not checked' };
+  try {
+    const { probeRtkVersion } = require('../lib/externalSources');
+    const rtkProbe = probeRtkVersion(childProcess || require('node:child_process'));
+    rtkStatus = { installed: rtkProbe.ok, version: rtkProbe.version || null, error: rtkProbe.error || null, remediation: rtkProbe.remediation || null };
+  } catch { /* best effort */ }
+
+  // AFT clangd probe
+  let aftStatus = { clangd: { installed: false, warnings: [] } };
+  try {
+    const clangdProbe = probeAftClangd(childProcess);
+    aftStatus = {
+      clangd: clangdProbe,
+      warnings: clangdProbe.installed ? [] : ['clangd install failed or not found. Use /aft-status in agent, check plugin log, or set lsp.auto_install: false.'],
+    };
+  } catch { /* best effort */ }
+
   return {
     ok: true,
     npmAvailable: isNpmAvailable(),
     tools,
+    rtk: rtkStatus,
+    aft: aftStatus,
     checkedAt: new Date().toISOString(),
   };
 }

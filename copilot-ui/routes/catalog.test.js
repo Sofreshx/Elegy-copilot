@@ -276,6 +276,7 @@ async function run() {
     lastSnapshotPath: null,
   };
   const routes = register({
+    engineRoot,
     catalogRuntimeState: runtimeState,
     readJsonBody: async (req) => req.__body || {},
     sendJson(res, code, payload) {
@@ -1007,6 +1008,111 @@ async function run() {
       assert.equal(response.body.projection.freshness.status, 'fresh');
       assert.ok(response.body.audit.exists);
       assert.deepEqual(response.body.changes, changeState);
+    });
+    // Ownership state tests: verify conflict field is present and states have correct shape
+    await test('harness state derivation includes conflict field in catalog snapshot', async () => {
+      const ctx = {
+        ...baseCtx,
+        repoPath: undefined,
+      };
+      const response = await invoke(routes, ctx, 'GET', '/api/catalog/assets');
+      assert.equal(response.res.statusCode, 200);
+      const bundles = response.body?.bundles || [];
+      for (const bundle of bundles) {
+        for (const member of (bundle.members || [])) {
+          if (member.harnessStates) {
+            for (const h of member.harnessStates) {
+              assert.ok(typeof h.state === 'string', 'harness state should be a string');
+              assert.ok(h.hasOwnProperty('conflict'), 'harness state should have conflict field');
+              assert.equal(typeof h.conflict, 'boolean', 'conflict should be a boolean');
+              assert.ok(['unknown', 'unmanaged', 'available', 'not-installed', 'installed', 'conflict', 'external-managed'].includes(h.state),
+                `unexpected harness state: ${h.state}`);
+            }
+          }
+        }
+      }
+    });
+
+    await test('harness check endpoint returns conflict field for each result', async () => {
+      const ctx = {
+        ...baseCtx,
+        opencodeHome: null,
+        codexHome: null,
+        res: createResponse(),
+      };
+      const response = await invoke(routes, ctx, 'POST', '/api/catalog/harness-assets/check', {
+        harnessId: 'opencode',
+        assetId: 'skill-core-guardrails',
+      });
+      assert.equal(response.res.statusCode, 200);
+      assert.equal(response.body.kind, 'catalog.harness_asset_check');
+      assert.ok(Array.isArray(response.body.results));
+      for (const result of response.body.results) {
+        assert.ok(typeof result.state === 'string', 'result state should be a string');
+        assert.ok(result.hasOwnProperty('conflict'), 'result should have conflict field');
+        assert.equal(typeof result.conflict, 'boolean', 'result conflict should be a boolean');
+        assert.ok(['unknown', 'unmanaged', 'available', 'not-installed', 'installed', 'conflict', 'external-managed'].includes(result.state),
+          `unexpected harness result state: ${result.state}`);
+      }
+    });
+
+    await test('harness conflict state is returned when destination hash differs from source', async () => {
+      // Create a minimal opencode-assets manifest so the check endpoint can scan it
+      const opaDir = path.join(engineRoot, 'opencode-assets');
+      fs.mkdirSync(opaDir, { recursive: true });
+      writeJson(path.join(opaDir, 'manifest.json'), {
+        assets: [
+          {
+            id: 'test-conflict-skill',
+            type: 'skill',
+            source: 'opencode-assets/skills/test-conflict/source.md',
+            destination: 'skills/test-conflict/dest.md',
+            loadMode: 'on-demand',
+          },
+        ],
+      });
+      // Create source file
+      const sourceDir = path.join(opaDir, 'skills', 'test-conflict');
+      fs.mkdirSync(sourceDir, { recursive: true });
+      writeText(path.join(sourceDir, 'source.md'), '# Conflict Test Skill v1');
+      // Set opencodeHome to a test dir so destination path resolution works
+      const opencodeTestHome = path.join(tmpRoot, 'opencode-home');
+      // For skills, opencodeSkillsHome strips the 'skills/' prefix from destination path
+      // so 'skills/test-conflict/dest.md' resolves to {opencodeSkillsHome}/test-conflict/dest.md
+      const destDir = path.join(opencodeTestHome, 'test-conflict');
+      fs.mkdirSync(destDir, { recursive: true });
+      writeText(path.join(destDir, 'dest.md'), '# Conflict Test Skill v2 (modified)');
+      // Mark as managed by writing to the install ledger
+      const ledgerDir = path.join(elegyHomeAbs, 'catalog');
+      fs.mkdirSync(ledgerDir, { recursive: true });
+      writeJson(path.join(ledgerDir, 'install-ledger.json'), {
+        schemaVersion: 1,
+        generatedAt: new Date().toISOString(),
+        harnesses: {
+          opencode: {
+            optedInAt: new Date().toISOString(),
+            managedAssetIds: ['test-conflict-skill'],
+          },
+        },
+      });
+
+      const ctx = {
+        ...baseCtx,
+        engineRoot,
+        opencodeHome: opencodeTestHome,
+        opencodeSkillsHome: opencodeTestHome,
+        codexHome: null,
+        res: createResponse(),
+      };
+      const response = await invoke(routes, ctx, 'POST', '/api/catalog/harness-assets/check', {
+        harnessId: 'opencode',
+        assetId: 'test-conflict-skill',
+      });
+      assert.equal(response.res.statusCode, 200);
+      const result = response.body.results.find((r) => r.assetId === 'test-conflict-skill');
+      assert.ok(result, 'expected test-conflict-skill result');
+      assert.equal(result.state, 'conflict', `expected conflict state, got: ${result.state}`);
+      assert.equal(result.conflict, true, 'result.conflict should be true');
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });

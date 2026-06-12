@@ -13,6 +13,15 @@ const { createElegyDb } = require('./elegyDb');
 function createSessionHooks(opts = {}) {
   const db = opts.db || createElegyDb({ dbPath: opts.dbPath });
 
+  function makeWorktreeId(worktreePath) {
+    if (!worktreePath || typeof worktreePath !== 'string') return null;
+    return `wt-${Buffer.from(worktreePath).toString('base64').replace(/[/+=]/g, '_').slice(0, 64)}`;
+  }
+
+  function makeHookId(prefix, worktreePath) {
+    return `${prefix}-${Buffer.from(worktreePath).toString('base64').replace(/[/+=]/g, '_').slice(0, 32)}-${Date.now()}`;
+  }
+
   /**
    * Called when a session starts.
    * @param {object} session
@@ -199,10 +208,13 @@ function createSessionHooks(opts = {}) {
    */
   function onWorktreeCreate(worktree) {
     try {
+      const worktreePath = worktree && worktree.path;
+      if (!worktreePath) return;
       const now = new Date().toISOString();
+      const worktreeId = worktree.id || makeWorktreeId(worktreePath);
       db.upsertWorktree({
-        id: worktree.id || `wt-${Buffer.from(worktree.path).toString('base64').replace(/[/+=]/g, '_').slice(0, 64)}`,
-        path: worktree.path,
+        id: worktreeId,
+        path: worktreePath,
         repo_path: worktree.repoPath || null,
         repo_id: worktree.repoId || null,
         branch: worktree.branch || null,
@@ -219,11 +231,13 @@ function createSessionHooks(opts = {}) {
       });
 
       db.recordHookEvent({
-        id: `hwc-${Buffer.from(worktree.path).toString('base64').replace(/[/+=]/g, '_').slice(0, 32)}-${Date.now()}`,
+        id: makeHookId('hwc', worktreePath),
         hook_type: 'worktree_create',
         harness: worktree.source || null,
+        session_id: null,
+        worktree_id: worktreeId,
         repo_path: worktree.repoPath || null,
-        event_data_json: JSON.stringify({ path: worktree.path, branch: worktree.branch, source: worktree.source }),
+        event_data_json: JSON.stringify({ path: worktreePath, branch: worktree.branch, source: worktree.source }),
         created_at: now,
       });
     } catch (err) {
@@ -236,8 +250,10 @@ function createSessionHooks(opts = {}) {
    */
   function onWorktreeRemove(worktreePath) {
     try {
+      if (!worktreePath) return;
       const now = new Date().toISOString();
       const existing = db.getWorktreeByPath(worktreePath);
+      const worktreeId = existing ? existing.id : makeWorktreeId(worktreePath);
       
       // Mark as cleaned/done
       if (existing) {
@@ -246,8 +262,11 @@ function createSessionHooks(opts = {}) {
       }
 
       db.recordHookEvent({
-        id: `hwr-${Buffer.from(worktreePath).toString('base64').replace(/[/+=]/g, '_').slice(0, 32)}-${Date.now()}`,
+        id: makeHookId('hwr', worktreePath),
         hook_type: 'worktree_remove',
+        harness: existing ? existing.source : null,
+        session_id: null,
+        worktree_id: worktreeId,
         repo_path: existing ? existing.repo_path : null,
         event_data_json: JSON.stringify({ path: worktreePath }),
         created_at: now,
@@ -257,11 +276,142 @@ function createSessionHooks(opts = {}) {
     }
   }
 
+  /**
+   * Called when a worktree is allocated.
+   */
+  function onWorktreeAllocate(worktree) {
+    try {
+      const worktreePath = worktree && worktree.path;
+      if (!worktreePath) return;
+      const now = new Date().toISOString();
+      const worktreeId = makeWorktreeId(worktreePath);
+
+      db.recordHookEvent({
+        id: makeHookId('hwa', worktreePath),
+        hook_type: 'worktree_allocate',
+        harness: worktree.source || null,
+        session_id: null,
+        worktree_id: worktreeId,
+        repo_path: worktree.repoPath || null,
+        event_data_json: JSON.stringify({ path: worktreePath, branch: worktree.branch, repoId: worktree.repoId, source: worktree.source }),
+        created_at: now,
+      });
+
+      db.upsertWorktree({
+        id: worktreeId,
+        path: worktreePath,
+        repo_path: worktree.repoPath || null,
+        repo_id: worktree.repoId || null,
+        branch: worktree.branch || null,
+        source: worktree.source || 'executor',
+        status: 'ready',
+        head_sha: null,
+        detached: 0,
+        locked: null,
+        session_count: 0,
+        last_activity_at: null,
+        created_at: now,
+        updated_at: now,
+        metadata_json: null,
+      });
+    } catch (err) {
+      console.error('[sessionHooks] onWorktreeAllocate error:', err.message);
+    }
+  }
+
+  /**
+   * Called when a worktree is activated.
+   */
+  function onWorktreeActivate(worktree) {
+    try {
+      const worktreePath = worktree && worktree.path;
+      if (!worktreePath) return;
+      const now = new Date().toISOString();
+      const worktreeId = makeWorktreeId(worktreePath);
+
+      db.recordHookEvent({
+        id: makeHookId('hwx', worktreePath),
+        hook_type: 'worktree_activate',
+        harness: worktree.source || null,
+        session_id: worktree.sessionId || null,
+        worktree_id: worktreeId,
+        repo_path: worktree.repoPath || null,
+        event_data_json: JSON.stringify({ path: worktreePath, sessionId: worktree.sessionId, runId: worktree.runId }),
+        created_at: now,
+      });
+
+      db._db.prepare('UPDATE worktrees SET status = ?, updated_at = ? WHERE path = ?')
+        .run('active', now, worktreePath);
+    } catch (err) {
+      console.error('[sessionHooks] onWorktreeActivate error:', err.message);
+    }
+  }
+
+  /**
+   * Called when a worktree is released.
+   */
+  function onWorktreeRelease(worktree) {
+    try {
+      const worktreePath = worktree && worktree.path;
+      if (!worktreePath) return;
+      const now = new Date().toISOString();
+      const worktreeId = makeWorktreeId(worktreePath);
+
+      db.recordHookEvent({
+        id: makeHookId('hwe', worktreePath),
+        hook_type: 'worktree_release',
+        harness: worktree.source || null,
+        session_id: worktree.sessionId || null,
+        worktree_id: worktreeId,
+        repo_path: worktree.repoPath || null,
+        event_data_json: JSON.stringify({ path: worktreePath, runId: worktree.runId }),
+        created_at: now,
+      });
+
+      db._db.prepare('UPDATE worktrees SET status = ?, updated_at = ? WHERE path = ?')
+        .run('idle', now, worktreePath);
+    } catch (err) {
+      console.error('[sessionHooks] onWorktreeRelease error:', err.message);
+    }
+  }
+
+  /**
+   * Called when a worktree is interrupted.
+   */
+  function onWorktreeInterrupt(worktree, reason) {
+    try {
+      const worktreePath = worktree && worktree.path;
+      if (!worktreePath) return;
+      const now = new Date().toISOString();
+      const worktreeId = makeWorktreeId(worktreePath);
+
+      db.recordHookEvent({
+        id: makeHookId('hwi', worktreePath),
+        hook_type: 'worktree_interrupt',
+        harness: worktree.source || null,
+        session_id: worktree.sessionId || null,
+        worktree_id: worktreeId,
+        repo_path: worktree.repoPath || null,
+        event_data_json: JSON.stringify({ path: worktreePath, runId: worktree.runId, reason: reason || 'interrupted' }),
+        created_at: now,
+      });
+
+      db._db.prepare('UPDATE worktrees SET status = ?, updated_at = ? WHERE path = ?')
+        .run('interrupted', now, worktreePath);
+    } catch (err) {
+      console.error('[sessionHooks] onWorktreeInterrupt error:', err.message);
+    }
+  }
+
   return {
     onSessionStart,
     onSessionEnd,
     onWorktreeCreate,
     onWorktreeRemove,
+    onWorktreeAllocate,
+    onWorktreeActivate,
+    onWorktreeRelease,
+    onWorktreeInterrupt,
     close: () => { if (!opts.db) db.close(); },
   };
 }

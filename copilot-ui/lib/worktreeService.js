@@ -19,6 +19,7 @@ const WORKTREE_STATES = Object.freeze({
   ACTIVE: 'active',
   REUSABLE: 'reusable',
   INTERRUPTED: 'interrupted',
+  REMOVED: 'removed',
 });
 const WORKTREE_CLEANUP_POLICIES = Object.freeze({
   MANUAL: 'manual',
@@ -542,6 +543,7 @@ function normalizeWorktreeRecord(pathImpl, input = {}, defaults = {}) {
       activatedAt: asNullableIsoString((input.lifecycle && input.lifecycle.activatedAt) || defaults.activatedAt),
       releasedAt: asNullableIsoString((input.lifecycle && input.lifecycle.releasedAt) || defaults.releasedAt),
       interruptedAt: asNullableIsoString((input.lifecycle && input.lifecycle.interruptedAt) || defaults.interruptedAt),
+      removedAt: asNullableIsoString((input.lifecycle && input.lifecycle.removedAt) || defaults.removedAt),
       lastSeenAt: asNullableIsoString((input.lifecycle && input.lifecycle.lastSeenAt) || defaults.lastSeenAt || updatedAt),
     },
     createdAt: createdAt || updatedAt || null,
@@ -1132,6 +1134,44 @@ class WorktreeService {
         activatedAt: existing.lifecycle && existing.lifecycle.activatedAt,
         releasedAt: existing.lifecycle && existing.lifecycle.releasedAt,
         interruptedAt: nowIso(this._now),
+        lastSeenAt: nowIso(this._now),
+      },
+      updatedAt: nowIso(this._now),
+    });
+  }
+
+  markWorktreeRemoved(input = {}) {
+    const elegyHome = input.elegyHome || input.elegyHomeAbs || input.copilotHome || input.copilotHomeAbs || this._config.elegyHome || this._config.copilotHome || '.';
+    const repoId = asTrimmedString(input.repoId);
+    const worktreeId = asTrimmedString(input.worktreeId);
+    if (!repoId || !worktreeId) {
+      return null;
+    }
+    const existing = this.getWorktree(elegyHome, repoId, worktreeId);
+    if (!existing) {
+      return null;
+    }
+    return this._writeRecord(elegyHome, {
+      ...existing,
+      status: WORKTREE_STATES.REMOVED,
+      cleanup: {
+        policy: existing.cleanup && existing.cleanup.policy,
+        status: WORKTREE_CLEANUP_STATES.MANUAL_REQUIRED,
+        lastAttemptAt: existing.cleanup && existing.cleanup.lastAttemptAt,
+        lastError: existing.cleanup && existing.cleanup.lastError,
+      },
+      recovery: {
+        mode: WORKTREE_RECOVERY_MODES.MANUAL,
+        orphaned: existing.recovery && existing.recovery.orphaned === true,
+        reason: 'removed',
+      },
+      lifecycle: {
+        requestedAt: existing.lifecycle && existing.lifecycle.requestedAt,
+        allocatedAt: existing.lifecycle && existing.lifecycle.allocatedAt,
+        activatedAt: existing.lifecycle && existing.lifecycle.activatedAt,
+        releasedAt: existing.lifecycle && existing.lifecycle.releasedAt,
+        interruptedAt: existing.lifecycle && existing.lifecycle.interruptedAt,
+        removedAt: nowIso(this._now),
         lastSeenAt: nowIso(this._now),
       },
       updatedAt: nowIso(this._now),
