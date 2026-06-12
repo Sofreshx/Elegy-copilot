@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
+import { composeInstructionsFromAsset } from './instruction-compose-utils.mjs';
 import {
   ensureDir,
   getUserHome,
@@ -189,7 +190,7 @@ function syncManagedInstructions(templatePath, instructionsPath, options = {}) {
   const log = options.log || console.log;
   ensureDir(path.dirname(instructionsPath), options.dryRun, log);
 
-  const templateText = fs.readFileSync(templatePath, 'utf8');
+  const templateText = options.templateText || fs.readFileSync(templatePath, 'utf8');
   const existingText = fs.existsSync(instructionsPath) ? fs.readFileSync(instructionsPath, 'utf8') : '';
   const nextText = composeGeminiInstructions(existingText, templateText);
   const previousHash = fs.existsSync(instructionsPath) ? shaText(existingText) : null;
@@ -409,7 +410,12 @@ export function runInstall(args = {}) {
 
     if (asset.type === 'instructions') {
       const instructionsPath = path.join(geminiHome, normalizeRel(asset.destination));
-      instructionsResult = syncManagedInstructions(src, instructionsPath, args);
+      if (asset.appendix) {
+        const composed = composeInstructionsFromAsset(asset, repoRoot);
+        instructionsResult = syncManagedInstructions(src, instructionsPath, { ...args, templateText: composed });
+      } else {
+        instructionsResult = syncManagedInstructions(src, instructionsPath, args);
+      }
       continue;
     }
 

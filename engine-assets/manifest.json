@@ -334,7 +334,8 @@
     {
       "id": "copilot-instructions",
       "type": "instructions",
-      "source": "engine-assets/copilot-instructions.md",
+      "source": "catalog-assets/instructions/agent-session-defaults.md",
+      "appendix": "engine-assets/copilot-instructions-appendix.md",
       "destination": "copilot-instructions.md"
     },
     {

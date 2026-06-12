@@ -15,6 +15,7 @@ import {
   syncFile,
   syncText,
 } from './install-surface-utils.mjs';
+import { composeInstructionsFromAsset } from './instruction-compose-utils.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -450,6 +451,9 @@ export function runInstall(args = {}) {
       syncResult = syncText(roleToml, dst, args);
     } else if (asset.type === 'skill') {
       syncResult = syncDirectory(src, dst, args);
+    } else if (asset.appendix) {
+      const composed = composeInstructionsFromAsset(asset, repoRoot);
+      syncResult = syncText(composed, dst, args);
     } else {
       syncResult = syncFile(src, dst, args);
     }

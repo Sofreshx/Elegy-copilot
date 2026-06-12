@@ -51,7 +51,8 @@
     {
       "id": "opencode-global-instructions",
       "type": "instructions",
-      "source": "opencode-assets/home/AGENTS.md",
+      "source": "catalog-assets/instructions/agent-session-defaults.md",
+      "appendix": "opencode-assets/home/AGENTS-appendix.md",
       "destination": "AGENTS.md"
     },
     {

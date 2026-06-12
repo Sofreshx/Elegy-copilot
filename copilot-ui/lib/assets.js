@@ -1091,6 +1091,24 @@ function normalizeAuditAssetKey(asset) {
   return undefined;
 }
 
+/**
+ * Compose instructions from the shared baseline and a harness appendix.
+ * Mirrors scripts/instruction-compose-utils.mjs composeInstructionsFromAsset.
+ */
+function composeInstructionsFromAsset(asset, repoRoot) {
+  const baselinePath = path.resolve(repoRoot, asset.source);
+  const appendixPath = path.resolve(repoRoot, asset.appendix);
+  if (!fs.existsSync(baselinePath)) {
+    throw new Error(`Baseline not found: ${baselinePath}`);
+  }
+  if (!fs.existsSync(appendixPath)) {
+    throw new Error(`Appendix not found: ${appendixPath}`);
+  }
+  const baseline = fs.readFileSync(baselinePath, 'utf8');
+  const appendix = fs.readFileSync(appendixPath, 'utf8');
+  return `${baseline.trim()}\n\n---\n\n${appendix.trim()}\n`;
+}
+
 function recordManagedAssetAuditEvent(destinationHome, asset, eventType, details = {}) {
   try {
     appendCatalogAuditEvent(destinationHome, {
@@ -1267,6 +1285,11 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
             fs.mkdirSync(path.dirname(out), { recursive: true });
             fs.copyFileSync(f, out);
           }
+        }
+      } else if (asset.appendix) {
+        const composed = composeInstructionsFromAsset(asset, engineRoot);
+        if (!dryRun) {
+          fs.writeFileSync(destinationAbs, composed, 'utf8');
         }
       } else {
         fs.copyFileSync(sourceAbs, destinationAbs);

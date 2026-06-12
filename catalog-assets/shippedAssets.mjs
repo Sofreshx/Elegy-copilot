@@ -20,7 +20,9 @@ export const SHIPPED_ASSETS = [
   agent('agent-impl', 'engine-assets/agents/impl.agent.md'),
   agent('agent-search', 'engine-assets/agents/search.agent.md'),
   agent('agent-test-runner', 'engine-assets/agents/test-runner.agent.md'),
-  instructions('copilot-instructions', 'engine-assets/copilot-instructions.md'),
+  instructions('copilot-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {
+    appendix: 'engine-assets/copilot-instructions-appendix.md',
+  }),
   prompt('prompt-instruction-engine-plan', 'engine-assets/prompts/instruction-engine-plan.prompt.md'),
 
   skill('skill-core-guardrails', 'engine-assets/skills/core-guardrails', { loadMode: 'always' }),
@@ -58,18 +60,24 @@ export const SHIPPED_ASSETS = [
   skill('skill-spec-review', 'catalog-assets/shared-skills/spec-review', { loadMode: 'on-demand' }),
   skill('skill-ui-system', 'catalog-assets/shared-skills/ui-system', { loadMode: 'on-demand' }),
 
-  instructions('codex-global-instructions', 'codex-assets/home/AGENTS.md'),
+  instructions('codex-global-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {
+    appendix: 'codex-assets/home/AGENTS-appendix.md',
+  }),
   agent('codex-reviewer-agent', 'codex-assets/agents/reviewer.toml'),
   skill('codex-repo-setup-skill', 'codex-assets/skills/repo-setup'),
 
-  instructions('opencode-global-instructions', 'opencode-assets/home/AGENTS.md'),
+  instructions('opencode-global-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {
+    appendix: 'opencode-assets/home/AGENTS-appendix.md',
+  }),
   skill('opencode-code-review-skill', 'opencode-assets/skills/code-review'),
   skill('opencode-project-conventions-governance-skill', 'opencode-assets/skills/project-conventions-governance'),
   skill('opencode-security-skill', 'opencode-assets/skills/security'),
   skill('opencode-worktree-skill', 'opencode-assets/skills/worktree'),
   plugin('opencode-worktree-plugin', 'opencode-assets/plugins/worktree.js'),
 
-  instructions('antigravity-global-instructions', 'antigravity-assets/home/GEMINI.md'),
+  instructions('antigravity-global-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {
+    appendix: 'antigravity-assets/home/GEMINI-appendix.md',
+  }),
 ];
 
 export const SHIPPED_BUNDLES = [

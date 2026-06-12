@@ -1,20 +1,15 @@
 #!/usr/bin/env node
 /**
- * validate-guidelines-wiring.mjs — Validates that all managed harness surfaces
- * contain the inlined instruction contract (Authority, Concise Instruction Contract,
- * Clarification Contract, Planning Contract, Review Rule, Validation Rule).
+ * validate-guidelines-wiring.mjs
  *
- * The contract was previously referenced via a pointer to guidelines.md; it is now
- * embedded directly in each harness home file so that sessions always read it.
+ * Validates shared baseline content, banned-term absence, manifest wiring,
+ * and appendix file existence.
  *
  * Usage:
  *   node scripts/validate-guidelines-wiring.mjs          # check only
- *   node scripts/validate-guidelines-wiring.mjs --fix    # fix issues in place (not yet supported)
  *   node scripts/validate-guidelines-wiring.mjs --json   # structured JSON output
  *
- * Exit codes:
- *   0 — all harnesses contain the inlined contract
- *   1 — one or more harnesses are missing contract headings
+ * Exit codes: 0 = all pass, 1 = any fail
  */
 
 'use strict';
@@ -26,8 +21,10 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const REQUIRED_HEADINGS = [
-  '## Authority',
+const BASELINE_PATH = 'catalog-assets/instructions/agent-session-defaults.md';
+
+const REQUIRED_SECTIONS = [
+  '## Repo Discovery',
   '## Concise Instruction Contract',
   '## Clarification Contract',
   '## Planning Contract',
@@ -35,125 +32,176 @@ const REQUIRED_HEADINGS = [
   '## Validation Rule',
 ];
 
-const MANAGED_HARNESSES = [
-  'AGENTS.md',
-  'engine-assets/copilot-instructions.md',
-  'codex-assets/home/AGENTS.md',
-  'opencode-assets/home/AGENTS.md',
-  'antigravity-assets/home/GEMINI.md',
-  'claude-assets/home/CLAUDE.md',
-  '.github/copilot-instructions.md',
+const BANNED_TERMS = [
+  { pattern: /instruction\s*engine/gi, name: 'Instruction Engine' },
+  { pattern: /elegy\s*copilot/gi, name: 'Elegy Copilot' },
+  { pattern: /docs\/system/gi, name: 'docs/system' },
+  { pattern: /guidelines\.md/gi, name: 'guidelines.md' },
 ];
 
-/**
- * Walk up from `fromDir` looking for .git to find repo root.
- * @param {string} fromDir — directory to start searching from (typically __dirname)
- * @returns {string|null} — absolute path to repo root, or null if not found
- */
+const MANIFESTS = [
+  'codex-assets/manifest.json',
+  'opencode-assets/manifest.json',
+  'claude-assets/manifest.json',
+  'antigravity-assets/manifest.json',
+  'engine-assets/manifest.json',
+];
+
+const APPENDICES = [
+  'codex-assets/home/AGENTS-appendix.md',
+  'opencode-assets/home/AGENTS-appendix.md',
+  'claude-assets/home/CLAUDE-appendix.md',
+  'antigravity-assets/home/GEMINI-appendix.md',
+  'engine-assets/copilot-instructions-appendix.md',
+];
+
+/** Walk up from `fromDir` looking for .git to find repo root. */
 function findRepoRoot(fromDir) {
   let current = path.resolve(fromDir);
   while (true) {
-    if (fs.existsSync(path.join(current, '.git'))) {
-      return current;
-    }
+    if (fs.existsSync(path.join(current, '.git'))) return current;
     const parent = path.dirname(current);
-    if (parent === current) {
-      return null;
-    }
+    if (parent === current) return null;
     current = parent;
   }
 }
 
-/**
- * Check a single harness for inlined contract headings.
- * @param {string} repoRoot — absolute repo root path
- * @param {string} harness — relative harness path (e.g. "AGENTS.md")
- * @returns {{harness: string, status: string, detail: string, missing: string[]}}
- */
-function checkHarness(repoRoot, harness) {
-  const harnessPath = path.join(repoRoot, harness);
-  try {
-    const content = fs.readFileSync(harnessPath, 'utf8');
-    const missing = REQUIRED_HEADINGS.filter(h => !content.includes(h));
+/** Check the shared baseline exists, has required sections, and has no banned terms. */
+function checkBaseline(repoRoot) {
+  const fullPath = path.join(repoRoot, BASELINE_PATH);
+  const checks = [];
 
-    if (missing.length === 0) {
-      return { harness, status: 'pass', detail: 'contains all required contract headings', missing: [] };
+  if (!fs.existsSync(fullPath)) {
+    checks.push({ id: 'baseline-exists', status: 'missing', detail: `${BASELINE_PATH} not found` });
+    return checks;
+  }
+
+  checks.push({ id: 'baseline-exists', status: 'ok', detail: `${BASELINE_PATH} exists` });
+
+  const content = fs.readFileSync(fullPath, 'utf8');
+  const missingSections = REQUIRED_SECTIONS.filter(s => !content.includes(s));
+
+  checks.push({
+    id: 'baseline-sections',
+    status: missingSections.length === 0 ? 'ok' : 'missing',
+    detail: missingSections.length === 0
+      ? 'Contains all required portable sections'
+      : `Missing ${missingSections.length} section(s): ${missingSections.join(', ')}`,
+  });
+
+  const violations = BANNED_TERMS.filter(t => t.pattern.test(content));
+  checks.push({
+    id: 'baseline-banned-terms',
+    status: violations.length === 0 ? 'ok' : 'violation',
+    detail: violations.length === 0
+      ? 'No banned repo-specific terms found'
+      : `Found: ${violations.map(v => v.name).join(', ')}`,
+  });
+
+  return checks;
+}
+
+/** Check each manifest's instructions-type asset points to the shared baseline with valid appendix. */
+function checkManifestWiring(repoRoot) {
+  const results = [];
+
+  for (const manifestRel of MANIFESTS) {
+    const manifestPath = path.join(repoRoot, manifestRel);
+    const prefix = manifestRel.replace(/\.json$/, '').replace(/\//g, '-');
+
+    if (!fs.existsSync(manifestPath)) {
+      results.push({ id: `manifest-${prefix}`, status: 'missing', detail: `Manifest not found: ${manifestRel}` });
+      continue;
     }
 
-    return {
-      harness,
-      status: 'missing',
-      detail: `missing ${missing.length} required heading${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}`,
-      missing,
-    };
-  } catch {
-    return { harness, status: 'missing', detail: 'harness file not found', missing: REQUIRED_HEADINGS.slice() };
+    let manifest;
+    try {
+      manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    } catch {
+      results.push({ id: `manifest-${prefix}`, status: 'error', detail: `Invalid JSON: ${manifestRel}` });
+      continue;
+    }
+
+    const instAssets = (manifest.assets || []).filter(a => a.type === 'instructions');
+    if (instAssets.length === 0) {
+      results.push({ id: `manifest-${prefix}`, status: 'missing', detail: `${manifestRel}: no instructions-type assets` });
+      continue;
+    }
+
+    for (const asset of instAssets) {
+      const aid = asset.id || 'unknown';
+      const id = `manifest-${prefix}-${aid}`;
+
+      if (asset.source !== BASELINE_PATH) {
+        results.push({ id, status: 'violation', detail: `${asset.id}: source is "${asset.source}", expected "${BASELINE_PATH}"` });
+        continue;
+      }
+
+      if (!asset.appendix) {
+        results.push({ id, status: 'violation', detail: `${asset.id}: missing appendix field` });
+        continue;
+      }
+
+      const appPath = path.join(repoRoot, asset.appendix);
+      if (!fs.existsSync(appPath)) {
+        results.push({ id, status: 'missing', detail: `${asset.id}: appendix not found: ${asset.appendix}` });
+        continue;
+      }
+
+      results.push({ id, status: 'ok', detail: `${asset.id}: source ✓, appendix ✓` });
+    }
   }
+
+  return results;
+}
+
+/** Check each standalone appendix file exists. */
+function checkAppendixFiles(repoRoot) {
+  return APPENDICES.map((rel) => {
+    const id = rel.replace(/\.md$/, '').replace(/\//g, '-');
+    const exists = fs.existsSync(path.join(repoRoot, rel));
+    return { id, status: exists ? 'ok' : 'missing', detail: exists ? `${rel} exists` : `${rel} not found` };
+  });
 }
 
 function main() {
-  const args = process.argv.slice(2);
-  const useJson = args.includes('--json');
-  const useFix = args.includes('--fix');
-
-  if (useFix) {
-    console.error('--fix is not supported for inlined contract validation. Edit the harness files directly.');
-    process.exit(1);
-  }
-
+  const useJson = process.argv.includes('--json');
   const repoRoot = findRepoRoot(__dirname);
+
   if (!repoRoot) {
     if (useJson) {
-      console.log(JSON.stringify({
-        harnesses: [],
-        summary: { total: 0, pass: 0, missing: 0 },
-        setupChecks: [
-          {
-            id: 'instruction-governance',
-            label: 'Instruction Governance',
-            status: 'blocked',
-            detail: 'repo root not found walking up from script directory',
-          },
-        ],
-      }, null, 2));
+      console.log(JSON.stringify({ checks: [], summary: { total: 0, pass: 0, fail: 0 } }, null, 2));
       return;
     }
-    console.error('ERROR: Could not find repo root (package.json not found walking up from script directory).');
+    console.error('ERROR: Could not find repo root (walking up from script directory).');
     process.exit(1);
   }
 
-  const results = MANAGED_HARNESSES.map(h => checkHarness(repoRoot, h));
-  const hasMissing = results.some(r => r.status === 'missing');
+  const checks = [
+    ...checkBaseline(repoRoot),
+    ...checkManifestWiring(repoRoot),
+    ...checkAppendixFiles(repoRoot),
+  ];
+
+  const hasFail = checks.some(c => c.status !== 'ok');
 
   if (useJson) {
     console.log(JSON.stringify({
-      harnesses: results,
+      checks,
       summary: {
-        total: results.length,
-        pass: results.filter(r => r.status === 'pass').length,
-        missing: results.filter(r => r.status === 'missing').length,
+        total: checks.length,
+        pass: checks.filter(c => c.status === 'ok').length,
+        fail: checks.filter(c => c.status !== 'ok').length,
       },
-      setupChecks: [
-        {
-          id: 'instruction-governance',
-          label: 'Instruction Governance',
-          status: hasMissing ? 'warning' : 'ok',
-          detail: hasMissing
-            ? `${results.filter(r => r.status !== 'pass').length} harnesses missing contract headings`
-            : 'All harnesses contain inlined instruction contract',
-        },
-      ],
     }, null, 2));
     return;
   }
 
-  for (const r of results) {
-    console.log(`${r.harness}: ${r.status} — ${r.detail}`);
+  for (const c of checks) {
+    console.log(`${c.id}: ${c.status} — ${c.detail}`);
   }
 
-  if (hasMissing) {
-    process.exit(1);
-  }
+  if (hasFail) process.exit(1);
 }
 
 main();
