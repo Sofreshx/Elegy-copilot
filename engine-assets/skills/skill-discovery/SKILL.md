@@ -46,7 +46,7 @@ If no confident match exists, return the best candidate plus the ambiguity inste
 
 ## Source of truth
 
-- Runtime skill metadata index: `engine-assets/skills/skill-metadata-index.json`
+- Runtime skill metadata index: `engine-assets/skills/skill-metadata-index.json` (source); resolves to `<elegyHome>/skills/skill-metadata-index.json` at install time
 - Skill manifest metadata: `engine-assets/manifest.json`
 - Canonical workflow and routing policy: `docs/system/search-execute-workflow.md`
 - Skills governance: `docs/system/skills-governance.md`

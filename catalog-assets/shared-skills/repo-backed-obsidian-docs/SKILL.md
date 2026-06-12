@@ -29,7 +29,7 @@ normal Git workflows.
 | **Canonical docs** | Repo (Git) | `docs/system/**`, `docs/research/**`, `specs/**` |
 | **Obsidian vault** | Viewer/editor | Same repo path, opened in-place (no copy, no symlink) |
 | **Inbox/research notes** | Personal, non-canonical | Obsidian vault paths outside the repo |
-| **Mirror notes** | Generated, non-canonical | `_instruction-engine/planning-mirrors/` |
+| **Mirror notes** | Generated, non-canonical | `_planning-mirrors/` |
 | **Generated views** | Cache, non-canonical | Build output, never committed |
 
 ## Vault Strategy
@@ -87,7 +87,7 @@ Agents must classify every document operation into one of these tiers:
 | **Research note** | `docs/research/**` | Yes | Yes | Repo (non-authoritative) |
 | **ADR** | `docs/adr/*.md` | Yes | Read-only | Repo |
 | **Inbox note** | Obsidian vault, outside repo | No | Yes | None |
-| **Mirror** | `_instruction-engine/planning-mirrors/` | No | Read-only | Repo source |
+| **Mirror** | `_planning-mirrors/` | No | Read-only | Repo source |
 | **Generated** | Build output dirs | No | Never | Build |
 
 ## Frontmatter Compatibility

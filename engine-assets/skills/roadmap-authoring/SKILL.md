@@ -339,4 +339,4 @@ Before concluding backlog/roadmap work, confirm:
 
 - `docs/system/planning-backlog-roadmap-contract.md`
 - `docs/system/session-state-artifacts.md`
-- `catalog-assets/shared-skills/implementation-handoff/SKILL.md`
+- `skill-implementation-handoff` — for execution handoff from planning artifacts

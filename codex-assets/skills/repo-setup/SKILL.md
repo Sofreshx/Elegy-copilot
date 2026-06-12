@@ -24,7 +24,7 @@ Inspect these inputs before proposing changes:
 - `README*`
 - package/build/test files near the repo root
 - existing `AGENTS.md` or `.codex/`
-- existing Copilot assets such as `.github/copilot-instructions.md`, `.github/agents/`, `.github/skills/`, or `engine-assets/`
+- existing Copilot assets such as `.github/copilot-instructions.md`, `.github/agents/`, `.github/skills/`, or similar repo-local Copilot directories
 - maintained docs that define repo conventions
 
 ## Decision Rules
