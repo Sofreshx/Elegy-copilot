@@ -452,6 +452,80 @@ async function run() {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
+  await test('marks dedicated worktrees as removed and records lifecycle', () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-worktree-service-'));
+    const elegyHome = path.join(tmpRoot, '.elegy');
+    const repoPath = path.join(tmpRoot, 'repo');
+    const worktreePath = path.join(tmpRoot, 'repo-worktrees', 'wt-removed');
+    try {
+      createGitRepoRoot(repoPath);
+      createGitWorktree(repoPath, worktreePath, 'wt-removed');
+      const service = createWorktreeService({ elegyHome });
+
+      // Allocate
+      const plan = service.resolveLaunchPlan({
+        elegyHome,
+        repoId: 'repo-removed',
+        repoPath,
+        worktree: {
+          mode: 'dedicated',
+          worktreeId: 'wt-removed',
+          worktreePath,
+        },
+        activeSessions: [{
+          repoId: 'repo-removed',
+          active: true,
+          worktree: { mode: 'shared' },
+        }],
+      });
+      assert.ok(plan.worktree.worktreeId);
+      const worktreeId = plan.worktree.worktreeId;
+
+      // Activate
+      service.markWorktreeActive({
+        elegyHome,
+        repoId: 'repo-removed',
+        worktreeId,
+        sessionId: 's1',
+        runId: 'r1',
+      });
+
+      // Remove
+      const removed = service.markWorktreeRemoved({
+        elegyHome,
+        repoId: 'repo-removed',
+        worktreeId,
+      });
+      assert.ok(removed);
+      assert.equal(removed.status, 'removed');
+      assert.ok(removed.lifecycle.removedAt);
+      assert.ok(removed.lifecycle.allocatedAt);
+      assert.ok(removed.lifecycle.activatedAt);
+
+      // Verify
+      const fetched = service.getWorktree(elegyHome, 'repo-removed', worktreeId);
+      assert.equal(fetched.status, 'removed');
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('markWorktreeRemoved returns null for missing worktree', () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-worktree-service-'));
+    const elegyHome = path.join(tmpRoot, '.elegy');
+    try {
+      const service = createWorktreeService({ elegyHome });
+      const result = service.markWorktreeRemoved({
+        elegyHome,
+        repoId: 'nonexistent',
+        worktreeId: 'no-such-id',
+      });
+      assert.equal(result, null);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
   console.log(`\n  ${passed} passed, ${process.exitCode ? 'some failed' : '0 failed'}\n`);
 }
 run().catch((error) => {

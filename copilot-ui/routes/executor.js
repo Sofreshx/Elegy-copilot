@@ -285,6 +285,22 @@ async function handleCleanupRemove(ctx, deps) {
       ctx.sessionHooks.onWorktreeRemove(worktreePath);
     }
 
+    // Mark worktree as removed in the file-based registry
+    if (executor._worktreeService && typeof executor._worktreeService.markWorktreeRemoved === 'function') {
+      try {
+        if (executor._worktreeService._findPersistedRecordByPath) {
+          const record = executor._worktreeService._findPersistedRecordByPath(null, null, worktreePath);
+          if (record && record.worktreeId && record.repoId) {
+            executor._worktreeService.markWorktreeRemoved({
+              elegyHome: executor._worktreeService._config.elegyHome || '.',
+              repoId: record.repoId,
+              worktreeId: record.worktreeId,
+            });
+          }
+        }
+      } catch { /* best effort — don't fail the request */ }
+    }
+
     deps.sendJson(ctx.res, 200, {
       removed: true,
       worktreePath,
@@ -355,6 +371,22 @@ async function handleCleanupRemoveWithBranch(ctx, deps) {
     try {
       ctx.sessionHooks.onWorktreeRemove(worktreePath);
     } catch { /* ignore hook errors */ }
+  }
+
+  // Mark worktree as removed in the file-based registry
+  if (executor._worktreeService && typeof executor._worktreeService.markWorktreeRemoved === 'function') {
+    try {
+      if (executor._worktreeService._findPersistedRecordByPath) {
+        const record = executor._worktreeService._findPersistedRecordByPath(null, null, worktreePath);
+        if (record && record.worktreeId && record.repoId) {
+          executor._worktreeService.markWorktreeRemoved({
+            elegyHome: executor._worktreeService._config.elegyHome || '.',
+            repoId: record.repoId,
+            worktreeId: record.worktreeId,
+          });
+        }
+      }
+    } catch { /* best effort — don't fail the request */ }
   }
   
   // Delete branch after successful worktree removal
