@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "configVersion": 1,
   "generated": "2026-06-09T17:55:32.259Z",
   "repoLanguages": [
@@ -16,9 +16,24 @@
   "gates": [
     "typecheck"
   ],
+  "groups": {
+    "fast": { "description": "Quick checks for rapid iteration (<10s)" },
+    "commit": { "description": "Pre-commit checks \u2014 must pass before committing" },
+    "push": { "description": "Pre-push checks \u2014 must pass before pushing" },
+    "ci": { "description": "CI-equivalent checks \u2014 mirrors GitHub required workflows" },
+    "release": { "description": "Full release blockers \u2014 heavy checks reserved for CI/release" }
+  },
   "lanes": {
     "test": {
       "enabled": true,
+      "group": "push",
+      "description": "Run all workspace tests",
+      "cwd": ".",
+      "timeoutMs": 120000,
+      "blocking": true,
+      "ciWorkflow": "repo-ci.yml",
+      "ciJob": "build",
+      "ciRequired": true,
       "commands": [
         "npx vitest run",
         "cargo test"
@@ -26,21 +41,59 @@
     },
     "lint": {
       "enabled": true,
+      "group": "commit",
+      "description": "Lint all source code",
+      "cwd": ".",
+      "timeoutMs": 60000,
+      "blocking": true,
+      "ciWorkflow": "",
+      "ciJob": "",
+      "ciRequired": false,
       "commands": [
         "cargo clippy -- -D warnings"
       ]
     },
     "format": {
       "enabled": true,
+      "group": "commit",
+      "description": "Check code formatting",
+      "cwd": ".",
+      "timeoutMs": 60000,
+      "blocking": true,
+      "ciWorkflow": "",
+      "ciJob": "",
+      "ciRequired": false,
       "commands": [
         "cargo fmt -- --check"
       ]
     },
     "typecheck": {
       "enabled": true,
+      "group": "commit",
+      "description": "Type-check TypeScript and Rust code",
+      "cwd": ".",
+      "timeoutMs": 60000,
+      "blocking": true,
+      "ciWorkflow": "",
+      "ciJob": "",
+      "ciRequired": false,
       "commands": [
         "npx tsc --noEmit",
         "cargo check"
+      ]
+    },
+    "ci-local": {
+      "enabled": true,
+      "group": "ci",
+      "description": "Full local CI-equivalent: validates specs, docs, manifests, builds UI, runs all tests",
+      "cwd": ".",
+      "timeoutMs": 300000,
+      "blocking": true,
+      "ciWorkflow": "repo-ci.yml",
+      "ciJob": "build",
+      "ciRequired": true,
+      "commands": [
+        "npm run ci:local"
       ]
     }
   }

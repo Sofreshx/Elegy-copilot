@@ -109,6 +109,11 @@ function runCanonicalChecks(repoRoot, config) {
           output: lane.details || '',
           score: lane.score,
           commands: lane.commands,
+          group: lane.group || null,
+          blocking: lane.blocking !== false,
+          ciWorkflow: lane.ciWorkflow || null,
+          ciJob: lane.ciJob || null,
+          ciRequired: lane.ciRequired || false,
         };
       });
 
@@ -124,6 +129,8 @@ function runCanonicalChecks(repoRoot, config) {
         checksPassed: passed,
         checksFailed: failed,
         allPassed: parsed.overallPass !== false,
+        groups: parsed.groups || {},
+        groupResults: parsed.groupResults || {},
         results,
         message: failed === 0
           ? `All ${passed} lanes passed (score: ${parsed.compositeScore ?? 'N/A'}).`
@@ -143,13 +150,25 @@ function discoverChecks(repoRoot) {
   const config = resolveCommitCheckConfig(repoRoot);
   if (config && config.lanes) {
     const laneNames = Object.keys(config.lanes).filter((name) => config.lanes[name].enabled !== false);
-    return laneNames.map((name) => ({
-      name,
-      path: (config.lanes[name].commands || []).join(', ') || '(configured)',
-      fullPath: '',
-      description: config.lanes[name].description || '',
-      source: 'commit-check',
-    }));
+    const checks = laneNames.map((name) => {
+      const lane = config.lanes[name];
+      return {
+        name,
+        path: (lane.commands || []).join(', ') || '(configured)',
+        fullPath: '',
+        description: lane.description || '',
+        group: lane.group || null,
+        cwd: lane.cwd || null,
+        timeoutMs: lane.timeoutMs || null,
+        blocking: lane.blocking !== false,
+        ciWorkflow: lane.ciWorkflow || null,
+        ciJob: lane.ciJob || null,
+        ciRequired: lane.ciRequired || false,
+        source: 'commit-check',
+      };
+    });
+    checks.groups = config.groups || {};
+    return checks;
   }
 
   const checks = [...KNOWN_CHECKS];
@@ -348,6 +367,10 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
   }
 
   // Checks failed — gate the action
+  // TODO: Add CI gap detection here — compare lane ciRequired fields against
+  // GitHub Actions workflow status. If a ciRequired lane passes locally but
+  // the corresponding CI workflow/job has not run or has failed, flag a CI gap
+  // warning in a follow-up work point.
   return {
     allowed: false,
     skipped: false,
@@ -357,10 +380,33 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
   };
 }
 
+/**
+ * Compute per-group pass/fail summary from lane results.
+ * @param {Array<{checkName: string, passed: boolean, group?: string|null}>} checkResults
+ * @returns {Object<string, {passedLanes: string[], failedLanes: string[], allPassed: boolean}>}
+ */
+function resolveGroupResults(checkResults) {
+  const groupResults = {};
+  for (const result of checkResults) {
+    const group = result.group || '__ungrouped__';
+    if (!groupResults[group]) {
+      groupResults[group] = { passedLanes: [], failedLanes: [], allPassed: true };
+    }
+    if (result.passed) {
+      groupResults[group].passedLanes.push(result.checkName);
+    } else {
+      groupResults[group].failedLanes.push(result.checkName);
+      groupResults[group].allPassed = false;
+    }
+  }
+  return groupResults;
+}
+
 module.exports = {
   discoverChecks,
   runCheck,
   runAllChecks,
   gateGitAction,
+  resolveGroupResults,
   KNOWN_CHECKS,
 };
