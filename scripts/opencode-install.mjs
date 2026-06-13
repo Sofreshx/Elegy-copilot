@@ -177,6 +177,41 @@ function logPruneAction(action, targetPath, kind, log) {
   }
 }
 
+function ensureManagedPluginConfig(opencodeHome, desiredPlugins, options = {}) {
+  const pluginEntries = Object.keys(desiredPlugins || {})
+    .filter((entry) => entry.endsWith('.js'))
+    .map((entry) => `./plugins/${entry}`)
+    .sort();
+
+  if (pluginEntries.length === 0) {
+    return { changed: false, entries: [] };
+  }
+
+  const config = readConfig(opencodeHome);
+  const currentPlugins = Array.isArray(config.plugin)
+    ? config.plugin.filter((entry) => typeof entry === 'string' && entry.trim())
+    : [];
+  const nextPlugins = [...currentPlugins];
+  let changed = false;
+
+  for (const pluginEntry of pluginEntries) {
+    if (!nextPlugins.includes(pluginEntry)) {
+      nextPlugins.push(pluginEntry);
+      changed = true;
+    }
+  }
+
+  if (changed && !options.dryRun) {
+    config.plugin = nextPlugins;
+    writeConfig(opencodeHome, config);
+  }
+
+  return {
+    changed,
+    entries: pluginEntries,
+  };
+}
+
 function pruneManagedEntries(targetRoot, recordedEntries, desiredEntries, kind, hashReader, options = {}) {
   const log = options.log || console.log;
   const results = [];
@@ -619,6 +654,9 @@ export async function runInstall(args = {}) {
     dryRun: args.dryRun,
     force: true,
   });
+  const pluginConfig = ensureManagedPluginConfig(opencodeHome, desiredInventory.plugins, {
+    dryRun: args.dryRun,
+  });
   const repoSetup = repoSetupRoot
     ? runRepoSetupProfileBootstrap({
       surface: 'opencode',
@@ -648,17 +686,17 @@ export async function runInstall(args = {}) {
       pruneResults,
     },
     profileInjection: profileInjectionResults.length > 0 ? profileInjectionResults : undefined,
+    pluginConfig,
     repoSetup,
   };
 
-  // Set INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH on Windows when
-  // targeting the default Copilot home directory.
-  if (process.platform === 'win32' && path.resolve(opencodeHome) === path.resolve('C:\\Users\\lolzi\\.elegy')) {
-    const sessionPath = path.join(opencodeHome, 'planning-session.json');
+  // Keep planning session discovery pinned to the shared Elegy home.
+  if (process.platform === 'win32') {
+    const sessionPath = path.join(os.homedir(), '.elegy', 'planning-session.json');
     process.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH = sessionPath;
     console.log(`[ENV] INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=${sessionPath}`);
 
-    // Mirror the sidecar from the CLI's default location to the override path
+    // Mirror the sidecar from the CLI's default location to the override path.
     try {
       const _require = createRequire(import.meta.url);
       const { mirrorSessionSidecar } = _require('../copilot-ui/lib/planningSession.js');
@@ -718,9 +756,8 @@ try {
   if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
     const args = parseArgs(process.argv.slice(2));
     if (args.printEnvOnly) {
-      const elegyHome = resolveOpenCodeHome(args.opencodeHome);
-      if (process.platform === 'win32' && path.resolve(elegyHome) === path.resolve('C:\\Users\\lolzi\\.elegy')) {
-        const sessionPath = path.join(elegyHome, 'planning-session.json');
+      if (process.platform === 'win32') {
+        const sessionPath = path.join(os.homedir(), '.elegy', 'planning-session.json');
         console.log(`INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=${sessionPath}`);
       }
       process.exit(0);

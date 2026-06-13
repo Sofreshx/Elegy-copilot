@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { createRoadmapWorkflowPlanningBridge } = require('../lib/roadmapWorkflowPlanningBridge');
+const { resolvePlanningDbPath } = require('../lib/roadmapWorkflowPlanningBridge');
 let passed = 0;
 let failed = 0;
 async function test(name, fn) {
@@ -67,6 +68,23 @@ async function run() {
       assert.strictEqual(status.ready, false);
       assert.strictEqual(status.code, 'cli_binary_not_found');
       assert.ok(String(status.message || '').includes(missingPath));
+    });
+    await test('planning DB resolver ignores stale .copilot env and defaults to ~/.elegy/planning.db', () => {
+      const copilotHome = path.join(tmpRoot, '.copilot');
+      fs.mkdirSync(copilotHome, { recursive: true });
+      const staleDb = path.join(copilotHome, 'elegy-planning.db');
+      fs.writeFileSync(staleDb, 'stale');
+
+      const resolution = resolvePlanningDbPath({
+        elegyHome,
+        homedir: tmpRoot,
+        env: {
+          INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH: staleDb,
+        },
+      });
+
+      assert.strictEqual(resolution.dbPath, path.join(elegyHome, 'planning.db'));
+      assert.strictEqual(resolution.source, 'home-elegy');
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });

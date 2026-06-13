@@ -696,14 +696,13 @@ export function runInstall(args = {}) {
     repoSetup,
   };
 
-  // Set INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH on Windows when
-  // targeting the default Copilot home directory.
-  if (process.platform === 'win32' && path.resolve(codexHome) === path.resolve('C:\\Users\\lolzi\\.elegy')) {
-    const sessionPath = path.join(codexHome, 'planning-session.json');
+  // Keep planning session discovery pinned to the shared Elegy home.
+  if (process.platform === 'win32') {
+    const sessionPath = path.join(os.homedir(), '.elegy', 'planning-session.json');
     process.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH = sessionPath;
     console.log(`[ENV] INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=${sessionPath}`);
 
-    // Mirror the sidecar from the CLI's default location to the override path
+    // Mirror the sidecar from the CLI's default location to the override path.
     try {
       const _require = createRequire(import.meta.url);
       const { mirrorSessionSidecar } = _require('../copilot-ui/lib/planningSession.js');
@@ -731,9 +730,8 @@ try {
   if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
     const args = parseArgs(process.argv.slice(2));
     if (args.printEnvOnly) {
-      const elegyHome = resolveCodexHome(args.codexHome);
-      if (process.platform === 'win32' && path.resolve(elegyHome) === path.resolve('C:\\Users\\lolzi\\.elegy')) {
-        const sessionPath = path.join(elegyHome, 'planning-session.json');
+      if (process.platform === 'win32') {
+        const sessionPath = path.join(os.homedir(), '.elegy', 'planning-session.json');
         console.log(`INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=${sessionPath}`);
       }
       process.exit(0);

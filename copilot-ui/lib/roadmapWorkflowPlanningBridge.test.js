@@ -412,9 +412,9 @@ async function run() {
     assert.ok(result.reason.includes('explicit'));
   });
 
-  await test('resolvePlanningDbPath falls back to populated legacy-elegy when copilot-home is empty', async () => {
+  await test('resolvePlanningDbPath uses home-elegy even when a copilot DB exists', async () => {
     const copilotDb = path.join('/', 'copilot', 'elegy-planning.db');
-    const legacyDb = path.join('/', 'Users', 'test', '.elegy', 'planning.db');
+    const elegyDb = path.join('/', 'Users', 'test', '.elegy', 'planning.db');
     const result = resolvePlanningDbPath({
       dbPath: '',
       elegyHome: path.join('/', 'copilot'),
@@ -422,10 +422,10 @@ async function run() {
       pathModule: path,
       fsModule: {
         existsSync(p) {
-          return p === legacyDb || p === copilotDb;
+          return p === elegyDb || p === copilotDb;
         },
         statSync(p) {
-          if (p === legacyDb) return { size: 8192 };
+          if (p === elegyDb) return { size: 8192 };
           if (p === copilotDb) return { size: 0 };
           return { size: 0 };
         },
@@ -433,13 +433,14 @@ async function run() {
       env: {},
     });
 
-    assert.equal(result.dbPath, legacyDb);
-    assert.equal(result.source, 'legacy-elegy');
+    assert.equal(result.dbPath, elegyDb);
+    assert.equal(result.source, 'home-elegy');
     assert.ok(result.reason.includes('populated'));
   });
 
-  await test('resolvePlanningDbPath prefers copilot-home when both are populated', async () => {
+  await test('resolvePlanningDbPath ignores non-elegy elegyHome when both are populated', async () => {
     const copilotDb = path.join('/', 'copilot', 'elegy-planning.db');
+    const elegyDb = path.join('/', 'Users', 'test', '.elegy', 'planning.db');
     const result = resolvePlanningDbPath({
       dbPath: '',
       elegyHome: path.join('/', 'copilot'),
@@ -457,8 +458,8 @@ async function run() {
       env: {},
     });
 
-    assert.equal(result.dbPath, copilotDb);
-    assert.equal(result.source, 'copilot-home');
+    assert.equal(result.dbPath, elegyDb);
+    assert.equal(result.source, 'home-elegy');
   });
 
   await test('bridge getStatus includes dbResolution with candidates', async () => {
@@ -800,12 +801,13 @@ async function run() {
     assert.equal(result.roadmaps[0].id, 'RM-derived');
   });
 
-  await test('fallback DB trial when primary DB has no matching scopes', async () => {
+  await test('fallback DB trial can query canonical .elegy DB after an explicit primary has no matching scopes', async () => {
     const primaryDbPath = path.join('C:', 'copilot', 'elegy-planning.db');
-    const legacyDbPath = path.join('C:', 'Users', 'test', '.elegy', 'planning.db');
+    const elegyDbPath = path.join('C:', 'Users', 'test', '.elegy', 'planning.db');
     const recorded = [];
     const bridge = createRoadmapWorkflowPlanningBridge({
       enabled: true,
+      dbPath: primaryDbPath,
       elegyHome: path.join('C:', 'copilot'),
       homedir: path.join('C:', 'Users', 'test'),
       cliPath: __filename,
@@ -816,7 +818,7 @@ async function run() {
         const dbPathFromArgs = dbIdx >= 0 ? args[dbIdx + 1] : '';
         recorded.push({ commandKey, dbPath: dbPathFromArgs });
         if (commandKey === 'scope list') {
-          if (dbPathFromArgs === legacyDbPath) {
+          if (dbPathFromArgs === elegyDbPath) {
             callback(null, JSON.stringify({
               status: 'ok',
               data: {
@@ -840,7 +842,7 @@ async function run() {
           return;
         }
         if (commandKey === 'roadmap list') {
-          if (dbPathFromArgs === legacyDbPath) {
+          if (dbPathFromArgs === elegyDbPath) {
             callback(null, JSON.stringify({
               status: 'ok',
               data: {
@@ -860,8 +862,8 @@ async function run() {
         callback(null, JSON.stringify({ status: 'ok', data: {} }), '');
       }),
       fsModule: {
-        existsSync(p) { return p === primaryDbPath || p === legacyDbPath; },
-        statSync(p) { return { size: p === legacyDbPath ? 8192 : 4096 }; },
+        existsSync(p) { return p === primaryDbPath || p === elegyDbPath; },
+        statSync(p) { return { size: p === elegyDbPath ? 8192 : 4096 }; },
       },
       env: {},
       processObject: { env: {}, platform: 'win32' },
@@ -875,9 +877,8 @@ async function run() {
     assert.ok(Array.isArray(result.roadmaps));
     assert.equal(result.roadmaps.length, 1);
     assert.equal(result.roadmaps[0].id, 'RM-legacy');
-    // Verify legacy DB was tried
-    const legacyDbAttempts = recorded.filter((r) => r.dbPath === legacyDbPath);
-    assert.ok(legacyDbAttempts.length > 0, 'Should have queried legacy DB');
+    const elegyDbAttempts = recorded.filter((r) => r.dbPath === elegyDbPath);
+    assert.ok(elegyDbAttempts.length > 0, 'Should have queried canonical .elegy DB');
   });
 
   if (!process.exitCode) {

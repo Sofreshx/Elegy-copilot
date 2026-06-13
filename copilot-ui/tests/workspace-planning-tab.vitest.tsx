@@ -49,7 +49,7 @@ describe('WorkspacePlanningTab', () => {
     apiMocks.getPlanningSession.mockResolvedValue({
       ready: true,
       exists: true,
-      sidecarPath: 'C:/Users/lolzi/.copilot/planning-session.json',
+      sidecarPath: 'C:/Users/lolzi/.elegy/planning-session.json',
       sidecar: {
         scope: 'default',
         sessionId: 'SESSION-one',

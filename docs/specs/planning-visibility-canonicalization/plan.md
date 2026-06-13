@@ -5,6 +5,18 @@
 **Status:** Draft
 **Lane:** Spec (per AGENTS.md — user-facing behavior change, multi-file surface)
 
+## Authority Update
+
+Current planning storage authority:
+
+| Surface | Canonical Path |
+|---|---|
+| Planning DB | `~/.elegy/planning.db` |
+| Planning session sidecar | `~/.elegy/planning-session.json` |
+
+Treat `.copilot` planning DB and planning-session paths below as historical
+evidence from the earlier draft, not as current implementation targets.
+
 ## Overview
 
 Repair the consolidation goal + 5 roadmaps in place, add canonical-repo metadata contract, fix server-side inherited scope matching, extend the planning explorer with full filter/drill-down/warning-bucket surface, and add shared session sidecar support. Six ordered steps, each independently verifiable.
@@ -46,7 +58,7 @@ Steps 2 and 3 are independent; both must precede step 5 because the UI consumes 
 
 A pure Node script (no CLI dependency) that:
 
-1. Accepts `--db <path>` (default `process.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH || path.join(os.homedir(), '.copilot', 'elegy-planning.db')`).
+1. Accepts `--db <path>` (default `path.join(os.homedir(), '.elegy', 'planning.db')`).
 2. Accepts `--dry-run` (default `false`) and `--correlation-id` (default `copilot-git-consolidation-20260603`).
 3. On startup, copies the DB to `<dbDir>/../backups/elegy-planning.db.bak-<ISO8601 timestamp>`. If the copy fails, exit 1 with the error.
 4. Opens the DB with `better-sqlite3` in read-write mode.
@@ -193,7 +205,7 @@ A pure node script (CommonJS) that:
 
 **Modified files:**
 
-- `scripts/codex-install.mjs` — when `process.platform === 'win32'` AND `copilotHome === 'C:\\Users\\lolzi\\.copilot'`, set `INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=C:\Users\lolzi\.copilot\planning-session.json` in the generated env file. Add `--print-env-only` flag for tests. **At the end of the install run, call `mirrorSessionSidecar({ resolvedPath: env.INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH, defaultSourcePath: path.join(os.homedir(), '.elegy', 'planning-session.json') })` from `copilot-ui/lib/planningSession.js`** to seed the override path from the CLI's default location when the source exists but the override does not.
+- `scripts/codex-install.mjs` — when `process.platform === 'win32'`, set `INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=~/.elegy/planning-session.json` in generated env output. Add `--print-env-only` flag for tests.
 - `scripts/opencode-install.mjs` — same, including the `mirrorSessionSidecar` call.
 - `copilot-ui/src/desktopRuntime/runtimeService.ts` — set the same env var on the spawned Tauri process env.
 - `catalog-assets/shared-skills/elegy-planning/SKILL.md` — add a new section under "Environment Variables" documenting the override AND a note that the install scripts perform the one-time mirror; re-running the install refreshes the mirror.

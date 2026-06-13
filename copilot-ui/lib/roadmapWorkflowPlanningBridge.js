@@ -9,7 +9,7 @@ const { readPlanningSession } = require('./planningSession');
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_CLI_PATH = 'elegy-planning';
-const DEFAULT_DB_FILENAME = 'elegy-planning.db';
+const DEFAULT_DB_FILENAME = 'planning.db';
 
 function isExecutablePathConfigured(candidate) {
   const normalized = normalizeString(candidate);
@@ -903,7 +903,7 @@ function resolvePlanningDbPath(options = {}) {
   const pathModule = options.pathModule || path;
   const fsModule = options.fsModule || fs;
 
-  const explicitPath = normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH);
+  const explicitPath = normalizeString(options.dbPath);
 
   const candidates = [];
 
@@ -926,19 +926,19 @@ function resolvePlanningDbPath(options = {}) {
     candidates.push(entry);
   }
 
-  // 1. Explicit path (env var or option)
+  // 1. Explicit path (direct option only)
   if (explicitPath) {
     pushCandidate('explicit', explicitPath);
   }
 
-  // 2. <elegyHome>/elegy-planning.db (copilot home)
-  if (elegyHome) {
-    pushCandidate('copilot-home', pathModule.join(elegyHome, DEFAULT_DB_FILENAME));
+  // 2. ~/.elegy/planning.db (canonical default)
+  if (homedir) {
+    pushCandidate('home-elegy', pathModule.join(homedir, '.elegy', DEFAULT_DB_FILENAME));
   }
 
-  // 3. ~/.elegy/planning.db (legacy)
-  if (homedir) {
-    pushCandidate('legacy-elegy', pathModule.join(homedir, '.elegy', 'planning.db'));
+  // 3. <elegyHome>/planning.db, only when the supplied root is an Elegy home.
+  if (elegyHome && pathModule.basename(pathModule.resolve(elegyHome)).toLowerCase() === '.elegy') {
+    pushCandidate('elegy-home', pathModule.join(elegyHome, DEFAULT_DB_FILENAME));
   }
 
   // Selection: prefer explicit if populated, otherwise most populated candidate
@@ -990,7 +990,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
   const configuredCliPath = normalizeString(options.cliPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH);
 
   const dbResolution = resolvePlanningDbPath({
-    dbPath: options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH,
+    dbPath: options.dbPath,
     elegyHome,
     homedir: options.homedir,
     pathModule,
@@ -1042,7 +1042,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
   const configured = options.enabled === true
     || normalizeString(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_ENABLED) === '1'
     || Boolean(configuredCliPath)
-    || Boolean(normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH));
+    || Boolean(normalizeString(options.dbPath));
 
   const config = {
     childProcess: options.childProcess,
@@ -1136,7 +1136,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
           // scope list failed; fall through
         }
 
-        // Try fallback DB candidates (e.g. legacy ~/.elegy/planning.db)
+        // Try fallback DB candidates (e.g. canonical ~/.elegy/planning.db after an explicit DB override)
         const fallbackCandidates = (dbResolution && dbResolution.candidates || [])
           .filter((c) => c.populated && c.path !== config.dbPath);
         for (const candidate of fallbackCandidates) {
@@ -1258,7 +1258,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
           // scope list failed; fall through
         }
 
-        // Try fallback DB candidates (e.g. legacy ~/.elegy/planning.db)
+        // Try fallback DB candidates (e.g. canonical ~/.elegy/planning.db after an explicit DB override)
         const fallbackCandidates = (dbResolution && dbResolution.candidates || [])
           .filter((c) => c.populated && c.path !== config.dbPath);
         for (const candidate of fallbackCandidates) {

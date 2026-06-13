@@ -2781,35 +2781,8 @@ function handlePlanningSessionRead(ctx, deps) {
     .then(() => {
       const planningSession = require('../lib/planningSession');
       const env = process.env;
-      let dbPath = env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH
-        || (() => {
-            const defaultPath = path.join(require('os').homedir(), '.elegy', 'elegy-planning.db');
-            if (!fs.existsSync(defaultPath)) {
-              const legacyPath = path.join(require('os').homedir(), '.elegy', 'planning.db');
-              if (fs.existsSync(legacyPath)) {
-                return legacyPath;
-              }
-              const copilotPath = path.join(require('os').homedir(), '.copilot', 'elegy-planning.db');
-              if (fs.existsSync(copilotPath)) {
-                return copilotPath;
-              }
-            }
-            return defaultPath;
-          })();
-
-      // When a stale env-var path is set but a populated legacy DB exists,
-      // prefer the legacy DB — it contains the user's actual planning data.
-      if (env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH) {
-        const legacyPath = path.join(require('os').homedir(), '.elegy', 'planning.db');
-        if (fs.existsSync(legacyPath)) {
-          try {
-            if (fs.statSync(legacyPath).size > 0) {
-              dbPath = legacyPath;
-            }
-          } catch { /* keep env-var path on stat error */ }
-        }
-      }
       const homedir = require('os').homedir && require('os').homedir() || require('os').tmpdir();
+      const dbPath = path.join(homedir, '.elegy', 'planning.db');
 
       const resolved = planningSession.readPlanningSession(env, { homedir, dbPath });
       const resolvedPath = planningSession.resolveSessionSidecarPath(env, homedir, dbPath);

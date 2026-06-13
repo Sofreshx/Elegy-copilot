@@ -17,9 +17,17 @@ liveness_skip_paths:
 ## Intent
 
 Fix three misalignment issues in the Elegy Copilot control plane:
-1. Planning records exist in the legacy `~/.elegy/planning.db` but not in the canonical Copilot DB `~/.copilot/elegy-planning.db`
+1. Historical issue: planning records existed in `~/.elegy/planning.db` but not in the then-proposed Copilot DB `~/.copilot/elegy-planning.db`
 2. The OpenCode/Codex status route uses broken CLI detection (`--version` fails; should use `health --json` + feature checks) and raw `process.env` instead of `ctx.env`
 3. Codex `skills/elegy-planning/SKILL.md` is missing, and a TypeScript type mismatch blocks typecheck
+
+## Supersession Note
+
+Do not use this spec for current planning DB authority. The current default
+authority is `~/.elegy/planning.db` with sidecar
+`~/.elegy/planning-session.json`. References below to
+`~/.copilot/elegy-planning.db` are historical context from the superseded
+migration proposal.
 
 ## Context Evidence
 
@@ -129,7 +137,7 @@ The `routes/opencode.js` status checks MUST use reliable CLI detection and corre
 
 **R3.3 — Update instruction references:**
 - **`catalog-assets/shared-skills/elegy-planning/SKILL.md:27`** — Replace `elegy-planning --version` with `elegy-planning health --json`
-- **`catalog-assets/shared-skills/elegy-planning/SKILL.md:31`** — Update default DB path from `~/.elegy/planning.db (or ~/.copilot/elegy-planning.db)` to `~/.copilot/elegy-planning.db (legacy: ~/.elegy/planning.db)` — make Copilot DB primary
+- **Superseded:** do not make the Copilot DB primary. Current default DB path is `~/.elegy/planning.db`.
 - **`codex-assets/home/AGENTS.md:74`** — Replace `~/.elegy/planning.db` with `~/.copilot/elegy-planning.db`
 
 **Acceptance:**

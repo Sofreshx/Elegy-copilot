@@ -150,8 +150,8 @@ test('desktop runtime service starts the extracted runtime orchestration and shu
   assert.equal(serverOptions?.trackerToken, 'tracker-token');
   assert.equal(serverOptions?.desktopUiToken, 'desktop-token');
   assert.equal(serverOptions?.engineRoot, runtimeRoot);
-  assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH, undefined);
-  assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(elegyHome, 'elegy-planning.db'));
+  assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH, 'elegy-planning');
+  assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(elegyHome, 'planning.db'));
   assert.equal(service.isRunning(), true);
   assert.equal(service.getWindowUrl(), result.windowUrl);
 
@@ -273,10 +273,10 @@ test('desktop runtime service discovers packaged elegy-planning authority and fo
   );
   assert.equal(
     env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH,
-    path.join(elegyHome, 'elegy-planning.db'),
+    path.join(elegyHome, 'planning.db'),
   );
   assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH, path.join(runtimeRoot, 'elegy-planning', 'elegy-planning.exe'));
-  assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(elegyHome, 'elegy-planning.db'));
+  assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(elegyHome, 'planning.db'));
 
   await service.stop();
 });
@@ -374,9 +374,9 @@ test('desktop runtime service defers planning DISABLED decision when no CLI is d
 
   await service.start();
 
-  assert.equal(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH, undefined);
+  assert.equal(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH, 'elegy-planning');
   assert.equal(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED, undefined);
-  assert.equal(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(elegyHome, 'elegy-planning.db'));
+  assert.equal(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(elegyHome, 'planning.db'));
 
   await service.stop();
 });

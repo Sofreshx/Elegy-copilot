@@ -12,6 +12,12 @@ generated, derived outputs. Omitted scope defaults to `default` and
 that silent default is a common source of agent mistakes — always pass
 `--scope <scope-key>` explicitly.
 
+Default storage:
+- Planning DB: `~/.elegy/planning.db`.
+- Session sidecar: `~/.elegy/planning-session.json`.
+- Treat `.copilot` planning DB paths as historical migration inputs, not
+  active authority.
+
 ## Quick start
 
 1. Resolve the scope key. Use

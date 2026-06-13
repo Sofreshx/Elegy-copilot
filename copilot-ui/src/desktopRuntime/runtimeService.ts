@@ -220,40 +220,10 @@ function ensurePlanningAuthorityEnv(
   runtimeFs: Pick<DesktopRuntimeFs, 'existsSync'>,
 ): void {
   const explicitCliPath = String(options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH || '').trim();
-  const explicitDbPath = String(options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH || '').trim();
   const configuredCliPath = explicitCliPath
     || String(options.paths.planningCliPath || '').trim()
     || resolveBundledPlanningCliPath(options.paths.runtimeRoot, options.paths.elegyHome, runtimeFs);
-  let configuredDbPath = explicitDbPath
-    || String(options.paths.planningDbPath || '').trim()
-    || (() => {
-        const defaultPath = path.join(options.paths.elegyHome, 'elegy-planning.db');
-        if (!runtimeFs.existsSync(defaultPath)) {
-          const legacyPath = path.join(options.paths.elegyHome, 'planning.db');
-          if (runtimeFs.existsSync(legacyPath)) {
-            return legacyPath;
-          }
-          const copilotPath = path.join(path.dirname(options.paths.elegyHome), '.copilot', 'elegy-planning.db');
-          if (runtimeFs.existsSync(copilotPath)) {
-            return copilotPath;
-          }
-        }
-        return defaultPath;
-      })();
-
-  // When a stale env-var path is set (e.g. from a previous version) but a
-  // populated legacy DB exists, prefer the legacy DB — it contains the user's
-  // actual planning data. Only override env-var defaults, not explicit config.
-  if (explicitDbPath && !String(options.paths.planningDbPath || '').trim()) {
-    const legacyPath = path.join(options.paths.elegyHome, 'planning.db');
-    if (runtimeFs.existsSync(legacyPath)) {
-      try {
-        if (fs.statSync(legacyPath).size > 0) {
-          configuredDbPath = legacyPath;
-        }
-      } catch { /* keep configured path on stat error */ }
-    }
-  }
+  const configuredDbPath = path.join(options.paths.elegyHome, 'planning.db');
 
   if (configuredDbPath) {
     options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH = configuredDbPath;

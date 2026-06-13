@@ -52,7 +52,7 @@ related: [copilot-ui-guide, catalog-control-plane, index]
 ### 3. Persistence (`~/.elegy/`)
 - **Catalog projections:** `projections/global.json`, `projections/repo-<id>.json` — built from `engine-assets/` + installed assets.
 - **Session artifacts:** Per-session `plan.md`, `proposition.md`, task boards.
-- **Planning database:** SQLite (`elegy-planning.db`) for roadmaps, goals, plans, todos.
+- **Planning database:** SQLite (`~/.elegy/planning.db`) for roadmaps, goals, plans, todos.
 - **Repo state:** Per-repo task store and overlay registries.
 
 ### 4. Asset Pipeline

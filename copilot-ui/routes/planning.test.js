@@ -1326,15 +1326,14 @@ async function run() {
             enabled: true,
             configured: true,
             cliPath: '/usr/bin/elegy-planning',
-            dbPath: '/copilot/elegy-planning.db',
+            dbPath: '/Users/test/.elegy/planning.db',
             code: 'planning_authority_ready',
             message: 'ready',
             dbResolution: {
-              source: 'copilot-home',
-              reason: 'selected copilot-home database (populated)',
+              source: 'home-elegy',
+              reason: 'selected home-elegy database (populated)',
               candidates: [
-                { path: '/copilot/elegy-planning.db', source: 'copilot-home', exists: true, populated: true },
-                { path: '/Users/test/.elegy/planning.db', source: 'legacy-elegy', exists: true, populated: false },
+                { path: '/Users/test/.elegy/planning.db', source: 'home-elegy', exists: true, populated: true },
               ],
             },
           };
@@ -1348,8 +1347,8 @@ async function run() {
     assert.equal(body.contractVersion, PLANNING_API_CONTRACT_VERSION);
     assert.equal(body.kind, 'planning.live.authority-status');
     assert.equal(body.ready, true);
-    assert.equal(body.dbResolution.source, 'copilot-home');
-    assert.equal(body.dbResolution.candidates.length, 2);
+    assert.equal(body.dbResolution.source, 'home-elegy');
+    assert.equal(body.dbResolution.candidates.length, 1);
   });
 
   await test('planning live roadmaps list passes repoLabel to bridge', async () => {

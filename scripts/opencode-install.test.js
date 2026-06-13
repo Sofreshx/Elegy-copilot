@@ -72,6 +72,10 @@ async function main() {
       assert.ok(fs.existsSync(path.join(skillsHome, 'project-conventions-governance', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(opencodeHome, '.instruction-engine-opencode-managed.json')));
       assert.ok(firstSummary.counts.created > 0);
+      const opencodeConfig = JSON.parse(fs.readFileSync(path.join(opencodeHome, 'opencode.jsonc'), 'utf8'));
+      assert.ok(opencodeConfig.plugin.includes('./plugins/worktree.js'), 'worktree plugin should be registered');
+      assert.ok(opencodeConfig.plugin.includes('./plugins/planning.js'), 'planning plugin should be registered');
+      assert.ok(opencodeConfig.plugin.includes('./plugins/notify.js'), 'notify plugin should be registered');
 
       // R8: verify all 4 lane agents are installed
       for (const agent of ['quick', 'standard', 'spec', 'project']) {

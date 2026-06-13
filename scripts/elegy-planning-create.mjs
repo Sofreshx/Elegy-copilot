@@ -14,7 +14,7 @@ const CLI_PATH = path.join(getUserHome(), '.elegy', 'managed-cli', 'planning', `
 
 function usage() {
   console.log(`Usage: node scripts/elegy-planning-create.mjs [options]
-  --db <path>         Path to elegy-planning DB (default: ~/.elegy/elegy-planning.db)
+  --db <path>         Path to elegy-planning DB (default: ~/.elegy/planning.db)
   --type <type>       Entity type: goal | roadmap (required)
   --id <id>           Entity ID (auto-generated if omitted)
   --title <title>     Entity title (required)
@@ -145,7 +145,7 @@ function main() {
   }
 
   // Set defaults
-  const db = args.db || path.join(getUserHome(), '.elegy', 'elegy-planning.db');
+  const db = args.db || path.join(getUserHome(), '.elegy', 'planning.db');
   const id = args.id || generateId(args.type, args.title);
   const status = args.status || 'draft';
 

@@ -22,7 +22,20 @@ Fix the current visibility problem in the Elegy planning control plane and preve
 2. Standardizing the planning creation contract so every goal, roadmap, work point, plan, todo, and issue created by Codex, OpenCode, or the Copilot scaffolding carries a consistent tag set resolved from the Copilot repo inventory.
 3. Making the Planning tab's repo filter, the server-side `elegy-planning` bridge filter, and the explorer view share a single inherited repo-matching model so child roadmaps match the parent goal's repo scope and orphaned records can be discovered in an "unscoped" view.
 4. Adding a richer Planning Explorer with entity-type, repo, status, tag, source-harness, date, parent-goal, and free-text filters; warning buckets for unscoped, orphaned, missing-parent, and stale records; drill-down to raw IDs; and copyable CLI commands.
-5. Adding shared planning session support so the active session sidecar is discoverable from the Copilot home (`~/.copilot/planning-session.json`) and surfaced in the Planning tab independently of goal/roadmap data.
+5. Adding shared planning session support so the active session sidecar is discoverable from the Elegy home (`~/.elegy/planning-session.json`) and surfaced in the Planning tab independently of goal/roadmap data.
+
+## Authority Update
+
+Current planning storage authority:
+
+| Surface | Canonical Path |
+|---|---|
+| Planning DB | `~/.elegy/planning.db` |
+| Planning session sidecar | `~/.elegy/planning-session.json` |
+
+Any `.copilot` planning DB or planning-session path in this draft is
+historical evidence from the pre-canonicalization state. New implementation
+work MUST use the `.elegy` paths above.
 
 ## Context Evidence
 
@@ -120,7 +133,7 @@ Extend the existing `PlanningExplorerView` (already routed at `App.tsx:94-95`) w
   → verify: `rg -n "FilterBar|filterState|onFilterChange" copilot-ui/ui/src/tabs/Planning/PlanningExplorerView.tsx | Select-Object -First 5`
 - R5.2 — Show a "Warning buckets" panel above the table with counters for: `unscoped` (no `repo:*` tag, no inherited), `orphaned` (parent link points to a missing entity), `invalid-parent` (parent ID does not parse or does not exist), `stale` (no `updatedAt` in 30+ days), `active-session-missing` (no sidecar at the override path). Each counter is a clickable chip that filters the table to that bucket.
   → verify: `rg -n "WarningBucket|warningBuckets|active-session-missing" copilot-ui/ui/src/tabs/Planning/PlanningExplorerView.tsx | Select-Object -First 5`
-- R5.3 — Drill-down: clicking a row opens a side panel showing the entity's raw JSON (truncated to 8KB), its tags, repo scope (direct + inherited), parent chain (goal → roadmap → plan), validation state, and copyable CLI commands (`elegy-planning show <entity>`) using the authoritative DB path from `process.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH` if set, otherwise `C:\Users\lolzi\.copilot\elegy-planning.db`.
+- R5.3 — Drill-down: clicking a row opens a side panel showing the entity's raw JSON (truncated to 8KB), its tags, repo scope (direct + inherited), parent chain (goal → roadmap → plan), validation state, and copyable CLI commands (`elegy-planning show <entity>`) using `~/.elegy/planning.db`.
   → verify: `rg -n "DrillDownPanel|copyCommand|getDbPathForCommands" copilot-ui/ui/src/tabs/Planning/PlanningExplorerView.tsx | Select-Object -First 5`
 - R5.4 — Add "Show all" and "Unscoped only" preset toggles to the FilterBar. "Show all" clears every filter except the entity-type and source-harness defaults. "Unscoped only" restricts to records with no direct `repo:*` tag.
   → verify: `node copilot-ui/tests/planning-explorer-filters.vitest.tsx`
@@ -148,7 +161,7 @@ Add `scripts/validate-planning-metadata.js` that reports problems across the pla
 
 ### R7 — Shared Planning Session Support
 
-The Copilot/OpenCode/Codex scaffolding MUST surface the active planning session sidecar at `C:\Users\lolzi\.copilot\planning-session.json`, and the server MUST expose it through a new endpoint.
+The Copilot/OpenCode/Codex scaffolding MUST surface the active planning session sidecar at `~/.elegy/planning-session.json`, and the server MUST expose it through a new endpoint.
 
 - R7.1 — Add a new env var `INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH` documented in `catalog-assets/shared-skills/elegy-planning/SKILL.md`. The Copilot server reads the sidecar from this path if set, else from `~/.elegy/planning-session.json`, else from `<dbDir>/planning-session.json` (the CLI's current default).
   → verify: `rg -n "INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH" copilot-ui/lib/planningSession.js copilot-ui/routes/planning.js catalog-assets/shared-skills/elegy-planning/SKILL.md`
@@ -156,7 +169,7 @@ The Copilot/OpenCode/Codex scaffolding MUST surface the active planning session 
   → verify: `node copilot-ui/tests/planning-session-endpoint.test.js`
 - R7.3 — The endpoint MUST also report `availableAt` paths: an array of candidate paths it searched (in priority order) so the UI can show where to look. Each path includes its `exists` flag.
   → verify: `node copilot-ui/tests/planning-session-endpoint.test.js`
-- R7.4 — The Codex/OpenCode bootstrap scripts (`scripts/codex-install.mjs`, `scripts/opencode-install.mjs`) MUST set `INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=C:\Users\lolzi\.copilot\planning-session.json` in the generated env when running on Windows + Copilot home, AND copy the file from the CLI's default location to the override path if it exists at the default but not the override.
+- R7.4 — The Codex/OpenCode bootstrap scripts (`scripts/codex-install.mjs`, `scripts/opencode-install.mjs`) MUST set `INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=~/.elegy/planning-session.json` in the generated env on Windows.
   → verify: `rg -n "planning-session.json|INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH" scripts/codex-install.mjs scripts/opencode-install.mjs`
 - R7.5 — The Copilot runtime (`copilot-ui/src/desktopRuntime/runtimeService.ts`) MUST set the same env var on the spawned Tauri process so the in-app shell reads from the override path.
   → verify: `rg -n "INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH" copilot-ui/src/desktopRuntime/runtimeService.ts`
@@ -174,7 +187,7 @@ The existing `roadmapWorkflowPlanningBridge` (`copilot-ui/lib/roadmapWorkflowPla
 - Migrating the consolidation goal/roadmaps between databases. They already live in `C:\Users\lolzi\.copilot\elegy-planning.db`; we repair in place.
 - Repairing the non-consolidation goals `GOAL-SMOKE-001`, `GOAL-MOCK-001`, and their child roadmaps. They are out of scope for this spec; if their metadata is later found to be inconsistent, follow-up work will repair them under a separate spec.
 - Creating placeholder work points/plans/todos for the 5 consolidation roadmaps. The plan explicitly accepts reporting the gap; user chose "Verify and report gaps, do not create." The gap is surfaced by R6.1's `missingWorkItems` check.
-- Periodically re-syncing `~/.copilot/planning-session.json` from the CLI's `~/.elegy/planning-session.json` after install. The override path is seeded once at install time (R7.4) and may go stale between reinstalls. A watchdog is out of scope; users who need a fresh sidecar can re-run the install script or call `elegy-planning session init` and re-mirror.
+- Periodically re-syncing a separate planning session sidecar. The canonical sidecar is `~/.elegy/planning-session.json`; no `.copilot` mirror is required.
 - Redesigning the standalone graph window, the catalog workspace store, or the planning contract types. The existing `StandaloneGraphWindow` and `PlanningExplorerView` shell are reused; only the explorer view's filter/drill-down surface is extended.
 - Adding a Tauri-side WebviewWindow split-screen. The existing `window.open()` (with the Tauri-aware fallback in `PlanningExplorerView.tsx:144-171`) is the windowing contract.
 - Persisting the new filter/sort state across sessions. Filters live in component state; refresh resets them to defaults.
@@ -194,7 +207,7 @@ The existing `roadmapWorkflowPlanningBridge` (`copilot-ui/lib/roadmapWorkflowPla
   → verify: `node scripts/roundtrip-validator-strict.test.js` (new helper test) copies the live DB to a temp file, removes the consolidation goal/roadmap tags via the same SQL the validator inspects, runs `node scripts/validate-planning-metadata.js --db <temp> --strict` (expects exit 1 and a non-empty `summary.unscoped > 0` or `summary.inconsistentTags > 0`), runs the repair script against the temp file, re-runs the validator (expects exit 0 and `summary.unscoped === 0`). The temp file is deleted on teardown; the live DB is never mutated.
 - [ ] `GET /api/planning/session` returns `{ ready, sidecarPath, exists, sidecar, lastChecked, correlationId, availableAt: [{ path, exists, priority }] }` with `ready` defined per R7.2 (true iff `exists` is true OR the parent dir is writable), and the response shape is stable even when the sidecar file does not yet exist.
   → verify: `node copilot-ui/tests/planning-session-endpoint.test.js` exits 0 with assertions for both `exists: true` (asserts `ready === true`, `sidecar` is parsed JSON) and `exists: false` (asserts `ready === true` when parent dir is writable, `ready === false` when parent dir is missing; `sidecar === null`).
-- [ ] The Codex and OpenCode install scripts set `INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=C:\Users\lolzi\.copilot\planning-session.json` on Windows when the Copilot home is detected.
+- [ ] The Codex and OpenCode install scripts set `INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=~/.elegy/planning-session.json` on Windows.
   → verify: `node scripts/codex-install.mjs --print-env-only` and `node scripts/opencode-install.mjs --print-env-only` print the override line on Windows.
 - [ ] The Tauri runtime sets `INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH` on the spawned process when `process.platform === 'win32'`.
   → verify: `rg -n "INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH" copilot-ui/src/desktopRuntime/runtimeService.ts` returns ≥ 1 match.

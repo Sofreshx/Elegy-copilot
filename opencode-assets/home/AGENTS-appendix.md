@@ -202,6 +202,8 @@ Add these to your `opencode.jsonc` `allowedDirectories` or `permissions.allow`:
 - `~/.elegy/repo-state/` — Durable worktree records for dashboard, executor, and session coordination
 
 ### Elegy planning state
+- `~/.elegy/planning.db` — Durable planning database for goals, roadmaps, plans, todos, issues, reviews, insights, and project-run evidence
+- `~/.elegy/planning-session.json` — Active planning session sidecar
 - `~/.elegy/managed-cli/planning/` — Managed elegy-planning CLI binary
 
 Do not block directory access prompts for these paths during normal project-lane work.
