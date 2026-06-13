@@ -23,7 +23,7 @@ Make `docs/` the canonical knowledge root for Elegy Copilot and bootstrapped rep
 
 ## Context Evidence
 
-- `specs/` currently holds 8 active specs at repo root, with a generated `specs/index.md` and `specs/_templates/` directory
+- `docs/specs/` currently holds 8 active specs at repo root, with a generated `docs/specs/index.md` and `docs/specs/_templates/` directory
 - `docs/system/` holds 60 canonical governance, architecture, workflow, and policy docs
 - `docs/system/spec-driven-development.md:237-263` enforces a "No Collision Rule": specs never write into `docs/`, docs never write into `specs/` — this rule must be removed as part of this migration
 - `docs/system/doc-graph-spec.md:24-26` defines `docs/system/**` as canonical but reserves `docs/*.md` for redirect stubs only — `docs/specs/**` needs to be declared as a governed non-doc-graph spec family
@@ -150,8 +150,8 @@ Make `docs/` the canonical knowledge root for Elegy Copilot and bootstrapped rep
 
 ## Implementation Links
 
-- `specs/docs-specs-knowledge-system/spec.md` (this spec)
-- `specs/docs-specs-knowledge-system/plan.md` (sibling plan, to be created)
+- `docs/specs/docs-specs-knowledge-system/spec.md` (this spec)
+- `docs/specs/docs-specs-knowledge-system/plan.md` (sibling plan, to be created)
 - `docs/system/spec-driven-development.md`
 - `docs/system/doc-graph-spec.md`
 - `docs/system/documentation-structure-governance.md`

@@ -1078,9 +1078,12 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
         ? input.repoLabels
         : (normalizeString(input.repoLabel) ? [normalizeString(input.repoLabel)] : []);
 
+      let scopeDiscoveryOk = false;
+
       if (repoLabels.length > 0) {
         try {
           const scopes = await scopeList(config, requestId);
+          scopeDiscoveryOk = true;
           const scopesToQuery = resolveScopeToQuery(config, scope, repoLabels, scopes.scopes);
           if (scopesToQuery && scopesToQuery.length > 0) {
             const result = await listGoalsMultiScope(config, requestId, scopesToQuery);
@@ -1098,6 +1101,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
           try {
             const fallbackConfig = { ...config, dbPath: candidate.path };
             const scopes = await scopeList(fallbackConfig, requestId);
+            scopeDiscoveryOk = true;
             const scopesToQuery = resolveScopeToQuery(fallbackConfig, scope, repoLabels, scopes.scopes);
             if (scopesToQuery && scopesToQuery.length > 0) {
               const result = await listGoalsMultiScope(fallbackConfig, requestId, scopesToQuery);
@@ -1108,6 +1112,10 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
           } catch (_fallbackErr) {
             // try next candidate
           }
+        }
+
+        if (scopeDiscoveryOk) {
+          return { goals: [] };
         }
       }
 
@@ -1121,10 +1129,13 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
         ? input.repoLabels
         : (normalizeString(input.repoLabel) ? [normalizeString(input.repoLabel)] : []);
 
+      let scopeDiscoveryOk = false;
+
       if (repoLabels.length > 0) {
         // Try primary DB first
         try {
           const scopes = await scopeList(config, requestId);
+          scopeDiscoveryOk = true;
           const scopesToQuery = resolveScopeToQuery(config, scope, repoLabels, scopes.scopes);
           if (scopesToQuery && scopesToQuery.length > 0) {
             const result = await listRoadmapsMultiScope(config, requestId, scopesToQuery);
@@ -1143,6 +1154,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
           try {
             const fallbackConfig = { ...config, dbPath: candidate.path };
             const scopes = await scopeList(fallbackConfig, requestId);
+            scopeDiscoveryOk = true;
             const scopesToQuery = resolveScopeToQuery(fallbackConfig, scope, repoLabels, scopes.scopes);
             if (scopesToQuery && scopesToQuery.length > 0) {
               const result = await listRoadmapsMultiScope(fallbackConfig, requestId, scopesToQuery);
@@ -1153,6 +1165,10 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
           } catch (_fallbackErr) {
             // try next candidate
           }
+        }
+
+        if (scopeDiscoveryOk) {
+          return { roadmaps: [] };
         }
       }
 

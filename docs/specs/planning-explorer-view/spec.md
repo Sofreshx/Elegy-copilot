@@ -5,6 +5,11 @@ status: superseded
 superseded_by: planning-visibility-canonicalization
 type: feature
 updated: 2026-06-03
+liveness_skip_paths:
+  - "copilot-ui/ui/src/tabs/Planning/PlanningAuthorityView.tsx"
+  - "copilot-ui/ui/src/tabs/Planning/PlanningExplorerView.tsx"
+  - "copilot-ui/ui/src/tabs/Planning/StandaloneGraphWindow.tsx"
+  - "copilot-ui/ui/src/tabs/Planning/planningExplorerContracts.ts"
 ---
 
 # Planning Explorer View

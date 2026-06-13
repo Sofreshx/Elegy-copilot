@@ -17,14 +17,13 @@ Make the OpenCode lane agent system auditable, internally consistent, and harder
 - `opencode-assets/agents/quick.md` — Quick lane: small UI tweaks, Flash model, no spec/roadmap. Already rejects API/contract/user-facing work (lines 23-25), but does not explicitly reject ambiguous user prompts (the user asks something that could go multiple ways without enough detail).
 - `opencode-assets/agents/standard.md` — Standard lane: scoped features/bugs, Pro model, 3 subagents. Clarification-first wording present.
 - `opencode-assets/agents/spec.md` — Spec lane: contract/API changes, spec-first, mandatory review. Asks user for contract boundary even when discoverable via exploration.
-- `opencode-assets/agents/project.md` — Project lane: multi-session, Elegy Planning, worktrees. References Elegy commands that do not exist in `elegy-planning/SKILL.md` (e.g., `goal current`, `lease list`, `work-point list`, `evidence add`).
+- `opencode-assets/agents/project.md` — Project lane: multi-session, Elegy Planning, worktrees. References Elegy commands that do not exist in `catalog-assets/shared-skills/elegy-planning/SKILL.md` (e.g., `goal current`, `lease list`, `work-point list`, `evidence add`).
 - `docs/system/opencode-guide.md` — Refers to "lane-quick, lane-standard, lane-spec, lane-project" as skills, but they are agents.
 - `opencode-assets/profiles.json` — Defines model routing (`agentRoles`) and profiles (`opencode-go`, `deepseek-direct`). No validation that every `agentRoles` entry maps to an installed agent.
 - `catalog-assets/shared-skills/elegy-planning/SKILL.md` — Documented commands: `goal create/show/list`, `roadmap create/show/list/add-work-point`, `plan create/show/list/revise`, `todo create/list`, `issue record/list`, `review-point record`, `scope create/show/list`, `search`, `validate all`, `health`, `project render`, `session init/use/show`. Commands like `goal current`, `lease list`, `work-point list`, `evidence add` are NOT documented.
 - `scripts/validate-manifest.js` — Validates manifest structure but does not validate prompt quality, doc/lane consistency, profile role coverage, or Elegy command references.
 - `scripts/opencode-install.test.js` — Tests install/idempotence/API shape but not behavioral quality, prompt invariants, or doc consistency.
 - `opencode-assets/agents/impl.md` — Write-capable subagent. Also responsible for commands/tests, making parent unable to verify without relying on subagent summaries (architectural note, not changed in this spec).
-- `opencode-assets/agents/code-explorer.md` — Compatibility duplicate of `explorer.md`; risk of drift.
 - `opencode-assets/agents/spec.md` and `opencode-assets/agents/project.md` — Neither prompts reference `elegy-skills-discovery` for non-core skill routing, but both load skills outside the always-loaded set. This is a gap: skill routing decisions are made without the governed catalog.
 
 ## Requirements
@@ -89,7 +88,6 @@ Add tests for:
 - Do not change the model routing (DeepSeek Flash/Pro via opencode-go, deepseek-direct as fallback).
 - Do not change the Elegy Planning authority model. Elegy remains the durable planning authority; Obsidian remains non-authoritative mirror.
 - Do not change the `impl` subagent's dual responsibility (edits + commands/tests). This is an architectural concern tracked separately.
-- Do not merge or remove `code-explorer.md` compatibility alias in this spec.
 - Do not add a dashboard or modify `copilot-ui/` in this spec.
 
 ## Acceptance Checks

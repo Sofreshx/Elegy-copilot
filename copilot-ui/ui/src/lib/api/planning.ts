@@ -84,7 +84,9 @@ export interface PlanningLiveGoalsQuery extends PlanningRepoDocRefOptions {
   includeUnscoped?: boolean;
 }
 
-export interface PlanningLiveGoalQuery extends PlanningRepoDocRefOptions {}
+export interface PlanningLiveGoalQuery extends PlanningRepoDocRefOptions {
+  includeUnscoped?: boolean;
+}
 
 export interface PlanningLivePlansQuery extends PlanningRepoDocRefOptions {
   goalId?: string;
@@ -679,6 +681,7 @@ export async function getPlanningLiveGoal(
       repoId: asTrimmedString(query.repoId) || undefined,
       repoPath: asTrimmedString(query.repoPath) || undefined,
       repoLabel: asTrimmedString(query.repoLabel) || undefined,
+      includeUnscoped: query.includeUnscoped === false ? 'false' : 'true',
     },
   });
 

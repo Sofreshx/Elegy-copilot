@@ -10,6 +10,15 @@ liveness_skip_paths:
   - "C:/Users/*/"
   - "~/.copilot/*"
   - "~/.elegy/*"
+  - "specs/planning-visibility-canonicalization/spec.md"
+  - "specs/planning-visibility-canonicalization/plan.md"
+  - "copilot-ui/lib/planningMetadata.js"
+  - "copilot-ui/lib/commandsForEntity.js"
+  - "copilot-ui/ui/src/tabs/Planning/PlanningExplorerView.tsx"
+  - "copilot-ui/ui/src/tabs/Planning/PlanningAuthorityView.tsx"
+  - "copilot-ui/tests/planning-explorer-inheritance.vitest.tsx"
+  - "copilot-ui/tests/planning-explorer-filters.vitest.tsx"
+  - "copilot-ui/tests/planning-explorer-view-state.vitest.ts"
 ---
 
 # Make Elegy Planning Visible, Canonical, and Explorable
@@ -220,8 +229,8 @@ The existing `roadmapWorkflowPlanningBridge` (`copilot-ui/lib/roadmapWorkflowPla
 
 ## Implementation Links
 
-- `specs/planning-visibility-canonicalization/spec.md` — this file
-- `specs/planning-visibility-canonicalization/plan.md` — implementation order
+- `docs/specs/planning-visibility-canonicalization/spec.md` — this file
+- `docs/specs/planning-visibility-canonicalization/plan.md` — implementation order
 - `scripts/repair-consolidation-tags.mjs` — new in-place DB repair script
 - `scripts/validate-planning-metadata.js` — new metadata validator
 - `scripts/elegy-planning-create.mjs` — new create helper that injects canonical tags

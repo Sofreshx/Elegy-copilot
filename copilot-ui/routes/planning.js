@@ -58,10 +58,15 @@ function buildPlanningRepoSelection(repoId, repoPath, repoLabel) {
     return null;
   }
 
+  const repoBasename = normalizedRepoPath
+    ? require('path').basename(normalizedRepoPath.replace(/\\/g, '/')).toLowerCase()
+    : '';
+
   return {
     repoId: normalizedRepoId,
     repoPath: normalizedRepoPath,
     repoLabel: normalizedRepoLabel,
+    repoBasename,
   };
 }
 
@@ -112,6 +117,7 @@ function planningEntityMatchesRepoSelection(entity, repo, parentRepo, parentTags
   const repoId = normalizeOptionalString(selection && selection.repoId);
   const repoPath = normalizePathForPlanningComparison(selection && selection.repoPath);
   const repoLabel = normalizeOptionalString(selection && selection.repoLabel);
+  const repoBasename = normalizeOptionalString(selection && selection.repoBasename);
   if (!repoId && !repoPath && !repoLabel) {
     return true;
   }
@@ -119,6 +125,12 @@ function planningEntityMatchesRepoSelection(entity, repo, parentRepo, parentTags
   const record = entity && typeof entity === 'object' ? entity : {};
   const tags = getPlanningEntityTags(record).map((tag) => tag.toLowerCase());
   if (repoId && tags.includes(`repo:${repoId}`.toLowerCase())) {
+    return true;
+  }
+  if (repoLabel && tags.includes(`repo:${repoLabel}`.toLowerCase())) {
+    return true;
+  }
+  if (repoBasename && tags.includes(`repo:${repoBasename}`.toLowerCase())) {
     return true;
   }
 
@@ -149,6 +161,9 @@ function planningEntityMatchesRepoSelection(entity, repo, parentRepo, parentTags
       return true;
     }
     if (repoLabel && inheritedLower.has(`repo:${repoLabel}`.toLowerCase())) {
+      return true;
+    }
+    if (repoBasename && inheritedLower.has(`repo:${repoBasename}`.toLowerCase())) {
       return true;
     }
   }
@@ -712,7 +727,8 @@ function handlePlanningLiveGoalRead(ctx, deps) {
       if (!response._scopeKey) {
         assertPlanningEntityInRepo(response && response.goal, repo, `Goal ${goalId}`);
       }
-      const roadmaps = filterPlanningLiveRoadmaps(response && response.roadmaps, repo);
+      const includeUnscoped = String(u.searchParams.get('includeUnscoped') || 'true').toLowerCase() !== 'false';
+      const roadmaps = filterPlanningLiveRoadmaps(response && response.roadmaps, repo, { includeUnscoped });
 
       sendJson(res, 200, {
         contractVersion: PLANNING_API_CONTRACT_VERSION,

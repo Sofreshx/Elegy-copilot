@@ -19,11 +19,11 @@ The spec-driven development system produces durable requirements artifacts but t
 - `scripts/generate-spec-index.js` — generates `specs/index.md` but must be run manually; no CI check for staleness; uses a simplified YAML parser that cannot handle block-list values
 - `scripts/validate-specs-artifact-liveness.js` — duplicates `collectSpecFiles`, `extractH2Sections`, `matchFrontmatter`, `looksLikeFilePath` from `validate-specs.js` (~150 lines of copy-paste)
 - `docs/system/spec-driven-development.md` — defines 90-day draft staleness and 180-day implemented staleness advisory policy but no code enforces or warns
-- `specs/planning-visibility-canonicalization/spec.md` (status: draft) — `supersedes` field could reference superseded specs but no validation exists for cross-spec ID resolution
-- `specs/align-elegy-db-assets/spec.md` (status: draft) — effectively superseded by `planning-visibility-canonicalization` but not marked as such
-- `specs/planning-explorer-view/spec.md` (status: draft) — effectively superseded by `planning-visibility-canonicalization` but not marked as such
+- `docs/specs/planning-visibility-canonicalization/spec.md` (status: draft) — `supersedes` field could reference superseded specs but no validation exists for cross-spec ID resolution
+- `docs/specs/align-elegy-db-assets/spec.md` (status: draft) — effectively superseded by `planning-visibility-canonicalization` but not marked as such
+- `docs/specs/planning-explorer-view/spec.md` (status: draft) — effectively superseded by `planning-visibility-canonicalization` but not marked as such
 - `opencode-assets/agents/spec.md` — spec lane agent with 6 phases; Phase 2 mentions `--strict` but with inconsistent language; Phase 4 mentions acceptance verification but not by explicit `→ verify:` reference; no validation-failure gate in Safety section
-- `specs/verifiable-acceptance-criteria/spec.md` (status: draft) — this spec builds on verifiable-acceptance-criteria's `→ verify:` format (R1), shares the same validator file (`scripts/validate-specs.js`), and modifies overlapping skill/agent files (`catalog-assets/shared-skills/spec-review/SKILL.md`, `catalog-assets/shared-skills/spec-authoring/SKILL.md`, `opencode-assets/agents/spec.md`). Implementation ordering must coordinate to avoid merge conflicts on the shared files.
+- `docs/specs/verifiable-acceptance-criteria/spec.md` (status: draft) — this spec builds on verifiable-acceptance-criteria's `→ verify:` format (R1), shares the same validator file (`scripts/validate-specs.js`), and modifies overlapping skill/agent files (`catalog-assets/shared-skills/spec-review/SKILL.md`, `catalog-assets/shared-skills/spec-authoring/SKILL.md`, `opencode-assets/agents/spec.md`). Implementation ordering must coordinate to avoid merge conflicts on the shared files.
 
 ## Requirements
 
@@ -39,7 +39,7 @@ Wire `node scripts/validate-specs.js` into all CI and local validation paths so 
 
 Add a pre-commit validation gate that runs spec validation when spec files are staged.
 
-- R2.1: New script `scripts/validate-specs-precommit.mjs` that detects staged `specs/*/spec.md` files via `git diff --cached --name-only --diff-filter=ACMR`, then runs `node scripts/validate-specs.js --strict specs` on the full `specs/` directory. Running on the full directory ensures multi-file checks (R3 index drift, R4 cross-spec integrity) produce correct results.
+- R2.1: New script `scripts/validate-specs-precommit.mjs` that detects staged `docs/specs/*/spec.md` files via `git diff --cached --name-only --diff-filter=ACMR`, then runs `node scripts/validate-specs.js --strict docs/specs` on the full `docs/specs/` directory. Running on the full directory ensures multi-file checks (R3 index drift, R4 cross-spec integrity) produce correct results.
 - R2.2: The pre-commit hook MUST NOT block commits that do not touch any spec files
 - R2.3: When validation fails, the hook MUST exit non-zero with the validator's error output identifying all failing spec files
 - R2.4: New script `scripts/install-spec-hooks.mjs` that installs the pre-commit gate: if no `.git/hooks/pre-commit` exists, write it directly; if one exists, append a clearly-delimited block that runs `scripts/validate-specs-precommit.mjs`. The installer is idempotent — running it twice does not duplicate the validation block. If the existing hook has a non-trivial structure (contains conditional logic or traps), warn the user and require manual installation instead of blindly appending.
@@ -49,7 +49,7 @@ Add a pre-commit validation gate that runs spec validation when spec files are s
 
 Make the spec index trustable by detecting drift between the filesystem and the index.
 
-- R3.1: `scripts/validate-specs.js --strict` MUST check that every `specs/*/spec.md` file has a corresponding entry in `specs/index.md`, and every index entry has a real file — report "index drift" errors when mismatched
+- R3.1: `scripts/validate-specs.js --strict` MUST check that every `docs/specs/*/spec.md` file has a corresponding entry in `docs/specs/index.md`, and every index entry has a real file — report "index drift" errors when mismatched
 - R3.2: As part of CI, the `validate:specs` step MUST detect index staleness (index entries missing from filesystem, or spec files missing from index) and fail with a non-zero exit code
 - R3.3: Replace the index generator's simplified YAML parser with a shared import from `scripts/lib/spec-yaml.js` (extracted from the validator's `parseFrontmatterYaml`) to eliminate the dual-parser problem
 
@@ -93,9 +93,9 @@ Warn when a complex spec lacks a companion implementation plan.
 Mark the two specs that are effectively superseded by `planning-visibility-canonicalization` and update the superseding spec.
 
 - R8.0: The two specs below are marked superseded because `planning-visibility-canonicalization` explicitly supersedes them: its Drift Notes state it "REPLACES the recreate approach" from `align-elegy-db-assets` with in-place repair (line 239 of that spec) and re-scopes the explorer work from `planning-explorer-view` into its own R5 (line 241). The superseded specs' remaining work is captured in the superseding spec's requirements.
-- R8.1: `specs/align-elegy-db-assets/spec.md`: change status to `superseded`, add `superseded_by: planning-visibility-canonicalization`
-- R8.2: `specs/planning-explorer-view/spec.md`: change status to `superseded`, add `superseded_by: planning-visibility-canonicalization`
-- R8.3: `specs/planning-visibility-canonicalization/spec.md`: add `supersedes: [align-elegy-db-assets, planning-explorer-view]` to frontmatter
+- R8.1: `docs/specs/align-elegy-db-assets/spec.md`: change status to `superseded`, add `superseded_by: planning-visibility-canonicalization`
+- R8.2: `docs/specs/planning-explorer-view/spec.md`: change status to `superseded`, add `superseded_by: planning-visibility-canonicalization`
+- R8.3: `docs/specs/planning-visibility-canonicalization/spec.md`: add `supersedes: [align-elegy-db-assets, planning-explorer-view]` to frontmatter
 - R8.4: After cleanup, run `node scripts/generate-spec-index.js` to regenerate the index with corrected statuses
 
 ### R9 — Spec Lane Agent Consistency
@@ -167,10 +167,10 @@ Ensure the CI gate (R1) can pass on Linux by handling machine-local paths in exi
 - [ ] Validator with `--strict` warns on complex draft/approved specs (5+ requirements) missing a `plan.md`
   → verify: Create a temp spec with `status: draft` and 6 requirement bullets but no sibling `plan.md`, run `node scripts/validate-specs.js --strict` on it, confirm output contains "complex spec without plan.md"
 - [ ] Superseded specs are cleaned up with correct cross-references
-  → verify: `rg "superseded_by: planning-visibility-canonicalization" specs/align-elegy-db-assets/spec.md` returns at least 1 match
-  → verify: `rg "superseded_by: planning-visibility-canonicalization" specs/planning-explorer-view/spec.md` returns at least 1 match
-  → verify: `rg "supersedes:.*align-elegy-db-assets" specs/planning-visibility-canonicalization/spec.md` returns at least 1 match
-  → verify: `rg "supersedes:.*planning-explorer-view" specs/planning-visibility-canonicalization/spec.md` returns at least 1 match
+   → verify: `rg "superseded_by: planning-visibility-canonicalization" docs/specs/align-elegy-db-assets/spec.md` returns at least 1 match
+   → verify: `rg "superseded_by: planning-visibility-canonicalization" docs/specs/planning-explorer-view/spec.md` returns at least 1 match
+   → verify: `rg "supersedes:.*align-elegy-db-assets" docs/specs/planning-visibility-canonicalization/spec.md` returns at least 1 match
+   → verify: `rg "supersedes:.*planning-explorer-view" docs/specs/planning-visibility-canonicalization/spec.md` returns at least 1 match
 - [ ] Spec lane agent `opencode-assets/agents/spec.md` includes hardening gates
   → verify: `rg "fix all errors before review" opencode-assets/agents/spec.md` returns at least 1 match
   → verify: `rg "Never bypass a failing validation gate" opencode-assets/agents/spec.md` returns at least 1 match
@@ -202,18 +202,18 @@ Ensure the CI gate (R1) can pass on Linux by handling machine-local paths in exi
 - `scripts/validate-specs-precommit.mjs` — new pre-commit gate
 - `scripts/install-spec-hooks.mjs` — new hook installer
 - `.github/workflows/repo-ci.yml` — updated with spec validation step
-- `specs/align-elegy-db-assets/spec.md` — status changed to superseded
-- `specs/planning-explorer-view/spec.md` — status changed to superseded
-- `specs/planning-visibility-canonicalization/spec.md` — added supersedes
-- `specs/index.md` — regenerated after cleanup
+- `docs/specs/align-elegy-db-assets/spec.md` — status changed to superseded
+- `docs/specs/planning-explorer-view/spec.md` — status changed to superseded
+- `docs/specs/planning-visibility-canonicalization/spec.md` — added supersedes
+- `docs/specs/index.md` — regenerated after cleanup
 - `opencode-assets/agents/spec.md` — R9 updates
 - `docs/system/spec-driven-development.md` — R10.1 updates
 - `catalog-assets/shared-skills/spec-review/SKILL.md` — R10.2
 - `catalog-assets/shared-skills/spec-authoring/SKILL.md` — R10.3
 - `AGENTS.md` — R10.4
 - `scripts/validate-specs.js` — updated `looksLikeFilePath` regex (R11.2)
-- `specs/planning-visibility-canonicalization/spec.md` — added `liveness_skip_paths` (R11.3)
-- `specs/align-elegy-db-assets/spec.md` — added `liveness_skip_paths` (R11.3)
+- `docs/specs/planning-visibility-canonicalization/spec.md` — added `liveness_skip_paths` (R11.3)
+- `docs/specs/align-elegy-db-assets/spec.md` — added `liveness_skip_paths` (R11.3)
 
 ## Validation Evidence
 

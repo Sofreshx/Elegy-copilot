@@ -1389,6 +1389,143 @@ async function run() {
     assert.equal(body.count, 1);
   });
 
+  await test('planning live roadmaps list matches entities tagged with repo path basename alias', async () => {
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: {
+        async listRoadmaps() {
+          return {
+            roadmaps: [
+              {
+                id: 'RM-basename',
+                goalId: 'GOAL-one',
+                title: 'Basename Matched',
+                status: 'active',
+                tags: ['repo:instruction-engine'],
+              },
+              {
+                id: 'RM-other',
+                goalId: 'GOAL-two',
+                title: 'Other Roadmap',
+                status: 'draft',
+                tags: ['repo:elegy'],
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    const { res, body } = await invoke(
+      routes,
+      'GET',
+      '/api/planning/live/roadmaps?repoId=74af0f7b5cc4&repoPath=C%3A%5CUsers%5Clolzi%5CDocuments%5CGitHub%5Cinstruction-engine&repoLabel=%40elegy-copilot%2Froot',
+      {},
+    );
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.count, 1);
+    assert.deepEqual(body.roadmaps.map((entry) => entry.id), ['RM-basename']);
+  });
+
+  await test('planning live goals list excludes unscoped goals for unrelated repo when no scope match', async () => {
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: {
+        async listGoals() {
+          return {
+            goals: [
+              {
+                id: 'GOAL-draft',
+                title: 'Draft Goal',
+                status: 'draft',
+                tags: ['repo:instruction-engine'],
+              },
+              {
+                id: 'GOAL-other',
+                title: 'Other Goal',
+                status: 'active',
+                tags: ['repo:other-repo'],
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    // Elegy repo (different from instruction-engine) should NOT see instruction-engine goals
+    const { res, body } = await invoke(
+      routes,
+      'GET',
+      '/api/planning/live/goals?repoId=abc123&repoPath=C%3A%5CUsers%5Clolzi%5CDocuments%5CGitHub%5CElegy&repoLabel=Elegy&includeUnscoped=false',
+      {},
+    );
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.count, 0);
+  });
+
+  await test('planning live goal detail includes roadmaps matched via repo path basename alias', async () => {
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: {
+        async showGoal(input) {
+          assert.equal(input.goalId, 'GOAL-ie');
+          return {
+            goal: {
+              id: 'GOAL-ie',
+              title: 'Instruction Engine Goal',
+              status: 'active',
+              tags: ['repo:instruction-engine'],
+            },
+            roadmaps: [
+              {
+                id: 'RM-core',
+                goalId: 'GOAL-ie',
+                title: 'Core Roadmap',
+                status: 'active',
+                tags: ['repo:instruction-engine'],
+              },
+              {
+                id: 'RM-other',
+                goalId: 'GOAL-ie',
+                title: 'Other Roadmap',
+                status: 'draft',
+                tags: ['repo:elegy'],
+              },
+            ],
+            validation: { status: 'valid', findings: [] },
+          };
+        },
+      },
+    });
+
+    const { res, body } = await invoke(
+      routes,
+      'GET',
+      '/api/planning/live/goals/GOAL-ie?repoId=74af0f7b5cc4&repoPath=C%3A%5CUsers%5Clolzi%5CDocuments%5CGitHub%5Cinstruction-engine&repoLabel=%40elegy-copilot%2Froot',
+      {},
+    );
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.kind, 'planning.live.goal');
+    assert.equal(body.goal.id, 'GOAL-ie');
+    assert.equal(body.roadmaps.length, 1);
+    assert.deepEqual(body.roadmaps.map((entry) => entry.id), ['RM-core']);
+  });
+
   if (!process.exitCode) {
     console.log(`Planning route tests passed: ${passed}`);
   }
