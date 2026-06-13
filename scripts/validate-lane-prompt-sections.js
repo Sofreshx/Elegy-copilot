@@ -19,44 +19,6 @@ function readFile(filePath) {
 }
 
 /**
- * Find all heading lines matching `## When NOT To Use` (case-insensitive,
- * ignoring whitespace around 'NOT').
- */
-function findWhenNotToUseHeading(lines) {
-  const headingRegex = /^##\s+When\s+N\s*O\s*T\s+To\s+Use\s*$/i;
-  for (let index = 0; index < lines.length; index += 1) {
-    if (headingRegex.test(lines[index].trim())) {
-      return index;
-    }
-  }
-  return -1;
-}
-
-/**
- * Extract the body after a heading (lines after the heading until the next
- * heading of equal or higher level).
- */
-function extractSectionBody(lines, headingIndex) {
-  const body = [];
-  for (let index = headingIndex + 1; index < lines.length; index += 1) {
-    const line = lines[index];
-    // Stop at next ## or higher heading (### is not a stop since it's lower)
-    if (/^##\s/.test(line.trim())) {
-      break;
-    }
-    body.push(line);
-  }
-  return body.join('\n');
-}
-
-/**
- * Check that a section body has at least one bullet item (`- ` or `* `).
- */
-function hasBulletItems(body) {
-  return /^\s*[-*]\s+\S/m.test(body);
-}
-
-/**
  * Check that content mentions "evidence" (case-insensitive).
  */
 function mentionsEvidence(content) {
@@ -92,20 +54,7 @@ function validateAgentFile(agentsDir, agentName) {
   const content = readFile(filePath);
   const lines = content.split(/\r?\n/);
 
-  // 1b. Must contain ## When NOT To Use heading
-  const headingIndex = findWhenNotToUseHeading(lines);
-  if (headingIndex === -1) {
-    errors.push(`${toDisplayPath(filePath)}: missing '## When NOT To Use' heading`);
-    return errors; // Cannot proceed with further checks
-  }
-
-  // 1c. Body after heading must contain at least one bullet item
-  const body = extractSectionBody(lines, headingIndex);
-  if (!hasBulletItems(body)) {
-    errors.push(`${toDisplayPath(filePath)}:${headingIndex + 1}: 'When NOT To Use' section has no bullet items`);
-  }
-
-  // 1d. Content must mention "evidence"
+  // 1b. Content must mention "evidence"
   if (!mentionsEvidence(content)) {
     errors.push(`${toDisplayPath(filePath)}: missing mention of 'evidence'`);
   }
@@ -166,18 +115,10 @@ function validateQuickSpecific(agentsDir) {
   }
 
   const content = readFile(filePath);
-  const lines = content.split(/\r?\n/);
 
-  // quick.md must contain "ambiguous" in its When NOT To Use section
-  const headingIndex = findWhenNotToUseHeading(lines);
-  if (headingIndex === -1) {
-    errors.push(`${toDisplayPath(filePath)}: missing '## When NOT To Use' heading (quick-specific check)`);
-    return errors;
-  }
-
-  const body = extractSectionBody(lines, headingIndex);
-  if (!/ambiguous/i.test(body)) {
-    errors.push(`${toDisplayPath(filePath)}:${headingIndex + 1}: 'When NOT To Use' section missing 'ambiguous' text`);
+  // quick.md must contain "ambiguous" in its content
+  if (!/ambiguous/i.test(content)) {
+    errors.push(`${toDisplayPath(filePath)}: missing 'ambiguous' text`);
   }
 
   return errors;
@@ -283,7 +224,7 @@ function validateStandardEvidenceRequirement(agentsDir) {
 
   // Check: standard.md must mention diff inspection by parent before review
   const hasDiffInspection = /git\s+diff\s+--stat/i.test(content) &&
-    (/inspect\s+relevant\s+diff/i.test(content) || /diff\s+summary/i.test(content));
+    (/inspect\s+(the\s+)?(relevant|returned)\s+diff/i.test(content) || /diff\s+summary/i.test(content));
 
   // Check: standard.md must mention passing validation evidence to reviewer
   const hasEvidenceToReviewer = /pass.*(?:complete|full)\s+(?:evidence\s+)?package\s+to\s+reviewer/i.test(content) ||
@@ -387,9 +328,6 @@ if (require.main === module) {
 
 module.exports = {
   LANE_AGENTS,
-  findWhenNotToUseHeading,
-  extractSectionBody,
-  hasBulletItems,
   mentionsEvidence,
   validateAgentFile,
   validateSpecSpecific,

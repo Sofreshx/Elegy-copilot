@@ -318,6 +318,17 @@ function normalizePlanningLiveReviewPoint(value: unknown): PlanningLiveReviewPoi
   return {
     ...record,
     id,
+    title: asTrimmedString(record.title) || null,
+    summary: asTrimmedString(record.summary) || null,
+    details: asTrimmedString(record.details) || null,
+    decision: asTrimmedString(record.decision) || null,
+    rationale: asTrimmedString(record.rationale) || null,
+    entityType: asTrimmedString(record.entityType) || null,
+    entityId: asTrimmedString(record.entityId) || null,
+    severity: asTrimmedString(record.severity) || null,
+    tags: Array.isArray(record.tags) ? record.tags.map((t: unknown) => typeof t === 'string' ? t.trim() : '').filter(Boolean) : undefined,
+    createdAt: asTrimmedString(record.createdAt) || null,
+    updatedAt: asTrimmedString(record.updatedAt) || null,
   };
 }
 

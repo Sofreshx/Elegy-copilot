@@ -450,6 +450,33 @@ function NodeInspector({ node, onClose }: { node: GraphNode | null; onClose: () 
           <DetailField label="Children" value={node.childCount || null} />
           <DetailField label="Severity" value={record.severity} />
           <DetailField label="Code" value={record.code} />
+          {node.type === 'reviewPoint' && (
+            <>
+              <div>
+                <dt>Decision</dt>
+                <dd>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    color: '#fff',
+                    backgroundColor: (() => {
+                      const d = (asString(record.decision) || '').toLowerCase();
+                      if (d === 'approved') return 'var(--color-success-500)';
+                      if (d === 'blocked') return 'var(--color-danger-500)';
+                      if (d === 'needs-changes') return '#d97706';
+                      return 'var(--color-ink-400)';
+                    })(),
+                  }}>
+                    {asString(record.decision) || '—'}
+                  </span>
+                </dd>
+              </div>
+              <DetailField label="Rationale" value={record.rationale} />
+            </>
+          )}
         </dl>
         <DetailChips label="Tags" values={record.tags} />
         <DetailChips label="Dependencies" values={record.dependencyIds} />

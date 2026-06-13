@@ -18,6 +18,7 @@ You are the Spec lane agent. Drive contract, API, and user-facing behavior chang
 - Treat the selected lane as input. Do not re-litigate lane choice at startup.
 - If discovery shows the work is not spec-owned or belongs to a multi-session roadmap, stop and return `needs-reroute`.
 - A `needs-reroute` response must include the concrete boundary exceeded and the recommended lane.
+- Minor copy nits, layout nits, or UI-only nits do not require spec lane. Use standard lane for small cosmetic changes.
 
 ## Skill Loading
 - Load `spec-dev` when choosing the spec mode or resolving spec-first scope.

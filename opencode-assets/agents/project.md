@@ -96,12 +96,30 @@ Based on status:
 2a. **Activate run:** When implementation starts in the worktree:
     `planning_project_run_activate(runId: "<id>", worktreePath: "<path>")`
 3. **Validate:** Ensure validation expectations defined in the plan are executed. In OpenCode, ask `impl` to run focused validation when no separate validation lane is available.
-4. **Record evidence:** Log findings:
-   - For review outcomes: `planning_review_point_record(entityType: "plan", entityId: "<id>", decision: "approved", rationale: "...")`
-   - For issues found: `planning_issue_record(entityType: "plan", entityId: "<id>", title: "...", description: "...")`
-4a. **Record run evidence:** Append immutable evidence to the project run:
-    `planning_project_run_add_evidence(runId: "<id>", evidenceType: "validation|review|commit", content: "...")`
-5. **Review:** Delegate to `reviewer`. Load `implementation-review` skill. Reviewer checks: correctness, spec-fit, quality, test coverage.
+4. **Record evidence for ALL review gates (mandatory before completion):**
+   - Plan review: `planning_review_point_record(entityType: "plan", entityId: "<id>", decision: "approved|blocked|needs-changes", rationale: "...")`
+   - Implementation review: `planning_review_point_record(entityType: "plan", entityId: "<id>", decision: "approved|blocked|needs-changes", rationale: "...")`
+   - Evidence review (see step 10): `planning_review_point_record(entityType: "plan", entityId: "<id>", decision: "approved|blocked|needs-changes", rationale: "...")`
+5. **Record findings and concerns (mandatory before completion):**
+   - Issues found during work: `planning_issue_record(entityType: "plan", entityId: "<id>", title: "...", description: "...")`
+   - Worries (proactive concerns before they become blocking): `planning_issue_record(entityType: "plan", entityId: "<id>", title: "[WORRY] ...", description: "...", severity: "low")`
+   - Insights (reasoning, rationale for decisions): `planning_insight_record(entityType: "plan", entityId: "<id>", title: "...", content: "...")`
+6. **Record validation summary (mandatory before completion):**
+   - Collect validation coverage, findings, gaps, and pass/fail state as a summary
+   - `planning_project_run_add_evidence(runId: "<id>", evidenceType: "validation-summary", content: "...")`
+7. **Record missed objectives:** Before marking a plan complete, explicitly record any planned work that was NOT reached:
+   - `planning_issue_record(entityType: "plan", entityId: "<id>", title: "[MISSED] ...", description: "...:reason", severity: "medium")`
+8. **Record run evidence:** Append immutable evidence to the project run for all evidence types:
+   - `planning_project_run_add_evidence(runId: "<id>", evidenceType: "validation|review|commit|validation-summary|worries|missed-objectives", content: "...")`
+9. **Review:** Delegate to `reviewer`. Load `implementation-review` skill. Reviewer checks: correctness, spec-fit, quality, test coverage.
+
+10. **Evidence review:** Delegate to `reviewer`. Review the full evidence chain:
+    - All three review gates recorded? (plan, implementation, evidence)
+    - Issues, worries, and insights recorded?
+    - Missed objectives documented with rationale?
+    - Validation summary captured?
+    - Project-run evidence appended?
+    If any mandatory evidence is missing, the plan is NOT complete. Return to the missing step.
 
 ### Phase 3: Complete
 1. **Commit:** Before committing, ask `impl` for a diff summary. Stage intended files only and wait for explicit user approval before running `git commit`. Never auto-commit.
@@ -124,6 +142,31 @@ Full evidence chain required per plan:
 - Commit SHA (if committed)
 - Run `planning_validate()` before marking plan complete
 - Run acceptance verification methods defined in work unit acceptance criteria (e.g., `→ verify:` commands from work unit specs)
+- Follow the Reevaluation Policy for cheap frequent checks vs session-boundary validation depth
+
+## Reevaluation Policy
+Distinguish validation depth by trigger:
+
+### Cheap frequent checks (run per edit or per implementation step)
+- `planning_health()` — confirms DB is initialized and reachable (fast, read-only)
+- Lint for changed files only: `npx eslint <changed-file>`
+- Focused unit tests for the module under change: `npx vitest run <test-file>`
+- Narrow type check for changed files: `npx tsc --noEmit <changed-file>.ts`
+- Do NOT rerun the full test suite or full typecheck on every small edit.
+
+### Session-boundary validation (run once per plan, before marking complete)
+- Full test suite: `npm run test:all` or `npm run ci:local`
+- Full typecheck: `npx tsc --noEmit`
+- Referential integrity: `planning_validate()`
+- Comprehensive validation summaries recorded as project-run evidence
+- Evidence review gate (step 10 in Phase 2)
+
+### Handling pre-existing `planning_validate()` findings
+`planning_validate()` surfaces ALL referential integrity findings across the database, including pre-existing issues from older goals, plans, and todos outside the current scope. The project lane MUST:
+- Focus on findings that reference the current plan ID, work point ID, or goal ID
+- Do NOT block plan completion on pre-existing findings from unrelated scopes
+- Record a tracked schema issue via `planning_issue_record()` when a pre-existing finding materially affects the current plan's validation reliability
+- At session end, report: "Validation: N current-scope findings, M pre-existing findings (not blocking)" in the Output Contract
 
 ## Output Contract
 At completion of each session:
@@ -132,7 +175,13 @@ At completion of each session:
 - Plan: [ID + status]
 - Worktree: [path, branch]
 - Changes: [file:line, commit SHA if committed]
-- Evidence: [validation results, review findings, warnings]
+- Evidence:
+  - Review output: [plan review, implementation review, evidence review outcomes]
+  - Issues/worries: [issue records and proactive concern records]
+  - Missed objectives: [planned but unreached items with rationale]
+  - Validation summary: [coverage, findings, gaps, pass/fail]
+  - Project-run evidence: [validation|review|commit|validation-summary|worries|missed-objectives]
+  - Validation findings: [N current-scope findings, M pre-existing findings (not blocking)]
 - Next: [next candidate from roadmap or done]
 - Behavior: continues through work points without prompting; pauses only for clarification, blocking issues, or end-of-roadmap.
 
@@ -154,4 +203,5 @@ At completion of each session:
 - Do not pause to confirm between work points. Pausing is the exception, not the default; the only allowed pauses are the Autonomous Continuation Policy criteria.
 - One project worktree per session. Create once, reuse across work points, clean up at session end.
 - Keep evidence even on failure — failed validation is valid evidence
+- Record evidence proactively: worries before they become blocking, missed objectives before transitioning plan status. Incomplete evidence prevents plan completion.
 - Do not implement before plan review gate passes

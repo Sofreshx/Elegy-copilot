@@ -254,6 +254,17 @@ export interface PlanningLiveTodo {
 
 export interface PlanningLiveReviewPoint {
   id: string;
+  title?: string | null;
+  summary?: string | null;
+  details?: string | null;
+  decision?: string | null;
+  rationale?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
+  severity?: string | null;
+  tags?: string[];
+  createdAt?: string | null;
+  updatedAt?: string | null;
   [key: string]: unknown;
 }
 
