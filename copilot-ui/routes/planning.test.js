@@ -141,6 +141,7 @@ async function run() {
       repoId: 'repo-1',
       repoPath: '',
       repoLabel: 'Repo 1',
+      repoBasename: '',
     });
     assert.deepEqual(body.roadmaps.map((entry) => entry.id), ['RM-one']);
   });

@@ -881,6 +881,192 @@ async function run() {
     assert.ok(elegyDbAttempts.length > 0, 'Should have queried canonical .elegy DB');
   });
 
+  await test('repo-labeled list returns empty when scope discovery succeeds with zero matching scopes', async () => {
+    const recorded = [];
+    const explicitDbPath = path.join('C:', 'planning', 'elegy-planning.db');
+    const bridge = createRoadmapWorkflowPlanningBridge({
+      enabled: true,
+      elegyHome: path.join('C:', 'copilot'),
+      dbPath: explicitDbPath,
+      cliPath: __filename,
+      fsModule: {
+        existsSync(p) { return p === explicitDbPath; },
+        statSync(p) { return { size: 4096 }; },
+      },
+      childProcess: createExecFileStub(({ command, args, callback }) => {
+        recorded.push({ command, args });
+        const commandKey = getCommandKey(args);
+        if (commandKey === 'scope list') {
+          // Scopes exist but none match the label "unknown-repo"
+          callback(null, JSON.stringify({
+            status: 'ok',
+            data: {
+              scopes: [
+                { scopeKey: 'default', tags: [] },
+                { scopeKey: 'holon', tags: ['holon', 'SAASTools'] },
+              ],
+            },
+          }), '');
+          return;
+        }
+        if (commandKey === 'goal list') {
+          // Should NOT be called — scope discovery succeeded, no match, should return empty
+          callback(null, JSON.stringify({
+            status: 'ok',
+            data: {
+              goals: [
+                { id: 'GOAL-leaked', title: 'Should Not Appear', status: 'draft', tags: ['repo:instruction-engine'] },
+              ],
+            },
+          }), '');
+          return;
+        }
+        callback(null, JSON.stringify({ status: 'ok', data: {} }), '');
+      }),
+      env: {},
+      processObject: {
+        env: {},
+        platform: 'win32',
+      },
+    });
+
+    const result = await bridge.listGoals({
+      requestId: 'no-match-test',
+      repoLabel: 'unknown-repo',
+    });
+
+    assert.ok(Array.isArray(result.goals));
+    assert.equal(result.goals.length, 0, 'Should return empty goals when scope discovery succeeds but no scopes match');
+    // Verify scope list was called (discovery succeeded)
+    const scopeCalls = recorded.filter((r) => getCommandKey(r.args) === 'scope list');
+    assert.equal(scopeCalls.length, 1);
+    // Verify unscoped fallback goal list was NOT called
+    const goalListCalls = recorded.filter((r) => getCommandKey(r.args) === 'goal list');
+    assert.equal(goalListCalls.length, 0, 'Unscoped goal list should not be called when scope discovery succeeded');
+  });
+
+  await test('active/default scope fallback still works for unscoped calls without repoLabel', async () => {
+    const recorded = [];
+    const explicitDbPath = path.join('C:', 'planning', 'elegy-planning.db');
+    const bridge = createRoadmapWorkflowPlanningBridge({
+      enabled: true,
+      elegyHome: path.join('C:', 'copilot'),
+      dbPath: explicitDbPath,
+      cliPath: __filename,
+      fsModule: {
+        existsSync(p) { return p === explicitDbPath; },
+        statSync(p) { return { size: 4096 }; },
+      },
+      childProcess: createExecFileStub(({ command, args, callback }) => {
+        recorded.push({ command, args });
+        const commandKey = getCommandKey(args);
+        if (commandKey === 'goal list') {
+          callback(null, JSON.stringify({
+            status: 'ok',
+            data: {
+              goals: [
+                { id: 'GOAL-default', title: 'Default Goal', status: 'draft', tags: [] },
+              ],
+            },
+          }), '');
+          return;
+        }
+        callback(null, JSON.stringify({ status: 'ok', data: {} }), '');
+      }),
+      env: {},
+      processObject: {
+        env: {},
+        platform: 'win32',
+      },
+    });
+
+    const result = await bridge.listGoals({ requestId: 'unscoped-test' });
+
+    assert.ok(Array.isArray(result.goals));
+    assert.equal(result.goals.length, 1);
+    assert.equal(result.goals[0].id, 'GOAL-default');
+    const goalListCalls = recorded.filter((r) => getCommandKey(r.args) === 'goal list');
+    assert.equal(goalListCalls.length, 1, 'Unscoped goal list should be called when no repoLabel is supplied');
+  });
+
+  await test('holon-repo label resolves Holon scope roadmaps without including default scope', async () => {
+    const recorded = [];
+    const explicitDbPath = path.join('C:', 'planning', 'elegy-planning.db');
+    const bridge = createRoadmapWorkflowPlanningBridge({
+      enabled: true,
+      elegyHome: path.join('C:', 'copilot'),
+      dbPath: explicitDbPath,
+      cliPath: __filename,
+      fsModule: {
+        existsSync(p) { return p === explicitDbPath; },
+        statSync(p) { return { size: 4096 }; },
+      },
+      childProcess: createExecFileStub(({ command, args, callback }) => {
+        recorded.push({ command, args });
+        const commandKey = getCommandKey(args);
+        if (commandKey === 'scope list') {
+          callback(null, JSON.stringify({
+            status: 'ok',
+            data: {
+              scopes: [
+                { scopeKey: 'default', tags: [] },
+                { scopeKey: 'holon', tags: ['holon', 'SAASTools'] },
+              ],
+            },
+          }), '');
+          return;
+        }
+        if (commandKey === 'roadmap list') {
+          const scopeIdx = args.indexOf('--scope');
+          const scopeVal = scopeIdx >= 0 ? args[scopeIdx + 1] : 'default';
+          if (scopeVal === 'holon') {
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: {
+                roadmaps: [
+                  { id: 'RM-holon', title: 'Holon Roadmap', status: 'active', tags: ['holon'] },
+                ],
+              },
+            }), '');
+          } else if (scopeVal === 'default') {
+            callback(null, JSON.stringify({
+              status: 'ok',
+              data: {
+                roadmaps: [
+                  { id: 'RM-default', title: 'Default Roadmap', status: 'draft', tags: [] },
+                ],
+              },
+            }), '');
+          } else {
+            callback(null, JSON.stringify({ status: 'ok', data: { roadmaps: [] } }), '');
+          }
+          return;
+        }
+        callback(null, JSON.stringify({ status: 'ok', data: {} }), '');
+      }),
+      env: {},
+      processObject: {
+        env: {},
+        platform: 'win32',
+      },
+    });
+
+    const result = await bridge.listRoadmaps({
+      requestId: 'holon-repo-test',
+      repoLabel: 'holon-repo',
+    });
+
+    assert.ok(Array.isArray(result.roadmaps));
+    // holon-repo derives tokens: ['holon-repo', 'holon', 'repo']
+    // holon scope (key='holon') matches via derived token 'holon'
+    // default scope (key='default', tags=[]) does not match any derived token
+    // Active/default scope is only prioritized when it IS a label match
+    // Since default does not match, only holon scope roadmaps should appear
+    const ids = result.roadmaps.map((r) => r.id);
+    assert.ok(ids.includes('RM-holon'), 'holon-repo should resolve Holon scope roadmaps');
+    assert.ok(!ids.includes('RM-default'), 'Default scope roadmaps should not be included when holon-repo matches Holon scope');
+  });
+
   if (!process.exitCode) {
     console.log(`roadmap workflow planning bridge tests passed: ${passed}`);
   }
