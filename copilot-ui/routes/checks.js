@@ -1,7 +1,7 @@
 'use strict';
 
 const { sendJson: defaultSendJson } = require('./_helpers');
-const { discoverChecks, runAllChecks, resolveCommitCheckConfig } = require('../lib/gitCheckRunner');
+const { discoverChecks, runAllChecks, runAllChecksWithProfile, resolveCommitCheckConfig } = require('../lib/gitCheckRunner');
 const { syncCiState } = require('../lib/ciSync');
 
 function isNonEmptyString(value) {
@@ -30,11 +30,13 @@ function handleChecksDiscover(ctx, deps) {
   try {
     const checks = discoverChecks(repoPath);
     const source = checks.length > 0 && checks[0].source ? checks[0].source : 'none';
+    const profiles = checks.profiles || {};
     sendJson(res, 200, {
       repoPath,
       checksAvailable: checks.length,
       source,
       groups: checks.groups || {},
+      profiles,
       checks: checks.map((c) => ({
         name: c.name,
         path: c.path,
@@ -45,6 +47,12 @@ function handleChecksDiscover(ctx, deps) {
         ciJob: c.ciJob || null,
         ciRequired: c.ciRequired === true,
         source: c.source || 'none',
+        required: c.required !== false,
+        skippable: c.skippable || false,
+        requiresReasonOnSkip: c.requiresReasonOnSkip !== false,
+        defaultProfiles: c.defaultProfiles || [],
+        cost: c.cost || 'fast',
+        opensWindow: c.opensWindow || false,
       })),
     });
   } catch (error) {
@@ -66,7 +74,16 @@ function handleChecksRun(ctx, deps) {
         throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
       }
 
-      const results = await runAllChecks(repoPath);
+      const profile = payload.profile || undefined;
+      const selectedLanes = payload.selectedLane || undefined;
+      const selectedGroup = payload.selectedGroup || undefined;
+      const skipLanesRaw = payload.skipLanes || {};
+      const skipLanesMap = new Map(Object.entries(skipLanesRaw));
+      const hasProfileOptions = profile || selectedLanes || selectedGroup || skipLanesMap.size > 0;
+
+      const results = hasProfileOptions
+        ? await runAllChecksWithProfile(repoPath, { profile, selectedLanes, selectedGroup, skipLanes: skipLanesMap })
+        : await runAllChecks(repoPath);
 
       // Persist check results to disk (non-blocking)
       try {
@@ -122,7 +139,17 @@ function handleCheckState(ctx, deps) {
     const repoId = deriveRepoId(repoPath);
     const config = resolveCommitCheckConfig(repoPath);
     const state = getCheckState(repoId, repoPath, config);
-    sendJson(res, 200, state);
+    const profile = (state.lastRun && state.lastRun.profile) || null;
+    sendJson(res, 200, {
+      ...state,
+      profile,
+      history: (state.history || []).map((entry) => ({
+        timestamp: entry.timestamp,
+        overallPass: entry.overallPass,
+        profile: entry.profile || null,
+        checksRun: Object.keys(entry.lanes || {}).length,
+      })),
+    });
   } catch (error) {
     sendJson(res, 500, { error: String(error.message || error) });
   }

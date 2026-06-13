@@ -111,6 +111,24 @@ export async function unstageGitFiles(repoPath: string, files?: string[], baseUr
   });
 }
 
+export async function stageGitFile(repoPath: string, filePath: string, baseUrl?: string): Promise<{ staged: boolean }> {
+  return apiRequest<{ staged: boolean }>('/api/git/stage', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, files: [filePath] }),
+  });
+}
+
+export async function unstageGitFile(repoPath: string, filePath: string, baseUrl?: string): Promise<{ unstaged: boolean }> {
+  return apiRequest<{ unstaged: boolean }>('/api/git/unstage', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, files: [filePath] }),
+  });
+}
+
 export interface GitCheckResult {
   checkName: string;
   status?: 'PASS' | 'FAIL' | 'SKIP' | string;
@@ -120,12 +138,17 @@ export interface GitCheckResult {
   error?: string;
   output?: string;
   score?: number | null;
+  commands?: Array<{ command: string; exitCode: number; success: boolean; durationMs: number }>;
   group?: string | null;
   blocking?: boolean;
   ciWorkflow?: string | null;
   ciJob?: string | null;
   ciRequired?: boolean;
-  commands?: Array<{ command: string; exitCode: number; success: boolean; durationMs: number }>;
+  required?: boolean;
+  skippable?: boolean;
+  cost?: 'fast' | 'medium' | 'heavy';
+  opensWindow?: boolean;
+  defaultProfiles?: string[];
 }
 
 export interface GitCheckResults {
@@ -144,6 +167,20 @@ export interface GitCheckResults {
   groupResults?: Record<string, { passedLanes: string[]; failedLanes: string[]; allPassed: boolean }>;
   results: GitCheckResult[];
   message: string;
+  profile?: string | null;
+  requiredFailures?: string[];
+  skippedLanes?: Record<string, string>;
+  overrideReasons?: Record<string, string>;
+  logs?: Array<{
+    timestamp: string;
+    event: string;
+    lane?: string;
+    status?: string;
+    exitCode?: number;
+    durationMs?: number;
+    reason?: string;
+  }>;
+  errorOutput?: string;
 }
 
 export interface GitActionResponse {
@@ -236,6 +273,7 @@ export interface GitChecksDiscoverResponse {
   checksAvailable: number;
   source: 'commit-check' | 'legacy' | 'none';
   groups?: Record<string, { description: string }>;
+  profiles?: Record<string, { label: string; description: string; cost: 'fast' | 'medium' | 'heavy'; opensWindow: boolean }>;
   checks: Array<{
     name: string;
     path: string;
@@ -246,6 +284,12 @@ export interface GitChecksDiscoverResponse {
     ciWorkflow?: string | null;
     ciJob?: string | null;
     ciRequired?: boolean;
+    required?: boolean;
+    skippable?: boolean;
+    requiresReasonOnSkip?: boolean;
+    defaultProfiles?: string[];
+    cost?: 'fast' | 'medium' | 'heavy';
+    opensWindow?: boolean;
   }>;
 }
 
@@ -263,6 +307,26 @@ export async function runGitChecks(repoPath: string, baseUrl?: string): Promise<
   });
 }
 
+export interface RunChecksWithProfileOptions {
+  profile?: string;
+  selectedLane?: string;
+  selectedGroup?: string;
+  skipLanes?: Record<string, string>;
+}
+
+export async function runGitChecksWithProfile(
+  repoPath: string,
+  options: RunChecksWithProfileOptions,
+  baseUrl?: string,
+): Promise<GitCheckResults> {
+  return apiRequest<GitCheckResults>('/api/git/checks/run', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, ...options }),
+  });
+}
+
 export interface GitCheckStateResponse {
   repoId: string;
   repoPath: string;
@@ -273,6 +337,7 @@ export interface GitCheckStateResponse {
     configHash: string | null;
     overallPass: boolean;
     compositeScore: number | null;
+    profile?: string | null;
     lanes: Record<string, {
       status: string;
       exitCode: number;
@@ -284,6 +349,11 @@ export interface GitCheckStateResponse {
       ciWorkflow: string | null;
       ciJob: string | null;
       ciRequired: boolean;
+      required?: boolean;
+      skippable?: boolean;
+      cost?: string;
+      opensWindow?: boolean;
+      defaultProfiles?: string[];
       commands: Array<{ command: string; exitCode: number; success: boolean; durationMs: number }>;
     }>;
     groups: Record<string, { description: string }>;

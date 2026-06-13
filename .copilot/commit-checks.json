@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 2,
-  "configVersion": 1,
+  "schemaVersion": 3,
+  "configVersion": 3,
   "generated": "2026-06-09T17:55:32.259Z",
   "repoLanguages": [
     "typescript",
@@ -8,16 +8,45 @@
   ],
   "threshold": 70,
   "weights": {
-    "test": 0.4,
-    "coverage": 0.3,
-    "lint": 0.15,
-    "format": 0.15
+    "test": 0.30,
+    "lint": 0.20,
+    "format": 0.10,
+    "eslint": 0.10,
+    "stylelint": 0.05,
+    "typecheck": 0.15,
+    "build-contracts": 0.05,
+    "build-ui": 0.05
   },
   "gates": [
     "typecheck"
   ],
+  "profiles": {
+    "commit": {
+      "label": "Commit",
+      "description": "Fast mandatory local gate",
+      "cost": "fast",
+      "opensWindow": false
+    },
+    "ci-local": {
+      "label": "CI Local",
+      "description": "Full local CI parity gate",
+      "cost": "medium",
+      "opensWindow": false
+    },
+    "desktop-preview": {
+      "label": "Desktop Preview",
+      "description": "Packaged runtime/build validation, skippable with reason",
+      "cost": "medium",
+      "opensWindow": false
+    },
+    "release": {
+      "label": "Release",
+      "description": "Release/native smoke validation, on-demand or CI by default",
+      "cost": "heavy",
+      "opensWindow": true
+    }
+  },
   "groups": {
-    "fast": { "description": "Quick checks for rapid iteration (<10s)" },
     "commit": { "description": "Pre-commit checks \u2014 must pass before committing" },
     "push": { "description": "Pre-push checks \u2014 must pass before pushing" },
     "ci": { "description": "CI-equivalent checks \u2014 mirrors GitHub required workflows" },
@@ -26,6 +55,12 @@
   "lanes": {
     "test": {
       "enabled": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": ["commit", "ci-local"],
+      "cost": "medium",
+      "opensWindow": false,
       "group": "push",
       "description": "Run all workspace tests",
       "cwd": ".",
@@ -41,6 +76,12 @@
     },
     "lint": {
       "enabled": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": ["commit", "ci-local"],
+      "cost": "fast",
+      "opensWindow": false,
       "group": "commit",
       "description": "Lint all source code",
       "cwd": ".",
@@ -55,6 +96,12 @@
     },
     "format": {
       "enabled": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": ["commit", "ci-local"],
+      "cost": "fast",
+      "opensWindow": false,
       "group": "commit",
       "description": "Check code formatting",
       "cwd": ".",
@@ -69,6 +116,12 @@
     },
     "typecheck": {
       "enabled": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": ["commit", "ci-local"],
+      "cost": "fast",
+      "opensWindow": false,
       "group": "commit",
       "description": "Type-check TypeScript and Rust code",
       "cwd": ".",
@@ -84,6 +137,12 @@
     },
     "ci-local": {
       "enabled": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": ["ci-local"],
+      "cost": "medium",
+      "opensWindow": false,
       "group": "ci",
       "description": "Full local CI-equivalent: validates specs, docs, manifests, builds UI, runs all tests",
       "cwd": ".",
@@ -94,6 +153,146 @@
       "ciRequired": true,
       "commands": [
         "npm run ci:local"
+      ]
+    },
+    "eslint": {
+      "enabled": true,
+      "group": "lint",
+      "description": "ESLint for TypeScript/React/Node code",
+      "cwd": ".",
+      "timeoutMs": 120000,
+      "blocking": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": ["commit", "ci-local"],
+      "cost": "fast",
+      "opensWindow": false,
+      "ciWorkflow": "repo-ci.yml",
+      "ciJob": "lint",
+      "ciRequired": false,
+      "commands": [
+        "npx eslint ."
+      ]
+    },
+    "stylelint": {
+      "enabled": true,
+      "group": "lint",
+      "description": "CSS stylelint checks",
+      "cwd": ".",
+      "timeoutMs": 60000,
+      "blocking": true,
+      "required": false,
+      "skippable": true,
+      "requiresReasonOnSkip": true,
+      "defaultProfiles": ["ci-local"],
+      "cost": "fast",
+      "opensWindow": false,
+      "ciWorkflow": "",
+      "ciJob": "",
+      "ciRequired": false,
+      "commands": [
+        "npx stylelint \"copilot-ui/ui/src/**/*.css\" \"copilot-ui/ui/src/**/*.scss\""
+      ]
+    },
+    "build-contracts": {
+      "enabled": true,
+      "group": "ci",
+      "description": "Build shared contracts (TypeScript)",
+      "cwd": ".",
+      "timeoutMs": 60000,
+      "blocking": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": ["commit", "ci-local"],
+      "cost": "fast",
+      "opensWindow": false,
+      "ciWorkflow": "repo-ci.yml",
+      "ciJob": "build",
+      "ciRequired": true,
+      "commands": [
+        "npm run build:contracts"
+      ]
+    },
+    "build-ui": {
+      "enabled": true,
+      "group": "ci",
+      "description": "Build Copilot UI (Vite + React)",
+      "cwd": ".",
+      "timeoutMs": 120000,
+      "blocking": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": ["ci-local"],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": "repo-ci.yml",
+      "ciJob": "build",
+      "ciRequired": true,
+      "commands": [
+        "npm --prefix copilot-ui run ui:build"
+      ]
+    },
+    "build-tracker": {
+      "enabled": true,
+      "group": "ci",
+      "description": "Build local-tracker module",
+      "cwd": ".",
+      "timeoutMs": 60000,
+      "blocking": true,
+      "required": false,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": ["ci-local"],
+      "cost": "fast",
+      "opensWindow": false,
+      "ciWorkflow": "",
+      "ciJob": "",
+      "ciRequired": false,
+      "commands": [
+        "npm --prefix local-tracker run build"
+      ]
+    },
+    "desktop-preview": {
+      "enabled": true,
+      "group": "release",
+      "description": "Desktop app runtime/build validation (prod-sim)",
+      "cwd": ".",
+      "timeoutMs": 180000,
+      "blocking": false,
+      "required": false,
+      "skippable": true,
+      "requiresReasonOnSkip": true,
+      "defaultProfiles": ["desktop-preview"],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": "",
+      "ciJob": "",
+      "ciRequired": false,
+      "commands": [
+        "npm --prefix copilot-ui run desktop:prod-sim"
+      ]
+    },
+    "release-smoke": {
+      "enabled": true,
+      "group": "release",
+      "description": "Release smoke test (native desktop binary)",
+      "cwd": ".",
+      "timeoutMs": 300000,
+      "blocking": false,
+      "required": false,
+      "skippable": true,
+      "requiresReasonOnSkip": true,
+      "defaultProfiles": ["release"],
+      "cost": "heavy",
+      "opensWindow": true,
+      "ciWorkflow": "",
+      "ciJob": "",
+      "ciRequired": false,
+      "commands": [
+        "npm --prefix copilot-ui run desktop:smoke:native"
       ]
     }
   }
