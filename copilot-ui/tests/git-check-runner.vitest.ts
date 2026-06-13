@@ -43,6 +43,7 @@ describe('discoverChecks', () => {
     mockExistsSync.mockImplementation((p: any) => {
       const pStr = String(p).replace(/\\/g, '/');
       if (pStr.includes('commit-checks.json')) return true;
+      if (pStr.includes('scripts/commit-check-run.mjs')) return true;
       return false;
     });
     mockReadFileSync.mockReturnValue(JSON.stringify({
@@ -67,20 +68,37 @@ describe('discoverChecks', () => {
     expect(legacyNames).toHaveLength(0);
   });
 
-  it('falls back to legacy KNOWN_CHECKS when no config exists', () => {
-    // Mock: No canonical config, but legacy scripts exist
+  it('returns empty when no canonical config and KNOWN_CHECKS is empty', () => {
+    // Mock: No canonical config, no legacy scripts, no .githooks
     mockExistsSync.mockImplementation((p: any) => {
       const pStr = String(p).replace(/\\/g, '/');
       if (pStr.includes('commit-checks.json')) return false;
-      if (pStr.includes('validate-')) return true;
       return false;
     });
 
     const result = discoverChecks('/fake/repo');
 
-    // Should find legacy KNOWN_CHECKS
-    expect(result.length).toBeGreaterThan(0);
-    // All entries should have source === 'legacy'
+    // KNOWN_CHECKS is empty — no legacy checks discovered
+    expect(result.length).toBe(0);
+  });
+
+  it('discovers git-hooks when .githooks directory exists', () => {
+    // Mock: No canonical config, KNOWN_CHECKS empty, but .githooks/ exists
+    mockExistsSync.mockImplementation((p: any) => {
+      const pStr = String(p).replace(/\\/g, '/');
+      if (pStr.includes('commit-checks.json')) return false;
+      if (pStr.endsWith('.githooks')) return true;
+      if (pStr.endsWith('pre-commit')) return true;
+      if (pStr.endsWith('pre-push')) return true;
+      return false;
+    });
+
+    const result = discoverChecks('/fake/repo');
+
+    // Should find pre-commit and pre-push from .githooks/
+    expect(result.length).toBe(2);
+    expect(result.find((c: any) => c.name === 'git-hooks-pre-commit')).toBeTruthy();
+    expect(result.find((c: any) => c.name === 'git-hooks-pre-push')).toBeTruthy();
     result.forEach((c: any) => {
       expect(c.source).toBe('legacy');
     });
@@ -94,6 +112,7 @@ describe('runAllChecks', () => {
     mockExistsSync.mockImplementation((p: any) => {
       const pStr = String(p).replace(/\\/g, '/');
       if (pStr.includes('commit-checks.json')) return true;
+      if (pStr.includes('scripts/commit-check-run.mjs')) return true;
       return false;
     });
     mockReadFileSync.mockReturnValue(JSON.stringify({ lanes: configLanes }));

@@ -249,6 +249,29 @@ function filterPlanningLiveRoadmaps(roadmaps, repo, opts = {}) {
   });
 }
 
+function filterPlanningLiveGoals(goals, repo, opts = {}) {
+  const items = Array.isArray(goals) ? goals : [];
+  if (items.length === 0) return [];
+  const parentRepo = resolveRepoParentWorktree(repo);
+  const includeUnscoped = opts && opts.includeUnscoped === true;
+
+  return items.filter((goal) => {
+    if (planningEntityMatchesRepoSelection(goal, repo, parentRepo, null)) {
+      return true;
+    }
+
+    if (includeUnscoped) {
+      const tags = getPlanningEntityTags(goal).map((t) => t.toLowerCase());
+      const hasRepoTags = tags.some((t) => t.startsWith('repo:'));
+      if (!hasRepoTags) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+}
+
 function filterPlanningLivePlans(plans, filters = {}) {
   const repo = buildPlanningRepoSelection(filters.repoId, filters.repoPath, filters.repoLabel);
   const parentRepo = resolveRepoParentWorktree(repo);
@@ -529,6 +552,60 @@ function handlePlanningLiveRoadmapsList(ctx, deps) {
         PLANNING_API_CONTRACT_VERSION,
         'planning.live.roadmaps',
         'Unable to load live roadmaps from elegy-planning.',
+      );
+      sendJson(res, failure.statusCode, failure.body);
+    });
+}
+
+function handlePlanningLiveGoalsList(ctx, deps) {
+  const { req, res, u } = ctx;
+  const {
+    sendJson,
+    roadmapWorkflowPlanningBridge,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+  const repo = resolvePlanningLiveRepoSelection(u);
+
+  Promise.resolve()
+    .then(async () => {
+      const bridge = requirePlanningLiveAuthorityBridge(roadmapWorkflowPlanningBridge);
+      if (typeof bridge.listGoals !== 'function') {
+        throw buildPlanningLiveRouteError(
+          'planning_live_goals_unavailable',
+          'elegy-planning authority bridge does not expose goal listing.',
+        );
+      }
+
+      const response = await bridge.listGoals({
+        requestId: resolvePlanningLiveRequestId(
+          req,
+          (repo && (repo.repoId || repo.repoPath || repo.repoLabel)) || 'planning-live-goals',
+        ),
+        repoLabel: repo && repo.repoLabel,
+        repoLabels: repo ? [
+          repo.repoLabel,
+          repo.repoPath ? require('path').basename(repo.repoPath) : '',
+          repo.repoId,
+        ].filter(Boolean) : [],
+      });
+      const includeUnscoped = String(u.searchParams.get('includeUnscoped') || 'true').toLowerCase() !== 'false';
+      const goals = filterPlanningLiveGoals(response && response.goals, repo, { includeUnscoped });
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.live.goals',
+        deterministic: true,
+        repo,
+        count: goals.length,
+        goals,
+      });
+    })
+    .catch((error) => {
+      const failure = buildPlanningLiveReadFailure(
+        error,
+        PLANNING_API_CONTRACT_VERSION,
+        'planning.live.goals',
+        'Unable to load live goals from elegy-planning.',
       );
       sendJson(res, failure.statusCode, failure.body);
     });
@@ -2976,6 +3053,11 @@ function register(deps = {}) {
       method: 'GET',
       path: '/api/planning/live/roadmaps',
       handler: (ctx) => handlePlanningLiveRoadmapsList(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/planning/live/goals',
+      handler: (ctx) => handlePlanningLiveGoalsList(ctx, resolvedDeps),
     },
     {
       method: 'GET',

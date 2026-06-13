@@ -8,7 +8,6 @@ import type {
   GitBranchEntry,
   MergeCandidate,
   MergeDryRunResponse,
-  GitChecksDiscoverResponse,
   GitStashEntry,
   GitStashListResponse,
   GitStashOperationResponse,
@@ -19,7 +18,6 @@ import {
   mergeLocal,
   pullGit,
   checkoutGitBranch,
-  discoverGitChecks,
   mergeWorktree,
   commitGit,
   pushGit,
@@ -283,6 +281,7 @@ interface WorkspaceGitTabProps {
   onSetCommitMessage: (msg: string) => void;
   onSetPullRequestTitle: (t: string) => void;
   onSetPullRequestBody: (b: string) => void;
+  onRefreshGitState: () => void;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -303,6 +302,7 @@ export default function WorkspaceGitTab({
   onSetCommitMessage,
   onSetPullRequestTitle,
   onSetPullRequestBody,
+  onRefreshGitState,
 }: WorkspaceGitTabProps) {
   const summary = gitState.summary;
   const branch = summary?.branch ?? null;
@@ -361,9 +361,6 @@ export default function WorkspaceGitTab({
   const [showSkipVerifyConfirm, setShowSkipVerifyConfirm] = useState(false);
   const [skipVerifyCommitting, setSkipVerifyCommitting] = useState(false);
 
-  // ─── Checks discovery state ────────────────────────────────────────────────
-  const [discoveredChecks, setDiscoveredChecks] = useState<GitChecksDiscoverResponse | null>(null);
-
   // ─── Verify & Commit flow ──────────────────────────────────────────────────
   const [commitPhase, setCommitPhase] = useState<'idle' | 'running-checks'>('idle');
   const [checksVerified, setChecksVerified] = useState(false);
@@ -381,6 +378,12 @@ export default function WorkspaceGitTab({
 
   // ─── PR create form collapse ───────────────────────────────────────────────
   const [showPrForm, setShowPrForm] = useState(false);
+
+  useEffect(() => {
+    if (checkResults?.allPassed) {
+      setFailedCheckResults(null);
+    }
+  }, [checkResults?.checkedAt, checkResults?.allPassed]);
 
   // ─── Load merge candidates ─────────────────────────────────────────────────
   useEffect(() => {
@@ -439,22 +442,6 @@ export default function WorkspaceGitTab({
         // enriched data is optional
       } finally {
         if (!cancelled) setEnrichedLoading(false);
-      }
-    }
-    void load();
-    return () => { cancelled = true; };
-  }, [repoPath]);
-
-  // ─── Discover checks on mount ──────────────────────────────────────────────
-  useEffect(() => {
-    if (!repoPath) return;
-    let cancelled = false;
-    async function load() {
-      try {
-        const result = await discoverGitChecks(repoPath);
-        if (!cancelled) setDiscoveredChecks(result);
-      } catch {
-        // discovery is informational
       }
     }
     void load();
@@ -598,6 +585,11 @@ export default function WorkspaceGitTab({
       setCommitPhase('idle');
       notificationStore.error('Checks error', { message: err instanceof Error ? err.message : String(err) });
     }
+  }
+
+  function handleComposerRunChecks() {
+    setFailedCheckResults(null);
+    onRunChecks();
   }
 
   // ─── Force commit handler ──────────────────────────────────────────────────
@@ -970,6 +962,18 @@ export default function WorkspaceGitTab({
           data-testid="workspace-summary-push"
         >
           ⬆
+        </button>
+
+        {/* Refresh button */}
+        <button
+          type="button"
+          className="workspace-git-icon-btn"
+          onClick={onRefreshGitState}
+          title="Refresh git status"
+          aria-label="Refresh git status"
+          data-testid="workspace-summary-refresh"
+        >
+          ↻
         </button>
 
         {/* Repo path */}
@@ -1417,18 +1421,6 @@ export default function WorkspaceGitTab({
       </div>
 
       {/* ================================================================ */}
-      {/* SECTION 3.5 — Checks Section                                    */}
-      {/* ================================================================ */}
-      <div className="workspace-git-checks-section-wrapper">
-        <WorkspaceChecksSection
-          repoPath={repoPath}
-          checkResults={checkResults}
-          runningChecks={runningChecks}
-          onRunChecks={onRunChecks}
-        />
-      </div>
-
-      {/* ================================================================ */}
       {/* SECTION 4 — Sticky Bottom Composer (Verify & Commit)            */}
       {/* ================================================================ */}
       <div className="workspace-git-composer" data-testid="workspace-git-composer">
@@ -1521,6 +1513,20 @@ export default function WorkspaceGitTab({
           </Button>
 
           {/* ─── Stash area ────────────────────────────────────────────────── */}
+          <div className="workspace-git-stash-divider" data-testid="workspace-git-stash-divider" style={{
+            borderTop: '1px solid var(--color-border-200)',
+            margin: 'var(--space-xs) 0',
+            paddingTop: 'var(--space-xs)',
+          }}>
+            <span style={{
+              fontSize: '0.7rem',
+              color: 'var(--color-text-300)',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+            }}>
+              Stashed work — saved for later, not staged for commit
+            </span>
+          </div>
           <div className="workspace-git-stash-area" data-testid="workspace-git-stash-area">
             <div className="workspace-git-stash-header">
               <span className="workspace-git-stash-count" data-testid="workspace-stash-count">
@@ -1698,49 +1704,14 @@ export default function WorkspaceGitTab({
           </div>
         ) : null}
 
-        {/* Checks results */}
-        {checkResults ? (
-          <div
-            className={`workspace-git-composer-checks ${checkResults.allPassed ? 'workspace-checks-passed' : 'workspace-checks-failed'}`}
-            data-testid="workspace-checks-result"
-          >
-            <div className="workspace-git-checks-header">
-              <span>{checkResults.allPassed ? '✓ All checks passed' : `✗ ${checkResults.checksFailed} of ${checkResults.checksRun} checks failed`}</span>
-              <Button variant="ghost" size="sm" onClick={onRunChecks} disabled={runningChecks} testId="workspace-checks-rerun">
-                {runningChecks ? 'Running...' : 'Re-run checks'}
-              </Button>
-            </div>
-            {checkResults.results && checkResults.results.length > 0 ? (
-              <details className="workspace-git-checks-results-detail">
-                <summary>View check results</summary>
-                <ul className="workspace-git-checks-list">
-                  {checkResults.results.map((r, i) => (
-                    <li key={i} className={r.passed ? 'workspace-check-item-passed' : 'workspace-check-item-failed'}>
-                      <strong>{r.checkName}</strong>: {r.passed ? 'Passed' : (r.error || 'Failed')}
-                      {r.output && !r.passed ? <pre className="workspace-check-output">{r.output.slice(0, 500)}</pre> : null}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ) : null}
-          </div>
-        ) : null}
-
-        {/* Checks discovered disclosure */}
-        {discoveredChecks && discoveredChecks.checks.length > 0 ? (
-          <div className="workspace-git-checks-disclosure" data-testid="workspace-checks-disclosure">
-            <div className="workspace-git-checks-disclosure-header" data-testid="workspace-checks-disclosure-header">✓ Checks discovered ({discoveredChecks.checks.length})</div>
-            <div className="workspace-git-checks-disclosure-content" data-testid="workspace-checks-disclosure-content">
-              {discoveredChecks.checks.map((c) => (
-                <div key={c.name} className="workspace-git-checks-disclosure-item">
-                  <span className="workspace-git-checks-disclosure-name">{c.name}</span>
-                  <span className="workspace-git-checks-disclosure-desc">{c.description}</span>
-                  <code className="workspace-git-checks-disclosure-path">{c.path}</code>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
+        <div className="workspace-git-checks-section-wrapper">
+          <WorkspaceChecksSection
+            repoPath={repoPath}
+            checkResults={failedCheckResults || checkResults}
+            runningChecks={runningChecks || commitPhase === 'running-checks'}
+            onRunChecks={handleComposerRunChecks}
+          />
+        </div>
       </div>
 
       {/* ================================================================ */}

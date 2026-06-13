@@ -115,14 +115,17 @@ function buildState(repoId, repoPath, runResult, config, ciSyncResult) {
   if (runResult.results && Array.isArray(runResult.results)) {
     for (const r of runResult.results) {
       lanes[r.checkName] = {
-        status: r.passed ? 'PASS' : 'FAIL',
+        status: r.status || (r.passed ? 'PASS' : 'FAIL'),
+        exitCode: typeof r.exitCode === 'number' ? r.exitCode : null,
+        durationMs: typeof r.durationMs === 'number' ? r.durationMs : null,
         details: r.output || r.error || '',
-        score: r.score,
-        group: r.group,
-        blocking: r.blocking,
-        ciWorkflow: r.ciWorkflow,
-        ciJob: r.ciJob,
-        ciRequired: r.ciRequired,
+        score: r.score ?? null,
+        group: r.group || null,
+        blocking: r.blocking !== false,
+        ciWorkflow: r.ciWorkflow || null,
+        ciJob: r.ciJob || null,
+        ciRequired: r.ciRequired === true,
+        commands: Array.isArray(r.commands) ? r.commands : [],
       };
     }
   }
@@ -205,7 +208,7 @@ function checkFreshness(repoId, repoPath, config) {
     return { fresh: false, reason: 'config-changed' };
   }
 
-  return { fresh: true, lastRun: state.lastRun };
+  return { fresh: true, reason: 'fresh', lastRun: state.lastRun };
 }
 
 /**

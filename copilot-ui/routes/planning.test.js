@@ -199,6 +199,74 @@ async function run() {
     assert.deepEqual(body.roadmaps.map((entry) => entry.id), ['RM-path', 'RM-label']);
   });
 
+  await test('planning live goals list filters by selected repo tag', async () => {
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: {
+        async listGoals(input) {
+          assert.equal(input.requestId, 'repo-1');
+          return {
+            goals: [
+              {
+                id: 'GOAL-one',
+                title: 'Goal One',
+                status: 'active',
+                tags: ['repo:repo-1'],
+              },
+              {
+                id: 'GOAL-two',
+                title: 'Goal Two',
+                status: 'finished',
+                tags: ['repo:repo-2'],
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, 'GET', '/api/planning/live/goals?repoId=repo-1&repoLabel=Repo%201', {});
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.contractVersion, PLANNING_API_CONTRACT_VERSION);
+    assert.equal(body.kind, 'planning.live.goals');
+    assert.equal(body.count, 1);
+    assert.deepEqual(body.goals.map((entry) => entry.id), ['GOAL-one']);
+  });
+
+  await test('planning live goals list includes unscoped goals by default and can exclude them', async () => {
+    const bridge = {
+      async listGoals() {
+        return {
+          goals: [
+            { id: 'GOAL-unscoped', title: 'Unscoped Goal', tags: [] },
+            { id: 'GOAL-other', title: 'Other Goal', tags: ['repo:other'] },
+          ],
+        };
+      },
+    };
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: bridge,
+    });
+
+    const included = await invoke(routes, 'GET', '/api/planning/live/goals?repoId=repo-1', {});
+    assert.equal(included.res.statusCode, 200);
+    assert.deepEqual(included.body.goals.map((entry) => entry.id), ['GOAL-unscoped']);
+
+    const excluded = await invoke(routes, 'GET', '/api/planning/live/goals?repoId=repo-1&includeUnscoped=false', {});
+    assert.equal(excluded.res.statusCode, 200);
+    assert.deepEqual(excluded.body.goals.map((entry) => entry.id), []);
+  });
+
   await test('planning live roadmap detail rejects repo scope mismatches', async () => {
     const routes = register({
       PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',

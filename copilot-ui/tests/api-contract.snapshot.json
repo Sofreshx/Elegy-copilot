@@ -81,6 +81,19 @@
       "roadmaps"
     ]
   },
+  "GET /api/planning/live/goals": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "contractVersion",
+      "count",
+      "deterministic",
+      "goals",
+      "kind",
+      "repo"
+    ]
+  },
   "GET /api/planning/live/roadmaps/RM-demo": {
     "status": 404,
     "contentType": "application/json",

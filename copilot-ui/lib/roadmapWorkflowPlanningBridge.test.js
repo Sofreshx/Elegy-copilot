@@ -559,6 +559,48 @@ async function run() {
     assert.equal(scopeCalls.length, 1);
   });
 
+  await test('bridge listGoals runs goal list and returns goals', async () => {
+    const recorded = [];
+    const explicitDbPath = path.join('C:', 'planning', 'elegy-planning.db');
+    const bridge = createRoadmapWorkflowPlanningBridge({
+      enabled: true,
+      elegyHome: path.join('C:', 'copilot'),
+      dbPath: explicitDbPath,
+      cliPath: __filename,
+      fsModule: {
+        existsSync(p) { return p === explicitDbPath; },
+        statSync(p) { return { size: 4096 }; },
+      },
+      childProcess: createExecFileStub(({ command, args, callback }) => {
+        recorded.push({ command, args });
+        const commandKey = getCommandKey(args);
+        if (commandKey === 'goal list') {
+          callback(null, JSON.stringify({
+            status: 'ok',
+            data: {
+              goals: [
+                { id: 'GOAL-one', title: 'Goal One', status: 'active' },
+              ],
+            },
+          }), '');
+          return;
+        }
+        callback(null, JSON.stringify({ status: 'ok', data: {} }), '');
+      }),
+      env: {},
+      processObject: {
+        env: {},
+        platform: 'win32',
+      },
+    });
+
+    const result = await bridge.listGoals({ requestId: 'goal-list-test' });
+
+    assert.deepEqual(result.goals.map((goal) => goal.id), ['GOAL-one']);
+    assert.equal(recorded.length, 1);
+    assert.equal(getCommandKey(recorded[0].args), 'goal list');
+  });
+
   await test('bridge listPlans with repoLabel de-dupes by scopeKey and id', async () => {
     const recorded = [];
     const explicitDbPath = path.join('C:', 'planning', 'elegy-planning.db');

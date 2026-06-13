@@ -11,6 +11,7 @@ import type {
   PlanningCreateResponse,
   PlanningLiveGoal,
   PlanningLiveGoalResponse,
+  PlanningLiveGoalsResponse,
   PlanningLivePlanResponse,
   PlanningLivePlansResponse,
   PlanningLivePlanSummary,
@@ -76,6 +77,10 @@ import type {
 } from './core';
 
 export interface PlanningLiveRoadmapsQuery extends PlanningRepoDocRefOptions {
+  includeUnscoped?: boolean;
+}
+
+export interface PlanningLiveGoalsQuery extends PlanningRepoDocRefOptions {
   includeUnscoped?: boolean;
 }
 
@@ -331,6 +336,21 @@ function normalizePlanningLiveRoadmapsResponse(payload: unknown): PlanningLiveRo
   };
 }
 
+function normalizePlanningLiveGoalsResponse(payload: unknown): PlanningLiveGoalsResponse {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningLiveRepoSummary(record.repo),
+    count: asNumber(record.count, 0),
+    goals: asArray(record.goals)
+      .map((entry) => normalizePlanningLiveGoal(entry))
+      .filter((entry): entry is PlanningLiveGoal => entry !== null),
+  };
+}
+
 function normalizePlanningLiveRoadmapResponse(payload: unknown): PlanningLiveRoadmapResponse {
   const record = asRecord(payload);
   return {
@@ -569,6 +589,23 @@ export async function listPlanningLiveRoadmaps(
   });
 
   return normalizePlanningLiveRoadmapsResponse(payload);
+}
+
+export async function listPlanningLiveGoals(
+  query: PlanningLiveGoalsQuery = {},
+  baseUrl?: string,
+): Promise<PlanningLiveGoalsResponse> {
+  const payload = await apiRequest<unknown>('/api/planning/live/goals', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+      includeUnscoped: query.includeUnscoped === false ? 'false' : 'true',
+    },
+  });
+
+  return normalizePlanningLiveGoalsResponse(payload);
 }
 
 export async function getPlanningLiveAuthorityStatus(

@@ -97,6 +97,54 @@
       "ciJob": "docs-check-v2",
       "ciRequired": true,
       "commands": ["cargo run -p elegy-documentation -- check --project .."]
+    },
+    "package-boundaries": {
+      "enabled": true,
+      "group": "push",
+      "description": "Validate package boundary policy rules",
+      "cwd": ".",
+      "timeoutMs": 60000,
+      "blocking": true,
+      "ciWorkflow": "rust-ci.yml",
+      "ciJob": "package-boundaries",
+      "ciRequired": true,
+      "commands": ["pwsh -NoProfile -NonInteractive -Command \"& ./scripts/validate-package-boundaries.ps1 -RepoRoot .\""]
+    },
+    "canonical-outputs": {
+      "enabled": true,
+      "group": "ci",
+      "description": "Validate canonical output integrity",
+      "cwd": ".",
+      "timeoutMs": 60000,
+      "blocking": true,
+      "ciWorkflow": "rust-ci.yml",
+      "ciJob": "canonical-outputs",
+      "ciRequired": true,
+      "commands": ["pwsh -NoProfile -NonInteractive -Command \"& ./scripts/validate-canonical-outputs.ps1 -RepoRoot .\""]
+    },
+    "git-hooks-pre-commit": {
+      "enabled": true,
+      "group": "commit",
+      "description": "Pre-commit hook (registry-alignment)",
+      "cwd": ".",
+      "timeoutMs": 60000,
+      "blocking": false,
+      "ciWorkflow": "",
+      "ciJob": "",
+      "ciRequired": false,
+      "commands": ["bash .githooks/pre-commit"]
+    },
+    "git-hooks-pre-push": {
+      "enabled": true,
+      "group": "push",
+      "description": "Pre-push hook (registry-alignment + Rust fmt + clippy)",
+      "cwd": ".",
+      "timeoutMs": 120000,
+      "blocking": false,
+      "ciWorkflow": "",
+      "ciJob": "",
+      "ciRequired": false,
+      "commands": ["bash .githooks/pre-push"]
     }
   }
 }

@@ -9,6 +9,8 @@ vi.mock('../ui/src/lib/api/git', () => ({
   pullGit: vi.fn(),
   checkoutGitBranch: vi.fn(),
   discoverGitChecks: vi.fn(),
+  getGitCheckState: vi.fn(),
+  getGitCiSync: vi.fn(),
   runGitChecks: vi.fn(),
   commitGit: vi.fn(),
   pushGit: vi.fn(),
@@ -146,6 +148,7 @@ const defaultProps = {
   onSetCommitMessage: vi.fn(),
   onSetPullRequestTitle: vi.fn(),
   onSetPullRequestBody: vi.fn(),
+  onRefreshGitState: vi.fn(),
 };
 
 // ─── Module references for mock control ──────────────────────────────────────
@@ -170,9 +173,26 @@ describe('WorkspaceGitTab', () => {
       checksAvailable: 2,
       source: 'legacy',
       checks: [
-        { name: 'lint', path: 'npm run lint', description: 'Run linter' },
-        { name: 'test', path: 'npm test', description: 'Run tests' },
+        { name: 'lint', path: 'npm run lint', description: 'Run linter', source: 'legacy' },
+        { name: 'test', path: 'npm test', description: 'Run tests', source: 'legacy' },
       ],
+    });
+    vi.mocked(gitApi.getGitCheckState).mockResolvedValue({
+      repoId: 'repo-1',
+      repoPath: '/test/repo',
+      hasState: false,
+      lastRun: null,
+      freshness: { fresh: false, reason: 'no-state' },
+      history: [],
+    });
+    vi.mocked(gitApi.getGitCiSync).mockResolvedValue({
+      repoRoot: '/test/repo',
+      config: null,
+      ciWorkflows: { workflows: [], unknown: [] },
+      syncResult: {
+        mappings: [],
+        summary: { totalCiJobs: 0, mapped: 0, gaps: 0, readiness: 'no-ci' },
+      },
     });
     vi.mocked(gitApi.runGitChecks).mockResolvedValue({
       repoRoot: '/test/repo',
@@ -478,28 +498,24 @@ describe('WorkspaceGitTab', () => {
     expect(removeDirty).toBeDisabled();
   });
 
-  // ─── Test 7: Checks disclosure lists discovered checks ─────────────────────
+  // ─── Test 7: Compact checks card lists configured lanes ───────────────────
 
-  it('checks disclosure lists discovered checks', async () => {
+  it('compact checks card lists configured lanes', async () => {
     render(<WorkspaceGitTab {...defaultProps} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('workspace-checks-disclosure')).toBeInTheDocument();
+      expect(screen.getByTestId('workspace-checks-section')).toBeInTheDocument();
     });
 
-    // Header shows the count
-    expect(screen.getByTestId('workspace-checks-disclosure-header')).toHaveTextContent('✓ Checks discovered (2)');
+    expect(screen.getByTestId('workspace-checks-result')).toHaveTextContent('2 checks configured');
+    expect(screen.queryByTestId('workspace-checks-disclosure')).not.toBeInTheDocument();
 
-    // Content is visible immediately (no need to click)
-    expect(screen.getByTestId('workspace-checks-disclosure-content')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('workspace-checks-card-toggle'));
 
-    // Check names, descriptions, and paths are shown
-    expect(screen.getByText('lint')).toBeInTheDocument();
-    expect(screen.getByText('Run linter')).toBeInTheDocument();
-    expect(screen.getByText('npm run lint')).toBeInTheDocument();
-    expect(screen.getByText('test')).toBeInTheDocument();
-    expect(screen.getByText('Run tests')).toBeInTheDocument();
-    expect(screen.getByText('npm test')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-checks-lane-lint')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('workspace-checks-lane-test')).toBeInTheDocument();
   });
 
   // ─── Test 8: Verify & Commit runs checks and commits on pass ───────────────
@@ -542,8 +558,8 @@ describe('WorkspaceGitTab', () => {
       checksFailed: 2,
       allPassed: false,
       results: [
-        { checkName: 'lint', passed: false, error: 'lint errors', output: 'failed' },
-        { checkName: 'test', passed: false, error: 'test failures', output: 'failed' },
+        { checkName: 'lint', status: 'FAIL', passed: false, error: 'lint errors', output: 'failed', commands: [{ command: 'npm run lint', exitCode: 1, success: false, durationMs: 10 }] },
+        { checkName: 'test', status: 'FAIL', passed: false, error: 'test failures', output: 'failed', commands: [{ command: 'npm test', exitCode: 1, success: false, durationMs: 10 }] },
       ],
       message: '2 checks failed.',
       source: 'legacy' as const,
@@ -573,6 +589,8 @@ describe('WorkspaceGitTab', () => {
     await waitFor(() => {
       expect(screen.getByTestId('workspace-force-commit-btn')).toBeInTheDocument();
     });
+    expect(screen.getByTestId('workspace-checks-failure-summary')).toHaveTextContent('lint');
+    expect(screen.getByTestId('workspace-checks-failure-summary')).toHaveTextContent('test');
   });
 
   // ─── Test 10: force commit requires override reason ─────────────────────────
@@ -583,7 +601,7 @@ describe('WorkspaceGitTab', () => {
       checkedAt: new Date().toISOString(),
       checksAvailable: 2, checksRun: 2, checksPassed: 0, checksFailed: 2,
       allPassed: false,
-      results: [{ checkName: 'lint', passed: false, error: 'lint errors', output: 'failed' }],
+      results: [{ checkName: 'lint', status: 'FAIL', passed: false, error: 'lint errors', output: 'failed' }],
       message: '1 check failed.',
       source: 'legacy' as const,
     });
@@ -662,7 +680,45 @@ describe('WorkspaceGitTab', () => {
     expect(screen.getByTestId('workspace-stash-drop-0')).toBeInTheDocument();
   });
 
-  // ─── Test 12: worktree row states show computed chips ──────────────────────
+  // ─── Test 12: refresh button calls onRefreshGitState ─────────────────────
+
+  it('refresh button calls onRefreshGitState', async () => {
+    const onRefreshGitState = vi.fn();
+    render(<WorkspaceGitTab {...defaultProps} onRefreshGitState={onRefreshGitState} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-summary-refresh')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('workspace-summary-refresh'));
+
+    expect(onRefreshGitState).toHaveBeenCalledTimes(1);
+  });
+
+  // ─── Test 13: stash divider shows explanatory label ───────────────────────
+
+  it('stash divider shows explanatory label', async () => {
+    vi.mocked(gitApi.listStashes).mockResolvedValue({
+      repoPath: '/test/repo',
+      count: 1,
+      stashes: [
+        { index: 0, ref: 'stash@{0}', hash: 'abc1234', message: 'WIP on main' },
+      ],
+    });
+
+    render(<WorkspaceGitTab {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-git-stash-area')).toBeInTheDocument();
+    });
+
+    const divider = screen.getByTestId('workspace-git-stash-divider');
+    expect(divider).toBeInTheDocument();
+    expect(divider.textContent).toContain('Stashed work');
+    expect(divider.textContent).toContain('not staged for commit');
+  });
+
+  // ─── Test 14: worktree row states show computed chips ──────────────────────
 
   it('worktree row states show computed chips', async () => {
     const wt = baseWorktreeRecord({ worktreeId: 'wt-dirty', branch: 'feature/dirty', path: '/repo-worktrees/wt-dirty',

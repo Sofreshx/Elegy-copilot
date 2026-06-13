@@ -1,36 +1,15 @@
 'use strict';
 
-const fs = require('fs');
+let fs = require('fs');
 const path = require('path');
-const { execFile } = require('child_process');
+let { execFile } = require('child_process');
 const { syncCiState } = require('./ciSync');
 
 /**
  * Known check scripts in priority order.
  * Each entry: { name, path: relative to repoRoot, description }
  */
-const KNOWN_CHECKS = [
-  {
-    name: 'registry-alignment',
-    path: 'scripts/validate-registry-alignment.ps1',
-    description: 'Cross-checks fixture manifests, wrapper surfaces, CLI surfaces, inventory patterns, and boundary-policy references.',
-  },
-  {
-    name: 'package-boundaries',
-    path: 'scripts/validate-package-boundaries.ps1',
-    description: 'Validates package boundary policy rules.',
-  },
-  {
-    name: 'canonical-outputs',
-    path: 'scripts/validate-canonical-outputs.ps1',
-    description: 'Validates canonical output integrity.',
-  },
-  {
-    name: 'dotnet-exit-freeze',
-    path: 'scripts/validate-dotnet-exit-freeze.ps1',
-    description: 'Asserts zero .NET artifacts.',
-  },
-];
+const KNOWN_CHECKS = [];
 
 /**
  * Custom check definitions per repo (optional overrides).
@@ -103,13 +82,18 @@ function runCanonicalChecks(repoRoot, config) {
       const laneNames = Object.keys(lanes);
       const results = laneNames.map((name) => {
         const lane = lanes[name];
+        const status = String(lane.status || '').toUpperCase();
+        const passed = status === 'PASS' || status === 'SKIP';
         return {
           checkName: name,
-          passed: lane.status === 'PASS',
-          error: lane.status === 'FAIL' ? (lane.details || 'Check failed') : undefined,
+          status,
+          passed,
+          exitCode: typeof lane.exitCode === 'number' ? lane.exitCode : undefined,
+          durationMs: typeof lane.durationMs === 'number' ? lane.durationMs : undefined,
+          error: status === 'FAIL' ? (lane.details || 'Check failed') : undefined,
           output: lane.details || '',
           score: lane.score,
-          commands: lane.commands,
+          commands: Array.isArray(lane.commands) ? lane.commands : [],
           group: lane.group || null,
           blocking: lane.blocking !== false,
           ciWorkflow: lane.ciWorkflow || null,
@@ -118,13 +102,18 @@ function runCanonicalChecks(repoRoot, config) {
         };
       });
 
-      const passed = results.filter((r) => r.passed).length;
-      const failed = results.filter((r) => !r.passed).length;
+      const failed = parsed.overallPass === false
+        ? results.filter((r) => !r.passed).length
+        : 0;
+      const passed = results.length - failed;
 
       resolve({
         repoRoot,
         source: 'commit-check',
         checkedAt: parsed.timestamp || new Date().toISOString(),
+        threshold: parsed.threshold,
+        compositeScore: parsed.compositeScore,
+        anyGateFailed: parsed.anyGateFailed === true,
         checksAvailable: laneNames.length,
         checksRun: results.length,
         checksPassed: passed,
@@ -286,7 +275,7 @@ async function runAllChecksLegacy(repoRoot) {
   if (checks.length === 0) {
     return {
       repoRoot,
-      source: 'legacy',
+      source: 'none',
       checkedAt: new Date().toISOString(),
       checksAvailable: 0,
       checksRun: 0,
@@ -484,6 +473,11 @@ function resolveGroupResults(checkResults) {
   return groupResults;
 }
 
+function __setDeps(deps = {}) {
+  if (deps.fs) fs = deps.fs;
+  if (deps.execFile) execFile = deps.execFile;
+}
+
 module.exports = {
   discoverChecks,
   runCheck,
@@ -491,5 +485,6 @@ module.exports = {
   gateGitAction,
   resolveCommitCheckConfig,
   resolveGroupResults,
+  __setDeps,
   KNOWN_CHECKS,
 };

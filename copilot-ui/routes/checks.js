@@ -34,10 +34,16 @@ function handleChecksDiscover(ctx, deps) {
       repoPath,
       checksAvailable: checks.length,
       source,
+      groups: checks.groups || {},
       checks: checks.map((c) => ({
         name: c.name,
         path: c.path,
         description: c.description,
+        group: c.group || null,
+        blocking: c.blocking !== false,
+        ciWorkflow: c.ciWorkflow || null,
+        ciJob: c.ciJob || null,
+        ciRequired: c.ciRequired === true,
         source: c.source || 'none',
       })),
     });

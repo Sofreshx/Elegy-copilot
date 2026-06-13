@@ -20,6 +20,14 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, 'ui-dist'),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          mermaid: ['mermaid'],
+        },
+      },
+    },
   },
   test: {
     globals: true,

@@ -75,9 +75,9 @@ function registerWithMocks({ body = {} } = {}) {
 async function run() {
   console.log('\nChecks Route Tests\n');
 
-  await test('register returns 2 route descriptors', async () => {
+  await test('register returns 4 route descriptors', async () => {
     const routes = registerWithMocks();
-    assert.equal(routes.length, 2);
+    assert.equal(routes.length, 4);
   });
 
   await test('GET /api/git/checks/discover requires repoPath', async () => {
@@ -110,6 +110,27 @@ async function run() {
     assert.equal(typeof body.allPassed, 'boolean');
     assert.equal(typeof body.checksRun, 'number');
     assert.ok(Array.isArray(body.results));
+  });
+
+  await test('GET /api/git/checks/state returns persisted state envelope', async () => {
+    const routes = registerWithMocks();
+    const testRepo = path.resolve(__dirname, '..');
+    const { res, body } = await invoke(routes, 'GET', `/api/git/checks/state?repoPath=${encodeURIComponent(testRepo)}`);
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.repoPath, testRepo);
+    assert.equal(typeof body.hasState, 'boolean');
+    assert.equal(typeof body.freshness.reason, 'string');
+  });
+
+  await test('GET /api/git/checks/ci-sync returns CI mapping summary', async () => {
+    const routes = registerWithMocks();
+    const testRepo = path.resolve(__dirname, '..', '..');
+    const { res, body } = await invoke(routes, 'GET', `/api/git/checks/ci-sync?repoPath=${encodeURIComponent(testRepo)}`);
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.repoRoot, testRepo);
+    assert.ok(body.syncResult);
+    assert.equal(typeof body.syncResult.summary.gaps, 'number');
+    assert.ok(Array.isArray(body.syncResult.mappings));
   });
 
   console.log(`\n  ${passed} tests passed\n`);

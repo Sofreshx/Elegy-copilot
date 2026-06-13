@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import DOMPurify from 'dompurify';
-import mermaid from 'mermaid';
 import CopyButton from './CopyButton';
 
 interface MarkdownMessageProps {
@@ -355,19 +354,17 @@ function markdownToHtml(source: string): { html: string; codeBlocks: CodeBlock[]
 function MermaidBlock({ code, blockId }: { code: string; blockId: string }) {
   const [svg, setSvg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const initialized = useRef(false);
 
   useEffect(() => {
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: 'strict',
-      theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
-    });
-    initialized.current = true;
-
     let cancelled = false;
     async function render() {
       try {
+        const mermaid = (await import('mermaid')).default;
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+        });
         const renderId = `mermaid-${blockId}`;
         const result = await mermaid.render(renderId, code);
         if (!cancelled) {

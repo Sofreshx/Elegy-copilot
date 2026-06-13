@@ -192,6 +192,9 @@ export default function WorkspaceView() {
   const handleCommit = useCallback(() => { void gitStore.commit(); }, []);
   const handlePush = useCallback(() => { void gitStore.push(); }, []);
   const handleCreatePR = useCallback(() => { void gitStore.createPullRequest(); }, []);
+  const handleRefreshGitState = useCallback(() => {
+    if (selectedRepoPath) void gitStore.loadStatus(selectedRepoPath);
+  }, [selectedRepoPath]);
 
   // ─── Close menu on outside click ─────────────────────────────────────────
   useEffect(() => {
@@ -292,6 +295,7 @@ export default function WorkspaceView() {
                 onSetCommitMessage={(msg: string) => gitStore.setCommitMessage(msg)}
                 onSetPullRequestTitle={(t: string) => gitStore.setPullRequestTitle(t)}
                 onSetPullRequestBody={(b: string) => gitStore.setPullRequestBody(b)}
+                onRefreshGitState={handleRefreshGitState}
               />
             )}
             {navState.activeWorkspaceLocalTab === 'planning' && (

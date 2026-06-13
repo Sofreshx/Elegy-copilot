@@ -267,6 +267,16 @@ export interface PlanningLiveRoadmapsResponse {
   [key: string]: unknown;
 }
 
+export interface PlanningLiveGoalsResponse {
+  contractVersion?: string | null;
+  kind?: string | null;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  count: number;
+  goals: PlanningLiveGoal[];
+  [key: string]: unknown;
+}
+
 export interface PlanningLiveRoadmapResponse {
   contractVersion?: string | null;
   kind?: string | null;

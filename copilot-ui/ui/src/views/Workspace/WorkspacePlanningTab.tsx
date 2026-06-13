@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '../../components';
 import {
-  listPlanningLiveRoadmaps,
-  getPlanningLiveGoal,
   getPlanningLiveAuthorityStatus,
+  getPlanningSession,
+  listPlanningLiveGoals,
+  listPlanningLiveRoadmaps,
 } from '../../lib/api/planning';
+import type { PlanningSessionResponse } from '../../lib/api/planning';
 import type {
   PlanningLiveGoal,
   PlanningLiveRoadmapSummary,
@@ -22,11 +24,73 @@ function formatRefreshTime(date: Date): string {
   return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+function formatTimestamp(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const ts = Date.parse(value);
+  if (!Number.isFinite(ts)) return value;
+  return new Date(ts).toLocaleString();
+}
+
+function readString(record: Record<string, unknown> | null | undefined, keys: string[]): string | null {
+  if (!record) return null;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function PlanningSessionStrip({ session }: { session: PlanningSessionResponse | null }) {
+  if (!session) return null;
+  const sidecar = session.sidecar && typeof session.sidecar === 'object'
+    ? session.sidecar as Record<string, unknown>
+    : null;
+
+  const fields: Array<{ label: string; value: string | null }> = [
+    { label: 'Scope', value: readString(sidecar, ['scope', 'scopeKey']) },
+    { label: 'Session', value: readString(sidecar, ['sessionId', 'id', 'planningSessionId']) },
+    { label: 'Goal', value: readString(sidecar, ['activeGoalId', 'currentGoalId', 'goalId']) },
+    { label: 'Roadmap', value: readString(sidecar, ['activeRoadmapId', 'currentRoadmapId', 'roadmapId']) },
+    { label: 'Plan', value: readString(sidecar, ['activePlanId', 'currentPlanId', 'planId']) },
+    { label: 'Created', value: formatTimestamp(readString(sidecar, ['createdAt', 'created_at'])) },
+    { label: 'Updated', value: formatTimestamp(readString(sidecar, ['updatedAt', 'updated_at'])) },
+  ].filter((entry) => entry.value);
+
+  const tags = Array.isArray(sidecar?.tags)
+    ? sidecar.tags.map((tag) => typeof tag === 'string' ? tag.trim() : '').filter(Boolean)
+    : [];
+
+  return (
+    <div className="workspace-planning-session-strip" data-testid="workspace-planning-session-strip">
+      <span className={`workspace-planning-session-state${session.exists ? ' workspace-planning-session-state--ready' : ''}`}>
+        {session.exists ? 'Session sidecar' : 'Session path'}
+      </span>
+      {fields.map((field) => (
+        <span key={field.label} className="workspace-planning-session-field">
+          <span>{field.label}</span>
+          <strong>{field.value}</strong>
+        </span>
+      ))}
+      {tags.length > 0 && (
+        <span className="workspace-planning-session-tags">
+          {tags.map((tag) => <span key={tag} className="planning-chip">{tag}</span>)}
+        </span>
+      )}
+      {session.sidecarPath && (
+        <span className="workspace-planning-session-path" title={session.sidecarPath}>
+          {session.sidecarPath}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function WorkspacePlanningTab({ repoPath, repoId, repoLabel }: WorkspacePlanningTabProps) {
   const [roadmaps, setRoadmaps] = useState<PlanningLiveRoadmapSummary[]>([]);
-  const [goals, setGoals] = useState<Map<string, PlanningLiveGoal>>(new Map());
+  const [goals, setGoals] = useState<PlanningLiveGoal[]>([]);
+  const [session, setSession] = useState<PlanningSessionResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [selectedRoadmapId, setSelectedRoadmapId] = useState<string | null>(null);
+  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -40,54 +104,40 @@ export default function WorkspacePlanningTab({ repoPath, repoId, repoLabel }: Wo
     repoLabel: repoLabel || undefined,
   };
 
-  // ── Fetch roadmaps and goals ──
   const fetchList = useCallback(async () => {
     try {
       setLoading(true);
       setFetchError(null);
 
-      const roadmapsResult = await listPlanningLiveRoadmaps({
-        ...repoQuery,
-        includeUnscoped: true,
-      });
-      const fetchedRoadmaps = roadmapsResult.roadmaps || [];
+      const [goalsResult, roadmapsResult, sessionResult] = await Promise.allSettled([
+        listPlanningLiveGoals({ ...repoQuery, includeUnscoped: true }),
+        listPlanningLiveRoadmaps({ ...repoQuery, includeUnscoped: true }),
+        getPlanningSession(),
+      ]);
 
-      // Fetch goals for all unique goalIds
-      const goalIds = new Set<string>();
-      for (const r of fetchedRoadmaps) {
-        if (r.goalId) goalIds.add(r.goalId);
-      }
+      const fetchedGoals = goalsResult.status === 'fulfilled' ? goalsResult.value.goals || [] : [];
+      const fetchedRoadmaps = roadmapsResult.status === 'fulfilled' ? roadmapsResult.value.roadmaps || [] : [];
 
-      const goalMap = new Map<string, PlanningLiveGoal>();
-      const goalPromises = Array.from(goalIds).map(async (goalId) => {
-        try {
-          const goalResult = await getPlanningLiveGoal(goalId, repoQuery);
-          if (goalResult.goal) {
-            goalMap.set(goalId, goalResult.goal);
-          }
-        } catch {
-          // Individual goal fetch failure is non-fatal
-        }
-      });
-      await Promise.allSettled(goalPromises);
-
+      setGoals(fetchedGoals);
       setRoadmaps(fetchedRoadmaps);
-      setGoals(goalMap);
+      setSession(sessionResult.status === 'fulfilled' ? sessionResult.value : null);
       setLastRefreshed(new Date());
 
-      // Diagnostic: if empty and repoLabel set
-      if (fetchedRoadmaps.length === 0 && repoLabel) {
+      if (goalsResult.status === 'rejected' && roadmapsResult.status === 'rejected') {
+        throw goalsResult.reason;
+      }
+
+      if (fetchedGoals.length === 0 && fetchedRoadmaps.length === 0 && repoLabel) {
         try {
           const authorityStatus = await getPlanningLiveAuthorityStatus();
           if (authorityStatus.dbResolution) {
             const selectedSource = authorityStatus.dbResolution.source;
             const populatedCandidates = authorityStatus.dbResolution.candidates.filter(
-              (c: any) => c.populated && c.path !== authorityStatus.dbPath,
+              (c) => c.populated && c.path !== authorityStatus.dbPath,
             );
             if (populatedCandidates.length > 0) {
-              const otherDb = populatedCandidates[0].path;
               setDbDiagnosticMessage(
-                `Planning authority is using ${authorityStatus.dbPath || 'unknown DB'} (${selectedSource || 'unknown source'}). A populated database exists at ${otherDb} with planning scopes.`,
+                `Planning authority is using ${authorityStatus.dbPath || 'unknown DB'} (${selectedSource || 'unknown source'}). A populated database exists at ${populatedCandidates[0].path} with planning scopes.`,
               );
             }
           }
@@ -105,29 +155,25 @@ export default function WorkspacePlanningTab({ repoPath, repoId, repoLabel }: Wo
     }
   }, [repoPath, repoId, repoLabel]);
 
-  // ── Initial fetch ──
   useEffect(() => {
     void fetchList();
   }, [fetchList]);
 
-  // ── Default selection: prefer active roadmap, otherwise newest ──
   useEffect(() => {
-    if (!selectedRoadmapId || !roadmaps.find((r) => r.id === selectedRoadmapId)) {
-      const activeRoadmap = roadmaps.find((r) => r.status?.toLowerCase() === 'active');
-      const newestRoadmap = [...roadmaps].sort((a, b) => {
+    if (!selectedGoalId || !goals.find((goal) => goal.id === selectedGoalId)) {
+      const activeGoal = goals.find((goal) => goal.status?.toLowerCase() === 'active');
+      const newestGoal = [...goals].sort((a, b) => {
         const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
         const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
         return bTime - aTime;
       })[0];
-
-      const defaultSelection = activeRoadmap || newestRoadmap || null;
-      if (defaultSelection && defaultSelection.id !== selectedRoadmapId) {
-        setSelectedRoadmapId(defaultSelection.id);
+      const defaultSelection = activeGoal || newestGoal || null;
+      if (defaultSelection && defaultSelection.id !== selectedGoalId) {
+        setSelectedGoalId(defaultSelection.id);
       }
     }
-  }, [roadmaps, selectedRoadmapId]);
+  }, [goals, selectedGoalId]);
 
-  // ── Auto-refresh polling ──
   useEffect(() => {
     if (pollRef.current) {
       clearInterval(pollRef.current);
@@ -148,42 +194,21 @@ export default function WorkspacePlanningTab({ repoPath, repoId, repoLabel }: Wo
     };
   }, [autoRefresh, fetchList]);
 
-  // ── Handle manual refresh ──
   function handleRefresh() {
     void fetchList();
   }
 
-  // ── Handle roadmap selection ──
-  function handleSelectRoadmap(roadmapId: string) {
-    setSelectedRoadmapId(roadmapId);
-  }
-
-  // ── Handle back from graph view ──
-  function handleBackFromGraph() {
-    setSelectedRoadmapId(null);
-  }
-
-  // ── Handle refresh from graph ──
   function handleGraphRefreshNeeded() {
     setLastRefreshed(new Date());
   }
 
-  // ── Get selected roadmap info for chips ──
-  const selectedRoadmap = roadmaps.find((r) => r.id === selectedRoadmapId) || null;
-  const selectedGoal = selectedRoadmap?.goalId ? goals.get(selectedRoadmap.goalId) || null : null;
-  const selectedScopeKey = selectedRoadmap?.scopeKey ?? undefined;
+  const selectedGoal = goals.find((goal) => goal.id === selectedGoalId) || null;
 
   return (
     <div className="workspace-planning-tab" data-testid="workspace-planning-tab">
-      {/* ── Toolbar ── */}
       <div className="workspace-planning-toolbar" data-testid="workspace-planning-toolbar">
         <div className="workspace-planning-toolbar-left">
-          <Button
-            onClick={handleRefresh}
-            testId="workspace-planning-refresh"
-            variant="secondary"
-            size="sm"
-          >
+          <Button onClick={handleRefresh} testId="workspace-planning-refresh" variant="secondary" size="sm">
             Refresh
           </Button>
           <label className="workspace-planning-autorefresh-label">
@@ -202,69 +227,51 @@ export default function WorkspacePlanningTab({ repoPath, repoId, repoLabel }: Wo
           )}
         </div>
         <div className="workspace-planning-toolbar-right">
-          {/* Breadcrumb chips */}
-          {selectedScopeKey && (
-            <span className="workspace-planning-chip workspace-planning-chip--scope">
-              {selectedScopeKey.includes('/') || selectedScopeKey.includes('\\')
-                ? selectedScopeKey.split(/[/\\]/).filter(Boolean).pop() || selectedScopeKey
-                : selectedScopeKey}
-            </span>
-          )}
           {selectedGoal && (
             <span className="workspace-planning-chip workspace-planning-chip--goal">
               {selectedGoal.title || selectedGoal.id}
             </span>
           )}
-          {selectedRoadmap && (
-            <span className="workspace-planning-chip workspace-planning-chip--roadmap">
-              {selectedRoadmap.title || selectedRoadmap.id}
-            </span>
-          )}
         </div>
       </div>
 
-      {/* ── Error banner ── */}
       {fetchError && (
         <div className="workspace-planning-error" data-testid="workspace-planning-error">
           {fetchError}
         </div>
       )}
 
-      {/* ── Diagnostic message ── */}
-      {dbDiagnosticMessage && !loading && roadmaps.length === 0 && (
+      {dbDiagnosticMessage && !loading && goals.length === 0 && roadmaps.length === 0 && (
         <div className="workspace-planning-diagnostic" data-testid="workspace-planning-diagnostic">
           {dbDiagnosticMessage}
         </div>
       )}
 
-      {/* ── Two-column layout ── */}
+      <PlanningSessionStrip session={session} />
+
       <div className="workspace-planning-page" data-testid="workspace-planning-page">
-        {/* Left: Tree */}
         <div className="workspace-planning-tree-column" data-testid="workspace-planning-tree-column">
           <WorkspacePlanningTree
             roadmaps={roadmaps}
             goals={goals}
-            selectedRoadmapId={selectedRoadmapId}
-            onSelectRoadmap={handleSelectRoadmap}
+            selectedGoalId={selectedGoalId}
+            onSelectGoal={setSelectedGoalId}
             loading={loading}
           />
         </div>
 
-        {/* Right: Graph or empty state */}
         <div className="workspace-planning-graph-column" data-testid="workspace-planning-graph-column">
-          {selectedRoadmapId ? (
+          {selectedGoalId ? (
             <PlanningGraphView
-              key={selectedRoadmapId}
-              roadmapId={selectedRoadmapId}
+              key={selectedGoalId}
+              goalId={selectedGoalId}
               repoQuery={repoQuery}
-              onBack={handleBackFromGraph}
+              onBack={() => setSelectedGoalId(null)}
               onRefreshNeeded={handleGraphRefreshNeeded}
             />
           ) : (
             <div className="workspace-planning-empty-select" data-testid="workspace-planning-empty-select">
-              <span className="state-message">
-                Select a roadmap from the tree to view its planning graph.
-              </span>
+              <span className="state-message">Select a goal to view its planning graph.</span>
             </div>
           )}
         </div>

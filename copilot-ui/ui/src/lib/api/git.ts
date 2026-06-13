@@ -113,20 +113,35 @@ export async function unstageGitFiles(repoPath: string, files?: string[], baseUr
 
 export interface GitCheckResult {
   checkName: string;
+  status?: 'PASS' | 'FAIL' | 'SKIP' | string;
   passed: boolean;
+  exitCode?: number | null;
+  durationMs?: number | null;
   error?: string;
   output?: string;
+  score?: number | null;
+  group?: string | null;
+  blocking?: boolean;
+  ciWorkflow?: string | null;
+  ciJob?: string | null;
+  ciRequired?: boolean;
+  commands?: Array<{ command: string; exitCode: number; success: boolean; durationMs: number }>;
 }
 
 export interface GitCheckResults {
   repoRoot: string;
   source: 'commit-check' | 'legacy' | 'none';
   checkedAt: string;
+  threshold?: number;
+  compositeScore?: number | null;
+  anyGateFailed?: boolean;
   checksAvailable: number;
   checksRun: number;
   checksPassed: number;
   checksFailed: number;
   allPassed: boolean;
+  groups?: Record<string, { description: string }>;
+  groupResults?: Record<string, { passedLanes: string[]; failedLanes: string[]; allPassed: boolean }>;
   results: GitCheckResult[];
   message: string;
 }
@@ -220,7 +235,18 @@ export interface GitChecksDiscoverResponse {
   repoPath: string;
   checksAvailable: number;
   source: 'commit-check' | 'legacy' | 'none';
-  checks: Array<{ name: string; path: string; description: string; source: 'commit-check' | 'legacy' | 'none' }>;
+  groups?: Record<string, { description: string }>;
+  checks: Array<{
+    name: string;
+    path: string;
+    description: string;
+    source: 'commit-check' | 'legacy' | 'none';
+    group?: string | null;
+    blocking?: boolean;
+    ciWorkflow?: string | null;
+    ciJob?: string | null;
+    ciRequired?: boolean;
+  }>;
 }
 
 export async function discoverGitChecks(repoPath: string, baseUrl?: string): Promise<GitChecksDiscoverResponse> {

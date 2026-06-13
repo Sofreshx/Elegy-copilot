@@ -740,6 +740,26 @@ async function listRoadmapsMultiScope(config, requestId, scopesToQuery) {
   };
 }
 
+async function listGoalsMultiScope(config, requestId, scopesToQuery) {
+  const allGoals = [];
+
+  for (const scopeEntry of scopesToQuery) {
+    const scopedConfig = makeScopedConfig(config, scopeEntry.key);
+    try {
+      const result = await listGoals(scopedConfig, requestId);
+      for (const goal of result.goals) {
+        allGoals.push({ ...goal, _scopeKey: scopeEntry.key });
+      }
+    } catch (_err) {
+      // Skip scopes that fail; continue with remaining
+    }
+  }
+
+  return {
+    goals: dedupeEntitiesByScope(allGoals),
+  };
+}
+
 async function listPlansMultiScope(config, requestId, scopesToQuery) {
   const allPlans = [];
 
@@ -819,6 +839,20 @@ async function listRoadmaps(config, requestId) {
     parsed: result.parsed,
     roadmaps: Array.isArray(extractMachineData(result.parsed).roadmaps)
       ? extractMachineData(result.parsed).roadmaps
+      : [],
+  };
+}
+
+async function listGoals(config, requestId) {
+  const result = await runMachineCommand(config, requestId, ['goal', 'list']);
+  if (normalizeMachineStatus(result.parsed) !== 'ok') {
+    throw buildCommandFailure(result.parsed, result.commandArgs);
+  }
+
+  return {
+    parsed: result.parsed,
+    goals: Array.isArray(extractMachineData(result.parsed).goals)
+      ? extractMachineData(result.parsed).goals
       : [],
   };
 }
@@ -1035,6 +1069,49 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
       return {
         ...planningAuthority,
       };
+    },
+    async listGoals(input = {}) {
+      ensureReadableAuthority({ disabled, configured, config, planningAuthority });
+      const requestId = resolveReadRequestId(input, 'goal-list');
+
+      const repoLabels = Array.isArray(input.repoLabels) && input.repoLabels.length > 0
+        ? input.repoLabels
+        : (normalizeString(input.repoLabel) ? [normalizeString(input.repoLabel)] : []);
+
+      if (repoLabels.length > 0) {
+        try {
+          const scopes = await scopeList(config, requestId);
+          const scopesToQuery = resolveScopeToQuery(config, scope, repoLabels, scopes.scopes);
+          if (scopesToQuery && scopesToQuery.length > 0) {
+            const result = await listGoalsMultiScope(config, requestId, scopesToQuery);
+            if (result.goals.length > 0) {
+              return result;
+            }
+          }
+        } catch (_scopeErr) {
+          // scope list failed; fall through
+        }
+
+        const fallbackCandidates = (dbResolution && dbResolution.candidates || [])
+          .filter((c) => c.populated && c.path !== config.dbPath);
+        for (const candidate of fallbackCandidates) {
+          try {
+            const fallbackConfig = { ...config, dbPath: candidate.path };
+            const scopes = await scopeList(fallbackConfig, requestId);
+            const scopesToQuery = resolveScopeToQuery(fallbackConfig, scope, repoLabels, scopes.scopes);
+            if (scopesToQuery && scopesToQuery.length > 0) {
+              const result = await listGoalsMultiScope(fallbackConfig, requestId, scopesToQuery);
+              if (result.goals.length > 0) {
+                return result;
+              }
+            }
+          } catch (_fallbackErr) {
+            // try next candidate
+          }
+        }
+      }
+
+      return listGoals(config, requestId);
     },
     async listRoadmaps(input = {}) {
       ensureReadableAuthority({ disabled, configured, config, planningAuthority });

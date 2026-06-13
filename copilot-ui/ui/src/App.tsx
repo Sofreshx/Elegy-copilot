@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { Suspense, useCallback, useEffect, lazy } from 'react';
 import AppLayout from './components/AppLayout';
 import Sidebar from './components/Sidebar';
 import ToastContainer from './components/ToastContainer';
@@ -11,15 +11,16 @@ import {
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
 import { runtimeHealthStore } from './stores/runtimeHealthStore';
 import { toolingUpdatesStore } from './stores/toolingUpdatesStore';
-import StandaloneGraphWindow from './tabs/Planning/StandaloneGraphWindow';
-import SessionDetailView from './views/Sessions/SessionDetailView';
-import SettingsView from './views/Settings/SettingsView';
-import LexiconView from './tabs/Lexicon/LexiconView';
-import AssetCreationWizard from './views/Catalog/AssetCreationWizard';
-import AddProjectWizard from './views/Project/AddProjectWizard';
-import WorkspaceView from './views/Workspace/WorkspaceView';
 import WorkspaceFloatingCard from './components/WorkspaceFloatingCard';
-import RepositoriesView from './views/Repositories/RepositoriesView';
+
+const StandaloneGraphWindow = lazy(() => import('./tabs/Planning/StandaloneGraphWindow'));
+const SessionDetailView = lazy(() => import('./views/Sessions/SessionDetailView'));
+const SettingsView = lazy(() => import('./views/Settings/SettingsView'));
+const LexiconView = lazy(() => import('./tabs/Lexicon/LexiconView'));
+const AssetCreationWizard = lazy(() => import('./views/Catalog/AssetCreationWizard'));
+const AddProjectWizard = lazy(() => import('./views/Project/AddProjectWizard'));
+const WorkspaceView = lazy(() => import('./views/Workspace/WorkspaceView'));
+const RepositoriesView = lazy(() => import('./views/Repositories/RepositoriesView'));
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
   const desktopUpdaterState = useStoreValue(desktopUpdaterStore);
@@ -103,7 +104,9 @@ export default function App() {
       return (
         <>
           <ToastContainer />
-          <StandaloneGraphWindow />
+          <Suspense>
+            <StandaloneGraphWindow />
+          </Suspense>
         </>
       );
     }
@@ -122,7 +125,9 @@ export default function App() {
         />
       }
     >
-      {renderContent()}
+      <Suspense>
+        {renderContent()}
+      </Suspense>
       <WorkspaceFloatingCard />
       </AppLayout>
     </>

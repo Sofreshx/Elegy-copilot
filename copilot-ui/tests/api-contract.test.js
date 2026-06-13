@@ -132,6 +132,7 @@ const ROUTE_INVENTORY = [
   // Planning (51)
   { method: 'GET', path: '/api/planning/task-board' },
   { method: 'GET', path: '/api/planning/live/roadmaps' },
+  { method: 'GET', path: '/api/planning/live/goals' },
   { method: 'GET', path: '/api/planning/live/roadmaps/RM-demo' },
   { method: 'GET', path: '/api/planning/live/goals/GOAL-demo' },
   { method: 'GET', path: '/api/planning/live/plans' },
@@ -425,7 +426,7 @@ async function run() {
     }
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 153, `Expected 153 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 154, `Expected 154 routes, got ${ROUTE_INVENTORY.length}`);
   });
   } finally {
     if (runningServer) {
