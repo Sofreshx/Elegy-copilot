@@ -730,18 +730,22 @@
 
 .planning-graph-shell {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   flex: 1;
   min-height: 0;
   height: 100%;
   overflow: hidden;
 }
 
+.planning-graph-shell--with-detail {
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
+}
+
 .planning-graph-canvas {
   position: relative;
-  flex: 1;
   min-width: 0;
-  min-height: 400px;
+  min-height: 0;
   height: 100%;
   overflow: hidden;
   background: var(--color-surface-0);
@@ -749,17 +753,10 @@
 }
 
 .planning-detail-panel--external {
-  position: absolute;
-  top: var(--space-sm);
-  right: var(--space-sm);
-  bottom: var(--space-sm);
-  z-index: 20;
-  width: min(24rem, calc(100% - var(--space-lg)));
+  min-height: 0;
   min-width: 0;
   overflow-y: auto;
-  border: 1px solid var(--color-border-200);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  border-left: 1px solid var(--color-border-200);
   background: var(--color-surface-1);
   padding: var(--space-md);
 }
@@ -2357,6 +2354,7 @@ textarea:focus-visible,
 }
 
 .page-container-fill {
+  max-width: none;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -11960,7 +11958,8 @@ textarea:focus-visible,
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  gap: var(--space-md);
+  gap: var(--space-sm);
+  width: 100%;
 }
 
 /* ── Toolbar ── */
@@ -11970,7 +11969,7 @@ textarea:focus-visible,
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-xs) var(--space-sm);
   background: var(--color-surface-1, #f9fafb);
   border: 1px solid var(--color-border-100, #e5e7eb);
   border-radius: var(--radius-md, 0.5rem);
@@ -12068,10 +12067,11 @@ textarea:focus-visible,
 
 .workspace-planning-page {
   display: grid;
-  grid-template-columns: minmax(18rem, 26rem) minmax(40rem, 1fr);
+  grid-template-columns: minmax(16rem, 24rem) minmax(0, 1fr);
   flex: 1;
   min-height: 0;
-  gap: var(--space-md);
+  gap: var(--space-sm);
+  width: 100%;
 }
 
 .workspace-planning-tree-column {
@@ -12401,8 +12401,14 @@ textarea:focus-visible,
     max-height: 18rem;
   }
 
+  .planning-graph-shell--with-detail {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(24rem, 1fr) auto;
+  }
+
   .planning-detail-panel--external {
-    top: auto;
+    border-left: 0;
+    border-top: 1px solid var(--color-border-200);
     max-height: min(22rem, 70%);
   }
 }

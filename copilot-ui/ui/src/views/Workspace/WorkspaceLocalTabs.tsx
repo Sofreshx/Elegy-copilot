@@ -1,15 +1,16 @@
 import type { WorkspaceLocalTab } from '../../stores/navigation';
 import AppIcon from '../../components/AppIcon';
+import type { AppIconName } from '../../components/AppIcon';
 
 interface WorkspaceLocalTabsProps {
   activeTab: WorkspaceLocalTab;
   onTabChange: (tab: WorkspaceLocalTab) => void;
 }
 
-const TABS: { id: WorkspaceLocalTab; label: string; icon: string }[] = [
+const TABS: { id: WorkspaceLocalTab; label: string; icon: AppIconName }[] = [
   { id: 'docs', label: 'Docs', icon: 'file-text' },
   { id: 'git', label: 'Git', icon: 'git-branch' },
-  { id: 'checks', label: 'Checks', icon: 'check-circle' },
+  { id: 'checks', label: 'Checks', icon: 'check' },
   { id: 'planning', label: 'Planning', icon: 'diamond' },
   { id: 'execution', label: 'Execution', icon: 'play' },
   { id: 'assets', label: 'Assets', icon: 'assets' },
@@ -31,7 +32,7 @@ export default function WorkspaceLocalTabs({ activeTab, onTabChange }: Workspace
           data-testid={`workspace-local-tab-${tab.id}`}
           title={tab.label}
         >
-          <AppIcon name={tab.icon as any} size={18} className="workspace-local-tab-icon" />
+          <AppIcon name={tab.icon} size={18} className="workspace-local-tab-icon" />
         </button>
       ))}
     </div>

@@ -275,7 +275,7 @@ export default function WorkspaceView() {
           <GitHubAuthBanner repoPath={selectedRepoPath} />
 
           <div className="view-scroll workspace-tab-content" data-testid="workspace-tab-content">
-            <PageContainer>
+            <PageContainer fill={navState.activeWorkspaceLocalTab === 'planning'}>
             {navState.activeWorkspaceLocalTab === 'docs' && (
               <WorkspaceDocsTab repoPath={selectedRepoPath} />
             )}

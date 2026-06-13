@@ -110,6 +110,7 @@ describe('WorkspacePlanningTab', () => {
 
     expect(await screen.findByTestId('workspace-planning-session-strip')).toHaveTextContent('SESSION-one');
     expect(screen.getByTestId('workspace-planning-session-strip')).toHaveTextContent('GOAL-one');
+    expect(screen.getByTestId('workspace-planning-autorefresh')).not.toBeChecked();
 
     await waitFor(() => {
       expect(screen.getByTestId('graph-node-goal-GOAL-one')).toBeTruthy();
@@ -122,7 +123,12 @@ describe('WorkspacePlanningTab', () => {
     expect(screen.queryByTestId('planning-graph-inspector')).toBeNull();
 
     fireEvent.click(screen.getByTestId('graph-node-plan-PLAN-one'));
+    expect(screen.getByTestId('planning-graph-view')).toHaveClass('planning-graph-shell--with-detail');
     expect(screen.getByTestId('planning-graph-inspector')).toHaveTextContent('Plan one');
     expect(screen.getByTestId('planning-graph-inspector')).toHaveTextContent('RM-one');
+
+    fireEvent.click(screen.getByTestId('planning-graph-refresh'));
+    await waitFor(() => expect(apiMocks.getPlanningLiveGoal).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId('planning-graph-inspector')).toHaveTextContent('Plan one');
   });
 });

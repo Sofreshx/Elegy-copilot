@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button } from '../../components';
 import {
   getPlanningLiveAuthorityStatus,
@@ -91,22 +91,23 @@ export default function WorkspacePlanningTab({ repoPath, repoId, repoLabel }: Wo
   const [session, setSession] = useState<PlanningSessionResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [dbDiagnosticMessage, setDbDiagnosticMessage] = useState<string | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const repoQuery = {
+  const repoQuery = useMemo(() => ({
     repoId: repoId || undefined,
     repoPath: repoPath || undefined,
     repoLabel: repoLabel || undefined,
-  };
+  }), [repoId, repoPath, repoLabel]);
 
-  const fetchList = useCallback(async () => {
+  const fetchList = useCallback(async (options: { background?: boolean } = {}) => {
+    const background = options.background === true;
     try {
-      setLoading(true);
+      if (!background) setLoading(true);
       setFetchError(null);
 
       const [goalsResult, roadmapsResult, sessionResult] = await Promise.allSettled([
@@ -151,9 +152,9 @@ export default function WorkspacePlanningTab({ repoPath, repoId, repoLabel }: Wo
       console.debug('Planning list fetch failed:', e instanceof Error ? e.message : e);
       setFetchError(e instanceof Error ? e.message : 'Failed to load planning data');
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
-  }, [repoPath, repoId, repoLabel]);
+  }, [repoQuery]);
 
   useEffect(() => {
     void fetchList();
@@ -182,8 +183,8 @@ export default function WorkspacePlanningTab({ repoPath, repoId, repoLabel }: Wo
 
     if (autoRefresh) {
       pollRef.current = setInterval(() => {
-        void fetchList();
-      }, 15000);
+        void fetchList({ background: true });
+      }, 60000);
     }
 
     return () => {

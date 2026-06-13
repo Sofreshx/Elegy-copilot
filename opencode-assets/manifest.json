@@ -231,6 +231,12 @@
       "destination": "plugins/worktree.js"
     },
     {
+      "id": "opencode-notify-plugin",
+      "type": "plugin",
+      "source": "opencode-assets/plugins/notify.js",
+      "destination": "plugins/notify.js"
+    },
+    {
       "id": "opencode-worktree-skill",
       "type": "skill",
       "source": "opencode-assets/skills/worktree",

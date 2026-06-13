@@ -36,6 +36,7 @@ import type { ExecutorWorktreeRecord, EnrichedWorktreeEntry } from '../../lib/ty
 import { getEnrichedWorktrees } from '../../lib/api/elegyDb';
 import type { VerificationState } from '../Repositories/verification';
 import WorkspaceCommitGraph from './WorkspaceCommitGraph';
+import WorkspaceChecksSection from './WorkspaceChecksSection';
 
 // ─── Inline worktree display helpers (from WorkspaceWorktreesCard) ──────────
 

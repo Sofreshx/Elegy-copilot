@@ -15,7 +15,6 @@ import type {
   PlanningLiveRoadmapSection,
   PlanningLiveRoadmapSummary,
   PlanningLiveTodo,
-  PlanningLiveValidationFinding,
   PlanningLiveValidationSummary,
   PlanningLiveWorkPoint,
 } from '../../lib/types';
@@ -363,22 +362,6 @@ function layoutTree(root: GraphNode, containerWidth: number): Map<string, NodePo
   return positions;
 }
 
-function computeViewBox(positions: Map<string, NodePosition>): string {
-  if (positions.size === 0) return '0 0 800 600';
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const pos of positions.values()) {
-    minX = Math.min(minX, pos.x);
-    minY = Math.min(minY, pos.y);
-    maxX = Math.max(maxX, pos.x + pos.width);
-    maxY = Math.max(maxY, pos.y + pos.height);
-  }
-  const pad = 120;
-  return `${minX - pad} ${minY - pad} ${maxX - minX + pad * 2} ${maxY - minY + pad * 2}`;
-}
-
 function getEdgePath(parent: NodePosition, child: NodePosition): string {
   const x1 = parent.x + parent.width / 2;
   const y1 = parent.y + parent.height;
@@ -496,12 +479,12 @@ export default function PlanningGraphView({ goalId, roadmapId, repoQuery, onBack
   const [translateX, setTranslateX] = useState(0);
   const [translateY, setTranslateY] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
-  const [containerWidth, setContainerWidth] = useState(800);
+  const [containerSize, setContainerSize] = useState({ width: 800, height: 520 });
 
   const panStartRef = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const centeredEntityRef = useRef<string | null>(null);
 
   const activeEntityId = goalId || roadmapId || null;
 
@@ -604,24 +587,11 @@ export default function PlanningGraphView({ goalId, roadmapId, repoQuery, onBack
   }, [fetchData]);
 
   useEffect(() => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    const hasActiveRoadmap = roadmapDetails.some((detail) => detail.roadmap.status === 'active');
-    if (hasActiveRoadmap) {
-      pollRef.current = setInterval(() => {
-        void fetchData();
-      }, 10000);
-    }
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = null;
-    };
-  }, [roadmapDetails, fetchData]);
-
-  useEffect(() => {
     setScale(1);
     setTranslateX(0);
     setTranslateY(0);
     setSelectedNodeId(null);
+    centeredEntityRef.current = null;
   }, [activeEntityId]);
 
   useEffect(() => {
@@ -668,14 +638,19 @@ export default function PlanningGraphView({ goalId, roadmapId, repoQuery, onBack
   }, []);
 
   useEffect(() => {
-    function updateWidth() {
-      if (containerRef.current) setContainerWidth(containerRef.current.clientWidth);
+    function updateSize() {
+      if (containerRef.current) {
+        setContainerSize({
+          width: Math.max(containerRef.current.clientWidth, 800),
+          height: Math.max(containerRef.current.clientHeight, 520),
+        });
+      }
     }
-    updateWidth();
+    updateSize();
     if (typeof ResizeObserver === 'undefined') {
       return undefined;
     }
-    const observer = new ResizeObserver(updateWidth);
+    const observer = new ResizeObserver(updateSize);
     if (containerRef.current) observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, []);
@@ -684,8 +659,8 @@ export default function PlanningGraphView({ goalId, roadmapId, repoQuery, onBack
     () => buildGraphData(goal, roadmapDetails, plans, todos, reviewPointsByPlanId),
     [goal, roadmapDetails, plans, todos, reviewPointsByPlanId],
   );
-  const positions = useMemo(() => (rootNode ? layoutTree(rootNode, containerWidth) : new Map<string, NodePosition>()), [rootNode, containerWidth]);
-  const viewBox = useMemo(() => computeViewBox(positions), [positions]);
+  const positions = useMemo(() => (rootNode ? layoutTree(rootNode, containerSize.width) : new Map<string, NodePosition>()), [rootNode, containerSize.width]);
+  const viewBox = useMemo(() => `0 0 ${containerSize.width} ${containerSize.height}`, [containerSize]);
 
   const flatNodes = useMemo<GraphNode[]>(() => {
     const result: GraphNode[] = [];
@@ -711,6 +686,16 @@ export default function PlanningGraphView({ goalId, roadmapId, repoQuery, onBack
 
   const selectedGraphNode = useMemo(() => flatNodes.find((node) => node.id === selectedNodeId) || null, [flatNodes, selectedNodeId]);
   const scalePercent = Math.round(scale * 100);
+
+  useEffect(() => {
+    if (!activeEntityId || !rootNode || centeredEntityRef.current === activeEntityId) return;
+    const rootPos = positions.get(rootNode.id);
+    if (!rootPos) return;
+    setScale(1);
+    setTranslateX((containerSize.width / 2) - (rootPos.x + rootPos.width / 2));
+    setTranslateY(36 - rootPos.y);
+    centeredEntityRef.current = activeEntityId;
+  }, [activeEntityId, rootNode, positions, containerSize]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
@@ -799,7 +784,7 @@ export default function PlanningGraphView({ goalId, roadmapId, repoQuery, onBack
   }
 
   return (
-    <div className="planning-graph-shell" data-testid="planning-graph-view">
+    <div className={`planning-graph-shell${selectedGraphNode ? ' planning-graph-shell--with-detail' : ''}`} data-testid="planning-graph-view">
       <div
         ref={containerRef}
         className="planning-graph-canvas"
