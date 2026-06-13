@@ -123,6 +123,11 @@ function buildState(repoId, repoPath, runResult, config, ciSyncResult) {
         ciWorkflow: r.ciWorkflow,
         ciJob: r.ciJob,
         ciRequired: r.ciRequired,
+        required: r.required !== false,
+        skippable: r.skippable || false,
+        cost: r.cost || 'fast',
+        opensWindow: r.opensWindow || false,
+        defaultProfiles: r.defaultProfiles || [],
       };
     }
   }
@@ -136,9 +141,14 @@ function buildState(repoId, repoPath, runResult, config, ciSyncResult) {
       configHash,
       overallPass: runResult.allPassed !== false,
       compositeScore: runResult.compositeScore,
+      profile: runResult.profile || null,
       lanes,
       groups: runResult.groups || {},
       groupResults: runResult.groupResults || {},
+      requiredFailures: runResult.requiredFailures || [],
+      skippedLanes: runResult.skippedLanes || {},
+      overrideReasons: runResult.overrideReasons || {},
+      logs: runResult.logs || [],
       ciSync: ciSyncResult || null,
     },
     history: [],
@@ -186,7 +196,7 @@ function writeCheckState(repoId, repoPath, runResult, config, ciSyncResult) {
  * @param {Object|null} config
  * @returns {{ fresh: boolean, reason: string, lastRun?: Object }}
  */
-function checkFreshness(repoId, repoPath, config) {
+function checkFreshness(repoId, repoPath, config, profile) {
   const state = readCheckState(repoId);
   if (!state || !state.lastRun) {
     return { fresh: false, reason: 'no-prior-run' };
@@ -203,6 +213,9 @@ function checkFreshness(repoId, repoPath, config) {
   }
   if (currentConfigHash !== state.lastRun.configHash) {
     return { fresh: false, reason: 'config-changed' };
+  }
+  if (profile && state.lastRun.profile !== profile) {
+    return { fresh: false, reason: 'different-profile' };
   }
 
   return { fresh: true, lastRun: state.lastRun };

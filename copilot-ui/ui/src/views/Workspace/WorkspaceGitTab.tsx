@@ -12,6 +12,7 @@ import type {
   GitStashEntry,
   GitStashListResponse,
   GitStashOperationResponse,
+  GitCheckStateResponse,
 } from '../../lib/api/git';
 import {
   getMergeCandidates,
@@ -29,13 +30,14 @@ import {
   applyStash,
   popStash,
   dropStash,
+  getGitCheckState,
 } from '../../lib/api/git';
 import type { MergeWorktreeResponse } from '../../lib/api/git';
 import { listExecutorWorktrees, analyzeWorktreeCleanup, removeWorktreeWithBranch } from '../../lib/api/executor';
 import type { ExecutorWorktreeRecord, EnrichedWorktreeEntry } from '../../lib/types';
 import { getEnrichedWorktrees } from '../../lib/api/elegyDb';
 import type { VerificationState } from '../Repositories/verification';
-import WorkspaceChecksSection from './WorkspaceChecksSection';
+import WorkspaceCommitGraph from './WorkspaceCommitGraph';
 
 // ─── Inline worktree display helpers (from WorkspaceWorktreesCard) ──────────
 
@@ -265,6 +267,73 @@ const STATE_LABELS: Record<WorktreeComputedState, string> = {
   'unknown': 'Unknown',
 };
 
+// ─── CompactCheckStatus inline component ────────────────────────────────────
+
+function CompactCheckStatus({ repoPath }: { repoPath: string }) {
+  const [state, setState] = useState<GitCheckStateResponse | null>(null);
+  
+  useEffect(() => {
+    if (!repoPath) return;
+    let cancelled = false;
+    getGitCheckState(repoPath).then(s => { if (!cancelled) setState(s); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [repoPath]);
+
+  if (!state?.lastRun) {
+    return (
+      <div className="workspace-git-compact-checks" data-testid="workspace-git-compact-checks">
+        <span className="workspace-git-compact-checks-label">Checks:</span>
+        <span style={{ color: '#888' }}>no prior run</span>
+      </div>
+    );
+  }
+
+  const lr = state.lastRun;
+  const passed = Object.values(lr.lanes || {}).filter((l: any) => l.status === 'PASS').length;
+  const total = Object.keys(lr.lanes || {}).length;
+  const profile = (lr as any).profile || 'default';
+  const fresh = state.freshness?.fresh;
+  const timeAgo = getRelativeTime(lr.timestamp);
+
+  return (
+    <div className="workspace-git-compact-checks" data-testid="workspace-git-compact-checks">
+      <span className="workspace-git-compact-checks-label">Checks:</span>
+      <span style={{ color: lr.overallPass ? '#4caf50' : '#ef5350' }}>
+        {lr.overallPass ? '✓' : '✗'} {passed}/{total}
+      </span>
+      <span style={{ color: '#888', marginLeft: 8 }}>{profile}</span>
+      <span style={{ color: fresh ? '#4caf50' : '#ff9800', marginLeft: 8 }}>
+        {fresh ? 'fresh' : 'stale'}
+      </span>
+      <span style={{ color: '#666', marginLeft: 8, fontSize: '0.8em' }}>{timeAgo}</span>
+      <span style={{ marginLeft: 8 }}>
+        <button 
+          type="button" 
+          style={{ fontSize: '0.75em', padding: '2px 6px', background: 'var(--color-surface-400)', color: 'var(--color-text-100)', border: '1px solid var(--color-border-100)', borderRadius: 3, cursor: 'pointer' }}
+          onClick={() => {
+            // Switch to checks tab via navigation
+            const nav = (window as any).__navStore;
+            if (nav?.setActiveWorkspaceLocalTab) nav.setActiveWorkspaceLocalTab('checks');
+          }}
+          data-testid="workspace-git-open-checks"
+        >
+          Run CI →
+        </button>
+      </span>
+    </div>
+  );
+}
+
+function getRelativeTime(isoString: string): string {
+  const now = Date.now();
+  const then = new Date(isoString).getTime();
+  const seconds = Math.floor((now - then) / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
 // ─── Props ──────────────────────────────────────────────────────────────────
 
 interface WorkspaceGitTabProps {
@@ -272,10 +341,10 @@ interface WorkspaceGitTabProps {
   repoPath: string;
   repoId: string | null;
   gitState: GitState;
-  verificationState: VerificationState;
-  checkResults: GitCheckResults | null;
-  runningChecks: boolean;
-  onRunChecks: () => void;
+  verificationState?: VerificationState;
+  checkResults?: GitCheckResults | null;
+  runningChecks?: boolean;
+  onRunChecks?: () => void;
   onCommit: () => void;
   onPush: () => void;
   onOpenPR: () => void;
@@ -1416,17 +1485,16 @@ export default function WorkspaceGitTab({
         )}
       </div>
 
-      {/* ================================================================ */}
-      {/* SECTION 3.5 — Checks Section                                    */}
-      {/* ================================================================ */}
-      <div className="workspace-git-checks-section-wrapper">
-        <WorkspaceChecksSection
-          repoPath={repoPath}
-          checkResults={checkResults}
-          runningChecks={runningChecks}
-          onRunChecks={onRunChecks}
-        />
-      </div>
+      {/* Compact check status strip */}
+      <CompactCheckStatus repoPath={repoPath} />
+
+      {/* Commit Graph (collapsible) */}
+      <details className="workspace-git-graph-details" data-testid="workspace-git-graph-details" style={{ marginBottom: 'var(--space-md)' }}>
+        <summary style={{ cursor: 'pointer', color: 'var(--color-text-200)', fontSize: '0.85em', padding: '4px 0' }}>
+          Commit Graph
+        </summary>
+        <WorkspaceCommitGraph repoPath={repoPath} compact />
+      </details>
 
       {/* ================================================================ */}
       {/* SECTION 4 — Sticky Bottom Composer (Verify & Commit)            */}

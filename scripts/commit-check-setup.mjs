@@ -5,13 +5,12 @@ import path from 'node:path';
 
 const CONFIG_DIR = '.copilot';
 const CONFIG_FILE = 'commit-checks.json';
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 3;
 
 const SHIPPED_DEFAULTS = {
   threshold: 70,
   weights: {
     test: 0.40,
-    coverage: 0.30,
     lint: 0.15,
     format: 0.15,
   },
@@ -77,6 +76,18 @@ function buildConfig(discoveryResult) {
     threshold: SHIPPED_DEFAULTS.threshold,
     weights: { ...SHIPPED_DEFAULTS.weights },
     gates: [...SHIPPED_DEFAULTS.gates],
+    profiles: {
+      commit: { label: "Commit", description: "Fast mandatory local checks before commit", cost: "fast", opensWindow: false },
+      "ci-local": { label: "CI Local", description: "Full local CI parity check", cost: "medium", opensWindow: false },
+      "desktop-preview": { label: "Desktop Preview", description: "Packaged runtime/build validation", cost: "medium", opensWindow: false },
+      release: { label: "Release", description: "Release/native smoke validation", cost: "heavy", opensWindow: true }
+    },
+    groups: {
+      commit: { description: "Pre-commit checks \u2014 must pass before committing" },
+      push: { description: "Pre-push checks \u2014 must pass before pushing" },
+      ci: { description: "CI-equivalent checks \u2014 mirrors GitHub required workflows" },
+      release: { description: "Full release blockers \u2014 heavy checks reserved for CI/release" }
+    },
     lanes,
   };
 }
@@ -97,6 +108,30 @@ function mergeConfig(existing, discoveryResult) {
   if (!merged.gates) merged.gates = [...SHIPPED_DEFAULTS.gates];
   if (!merged.lanes) merged.lanes = {};
 
+  // Profiles: preserve existing, add missing defaults
+  if (!merged.profiles) merged.profiles = {};
+  const DEFAULT_PROFILES = {
+    commit: { label: "Commit", description: "Fast mandatory local checks before commit", cost: "fast", opensWindow: false },
+    "ci-local": { label: "CI Local", description: "Full local CI parity check", cost: "medium", opensWindow: false },
+    "desktop-preview": { label: "Desktop Preview", description: "Packaged runtime/build validation", cost: "medium", opensWindow: false },
+    release: { label: "Release", description: "Release/native smoke validation", cost: "heavy", opensWindow: true }
+  };
+  for (const [key, val] of Object.entries(DEFAULT_PROFILES)) {
+    if (!merged.profiles[key]) merged.profiles[key] = val;
+  }
+
+  // Groups: preserve existing, add missing defaults
+  if (!merged.groups) merged.groups = {};
+  const DEFAULT_GROUPS = {
+    commit: { description: "Pre-commit checks \u2014 must pass before committing" },
+    push: { description: "Pre-push checks \u2014 must pass before pushing" },
+    ci: { description: "CI-equivalent checks \u2014 mirrors GitHub required workflows" },
+    release: { description: "Full release blockers \u2014 heavy checks reserved for CI/release" }
+  };
+  for (const [key, val] of Object.entries(DEFAULT_GROUPS)) {
+    if (!merged.groups[key]) merged.groups[key] = val;
+  }
+
   const foundLanes = discoveryResult.lanes;
   for (const [name, lane] of Object.entries(foundLanes)) {
     if (lane.found) {
@@ -116,6 +151,15 @@ function mergeConfig(existing, discoveryResult) {
       merged.lanes[name].commands = merged.lanes[name].commands || [];
       merged.lanes[name].note = 'Lane was not detected by recent discovery; commands may be stale';
     }
+  }
+
+  // Preserve lane metadata defaults (user custom fields are not overwritten)
+  for (const lane of Object.values(merged.lanes)) {
+    if (lane.required === undefined) lane.required = true;
+    if (lane.skippable === undefined) lane.skippable = false;
+    if (lane.cost === undefined) lane.cost = 'fast';
+    if (lane.opensWindow === undefined) lane.opensWindow = false;
+    // defaultProfiles is intentionally left for user to configure
   }
 
   return merged;

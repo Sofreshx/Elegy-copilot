@@ -9,6 +9,7 @@ interface WorkspaceLocalTabsProps {
 const TABS: { id: WorkspaceLocalTab; label: string; icon: string }[] = [
   { id: 'docs', label: 'Docs', icon: 'file-text' },
   { id: 'git', label: 'Git', icon: 'git-branch' },
+  { id: 'checks', label: 'Checks', icon: 'check-circle' },
   { id: 'planning', label: 'Planning', icon: 'diamond' },
   { id: 'execution', label: 'Execution', icon: 'play' },
   { id: 'assets', label: 'Assets', icon: 'assets' },

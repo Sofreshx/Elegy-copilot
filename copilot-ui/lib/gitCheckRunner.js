@@ -64,7 +64,7 @@ function resolveCommitCheckConfig(repoRoot) {
  * Run checks via the canonical commit-check-run.mjs script.
  * Transforms the script's JSON output into the API response shape.
  */
-function runCanonicalChecks(repoRoot, config) {
+function runCanonicalChecks(repoRoot, config, options) {
   return new Promise((resolve) => {
     const scriptPath = path.join(repoRoot, 'scripts', 'commit-check-run.mjs');
     if (!fs.existsSync(scriptPath)) {
@@ -73,7 +73,18 @@ function runCanonicalChecks(repoRoot, config) {
       return;
     }
 
-    const child = execFile('node', [scriptPath, '--json', '--repo', repoRoot], {
+    const args = ['--json', '--repo', repoRoot];
+    if (options) {
+      if (options.profile) args.push('--profile', options.profile);
+      if (options.selectedLanes) args.push('--lane', options.selectedLanes);
+      if (options.selectedGroup) args.push('--group', options.selectedGroup);
+      if (options.skipLanes && options.skipLanes.size > 0) {
+        for (const [lane, reason] of options.skipLanes) {
+          args.push('--skip', lane, '--reason', reason);
+        }
+      }
+    }
+    const child = execFile('node', [scriptPath, ...args], {
       cwd: repoRoot,
       timeout: 120000,
       maxBuffer: 1024 * 1024,
@@ -115,6 +126,11 @@ function runCanonicalChecks(repoRoot, config) {
           ciWorkflow: lane.ciWorkflow || null,
           ciJob: lane.ciJob || null,
           ciRequired: lane.ciRequired || false,
+          required: lane.required !== false,
+          skippable: lane.skippable || false,
+          cost: lane.cost || 'fast',
+          opensWindow: lane.opensWindow || false,
+          defaultProfiles: lane.defaultProfiles || [],
         };
       });
 
@@ -132,6 +148,12 @@ function runCanonicalChecks(repoRoot, config) {
         allPassed: parsed.overallPass !== false,
         groups: parsed.groups || {},
         groupResults: parsed.groupResults || {},
+        profile: parsed.profile || (options ? options.profile : null) || null,
+        requiredFailures: parsed.requiredFailures || [],
+        skippedLanes: parsed.skippedLanes || {},
+        overrideReasons: parsed.overrideReasons || {},
+        logs: parsed.logs || [],
+        errorOutput: parsed.errorOutput || null,
         results,
         message: failed === 0
           ? `All ${passed} lanes passed (score: ${parsed.compositeScore ?? 'N/A'}).`
@@ -166,9 +188,16 @@ function discoverChecks(repoRoot) {
         ciJob: lane.ciJob || null,
         ciRequired: lane.ciRequired || false,
         source: 'commit-check',
+        required: lane.required !== false,
+        skippable: lane.skippable || false,
+        requiresReasonOnSkip: lane.requiresReasonOnSkip !== false,
+        defaultProfiles: lane.defaultProfiles || [],
+        cost: lane.cost || 'fast',
+        opensWindow: lane.opensWindow || false,
       };
     });
     checks.groups = config.groups || {};
+    checks.profiles = config.profiles || {};
     return checks;
   }
 
@@ -331,11 +360,54 @@ async function runAllChecks(repoRoot) {
 }
 
 /**
+ * Run all checks with profile/skip options.
+ * Routes through canonical checks with the provided profile options.
+ */
+async function runAllChecksWithProfile(repoRoot, options) {
+  const config = resolveCommitCheckConfig(repoRoot);
+  if (config) {
+    return runCanonicalChecks(repoRoot, config, options);
+  }
+  return runAllChecksLegacy(repoRoot);
+}
+
+/**
  * Run checks before a git action (commit, push, PR).
  * Returns { allowed: boolean, checkResults, requiresOverride: boolean }
  */
-async function gateGitAction(repoRoot, action, unsafeOverride) {
-  // If unsafe override is provided and valid, skip checks
+async function gateGitAction(repoRoot, action, unsafeOverride, profile, branchName) {
+  // Resolve branch name if not provided
+  if (!branchName) {
+    branchName = getCurrentBranch(repoRoot);
+  }
+  const isProtected = isProtectedBranch(repoRoot, branchName);
+
+  // PR creation: never allow unsafe override
+  if (action === 'pull-request' && unsafeOverride && typeof unsafeOverride.reason === 'string') {
+    return {
+      allowed: false,
+      skipped: false,
+      checkResults: null,
+      requiresOverride: false,
+      overrideBlocked: true,
+      message: 'Unsafe override is not allowed for pull request creation. All checks must pass.',
+    };
+  }
+
+  // Push to protected branch: never allow unsafe override  
+  if (action === 'push' && isProtected && unsafeOverride && typeof unsafeOverride.reason === 'string') {
+    return {
+      allowed: false,
+      skipped: false,
+      checkResults: null,
+      requiresOverride: false,
+      overrideBlocked: true,
+      protectedBranch: true,
+      message: 'Unsafe override is not allowed when pushing to a protected branch (' + branchName + '). All checks must pass with the ci-local profile.',
+    };
+  }
+
+  // Unsafe override for commit or non-protected push: allowed
   if (unsafeOverride && typeof unsafeOverride.reason === 'string' && unsafeOverride.reason.trim().length > 0) {
     return {
       allowed: true,
@@ -351,7 +423,7 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
     const { deriveRepoId, checkFreshness } = require('./checkState');
     const repoId = deriveRepoId(repoRoot);
     const config = resolveCommitCheckConfig(repoRoot);
-    const freshness = checkFreshness(repoId, repoRoot, config);
+    const freshness = checkFreshness(repoId, repoRoot, config, profile);
 
     if (freshness.fresh && freshness.lastRun.overallPass) {
       // Prior run is fresh and passed — reconstruct cached results from stored lanes
@@ -368,6 +440,11 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
         allPassed: true,
         groups: freshness.lastRun.groups || {},
         groupResults: freshness.lastRun.groupResults || {},
+        profile: freshness.lastRun.profile || null,
+        requiredFailures: freshness.lastRun.requiredFailures || [],
+        skippedLanes: freshness.lastRun.skippedLanes || {},
+        overrideReasons: freshness.lastRun.overrideReasons || {},
+        logs: freshness.lastRun.logs || [],
         results: laneNames.map((name) => ({
           checkName: name,
           passed: cachedLanes[name].status === 'PASS',
@@ -379,6 +456,11 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
           ciWorkflow: cachedLanes[name].ciWorkflow,
           ciJob: cachedLanes[name].ciJob,
           ciRequired: cachedLanes[name].ciRequired,
+          required: cachedLanes[name].required !== false,
+          skippable: cachedLanes[name].skippable || false,
+          cost: cachedLanes[name].cost || 'fast',
+          opensWindow: cachedLanes[name].opensWindow || false,
+          defaultProfiles: cachedLanes[name].defaultProfiles || [],
         })),
         message: 'Using cached check results (no changes since last run).',
         cached: true,
@@ -413,7 +495,55 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
     // Freshness check failure is non-blocking — run checks normally
   }
 
-  const checkResults = await runAllChecks(repoRoot);
+  // ── Push to protected branch: must have fresh ci-local ──
+  if (action === 'push' && isProtected) {
+    // Force profile to ci-local for protected pushes, regardless of what was passed
+    profile = 'ci-local';
+    
+    // Run checks NOW (we're past the freshness cache check)
+    const protectedResults = await runAllChecksWithProfile(repoRoot, { profile: 'ci-local' });
+    
+    if (!protectedResults.allPassed) {
+      return {
+        allowed: false,
+        skipped: false,
+        checkResults: protectedResults,
+        requiresOverride: false,
+        overrideBlocked: true,
+        protectedBranch: true,
+        message: `Push to protected branch "${branchName}" blocked: ci-local checks failed. Fix issues and re-run ci-local. No override allowed.`,
+      };
+    }
+    
+    // CI gap check for protected push
+    try {
+      const syncResult = syncCiState(repoRoot);
+      if (syncResult.syncResult.summary.readiness === 'ci-gap') {
+        return {
+          allowed: false,
+          skipped: false,
+          checkResults: protectedResults,
+          requiresOverride: false,
+          overrideBlocked: true,
+          protectedBranch: true,
+          ciGap: true,
+          message: `Push to protected branch "${branchName}" blocked: CI gaps detected. No override allowed.`,
+        };
+      }
+    } catch {}
+    
+    return {
+      allowed: true,
+      skipped: false,
+      checkResults: protectedResults,
+      protectedBranch: true,
+      message: 'ci-local checks passed. Push to protected branch allowed.',
+    };
+  }
+
+  const checkResults = profile
+    ? await runAllChecksWithProfile(repoRoot, { profile })
+    : await runAllChecks(repoRoot);
 
   if (checkResults.checksAvailable === 0) {
     // No checks configured — allow the action
@@ -421,6 +551,7 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
       allowed: true,
       skipped: false,
       checkResults,
+      isProtected: isProtected,
       message: 'No pre-action checks configured. Proceeding.',
     };
   }
@@ -444,6 +575,25 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
       // ciSync failure is non-blocking — allow the action to proceed
     }
 
+    // For PR creation, never allow CI gaps
+    if (action === 'pull-request') {
+      try {
+        const prSyncResult = syncCiState(repoRoot);
+        if (prSyncResult.syncResult.summary.readiness === 'ci-gap') {
+          return {
+            allowed: false,
+            skipped: false,
+            checkResults,
+            requiresOverride: false,
+            overrideBlocked: true,
+            ciGap: true,
+            ciGapDetails: prSyncResult.syncResult.mappings.filter((m) => m.status === 'ci-gap'),
+            message: `PR creation blocked: CI gaps detected. All CI jobs must be mapped to local lanes. No override allowed.`,
+          };
+        }
+      } catch {}
+    }
+
     return {
       allowed: true,
       skipped: false,
@@ -453,12 +603,28 @@ async function gateGitAction(repoRoot, action, unsafeOverride) {
   }
 
   // Checks failed — gate the action
+  // For PR: no override allowed
+  if (action === 'pull-request') {
+    return {
+      allowed: false,
+      skipped: false,
+      checkResults,
+      requiresOverride: false,
+      overrideBlocked: true,
+      message: `PR creation blocked: ${checkResults.checksFailed} check(s) failed. No override allowed. Fix issues and re-run checks.`,
+    };
+  }
+  
+  // For commit: override allowed with reason
+  // For push to non-protected: override allowed
+  const actionLabel = action === 'commit' ? 'Commit' : 'Push';
   return {
     allowed: false,
     skipped: false,
     checkResults,
     requiresOverride: true,
-    message: `${checkResults.checksFailed} check(s) failed. Provide an override reason to proceed anyway.`,
+    isProtected: isProtected,
+    message: `${checkResults.checksFailed} check(s) failed. Provide an override reason to proceed with ${actionLabel} anyway.`,
   };
 }
 
@@ -484,12 +650,62 @@ function resolveGroupResults(checkResults) {
   return groupResults;
 }
 
+/**
+ * Detect whether a branch is protected.
+ * Protected = default branch (from remote HEAD) or literal 'main'/'master'.
+ */
+function isProtectedBranch(repoRoot, branchName) {
+  if (!branchName) return false;
+  
+  const candidate = branchName.trim();
+  if (candidate === 'main' || candidate === 'master') return true;
+  
+  // Check if this is the remote default branch
+  try {
+    const { execSync } = require('child_process');
+    const remoteHead = execSync('git symbolic-ref refs/remotes/origin/HEAD', {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+      timeout: 5000,
+    }).trim();
+    
+    // remoteHead is like "refs/remotes/origin/main"
+    const defaultBranch = remoteHead.split('/').pop();
+    if (defaultBranch === candidate) return true;
+  } catch {
+    // Can't determine remote HEAD — rely on main/master check only
+  }
+  
+  return false;
+}
+
+/**
+ * Get current branch name for a repo.
+ */
+function getCurrentBranch(repoRoot) {
+  try {
+    const { execSync } = require('child_process');
+    return execSync('git branch --show-current', {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+      timeout: 5000,
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   discoverChecks,
   runCheck,
   runAllChecks,
+  runAllChecksWithProfile,
   gateGitAction,
   resolveCommitCheckConfig,
   resolveGroupResults,
   KNOWN_CHECKS,
+  isProtectedBranch,
+  getCurrentBranch,
 };

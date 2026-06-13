@@ -9,9 +9,9 @@ import type { GitCheckResults, GitCheckStateResponse, GitCiSyncResponse } from '
 
 interface WorkspaceChecksSectionProps {
   repoPath: string;
-  checkResults: GitCheckResults | null;
-  runningChecks: boolean;
-  onRunChecks: () => void;
+  checkResults?: GitCheckResults | null;
+  runningChecks?: boolean;
+  onRunChecks?: () => void;
 }
 
 type ReadinessStatus = 'ready' | 'stale' | 'failed' | 'running' | 'not-configured' | 'ci-gap';

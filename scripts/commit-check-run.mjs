@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const DEFAULT_CONFIG_NAME = '.copilot/commit-checks.json';
 
 function die(message, code = 1) {
@@ -135,18 +135,72 @@ function parseLaneSummary(name, result) {
   return errLines || `Exit code ${result.exitCode}`;
 }
 
-export function runChecks(config, repoRoot) {
+export function runChecks(config, repoRoot, options = {}) {
+  const { profile, selectedLanes, selectedGroup, skipLanes = new Map() } = options;
   const threshold = config.threshold ?? SHIPPED_DEFAULTS.threshold;
   const weights = config.weights ?? SHIPPED_DEFAULTS.weights;
   const gates = config.gates ?? SHIPPED_DEFAULTS.gates;
   const lanes = config.lanes ?? {};
   const groups = config.groups ?? {};
 
-  const laneNames = Object.keys(lanes).filter(name => lanes[name].enabled !== false).sort();
+  // Filter enabled lane names
+  let laneNames = Object.keys(lanes).filter(name => lanes[name].enabled !== false).sort();
+
+  // Validate skip requests
+  const overrideReasons = {};
+  for (const [name, reason] of skipLanes) {
+    const lane = lanes[name];
+    if (!lane) die(`Unknown lane: ${name}`, 2);
+    if (lane.skippable === false) die(`Lane "${name}" is not skippable`, 2);
+    if (!reason) die(`Lane "${name}" requires a skip reason (use --reason)`, 2);
+    overrideReasons[name] = reason || '';
+  }
+
+  // Apply profile filter
+  if (profile) {
+    laneNames = laneNames.filter(name => {
+      const lane = lanes[name];
+      return lane.defaultProfiles && lane.defaultProfiles.includes(profile);
+    });
+  }
+
+  // Apply --lane filter
+  if (selectedLanes) {
+    laneNames = laneNames.filter(name => selectedLanes.includes(name));
+  }
+
+  // Apply --group filter
+  if (selectedGroup) {
+    laneNames = laneNames.filter(name => {
+      const lane = lanes[name];
+      return lane.group === selectedGroup;
+    });
+  }
+
+  // Track lane count before skip removal for totalLanes reporting
+  const laneNamesBeforeSkip = [...laneNames];
+
+  // Remove skipped lanes
+  laneNames = laneNames.filter(name => !skipLanes.has(name));
 
   const results = {};
+  const logs = [];
   let anyGateFailed = false;
   let errorOutput = '';
+  const requiredFailures = [];
+  const skippedLanes = {};
+  const skippedLaneKeys = new Set(skipLanes.keys());
+
+  // Record skip events
+  for (const [name, reason] of skipLanes) {
+    skippedLanes[name] = reason;
+    logs.push({
+      timestamp: new Date().toISOString(),
+      event: 'skip',
+      lane: name,
+      reason: reason || undefined,
+    });
+  }
 
   for (const name of laneNames) {
     const lane = lanes[name];
@@ -154,6 +208,12 @@ export function runChecks(config, repoRoot) {
     const isGate = gates.includes(name);
     // Lane is blocking unless explicitly set to false (backward compatible with v1 configs)
     const isBlocking = lane.blocking !== false;
+
+    logs.push({
+      timestamp: new Date().toISOString(),
+      event: 'lane_start',
+      lane: name,
+    });
 
     if (commands.length === 0) {
       results[name] = {
@@ -163,6 +223,14 @@ export function runChecks(config, repoRoot) {
         score: null,
         details: 'No commands configured',
       };
+      logs.push({
+        timestamp: new Date().toISOString(),
+        event: 'lane_end',
+        lane: name,
+        status: 'SKIP',
+        exitCode: 0,
+        durationMs: 0,
+      });
       continue;
     }
 
@@ -230,9 +298,22 @@ export function runChecks(config, repoRoot) {
       ciRequired: lane.ciRequired ?? false,
       ...(name === 'coverage' && Object.keys(coverageMetrics).length > 0 ? { coverage: coverageMetrics } : {}),
     };
+
+    logs.push({
+      timestamp: new Date().toISOString(),
+      event: 'lane_end',
+      lane: name,
+      status: lanePassed ? 'PASS' : 'FAIL',
+      exitCode: laneResults.every(r => r.success) ? 0 : 1,
+      durationMs: laneResults.reduce((sum, r) => sum + (r.durationMs || 0), 0),
+    });
+
+    if (lane.required !== false && !lanePassed) {
+      requiredFailures.push(name);
+    }
   }
 
-  const scoredLanes = laneNames.filter(name =>
+  const scoredLanes = Object.keys(results).filter(name =>
     results[name]?.score != null && weights[name] != null && weights[name] > 0
   );
 
@@ -267,6 +348,12 @@ export function runChecks(config, repoRoot) {
   }
 
   const summary = {
+    profile: profile || null,
+    requiredFailures,
+    skippedLanes,
+    overrideReasons,
+    logs,
+    events: logs,
     schemaVersion: SCHEMA_VERSION,
     timestamp: new Date().toISOString(),
     repoRoot,
@@ -277,7 +364,7 @@ export function runChecks(config, repoRoot) {
     groups,
     groupResults,
     scoreBreakdown,
-    totalLanes: laneNames.length,
+    totalLanes: laneNamesBeforeSkip.length,
     passedLanes: laneNames.filter(name => results[name]?.status === 'PASS').length,
     lanes: results,
   };
@@ -289,26 +376,73 @@ export function runChecks(config, repoRoot) {
   return summary;
 }
 
+function showHelp() {
+  console.log(`
+Usage: node scripts/commit-check-run.mjs [options]
+
+Options:
+  --config <path>     Path to commit-checks.json config file
+  --repo <path>       Repo root directory (default: cwd)
+  --json              Output results as JSON
+  --profile <name>    Select profile (e.g. commit, ci-local, release)
+  --lane <name>       Run only a specific named lane
+  --group <name>      Run only lanes in a specific group
+  --skip <name>       Skip a lane (can be repeated, e.g. --skip lint --skip test)
+  --reason <text>     Reason for skip (applies to preceding --skip)
+  --help, -h          Show this help message
+  `);
+}
+
 function main() {
   const args = process.argv.slice(2);
   let configPath = null;
   let jsonOutput = false;
   let repoRoot = process.cwd();
+  let profile = null;
+  let selectedLanes = null;
+  let selectedGroup = null;
+  const skipLanes = new Map();
+  let pendingReason = null;
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--config' && i + 1 < args.length) {
+    if (args[i] === '--help' || args[i] === '-h') {
+      showHelp();
+      process.exit(0);
+    } else if (args[i] === '--config' && i + 1 < args.length) {
       configPath = path.resolve(args[++i]);
     } else if (args[i] === '--repo' && i + 1 < args.length) {
       repoRoot = path.resolve(args[++i]);
     } else if (args[i] === '--json') {
       jsonOutput = true;
+    } else if (args[i] === '--profile' && i + 1 < args.length) {
+      profile = args[++i];
+    } else if (args[i] === '--lane' && i + 1 < args.length) {
+      selectedLanes = [args[++i]];
+    } else if (args[i] === '--group' && i + 1 < args.length) {
+      selectedGroup = args[++i];
+    } else if (args[i] === '--skip' && i + 1 < args.length) {
+      const laneName = args[++i];
+      skipLanes.set(laneName, pendingReason || '');
+      pendingReason = null;
+    } else if (args[i] === '--reason' && i + 1 < args.length) {
+      pendingReason = args[++i];
     } else if (!args[i].startsWith('--')) {
       repoRoot = path.resolve(args[i]);
     }
   }
 
+  // If there's a trailing --reason with no subsequent --skip, ignore it
+  if (pendingReason) {
+    console.warn('[warn] --reason provided without a following --skip (ignored)');
+  }
+
   const config = resolveConfig(configPath);
-  const result = runChecks(config, repoRoot);
+  const result = runChecks(config, repoRoot, {
+    profile,
+    selectedLanes,
+    selectedGroup,
+    skipLanes,
+  });
 
   if (jsonOutput) {
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
@@ -317,6 +451,13 @@ function main() {
     console.log(`Score: ${result.compositeScore ?? 'N/A'} / 100  (threshold: ${result.threshold})`);
     console.log(`Status: ${result.overallPass ? 'PASS' : 'FAIL'}`);
     if (result.anyGateFailed) console.log('Gate failure: one or more gate lanes failed');
+    if (result.profile) console.log(`Profile: ${result.profile}`);
+    if (Object.keys(result.skippedLanes).length > 0) {
+      console.log(`Skipped: ${Object.keys(result.skippedLanes).join(', ')}`);
+    }
+    if (result.requiredFailures.length > 0) {
+      console.log(`Required failures: ${result.requiredFailures.join(', ')}`);
+    }
     console.log(`\nLanes: ${result.passedLanes}/${result.totalLanes} passed\n`);
     for (const [name, lane] of Object.entries(result.lanes)) {
       const icon = lane.status === 'PASS' ? 'PASS' : lane.status === 'SKIP' ? 'SKIP' : 'FAIL';

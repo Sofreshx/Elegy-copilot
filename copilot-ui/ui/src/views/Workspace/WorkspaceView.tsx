@@ -23,6 +23,7 @@ import BrandIcon from '../../components/BrandIcon';
 import { resolveLauncherIconPath, TERMINAL_ICON } from '../../lib/launcherIcons';
 import WorkspaceAssetsTab from './WorkspaceAssetsTab';
 import WorkspaceNotesTab from './WorkspaceNotesTab';
+import WorkspaceChecksTab from './WorkspaceChecksTab';
 
 export default function WorkspaceView() {
   const state = useStoreValue(repositoriesStore);
@@ -281,10 +282,6 @@ export default function WorkspaceView() {
                 repoPath={selectedRepoPath}
                 repoId={displayRepo?.repoId ?? null}
                 gitState={gitState}
-                verificationState={verificationState}
-                checkResults={checkResults}
-                runningChecks={runningChecks}
-                onRunChecks={handleRunChecks}
                 onCommit={handleCommit}
                 onPush={handlePush}
                 onOpenPR={handleOpenPR}
@@ -292,6 +289,12 @@ export default function WorkspaceView() {
                 onSetCommitMessage={(msg: string) => gitStore.setCommitMessage(msg)}
                 onSetPullRequestTitle={(t: string) => gitStore.setPullRequestTitle(t)}
                 onSetPullRequestBody={(b: string) => gitStore.setPullRequestBody(b)}
+              />
+            )}
+            {navState.activeWorkspaceLocalTab === 'checks' && (
+              <WorkspaceChecksTab
+                repoPath={selectedRepoPath}
+                repoId={displayRepo?.repoId ?? null}
               />
             )}
             {navState.activeWorkspaceLocalTab === 'planning' && (

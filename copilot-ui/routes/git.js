@@ -781,8 +781,22 @@ function handleGitActionWithGate(ctx, deps, action, executeAction) {
         throw error;
       }
 
+      // Determine profile based on action type
+      let profile = 'commit'; // default
+      if (action === 'push') profile = 'ci-local';
+      if (action === 'pull-request') profile = 'ci-local';
+
+      // Detect current branch for protected-branch policy
+      let branchName = null;
+      try {
+        const branchResult = await runGit(deps.childProcess, ['branch', '--show-current'], repoPath);
+        branchName = (branchResult.stdout || '').trim();
+      } catch {
+        // Branch detection failure is non-blocking
+      }
+
       // Gate through checks
-      const gate = await gateGitAction(repoPath, action, body.unsafeOverride);
+      const gate = await gateGitAction(repoPath, action, body.unsafeOverride, profile, branchName);
       
       if (!gate.allowed) {
         // Checks failed and no override — return 422 with check results
@@ -790,7 +804,9 @@ function handleGitActionWithGate(ctx, deps, action, executeAction) {
           error: 'Pre-action checks failed',
           checkResults: gate.checkResults,
           message: gate.message,
-          requiresOverride: true,
+          requiresOverride: gate.requiresOverride || false,
+          overrideBlocked: gate.overrideBlocked || false,
+          protectedBranch: gate.protectedBranch || false,
           action,
         });
       }
@@ -803,6 +819,8 @@ function handleGitActionWithGate(ctx, deps, action, executeAction) {
         checkResults: gate.checkResults,
         overrideApplied: gate.skipped || false,
         overrideReason: gate.overrideReason || null,
+        protectedBranch: gate.protectedBranch || false,
+        isProtected: gate.isProtected || false,
       });
     })
     .catch((error) => {
@@ -1334,6 +1352,71 @@ function handleDropStash(ctx, deps) {
     });
 }
 
+/**
+ * GET /api/git/graph
+ * Returns parsed git log --graph output as structured JSON.
+ */
+function handleGitGraph(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const repoPath = resolveRepoPath(ctx);
+
+  if (!repoPath) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+
+  return Promise.resolve()
+    .then(async () => {
+      const result = await runGit(deps.childProcess, [
+        'log',
+        '--graph',
+        '--decorate',
+        '--all',
+        '--date-order',
+        '--format=%H%x00%h%x00%D%x00%an%x00%ad%x00%s',
+        '--date=short',
+        '-30', // last 30 commits
+      ], repoPath, 15000).catch(() => ({ stdout: '' }));
+
+      const lines = result.stdout.trim().split('\n').filter(Boolean);
+      const commits = [];
+
+      for (const line of lines) {
+        // Split into graph portion and data portion
+        // Graph: everything up to the first hex commit hash
+        const hashMatch = line.match(/[0-9a-f]{40}/);
+        if (!hashMatch || hashMatch.index === undefined) continue;
+
+        const graphChars = line.slice(0, hashMatch.index);
+        const dataPart = line.slice(hashMatch.index);
+        const fields = dataPart.split('\x00');
+
+        if (fields.length < 6) continue;
+
+        commits.push({
+          fullHash: fields[0],
+          shortHash: fields[1],
+          refs: fields[2] ? fields[2].split(',').map((r) => r.trim()).filter(Boolean) : [],
+          author: fields[3],
+          date: fields[4],
+          subject: fields[5],
+          graph: graphChars,
+          isMerge: Boolean(fields[5] && fields[5].startsWith('Merge')),
+        });
+      }
+
+      sendJson(res, 200, {
+        repoPath,
+        count: commits.length,
+        commits,
+      });
+    })
+    .catch((error) => {
+      sendJson(res, 500, { error: String(error.message || error) });
+    });
+}
+
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const readJsonBody = context.readJsonBody || defaultReadJsonBody;
@@ -1343,6 +1426,7 @@ function register(context = {}) {
     { method: 'GET', path: '/api/git/status', handler: (ctx) => handleGitStatus(ctx, deps) },
     { method: 'GET', path: '/api/git/diff', handler: (ctx) => handleGitDiff(ctx, deps) },
     { method: 'GET', path: '/api/git/log', handler: (ctx) => handleGitLog(ctx, deps) },
+    { method: 'GET', path: '/api/git/graph', handler: (ctx) => handleGitGraph(ctx, deps) },
     { method: 'GET', path: '/api/git/branches', handler: (ctx) => handleGitBranches(ctx, deps) },
     { method: 'GET', path: '/api/git/summary', handler: (ctx) => handleGitSummary(ctx, deps) },
     { method: 'GET', path: '/api/git/pull-request', handler: (ctx) => handleGitPullRequest(ctx, deps) },
