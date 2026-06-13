@@ -315,6 +315,37 @@
       }
     },
     {
+      "skill": "ui-runtime-exploration",
+      "name": "ui-runtime-exploration",
+      "description": "Route Tauri/browser UI work to the right runtime lane: Playwright CLI, agent browser, tauri-driver/WebDriver, or Rust mock tests. Triggers on: tauri ui, hot reload, HMR, agent-browser, playwright, webdriver, selenium, desktop E2E, tauri-driver, browser ui validation, ui runtime.",
+      "triggersOn": [
+        "agent-browser",
+        "browser ui validation",
+        "desktop e2e",
+        "hmr",
+        "hot reload",
+        "playwright",
+        "selenium",
+        "tauri ui",
+        "tauri-driver",
+        "ui runtime",
+        "webdriver"
+      ],
+      "tags": [
+        "browser",
+        "playwright",
+        "runtime",
+        "tauri",
+        "testing",
+        "ui",
+        "webdriver"
+      ],
+      "manifest": {
+        "id": "skill-ui-runtime-exploration",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "ui-system",
       "name": "ui-system",
       "description": "Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; reuse local patterns first, treat Figma and Storybook MCP data as context (not authority), and pick the narrowest available validation. Triggers on: ui, component, frontend, view, screen, panel, dialog, form, button, icon, style, styling, design system, storybook, figma, visual review, styling consistency, design-system reuse.",

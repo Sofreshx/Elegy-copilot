@@ -56,6 +56,7 @@ const ENGINE_ASSET_ROUTES = [
   route('skill-spec-authoring'),
   route('skill-spec-dev'),
   route('skill-spec-review'),
+  route('skill-ui-runtime-exploration'),
   route('skill-ui-system'),
   route('skill-commit-check-setup'),
   route('skill-commit-validation-governance'),
@@ -107,6 +108,7 @@ export const COMPATIBILITY_MANIFESTS = [
       'repo-setup-governance-global',
       'roadmap-planning-lane',
       'spec-driven-development-lane',
+      'ui-runtime-validation',
     ],
   },
   {

@@ -293,6 +293,41 @@
       "dependsOn": [
         "orchestrator-workflow"
       ]
+    },
+    {
+      "id": "ui-runtime-validation",
+      "title": "UI Runtime Validation Skills",
+      "description": "Browser and desktop UI validation routing: Playwright for browser-mode regression, agent browser for AI investigation, tauri-driver plus WebDriver client for real Tauri desktop behavior, and cargo test plus Tauri mock runtime for Rust commands.",
+      "assetIds": [
+        "skill-ui-runtime-exploration"
+      ],
+      "installTarget": "repo-local",
+      "activationScope": "repo",
+      "materialization": "on-demand",
+      "classification": "workflow",
+      "targeting": {
+        "scopeKinds": [
+          "repo"
+        ],
+        "tags": [
+          "ui",
+          "testing",
+          "e2e",
+          "browser",
+          "tauri",
+          "desktop"
+        ]
+      },
+      "tags": [
+        "ui",
+        "testing",
+        "e2e",
+        "browser",
+        "tauri",
+        "desktop"
+      ],
+      "defaultRecommended": false,
+      "dependsOn": []
     }
   ],
   "assets": [
@@ -470,6 +505,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "skill-ui-runtime-exploration",
+      "type": "skill",
+      "source": "engine-assets/skills/ui-runtime-exploration",
+      "destination": "skills/ui-runtime-exploration",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "skill-ui-system",
       "type": "skill",
       "source": "catalog-assets/shared-skills/ui-system",
@@ -487,7 +529,8 @@
       "id": "skill-commit-validation-governance",
       "type": "skill",
       "source": "engine-assets/skills/commit-validation-governance",
-      "destination": "skills/commit-validation-governance"
+      "destination": "skills/commit-validation-governance",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": []
