@@ -1417,10 +1417,205 @@ function handleGitGraph(ctx, deps) {
     });
 }
 
+function resolveOpenCodeBin() {
+  if (process.env.OPENCODE_BIN) return process.env.OPENCODE_BIN;
+  const { execSync } = require('node:child_process');
+  if (process.platform === 'win32') {
+    try { return execSync('where.exe opencode.cmd', { encoding: 'utf8', stdio: 'pipe', windowsHide: true }).trim().split('\n')[0].trim(); } catch (_) {}
+    try { return execSync('where.exe opencode', { encoding: 'utf8', stdio: 'pipe', windowsHide: true }).trim().split('\n')[0].trim(); } catch (_) {}
+    const appData = process.env.APPDATA || '';
+    if (appData) {
+      const candidate = `${appData}\\npm\\opencode.cmd`;
+      const { existsSync } = require('node:fs');
+      if (existsSync(candidate)) return candidate;
+    }
+    return null;
+  }
+  try { return execSync('which opencode', { encoding: 'utf8', stdio: 'pipe' }).trim(); } catch (_) {}
+  return null;
+}
+
+function handleGenerateCommitMessage(ctx, deps) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody, childProcess: childProcessImpl } = deps;
+
+  return readJsonBody(req).then(async (body) => {
+    const repoPath = isNonEmptyString(body.repoPath) ? body.repoPath.trim() : '';
+    if (!repoPath) throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+    const models = Array.isArray(body.models) && body.models.length > 0
+      ? body.models.filter(m => typeof m === 'string' && m.trim())
+      : ['opencode/mimo-v2.5-free', 'opencode/deepseek-v4-flash-free', 'opencode/big-pickle'];
+    const warnings = [];
+    const stagedOnly = body.stagedOnly === true;
+
+    // Resolve opencode binary
+    const resolveBin = deps.resolveOpenCodeBin || resolveOpenCodeBin;
+    const openCodeBin = resolveBin();
+
+    if (!openCodeBin) {
+      sendJson(res, 200, { ok: false, code: 'OPENCODE_NOT_FOUND', message: 'OpenCode CLI is not available to the Elegy backend.', warnings: [] });
+      return;
+    }
+
+    const useShell = process.platform === 'win32' && openCodeBin.toLowerCase().endsWith('.cmd');
+
+    let recentCommits = '';
+    try {
+      const logResult = await runGit(childProcessImpl, ['log', '--pretty=%s', '-8'], repoPath);
+      recentCommits = logResult.stdout.trim();
+    } catch (e) {
+      warnings.push('Could not read recent commits for style reference');
+    }
+
+    let diffText = '';
+    let usedStaged = true;
+    try {
+      const statResult = await runGit(childProcessImpl, ['diff', '--cached', '--stat'], repoPath);
+      if (statResult.stdout.trim()) {
+        const diffResult = await runGit(childProcessImpl, ['diff', '--cached'], repoPath, 15000);
+        diffText = diffResult.stdout.substring(0, 4000);
+        if (diffResult.stdout.length > 4000) warnings.push('Diff truncated to 4000 characters');
+      } else {
+        usedStaged = false;
+        if (!stagedOnly) {
+          warnings.push('No staged changes; generated from working tree.');
+        }
+        const unstagedStat = await runGit(childProcessImpl, ['diff', '--stat'], repoPath, 15000);
+        const unstagedDiff = await runGit(childProcessImpl, ['diff'], repoPath, 15000);
+        diffText = unstagedDiff.stdout.substring(0, 4000);
+        if (unstagedDiff.stdout.length > 4000) warnings.push('Diff truncated to 4000 characters');
+      }
+    } catch (e) {
+      // If diff fails entirely, try unstaged
+      try {
+        usedStaged = false;
+        if (!stagedOnly) {
+          warnings.push('No staged changes; generated from working tree.');
+        }
+        const unstagedDiff = await runGit(childProcessImpl, ['diff'], repoPath, 15000);
+        diffText = unstagedDiff.stdout.substring(0, 4000);
+        if (unstagedDiff.stdout.length > 4000) warnings.push('Diff truncated to 4000 characters');
+      } catch (e2) {
+        throw Object.assign(new Error('Could not read git diff'), { statusCode: 500 });
+      }
+    }
+
+    if (stagedOnly && !usedStaged) {
+      sendJson(res, 200, { ok: false, code: 'NO_CHANGES', message: 'No staged changes available (stagedOnly=true)', warnings: [...warnings, 'No staged changes available (stagedOnly=true)'] });
+      return;
+    }
+
+    if (!diffText.trim()) {
+      sendJson(res, 200, { ok: false, code: 'NO_CHANGES', message: 'No changes to generate a commit message from.', warnings: [...warnings, 'No changes to generate message from'] });
+      return;
+    }
+
+    const prompt = `Generate a git commit message for the following diff.
+
+RULES:
+- Return ONLY the commit message text. No other output.
+- First line max 72 characters.
+- Use imperative mood (e.g., "Add feature" not "Added feature").
+- Match the style of recent commits for consistency. If they use Conventional Commits (e.g., "feat:", "fix:", "chore:"), follow that convention.
+- Include a body paragraph only if the diff needs explanation beyond the first line.
+- NO Markdown fences, NO commentary, NO signatures, NO co-author trailers.
+- Do not use any tools. Output text only.
+
+RECENT COMMITS (for style reference):
+${recentCommits || '(none)'}
+
+GIT DIFF:
+${diffText}`;
+
+    let lastError = null;
+    for (let i = 0; i < models.length; i++) {
+      const model = models[i];
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const execOpts = {
+            cwd: repoPath,
+            timeout: 60000,
+            windowsHide: true,
+            maxBuffer: 1024 * 1024,
+          };
+          if (useShell) execOpts.shell = true;
+          childProcessImpl.execFile(openCodeBin, [
+            'run',
+            '--model', model,
+            '--agent', 'plan',
+            '--format', 'json',
+            '--dir', repoPath,
+            prompt,
+          ], execOpts, (error, stdout, stderr) => {
+            if (error) {
+              reject(Object.assign(error, { stdout, stderr }));
+              return;
+            }
+            resolve({ stdout: String(stdout || ''), stderr: String(stderr || '') });
+          });
+        });
+
+        // Parse JSON events to extract commit message
+        const lines = result.stdout.split('\n').filter(l => l.trim());
+        let messageContent = '';
+        for (const line of lines) {
+          try {
+            const event = JSON.parse(line);
+            // Look for content in various event shapes
+            if (event.content && typeof event.content === 'string') {
+              messageContent = event.content;
+            } else if (event.text && typeof event.text === 'string') {
+              messageContent = event.text;
+            } else if (event.type === 'assistant' || event.role === 'assistant') {
+              const content = event.content || event.text || event.message || '';
+              if (typeof content === 'string' && content.trim()) {
+                messageContent = content;
+              }
+            }
+          } catch (_) { /* skip non-JSON lines */ }
+        }
+
+        // If no structured content found, use raw stdout (strip JSON lines)
+        if (!messageContent.trim()) {
+          // Fallback: take the last non-JSON-looking line that's not empty
+          const textLines = lines.filter(l => {
+            try { JSON.parse(l); return false; } catch (_) { return true; }
+          });
+          messageContent = textLines.join('\n').trim();
+        }
+
+        // Clean up: remove any markdown fences
+        messageContent = messageContent.replace(/```[\s\S]*?```/g, '').replace(/`([^`]+)`/g, '$1').trim();
+
+        if (messageContent) {
+          sendJson(res, 200, {
+            ok: true,
+            message: messageContent,
+            model,
+            source: 'opencode',
+            fallbackIndex: i,
+            warnings,
+          });
+          return;
+        }
+      } catch (e) {
+        lastError = e;
+        // Continue to next model
+      }
+    }
+
+    // All models failed — return non-blocking error
+    sendJson(res, 200, { ok: false, code: 'MODEL_CHAIN_FAILED', message: 'No free OpenCode model returned a commit message.', warnings: [...warnings, `All models failed. Last error: ${lastError?.message || 'unknown'}`], lastError: lastError?.message || 'unknown' });
+  }).catch((error) => {
+    const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+    sendJson(res, statusCode, { error: String(error.message || error) });
+  });
+}
+
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const readJsonBody = context.readJsonBody || defaultReadJsonBody;
-  const deps = { sendJson, readJsonBody, childProcess: context.childProcess || childProcess };
+  const deps = { sendJson, readJsonBody, childProcess: context.childProcess || childProcess, resolveOpenCodeBin: context.resolveOpenCodeBin || null };
 
   return [
     { method: 'GET', path: '/api/git/status', handler: (ctx) => handleGitStatus(ctx, deps) },
@@ -1433,6 +1628,7 @@ function register(context = {}) {
     { method: 'POST', path: '/api/git/stage', handler: (ctx) => handleGitStage(ctx, deps) },
     { method: 'POST', path: '/api/git/unstage', handler: (ctx) => handleGitUnstage(ctx, deps) },
     { method: 'POST', path: '/api/git/commit', handler: (ctx) => handleGitCommit(ctx, deps) },
+    { method: 'POST', path: '/api/git/commit-message', handler: (ctx) => handleGenerateCommitMessage(ctx, deps) },
     { method: 'POST', path: '/api/git/checkout', handler: (ctx) => handleGitCheckout(ctx, deps) },
     { method: 'POST', path: '/api/git/pull', handler: (ctx) => handleGitPull(ctx, deps) },
     { method: 'POST', path: '/api/git/push', handler: (ctx) => handleGitPush(ctx, deps) },

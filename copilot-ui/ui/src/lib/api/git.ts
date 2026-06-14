@@ -555,3 +555,36 @@ export async function dropStash(repoPath: string, index?: number, baseUrl?: stri
     body: JSON.stringify({ repoPath, index: index !== undefined ? index : undefined }),
   });
 }
+
+// ─── Commit message generation ──────────────────────────────────────────
+
+export interface GenerateCommitMessageResponse {
+  ok: boolean;
+  message: string;
+  model: string | null;
+  source: 'opencode';
+  fallbackIndex: number;
+  warnings?: string[];
+  code?: string;
+  lastError?: string;
+}
+
+export interface GenerateCommitMessageOptions {
+  stagedOnly?: boolean;
+  models?: string[];
+}
+
+export async function generateCommitMessage(
+  repoPath: string,
+  options?: GenerateCommitMessageOptions
+): Promise<GenerateCommitMessageResponse> {
+  return apiRequest<GenerateCommitMessageResponse>('/api/git/commit-message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repoPath,
+      stagedOnly: options?.stagedOnly,
+      models: options?.models,
+    }),
+  });
+}

@@ -64,7 +64,7 @@ async function invoke(routes, method, pathname) {
   return { res, body: parseBody(res) };
 }
 
-function registerWithMocks({ execResponses = [], body = {} } = {}) {
+function registerWithMocks({ execResponses = [], body = {}, resolveOpenCodeBin = null } = {}) {
   const queue = [...execResponses];
   return register({
     sendJson: createSendJson(),
@@ -83,15 +83,16 @@ function registerWithMocks({ execResponses = [], body = {} } = {}) {
         callback(null, next.stdout || '', next.stderr || '');
       },
     },
+    resolveOpenCodeBin: resolveOpenCodeBin || (() => 'opencode'),
   });
 }
 
 async function run() {
   console.log('\nGit Route Tests\n');
 
-  await test('register returns 17 route descriptors', async () => {
+  await test('register returns 27 route descriptors', async () => {
     const routes = registerWithMocks();
-    assert.equal(routes.length, 17);
+    assert.equal(routes.length, 27);
   });
 
   await test('GET /api/git/status returns branch, counts, and files', async () => {
@@ -375,6 +376,194 @@ async function run() {
     assert.equal(body.merged, true);
     assert.equal(body.sourceRef, 'feature/test');
     assert.equal(body.targetRef, 'main');
+  });
+
+  // ── POST /api/git/commit-message tests ──────────────────────────
+
+  await test('POST /api/git/commit-message rejects missing repoPath', async () => {
+    const routes = registerWithMocks({ body: {} });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/commit-message');
+    assert.equal(res.statusCode, 400);
+    assert.match(body.error, /repoPath is required/i);
+  });
+
+  await test('POST /api/git/commit-message uses staged diff when staged changes exist', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo' },
+      execResponses: [
+        { stdout: 'fix: update readme\nfeat: add login\n' }, // git log
+        { stdout: ' src/app.ts | 5 +++++\n' },              // git diff --cached --stat (has content)
+        { stdout: 'diff --git a/src/app.ts b/src/app.ts\n...' }, // git diff --cached
+        // opencode execFile - return JSON event with message
+        { stdout: '{"type":"assistant","content":"feat: add login form"}\n' },
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/commit-message');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.message, 'feat: add login form');
+    assert.equal(body.source, 'opencode');
+    assert.equal(body.fallbackIndex, 0);
+    // No unstaged fallback warning
+    assert.ok(!body.warnings || !body.warnings.some(w => w.includes('unstaged') || w.includes('working tree')));
+  });
+
+  await test('POST /api/git/commit-message falls back to unstaged diff with warning', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo' },
+      execResponses: [
+        { stdout: 'fix: update readme\n' },                        // git log
+        { stdout: '' },                                             // git diff --cached --stat (empty)
+        { stdout: ' src/app.ts | 3 +++\n' },                       // git diff --stat
+        { stdout: 'diff --git a/src/app.ts b/src/app.ts\n...' },   // git diff (unstaged)
+        { stdout: '{"type":"assistant","content":"fix: update app"}\n' }, // opencode
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/commit-message');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.message, 'fix: update app');
+    assert.equal(body.source, 'opencode');
+    assert.ok(body.warnings && body.warnings.some(w => w.includes('No staged changes')), 'should warn about no staged changes');
+  });
+
+  await test('POST /api/git/commit-message tries fallback models when first fails', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo' },
+      execResponses: [
+        { stdout: 'fix: update readme\n' },
+        { stdout: ' src/app.ts | 2 ++\n' },
+        { stdout: 'diff --git a/src/app.ts b/src/app.ts\n...' },
+        // First opencode call: error (model unavailable)
+        { error: new Error('Model not available'), stdout: '', stderr: 'not found' },
+        // Second opencode call: success
+        { stdout: '{"content":"chore: update dependency"}\n' },
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/commit-message');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.message, 'chore: update dependency');
+    assert.equal(body.source, 'opencode');
+    assert.equal(body.fallbackIndex, 1); // second model (index 1) succeeded
+  });
+
+  await test('POST /api/git/commit-message returns MODEL_CHAIN_FAILED when all models fail', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo' },
+      execResponses: [
+        { stdout: 'fix: update readme\n' },
+        { stdout: ' src/app.ts | 2 ++\n' },
+        { stdout: 'diff --git a/src/app.ts b/src/app.ts\n...' },
+        // All three models fail
+        { error: new Error('Model 1 unavailable'), stdout: '', stderr: 'err' },
+        { error: new Error('Model 2 unavailable'), stdout: '', stderr: 'err' },
+        { error: new Error('Model 3 unavailable'), stdout: '', stderr: 'err' },
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/commit-message');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, false);
+    assert.equal(body.code, 'MODEL_CHAIN_FAILED');
+    assert.equal(body.message, 'No free OpenCode model returned a commit message.');
+    assert.ok(body.lastError, 'should include lastError');
+    assert.ok(body.warnings && body.warnings.some(w => w.includes('All models failed')), 'should warn all models failed');
+  });
+
+  // ── Commit message new structured error tests ──────────────────
+
+  await test('POST /api/git/commit-message returns OPENCODE_NOT_FOUND when CLI is missing', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo' },
+      resolveOpenCodeBin: () => null,
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/commit-message');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, false);
+    assert.equal(body.code, 'OPENCODE_NOT_FOUND');
+    assert.equal(body.message, 'OpenCode CLI is not available to the Elegy backend.');
+  });
+
+  await test('POST /api/git/commit-message uses OPENCODE_BIN override when set', async () => {
+    const customBin = 'C:/custom/path/opencode.exe';
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo' },
+      resolveOpenCodeBin: () => customBin,
+      execResponses: [
+        { stdout: 'fix: update readme\n' },
+        { stdout: ' src/app.ts | 2 ++\n' },
+        { stdout: 'diff --git a/src/app.ts b/src/app.ts\n...' },
+        // Verify the custom bin is called (mock returns success)
+        { stdout: '{"type":"assistant","content":"feat: using custom bin"}\n' },
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/commit-message');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.message, 'feat: using custom bin');
+  });
+
+  await test('POST /api/git/commit-message returns NO_CHANGES when diff is empty', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo' },
+      execResponses: [
+        { stdout: 'fix: update readme\n' }, // git log
+        { stdout: '' },                      // git diff --cached --stat (empty)
+        { stdout: '' },                      // git diff --stat (empty)
+        { stdout: '' },                      // git diff (empty - no changes)
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/commit-message');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, false);
+    assert.equal(body.code, 'NO_CHANGES');
+    assert.equal(body.message, 'No changes to generate a commit message from.');
+  });
+
+  await test('POST /api/git/commit-message passes shell:true for .cmd shims on Windows', async () => {
+    if (process.platform !== 'win32') return; // skip on non-Windows
+    const customBin = 'C:/Users/test/AppData/Roaming/npm/opencode.cmd';
+    let capturedOptions = null;
+    const routes = register({
+      sendJson: createSendJson(),
+      readJsonBody: createReadJsonBody({ repoPath: 'C:/repo' }),
+      childProcess: {
+        execFile(command, args, options, callback) {
+          capturedOptions = options;
+          // Return a successful response for git log, diff, and opencode
+          callback(null, '{"type":"assistant","content":"feat: shell test"}\n', '');
+        },
+      },
+      resolveOpenCodeBin: () => customBin,
+    });
+    const res = createResponse();
+    const u = new URL('http://127.0.0.1/api/git/commit-message');
+    const { route } = findRoute(routes, 'POST', u.pathname);
+    await route.handler({ req: { method: 'POST' }, res, u, match: null, pathname: u.pathname });
+    const body = parseBody(res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, true);
+    assert.equal(capturedOptions.shell, true, 'should use shell:true for .cmd shim');
+  });
+
+  await test('POST /api/git/commit-message returns NO_CHANGES when stagedOnly=true and no staged changes', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo', stagedOnly: true },
+      execResponses: [
+        { stdout: 'fix: update readme\n' }, // git log
+        { stdout: '' },                      // git diff --cached --stat (empty - no staged changes)
+        { stdout: '' },                      // git diff --stat (unstaged - empty, fetched before stagedOnly check)
+        { stdout: 'some unstaged content' }, // git diff (unstaged, fetched before stagedOnly check)
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/commit-message');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, false);
+    assert.equal(body.code, 'NO_CHANGES');
+    assert.equal(body.message, 'No staged changes available (stagedOnly=true)');
+    // Should NOT contain the misleading "generated from working tree" warning
+    assert.ok(!body.warnings || !body.warnings.some(w => w.includes('generated from working tree')),
+      'should not contain misleading "generated from working tree" warning when stagedOnly=true');
   });
 
   console.log(`\n  ${passed} tests passed\n`);

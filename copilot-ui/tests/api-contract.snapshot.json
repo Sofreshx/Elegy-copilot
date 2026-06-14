@@ -1700,6 +1700,14 @@
       "error"
     ]
   },
+  "POST /api/git/commit-message": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
   "POST /api/git/checkout": {
     "status": 400,
     "contentType": "application/json",

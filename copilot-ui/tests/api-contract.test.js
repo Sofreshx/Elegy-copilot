@@ -286,6 +286,7 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/git/stage' },
   { method: 'POST', path: '/api/git/unstage' },
   { method: 'POST', path: '/api/git/commit' },
+  { method: 'POST', path: '/api/git/commit-message' },
   { method: 'POST', path: '/api/git/checkout' },
   { method: 'POST', path: '/api/git/pull' },
   { method: 'POST', path: '/api/git/push' },
@@ -426,7 +427,7 @@ async function run() {
     }
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 154, `Expected 154 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 155, `Expected 155 routes, got ${ROUTE_INVENTORY.length}`);
   });
   } finally {
     if (runningServer) {
