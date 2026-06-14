@@ -1,6 +1,6 @@
 ---
 created: 2026-02-22
-updated: 2026-04-03
+updated: 2026-06-13
 category: system
 status: current
 doc_kind: node
@@ -35,6 +35,23 @@ Use when you have, or need, a durable repeatable browser test suite in the proje
 - Typical fit: committed regression coverage, CI gates, and durable scripted suites
 
 This is the right fit for CI and repeatable regression gates.
+
+## UI Runtime Exploration Skill
+
+For browser-mode UI and Tauri desktop E2E work beyond the two flows above, the
+[ui-runtime-exploration skill](engine-assets/skills/ui-runtime-exploration/SKILL.md)
+provides a 5-lane routing matrix covering:
+
+- **Browser-mode UI** (agent-browser / Playwright) — web-only exploratory coverage
+- **Tauri desktop E2E** (tauri-driver + WebDriver) — real desktop app automation
+- **Rust command testing** — backend command-level validation
+
+The skill preserves the critical distinctions from the default flows above:
+
+- **Agent-browser remains exploratory**, not a CI gate. It is for interactive session evidence, not
+  durable regression.
+- **Browser-mode Playwright** targets web UI only. For real Tauri desktop testing, use
+  **tauri-driver + WebDriver**, not Playwright.
 
 ## When E2E Becomes Mandatory
 

@@ -47,7 +47,9 @@ export const SHIPPED_ASSETS = [
   skill('skill-elegy-obsidian', 'catalog-assets/shared-skills/elegy-obsidian', { loadMode: 'on-demand' }),
   skill('skill-repo-backed-obsidian-docs', 'catalog-assets/shared-skills/repo-backed-obsidian-docs', { loadMode: 'on-demand' }),
   skill('skill-commit-check-setup', 'engine-assets/skills/commit-check-setup', { loadMode: 'on-demand' }),
-  skill('skill-commit-validation-governance', 'engine-assets/skills/commit-validation-governance'),
+  skill('skill-commit-validation-governance', 'engine-assets/skills/commit-validation-governance', {
+    loadMode: 'on-demand',
+  }),
   hook('hook-worktree-session-tracker', 'engine-assets/hooks/worktree-session-tracker/hook.md'),
   hook('hook-session-lifecycle', 'engine-assets/hooks/session-lifecycle/hook.md'),
   skill('skill-implementation-handoff', 'catalog-assets/shared-skills/implementation-handoff', {
@@ -62,6 +64,9 @@ export const SHIPPED_ASSETS = [
   skill('skill-spec-authoring', 'catalog-assets/shared-skills/spec-authoring', { loadMode: 'on-demand' }),
   skill('skill-spec-dev', 'catalog-assets/shared-skills/spec-dev', { loadMode: 'on-demand' }),
   skill('skill-spec-review', 'catalog-assets/shared-skills/spec-review', { loadMode: 'on-demand' }),
+  skill('skill-ui-runtime-exploration', 'engine-assets/skills/ui-runtime-exploration', {
+    loadMode: 'on-demand',
+  }),
   skill('skill-ui-system', 'catalog-assets/shared-skills/ui-system', { loadMode: 'on-demand' }),
 
   instructions('codex-global-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {
@@ -235,6 +240,23 @@ export const SHIPPED_BUNDLES = [
       tags: ['commit', 'validation', 'governance'],
     },
     tags: ['commit', 'validation', 'governance'],
+    defaultRecommended: false,
+    dependsOn: [],
+  },
+  {
+    id: 'ui-runtime-validation',
+    title: 'UI Runtime Validation Skills',
+    description: 'Browser and desktop UI validation routing: Playwright for browser-mode regression, agent browser for AI investigation, tauri-driver plus WebDriver client for real Tauri desktop behavior, and cargo test plus Tauri mock runtime for Rust commands.',
+    assetIds: ['skill-ui-runtime-exploration'],
+    installTarget: 'repo-local',
+    activationScope: 'repo',
+    materialization: 'on-demand',
+    classification: 'workflow',
+    targeting: {
+      scopeKinds: ['repo'],
+      tags: ['ui', 'testing', 'e2e', 'browser', 'tauri', 'desktop'],
+    },
+    tags: ['ui', 'testing', 'e2e', 'browser', 'tauri', 'desktop'],
     defaultRecommended: false,
     dependsOn: [],
   },
