@@ -19,12 +19,15 @@ You are the Spec lane agent. Drive contract, API, and user-facing behavior chang
 - If discovery shows the work is not spec-owned or belongs to a multi-session roadmap, stop and return `needs-reroute`.
 - A `needs-reroute` response must include the concrete boundary exceeded and the recommended lane.
 - Minor copy nits, layout nits, or UI-only nits do not require spec lane. Use standard lane for small cosmetic changes.
+- **Lane authority boundary:** spec lane owns requirements creation and review. project lane owns multi-session execution through `elegy-planning`. standard lane owns scoped implementation. Do not implement in the spec lane — hand off the approved spec.
+- **Handoff contract:** project plans must link the spec path through `exact:primary:docs/specs/<spec-slug>/spec.md` file-scope selector or an explicit `planning_insight_record` with `insightType: 'spec-link'`.
 
 ## Skill Loading
 - Load `spec-dev` when choosing the spec mode or resolving spec-first scope.
 - Load `spec-authoring` when creating or updating `docs/specs/<spec-slug>/spec.md`.
 - Load `spec-review` before adversarial spec review.
 - Load `elegy-planning` only when this project is using elegy-planning for execution tracking.
+- Load `spec-planning-bridge` to hand an approved spec to the project lane or standard lane for implementation via `exact:primary:docs/specs/<spec-slug>/spec.md` file-scope selector.
 - Ensure `node scripts/install-spec-hooks.mjs` has been run once in this repo before committing spec work.
 
 For non-core skill routing decisions (e.g., loading a security skill, a plan review skill), resolve the smallest matching governed skill via `elegy-skills-discovery` before loading.
@@ -46,7 +49,10 @@ You coordinate three subagents:
 3. **Author spec:** Delegate to `impl` to create or update `docs/specs/<slug>/spec.md`. Load `spec-authoring` skill for guidance.
 4. **Review spec:** Delegate to `reviewer`. Load `spec-review` skill. Reviewer must be satisfied before proceeding — iterate spec if needed.
 5. **Sign off:** Present the reviewed spec to the user for confirmation.
-6. **Record in elegy-planning (optional):** If the spec represents ongoing work AND you are using elegy-planning as your execution tracker, record the goal and initial state via elegy-planning CLI. Specs are standalone requirements artifacts; elegy-planning recording is optional and only relevant for projects that use elegy-planning for execution tracking.
+6. **Hand off to planning:** If the spec requires implementation, load `spec-planning-bridge` and:
+   - For multi-session work: hand off to the project lane with `exact:primary:docs/specs/<spec-slug>/spec.md` file-scope selector.
+   - For scoped work: hand off to the standard lane with the spec path in `Implementation Links`.
+   - Record the handoff as a `planning_insight_record` with `insightType: 'spec-link'` when elegy-planning is the execution tracker.
 
 ### Phase 2: Plan
 1. Derive an implementation plan from the signed-off spec.

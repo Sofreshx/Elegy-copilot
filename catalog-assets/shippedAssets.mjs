@@ -64,6 +64,7 @@ export const SHIPPED_ASSETS = [
   skill('skill-spec-authoring', 'catalog-assets/shared-skills/spec-authoring', { loadMode: 'on-demand' }),
   skill('skill-spec-dev', 'catalog-assets/shared-skills/spec-dev', { loadMode: 'on-demand' }),
   skill('skill-spec-review', 'catalog-assets/shared-skills/spec-review', { loadMode: 'on-demand' }),
+  skill('skill-spec-planning-bridge', 'catalog-assets/shared-skills/spec-planning-bridge', { loadMode: 'on-demand' }),
   skill('skill-ui-runtime-exploration', 'engine-assets/skills/ui-runtime-exploration', {
     loadMode: 'on-demand',
   }),
@@ -212,8 +213,8 @@ export const SHIPPED_BUNDLES = [
     id: 'spec-driven-development-lane',
     title: 'Spec-Driven Development Skills',
     description:
-      'Repo-local spec routing, authoring, and adversarial review skills for durable specs under specs/ without creating a separate planner fleet.',
-    assetIds: ['skill-spec-dev', 'skill-spec-authoring', 'skill-spec-review'],
+      'Repo-local spec routing, authoring, adversarial review, and planning handoff skills for durable specs under specs/ without creating a separate planner fleet.',
+    assetIds: ['skill-spec-dev', 'skill-spec-authoring', 'skill-spec-review', 'skill-spec-planning-bridge'],
     installTarget: 'repo-local',
     activationScope: 'repo',
     materialization: 'on-demand',

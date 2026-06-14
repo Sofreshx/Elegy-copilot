@@ -94,10 +94,10 @@ function parseSkipPaths(meta) {
   return [String(raw).trim()].filter(Boolean);
 }
 
-const VALID_STATUS = new Set(['draft', 'approved', 'implemented', 'superseded']);
+const VALID_STATUS = new Set(['draft', 'approved', 'implemented', 'superseded', 'abandoned']);
 const VALID_TYPES = new Set(['feature', 'workflow', 'contract', 'skill', 'agent', 'migration']);
 const REQUIRED_FRONTMATTER_KEYS = ['spec_id', 'title', 'status', 'type', 'updated'];
-const OPTIONAL_DATE_KEYS = ['created', 'approved_at', 'implemented_at', 'superseded_at'];
+const OPTIONAL_DATE_KEYS = ['created', 'approved_at', 'implemented_at', 'superseded_at', 'abandoned_at'];
 const REQUIRED_HEADINGS = [
   'Intent',
   'Context Evidence',
@@ -488,8 +488,14 @@ function checkFreshness(meta) {
   const now = new Date();
   const daysSince = Math.floor((now - updatedDate) / (1000 * 60 * 60 * 24));
 
+  // Abandoned specs are terminal — no staleness warnings
+  if (status === 'abandoned') return warnings;
+
   if (status === 'draft' && daysSince > 90) {
     warnings.push(`[WARN] stale draft (${daysSince} days since last update, consider promoting or superseding)`);
+  }
+  if (status === 'approved' && daysSince > 180) {
+    warnings.push(`[WARN] stale approved spec (${daysSince} days since last update, must link to an active plan/work point or be reviewed)`);
   }
   if (status === 'implemented' && daysSince > 180) {
     warnings.push(`[WARN] stale implemented spec (${daysSince} days, consider reviewing for drift)`);
@@ -668,6 +674,11 @@ function validateSpecFile(filePath, options, specIdMap) {
 
   if (status === 'superseded' && !supersededBy) {
     errors.push(`status is 'superseded' but 'superseded_by' is missing or empty`);
+  }
+
+  // abandoned must NOT have superseded_by (abandoned means decision NOT to implement, not replaced)
+  if (status === 'abandoned' && supersededBy) {
+    errors.push(`status is 'abandoned' but 'superseded_by' is set (abandoned means a decision not to implement, not replacement by another spec)`);
   }
 
   const body = content.slice(frontmatter.full.length);

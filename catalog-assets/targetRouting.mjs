@@ -56,6 +56,7 @@ const ENGINE_ASSET_ROUTES = [
   route('skill-spec-authoring'),
   route('skill-spec-dev'),
   route('skill-spec-review'),
+  route('skill-spec-planning-bridge'),
   route('skill-ui-runtime-exploration'),
   route('skill-ui-system'),
   route('skill-commit-check-setup'),
@@ -183,6 +184,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-spec-dev-skill', { sourceAssetId: 'skill-spec-dev' }),
       route('codex-spec-authoring-skill', { sourceAssetId: 'skill-spec-authoring' }),
       route('codex-spec-review-skill', { sourceAssetId: 'skill-spec-review' }),
+      route('codex-spec-planning-bridge-skill', { sourceAssetId: 'skill-spec-planning-bridge' }),
       route('codex-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning' }),
       route('codex-repo-backed-obsidian-docs-skill', { sourceAssetId: 'skill-repo-backed-obsidian-docs' }),
       route('codex-ui-system-skill', { sourceAssetId: 'skill-ui-system' }),
@@ -233,6 +235,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-spec-authoring-skill', { sourceAssetId: 'skill-spec-authoring' }),
       route('opencode-spec-dev-skill', { sourceAssetId: 'skill-spec-dev' }),
       route('opencode-spec-review-skill', { sourceAssetId: 'skill-spec-review' }),
+      route('opencode-spec-planning-bridge-skill', { sourceAssetId: 'skill-spec-planning-bridge' }),
       route('opencode-ui-system-skill', { sourceAssetId: 'skill-ui-system' }),
       route('opencode-worktree-plugin', { destination: 'plugins/worktree.js' }),
       route('opencode-worktree-skill'),
@@ -290,6 +293,10 @@ export const COMPATIBILITY_MANIFESTS = [
       route('antigravity-spec-review-skill', {
         sourceAssetId: 'skill-spec-review',
         destination: 'antigravity/skills/spec-review',
+      }),
+      route('antigravity-spec-planning-bridge-skill', {
+        sourceAssetId: 'skill-spec-planning-bridge',
+        destination: 'antigravity/skills/spec-planning-bridge',
       }),
       route('antigravity-commit-check-setup-skill', {
         sourceAssetId: 'skill-commit-check-setup',

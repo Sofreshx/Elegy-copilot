@@ -18,7 +18,13 @@ updated: YYYY-MM-DD
 
 ## Requirements
 
-- <durable requirement>
+### Allowed Behavior
+
+- <what the system should do>
+
+### Forbidden Behavior
+
+- <what the system must not do>
 
 ## Non-Goals
 

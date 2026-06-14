@@ -30,6 +30,7 @@ Allowed `status` values:
 - `approved`
 - `implemented`
 - `superseded`
+- `abandoned`
 
 Allowed `type` values:
 
@@ -64,6 +65,17 @@ Required headings:
 - Do not treat a spec as the permanent home for a key architectural or workflow-authority tradeoff when that decision should be promoted into an ADR.
 - Use the per-type templates under `docs/specs/_templates/` when the default template does not match your `type`.
 
+### Authoring Gate
+
+Before creating `docs/specs/<spec-slug>/spec.md`, the authoring session must establish:
+
+1. **Context evidence**: concrete file paths, commands, docs, or runtime data that justify the spec.
+2. **Allowed Behavior**: what the system should do under the spec's requirements.
+3. **Forbidden Behavior**: what the system must not do — boundary conditions, error states, and excluded paths.
+4. **Verifiable acceptance checks**: at least two checks with concrete `→ verify:` lines.
+
+Do not create a durable spec without all four gates passed. If evidence is insufficient, pause and gather more before authoring.
+
 ### Spec Link Conventions
 
 Durable specs can declare relationships via frontmatter keys:
@@ -83,6 +95,7 @@ Before handing a spec to `spec-review`, confirm:
 - [ ] Intent is a specific, non-empty description of the problem or opportunity.
 - [ ] Context Evidence lists concrete file paths, commands, tests, or runtime data with reasons.
 - [ ] Requirements are unambiguous and testable.
+- [ ] Allowed Behavior and Forbidden Behavior subsections are present and concrete.
 - [ ] Non-Goals cover likely scope-creep edges.
 - [ ] Each Acceptance Check has a `→ verify:` line with a concrete command or manual step.
 - [ ] Implementation Links list every file, test, or plan that the spec will touch.
@@ -125,7 +138,13 @@ updated: YYYY-MM-DD
 
 ## Requirements
 
-- <durable requirement>
+### Allowed Behavior
+
+- <what the system should do>
+
+### Forbidden Behavior
+
+- <what the system must not do>
 
 ## Non-Goals
 
