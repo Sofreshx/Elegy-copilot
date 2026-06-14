@@ -9,10 +9,10 @@ const { matchFrontmatter, extractH2Sections } = require('./lib/spec-headings.js'
 const { parseFrontmatterYaml } = require('./lib/spec-yaml.js');
 const { looksLikeFilePath, KNOWN_SOURCE_DIRS } = require('./lib/spec-path-heuristics.js');
 
-const VALID_STATUS = new Set(['draft', 'approved', 'implemented', 'superseded']);
+const VALID_STATUS = new Set(['draft', 'approved', 'implemented', 'superseded', 'abandoned']);
 const VALID_TYPES = new Set(['feature', 'workflow', 'contract', 'skill', 'agent', 'migration']);
 const REQUIRED_FRONTMATTER_KEYS = ['spec_id', 'title', 'status', 'type', 'updated'];
-const OPTIONAL_DATE_KEYS = ['created', 'approved_at', 'implemented_at', 'superseded_at'];
+const OPTIONAL_DATE_KEYS = ['created', 'approved_at', 'implemented_at', 'superseded_at', 'abandoned_at'];
 const REQUIRED_HEADINGS = [
   'Intent', 'Context Evidence', 'Requirements', 'Non-Goals',
   'Acceptance Checks', 'Implementation Links', 'Validation Evidence', 'Drift Notes',
@@ -67,6 +67,7 @@ function assessSpec(filePath) {
   const supersededBy = String(meta.superseded_by || '').trim();
   if (supersedes && supersededBy) errors.push('both supersedes and superseded_by');
   if (status === 'superseded' && !supersededBy) errors.push('superseded without superseded_by');
+  if (status === 'abandoned' && supersededBy) errors.push('abandoned must not set superseded_by');
 
   // Date key checks
   let optionalDatesPresent = 0;
@@ -124,9 +125,11 @@ function assessSpec(filePath) {
   // -20 if ACs don't have verify lines
   if (totalBullets > 0 && acWithVerify < totalBullets) score -= 20;
 
-  // -10 if stale draft (>90d) or stale implemented (>180d)
+  // -10 if stale: draft (>90d), approved (>180d), or implemented (>180d)
+  // Abandoned and superseded are terminal — no staleness penalty
   if (daysSinceUpdate !== null) {
     if (status === 'draft' && daysSinceUpdate > 90) score -= 10;
+    if (status === 'approved' && daysSinceUpdate > 180) score -= 10;
     if (status === 'implemented' && daysSinceUpdate > 180) score -= 10;
   }
 

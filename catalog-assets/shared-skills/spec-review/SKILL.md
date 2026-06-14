@@ -25,6 +25,8 @@ acceptance checks, source-of-truth confusion, and scope drift before the impleme
 12. **Sibling plan.md:** If the spec has 5+ requirements or 2+ phases, confirm a sibling `plan.md` exists alongside `spec.md`. The spec validator (`validate-specs.js --strict`) produces an advisory warning (not a hard error) when this condition is not met. Use judgment — some specs may intentionally defer the plan to a later phase.
 13. **ADR cross-reference:** If the spec governs a trust boundary, authority model, or architecture-level tradeoff, confirm an ADR exists in `docs/adr/` and is referenced in `Context Evidence`.
 14. **Pre-commit hook:** Verify the repo has the spec pre-commit hook installed (`node scripts/install-spec-hooks.mjs`).
+15. **Allowed/Forbidden Behavior:** Confirm the spec has concrete `### Allowed Behavior` and `### Forbidden Behavior` subsections under `## Requirements`, and they cover the spec's boundary conditions and error states.
+16. **Spec-to-planning handoff:** If the spec is `approved`, confirm it links to an active plan or work point (via `Implementation Links`, file-scope selector `exact:primary:docs/specs/<spec-slug>/spec.md`, or a planning insight). Draft specs may defer this; approved specs must have it.
 
 ## Verdict Rules
 

@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const { parseFrontmatterYaml } = require('./lib/spec-yaml.js');
 
-const STATUS_ORDER = { draft: 0, approved: 1, implemented: 2, superseded: 3 };
+const STATUS_ORDER = { draft: 0, approved: 1, implemented: 2, abandoned: 3, superseded: 4 };
 
 function toPosix(filePath) {
   return String(filePath || '').replace(/\\/g, '/');

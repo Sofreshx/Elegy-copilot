@@ -97,6 +97,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "claude-spec-planning-bridge-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-planning-bridge",
+      "destination": "skills/spec-planning-bridge",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "claude-commit-check-setup-skill",
       "type": "skill",
       "source": "engine-assets/skills/commit-check-setup",

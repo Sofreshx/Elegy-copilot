@@ -260,6 +260,246 @@ Test strict mode passes with valid paths.
   }
 });
 
+test('abandoned status passes validation', () => {
+  const specBody = `---
+spec_id: test-abandoned
+title: Test Abandoned
+status: abandoned
+type: feature
+updated: 2026-06-10
+abandoned_at: 2026-06-10
+---
+
+# Test Abandoned
+
+## Intent
+
+Test abandoned status validation.
+
+## Context Evidence
+
+- \`scripts/validate-specs.js\`: this file exists
+
+## Requirements
+
+- Test requirement.
+
+## Non-Goals
+
+- Test non-goal.
+
+## Acceptance Checks
+
+- Check one.
+  → verify: node scripts/validate-specs.js
+- Check two.
+  → verify: node scripts/validate-specs.js
+
+## Implementation Links
+
+- \`scripts/validate-specs.js\`
+
+## Validation Evidence
+
+- Review decision: not implementing, see ADR-000.
+
+## Drift Notes
+
+- Abandoned per review decision.
+`;
+
+  const { root } = createTempFixture(specBody, {
+    'index.md': '| Spec | Status | Type | Updated | Intent |\n|------|--------|------|---------|--------|\n| [Test Abandoned](temp-test-spec/spec.md) | abandoned | feature | 2026-06-10 | Test abandoned status |\n',
+  });
+  try {
+    const result = runValidator(['--strict', root]);
+    assert.strictEqual(result.status, 0, `expected success, stderr: ${result.stderr}`);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('abandoned with superseded_by fails', () => {
+  const specBody = `---
+spec_id: test-abandoned-both
+title: Test Abandoned Both
+status: abandoned
+type: feature
+updated: 2026-06-10
+superseded_by: some-other-spec
+---
+
+# Test Abandoned Both
+
+## Intent
+
+Test abandoned + superseded_by error.
+
+## Context Evidence
+
+- \`scripts/validate-specs.js\`: this file exists
+
+## Requirements
+
+- Test requirement.
+
+## Non-Goals
+
+- Test non-goal.
+
+## Acceptance Checks
+
+- Check one.
+  → verify: node scripts/validate-specs.js
+- Check two.
+  → verify: node scripts/validate-specs.js
+
+## Implementation Links
+
+- \`scripts/validate-specs.js\`
+
+## Validation Evidence
+
+- Review decision.
+
+## Drift Notes
+
+- Abandoned.
+`;
+
+  const { root } = createTempFixture(specBody);
+  try {
+    const result = runValidator(['--require', root]);
+    assert.notStrictEqual(result.status, 0, 'expected validator to fail');
+    assert.match(result.stderr, /abandoned.*superseded_by/i);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('approved spec older than 180 days triggers staleness warning', () => {
+  // Use a date > 180 days ago
+  const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const specBody = `---
+spec_id: test-approved-stale
+title: Test Approved Stale
+status: approved
+type: feature
+updated: ${oldDate}
+---
+
+# Test Approved Stale
+
+## Intent
+
+Test approved staleness warning.
+
+## Context Evidence
+
+- \`scripts/validate-specs.js\`: this file exists
+
+## Requirements
+
+- Test requirement.
+
+## Non-Goals
+
+- Test non-goal.
+
+## Acceptance Checks
+
+- Check one.
+  → verify: node scripts/validate-specs.js
+- Check two.
+  → verify: node scripts/validate-specs.js
+
+## Implementation Links
+
+- \`scripts/validate-specs.js\`
+
+## Validation Evidence
+
+- Pending.
+
+## Drift Notes
+
+- None.
+`;
+
+  const { root } = createTempFixture(specBody, {
+    'index.md': '| Spec | Status | Type | Updated | Intent |\n|------|--------|------|---------|--------|\n| [Test Approved Stale](temp-test-spec/spec.md) | approved | feature | ' + oldDate + ' | Test approved staleness |\n',
+  });
+  try {
+    const result = runValidator(['--strict', root]);
+    assert.strictEqual(result.status, 0, `expected success, stderr: ${result.stderr}`);
+    assert.match(result.stdout, /stale approved/i);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('abandoned spec does not trigger staleness warning', () => {
+  const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const specBody = `---
+spec_id: test-abandoned-no-stale
+title: Test Abandoned Not Stale
+status: abandoned
+type: feature
+updated: ${oldDate}
+abandoned_at: ${oldDate}
+---
+
+# Test Abandoned Not Stale
+
+## Intent
+
+Test abandoned specs do not get staleness warnings.
+
+## Context Evidence
+
+- \`scripts/validate-specs.js\`: this file exists
+
+## Requirements
+
+- Test requirement.
+
+## Non-Goals
+
+- Test non-goal.
+
+## Acceptance Checks
+
+- Check one.
+  → verify: node scripts/validate-specs.js
+- Check two.
+  → verify: node scripts/validate-specs.js
+
+## Implementation Links
+
+- \`scripts/validate-specs.js\`
+
+## Validation Evidence
+
+- Review decision.
+
+## Drift Notes
+
+- Abandoned.
+`;
+
+  const { root } = createTempFixture(specBody, {
+    'index.md': '| Spec | Status | Type | Updated | Intent |\n|------|--------|------|---------|--------|\n| [Test Abandoned Not Stale](temp-test-spec/spec.md) | abandoned | feature | ' + oldDate + ' | Test abandoned no staleness |\n',
+  });
+  try {
+    const result = runValidator(['--strict', root]);
+    assert.strictEqual(result.status, 0, `expected success, stderr: ${result.stderr}`);
+    // Should NOT contain a stale warning for abandoned
+    assert.strictEqual(result.stdout.includes('stale'), false, 'abandoned spec should not produce staleness warnings');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 console.log(`\n${passed} tests passed`);
 if (process.exitCode) {
   console.error('Some tests FAILED');

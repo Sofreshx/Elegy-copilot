@@ -110,6 +110,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "antigravity-spec-planning-bridge-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-planning-bridge",
+      "destination": "antigravity/skills/spec-planning-bridge",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "antigravity-commit-check-setup-skill",
       "type": "skill",
       "source": "engine-assets/skills/commit-check-setup",

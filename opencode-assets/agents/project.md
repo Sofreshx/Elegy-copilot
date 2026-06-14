@@ -75,10 +75,11 @@ Based on status:
 2. Run `planning_health()` — confirm DB is initialized
 3. Confirm goal and roadmap exist: `planning_goal_list()`, `planning_roadmap_show(roadmapId: "<id>")`
 4. If no roadmap exists, create one via `planning_roadmap_create`
+5. **Accept spec handoff:** If this project was handed an approved spec from the spec lane, confirm the `exact:primary:docs/specs/<spec-slug>/spec.md` file-scope selector is present on the work point. Record the handoff acceptance: `planning_insight_record(insightType: 'spec-link', entityType: 'plan', entityId: '<plan-id>', content: 'Accepted handoff from spec docs/specs/<slug>/spec.md')`. The spec path must appear in at least one work point's `fileScope` array or in the plan's `Implementation Links`.
 
 ### Phase 1: Plan
 1. **Suggest:** Find the next runnable work point: `planning_work_point_next_runnable()`. Inspect work points, respecting dependency ordering.
-2. **Announce:** State the candidate work point — title, description, dependencies (and their status), expected validation — and proceed. The user's prior authorization of the roadmap and plan is the permission to continue. Do not wait for re-confirmation; the user can interrupt if they want to redirect.
+2. **Announce:** State the candidate work point — title, description, dependencies (and their status), expected validation — and proceed. If the work point has a `exact:primary:docs/specs/<slug>/spec.md` file-scope selector, announce the linked spec and confirm its status is `approved`. The user's prior authorization of the roadmap and plan is the permission to continue. Do not wait for re-confirmation; the user can interrupt if they want to redirect.
 3. **Plan:** Create a plan for the work point:
    `planning_plan_create(id: "<id>", roadmapId: "<id>", title: "...", effortTier: "balanced")`
 4. **Worktree:** Load `worktree` skill. Create a dedicated project worktree:
@@ -111,7 +112,7 @@ Based on status:
    - `planning_issue_record(entityType: "plan", entityId: "<id>", title: "[MISSED] ...", description: "...:reason", severity: "medium")`
 8. **Record run evidence:** Append immutable evidence to the project run for all evidence types:
    - `planning_project_run_add_evidence(runId: "<id>", evidenceType: "validation|review|commit|validation-summary|worries|missed-objectives", content: "...")`
-9. **Review:** Delegate to `reviewer`. Load `implementation-review` skill. Reviewer checks: correctness, spec-fit, quality, test coverage.
+9. **Review:** Delegate to `reviewer`. Load `implementation-review` skill. Reviewer checks: correctness, spec-fit (implementation matches linked spec requirements, acceptance checks, and allowed/forbidden behavior), quality, test coverage.
 
 10. **Evidence review:** Delegate to `reviewer`. Review the full evidence chain:
     - All three review gates recorded? (plan, implementation, evidence)

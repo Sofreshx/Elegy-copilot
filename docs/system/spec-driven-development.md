@@ -1,12 +1,12 @@
 ---
 created: 2026-05-21
-updated: 2026-06-08
+updated: 2026-06-14
 category: system
 status: current
 doc_kind: node
 id: spec-driven-development
 summary: Canonical contract for spec-driven development, durable repo specs under docs/specs/, and the shared spec authoring and review skills.
-tags: [specs, planning, validation, skills]
+tags: [specs, planning, validation, skills, elegy-planning, handoff]
 related: [workflow-planning-contract, validation-governance]
 ---
 
@@ -23,8 +23,9 @@ replace them, and it does not introduce a new orchestrator fleet.
 
 - Use spec-driven development when the work needs a tighter requirements contract before planning or implementation.
 - Default durable repo specs live under `docs/specs/`.
-- Keep execution planning in the existing plan-pack and roadmap lanes.
+- `elegy-planning` is the durable execution and roadmap authority. Specs define requirements; plans define execution.
 - Keep implementation review and validation in the existing review and validation lanes.
+- Physical spec archiving (moving specs to an archive folder) is not the default. Specs are the permanent requirements record.
 
 ## Repo Setup Integration
 
@@ -60,6 +61,7 @@ Allowed `status` values:
 - `approved`
 - `implemented`
 - `superseded`
+- `abandoned`
 
 Allowed `type` values:
 
@@ -144,8 +146,9 @@ Durable specs follow a predictable lifecycle. The `status` field is the primary 
 | `approved` | Spec has passed review and is ready to anchor planning | `implemented` or `superseded` | `approved_at` recommended |
 | `implemented` | Requirements have been met, acceptance checks pass | `superseded` (if replaced) or remains | `implemented_at` recommended; `Validation Evidence` must be non-empty |
 | `superseded` | Spec is replaced by a newer spec | terminal | `superseded_by` required; `superseded_at` recommended |
+| `abandoned` | Reviewed decision not to implement the spec | terminal | `abandoned_at` recommended; must not set `superseded_by` |
 
-Optional date keys (`created`, `approved_at`, `implemented_at`, `superseded_at`) are validated as ISO-8601 dates when present but are not required for structural compliance. The validator will warn if they are present with invalid format.
+Optional date keys (`created`, `approved_at`, `implemented_at`, `superseded_at`, `abandoned_at`) are validated as ISO-8601 dates when present but are not required for structural compliance. The validator will warn if they are present with invalid format.
 
 Optional hardening keys: `freshness: ignore` (skips staleness warnings), `liveness_skip_paths` (list of path patterns to skip in liveness checks).
 
@@ -165,13 +168,63 @@ Rules:
 - The referenced spec ID should match the `spec_id` of another spec in the repo.
 - For non-authoritative relationships (related but not superseding), use `Drift Notes` or `Context Evidence` prose.
 
+## Spec Retention Rules
+
+Durable specs are the permanent requirements record. Do not physically archive or move them to a separate folder.
+
+### Retention by Status
+
+| Status | Retention rule |
+|---|---|
+| `draft` | Review after 90 days of inactivity. Promote to `approved`, move to `abandoned` (if not implementing), or update content. |
+| `approved` | Must link to an active plan or work point. Review if unlinked for >180 days. |
+| `implemented` | Retained permanently. Update `Drift Notes` if behavior changes. |
+| `superseded` | Retained permanently with `superseded_by`. |
+| `abandoned` | Retained permanently as a record of a reviewed decision not to implement. Must not have `superseded_by` (abandoned ≠ replaced). |
+
+### Deletion Rules
+
+Delete a spec only when ALL of these conditions are true:
+1. The spec was an accidental duplicate (identical spec_id or intent as another spec).
+2. The spec has status `draft`.
+3. The spec has no `Implementation Links`, no `Validation Evidence`, and no planning links.
+
+Never delete `approved`, `implemented`, `superseded`, or `abandoned` specs without explicit approval.
+
 ## Spec Freshness Policy
 
-Specs should be reviewed periodically to prevent drift:
+The validator produces advisory warnings for staleness:
 
-- **Draft specs** older than 90 days without status change should be reviewed for staleness. Consider promoting to `approved`, moving to `superseded` (if the work is no longer planned), or updating the content.
-- **Implemented specs** older than 180 days should be reviewed to confirm their `Implementation Links` and `Context Evidence` paths still resolve. Use `node scripts/validate-specs.js --strict` for the automated check.
-- Freshness is advisory, not structural. The validator does not enforce time limits.
+- **Draft specs** older than 90 days: [WARN] stale draft.
+- **Approved specs** older than 180 days: [WARN] stale approved spec (must link to active plan/work point or be reviewed).
+- **Implemented specs** older than 180 days: [WARN] stale implemented spec (review for drift).
+- **Abandoned specs**: no staleness warnings (terminal status).
+- **Superseded specs**: no staleness warnings (terminal status).
+
+Freshness is advisory, not structural. The validator does not enforce time limits. Use `freshness: ignore` in frontmatter to suppress warnings for intentional exceptions.
+
+## Spec-to-Planning Handoff
+
+Specs are the durable requirements contract. `elegy-planning` is the durable execution and roadmap authority. They complement each other without merging.
+
+When a spec reaches `approved` status, the spec lane hands it to the project lane or standard lane for implementation:
+
+| Role | Owner | Artifact |
+|---|---|---|
+| Requirements | spec lane | `docs/specs/<slug>/spec.md` |
+| Execution planning | project lane | `elegy-planning` roadmap → plan → work points |
+| Implementation | standard lane or project lane | Code changes + validation evidence |
+
+### Handoff Contract
+
+1. The `approved` spec must have a `spec_id`.
+2. The project plan or work point must reference the spec via a **file-scope selector**: `exact:primary:docs/specs/<spec-slug>/spec.md`.
+3. Alternatively, record an explicit `planning_insight_record` with `insightType: 'spec-link'` linking the plan to the spec path.
+4. If the implementation uses a `plan.md` alongside the spec, the `plan.md` must reference the spec's file path.
+
+### Validation
+
+Run `node scripts/validate-specs.js --strict docs/specs` to verify structural integrity. The spec-review skill checks for the handoff link during review.
 
 ## When to Write a plan.md
 
@@ -226,9 +279,10 @@ planner abstraction.
 ## Workflow
 
 1. Use the `spec-dev` skill to choose `spec-first`, `spec-anchored`, or `spec-as-source`.
-2. Use `spec-authoring` to create or refine the durable spec when the work is spec-anchored or spec-as-source.
+2. Use `spec-authoring` to create or refine the durable spec when the work is spec-anchored or spec-as-source. The authoring gate must pass (context evidence, allowed/forbidden behavior, verifiable acceptance checks).
 3. Use `spec-review` before implementation planning when the spec should drive later work.
-4. Move into the existing plan-pack, roadmap, implementation, review, and validation lanes after the spec is ready.
+4. Use `spec-planning-bridge` to link the approved spec to an `elegy-planning` roadmap or plan via `exact:primary:docs/specs/<spec-slug>/spec.md` file-scope selector.
+5. Move into the project lane (for multi-session work) or standard lane (for scoped work) after the handoff is complete.
 
 ## Specs Location
 
@@ -250,8 +304,8 @@ The spec validation system operates in four layers, from fastest (local) to most
 Each layer is additive — a spec must pass all four to be considered implementable.
 
 - Prefer the repo-local validator when present: `node scripts/validate-specs.js <spec-root>`.
-- The v1 validator checks frontmatter keys and enums, required headings, non-empty `Intent`, at least two `Acceptance Checks`, and `Validation Evidence` when `status: implemented`.
-- The spec validator now includes freshness warnings (90-day draft, 180-day implemented), index integrity checks, cross-spec reference validation, and plan.md requirement checks — all under `--strict` mode.
+- The v1 validator checks frontmatter keys and enums (including `abandoned`), required headings, non-empty `Intent`, at least two `Acceptance Checks`, and `Validation Evidence` when `status: implemented`.
+- The spec validator now includes freshness warnings (90-day draft, 180-day approved, 180-day implemented, terminal abandoned/superseded), index integrity checks, cross-spec reference validation, and plan.md requirement checks — all under `--strict` mode.
 - **CI Gate:** The `validate:specs` CI step runs `validate-specs.js --strict docs/specs` in GitHub Actions on every push. Broken specs are rejected before merge.
 - Validation is evidence that the spec matches the contract shape, not proof that the implementation is correct.
 

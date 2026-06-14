@@ -124,6 +124,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "codex-spec-planning-bridge-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-planning-bridge",
+      "destination": "skills/spec-planning-bridge",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "codex-elegy-planning-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/elegy-planning",
