@@ -191,6 +191,7 @@ export default function WorkspaceView() {
 
   // ─── Stabilized callbacks ───────────────────────────────────────────────
   const handleCommit = useCallback(() => { void gitStore.commit(); }, []);
+  const handleGenerateCommitMessage = useCallback(() => { void gitStore.generateCommitMessage(); }, []);
   const handlePush = useCallback(() => { void gitStore.push(); }, []);
   const handleCreatePR = useCallback(() => { void gitStore.createPullRequest(); }, []);
   const handleRefreshGitState = useCallback(() => {
@@ -290,6 +291,7 @@ export default function WorkspaceView() {
                 onOpenPR={handleOpenPR}
                 onCreatePR={handleCreatePR}
                 onSetCommitMessage={(msg: string) => gitStore.setCommitMessage(msg)}
+                onGenerateCommitMessage={handleGenerateCommitMessage}
                 onSetPullRequestTitle={(t: string) => gitStore.setPullRequestTitle(t)}
                 onSetPullRequestBody={(b: string) => gitStore.setPullRequestBody(b)}
                 onRefreshGitState={handleRefreshGitState}

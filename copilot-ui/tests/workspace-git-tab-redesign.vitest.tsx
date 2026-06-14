@@ -19,6 +19,7 @@ vi.mock('../ui/src/lib/api/git', () => ({
   applyStash: vi.fn(),
   popStash: vi.fn(),
   dropStash: vi.fn(),
+  generateCommitMessage: vi.fn(),
 }));
 
 vi.mock('../ui/src/lib/api/executor', () => ({
@@ -127,6 +128,8 @@ const defaultProps = {
     },
     pullRequest: { pullRequest: null, available: true, tool: 'gh', authenticated: true },
     commitMessage: '',
+    generating: false,
+    generatedBy: null,
     committing: false,
     syncing: false,
     creatingPullRequest: false,
@@ -146,6 +149,7 @@ const defaultProps = {
   onOpenPR: vi.fn(),
   onCreatePR: vi.fn(),
   onSetCommitMessage: vi.fn(),
+  onGenerateCommitMessage: vi.fn(),
   onSetPullRequestTitle: vi.fn(),
   onSetPullRequestBody: vi.fn(),
   onRefreshGitState: vi.fn(),
@@ -216,6 +220,12 @@ describe('WorkspaceGitTab', () => {
     vi.mocked(gitApi.applyStash).mockResolvedValue({ applied: true, index: 0, output: 'ok' });
     vi.mocked(gitApi.popStash).mockResolvedValue({ popped: true, index: 0, output: 'ok' });
     vi.mocked(gitApi.dropStash).mockResolvedValue({ dropped: true, index: 0, output: 'ok' });
+    vi.mocked(gitApi.generateCommitMessage).mockResolvedValue({
+      message: 'feat: add test feature',
+      model: 'opencode/mimo-v2.5-free',
+      source: 'opencode',
+      fallbackIndex: 0,
+    });
     vi.mocked(gitApi.pullGit).mockResolvedValue({ pulled: true, output: 'ok' });
     vi.mocked(gitApi.checkoutGitBranch).mockResolvedValue({ checkedOut: true, branch: 'feature' });
     vi.mocked(executorApi.listExecutorWorktrees).mockResolvedValue(makeWorktreesResponse([]));
@@ -795,5 +805,111 @@ describe('WorkspaceGitTab', () => {
 
     // Create PR button should be present
     expect(screen.getByTestId('workspace-create-pr')).toBeInTheDocument();
+  });
+
+  // ─── Test 15: Generate commit message button calls API and fills input ─────
+
+  it('generates commit message and fills input on success', async () => {
+    const onSetCommitMessage = vi.fn();
+    render(
+      <WorkspaceGitTab
+        {...defaultProps}
+        onSetCommitMessage={onSetCommitMessage}
+        gitState={{ ...defaultProps.gitState, commitMessage: '', generating: false }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-generate-commit-message')).toBeInTheDocument();
+    });
+
+    // Click Generate
+    fireEvent.click(screen.getByTestId('workspace-generate-commit-message'));
+
+    // Should call onGenerateCommitMessage (which is mocked to call the API via store)
+    await waitFor(() => {
+      expect(defaultProps.onGenerateCommitMessage).toHaveBeenCalled();
+    });
+  });
+
+  // ─── Test 16: Loading state disables the Generate button ───────────────────
+
+  it('disables Generate button while generating', async () => {
+    render(
+      <WorkspaceGitTab
+        {...defaultProps}
+        gitState={{ ...defaultProps.gitState, commitMessage: '', generating: true }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-generate-commit-message')).toBeInTheDocument();
+    });
+
+    const btn = screen.getByTestId('workspace-generate-commit-message');
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveTextContent('Generating...');
+  });
+
+  // ─── Test 17: Non-empty message shows confirm dialog ───────────────────────
+
+  it('shows confirm dialog when commit message is non-empty', async () => {
+    render(
+      <WorkspaceGitTab
+        {...defaultProps}
+        gitState={{ ...defaultProps.gitState, commitMessage: 'existing message', generating: false }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-generate-commit-message')).toBeInTheDocument();
+    });
+
+    // Click Generate
+    fireEvent.click(screen.getByTestId('workspace-generate-commit-message'));
+
+    // Confirm dialog should appear
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-generate-confirm')).toBeInTheDocument();
+    });
+
+    // "No" button should cancel
+    fireEvent.click(screen.getByTestId('workspace-generate-confirm-no'));
+
+    // Confirm dialog should disappear and Generate should not have been called
+    await waitFor(() => {
+      expect(screen.queryByTestId('workspace-generate-confirm')).not.toBeInTheDocument();
+    });
+    expect(defaultProps.onGenerateCommitMessage).not.toHaveBeenCalled();
+  });
+
+  // ─── Test 18: Confirm dialog "Yes" proceeds with generation ────────────────
+
+  it('confirm dialog Yes button triggers generation', async () => {
+    render(
+      <WorkspaceGitTab
+        {...defaultProps}
+        gitState={{ ...defaultProps.gitState, commitMessage: 'existing message', generating: false }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-generate-commit-message')).toBeInTheDocument();
+    });
+
+    // Click Generate
+    fireEvent.click(screen.getByTestId('workspace-generate-commit-message'));
+
+    // Confirm dialog should appear
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-generate-confirm')).toBeInTheDocument();
+    });
+
+    // "Yes" button should trigger generation
+    fireEvent.click(screen.getByTestId('workspace-generate-confirm-yes'));
+
+    await waitFor(() => {
+      expect(defaultProps.onGenerateCommitMessage).toHaveBeenCalled();
+    });
   });
 });

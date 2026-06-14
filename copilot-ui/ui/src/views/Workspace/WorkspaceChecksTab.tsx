@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '../../components';
 import { notificationStore } from '../../stores/notificationStore';
 import {
+  discoverGitChecks,
   getGitCheckState,
   getGitCiSync,
   runGitChecksWithProfile,
 } from '../../lib/api/git';
-import type { GitCheckResults, GitCheckStateResponse, GitCiSyncResponse } from '../../lib/api/git';
+import type { GitCheckResults, GitCheckStateResponse, GitChecksDiscoverResponse, GitCiSyncResponse } from '../../lib/api/git';
 
 interface WorkspaceChecksTabProps {
   repoPath: string;
@@ -152,16 +153,6 @@ const s = {
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-function getLaneStatusIcon(status: string): string {
-  switch (status) {
-    case 'pass': return '✅';
-    case 'fail': return '❌';
-    case 'skip': return '⬜';
-    case 'running': return '⏳';
-    default: return '⬜';
-  }
-}
-
 function formatDuration(ms: number): string {
   if (ms <= 0) return '';
   if (ms < 1000) return `${ms}ms`;
@@ -186,6 +177,112 @@ interface LaneInfo {
   opensWindow?: boolean;
 }
 
+type RunOutcome = 'running' | 'pass' | 'fail' | 'error';
+
+interface RunSession {
+  id: string;
+  repoPath: string;
+  profile: string;
+  label: string;
+  startedAt: string;
+  endedAt: string | null;
+  targetLanes: string[];
+  outcome: RunOutcome;
+  error: string | null;
+  results: GitCheckResults | null;
+}
+
+type LaneStatusKind = 'pass' | 'fail' | 'skip' | 'running' | 'not-run' | 'unknown';
+interface DisplayLane {
+  status: string;
+  exitCode: number | null;
+  durationMs: number | null;
+  score: number | null;
+  details: string;
+  group: string | null;
+  blocking: boolean;
+  ciWorkflow: string | null;
+  ciJob: string | null;
+  ciRequired: boolean;
+  required?: boolean;
+  skippable?: boolean;
+  cost?: string;
+  opensWindow?: boolean;
+  defaultProfiles?: string[];
+  commands: Array<{ command: string; exitCode: number | null; success: boolean; durationMs: number | null }>;
+}
+
+function normalizeLaneStatus(status: string | undefined): LaneStatusKind {
+  const value = String(status || '').trim().toUpperCase().replace(/[_\s]+/g, '-');
+  switch (value) {
+    case 'PASS':
+      return 'pass';
+    case 'FAIL':
+      return 'fail';
+    case 'SKIP':
+    case 'SKIPPED':
+      return 'skip';
+    case 'RUNNING':
+      return 'running';
+    case '':
+    case 'CONFIGURED':
+    case 'NOT-RUN':
+      return 'not-run';
+    default:
+      return 'unknown';
+  }
+}
+
+function getLaneStatusView(status: string | undefined): {
+  kind: LaneStatusKind;
+  icon: string;
+  label: string;
+  color: string;
+  background: string;
+  borderColor: string;
+} {
+  const kind = normalizeLaneStatus(status);
+  switch (kind) {
+    case 'pass':
+      return { kind, icon: '✓', label: 'PASS', color: SUCCESS, background: 'rgba(76, 175, 80, 0.12)', borderColor: 'rgba(76, 175, 80, 0.45)' };
+    case 'fail':
+      return { kind, icon: '✕', label: 'FAIL', color: FAILURE, background: 'rgba(239, 83, 80, 0.12)', borderColor: 'rgba(239, 83, 80, 0.45)' };
+    case 'skip':
+      return { kind, icon: '-', label: 'SKIP', color: TEXT_MUTED, background: 'rgba(154, 160, 166, 0.10)', borderColor: 'rgba(154, 160, 166, 0.35)' };
+    case 'running':
+      return { kind, icon: '…', label: 'RUNNING', color: INFO, background: 'rgba(33, 150, 243, 0.12)', borderColor: 'rgba(33, 150, 243, 0.45)' };
+    case 'not-run':
+      return { kind, icon: '○', label: 'NOT RUN', color: TEXT_MUTED, background: 'rgba(154, 160, 166, 0.08)', borderColor: 'rgba(154, 160, 166, 0.25)' };
+    default:
+      return { kind, icon: '?', label: 'UNKNOWN', color: WARNING, background: 'rgba(255, 152, 0, 0.12)', borderColor: 'rgba(255, 152, 0, 0.45)' };
+  }
+}
+
+function discoveredToLane(check: GitChecksDiscoverResponse['checks'][number]): DisplayLane {
+  const commands = check.path && check.path !== '(configured)'
+    ? check.path.split(', ').map((command) => ({ command, exitCode: null, success: true, durationMs: null }))
+    : [];
+
+  return {
+    status: 'NOT_RUN',
+    exitCode: null,
+    durationMs: null,
+    score: null,
+    details: check.description || 'Configured check lane. This lane has not run yet.',
+    group: check.group || null,
+    blocking: check.blocking !== false,
+    ciWorkflow: check.ciWorkflow || null,
+    ciJob: check.ciJob || null,
+    ciRequired: check.ciRequired === true,
+    required: check.required,
+    skippable: check.skippable,
+    cost: check.cost,
+    opensWindow: check.opensWindow,
+    defaultProfiles: check.defaultProfiles,
+    commands,
+  };
+}
+
 function getHeavyLanes(
   lanes: Record<string, { cost?: string; opensWindow?: boolean; defaultProfiles?: string[] }> | undefined,
   profile: string,
@@ -203,11 +300,82 @@ function getHeavyLanes(
   return result;
 }
 
+function getProfileLabel(profile: string): string {
+  return profile === 'all' ? 'everything' : profile;
+}
+
+function resolveTargetLaneNames(
+  lanes: Record<string, DisplayLane>,
+  profile: string,
+): string[] {
+  const names = Object.keys(lanes).sort();
+  if (profile === 'all') return names;
+  return names.filter((name) => {
+    const profiles = lanes[name].defaultProfiles;
+    return Array.isArray(profiles) && profiles.includes(profile);
+  });
+}
+
+function buildRunTrace(session: RunSession | null, backendLogs: GitCheckResults['logs'] = []) {
+  if (!session) return backendLogs;
+  const trace = [
+    {
+      timestamp: session.startedAt,
+      event: 'run_start',
+      lane: session.label,
+      status: 'running',
+      reason: `${session.targetLanes.length} lane(s) selected`,
+    },
+    ...backendLogs,
+  ];
+  if (session.endedAt) {
+    trace.push({
+      timestamp: session.endedAt,
+      event: session.outcome === 'error' ? 'run_error' : 'run_end',
+      lane: session.label,
+      status: session.outcome,
+      reason: session.error || session.results?.message,
+    });
+  }
+  return trace;
+}
+
+function buildRunHandoff(session: RunSession | null): string {
+  if (!session) return '';
+  const failed = (session.results?.results ?? [])
+    .filter((result) => !result.passed)
+    .map((result) => result.checkName);
+  const lines = [
+    `Check run trace`,
+    `Repo: ${session.results?.repoRoot || session.repoPath}`,
+    `Profile: ${session.label}`,
+    `Started: ${session.startedAt}`,
+    `Ended: ${session.endedAt || 'still running'}`,
+    `Outcome: ${session.outcome}`,
+    `Selected lanes: ${session.targetLanes.join(', ') || 'none'}`,
+  ];
+  if (session.results) {
+    lines.push(`Summary: ${session.results.message}`);
+    lines.push(`Counts: ${session.results.checksPassed} passed, ${session.results.checksFailed} failed, ${session.results.checksRun} run`);
+  }
+  if (failed.length > 0) {
+    lines.push(`Failed lanes: ${failed.join(', ')}`);
+  }
+  if (session.error) {
+    lines.push(`Error: ${session.error}`);
+  }
+  if (session.results?.errorOutput) {
+    lines.push(`Error output:\n${session.results.errorOutput.trim()}`);
+  }
+  return lines.join('\n');
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecksTabProps) {
   const [checkResults, setCheckResults] = useState<GitCheckResults | null>(null);
   const [runningChecks, setRunningChecks] = useState(false);
   const [checkState, setCheckState] = useState<GitCheckStateResponse | null>(null);
+  const [discoveredChecks, setDiscoveredChecks] = useState<GitChecksDiscoverResponse | null>(null);
   const [ciSync, setCiSync] = useState<GitCiSyncResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeProfile, setActiveProfile] = useState<string | null>(null);
@@ -216,6 +384,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   const [logFilter, setLogFilter] = useState('');
   const [expandedLane, setExpandedLane] = useState<string | null>(null);
   const [confirmHeavyLanes, setConfirmHeavyLanes] = useState<LaneInfo[]>([]);
+  const [runSession, setRunSession] = useState<RunSession | null>(null);
 
   // ─── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -224,13 +393,15 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
     async function load() {
       setLoading(true);
       try {
-        const [stateResult, ciSyncResult] = await Promise.all([
+        const [stateResult, ciSyncResult, discoveryResult] = await Promise.all([
           getGitCheckState(repoPath),
           getGitCiSync(repoPath),
+          discoverGitChecks(repoPath),
         ]);
         if (!cancelled) {
           setCheckState(stateResult);
           setCiSync(ciSyncResult);
+          setDiscoveredChecks(discoveryResult);
           if (stateResult.lastRun?.overallPass !== undefined) {
             setCheckResults({
               repoRoot: stateResult.repoPath,
@@ -269,7 +440,34 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   const compositeScore = lastRun?.compositeScore;
   const freshness = checkState?.freshness;
   const allLanes = lastRun?.lanes ?? {};
-  const laneNames = Object.keys(allLanes);
+  const baseDisplayLanes: Record<string, DisplayLane> = {
+    ...Object.fromEntries((discoveredChecks?.checks ?? []).map((check) => [check.name, discoveredToLane(check)])),
+    ...allLanes,
+  };
+  const runningLaneNames = new Set(runSession?.outcome === 'running' ? runSession.targetLanes : []);
+  const displayLanes: Record<string, DisplayLane> = Object.fromEntries(
+    Object.entries(baseDisplayLanes).map(([name, lane]) => [
+      name,
+      runningLaneNames.has(name)
+        ? {
+          ...lane,
+          status: 'RUNNING',
+          details: `Running ${runSession?.label || 'selected'} profile. Waiting for process output.`,
+          durationMs: null,
+          exitCode: null,
+        }
+        : lane,
+    ]),
+  );
+  const laneNames = Object.keys(displayLanes);
+  const laneStatusCounts = laneNames.reduce(
+    (counts, name) => {
+      const kind = getLaneStatusView(displayLanes[name].status).kind;
+      counts[kind] += 1;
+      return counts;
+    },
+    { pass: 0, fail: 0, skip: 0, running: 0, 'not-run': 0, unknown: 0 } as Record<LaneStatusKind, number>,
+  );
   const history = (checkState?.history ?? []).slice(-5) as Array<{
     timestamp?: string;
     profile?: string | null;
@@ -297,7 +495,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   // Group lanes by group field
   const groupedLanes = new Map<string, string[]>();
   for (const name of laneNames) {
-    const group = allLanes[name].group || 'ungrouped';
+    const group = displayLanes[name].group || 'ungrouped';
     if (!groupedLanes.has(group)) groupedLanes.set(group, []);
     groupedLanes.get(group)!.push(name);
   }
@@ -305,22 +503,55 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
   async function handleRunProfile(profile: string) {
+    const targetLanes = resolveTargetLaneNames(baseDisplayLanes, profile);
+    const startedAt = new Date().toISOString();
+    const sessionBase: RunSession = {
+      id: `${startedAt}-${profile}`,
+      repoPath,
+      profile,
+      label: getProfileLabel(profile),
+      startedAt,
+      endedAt: null,
+      targetLanes,
+      outcome: 'running',
+      error: null,
+      results: null,
+    };
+    setRunSession(sessionBase);
+    setCheckResults(null);
     setRunningChecks(true);
+    setShowLogConsole(true);
     try {
       const results = await runGitChecksWithProfile(repoPath, {
         profile: profile === 'all' ? undefined : profile,
       });
       setCheckResults(results);
+      setRunSession({
+        ...sessionBase,
+        endedAt: new Date().toISOString(),
+        outcome: results.allPassed ? 'pass' : 'fail',
+        results,
+      });
 
-      const [newState, newCiSync] = await Promise.all([
+      const [newState, newCiSync, newDiscovery] = await Promise.all([
         getGitCheckState(repoPath),
         getGitCiSync(repoPath),
+        discoverGitChecks(repoPath),
       ]);
       setCheckState(newState);
       setCiSync(newCiSync);
+      setDiscoveredChecks(newDiscovery);
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setRunSession({
+        ...sessionBase,
+        endedAt: new Date().toISOString(),
+        outcome: 'error',
+        error: message,
+        results: null,
+      });
       notificationStore.error('Checks failed', {
-        message: err instanceof Error ? err.message : String(err),
+        message,
       });
     } finally {
       setRunningChecks(false);
@@ -330,12 +561,14 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   const handleRefresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [newState, newCiSync] = await Promise.all([
+      const [newState, newCiSync, newDiscovery] = await Promise.all([
         getGitCheckState(repoPath),
         getGitCiSync(repoPath),
+        discoverGitChecks(repoPath),
       ]);
       setCheckState(newState);
       setCiSync(newCiSync);
+      setDiscoveredChecks(newDiscovery);
     } catch (err) {
       notificationStore.error('Refresh failed', {
         message: err instanceof Error ? err.message : String(err),
@@ -348,7 +581,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   function handleProfileClick(profile: string) {
     setActiveProfile(profile);
     if (profile === 'release') {
-      const heavy = getHeavyLanes(lastRun?.lanes, 'release');
+      const heavy = getHeavyLanes(displayLanes, 'release');
       if (heavy.length > 0) {
         setConfirmHeavyLanes(heavy);
         setShowConfirmDialog('release');
@@ -360,7 +593,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
 
   function handleRunEverything() {
     setActiveProfile('all');
-    const heavy = getHeavyLanes(lastRun?.lanes, 'all');
+    const heavy = getHeavyLanes(displayLanes, 'all');
     if (heavy.length > 0) {
       setConfirmHeavyLanes(heavy);
       setShowConfirmDialog('everything');
@@ -383,6 +616,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
 
   // ─── Render: Top Strip ─────────────────────────────────────────────────────
   function renderTopStrip() {
+    const isRunning = runSession?.outcome === 'running';
     return (
       <div style={s.topStrip} data-testid="workspace-checks-top-strip">
         {/* Repo name */}
@@ -408,14 +642,16 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
         {/* Active profile */}
         <div>
           <div style={s.label}>Profile</div>
-          <div style={s.value}>{activeProfile || (lastRun?.profile) || '—'}</div>
+          <div style={s.value}>{isRunning ? runSession.label : activeProfile || (lastRun?.profile) || '—'}</div>
         </div>
 
         {/* Overall result */}
         <div>
           <div style={s.label}>Result</div>
           <div style={s.value}>
-            {lastRun ? (
+            {isRunning ? (
+              <span style={{ color: INFO }}>RUNNING</span>
+            ) : lastRun ? (
               <>
                 <span style={{ color: overallPass ? SUCCESS : FAILURE, marginRight: 4 }}>
                   {overallPass ? '✅' : '❌'}
@@ -432,6 +668,52 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
             )}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  function renderRunStatus() {
+    if (!runSession) return null;
+    const isRunning = runSession.outcome === 'running';
+    const color = runSession.outcome === 'pass' ? SUCCESS
+      : runSession.outcome === 'fail' || runSession.outcome === 'error' ? FAILURE
+        : INFO;
+    return (
+      <div
+        style={{
+          marginBottom: 12,
+          padding: '10px 12px',
+          border: `1px solid ${color}`,
+          borderRadius: 6,
+          background: isRunning ? 'rgba(33, 150, 243, 0.10)' : DARK_BG_2,
+          color: TEXT_SECONDARY,
+          display: 'flex',
+          gap: 12,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}
+        data-testid="workspace-checks-run-status"
+      >
+        <span style={{ color, fontWeight: 700 }}>
+          {isRunning ? 'RUNNING' : runSession.outcome.toUpperCase()}
+        </span>
+        <span>
+          {runSession.label} profile
+        </span>
+        <span style={{ color: TEXT_MUTED }}>
+          {runSession.targetLanes.length} lane(s)
+        </span>
+        <span style={{ color: TEXT_MUTED }}>
+          started {formatTimestamp(runSession.startedAt)}
+        </span>
+        {runSession.endedAt && (
+          <span style={{ color: TEXT_MUTED }}>
+            ended {formatTimestamp(runSession.endedAt)}
+          </span>
+        )}
+        {runSession.error && (
+          <span style={{ color: FAILURE }}>{runSession.error}</span>
+        )}
       </div>
     );
   }
@@ -524,9 +806,10 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
 
   // ─── Render: Lane Matrix ───────────────────────────────────────────────────
   function renderLaneCard(laneName: string) {
-    const lane = allLanes[laneName];
+    const lane = displayLanes[laneName];
     if (!lane) return null;
     const isExpanded = expandedLane === laneName;
+    const statusView = getLaneStatusView(lane.status);
 
     return (
       <div
@@ -541,7 +824,27 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
           onClick={() => setExpandedLane(isExpanded ? null : laneName)}
           data-testid={`workspace-checks-lane-toggle-${laneName}`}
         >
-          <span>{getLaneStatusIcon(lane.status)}</span>
+          <span
+            aria-label={`${laneName} status: ${statusView.label}`}
+            title={statusView.label}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              minWidth: 82,
+              padding: '2px 7px',
+              borderRadius: 999,
+              border: `1px solid ${statusView.borderColor}`,
+              background: statusView.background,
+              color: statusView.color,
+              fontSize: 11,
+              fontWeight: 700,
+              lineHeight: 1.2,
+            }}
+          >
+            <span aria-hidden="true" style={{ fontSize: 13, lineHeight: 1 }}>{statusView.icon}</span>
+            <span>{statusView.label}</span>
+          </span>
           <span style={{ fontWeight: 500, color: TEXT_PRIMARY, minWidth: 140 }}>
             {laneName}
           </span>
@@ -668,7 +971,19 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
     return (
       <div style={{ marginBottom: 16 }} data-testid="workspace-checks-lane-matrix">
         <div style={s.sectionTitle}>
-          Lanes {loading ? '(loading...)' : `(${laneNames.length})`}
+          <span>
+            Lanes {loading ? '(loading...)' : `(${laneNames.length})`}
+          </span>
+          {laneNames.length > 0 && (
+            <span style={{ display: 'inline-flex', gap: 6, marginLeft: 10, flexWrap: 'wrap', verticalAlign: 'middle' }}>
+              {laneStatusCounts.pass > 0 && <span style={{ ...s.badge('rgba(76, 175, 80, 0.22)'), color: SUCCESS }}>✓ {laneStatusCounts.pass}</span>}
+              {laneStatusCounts.fail > 0 && <span style={{ ...s.badge('rgba(239, 83, 80, 0.22)'), color: FAILURE }}>✕ {laneStatusCounts.fail}</span>}
+              {laneStatusCounts.running > 0 && <span style={{ ...s.badge('rgba(33, 150, 243, 0.22)'), color: INFO }}>… {laneStatusCounts.running}</span>}
+              {laneStatusCounts.skip > 0 && <span style={{ ...s.badge('rgba(154, 160, 166, 0.18)'), color: TEXT_MUTED }}>- {laneStatusCounts.skip}</span>}
+              {laneStatusCounts['not-run'] > 0 && <span style={{ ...s.badge('rgba(154, 160, 166, 0.14)'), color: TEXT_MUTED }}>○ {laneStatusCounts['not-run']}</span>}
+              {laneStatusCounts.unknown > 0 && <span style={{ ...s.badge('rgba(255, 152, 0, 0.20)'), color: WARNING }}>? {laneStatusCounts.unknown}</span>}
+            </span>
+          )}
         </div>
 
         {laneNames.length === 0 && !loading && (
@@ -764,10 +1079,13 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
 
   // ─── Render: Log Console ──────────────────────────────────────────────────
   function renderLogConsole() {
-    const logs = checkResults?.logs ?? [];
+    const logs = buildRunTrace(runSession, checkResults?.logs ?? []);
 
     const filteredLogs = logFilter
-      ? logs.filter((log) => (log.lane || '').toLowerCase().includes(logFilter.toLowerCase()))
+      ? logs.filter((log) => {
+        const haystack = `${log.lane || ''} ${log.event || ''} ${log.status || ''} ${log.reason || ''}`.toLowerCase();
+        return haystack.includes(logFilter.toLowerCase());
+      })
       : logs;
 
     return (
@@ -825,10 +1143,10 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
                 {log.lane && (
                   <span style={{ color: TEXT_PRIMARY, marginRight: 8 }}>{log.lane}</span>
                 )}
-                {log.event === 'lane_end' && (
+                {(log.event === 'lane_end' || log.event === 'run_end' || log.event === 'run_error') && (
                   <>
                     {log.status && (
-                      <span style={{ color: log.status === 'pass' ? SUCCESS : FAILURE, marginRight: 8 }}>
+                      <span style={{ color: log.status === 'PASS' || log.status === 'pass' ? SUCCESS : FAILURE, marginRight: 8 }}>
                         status={log.status}
                       </span>
                     )}
@@ -844,9 +1162,9 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
                     )}
                   </>
                 )}
-                {log.event === 'skip' && log.reason && (
+                {(log.event === 'skip' || log.event === 'run_start' || log.event === 'run_end' || log.event === 'run_error') && log.reason && (
                   <span style={{ color: TEXT_MUTED }}>
-                    reason: {log.reason}
+                    {log.event === 'skip' ? 'reason' : 'detail'}: {log.reason}
                   </span>
                 )}
               </div>
@@ -857,12 +1175,61 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
     );
   }
 
+  async function handleCopyTrace() {
+    const text = buildRunHandoff(runSession);
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      notificationStore.success('Trace copied', { message: 'Check run trace copied to clipboard.' });
+    } catch (err) {
+      notificationStore.error('Copy failed', {
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  function renderRunTraceSummary() {
+    const handoff = buildRunHandoff(runSession);
+    if (!handoff || runSession?.outcome === 'running') return null;
+    return (
+      <div style={{ marginBottom: 16 }} data-testid="workspace-checks-run-trace">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <div style={s.sectionTitle}>Run Trace</div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCopyTrace}
+            testId="workspace-checks-copy-trace"
+          >
+            Copy trace
+          </Button>
+        </div>
+        <pre style={{
+          margin: 0,
+          padding: 10,
+          background: DARK_BG,
+          border: `1px solid ${BORDER}`,
+          borderRadius: 4,
+          color: TEXT_SECONDARY,
+          fontSize: 11,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          maxHeight: 220,
+          overflow: 'auto',
+        }}>
+          {handoff}
+        </pre>
+      </div>
+    );
+  }
+
   // ─── Render: Main ──────────────────────────────────────────────────────────
   return (
     <div style={s.container} className="workspace-checks-tab" data-testid="workspace-checks-tab">
       {renderTopStrip()}
       {renderProfileBar()}
       {renderConfirmDialog()}
+      {renderRunStatus()}
       {renderLaneMatrix()}
 
       {/* Log console toggle */}
@@ -878,6 +1245,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
       </div>
 
       {showLogConsole && renderLogConsole()}
+      {renderRunTraceSummary()}
       {renderRunHistory()}
     </div>
   );

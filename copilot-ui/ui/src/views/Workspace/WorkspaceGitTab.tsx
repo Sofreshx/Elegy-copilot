@@ -352,6 +352,7 @@ interface WorkspaceGitTabProps {
   onSetPullRequestTitle: (t: string) => void;
   onSetPullRequestBody: (b: string) => void;
   onRefreshGitState: () => void;
+  onGenerateCommitMessage: () => void;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -373,6 +374,7 @@ export default function WorkspaceGitTab({
   onSetPullRequestTitle,
   onSetPullRequestBody,
   onRefreshGitState,
+  onGenerateCommitMessage,
 }: WorkspaceGitTabProps) {
   const summary = gitState.summary;
   const branch = summary?.branch ?? null;
@@ -440,6 +442,9 @@ export default function WorkspaceGitTab({
   const [showForceCommitDialog, setShowForceCommitDialog] = useState(false);
   const [forceOverrideReason, setForceOverrideReason] = useState('');
   const [forceCommitting, setForceCommitting] = useState(false);
+
+  // ─── Generate commit message state ────────────────────────────────────────
+  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
 
   // ─── Stash state ───────────────────────────────────────────────────────────
   const [stashes, setStashes] = useState<GitStashEntry[]>([]);
@@ -1558,6 +1563,52 @@ export default function WorkspaceGitTab({
               )}
             </div>
           )}
+
+          {/* Generate commit message button */}
+          <div className="workspace-git-generate-row" data-testid="workspace-generate-row">
+            {showGenerateConfirm ? (
+              <div className="workspace-git-generate-confirm" data-testid="workspace-generate-confirm">
+                <span className="workspace-git-generate-confirm-text">Overwrite existing message?</span>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    setShowGenerateConfirm(false);
+                    onGenerateCommitMessage();
+                  }}
+                  disabled={gitState.generating}
+                  testId="workspace-generate-confirm-yes"
+                >
+                  {gitState.generating ? 'Generating...' : 'Yes'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowGenerateConfirm(false)}
+                  testId="workspace-generate-confirm-no"
+                >
+                  No
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (gitState.commitMessage.trim()) {
+                    setShowGenerateConfirm(true);
+                  } else {
+                    onGenerateCommitMessage();
+                  }
+                }}
+                disabled={gitState.generating || gitState.committing}
+                testId="workspace-generate-commit-message"
+                title="Generate commit message with AI (free)"
+              >
+                {gitState.generating ? 'Generating...' : gitState.generatedBy ? `Generated ✓` : '✨ Generate'}
+              </Button>
+            )}
+          </div>
 
           {/* Commit message input */}
           <input

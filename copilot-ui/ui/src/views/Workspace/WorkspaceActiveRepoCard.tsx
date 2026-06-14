@@ -35,6 +35,8 @@ interface WorkspaceActiveRepoCardProps {
   onSetCommitMessage: (msg: string) => void;
   onSetPullRequestTitle: (title: string) => void;
   onSetPullRequestBody: (body: string) => void;
+  generating?: boolean;
+  onGenerateCommitMessage?: () => void;
 }
 
 const GROUP_ORDER = ['ides', 'agents', 'terminals'] as const;
@@ -76,12 +78,15 @@ export default function WorkspaceActiveRepoCard({
   onSetCommitMessage,
   onSetPullRequestTitle,
   onSetPullRequestBody,
+  generating = false,
+  onGenerateCommitMessage,
 }: WorkspaceActiveRepoCardProps) {
   const branch = summary?.branch ?? null;
   const hasRemote = summary?.hasRemote ?? false;
   const [launchers, setLaunchers] = useState<WorkspaceLauncher[]>([]);
   const [launching, setLaunching] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
   const [expandedCommit, setExpandedCommit] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -249,6 +254,50 @@ export default function WorkspaceActiveRepoCard({
         >
           {runningChecks ? 'Running...' : 'Run checks'}
         </Button>
+        {onGenerateCommitMessage ? (
+          showGenerateConfirm ? (
+            <div className="workspace-git-generate-confirm" data-testid="workspace-generate-confirm">
+              <span className="workspace-git-generate-confirm-text">Overwrite existing message?</span>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setShowGenerateConfirm(false);
+                  onGenerateCommitMessage();
+                }}
+                disabled={generating}
+                testId="workspace-generate-confirm-yes"
+              >
+                {generating ? 'Generating...' : 'Yes'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowGenerateConfirm(false)}
+                testId="workspace-generate-confirm-no"
+              >
+                No
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (commitMessage.trim()) {
+                  setShowGenerateConfirm(true);
+                } else {
+                  onGenerateCommitMessage();
+                }
+              }}
+              disabled={generating || committing}
+              testId="workspace-generate-commit-message"
+              title="Generate commit message with AI (free)"
+            >
+              {generating ? 'Generating...' : '✨ Generate'}
+            </Button>
+          )
+        ) : null}
         <input
           className="form-input-field"
           type="text"
