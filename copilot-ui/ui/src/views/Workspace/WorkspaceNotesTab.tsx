@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import WorkspaceNotesReader from './Notes/Reader';
+import WorkspaceNotesEditor from './Notes/Editor';
 
 type NotesViewMode = 'read' | 'write' | 'raw';
 
@@ -84,7 +85,7 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
           />
         )}
         {viewMode === 'write' && (
-          <WorkspaceNotesEditorPlaceholder
+          <WorkspaceNotesEditor
             repoPath={repoPath}
             noteId={activeNoteId}
             onSaved={(id) => { setActiveNoteId(id); setViewMode('read'); }}
@@ -103,19 +104,6 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
 }
 
 // ── Placeholder components (to be replaced by full implementations in subsequent WPs) ──
-
-function WorkspaceNotesEditorPlaceholder(_props: {
-  repoPath: string;
-  noteId: string | null;
-  onSaved: (id: string) => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="workspace-notes-editor-view" data-testid="notes-editor">
-      <p className="state-message">Note editor coming soon. Create and edit notes with title, theme, tags, and content.</p>
-    </div>
-  );
-}
 
 function WorkspaceNotesRawPlaceholder(_props: {
   repoPath: string;
