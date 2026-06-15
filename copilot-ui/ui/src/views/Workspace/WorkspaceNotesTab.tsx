@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import WorkspaceNotesReader from './Notes/Reader';
 
 type NotesViewMode = 'read' | 'write' | 'raw';
 
@@ -75,7 +76,7 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
       {/* Content area — delegates to child views */}
       <div className="workspace-notes-body" role="tabpanel">
         {viewMode === 'read' && (
-          <WorkspaceNotesReaderPlaceholder
+          <WorkspaceNotesReader
             repoPath={repoPath}
             activeNoteId={activeNoteId}
             onNoteSelect={handleNoteSelect}
@@ -102,19 +103,6 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
 }
 
 // ── Placeholder components (to be replaced by full implementations in subsequent WPs) ──
-
-function WorkspaceNotesReaderPlaceholder(_props: {
-  repoPath: string;
-  activeNoteId: string | null;
-  onNoteSelect: (id: string) => void;
-  onEditNote: (id: string) => void;
-}) {
-  return (
-    <div className="workspace-notes-reader" data-testid="notes-reader">
-      <p className="state-message">Note reader coming soon. Notes will appear here with search, filter, and markdown rendering.</p>
-    </div>
-  );
-}
 
 function WorkspaceNotesEditorPlaceholder(_props: {
   repoPath: string;
