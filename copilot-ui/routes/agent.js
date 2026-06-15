@@ -199,6 +199,95 @@ async function handleAgentHealth(ctx, deps) {
   }
 }
 
+// ── SSE stream for a run ──
+function handleAgentRunStream(ctx, deps) {
+  const { req, res, u } = ctx;
+  const { sendJson } = deps;
+  
+  const runId = u.searchParams.get('id');
+  if (!isNonEmptyString(runId)) {
+    sendJson(res, 400, { error: 'id query parameter is required' });
+    return;
+  }
+
+  // Set SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  const db = createElegyDb();
+  const run = db.getRun(runId.trim());
+  db.close();
+
+  if (!run) {
+    res.write(`data: ${JSON.stringify({ type: 'error', message: 'Run not found' })}\n\n`);
+    res.end();
+    return;
+  }
+
+  // Send initial state
+  res.write(`data: ${JSON.stringify({ type: 'run.status', run_id: run.id, status: run.status, action: run.action, agent: run.agent_name, model: run.model_id })}\n\n`);
+
+  // If run is already terminal, send completion and close
+  if (run.status === 'completed' || run.status === 'aborted' || run.status === 'error') {
+    res.write(`data: ${JSON.stringify({ type: 'run.terminal', run_id: run.id, status: run.status, output: run.output_text, error: run.error_message })}\n\n`);
+    res.end();
+    return;
+  }
+
+  // Poll the run status (in lieu of live opencode SSE proxying)
+  // This is a polling fallback; the real SSE proxy would subscribe to opencode events
+  let closed = false;
+  const pollInterval = setInterval(() => {
+    if (closed) return;
+    try {
+      const db2 = createElegyDb();
+      const updated = db2.getRun(runId.trim());
+      db2.close();
+
+      if (!updated) {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: 'Run disappeared' })}\n\n`);
+        clearInterval(pollInterval);
+        res.end();
+        return;
+      }
+
+      // Send status update
+      res.write(`data: ${JSON.stringify({ type: 'run.status', run_id: updated.id, status: updated.status })}\n\n`);
+
+      // Check for terminal state
+      if (updated.status === 'completed') {
+        res.write(`data: ${JSON.stringify({ type: 'run.terminal', run_id: updated.id, status: 'completed', output: updated.output_text, tokens: { prompt: updated.prompt_tokens, output: updated.output_tokens, cost: updated.cost_usd } })}\n\n`);
+        clearInterval(pollInterval);
+        res.end();
+        return;
+      }
+
+      if (updated.status === 'error' || updated.status === 'aborted') {
+        res.write(`data: ${JSON.stringify({ type: 'run.terminal', run_id: updated.id, status: updated.status, error: updated.error_message })}\n\n`);
+        clearInterval(pollInterval);
+        res.end();
+        return;
+      }
+    } catch {
+      if (!closed) {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: 'Poll failed' })}\n\n`);
+        clearInterval(pollInterval);
+        res.end();
+      }
+    }
+  }, 1000);
+
+  // Handle client disconnect
+  req.on('close', () => {
+    closed = true;
+    clearInterval(pollInterval);
+  });
+}
+
 // ── Register ──
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
@@ -212,6 +301,7 @@ function register(context = {}) {
     { method: 'POST', path: '/api/agent/runs/abort',   handler: (ctx) => handleAgentRunAbort(ctx, deps) },
     { method: 'GET',  path: '/api/agent/completions',  handler: (ctx) => handleAgentCompletions(ctx, deps) },
     { method: 'GET',  path: '/api/agent/health',       handler: (ctx) => handleAgentHealth(ctx, deps) },
+    { method: 'GET',  path: '/api/agent/runs/stream', handler: (ctx) => handleAgentRunStream(ctx, deps) },
   ];
 }
 
