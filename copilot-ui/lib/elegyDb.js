@@ -709,6 +709,302 @@ function createElegyDb(opts = {}) {
     }
   }
 
+  // ── Notes Methods ────────────────────────────────────────────────
+
+  // ── Notes CRUD ──
+
+  /**
+   * Create a new note.
+   * @param {object} note
+   * @returns {object|null} The created note, or null on error
+   */
+  function createNote(note) {
+    try {
+      const stmt = db.prepare(`
+        INSERT INTO notes (id, title, content, theme, tags_json, created_at, updated_at, archived, repo_path, session_id)
+        VALUES (@id, @title, @content, @theme, @tags_json, @created_at, @updated_at, @archived, @repo_path, @session_id)
+      `);
+      stmt.run(note);
+      return getNote(note.id);
+    } catch { return null; }
+  }
+
+  /**
+   * Get a note by ID.
+   * @param {string} noteId
+   * @returns {object|null}
+   */
+  function getNote(noteId) {
+    try {
+      return db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId) || null;
+    } catch { return null; }
+  }
+
+  /**
+   * Update a note.
+   * @param {object} note
+   * @returns {object|null} The updated note, or null on error
+   */
+  function updateNote(note) {
+    try {
+      const stmt = db.prepare(`
+        UPDATE notes SET
+          title = @title, content = @content, theme = @theme, tags_json = @tags_json,
+          updated_at = @updated_at, archived = @archived, repo_path = @repo_path, session_id = @session_id
+        WHERE id = @id
+      `);
+      stmt.run(note);
+      return getNote(note.id);
+    } catch { return null; }
+  }
+
+  /**
+   * List notes with optional filters.
+   * @param {object} [filter]
+   * @param {string} [filter.theme]
+   * @param {boolean} [filter.archived]
+   * @param {string} [filter.tag]
+   * @param {number} [filter.limit]
+   * @param {number} [filter.offset]
+   * @param {string} [filter.order]
+   * @returns {Array<object>}
+   */
+  function listNotes(filter = {}) {
+    try {
+      const conditions = [];
+      const params = {};
+      if (filter.theme) { conditions.push('theme = @theme'); params.theme = filter.theme; }
+      if (filter.archived !== undefined) { conditions.push('archived = @archived'); params.archived = filter.archived ? 1 : 0; }
+      if (filter.tag) { conditions.push("tags_json LIKE '%' || @tag || '%'"); params.tag = filter.tag; }
+      const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+      const limit = filter.limit ? ' LIMIT ' + Math.floor(filter.limit) : '';
+      const offset = filter.offset ? ' OFFSET ' + Math.floor(filter.offset) : '';
+      const order = filter.order || 'updated_at DESC';
+      return db.prepare(`SELECT * FROM notes ${where} ORDER BY ${order}${limit}${offset}`).all(params);
+    } catch { return []; }
+  }
+
+  /**
+   * Full-text search notes using FTS5.
+   * @param {string} query
+   * @param {object} [filter]
+   * @param {number} [filter.limit]
+   * @returns {Array<object>}
+   */
+  function searchNotes(query, filter = {}) {
+    try {
+      // Use FTS5 MATCH for full-text search
+      const ftsQuery = query.replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean).map(w => `"${w}"`).join(' ');
+      const rows = db.prepare(`
+        SELECT n.* FROM notes n
+        JOIN notes_fts fts ON n.rowid = fts.rowid
+        WHERE notes_fts MATCH @query
+        ORDER BY rank
+        LIMIT @limit
+      `).all({ query: ftsQuery, limit: filter.limit || 50 });
+      return rows;
+    } catch { return []; }
+  }
+
+  /**
+   * Delete a note by ID.
+   * @param {string} noteId
+   * @returns {boolean}
+   */
+  function deleteNote(noteId) {
+    try {
+      return db.prepare('DELETE FROM notes WHERE id = ?').run(noteId).changes > 0;
+    } catch { return false; }
+  }
+
+  // ── Note Settings ──
+
+  /**
+   * Get a note setting value by key.
+   * @param {string} key
+   * @returns {*|null}
+   */
+  function getNoteSetting(key) {
+    try {
+      const row = db.prepare('SELECT value FROM note_settings WHERE key = ?').get(key);
+      if (!row) return null;
+      try { return JSON.parse(row.value); } catch { return row.value; }
+    } catch { return null; }
+  }
+
+  /**
+   * Set a note setting (upsert).
+   * @param {string} key
+   * @param {*} value
+   * @returns {boolean}
+   */
+  function setNoteSetting(key, value) {
+    try {
+      const val = typeof value === 'string' ? value : JSON.stringify(value);
+      db.prepare('INSERT INTO note_settings (key, value) VALUES (@key, @value) ON CONFLICT(key) DO UPDATE SET value = @value').run({ key, value: val });
+      return true;
+    } catch { return false; }
+  }
+
+  /**
+   * Delete a note setting by key.
+   * @param {string} key
+   * @returns {boolean}
+   */
+  function deleteNoteSetting(key) {
+    try {
+      return db.prepare('DELETE FROM note_settings WHERE key = ?').run(key).changes > 0;
+    } catch { return false; }
+  }
+
+  /**
+   * List all note settings.
+   * @returns {Array<object>}
+   */
+  function listNoteSettings() {
+    try {
+      return db.prepare('SELECT key, value FROM note_settings ORDER BY key').all();
+    } catch { return []; }
+  }
+
+  // ── Note Blocks ──
+
+  /**
+   * Create a new note block.
+   * @param {object} block
+   * @returns {object|null} The created block, or null on error
+   */
+  function createBlock(block) {
+    try {
+      db.prepare(`
+        INSERT INTO note_blocks (id, note_id, block_kind, position, body, source_run_id, created_at, updated_at)
+        VALUES (@id, @note_id, @block_kind, @position, @body, @source_run_id, @created_at, @updated_at)
+      `).run(block);
+      return db.prepare('SELECT * FROM note_blocks WHERE id = ?').get(block.id) || null;
+    } catch { return null; }
+  }
+
+  /**
+   * List blocks for a note, ordered by position.
+   * @param {string} noteId
+   * @returns {Array<object>}
+   */
+  function listBlocksByNote(noteId) {
+    try {
+      return db.prepare('SELECT * FROM note_blocks WHERE note_id = ? ORDER BY position').all(noteId);
+    } catch { return []; }
+  }
+
+  /**
+   * Delete a block by ID.
+   * @param {string} blockId
+   * @returns {boolean}
+   */
+  function deleteBlock(blockId) {
+    try {
+      return db.prepare('DELETE FROM note_blocks WHERE id = ?').run(blockId).changes > 0;
+    } catch { return false; }
+  }
+
+  // ── Agent Runs ──
+
+  /**
+   * Create a new agent run record.
+   * @param {object} run
+   * @returns {object|null} The created run, or null on error
+   */
+  function createRun(run) {
+    try {
+      db.prepare(`
+        INSERT INTO agent_runs (id, session_id, parent_kind, parent_id, note_id, action, agent_name,
+          provider_id, model_id, model_id_original, prompt_summary, extra_instructions,
+          repo_access_enabled, status, started_at, ended_at, duration_ms, prompt_tokens,
+          output_tokens, reasoning_tokens, cache_read, cache_write, cost_usd,
+          error_code, error_message, output_text, result_block_id, metadata_json, created_by, workspace_id)
+        VALUES (@id, @session_id, @parent_kind, @parent_id, @note_id, @action, @agent_name,
+          @provider_id, @model_id, @model_id_original, @prompt_summary, @extra_instructions,
+          @repo_access_enabled, @status, @started_at, @ended_at, @duration_ms, @prompt_tokens,
+          @output_tokens, @reasoning_tokens, @cache_read, @cache_write, @cost_usd,
+          @error_code, @error_message, @output_text, @result_block_id, @metadata_json, @created_by, @workspace_id)
+      `).run(run);
+      return getRun(run.id);
+    } catch { return null; }
+  }
+
+  /**
+   * Get an agent run by ID.
+   * @param {string} runId
+   * @returns {object|null}
+   */
+  function getRun(runId) {
+    try {
+      return db.prepare('SELECT * FROM agent_runs WHERE id = ?').get(runId) || null;
+    } catch { return null; }
+  }
+
+  /**
+   * Update an agent run record.
+   * @param {object} run
+   * @returns {object|null} The updated run, or null on error
+   */
+  function updateRun(run) {
+    try {
+      db.prepare(`
+        UPDATE agent_runs SET
+          session_id = @session_id, status = @status, ended_at = @ended_at, duration_ms = @duration_ms,
+          prompt_tokens = @prompt_tokens, output_tokens = @output_tokens, reasoning_tokens = @reasoning_tokens,
+          cache_read = @cache_read, cache_write = @cache_write, cost_usd = @cost_usd,
+          error_code = @error_code, error_message = @error_message, output_text = @output_text,
+          result_block_id = @result_block_id, metadata_json = @metadata_json
+        WHERE id = @id
+      `).run(run);
+      return getRun(run.id);
+    } catch { return null; }
+  }
+
+  /**
+   * List runs by parent kind and ID.
+   * @param {string} parentKind
+   * @param {string} parentId
+   * @param {object} [filter]
+   * @param {string} [filter.status]
+   * @param {string} [filter.action]
+   * @param {number} [filter.limit]
+   * @returns {Array<object>}
+   */
+  function listRunsByParent(parentKind, parentId, filter = {}) {
+    try {
+      const conditions = ['parent_kind = @kind', 'parent_id = @pid'];
+      const params = { kind: parentKind, pid: parentId };
+      if (filter.status) { conditions.push('status = @status'); params.status = filter.status; }
+      if (filter.action) { conditions.push('action = @action'); params.action = filter.action; }
+      const limit = filter.limit ? ' LIMIT ' + Math.floor(filter.limit) : '';
+      return db.prepare(`SELECT * FROM agent_runs WHERE ${conditions.join(' AND ')} ORDER BY started_at DESC${limit}`).all(params);
+    } catch { return []; }
+  }
+
+  /**
+   * List agent runs with optional filters.
+   * @param {object} [filter]
+   * @param {string} [filter.status]
+   * @param {string} [filter.action]
+   * @param {string} [filter.note_id]
+   * @param {number} [filter.limit]
+   * @returns {Array<object>}
+   */
+  function listRuns(filter = {}) {
+    try {
+      const conditions = [];
+      const params = {};
+      if (filter.status) { conditions.push('status = @status'); params.status = filter.status; }
+      if (filter.action) { conditions.push('action = @action'); params.action = filter.action; }
+      if (filter.note_id) { conditions.push('note_id = @note_id'); params.note_id = filter.note_id; }
+      const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+      const limit = filter.limit ? ' LIMIT ' + Math.floor(filter.limit) : '';
+      return db.prepare(`SELECT * FROM agent_runs ${where} ORDER BY started_at DESC${limit}`).all(params);
+    } catch { return []; }
+  }
+
   // ── Exposed API ───────────────────────────────────────────────────
 
   return {
@@ -742,6 +1038,32 @@ function createElegyDb(opts = {}) {
     getRepoAssets,
     upsertRepoAsset,
     removeRepoAsset,
+
+    // Notes
+    createNote,
+    getNote,
+    updateNote,
+    listNotes,
+    searchNotes,
+    deleteNote,
+
+    // Note Settings
+    getNoteSetting,
+    setNoteSetting,
+    deleteNoteSetting,
+    listNoteSettings,
+
+    // Note Blocks
+    createBlock,
+    listBlocksByNote,
+    deleteBlock,
+
+    // Agent Runs
+    createRun,
+    getRun,
+    updateRun,
+    listRunsByParent,
+    listRuns,
   };
 }
 
