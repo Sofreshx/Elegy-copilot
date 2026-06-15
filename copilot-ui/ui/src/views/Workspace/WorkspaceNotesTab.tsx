@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import WorkspaceNotesReader from './Notes/Reader';
 import WorkspaceNotesEditor from './Notes/Editor';
+import WorkspaceNotesRaw from './Notes/Raw';
 
 type NotesViewMode = 'read' | 'write' | 'raw';
 
@@ -93,25 +94,12 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
           />
         )}
         {viewMode === 'raw' && (
-          <WorkspaceNotesRawPlaceholder
+          <WorkspaceNotesRaw
             repoPath={repoPath}
             noteId={activeNoteId}
           />
         )}
       </div>
-    </div>
-  );
-}
-
-// ── Placeholder components (to be replaced by full implementations in subsequent WPs) ──
-
-function WorkspaceNotesRawPlaceholder(_props: {
-  repoPath: string;
-  noteId: string | null;
-}) {
-  return (
-    <div className="workspace-notes-raw" data-testid="notes-raw">
-      <p className="state-message">Raw note view coming soon. View and edit raw markdown content.</p>
     </div>
   );
 }
