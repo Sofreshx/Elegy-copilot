@@ -91,6 +91,34 @@
       "destination": "agents/standard.md"
     },
     {
+      "id": "notes-enhance",
+      "type": "agent",
+      "source": "opencode-assets/agents/notes-enhance.md",
+      "destination": "agents/notes-enhance.md",
+      "loadMode": "managed"
+    },
+    {
+      "id": "notes-reexamine",
+      "type": "agent",
+      "source": "opencode-assets/agents/notes-reexamine.md",
+      "destination": "agents/notes-reexamine.md",
+      "loadMode": "managed"
+    },
+    {
+      "id": "notes-research",
+      "type": "agent",
+      "source": "opencode-assets/agents/notes-research.md",
+      "destination": "agents/notes-research.md",
+      "loadMode": "managed"
+    },
+    {
+      "id": "notes-deduplicate",
+      "type": "agent",
+      "source": "opencode-assets/agents/notes-deduplicate.md",
+      "destination": "agents/notes-deduplicate.md",
+      "loadMode": "managed"
+    },
+    {
       "id": "opencode-code-review-skill",
       "type": "skill",
       "source": "opencode-assets/skills/code-review",
