@@ -1,6 +1,7 @@
 pub mod app;
 pub mod auth;
 pub mod config;
+pub mod config_service;
 pub mod dashboard;
 pub mod db;
 pub mod error;
@@ -11,3 +12,4 @@ pub mod response_shape;
 pub mod routes;
 pub mod runtime;
 pub mod sessions;
+pub mod worktree_service;
