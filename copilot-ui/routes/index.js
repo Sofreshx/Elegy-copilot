@@ -109,6 +109,7 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./workspace'), context);
   registry.registerModule(require('./elegyDb'), context);
   registry.registerModule(require('./codeReview'), context);
+  registry.registerModule(require('./shell'), context);
 
   return registry;
 }
