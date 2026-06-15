@@ -106,6 +106,15 @@ pub struct ProjectActivityResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct ErrorResponse {
+    pub error: String,
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deterministic: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct RouteContractShape {
     pub status: u16,
     pub content_type: Option<String>,

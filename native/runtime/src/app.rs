@@ -2,43 +2,30 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Context;
-use axum::extract::Path;
-use axum::extract::{Query, State};
-use axum::http::StatusCode;
-use axum::routing::{get, patch};
-use axum::{Json, Router};
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
+use axum::response::IntoResponse;
+use axum::Router;
 use chrono::Utc;
-use elegy_native_contracts::{
-    DashboardSummaryResponse, PolicyPreflightResponse, ProjectActivityResponse, ProjectResponse,
-    ProjectSessionResponse, RuntimeHealthResponse, VersionResponse,
-};
-use serde::Deserialize;
-use serde_json::json;
+use elegy_native_contracts::{PolicyPreflightResponse, VersionResponse};
+use tower_http::cors::CorsLayer;
+use tower_http::trace::TraceLayer;
 
 use crate::config::RuntimeConfig;
-use crate::dashboard::build_dashboard_summary;
+use crate::error::ApiError;
 use crate::policy::evaluate_policy_preflight;
-use crate::projects::{
-    list_project_activity, list_project_sessions, list_projects, update_project_fields,
-};
-use crate::runtime::build_runtime_health;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub config: RuntimeConfig,
-    version_state: Arc<Mutex<VersionResponse>>,
-    policy_cache: Arc<Mutex<Option<CachedPolicyPreflight>>>,
+    pub(crate) version_state: Arc<Mutex<VersionResponse>>,
+    pub(crate) policy_cache: Arc<Mutex<Option<CachedPolicyPreflight>>>,
 }
 
 #[derive(Debug, Clone)]
-struct CachedPolicyPreflight {
-    value: PolicyPreflightResponse,
-    expires_at_ms: u64,
-}
-
-#[derive(Debug, Deserialize)]
-struct PolicyPreflightQuery {
-    refresh: Option<String>,
+pub(crate) struct CachedPolicyPreflight {
+    pub value: PolicyPreflightResponse,
+    pub expires_at_ms: u64,
 }
 
 impl AppState {
@@ -63,173 +50,30 @@ impl AppState {
     }
 }
 
-pub fn build_router(state: AppState) -> Router {
-    Router::new()
-        .route("/api/policy/preflight", get(get_policy_preflight))
-        .route("/api/health", get(get_health))
-        .route("/api/version", get(get_version))
-        .route("/api/dashboard/summary", get(get_dashboard_summary))
-        .route("/api/projects", get(get_projects))
-        .route("/api/projects/{project_id}", patch(patch_project))
-        .route(
-            "/api/projects/{project_id}/sessions",
-            get(get_project_sessions),
-        )
-        .route(
-            "/api/projects/{project_id}/activity",
-            get(get_project_activity),
-        )
-        .with_state(state)
+/// Auth context placeholder — hook for wp-auth-module to fill in.
+///
+/// Currently a passthrough extractor that always succeeds with an empty context.
+/// Future middleware will populate this with real identity data.
+#[derive(Debug, Clone, Default)]
+pub struct AuthContext {
+    // Placeholder for future auth fields
 }
 
-pub async fn serve(state: AppState) -> anyhow::Result<()> {
-    let address: SocketAddr = format!("{}:{}", state.config.host, state.config.port)
-        .parse()
-        .context("invalid bind address")?;
-    let listener = tokio::net::TcpListener::bind(address)
-        .await
-        .context("failed to bind Rust runtime listener")?;
-    axum::serve(listener, build_router(state))
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .context("Rust runtime server exited unexpectedly")
-}
+impl<S> FromRequestParts<S> for AuthContext
+where
+    S: Send + Sync,
+{
+    type Rejection = std::convert::Infallible;
 
-async fn get_policy_preflight(
-    State(state): State<AppState>,
-    Query(query): Query<PolicyPreflightQuery>,
-) -> Json<PolicyPreflightResponse> {
-    let refresh = query.refresh.as_deref() == Some("1");
-    Json(policy_preflight(&state, refresh))
-}
-
-async fn get_health(State(state): State<AppState>) -> Json<RuntimeHealthResponse> {
-    let version = state
-        .version_state
-        .lock()
-        .map(|value| value.clone())
-        .unwrap_or(VersionResponse {
-            version: 0,
-            last_changed_ms: None,
-        });
-    let policy = policy_preflight(&state, false);
-    let planning_persistence = json!({
-        "kind": "planning.persistence.health",
-        "contractVersion": "planning_api_v1",
-        "ready": false,
-        "status": "disabled",
-        "required": false,
-        "configured": false,
-        "usable": false,
-        "initSupported": false,
-        "initRequired": false,
-        "error": null,
-    });
-    let runtime = build_runtime_health(&state.config.engine_root, &state.config.sandboxes_home);
-
-    Json(RuntimeHealthResponse {
-        ok: true,
-        now: Utc::now().timestamp_millis() as u64,
-        engine_root: state.config.engine_root.display().to_string(),
-        elegy_home: state.config.elegy_home.display().to_string(),
-        changes: Some(version),
-        runtime,
-        policy: serde_json::to_value(policy).expect("policy response should serialize"),
-        planning_persistence,
-        planning_durability_dependency_gate: Some(json!({
-            "status": "open",
-            "reason": "rust_runtime_bootstrap",
-            "deterministic": true,
-        })),
-        startup_managed_asset_sync: Some(json!({
-            "startedAt": Utc::now().to_rfc3339(),
-            "status": "not_started",
-            "mode": "rust_bootstrap_additive",
-        })),
-        autonomous_decision_log: Some(json!({
-            "available": false,
-            "reason": "not_ported",
-        })),
-    })
-}
-
-async fn get_version(State(state): State<AppState>) -> Json<VersionResponse> {
-    let version = state
-        .version_state
-        .lock()
-        .map(|value| value.clone())
-        .unwrap_or(VersionResponse {
-            version: 0,
-            last_changed_ms: None,
-        });
-    Json(version)
-}
-
-async fn get_dashboard_summary(State(state): State<AppState>) -> Json<DashboardSummaryResponse> {
-    Json(build_dashboard_summary(&state.config.elegy_home))
-}
-
-async fn get_projects(State(state): State<AppState>) -> Json<Vec<ProjectResponse>> {
-    Json(list_projects(&state.config.elegy_home))
-}
-
-async fn get_project_sessions(
-    State(state): State<AppState>,
-    Path(project_id): Path<String>,
-) -> Json<Vec<ProjectSessionResponse>> {
-    Json(list_project_sessions(&state.config.elegy_home, &project_id))
-}
-
-async fn get_project_activity(
-    State(state): State<AppState>,
-    Path(project_id): Path<String>,
-) -> Json<Vec<ProjectActivityResponse>> {
-    Json(list_project_activity(&state.config.elegy_home, &project_id))
-}
-
-async fn patch_project(
-    State(state): State<AppState>,
-    Path(project_id): Path<String>,
-    Json(payload): Json<serde_json::Value>,
-) -> (StatusCode, Json<serde_json::Value>) {
-    let normalized_project_id = project_id.trim();
-    if normalized_project_id.is_empty() {
-        return project_error(
-            StatusCode::BAD_REQUEST,
-            "projects.update",
-            "Project ID is required",
-        );
-    }
-
-    match update_project_fields(&state.config.elegy_home, normalized_project_id, &payload) {
-        Some(project) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(project).expect("project response should serialize")),
-        ),
-        None => project_error(
-            StatusCode::NOT_FOUND,
-            "projects.update",
-            &format!("Project not found: {normalized_project_id}"),
-        ),
+    async fn from_request_parts(
+        _parts: &mut Parts,
+        _state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(AuthContext::default())
     }
 }
 
-fn project_error(
-    status: StatusCode,
-    kind: &str,
-    error: &str,
-) -> (StatusCode, Json<serde_json::Value>) {
-    (
-        status,
-        Json(json!({
-            "kind": kind,
-            "deterministic": true,
-            "error": error,
-        })),
-    )
-}
-
-fn policy_preflight(state: &AppState, refresh: bool) -> PolicyPreflightResponse {
+pub(crate) fn policy_preflight(state: &AppState, refresh: bool) -> PolicyPreflightResponse {
     let now_ms = Utc::now().timestamp_millis() as u64;
     if !refresh {
         if let Ok(cache) = state.policy_cache.lock() {
@@ -249,6 +93,31 @@ fn policy_preflight(state: &AppState, refresh: bool) -> PolicyPreflightResponse 
         });
     }
     value
+}
+
+pub fn build_router(state: AppState) -> Router {
+    Router::new()
+        .merge(crate::routes::build_routes(state))
+        .layer(CorsLayer::permissive())
+        .layer(TraceLayer::new_for_http())
+        .fallback(handle_404)
+}
+
+async fn handle_404() -> impl IntoResponse {
+    ApiError::NotFound("route not found".to_string())
+}
+
+pub async fn serve(state: AppState) -> anyhow::Result<()> {
+    let address: SocketAddr = format!("{}:{}", state.config.host, state.config.port)
+        .parse()
+        .context("invalid bind address")?;
+    let listener = tokio::net::TcpListener::bind(address)
+        .await
+        .context("failed to bind Rust runtime listener")?;
+    axum::serve(listener, build_router(state))
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .context("Rust runtime server exited unexpectedly")
 }
 
 async fn shutdown_signal() {
