@@ -2,7 +2,7 @@ use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionSummary {
@@ -20,8 +20,8 @@ pub struct SessionSummary {
     pub status: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct EventRecord {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EventRecord {
     #[serde(default)]
     r#type: Option<String>,
     #[serde(default)]
@@ -197,7 +197,7 @@ fn parse_start_context(event: &EventRecord) -> StartContext {
     }
 }
 
-fn read_recent_events(events_path: &Path, limit: usize) -> Vec<EventRecord> {
+pub fn read_recent_events(events_path: &Path, limit: usize) -> Vec<EventRecord> {
     let Ok(text) = fs::read_to_string(events_path) else {
         return Vec::new();
     };

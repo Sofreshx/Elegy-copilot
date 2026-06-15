@@ -7,6 +7,7 @@ mod dashboard;
 mod health;
 mod policy;
 mod projects;
+mod sessions;
 mod version;
 
 pub fn build_routes(state: AppState) -> Router {
@@ -16,5 +17,6 @@ pub fn build_routes(state: AppState) -> Router {
         .merge(version::router(state.clone()))
         .merge(policy::router(state.clone()))
         .merge(dashboard::router(state.clone()))
-        .merge(projects::router(state))
+        .merge(projects::router(state.clone()))
+        .merge(sessions::router(state))
 }
