@@ -274,16 +274,173 @@ const COPILOT_INDEXES: &[&str] = &[
 ];
 
 // ---------------------------------------------------------------------------
+// Schema: ie_* planning persistence tables (SQLite port of PostgreSQL JSONB)
+// ---------------------------------------------------------------------------
+
+const CREATE_IE_SCHEMA_VERSIONS: &str = "CREATE TABLE IF NOT EXISTS ie_schema_versions (
+    version TEXT PRIMARY KEY,
+    checksum TEXT NOT NULL,
+    applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+)";
+
+const CREATE_IE_PLANNING_RECORDS: &str = "CREATE TABLE IF NOT EXISTS ie_planning_records (
+    record_id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    repo_id TEXT,
+    scope TEXT NOT NULL,
+    state TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)";
+
+const CREATE_IE_PLANNING_BACKFILL_RUNS: &str = "CREATE TABLE IF NOT EXISTS ie_planning_backfill_runs (
+    run_id TEXT PRIMARY KEY,
+    scope TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    repo_id TEXT,
+    source_identity TEXT NOT NULL,
+    checkpoint_key TEXT NOT NULL,
+    status TEXT NOT NULL,
+    started_at TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT,
+    metadata TEXT NOT NULL DEFAULT '{}'
+)";
+
+const CREATE_IE_PLANNING_BACKFILL_ITEMS_LEDGER: &str = "CREATE TABLE IF NOT EXISTS ie_planning_backfill_items_ledger (
+    run_id TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    repo_id TEXT,
+    source_identity TEXT NOT NULL,
+    artifact_path TEXT NOT NULL,
+    artifact_hash TEXT NOT NULL,
+    record_type TEXT NOT NULL,
+    source_idempotency_key TEXT NOT NULL,
+    status TEXT NOT NULL,
+    status_detail TEXT,
+    version INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (run_id, item_id),
+    UNIQUE (scope, source_identity, artifact_path, artifact_hash, record_type)
+)";
+
+const CREATE_IE_PLANNING_COMPARE_RECEIPTS: &str = "CREATE TABLE IF NOT EXISTS ie_planning_compare_receipts (
+    receipt_id TEXT PRIMARY KEY,
+    actor_id TEXT NOT NULL,
+    repo_id TEXT,
+    compare_hash TEXT NOT NULL,
+    source_ids_hash TEXT NOT NULL,
+    source_ids TEXT NOT NULL DEFAULT '[]',
+    version_vector TEXT,
+    gate_state TEXT NOT NULL,
+    merge_eligible INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    downgrade TEXT,
+    issued_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)";
+
+const CREATE_IE_PLANNING_MERGE_INTENTS: &str = "CREATE TABLE IF NOT EXISTS ie_planning_merge_intents (
+    token_id TEXT PRIMARY KEY,
+    compare_receipt_id TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    repo_id TEXT,
+    target_id TEXT NOT NULL,
+    source_ids_hash TEXT NOT NULL,
+    compare_hash TEXT NOT NULL,
+    version_vector TEXT,
+    version_vector_hash TEXT,
+    issued_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    consumed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)";
+
+const CREATE_IE_PLANNING_MERGE_IDEMPOTENCY_LEDGER: &str = "CREATE TABLE IF NOT EXISTS ie_planning_merge_idempotency_ledger (
+    idempotency_key TEXT PRIMARY KEY,
+    actor_id TEXT NOT NULL,
+    repo_id TEXT,
+    operation_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    source_ids_hash TEXT NOT NULL,
+    compare_hash TEXT NOT NULL,
+    payload_hash TEXT NOT NULL,
+    merge_record_id TEXT,
+    response TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL
+)";
+
+const CREATE_IE_PLANNING_SUGGESTIONS: &str = "CREATE TABLE IF NOT EXISTS ie_planning_suggestions (
+    suggestion_id TEXT PRIMARY KEY,
+    actor_id TEXT NOT NULL,
+    repo_id TEXT,
+    scope TEXT NOT NULL,
+    state TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)";
+
+const CREATE_IE_PLANNING_RECAPS: &str = "CREATE TABLE IF NOT EXISTS ie_planning_recaps (
+    recap_id TEXT PRIMARY KEY,
+    actor_id TEXT NOT NULL,
+    repo_id TEXT,
+    scope TEXT NOT NULL,
+    state TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)";
+
+const CREATE_IE_PLANNING_WORKFLOW_ARTIFACTS: &str = "CREATE TABLE IF NOT EXISTS ie_planning_workflow_artifacts (
+    artifact_id TEXT PRIMARY KEY,
+    actor_id TEXT NOT NULL,
+    repo_id TEXT,
+    roadmap_id TEXT NOT NULL,
+    slice_id TEXT,
+    kind TEXT NOT NULL,
+    phase TEXT NOT NULL,
+    status TEXT NOT NULL,
+    checksum TEXT NOT NULL,
+    source_harness TEXT,
+    source_model TEXT,
+    session_id TEXT,
+    body TEXT NOT NULL,
+    structured_state TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)";
+
+const IE_DDL: &[&str] = &[
+    CREATE_IE_SCHEMA_VERSIONS,
+    CREATE_IE_PLANNING_RECORDS,
+    CREATE_IE_PLANNING_BACKFILL_RUNS,
+    CREATE_IE_PLANNING_BACKFILL_ITEMS_LEDGER,
+    CREATE_IE_PLANNING_COMPARE_RECEIPTS,
+    CREATE_IE_PLANNING_MERGE_INTENTS,
+    CREATE_IE_PLANNING_MERGE_IDEMPOTENCY_LEDGER,
+    CREATE_IE_PLANNING_SUGGESTIONS,
+    CREATE_IE_PLANNING_RECAPS,
+    CREATE_IE_PLANNING_WORKFLOW_ARTIFACTS,
+];
+
+// ---------------------------------------------------------------------------
 // Migration runner
 // ---------------------------------------------------------------------------
 
 /// Run planning.db table migrations.
 ///
 /// Creates all planning tables (goals, roadmaps, work_points, plans, todos,
-/// issues, review_points, tag_index, planning_events).
+/// issues, review_points, tag_index, planning_events) plus the ie_*
+/// planning persistence tables.
 /// Idempotent — all DDL uses `CREATE TABLE IF NOT EXISTS`.
 pub fn run_planning_migrations(conn: &Connection) -> rusqlite::Result<()> {
     for ddl in PLANNING_DDL {
+        conn.execute_batch(ddl)?;
+    }
+    for ddl in IE_DDL {
         conn.execute_batch(ddl)?;
     }
     Ok(())
@@ -426,8 +583,10 @@ mod tests {
             let count: i64 = stmt
                 .query_row([], |row| row.get(0))
                 .expect("query count");
-            // Must have all planning + copilot tables (and no extra duplicates)
-            let expected_count = PLANNING_TABLES.len() + COPILOT_TABLES.len();
+            // Must have all planning + copilot + ie_* tables (no extra duplicates)
+            // IE_DDL has 10 entries; the UNIQUE constraint on ie_planning_backfill_items_ledger
+            // also creates sqlite_sequence if any autoinc table, but we don't have any.
+            let expected_count = PLANNING_TABLES.len() + COPILOT_TABLES.len() + IE_DDL.len();
             assert!(
                 count as usize >= expected_count,
                 "expected at least {} tables, got {}",

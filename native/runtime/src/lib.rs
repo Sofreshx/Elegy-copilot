@@ -4,6 +4,7 @@ pub mod config;
 pub mod dashboard;
 pub mod db;
 pub mod error;
+pub mod persistence;
 pub mod policy;
 pub mod projects;
 pub mod response_shape;
