@@ -3766,6 +3766,7 @@ export interface HarnessTelemetryData {
     kind: string;
     path: string;
     logsPath?: string;
+    openTelemetry?: boolean | null;
   };
   coverage: string;
   sample: {

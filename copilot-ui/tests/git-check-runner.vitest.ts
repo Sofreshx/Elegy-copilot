@@ -10,6 +10,7 @@ import { execFile as realExecFile } from 'child_process';
 import {
   discoverChecks,
   runAllChecks,
+  runAllChecksWithProfile,
   resolveCommitCheckConfig,
   __setDeps,
 } from '../lib/gitCheckRunner';
@@ -226,6 +227,91 @@ describe('runAllChecks', () => {
     expect(coverageResult.passed).toBe(true);
     expect(coverageResult.error).toBeUndefined();
     expect(coverageResult.output).toBe('No commands configured');
+  });
+
+  it('uses lane timeout budget for full canonical runs', async () => {
+    setupCanonicalMocks(
+      {
+        lint: { commands: ['npm run lint'], timeoutMs: 60000 },
+        test: { commands: ['npm test'], timeoutMs: 120000 },
+        release: { commands: ['npm run release'], timeoutMs: 300000 },
+      },
+      {
+        timestamp: '2026-06-08T12:00:00.000Z',
+        compositeScore: 100,
+        overallPass: true,
+        lanes: {
+          lint: { status: 'PASS', score: 100, details: 'Clean', commands: [] },
+          test: { status: 'PASS', score: 100, details: 'Passed', commands: [] },
+          release: { status: 'PASS', score: 100, details: 'Passed', commands: [] },
+        },
+      },
+    );
+
+    await runAllChecks('/fake/repo');
+
+    const options = mockExecFile.mock.calls[0][2];
+    expect(options.timeout).toBeGreaterThan(120000);
+    expect(options.timeout).toBe(510000);
+  });
+
+  it('orders skip reasons before skipped lane arguments for the canonical runner', async () => {
+    setupCanonicalMocks(
+      {
+        lint: { commands: ['npm run lint'], defaultProfiles: ['commit'], skippable: true },
+        test: { commands: ['npm test'], defaultProfiles: ['commit'] },
+      },
+      {
+        timestamp: '2026-06-08T12:00:00.000Z',
+        compositeScore: 100,
+        overallPass: true,
+        skippedLanes: { lint: 'known flaky' },
+        lanes: {
+          test: { status: 'PASS', score: 100, details: 'Passed', commands: [] },
+        },
+      },
+    );
+
+    await runAllChecksWithProfile('/fake/repo', {
+      profile: 'commit',
+      skipLanes: new Map([['lint', 'known flaky']]),
+    });
+
+    const args = mockExecFile.mock.calls[0][1];
+    expect(args).toContain('--profile');
+    expect(args).toContain('commit');
+    expect(args).toContain('--reason');
+    expect(args).toContain('known flaky');
+    expect(args.indexOf('--reason')).toBeLessThan(args.indexOf('--skip'));
+  });
+
+  it('returns parse diagnostics when canonical output is invalid', async () => {
+    mockExistsSync.mockImplementation((p: any) => {
+      const pStr = String(p).replace(/\\/g, '/');
+      if (pStr.includes('commit-checks.json')) return true;
+      if (pStr.includes('scripts/commit-check-run.mjs')) return true;
+      return false;
+    });
+    mockReadFileSync.mockReturnValue(JSON.stringify({
+      lanes: {
+        lint: { commands: ['npm run lint'], timeoutMs: 60000 },
+      },
+    }));
+    mockExecFile.mockImplementation((...args: any[]) => {
+      const callback = args[args.length - 1];
+      if (typeof callback === 'function') {
+        callback(Object.assign(new Error('Command failed'), { killed: true }), '{"partial":', 'fatal stderr');
+      }
+      return { on: vi.fn() };
+    });
+
+    const result = await runAllChecks('/fake/repo');
+
+    expect(result.allPassed).toBe(false);
+    expect(result.message).toContain('Failed to parse commit-check output');
+    expect(result.message).toContain('timed out');
+    expect(result.errorOutput).toContain('fatal stderr');
+    expect(result.errorOutput).toContain('stdout tail');
   });
 
   it('falls back to source:none when no canonical config exists and no legacy checks', async () => {

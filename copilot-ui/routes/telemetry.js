@@ -21,6 +21,7 @@ function register(deps = {}) {
           const limit = asNumber(ctx.query && ctx.query.limit, undefined);
           const result = telemetryService.buildHarnessTelemetry({
             limit,
+            opencodeHome: ctx.opencodeHome,
             codexHome: ctx.codexHome,
           });
           sendJson(ctx.res, 200, result);

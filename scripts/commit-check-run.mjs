@@ -24,7 +24,7 @@ function readJson(filePath) {
   }
 }
 
-function resolveConfig(configPath) {
+function resolveConfig(configPath, repoRoot = process.cwd()) {
   if (configPath) {
     if (!exists(configPath)) {
       die(`Config file not found: ${configPath}`);
@@ -34,13 +34,13 @@ function resolveConfig(configPath) {
     return cfg;
   }
 
-  const cwdDefault = path.join(process.cwd(), DEFAULT_CONFIG_NAME);
+  const cwdDefault = path.join(repoRoot, DEFAULT_CONFIG_NAME);
   if (exists(cwdDefault)) {
     const cfg = readJson(cwdDefault);
     if (cfg) return cfg;
   }
 
-  const explicit = path.join(process.cwd(), '.copilot', 'commit-checks.json');
+  const explicit = path.join(repoRoot, '.copilot', 'commit-checks.json');
   if (exists(explicit)) {
     const cfg = readJson(explicit);
     if (cfg) return cfg;
@@ -131,7 +131,7 @@ function parseLaneSummary(name, result) {
     if (name === 'typecheck') return 'No type errors';
     return 'Passed';
   }
-  const errLines = result.stderr.split('\n').filter(l => l).slice(0, 3).join('; ');
+  const errLines = [result.stderr, result.stdout].join('\n').split('\n').filter(l => l).slice(0, 3).join('; ');
   return errLines || `Exit code ${result.exitCode}`;
 }
 
@@ -248,7 +248,8 @@ export function runChecks(config, repoRoot, options = {}) {
 
       if (!result.success) {
         lanePassed = false;
-        errorOutput += `[${name}] Command failed: ${cmd}\n  ${result.stderr.slice(0, 200)}\n`;
+        const commandOutput = [result.stderr, result.stdout].filter(Boolean).join('\n');
+        errorOutput += `[${name}] Command failed: ${cmd}\n  ${commandOutput.slice(0, 200)}\n`;
       }
     }
 
@@ -270,7 +271,8 @@ export function runChecks(config, repoRoot, options = {}) {
       if (coverageMetrics.functionPct != null) parts.push(`Functions: ${coverageMetrics.functionPct}%`);
       details = parts.length > 0 ? parts.join(', ') : 'Coverage ran successfully';
     } else {
-      const lastResult = laneResults[laneResults.length - 1];
+      const failedResult = laneResults.find(r => !r.success);
+      const lastResult = failedResult || laneResults[laneResults.length - 1];
       score = lanePassed ? 100 : 0;
       details = parseLaneSummary(name, lastResult);
     }
@@ -436,7 +438,7 @@ function main() {
     console.warn('[warn] --reason provided without a following --skip (ignored)');
   }
 
-  const config = resolveConfig(configPath);
+  const config = resolveConfig(configPath, repoRoot);
   const result = runChecks(config, repoRoot, {
     profile,
     selectedLanes,

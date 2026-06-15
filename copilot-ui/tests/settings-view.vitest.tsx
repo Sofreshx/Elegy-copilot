@@ -318,14 +318,16 @@ describe('SettingsView', () => {
               opencode: {
                 id: 'opencode',
                 label: 'OpenCode',
-                source: { kind: 'log-files', path: 'C:/Users/demo/.local/share/opencode/log' },
+                source: { kind: 'log-files', path: 'C:/Users/demo/.local/share/opencode/log', openTelemetry: true },
                 coverage: 'sampled-log-files',
                 sample: { limit: 200, logFiles: 1, sampledLines: 3, deterministic: true },
                 summary: { requests: 1, sampledRequests: 1, errors: 1, toolEvents: 1, sessions: null },
                 providerUsage: { providers: [], topModels: [], topAgents: [] },
                 topTools: [{ name: 'shell_command', count: 1 }],
                 errorsByType: [{ name: 'permission', count: 1 }],
-                recentErrors: [],
+                recentErrors: [
+                  { timestamp: '2026-06-15T12:00:01Z', type: 'permission', source: 'demo.log', message: 'permission denied' },
+                ],
                 recentEvents: [
                   { timestamp: '2026-06-15T12:00:00Z', type: 'tool', source: 'demo.log', label: 'shell_command', message: 'tool call' },
                 ],
@@ -371,6 +373,12 @@ describe('SettingsView', () => {
     expect(screen.getByTestId('telemetry-tab-codex')).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText('shell_command')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Enabled')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('telemetry-filter-errors'));
+    await waitFor(() => {
+      expect(screen.getByText(/permission denied/i)).toBeInTheDocument();
     });
   });
 

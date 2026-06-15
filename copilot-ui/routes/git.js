@@ -1,6 +1,8 @@
 'use strict';
 
 const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 const { gateGitAction } = require('../lib/gitCheckRunner');
 
@@ -1435,6 +1437,102 @@ function resolveOpenCodeBin() {
   return null;
 }
 
+const FALLBACK_OPENCODE_COMMIT_MODELS = [
+  'opencode/deepseek-v4-flash-free',
+  'opencode/deepseek-v4-pro-free',
+  'opencode-go/deepseek-v4-flash',
+];
+
+function uniqueStrings(values) {
+  return [...new Set(values.filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim()))];
+}
+
+function readOpenCodeProfileCommitModels(engineRoot = path.resolve(__dirname, '..', '..')) {
+  try {
+    const profilesPath = path.resolve(engineRoot, 'opencode-assets', 'profiles.json');
+    const parsed = JSON.parse(fs.readFileSync(profilesPath, 'utf8'));
+    const profiles = parsed && parsed.profiles && typeof parsed.profiles === 'object' ? parsed.profiles : {};
+    const activeProfileId = typeof parsed.activeProfile === 'string' ? parsed.activeProfile : '';
+    const orderedProfileIds = uniqueStrings([
+      'opencode-zen-free',
+      activeProfileId,
+      'opencode-go-fast',
+      'opencode-go-balanced',
+      ...Object.keys(profiles),
+    ]);
+
+    const models = [];
+    for (const profileId of orderedProfileIds) {
+      const profile = profiles[profileId];
+      if (!profile || typeof profile !== 'object') continue;
+      const roleModels = profile.roleModels && typeof profile.roleModels === 'object' ? profile.roleModels : {};
+      models.push(
+        roleModels.implementation,
+        roleModels.exploration,
+        roleModels.planning,
+        profile.small,
+        profile.big,
+      );
+    }
+    return uniqueStrings(models);
+  } catch (_) {
+    return [];
+  }
+}
+
+function resolveCommitMessageModels(body, deps = {}) {
+  if (Array.isArray(body.models) && body.models.length > 0) {
+    return uniqueStrings(body.models);
+  }
+  const configuredModels = typeof deps.getOpenCodeCommitModels === 'function'
+    ? deps.getOpenCodeCommitModels()
+    : readOpenCodeProfileCommitModels(deps.engineRoot);
+  return uniqueStrings([...configuredModels, ...FALLBACK_OPENCODE_COMMIT_MODELS]);
+}
+
+function extractOpenCodeText(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map(extractOpenCodeText).filter(Boolean).join('\n');
+  if (typeof value !== 'object') return '';
+
+  for (const key of ['content', 'text', 'output', 'message', 'part']) {
+    const text = extractOpenCodeText(value[key]);
+    if (text.trim()) return text;
+  }
+
+  if (Array.isArray(value.parts)) {
+    return value.parts.map(extractOpenCodeText).filter(Boolean).join('\n');
+  }
+
+  return '';
+}
+
+function parseOpenCodeCommitMessage(stdout) {
+  const lines = String(stdout || '').split('\n').filter((line) => line.trim());
+  let messageContent = '';
+
+  for (const line of lines) {
+    try {
+      const event = JSON.parse(line);
+      if (event.type && /error/i.test(String(event.type))) continue;
+      const content = extractOpenCodeText(event).trim();
+      if (content) messageContent = content;
+    } catch (_) {
+      // Non-JSON lines are handled below.
+    }
+  }
+
+  if (!messageContent.trim()) {
+    const textLines = lines.filter((line) => {
+      try { JSON.parse(line); return false; } catch (_) { return true; }
+    });
+    messageContent = textLines.join('\n').trim();
+  }
+
+  return messageContent.replace(/```[\s\S]*?```/g, '').replace(/`([^`]+)`/g, '$1').trim();
+}
+
 function handleGenerateCommitMessage(ctx, deps) {
   const { req, res } = ctx;
   const { sendJson, readJsonBody, childProcess: childProcessImpl } = deps;
@@ -1442,9 +1540,7 @@ function handleGenerateCommitMessage(ctx, deps) {
   return readJsonBody(req).then(async (body) => {
     const repoPath = isNonEmptyString(body.repoPath) ? body.repoPath.trim() : '';
     if (!repoPath) throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
-    const models = Array.isArray(body.models) && body.models.length > 0
-      ? body.models.filter(m => typeof m === 'string' && m.trim())
-      : ['opencode/mimo-v2.5-free', 'opencode/deepseek-v4-flash-free', 'opencode/big-pickle'];
+    const models = resolveCommitMessageModels(body, deps);
     const warnings = [];
     const stagedOnly = body.stagedOnly === true;
 
@@ -1555,37 +1651,7 @@ ${diffText}`;
           });
         });
 
-        // Parse JSON events to extract commit message
-        const lines = result.stdout.split('\n').filter(l => l.trim());
-        let messageContent = '';
-        for (const line of lines) {
-          try {
-            const event = JSON.parse(line);
-            // Look for content in various event shapes
-            if (event.content && typeof event.content === 'string') {
-              messageContent = event.content;
-            } else if (event.text && typeof event.text === 'string') {
-              messageContent = event.text;
-            } else if (event.type === 'assistant' || event.role === 'assistant') {
-              const content = event.content || event.text || event.message || '';
-              if (typeof content === 'string' && content.trim()) {
-                messageContent = content;
-              }
-            }
-          } catch (_) { /* skip non-JSON lines */ }
-        }
-
-        // If no structured content found, use raw stdout (strip JSON lines)
-        if (!messageContent.trim()) {
-          // Fallback: take the last non-JSON-looking line that's not empty
-          const textLines = lines.filter(l => {
-            try { JSON.parse(l); return false; } catch (_) { return true; }
-          });
-          messageContent = textLines.join('\n').trim();
-        }
-
-        // Clean up: remove any markdown fences
-        messageContent = messageContent.replace(/```[\s\S]*?```/g, '').replace(/`([^`]+)`/g, '$1').trim();
+        const messageContent = parseOpenCodeCommitMessage(result.stdout);
 
         if (messageContent) {
           sendJson(res, 200, {
@@ -1615,7 +1681,14 @@ ${diffText}`;
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const readJsonBody = context.readJsonBody || defaultReadJsonBody;
-  const deps = { sendJson, readJsonBody, childProcess: context.childProcess || childProcess, resolveOpenCodeBin: context.resolveOpenCodeBin || null };
+  const deps = {
+    sendJson,
+    readJsonBody,
+    childProcess: context.childProcess || childProcess,
+    resolveOpenCodeBin: context.resolveOpenCodeBin || null,
+    getOpenCodeCommitModels: context.getOpenCodeCommitModels || null,
+    engineRoot: context.engineRoot || null,
+  };
 
   return [
     { method: 'GET', path: '/api/git/status', handler: (ctx) => handleGitStatus(ctx, deps) },

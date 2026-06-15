@@ -21,10 +21,18 @@ test('OpenCode telemetry aggregates sampled tools and errors from log files', ()
     ].join('\n'),
     'utf8',
   );
+  const opencodeHome = path.join(tmp, 'opencode-home');
+  fs.mkdirSync(opencodeHome, { recursive: true });
+  fs.writeFileSync(
+    path.join(opencodeHome, 'opencode.jsonc'),
+    JSON.stringify({ experimental: { openTelemetry: true } }),
+    'utf8',
+  );
 
-  const data = telemetryService.buildOpenCodeTelemetry({ logDir, limit: 50 });
+  const data = telemetryService.buildOpenCodeTelemetry({ logDir, opencodeHome, limit: 50 });
 
   assert.equal(data.coverage, 'sampled-log-files');
+  assert.equal(data.source.openTelemetry, true);
   assert.equal(data.summary.requests, 1);
   assert.equal(data.summary.toolEvents, 2);
   assert.equal(data.summary.errors, 2);

@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const opencodeLogReader = require('./opencodeLogReader');
+const opencodeConfig = require('./opencodeConfig');
 
 const DEFAULT_EVENT_LIMIT = 200;
 const MAX_EVENT_LIMIT = 500;
@@ -181,8 +182,20 @@ function readLogLines(logDir, options = {}) {
 function buildOpenCodeTelemetry(options = {}) {
   const limit = clampLimit(options.limit);
   const logDir = options.logDir || opencodeLogReader.resolveLogDir();
+  const opencodeHome = options.opencodeHome || path.join(os.homedir(), '.config', 'opencode');
   const { lines, logFiles } = readLogLines(logDir, options);
   const requestLogs = opencodeLogReader.readRequestLogs({ limit, logDir });
+  let experimentalOpenTelemetry = null;
+  try {
+    const config = opencodeConfig.readConfig(opencodeHome);
+    experimentalOpenTelemetry = Boolean(
+      config
+      && config.experimental
+      && config.experimental.openTelemetry === true,
+    );
+  } catch {
+    experimentalOpenTelemetry = null;
+  }
 
   const tools = new Map();
   const errors = new Map();
@@ -241,6 +254,7 @@ function buildOpenCodeTelemetry(options = {}) {
     source: {
       kind: 'log-files',
       path: logDir,
+      openTelemetry: experimentalOpenTelemetry,
     },
     coverage: logFiles > 0 ? 'sampled-log-files' : 'no-logs-found',
     sample: {

@@ -5120,6 +5120,10 @@ textarea:focus-visible,
   border-radius: var(--radius-sm);
 }
 
+.telemetry-events-table-wrap {
+  max-height: min(34rem, 55vh);
+}
+
 .telemetry-table {
   width: 100%;
   border-collapse: collapse;
@@ -5135,6 +5139,9 @@ textarea:focus-visible,
 }
 
 .telemetry-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   color: var(--fg-muted);
   background: var(--bg-subtle);
   font-size: var(--text-xs);

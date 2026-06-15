@@ -64,13 +64,14 @@ async function invoke(routes, method, pathname) {
   return { res, body: parseBody(res) };
 }
 
-function registerWithMocks({ execResponses = [], body = {}, resolveOpenCodeBin = null } = {}) {
+function registerWithMocks({ execResponses = [], body = {}, resolveOpenCodeBin = null, getOpenCodeCommitModels = null, onExec = null } = {}) {
   const queue = [...execResponses];
   return register({
     sendJson: createSendJson(),
     readJsonBody: createReadJsonBody(body),
     childProcess: {
       execFile(command, args, options, callback) {
+        if (onExec) onExec(command, args, options);
         const next = queue.shift();
         if (!next) {
           callback(new Error(`Unexpected command: ${command} ${args.join(' ')}`), '', '');
@@ -84,6 +85,7 @@ function registerWithMocks({ execResponses = [], body = {}, resolveOpenCodeBin =
       },
     },
     resolveOpenCodeBin: resolveOpenCodeBin || (() => 'opencode'),
+    getOpenCodeCommitModels,
   });
 }
 
@@ -501,6 +503,44 @@ async function run() {
     assert.equal(res.statusCode, 200);
     assert.equal(body.ok, true);
     assert.equal(body.message, 'feat: using custom bin');
+  });
+
+  await test('POST /api/git/commit-message uses free OpenCode profile models by default', async () => {
+    const opencodeCalls = [];
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo' },
+      onExec(command, args) {
+        if (command === 'opencode') opencodeCalls.push(args);
+      },
+      execResponses: [
+        { stdout: 'fix: update readme\n' },
+        { stdout: ' src/app.ts | 2 ++\n' },
+        { stdout: 'diff --git a/src/app.ts b/src/app.ts\n...' },
+        { stdout: '{"content":"fix: generated from profile model"}\n' },
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/commit-message');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.model, 'opencode/deepseek-v4-flash-free');
+    assert.equal(body.message, 'fix: generated from profile model');
+    assert.equal(opencodeCalls[0][2], 'opencode/deepseek-v4-flash-free');
+  });
+
+  await test('POST /api/git/commit-message parses nested OpenCode message parts', async () => {
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo' },
+      execResponses: [
+        { stdout: 'fix: update readme\n' },
+        { stdout: ' src/app.ts | 2 ++\n' },
+        { stdout: 'diff --git a/src/app.ts b/src/app.ts\n...' },
+        { stdout: '{"type":"text","part":{"type":"text","text":"fix: parse nested event"}}\n' },
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/commit-message');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, true);
+    assert.equal(body.message, 'fix: parse nested event');
   });
 
   await test('POST /api/git/commit-message returns NO_CHANGES when diff is empty', async () => {

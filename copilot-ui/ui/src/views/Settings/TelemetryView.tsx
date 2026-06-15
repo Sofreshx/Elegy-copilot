@@ -25,7 +25,7 @@ function formatValue(value: number | null): string {
 function filterEvents(events: HarnessTelemetryEvent[], filter: EventFilter, query: string) {
   const q = query.trim().toLowerCase();
   return events.filter((event) => {
-    if (filter === 'errors' && event.type !== 'error' && !event.type.includes('error')) return false;
+    if (filter === 'errors' && event.type !== 'error' && !event.type.includes('error') && event.source !== 'recent-errors') return false;
     if (filter === 'tools' && event.type !== 'tool') return false;
     if (filter === 'requests' && event.type !== 'request' && event.type !== 'session') return false;
     if (!q) return true;
@@ -86,7 +86,7 @@ function EventTable({ events }: { events: HarnessTelemetryEvent[] }) {
   }
 
   return (
-    <div className="telemetry-table-wrap">
+    <div className="telemetry-table-wrap telemetry-events-table-wrap">
       <table className="telemetry-table" data-testid="telemetry-events-table">
         <thead>
           <tr>
@@ -128,8 +128,27 @@ function HarnessPanel({
   onSearchChange: (query: string) => void;
 }) {
   const events = useMemo(
-    () => filterEvents(harness.recentEvents || [], eventFilter, search),
-    [harness.recentEvents, eventFilter, search],
+    () => {
+      const baseEvents = eventFilter === 'errors'
+        ? [
+            ...(harness.recentErrors || []).map((event) => ({
+              ...event,
+              type: 'error',
+              label: event.label || event.type,
+            })),
+            ...(harness.recentEvents || []),
+          ]
+        : (harness.recentEvents || []);
+      const seen = new Set<string>();
+      const deduped = baseEvents.filter((event) => {
+        const key = `${event.timestamp}|${event.type}|${event.source}|${event.message}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      return filterEvents(deduped, eventFilter, search);
+    },
+    [harness.recentErrors, harness.recentEvents, eventFilter, search],
   );
 
   return (
@@ -154,6 +173,16 @@ function HarnessPanel({
             <span className="opencode-readiness-label">Sampled Lines</span>
             <span className="opencode-readiness-value">{harness.sample.sampledLines}</span>
           </div>
+          {harness.id === 'opencode' ? (
+            <div className="opencode-readiness-card">
+              <span className="opencode-readiness-label">OpenTelemetry Flag</span>
+              <span className="opencode-readiness-value">
+                {harness.source.openTelemetry == null
+                  ? 'Unknown'
+                  : harness.source.openTelemetry ? 'Enabled' : 'Disabled'}
+              </span>
+            </div>
+          ) : null}
         </div>
       </Panel>
 

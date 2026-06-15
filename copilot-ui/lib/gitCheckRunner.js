@@ -59,13 +59,14 @@ function runCanonicalChecks(repoRoot, config, options) {
       if (options.selectedGroup) args.push('--group', options.selectedGroup);
       if (options.skipLanes && options.skipLanes.size > 0) {
         for (const [lane, reason] of options.skipLanes) {
-          args.push('--skip', lane, '--reason', reason);
+          args.push('--reason', reason, '--skip', lane);
         }
       }
     }
+    const timeoutMs = resolveCanonicalRunTimeout(config, options);
     const child = execFile('node', [scriptPath, ...args], {
       cwd: repoRoot,
-      timeout: 120000,
+      timeout: timeoutMs,
       maxBuffer: 1024 * 1024,
       windowsHide: true,
     }, (error, stdout, stderr) => {
@@ -73,6 +74,11 @@ function runCanonicalChecks(repoRoot, config, options) {
       try {
         parsed = JSON.parse((stdout || '').trim());
       } catch {
+        const stdoutText = (stdout || '').trim();
+        const stderrText = (stderr || '').trim();
+        const diagnostic = error && error.killed
+          ? `commit-check process timed out after ${Math.round(timeoutMs / 1000)}s.`
+          : 'commit-check process did not return valid JSON.';
         // JSON parse failed — return error
         resolve({
           repoRoot,
@@ -84,7 +90,12 @@ function runCanonicalChecks(repoRoot, config, options) {
           checksFailed: 0,
           allPassed: false,
           results: [],
-          message: 'Failed to parse commit-check output.',
+          errorOutput: [
+            diagnostic,
+            stderrText ? `stderr:\n${tail(stderrText)}` : '',
+            stdoutText ? `stdout tail:\n${tail(stdoutText)}` : '',
+          ].filter(Boolean).join('\n\n'),
+          message: `Failed to parse commit-check output: ${diagnostic}`,
         });
         return;
       }
@@ -150,6 +161,50 @@ function runCanonicalChecks(repoRoot, config, options) {
       });
     });
   });
+}
+
+function normalizeSelectedLanes(selectedLanes) {
+  if (!selectedLanes) return null;
+  if (Array.isArray(selectedLanes)) return selectedLanes;
+  return [selectedLanes];
+}
+
+function resolveCanonicalRunTimeout(config, options = {}) {
+  const lanes = config?.lanes && typeof config.lanes === 'object' ? config.lanes : {};
+  let laneNames = Object.keys(lanes).filter((name) => lanes[name]?.enabled !== false);
+
+  if (options.profile) {
+    laneNames = laneNames.filter((name) => {
+      const profiles = lanes[name]?.defaultProfiles;
+      return Array.isArray(profiles) && profiles.includes(options.profile);
+    });
+  }
+
+  const selectedLanes = normalizeSelectedLanes(options.selectedLanes);
+  if (selectedLanes) {
+    laneNames = laneNames.filter((name) => selectedLanes.includes(name));
+  }
+
+  if (options.selectedGroup) {
+    laneNames = laneNames.filter((name) => lanes[name]?.group === options.selectedGroup);
+  }
+
+  if (options.skipLanes && options.skipLanes.size > 0) {
+    laneNames = laneNames.filter((name) => !options.skipLanes.has(name));
+  }
+
+  const summedTimeout = laneNames.reduce((sum, name) => {
+    const timeout = Number(lanes[name]?.timeoutMs);
+    return sum + (Number.isFinite(timeout) && timeout > 0 ? timeout : 120000);
+  }, 0);
+
+  const overheadMs = Math.max(30000, laneNames.length * 5000);
+  return Math.min(Math.max(summedTimeout + overheadMs, 120000), 30 * 60 * 1000);
+}
+
+function tail(value, maxLength = 4000) {
+  if (value.length <= maxLength) return value;
+  return value.slice(value.length - maxLength);
 }
 
 const RUN_TIMEOUT_MS = 30000;

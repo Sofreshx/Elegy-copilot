@@ -39,6 +39,45 @@ function collectWorkspaceDeps(repoRoot, pkg) {
   return allDeps;
 }
 
+function collectWorkspacePackageRoots(repoRoot, pkg) {
+  const roots = [];
+  const workspaces = pkg.workspaces || [];
+
+  for (const ws of workspaces) {
+    if (typeof ws !== 'string' || ws.includes('*')) continue;
+    const wsRoot = path.join(repoRoot, ws.replace(/\/+$/, ''));
+    if (exists(path.join(wsRoot, 'package.json'))) {
+      roots.push(wsRoot);
+    }
+  }
+
+  return roots;
+}
+
+function collectTsConfigCommands(repoRoot, workspaceRoots) {
+  const candidates = [
+    path.join(repoRoot, 'tsconfig.json'),
+    path.join(repoRoot, 'tsconfig.build.json'),
+    ...workspaceRoots.flatMap(root => [
+      path.join(root, 'tsconfig.json'),
+      path.join(root, 'tsconfig.build.json'),
+      path.join(root, 'ui', 'tsconfig.json'),
+    ]),
+  ];
+  const seen = new Set();
+  const commands = [];
+
+  for (const candidate of candidates) {
+    if (!exists(candidate)) continue;
+    const relative = path.relative(repoRoot, candidate).replace(/\\/g, '/');
+    if (seen.has(relative)) continue;
+    seen.add(relative);
+    commands.push(`npx tsc -p "${relative}" --noEmit`);
+  }
+
+  return commands;
+}
+
 function detectTypeScriptLanes(repoRoot) {
   const lanes = {};
   const pkgJsonPath = path.join(repoRoot, 'package.json');
@@ -53,16 +92,18 @@ function detectTypeScriptLanes(repoRoot) {
 
   const scripts = pkg.scripts || {};
   const deps = collectWorkspaceDeps(repoRoot, pkg);
+  const workspaceRoots = collectWorkspacePackageRoots(repoRoot, pkg);
 
   const hasTsConfig = exists(path.join(repoRoot, 'tsconfig.json')) ||
     exists(path.join(repoRoot, 'tsconfig.build.json'));
+  const tsConfigCommands = collectTsConfigCommands(repoRoot, workspaceRoots);
 
   const eslintConfigs = [
     '.eslintrc', '.eslintrc.json', '.eslintrc.js', '.eslintrc.yaml', '.eslintrc.yml',
     'eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs',
   ];
-  const hasEslint = eslintConfigs.some(c => exists(path.join(repoRoot, c))) ||
-    deps.eslint !== undefined;
+  const hasEslintConfig = eslintConfigs.some(c => exists(path.join(repoRoot, c)));
+  const hasEslint = deps.eslint !== undefined && (hasEslintConfig || scripts.lint);
 
   const prettierConfigs = [
     '.prettierrc', '.prettierrc.json', '.prettierrc.js', '.prettierrc.yaml', '.prettierrc.yml',
@@ -73,7 +114,7 @@ function detectTypeScriptLanes(repoRoot) {
 
   const hasVitest = deps.vitest !== undefined;
   const hasJest = deps.jest !== undefined;
-  const hasTsc = deps.typescript !== undefined || hasTsConfig;
+  const hasTsc = deps.typescript !== undefined && (hasTsConfig || tsConfigCommands.length > 0 || scripts.typecheck || scripts['type:check'] || scripts['tsc:check']);
 
   if (hasVitest || hasJest) {
     const testScript = scripts.test || scripts['test:unit'] || null;
@@ -128,7 +169,9 @@ function detectTypeScriptLanes(repoRoot) {
     const typecheckScript = scripts.typecheck || scripts['type:check'] || scripts['tsc:check'] || null;
     let commands = typecheckScript
       ? [`npm run ${Object.entries(scripts).find(([,v]) => v === typecheckScript)?.[0] || 'typecheck'}`]
-      : ['npx tsc --noEmit'];
+      : tsConfigCommands.length > 0
+        ? tsConfigCommands
+        : ['npx tsc --noEmit'];
     lanes.typecheck = { found: true, commands, tool: 'tsc' };
   }
 
@@ -201,7 +244,7 @@ function detectExistingConfig(repoRoot) {
   const configPath = path.join(repoRoot, '.copilot', 'commit-checks.json');
   if (exists(configPath)) {
     const config = readJson(configPath);
-    if (config && config.schemaVersion === SCHEMA_VERSION) {
+    if (config && Number(config.schemaVersion) >= SCHEMA_VERSION) {
       return { exists: true, valid: true, path: configPath, config };
     }
     return { exists: true, valid: false, path: configPath, config: null };
