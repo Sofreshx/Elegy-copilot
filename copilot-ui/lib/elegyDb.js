@@ -11,15 +11,10 @@ const os = require('os');
  * @module elegyDb
  */
 
-let Database;
-try {
-  Database = require('better-sqlite3');
-} catch (e) {
-  // better-sqlite3 may not be installed; module will throw on createElegyDb
-  Database = null;
-}
+const Database = require('better-sqlite3');
+const sqliteVec = require('@photostructure/sqlite-vec');
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const CREATE_SESSIONS_TABLE = `
   CREATE TABLE IF NOT EXISTS sessions (
@@ -137,8 +132,14 @@ function runMigrations(db, targetVersion) {
     db.pragma('user_version = 1');
   }
 
-  // Future migrations go here as else-if blocks:
-  // if (currentVersion < 2) { ... db.pragma('user_version = 2'); }
+  if (currentVersion < 2) {
+    db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS notes_vec USING vec0(
+        embedding float[384]
+      );
+    `);
+    db.pragma('user_version = 2');
+  }
 }
 
 /**
@@ -219,12 +220,6 @@ function buildFilterQuery(filter = {}, tableAlias = '', extraColumns = []) {
  * @returns {object} db instance with helper methods
  */
 function createElegyDb(opts = {}) {
-  if (!Database) {
-    throw new Error(
-      'better-sqlite3 is not available. Install it with: npm install better-sqlite3',
-    );
-  }
-
   const dbPath = opts.dbPath && typeof opts.dbPath === 'string' && opts.dbPath.trim()
     ? opts.dbPath.trim()
     : path.join(os.homedir(), '.elegy', 'elegy-copilot.db');
@@ -249,6 +244,11 @@ function createElegyDb(opts = {}) {
   // Enable WAL mode for better concurrent read performance
   if (!readonly) {
     db.pragma('journal_mode = WAL');
+  }
+
+  // Load sqlite-vec extension for vector search
+  if (!readonly) {
+    sqliteVec.load(db);
   }
 
   // Run migrations
