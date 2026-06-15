@@ -12,6 +12,7 @@ import { Panel } from '../../components';
 import GitHubSettingsView from './GitHubSettingsView';
 import TelemetryView from './TelemetryView';
 import ShellSettingsView from '../../tabs/Shell/ShellSettingsView';
+import NotesSettingsView from './NotesSettingsView';
 import AppIcon from '../../components/AppIcon';
 import { factoryReset, type FactoryResetResponse } from '../../lib/api/system';
 
@@ -80,6 +81,8 @@ export default function SettingsView() {
         return <GitHubSettingsView />;
       case 'shell':
         return <ShellSettingsView />;
+      case 'notes':
+        return <NotesSettingsView />;
       case 'app':
       default:
         return <SettingsAppSection appInfo={appInfo} infoLoading={infoLoading} />;

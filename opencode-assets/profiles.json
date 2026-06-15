@@ -123,6 +123,18 @@
     ],
     "research": [
       "scout"
+    ],
+    "notes-enhance": [
+      "notes-enhance"
+    ],
+    "notes-reexamine": [
+      "notes-reexamine"
+    ],
+    "notes-research": [
+      "notes-research"
+    ],
+    "notes-deduplicate": [
+      "notes-deduplicate"
     ]
   },
   "agentRoles": {
@@ -132,6 +144,10 @@
     "project": "big",
     "impl": "small",
     "reviewer": "review",
-    "explorer": "small"
+    "explorer": "small",
+    "notes-enhance": "big",
+    "notes-reexamine": "big",
+    "notes-research": "big",
+    "notes-deduplicate": "small"
   }
 }

@@ -24,6 +24,10 @@ const ALL_LANE_AGENT_KEYS = [
   ...LANE_SMALL_AGENT_KEYS,
   ...LANE_BIG_AGENT_KEYS,
   ...LANE_REVIEW_AGENT_KEYS,
+  'notes-deduplicate',
+  'notes-enhance',
+  'notes-reexamine',
+  'notes-research',
 ];
 
 function resolveOpenCodeHome(opencodeHome) {
