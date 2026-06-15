@@ -742,6 +742,135 @@ function resolvePlanningLiveAuthorityState(roadmapWorkflowPlanningBridge) {
   return { ready: false, state: null };
 }
 
+/**
+ * Find the profile whose role/agent models best match the current effective config.
+ * Returns { effectiveProfileId, selectedProfileId, roleModels, mismatches }
+ * or null if no profile matches.
+ */
+function findEffectiveProfile(configStatus, profiles, opencodeConfigLib, opencodeHome) {
+  // The selected profile from sidecar state
+  const selectedProfileId = profiles.activeProfileId || null;
+
+  // Read the actual config to get effective agent models
+  let effectiveAgentModels = {};
+  try {
+    const config = opencodeConfigLib.readConfig(opencodeHome);
+    const agent = config.agent && typeof config.agent === 'object' ? config.agent : {};
+    for (const [agentName, agentCfg] of Object.entries(agent)) {
+      if (agentCfg && typeof agentCfg === 'object' && typeof agentCfg.model === 'string') {
+        effectiveAgentModels[agentName] = agentCfg.model;
+      }
+    }
+  } catch {
+    effectiveAgentModels = {};
+  }
+
+  // Also read effective role models if available
+  let effectiveRoleModels = {};
+  try {
+    const state = opencodeConfigLib.readState ? opencodeConfigLib.readState(opencodeHome) : null;
+    if (state && state.roleModels) {
+      effectiveRoleModels = state.roleModels;
+    }
+  } catch {
+    effectiveRoleModels = {};
+  }
+
+  const profileDefs = profiles.profiles || [];
+
+  // If no effective models are set, the selected profile is the effective one
+  const hasEffectiveRoleModels = Object.keys(effectiveRoleModels).length > 0;
+  const hasEffectiveAgentModels = Object.keys(effectiveAgentModels).length > 0;
+
+  if (!hasEffectiveRoleModels && !hasEffectiveAgentModels) {
+    // Use selected profile's roleModels as the effective models
+    const selectedDef = profileDefs.find(p => p.id === selectedProfileId);
+    const roleModels = selectedDef?.roleModels || {};
+    return {
+      effectiveProfileId: selectedProfileId || 'opencode-go-balanced',
+      selectedProfileId,
+      mismatches: null,
+      roleModels,
+    };
+  }
+
+  // Compare effective role models against each profile's definitions
+  // If roleModels are set, use those; otherwise use agent models via agentRoles mapping
+  if (hasEffectiveRoleModels) {
+    // Try to match roleModels to a profile
+    for (const def of profileDefs) {
+      const profileRoleModels = def.roleModels || {};
+      const profileRoles = Object.keys(profileRoleModels);
+      if (profileRoles.length === 0) continue;
+
+      // Check if all profile role models match effective role models
+      let allMatch = true;
+      const mismatches = [];
+      for (const role of profileRoles) {
+        const profileModel = profileRoleModels[role];
+        const effectiveModel = effectiveRoleModels[role];
+        if (effectiveModel && effectiveModel !== profileModel) {
+          allMatch = false;
+          mismatches.push({ role, expectedModel: profileModel, actualModel: effectiveModel });
+        }
+      }
+
+      if (allMatch && mismatches.length === 0) {
+        return {
+          effectiveProfileId: def.id,
+          selectedProfileId,
+          mismatches: null,
+          roleModels: effectiveRoleModels,
+        };
+      }
+    }
+
+    // No exact match — find closest match
+    let bestMatch = null;
+    let bestMismatchCount = Infinity;
+
+    for (const def of profileDefs) {
+      const profileRoleModels = def.roleModels || {};
+      const profileRoles = Object.keys(profileRoleModels);
+      if (profileRoles.length === 0) continue;
+
+      const mismatches = [];
+      for (const role of profileRoles) {
+        const profileModel = profileRoleModels[role];
+        const effectiveModel = effectiveRoleModels[role];
+        if (effectiveModel && effectiveModel !== profileModel) {
+          mismatches.push({ role, expectedModel: profileModel, actualModel: effectiveModel });
+        }
+      }
+
+      if (mismatches.length < bestMismatchCount) {
+        bestMismatchCount = mismatches.length;
+        bestMatch = { def, mismatches };
+      }
+    }
+
+    if (bestMatch) {
+      return {
+        effectiveProfileId: bestMatch.mismatches.length === 0 ? bestMatch.def.id : null,
+        selectedProfileId,
+        mismatches: bestMatch.mismatches.length > 0 ? {
+          effectiveProfileId: bestMatch.def.id,
+          mismatches: bestMatch.mismatches,
+        } : null,
+        roleModels: effectiveRoleModels,
+      };
+    }
+  }
+
+  // Fallback: no match found, use selected profile
+  return {
+    effectiveProfileId: selectedProfileId || 'opencode-go-balanced',
+    selectedProfileId,
+    mismatches: null,
+    roleModels: effectiveRoleModels,
+  };
+}
+
 async function buildOpenCodeStatus(ctx, deps) {
   const { opencodeHome, elegyHomeAbs, engineRoot } = ctx;
   const opencodeConfig = deps.opencodeConfig;
@@ -752,6 +881,12 @@ async function buildOpenCodeStatus(ctx, deps) {
     : [];
   const configStatus = opencodeConfig.getStatus(opencodeHome);
   const profiles = buildProfiles(opencodeHome, engineRoot);
+
+  // Compute effective profile (what the config actually uses vs what's selected)
+  const effectiveProfileResult = findEffectiveProfile(configStatus, profiles, opencodeConfig, opencodeHome);
+  const effectiveProfileId = effectiveProfileResult ? effectiveProfileResult.effectiveProfileId : profiles.activeProfileId;
+  const selectedProfileId = effectiveProfileResult ? effectiveProfileResult.selectedProfileId : profiles.activeProfileId;
+
   const lanes = buildLanes();
   const toolingStatus = computeToolingStatus(ctx, deps, managedAssetStatuses);
   const planningLiveAuthority = resolvePlanningLiveAuthorityState(deps.roadmapWorkflowPlanningBridge);
@@ -840,6 +975,22 @@ async function buildOpenCodeStatus(ctx, deps) {
     profileMismatch = null;
   }
 
+  // If selected profile != effective profile, enhance mismatch
+  if (selectedProfileId && effectiveProfileId && selectedProfileId !== effectiveProfileId && !profileMismatch) {
+    if (effectiveProfileResult && effectiveProfileResult.mismatches && effectiveProfileResult.mismatches.mismatches) {
+      profileMismatch = {
+        expectedProfile: selectedProfileId,
+        effectiveProfile: effectiveProfileId,
+        mismatches: effectiveProfileResult.mismatches.mismatches.map(m => ({
+          agent: `role:${m.role}`,
+          role: m.role,
+          actualModel: m.actualModel,
+          expectedModel: m.expectedModel,
+        })),
+      };
+    }
+  }
+
   // R6: Detect invalid custom provider/model pairs in opencode.jsonc agent config
   let invalidProviderModels = null;
   try {
@@ -881,6 +1032,8 @@ async function buildOpenCodeStatus(ctx, deps) {
     warnings,
     setupChecks,
     activeProfileId: profiles.activeProfileId,
+    effectiveProfileId: effectiveProfileId || null,
+    selectedProfileId: selectedProfileId || null,
     profiles: profiles.profiles,
     availableRoutes: profiles.availableRoutes,
     availableModels: profiles.availableModels || [],
@@ -891,7 +1044,9 @@ async function buildOpenCodeStatus(ctx, deps) {
     smallModel: configStatus.exploreModel,
     bigModel: configStatus.scoutModel,
     isCustomConfig: configStatus.isCustom,
-    roleModels: activeProfile?.roleModels || null,
+    roleModels: (effectiveProfileResult?.roleModels && Object.keys(effectiveProfileResult.roleModels).length > 0)
+      ? effectiveProfileResult.roleModels
+      : (activeProfile?.roleModels || null),
     elegyPlanningCli: toolingStatus.elegyPlanningCli,
     elegySkillsAssets: toolingStatus.elegySkillsAssets,
     planningLiveAuthority,

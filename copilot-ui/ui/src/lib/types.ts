@@ -3575,6 +3575,8 @@ export interface OpenCodeStatusResponse {
   warnings: OpenCodeWarning[];
   setupChecks: OpenCodeSetupCheck[];
   activeProfileId: string;
+  effectiveProfileId: string | null;
+  selectedProfileId: string | null;
   profiles: OpenCodeProfile[];
   availableRoutes: string[];
   lanes: OpenCodeLane[];
@@ -3603,6 +3605,7 @@ export interface OpenCodeStatusResponse {
   availableModels: Array<{ id: string; displayName: string; provider: string }>;
   profileMismatch: {
     expectedProfile: string;
+    effectiveProfile?: string;
     mismatches: Array<{ agent: string; role: string; actualModel: string; expectedModel: string }>;
   } | null;
   invalidProviderModels: Array<{ agent: string; model: string; reason: string }> | null;
@@ -3732,6 +3735,63 @@ export interface OpenCodeRequestLogsResponse {
   requests: OpenCodeRequestLogEntry[];
   total: number;
   logFiles: number;
+}
+
+export interface HarnessTelemetryCount {
+  name: string;
+  count: number;
+  provider?: string;
+}
+
+export interface HarnessTelemetryEvent {
+  timestamp: string;
+  type: string;
+  source: string;
+  label?: string;
+  message: string;
+}
+
+export interface HarnessTelemetrySummary {
+  requests: number | null;
+  sampledRequests: number | null;
+  errors: number;
+  toolEvents: number;
+  sessions: number | null;
+}
+
+export interface HarnessTelemetryData {
+  id: 'opencode' | 'codex' | string;
+  label: string;
+  source: {
+    kind: string;
+    path: string;
+    logsPath?: string;
+  };
+  coverage: string;
+  sample: {
+    limit: number;
+    logFiles: number;
+    sampledLines: number;
+    deterministic: boolean;
+  };
+  summary: HarnessTelemetrySummary;
+  providerUsage: {
+    providers: HarnessTelemetryCount[];
+    topModels: HarnessTelemetryCount[];
+    topAgents: HarnessTelemetryCount[];
+  };
+  topTools: HarnessTelemetryCount[];
+  errorsByType: HarnessTelemetryCount[];
+  recentErrors: HarnessTelemetryEvent[];
+  recentEvents: HarnessTelemetryEvent[];
+}
+
+export interface HarnessTelemetryResponse {
+  generatedAt: string;
+  harnesses: {
+    opencode: HarnessTelemetryData;
+    codex: HarnessTelemetryData;
+  };
 }
 
 export interface ClaudeCodeCliStatus {

@@ -27,7 +27,7 @@ Hand an approved durable spec to the execution planning system without merging t
 | Harness | Planning tools | Usage |
 |---|---|---|
 | OpenCode | `planning-tools` skill (native tool wrappers) | Use `planning_plan_create`, `planning_work_point_next_runnable`, `planning_insight_record` |
-| Codex | `elegy-planning` CLI | Use `elegy planning plan create`, `elegy planning insight record` with `insightType: 'spec-link'` |
+| Codex | `elegy-planning` CLI | Use `elegy-planning plan create`, `elegy-planning insight record` with `insightType: 'spec-link'` |
 | Engine / CLI | `elegy-planning` CLI | Same as Codex route |
 
 ### OpenCode Path

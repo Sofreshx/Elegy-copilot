@@ -61,9 +61,15 @@ function OverviewSection({ status }: SectionProps) {
             <code className="opencode-readiness-value">{status.configPath}</code>
           </div>
           <div className="opencode-readiness-card">
-            <span className="opencode-readiness-label">Active Profile</span>
-            <Badge tone="brand">{status.activeProfileId}</Badge>
+            <span className="opencode-readiness-label">Effective Profile</span>
+            <Badge tone="brand">{status.effectiveProfileId || status.activeProfileId}</Badge>
           </div>
+          {status.selectedProfileId && status.selectedProfileId !== status.effectiveProfileId ? (
+            <div className="opencode-readiness-card">
+              <span className="opencode-readiness-label">Selected Profile</span>
+              <Badge tone="accent">{status.selectedProfileId}</Badge>
+            </div>
+          ) : null}
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Small Model</span>
             <code className="opencode-readiness-value">{status.smallModel}</code>
@@ -261,13 +267,15 @@ function ProfilesSection({ status, saving }: SectionProps) {
           {status.profiles.map((profile: OpenCodeProfile) => (
             <div
               key={profile.id}
-              className={`opencode-profile-card${profile.id === status.activeProfileId ? ' opencode-profile-card-active' : ''}`}
+              className={`opencode-profile-card${profile.id === (status.effectiveProfileId || status.activeProfileId) ? ' opencode-profile-card-active' : ''}`}
               data-testid={`opencode-profile-${profile.id}`}
             >
               <div className="opencode-profile-header">
                 <h3>{profile.label}</h3>
-                {profile.id === status.activeProfileId ? (
+                {profile.id === (status.effectiveProfileId || status.activeProfileId) ? (
                   <Badge tone="brand" testId={`opencode-profile-badge-${profile.id}`}>Active</Badge>
+                ) : profile.id === status.selectedProfileId && status.selectedProfileId !== status.effectiveProfileId ? (
+                  <Badge tone="accent" testId={`opencode-profile-badge-${profile.id}`}>Selected</Badge>
                 ) : null}
               </div>
               <p className="opencode-profile-desc">{profile.description}</p>
@@ -356,9 +364,9 @@ function ProfilesSection({ status, saving }: SectionProps) {
       {mismatch && mismatch.mismatches && mismatch.mismatches.length > 0 ? (
         <Panel title="Profile Mismatch" testId="opencode-profile-mismatch">
           <div className="opencode-mismatch-banner" style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: '4px', padding: '12px', marginBottom: '12px' }}>
-            <p style={{ margin: 0, color: '#856404' }}>
-              <strong>⚠ Profile mismatch detected:</strong> active profile is <strong>{mismatch.expectedProfile}</strong> but {mismatch.mismatches.length} agent(s) use unexpected models. Click Activate to re-apply.
-            </p>
+              <p style={{ margin: 0, color: '#856404' }}>
+                <strong>⚠ Profile mismatch detected:</strong> selected profile is <strong>{mismatch.expectedProfile}</strong> but effective profile is <strong>{mismatch.effectiveProfile || 'custom'}</strong>. {mismatch.mismatches.length} agent(s) use unexpected models. Re-apply to align.
+              </p>
             <ul style={{ margin: '8px 0 0', paddingLeft: '20px', color: '#856404' }}>
               {mismatch.mismatches.map((m: { agent: string; role: string; actualModel: string; expectedModel: string }) => (
                 <li key={m.agent}>
@@ -375,6 +383,27 @@ function ProfilesSection({ status, saving }: SectionProps) {
                 onClick={() => handleRouteChange(mismatch.expectedProfile)}
               >
                 {saving ? 'Applying…' : 'Activate ' + mismatch.expectedProfile}
+              </Button>
+            </div>
+          </div>
+        </Panel>
+      ) : null}
+
+      {(!mismatch || !mismatch.mismatches || mismatch.mismatches.length === 0) && status.selectedProfileId && status.effectiveProfileId && status.selectedProfileId !== status.effectiveProfileId ? (
+        <Panel title="Profile Configuration Notice" testId="opencode-profile-diff-notice">
+          <div className="opencode-mismatch-banner" style={{ background: '#e7f3ff', border: '1px solid #2196f3', borderRadius: '4px', padding: '12px', marginBottom: '12px' }}>
+            <p style={{ margin: 0, color: '#0d47a1' }}>
+              <strong>ℹ Selected profile</strong> (<code>{status.selectedProfileId}</code>) differs from <strong>effective configuration</strong> (<code>{status.effectiveProfileId || 'custom'}</code>). The dashboard uses the effective profile for status display.
+            </p>
+            <div style={{ marginTop: '8px' }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                testId="opencode-profile-reapply-selected"
+                disabled={saving}
+                onClick={() => handleProfileSwitch(status.selectedProfileId!)}
+              >
+                {saving ? 'Applying…' : `Re-apply ${status.selectedProfileId}`}
               </Button>
             </div>
           </div>
@@ -1497,7 +1526,11 @@ export default function OpenCodeView() {
       </div>
       <div className="view-scroll opencode-settings-content" data-testid="opencode-settings-content">
         {state.loading && !state.status ? (
-          <p className="opencode-loading" data-testid="opencode-loading">Loading OpenCode workspace...</p>
+          <p className="opencode-loading state-message" data-testid="opencode-loading">Loading OpenCode workspace...</p>
+        ) : null}
+
+        {state.loading && state.status ? (
+          <p className="state-message" data-testid="opencode-refreshing" style={{ opacity: 0.7, fontSize: '0.8rem' }}>Refreshing…</p>
         ) : null}
 
         {state.error ? (

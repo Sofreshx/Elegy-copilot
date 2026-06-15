@@ -322,12 +322,12 @@ export default function CatalogShellView() {
           </div>
           <div className="assets-tools-header-actions">
             <Button
-              disabled={catalogState.refreshing || summaryLoading}
+              disabled={catalogState.refreshing || (summaryLoading && !summary)}
               onClick={() => void handleRefresh()}
               testId="assets-tools-refresh"
               variant="ghost"
             >
-              {summaryLoading ? 'Loading...' : 'Refresh'}
+              {summaryLoading && !summary ? 'Loading...' : summaryLoading ? 'Refreshing…' : 'Refresh'}
             </Button>
 
             {/* Repository Assets moved to Workspace area — see WorkspaceAssetsTab */}
@@ -336,19 +336,24 @@ export default function CatalogShellView() {
 
         {/* SUMMARY */}
         <div className="catalog-shell-summary" data-testid="catalog-shell-summary">
-          {summaryLoading ? (
+          {summaryLoading && !summary ? (
             <span className="catalog-shell-summary-text state-message">
               Loading catalog summary…
-            </span>
-          ) : summaryError ? (
-            <span className="catalog-shell-summary-text state-error">
-              {summaryError}
             </span>
           ) : summary ? (
             <span className="catalog-shell-summary-text">
               {allSections
                 .map((s) => `${s.count} ${s.title.toLowerCase()}`)
                 .join(' · ')}
+              {summaryLoading ? (
+                <span className="state-message" style={{ marginLeft: '8px', opacity: 0.7, fontSize: '0.8rem', fontStyle: 'italic' }}>
+                  Refreshing…
+                </span>
+              ) : null}
+            </span>
+          ) : summaryError ? (
+            <span className="catalog-shell-summary-text state-error">
+              {summaryError}
             </span>
           ) : (
             <span className="catalog-shell-summary-text state-error">
@@ -397,11 +402,11 @@ export default function CatalogShellView() {
         </div>
 
         {/* TAB CONTENT */}
-        {summaryLoading ? (
+        {summaryLoading && !summary ? (
           <p className="assets-tools-empty state-message">Loading catalog summary&hellip;</p>
-        ) : summaryError ? (
+        ) : summaryError && !summary ? (
           <p className="assets-tools-empty state-error">Catalog summary unavailable</p>
-        ) : !summary ? (
+        ) : !summary && !summaryError ? (
           <p className="assets-tools-empty state-error">Catalog summary unavailable</p>
         ) : (
           <>

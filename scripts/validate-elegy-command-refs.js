@@ -63,6 +63,7 @@ const DOCUMENTED_COMMANDS = new Set([
  * Forbidden command patterns (must NOT appear as backtick-quoted commands).
  */
 const FORBIDDEN_PATTERNS = [
+  { pattern: /elegy\s+planning(?=\s+(?:plan|insight|goal|roadmap|todo|issue|review|scope|validate|project|session|health|search|tags)\b)/i, description: 'use elegy-planning (hyphenated executable name), not "elegy planning"' },
   { pattern: /goal\s+current/i, description: 'use goal list + filter instead' },
   { pattern: /lease\s+(?:create|list|release)/i, description: 'leases not a documented CLI surface' },
   { pattern: /work-point\s+(?:list|update)/i, description: 'use roadmap show, plan update-status instead' },

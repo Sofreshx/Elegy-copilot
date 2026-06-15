@@ -295,7 +295,7 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
                 else if (actionInfo.action === 'check') void handleCheck(item);
               }}
             >
-              {actionInfo.label}
+              {actionInfo.action === 'sync-update' ? (hs.state === 'stale' ? 'Sync' : 'Reinstall') : actionInfo.label}
             </Button>
           );
 
@@ -390,6 +390,15 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
                 <div className="harness-card-meta">
                   <span className={stateBadgeClass}>{stateLabel}</span>
                   {issuesTotal > 0 && <span className="harness-card-issues">{issuesTotal} issue(s)</span>}
+                  {(() => {
+                    const meta = (hs.metadata || {}) as Record<string, unknown>;
+                    const detail = (item.detail || {}) as Record<string, unknown>;
+                    const version = meta.version || meta.currentVersion || meta.installedVersion || detail.version || detail.currentVersion || detail.installedVersion;
+                    if (version && typeof version === 'string') {
+                      return <span className="harness-card-version" style={{ fontSize: '0.72rem', color: 'var(--color-ink-600)', fontWeight: 500 }}>v{version}</span>;
+                    }
+                    return null;
+                  })()}
                 </div>
                 {lastCheckResults.get(item.itemId) && (
                   <div className="harness-card-check-result">

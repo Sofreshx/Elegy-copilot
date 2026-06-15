@@ -93,6 +93,20 @@ export default function StatusRail({ item, harnesses }: StatusRailProps) {
                 {state.installPath}
               </p>
             ) : null}
+            {state?.metadata && typeof state.metadata === 'object' ? (
+              (() => {
+                const meta = state.metadata as Record<string, unknown>;
+                const version = meta.version || meta.currentVersion || meta.installedVersion;
+                if (version && typeof version === 'string') {
+                  return (
+                    <p style={{ fontSize: '0.72rem', color: 'var(--color-ink-600)', marginTop: '2px' }}>
+                      Version: {version}
+                    </p>
+                  );
+                }
+                return null;
+              })()
+            ) : null}
           </div>
         );
       })}

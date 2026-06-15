@@ -94,6 +94,7 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./toolingUpdates'), context);
   registry.registerModule(require('./cliTooling'), context);
   registry.registerModule(require('./dashboard'), context);
+  registry.registerModule(require('./telemetry'), context);
 
   registry.registerModule(require('./config'), context);
   registry.registerModule(require('./opencode'), context);

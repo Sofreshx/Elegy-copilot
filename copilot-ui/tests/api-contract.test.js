@@ -263,6 +263,7 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/tooling-updates/check' },
   { method: 'POST', path: '/api/tooling-updates/update/elegy-planning' },
   { method: 'POST', path: '/api/tooling-updates/update/elegy-skills' },
+  { method: 'GET', path: '/api/telemetry/harnesses' },
   // OpenCode (5)
   { method: 'GET', path: '/api/opencode/status' },
   { method: 'POST', path: '/api/opencode/config' },

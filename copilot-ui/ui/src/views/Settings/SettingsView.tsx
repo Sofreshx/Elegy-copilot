@@ -10,6 +10,7 @@ import DashboardView from '../DashboardView';
 import ClaudeCodeView from '../../tabs/ClaudeCode/ClaudeCodeView';
 import { Panel } from '../../components';
 import GitHubSettingsView from './GitHubSettingsView';
+import TelemetryView from './TelemetryView';
 import AppIcon from '../../components/AppIcon';
 import { factoryReset, type FactoryResetResponse } from '../../lib/api/system';
 
@@ -64,6 +65,8 @@ export default function SettingsView() {
         return <CatalogShellView />;
       case 'opencode':
         return <OpenCodeView />;
+      case 'telemetry':
+        return <TelemetryView />;
       case 'maintenance':
         return <MaintenanceView />;
       case 'runtime':

@@ -61,6 +61,8 @@ function createMockOpenCodeConfig(statusOverrides: Record<string, unknown> = {})
     setActiveProfileRoute: vi.fn(),
     removeActiveProfileRoute: vi.fn(),
     updateStateProfileRoute: vi.fn(),
+    readCustomPrompts: vi.fn(() => ({})),
+    readState: vi.fn(() => ({ _managedPrompts: {} })),
     readProfileCatalog: vi.fn(() => ({
       activeProfile: 'opencode-go',
       profiles: {
@@ -576,5 +578,87 @@ describe('opencode route - register', () => {
       400,
       expect.objectContaining({ ok: false, error: expect.stringContaining('Unknown profile') }),
     );
+  });
+  it('GET /api/opencode/status returns effectiveProfileId and selectedProfileId fields', async () => {
+    const sendJson = createMockSendJson();
+    const routes = register({ sendJson, assets: createMockAssets(), opencodeConfig: createMockOpenCodeConfig(), childProcess: { spawnSync: () => ({ stdout: '1.0.0', stderr: '' }) } });
+    const statusRoute = routes.find(
+      (r: { method: string; path: string }) => r.method === 'GET' && r.path === '/api/opencode/status',
+    );
+    const ctx = createMockCtx();
+    await statusRoute.handler(ctx);
+    const body = sendJson.mock.calls[0][2] as Record<string, unknown>;
+    expect(body).toHaveProperty('effectiveProfileId');
+    expect(body).toHaveProperty('selectedProfileId');
+    // When no custom models are set, effective should match selected
+    expect(body.effectiveProfileId).toBe(body.selectedProfileId);
+  });
+  it('GET /api/opencode/status detects mismatch when effective role models differ from selected profile', async () => {
+    const sendJson = createMockSendJson();
+    const opencodeConfig = createMockOpenCodeConfig();
+    // Set role models that differ from the selected profile (opencode-go has specific roleModels)
+    (opencodeConfig as any).readState = vi.fn(() => ({
+      _managedPrompts: {},
+      activeProfileId: 'opencode-go',
+      roleModels: {
+        planning: 'custom/planning-model',
+        implementation: 'custom/impl-model',
+        exploration: 'custom/explore-model',
+        review: 'custom/review-model',
+        research: 'custom/research-model',
+      },
+    }));
+    // Ensure readConfig returns custom agent models too
+    (opencodeConfig as any).readConfig = vi.fn(() => ({
+      provider: { route: 'opencode-go' },
+      agent: {
+        plan: { model: 'custom/planning-model' },
+        build: { model: 'custom/impl-model' },
+      },
+    }));
+    const routes = register({ sendJson, assets: createMockAssets(), opencodeConfig, childProcess: { spawnSync: () => ({ stdout: '1.0.0', stderr: '' }) } });
+    const statusRoute = routes.find(
+      (r: { method: string; path: string }) => r.method === 'GET' && r.path === '/api/opencode/status',
+    );
+    const ctx = createMockCtx();
+    await statusRoute.handler(ctx);
+    const body = sendJson.mock.calls[0][2] as Record<string, unknown>;
+    // When role models are completely different from any profile, effectiveProfileId may be null
+    // and there should be at minimum selectedProfileId set
+    expect(body).toHaveProperty('selectedProfileId');
+    expect(body).toHaveProperty('effectiveProfileId');
+    // selectedProfileId should reflect the active profile from buildProfiles
+    expect(typeof body.selectedProfileId).toBe('string');
+    // effectiveProfileId should be null when no profile matches the custom models
+    expect(body.effectiveProfileId).toBeNull();
+  });
+  it('GET /api/opencode/status does not mark profile active when models are custom/unknown', async () => {
+    const sendJson = createMockSendJson();
+    const opencodeConfig = createMockOpenCodeConfig();
+    (opencodeConfig as any).readState = vi.fn(() => ({
+      _managedPrompts: {},
+      activeProfileId: 'opencode-go',
+      roleModels: {
+        planning: 'completely-unknown/model-x',
+        implementation: 'completely-unknown/model-y',
+      },
+    }));
+    (opencodeConfig as any).readConfig = vi.fn(() => ({
+      provider: { route: 'opencode-go' },
+      agent: {
+        plan: { model: 'completely-unknown/model-x' },
+      },
+    }));
+    const routes = register({ sendJson, assets: createMockAssets(), opencodeConfig, childProcess: { spawnSync: () => ({ stdout: '1.0.0', stderr: '' }) } });
+    const statusRoute = routes.find(
+      (r: { method: string; path: string }) => r.method === 'GET' && r.path === '/api/opencode/status',
+    );
+    const ctx = createMockCtx();
+    await statusRoute.handler(ctx);
+    const body = sendJson.mock.calls[0][2] as Record<string, unknown>;
+    // effectiveProfileId should be null since models don't match any profile
+    // but selectedProfileId should still reflect the active profile from buildProfiles
+    expect(typeof body.selectedProfileId).toBe('string');
+    expect(body.effectiveProfileId).toBeNull();
   });
 });

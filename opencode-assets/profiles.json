@@ -1,5 +1,5 @@
 {
-  "activeProfile": "deepseek-direct",
+  "activeProfile": "opencode-go-balanced",
   "profiles": {
     "opencode-go-balanced": {
       "label": "OpenCode Go Balanced",

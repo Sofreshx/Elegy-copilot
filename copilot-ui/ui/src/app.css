@@ -5085,6 +5085,89 @@ textarea:focus-visible,
   margin: 0;
 }
 
+.telemetry-settings-view,
+.telemetry-harness {
+  display: grid;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.telemetry-settings-content {
+  display: grid;
+  gap: var(--space-sm);
+  align-content: start;
+}
+
+.telemetry-generated {
+  margin: 0;
+}
+
+.telemetry-summary-cards {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.telemetry-table-wrap {
+  overflow: auto;
+  min-width: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+.telemetry-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.telemetry-table th,
+.telemetry-table td {
+  padding: var(--space-2xs) var(--space-xs);
+  border-bottom: 1px solid var(--border-default);
+  text-align: left;
+  vertical-align: top;
+}
+
+.telemetry-table th {
+  color: var(--fg-muted);
+  background: var(--bg-subtle);
+  font-size: var(--text-xs);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.telemetry-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.telemetry-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
+}
+
+.telemetry-filter-tabs {
+  margin: 0;
+}
+
+.telemetry-search-input {
+  min-width: min(18rem, 100%);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2xs) var(--space-xs);
+  color: var(--fg-default);
+  background: var(--bg-default);
+  font: inherit;
+}
+
 /* ========================================================================
    TOAST NOTIFICATION SYSTEM
    ======================================================================== */

@@ -283,7 +283,7 @@ describe('SettingsView', () => {
     });
   });
 
-  it('renders all 8 settings nav items from the shared SETTINGS_NAV_ITEMS list', async () => {
+  it('renders all settings nav items from the shared SETTINGS_NAV_ITEMS list', async () => {
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
     const { SETTINGS_NAV_ITEMS } = await import('../ui/src/stores/navigation');
 
@@ -295,12 +295,83 @@ describe('SettingsView', () => {
     const nav = screen.getByTestId('settings-nav');
     expect(nav).toBeInTheDocument();
 
-    // Verify all 8 nav items are rendered from the shared list
+    // Verify all nav items are rendered from the shared list
     for (const item of SETTINGS_NAV_ITEMS) {
       const navItem = screen.getByTestId(`settings-nav-${item.id}`);
       expect(navItem).toBeInTheDocument();
       expect(navItem.textContent).toContain(item.label);
     }
+  });
+
+  it('renders telemetry settings with harness tabs', async () => {
+    navigationStore.setSettingsSection('telemetry');
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/telemetry/harnesses')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({
+            generatedAt: '2026-06-15T12:00:00.000Z',
+            harnesses: {
+              opencode: {
+                id: 'opencode',
+                label: 'OpenCode',
+                source: { kind: 'log-files', path: 'C:/Users/demo/.local/share/opencode/log' },
+                coverage: 'sampled-log-files',
+                sample: { limit: 200, logFiles: 1, sampledLines: 3, deterministic: true },
+                summary: { requests: 1, sampledRequests: 1, errors: 1, toolEvents: 1, sessions: null },
+                providerUsage: { providers: [], topModels: [], topAgents: [] },
+                topTools: [{ name: 'shell_command', count: 1 }],
+                errorsByType: [{ name: 'permission', count: 1 }],
+                recentErrors: [],
+                recentEvents: [
+                  { timestamp: '2026-06-15T12:00:00Z', type: 'tool', source: 'demo.log', label: 'shell_command', message: 'tool call' },
+                ],
+              },
+              codex: {
+                id: 'codex',
+                label: 'Codex',
+                source: { kind: 'session-index', path: 'C:/Users/demo/.codex/session_index.jsonl' },
+                coverage: 'session-index-only',
+                sample: { limit: 200, logFiles: 0, sampledLines: 0, deterministic: true },
+                summary: { requests: null, sampledRequests: null, errors: 0, toolEvents: 0, sessions: 2 },
+                providerUsage: { providers: [], topModels: [], topAgents: [] },
+                topTools: [],
+                errorsByType: [],
+                recentErrors: [],
+                recentEvents: [],
+              },
+            },
+          }),
+          text: async () => '',
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ version: '1.0.0', channel: 'dev', routeCount: 123 }),
+        text: async () => '',
+      } as Response;
+    });
+
+    const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
+
+    await act(async () => {
+      render(<SettingsView />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('telemetry-settings-view')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('telemetry-tab-opencode')).toBeInTheDocument();
+    expect(screen.getByTestId('telemetry-tab-codex')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('shell_command')).toBeInTheDocument();
+    });
   });
 
   it('renders static toolbar for settings', async () => {

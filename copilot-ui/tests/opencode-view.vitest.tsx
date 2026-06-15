@@ -12,6 +12,8 @@ const mockStatus: OpenCodeStatusResponse = {
     { id: 'project-lane', label: 'Project lane ready', status: 'ok', detail: 'All good', action: null },
   ],
   activeProfileId: 'opencode-go',
+  effectiveProfileId: 'opencode-go',
+  selectedProfileId: 'opencode-go',
   profiles: [
     { id: 'opencode-go', label: 'OpenCode Go', description: 'Default route', route: 'opencode-go', smallModel: 'DeepSeek V4 Flash Max', bigModel: 'DeepSeek V4 Pro Max', reviewModel: 'DeepSeek V4 Pro High' },
     { id: 'deepseek-direct', label: 'Direct DeepSeek', description: 'Direct route', route: 'deepseek-direct', smallModel: 'DeepSeek V4 Flash Max', bigModel: 'DeepSeek V4 Pro Max', reviewModel: 'DeepSeek V4 Pro High' },
@@ -225,5 +227,54 @@ describe('OpenCodeView', () => {
       });
     });
     saveSpy.mockRestore();
+  });
+  it('profile card active badge follows effective profile id', async () => {
+    const statusWithMismatch = {
+      ...mockStatus,
+      effectiveProfileId: 'deepseek-direct',
+      selectedProfileId: 'opencode-go',
+    };
+    opencodeStore.setState((s) => ({ ...s, status: statusWithMismatch, loading: false }));
+    const { default: OpenCodeView } = await import('../ui/src/tabs/OpenCode/OpenCodeView');
+    render(<OpenCodeView />);
+
+    fireEvent.click(screen.getByTestId('opencode-tab-profiles'));
+
+    // The effective profile should have the Active badge
+    expect(screen.getByTestId('opencode-profile-badge-deepseek-direct')).toHaveTextContent('Active');
+    // The selected (but not effective) profile should have the Selected badge
+    expect(screen.getByTestId('opencode-profile-badge-opencode-go')).toHaveTextContent('Selected');
+    // The effective profile card should have the active class
+    const effectiveCard = screen.getByTestId('opencode-profile-deepseek-direct');
+    expect(effectiveCard.className).toContain('opencode-profile-card-active');
+  });
+  it('shows profile mismatch panel when selected differs from effective', async () => {
+    const statusWithMismatch = {
+      ...mockStatus,
+      effectiveProfileId: 'deepseek-direct',
+      selectedProfileId: 'opencode-go',
+    };
+    opencodeStore.setState((s) => ({ ...s, status: statusWithMismatch, loading: false }));
+    const { default: OpenCodeView } = await import('../ui/src/tabs/OpenCode/OpenCodeView');
+    render(<OpenCodeView />);
+
+    fireEvent.click(screen.getByTestId('opencode-tab-profiles'));
+
+    // The diff notice panel should be visible
+    expect(screen.getByTestId('opencode-profile-diff-notice')).toBeInTheDocument();
+    // It should contain the re-apply button
+    expect(screen.getByTestId('opencode-profile-reapply-selected')).toBeInTheDocument();
+    expect(screen.getByTestId('opencode-profile-reapply-selected')).toHaveTextContent('Re-apply opencode-go');
+  });
+  it('shows refreshing indicator when reloading with existing status', async () => {
+    opencodeStore.setState((s) => ({ ...s, status: mockStatus, loading: true }));
+    const { default: OpenCodeView } = await import('../ui/src/tabs/OpenCode/OpenCodeView');
+    render(<OpenCodeView />);
+
+    // Should show the refreshing indicator, not full loading
+    expect(screen.getByTestId('opencode-refreshing')).toBeInTheDocument();
+    expect(screen.getByTestId('opencode-refreshing')).toHaveTextContent('Refreshing…');
+    // Content should still be visible
+    expect(screen.getByTestId('opencode-overview')).toBeInTheDocument();
   });
 });
