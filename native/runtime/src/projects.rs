@@ -73,10 +73,7 @@ pub fn list_project_sessions(elegy_home: &Path, project_id: &str) -> Vec<Project
         .collect()
 }
 
-pub fn list_project_activity(
-    elegy_home: &Path,
-    project_id: &str,
-) -> Vec<ProjectActivityResponse> {
+pub fn list_project_activity(elegy_home: &Path, project_id: &str) -> Vec<ProjectActivityResponse> {
     let requested_project_id = project_id.trim();
     if requested_project_id.is_empty() {
         return Vec::new();
@@ -134,7 +131,10 @@ pub fn update_project_fields(
         .into_iter()
         .find(|entry| entry.repo_id == normalized_project_id)?;
 
-    Some(build_project_response(&refreshed, &list_sessions(elegy_home)))
+    Some(build_project_response(
+        &refreshed,
+        &list_sessions(elegy_home),
+    ))
 }
 
 fn build_project_response(entry: &ManualRepoEntry, sessions: &[SessionSummary]) -> ProjectResponse {
@@ -191,9 +191,8 @@ fn save_repo_inventory_state(inventory_path: &Path, state: &RepoInventoryState) 
     if let Some(parent) = inventory_path.parent() {
         let _ = fs::create_dir_all(parent);
     }
-    let serialized = serde_json::to_string_pretty(state)
-        .expect("repo inventory state should serialize")
-        + "\n";
+    let serialized =
+        serde_json::to_string_pretty(state).expect("repo inventory state should serialize") + "\n";
     let _ = fs::write(inventory_path, serialized);
 }
 
@@ -287,7 +286,12 @@ fn is_worktree_session_path(session_path: Option<&str>, project_path: &str) -> b
     let Some(session_path) = session_path else {
         return false;
     };
-    let worktree_root = normalize_path(PathBuf::from(project_path).join(".worktrees").to_string_lossy().as_ref());
+    let worktree_root = normalize_path(
+        PathBuf::from(project_path)
+            .join(".worktrees")
+            .to_string_lossy()
+            .as_ref(),
+    );
     let worktree_prefix = format!("{worktree_root}{}", std::path::MAIN_SEPARATOR);
     session_path.starts_with(&worktree_prefix)
 }
@@ -482,7 +486,10 @@ mod tests {
             .find(|entry| entry.repo_id == "proj-a")
             .expect("persisted entry should exist");
         assert!(persisted_entry.pinned);
-        assert_eq!(persisted_entry.canonical_remote.as_deref(), Some("owner/repo-a"));
+        assert_eq!(
+            persisted_entry.canonical_remote.as_deref(),
+            Some("owner/repo-a")
+        );
         assert_eq!(persisted_entry.repo_label, "Repo A");
         assert!(persisted_entry.updated_at.is_some());
 

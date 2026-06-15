@@ -58,7 +58,10 @@ function createLexiconStore() {
     store.setState((s) => ({ ...s, activeCategory: category }));
   }
 
-  async function search() {
+  async function search(query?: string) {
+    if (query !== undefined) {
+      store.setState((s) => ({ ...s, query }));
+    }
     await load();
   }
 

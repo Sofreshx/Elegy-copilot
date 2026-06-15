@@ -21,8 +21,7 @@ impl RuntimeConfig {
         let home_dir = resolve_home_dir(&env);
 
         let engine_root = engine_root_override.unwrap_or_else(default_engine_root);
-        let elegy_home =
-            elegy_home_override.unwrap_or_else(|| resolve_elegy_home(&env, &home_dir));
+        let elegy_home = elegy_home_override.unwrap_or_else(|| resolve_elegy_home(&env, &home_dir));
         let sandboxes_home =
             sandboxes_home_override.unwrap_or_else(|| resolve_sandboxes_home(&home_dir));
 
@@ -57,10 +56,7 @@ fn resolve_home_dir(env: &std::collections::HashMap<String, String>) -> PathBuf 
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
 }
 
-fn resolve_elegy_home(
-    env: &std::collections::HashMap<String, String>,
-    home_dir: &Path,
-) -> PathBuf {
+fn resolve_elegy_home(env: &std::collections::HashMap<String, String>, home_dir: &Path) -> PathBuf {
     if let Some(xdg) = env
         .get("XDG_CONFIG_HOME")
         .filter(|value| !value.trim().is_empty())

@@ -177,20 +177,14 @@ async fn get_project_sessions(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
 ) -> Json<Vec<ProjectSessionResponse>> {
-    Json(list_project_sessions(
-        &state.config.elegy_home,
-        &project_id,
-    ))
+    Json(list_project_sessions(&state.config.elegy_home, &project_id))
 }
 
 async fn get_project_activity(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
 ) -> Json<Vec<ProjectActivityResponse>> {
-    Json(list_project_activity(
-        &state.config.elegy_home,
-        &project_id,
-    ))
+    Json(list_project_activity(&state.config.elegy_home, &project_id))
 }
 
 async fn patch_project(
@@ -220,7 +214,11 @@ async fn patch_project(
     }
 }
 
-fn project_error(status: StatusCode, kind: &str, error: &str) -> (StatusCode, Json<serde_json::Value>) {
+fn project_error(
+    status: StatusCode,
+    kind: &str,
+    error: &str,
+) -> (StatusCode, Json<serde_json::Value>) {
     (
         status,
         Json(json!({
