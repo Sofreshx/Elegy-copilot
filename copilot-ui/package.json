@@ -44,7 +44,6 @@
   "dependencies": {
     "@electric-sql/pglite": "^0.4.2",
     "@elegy-copilot/contracts": "file:../contracts",
-    "@elegy-copilot/root": "file:..",
     "@napi-rs/keyring": "^1.2.0",
     "@photostructure/sqlite-vec": "^1.1.1",
     "better-sqlite3": "^11.0.0",
