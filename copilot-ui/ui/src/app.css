@@ -13613,6 +13613,251 @@ textarea:focus-visible,
   white-space: pre;
 }
 
+/* ── Agent Popover ── */
+.workspace-notes-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+.workspace-notes-popover {
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-md);
+  width: min(420px, calc(100% - var(--space-lg)));
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.workspace-notes-popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-ink-200);
+}
+
+.workspace-notes-popover-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-ink-100);
+  margin: 0;
+}
+
+.workspace-notes-popover-close {
+  background: none;
+  border: none;
+  color: var(--color-ink-400);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.workspace-notes-popover-close:hover {
+  color: var(--color-ink-100);
+}
+
+.workspace-notes-popover-body {
+  padding: var(--space-md);
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.workspace-notes-popover-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.workspace-notes-popover-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.82rem;
+  color: var(--color-ink-300);
+  cursor: pointer;
+}
+
+.workspace-notes-popover-checkbox input {
+  width: 14px;
+  height: 14px;
+}
+
+.workspace-notes-popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--color-ink-200);
+}
+
+/* ── Agent Live Panel ── */
+.workspace-notes-live-panel {
+  border-top: 1px solid var(--color-brand-400);
+  background: rgba(47, 165, 157, 0.04);
+  padding: var(--space-sm) var(--space-md);
+  flex-shrink: 0;
+}
+
+.workspace-notes-live-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.workspace-notes-live-panel-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 0.78rem;
+}
+
+.workspace-notes-live-panel-action {
+  font-weight: 700;
+  color: var(--color-brand-400);
+  text-transform: capitalize;
+}
+
+.workspace-notes-live-panel-model {
+  color: var(--color-ink-500);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.workspace-notes-live-panel-status {
+  font-weight: 600;
+}
+
+.workspace-notes-live-panel-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.workspace-notes-live-panel-body {
+  color: var(--color-ink-300);
+  font-size: 0.82rem;
+}
+
+.workspace-notes-live-panel-output {
+  max-height: 300px;
+  overflow-y: auto;
+  background: rgba(13, 17, 23, 0.3);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+}
+
+.workspace-notes-live-panel-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+  font-family: inherit;
+  color: var(--color-ink-200);
+  line-height: 1.5;
+}
+
+.workspace-notes-live-panel-waiting {
+  color: var(--color-ink-500);
+  font-style: italic;
+  padding: var(--space-sm) 0;
+}
+
+.workspace-notes-live-panel-footer {
+  display: flex;
+  gap: var(--space-md);
+  font-size: 0.65rem;
+  color: var(--color-ink-500);
+  font-family: var(--font-mono);
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px solid rgba(57, 66, 79, 0.1);
+}
+
+/* ── Result Blocks ── */
+.workspace-notes-result-block {
+  margin-bottom: var(--space-sm);
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  background: rgba(13, 17, 23, 0.2);
+}
+
+.workspace-notes-result-block-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  cursor: pointer;
+  font-size: 0.72rem;
+  color: var(--color-ink-400);
+}
+
+.workspace-notes-result-block-badge {
+  font-weight: 600;
+  color: var(--color-brand-400);
+  text-transform: capitalize;
+}
+
+.workspace-notes-result-block-date {
+  color: var(--color-ink-500);
+  font-size: 0.65rem;
+  margin-left: auto;
+}
+
+.workspace-notes-result-block-delete {
+  background: none;
+  border: none;
+  color: var(--color-ink-400);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+  line-height: 1;
+}
+
+.workspace-notes-result-block-delete:hover {
+  color: #ef4444;
+}
+
+.workspace-notes-result-block-body {
+  padding: var(--space-xs) var(--space-sm);
+  border-top: 1px solid var(--color-ink-200);
+}
+
+.workspace-notes-result-block-body pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+  font-family: inherit;
+  color: var(--color-ink-300);
+  line-height: 1.5;
+}
+
+.workspace-notes-conflict-body {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.workspace-notes-conflict-section {
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs);
+}
+
+.workspace-notes-conflict-section strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #ef4444;
+  font-size: 0.7rem;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Asset Detail Modal                                                 */
 /* ------------------------------------------------------------------ */
@@ -13884,4 +14129,21 @@ textarea:focus-visible,
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+}
+
+/* ── Action Icons ── */
+.workspace-notes-action-icon {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 2px 4px;
+  line-height: 1;
+  transition: background-color var(--duration-fast), border-color var(--duration-fast);
+}
+
+.workspace-notes-action-icon:hover {
+  background: rgba(47, 165, 157, 0.1);
+  border-color: rgba(47, 165, 157, 0.25);
 }

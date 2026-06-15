@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { listNotes, searchNotes, getNote, type Note } from '../../../lib/api/notes';
+import { listNotes, searchNotes, getNote, createNote, type Note } from '../../../lib/api/notes';
+import AgentRunPopover from './AgentRunPopover';
+import AgentRunLivePanel from './AgentRunLivePanel';
+import { getActiveRun } from '../../../stores/agentRunStore';
 
 interface ReaderProps {
   repoPath: string;
@@ -17,6 +20,8 @@ export default function WorkspaceNotesReader({ repoPath: _repoPath, activeNoteId
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [noteBlocks, setNoteBlocks] = useState<import('../../../lib/api/notes').NoteBlock[]>([]);
   const [sortBy, setSortBy] = useState<string>('updated_at DESC');
+  const [popoverAction, setPopoverAction] = useState<string | null>(null);
+  const [popoverNoteId, setPopoverNoteId] = useState<string | null>(null);
 
   // Load notes
   const loadNotes = useCallback(async () => {
@@ -148,6 +153,10 @@ export default function WorkspaceNotesReader({ repoPath: _repoPath, activeNoteId
                 <button className="button button-secondary button-sm" onClick={() => onEditNote(selectedNote.id)} data-testid="notes-edit-btn">
                   Edit
                 </button>
+                <button className="workspace-notes-action-icon" title="Enhance" onClick={() => { setPopoverAction('enhance'); setPopoverNoteId(selectedNote.id); }}>✨</button>
+                <button className="workspace-notes-action-icon" title="Research" onClick={() => { setPopoverAction('research'); setPopoverNoteId(selectedNote.id); }}>🔍</button>
+                <button className="workspace-notes-action-icon" title="Deduplicate" onClick={() => { setPopoverAction('deduplicate'); setPopoverNoteId(selectedNote.id); }}>📋</button>
+                <button className="workspace-notes-action-icon" title="Re-examine" onClick={() => { setPopoverAction('reexamine'); setPopoverNoteId(selectedNote.id); }}>🔄</button>
               </div>
             </div>
             {selectedNote.theme && <span className="workspace-notes-detail-theme">{selectedNote.theme}</span>}
@@ -183,6 +192,23 @@ export default function WorkspaceNotesReader({ repoPath: _repoPath, activeNoteId
           </div>
         )}
       </div>
+      {popoverAction && popoverNoteId && (
+        <AgentRunPopover
+          noteId={popoverNoteId}
+          action={popoverAction as 'enhance' | 'research' | 'deduplicate' | 'reexamine'}
+          onClose={() => { setPopoverAction(null); setPopoverNoteId(null); }}
+          onRunStarted={(runId) => console.log('Run started:', runId)}
+        />
+      )}
+      <AgentRunLivePanel
+        noteId={activeNoteId}
+        onAppendResult={(runId, outputText) => {
+          if (activeNoteId) {
+            // Append output as a block to the active note
+            console.log('Appending result for run', runId, 'to note', activeNoteId);
+          }
+        }}
+      />
     </div>
   );
 }
