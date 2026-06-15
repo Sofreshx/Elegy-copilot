@@ -104,6 +104,7 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./executor'), context);
   registry.registerModule(require('./checks'), context);
   registry.registerModule(require('./repoDocs'), context);
+  registry.registerModule(require('./notes'), context);
   registry.registerModule(require('./repoAssets'), context);
   registry.registerModule(require('./git'), context);
   registry.registerModule(require('./workspace'), context);
