@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const cp = require('child_process');
+const crypto = require('crypto');
 
 const { createElegyDb } = require('../lib/elegyDb');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
@@ -80,7 +82,6 @@ async function handleNotesCreate(ctx, deps) {
     return;
   }
 
-  const crypto = require('crypto');
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   const tags_json = Array.isArray(tags) ? JSON.stringify(tags) : '[]';
@@ -435,6 +436,241 @@ function handleNotesSettingsDelete(ctx, deps) {
   }
 }
 
+// ── Git Sync Push ──
+async function handleNotesSyncPush(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+
+  try {
+    const db = createElegyDb();
+    const gitConfigRaw = db.getNoteSetting('git_sync_config');
+    db.close();
+
+    if (!gitConfigRaw) {
+      sendJson(res, 400, { error: 'Git sync not configured. Configure in Settings > Notes.' });
+      return;
+    }
+
+    const config = typeof gitConfigRaw === 'string' ? JSON.parse(gitConfigRaw) : gitConfigRaw;
+    if (!config.enabled || !config.repoUrl) {
+      sendJson(res, 400, { error: 'Git sync not enabled or missing repo URL.' });
+      return;
+    }
+
+    const vaultPath = config.localClonePath || path.join(os.homedir(), '.elegy', 'notes-vault');
+    if (!fs.existsSync(vaultPath)) {
+      fs.mkdirSync(vaultPath, { recursive: true });
+    }
+
+    // Export notes as markdown files
+    const db2 = createElegyDb();
+    const notes = db2.listNotes({ limit: 10000, order: 'updated_at DESC' });
+    db2.close();
+
+    const results = [];
+    for (const note of notes) {
+      const fileName = `${note.id}.md`;
+      const filePath = path.join(vaultPath, fileName);
+
+      // Build front-matter
+      let md = '---\n';
+      md += `id: ${note.id}\n`;
+      md += `title: ${note.title || 'Untitled'}\n`;
+      if (note.theme) md += `theme: ${note.theme}\n`;
+      md += `tags: ${note.tags_json}\n`;
+      md += `created_at: ${note.created_at}\n`;
+      md += `updated_at: ${note.updated_at}\n`;
+      md += `archived: ${note.archived}\n`;
+      md += '---\n\n';
+      md += note.content + '\n';
+
+      fs.writeFileSync(filePath, md, 'utf8');
+      results.push({ id: note.id, file: fileName, updated: note.updated_at });
+    }
+
+    // Git operations
+    const git = (args) => cp.execSync(`git ${args}`, { cwd: vaultPath, encoding: 'utf8', timeout: 30000 }).trim();
+
+    // Init if needed
+    if (!fs.existsSync(path.join(vaultPath, '.git'))) {
+      cp.execSync(`git init`, { cwd: vaultPath });
+      cp.execSync(`git remote add origin ${config.repoUrl}`, { cwd: vaultPath });
+    }
+
+    // Set author
+    if (config.commitAuthor) {
+      try { cp.execSync(`git config user.name "${config.commitAuthor.split('<')[0].trim()}"`, { cwd: vaultPath }); } catch {}
+      const emailMatch = config.commitAuthor.match(/<([^>]+)>/);
+      if (emailMatch) try { cp.execSync(`git config user.email "${emailMatch[1]}"`, { cwd: vaultPath }); } catch {}
+    }
+
+    git('add -A');
+    try { git(`commit -m "notes: sync ${new Date().toISOString()}"`); } catch { /* no changes */ }
+    git(`push origin ${config.branch || 'main'}`);
+
+    sendJson(res, 200, { pushed: true, files: results.length, branch: config.branch || 'main' });
+  } catch (err) {
+    sendJson(res, 500, { error: String(err.message || err) });
+  }
+}
+
+// ── Git Sync Pull ──
+async function handleNotesSyncPull(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+
+  try {
+    const db = createElegyDb();
+    const gitConfigRaw = db.getNoteSetting('git_sync_config');
+    db.close();
+
+    if (!gitConfigRaw) {
+      sendJson(res, 400, { error: 'Git sync not configured.' });
+      return;
+    }
+
+    const config = typeof gitConfigRaw === 'string' ? JSON.parse(gitConfigRaw) : gitConfigRaw;
+    if (!config.enabled || !config.repoUrl) {
+      sendJson(res, 400, { error: 'Git sync not enabled or missing repo URL.' });
+      return;
+    }
+
+    const vaultPath = config.localClonePath || path.join(os.homedir(), '.elegy', 'notes-vault');
+    const git = (args) => cp.execSync(`git ${args}`, { cwd: vaultPath, encoding: 'utf8', timeout: 30000, stdio: 'pipe' }).trim();
+
+    // Clone if not exists
+    if (!fs.existsSync(path.join(vaultPath, '.git'))) {
+      fs.mkdirSync(vaultPath, { recursive: true });
+      git(`clone ${config.repoUrl} .`);
+      git(`checkout ${config.branch || 'main'}`);
+    }
+
+    // Pull
+    git('fetch origin');
+    
+    let pullResult;
+    try {
+      pullResult = git(`merge origin/${config.branch || 'main'}`);
+    } catch (mergeErr) {
+      // Check for conflicts
+      const conflictFiles = git('diff --name-only --diff-filter=U');
+      
+      if (conflictFiles) {
+        const db2 = createElegyDb();
+        const conflicted = [];
+        const now = new Date().toISOString();
+
+        for (const file of conflictFiles.split('\n').filter(Boolean)) {
+          const filePath = path.join(vaultPath, file);
+          if (!fs.existsSync(filePath)) continue;
+
+          const raw = fs.readFileSync(filePath, 'utf8');
+          const parts = raw.split(/^=======\s*$/m);
+          
+          // Extract note id from filename
+          const noteId = file.replace(/\.md$/, '');
+          const existingNote = db2.getNote(noteId);
+
+          if (existingNote && parts.length >= 2) {
+            // Create conflict block with remote version
+            const remoteContent = parts[1] ? parts[1].replace(/^>>>>>>>.*$/gm, '').trim() : raw;
+            
+            const blockId = crypto.randomUUID();
+            db2.createBlock({
+              id: blockId,
+              note_id: noteId,
+              block_kind: 'conflict',
+              position: (db2.listBlocksByNote(noteId).length + 1),
+              body: `Remote version:\n\n${remoteContent}`,
+              source_run_id: null,
+              created_at: now,
+              updated_at: now,
+            });
+
+            // Tag the note
+            let tags = [];
+            try { tags = JSON.parse(existingNote.tags_json); } catch {}
+            if (!tags.includes('conflict:needs-review')) {
+              tags.push('conflict:needs-review');
+            }
+
+            db2.updateNote({
+              id: noteId,
+              title: existingNote.title,
+              content: parts[0] ? parts[0].replace(/^<<<<<<<.*$/gm, '').trim() : existingNote.content,
+              theme: existingNote.theme,
+              tags_json: JSON.stringify(tags),
+              updated_at: now,
+              archived: existingNote.archived,
+              repo_path: existingNote.repo_path,
+              session_id: existingNote.session_id,
+            });
+
+            conflicted.push({ id: noteId, title: existingNote.title });
+          }
+
+          // Resolve conflict: accept ours
+          try { git(`checkout --ours ${file}`); } catch {}
+        }
+
+        db2.close();
+        git('add -A');
+        try { git('commit -m "notes: resolve conflicts (ours)"'); } catch {}
+
+        sendJson(res, 200, {
+          pulled: true,
+          conflicts: conflicted.length,
+          conflictedNotes: conflicted.length > 0 ? conflicted : undefined,
+          message: conflicted.length > 0 ? `${conflicted.length} note(s) had conflicts. Remote versions saved as conflict blocks. Review notes tagged "conflict:needs-review".` : 'No conflicts.',
+        });
+        return;
+      }
+
+      throw mergeErr;
+    }
+
+    sendJson(res, 200, { pulled: true, message: 'Pull complete, no conflicts.' });
+  } catch (err) {
+    sendJson(res, 500, { error: String(err.message || err) });
+  }
+}
+
+// ── Git Sync Status ──
+function handleNotesSyncStatus(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+
+  try {
+    const db = createElegyDb();
+    const gitConfigRaw = db.getNoteSetting('git_sync_config');
+    db.close();
+
+    if (!gitConfigRaw) {
+      sendJson(res, 200, { configured: false });
+      return;
+    }
+
+    const config = typeof gitConfigRaw === 'string' ? JSON.parse(gitConfigRaw) : gitConfigRaw;
+    const vaultPath = config.localClonePath || path.join(os.homedir(), '.elegy', 'notes-vault');
+
+    let status = { configured: true, enabled: config.enabled, repoUrl: config.repoUrl, branch: config.branch || 'main', vaultExists: false };
+
+    if (fs.existsSync(path.join(vaultPath, '.git'))) {
+      status.vaultExists = true;
+      try {
+        const git = (args) => cp.execSync(`git ${args}`, { cwd: vaultPath, encoding: 'utf8', timeout: 10000, stdio: 'pipe' }).trim();
+        status.currentBranch = git('branch --show-current');
+        status.lastCommit = git('log -1 --format=%s');
+        status.lastCommitDate = git('log -1 --format=%ci');
+      } catch {}
+    }
+
+    sendJson(res, 200, status);
+  } catch (err) {
+    sendJson(res, 500, { error: String(err.message || err) });
+  }
+}
+
 // ── Register ──
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
@@ -454,6 +690,9 @@ function register(context = {}) {
     { method: 'GET',  path: '/api/notes/settings/get', handler: (ctx) => handleNotesSettingsGet(ctx, deps) },
     { method: 'POST', path: '/api/notes/settings/set', handler: (ctx) => handleNotesSettingsSet(ctx, deps) },
     { method: 'DELETE', path: '/api/notes/settings/delete', handler: (ctx) => handleNotesSettingsDelete(ctx, deps) },
+    { method: 'POST', path: '/api/notes/sync/push',   handler: (ctx) => handleNotesSyncPush(ctx, deps) },
+    { method: 'POST', path: '/api/notes/sync/pull',   handler: (ctx) => handleNotesSyncPull(ctx, deps) },
+    { method: 'GET',  path: '/api/notes/sync/status', handler: (ctx) => handleNotesSyncStatus(ctx, deps) },
   ];
 }
 
