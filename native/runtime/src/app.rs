@@ -2,8 +2,6 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Context;
-use axum::extract::FromRequestParts;
-use axum::http::request::Parts;
 use axum::response::IntoResponse;
 use axum::Router;
 use chrono::Utc;
@@ -11,6 +9,8 @@ use elegy_native_contracts::{PolicyPreflightResponse, VersionResponse};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
+pub use crate::auth::AuthContext;
+use crate::auth::AuthConfig;
 use crate::config::RuntimeConfig;
 use crate::error::ApiError;
 use crate::policy::evaluate_policy_preflight;
@@ -18,6 +18,7 @@ use crate::policy::evaluate_policy_preflight;
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub config: RuntimeConfig,
+    pub auth: AuthConfig,
     pub(crate) version_state: Arc<Mutex<VersionResponse>>,
     pub(crate) policy_cache: Arc<Mutex<Option<CachedPolicyPreflight>>>,
 }
@@ -29,9 +30,10 @@ pub(crate) struct CachedPolicyPreflight {
 }
 
 impl AppState {
-    pub fn new(config: RuntimeConfig) -> Self {
+    pub fn new(config: RuntimeConfig, auth: AuthConfig) -> Self {
         Self {
             config,
+            auth,
             version_state: Arc::new(Mutex::new(VersionResponse {
                 version: 0,
                 last_changed_ms: None,
@@ -47,29 +49,6 @@ impl AppState {
                 last_changed_ms,
             };
         }
-    }
-}
-
-/// Auth context placeholder — hook for wp-auth-module to fill in.
-///
-/// Currently a passthrough extractor that always succeeds with an empty context.
-/// Future middleware will populate this with real identity data.
-#[derive(Debug, Clone, Default)]
-pub struct AuthContext {
-    // Placeholder for future auth fields
-}
-
-impl<S> FromRequestParts<S> for AuthContext
-where
-    S: Send + Sync,
-{
-    type Rejection = std::convert::Infallible;
-
-    async fn from_request_parts(
-        _parts: &mut Parts,
-        _state: &S,
-    ) -> Result<Self, Self::Rejection> {
-        Ok(AuthContext::default())
     }
 }
 
@@ -96,8 +75,14 @@ pub(crate) fn policy_preflight(state: &AppState, refresh: bool) -> PolicyPreflig
 }
 
 pub fn build_router(state: AppState) -> Router {
+    let auth_layer = axum::middleware::from_fn_with_state(
+        state.auth.clone(),
+        crate::auth::auth_middleware,
+    );
+
     Router::new()
         .merge(crate::routes::build_routes(state))
+        .layer(auth_layer)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .fallback(handle_404)
@@ -151,6 +136,7 @@ mod tests {
     use axum::http::Request;
     use tower::util::ServiceExt;
 
+    use crate::auth::AuthConfig;
     use crate::config::RuntimeConfig;
     use crate::response_shape::capture_shape;
 
@@ -170,7 +156,13 @@ mod tests {
             sandboxes_home: temp.join(".elegy").join("sandboxes"),
         };
         let _ = std::fs::create_dir_all(config.elegy_home.join("session-state"));
-        let state = AppState::new(config);
+        let state = AppState::new(
+            config,
+            AuthConfig {
+                token: None,
+                allow_loopback_bypass: true,
+            },
+        );
         state.update_version(0, None);
         state
     }

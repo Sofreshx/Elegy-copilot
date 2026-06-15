@@ -1,4 +1,5 @@
 use elegy_native_runtime::app::{serve, AppState};
+use elegy_native_runtime::auth::AuthConfig;
 use elegy_native_runtime::config::RuntimeConfig;
 
 #[tokio::main]
@@ -10,6 +11,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let config = RuntimeConfig::from_env_and_args(None, None, None, None, None);
-    let state = AppState::new(config);
+    let auth = AuthConfig::resolve(None, &config.host);
+    let state = AppState::new(config, auth);
     serve(state).await
 }

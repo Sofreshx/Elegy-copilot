@@ -10,7 +10,9 @@ axum.workspace = true
 chrono.workspace = true
 dirs.workspace = true
 elegy-native-contracts = { path = "../contracts" }
+hex.workspace = true
 http.workspace = true
+rand.workspace = true
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
