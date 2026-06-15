@@ -133,11 +133,111 @@ function runMigrations(db, targetVersion) {
   }
 
   if (currentVersion < 2) {
-    db.exec(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS notes_vec USING vec0(
-        embedding float[384]
-      );
-    `);
+    // notes — core table
+    db.exec(`CREATE TABLE IF NOT EXISTS notes (
+      id           TEXT PRIMARY KEY,
+      title        TEXT NOT NULL DEFAULT '',
+      content      TEXT NOT NULL DEFAULT '',
+      theme        TEXT,
+      tags_json    TEXT NOT NULL DEFAULT '[]',
+      created_at   TEXT NOT NULL,
+      updated_at   TEXT NOT NULL,
+      archived     INTEGER NOT NULL DEFAULT 0,
+      repo_path    TEXT,
+      session_id   TEXT
+    )`);
+
+    // FTS5 — full-text search on title, content, tags
+    db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+      title, content, tags_json,
+      content=notes, content_rowid=rowid
+    )`);
+
+    // Triggers to keep FTS5 in sync
+    db.exec(`CREATE TRIGGER IF NOT EXISTS notes_ai AFTER INSERT ON notes BEGIN
+      INSERT INTO notes_fts(rowid, title, content, tags_json)
+      VALUES (new.rowid, new.title, new.content, new.tags_json);
+    END`);
+    db.exec(`CREATE TRIGGER IF NOT EXISTS notes_ad AFTER DELETE ON notes BEGIN
+      INSERT INTO notes_fts(notes_fts, rowid, title, content, tags_json)
+      VALUES ('delete', old.rowid, old.title, old.content, old.tags_json);
+    END`);
+    db.exec(`CREATE TRIGGER IF NOT EXISTS notes_au AFTER UPDATE ON notes BEGIN
+      INSERT INTO notes_fts(notes_fts, rowid, title, content, tags_json)
+      VALUES ('delete', old.rowid, old.title, old.content, old.tags_json);
+      INSERT INTO notes_fts(rowid, title, content, tags_json)
+      VALUES (new.rowid, new.title, new.content, new.tags_json);
+    END`);
+
+    // note_settings — key-value store
+    db.exec(`CREATE TABLE IF NOT EXISTS note_settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )`);
+
+    // note_blocks — structured content blocks within a note
+    db.exec(`CREATE TABLE IF NOT EXISTS note_blocks (
+      id            TEXT PRIMARY KEY,
+      note_id       TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+      block_kind    TEXT NOT NULL,
+      position      INTEGER NOT NULL,
+      body          TEXT NOT NULL,
+      source_run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
+      created_at    TEXT NOT NULL,
+      updated_at    TEXT NOT NULL
+    )`);
+
+    // agent_runs — agent invocation tracking
+    db.exec(`CREATE TABLE IF NOT EXISTS agent_runs (
+      id                  TEXT PRIMARY KEY,
+      session_id          TEXT,
+      parent_kind         TEXT NOT NULL,
+      parent_id           TEXT,
+      note_id             TEXT,
+      action              TEXT NOT NULL,
+      agent_name          TEXT NOT NULL,
+      provider_id         TEXT,
+      model_id            TEXT,
+      model_id_original   TEXT,
+      prompt_summary      TEXT,
+      extra_instructions  TEXT,
+      repo_access_enabled INTEGER NOT NULL DEFAULT 0,
+      status              TEXT NOT NULL,
+      started_at          TEXT NOT NULL,
+      ended_at            TEXT,
+      duration_ms         INTEGER,
+      prompt_tokens       INTEGER,
+      output_tokens       INTEGER,
+      reasoning_tokens    INTEGER,
+      cache_read          INTEGER,
+      cache_write         INTEGER,
+      cost_usd            REAL,
+      error_code          TEXT,
+      error_message       TEXT,
+      output_text         TEXT,
+      result_block_id     TEXT,
+      metadata_json       TEXT,
+      created_by          TEXT NOT NULL DEFAULT 'user',
+      workspace_id        TEXT
+    )`);
+
+    // vec0 — vector embeddings for semantic search
+    db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS notes_vec USING vec0(
+      embedding float[384]
+    )`);
+
+    // Indexes
+    db.exec('CREATE INDEX IF NOT EXISTS idx_notes_theme     ON notes(theme)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_notes_updated    ON notes(updated_at DESC)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_notes_archived   ON notes(archived)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_note_blocks_note ON note_blocks(note_id, position)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_note_blocks_kind ON note_blocks(block_kind)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_agent_runs_note  ON agent_runs(note_id, started_at DESC)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_agent_runs_parent ON agent_runs(parent_kind, parent_id)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_agent_runs_status ON agent_runs(status)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_agent_runs_started ON agent_runs(started_at DESC)');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_agent_runs_action ON agent_runs(action, started_at DESC)');
+
     db.pragma('user_version = 2');
   }
 }
