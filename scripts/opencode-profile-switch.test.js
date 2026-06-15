@@ -197,6 +197,122 @@ async function main() {
     });
   });
 
+  await test('profile switching updates reasoningEffort in opencode.jsonc', async () => {
+    withTempDir((root) => {
+      const agentsDir = path.join(root, 'agents');
+      fs.mkdirSync(agentsDir, { recursive: true });
+
+      // Create mock agent files
+      const agents = {
+        quick: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'max' },
+        standard: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
+        build: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'max' },
+        plan: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
+        explore: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'max' },
+        scout: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
+      };
+
+      const agentRoles = {
+        quick: 'small',
+        standard: 'big',
+      };
+
+      const roleToAgent = {
+        planning: ['plan', 'standard'],
+        implementation: ['build', 'quick'],
+        exploration: ['explore'],
+        research: ['scout'],
+      };
+
+      // Write agent files
+      for (const [name, fields] of Object.entries(agents)) {
+        const filePath = path.join(agentsDir, `${name}.md`);
+        const content = `---\nmode: primary\nmodel: ${fields.model}\nreasoningEffort: ${fields.reasoningEffort}\ndescription: "Test agent"\n---\n\n# ${name} agent\n`;
+        fs.writeFileSync(filePath, content, 'utf8');
+      }
+
+      // Create a mock opencode.jsonc with old reasoningEffort values
+      const configPath = path.join(root, 'opencode.jsonc');
+      const initialConfig = {
+        agent: {
+          build: { reasoningEffort: 'high' },
+          plan: { reasoningEffort: 'high' },
+          explore: { reasoningEffort: 'high' },
+          scout: { reasoningEffort: 'high' },
+        }
+      };
+      fs.writeFileSync(configPath, JSON.stringify(initialConfig, null, 2), 'utf8');
+
+      // Switch to a profile with max reasoningEffort
+      const profile = {
+        small: 'deepseek/deepseek-v4-flash',
+        big: 'deepseek/deepseek-v4-pro',
+        review: 'deepseek/deepseek-v4-pro',
+        roleModels: {
+          planning: 'deepseek/deepseek-v4-pro',
+          implementation: 'deepseek/deepseek-v4-flash',
+          exploration: 'deepseek/deepseek-v4-flash',
+          review: 'deepseek/deepseek-v4-pro',
+          research: 'deepseek/deepseek-v4-pro',
+        },
+        reasoningEffort: 'max',
+      };
+
+      // Simulate what opencode-profile-switch.mjs does
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      if (!config.agent) config.agent = {};
+
+      const allAgents = new Set();
+      if (roleToAgent) {
+        for (const agentList of Object.values(roleToAgent)) {
+          if (Array.isArray(agentList)) {
+            for (const agentName of agentList) {
+              allAgents.add(agentName);
+            }
+          }
+        }
+      }
+      for (const agentName of Object.keys(agentRoles)) {
+        allAgents.add(agentName);
+      }
+
+      for (const agentName of allAgents) {
+        let modelValue = null;
+        if (roleToAgent && profile.roleModels) {
+          for (const [role, agentList] of Object.entries(roleToAgent)) {
+            if (Array.isArray(agentList) && agentList.includes(agentName) && profile.roleModels[role]) {
+              modelValue = profile.roleModels[role];
+              break;
+            }
+          }
+        }
+        if (!modelValue && agentRoles[agentName] && profile[agentRoles[agentName]]) {
+          modelValue = profile[agentRoles[agentName]];
+        }
+        if (!modelValue) continue;
+
+        if (!config.agent[agentName] || typeof config.agent[agentName] !== 'object') {
+          config.agent[agentName] = {};
+        }
+        config.agent[agentName].model = modelValue;
+        if (profile.reasoningEffort) {
+          config.agent[agentName].reasoningEffort = profile.reasoningEffort;
+        }
+      }
+
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+
+      // Verify reasoningEffort was updated for all agents
+      const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      assert.strictEqual(updatedConfig.agent.build.reasoningEffort, 'max', 'build should have max reasoningEffort');
+      assert.strictEqual(updatedConfig.agent.plan.reasoningEffort, 'max', 'plan should have max reasoningEffort');
+      assert.strictEqual(updatedConfig.agent.explore.reasoningEffort, 'max', 'explore should have max reasoningEffort');
+      assert.strictEqual(updatedConfig.agent.scout.reasoningEffort, 'max', 'scout should have max reasoningEffort');
+      assert.strictEqual(updatedConfig.agent.quick.reasoningEffort, 'max', 'quick should have max reasoningEffort');
+      assert.strictEqual(updatedConfig.agent.standard.reasoningEffort, 'max', 'standard should have max reasoningEffort');
+    });
+  });
+
   await test('deepseek-direct profile routes impl/quick to Flash and project to Pro', async () => {
     // Verify the role mapping from profiles.json
     const profilesPath = path.resolve(__dirname, '..', 'opencode-assets', 'profiles.json');

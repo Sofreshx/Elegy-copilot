@@ -161,28 +161,66 @@ function main() {
     }
 
     let configUpdated = 0;
-    for (const [agentName, legacyRoleKey] of Object.entries(agentRoles)) {
+    const reasoningEffort = profile.reasoningEffort;
+    
+    // Build a set of all agents to update: roleToAgent agents + agentRoles agents
+    const allAgents = new Set();
+    if (roleToAgent) {
+      for (const agentList of Object.values(roleToAgent)) {
+        if (Array.isArray(agentList)) {
+          for (const agentName of agentList) {
+            allAgents.add(agentName);
+          }
+        }
+      }
+    }
+    for (const agentName of Object.keys(agentRoles)) {
+      allAgents.add(agentName);
+    }
+    
+    for (const agentName of allAgents) {
       let modelValue = null;
+      let roleName = null;
+      
       // Primary: resolve via roleToAgent + roleModels
       if (roleToAgent && profile.roleModels && typeof profile.roleModels === 'object') {
-        for (const [roleName, agentList] of Object.entries(roleToAgent)) {
-          if (Array.isArray(agentList) && agentList.includes(agentName) && profile.roleModels[roleName]) {
-            modelValue = profile.roleModels[roleName];
+        for (const [role, agentList] of Object.entries(roleToAgent)) {
+          if (Array.isArray(agentList) && agentList.includes(agentName) && profile.roleModels[role]) {
+            modelValue = profile.roleModels[role];
+            roleName = role;
             break;
           }
         }
       }
+      
       // Fallback: legacy profile.<small|big|review> by agentRoles key
-      if (!modelValue && profile[legacyRoleKey]) {
-        modelValue = profile[legacyRoleKey];
+      if (!modelValue && agentRoles[agentName]) {
+        const legacyRoleKey = agentRoles[agentName];
+        if (profile[legacyRoleKey]) {
+          modelValue = profile[legacyRoleKey];
+          roleName = legacyRoleKey;
+        }
       }
+      
       if (!modelValue) continue;
+      
       const prevModel = config.agent[agentName]?.model;
+      const prevReasoningEffort = config.agent[agentName]?.reasoningEffort;
       if (!config.agent[agentName] || typeof config.agent[agentName] !== 'object') {
         config.agent[agentName] = {};
       }
       config.agent[agentName].model = modelValue;
-      configSyncResults.push({ agent: agentName, role: legacyRoleKey, oldModel: prevModel || 'none', newModel: modelValue });
+      if (reasoningEffort) {
+        config.agent[agentName].reasoningEffort = reasoningEffort;
+      }
+      configSyncResults.push({ 
+        agent: agentName, 
+        role: roleName || 'unknown', 
+        oldModel: prevModel || 'none', 
+        newModel: modelValue,
+        oldReasoningEffort: prevReasoningEffort || 'none',
+        newReasoningEffort: reasoningEffort || 'none'
+      });
       configUpdated += 1;
     }
 
@@ -216,7 +254,10 @@ function main() {
   if (configSyncResults.length > 0) {
     console.log('opencode.jsonc synced:');
     for (const r of configSyncResults) {
-      console.log(`  agent.${r.agent.padEnd(11)} ${r.role.padEnd(8)} ${r.oldModel} → ${r.newModel}`);
+      const effortInfo = r.newReasoningEffort && r.newReasoningEffort !== 'none' 
+        ? ` (effort: ${r.oldReasoningEffort} → ${r.newReasoningEffort})` 
+        : '';
+      console.log(`  agent.${r.agent.padEnd(11)} ${r.role.padEnd(8)} ${r.oldModel} → ${r.newModel}${effortInfo}`);
     }
     console.log('');
   }

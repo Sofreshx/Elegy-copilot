@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-04-27
+updated: 2026-06-15
 category: system
 status: current
 doc_kind: moc
@@ -41,6 +41,7 @@ related: [system-docs-index]
 - High-level goal contract and unresolved-goal carryover: [[goal-contract-governance]] [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md)
 - System upgrade direction: [[system-upgrade-direction-2026]] [docs/system/system-upgrade-direction-2026.md](docs/system/system-upgrade-direction-2026.md)
 - Software design concepts: [[moc-software-design-concepts]] [docs/system/mocs/software-design-concepts.md](docs/system/mocs/software-design-concepts.md)
+- Windows shell optimization for agents: [[windows-shell-optimization]] [docs/system/windows-shell-optimization.md](docs/system/windows-shell-optimization.md)
 
 ## Depends on
 

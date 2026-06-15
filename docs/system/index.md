@@ -1,13 +1,13 @@
 ---
 created: 2026-02-23
-updated: 2026-06-09
+updated: 2026-06-15
 category: system
 status: current
 doc_kind: index
 id: system-docs-index
 summary: Short entrypoint map for the current canonical docs.
 tags: [documentation, index]
-related: [catalog-control-plane, copilot-ui-guide, opencode-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, commit-check-setup]
+related: [catalog-control-plane, copilot-ui-guide, opencode-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, commit-check-setup, windows-shell-optimization]
 ---
 
 # Docs Index
@@ -33,6 +33,7 @@ Use docs in this order:
 - [[commit-check-setup]] [docs/system/commit-check-setup.md](docs/system/commit-check-setup.md)
 - [[concise-instruction-governance]] [docs/system/concise-instruction-governance.md](docs/system/concise-instruction-governance.md)
 - [[harness-asset-flow]] [docs/system/harness-asset-flow.md](docs/system/harness-asset-flow.md)
+- [[windows-shell-optimization]] [docs/system/windows-shell-optimization.md](docs/system/windows-shell-optimization.md)
 
 ## MOCs
 

@@ -371,25 +371,25 @@ function detectTerminal() {
 
   const { execSync } = require('child_process');
 
-  // 1. Probe WSL (best option — always preferred if WSL2 is available)
+  // 1. Probe WSL (highest priority — always preferred if available)
   try {
     const wsl = execSync('wsl.exe --status', { timeout: 3000, stdio: 'pipe' }).toString();
     if (wsl.includes('Default Distribution')) {
-      return { cmd: 'wsl.exe', type: 'wsl' };
+      return { type: 'wsl', cmd: 'wsl.exe', name: 'WSL' };
     }
-  } catch { /* WSL not available */ }
+  } catch { /* wsl not available */ }
 
-  // 2. Probe Git Bash
+  // 2. Probe Git Bash (avoid WSL's stub bash.exe in System32)
   try {
     const bash = execSync('where bash.exe', { timeout: 2000, stdio: 'pipe' }).toString().trim();
     if (bash && !bash.includes('System32')) {
-      return { cmd: bash.split('\r\n')[0] || bash, type: 'gitbash' };
+      return { type: 'gitbash', cmd: bash.split('\n')[0].trim(), name: 'Git Bash' };
     }
-  } catch { /* Git Bash not in PATH */ }
+  } catch { /* bash not found in PATH */ }
 
-  // 3. Probe Git Bash via env var
+  // 3. Probe Git Bash via environment variable
   if (process.env.OPENCODE_GIT_BASH_PATH) {
-    return { cmd: process.env.OPENCODE_GIT_BASH_PATH, type: 'gitbash' };
+    return { type: 'gitbash', cmd: process.env.OPENCODE_GIT_BASH_PATH, name: 'Git Bash' };
   }
 
   // 4. Existing probes: wt.exe, pwsh.exe, powershell.exe
@@ -416,12 +416,12 @@ function buildLauncherCommand(launcher, repoPath, platform, terminalInfo) {
   if (platform === 'win32') {
     // --- Terminal launcher ---
     if (isTerminalObj) {
-      // WSL terminal: opens WSL's own terminal window, cd to mount path
+      // WSL terminal — wsl.exe opens its own terminal window
       if (terminalInfo && terminalInfo.type === 'wsl') {
-        const wslPath = repoPath.replace(/^([A-Z]):/, (_, d) => `/mnt/${d.toLowerCase()}`).replace(/\\/g, '/');
-        return { cmd: 'wsl.exe', args: ['--cd', wslPath, '--', 'bash'] };
+        const wslPath = repoPath.replace(/^([A-Z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`).replace(/\\/g, '/');
+        return { cmd: 'wsl.exe', args: ['--cd', wslPath] };
       }
-      // Git Bash terminal
+      // Git Bash terminal — bash.exe opens its own terminal window when spawned detached
       if (terminalInfo && terminalInfo.type === 'gitbash') {
         return { cmd: terminalInfo.cmd, args: ['-c', `cd '${repoPath}' && exec bash`] };
       }
@@ -444,14 +444,14 @@ function buildLauncherCommand(launcher, repoPath, platform, terminalInfo) {
       };
       const agentSubCommand = AGENT_SUBCOMMANDS[launcher.id] || `${launcher.command} .`;
 
-      // WSL agent launcher: convert path to /mnt/ format
+      // WSL agent — wsl.exe opens its own terminal window
       if (terminalInfo && terminalInfo.type === 'wsl') {
-        const wslPath = repoPath.replace(/^([A-Z]):/, (_, d) => `/mnt/${d.toLowerCase()}`).replace(/\\/g, '/');
-        return { cmd: 'wsl.exe', args: ['--cd', wslPath, '--', 'bash', '-c', agentSubCommand] };
+        const wslPath = repoPath.replace(/^([A-Z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`).replace(/\\/g, '/');
+        return { cmd: 'wsl.exe', args: ['--cd', wslPath, '--', agentSubCommand] };
       }
-      // Git Bash agent launcher
+      // Git Bash agent — bash.exe opens its own terminal window when spawned detached
       if (terminalInfo && terminalInfo.type === 'gitbash') {
-        return { cmd: terminalInfo.cmd, args: ['-c', `cd '${repoPath}' && ${agentSubCommand}`] };
+        return { cmd: terminalInfo.cmd, args: ['-c', `cd '${repoPath}' && ${agentSubCommand} && exec bash`] };
       }
       if (terminalInfo && terminalInfo.type === 'wt') {
         return { cmd: 'wt.exe', args: ['-d', repoPath, 'pwsh', '-NoExit', '-Command', agentSubCommand] };
