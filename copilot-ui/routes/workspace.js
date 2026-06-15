@@ -370,6 +370,29 @@ function detectTerminal() {
   if (platform !== 'win32') return null;
 
   const { execSync } = require('child_process');
+
+  // 1. Probe WSL (best option — always preferred if WSL2 is available)
+  try {
+    const wsl = execSync('wsl.exe --status', { timeout: 3000, stdio: 'pipe' }).toString();
+    if (wsl.includes('Default Distribution')) {
+      return { cmd: 'wsl.exe', type: 'wsl' };
+    }
+  } catch { /* WSL not available */ }
+
+  // 2. Probe Git Bash
+  try {
+    const bash = execSync('where bash.exe', { timeout: 2000, stdio: 'pipe' }).toString().trim();
+    if (bash && !bash.includes('System32')) {
+      return { cmd: bash.split('\r\n')[0] || bash, type: 'gitbash' };
+    }
+  } catch { /* Git Bash not in PATH */ }
+
+  // 3. Probe Git Bash via env var
+  if (process.env.OPENCODE_GIT_BASH_PATH) {
+    return { cmd: process.env.OPENCODE_GIT_BASH_PATH, type: 'gitbash' };
+  }
+
+  // 4. Existing probes: wt.exe, pwsh.exe, powershell.exe
   const candidates = [
     { cmd: 'wt.exe', type: 'wt' },
     { cmd: 'pwsh.exe', type: 'pwsh' },
@@ -393,6 +416,15 @@ function buildLauncherCommand(launcher, repoPath, platform, terminalInfo) {
   if (platform === 'win32') {
     // --- Terminal launcher ---
     if (isTerminalObj) {
+      // WSL terminal: opens WSL's own terminal window, cd to mount path
+      if (terminalInfo && terminalInfo.type === 'wsl') {
+        const wslPath = repoPath.replace(/^([A-Z]):/, (_, d) => `/mnt/${d.toLowerCase()}`).replace(/\\/g, '/');
+        return { cmd: 'wsl.exe', args: ['--cd', wslPath, '--', 'bash'] };
+      }
+      // Git Bash terminal
+      if (terminalInfo && terminalInfo.type === 'gitbash') {
+        return { cmd: terminalInfo.cmd, args: ['-c', `cd '${repoPath}' && exec bash`] };
+      }
       if (terminalInfo && terminalInfo.type === 'wt') {
         return { cmd: 'wt.exe', args: ['-d', repoPath, 'pwsh', '-NoExit'] };
       }
@@ -412,6 +444,15 @@ function buildLauncherCommand(launcher, repoPath, platform, terminalInfo) {
       };
       const agentSubCommand = AGENT_SUBCOMMANDS[launcher.id] || `${launcher.command} .`;
 
+      // WSL agent launcher: convert path to /mnt/ format
+      if (terminalInfo && terminalInfo.type === 'wsl') {
+        const wslPath = repoPath.replace(/^([A-Z]):/, (_, d) => `/mnt/${d.toLowerCase()}`).replace(/\\/g, '/');
+        return { cmd: 'wsl.exe', args: ['--cd', wslPath, '--', 'bash', '-c', agentSubCommand] };
+      }
+      // Git Bash agent launcher
+      if (terminalInfo && terminalInfo.type === 'gitbash') {
+        return { cmd: terminalInfo.cmd, args: ['-c', `cd '${repoPath}' && ${agentSubCommand}`] };
+      }
       if (terminalInfo && terminalInfo.type === 'wt') {
         return { cmd: 'wt.exe', args: ['-d', repoPath, 'pwsh', '-NoExit', '-Command', agentSubCommand] };
       }

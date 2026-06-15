@@ -391,6 +391,111 @@ describe('workspace route handlers', () => {
     });
   });
 
+  describe('detectTerminal (WSL / Git Bash)', () => {
+    const platform = process.platform;
+
+    it('returns null on non-Windows', () => {
+      if (platform !== 'win32') {
+        assert.equal(detectTerminal(), null);
+      }
+    });
+
+    it('prefers WSL when wsl.exe --status reports Default Distribution', () => {
+      if (platform !== 'win32') return;
+      // Test is structural: WSL probe runs first in detectTerminal
+      const oldExec = require('child_process').execSync;
+      let callCount = 0;
+      require('child_process').execSync = (cmd, opts) => {
+        if (typeof cmd === 'string' && cmd.includes('wsl.exe --status')) {
+          callCount++;
+          return 'Default Distribution: Ubuntu\n';
+        }
+        throw new Error('not found');
+      };
+      try {
+        const result = detectTerminal();
+        assert.equal(callCount, 1);
+        assert.equal(result.type, 'wsl');
+        assert.equal(result.cmd, 'wsl.exe');
+      } finally {
+        require('child_process').execSync = oldExec;
+      }
+    });
+
+    it('falls back to Git Bash when WSL unavailable', () => {
+      if (platform !== 'win32') return;
+      const oldExec = require('child_process').execSync;
+      let bashCalled = false;
+      require('child_process').execSync = (cmd, opts) => {
+        if (typeof cmd === 'string' && cmd.includes('wsl.exe --status')) throw new Error('no WSL');
+        if (typeof cmd === 'string' && cmd.includes('where bash.exe')) {
+          bashCalled = true;
+          return 'C:\\Program Files\\Git\\bin\\bash.exe\n';
+        }
+        throw new Error('not found');
+      };
+      try {
+        const result = detectTerminal();
+        assert.ok(bashCalled);
+        assert.equal(result.type, 'gitbash');
+        assert.ok(result.cmd.includes('bash.exe'));
+      } finally {
+        require('child_process').execSync = oldExec;
+      }
+    });
+
+    it('excludes System32 bash.exe stub (WSL launcher)', () => {
+      if (platform !== 'win32') return;
+      const oldExec = require('child_process').execSync;
+      require('child_process').execSync = (cmd, opts) => {
+        if (typeof cmd === 'string' && cmd.includes('wsl.exe --status')) throw new Error('no WSL');
+        if (typeof cmd === 'string' && cmd.includes('where bash.exe')) {
+          return 'C:\\Windows\\System32\\bash.exe\n';
+        }
+        throw new Error('not found');
+      };
+      try {
+        const result = detectTerminal();
+        assert.notEqual(result.type, 'gitbash');
+      } finally {
+        require('child_process').execSync = oldExec;
+      }
+    });
+
+    it('uses OPENCODE_GIT_BASH_PATH env var when set', () => {
+      if (platform !== 'win32') return;
+      const oldExec = require('child_process').execSync;
+      const oldEnv = process.env.OPENCODE_GIT_BASH_PATH;
+      process.env.OPENCODE_GIT_BASH_PATH = 'C:\\tools\\git\\bin\\bash.exe';
+      require('child_process').execSync = () => { throw new Error('all probes fail'); };
+      try {
+        const result = detectTerminal();
+        assert.equal(result.type, 'gitbash');
+        assert.equal(result.cmd, 'C:\\tools\\git\\bin\\bash.exe');
+      } finally {
+        require('child_process').execSync = oldExec;
+        if (oldEnv !== undefined) process.env.OPENCODE_GIT_BASH_PATH = oldEnv;
+        else delete process.env.OPENCODE_GIT_BASH_PATH;
+      }
+    });
+
+    it('falls back to wt.exe/pwsh when WSL and Git Bash unavailable', () => {
+      if (platform !== 'win32') return;
+      const oldExec = require('child_process').execSync;
+      require('child_process').execSync = (cmd, opts) => {
+        if (typeof cmd === 'string' && cmd.includes('where wt.exe')) return 'wt.exe\n';
+        if (typeof cmd === 'string' && cmd.includes('where bash.exe')) throw new Error('no bash');
+        throw new Error('not found');
+      };
+      try {
+        const result = detectTerminal();
+        assert.equal(result.type, 'wt');
+      } finally {
+        require('child_process').execSync = oldExec;
+      }
+    });
+  });
+
   describe('buildLauncherCommand', () => {
     const repoPath = 'C:\\Users\\test\\my-repo';
 
@@ -476,6 +581,49 @@ describe('workspace route handlers', () => {
         // Terminal: should NOT include an agent command
         assert.ok(!result.args[2].includes('opencode'));
         assert.ok(!result.args[2].includes('codex'));
+      });
+
+      it('uses WSL for terminal launcher with /mnt/ path conversion', () => {
+        const launcher = makeLauncher({ id: 'terminal', label: 'Terminal', group: 'terminals', command: 'terminal' });
+        const terminal = { cmd: 'wsl.exe', type: 'wsl' };
+        const result = buildLauncherCommand(launcher, repoPath, platform, terminal);
+        assert.equal(result.cmd, 'wsl.exe');
+        assert.deepEqual(result.args, ['--cd', '/mnt/c/Users/test/my-repo', '--', 'bash']);
+      });
+
+      it('uses WSL for agent CLI with /mnt/ path conversion', () => {
+        const launcher = makeLauncher();
+        const terminal = { cmd: 'wsl.exe', type: 'wsl' };
+        const result = buildLauncherCommand(launcher, repoPath, platform, terminal);
+        assert.equal(result.cmd, 'wsl.exe');
+        assert.deepEqual(result.args, ['--cd', '/mnt/c/Users/test/my-repo', '--', 'bash', '-c', 'opencode .']);
+      });
+
+      it('converts D: drive to /mnt/d/ for WSL', () => {
+        const launcher = makeLauncher();
+        const terminal = { cmd: 'wsl.exe', type: 'wsl' };
+        const result = buildLauncherCommand(launcher, 'D:\\projects\\app', platform, terminal);
+        assert.deepEqual(result.args, ['--cd', '/mnt/d/projects/app', '--', 'bash', '-c', 'opencode .']);
+      });
+
+      it('uses Git Bash for terminal launcher', () => {
+        const launcher = makeLauncher({ id: 'terminal', label: 'Terminal', group: 'terminals', command: 'terminal' });
+        const terminal = { cmd: 'C:\\Program Files\\Git\\bin\\bash.exe', type: 'gitbash' };
+        const result = buildLauncherCommand(launcher, repoPath, platform, terminal);
+        assert.equal(result.cmd, 'C:\\Program Files\\Git\\bin\\bash.exe');
+        assert.equal(result.args[0], '-c');
+        assert.ok(result.args[1].includes(`cd '${repoPath}'`));
+        assert.ok(result.args[1].includes('exec bash'));
+      });
+
+      it('uses Git Bash for agent CLI', () => {
+        const launcher = makeLauncher();
+        const terminal = { cmd: 'C:\\Program Files\\Git\\bin\\bash.exe', type: 'gitbash' };
+        const result = buildLauncherCommand(launcher, repoPath, platform, terminal);
+        assert.equal(result.cmd, 'C:\\Program Files\\Git\\bin\\bash.exe');
+        assert.equal(result.args[0], '-c');
+        assert.ok(result.args[1].includes(`cd '${repoPath}'`));
+        assert.ok(result.args[1].includes('opencode .'));
       });
 
       it('IDE launcher passes repo path directly on Windows', () => {
