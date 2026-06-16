@@ -6,6 +6,7 @@ mod assets;
 mod config;
 mod dashboard;
 mod health;
+mod planning;
 mod policy;
 mod projects;
 mod sessions;
@@ -20,5 +21,6 @@ pub fn build_routes(state: AppState) -> Router {
         .merge(dashboard::router(state.clone()))
         .merge(projects::router(state.clone()))
         .merge(assets::router(state.clone()))
+        .merge(planning::router(state.clone()))
         .merge(sessions::router(state))
 }
