@@ -50,6 +50,20 @@ instruction-engine.code-workspace
 copilot-ui/.tmp/
 scripts/.test-ledger/
 
+# Playwright outputs
+test-results/
+playwright-report/
+**/test-results/
+**/playwright-report/
+
+# Vite cache directories
+.vite/
+**/.vite/
+
+# AI / MCP tooling
+.mcp_config*
+**/.mcp_config*
+
 # npm-installed CLI wrappers (should come from node_modules)
 copilot-ui/tsc
 copilot-ui/tsc.cmd

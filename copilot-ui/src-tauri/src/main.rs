@@ -1050,6 +1050,17 @@ fn rust_binary_path(runtime_root: &str) -> Result<String, String> {
         return Ok(debug_path.to_string_lossy().to_string());
     }
 
+    // Debug (workspace): look in workspace root target/debug/
+    let workspace_debug_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("target")
+        .join("debug")
+        .join(bin_name);
+    if workspace_debug_path.exists() {
+        return Ok(workspace_debug_path.to_string_lossy().to_string());
+    }
+
     // Release: look in resource dir
     let release_path = std::path::Path::new(runtime_root).join(bin_name);
     if release_path.exists() {

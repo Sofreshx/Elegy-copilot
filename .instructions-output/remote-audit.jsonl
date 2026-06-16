@@ -1,0 +1,1 @@
+{"category":"security","eventType":"gateway.lifecycle.start.denied","action":"start","code":"invalid_lifecycle_payload","reason":"missing_or_invalid_sandbox_id","actor":"unknown","remoteAddress":"127.0.0.1","schemaVersion":1,"contractVersion":"messaging_gateway_audit_v1","compatibility":{"normalizedFrom":"v0","deterministic":true},"ts":"2026-06-15T16:57:06.232Z"}
