@@ -2,9 +2,11 @@ use axum::Router;
 
 use crate::app::AppState;
 
+mod agent;
 mod assets;
 mod config;
 mod dashboard;
+mod git;
 mod health;
 mod planning;
 mod policy;
@@ -22,5 +24,7 @@ pub fn build_routes(state: AppState) -> Router {
         .merge(projects::router(state.clone()))
         .merge(assets::router(state.clone()))
         .merge(planning::router(state.clone()))
+        .merge(git::router(state.clone()))
+        .merge(agent::router(state.clone()))
         .merge(sessions::router(state))
 }
