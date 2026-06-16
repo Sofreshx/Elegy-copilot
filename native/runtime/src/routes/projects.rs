@@ -18,6 +18,30 @@ async fn get_projects(State(state): State<AppState>) -> Json<Vec<ProjectResponse
     Json(list_projects(&state.config.elegy_home))
 }
 
+// GET /api/catalog/repos — catalog project list matching frontend expectations
+async fn get_catalog_repos(
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    let projects = list_projects(&state.config.elegy_home);
+    let result: Vec<serde_json::Value> = projects.iter().map(|p| {
+        serde_json::json!({
+            "projectId": p.project_id,
+            "repoId": p.repo_id,
+            "repoPath": p.repo_path,
+            "repoLabel": p.repo_label,
+            "canonicalRemote": p.canonical_remote,
+            "pinned": p.pinned,
+            "lastActivityMs": p.last_activity_ms,
+            "sessionCount": p.session_count,
+            "activeSessionCount": p.active_session_count,
+            "installedAssetSummary": { "agents": p.installed_asset_summary.agents, "skills": p.installed_asset_summary.skills },
+            "createdAt": p.created_at,
+            "updatedAt": p.updated_at,
+        })
+    }).collect();
+    Json(serde_json::json!({ "repos": result, "selectedRepo": null, "storage": {} }))
+}
+
 async fn get_project_sessions(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
@@ -144,6 +168,7 @@ pub fn router(state: AppState) -> Router {
             "/api/projects/{project_id}/activity",
             get(get_project_activity),
         )
+        .route("/api/catalog/repos", get(get_catalog_repos))
         .route("/api/catalog/repos/register", post(post_register_repo))
         .route("/api/catalog/repos/unregister", post(post_unregister_repo))
         .route("/api/catalog/repos/select", post(post_select_repo))

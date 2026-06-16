@@ -3,6 +3,7 @@ use axum::{
     extract::{State, Path},
     Json,
 };
+use std::collections::HashSet;
 use crate::app::AppState;
 use crate::sessions;
 use crate::error::ApiError;
@@ -10,6 +11,7 @@ use crate::error::ApiError;
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/api/sessions", get(list_sessions))
+        .route("/api/sessions/unified", get(unified_sessions))
         .route("/api/sessions/{id}/events", get(read_events))
         .route("/api/sessions/{id}/plan", get(read_plan))
         .route("/api/sessions/{id}/archive", axum::routing::post(archive_session))
@@ -37,6 +39,31 @@ async fn list_sessions(
         })
     }).collect();
     Json(serde_json::Value::Array(result))
+}
+
+/// GET /api/sessions/unified — merge sessions from both elegy_home and sandboxes_home
+async fn unified_sessions(
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    let sessions_list = sessions::list_sessions(&state.config.sandboxes_home);
+    let copilot_sessions = sessions::list_sessions(&state.config.elegy_home);
+    let mut seen: HashSet<&str> = HashSet::new();
+    let mut result = Vec::new();
+    for s in copilot_sessions.iter().chain(sessions_list.iter()) {
+        if seen.insert(&s.id) {
+            result.push(serde_json::json!({
+                "id": s.id,
+                "storageId": s.storage_id,
+                "repo": s.repo,
+                "repoId": s.repo_id,
+                "status": s.status,
+                "source": "copilot",
+                "startTime": s.start_time,
+                "lastEventTime": s.last_event_time,
+            }));
+        }
+    }
+    Json(serde_json::json!({ "sessions": result, "count": result.len() }))
 }
 
 /// GET /api/sessions/:id/events — read recent events
