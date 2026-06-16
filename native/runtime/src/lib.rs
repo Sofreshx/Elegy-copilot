@@ -5,6 +5,7 @@ pub mod config_service;
 pub mod dashboard;
 pub mod db;
 pub mod error;
+pub mod executor;
 pub mod persistence;
 pub mod policy;
 pub mod projects;

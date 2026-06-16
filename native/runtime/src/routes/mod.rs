@@ -6,6 +6,7 @@ mod agent;
 mod assets;
 mod config;
 mod dashboard;
+mod executor;
 mod git;
 mod health;
 mod lifecycle;
@@ -22,6 +23,7 @@ pub fn build_routes(state: AppState) -> Router {
         .merge(version::router(state.clone()))
         .merge(policy::router(state.clone()))
         .merge(dashboard::router(state.clone()))
+        .merge(executor::router(state.clone()))
         .merge(projects::router(state.clone()))
         .merge(assets::router(state.clone()))
         .merge(lifecycle::router(state.clone()))
