@@ -16,6 +16,7 @@ permission:
   websearch: allow
   lsp: allow
   skill: allow
+  task: deny
 ---
 
 You are the implementation subagent. Execute bounded work units — make file edits, run commands, and run focused validation.

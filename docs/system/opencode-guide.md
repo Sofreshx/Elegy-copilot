@@ -1,6 +1,6 @@
 ---
 created: 2026-05-11
-updated: 2026-05-29
+updated: 2026-06-16
 category: system
 status: current
 doc_kind: node
@@ -51,6 +51,8 @@ OpenCode provides four public lane agents for matching effort to task scope. Sel
 - **standard**: Scoped features and normal bug fixes; Flash for execution, Pro at gates
 - **spec**: Contract/API/user-facing behavior; spec-first workflow; Pro for spec review
 - **project**: Multi-session roadmap work; Elegy Planning, worktree, evidence, review
+
+Support subagents are leaf-only. `impl`, `explorer`, `reviewer`, and managed note subagents must deny Task delegation. Validate with `node scripts/validate-opencode-agent-topology.js`.
 
 See `opencode-assets/home/AGENTS.md` (installed to `~/.config/opencode/AGENTS.md`) for the full OpenCode Method specification.
 

@@ -86,10 +86,13 @@ async function main() {
         assert.ok(fs.existsSync(path.join(agentsDir, `${subagent}.md`)), `subagent ${subagent}.md should exist`);
       }
 
-      // R9: verify agent count is exactly 4 primary lanes + 3 hidden subagents = 7 total
+      // R9: verify installed agent count matches the manifest-managed agent surface.
       const agentFiles = fs.readdirSync(agentsDir).filter(f => f.endsWith('.md'));
-      assert.strictEqual(agentFiles.length, 7,
-        `agent count should be exactly 7 (4 lanes + 3 subagents), found ${agentFiles.length}: ${agentFiles.join(', ')}`);
+      const manifestPath = path.resolve(__dirname, '..', 'opencode-assets', 'manifest.json');
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      const manifestAgentCount = manifest.assets.filter(a => a.type === 'agent').length;
+      assert.strictEqual(agentFiles.length, manifestAgentCount,
+        `agent count should match manifest (${manifestAgentCount}), found ${agentFiles.length}: ${agentFiles.join(', ')}`);
 
       const secondSummary = await installer.runInstall({
         opencodeHome,
@@ -245,6 +248,13 @@ async function main() {
 
   await test('profile role coverage validator passes', async () => {
     execFileSync('node', ['scripts/validate-profile-role-coverage.js'], {
+      cwd: path.resolve(__dirname, '..'),
+      stdio: 'pipe',
+    });
+  });
+
+  await test('opencode agent topology validator passes', async () => {
+    execFileSync('node', ['scripts/validate-opencode-agent-topology.js'], {
       cwd: path.resolve(__dirname, '..'),
       stdio: 'pipe',
     });

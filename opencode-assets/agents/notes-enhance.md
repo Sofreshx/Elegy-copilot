@@ -1,6 +1,8 @@
 ---
 mode: subagent
 hidden: true
+model: deepseek/deepseek-v4-pro
+reasoningEffort: max
 description: "Enhance a note: improve clarity, fix grammar, expand ideas, restructure for readability. Write access enabled."
 permission:
   read: allow

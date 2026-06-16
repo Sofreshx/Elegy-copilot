@@ -1,6 +1,8 @@
 ---
 mode: subagent
 hidden: true
+model: deepseek/deepseek-v4-flash
+reasoningEffort: max
 description: "Find duplicate or similar notes. Read-only. Compare content similarity."
 permission:
   read: allow

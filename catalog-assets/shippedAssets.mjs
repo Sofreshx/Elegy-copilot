@@ -93,9 +93,14 @@ export const SHIPPED_ASSETS = [
   agent('opencode-agent-impl', 'opencode-assets/agents/impl.md'),
   agent('opencode-agent-reviewer', 'opencode-assets/agents/reviewer.md'),
   agent('opencode-agent-explorer', 'opencode-assets/agents/explorer.md'),
+  agent('notes-enhance', 'opencode-assets/agents/notes-enhance.md'),
+  agent('notes-reexamine', 'opencode-assets/agents/notes-reexamine.md'),
+  agent('notes-research', 'opencode-assets/agents/notes-research.md'),
+  agent('notes-deduplicate', 'opencode-assets/agents/notes-deduplicate.md'),
   // OpenCode plugins and skills
   plugin('opencode-plugins-package-json', 'opencode-assets/plugins/package.json'),
   plugin('opencode-planning-plugin', 'opencode-assets/plugins/planning.js'),
+  plugin('opencode-notify-plugin', 'opencode-assets/plugins/notify.js'),
   skill('opencode-planning-tools-skill', 'opencode-assets/skills/planning-tools'),
 
   instructions('antigravity-global-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {

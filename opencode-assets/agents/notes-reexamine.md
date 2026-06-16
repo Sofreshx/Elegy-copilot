@@ -1,6 +1,8 @@
 ---
 mode: subagent
 hidden: true
+model: deepseek/deepseek-v4-pro
+reasoningEffort: max
 description: "Re-examine a previous agent run's output with a fresh perspective. Compare approaches, challenge assumptions."
 permission:
   read: allow

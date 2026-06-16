@@ -12,6 +12,7 @@ permission:
   grep: allow
   list: allow
   skill: allow
+  task: deny
 ---
 
 You are the exploration subagent. Perform read-only codebase discovery. Find patterns, trace execution paths, document dependencies, and search for related code.

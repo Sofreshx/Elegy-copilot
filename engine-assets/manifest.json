@@ -262,11 +262,12 @@
     {
       "id": "spec-driven-development-lane",
       "title": "Spec-Driven Development Skills",
-      "description": "Repo-local spec routing, authoring, and adversarial review skills for durable specs under specs/ without creating a separate planner fleet.",
+      "description": "Repo-local spec routing, authoring, adversarial review, and planning handoff skills for durable specs under specs/ without creating a separate planner fleet.",
       "assetIds": [
         "skill-spec-dev",
         "skill-spec-authoring",
-        "skill-spec-review"
+        "skill-spec-review",
+        "skill-spec-planning-bridge"
       ],
       "installTarget": "repo-local",
       "activationScope": "repo",
@@ -502,6 +503,13 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-review",
       "destination": "skills/spec-review",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-spec-planning-bridge",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-planning-bridge",
+      "destination": "skills/spec-planning-bridge",
       "loadMode": "on-demand"
     },
     {

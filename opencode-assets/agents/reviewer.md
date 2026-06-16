@@ -12,6 +12,7 @@ permission:
   grep: allow
   list: allow
   skill: allow
+  task: deny
 ---
 
 You are the review subagent. Provide high-precision review of code, specs, plans, and evidence. Read-only — you cannot edit files or run commands.
