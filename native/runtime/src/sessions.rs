@@ -48,7 +48,7 @@ pub struct EventRecord {
     #[serde(default)]
     meta: Option<serde_json::Value>,
     #[serde(default)]
-    payload: Option<serde_json::Value>,
+    pub payload: Option<serde_json::Value>,
     #[serde(default)]
     data: Option<serde_json::Value>,
     #[serde(default)]
@@ -213,7 +213,7 @@ pub fn read_recent_events(events_path: &Path, limit: usize) -> Vec<EventRecord> 
         .collect()
 }
 
-fn event_type(event: &EventRecord) -> Option<String> {
+pub fn event_type(event: &EventRecord) -> Option<String> {
     event
         .r#type
         .clone()

@@ -1,5 +1,5 @@
 use axum::extract::{Path, Query, State};
-use axum::routing::post;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 
@@ -34,6 +34,16 @@ pub fn router(state: AppState) -> Router {
         // Persistence management
         .route("/api/planning/persistence/init", post(init_persistence))
         .route("/api/planning/persistence/retention", post(run_retention))
+        // Search, session, explorer
+        .route("/api/planning/search", get(search_stub))
+        .route("/api/planning/session", get(session_stub))
+        .route("/api/planning/explorer", get(explorer_stub))
+        // Persistence sub-routes
+        .route("/api/planning/persistence/corruption/scan", post(corruption_scan_stub))
+        .route("/api/planning/persistence/export", post(export_stub))
+        .route("/api/planning/persistence/import", post(import_stub))
+        // Workflow artifacts sub-route
+        .route("/api/planning/workflow-artifacts/continuation-package", get(continuation_package_stub))
         .with_state(state)
 }
 
@@ -510,6 +520,38 @@ async fn run_retention(
         }))),
         Err(e) => Ok(Json(serde_json::json!({ "ok": false, "error": { "code": e.code, "reason": e.reason } }))),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Stub Handlers for missing routes
+// ---------------------------------------------------------------------------
+
+async fn search_stub() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"results": [], "stub": true}))
+}
+
+async fn session_stub() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"session": null, "stub": true}))
+}
+
+async fn explorer_stub() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"explorer": null, "stub": true}))
+}
+
+async fn corruption_scan_stub() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "corrupted": [], "stub": true}))
+}
+
+async fn export_stub() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "data": null, "stub": true}))
+}
+
+async fn import_stub() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "stub": true}))
+}
+
+async fn continuation_package_stub() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"package": null, "stub": true}))
 }
 
 // ---------------------------------------------------------------------------

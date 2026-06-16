@@ -1206,10 +1206,13 @@ fn main() {
                     let _ = clone.write_all(format!("[{ts}] setup closure entered\n").as_bytes());
                 }
             }
-            let use_rust_backend = std::env::args().any(|a| a == "--rust-backend")
-                || std::env::var("RUST_BACKEND").map(|v| v == "1").unwrap_or(false);
+            let use_node_backend = std::env::args().any(|a| a == "--node-backend")
+                || std::env::var("NODE_BACKEND").map(|v| v == "1").unwrap_or(false);
 
-            let window_url = if use_rust_backend {
+            let window_url = if use_node_backend {
+                eprintln!("[tauri-runtime] using Node.js backend (legacy)");
+                launch_runtime_host(app.handle(), stderr_capture_for_setup)?
+            } else {
                 eprintln!("[tauri-runtime] using Rust native backend");
                 let runtime_root = runtime_root(app.handle())?;
                 let (child, url) = launch_rust_runtime(&runtime_root.to_string_lossy())?;
@@ -1242,8 +1245,6 @@ fn main() {
                 spawn_runtime_watchdog(app.handle().clone(), runtime_state.cancel.clone());
 
                 url
-            } else {
-                launch_runtime_host(app.handle(), stderr_capture_for_setup)?
             };
             create_main_window(app.handle(), &window_url)?;
             Ok(())
