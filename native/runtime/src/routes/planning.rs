@@ -52,6 +52,7 @@ fn open_planning_db(state: &AppState) -> Result<db::Database, ApiError> {
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CreateRecordBody {
     record_id: String,
     owner_id: String,
@@ -61,11 +62,13 @@ struct CreateRecordBody {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ListRecordsQuery {
     owner_id: String,
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CreateSuggestionBody {
     suggestion_id: String,
     actor_id: String,
@@ -75,11 +78,13 @@ struct CreateSuggestionBody {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ReadSuggestionQuery {
     suggestion_id: String,
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CreateRecapBody {
     recap_id: String,
     actor_id: String,
@@ -89,11 +94,13 @@ struct CreateRecapBody {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ReadRecapQuery {
     recap_id: String,
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CreateArtifactBody {
     artifact_id: String,
     actor_id: String,
@@ -112,11 +119,13 @@ struct CreateArtifactBody {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ReadArtifactQuery {
     artifact_id: String,
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CreateCompareReceiptBody {
     receipt_id: String,
     actor_id: String,
@@ -134,6 +143,7 @@ struct CreateCompareReceiptBody {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CreateMergeIntentBody {
     token_id: String,
     compare_receipt_id: String,
@@ -150,6 +160,7 @@ struct CreateMergeIntentBody {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 struct MergeRecordsBody {
     target_id: String,
@@ -160,6 +171,7 @@ struct MergeRecordsBody {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RetentionBody {
     older_than_days: u64,
     dry_run: Option<bool>,

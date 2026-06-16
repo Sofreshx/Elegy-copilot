@@ -218,7 +218,10 @@ fn save_repo_inventory_state(inventory_path: &Path, state: &RepoInventoryState) 
         let _ = fs::create_dir_all(parent);
     }
     let serialized =
-        serde_json::to_string_pretty(state).expect("repo inventory state should serialize") + "\n";
+        serde_json::to_string_pretty(state).unwrap_or_else(|e| {
+            tracing::error!("Failed to serialize repo inventory: {}", e);
+            "{}".to_string()
+        }) + "\n";
     let _ = fs::write(inventory_path, serialized);
 }
 

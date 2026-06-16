@@ -1,6 +1,5 @@
 use axum::{Router, routing::get, extract::State, Json};
 use crate::app::AppState;
-use crate::error::ApiError;
 
 pub fn router(state: AppState) -> Router {
     Router::new()

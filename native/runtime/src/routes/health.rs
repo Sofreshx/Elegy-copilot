@@ -39,7 +39,7 @@ async fn get_health(State(state): State<AppState>) -> Json<RuntimeHealthResponse
         elegy_home: state.config.elegy_home.display().to_string(),
         changes: Some(version),
         runtime,
-        policy: serde_json::to_value(policy).expect("policy response should serialize"),
+        policy: serde_json::to_value(policy).unwrap_or(serde_json::Value::Null),
         planning_persistence,
         planning_durability_dependency_gate: Some(json!({
             "status": "open",

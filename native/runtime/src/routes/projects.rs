@@ -49,7 +49,7 @@ async fn patch_project(
     match update_project_fields(&state.config.elegy_home, normalized_project_id, &payload) {
         Some(project) => (
             StatusCode::OK,
-            Json(serde_json::to_value(project).expect("project response should serialize")),
+            Json(serde_json::to_value(project).unwrap_or(serde_json::Value::Null)),
         ),
         None => project_error(
             StatusCode::NOT_FOUND,

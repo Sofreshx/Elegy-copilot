@@ -191,8 +191,10 @@ mod tests {
             policy_shape.body_keys,
             Some(vec![
                 "checkedAt".to_string(),
+                "exitCode".to_string(),
                 "message".to_string(),
                 "ok".to_string(),
+                "reason".to_string(),
                 "status".to_string(),
                 "validatorPath".to_string(),
             ])

@@ -36,7 +36,7 @@ async fn list_sessions(
             "status": s.status,
         })
     }).collect();
-    Json(serde_json::json!(result))
+    Json(serde_json::Value::Array(result))
 }
 
 /// GET /api/sessions/:id/events — read recent events

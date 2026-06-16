@@ -39,8 +39,11 @@ fn default_engine_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(Path::parent)
-        .expect("native/runtime should stay nested under repo root")
-        .to_path_buf()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| {
+            tracing::warn!("Could not determine engine root from manifest dir, using current dir");
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+        })
 }
 
 fn resolve_home_dir(env: &std::collections::HashMap<String, String>) -> PathBuf {
