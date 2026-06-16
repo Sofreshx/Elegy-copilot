@@ -31,7 +31,9 @@
     "commit-check:discover": "node scripts/commit-check-discover.mjs",
     "commit-check:setup": "node scripts/commit-check-setup.mjs",
     "commit-check:run": "node scripts/commit-check-run.mjs",
-    "commit-check": "node scripts/commit-check-run.mjs"
+    "commit-check": "node scripts/commit-check-run.mjs",
+    "build:rust-backend": "cargo build --workspace",
+    "test:rust-backend": "cargo test --workspace"
   },
   "dependencies": {
     "@playwright/test": "^1.59.1"
