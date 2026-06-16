@@ -576,9 +576,6 @@ export async function runInstall(args = {}) {
           const bestShell = await getBestShell({ skipSlowProbes: true });
           if (bestShell) {
             config.shell = bestShell.path;
-            if (bestShell.type === 'gitbash') {
-              config.env = { ...(config.env || {}), OPENCODE_GIT_BASH_PATH: bestShell.path };
-            }
             shellUpdated = true;
           }
 
