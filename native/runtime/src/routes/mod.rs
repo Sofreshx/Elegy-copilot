@@ -8,6 +8,7 @@ mod config;
 mod dashboard;
 mod git;
 mod health;
+mod lifecycle;
 mod planning;
 mod policy;
 mod projects;
@@ -23,6 +24,7 @@ pub fn build_routes(state: AppState) -> Router {
         .merge(dashboard::router(state.clone()))
         .merge(projects::router(state.clone()))
         .merge(assets::router(state.clone()))
+        .merge(lifecycle::router(state.clone()))
         .merge(planning::router(state.clone()))
         .merge(git::router(state.clone()))
         .merge(agent::router(state.clone()))
