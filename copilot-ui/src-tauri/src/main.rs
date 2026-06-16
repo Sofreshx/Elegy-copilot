@@ -1030,6 +1030,64 @@ fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result
     Ok(parsed.window_url)
 }
 
+fn rust_binary_path(runtime_root: &str) -> Result<String, String> {
+    let bin_name = if cfg!(target_os = "windows") {
+        "elegy-native-runtime.exe"
+    } else {
+        "elegy-native-runtime"
+    };
+
+    // Debug: look in native/runtime/target/debug/
+    let debug_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("native")
+        .join("runtime")
+        .join("target")
+        .join("debug")
+        .join(bin_name);
+    if debug_path.exists() {
+        return Ok(debug_path.to_string_lossy().to_string());
+    }
+
+    // Release: look in resource dir
+    let release_path = std::path::Path::new(runtime_root).join(bin_name);
+    if release_path.exists() {
+        return Ok(release_path.to_string_lossy().to_string());
+    }
+
+    // Fallback: try PATH
+    if which::which(bin_name).is_ok() {
+        return Ok(bin_name.to_string());
+    }
+
+    Err(format!(
+        "Rust runtime binary '{}' not found. Build with: cargo build -p elegy-native-runtime",
+        bin_name
+    ))
+}
+
+fn launch_rust_runtime(runtime_root: &str) -> Result<(Child, String), String> {
+    let binary = rust_binary_path(runtime_root)?;
+    tracing::info!(binary = %binary, "launching Rust backend");
+
+    let child = Command::new(&binary)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env("RUST_LOG", "info")
+        .spawn()
+        .map_err(|e| format!("Failed to spawn Rust runtime: {}", e))?;
+
+    let pid = child.id();
+    tracing::info!(pid = pid, "Rust backend started");
+
+    // Construct the window URL (hardcoded port matches native/runtime default)
+    let window_url = "http://127.0.0.1:3211".to_string();
+
+    Ok((child, window_url))
+}
+
 fn shutdown_runtime(app: &AppHandle) {
     let runtime_state = app.state::<RuntimeChildState>();
     runtime_state.cancel.store(true, Ordering::SeqCst);
@@ -1137,7 +1195,45 @@ fn main() {
                     let _ = clone.write_all(format!("[{ts}] setup closure entered\n").as_bytes());
                 }
             }
-            let window_url = launch_runtime_host(app.handle(), stderr_capture_for_setup)?;
+            let use_rust_backend = std::env::args().any(|a| a == "--rust-backend")
+                || std::env::var("RUST_BACKEND").map(|v| v == "1").unwrap_or(false);
+
+            let window_url = if use_rust_backend {
+                eprintln!("[tauri-runtime] using Rust native backend");
+                let runtime_root = runtime_root(app.handle())?;
+                let (child, url) = launch_rust_runtime(&runtime_root.to_string_lossy())?;
+                let child_pid = child.id();
+
+                // Store child in RuntimeChildState for shutdown/watchdog
+                let runtime_state = app.state::<RuntimeChildState>();
+                {
+                    let mut inner_guard = runtime_state
+                        .inner
+                        .lock()
+                        .map_err(|_| "Unable to lock runtime child state.".to_string())?;
+                    inner_guard.replace(child);
+                }
+                *runtime_state
+                    .pid
+                    .lock()
+                    .map_err(|_| "Unable to lock runtime pid state.".to_string())? = Some(child_pid);
+                *runtime_state
+                    .window_url
+                    .lock()
+                    .map_err(|_| "Unable to lock runtime window url state.".to_string())? =
+                    Some(url.clone());
+                *runtime_state
+                    .stderr_capture
+                    .lock()
+                    .map_err(|_| "Unable to lock runtime stderr capture state.".to_string())? =
+                    Some(Arc::clone(&stderr_capture_for_setup));
+
+                spawn_runtime_watchdog(app.handle().clone(), runtime_state.cancel.clone());
+
+                url
+            } else {
+                launch_runtime_host(app.handle(), stderr_capture_for_setup)?
+            };
             create_main_window(app.handle(), &window_url)?;
             Ok(())
         })
