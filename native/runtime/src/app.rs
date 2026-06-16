@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Context;
-use axum::response::IntoResponse;
 use axum::Router;
 use chrono::Utc;
 use elegy_native_contracts::{PolicyPreflightResponse, VersionResponse};
@@ -12,7 +11,6 @@ use tower_http::trace::TraceLayer;
 pub use crate::auth::AuthContext;
 use crate::auth::AuthConfig;
 use crate::config::RuntimeConfig;
-use crate::error::ApiError;
 use crate::policy::evaluate_policy_preflight;
 
 #[derive(Debug, Clone)]
@@ -80,16 +78,15 @@ pub fn build_router(state: AppState) -> Router {
         crate::auth::auth_middleware,
     );
 
+    let ui_path = state.config.engine_root.join("copilot-ui").join("ui-dist");
     Router::new()
-        .merge(crate::routes::build_routes(state))
+        .merge(crate::routes::build_routes(state.clone()))
+        .fallback_service(
+            tower_http::services::ServeDir::new(ui_path)
+        )
         .layer(auth_layer)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
-        .fallback(handle_404)
-}
-
-async fn handle_404() -> impl IntoResponse {
-    ApiError::NotFound("route not found".to_string())
 }
 
 pub async fn serve(state: AppState) -> anyhow::Result<()> {
