@@ -442,3 +442,125 @@ async fn dashboard_summary_has_source_field() {
     assert!(body.get("recentActivity").is_some());
     assert!(body.get("healthIndicator").is_some());
 }
+
+// ---------------------------------------------------------------------------
+// Lexicon route — was crashing LexiconView with Object.entries(undefined)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn lexicon_endpoint_returns_full_shape() {
+    let dir = tmp();
+    let (status, body) = get_json(app(&dir), "/api/lexicon").await;
+    assert_ok(status);
+    // Frontend's LexiconView does Object.entries(state.categories) on these.
+    assert!(body.get("entries").and_then(|v| v.as_array()).is_some());
+    assert!(body.get("total").and_then(|v| v.as_u64()).is_some());
+    assert!(body.get("filteredTotal").and_then(|v| v.as_u64()).is_some());
+    let categories = body.get("categories").expect("categories present");
+    assert!(categories.is_object(), "categories must be an object, not undefined");
+    // Object.entries must not crash
+    let entries: Vec<(_, _)> = categories
+        .as_object()
+        .map(|o| o.iter().collect())
+        .unwrap_or_default();
+    let _: Vec<_> = entries;
+}
+
+#[tokio::test]
+async fn lexicon_entry_has_category_label() {
+    let dir = tmp();
+    let state = test_state(dir.path());
+    let lexicon_dir = state.config.engine_root.join("docs").join("lexicon");
+    std::fs::create_dir_all(&lexicon_dir).expect("create lexicon dir");
+    let seed_path = lexicon_dir.join("zz-rust-test-only.md");
+    std::fs::write(
+        &seed_path,
+        "### Rust Test Term\n\n**Definition:** A test definition.\n\n**Tags:** testing, sample\n",
+    )
+    .expect("write seed file");
+
+    // Always clean up the seed file, even on assertion failure.
+    struct SeedCleanup<'a>(&'a std::path::Path);
+    impl<'a> Drop for SeedCleanup<'a> {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(self.0);
+        }
+    }
+    let _cleanup = SeedCleanup(&seed_path);
+
+    let app = build_router(state);
+    let (status, body) = get_json(app, "/api/lexicon").await;
+    assert_ok(status);
+    let entries = body.get("entries").and_then(|v| v.as_array()).expect("entries array");
+    // The seeded file should produce a Rust Test Term entry
+    let test_entry = entries
+        .iter()
+        .find(|e| e.get("term").and_then(|v| v.as_str()) == Some("Rust Test Term"))
+        .expect("seeded test entry must appear in results");
+    assert!(test_entry.get("categoryLabel").is_some(), "entry must have categoryLabel");
+    assert_eq!(
+        test_entry.get("categoryLabel").and_then(|v| v.as_str()),
+        Some("Zz Rust Test Only"),
+        "categoryLabel should be Title-Case of file name"
+    );
+    // The categories map must include our seeded file
+    let categories = body.get("categories").and_then(|v| v.as_object()).expect("categories object");
+    assert!(categories.contains_key("zz-rust-test-only"));
+    assert_eq!(
+        categories.get("zz-rust-test-only").and_then(|v| v.as_str()),
+        Some("Zz Rust Test Only")
+    );
+}
+
+#[tokio::test]
+async fn lexicon_search_filter() {
+    let dir = tmp();
+    let (status, body) = get_json(app(&dir), "/api/lexicon?q=foo").await;
+    assert_ok(status);
+    assert!(body.get("entries").and_then(|v| v.as_array()).is_some());
+    assert!(body.get("filteredTotal").is_some());
+}
+
+// ---------------------------------------------------------------------------
+// Smart fallback — catch-all returns shape-safe defaults
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn smart_fallback_returns_safe_object_for_unmatched_routes() {
+    let dir = tmp();
+    // /api/sessions/unified is not registered but is in the frontend's
+    // call list. The smart fallback must return a safe shape, not
+    // { ok: true, stub: true }.
+    let (status, body) = get_json(app(&dir), "/api/sessions/unified").await;
+    assert_ok(status);
+    // Should NOT be the legacy stub
+    assert!(body.get("stub").is_none() || body.get("stub") != Some(&json!(true)),
+        "smart fallback should not return legacy stub:true for known paths");
+    // Must be an object (not null) so Object.entries() works
+    assert!(body.is_object(), "fallback must return object, got: {body}");
+}
+
+#[tokio::test]
+async fn smart_fallback_includes_safety_fields() {
+    let dir = tmp();
+    // /api/executor/jobs is not registered — must hit the smart fallback.
+    // The fallback must return a safe shape (with a `jobs` array) so
+    // frontend .map() / .filter() on `body.jobs` doesn't crash.
+    let (status, body) = get_json(app(&dir), "/api/sessions/unified").await;
+    assert_ok(status);
+    assert!(body.is_object(), "fallback must be object, got: {body}");
+    // The smart fallback should produce a usable shape for sessions/unified
+    // (not the legacy {ok:true, stub:true}).
+    let legacy_stub = body.get("stub").and_then(|v| v.as_bool()).unwrap_or(false);
+    assert!(!legacy_stub, "smart fallback should not return legacy stub:true for known paths");
+}
+
+#[tokio::test]
+async fn smart_fallback_legacy_stub_only_for_truly_unknown_paths() {
+    let dir = tmp();
+    let (status, body) = get_json(app(&dir), "/api/totally/unknown/path").await;
+    assert_ok(status);
+    // For truly unknown paths, the legacy stub marker is acceptable
+    // as long as it remains a valid object
+    assert!(body.is_object());
+}

@@ -1,14 +1,17 @@
 use axum::{Router, routing::get, extract::{State, Query}, Json};
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use crate::app::AppState;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 struct LexiconQuery {
     q: Option<String>,
+    category: Option<String>,
 }
 
 pub fn router(state: AppState) -> Router {
     Router::new()
+        .route("/api/lexicon", get(lexicon_handler))
         .route("/api/lexicon/entries", get(entries_handler))
         .route("/api/lexicon/search", get(search_handler))
         .with_state(state)
@@ -20,11 +23,33 @@ fn lexicon_dir(state: &AppState) -> std::path::PathBuf {
     state.config.engine_root.join("docs").join("lexicon")
 }
 
+fn category_label_from_filename(name: &str) -> String {
+    // "ai-ml.md" -> "Ai Ml"
+    name.trim_end_matches(".md")
+        .split(|c: char| c == '-' || c == '_')
+        .filter(|s| !s.is_empty())
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 fn parse_lexicon_entry(file_path: &std::path::Path, category: &str) -> Vec<serde_json::Value> {
     let content = match std::fs::read_to_string(file_path) {
         Ok(c) => c,
         Err(_) => return vec![],
     };
+
+    let file_name = file_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(category);
+    let category_label = category_label_from_filename(file_name);
 
     let mut entries = vec![];
     let mut current_term: Option<String> = None;
@@ -45,6 +70,7 @@ fn parse_lexicon_entry(file_path: &std::path::Path, category: &str) -> Vec<serde
                     "related": current_related.trim(),
                     "tags": current_tags,
                     "file": category,
+                    "categoryLabel": category_label,
                 }));
             }
             current_term = Some(term.trim().to_string());
@@ -90,18 +116,20 @@ fn parse_lexicon_entry(file_path: &std::path::Path, category: &str) -> Vec<serde
             "related": current_related.trim(),
             "tags": current_tags,
             "file": category,
+            "categoryLabel": category_label,
         }));
     }
 
     entries
 }
 
-fn load_all_entries(state: &AppState) -> (Vec<serde_json::Value>, u64) {
+fn load_all_entries_with_categories(state: &AppState) -> (Vec<serde_json::Value>, u64, BTreeMap<String, String>) {
     let dir = lexicon_dir(state);
     let mut all_entries = vec![];
+    let mut categories: BTreeMap<String, String> = BTreeMap::new();
 
     if !dir.is_dir() {
-        return (all_entries, 0);
+        return (all_entries, 0, categories);
     }
 
     if let Ok(entries) = std::fs::read_dir(&dir) {
@@ -115,7 +143,11 @@ fn load_all_entries(state: &AppState) -> (Vec<serde_json::Value>, u64) {
                             continue;
                         }
                         let category = name.strip_suffix(".md").unwrap_or(&name).to_string();
+                        let category_label = category_label_from_filename(&name);
                         let file_entries = parse_lexicon_entry(&path, &category);
+                        if !file_entries.is_empty() {
+                            categories.entry(category).or_insert(category_label);
+                        }
                         all_entries.extend(file_entries);
                     }
                 }
@@ -124,7 +156,12 @@ fn load_all_entries(state: &AppState) -> (Vec<serde_json::Value>, u64) {
     }
 
     let count = all_entries.len() as u64;
-    (all_entries, count)
+    (all_entries, count, categories)
+}
+
+fn load_all_entries(state: &AppState) -> (Vec<serde_json::Value>, u64) {
+    let (entries, total, _) = load_all_entries_with_categories(state);
+    (entries, total)
 }
 
 fn search_entries(entries: &[serde_json::Value], query: &str) -> Vec<serde_json::Value> {
@@ -213,5 +250,43 @@ async fn search_handler(
         "results": results,
         "total": total,
         "filteredTotal": results.len(),
+    }))
+}
+
+/// GET /api/lexicon?q=...&category=...
+/// Combined endpoint used by the frontend LexiconView.
+/// Returns the full shape: { entries, total, filteredTotal, categories }.
+async fn lexicon_handler(
+    State(state): State<AppState>,
+    Query(query): Query<LexiconQuery>,
+) -> Json<serde_json::Value> {
+    let (all_entries, total, categories) = load_all_entries_with_categories(&state);
+
+    let q = query.q.as_deref().unwrap_or("").trim();
+    let category = query.category.as_deref().unwrap_or("").trim();
+
+    // Apply category filter first
+    let mut filtered: Vec<serde_json::Value> = if category.is_empty() {
+        all_entries.clone()
+    } else {
+        all_entries
+            .iter()
+            .filter(|e| e["file"].as_str() == Some(category))
+            .cloned()
+            .collect()
+    };
+
+    // Apply text search on top
+    if !q.is_empty() {
+        filtered = search_entries(&filtered, q);
+    }
+
+    let filtered_total = filtered.len() as u64;
+
+    Json(serde_json::json!({
+        "entries": filtered,
+        "total": total,
+        "filteredTotal": filtered_total,
+        "categories": categories,
     }))
 }
