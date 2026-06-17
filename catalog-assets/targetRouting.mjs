@@ -214,8 +214,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-agent-project'),
       route('opencode-agent-quick'),
       route('opencode-agent-reviewer'),
-      route('opencode-agent-spec'),
-      route('opencode-agent-standard'),
+      route('opencode-agent-scout'),
       route('notes-enhance'),
       route('notes-reexamine'),
       route('notes-research'),
@@ -244,6 +243,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-ui-system-skill', { sourceAssetId: 'skill-ui-system' }),
       route('opencode-worktree-plugin', { destination: 'plugins/worktree.js' }),
       route('opencode-worktree-skill'),
+      route('opencode-project-workflow-skill'),
     ],
   },
   {

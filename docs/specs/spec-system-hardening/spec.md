@@ -22,8 +22,8 @@ The spec-driven development system produces durable requirements artifacts but t
 - `docs/specs/planning-visibility-canonicalization/spec.md` (status: draft) — `supersedes` field could reference superseded specs but no validation exists for cross-spec ID resolution
 - `docs/specs/align-elegy-db-assets/spec.md` (status: draft) — effectively superseded by `planning-visibility-canonicalization` but not marked as such
 - `docs/specs/planning-explorer-view/spec.md` (status: draft) — effectively superseded by `planning-visibility-canonicalization` but not marked as such
-- `opencode-assets/agents/spec.md` — spec lane agent with 6 phases; Phase 2 mentions `--strict` but with inconsistent language; Phase 4 mentions acceptance verification but not by explicit `→ verify:` reference; no validation-failure gate in Safety section
-- `docs/specs/verifiable-acceptance-criteria/spec.md` (status: draft) — this spec builds on verifiable-acceptance-criteria's `→ verify:` format (R1), shares the same validator file (`scripts/validate-specs.js`), and modifies overlapping skill/agent files (`catalog-assets/shared-skills/spec-review/SKILL.md`, `catalog-assets/shared-skills/spec-authoring/SKILL.md`, `opencode-assets/agents/spec.md`). Implementation ordering must coordinate to avoid merge conflicts on the shared files.
+- `opencode-assets/agents/spec.md` — (deleted in agentic-lanes-quality-v2; spec authoring now handled by `spec-authoring` skill and `project-workflow` skill)
+- `docs/specs/verifiable-acceptance-criteria/spec.md` (status: draft) — this spec builds on verifiable-acceptance-criteria's `→ verify:` format (R1), shares the same validator file (`scripts/validate-specs.js`), and modifies overlapping skill/agent files (`catalog-assets/shared-skills/spec-review/SKILL.md`, `catalog-assets/shared-skills/spec-authoring/SKILL.md`). Implementation ordering must coordinate to avoid merge conflicts on the shared files.
 
 ## Requirements
 

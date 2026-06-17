@@ -33,13 +33,11 @@ Practical rule:
 
 Agents are still useful, but they’re more likely to diverge (tools, UX, capabilities). Keep agents tool-neutral when possible, and only fork into tool-specific variants when you have a real need.
 
-## Lane Routing Ownership
+## Routing Ownership
 
-Lane selection belongs in catalog/search metadata, frontmatter descriptions, and canonical routing docs.
-Do not duplicate `When To Use` / `When NOT To Use` sections inside lane agent bodies.
-
-Selected lane agents should execute their lane. If discovered scope exceeds the selected lane, the agent
-returns `needs-reroute` with the exceeded boundary and recommended lane.
+Agent selection follows OpenCode's built-in routing: the user picks a primary agent via Tab or
+`@mention`. Subagents are invoked by primary agents for scoped work. Skill descriptions and agent
+frontmatter metadata are the routing surface; do not duplicate routing rules in agent bodies.
 
 ## Decision Matrix
 

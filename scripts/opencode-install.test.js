@@ -77,12 +77,12 @@ async function main() {
       assert.ok(opencodeConfig.plugin.includes('./plugins/planning.js'), 'planning plugin should be registered');
       assert.ok(opencodeConfig.plugin.includes('./plugins/notify.js'), 'notify plugin should be registered');
 
-      // R8: verify all 4 lane agents are installed
-      for (const agent of ['quick', 'standard', 'spec', 'project']) {
+      // R8: verify all lane agents are installed
+      for (const agent of ['quick', 'project']) {
         assert.ok(fs.existsSync(path.join(agentsDir, `${agent}.md`)), `lane agent ${agent}.md should exist`);
       }
-      // R8: verify all 3 required subagents are installed
-      for (const subagent of ['impl', 'reviewer', 'explorer']) {
+      // R8: verify all shipped subagents are installed
+      for (const subagent of ['impl', 'reviewer', 'explorer', 'scout']) {
         assert.ok(fs.existsSync(path.join(agentsDir, `${subagent}.md`)), `subagent ${subagent}.md should exist`);
       }
 
@@ -231,16 +231,16 @@ async function main() {
     }
   });
 
-  // R8: lane quality validators pass against source files (run as subprocess)
-  await test('lane doc refs validator passes', async () => {
-    execFileSync('node', ['scripts/validate-lane-doc-refs.js'], {
+  // R8: shipped validators pass against source files (run as subprocess)
+  await test('lane prompt sections validator passes', async () => {
+    execFileSync('node', ['scripts/validate-lane-prompt-sections.js'], {
       cwd: path.resolve(__dirname, '..'),
       stdio: 'pipe',
     });
   });
 
-  await test('lane prompt sections validator passes', async () => {
-    execFileSync('node', ['scripts/validate-lane-prompt-sections.js'], {
+  await test('lane doc refs validator passes', async () => {
+    execFileSync('node', ['scripts/validate-lane-doc-refs.js'], {
       cwd: path.resolve(__dirname, '..'),
       stdio: 'pipe',
     });
@@ -338,15 +338,15 @@ async function main() {
       
       // Verify profile injection shows all agents assigned to correct roles
       if (summary.profileInjection && summary.profileInjection.length > 0) {
-        // impl should be on implementation role (Flash)
-        const implInjection = summary.profileInjection.find(r => r.agent === 'impl');
-        assert.ok(implInjection, 'impl should be in profile injection');
-        assert.ok(implInjection.newModel.includes('flash'), 'impl should route to Flash');
-        
         // project should be on planning role (Pro)
         const projectInjection = summary.profileInjection.find(r => r.agent === 'project');
         assert.ok(projectInjection, 'project should be in profile injection');
         assert.ok(projectInjection.newModel.includes('pro'), 'project should route to Pro');
+        
+        // impl should be on implementation role (Flash)
+        const implInjection = summary.profileInjection.find(r => r.agent === 'impl');
+        assert.ok(implInjection, 'impl should be in profile injection');
+        assert.ok(implInjection.newModel.includes('flash'), 'impl should route to Flash');
         
         // quick should be on implementation role (Flash)
         const quickInjection = summary.profileInjection.find(r => r.agent === 'quick');

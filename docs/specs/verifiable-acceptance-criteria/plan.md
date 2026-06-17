@@ -91,11 +91,11 @@ Before any implementation, verify the environment:
 **Validation:** `rg "→ verify:" docs/system/spec-driven-development.md` returns at least 1 match.
 **Risk:** Low — example-only change.
 
-### Step 7: Update spec lane agent (R8)
-**File:** `opencode-assets/agents/spec.md`
+### Step 7: Update project-workflow skill (R8)
+**File:** `opencode-assets/skills/project-workflow/SKILL.md`
 **Changes:**
-- Phase 4 Verify (line 65-68): Add a bullet or sentence about running acceptance verification methods. For example, after "Run any spec validators if present" add: "Run spec acceptance verification methods (e.g., the `→ verify:` commands from the spec)."
-**Validation:** `rg -i "acceptance.*verif|verify.*acceptance|verification method" opencode-assets/agents/spec.md` returns at least 1 match.
+- Validation Standard section: Add a bullet about running acceptance verification methods. For example: "Run spec acceptance verification methods (e.g., the `→ verify:` commands from the spec)."
+**Validation:** `rg -i "acceptance.*verif|verify.*acceptance|verification method" opencode-assets/skills/project-workflow/SKILL.md` returns at least 1 match.
 **Risk:** Low — guidance-only change.
 
 ### Step 8: Update reviewer agent (R8)

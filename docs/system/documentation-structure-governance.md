@@ -17,6 +17,18 @@ related: [doc-graph-spec, system-docs-index, search-execute-workflow, project-co
 Define the canonical governance contract for documentation structure, project entrypoints, and
 human-friendly versus LLM-friendly access paths.
 
+### Artifact Roles
+
+Specs describe intent. Docs describe state. ADRs record decisions.
+
+| Artifact | Mode | Describes | Answers |
+|----------|------|-----------|---------|
+| Spec | Intent | What the system should do (requirements) | "What should it do?" |
+| Canonical doc | State | How the system currently works | "How does it work?" |
+| ADR | Decision state | What architectural decision was made | "Why this way?" |
+
+Drift measures divergence between spec intent and implementation state.
+
 ## Context
 
 Instruction Engine already uses the doc graph in `docs/system/**` as its canonical documentation

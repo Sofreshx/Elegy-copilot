@@ -1,9 +1,10 @@
 ---
 spec_id: agentic-lanes-quality
 title: OpenCode Agentic Lanes Quality Evaluation and Hardening
-status: implemented
+status: superseded
 type: workflow
 updated: 2026-06-03
+superseded_by: agentic-lanes-quality-v2
 ---
 
 # OpenCode Agentic Lanes Quality Evaluation and Hardening

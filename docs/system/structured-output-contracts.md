@@ -48,8 +48,24 @@ An agent does NOT need a strict output block for:
 
 ## Severity & Confidence
 
-Use the reviewer lane severity vocabulary when a narrower skill or agent does not define its own mapping.
+Use the reviewer severity vocabulary when a narrower skill or agent does not define its own mapping.
+
+## Canonical Block Registry
+
+The following blocks are defined in the shipped subagent prompts:
+
+| Block | Agent | Structured-Output Contract |
+|---|---|---|
+| `QUICK_LANE_RESULT` | `quick` | `docs/system/structured-output-contracts.md#canonical-block-registry` |
+| `PROJECT_LANE_RESULT` | `project` | Same |
+| `IMPL_RESULT` | `impl` | Same |
+| `EXPLORE_RESULT` | `explorer` | Same |
+| `REVIEW_RESULT` | `reviewer` | Same |
+| `SCOUT_RESULT` | `scout` | Same |
+| `PLANNING_RUN_SUMMARY` | `planning.js` plugin tool | Same |
+
+Refer to each agent's frontmatter description and `## Output` section for field-level contracts.
 
 ## Canonical References
 
-- Reviewer lanes: `docs/system/reviewer-lane-governance.md`
+- Reviewer: `docs/system/reviewer-lane-governance.md`

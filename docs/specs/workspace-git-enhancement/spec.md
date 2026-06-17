@@ -1,9 +1,9 @@
 ---
 spec_id: workspace-git-enhancement
 title: Workspace Git Page Enhancement
-status: approved
+status: implemented
 type: feature
-updated: 2026-06-08
+updated: 2026-06-17
 ---
 
 # Workspace Git Page Enhancement
@@ -126,12 +126,12 @@ Enhance `copilot-ui` Workspace Git tab so it becomes a practical local Git contr
   → verify: `npx vitest run copilot-ui/tests/git-routes.test.ts -t "stash API"` — route tests for each stash endpoint verifying request validation, git command construction, and response shape
 
 - Spec document passes strict validation
-  → verify: `node scripts/validate-specs.js --strict specs/workspace-git-enhancement/spec.md`
+  → verify: `node scripts/validate-specs.js --strict docs/specs/workspace-git-enhancement/spec.md`
 
 ## Implementation Links
 
-- `specs/workspace-git-enhancement/spec.md` (this file)
-- `specs/workspace-git-enhancement/plan.md` (implementation plan)
+- `docs/specs/workspace-git-enhancement/spec.md` (this file)
+- `docs/specs/workspace-git-enhancement/plan.md` (implementation plan)
 - `copilot-ui/ui/src/views/Workspace/WorkspaceGitTab.tsx`
 - `copilot-ui/ui/src/lib/api/git.ts`
 - `copilot-ui/routes/git.js`

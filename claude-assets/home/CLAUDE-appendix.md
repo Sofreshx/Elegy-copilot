@@ -42,6 +42,7 @@ For the Instruction Engine repo itself, the current identity and delivery model 
 For spec-driven work, use the current repo contract in `docs/system/spec-driven-development.md`:
 durable specs live at `docs/specs/<spec-slug>/spec.md`, with optional `docs/specs/index.md`, and should be
 validated with `node scripts/validate-specs.js <spec-root>` when the target repo has that validator.
+Specs describe intent (requirements). Docs describe state (how it works). ADRs record decisions (what was chosen). See `docs-practice` skill for structure guidance.
 
 ## Boundaries
 

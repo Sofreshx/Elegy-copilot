@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const LANE_AGENTS = ['quick', 'standard', 'spec', 'project'];
+const LANE_AGENTS = ['quick', 'project'];
 
 function toPosix(filePath) {
   return String(filePath || '').replace(/\\/g, '/');
@@ -18,18 +18,10 @@ function readFile(filePath) {
   return fs.readFileSync(filePath, 'utf8');
 }
 
-/**
- * Check that content mentions "evidence" (case-insensitive).
- */
 function mentionsEvidence(content) {
   return /evidence/i.test(content);
 }
 
-/**
- * Check that content has a gates section or no-implementation-before language.
- * Accepts: heading "## Gates", or text "before implementation", "implementation blocked", "plan review gate",
- * "spec is reviewed and signed off", "reviewed and approved".
- */
 function mentionsGatesOrNoImplBeforeGates(content) {
   const lower = content.toLowerCase();
   if (/^##\s+gates\s*$/im.test(content)) return true;
@@ -45,42 +37,25 @@ function validateAgentFile(agentsDir, agentName) {
   const errors = [];
   const filePath = path.join(agentsDir, `${agentName}.md`);
 
-  // 1a. File must exist
   if (!fs.existsSync(filePath)) {
     errors.push(`${agentName}.md: file not found at ${toDisplayPath(filePath)}`);
     return errors;
   }
 
   const content = readFile(filePath);
-  const lines = content.split(/\r?\n/);
 
-  // 1b. Content must mention "evidence"
   if (!mentionsEvidence(content)) {
     errors.push(`${toDisplayPath(filePath)}: missing mention of 'evidence'`);
   }
 
-  // 1e. Content must mention gates or no-implementation-before-gates language
   if (!mentionsGatesOrNoImplBeforeGates(content)) {
     errors.push(`${toDisplayPath(filePath)}: missing gates section or 'no implementation before gates' language`);
   }
 
-  return errors;
-}
-
-function validateSpecSpecific(agentsDir) {
-  const errors = [];
-  const filePath = path.join(agentsDir, 'spec.md');
-
-  if (!fs.existsSync(filePath)) {
-    errors.push(`spec.md: file not found for spec-specific checks`);
-    return errors;
-  }
-
-  const content = readFile(filePath);
-
-  // spec.md must contain "elegy-skills-discovery"
-  if (!content.includes('elegy-skills-discovery')) {
-    errors.push(`${toDisplayPath(filePath)}: missing 'elegy-skills-discovery' text`);
+  // UPPERCASE_BLOCK output contract
+  const expectedBlock = agentName === 'quick' ? 'QUICK_LANE_RESULT' : 'PROJECT_LANE_RESULT';
+  if (!content.includes(expectedBlock)) {
+    errors.push(`${toDisplayPath(filePath)}: missing '${expectedBlock}' output contract block`);
   }
 
   return errors;
@@ -97,7 +72,6 @@ function validateProjectSpecific(agentsDir) {
 
   const content = readFile(filePath);
 
-  // project.md must contain "elegy-skills-discovery"
   if (!content.includes('elegy-skills-discovery')) {
     errors.push(`${toDisplayPath(filePath)}: missing 'elegy-skills-discovery' text`);
   }
@@ -116,7 +90,6 @@ function validateQuickSpecific(agentsDir) {
 
   const content = readFile(filePath);
 
-  // quick.md must contain "ambiguous" in its content
   if (!/ambiguous/i.test(content)) {
     errors.push(`${toDisplayPath(filePath)}: missing 'ambiguous' text`);
   }
@@ -136,18 +109,15 @@ function validateQuickExplorationContradiction(agentsDir) {
   const content = readFile(filePath);
   const lower = content.toLowerCase();
 
-  // Check 1: Does quick.md reject unfamiliar exploration?
   const rejectsUnfamiliar = 
     /exploration\s+of\s+unfamiliar/i.test(content) ||
     /do\s+not\s+explore\s+unfamiliar/i.test(content) ||
-    /escalate\s+to\s+standard.*unfamiliar/i.test(content) ||
-    /escalate\s+to\s+standard.*unknown/i.test(content);
+    /escalate\s+to\s+project.*unfamiliar/i.test(content) ||
+    /escalate\s+to\s+project.*unknown/i.test(content);
 
-  // Check 2: Does quick.md ALSO instruct exploration without narrow-lookup guard?
   const instructsExploration = /explore\s+(the\s+)?(relevant\s+)?code\s+using/i.test(content) ||
     /explorer\s+for\s+(codebase\s+)?discovery\s+when\s+unfamiliar/i.test(content);
 
-  // Check 3: Does quick.md have the narrow-lookup safeguard?
   const hasNarrowLookupGuard = 
     /narrow[,]?\s+focused\s+lookup/i.test(content) ||
     /only\s+when\s+the\s+file\s+and\s+area\s+are/i.test(content) ||
@@ -177,7 +147,6 @@ function validateProjectNoAutoMutation(agentsDir) {
   const content = readFile(filePath);
   const lower = content.toLowerCase();
 
-  // Patterns that indicate automatic git mutations without approval
   const autoPatterns = [
     { regex: /auto(?:-| )(?:commit|merge|push|delete)/i, label: 'auto-commit/merge/push/delete' },
     { regex: /merging\s+.*\s+is\s+automatic/i, label: 'merge described as automatic' },
@@ -187,10 +156,6 @@ function validateProjectNoAutoMutation(agentsDir) {
 
   for (const { regex, label } of autoPatterns) {
     if (regex.test(content)) {
-      // Only flag if there's no explicit approval counter-language in the same section
-      // Note: approval gating check operates on full file content, not just the matched
-      // section. This is deliberate for defense-in-depth — any approval language anywhere
-      // in the file counts as a gate. Future: consider section-scoping for precision.
       const hasApprovalGating = 
         /wait\s+for\s+(explicit\s+)?user\s+approval/i.test(content) ||
         /ask\s+(the\s+)?user\s+before/i.test(content) ||
@@ -204,78 +169,8 @@ function validateProjectNoAutoMutation(agentsDir) {
           `without explicit user-approval gating language. Add 'wait for user approval' or equivalent.`
         );
       }
-      break; // One error is enough for this check
+      break;
     }
-  }
-
-  return errors;
-}
-
-function validateStandardEvidenceRequirement(agentsDir) {
-  const errors = [];
-  const filePath = path.join(agentsDir, 'standard.md');
-
-  if (!fs.existsSync(filePath)) {
-    errors.push(`standard.md: file not found for evidence-requirement check`);
-    return errors;
-  }
-
-  const content = readFile(filePath);
-
-  // Check: standard.md must mention diff inspection by parent before review
-  const hasDiffInspection = /git\s+diff\s+--stat/i.test(content) &&
-    (/inspect\s+(the\s+)?(relevant|returned)\s+diff/i.test(content) || /diff\s+summary/i.test(content));
-
-  // Check: standard.md must mention passing validation evidence to reviewer
-  const hasEvidenceToReviewer = /pass.*(?:complete|full)\s+(?:evidence\s+)?package\s+to\s+reviewer/i.test(content) ||
-    /reviewer.*receive.*(?:evidence|diff|validation)/i.test(content) ||
-    /evidence\s+package/i.test(content);
-
-  if (!hasDiffInspection) {
-    errors.push(
-      `${toDisplayPath(filePath)}: missing requirement for parent lane to run 'git diff --stat' ` +
-      `and inspect relevant diff hunks before final review`
-    );
-  }
-
-  if (!hasEvidenceToReviewer) {
-    errors.push(
-      `${toDisplayPath(filePath)}: missing requirement to pass full evidence package (diff, ` +
-      `validation results, impl evidence) to reviewer for final review`
-    );
-  }
-
-  return errors;
-}
-
-function validateSpecMinorChangeException(agentsDir) {
-  const errors = [];
-  const filePath = path.join(agentsDir, 'spec.md');
-
-  if (!fs.existsSync(filePath)) {
-    errors.push(`spec.md: file not found for minor-change check`);
-    return errors;
-  }
-
-  const content = readFile(filePath);
-  const lower = content.toLowerCase();
-
-  // Check: Does spec.md have a blanket "user-facing behavior" trigger?
-  const hasBlanketUserFacing = /user-?facing\s+behavior/i.test(content) &&
-    !/minor\s+(copy|layout|ui)\s+nits/i.test(content) &&
-    !/do\s+not\s+force\s+spec\s+lane/i.test(content);
-
-  // If there's a blanket trigger but ALSO a minor-change exception, that's fine
-  const hasMinorChangeException = 
-    /minor\s+(copy|layout|ui)\s+nits/i.test(content) ||
-    /do\s+not\s+force\s+spec\s+lane/i.test(content) ||
-    /non-?obvious\s+acceptance/i.test(content);
-
-  if (hasBlanketUserFacing && !hasMinorChangeException) {
-    errors.push(
-      `${toDisplayPath(filePath)}: treats all user-facing behavior changes as spec-required ` +
-      `without a minor-change exception (e.g., 'minor copy/layout/UI nits do not force spec lane')`
-    );
   }
 
   return errors;
@@ -285,31 +180,14 @@ function main() {
   const agentsDir = path.resolve(process.argv[2] || path.join(process.cwd(), 'opencode-assets', 'agents'));
   const errors = [];
 
-  // Check all four lane agents for common requirements
   for (const agentName of LANE_AGENTS) {
     errors.push(...validateAgentFile(agentsDir, agentName));
   }
 
-  // Spec-specific checks
-  errors.push(...validateSpecSpecific(agentsDir));
-
-  // Project-specific checks
   errors.push(...validateProjectSpecific(agentsDir));
-
-  // Quick-specific checks
   errors.push(...validateQuickSpecific(agentsDir));
-
-  // New: Quick exploration contradiction check
   errors.push(...validateQuickExplorationContradiction(agentsDir));
-
-  // New: Project no-auto-mutation check
   errors.push(...validateProjectNoAutoMutation(agentsDir));
-
-  // New: Standard evidence requirement check
-  errors.push(...validateStandardEvidenceRequirement(agentsDir));
-
-  // New: Spec minor-change exception check
-  errors.push(...validateSpecMinorChangeException(agentsDir));
 
   if (errors.length > 0) {
     console.error('lane-prompt-sections invalid:');
@@ -330,11 +208,8 @@ module.exports = {
   LANE_AGENTS,
   mentionsEvidence,
   validateAgentFile,
-  validateSpecSpecific,
   validateProjectSpecific,
   validateQuickSpecific,
   validateQuickExplorationContradiction,
   validateProjectNoAutoMutation,
-  validateStandardEvidenceRequirement,
-  validateSpecMinorChangeException,
 };

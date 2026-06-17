@@ -6,8 +6,6 @@ const path = require('path');
 
 const PRIMARY_LANES = {
   quick: ['impl', 'explorer'],
-  standard: ['impl', 'explorer', 'reviewer'],
-  spec: ['impl', 'explorer', 'reviewer'],
   project: ['impl', 'explorer', 'reviewer'],
 };
 
@@ -15,6 +13,7 @@ const LEAF_SUBAGENTS = [
   'impl',
   'explorer',
   'reviewer',
+  'scout',
   'notes-enhance',
   'notes-reexamine',
   'notes-research',

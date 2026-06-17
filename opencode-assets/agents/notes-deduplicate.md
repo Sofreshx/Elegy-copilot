@@ -3,6 +3,9 @@ mode: subagent
 hidden: true
 model: deepseek/deepseek-v4-flash
 reasoningEffort: max
+temperature: 0.1
+color: primary
+steps: 20
 description: "Find duplicate or similar notes. Read-only. Compare content similarity."
 permission:
   read: allow

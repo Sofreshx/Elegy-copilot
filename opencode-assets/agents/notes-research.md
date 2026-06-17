@@ -3,6 +3,9 @@ mode: subagent
 hidden: true
 model: deepseek/deepseek-v4-pro
 reasoningEffort: max
+temperature: 0.2
+color: info
+steps: 40
 description: "Research the topic of a note. Web search enabled. Can access repo if configured."
 permission:
   read: allow

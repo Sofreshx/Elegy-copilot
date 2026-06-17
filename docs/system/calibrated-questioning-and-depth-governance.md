@@ -67,9 +67,9 @@ Deep/grill mode is an overlay inside the existing route, not a new lane.
 - Model capability profiles may influence which model handles an already-selected overlay, but they do not authorize the overlay by themselves. See [docs/system/model-capability-profile.md](docs/system/model-capability-profile.md).
 - Skills or prompts may support an already-selected overlay, but they do not create a parallel routing hierarchy or a second default mode. See [docs/system/skills-governance.md](docs/system/skills-governance.md).
 
-## Lane Application
+## Application
 
-Planner, reviewer, and follow-up lanes apply this policy locally without redefining their own contracts.
+Planner, reviewer, and follow-up agents apply this policy locally without redefining their own contracts.
 
 | Surface | Shared-policy application |
 | --- | --- |

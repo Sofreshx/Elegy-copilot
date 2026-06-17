@@ -34,7 +34,7 @@ Installed harness surfaces and shared skills must therefore stay thin and consis
 ## Codex operating model
 
 Codex should stay leaner than the legacy Copilot fleet:
-- Global Codex install: `AGENTS.md`, one read-only `reviewer` agent, `repo-setup`, `skill-discovery`, `stack-detector`, `rubberduck-plan-review`, `implementation-handoff`, `implementation-review`, `roadmap-planning`, `spec-dev`, `spec-authoring`, and `spec-review`.
+- Global Codex install: `AGENTS.md`, one read-only `reviewer` agent, `repo-setup`, `skill-discovery`, `stack-detector`, `rubberduck-plan-review`, `implementation-handoff`, `implementation-review`, `planning-tools`, `spec-dev`, `spec-authoring`, and `spec-review`.
 - Repo-specific hazards: repo-local `AGENTS.md` overlays and repo-local skills.
 - Legacy engine/Copilot orchestration agents are not bulk-installed into Codex.
 - Cross-model reviewer agents are not part of the Codex install surface.
@@ -43,8 +43,8 @@ Codex should stay leaner than the legacy Copilot fleet:
 
 OpenCode should stay native-first rather than mirroring the Copilot fleet:
 - Primary OpenCode workflow uses the built-in agents: `Build`, `Plan`, `General`, `Explore`, and `Scout`.
-- Instruction-engine adds the lane agent surface (`quick`, `standard`, `spec`, `project`) as OpenCode-native primary agents with supporting subagents (`impl`, `reviewer`, `explorer`). Lane agents are workflow-enforcing agents, not Copilot fleet duplicates — they use OpenCode's native agent infrastructure and delegate to subagents for execution.
-- Instruction-engine adds the missing reusable skill surface: `skill-discovery`, `rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, and `stack-detector`.
+- Instruction-engine adds the lane agent surface (`quick`, `project`) as OpenCode-native primary agents with supporting subagents (`impl`, `reviewer`, `explorer`, `scout`). Lane agents are workflow-enforcing agents, not Copilot fleet duplicates — they use OpenCode's native agent infrastructure and delegate to subagents for execution.
+- Instruction-engine adds the missing reusable skill surface: `skill-discovery`, `rubberduck-plan-review`, `planning-tools`, `project-workflow`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, and `stack-detector`.
 - `code-review` remains a compatibility surface during the transition, but it is not the recommended primary OpenCode routing path.
 - Do not bulk-install Copilot orchestration agents, plan-pack/session-state authoring lanes, or other Copilot-only workflow surfaces into OpenCode.
 - Do not create a parallel custom OpenCode agent fleet for code exploration or web research when the built-in `Explore` and `Scout` agents already cover that role. (The lane subagents `impl`, `reviewer`, and `explorer` serve specific lane workflow phases and do not constitute a parallel fleet.)
@@ -60,7 +60,7 @@ OpenCode should stay native-first rather than mirroring the Copilot fleet:
 
 ## Planning-critical shared install set
 
-- `rubberduck-plan-review`, `roadmap-planning`, `implementation-handoff`, `implementation-review`, `spec-dev`, `spec-authoring`, and `spec-review` ship across Copilot, Codex, OpenCode, and Antigravity.
+- `rubberduck-plan-review`, `planning-tools`, `project-workflow`, `implementation-handoff`, `implementation-review`, `spec-dev`, `spec-authoring`, and `spec-review` ship across Copilot, Codex, OpenCode, and Antigravity.
 - Copilot keeps those shared planning/review/spec skills vault-first by default, except where a target harness has no separate vault path.
 - Copilot-side `roadmap-authoring` stays always installed because planning and continuation flows depend on it.
 

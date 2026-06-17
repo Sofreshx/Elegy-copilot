@@ -1,8 +1,10 @@
-# Project Lane Autonomy Design (Deferred)
+# Project Lane Autonomy Design
 
-**Status:** Design-only. No implementation until evidence capture is reliable.
-**Deferred:** DB settings schema, compaction migrations, autonomy-level UI controls.
-**Validation:** Evidence capture proven → revisit this design for implementation.
+**Status:** Superseded. Project lane was removed in `docs/specs/agentic-lanes-quality-v2/spec.md`.
+Autonomous continuation, evidence chains, and questioning policy now live in:
+- `docs/system/calibrated-questioning-and-depth-governance.md` — questioning ladder
+- `docs/system/project-lane-autonomy-design.md` — archived
+- `elegy-planning` project-run lifecycle — lease/release/evidence API via `opencode-assets/plugins/planning.js`
 
 ## Phase Autonomy Defaults
 

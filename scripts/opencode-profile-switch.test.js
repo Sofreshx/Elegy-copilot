@@ -28,48 +28,49 @@ async function test(name, fn) {
   }
 }
 
-function createAgentFile(content) {
-  return content;
-}
-
 async function main() {
   const utilsPath = pathToFileURL(path.resolve(__dirname, 'frontmatter-utils.mjs')).href;
   const utils = await import(utilsPath);
 
-  await test('profile switching updates all role-mapped agent files', async () => {
+  await test('profile switching updates all role-mapped subagent files', async () => {
     withTempDir((root) => {
       const agentsDir = path.join(root, 'agents');
       fs.mkdirSync(agentsDir, { recursive: true });
 
-      // Create mock agent files matching agentRoles keys
       const agents = {
-        quick: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'max' },
-        standard: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
-        spec: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
-        project: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
-        impl: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'max' },
-        reviewer: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
-        explorer: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'max' },
+        quick: { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
+        project: { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
+        impl: { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
+        reviewer: { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
+        explorer: { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
+        scout: { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
+        'notes-enhance': { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
+        'notes-reexamine': { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
+        'notes-research': { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
+        'notes-deduplicate': { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
       };
 
       const agentRoles = {
         quick: 'small',
-        standard: 'big',
-        spec: 'big',
         project: 'big',
         impl: 'small',
         reviewer: 'review',
         explorer: 'small',
+        scout: 'big',
+        'notes-enhance': 'big',
+        'notes-reexamine': 'big',
+        'notes-research': 'big',
+        'notes-deduplicate': 'small',
       };
 
-      // Write agent files
       for (const [name, fields] of Object.entries(agents)) {
         const filePath = path.join(agentsDir, `${name}.md`);
-        const content = `---\nmode: primary\nmodel: ${fields.model}\nreasoningEffort: ${fields.reasoningEffort}\ndescription: "Test agent"\n---\n\n# ${name} agent\n`;
+        const isPrimary = ['quick', 'project'].includes(name);
+        const modeLine = isPrimary ? 'mode: primary' : 'mode: subagent\nhidden: true';
+        const content = `---\n${modeLine}\nmodel: ${fields.model}\nreasoningEffort: ${fields.reasoningEffort}\ndescription: "Test agent"\n---\n\n# ${name} agent\n`;
         fs.writeFileSync(filePath, content, 'utf8');
       }
 
-      // Switch to deepseek-direct profile (uses built-in deepseek provider)
       const profile = {
         small: 'deepseek/deepseek-v4-flash',
         big: 'deepseek/deepseek-v4-pro',
@@ -90,20 +91,17 @@ async function main() {
         }
       }
 
-      // All 7 role-mapped agents should be updated
-      assert.strictEqual(updatedCount, 7, 'all 7 role-mapped agents should be updated');
-      assert.strictEqual(results.length, 7);
+      assert.strictEqual(updatedCount, 10, 'all 10 role-mapped agents should be updated');
+      assert.strictEqual(results.length, 10);
 
-      // Verify each agent file was updated
       for (const result of results) {
         const agentPath = path.join(agentsDir, `${result.agent}.md`);
         const content = fs.readFileSync(agentPath, 'utf8');
         assert.ok(content.includes(`model: ${result.newModel}`), `${result.agent} model should be ${result.newModel}`);
       }
 
-      // Verify model changed for all agents (from deepseek/ to deepseek/ — same provider, different profile)
       for (const result of results) {
-        assert.ok(result.oldModel.startsWith('deepseek/'), `${result.agent} old model should start with deepseek/`);
+        assert.ok(result.oldModel.startsWith('opencode-go/'), `${result.agent} old model should start with opencode-go/`);
         assert.ok(result.newModel.startsWith('deepseek/'), `${result.agent} new model should start with deepseek/`);
       }
     });
@@ -114,11 +112,11 @@ async function main() {
       const agentsDir = path.join(root, 'agents');
       fs.mkdirSync(agentsDir, { recursive: true });
 
-      const filePath = path.join(agentsDir, 'quick.md');
-      const content = `---\nmode: primary\nmodel: deepseek/deepseek-v4-flash\nreasoningEffort: max\ndescription: "Quick lane"\n---\n\n# Quick agent\n`;
+      const filePath = path.join(agentsDir, 'impl.md');
+      const content = `---\nmode: subagent\nhidden: true\nmodel: opencode-go/deepseek-v4-flash\nreasoningEffort: max\ndescription: "Impl agent"\n---\n\n# Impl agent\n`;
       fs.writeFileSync(filePath, content, 'utf8');
 
-      const agentRoles = { quick: 'small' };
+      const agentRoles = { impl: 'small' };
       const profile = {
         small: 'deepseek/deepseek-v4-flash',
         big: 'deepseek/deepseek-v4-pro',
@@ -139,15 +137,13 @@ async function main() {
       const agentsDir = path.join(root, 'agents');
       fs.mkdirSync(agentsDir, { recursive: true });
 
-      // Create an agent with a role
-      const quickPath = path.join(agentsDir, 'quick.md');
-      fs.writeFileSync(quickPath, `---\nmode: primary\nmodel: deepseek/deepseek-v4-flash\nreasoningEffort: max\ndescription: "Quick"\n---\n\n# Quick\n`, 'utf8');
+      const agentPath = path.join(agentsDir, 'impl.md');
+      fs.writeFileSync(agentPath, `---\nmode: subagent\nhidden: true\nmodel: opencode-go/deepseek-v4-flash\nreasoningEffort: max\ndescription: "Impl"\n---\n\n# Impl\n`, 'utf8');
 
-      // Create an agent WITHOUT a role in agentRoles
       const customPath = path.join(agentsDir, 'custom-agent.md');
-      fs.writeFileSync(customPath, `---\nmode: primary\nmodel: deepseek/deepseek-v4-flash\ndescription: "Custom"\n---\n\n# Custom\n`, 'utf8');
+      fs.writeFileSync(customPath, `---\nmode: subagent\nhidden: true\nmodel: opencode-go/deepseek-v4-flash\ndescription: "Custom"\n---\n\n# Custom\n`, 'utf8');
 
-      const agentRoles = { quick: 'small' };
+      const agentRoles = { impl: 'small' };
       const profile = {
         small: 'deepseek/deepseek-v4-flash',
         reasoningEffort: 'max',
@@ -156,13 +152,12 @@ async function main() {
       const result = utils.updateAgentModel(customPath, profile, agentRoles);
       assert.strictEqual(result, null, 'agents without role should not be updated');
 
-      const quickResult = utils.updateAgentModel(quickPath, profile, agentRoles);
-      assert.ok(quickResult !== null, 'agents with role should be updated');
-      assert.strictEqual(quickResult.newModel, 'deepseek/deepseek-v4-flash');
+      const implResult = utils.updateAgentModel(agentPath, profile, agentRoles);
+      assert.ok(implResult !== null, 'agents with role should be updated');
+      assert.strictEqual(implResult.newModel, 'deepseek/deepseek-v4-flash');
 
-      // custom-agent should be unchanged
       const customContent = fs.readFileSync(customPath, 'utf8');
-      assert.ok(customContent.includes('model: deepseek/deepseek-v4-flash'), 'unlisted agent should keep original model');
+      assert.ok(customContent.includes('model: opencode-go/deepseek-v4-flash'), 'unlisted agent should keep original model');
     });
   });
 
@@ -170,30 +165,28 @@ async function main() {
     withTempDir((root) => {
       const agentsDir = path.join(root, 'agents');
       fs.mkdirSync(agentsDir, { recursive: true });
-      
-      // Create a single agent file
-      const quickPath = path.join(agentsDir, 'quick.md');
-      fs.writeFileSync(quickPath, '---\nmode: primary\nmodel: deepseek/deepseek-v4-flash\nreasoningEffort: max\ndescription: "Quick"\n---\n\n# Quick\n', 'utf8');
-      
-      const agentRoles = { quick: 'small' };
+
+      const implPath = path.join(agentsDir, 'impl.md');
+      fs.writeFileSync(implPath, '---\nmode: subagent\nhidden: true\nmodel: opencode-go/deepseek-v4-flash\nreasoningEffort: max\ndescription: "Impl"\n---\n\n# Impl\n', 'utf8');
+
+      const agentRoles = { impl: 'small' };
       const profile = {
-        small: 'deepseek/deepseek-v4-flash',
-        big: 'deepseek/deepseek-v4-pro',
-        review: 'deepseek/deepseek-v4-pro',
+        small: 'opencode-go/deepseek-v4-flash',
+        big: 'opencode-go/deepseek-v4-pro',
+        review: 'opencode-go/deepseek-v4-pro',
         roleModels: {
-          planning: 'deepseek/deepseek-v4-pro',
-          implementation: 'deepseek/deepseek-v4-flash',
-          exploration: 'deepseek/deepseek-v4-flash',
-          review: 'deepseek/deepseek-v4-pro',
-          research: 'deepseek/deepseek-v4-pro',
+          planning: 'opencode-go/deepseek-v4-pro',
+          implementation: 'opencode-go/deepseek-v4-flash',
+          exploration: 'opencode-go/deepseek-v4-flash',
+          review: 'opencode-go/deepseek-v4-pro',
+          research: 'opencode-go/deepseek-v4-pro',
         },
         reasoningEffort: 'max',
       };
-      
-      // Verify roleModels are present in the profile
+
       assert.ok(profile.roleModels, 'profile should have roleModels');
-      assert.strictEqual(profile.roleModels.planning, 'deepseek/deepseek-v4-pro', 'planning role should be Pro');
-      assert.strictEqual(profile.roleModels.implementation, 'deepseek/deepseek-v4-flash', 'implementation role should be Flash');
+      assert.strictEqual(profile.roleModels.planning, 'opencode-go/deepseek-v4-pro', 'planning role should be Pro');
+      assert.strictEqual(profile.roleModels.implementation, 'opencode-go/deepseek-v4-flash', 'implementation role should be Flash');
     });
   });
 
@@ -202,36 +195,31 @@ async function main() {
       const agentsDir = path.join(root, 'agents');
       fs.mkdirSync(agentsDir, { recursive: true });
 
-      // Create mock agent files
       const agents = {
-        quick: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'max' },
-        standard: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
-        build: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'max' },
-        plan: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
-        explore: { model: 'deepseek/deepseek-v4-flash', reasoningEffort: 'max' },
-        scout: { model: 'deepseek/deepseek-v4-pro', reasoningEffort: 'max' },
+        impl: { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
+        build: { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
+        plan: { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
+        explore: { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
+        scout: { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
       };
 
       const agentRoles = {
-        quick: 'small',
-        standard: 'big',
+        impl: 'small',
       };
 
       const roleToAgent = {
-        planning: ['plan', 'standard'],
-        implementation: ['build', 'quick'],
+        planning: ['plan'],
+        implementation: ['build', 'impl'],
         exploration: ['explore'],
         research: ['scout'],
       };
 
-      // Write agent files
       for (const [name, fields] of Object.entries(agents)) {
         const filePath = path.join(agentsDir, `${name}.md`);
-        const content = `---\nmode: primary\nmodel: ${fields.model}\nreasoningEffort: ${fields.reasoningEffort}\ndescription: "Test agent"\n---\n\n# ${name} agent\n`;
+        const content = `---\nmode: subagent\nhidden: true\nmodel: ${fields.model}\nreasoningEffort: ${fields.reasoningEffort}\ndescription: "Test agent"\n---\n\n# ${name} agent\n`;
         fs.writeFileSync(filePath, content, 'utf8');
       }
 
-      // Create a mock opencode.jsonc with old reasoningEffort values
       const configPath = path.join(root, 'opencode.jsonc');
       const initialConfig = {
         agent: {
@@ -239,26 +227,25 @@ async function main() {
           plan: { reasoningEffort: 'high' },
           explore: { reasoningEffort: 'high' },
           scout: { reasoningEffort: 'high' },
+          impl: { reasoningEffort: 'high' },
         }
       };
       fs.writeFileSync(configPath, JSON.stringify(initialConfig, null, 2), 'utf8');
 
-      // Switch to a profile with max reasoningEffort
       const profile = {
-        small: 'deepseek/deepseek-v4-flash',
-        big: 'deepseek/deepseek-v4-pro',
-        review: 'deepseek/deepseek-v4-pro',
+        small: 'opencode-go/deepseek-v4-flash',
+        big: 'opencode-go/deepseek-v4-pro',
+        review: 'opencode-go/deepseek-v4-pro',
         roleModels: {
-          planning: 'deepseek/deepseek-v4-pro',
-          implementation: 'deepseek/deepseek-v4-flash',
-          exploration: 'deepseek/deepseek-v4-flash',
-          review: 'deepseek/deepseek-v4-pro',
-          research: 'deepseek/deepseek-v4-pro',
+          planning: 'opencode-go/deepseek-v4-pro',
+          implementation: 'opencode-go/deepseek-v4-flash',
+          exploration: 'opencode-go/deepseek-v4-flash',
+          review: 'opencode-go/deepseek-v4-pro',
+          research: 'opencode-go/deepseek-v4-pro',
         },
         reasoningEffort: 'max',
       };
 
-      // Simulate what opencode-profile-switch.mjs does
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
       if (!config.agent) config.agent = {};
 
@@ -302,35 +289,31 @@ async function main() {
 
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
 
-      // Verify reasoningEffort was updated for all agents
       const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
       assert.strictEqual(updatedConfig.agent.build.reasoningEffort, 'max', 'build should have max reasoningEffort');
       assert.strictEqual(updatedConfig.agent.plan.reasoningEffort, 'max', 'plan should have max reasoningEffort');
       assert.strictEqual(updatedConfig.agent.explore.reasoningEffort, 'max', 'explore should have max reasoningEffort');
       assert.strictEqual(updatedConfig.agent.scout.reasoningEffort, 'max', 'scout should have max reasoningEffort');
-      assert.strictEqual(updatedConfig.agent.quick.reasoningEffort, 'max', 'quick should have max reasoningEffort');
-      assert.strictEqual(updatedConfig.agent.standard.reasoningEffort, 'max', 'standard should have max reasoningEffort');
+      assert.strictEqual(updatedConfig.agent.impl.reasoningEffort, 'max', 'impl should have max reasoningEffort');
     });
   });
 
-  await test('deepseek-direct profile routes impl/quick to Flash and project to Pro', async () => {
-    // Verify the role mapping from profiles.json
+  await test('deepseek-direct profile routes impl to Flash and plan to Pro', async () => {
     const profilesPath = path.resolve(__dirname, '..', 'opencode-assets', 'profiles.json');
     const profilesConfig = JSON.parse(fs.readFileSync(profilesPath, 'utf8'));
     const dsProfile = profilesConfig.profiles['deepseek-direct'];
     const roleToAgent = profilesConfig.roleToAgent;
-    
-    // implementation role should be Flash
+
     assert.ok(dsProfile.roleModels.implementation.includes('flash'), 'implementation should route to Flash model');
-    // planning role should be Pro  
     assert.ok(dsProfile.roleModels.planning.includes('pro'), 'planning should route to Pro model');
-    
-    // impl agent should be in implementation role
+
     assert.ok(roleToAgent.implementation.includes('impl'), 'impl should be in implementation role');
-    // quick agent should be in implementation role
     assert.ok(roleToAgent.implementation.includes('quick'), 'quick should be in implementation role');
-    // project agent should be in planning role
+    assert.ok(roleToAgent.planning.includes('plan'), 'plan should be in planning role');
     assert.ok(roleToAgent.planning.includes('project'), 'project should be in planning role');
+    if (roleToAgent.research) {
+      assert.ok(roleToAgent.research.includes('scout'), 'scout should be in research role');
+    }
   });
 
   console.log(`\n${passed} tests passed`);

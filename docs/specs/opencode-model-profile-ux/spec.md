@@ -34,13 +34,10 @@ The OpenCode settings UI in Elegy Copilot offers profile switching (opencode-go 
 
 ### R0 — Codex Config Must Be Isolated from OpenCode Profile Changes
 
-- `scripts/codex-config-patch.mjs` must NOT hardcode a default provider ID that assumes `OPENCODE_API_KEY` is available. The root-level `model_provider` key must either:
-  - Be omitted entirely when the user has not explicitly opted into an OpenCode provider for Codex, OR
-  - Be moved inside the `# BEGIN/END` managed block so `stripManagedBlock()` removes it atomically with the provider tables, OR
-  - Default to Codex's native provider (`openai` or equivalent) when no OpenCode API key is configured.
-- `scripts/codex-install.mjs` must accept a `--provider-id` argument (or equivalent) so the caller can control which provider is written as root-level default.
-- The OpenCode profile switching UI (`POST /api/opencode/config`) must NOT write to Codex config under any circumstances. The separation must be absolute.
-- The Codex Provider Panel (DeepSeek Moon Bridge setup) must remain the sole UI path for configuring Codex providers.
+- `scripts/codex-config-patch.mjs` must NOT hardcode a default provider ID at the root level that assumes `OPENCODE_API_KEY` is available. The `DEFAULT_PROVIDER_ID` fallback is scoped to managed block profiles only (written inside `[profiles.X]` tables, not as a root-level `model_provider` key). When no OpenCode API key is configured, Codex falls back to its native provider.
+- `scripts/codex-install.mjs` accepts a `--provider-id` argument so the caller can control which provider is written for the managed block. The root-level `model_provider` key is not written when using managed block profiles.
+- The OpenCode profile switching UI (`POST /api/opencode/config`) does NOT write to Codex config under any circumstances. The separation is absolute.
+- The Codex Provider Panel remains the sole UI path for configuring Codex providers.
 
 ### R1 — Fix Permissions Tab Crash
 
@@ -60,13 +57,13 @@ The OpenCode settings UI in Elegy Copilot offers profile switching (opencode-go 
 - If the CLI switch script cannot run (e.g., missing `node`, missing `profiles.json`, ESM import failures), the API must return a structured error that the UI surfaces as a clear user-facing message.
 - **Guard:** This operation must NOT touch `~/.codex/config.toml` or any Codex configuration files.
 
-### R3 — Model Selection with Discoverable Drawer
+### R3 — Model Selection with Per-Role Controls
 
-- Replace the free-text model inputs with a selector drawer/popover that shows available model options.
-- The model list must be derived from `opencode-assets/profiles.json` as the canonical source. The server must expose these models through the existing `buildProfiles()` response (or a new dedicated field) with both the provider-prefixed identifier (e.g., `deepseek/deepseek-v4-flash`) and a human-readable display name (e.g., `DeepSeek V4 Flash`).
-- Each model option in the drawer must display the model's display name and provider name (e.g., "DeepSeek V4 Flash (deepseek)").
-- Small, big, and review model selections must all be independently overridable within this drawer.
-- The review model field must reflect the actual review model from the active profile, not a hardcoded string. The profile's review model must be editable through the same drawer mechanism.
+- Replace the free-text model inputs with per-role `<select>` dropdowns showing available model options. (Design note: drawer/popover was deferred; inline `<select>` inputs with `opencode-model-select` styling are the current UX.)
+- The model list is derived from `opencode-assets/profiles.json` as the canonical source. The server exposes models through `buildProfiles()` with both the provider-prefixed identifier (e.g., `deepseek/deepseek-v4-flash`) and a human-readable display name (e.g., `DeepSeek V4 Flash`).
+- Each model option displays the model's display name and provider name (e.g., "DeepSeek V4 Flash (deepseek)").
+- All five role model selections (planning, implementation, exploration, review, research) are independently overridable within the Model Selection panel.
+- The review model field reflects the actual review model from the active profile, not a hardcoded string. The profile's review model is editable through the same selector mechanism.
 
 ### R4 — Fix Component Props Wiring
 
@@ -107,8 +104,8 @@ The OpenCode settings UI in Elegy Copilot offers profile switching (opencode-go 
 
 ## Implementation Links
 
-- `specs/opencode-model-profile-ux/spec.md` (this file)
-- `specs/opencode-model-profile-ux/plan.md` — Phased implementation plan
+- `docs/specs/opencode-model-profile-ux/spec.md` (this file)
+- `docs/specs/opencode-model-profile-ux/plan.md` — Phased implementation plan
 - `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx` — ProfilesSection, PermissionsSection, SectionProps, drawer component
 - `copilot-ui/routes/opencode.js` — buildProfiles, permissions endpoints, config endpoint, child_process invocation
 - `copilot-ui/lib/opencodeConfig.js` — readConfig, state management, profile drift detection
@@ -120,7 +117,7 @@ The OpenCode settings UI in Elegy Copilot offers profile switching (opencode-go 
 
 ## Validation Evidence
 
-- `node scripts/validate-specs.js --strict specs/` — No errors for `opencode-model-profile-ux` spec. All remaining errors are pre-existing in other specs.
+- `node scripts/validate-specs.js --strict docs/specs/` — No errors for `opencode-model-profile-ux` spec. All remaining errors are pre-existing in other specs.
 - `node scripts/codex-config-patch.test.js` — 12/12 tests pass, including new `--provider-id` test.
 - `npm run test:vitest` — 265/270 tests pass; 5 pre-existing failures unrelated to these changes. `opencode-api.vitest.ts` passes all 17 tests including new child_process mock tests.
 - `npx tsc -p copilot-ui/ui/tsconfig.json --noEmit` — 0 new TypeScript errors introduced.

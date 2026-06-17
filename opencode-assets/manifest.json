@@ -79,16 +79,10 @@
       "destination": "agents/reviewer.md"
     },
     {
-      "id": "opencode-agent-spec",
+      "id": "opencode-agent-scout",
       "type": "agent",
-      "source": "opencode-assets/agents/spec.md",
-      "destination": "agents/spec.md"
-    },
-    {
-      "id": "opencode-agent-standard",
-      "type": "agent",
-      "source": "opencode-assets/agents/standard.md",
-      "destination": "agents/standard.md"
+      "source": "opencode-assets/agents/scout.md",
+      "destination": "agents/scout.md"
     },
     {
       "id": "notes-enhance",
@@ -272,6 +266,12 @@
       "type": "skill",
       "source": "opencode-assets/skills/worktree",
       "destination": "skills/worktree"
+    },
+    {
+      "id": "opencode-project-workflow-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/project-workflow",
+      "destination": "skills/project-workflow"
     }
   ],
   "sourcePatterns": []

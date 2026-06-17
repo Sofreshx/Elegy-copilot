@@ -20,6 +20,7 @@ Shared routing skills include `skill-discovery`.
 Planning, review, and spec skills are installed by default: `elegy-planning`, `rubberduck-plan-review`, `implementation-handoff`, `implementation-review`, `spec-dev`, `spec-authoring`, and `spec-review`.
 Load them only when the current step needs that guidance.
 Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`; follow the current contract in `docs/system/spec-driven-development.md` when the target repo opts into spec-driven work.
+Specs describe intent (requirements). Docs describe state (how it works). ADRs record decisions (what was chosen). See `docs-practice` skill for structure guidance.
 
 When a task clearly maps to an installed skill, load and follow that skill before proceeding.
 

@@ -118,7 +118,7 @@ Phases A–D are independent and can run concurrently. Phase E requires the tool
 - Replace all occurrences of `specs/<slug>/spec.md` with `docs/specs/<slug>/spec.md`
 
 ### C4: Update OpenCode spec lane agent (R6)
-- **File:** `opencode-assets/agents/spec.md`
+- **File:** `opencode-assets/agents/spec.md` (deleted — spec lane was removed in agentic-lanes-quality-v2; spec authoring now handled by `spec-authoring` skill and `project-workflow` skill)
 - Replace all `specs/<slug>/spec.md` → `docs/specs/<slug>/spec.md`
 - Replace all `specs/<slug>/plan.md` → `docs/specs/<slug>/plan.md`
 - Replace `--strict specs` → `--strict docs/specs` (lines ~48, 69, 76)

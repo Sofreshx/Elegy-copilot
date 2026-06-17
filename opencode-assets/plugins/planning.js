@@ -621,6 +621,40 @@ export const PlanningPlugin = async ({ project, directory }) => {
         },
       }),
 
+      planning_project_run_summary: tool({
+        description: "Generate a closure summary for a project run. Aggregates evidence, review points, issues, and validation data from the run.",
+        args: {
+          runId: tool.schema.string().describe("Run ID to summarize"),
+          scope: scopeArg(),
+        },
+        async execute(args, ctx) {
+          ctx.metadata({ title: "Summarizing project run " + args.runId });
+          return runPlanningCommand("project-run", ["show", "--run-id", args.runId], { scope: resolveScope(args) }).then((raw) => {
+            let parsed;
+            try { parsed = JSON.parse(raw.output); } catch { return raw; }
+            const data = parsed.data || parsed;
+            const evidence = (data.evidence || []).map(e => ({ type: e.evidenceType || e.type || "unknown", content: e.content || e.value || "" }));
+            const evidenceByType = {};
+            for (const e of evidence) {
+              if (!evidenceByType[e.type]) evidenceByType[e.type] = [];
+              evidenceByType[e.type].push(e.content);
+            }
+            const summary = [
+              "PLANNING_RUN_SUMMARY",
+              "- runId: " + args.runId,
+              "- status: " + (data.status || "unknown"),
+              "- evidence_by_type:",
+              ...Object.entries(evidenceByType).map(([type, items]) => "  - " + type + ": " + items.length + " entries"),
+              "- review_points: " + ((data.reviewPoints || data.review_points || []).length),
+              "- issues: " + ((data.issues || []).length),
+              "- validation_coverage: " + (evidenceByType["validation"] ? evidenceByType["validation"].length + " entries" : "none"),
+              "- note: " + ("Summary is derived from project-run show -- evidence types, review points, and issues are grouped at display time."),
+            ].join("\n");
+            return { output: summary, metadata: { status: "ok", subcommand: "project-run-summary", runId: args.runId } };
+          });
+        },
+      }),
+
       // ============================================================
       // Utility tools (4)
       // ============================================================

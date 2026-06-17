@@ -12,11 +12,11 @@ triggers:
 
 Native OpenCode tools wrapping the `elegy-planning` CLI. Each tool validates inputs via Zod schemas and returns structured JSON output.
 
-**Announce at start:** "I'm using the planning-tools skill (30 tools) to manage planning state."
+**Announce at start:** "I'm using the planning-tools skill (31 tools) to manage planning state."
 
 ## Available Tools
 
-30 tools organized by function. All tools invoke the `elegy-planning` CLI in machine mode (`--json --non-interactive --correlation-id`).
+31 tools organized by function. All tools invoke the `elegy-planning` CLI in machine mode (`--json --non-interactive --correlation-id`).
 
 ### Read Tools (11)
 
@@ -406,6 +406,17 @@ Show one project run with full evidence trail.
 
 ```
 planning_project_run_show(runId: "run-xyz-789")
+```
+
+#### planning_project_run_summary
+
+Generate a closure summary for a project run. Aggregates evidence by type, review points, and issues from the run. Useful for session-end validation summaries.
+
+**Parameters:**
+- `runId` (required): Project run ID
+
+```
+planning_project_run_summary(runId: "run-xyz-789")
 ```
 
 ### Utility Tools (4)
