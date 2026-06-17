@@ -2,7 +2,11 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Context;
-use axum::Router;
+use axum::{
+    Router,
+    response::{IntoResponse, Json},
+    http::{StatusCode, Uri},
+};
 use chrono::Utc;
 use elegy_native_contracts::{PolicyPreflightResponse, VersionResponse};
 use tower_http::cors::CorsLayer;
@@ -79,11 +83,52 @@ pub fn build_router(state: AppState) -> Router {
     );
 
     let ui_path = state.config.engine_root.join("copilot-ui").join("ui-dist");
+
     Router::new()
         .merge(crate::routes::build_routes(state.clone()))
-        .fallback_service(
-            tower_http::services::ServeDir::new(ui_path)
-        )
+        .fallback(move |uri: Uri| {
+            let ui_path = ui_path.clone();
+            async move {
+                let path = uri.path();
+                if path.starts_with("/api/") {
+                    return Json(serde_json::json!({"ok": true, "stub": true})).into_response();
+                }
+                // Serve static UI files: try exact path, fall back to index.html for SPA
+                let file_path = if path == "/" {
+                    ui_path.join("index.html")
+                } else {
+                    let trimmed = path.trim_start_matches('/');
+                    let candidate = ui_path.join(trimmed);
+                    if candidate.exists() && !candidate.is_dir() {
+                        candidate
+                    } else {
+                        ui_path.join("index.html")
+                    }
+                };
+                match tokio::fs::read(&file_path).await {
+                    Ok(bytes) => {
+                        let mime = match file_path.extension().and_then(|e| e.to_str()) {
+                            Some("html") => "text/html; charset=utf-8",
+                            Some("js") => "application/javascript",
+                            Some("css") => "text/css",
+                            Some("png") => "image/png",
+                            Some("svg") => "image/svg+xml",
+                            Some("ico") => "image/x-icon",
+                            Some("json") => "application/json",
+                            Some("woff2") => "font/woff2",
+                            _ => "application/octet-stream",
+                        };
+                        (
+                            StatusCode::OK,
+                            [("content-type", mime)],
+                            bytes,
+                        )
+                            .into_response()
+                    }
+                    Err(_) => (StatusCode::NOT_FOUND, "Not found").into_response(),
+                }
+            }
+        })
         .layer(auth_layer)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
