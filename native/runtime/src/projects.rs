@@ -12,33 +12,33 @@ use crate::sessions::{list_sessions, SessionSummary};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RepoInventoryState {
+pub struct RepoInventoryState {
     #[serde(default)]
-    manual_repos: Vec<ManualRepoEntry>,
+    pub manual_repos: Vec<ManualRepoEntry>,
     #[serde(default)]
-    selected_repo_id: Option<String>,
+    pub selected_repo_id: Option<String>,
     #[serde(default)]
-    selected_repo_path: Option<String>,
+    pub selected_repo_path: Option<String>,
     #[serde(default)]
-    selected_at: Option<String>,
+    pub selected_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ManualRepoEntry {
-    repo_id: String,
-    repo_path: String,
-    repo_label: String,
+pub struct ManualRepoEntry {
+    pub repo_id: String,
+    pub repo_path: String,
+    pub repo_label: String,
     #[serde(default)]
-    added_at: Option<String>,
+    pub added_at: Option<String>,
     #[serde(default)]
-    updated_at: Option<String>,
+    pub updated_at: Option<String>,
     #[serde(default)]
-    pinned: bool,
+    pub pinned: bool,
     #[serde(default)]
-    last_activity_ms: Option<u64>,
+    pub last_activity_ms: Option<u64>,
     #[serde(default)]
-    canonical_remote: Option<String>,
+    pub canonical_remote: Option<String>,
 }
 
 pub fn list_projects(elegy_home: &Path) -> Vec<ProjectResponse> {
@@ -211,6 +211,18 @@ fn load_repo_inventory_state(elegy_home: &Path) -> RepoInventoryState {
 
 fn resolve_repo_inventory_path(elegy_home: &Path) -> PathBuf {
     elegy_home.join("catalog").join("repo-inventory.json")
+}
+
+pub fn repo_inventory_path(elegy_home: &Path) -> PathBuf {
+    resolve_repo_inventory_path(elegy_home)
+}
+
+pub fn repo_inventory_state(elegy_home: &Path) -> RepoInventoryState {
+    load_repo_inventory_state(elegy_home)
+}
+
+pub fn manual_repos(elegy_home: &Path) -> Vec<ManualRepoEntry> {
+    load_repo_inventory_state(elegy_home).manual_repos
 }
 
 fn save_repo_inventory_state(inventory_path: &Path, state: &RepoInventoryState) {

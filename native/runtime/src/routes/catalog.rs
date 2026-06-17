@@ -3,7 +3,12 @@ use std::path::{Path, PathBuf};
 use axum::extract::{Path as AxumPath, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use elegy_native_contracts::{
+    InstalledAgent, InstalledAssetsResponse, InstalledInstructions, InstalledPrompt,
+    InstalledSkill, ManagedAssetStatus, ManagedAssetsResponse,
+};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
 use crate::app::AppState;
 use crate::error::ApiError;
@@ -11,6 +16,149 @@ use crate::error::ApiError;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+const ASSET_KIND_DIRS: &[&str] = &["agents", "skills", "prompts", "instructions"];
+
+fn infer_asset_kind(dir_name: &str) -> Option<&'static str> {
+    match dir_name {
+        "agents" => Some("agent"),
+        "skills" => Some("skill"),
+        "prompts" => Some("prompt"),
+        "instructions" => Some("instructions"),
+        _ => None,
+    }
+}
+
+fn sha256_hex_file(path: &Path) -> Option<String> {
+    let bytes = std::fs::read(path).ok()?;
+    Some(hex::encode(Sha256::digest(&bytes)))
+}
+
+fn scan_md_installed_agents(dir: &Path, kind_dir: &str) -> Vec<InstalledAgent> {
+    let mut out = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) == Some("md") {
+            let file_name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string();
+            let name = path
+                .file_stem()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string();
+            if name.is_empty() || file_name.is_empty() {
+                continue;
+            }
+            out.push(InstalledAgent {
+                asset_id: Some(name.clone()),
+                name: name.clone(),
+                file_name,
+                abs_path: path.to_string_lossy().to_string(),
+                provider: Some("rust-runtime".to_string()),
+                source_package: Some(kind_dir.to_string()),
+                namespace: None,
+                read_only: Some(false),
+            });
+        }
+    }
+    out
+}
+
+fn scan_md_installed_skills(dir: &Path, kind_dir: &str) -> Vec<InstalledSkill> {
+    let mut out = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) == Some("md") {
+            let name = path
+                .file_stem()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string();
+            if name.is_empty() {
+                continue;
+            }
+            let kind = if path.is_file() {
+                let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                if size > 200 { "full" } else { "pointer" }
+            } else {
+                "pointer"
+            };
+            out.push(InstalledSkill {
+                asset_id: Some(name.clone()),
+                name: name.clone(),
+                abs_path: path.to_string_lossy().to_string(),
+                kind: kind.to_string(),
+                view_path: Some(path.to_string_lossy().to_string()),
+                provider: Some("rust-runtime".to_string()),
+                source_package: Some(kind_dir.to_string()),
+                namespace: None,
+                read_only: Some(false),
+            });
+        }
+    }
+    out
+}
+
+fn scan_md_installed_prompts(dir: &Path) -> Vec<InstalledPrompt> {
+    let mut out = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) == Some("md") {
+            let file_name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string();
+            let name = path
+                .file_stem()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_string();
+            if name.is_empty() || file_name.is_empty() {
+                continue;
+            }
+            out.push(InstalledPrompt {
+                name: name.clone(),
+                file_name,
+                abs_path: path.to_string_lossy().to_string(),
+            });
+        }
+    }
+    out
+}
+
+fn detect_installed_instructions(engine_root: &Path) -> InstalledInstructions {
+    let candidates = [
+        engine_root.join("AGENTS.md"),
+        engine_root.join("CLAUDE.md"),
+        engine_root.join("docs").join("CLAUDE.md"),
+        engine_root.join("docs").join("AGENTS.md"),
+    ];
+    for candidate in &candidates {
+        if candidate.exists() {
+            return InstalledInstructions {
+                installed: true,
+                abs_path: candidate.to_string_lossy().to_string(),
+            };
+        }
+    }
+    InstalledInstructions {
+        installed: false,
+        abs_path: String::new(),
+    }
+}
 
 fn scan_md_files(dir: &Path) -> Vec<Value> {
     let mut items = vec![];
@@ -105,33 +253,86 @@ fn write_catalog_json(state: &AppState, name: &str, data: &Value) -> Result<(), 
 // Asset Management (7 routes)
 // ---------------------------------------------------------------------------
 
-async fn get_assets_managed(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
-    let mut assets = vec![];
+async fn get_assets_managed(State(state): State<AppState>) -> Result<Json<ManagedAssetsResponse>, ApiError> {
+    let mut managed: Vec<ManagedAssetStatus> = Vec::new();
     let engine = &state.config.engine_root;
-    for dir_name in &["engine-assets", "opencode-assets", "codex-assets", "antigravity-assets", "claude-assets"] {
-        let dir = engine.join(dir_name);
-        if dir.exists() {
-            assets.push(json!({
-                "source": dir_name,
-                "path": dir.to_string_lossy(),
-                "items": scan_asset_kind_dir(&dir),
-            }));
+    for source_name in &["engine-assets", "opencode-assets", "codex-assets", "antigravity-assets", "claude-assets"] {
+        let source_dir = engine.join(source_name);
+        if !source_dir.exists() {
+            continue;
+        }
+        for kind_dir_name in ASSET_KIND_DIRS {
+            let kind_dir = source_dir.join(kind_dir_name);
+            if !kind_dir.exists() {
+                continue;
+            }
+            let asset_type = match infer_asset_kind(kind_dir_name) {
+                Some(t) => t,
+                None => continue,
+            };
+            let Ok(entries) = std::fs::read_dir(&kind_dir) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !path.is_file() {
+                    continue;
+                }
+                let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
+                    continue;
+                };
+                let stem = path
+                    .file_stem()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or(file_name)
+                    .to_string();
+                let destination = format!(".opencode/{kind_dir_name}/{file_name}");
+                let destination_abs = state.config.elegy_home.join(&destination);
+                let installed = destination_abs.exists();
+                let source_hash = sha256_hex_file(&path);
+                let destination_hash = if installed {
+                    sha256_hex_file(&destination_abs)
+                } else {
+                    None
+                };
+                let up_to_date = installed
+                    && source_hash.is_some()
+                    && source_hash == destination_hash;
+                managed.push(ManagedAssetStatus {
+                    id: stem,
+                    r#type: asset_type.to_string(),
+                    source: source_name.to_string(),
+                    destination,
+                    source_abs: Some(path.to_string_lossy().to_string()),
+                    destination_abs: if installed {
+                        Some(destination_abs.to_string_lossy().to_string())
+                    } else {
+                        None
+                    },
+                    managed: true,
+                    installed,
+                    up_to_date,
+                    source_hash,
+                    destination_hash,
+                });
+            }
         }
     }
-    Ok(Json(json!({"managed": assets, "count": assets.len()})))
+    let count = managed.len() as u64;
+    Ok(Json(ManagedAssetsResponse { managed, count }))
 }
 
-async fn get_assets_installed(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
-    let agents = scan_md_files(&state.config.elegy_home.join("agents"));
-    let skills = scan_md_files(&state.config.elegy_home.join("skills"));
-    let prompts = scan_md_files(&state.config.elegy_home.join("prompts"));
-    let instructions = scan_md_files(&state.config.engine_root.join("docs"));
-    Ok(Json(json!({
-        "agents": agents,
-        "skills": skills,
-        "prompts": prompts,
-        "instructions": instructions,
-    })))
+async fn get_assets_installed(State(state): State<AppState>) -> Result<Json<InstalledAssetsResponse>, ApiError> {
+    let agents = scan_md_installed_agents(&state.config.elegy_home.join("agents"), "agents");
+    let skills = scan_md_installed_skills(&state.config.elegy_home.join("skills"), "skills");
+    let prompts = scan_md_installed_prompts(&state.config.elegy_home.join("prompts"));
+    let instructions = detect_installed_instructions(&state.config.engine_root);
+    Ok(Json(InstalledAssetsResponse {
+        agents,
+        skills,
+        prompts,
+        instructions,
+    }))
 }
 
 async fn post_assets_sync_all(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
@@ -243,6 +444,7 @@ async fn post_catalog_repos_refresh(State(state): State<AppState>) -> Result<Jso
 }
 
 async fn get_catalog_summary(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    use elegy_native_contracts::{CatalogGlobalHarness, CatalogGlobalInventory, CatalogGlobalSection};
     let engine = &state.config.engine_root;
     let assets_dir = catalog_dir(&state);
     let snapshot_path = assets_dir.join("snapshot.json");
@@ -256,6 +458,61 @@ async fn get_catalog_summary(State(state): State<AppState>) -> Result<Json<Value
     let external_sources: Vec<Value> = vec![];
     let assets_list = scan_asset_kind_dir(&engine.join("engine-assets"));
     let bundles_list = scan_json_files(&engine.join("engine-assets"));
+
+    // Build globalInventory: one Harness per source dir, one Section per asset kind.
+    let harness_dirs: &[(&str, &str)] = &[
+        ("engine-assets", "Engine Assets"),
+        ("opencode-assets", "OpenCode Assets"),
+        ("codex-assets", "Codex Assets"),
+        ("antigravity-assets", "Antigravity Assets"),
+        ("claude-assets", "Claude Assets"),
+    ];
+    let harnesses: Vec<CatalogGlobalHarness> = harness_dirs
+        .iter()
+        .map(|(id, label)| {
+            let dir = engine.join(id);
+            let asset_count = if dir.exists() { scan_asset_kind_dir(&dir).len() as u64 } else { 0 };
+            CatalogGlobalHarness {
+                id: id.to_string(),
+                label: label.to_string(),
+                asset_count,
+            }
+        })
+        .collect();
+    let mut sections: Vec<CatalogGlobalSection> = Vec::new();
+    for kind in ASSET_KIND_DIRS {
+        let label = match *kind {
+            "agents" => "Agents",
+            "skills" => "Skills",
+            "prompts" => "Prompts",
+            "instructions" => "Instructions",
+            _ => kind,
+        };
+        let mut assets_for_section: Vec<Value> = Vec::new();
+        for (source_id, _) in harness_dirs {
+            let kind_dir = engine.join(source_id).join(kind);
+            if !kind_dir.exists() {
+                continue;
+            }
+            for item in scan_asset_kind_dir(&kind_dir) {
+                let mut entry = item;
+                if let Some(obj) = entry.as_object_mut() {
+                    obj.insert("source".to_string(), Value::String(source_id.to_string()));
+                    obj.insert("kind".to_string(), Value::String(kind.to_string()));
+                }
+                assets_for_section.push(entry);
+            }
+        }
+        sections.push(CatalogGlobalSection {
+            id: kind.to_string(),
+            label: label.to_string(),
+            assets: assets_for_section,
+        });
+    }
+    let global_inventory = CatalogGlobalInventory { harnesses, sections };
+    let global_inventory_value = serde_json::to_value(&global_inventory)
+        .unwrap_or_else(|_| serde_json::json!({"harnesses": [], "sections": []}));
+
     Ok(Json(json!({
         "kind": "catalog.summary",
         "deterministic": true,
@@ -266,6 +523,7 @@ async fn get_catalog_summary(State(state): State<AppState>) -> Result<Json<Value
             "repoContext": null,
             "providers": providers,
             "externalSources": external_sources,
+            "globalInventory": global_inventory_value,
             "storage": {
                 "catalogRoot": assets_dir.to_string_lossy(),
                 "snapshotPath": snapshot_path.to_string_lossy(),

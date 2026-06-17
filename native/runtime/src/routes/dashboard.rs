@@ -1,7 +1,7 @@
 use axum::extract::State;
 use axum::routing::get;
 use axum::{Json, Router};
-use elegy_native_contracts::DashboardSummaryResponse;
+use elegy_native_contracts::DashboardSummaryResponseWithSource;
 
 use crate::app::AppState;
 use crate::dashboard::build_dashboard_summary;
@@ -25,7 +25,9 @@ async fn harness_sessions(
     Json(serde_json::json!({ "sessions": result, "count": result.len() }))
 }
 
-async fn get_dashboard_summary(State(state): State<AppState>) -> Json<DashboardSummaryResponse> {
+async fn get_dashboard_summary(
+    State(state): State<AppState>,
+) -> Json<DashboardSummaryResponseWithSource> {
     Json(build_dashboard_summary(&state.config.elegy_home))
 }
 

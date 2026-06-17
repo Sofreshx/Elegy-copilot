@@ -337,6 +337,7 @@ mod tests {
                 "activeSessionCount".to_string(),
                 "healthIndicator".to_string(),
                 "recentActivity".to_string(),
+                "source".to_string(),
                 "totalSessionCount".to_string(),
             ])
         );

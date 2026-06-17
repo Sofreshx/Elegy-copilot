@@ -12,7 +12,7 @@ The Node.js HTTP server (`copilot-ui/server.js`) is replaced by a Rust Axum serv
 | r2d2 connection pool (max 8) | ✅ | Concurrent SQLite access via WAL |
 | Automatic schema repair | ✅ | Adds missing columns to pre-existing tables |
 | rusqlite with 34 tables (planning.db + ie_* + copilot) | ✅ | Idempotent DDL, WAL mode, busy_timeout |
-| 40 contract types matching TypeScript | ✅ | CamelCase JSON serialization |
+| 60+ contract types matching TypeScript | ✅ | CamelCase JSON serialization, response shapes parity-verified |
 | Bearer token auth with loopback bypass | ✅ | Token resolution: CLI > env > auto-gen |
 | 18 CRUD persistence methods | ✅ | Records, suggestions, recaps, artifacts, compare, merge, idempotency |
 | ~276 API routes (99.3% of Node.js) | ✅ | 37 route modules |
@@ -20,7 +20,8 @@ The Node.js HTTP server (`copilot-ui/server.js`) is replaced by a Rust Axum serv
 | Real planning persistence health check | ✅ | Table presence, integrity_check |
 | Graceful shutdown via stdin + Ctrl+C | ✅ | Reads "shutdown\n" from Tauri stdin |
 | Structured HTTP logging with request IDs | ✅ | x-request-id UUID per request, span with method/uri/status |
-| Per-domain e2e happy path tests | ✅ | 41 integration tests + 1 concurrent test |
+| Per-domain e2e happy path tests | ✅ | 46 integration tests + 1 concurrent test |
+| Response-shape parity with frontend | ✅ | `catalog/repos`, `assets/managed`, `assets/installed`, `catalog/summary`, `dashboard/summary` |
 | Frontend SPA served from ui-dist/ | ✅ | Custom fallback for non-API paths |
 
 ## Known Limitations

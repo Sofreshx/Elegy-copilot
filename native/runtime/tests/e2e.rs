@@ -339,3 +339,106 @@ async fn concurrent_planning_records() {
         .unwrap();
     assert_eq!(count, 8, "should have 8 records after concurrent inserts");
 }
+
+// ---------------------------------------------------------------------------
+// Shape parity tests — verify response shapes match frontend expectations
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn catalog_repos_inventory_shape() {
+    let dir = tmp();
+    let (status, body) = get_json(app(&dir), "/api/catalog/repos").await;
+    assert_ok(status);
+    assert_eq!(body.get("kind").and_then(|v| v.as_str()), Some("catalog.repos.list"));
+    assert!(body.get("deterministic").and_then(|v| v.as_bool()).unwrap_or(false));
+    assert!(body.get("count").is_some());
+    assert!(body.get("repos").and_then(|v| v.as_array()).is_some());
+    let storage = body.get("storage").expect("storage present");
+    assert!(storage.get("path").is_some());
+    assert!(storage.get("exists").is_some());
+    assert!(body.get("workspaceScan").is_some());
+    // selectedRepo is Option (can be null when no selection)
+    assert!(body.get("selectedRepo").is_some());
+    // Empty repos list is valid for a fresh install; verify entry shape if any
+    if let Some(repos) = body.get("repos").and_then(|v| v.as_array()) {
+        if let Some(first) = repos.first() {
+            for key in [
+                "repoId",
+                "repoPath",
+                "repoLabel",
+                "selected",
+                "registered",
+                "sources",
+                "exists",
+                "gitRootPresent",
+                "scanStatus",
+                "assets",
+                "hints",
+                "snapshot",
+                "repoState",
+            ] {
+                assert!(first.get(key).is_some(), "entry missing key: {key}");
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn assets_managed_flat_shape() {
+    let dir = tmp();
+    let (status, body) = get_json(app(&dir), "/api/assets/managed").await;
+    assert_ok(status);
+    let managed = body.get("managed").and_then(|v| v.as_array()).expect("managed array");
+    assert!(body.get("count").is_some());
+    // Each entry must be a flat ManagedAssetStatus with the expected keys
+    for entry in managed {
+        for key in ["id", "type", "source", "destination", "managed", "installed", "upToDate"] {
+            assert!(entry.get(key).is_some(), "managed entry missing key: {key}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn assets_installed_instructions_object() {
+    let dir = tmp();
+    let (status, body) = get_json(app(&dir), "/api/assets/installed").await;
+    assert_ok(status);
+    let instructions = body.get("instructions").expect("instructions present");
+    assert!(instructions.is_object(), "instructions must be an object, not an array");
+    assert!(instructions.get("installed").and_then(|v| v.as_bool()).is_some());
+    assert!(instructions.get("absPath").and_then(|v| v.as_str()).is_some());
+    // arrays for the other categories
+    assert!(body.get("agents").and_then(|v| v.as_array()).is_some());
+    assert!(body.get("skills").and_then(|v| v.as_array()).is_some());
+    assert!(body.get("prompts").and_then(|v| v.as_array()).is_some());
+}
+
+#[tokio::test]
+async fn catalog_summary_has_global_inventory() {
+    let dir = tmp();
+    let (status, body) = get_json(app(&dir), "/api/catalog/summary").await;
+    assert_ok(status);
+    let summary = body.get("summary").expect("summary present");
+    let global_inventory = summary
+        .get("globalInventory")
+        .expect("globalInventory present (fixes SettingsView .filter() crash)");
+    assert!(global_inventory.get("harnesses").and_then(|v| v.as_array()).is_some());
+    assert!(global_inventory.get("sections").and_then(|v| v.as_array()).is_some());
+}
+
+#[tokio::test]
+async fn dashboard_summary_has_source_field() {
+    let dir = tmp();
+    let (status, body) = get_json(app(&dir), "/api/dashboard/summary").await;
+    assert_ok(status);
+    assert_eq!(
+        body.get("source").and_then(|v| v.as_str()),
+        Some("rust-runtime"),
+        "dashboard summary must include source field"
+    );
+    // Other fields still present
+    assert!(body.get("activeSessionCount").is_some());
+    assert!(body.get("totalSessionCount").is_some());
+    assert!(body.get("recentActivity").is_some());
+    assert!(body.get("healthIndicator").is_some());
+}
