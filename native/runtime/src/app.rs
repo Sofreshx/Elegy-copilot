@@ -23,6 +23,7 @@ pub struct AppState {
     pub auth: AuthConfig,
     pub(crate) version_state: Arc<Mutex<VersionResponse>>,
     pub(crate) policy_cache: Arc<Mutex<Option<CachedPolicyPreflight>>>,
+    pub(crate) planning_db: Arc<tokio::sync::Mutex<Option<crate::db::Database>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -33,6 +34,12 @@ pub(crate) struct CachedPolicyPreflight {
 
 impl AppState {
     pub fn new(config: RuntimeConfig, auth: AuthConfig) -> Self {
+        let db = crate::db::Database::open(&config.elegy_home.join("planning.db"))
+            .map(Some)
+            .unwrap_or_else(|e| {
+                tracing::warn!("Failed to open planning.db: {e}; planning persistence disabled");
+                None
+            });
         Self {
             config,
             auth,
@@ -41,6 +48,7 @@ impl AppState {
                 last_changed_ms: None,
             })),
             policy_cache: Arc::new(Mutex::new(None)),
+            planning_db: Arc::new(tokio::sync::Mutex::new(db)),
         }
     }
 
@@ -141,33 +149,42 @@ pub async fn serve(state: AppState) -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(address)
         .await
         .context("failed to bind Rust runtime listener")?;
+    serve_on(state, listener).await
+}
+
+pub async fn serve_on(state: AppState, listener: tokio::net::TcpListener) -> anyhow::Result<()> {
+    let shutdown = graceful_shutdown_signal();
     axum::serve(listener, build_router(state))
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(shutdown)
         .await
         .context("Rust runtime server exited unexpectedly")
 }
 
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        let _ = tokio::signal::ctrl_c().await;
-    };
+async fn graceful_shutdown_signal() {
+    let (tx, mut rx) = tokio::sync::watch::channel(());
 
-    #[cfg(unix)]
-    let terminate = async {
-        if let Ok(mut signal) =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-        {
-            signal.recv().await;
+    let stdio_tx = tx.clone();
+    tokio::spawn(async move {
+        use tokio::io::AsyncBufReadExt;
+        let reader = tokio::io::BufReader::new(tokio::io::stdin());
+        let mut lines = reader.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            if line.trim() == "shutdown" {
+                tracing::info!("received shutdown via stdin");
+                let _ = stdio_tx.send(());
+                break;
+            }
         }
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
+    });
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        _ = tokio::signal::ctrl_c() => {
+            tracing::info!("received shutdown via Ctrl+C");
+        }
+        _ = rx.changed() => {}
     }
+
+    drop(tx);
 }
 
 #[cfg(test)]

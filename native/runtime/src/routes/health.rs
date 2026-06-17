@@ -6,6 +6,7 @@ use elegy_native_contracts::{RuntimeHealthResponse, VersionResponse};
 use serde_json::json;
 
 use crate::app::{policy_preflight, AppState};
+use crate::planning_health::build_planning_persistence_health;
 use crate::runtime::build_runtime_health;
 
 async fn get_health(State(state): State<AppState>) -> Json<RuntimeHealthResponse> {
@@ -18,18 +19,7 @@ async fn get_health(State(state): State<AppState>) -> Json<RuntimeHealthResponse
             last_changed_ms: None,
         });
     let policy = policy_preflight(&state, false);
-    let planning_persistence = json!({
-        "kind": "planning.persistence.health",
-        "contractVersion": "planning_api_v1",
-        "ready": false,
-        "status": "disabled",
-        "required": false,
-        "configured": false,
-        "usable": false,
-        "initSupported": false,
-        "initRequired": false,
-        "error": null,
-    });
+    let planning_persistence = build_planning_persistence_health(&state.config.elegy_home);
     let runtime = build_runtime_health(&state.config.engine_root, &state.config.sandboxes_home);
 
     Json(RuntimeHealthResponse {

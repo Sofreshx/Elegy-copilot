@@ -1078,11 +1078,15 @@ fn rust_binary_path(runtime_root: &str) -> Result<String, String> {
     ))
 }
 
-fn launch_rust_runtime(runtime_root: &str) -> Result<(Child, String), String> {
+fn launch_rust_runtime(
+    app: &AppHandle,
+    runtime_root: &str,
+    stderr_capture: StderrCapture,
+) -> Result<String, String> {
     let binary = rust_binary_path(runtime_root)?;
-    tracing::info!(binary = %binary, "launching Rust backend");
+    eprintln!("[tauri-runtime] Rust binary: {}", binary);
 
-    let child = Command::new(&binary)
+    let mut child = Command::new(&binary)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -1090,13 +1094,40 @@ fn launch_rust_runtime(runtime_root: &str) -> Result<(Child, String), String> {
         .spawn()
         .map_err(|e| format!("Failed to spawn Rust runtime: {}", e))?;
 
-    let pid = child.id();
-    tracing::info!(pid = pid, "Rust backend started");
+    let child_pid = child.id();
+    eprintln!("[tauri-runtime] Rust runtime pid={}", child_pid);
 
-    // Construct the window URL (hardcoded port matches native/runtime default)
-    let window_url = "http://127.0.0.1:3211".to_string();
+    let stderr_capture_for_watchdog = Arc::clone(&stderr_capture);
+    let ready_payload = drain_runtime_output(&mut child, stderr_capture_for_watchdog.clone())?;
+    let parsed: RuntimeReadyPayload = serde_json::from_str(&ready_payload)
+        .map_err(|error| format!("Invalid readiness payload from Rust runtime: {error}"))?;
 
-    Ok((child, window_url))
+    let runtime_state = app.state::<RuntimeChildState>();
+    {
+        let mut inner_guard = runtime_state
+            .inner
+            .lock()
+            .map_err(|_| "Unable to lock runtime child state.".to_string())?;
+        inner_guard.replace(child);
+    }
+    *runtime_state
+        .pid
+        .lock()
+        .map_err(|_| "Unable to lock runtime pid state.".to_string())? = Some(child_pid);
+    *runtime_state
+        .window_url
+        .lock()
+        .map_err(|_| "Unable to lock runtime window url state.".to_string())? =
+        Some(parsed.window_url.clone());
+    *runtime_state
+        .stderr_capture
+        .lock()
+        .map_err(|_| "Unable to lock runtime stderr capture state.".to_string())? =
+        Some(stderr_capture_for_watchdog);
+
+    spawn_runtime_watchdog(app.clone(), runtime_state.cancel.clone());
+
+    Ok(parsed.window_url)
 }
 
 fn shutdown_runtime(app: &AppHandle) {
@@ -1215,36 +1246,11 @@ fn main() {
             } else {
                 eprintln!("[tauri-runtime] using Rust native backend");
                 let runtime_root = runtime_root(app.handle())?;
-                let (child, url) = launch_rust_runtime(&runtime_root.to_string_lossy())?;
-                let child_pid = child.id();
-
-                // Store child in RuntimeChildState for shutdown/watchdog
-                let runtime_state = app.state::<RuntimeChildState>();
-                {
-                    let mut inner_guard = runtime_state
-                        .inner
-                        .lock()
-                        .map_err(|_| "Unable to lock runtime child state.".to_string())?;
-                    inner_guard.replace(child);
-                }
-                *runtime_state
-                    .pid
-                    .lock()
-                    .map_err(|_| "Unable to lock runtime pid state.".to_string())? = Some(child_pid);
-                *runtime_state
-                    .window_url
-                    .lock()
-                    .map_err(|_| "Unable to lock runtime window url state.".to_string())? =
-                    Some(url.clone());
-                *runtime_state
-                    .stderr_capture
-                    .lock()
-                    .map_err(|_| "Unable to lock runtime stderr capture state.".to_string())? =
-                    Some(Arc::clone(&stderr_capture_for_setup));
-
-                spawn_runtime_watchdog(app.handle().clone(), runtime_state.cancel.clone());
-
-                url
+                launch_rust_runtime(
+                    app.handle(),
+                    &runtime_root.to_string_lossy(),
+                    stderr_capture_for_setup,
+                )?
             };
             create_main_window(app.handle(), &window_url)?;
             Ok(())
