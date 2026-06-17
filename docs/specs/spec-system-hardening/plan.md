@@ -12,7 +12,7 @@ This plan implements R1–R10 of the spec-system-hardening spec. The goal is to 
 
 The work is ordered into 6 phases. Phase 1 (deduplication) must come first because all subsequent validator extensions build on the shared modules. Phase 2 (extensions to `validate-specs.js --strict`) follows. Phase 3 creates the enforcement surface (CI + pre-commit) that runs the Phase 2 checks. Phases 4 and 5 (cleanup + docs) are independent of each other and can run in parallel. Phase 6 is final validation.
 
-**Cross-spec coordination:** This spec shares implementation files with `verifiable-acceptance-criteria` (`scripts/validate-specs.js`, `catalog-assets/shared-skills/spec-review/SKILL.md`, `catalog-assets/shared-skills/spec-authoring/SKILL.md`, `opencode-assets/agents/spec.md`). This plan assumes `verifiable-acceptance-criteria` lands first, OR the two are implemented sequentially (not concurrently) to avoid merge conflicts on the shared files.
+**Cross-spec coordination:** This spec shares implementation files with `verifiable-acceptance-criteria` (`scripts/validate-specs.js`, `catalog-assets/shared-skills/spec-review/SKILL.md`, `catalog-assets/shared-skills/spec-authoring/SKILL.md`, `opencode-assets/agents/spec.md` (deleted during lane restructuring)). This plan assumes `verifiable-acceptance-criteria` lands first, OR the two are implemented sequentially (not concurrently) to avoid merge conflicts on the shared files.
 
 ---
 
@@ -49,7 +49,7 @@ Phase 4: Content Cleanup (R8)
     → Regenerate index
 
 Phase 5: Agent & Docs (R9 + R10)
-    → R9: Update opencode-assets/agents/spec.md (6 sub-revisions)
+    → R9: Update opencode-assets/agents/spec.md (MOOT — agent file was deleted; work absorbed into skills)
     → R10: Update spec-driven-development.md, spec-review SKILL.md,
       spec-authoring SKILL.md, AGENTS.md
     → Can run in parallel with Phase 4
@@ -299,31 +299,11 @@ Phase 6: Final Validation
 
 #### R9 — Spec Lane Agent Updates (15 min)
 
-28. **Update `opencode-assets/agents/spec.md` — R9.1** (2 min)
-    - Phase 1.6: Clarify that recording in elegy-planning is OPTIONAL; specs are standalone requirements artifacts
-    - Locate the Phase 1.6 section and add clarifying language
+28. **R9 MOOT — `opencode-assets/agents/spec.md` deleted** (0 min)
+    - The spec lane agent file was removed during lane restructuring. R9 hardening work was absorbed into `spec-authoring` skill and `project-workflow` skill. No file to update.
 
-29. **Update `opencode-assets/agents/spec.md` — R9.2** (2 min)
-    - Phase 2.2: Verify current mention of `--strict` is correct. If already says `node scripts/validate-specs.js --strict`, confirm it's correct. If it says something different, update.
-    - Ensure it says: "Run `node scripts/validate-specs.js --strict` on the spec and fix all errors before review."
-
-30. **Update `opencode-assets/agents/spec.md` — R9.3** (2 min)
-    - Phase 4.2: Change to explicitly reference: "Run `→ verify:` commands from the spec's Acceptance Checks section and capture output as Validation Evidence."
-
-31. **Update `opencode-assets/agents/spec.md` — R9.4** (2 min)
-    - Safety section: Add: "If the spec validator (`validate-specs.js --strict`) fails at any phase, stop and fix the spec before proceeding. Never bypass a failing validation gate."
-
-32. **Update `opencode-assets/agents/spec.md` — R9.5** (2 min)
-    - Prerequisites: Add: "Ensure `node scripts/install-spec-hooks.mjs` has been run once in this repo."
-
-33. **Update `opencode-assets/agents/spec.md` — R9.6** (2 min)
-    - Add a CI expectation note: "Spec validation runs in CI on every push. Commits that break spec validation will be rejected."
-
-34. **Verify all R9 changes** (1 min)
-    - `rg "fix all errors before review" opencode-assets/agents/spec.md` → match
-    - `rg "Never bypass a failing validation gate" opencode-assets/agents/spec.md` → match
-    - `rg "install-spec-hooks" opencode-assets/agents/spec.md` → match
-    - `rg "spec validation runs in CI on every push" opencode-assets/agents/spec.md` → match
+34. **R9 MOOT — no verify needed** (0 min)
+    - Spec lane agent was deleted; no file to verify against
 
 #### R10 — Documentation Updates (10 min)
 
@@ -415,7 +395,7 @@ Phase 6: Final Validation
 | R6.1–6.6 | `scripts/lib/*.js` (4 modules) + 4 updated scripts |
 | R7.1–7.2 | `scripts/validate-specs.js` — `--strict` plan.md check |
 | R8.0–8.4 | 3 spec files (`align-elegy-db-assets`, `planning-explorer-view`, `planning-visibility-canonicalization`) + regenerated index |
-| R9.1–9.6 | `opencode-assets/agents/spec.md` — 6 sub-revisions |
+| R9.1–9.6 | `opencode-assets/agents/spec.md` — MOOT (agent file was deleted) |
 | R10.1 | `docs/system/spec-driven-development.md` — freshness, pre-commit, CI |
 | R10.2 | `catalog-assets/shared-skills/spec-review/SKILL.md` — plan.md reference |
 | R10.3 | `catalog-assets/shared-skills/spec-authoring/SKILL.md` — pre-commit hook |
@@ -450,7 +430,7 @@ Phase 6: Final Validation
 | `specs/planning-explorer-view/spec.md` | Modified | 4.5 |
 | `specs/planning-visibility-canonicalization/spec.md` | Modified | 4.5 |
 | `specs/index.md` | Regenerated | 4.5 |
-| `opencode-assets/agents/spec.md` | Modified | 5 |
+| `opencode-assets/agents/spec.md` | MOOT — deleted | 0 |
 | `docs/system/spec-driven-development.md` | Modified | 5 |
 | `catalog-assets/shared-skills/spec-review/SKILL.md` | Modified | 5 |
 | `catalog-assets/shared-skills/spec-authoring/SKILL.md` | Modified | 5 |

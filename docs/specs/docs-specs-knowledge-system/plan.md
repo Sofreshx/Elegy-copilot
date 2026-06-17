@@ -147,7 +147,7 @@ Phases A–D are independent and can run concurrently. Phase E requires the tool
 - **Files:** `codex-assets/home/AGENTS.md`, `opencode-assets/home/AGENTS.md`, `antigravity-assets/home/GEMINI.md`
 - Add: "Keep instruction surfaces compact. Future specs and docs must be concise, map-like, and scoped to their stated purpose."
 
-**Validation gate C:** `rg "specs/<" codex-assets/home/ opencode-assets/home/ opencode-assets/agents/spec.md antigravity-assets/home/GEMINI.md engine-assets/copilot-instructions.md .github/copilot-instructions.md catalog-assets/shared-skills/spec-*/ AGENTS.md guidelines.md` returns zero matches for old path pattern in updated files
+**Validation gate C:** `rg "specs/<" codex-assets/home/ opencode-assets/home/ antigravity-assets/home/GEMINI.md engine-assets/copilot-instructions.md .github/copilot-instructions.md catalog-assets/shared-skills/spec-*/ AGENTS.md guidelines.md` returns zero matches for old path pattern in updated files
 
 ---
 
@@ -264,7 +264,7 @@ rg "[\"']specs[\"']" scripts/ .github/workflows/
 
 ### G5: Verify harness files updated
 ```bash
-rg "specs/<" codex-assets/home/ opencode-assets/home/ opencode-assets/agents/spec.md antigravity-assets/home/GEMINI.md engine-assets/copilot-instructions.md .github/copilot-instructions.md catalog-assets/shared-skills/spec-*/
+rg "specs/<" codex-assets/home/ opencode-assets/home/ antigravity-assets/home/GEMINI.md engine-assets/copilot-instructions.md .github/copilot-instructions.md catalog-assets/shared-skills/spec-*/
 ```
 
 ### G6: Full CI run

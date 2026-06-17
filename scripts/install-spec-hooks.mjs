@@ -14,7 +14,7 @@ import { execSync } from 'child_process';
  *
  * PART OF: spec-system-hardening (specs/spec-system-hardening/spec.md)
  * DOCS: docs/system/spec-driven-development.md (Pre-Commit Hook section)
- * AGENT: opencode-assets/agents/spec.md (Prerequisites)
+ * AGENT: opencode-assets/agents/spec.md (deleted — Prerequisites moved to spec-authoring skill)
  * REPO: AGENTS.md (Before any work section)
  */
 

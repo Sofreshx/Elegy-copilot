@@ -11,7 +11,7 @@ metadata: {"tags":["documentation","readme","specs","adr","governance"]}
 | Artifact | Mode | Describes | Answers |
 |----------|------|-----------|---------|
 | README | Entrypoint | What this is and how to start | "Where do I begin?" |
-| Docs | State | How the system currently works | "How does it work?" |
+| Canonical doc | State | How the system currently works | "How does it work?" |
 | Spec | Intent | What the system should do | "What should it do?" |
 | ADR | Decision | What was chosen and why | "Why this way?" |
 

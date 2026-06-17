@@ -172,7 +172,7 @@ After Steps 1-10 are complete, verify each acceptance check from `specs/verifiab
 - [ ] `Select-String -Path "catalog-assets/shared-skills/spec-authoring/SKILL.md" -Pattern "→ verify:" | Measure-Object | Select-Object -ExpandProperty Count` — assert >= 2
 - [ ] `Select-String -Path "catalog-assets/shared-skills/spec-review/SKILL.md" -Pattern "verification method|verify line|concrete check" | Measure-Object | Select-Object -ExpandProperty Count` — assert >= 1
 - [ ] `Select-String -Path "docs/system/spec-driven-development.md" -Pattern "→ verify:" | Measure-Object | Select-Object -ExpandProperty Count` — assert >= 1
-- [ ] `Select-String -Path "opencode-assets/agents/spec.md" -Pattern "acceptance.*verif|verify.*acceptance|verification method" | Measure-Object | Select-Object -ExpandProperty Count` — assert >= 1
+- [ ] `Select-String -Path "opencode-assets/agents/spec.md" -Pattern "acceptance.*verif|verify.*acceptance|verification method" | Measure-Object | Select-Object -ExpandProperty Count` — assert >= 1 (NOTE: spec lane agent was deleted; acceptance verification was absorbed into `spec-authoring` skill)
 - [ ] `Select-String -Path "opencode-assets/agents/reviewer.md" -Pattern "verification method|verify line" | Measure-Object | Select-Object -ExpandProperty Count` — assert >= 1
 - [ ] `Select-String -Path "opencode-assets/agents/project.md" -Pattern "acceptance.*verif|verify.*acceptance|verification method" | Measure-Object | Select-Object -ExpandProperty Count` — assert >= 1
 

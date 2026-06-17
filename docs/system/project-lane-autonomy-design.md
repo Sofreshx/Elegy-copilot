@@ -1,6 +1,6 @@
 # Project Lane Autonomy Design
 
-**Status:** Superseded. Project lane was removed in `docs/specs/agentic-lanes-quality-v2/spec.md`.
+**Status:** Superseded. Project lane was removed during the agentic lanes quality rework.
 Autonomous continuation, evidence chains, and questioning policy now live in:
 - `docs/system/calibrated-questioning-and-depth-governance.md` — questioning ladder
 - `docs/system/project-lane-autonomy-design.md` — archived
