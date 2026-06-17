@@ -66,7 +66,6 @@ async fn gateway_state(State(state): State<AppState>) -> Json<serde_json::Value>
         "connected": false,
         "type": null,
         "lastConnection": null,
-        "stub": true,
     });
     let state_value = read_gateway_file(&state, "state", default);
     Json(state_value)
@@ -75,16 +74,26 @@ async fn gateway_state(State(state): State<AppState>) -> Json<serde_json::Value>
 // ── POST /api/gateway/connect ───────────────────────────────────────────────
 
 async fn gateway_connect(
-    State(_state): State<AppState>,
-    Json(_body): Json<serde_json::Value>,
+    State(state): State<AppState>,
+    Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
-    Json(json!({"ok": true, "stub": true}))
+    let conn = json!({
+        "type": body.get("type"),
+        "token": body.get("token"),
+        "channelId": body.get("channelId"),
+    });
+    let _ = write_gateway_file(&state, "connection", &conn);
+    Json(json!({
+        "ok": true,
+        "connected": false,
+        "message": "Gateway configuration saved. Start local-tracker to connect."
+    }))
 }
 
 // ── GET /api/gateway/config ─────────────────────────────────────────────────
 
 async fn gateway_config_get(State(state): State<AppState>) -> Json<serde_json::Value> {
-    let default = json!({"enabled": false, "stub": true});
+    let default = json!({"enabled": false});
     let config = read_gateway_file(&state, "config", default);
     Json(config)
 }
@@ -98,8 +107,54 @@ async fn gateway_config_set(
     write_gateway_file(&state, "config", &body)
 }
 
+// ── Helpers for repo inventory ──────────────────────────────────────────────
+
+fn repo_inventory_path(state: &AppState) -> std::path::PathBuf {
+    state.config.elegy_home.join("repo-inventory.json")
+}
+
+fn list_registered_repos(state: &AppState) -> Vec<serde_json::Value> {
+    let path = repo_inventory_path(state);
+    if !path.exists() {
+        return vec![];
+    }
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|v| v.as_array().cloned())
+        .unwrap_or_default()
+}
+
 // ── POST /api/gateway/scan-repos ────────────────────────────────────────────
 
-async fn gateway_scan_repos() -> Json<serde_json::Value> {
-    Json(json!({"ok": true, "repos": [], "stub": true}))
+async fn gateway_scan_repos(
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    let repos = list_registered_repos(&state);
+    let mut results = Vec::new();
+    for repo in &repos {
+        let repo_id = repo.get("repoId").and_then(|v| v.as_str()).unwrap_or("");
+        let repo_path = repo.get("repoPath").and_then(|v| v.as_str()).unwrap_or("");
+        let gateway_config_path =
+            std::path::Path::new(repo_path).join(".copilot").join("gateway.json");
+        let has_gateway = gateway_config_path.exists();
+        let gateway_config = if has_gateway {
+            std::fs::read_to_string(&gateway_config_path)
+                .ok()
+                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        } else {
+            None
+        };
+        results.push(json!({
+            "repoId": repo_id,
+            "repoPath": repo_path,
+            "hasGateway": has_gateway,
+            "gatewayConfig": gateway_config,
+        }));
+    }
+    Json(json!({
+        "ok": true,
+        "repos": results,
+        "count": results.len()
+    }))
 }

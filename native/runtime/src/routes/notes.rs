@@ -3,6 +3,7 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 use std::path::PathBuf;
+use std::process::Command;
 
 use crate::app::AppState;
 
@@ -650,22 +651,83 @@ async fn delete_settings_key(
     write_settings(&state, &settings)
 }
 
-// ── POST /api/notes/sync/push (stub) ──
+// ── POST /api/notes/sync/push ──
 
-async fn sync_push() -> Json<serde_json::Value> {
-    Json(serde_json::json!({"ok": true, "stub": true}))
+async fn sync_push(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let notes = notes_dir(&state);
+    if !notes.join(".git").exists() {
+        return Json(serde_json::json!({"ok": false, "message": "Notes directory is not a git repository", "committed": 0, "pushed": false}));
+    }
+    let notes_str = notes.to_str().unwrap_or("");
+    let timestamp = chrono::Utc::now().to_rfc3339();
+    Command::new("git").args(["-C", notes_str, "add", "-A"]).status().ok();
+    let commit = Command::new("git")
+        .args(["-C", notes_str, "commit", "-m", &format!("sync: auto-commit notes {}", timestamp)])
+        .status();
+    let committed = commit.map(|s| s.success()).unwrap_or(false);
+    let push = Command::new("git")
+        .args(["-C", notes_str, "push", "origin", "HEAD"])
+        .status();
+    let pushed = push.map(|s| s.success()).unwrap_or(false);
+    Json(serde_json::json!({"ok": true, "committed": if committed { 1 } else { 0 }, "pushed": pushed}))
 }
 
-// ── POST /api/notes/sync/pull (stub) ──
+// ── POST /api/notes/sync/pull ──
 
-async fn sync_pull() -> Json<serde_json::Value> {
-    Json(serde_json::json!({"ok": true, "stub": true}))
+async fn sync_pull(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let notes = notes_dir(&state);
+    if !notes.join(".git").exists() {
+        return Json(serde_json::json!({"ok": false, "message": "Notes directory is not a git repository", "pulled": false}));
+    }
+    let notes_str = notes.to_str().unwrap_or("");
+    let pull = Command::new("git")
+        .args(["-C", notes_str, "pull", "origin", "HEAD"])
+        .status();
+    let pulled = pull.map(|s| s.success()).unwrap_or(false);
+    Json(serde_json::json!({"ok": true, "pulled": pulled}))
 }
 
-// ── GET /api/notes/sync/status (stub) ──
+// ── GET /api/notes/sync/status ──
 
-async fn sync_status_stub() -> Json<serde_json::Value> {
-    Json(serde_json::json!({"dirty": false, "ahead": 0, "behind": 0, "stub": true}))
+async fn sync_status(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let notes = notes_dir(&state);
+    let notes_str = notes.to_str().unwrap_or("");
+
+    // Check if dirty
+    let dirty = Command::new("git")
+        .args(["-C", notes_str, "status", "--porcelain"])
+        .output()
+        .map(|o| !o.stdout.is_empty())
+        .unwrap_or(false);
+
+    // Check behind count (HEAD vs origin/main)
+    let behind = Command::new("git")
+        .args(["-C", notes_str, "rev-list", "--count", "HEAD..origin/main"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|s| s.trim().parse::<i64>().ok())
+        .unwrap_or(0);
+
+    // Check ahead count (origin/main vs HEAD)
+    let ahead = Command::new("git")
+        .args(["-C", notes_str, "rev-list", "--count", "origin/main..HEAD"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|s| s.trim().parse::<i64>().ok())
+        .unwrap_or(0);
+
+    // Get current branch
+    let branch = Command::new("git")
+        .args(["-C", notes_str, "rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    Json(serde_json::json!({"dirty": dirty, "ahead": ahead, "behind": behind, "branch": branch}))
 }
 
 // ── Router ──
@@ -686,6 +748,6 @@ pub fn router(state: AppState) -> Router {
         .route("/api/notes/settings/delete", delete(delete_settings_key))
         .route("/api/notes/sync/push", post(sync_push))
         .route("/api/notes/sync/pull", post(sync_pull))
-        .route("/api/notes/sync/status", get(sync_status_stub))
+        .route("/api/notes/sync/status", get(sync_status))
         .with_state(state)
 }

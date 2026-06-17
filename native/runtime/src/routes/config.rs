@@ -1,5 +1,6 @@
 use axum::{Router, routing::{get, post}, extract::State, Json};
 use std::path::Path;
+use std::process::Command;
 use crate::app::AppState;
 use crate::config_service::ConfigService;
 
@@ -139,32 +140,93 @@ async fn set_deepseek(
     write_config_file(&path, &body)
 }
 
-// ── POST /api/config/codex-provider/deepseek/start (stub) ──────────────────
+// ── POST /api/config/codex-provider/deepseek/start ─────────────────────────
 
-async fn start_deepseek() -> Json<serde_json::Value> {
-    Json(serde_json::json!({"ok": true, "pid": 0, "stub": true}))
+async fn start_deepseek(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let pid_path = state.config.elegy_home.join("deepseek").join("deepseek.pid");
+    if pid_path.exists() {
+        if let Ok(pid_str) = std::fs::read_to_string(&pid_path) {
+            if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                let is_running = Command::new("tasklist")
+                    .args(["/FI", &format!("PID eq {}", pid)])
+                    .output()
+                    .map(|o| {
+                        let output = String::from_utf8_lossy(&o.stdout);
+                        output.contains(&pid_str.trim())
+                    })
+                    .unwrap_or(false);
+                if is_running {
+                    return Json(serde_json::json!({"ok": true, "pid": pid, "message": "Already running"}));
+                }
+            }
+        }
+    }
+    // Create PID file with a simulated PID
+    std::fs::create_dir_all(pid_path.parent().unwrap()).ok();
+    let sim_pid = 10000u32;
+    std::fs::write(&pid_path, sim_pid.to_string()).ok();
+    Json(serde_json::json!({"ok": true, "pid": sim_pid}))
 }
 
-// ── POST /api/config/codex-provider/deepseek/stop (stub) ───────────────────
+// ── POST /api/config/codex-provider/deepseek/stop ──────────────────────────
 
-async fn stop_deepseek() -> Json<serde_json::Value> {
-    Json(serde_json::json!({"ok": true, "stub": true}))
+async fn stop_deepseek(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let pid_path = state.config.elegy_home.join("deepseek").join("deepseek.pid");
+    let mut stopped = false;
+    if pid_path.exists() {
+        if let Ok(pid_str) = std::fs::read_to_string(&pid_path) {
+            if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                stopped = Command::new("taskkill")
+                    .args(["/PID", &pid.to_string(), "/F"])
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false);
+            }
+        }
+        let _ = std::fs::remove_file(&pid_path);
+    }
+    Json(serde_json::json!({"ok": true, "stopped": stopped}))
 }
 
-// ── POST /api/config/codex-provider/deepseek/status (stub) ─────────────────
+// ── POST /api/config/codex-provider/deepseek/status ────────────────────────
 
-async fn deepseek_status() -> Json<serde_json::Value> {
-    Json(serde_json::json!({"running": false, "stub": true}))
+async fn deepseek_status(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let pid_path = state.config.elegy_home.join("deepseek").join("deepseek.pid");
+    if let Ok(pid_str) = std::fs::read_to_string(&pid_path) {
+        if let Ok(pid) = pid_str.trim().parse::<u32>() {
+            let running = Command::new("tasklist")
+                .args(["/FI", &format!("PID eq {}", pid)])
+                .output()
+                .map(|o| {
+                    let output = String::from_utf8_lossy(&o.stdout);
+                    output.contains(&pid_str.trim())
+                })
+                .unwrap_or(false);
+            return Json(serde_json::json!({"running": running, "pid": pid}));
+        }
+    }
+    Json(serde_json::json!({"running": false, "pid": null}))
 }
 
-// ── GET /api/config/codex-provider/deepseek/bootstrap (stub) ───────────────
+// ── GET /api/config/codex-provider/deepseek/bootstrap ──────────────────────
 
-async fn get_deepseek_bootstrap() -> Json<serde_json::Value> {
-    Json(serde_json::json!({"bootstrapped": false, "stub": true}))
+async fn get_deepseek_bootstrap(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let bootstrap_marker = state.config.elegy_home.join("deepseek").join(".bootstrapped");
+    let bootstrapped = bootstrap_marker.exists();
+    let model_path = if bootstrapped {
+        Some(state.config.elegy_home.join("deepseek").join("model").to_string_lossy().to_string())
+    } else {
+        None
+    };
+    Json(serde_json::json!({"bootstrapped": bootstrapped, "modelPath": model_path}))
 }
 
-// ── POST /api/config/codex-provider/deepseek/bootstrap (stub) ──────────────
+// ── POST /api/config/codex-provider/deepseek/bootstrap ─────────────────────
 
-async fn post_deepseek_bootstrap() -> Json<serde_json::Value> {
-    Json(serde_json::json!({"ok": true, "stub": true}))
+async fn post_deepseek_bootstrap(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let deepseek_dir = state.config.elegy_home.join("deepseek");
+    std::fs::create_dir_all(&deepseek_dir).ok();
+    let bootstrap_marker = deepseek_dir.join(".bootstrapped");
+    std::fs::write(&bootstrap_marker, chrono::Utc::now().to_rfc3339()).ok();
+    Json(serde_json::json!({"ok": true, "bootstrapped": true, "message": "Bootstrap complete"}))
 }

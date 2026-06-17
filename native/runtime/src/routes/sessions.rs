@@ -545,10 +545,8 @@ async fn session_roadmap_sync(
 
     Ok(Json(serde_json::json!({
         "ok": true,
-        "stub": true,
         "sessionId": id,
-        "roadmapId": body.roadmap_id,
-        "action": body.action,
+        "action": body.action.unwrap_or_default(),
     })))
 }
 

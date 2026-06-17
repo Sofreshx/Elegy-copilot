@@ -347,21 +347,16 @@ async fn github_status(
     let cwd = resolve_repo(&state, query.repo_path);
 
     // Check remote URL to determine GitHub connectivity
-    let remote_url = run_git_stdout_trimmed(&cwd, &["remote", "get-url", "origin"]).ok();
-    let connected = remote_url
+    let remote_url = get_remote_url(&cwd);
+    let is_github = remote_url
         .as_ref()
         .map(|u| u.contains("github.com"))
         .unwrap_or(false);
 
-    // Extract owner/repo from URL (stub)
-    let owner_repo = remote_url
-        .map(|u| u.replace("https://github.com/", "").replace("git@github.com:", "").replace(".git", ""))
-        .unwrap_or_default();
-
     Ok(Json(serde_json::json!({
-        "connected": connected,
-        "remote": if owner_repo.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(owner_repo) },
-        "stub": true,
+        "connected": is_github,
+        "remote": remote_url,
+        "service": if is_github { serde_json::Value::String("github".to_string()) } else { serde_json::Value::Null },
     })))
 }
 
@@ -372,10 +367,44 @@ async fn github_status(
 async fn git_auth_login(
     State(_state): State<AppState>,
     Query(_query): Query<GitQuery>,
-    Json(_body): Json<AuthLoginBody>,
+    Json(body): Json<AuthLoginBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Stub — would authenticate with GitHub CLI or token
-    Ok(Json(serde_json::json!({ "ok": true, "stub": true })))
+    let token = body.token.unwrap_or_default();
+    if token.is_empty() {
+        return Err(ApiError::BadRequest("token is required".to_string()));
+    }
+
+    // Pipe token into gh auth login --with-token
+    let mut child = Command::new("gh")
+        .args(["auth", "login", "--with-token"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| ApiError::Internal(e.into()))?;
+
+    use std::io::Write;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(token.as_bytes())
+            .map_err(|e| ApiError::Internal(e.into()))?;
+    }
+    drop(child.stdin.take());
+
+    let output = child.wait_with_output()
+        .map_err(|e| ApiError::Internal(e.into()))?;
+
+    if output.status.success() {
+        Ok(Json(serde_json::json!({
+            "ok": true,
+            "authenticated": true,
+        })))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        Err(ApiError::Internal(anyhow::anyhow!(
+            "gh auth login failed: {}",
+            stderr.trim()
+        )))
+    }
 }
 
 // ── POST /api/git/github-install ────────────────────────────────────────────
@@ -385,19 +414,100 @@ async fn git_github_install(
     State(_state): State<AppState>,
     Query(_query): Query<GitQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Stub — would trigger GitHub CLI install
-    Ok(Json(serde_json::json!({ "ok": true, "stub": true })))
+    #[cfg(target_os = "windows")]
+    let result = {
+        let output = Command::new("winget")
+            .args([
+                "install",
+                "--id", "GitHub.cli",
+                "--accept-source-agreements",
+                "--accept-package-agreements",
+            ])
+            .output()
+            .map_err(|e| ApiError::Internal(e.into()))?;
+        if output.status.success() {
+            serde_json::json!({
+                "ok": true,
+                "method": "winget",
+                "message": "GitHub CLI installed via winget."
+            })
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            serde_json::json!({
+                "ok": false,
+                "method": "winget",
+                "message": format!("winget install failed: {}", stderr.trim()),
+                "error": stderr.trim()
+            })
+        }
+    };
+
+    #[cfg(target_os = "macos")]
+    let result = {
+        let output = Command::new("brew")
+            .args(["install", "gh"])
+            .output()
+            .map_err(|e| ApiError::Internal(e.into()))?;
+        if output.status.success() {
+            serde_json::json!({
+                "ok": true,
+                "method": "brew",
+                "message": "GitHub CLI installed via Homebrew."
+            })
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            serde_json::json!({
+                "ok": false,
+                "method": "brew",
+                "message": format!("brew install failed: {}", stderr.trim()),
+                "error": stderr.trim()
+            })
+        }
+    };
+
+    #[cfg(target_os = "linux")]
+    let result = {
+        let output = Command::new("apt")
+            .args(["install", "-y", "gh"])
+            .output()
+            .map_err(|e| ApiError::Internal(e.into()))?;
+        if output.status.success() {
+            serde_json::json!({
+                "ok": true,
+                "method": "apt",
+                "message": "GitHub CLI installed via apt."
+            })
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            serde_json::json!({
+                "ok": false,
+                "method": "apt",
+                "message": format!("apt install failed: {}", stderr.trim()),
+                "error": stderr.trim()
+            })
+        }
+    };
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    let result = serde_json::json!({
+        "ok": false,
+        "method": "error",
+        "message": "Unsupported platform. Please install GitHub CLI manually: https://cli.github.com"
+    });
+
+    Ok(Json(result))
 }
 
 // ── GET /api/git/pull-request (list) ────────────────────────────────────────
 
 /// GET /api/git/pull-request?repoPath=...
 async fn git_pull_request_list(
-    State(_state): State<AppState>,
-    Query(_query): Query<GitQuery>,
+    State(state): State<AppState>,
+    Query(query): Query<GitQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Stub — would check gh CLI for PR info
-    Ok(Json(serde_json::json!({ "pullRequests": [], "stub": true })))
+    let cwd = resolve_repo(&state, query.repo_path);
+    let pr_info = resolve_pull_request(&cwd);
+    Ok(Json(pr_info))
 }
 
 // ── POST /api/git/pull-request (create) ─────────────────────────────────────
@@ -405,12 +515,73 @@ async fn git_pull_request_list(
 /// POST /api/git/pull-request?repoPath=...
 /// Body: { title, body, head, base }
 async fn git_pull_request_create(
-    State(_state): State<AppState>,
-    Query(_query): Query<GitQuery>,
-    Json(_body): Json<PullRequestBody>,
+    State(state): State<AppState>,
+    Query(query): Query<GitQuery>,
+    Json(body): Json<PullRequestBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Stub — would create PR via gh CLI
-    Ok(Json(serde_json::json!({ "ok": true, "stub": true })))
+    let cwd = resolve_repo(&state, query.repo_path);
+
+    // Check gh is available
+    if !Command::new("gh").arg("--version").output().is_ok() {
+        return Err(ApiError::BadRequest(
+            "GitHub CLI is unavailable. Install it first via POST /api/git/github-install".to_string(),
+        ));
+    }
+
+    // Build args: gh pr create --fill [--title <title>] [--body <body>] [--base <base>] [--head <head>]
+    let mut args: Vec<String> = vec!["pr".to_string(), "create".to_string(), "--fill".to_string()];
+
+    if let Some(ref title) = body.title {
+        if !title.is_empty() {
+            args.push("--title".to_string());
+            args.push(title.clone());
+        }
+    }
+    if let Some(ref body_text) = body.body {
+        if !body_text.is_empty() {
+            args.push("--body".to_string());
+            args.push(body_text.clone());
+        }
+    }
+    if let Some(ref base) = body.base_field {
+        if !base.is_empty() {
+            args.push("--base".to_string());
+            args.push(base.clone());
+        }
+    }
+    if let Some(ref head) = body.head {
+        if !head.is_empty() {
+            args.push("--head".to_string());
+            args.push(head.clone());
+        }
+    }
+
+    let output = Command::new("gh")
+        .args(&args)
+        .current_dir(&cwd)
+        .output()
+        .map_err(|e| ApiError::Internal(e.into()))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        return Err(ApiError::Internal(anyhow::anyhow!(
+            "gh pr create failed: {}",
+            stderr.trim()
+        )));
+    }
+
+    let pr_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    // Re-query PR info to confirm
+    let pr_info = resolve_pull_request(&cwd);
+
+    Ok(Json(serde_json::json!({
+        "created": true,
+        "pullRequest": pr_info["pullRequest"],
+        "output": pr_url,
+        "isProtected": false,
+        "overrideApplied": false,
+    })))
 }
 
 // ── POST /api/git/stage ─────────────────────────────────────────────────────
@@ -523,13 +694,22 @@ async fn git_commit(
 async fn git_commit_message(
     State(_state): State<AppState>,
     Query(_query): Query<GitQuery>,
-    Json(_body): Json<CommitMessageBody>,
+    Json(body): Json<CommitMessageBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Stub implementation — generate a simple auto-commit message
+    let diff = body.diff.unwrap_or_default();
+    let files = diff.lines().filter(|l| l.starts_with("diff --git")).count();
+    let added = diff.lines().filter(|l| l.starts_with('+') && !l.starts_with("+++")).count();
+    let removed = diff.lines().filter(|l| l.starts_with('-') && !l.starts_with("---")).count();
+    let message = if files == 0 {
+        "chore: update project files".to_string()
+    } else if files == 1 {
+        format!("Update {} file ({} lines)", files, added + removed)
+    } else {
+        format!("Update {} files (+{}, -{} lines)", files, added, removed)
+    };
     Ok(Json(serde_json::json!({
-        "message": "Auto-generated commit message",
+        "message": message,
         "ok": true,
-        "stub": true,
     })))
 }
 
@@ -772,6 +952,65 @@ fn run_git_str(cwd: &str, args: &[String]) -> Result<String, ApiError> {
 
 fn run_git_str_trimmed(cwd: &str, args: &[String]) -> Result<String, ApiError> {
     run_git_str(cwd, args).map(|s| s.trim().to_string())
+}
+
+// ── GH CLI Helpers ───────────────────────────────────────────────────────────
+
+fn check_gh_auth(repo_path: &str) -> bool {
+    Command::new("gh")
+        .args(["auth", "status"])
+        .current_dir(repo_path)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+fn get_remote_url(repo_path: &str) -> Option<String> {
+    Command::new("git")
+        .args(["-C", repo_path, "remote", "get-url", "origin"])
+        .output()
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
+            } else {
+                None
+            }
+        })
+}
+
+fn resolve_pull_request(repo_path: &str) -> serde_json::Value {
+    let gh_available = Command::new("gh").arg("--version").output().is_ok();
+    if !gh_available {
+        return serde_json::json!({
+            "available": false, "tool": null,
+            "authenticated": false, "pullRequest": null,
+            "error": "GitHub CLI is unavailable."
+        });
+    }
+    let authed = check_gh_auth(repo_path);
+    let pr = if authed {
+        Command::new("gh")
+            .args(["pr", "view", "--json", "number,url,state"])
+            .current_dir(repo_path)
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() {
+                    serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(&o.stdout)).ok()
+                } else {
+                    None
+                }
+            })
+    } else {
+        None
+    };
+    serde_json::json!({
+        "available": true, "tool": "gh",
+        "authenticated": authed,
+        "pullRequest": pr,
+        "error": null
+    })
 }
 
 // ── GET /api/git/diff ────────────────────────────────────────────────────────

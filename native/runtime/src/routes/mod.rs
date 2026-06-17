@@ -33,6 +33,7 @@ mod planning_obsidian;
 mod codex;
 mod lifecycle_full;
 mod sandboxes;
+mod cli_detection;
 mod cli_tooling;
 mod repo_assets;
 mod lexicon;

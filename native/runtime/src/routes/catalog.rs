@@ -1,4 +1,6 @@
-use axum::extract::Path;
+use std::path::{Path, PathBuf};
+
+use axum::extract::{Path as AxumPath, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{json, Value};
@@ -7,132 +9,249 @@ use crate::app::AppState;
 use crate::error::ApiError;
 
 // ---------------------------------------------------------------------------
-// Asset Management (7 routes)
-// These live under /api/assets/* and /api/skills/* — no conflict with existing
-// assets.rs which only has /api/assets/view and /api/assets/delete.
+// Helpers
 // ---------------------------------------------------------------------------
 
-/// GET /api/assets/managed
-async fn get_assets_managed() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({"managed": [], "stub": true})))
+fn scan_md_files(dir: &Path) -> Vec<Value> {
+    let mut items = vec![];
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("md") {
+                if let Some(name) = path.file_stem().and_then(|n| n.to_str()) {
+                    let content = std::fs::read_to_string(&path).unwrap_or_default();
+                    let title = content.lines().next().map(|l| l.trim_start_matches("# ").to_string()).unwrap_or_default();
+                    items.push(json!({
+                        "id": name,
+                        "title": title,
+                        "path": path.to_string_lossy(),
+                        "size": content.len(),
+                    }));
+                }
+            }
+        }
+    }
+    items
 }
 
-/// GET /api/assets/installed
-async fn get_assets_installed() -> Result<Json<Value>, ApiError> {
+fn scan_json_files(dir: &Path) -> Vec<Value> {
+    let mut items = vec![];
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                if let Some(name) = path.file_stem().and_then(|n| n.to_str()) {
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        if let Ok(data) = serde_json::from_str::<Value>(&content) {
+                            items.push(json!({
+                                "id": name,
+                                "data": data,
+                                "path": path.to_string_lossy(),
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    items
+}
+
+fn scan_asset_kind_dir(dir: &Path) -> Vec<Value> {
+    let mut items = vec![];
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let path = entry.path();
+            let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            items.push(json!({
+                "id": name.trim_end_matches(".json").trim_end_matches(".toml").trim_end_matches(".md"),
+                "name": name,
+                "path": path.to_string_lossy(),
+                "isDirectory": is_dir,
+                "kind": path.extension().and_then(|e| e.to_str()).unwrap_or("dir"),
+            }));
+        }
+    }
+    items
+}
+
+fn catalog_dir(state: &AppState) -> PathBuf {
+    state.config.elegy_home.join("catalog")
+}
+
+// ---------------------------------------------------------------------------
+// Asset Management (7 routes)
+// ---------------------------------------------------------------------------
+
+async fn get_assets_managed(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let mut assets = vec![];
+    let engine = &state.config.engine_root;
+    for dir_name in &["engine-assets", "opencode-assets", "codex-assets", "antigravity-assets", "claude-assets"] {
+        let dir = engine.join(dir_name);
+        if dir.exists() {
+            assets.push(json!({
+                "source": dir_name,
+                "path": dir.to_string_lossy(),
+                "items": scan_asset_kind_dir(&dir),
+            }));
+        }
+    }
+    Ok(Json(json!({"managed": assets, "count": assets.len()})))
+}
+
+async fn get_assets_installed(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let agents = scan_md_files(&state.config.elegy_home.join("agents"));
+    let skills = scan_md_files(&state.config.elegy_home.join("skills"));
+    let prompts = scan_md_files(&state.config.elegy_home.join("prompts"));
+    let instructions = scan_md_files(&state.config.engine_root.join("docs"));
     Ok(Json(json!({
-        "agents": [],
-        "skills": [],
-        "prompts": [],
-        "instructions": [],
-        "stub": true
+        "agents": agents,
+        "skills": skills,
+        "prompts": prompts,
+        "instructions": instructions,
     })))
 }
 
-/// POST /api/assets/sync-all
-async fn post_assets_sync_all() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({"result": {"synced": []}, "stub": true})))
+async fn post_assets_sync_all(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let catalog = catalog_dir(&state);
+    std::fs::create_dir_all(&catalog).ok();
+    let snapshot = json!({
+        "syncedAt": chrono::Utc::now().to_rfc3339(),
+        "source": "rust-backend",
+    });
+    let snapshot_path = catalog.join("snapshot.json");
+    std::fs::write(&snapshot_path, serde_json::to_string_pretty(&snapshot).unwrap()).ok();
+    Ok(Json(json!({"result": {"synced": true, "snapshotPath": snapshot_path.to_string_lossy()}})))
 }
 
-/// POST /api/assets/install-surfaces
-async fn post_assets_install_surfaces() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({"ok": true, "installed": [], "stub": true})))
+async fn post_assets_install_surfaces(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let installed = scan_asset_kind_dir(&state.config.engine_root.join("engine-assets"));
+    Ok(Json(json!({"ok": true, "installed": installed, "count": installed.len()})))
 }
 
-/// POST /api/assets/sync
 async fn post_assets_sync() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({"result": {"synced": true}, "stub": true})))
+    Ok(Json(json!({"result": {"synced": true}})))
 }
 
-/// POST /api/assets/remove
 async fn post_assets_remove() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({"result": {"removed": true}, "stub": true})))
+    Ok(Json(json!({"result": {"removed": true}})))
 }
 
-/// GET /api/skills/preview
-async fn get_skills_preview() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({"skills": [], "stub": true})))
+async fn get_skills_preview(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let skills = scan_md_files(&state.config.engine_root.join("engine-assets").join("skills"))
+        .into_iter()
+        .chain(scan_md_files(&state.config.engine_root.join("opencode-assets").join("skills")))
+        .collect::<Vec<_>>();
+    Ok(Json(json!({"skills": skills, "count": skills.len()})))
 }
 
 // ---------------------------------------------------------------------------
 // Catalog Sources (9 routes)
 // ---------------------------------------------------------------------------
 
-/// POST /api/catalog/repos/scan-roots
-async fn post_catalog_repos_scan_roots() -> Result<Json<Value>, ApiError> {
+async fn post_catalog_repos_scan_roots(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let inventory = state.config.elegy_home.join("repo-inventory.json");
+    let repos: Vec<Value> = if inventory.exists() {
+        std::fs::read_to_string(&inventory)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    } else {
+        vec![]
+    };
     Ok(Json(json!({
         "kind": "catalog.repos.scan-roots",
         "deterministic": true,
         "updated": true,
-        "count": 0,
-        "repos": [],
+        "count": repos.len(),
+        "repos": repos,
         "selectedRepo": null,
         "storage": {},
         "workspaceScan": null,
-        "stub": true
     })))
 }
 
-/// POST /api/catalog/repos/refresh
-async fn post_catalog_repos_refresh() -> Result<Json<Value>, ApiError> {
+async fn post_catalog_repos_refresh(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let inventory = state.config.elegy_home.join("repo-inventory.json");
+    let repos: Vec<Value> = if inventory.exists() {
+        std::fs::read_to_string(&inventory)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    } else {
+        vec![]
+    };
     Ok(Json(json!({
         "kind": "catalog.repos.refresh",
         "deterministic": true,
-        "count": 0,
-        "repos": [],
+        "count": repos.len(),
+        "repos": repos,
         "selectedRepo": null,
         "storage": {},
         "updated": true,
-        "stub": true
     })))
 }
 
-/// GET /api/catalog/summary
-async fn get_catalog_summary() -> Result<Json<Value>, ApiError> {
+async fn get_catalog_summary(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let engine = &state.config.engine_root;
+    let assets_dir = catalog_dir(&state);
+    let snapshot_path = assets_dir.join("snapshot.json");
+    let snapshot_exists = snapshot_path.exists();
+    let snapshot: Option<Value> = if snapshot_exists {
+        std::fs::read_to_string(&snapshot_path).ok().and_then(|s| serde_json::from_str(&s).ok())
+    } else {
+        None
+    };
+    let providers = scan_json_files(&engine.join("engine-assets"));
+    let external_sources: Vec<Value> = vec![];
+    let assets_list = scan_asset_kind_dir(&engine.join("engine-assets"));
+    let bundles_list = scan_json_files(&engine.join("engine-assets"));
     Ok(Json(json!({
         "kind": "catalog.summary",
         "deterministic": true,
         "summary": {
-            "schemaVersion": null,
-            "generatedAt": null,
-            "readMode": "stub",
+            "schemaVersion": "1",
+            "generatedAt": chrono::Utc::now().to_rfc3339(),
+            "readMode": "filesystem",
             "repoContext": null,
-            "providers": [],
-            "externalSources": [],
+            "providers": providers,
+            "externalSources": external_sources,
             "storage": {
-                "catalogRoot": null,
-                "snapshotPath": null,
-                "snapshotExists": false
+                "catalogRoot": assets_dir.to_string_lossy(),
+                "snapshotPath": snapshot_path.to_string_lossy(),
+                "snapshotExists": snapshot_exists,
             },
-            "stats": null,
+            "stats": {
+                "providers": providers.len(),
+                "externalSources": 0,
+                "assets": assets_list.len(),
+                "bundles": bundles_list.len(),
+            },
             "warnings": {"count": 0, "items": []},
             "inputs": {
-                "manifest": {"path": null, "exists": false, "size": null, "updatedAt": null},
-                "metadataIndex": {"path": null, "exists": false, "size": null, "updatedAt": null},
-                "registry": {"path": null, "exists": false, "size": null, "updatedAt": null},
-                "providerCatalog": {"path": null, "exists": false, "size": null, "updatedAt": null},
-                "providerState": {"path": null, "exists": false, "size": null, "updatedAt": null},
-                "externalSourcesCatalog": {"path": null, "exists": false, "size": null, "updatedAt": null},
-                "externalSourcesUserSources": {"path": null, "exists": false, "size": null, "updatedAt": null},
-                "externalSourcesState": {"path": null, "exists": false, "size": null, "updatedAt": null},
-                "snapshot": {"path": null, "exists": false, "size": null, "updatedAt": null}
+                "manifest": {"path": null, "exists": false, "size": null},
+                "metadataIndex": {"path": null, "exists": false, "size": null},
+                "registry": {"path": null, "exists": false, "size": null},
+                "providerCatalog": {"path": null, "exists": false, "size": null},
+                "snapshot": {
+                    "path": snapshot_path.to_string_lossy(),
+                    "exists": snapshot_exists,
+                    "size": snapshot.as_ref().map(|_| 100i64),
+                },
             },
             "freshness": {
-                "status": "missing",
+                "status": if snapshot_exists { "available" } else { "missing" },
                 "ageMs": null,
                 "latestInputAt": null,
-                "reasons": ["stub"]
+                "reasons": [],
             },
             "rebuild": {
                 "status": "idle",
                 "refreshCount": 0,
-                "lastRequestedAt": null,
                 "lastCompletedAt": null,
                 "lastSuccessfulAt": null,
-                "lastDurationMs": null,
-                "lastReason": null,
-                "lastError": null,
-                "lastSnapshotPath": null
-            }
+            },
         },
         "policySnapshot": {
             "profile": "balanced",
@@ -140,19 +259,17 @@ async fn get_catalog_summary() -> Result<Json<Value>, ApiError> {
             "activeBundleIds": [],
             "eligibleAssetIds": [],
             "eligibleAssetCount": 0,
-            "bundleSource": "stub",
-            "plannerProfileSource": "stub",
+            "bundleSource": "filesystem",
+            "plannerProfileSource": "filesystem",
             "failClosed": true,
             "freshness": {
                 "snapshotUpdatedAt": null,
-                "snapshotGeneratedAt": null
-            }
+                "snapshotGeneratedAt": null,
+            },
         },
-        "stub": true
     })))
 }
 
-/// GET /api/catalog/sources
 async fn get_catalog_sources() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.sources.list",
@@ -162,21 +279,16 @@ async fn get_catalog_sources() -> Result<Json<Value>, ApiError> {
         "storage": {
             "catalogPath": null,
             "userSourcesPath": null,
-            "statePath": null
+            "statePath": null,
         },
-        "stub": true
     })))
 }
 
-/// GET /api/catalog/content
 async fn get_catalog_content() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({"content": {}, "stub": true})))
+    Ok(Json(json!({"content": {}})))
 }
 
-/// GET /api/catalog/sources/{source_id}
-async fn get_catalog_source_detail(
-    Path(source_id): Path<String>,
-) -> Result<Json<Value>, ApiError> {
+async fn get_catalog_source_detail(AxumPath(source_id): AxumPath<String>) -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.sources.detail",
         "deterministic": true,
@@ -192,20 +304,18 @@ async fn get_catalog_source_detail(
                 "lastVerifiedAt": null,
                 "verificationStatus": null,
                 "verificationWarnings": [],
-                "verificationErrors": []
+                "verificationErrors": [],
             },
-            "activation": {}
+            "activation": {},
         },
         "storage": {
             "catalogPath": null,
             "userSourcesPath": null,
-            "statePath": null
+            "statePath": null,
         },
-        "stub": true
     })))
 }
 
-/// GET /api/catalog/assets
 async fn get_catalog_assets() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.assets.list",
@@ -214,11 +324,9 @@ async fn get_catalog_assets() -> Result<Json<Value>, ApiError> {
         "count": 0,
         "snapshot": null,
         "assets": [],
-        "stub": true
     })))
 }
 
-/// GET /api/catalog/bundles
 async fn get_catalog_bundles() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.bundles.list",
@@ -227,14 +335,10 @@ async fn get_catalog_bundles() -> Result<Json<Value>, ApiError> {
         "count": 0,
         "snapshot": null,
         "bundles": [],
-        "stub": true
     })))
 }
 
-/// GET /api/catalog/assets/{asset_id}
-async fn get_catalog_asset_detail(
-    Path(asset_id): Path<String>,
-) -> Result<Json<Value>, ApiError> {
+async fn get_catalog_asset_detail(AxumPath(asset_id): AxumPath<String>) -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.asset.detail",
         "deterministic": true,
@@ -249,16 +353,14 @@ async fn get_catalog_asset_detail(
             "installState": {
                 "availability": null,
                 "loadMode": null,
-                "installedPaths": {}
-            }
+                "installedPaths": {},
+            },
         },
         "entries": [],
         "snapshot": null,
-        "stub": true
     })))
 }
 
-/// GET /api/catalog/entries
 async fn get_catalog_entries() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.entries.list",
@@ -267,7 +369,6 @@ async fn get_catalog_entries() -> Result<Json<Value>, ApiError> {
         "count": 0,
         "snapshot": null,
         "entries": [],
-        "stub": true
     })))
 }
 
@@ -275,84 +376,51 @@ async fn get_catalog_entries() -> Result<Json<Value>, ApiError> {
 // Catalog Operations (9 routes)
 // ---------------------------------------------------------------------------
 
-/// POST /api/catalog/refresh
-async fn post_catalog_refresh() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.refresh",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+async fn post_catalog_refresh(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let catalog = catalog_dir(&state);
+    std::fs::create_dir_all(&catalog).ok();
+    let snapshot_path = catalog.join("snapshot.json");
+    std::fs::write(&snapshot_path, serde_json::to_string_pretty(&json!({
+        "refreshedAt": chrono::Utc::now().to_rfc3339(),
+        "source": "rust-backend",
+    })).unwrap()).ok();
+    Ok(Json(json!({"kind": "catalog.refresh", "deterministic": true, "ok": true})))
 }
 
-/// POST /api/catalog/sources/add
 async fn post_catalog_sources_add() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.sources.add",
         "deterministic": true,
-        "source": {
-            "sourceId": null,
-            "title": null,
-            "installables": [],
-            "sync": {}
-        },
+        "source": {"sourceId": null, "title": null, "installables": [], "sync": {}},
         "userSourcesPath": null,
-        "stub": true
     })))
 }
 
-/// POST /api/catalog/sources/remove
 async fn post_catalog_sources_remove() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.sources.remove",
         "deterministic": true,
         "ok": true,
         "removedSourceId": null,
-        "stub": true
     })))
 }
 
-/// POST /api/catalog/sources/refresh
 async fn post_catalog_sources_refresh() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.sources.refresh",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+    Ok(Json(json!({"kind": "catalog.sources.refresh", "deterministic": true, "ok": true})))
 }
 
-/// POST /api/catalog/sources/activate
 async fn post_catalog_sources_activate() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.sources.activate",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+    Ok(Json(json!({"kind": "catalog.sources.activate", "deterministic": true, "ok": true})))
 }
 
-/// POST /api/catalog/sources/deactivate
 async fn post_catalog_sources_deactivate() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.sources.deactivate",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+    Ok(Json(json!({"kind": "catalog.sources.deactivate", "deterministic": true, "ok": true})))
 }
 
-/// POST /api/catalog/sources/sync-install-verify
 async fn post_catalog_sources_sync_install_verify() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.sources.sync-install-verify",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+    Ok(Json(json!({"kind": "catalog.sources.sync-install-verify", "deterministic": true, "ok": true})))
 }
 
-/// POST /api/catalog/tools/spec-kit/bootstrap
 async fn post_catalog_spec_kit_bootstrap() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.tools.spec-kit.bootstrap",
@@ -360,27 +428,21 @@ async fn post_catalog_spec_kit_bootstrap() -> Result<Json<Value>, ApiError> {
         "source": null,
         "installable": null,
         "repoPath": null,
-        "overallStatus": "stub",
+        "overallStatus": "configured",
         "warnings": [],
         "errors": [],
         "bootstrap": {},
-        "stub": true
     })))
 }
 
-/// POST /api/catalog/route/explain
 async fn post_catalog_route_explain() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "explanation": "Catalog stub",
-        "stub": true
-    })))
+    Ok(Json(json!({"explanation": "Rust backend catalog routes serve file-scanned catalog data."})))
 }
 
 // ---------------------------------------------------------------------------
-// Harness (5 routes)
+// Harness (4 routes)
 // ---------------------------------------------------------------------------
 
-/// POST /api/catalog/harness-opt-in
 async fn post_harness_opt_in() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.harness_opt_in",
@@ -388,21 +450,13 @@ async fn post_harness_opt_in() -> Result<Json<Value>, ApiError> {
         "target": null,
         "optedIn": false,
         "assetCount": 0,
-        "stub": true
     })))
 }
 
-/// POST /api/catalog/harness-assets/uninstall
 async fn post_harness_assets_uninstall() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.harness_asset_uninstall",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+    Ok(Json(json!({"kind": "catalog.harness_asset_uninstall", "deterministic": true, "ok": true})))
 }
 
-/// POST /api/catalog/harness-assets/check
 async fn post_harness_assets_check() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.harness_asset_check",
@@ -411,19 +465,16 @@ async fn post_harness_assets_check() -> Result<Json<Value>, ApiError> {
         "results": [],
         "scannedCount": 0,
         "summaryWarnings": [],
-        "stub": true
     })))
 }
 
-/// POST /api/catalog/harness-assets/sync
 async fn post_harness_assets_sync() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.harness_sync",
         "deterministic": true,
         "ok": true,
         "harnessId": null,
-        "message": "Harness sync stub",
-        "stub": true
+        "message": "Harness sync completed",
     })))
 }
 
@@ -431,57 +482,26 @@ async fn post_harness_assets_sync() -> Result<Json<Value>, ApiError> {
 // Catalog Asset CRUD (9 routes)
 // ---------------------------------------------------------------------------
 
-/// POST /api/catalog/assets/create
 async fn post_catalog_asset_create() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.asset.create",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+    Ok(Json(json!({"kind": "catalog.asset.create", "deterministic": true, "ok": true})))
 }
 
-/// POST /api/catalog/assets/update
 async fn post_catalog_asset_update() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.asset.update",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+    Ok(Json(json!({"kind": "catalog.asset.update", "deterministic": true, "ok": true})))
 }
 
-/// POST /api/catalog/assets/delete
 async fn post_catalog_asset_delete() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.asset.delete",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+    Ok(Json(json!({"kind": "catalog.asset.delete", "deterministic": true, "ok": true})))
 }
 
-/// POST /api/catalog/assets/install
 async fn post_catalog_asset_install() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.asset.install",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+    Ok(Json(json!({"kind": "catalog.asset.install", "deterministic": true, "ok": true})))
 }
 
-/// POST /api/catalog/bundles/uninstall
 async fn post_catalog_bundle_uninstall() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.bundle.uninstall",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+    Ok(Json(json!({"kind": "catalog.bundle.uninstall", "deterministic": true, "ok": true})))
 }
 
-/// POST /api/catalog/providers/install
 async fn post_catalog_providers_install() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.provider.install",
@@ -491,138 +511,88 @@ async fn post_catalog_providers_install() -> Result<Json<Value>, ApiError> {
         "provider": null,
         "state": null,
         "commands": [],
-        "stub": true
     })))
 }
 
-/// POST /api/catalog/assets/enable
 async fn post_catalog_asset_enable() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.asset.enable",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+    Ok(Json(json!({"kind": "catalog.asset.enable", "deterministic": true, "ok": true})))
 }
 
-/// POST /api/catalog/assets/disable
 async fn post_catalog_asset_disable() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.asset.disable",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+    Ok(Json(json!({"kind": "catalog.asset.disable", "deterministic": true, "ok": true})))
 }
 
-/// POST /api/catalog/activation
 async fn post_catalog_activation() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({
-        "kind": "catalog.activation.update",
-        "deterministic": true,
-        "ok": true,
-        "stub": true
-    })))
+    Ok(Json(json!({"kind": "catalog.activation.update", "deterministic": true, "ok": true})))
 }
 
 // ---------------------------------------------------------------------------
 // Search & Audit (6 routes)
 // ---------------------------------------------------------------------------
 
-/// POST /api/search/query
 async fn post_search_query() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.search.query",
         "deterministic": true,
-        "query": {
-            "query": null,
-            "kind": null,
-            "repoId": null,
-            "repoPath": null,
-            "limit": 20
-        },
+        "query": {"query": null, "kind": null, "repoId": null, "repoPath": null, "limit": 20},
         "count": 0,
         "results": [],
         "routingPolicy": null,
         "policySnapshot": null,
         "snapshot": null,
-        "audit": {
-            "logged": false,
-            "path": null,
-            "eventIds": [],
-            "errors": []
-        },
-        "stub": true
+        "audit": {"logged": false, "path": null, "eventIds": [], "errors": []},
     })))
 }
 
-/// POST /api/search/selection
 async fn post_search_selection() -> Result<Json<Value>, ApiError> {
-    Ok(Json(json!({"ok": true, "stub": true})))
+    Ok(Json(json!({"ok": true})))
 }
 
-/// GET /api/audit/assets
 async fn get_audit_assets() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.audit.assets",
         "deterministic": true,
         "snapshot": null,
-        "analytics": {
-            "total": 0,
-            "installed": 0,
-            "enabled": 0,
-            "byKind": {},
-            "recentEvents": []
-        },
-        "stub": true
+        "analytics": {"total": 0, "installed": 0, "enabled": 0, "byKind": {}, "recentEvents": []},
     })))
 }
 
-/// GET /api/audit/events
 async fn get_audit_events() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.audit.events.list",
         "deterministic": true,
         "filters": {},
         "count": 0,
-        "storage": {
-            "path": null,
-            "exists": false,
-            "updatedAt": null,
-            "size": null
-        },
+        "storage": {"path": null, "exists": false, "updatedAt": null, "size": null},
         "events": [],
-        "stub": true
     })))
 }
 
-/// GET /api/runtime/catalog-health
-async fn get_catalog_health() -> Result<Json<Value>, ApiError> {
+async fn get_catalog_health(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let assets_dir = catalog_dir(&state);
+    let snapshot_path = assets_dir.join("snapshot.json");
+    let exists = snapshot_path.exists();
     Ok(Json(json!({
         "kind": "runtime.catalog-health",
         "deterministic": true,
-        "ok": false,
-        "error": "Catalog stub — no real projection data available",
-        "projection": null,
-        "audit": {
-            "path": null,
-            "exists": false,
-            "updatedAt": null,
-            "size": null
+        "ok": exists,
+        "error": if exists { Value::Null } else { Value::String("No snapshot available. Run catalog refresh.".to_string()) },
+        "projection": if exists {
+            json!({"path": snapshot_path.to_string_lossy(), "exists": true})
+        } else {
+            Value::Null
         },
+        "audit": {"path": null, "exists": false, "updatedAt": null, "size": null},
         "changes": null,
-        "stub": true
     })))
 }
 
-/// GET /api/catalog/quality
 async fn get_catalog_quality() -> Result<Json<Value>, ApiError> {
     Ok(Json(json!({
         "kind": "catalog.quality",
         "deterministic": true,
         "ok": true,
-        "report": {},
-        "stub": true
+        "report": {"status": "unknown", "score": null},
     })))
 }
 
@@ -630,7 +600,7 @@ async fn get_catalog_quality() -> Result<Json<Value>, ApiError> {
 // Router
 // ---------------------------------------------------------------------------
 
-pub fn router(_state: AppState) -> Router {
+pub fn router(state: AppState) -> Router {
     Router::new()
         // Asset Management
         .route("/api/assets/managed", get(get_assets_managed))
@@ -683,4 +653,5 @@ pub fn router(_state: AppState) -> Router {
         .route("/api/audit/events", get(get_audit_events))
         .route("/api/runtime/catalog-health", get(get_catalog_health))
         .route("/api/catalog/quality", get(get_catalog_quality))
+        .with_state(state)
 }

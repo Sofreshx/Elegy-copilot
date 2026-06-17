@@ -30,3 +30,4 @@ tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4"] }
+regex = "1.11.1"
