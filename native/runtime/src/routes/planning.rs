@@ -236,8 +236,7 @@ async fn create_record(
     State(state): State<AppState>,
     Json(body): Json<CreateRecordBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     let now = chrono::Utc::now().to_rfc3339();
     match p.persist_planning_record(
@@ -258,8 +257,7 @@ async fn list_records(
     State(state): State<AppState>,
     Query(query): Query<ListRecordsQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     match p.list_planning_records(&query.owner_id) {
         Ok(records) => Ok(Json(serde_json::json!({
@@ -274,8 +272,7 @@ async fn update_record(
     Path(record_id): Path<String>,
     Json(body): Json<CreateRecordBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     let now = chrono::Utc::now().to_rfc3339();
     // Use the path parameter as the record_id, ignore body.record_id
@@ -301,8 +298,7 @@ async fn create_suggestion(
     State(state): State<AppState>,
     Json(body): Json<CreateSuggestionBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     let now = chrono::Utc::now().to_rfc3339();
     match p.persist_planning_suggestion(
@@ -323,8 +319,7 @@ async fn read_suggestion(
     State(state): State<AppState>,
     Query(query): Query<ReadSuggestionQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     match p.read_planning_suggestion(&query.suggestion_id) {
         Ok(Some(row)) => Ok(Json(serde_json::json!({ "ok": true, "suggestion": suggestion_row_to_value(&row) }))),
@@ -341,8 +336,7 @@ async fn create_recap(
     State(state): State<AppState>,
     Json(body): Json<CreateRecapBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     let now = chrono::Utc::now().to_rfc3339();
     match p.persist_planning_recap(
@@ -363,8 +357,7 @@ async fn read_recap(
     State(state): State<AppState>,
     Query(query): Query<ReadRecapQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     match p.read_planning_recap(&query.recap_id) {
         Ok(Some(row)) => Ok(Json(serde_json::json!({ "ok": true, "recap": recap_row_to_value(&row) }))),
@@ -381,8 +374,7 @@ async fn create_artifact(
     State(state): State<AppState>,
     Json(body): Json<CreateArtifactBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     let now = chrono::Utc::now().to_rfc3339();
     match p.persist_workflow_artifact(
@@ -412,8 +404,7 @@ async fn read_artifact(
     State(state): State<AppState>,
     Query(query): Query<ReadArtifactQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     match p.read_workflow_artifact(&query.artifact_id) {
         Ok(Some(row)) => Ok(Json(serde_json::json!({ "ok": true, "artifact": artifact_row_to_value(&row) }))),
@@ -430,8 +421,7 @@ async fn create_compare_receipt(
     State(state): State<AppState>,
     Json(body): Json<CreateCompareReceiptBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     match p.persist_compare_receipt(
         &body.receipt_id,
@@ -461,8 +451,7 @@ async fn create_merge_intent(
     State(state): State<AppState>,
     Json(body): Json<CreateMergeIntentBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     match p.persist_merge_intent(
         &body.token_id,
@@ -491,8 +480,7 @@ async fn merge_records(
     State(state): State<AppState>,
     Json(body): Json<MergeRecordsBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -545,8 +533,7 @@ async fn merge_records(
 async fn init_persistence(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     match p.run_migrations() {
         Ok(result) => Ok(Json(serde_json::json!({
@@ -563,8 +550,7 @@ async fn run_retention(
     State(state): State<AppState>,
     Json(body): Json<RetentionBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     match p.run_retention(body.older_than_days, body.dry_run.unwrap_or(true)) {
         Ok(result) => Ok(Json(serde_json::json!({
@@ -585,9 +571,8 @@ async fn search(
     State(state): State<AppState>,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
-    let conn = db.conn();
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
+    let conn = &*db;
     let limit = query.limit;
     let pattern = format!("%{}%", query.q);
     let owner_filter = query.owner_id.as_deref().unwrap_or("");
@@ -794,9 +779,8 @@ async fn session(
 async fn explorer(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
-    let conn = db.conn();
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
+    let conn = &*db;
 
     // Recent records (last 20)
     let mut recent_records: Vec<serde_json::Value> = Vec::new();
@@ -926,9 +910,8 @@ async fn explorer(
 async fn corruption_scan(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
-    let conn = db.conn();
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
+    let conn = &*db;
 
     // Run SQLite integrity check
     let integrity: String = conn
@@ -1003,10 +986,9 @@ async fn export(
     State(state): State<AppState>,
     Json(body): Json<ExportBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
-    let conn = db.conn();
+    let conn = &*db;
     let now = chrono::Utc::now().to_rfc3339();
 
     let include = body.include.as_deref().unwrap_or(&[]);
@@ -1139,8 +1121,7 @@ async fn import(
     State(state): State<AppState>,
     Json(body): Json<ImportBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
     let p = Persistence::new(&db);
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -1255,9 +1236,8 @@ async fn import(
 async fn continuation_package(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut db_guard = state.planning_db.lock().await;
-    let db = db_guard.as_mut().ok_or_else(|| ApiError::Internal(anyhow::anyhow!("planning.db is not available")))?;
-    let conn = db.conn();
+    let db = state.planning_pool.get().map_err(|e| ApiError::Internal(anyhow::anyhow!("{}: {}", "planning pool exhausted", e)))?;
+    let conn = &*db;
 
     let result = conn.query_row(
         "SELECT artifact_id, actor_id, repo_id, roadmap_id, slice_id, kind, phase, status,

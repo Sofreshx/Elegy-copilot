@@ -1,6 +1,10 @@
 use std::path::Path;
 
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{Connection, OpenFlags};
+
+pub type PlanningPool = Pool<SqliteConnectionManager>;
 
 /// Wrapper around a rusqlite connection with WAL mode and foreign keys
 /// enabled by default.
@@ -18,14 +22,23 @@ impl Database {
     /// Open a database at `path` in read-write mode.
     ///
     /// Enables WAL journal mode and foreign key enforcement.
+    /// Runs planning + copilot migrations, repairs schema drift,
+    /// and creates copilot indexes.
     pub fn open(path: &Path) -> rusqlite::Result<Self> {
         let conn = Connection::open(path)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "busy_timeout", 5000)?;
-        // Run all migrations — idempotent via IF NOT EXISTS
         run_planning_migrations(&conn)?;
-        run_copilot_migrations(&conn)?;
+        for ddl in COPILOT_DDL {
+            conn.execute_batch(ddl)?;
+        }
+        repair_schema(&conn)?;
+        for idx in COPILOT_INDEXES {
+            if let Err(e) = conn.execute_batch(idx) {
+                tracing::warn!(index = idx, error = %e, "index creation failed (non-fatal)");
+            }
+        }
         Ok(Self { conn })
     }
 
@@ -41,6 +54,35 @@ impl Database {
     pub fn conn(&self) -> &Connection {
         &self.conn
     }
+}
+
+/// Initialize an r2d2 connection pool for planning.db.
+///
+/// Applies the same pragmas, migrations, schema repair, and indexes
+/// as `Database::open`.
+pub fn init_planning_pool(path: &Path) -> Result<PlanningPool, r2d2::Error> {
+    let manager = SqliteConnectionManager::file(path).with_init(|conn| {
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+        conn.pragma_update(None, "busy_timeout", 5000)?;
+        run_planning_migrations(conn)?;
+        for ddl in COPILOT_DDL {
+            conn.execute_batch(ddl)?;
+        }
+        repair_schema(conn)?;
+        for idx in COPILOT_INDEXES {
+            if let Err(e) = conn.execute_batch(idx) {
+                tracing::warn!(index = idx, error = %e, "index creation failed (non-fatal)");
+            }
+        }
+        Ok(())
+    });
+
+    let pool = Pool::builder()
+        .max_size(8)
+        .build(manager)?;
+
+    Ok(pool)
 }
 
 // ---------------------------------------------------------------------------
@@ -488,6 +530,95 @@ pub fn copilot_table_names() -> &'static [&'static str] {
 }
 
 // ---------------------------------------------------------------------------
+// Schema repair: add missing columns to pre-existing tables
+// ---------------------------------------------------------------------------
+
+/// Expected column set for every table. After CREATE TABLE IF NOT EXISTS,
+/// pre-existing tables might be missing newer columns. This map drives
+/// `ALTER TABLE ADD COLUMN` for any column present here but missing in the
+/// actual table schema.
+const EXPECTED_TABLE_COLUMNS: &[(&str, &[&str])] = &[
+    ("goals", &["id", "correlation_id", "title", "description", "acceptance_criteria_json", "rejection_criteria_json", "status", "tags_json", "revision", "created_at", "updated_at", "scope_key"]),
+    ("roadmaps", &["id", "goal_id", "correlation_id", "title", "summary", "status", "tags_json", "revision", "created_at", "updated_at", "scope_key"]),
+    ("work_points", &["id", "roadmap_id", "title", "tags_json", "created_at", "updated_at", "scope_key"]),
+    ("plans", &["id", "goal_id", "roadmap_id", "work_point_id", "title", "tags_json", "created_at", "updated_at", "scope_key"]),
+    ("todos", &["id", "plan_id", "work_point_id", "title", "tags_json", "created_at", "updated_at", "scope_key"]),
+    ("issues", &["id", "title", "tags_json", "created_at", "updated_at", "scope_key"]),
+    ("review_points", &["id", "title", "tags_json", "created_at", "updated_at", "scope_key"]),
+    ("tag_index", &["scope_key", "entity_type", "entity_id", "tag"]),
+    ("planning_events", &["event_id", "entity_type", "entity_id", "aggregate_type", "aggregate_id", "correlation_id", "causation_id", "run_id", "stream_id", "sequence", "parent_event_id", "event_type", "timestamp", "payload_json", "scope_key"]),
+    ("sessions", &["id", "source", "harness", "status", "title", "repo_path", "repo_id", "branch", "worktree_path", "model", "plan_id", "goal_id", "started_at", "ended_at", "updated_at", "metadata_json"]),
+    ("worktrees", &["id", "path", "repo_path", "repo_id", "branch", "source", "status", "head_sha", "detached", "locked", "session_count", "last_activity_at", "created_at", "updated_at", "metadata_json"]),
+    ("session_worktrees", &["session_id", "worktree_id", "assigned_at", "released_at"]),
+    ("hook_events", &["id", "hook_type", "harness", "session_id", "worktree_id", "repo_path", "event_data_json", "created_at"]),
+    ("repo_assets", &["repo_path", "repo_id", "asset_id", "asset_kind", "harness", "installed_at", "updated_at", "source_path"]),
+    ("ie_schema_versions", &["version", "checksum", "applied_at"]),
+    ("ie_planning_records", &["record_id", "owner_id", "repo_id", "scope", "state", "created_at", "updated_at"]),
+    ("ie_planning_backfill_runs", &["run_id", "scope", "owner_id", "repo_id", "source_identity", "checkpoint_key", "status", "started_at", "completed_at", "metadata"]),
+    ("ie_planning_backfill_items_ledger", &["run_id", "item_id", "scope", "owner_id", "repo_id", "source_identity", "artifact_path", "artifact_hash", "record_type", "source_idempotency_key", "status", "status_detail", "version", "updated_at", "created_at"]),
+    ("ie_planning_compare_receipts", &["receipt_id", "actor_id", "repo_id", "compare_hash", "source_ids_hash", "source_ids", "version_vector", "gate_state", "merge_eligible", "reason", "downgrade", "issued_at", "expires_at", "created_at"]),
+    ("ie_planning_merge_intents", &["token_id", "compare_receipt_id", "actor_id", "repo_id", "target_id", "source_ids_hash", "compare_hash", "version_vector", "version_vector_hash", "issued_at", "expires_at", "consumed_at", "created_at"]),
+    ("ie_planning_merge_idempotency_ledger", &["idempotency_key", "actor_id", "repo_id", "operation_type", "target_id", "source_ids_hash", "compare_hash", "payload_hash", "merge_record_id", "response", "created_at", "expires_at"]),
+    ("ie_planning_suggestions", &["suggestion_id", "actor_id", "repo_id", "scope", "state", "created_at", "updated_at"]),
+    ("ie_planning_recaps", &["recap_id", "actor_id", "repo_id", "scope", "state", "created_at", "updated_at"]),
+    ("ie_planning_workflow_artifacts", &["artifact_id", "actor_id", "repo_id", "roadmap_id", "slice_id", "kind", "phase", "status", "checksum", "source_harness", "source_model", "session_id", "body", "structured_state", "created_at", "updated_at"]),
+];
+
+/// Repair schema drift on pre-existing tables.
+///
+/// After `CREATE TABLE IF NOT EXISTS` creates new tables, this function
+/// queries `PRAGMA table_info` on every known table and adds any expected
+/// column that is missing via `ALTER TABLE ADD COLUMN <name> TEXT`.
+pub fn repair_schema(conn: &Connection) -> rusqlite::Result<()> {
+    for (table_name, expected_columns) in EXPECTED_TABLE_COLUMNS {
+        // Check if table exists
+        let exists: bool = conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name=?1",
+            [table_name],
+            |row| row.get(0),
+        ).unwrap_or(false);
+        if !exists {
+            continue;
+        }
+
+        // Get actual columns
+        let mut actual_cols: Vec<String> = Vec::new();
+        let mut stmt = conn.prepare(&format!("PRAGMA table_info({})", table_name))?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(1))?;
+        for name in rows {
+            if let Ok(col) = name {
+                actual_cols.push(col);
+            }
+        }
+
+        // Add missing columns
+        for expected in *expected_columns {
+            if !actual_cols.contains(&expected.to_string()) {
+                let sql = format!(
+                    "ALTER TABLE {} ADD COLUMN {} TEXT",
+                    table_name, expected
+                );
+                match conn.execute_batch(&sql) {
+                    Ok(()) => tracing::info!(
+                        table = table_name,
+                        column = expected,
+                        "repaired schema: added missing column"
+                    ),
+                    Err(e) => tracing::warn!(
+                        table = table_name,
+                        column = expected,
+                        error = %e,
+                        "schema repair: failed to add column (non-fatal)"
+                    ),
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -715,5 +846,58 @@ mod tests {
 
         let result = Database::open_readonly(&path);
         assert!(result.is_err(), "open_readonly should fail on missing file");
+    }
+
+    #[test]
+    fn test_repair_schema_adds_missing_column() {
+        let path = temp_db_path();
+        {
+            let conn = rusqlite::Connection::open(&path).expect("open temp db");
+            conn.pragma_update(None, "journal_mode", "WAL").ok();
+            conn.pragma_update(None, "foreign_keys", "ON").ok();
+
+            // Create a legacy worktrees table WITHOUT repo_path column
+            conn.execute_batch(
+                "CREATE TABLE worktrees (
+                    id TEXT PRIMARY KEY,
+                    path TEXT NOT NULL UNIQUE
+                )",
+            )
+            .expect("create legacy worktrees");
+
+            // repair_schema should add missing columns
+            repair_schema(&conn).expect("repair schema");
+
+            // Verify repo_path column was added
+            let mut stmt = conn
+                .prepare("PRAGMA table_info(worktrees)")
+                .expect("prepare");
+            let cols: Vec<String> = stmt
+                .query_map([], |row| row.get::<_, String>(1))
+                .expect("query table_info")
+                .filter_map(Result::ok)
+                .collect();
+            assert!(
+                cols.contains(&"repo_path".to_string()),
+                "repo_path should be added by repair_schema, got: {:?}",
+                cols
+            );
+            assert!(
+                cols.contains(&"branch".to_string()),
+                "branch should be added by repair_schema"
+            );
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_repair_schema_handles_nonexistent_tables() {
+        let path = temp_db_path();
+        {
+            let conn = rusqlite::Connection::open(&path).expect("open temp db");
+            // No tables at all — repair_schema should succeed silently
+            repair_schema(&conn).expect("repair on empty db should not fail");
+        }
+        let _ = std::fs::remove_file(&path);
     }
 }

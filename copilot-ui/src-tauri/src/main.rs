@@ -1090,7 +1090,7 @@ fn launch_rust_runtime(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .env("RUST_LOG", "info")
+        .env("RUST_LOG", "elegy_native_runtime=info,tower_http=info")
         .spawn()
         .map_err(|e| format!("Failed to spawn Rust runtime: {}", e))?;
 

@@ -300,3 +300,42 @@ async fn sessions_agent_usage() {
     let (status, _) = get_json(app(&dir), "/api/sessions/agent-usage").await;
     assert_ok(status);
 }
+
+#[tokio::test]
+async fn concurrent_planning_records() {
+    use std::sync::Arc;
+
+    let dir = tmp();
+    let elegy_home = dir.path().join(".elegy");
+    std::fs::create_dir_all(&elegy_home).expect("create elegy home");
+    let pool = elegy_native_runtime::db::init_planning_pool(&elegy_home.join("planning.db"))
+        .expect("pool should initialize");
+    let pool = Arc::new(pool);
+
+    let mut handles = Vec::new();
+    for i in 0..8 {
+        let pool = Arc::clone(&pool);
+        let handle = tokio::task::spawn_blocking(move || {
+            let conn = pool.get().expect("get connection");
+            conn.execute(
+                "INSERT INTO ie_planning_records (record_id, owner_id, scope, state) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![format!("conc-{}", i), "test-owner", "test-scope", "{}"],
+            )
+        });
+        handles.push(handle);
+    }
+
+    let mut errors = 0usize;
+    for handle in handles {
+        if handle.await.unwrap().is_err() {
+            errors += 1;
+        }
+    }
+    assert_eq!(errors, 0, "all 8 concurrent inserts should succeed");
+
+    let conn = pool.get().expect("get connection");
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM ie_planning_records WHERE owner_id = 'test-owner'", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 8, "should have 8 records after concurrent inserts");
+}

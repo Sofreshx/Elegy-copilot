@@ -10,7 +10,9 @@ use axum::{
 use chrono::Utc;
 use elegy_native_contracts::{PolicyPreflightResponse, VersionResponse};
 use tower_http::cors::CorsLayer;
+use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::TraceLayer;
+use axum::http::HeaderName;
 
 pub use crate::auth::AuthContext;
 use crate::auth::AuthConfig;
@@ -23,7 +25,7 @@ pub struct AppState {
     pub auth: AuthConfig,
     pub(crate) version_state: Arc<Mutex<VersionResponse>>,
     pub(crate) policy_cache: Arc<Mutex<Option<CachedPolicyPreflight>>>,
-    pub(crate) planning_db: Arc<tokio::sync::Mutex<Option<crate::db::Database>>>,
+    pub(crate) planning_pool: Arc<crate::db::PlanningPool>,
 }
 
 #[derive(Debug, Clone)]
@@ -34,11 +36,11 @@ pub(crate) struct CachedPolicyPreflight {
 
 impl AppState {
     pub fn new(config: RuntimeConfig, auth: AuthConfig) -> Self {
-        let db = crate::db::Database::open(&config.elegy_home.join("planning.db"))
-            .map(Some)
+        let pool = crate::db::init_planning_pool(&config.elegy_home.join("planning.db"))
             .unwrap_or_else(|e| {
-                tracing::warn!("Failed to open planning.db: {e}; planning persistence disabled");
-                None
+                tracing::warn!("Failed to initialize planning pool: {e}; planning persistence disabled");
+                crate::db::init_planning_pool(std::path::Path::new(":memory:"))
+                    .expect("in-memory pool should always succeed")
             });
         Self {
             config,
@@ -48,7 +50,7 @@ impl AppState {
                 last_changed_ms: None,
             })),
             policy_cache: Arc::new(Mutex::new(None)),
-            planning_db: Arc::new(tokio::sync::Mutex::new(db)),
+            planning_pool: Arc::new(pool),
         }
     }
 
@@ -92,6 +94,21 @@ pub fn build_router(state: AppState) -> Router {
 
     let ui_path = state.config.engine_root.join("copilot-ui").join("ui-dist");
 
+    let trace_layer = TraceLayer::new_for_http().make_span_with(move |request: &axum::extract::Request| {
+        let x_request_id = HeaderName::from_static("x-request-id");
+        let request_id = request
+            .headers()
+            .get(&x_request_id)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("-");
+        tracing::info_span!(
+            "request",
+            method = %request.method(),
+            uri = %request.uri(),
+            request_id = %request_id,
+        )
+    });
+
     Router::new()
         .merge(crate::routes::build_routes(state.clone()))
         .fallback(move |uri: Uri| {
@@ -101,7 +118,6 @@ pub fn build_router(state: AppState) -> Router {
                 if path.starts_with("/api/") {
                     return Json(serde_json::json!({"ok": true, "stub": true})).into_response();
                 }
-                // Serve static UI files: try exact path, fall back to index.html for SPA
                 let file_path = if path == "/" {
                     ui_path.join("index.html")
                 } else {
@@ -138,8 +154,10 @@ pub fn build_router(state: AppState) -> Router {
             }
         })
         .layer(auth_layer)
+        .layer(trace_layer)
+        .layer(PropagateRequestIdLayer::new(HeaderName::from_static("x-request-id")))
+        .layer(SetRequestIdLayer::new(HeaderName::from_static("x-request-id"), MakeRequestUuid))
         .layer(CorsLayer::permissive())
-        .layer(TraceLayer::new_for_http())
 }
 
 pub async fn serve(state: AppState) -> anyhow::Result<()> {

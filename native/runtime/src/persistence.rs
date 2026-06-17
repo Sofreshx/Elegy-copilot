@@ -330,20 +330,20 @@ fn opt_json_to_string(value: &Option<serde_json::Value>) -> Option<String> {
 
 /// Typed persistence operations over the ie_* planning tables.
 ///
-/// Wraps a [`Database`] reference and provides all CRUD methods.
+/// Wraps a [`Connection`] reference and provides all CRUD methods.
 pub struct Persistence<'a> {
-    db: &'a Database,
+    db: &'a Connection,
 }
 
 impl<'a> Persistence<'a> {
-    /// Create a new Persistence instance wrapping a Database reference.
-    pub fn new(db: &'a Database) -> Self {
+    /// Create a new Persistence instance wrapping a Connection reference.
+    pub fn new(db: &'a Connection) -> Self {
         Self { db }
     }
 
     /// Access the underlying connection.
     fn conn(&self) -> &Connection {
-        self.db.conn()
+        self.db
     }
 
     // -----------------------------------------------------------------------
@@ -1487,7 +1487,7 @@ mod tests {
     #[test]
     fn test_persist_and_read_record() {
         let (db, path) = setup_temp_db();
-        let p = Persistence::new(&db);
+        let p = Persistence::new(db.conn());
 
         let state = make_state("hello world");
         let row = p
@@ -1511,7 +1511,7 @@ mod tests {
     #[test]
     fn test_list_records_by_owner() {
         let (db, path) = setup_temp_db();
-        let p = Persistence::new(&db);
+        let p = Persistence::new(db.conn());
 
         p.persist_planning_record(
             "rec-a", "owner-1", None, "user", &make_state("a"),
@@ -1538,7 +1538,7 @@ mod tests {
     #[test]
     fn test_upsert_record() {
         let (db, path) = setup_temp_db();
-        let p = Persistence::new(&db);
+        let p = Persistence::new(db.conn());
 
         // Insert
         let state1 = make_state("v1");
@@ -1569,7 +1569,7 @@ mod tests {
     #[test]
     fn test_delete_record() {
         let (db, path) = setup_temp_db();
-        let p = Persistence::new(&db);
+        let p = Persistence::new(db.conn());
 
         let state = make_state("delete-me");
         p.persist_planning_record(
@@ -1599,7 +1599,7 @@ mod tests {
     #[test]
     fn test_ownership_guard_suggestion() {
         let (db, path) = setup_temp_db();
-        let p = Persistence::new(&db);
+        let p = Persistence::new(db.conn());
 
         let state_a = make_state("actor a state");
         // Insert by actor A
@@ -1635,7 +1635,7 @@ mod tests {
     #[test]
     fn test_ownership_guard_recap() {
         let (db, path) = setup_temp_db();
-        let p = Persistence::new(&db);
+        let p = Persistence::new(db.conn());
 
         let state_a = make_state("a state");
         p.persist_planning_recap(
@@ -1659,7 +1659,7 @@ mod tests {
     #[test]
     fn test_ownership_guard_artifact() {
         let (db, path) = setup_temp_db();
-        let p = Persistence::new(&db);
+        let p = Persistence::new(db.conn());
 
         let state = make_state("ss");
         p.persist_workflow_artifact(
@@ -1690,7 +1690,7 @@ mod tests {
     #[test]
     fn test_expiry_auto_delete_receipt() {
         let (db, path) = setup_temp_db();
-        let p = Persistence::new(&db);
+        let p = Persistence::new(db.conn());
 
         let past = "2020-01-01T00:00:00Z";
         let future = "2099-01-01T00:00:00Z";
@@ -1728,7 +1728,7 @@ mod tests {
     #[test]
     fn test_expiry_auto_delete_merge_intent() {
         let (db, path) = setup_temp_db();
-        let p = Persistence::new(&db);
+        let p = Persistence::new(db.conn());
 
         let past = "2020-01-01T00:00:00Z";
 
@@ -1754,7 +1754,7 @@ mod tests {
     #[test]
     fn test_consume_merge_intent() {
         let (db, path) = setup_temp_db();
-        let p = Persistence::new(&db);
+        let p = Persistence::new(db.conn());
 
         let future = "2099-01-01T00:00:00Z";
 
@@ -1786,7 +1786,7 @@ mod tests {
     #[test]
     fn test_persist_merge_idempotency() {
         let (db, path) = setup_temp_db();
-        let p = Persistence::new(&db);
+        let p = Persistence::new(db.conn());
 
         let future = "2099-01-01T00:00:00Z";
         let resp = serde_json::json!({"status": "ok"});
@@ -1832,7 +1832,7 @@ mod tests {
     #[test]
     fn test_run_retention_dry_run() {
         let (db, path) = setup_temp_db();
-        let p = Persistence::new(&db);
+        let p = Persistence::new(db.conn());
 
         let state = make_state("old");
         p.persist_planning_record(
@@ -1870,7 +1870,7 @@ mod tests {
     #[test]
     fn test_run_retention_execute() {
         let (db, path) = setup_temp_db();
-        let p = Persistence::new(&db);
+        let p = Persistence::new(db.conn());
 
         let state = make_state("old");
         p.persist_planning_record(
