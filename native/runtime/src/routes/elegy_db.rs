@@ -17,6 +17,12 @@ fn open_db(state: &AppState) -> Result<Connection, ApiError> {
     Connection::open(&db_path).map_err(|e| ApiError::Internal(e.into()))
 }
 
+/// Open the planning.db read-only.
+fn open_planning_db(state: &AppState) -> Result<Connection, ApiError> {
+    let db_path = state.config.elegy_home.join("planning.db");
+    Connection::open(&db_path).map_err(|e| ApiError::Internal(e.into()))
+}
+
 /// Convert snake_case to camelCase.
 fn snake_to_camel(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
@@ -69,6 +75,12 @@ fn query_all(db: &Connection, sql: &str) -> Result<Vec<serde_json::Value>, ApiEr
 struct PaginationParams {
     page: Option<u64>,
     page_size: Option<u64>,
+}
+
+#[derive(Deserialize)]
+struct WorktreeSessionsQuery {
+    #[serde(rename = "worktreeId")]
+    worktree_id: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -333,6 +345,116 @@ async fn list_entities_paginated(
     })))
 }
 
+/// GET /api/elegy-db/repo-assets
+async fn get_repo_assets(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let db = open_db(&state)?;
+    let assets = match query_all(&db, "SELECT * FROM repo_assets ORDER BY updated_at DESC") {
+        Ok(rows) => rows,
+        Err(_) => Vec::new(),
+    };
+    Ok(Json(serde_json::json!({
+        "repoAssets": assets,
+        "count": assets.len(),
+    })))
+}
+
+/// GET /api/elegy-db/worktree-sessions?worktreeId=...
+async fn get_worktree_sessions(
+    State(state): State<AppState>,
+    Query(query): Query<WorktreeSessionsQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let db = open_db(&state)?;
+    let sessions = if let Some(worktree_id) = &query.worktree_id {
+        let mut stmt = db
+            .prepare(
+                "SELECT * FROM sessions WHERE id IN \
+                 (SELECT session_id FROM worktrees WHERE id = ?1) \
+                 ORDER BY updated_at DESC",
+            )
+            .map_err(|e| ApiError::Internal(e.into()))?;
+        let column_names: Vec<String> =
+            stmt.column_names().iter().map(|s| s.to_string()).collect();
+        let rows = stmt
+            .query_map([worktree_id], |row| Ok(row_to_json(row, &column_names)))
+            .map_err(|e| ApiError::Internal(e.into()))?;
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row.map_err(|e| ApiError::Internal(e.into()))?);
+        }
+        result
+    } else {
+        // Return sessions that have worktree associations
+        match query_all(
+            &db,
+            "SELECT DISTINCT s.* FROM sessions s \
+             INNER JOIN worktrees w ON s.id = w.session_id \
+             ORDER BY s.updated_at DESC",
+        ) {
+            Ok(rows) => rows,
+            Err(_) => Vec::new(),
+        }
+    };
+    Ok(Json(serde_json::json!({
+        "sessions": sessions,
+        "count": sessions.len(),
+    })))
+}
+
+/// GET /api/elegy-db/planning/summary
+async fn get_planning_summary(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let db = match open_planning_db(&state) {
+        Ok(db) => db,
+        Err(_) => {
+            return Ok(Json(serde_json::json!({
+                "goals": 0,
+                "roadmaps": 0,
+                "plans": 0,
+                "todos": 0,
+                "lastUpdatedAt": null,
+            })));
+        }
+    };
+
+    // Discover which tables exist
+    let tables: Vec<String> = db
+        .query_row(
+            "SELECT group_concat(name) FROM sqlite_master WHERE type='table'",
+            [],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .map_err(|e| ApiError::Internal(e.into()))?
+        .unwrap_or_default()
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let count_if_exists = |name: &str| -> i64 {
+        if tables.contains(&name.to_string()) {
+            db.query_row(
+                &format!("SELECT COUNT(*) FROM \"{}\"", name),
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0)
+        } else {
+            0
+        }
+    };
+
+    Ok(Json(serde_json::json!({
+        "goals": count_if_exists("goals"),
+        "roadmaps": count_if_exists("roadmaps"),
+        "plans": count_if_exists("plans"),
+        "todos": count_if_exists("todos"),
+        "lastUpdatedAt": null,
+    })))
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -368,5 +490,14 @@ pub fn router(state: AppState) -> Router {
             "/api/elegy-db/paginated/{entity_type}",
             get(list_entities_paginated),
         )
+        // Repo assets
+        .route("/api/elegy-db/repo-assets", get(get_repo_assets))
+        // Worktree sessions
+        .route(
+            "/api/elegy-db/worktree-sessions",
+            get(get_worktree_sessions),
+        )
+        // Planning summary
+        .route("/api/elegy-db/planning/summary", get(get_planning_summary))
         .with_state(state)
 }

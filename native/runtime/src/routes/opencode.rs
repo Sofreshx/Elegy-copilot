@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use axum::extract::{Path, State};
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
+use chrono::Utc;
 use serde_json::{json, Value};
 
 use crate::app::AppState;
@@ -395,25 +396,48 @@ async fn opencode_go_workspaces_create(
 
 /// POST /api/opencode/go-workspaces/create-flow
 ///
-/// Body: `{ "name": "..." }` (optional).
-/// Returns a draft workspace profile.
+/// Body: `{ "name": "...", "label": "..." }` (label optional).
+/// Creates a workspace JSON file with default profile fields.
 async fn opencode_go_workspaces_create_flow(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, ApiError> {
+    let id = uuid::Uuid::new_v4().to_string();
     let name = body
         .get("name")
         .and_then(|v| v.as_str())
-        .unwrap_or("new-workspace");
+        .unwrap_or("new-workspace")
+        .to_string();
+    let label = body
+        .get("label")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let now = Utc::now().to_rfc3339();
+
+    let workspace = json!({
+        "name": name,
+        "label": label,
+        "active": false,
+        "createdAt": now,
+    });
+
+    let path = workspace_path(&state, &id);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| ApiError::Internal(e.into()))?;
+    }
+
+    let content =
+        serde_json::to_string_pretty(&workspace).map_err(|e| ApiError::Internal(e.into()))?;
+    std::fs::write(&path, content).map_err(|e| ApiError::Internal(e.into()))?;
 
     Ok(Json(json!({
         "ok": true,
-        "draft": {
+        "workspace": {
+            "id": id,
             "name": name,
-            "status": "draft",
+            "label": label,
+            "createdAt": now,
         },
-        "consoleUrl": "https://opencode.ai/workspace/new/go",
-        "authUrl": "https://opencode.ai/connect",
     })))
 }
 

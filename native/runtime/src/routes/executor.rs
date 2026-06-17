@@ -1,3 +1,4 @@
+use axum::extract::Path;
 use axum::{Router, routing::{get, post}, extract::State, Json};
 use crate::app::AppState;
 use crate::error::ApiError;
@@ -10,6 +11,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/executor/jobs", get(list_jobs))
         .route("/api/executor/runs", get(list_runs))
         .route("/api/executor/worktrees", get(list_worktrees))
+        .route("/api/executor/runs/{run_id}", get(get_run))
         // Cleanup routes
         .route("/api/executor/cleanup/analyze", post(cleanup_analyze))
         .route("/api/executor/cleanup/delete", post(cleanup_delete))
@@ -33,6 +35,19 @@ async fn list_runs(State(state): State<AppState>) -> Json<serde_json::Value> {
     let svc = ExecutorService::new(&state.config.elegy_home);
     let runs = svc.list_runs();
     Json(serde_json::json!({ "runs": runs, "count": runs.len() }))
+}
+
+async fn get_run(
+    State(state): State<AppState>,
+    Path(run_id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let svc = ExecutorService::new(&state.config.elegy_home);
+    let runs = svc.list_runs();
+    let run = runs.into_iter().find(|r| r.run_id == run_id);
+    match run {
+        Some(r) => Ok(Json(serde_json::json!({ "run": r }))),
+        None => Err(ApiError::NotFound(format!("Run not found: {}", run_id))),
+    }
 }
 
 async fn list_worktrees(State(state): State<AppState>) -> Json<serde_json::Value> {
