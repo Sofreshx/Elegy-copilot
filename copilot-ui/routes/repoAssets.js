@@ -15,7 +15,8 @@ const HARNESS_NAMES = ['opencode', 'codex', 'copilot', 'antigravity'];
 const DISCOVERY_PATTERNS = [
   // Root config files
   { pattern: 'AGENTS.md', kind: 'config', sourceHarness: null },
-  { pattern: 'guidelines.md', kind: 'config', sourceHarness: null },
+  { pattern: 'CLAUDE.md', kind: 'config', sourceHarness: null },
+  { pattern: 'GEMINI.md', kind: 'config', sourceHarness: null },
 
   // OpenCode
   { glob: '.opencode/agents/*.agent.md', kind: 'agent', sourceHarness: 'opencode' },

@@ -45,7 +45,7 @@ function filterTreeForAssets(nodes: RepoDocTreeNode[]): RepoDocTreeNode[] {
       }
 
       // Root-level convention files
-      if (file.path === 'AGENTS.md' || file.path === 'guidelines.md') {
+      if (file.path === 'AGENTS.md' || file.path === 'CLAUDE.md' || file.path === 'GEMINI.md') {
         return node;
       }
 

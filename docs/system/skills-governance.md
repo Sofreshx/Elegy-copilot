@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-08
+updated: 2026-06-18
 category: system
 status: current
 doc_kind: node
@@ -60,7 +60,7 @@ OpenCode should stay native-first rather than mirroring the Copilot fleet:
 
 ## Planning-critical shared install set
 
-- `rubberduck-plan-review`, `planning-tools`, `project-workflow`, `implementation-handoff`, `implementation-review`, `spec-dev`, `spec-authoring`, and `spec-review` ship across Copilot, Codex, OpenCode, and Antigravity.
+- `rubberduck-plan-review`, `planning-tools`, `project-workflow`, `implementation-handoff`, `implementation-review`, `spec-dev`, `spec-authoring`, `spec-review`, `skill-authoring`, and `agents-md-authoring` ship across Copilot, Codex, OpenCode, and Antigravity.
 - Copilot keeps those shared planning/review/spec skills vault-first by default, except where a target harness has no separate vault path.
 - Copilot-side `roadmap-authoring` stays always installed because planning and continuation flows depend on it.
 
@@ -72,7 +72,6 @@ These stay installed by default because they govern cross-cutting workflow safet
 - `skill-discovery`
 - `roadmap-authoring`
 - `stack-detector`
-- `project-guidelines`
 
 ## Triage model
 Classify each skill as one of:
@@ -114,6 +113,14 @@ A skill should include:
 - concrete constraints and anti-patterns,
 - deterministic validation steps,
 - minimal but realistic examples.
+
+## Skill format
+Skills follow the [Agent Skills open standard](https://agentskills.io/specification) — `name`
+and `description` frontmatter, optional `license`, `compatibility`, `metadata`, `allowed-tools`,
+followed by a Markdown body under 500 lines. This format works in Codex, Claude Code, OpenCode,
+Cursor, and 30+ other tools. The `skill-authoring` shared skill packages the full authoring
+rules; the `agents-md-authoring` shared skill packages the related per-harness instruction-file
+rules.
 
 ## Canonical docs policy
 For specialized skills, include a `Canonical References` section with official docs links and version notes.

@@ -176,6 +176,24 @@
       "destination": "skills/planning-tools"
     },
     {
+      "id": "opencode-planning-tools-read-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/planning-tools-read",
+      "destination": "skills/planning-tools-read"
+    },
+    {
+      "id": "opencode-planning-tools-write-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/planning-tools-write",
+      "destination": "skills/planning-tools-write"
+    },
+    {
+      "id": "opencode-planning-tools-run-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/planning-tools-run",
+      "destination": "skills/planning-tools-run"
+    },
+    {
       "id": "opencode-plugins-package-json",
       "type": "plugin",
       "source": "opencode-assets/plugins/package.json",
@@ -272,6 +290,20 @@
       "type": "skill",
       "source": "opencode-assets/skills/project-workflow",
       "destination": "skills/project-workflow"
+    },
+    {
+      "id": "opencode-skill-authoring-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/skill-authoring",
+      "destination": "skills/skill-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "opencode-agents-md-authoring-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/agents-md-authoring",
+      "destination": "skills/agents-md-authoring",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": []

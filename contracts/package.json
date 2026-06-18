@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "prepare": "npm run build",
-    "test": "npm run build && node --test tests/assetCatalog.test.js tests/planningApi.test.js tests/messagingGateway.test.js",
+    "test": "npm run build && node --test tests/assetCatalog.test.js tests/planningApi.test.js",
     "clean": "node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true})\""
   },
   "devDependencies": {

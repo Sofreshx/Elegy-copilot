@@ -1,6 +1,6 @@
 ---
 created: 2026-05-25
-updated: 2026-05-25
+updated: 2026-06-18
 category: system
 status: current
 doc_kind: node
@@ -61,7 +61,9 @@ When candidate constraints conflict, resolve them in this order:
 
 1. explicit user instruction for the current task
 2. canonical docs in `docs/system/**`
-3. nearest applicable approved repo-local operating guidance such as `guidelines.md`
+3. nearest applicable approved repo-local operating guidance such as a per-harness
+   instruction file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`,
+   `.github/copilot-instructions.md`)
 4. other maintained repo docs
 5. repeated implementation patterns with strong evidence
 6. exploratory notes, prompts, or summaries

@@ -409,8 +409,8 @@ function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, o
     status: hasElegyPlanningLive ? 'ok' : 'warning',
     detail: hasElegyPlanningLive
       ? 'Planning live authority is ready'
-      : 'Planning live authority is not ready. Check gateway state.',
-    action: hasElegyPlanningLive ? null : { kind: 'info', label: 'Check gateway', target: '#gateway' },
+      : 'Planning live authority is not ready.',
+    action: null,
   });
 
   const elegySkillsTracked = ctx.toolingStatus && ctx.toolingStatus.elegySkillsAssets
@@ -558,9 +558,9 @@ function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, o
     action: specLaneBlockers.length === 0 ? null : { kind: 'info', label: 'Resolve blockers', target: '#setup' },
   });
 
-  // Instruction Governance — validate guidelines.md wiring across all harnesses
+  // Instruction Governance — validate shared baseline + authoring skills wiring across all harnesses
   try {
-    const scriptPath = path.join(engineRoot, 'scripts', 'validate-guidelines-wiring.mjs');
+    const scriptPath = path.join(engineRoot, 'scripts', 'validate-instruction-wiring.mjs');
     if (fs.existsSync(scriptPath)) {
       const result = execSync(`node "${scriptPath}" --json`, {
         cwd: engineRoot,
@@ -580,14 +580,9 @@ function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, o
         });
       } else {
         // Fallback: derive status from summary when setupChecks is missing
-        const hasGuidelines = parsed.guidelines && parsed.guidelines.exists;
         const summary = parsed.summary || {};
-        const status = !hasGuidelines
-          ? 'blocked'
-          : (summary.missing > 0 || summary.stale > 0 ? 'warning' : 'ok');
-        const detail = !hasGuidelines
-          ? 'guidelines.md not found at repo root'
-          : `${summary.pass || 0}/${summary.total || 0} harnesses reference guidelines.md`;
+        const status = (summary.missing > 0 || summary.stale > 0) ? 'warning' : 'ok';
+        const detail = `${summary.pass || 0}/${summary.total || 0} shared baseline + authoring skills checks pass`;
         checks.push({
           id: 'instruction-governance',
           label: 'Instruction Governance',

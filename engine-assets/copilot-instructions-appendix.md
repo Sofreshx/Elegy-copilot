@@ -96,8 +96,11 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   - keep summaries under ~300 words per workstream unless I ask for depth.
 
 ## Using Instruction Engine assets
-- A few transversal skills are always loaded (`~/.elegy/skills/`): `core-guardrails`, `skill-discovery`, `roadmap-authoring`, `project-guidelines`.
+- A few transversal skills are always loaded (`~/.elegy/skills/`): `core-guardrails`, `skill-discovery`, `roadmap-authoring`.
 - **Most domain-specific skills live in the vault** (`~/.elegy/skills-vault/`) and are NOT loaded by default to save tokens.
+- The vault includes `skill-authoring` and `agents-md-authoring` for creating or refining portable Agent Skills and per-harness instruction files.
+- `skill-authoring` — Create or refine portable Agent Skills (SKILL.md) that work across Codex, Claude Code, OpenCode, Cursor, and 30+ tools. Follows the [agentskills.io](https://agentskills.io/specification) open standard.
+- `agents-md-authoring` — Create or refine per-harness instruction files (AGENTS.md, CLAUDE.md, GEMINI.md, copilot-instructions.md) that follow the open [AGENTS.md](https://agents.md) standard.
 - The canonical workflow is **search then execute**:
   1. Use `@search` to resolve the smallest relevant capability across docs, agents, and skills.
   2. Use `@execute` to turn the resolved capability into a minimal execution brief.

@@ -1,6 +1,6 @@
 ---
 created: 2026-06-09
-updated: 2026-06-12
+updated: 2026-06-18
 category: system
 status: current
 doc_kind: node
@@ -185,6 +185,5 @@ The instruction writing contract lives in a single shared portable baseline at `
 ## References
 
 - `docs/system/concise-instruction-governance.md` — canonical authority for concise instruction standards
-- `guidelines.md` — standalone reference copy of the instruction writing contract (not synced to harness homes)
 - `docs/system/repo-setup-governance.md` — per-repo overlay and bootstrap governance
 - `scripts/install-surface-utils.mjs` — shared sync primitives (SHA-256, copy, mkdir)

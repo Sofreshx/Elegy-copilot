@@ -122,6 +122,20 @@
       "source": "engine-assets/skills/commit-check-setup",
       "destination": "antigravity/skills/commit-check-setup",
       "loadMode": "on-demand"
+    },
+    {
+      "id": "antigravity-skill-authoring-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/skill-authoring",
+      "destination": "antigravity/skills/skill-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "antigravity-agents-md-authoring-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/agents-md-authoring",
+      "destination": "antigravity/skills/agents-md-authoring",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": []

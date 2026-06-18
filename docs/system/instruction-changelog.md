@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-01
+updated: 2026-06-18
 category: system
 status: current
 doc_kind: node
@@ -10,6 +10,19 @@ tags: [changelog]
 ---
 
 # Instruction Changelog
+
+## 2026-06-18 - Skill authoring skills + guidelines.md deprecation
+
+- Added two cross-harness shared skills in `catalog-assets/shared-skills/`:
+  - `skill-authoring` — packages the [agentskills.io](https://agentskills.io/specification) format and best practices for creating portable `SKILL.md` files.
+  - `agents-md-authoring` — packages the [OpenAI AGENTS.md guide](https://developers.openai.com/codex/guides/agents-md) for creating and layering per-harness instruction files.
+- Both skills wired to all 5 harnesses (Copilot, Codex, OpenCode, Antigravity, Claude Code) via `manifest.json` and per-harness appendices.
+- Added a `## Code Quality Posture` section to the shared baseline (`catalog-assets/instructions/agent-session-defaults.md`) with hard rules (always remove dead code, max 4 nesting levels, no >3-file diffs without refactor, no commented-out code) and heuristics (simplest solution, focused functions, justified complexity).
+- The new `## Review Rule` flag list includes dead code, unnecessary nesting, and clever abstractions.
+- Aggressively deprecated the `guidelines.md` per-repo surface and the two skills that governed it (`engine-assets/skills/guidelines-authoring/`, `engine-assets/skills/project-guidelines/`) — no compatibility shims.
+- Removed `guidelines.md` references from all 5 per-harness authority chains, all canonical docs, all agent files, the validator, and the `copilot-ui` discovery patterns.
+- Replaced `scripts/validate-guidelines-wiring.mjs` with `scripts/validate-instruction-wiring.mjs`; the old script is now a deprecation shim that forwards to the new one.
+- See `docs/specs/skill-authoring-and-guidelines-deprecation/spec.md` for the full requirements.
 
 ## 2026-06-01 - elegy-copilot harness meta-cleanup
 

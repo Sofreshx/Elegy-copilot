@@ -125,7 +125,6 @@ function refreshTauriWindowsReleaseMetadata(options = {}) {
       manifestRelativePath: 'runtime-manifests/windows-tauri-node-sidecar.json',
       nodeRuntimeRelativePath: manifest.nodeRuntime.relativePath,
       nodeModulesRelativePath: manifest.nodeModulePayload.targetRoot,
-      workflowSidecarPosture: manifest.workflowSidecarPosture,
     },
   };
 

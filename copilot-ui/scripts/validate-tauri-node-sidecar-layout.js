@@ -9,7 +9,6 @@ try {
   console.log(
     `[tauri-sidecar-layout] validated ${layout.validatedResourceCount} resource copy rule(s); `
     + `node=${layout.nodeRuntimeRelativePath}; server=${layout.serverEntrypoint}; `
-    + `gateway=${layout.gatewayEntrypoint}; workflow=${layout.workflowSidecarEntrypoint}; `
     + `pglite=${layout.pgliteTargetDist}; status=${layout.status}; packaging=${layout.packaging}; `
     + `updateMode=${layout.updateMode}; bundleTarget=${bundle.bundleTarget}.`,
   );

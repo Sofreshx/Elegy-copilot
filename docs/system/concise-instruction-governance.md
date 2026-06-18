@@ -1,6 +1,6 @@
 ---
 created: 2026-06-08
-updated: 2026-06-12
+updated: 2026-06-18
 category: system
 status: current
 doc_kind: node
@@ -28,7 +28,7 @@ This node is the canonical authority for instruction-writing standards. The cont
 |------|-----|
 | Writing or reviewing instructions, prompts, agent files, or skill docs | This node |
 | Deciding documentation information architecture or entrypoints | `docs/system/documentation-structure-governance.md` |
-| Auditing repo conventions or `guidelines.md` policy | `docs/system/project-conventions-governance.md` |
+| Auditing repo conventions or per-harness instruction file policy | `docs/system/project-conventions-governance.md` |
 | Choosing between code, comments, docs, or ADRs | `docs/system/self-documenting-code-and-rationale-placement.md` |
 
 ## Concise Instruction Contract
@@ -106,7 +106,7 @@ Do not ask when the answer is discoverable from files, docs, tests, config, or c
 **Good:**
 > Which source should be authoritative for this change?
 > - docs/system node: durable repo policy
-> - guidelines.md only: local entrypoint
+> - Per-harness instruction file only: local entrypoint
 
 **Bad:**
 > Can you clarify what you want?

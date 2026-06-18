@@ -10,7 +10,7 @@ function isNonEmptyString(value) {
 
 const ALLOWED_EXTENSIONS = new Set(['.md', '.markdown']);
 const ALLOWED_PREFIXES = ['specs/', 'docs/', 'skills/', 'agents/', '.agents/', '.github/', '.opencode/', '.codex/', '.copilot/', '.gemini/', '.antigravity/', 'specs\\', 'docs\\', 'skills\\', 'agents\\', '.agents\\', '.github\\', '.opencode\\', '.codex\\', '.copilot\\', '.gemini\\', '.antigravity\\'];
-const ALLOWED_ROOT_FILES = ['README.md', 'readme.md', 'CHANGELOG.md', 'changelog.md', 'AGENTS.md', 'agents.md', 'guidelines.md', 'GUIDELINES.md'];
+const ALLOWED_ROOT_FILES = ['README.md', 'readme.md', 'CHANGELOG.md', 'changelog.md', 'AGENTS.md', 'agents.md', 'CLAUDE.md', 'claude.md', 'GEMINI.md', 'gemini.md'];
 
 const TREE_ALLOWED_EXTENSIONS = new Set(['.md', '.markdown', '.json', '.toml']);
 
@@ -303,7 +303,7 @@ const TREE_SCAN_PATHS = [
   { prefix: '.antigravity/', dirKind: 'harness', harness: 'antigravity' },
 ];
 
-const TREE_ROOT_FILES = ['AGENTS.md', 'guidelines.md', 'README.md', 'readme.md', 'CHANGELOG.md', 'changelog.md'];
+const TREE_ROOT_FILES = ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'README.md', 'readme.md', 'CHANGELOG.md', 'changelog.md'];
 
 function walkFilesForTree(dir, baseDir, results, harness) {
   if (!fs.existsSync(dir)) return;
@@ -800,7 +800,7 @@ function handleRepoDocsDelete(ctx, deps) {
   // Check for protected files
   const normalizedRel = relativePath.replace(/\\/g, '/');
   const basename = path.basename(normalizedRel).toLowerCase();
-  const protectedBasenames = ['agents.md', 'guidelines.md', 'readme.md', 'changelog.md'];
+  const protectedBasenames = ['agents.md', 'claude.md', 'gemini.md', 'readme.md', 'changelog.md'];
   if (protectedBasenames.includes(basename) && normalizedRel.indexOf('/') === -1) {
     sendJson(res, 403, { error: 'Protected file — cannot be deleted from the document viewer' });
     return;

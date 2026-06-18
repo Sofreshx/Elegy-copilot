@@ -146,8 +146,6 @@ async function main(): Promise<void> {
         runtimeRoot,
         workspaceRoot: resolveDefaultWorkspaceRoot(runtimeRoot, process.cwd()),
         elegyHome,
-        gatewayConfigPath: path.join(elegyHome, 'messaging-gateway.config.json'),
-        legacyGatewayConfigPath: path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.config.json'),
       },
       isPackaged,
       processExecPath: nodeExecutablePath,
@@ -157,23 +155,8 @@ async function main(): Promise<void> {
       env: process.env,
       platform: process.platform,
       logger: console,
-      shellAdapter: {
-        launchPackagedGatewayChild: ({ env }) => spawn(nodeExecutablePath, [gatewayEntrypointPath], {
-          cwd: localTrackerRoot,
-          env,
-          stdio: 'ignore',
-          windowsHide: true,
-        }),
-        launchPackagedWorkflowSidecarChild: ({ env }) => spawn(nodeExecutablePath, [workflowSidecarEntrypointPath], {
-          cwd: localTrackerRoot,
-          env,
-          stdio: 'ignore',
-          windowsHide: true,
-        }),
-      },
     },
     {
-      startWorkflowSidecar,
       startDesktopPlanningPersistence,
       startServer,
       diagnostics,

@@ -18,7 +18,7 @@ judgment. Reviewer posture and depth limits inherit from
 `docs/system/calibrated-questioning-and-depth-governance.md`.
 
 ## Authority Order
-Canonical docs (`docs/system/**`) → nearest applicable `guidelines.md` → other maintained repo guidance → code-local conventions. If sources conflict, cite higher-authority source.
+Canonical docs (`docs/system/**`) → nearest applicable per-harness instruction file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`) → other maintained repo guidance → code-local conventions. If sources conflict, cite higher-authority source.
 
 ## What to Review
 Default: unstaged changes or caller-specified files.

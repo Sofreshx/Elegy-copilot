@@ -44,11 +44,9 @@ const ENGINE_ASSET_ROUTES = [
   route('skill-discovery'),
   route('skill-documentation-authoring'),
   route('skill-documentation-structure-governance'),
-  route('skill-guidelines-authoring'),
   route('skill-implementation-handoff'),
   route('skill-implementation-review'),
   route('skill-project-conventions-governance'),
-  route('skill-project-guidelines'),
   route('skill-repo-setup-governance'),
   route('skill-roadmap-authoring'),
   route('skill-rubberduck-plan-review'),
@@ -61,6 +59,8 @@ const ENGINE_ASSET_ROUTES = [
   route('skill-ui-system'),
   route('skill-commit-check-setup'),
   route('skill-commit-validation-governance'),
+  route('skill-skill-authoring'),
+  route('skill-agents-md-authoring'),
 ];
 
 export const COMPATIBILITY_MANIFESTS = [
@@ -189,6 +189,8 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-repo-backed-obsidian-docs-skill', { sourceAssetId: 'skill-repo-backed-obsidian-docs' }),
       route('codex-ui-system-skill', { sourceAssetId: 'skill-ui-system' }),
       route('codex-commit-check-setup-skill', { sourceAssetId: 'skill-commit-check-setup' }),
+      route('codex-skill-authoring-skill', { sourceAssetId: 'skill-skill-authoring' }),
+      route('codex-agents-md-authoring-skill', { sourceAssetId: 'skill-agents-md-authoring' }),
     ],
   },
   {
@@ -229,6 +231,9 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-implementation-review-skill', { sourceAssetId: 'skill-implementation-review' }),
       route('opencode-planning-plugin'),
       route('opencode-planning-tools-skill'),
+      route('opencode-planning-tools-read-skill'),
+      route('opencode-planning-tools-write-skill'),
+      route('opencode-planning-tools-run-skill'),
       route('opencode-plugins-package-json'),
       route('opencode-notify-plugin'),
       route('opencode-project-conventions-governance-skill'),
@@ -244,6 +249,8 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-worktree-plugin', { destination: 'plugins/worktree.js' }),
       route('opencode-worktree-skill'),
       route('opencode-project-workflow-skill'),
+      route('opencode-skill-authoring-skill', { sourceAssetId: 'skill-skill-authoring' }),
+      route('opencode-agents-md-authoring-skill', { sourceAssetId: 'skill-agents-md-authoring' }),
     ],
   },
   {
@@ -306,6 +313,14 @@ export const COMPATIBILITY_MANIFESTS = [
       route('antigravity-commit-check-setup-skill', {
         sourceAssetId: 'skill-commit-check-setup',
         destination: 'antigravity/skills/commit-check-setup',
+      }),
+      route('antigravity-skill-authoring-skill', {
+        sourceAssetId: 'skill-skill-authoring',
+        destination: 'antigravity/skills/skill-authoring',
+      }),
+      route('antigravity-agents-md-authoring-skill', {
+        sourceAssetId: 'skill-agents-md-authoring',
+        destination: 'antigravity/skills/agents-md-authoring',
       }),
     ],
   },

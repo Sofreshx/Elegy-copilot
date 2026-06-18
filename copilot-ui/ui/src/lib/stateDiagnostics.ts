@@ -1,4 +1,4 @@
-import type { GatewayStateError, SdkHealthResponse, SessionSummary } from './types';
+import type { SdkHealthResponse, SessionSummary } from './types';
 
 function toTimestamp(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
@@ -161,35 +161,6 @@ export function resolveSessionReason(session: SessionSummary): { code: string; l
     code: normalizedCode,
     label: humanizeToken(normalizedCode),
     message,
-  };
-}
-
-export function formatGatewaySegmentSummary(
-  segment: Record<string, unknown> | null,
-  fallbackStatus = 'unknown'
-): { statusLabel: string; readinessLabel: string; detail: string } {
-  const source = segment && typeof segment === 'object' ? segment : {};
-  const status = typeof source.status === 'string' && source.status.trim() ? source.status : fallbackStatus;
-  const readinessLabel = source.ready === true ? 'Ready' : 'Not ready';
-  const error = source.error && typeof source.error === 'object' ? (source.error as GatewayStateError) : null;
-
-  const detailParts: string[] = [];
-  if (error?.reason) {
-    detailParts.push(`Reason: ${humanizeToken(error.reason)}`);
-  } else if (error?.code) {
-    detailParts.push(`Code: ${humanizeToken(error.code)}`);
-  }
-
-  if (typeof error?.statusCode === 'number') {
-    detailParts.push(`HTTP ${error.statusCode}`);
-  } else if (typeof source.statusCode === 'number') {
-    detailParts.push(`HTTP ${source.statusCode}`);
-  }
-
-  return {
-    statusLabel: humanizeToken(status),
-    readinessLabel,
-    detail: detailParts.join(' | '),
   };
 }
 

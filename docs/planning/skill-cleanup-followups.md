@@ -1,6 +1,6 @@
 ---
 created: 2026-06-09
-updated: 2026-06-09
+updated: 2026-06-18
 category: planning
 status: current
 doc_kind: note
@@ -11,7 +11,21 @@ tags: [planning, skills, audit, follow-up]
 
 # Skill Cleanup Follow-Ups
 
-## Completed This Session
+## Completed 2026-06-18 (added in this update)
+
+| Surface | Action |
+|---------|--------|
+| `guidelines.md` | Deleted (per-repo entrypoint surface fully retired) |
+| `engine-assets/skills/guidelines-authoring/` | Deleted (governed deprecated surface) |
+| `engine-assets/skills/project-guidelines/` | Deleted (governed deprecated surface) |
+| `catalog-assets/shared-skills/skill-authoring/` | New shared skill (agentskills.io spec) |
+| `catalog-assets/shared-skills/agents-md-authoring/` | New shared skill (AGENTS.md open standard) |
+| `catalog-assets/instructions/agent-session-defaults.md` | Added `## Code Quality Posture` section |
+| `scripts/validate-guidelines-wiring.mjs` | Replaced by `scripts/validate-instruction-wiring.mjs` (old script is a deprecation shim) |
+
+All 5 harness manifests and per-harness appendices updated. `docs/system/skills-governance.md` updated to add the new skills to the planning-critical install set and reference the agentskills.io spec as the canonical format. See `docs/specs/skill-authoring-and-guidelines-deprecation/spec.md` for the full change set.
+
+## Completed This Session (2026-06-09 audit)
 
 | Skill | Action |
 |-------|--------|

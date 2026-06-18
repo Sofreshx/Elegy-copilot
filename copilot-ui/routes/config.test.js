@@ -16,10 +16,6 @@ function makeMocks(overrides = {}) {
     getStatus: overrides.getCodexStatus || (() => ({
       activeMode: 'native',
       providerId: 'openai',
-      gateway: {
-        baseUrl: 'http://127.0.0.1:4318/v1',
-        envKey: 'OPENCODE_GO_API_KEY',
-      },
       deepseek: {
         bridgePath: null,
         bridgeConfigPath: null,
@@ -122,7 +118,6 @@ describe('config routes', () => {
       getCodexStatus: () => ({
         activeMode: 'native',
         providerId: 'openai',
-        gateway: { baseUrl: '', model: '' },
         deepseek: {
           bridgePath: '/path/to/bridge.exe',
           keyConfigured: true,
@@ -406,9 +401,7 @@ describe('config routes', () => {
             keyConfigured: true,
           },
         }),
-        probeCodexGatewayReachability: async () => {
-          probeCallCount += 1;
-        },
+
       });
       const routes = register(mocks);
       // The check-status handler calls probeDeepseekBridgeReachability, 

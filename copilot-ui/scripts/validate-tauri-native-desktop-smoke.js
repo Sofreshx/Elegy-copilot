@@ -341,7 +341,7 @@ function httpGetJson(url) {
   });
 }
 
-function buildIsolatedLaunchEnv(serverPort, workflowSidecarPort) {
+function buildIsolatedLaunchEnv(serverPort) {
   const isolatedHome = path.join(stateRoot, 'home');
   const isolatedAppData = path.join(stateRoot, 'appdata');
   const isolatedLocalAppData = path.join(stateRoot, 'localappdata');
@@ -360,15 +360,13 @@ function buildIsolatedLaunchEnv(serverPort, workflowSidecarPort) {
     TEMP: isolatedTemp,
     TMP: isolatedTemp,
     INSTRUCTION_ENGINE_DESKTOP_SERVER_PORT: String(serverPort),
-    INSTRUCTION_ENGINE_WORKFLOW_SIDECAR_PORT: String(workflowSidecarPort),
     INSTRUCTION_ENGINE_DISABLE_STARTUP_ASSET_SYNC: '1',
   };
 }
 
 async function launchAndValidateInstalledApp(appPath, expectedTitle) {
   const serverPort = await getFreePort();
-  const workflowSidecarPort = await getFreePort();
-  const launchEnv = buildIsolatedLaunchEnv(serverPort, workflowSidecarPort);
+  const launchEnv = buildIsolatedLaunchEnv(serverPort);
   console.log(`[tauri-native-smoke] launching ${path.basename(appPath)} on 127.0.0.1:${serverPort}`);
   const child = spawn(appPath, [], {
     cwd: path.dirname(appPath),
@@ -426,7 +424,6 @@ async function launchAndValidateInstalledApp(appPath, expectedTitle) {
     return {
       processId: child.pid,
       serverPort,
-      workflowSidecarPort,
       visibleWindowCount: windowCount.count,
     };
   } finally {
@@ -520,7 +517,6 @@ async function main() {
         + `app=${path.basename(executables.appPath)}; `
         + `window="${productName}"; `
         + `serverPort=${runtimeValidation.serverPort}; `
-        + `workflowSidecarPort=${runtimeValidation.workflowSidecarPort}; `
         + `resources=${layout.resourceCount}; `
         + `node=${path.basename(layout.nodeRuntimePath)}.`,
     );

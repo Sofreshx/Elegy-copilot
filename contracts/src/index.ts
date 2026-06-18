@@ -7,5 +7,4 @@ export * from './agentic';
 export * from './assetCatalog';
 export * from './externalSources';
 export * from './providerCatalog';
-export * from './messagingGateway';
 export * from './routingPolicy';

@@ -18,10 +18,8 @@ const LOCAL_TRACKER_SECRETS_MODULE_PATH = path.join(
   '..',
   'local-tracker',
   'dist',
-  'messagingGateway',
   'secrets.js'
 );
-const GATEWAY_HTTP_SECRET_KIND = 'gatewayHttpToken';
 const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION = '1';
 const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY = 'mixed-version-lifecycle-v1';
 const LIFECYCLE_COMPATIBILITY_HEADER_CONTRACT_VERSION = 'x-instruction-engine-lifecycle-contract-version';
@@ -52,84 +50,12 @@ function resolveTrackerUrl(args, env = process.env) {
   return 'http://127.0.0.1:4100';
 }
 
-async function resolveTrackerTokenFromGatewaySecrets(options = {}) {
-  const fsModule = options.fsModule || fs;
-  const requireFn = options.requireFn || require;
-  const modulePath = options.gatewaySecretsModulePath || LOCAL_TRACKER_SECRETS_MODULE_PATH;
-
-  try {
-    if (!fsModule.existsSync(modulePath)) {
-      return null;
-    }
-  } catch {
-    return null;
-  }
-
-  let secretsModule;
-  try {
-    secretsModule = requireFn(modulePath);
-  } catch {
-    return null;
-  }
-
-  if (!secretsModule || typeof secretsModule.getGatewaySecret !== 'function') {
-    return null;
-  }
-
-  try {
-    const secretResult = await secretsModule.getGatewaySecret(GATEWAY_HTTP_SECRET_KIND);
-    const token = secretResult && typeof secretResult.value === 'string'
-      ? secretResult.value.trim()
-      : '';
-    if (!token) {
-      return null;
-    }
-
-    const source = secretResult && typeof secretResult.source === 'string'
-      ? secretResult.source
-      : 'keychain';
-
-    return {
-      value: token,
-      source: source === 'env' ? 'env' : 'keychain',
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function resolveTrackerToken(args, options = {}) {
+async function resolveTrackerToken(args) {
   if (args && typeof args.trackerToken === 'string' && args.trackerToken.trim()) {
     return {
       value: args.trackerToken.trim(),
       source: 'arg',
     };
-  }
-
-  const env = options.env && typeof options.env === 'object' ? options.env : process.env;
-  if (Object.prototype.hasOwnProperty.call(env, 'INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN')) {
-    const envToken = typeof env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN === 'string'
-      ? env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.trim()
-      : '';
-    if (!envToken) {
-      return {
-        value: null,
-        source: 'missing',
-      };
-    }
-
-    return {
-      value: envToken,
-      source: 'env',
-    };
-  }
-
-  const fromGatewaySecrets = await resolveTrackerTokenFromGatewaySecrets({
-    ...options,
-    env,
-  });
-  if (fromGatewaySecrets) {
-    return fromGatewaySecrets;
   }
 
   return {
@@ -285,16 +211,6 @@ function parseCanonicalTrackerStatus(payload) {
   return source;
 }
 
-function buildGatewayProbeFailure(code, reason, message, statusCode = null) {
-  return {
-    deterministic: true,
-    code: String(code || 'gateway_probe_failed'),
-    reason: String(reason || 'gateway_probe_failed'),
-    message: String(message || reason || code || 'gateway_probe_failed'),
-    statusCode: Number.isFinite(statusCode) ? Number(statusCode) : null,
-  };
-}
-
 async function probeTrackerReadiness(trackerUrl, trackerToken, options = {}) {
   const timeoutMs = Number.isFinite(options.timeoutMs) ? Number(options.timeoutMs) : 5000;
   const httpModule = options.httpModule || http;
@@ -310,17 +226,19 @@ async function probeTrackerReadiness(trackerUrl, trackerToken, options = {}) {
       ready: false,
       status: SANDBOX_TOKEN_CANONICAL_STATE,
       statusCode: null,
-      error: buildGatewayProbeFailure(
-        missingTokenError && typeof missingTokenError.legacyCode === 'string'
+      error: {
+        deterministic: true,
+        code: String(missingTokenError && typeof missingTokenError.legacyCode === 'string'
           ? missingTokenError.legacyCode
-          : 'tracker_missing_token',
-        missingTokenError && typeof missingTokenError.legacyReason === 'string'
+          : 'tracker_missing_token'),
+        reason: String(missingTokenError && typeof missingTokenError.legacyReason === 'string'
           ? missingTokenError.legacyReason
-          : SANDBOX_TOKEN_CANONICAL_STATE,
-        missingTokenError && typeof missingTokenError.message === 'string'
+          : SANDBOX_TOKEN_CANONICAL_STATE),
+        message: String(missingTokenError && typeof missingTokenError.message === 'string'
           ? missingTokenError.message
-          : 'Sandbox token missing',
-      ),
+          : 'Sandbox token missing'),
+        statusCode: null,
+      },
     };
   }
 
@@ -334,11 +252,13 @@ async function probeTrackerReadiness(trackerUrl, trackerToken, options = {}) {
       ready: false,
       status: 'invalid_url',
       statusCode: null,
-      error: buildGatewayProbeFailure(
-        'tracker_url_invalid',
-        'tracker_url_invalid',
-        'Tracker URL is invalid',
-      ),
+      error: {
+        deterministic: true,
+        code: 'tracker_url_invalid',
+        reason: 'tracker_url_invalid',
+        message: 'Tracker URL is invalid',
+        statusCode: null,
+      },
     };
   }
 
@@ -374,12 +294,13 @@ async function probeTrackerReadiness(trackerUrl, trackerToken, options = {}) {
             canonicalStatus,
             error: ready
               ? null
-              : buildGatewayProbeFailure(
-                'tracker_status_unhealthy',
-                canonicalStatus.readiness.reasonCode,
-                `Tracker readiness is ${canonicalStatus.readiness.state}`,
-                statusCode,
-              ),
+              : {
+                deterministic: true,
+                code: 'tracker_status_unhealthy',
+                reason: String(canonicalStatus.readiness.reasonCode || 'tracker_status_unhealthy'),
+                message: `Tracker readiness is ${canonicalStatus.readiness.state}`,
+                statusCode: Number.isFinite(statusCode) ? Number(statusCode) : null,
+              },
           });
           return;
         }
@@ -411,7 +332,13 @@ async function probeTrackerReadiness(trackerUrl, trackerToken, options = {}) {
           status: isAuthFailure ? 'auth_failed' : 'status_unhealthy',
           statusCode,
           body,
-          error: buildGatewayProbeFailure(errorCode, reason, message, statusCode),
+          error: {
+            deterministic: true,
+            code: String(errorCode || 'tracker_probe_failed'),
+            reason: String(reason || 'tracker_probe_failed'),
+            message: String(message || reason || errorCode || 'tracker_probe_failed'),
+            statusCode: Number.isFinite(statusCode) ? Number(statusCode) : null,
+          },
         });
       });
     });
@@ -424,7 +351,13 @@ async function probeTrackerReadiness(trackerUrl, trackerToken, options = {}) {
         ready: false,
         status: 'timeout',
         statusCode: null,
-        error: buildGatewayProbeFailure('tracker_timeout', 'tracker_request_timeout', 'Tracker request timed out'),
+        error: {
+          deterministic: true,
+          code: 'tracker_timeout',
+          reason: 'tracker_request_timeout',
+          message: 'Tracker request timed out',
+          statusCode: null,
+        },
       });
     });
 
@@ -435,140 +368,17 @@ async function probeTrackerReadiness(trackerUrl, trackerToken, options = {}) {
         ready: false,
         status: 'unreachable',
         statusCode: null,
-        error: buildGatewayProbeFailure(
-          'tracker_unreachable',
-          'tracker_request_failed',
-          String(error && error.message ? error.message : error),
-        ),
+        error: {
+          deterministic: true,
+          code: 'tracker_unreachable',
+          reason: 'tracker_request_failed',
+          message: String(error && error.message ? error.message : error),
+          statusCode: null,
+        },
       });
     });
-
     request.end();
   });
-}
-
-function buildGatewayStateEnvelope(input = {}) {
-  const source = input && typeof input === 'object' ? input : {};
-  const configPath = String(source.configPath || '');
-  const gatewayConfig = source.gatewayConfig && typeof source.gatewayConfig === 'object'
-    ? source.gatewayConfig
-    : null;
-  const tracker = source.trackerProbe && typeof source.trackerProbe === 'object'
-    ? source.trackerProbe
-    : null;
-  const planningPersistence = source.planningPersistence && typeof source.planningPersistence === 'object'
-    ? source.planningPersistence
-    : buildPlanningPersistenceHealthEnvelope({});
-  const planningAuthority = source.planningAuthority && typeof source.planningAuthority === 'object'
-    ? source.planningAuthority
-    : null;
-  const trackerCanonicalStatus = tracker && tracker.canonicalStatus && typeof tracker.canonicalStatus === 'object'
-    ? tracker.canonicalStatus
-    : null;
-  const trackerCanonicalReadiness = trackerCanonicalStatus
-    && trackerCanonicalStatus.readiness
-    && typeof trackerCanonicalStatus.readiness === 'object'
-    ? trackerCanonicalStatus.readiness
-    : null;
-
-  const trackerReady = Boolean(tracker && tracker.ready === true);
-  const trackerStatus = String(
-    trackerCanonicalReadiness && typeof trackerCanonicalReadiness.state === 'string'
-      ? trackerCanonicalReadiness.state
-      : tracker && tracker.status || (trackerReady ? 'ready' : 'unavailable')
-  ).trim() || 'unavailable';
-  const hasCanonicalGatewayAuthority = Boolean(
-    trackerCanonicalReadiness && typeof trackerCanonicalReadiness.state === 'string'
-  );
-  const planningReady = String(planningPersistence.status || '') === 'ready';
-  const planningRequired = Boolean(planningPersistence.required);
-  const gatewayConfigured = Boolean(gatewayConfig);
-  const gatewayReady = hasCanonicalGatewayAuthority
-    ? trackerCanonicalReadiness.state === 'ready'
-    : false;
-
-  const normalizedConfig = gatewayConfig && typeof gatewayConfig === 'object' ? gatewayConfig : {};
-  const workspaceConfig = normalizedConfig.workspaces && typeof normalizedConfig.workspaces === 'object'
-    ? normalizedConfig.workspaces
-    : {};
-
-  const errors = [];
-  if (!gatewayConfigured) {
-    errors.push(buildGatewayProbeFailure(
-      'gateway_config_missing',
-      'gateway_config_missing',
-      'Messaging gateway config is not initialized',
-    ));
-  }
-  if (tracker && tracker.error) {
-    errors.push(tracker.error);
-  }
-  if (planningRequired && !planningReady) {
-    errors.push(buildGatewayProbeFailure(
-      'planning_persistence_not_ready',
-      'planning_persistence_not_ready',
-      String(planningPersistence.lastError || planningPersistence.status || 'planning_persistence_not_ready'),
-    ));
-  }
-
-  return {
-    contractVersion: '1',
-    kind: 'gateway.state',
-    deterministic: true,
-    checkedAt: new Date().toISOString(),
-    ready: gatewayReady,
-    error: errors.length ? errors[0] : null,
-    gateway: {
-      ready: gatewayReady,
-      status: hasCanonicalGatewayAuthority
-        ? trackerCanonicalReadiness.state
-        : gatewayConfigured ? trackerStatus : 'not_configured',
-      source: hasCanonicalGatewayAuthority ? 'messaging_gateway_status_file' : null,
-      lastUpdatedUtc: trackerCanonicalStatus && typeof trackerCanonicalStatus.lastUpdatedUtc === 'string'
-        ? trackerCanonicalStatus.lastUpdatedUtc
-        : null,
-      reasonCode: hasCanonicalGatewayAuthority && typeof trackerCanonicalReadiness.reasonCode === 'string'
-        ? trackerCanonicalReadiness.reasonCode
-        : null,
-      config: {
-        exists: gatewayConfigured,
-        path: configPath,
-        mode: String(normalizedConfig.mode || '').trim() || null,
-        activeRoot: String(workspaceConfig.activeRoot || '').trim() || null,
-        allowedRootCount: Array.isArray(workspaceConfig.allowedRoots) ? workspaceConfig.allowedRoots.length : 0,
-      },
-    },
-    tracker: {
-      ready: trackerReady,
-      status: trackerStatus,
-      statusCode: tracker && Number.isFinite(tracker.statusCode) ? Number(tracker.statusCode) : null,
-      url: String(source.trackerUrl || '').trim() || null,
-      checkedAt: tracker && tracker.checkedAt ? tracker.checkedAt : null,
-      source: trackerCanonicalStatus ? 'status_file_projection' : 'tracker_http_probe',
-      readiness: trackerCanonicalReadiness || null,
-      lastUpdatedUtc: trackerCanonicalStatus && typeof trackerCanonicalStatus.lastUpdatedUtc === 'string'
-        ? trackerCanonicalStatus.lastUpdatedUtc
-        : null,
-      error: tracker && tracker.error ? tracker.error : null,
-    },
-    planningPersistence: {
-      ...planningPersistence,
-      ready: planningReady,
-      initSupported: Boolean(planningAuthority && planningAuthority.persistedAuthority),
-      initRequired: Boolean(planningAuthority && planningAuthority.persistedAuthority) && !planningReady,
-    },
-    planningAuthority: planningAuthority
-      ? {
-          ...planningAuthority,
-          ready: planningAuthority.ready === true,
-          status: String(planningAuthority.status || (planningAuthority.ready === true ? 'ready' : 'unavailable')).trim() || 'unknown',
-          error: planningAuthority.error && typeof planningAuthority.error === 'object'
-            ? planningAuthority.error
-            : null,
-        }
-      : null,
-    errors,
-  };
 }
 
 function shouldRemapTrackerMissingTokenPayload(payload) {
@@ -670,9 +480,7 @@ module.exports = {
   LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
   buildLifecycleMixedVersionUnsupportedMarker,
   evaluateLifecycleMixedVersionCompatibility,
-  buildGatewayProbeFailure,
   probeTrackerReadiness,
-  buildGatewayStateEnvelope,
   shouldRemapTrackerMissingTokenPayload,
   buildTrackerProxyPassThroughHeaders,
   buildTrackerProxyResponsePlan,

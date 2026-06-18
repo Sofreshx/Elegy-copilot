@@ -27,6 +27,8 @@ Primary skills available:
 - `spec-authoring` — Durable spec authoring under `docs/specs/<spec-slug>/spec.md`.
 - `spec-review` — Adversarial spec review before implementation planning.
 - `commit-check-setup` — Bootstrap or update commit-check infrastructure in a repo. Copies scripts, generates `.copilot/commit-checks.json` config, runs smoke test.
+- `skill-authoring` — Create or refine portable Agent Skills (SKILL.md) that work across Codex, Claude Code, OpenCode, Cursor, and 30+ tools. Follows the [agentskills.io](https://agentskills.io/specification) open standard.
+- `agents-md-authoring` — Create or refine per-harness instruction files (AGENTS.md, CLAUDE.md, GEMINI.md, copilot-instructions.md) that follow the open [AGENTS.md](https://agents.md) standard.
 
 ## Repo docs breadcrumb
 

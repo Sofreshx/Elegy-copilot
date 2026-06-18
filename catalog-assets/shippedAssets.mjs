@@ -32,11 +32,9 @@ export const SHIPPED_ASSETS = [
   skill('skill-documentation-structure-governance', 'engine-assets/skills/documentation-structure-governance', {
     loadMode: 'on-demand',
   }),
-  skill('skill-guidelines-authoring', 'engine-assets/skills/guidelines-authoring', { loadMode: 'on-demand' }),
   skill('skill-project-conventions-governance', 'engine-assets/skills/project-conventions-governance', {
     loadMode: 'on-demand',
   }),
-  skill('skill-project-guidelines', 'engine-assets/skills/project-guidelines', { loadMode: 'always' }),
   skill('skill-repo-setup-governance', 'engine-assets/skills/repo-setup-governance', { loadMode: 'on-demand' }),
   skill('skill-roadmap-authoring', 'engine-assets/skills/roadmap-authoring', { loadMode: 'always' }),
   skill('skill-security', 'engine-assets/skills/security', { loadMode: 'on-demand' }),
@@ -69,6 +67,8 @@ export const SHIPPED_ASSETS = [
     loadMode: 'on-demand',
   }),
   skill('skill-ui-system', 'catalog-assets/shared-skills/ui-system', { loadMode: 'on-demand' }),
+  skill('skill-skill-authoring', 'catalog-assets/shared-skills/skill-authoring', { loadMode: 'on-demand' }),
+  skill('skill-agents-md-authoring', 'catalog-assets/shared-skills/agents-md-authoring', { loadMode: 'on-demand' }),
 
   instructions('codex-global-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {
     appendix: 'codex-assets/home/AGENTS-appendix.md',
@@ -102,6 +102,9 @@ export const SHIPPED_ASSETS = [
   plugin('opencode-planning-plugin', 'opencode-assets/plugins/planning.js'),
   plugin('opencode-notify-plugin', 'opencode-assets/plugins/notify.js'),
   skill('opencode-planning-tools-skill', 'opencode-assets/skills/planning-tools'),
+  skill('opencode-planning-tools-read-skill', 'opencode-assets/skills/planning-tools-read'),
+  skill('opencode-planning-tools-write-skill', 'opencode-assets/skills/planning-tools-write'),
+  skill('opencode-planning-tools-run-skill', 'opencode-assets/skills/planning-tools-run'),
 
   instructions('antigravity-global-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {
     appendix: 'antigravity-assets/home/GEMINI-appendix.md',
@@ -157,8 +160,8 @@ export const SHIPPED_BUNDLES = [
       'skill-project-conventions-governance',
       'skill-documentation-structure-governance',
       'skill-documentation-authoring',
-      'skill-project-guidelines',
-      'skill-guidelines-authoring',
+      'skill-skill-authoring',
+      'skill-agents-md-authoring',
     ],
     installTarget: 'repo-local',
     activationScope: 'repo',
@@ -199,8 +202,8 @@ export const SHIPPED_BUNDLES = [
       'skill-project-conventions-governance',
       'skill-documentation-structure-governance',
       'skill-documentation-authoring',
-      'skill-project-guidelines',
-      'skill-guidelines-authoring',
+      'skill-skill-authoring',
+      'skill-agents-md-authoring',
     ],
     installTarget: 'repo-local',
     activationScope: 'repo',

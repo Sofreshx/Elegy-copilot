@@ -1,9 +1,7 @@
 import { randomBytes } from 'crypto';
-import { spawn as defaultSpawn, type ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
-import type { WorkflowSidecarManager } from '../workflowSidecar';
 import type { RuntimeDiagnostics, RuntimeDiagnosticPayload } from './runtimeDiagnostics';
 
 const DESKTOP_UI_ACCESS_QUERY_PARAM = 'desktop-ui-token';
@@ -39,21 +37,8 @@ export interface DesktopRuntimePaths {
   runtimeRoot: string;
   workspaceRoot: string;
   elegyHome: string;
-  gatewayConfigPath: string;
-  legacyGatewayConfigPath: string;
   planningCliPath?: string;
   planningDbPath?: string;
-}
-
-export interface DesktopRuntimeShellAdapter {
-  launchPackagedGatewayChild: (options: {
-    localTrackerRoot: string;
-    env: NodeJS.ProcessEnv;
-  }) => ChildProcess | null;
-  launchPackagedWorkflowSidecarChild?: (options: {
-    localTrackerRoot: string;
-    env: NodeJS.ProcessEnv;
-  }) => ChildProcess | null;
 }
 
 export interface DesktopRuntimeServiceOptions {
@@ -66,15 +51,11 @@ export interface DesktopRuntimeServiceOptions {
   env: NodeJS.ProcessEnv;
   platform: NodeJS.Platform;
   logger?: Partial<DesktopRuntimeLogger>;
-  shellAdapter: DesktopRuntimeShellAdapter;
 }
 
 interface DesktopRuntimeFs {
   existsSync: (filePath: string) => boolean;
   mkdirSync: (filePath: string, options?: { recursive?: boolean }) => void;
-  renameSync: (oldPath: string, newPath: string) => void;
-  copyFileSync: (source: string, destination: string) => void;
-  unlinkSync: (filePath: string) => void;
 }
 
 export interface BundledChildEntryPointOptions {
@@ -89,13 +70,6 @@ export interface BundledChildEntryPointOptions {
 }
 
 export interface DesktopRuntimeServiceDependencies {
-  startWorkflowSidecar: (options: {
-    runtimeRoot: string;
-    processExecPath: string;
-    isPackaged: boolean;
-    elegyHome: string;
-    shellAdapter?: Pick<DesktopRuntimeShellAdapter, 'launchPackagedWorkflowSidecarChild'>;
-  }) => Promise<WorkflowSidecarManager>;
   startDesktopPlanningPersistence: (options: {
     stateRoot: string;
     logger: (message: string) => void;
@@ -108,13 +82,11 @@ export interface DesktopRuntimeServiceDependencies {
     trackerUrl: string;
     trackerToken: string;
     desktopUiToken: string;
-    workflowSidecarManager: WorkflowSidecarManager;
     planningPersistenceClient?: PlanningPersistenceQueryClient;
     engineRoot?: string;
     env?: NodeJS.ProcessEnv;
     quiet: boolean;
   }) => Promise<DesktopServerHandle>;
-  spawn?: typeof defaultSpawn;
   fs?: DesktopRuntimeFs;
   createRandomHex?: (byteCount: number) => string;
   diagnostics?: RuntimeDiagnostics;
@@ -187,26 +159,11 @@ export function buildDesktopWindowUrl(host: string, port: number, desktopUiToken
   return url.toString();
 }
 
-function buildGatewayInlineConfig(workspaceRoot: string): string {
-  return JSON.stringify({
-    mode: 'disconnected',
-    workspaces: {
-      allowedRoots: [workspaceRoot],
-      activeRoot: workspaceRoot,
-    },
-    sandboxLifecycle: {
-      cleanupOnStartup: false,
-    },
-  });
-}
-
 function resolveBundledPlanningCliPath(
   runtimeRoot: string,
   elegyHome: string,
   runtimeFs: Pick<DesktopRuntimeFs, 'existsSync'>,
 ): string {
-  // Use the shared cross-platform resolver from elegyPlanningCliResolver
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const resolver = require('../../elegyPlanningCliResolver') as { resolveElegyPlanningCliPath: (options: { runtimeRoot?: string; elegyHome?: string; existsSync?: (path: string) => boolean }) => string };
   return resolver.resolveElegyPlanningCliPath({
     runtimeRoot,
@@ -229,8 +186,6 @@ function ensurePlanningAuthorityEnv(
     options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH = configuredDbPath;
   }
 
-  // Set the planning session sidecar override path on Windows so the
-  // Copilot server reads from the override location.
   if (process.platform === 'win32') {
     options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH = path.join(options.paths.elegyHome, 'planning-session.json');
   }
@@ -242,116 +197,7 @@ function ensurePlanningAuthorityEnv(
     return;
   }
 
-  // Do not set INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED here.
-  // The server startup handles binary download and will set DISABLED only
-  // if both local resolution and download fail. Deferring the decision
-  // avoids a coordination gap where an early DISABLED flag blocks a
-  // successful download from re-enabling planning.
   delete options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH;
-}
-
-function ensureDefaultGatewayConfig(paths: Pick<DesktopRuntimePaths, 'gatewayConfigPath' | 'legacyGatewayConfigPath'>, runtimeFs: DesktopRuntimeFs): void {
-  if (runtimeFs.existsSync(paths.gatewayConfigPath)) {
-    return;
-  }
-
-  if (!runtimeFs.existsSync(paths.legacyGatewayConfigPath)) {
-    return;
-  }
-
-  runtimeFs.mkdirSync(path.dirname(paths.gatewayConfigPath), { recursive: true });
-  try {
-    runtimeFs.renameSync(paths.legacyGatewayConfigPath, paths.gatewayConfigPath);
-  } catch {
-    runtimeFs.copyFileSync(paths.legacyGatewayConfigPath, paths.gatewayConfigPath);
-    try {
-      runtimeFs.unlinkSync(paths.legacyGatewayConfigPath);
-    } catch {
-      // best-effort cleanup after successful rehome
-    }
-  }
-}
-
-async function stopChildProcess(child: ChildProcess | null): Promise<void> {
-  if (!child || child.exitCode != null || child.killed) {
-    return;
-  }
-
-  await new Promise<void>((resolve) => {
-    let settled = false;
-    const finish = () => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      resolve();
-    };
-
-    child.once('exit', finish);
-    try {
-      child.kill();
-    } catch {
-      finish();
-      return;
-    }
-
-    setTimeout(finish, 2_000);
-  });
-}
-
-function spawnGatewayDependencyForDevelopment(
-  localTrackerRoot: string,
-  trackerToken: string,
-  workspaceRoot: string,
-  options: Pick<DesktopRuntimeServiceOptions, 'env' | 'platform' | 'processExecPath'>,
-  runtimeFs: Pick<DesktopRuntimeFs, 'existsSync'>,
-  spawnChildProcess: typeof defaultSpawn,
-): ChildProcess | null {
-  const env = {
-    ...options.env,
-    INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN: trackerToken,
-    INSTRUCTION_ENGINE_GATEWAY_ALLOW_PLATFORMLESS: '1',
-    INSTRUCTION_ENGINE_GATEWAY_MODE: 'disconnected',
-    INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON: buildGatewayInlineConfig(workspaceRoot),
-  };
-
-  const distEntry = path.join(localTrackerRoot, 'dist', 'messagingGateway', 'index.js');
-  if (runtimeFs.existsSync(distEntry)) {
-    return spawnChildProcess(options.processExecPath, [distEntry], {
-      cwd: localTrackerRoot,
-      env,
-      stdio: 'ignore',
-      windowsHide: true,
-    });
-  }
-
-  const srcEntry = path.join(localTrackerRoot, 'src', 'messagingGateway', 'index.ts');
-  if (!runtimeFs.existsSync(srcEntry)) {
-    return null;
-  }
-
-  const tsNodeBin = path.join(
-    localTrackerRoot,
-    'node_modules',
-    '.bin',
-    options.platform === 'win32' ? 'ts-node.cmd' : 'ts-node',
-  );
-  if (runtimeFs.existsSync(tsNodeBin)) {
-    return spawnChildProcess(tsNodeBin, [srcEntry], {
-      cwd: localTrackerRoot,
-      env,
-      stdio: 'ignore',
-      windowsHide: true,
-    });
-  }
-
-  const npmCommand = options.platform === 'win32' ? 'npm.cmd' : 'npm';
-  return spawnChildProcess(npmCommand, ['run', 'dev:gateway'], {
-    cwd: localTrackerRoot,
-    env,
-    stdio: 'ignore',
-    windowsHide: true,
-  });
 }
 
 export async function runBundledChildEntryPoint(options: BundledChildEntryPointOptions): Promise<void> {
@@ -386,13 +232,10 @@ export function createDesktopRuntimeService(
   dependencies: DesktopRuntimeServiceDependencies,
 ): DesktopRuntimeService {
   const runtimeFs = dependencies.fs ?? fs;
-  const spawnChildProcess = dependencies.spawn ?? defaultSpawn;
   const createRandomHex = dependencies.createRandomHex ?? defaultRandomHex;
   const logger = resolveLogger(options.logger);
   const diagnostics = dependencies.diagnostics;
 
-  let gatewayProcess: ChildProcess | null = null;
-  let workflowSidecarManager: WorkflowSidecarManager | null = null;
   let desktopPlanningPersistenceHandle: DesktopPlanningPersistenceHandle | null = null;
   let serverHandle: DesktopServerHandle | null = null;
   let currentStartResult: DesktopRuntimeStartResult | null = null;
@@ -400,14 +243,6 @@ export function createDesktopRuntimeService(
 
   function captureChildrenState(): Record<string, { status: string; pid: number | null; lastStderr?: string[] }> {
     return {
-      gateway: {
-        status: gatewayProcess ? (gatewayProcess.exitCode != null ? 'exited' : 'running') : 'not_started',
-        pid: gatewayProcess?.pid ?? null,
-      },
-      workflow: {
-        status: workflowSidecarManager ? 'running' : 'not_started',
-        pid: null,
-      },
       planning: {
         status: desktopPlanningPersistenceHandle ? 'running' : 'not_started',
         pid: null,
@@ -417,34 +252,6 @@ export function createDesktopRuntimeService(
         pid: null,
       },
     };
-  }
-
-  function attachGatewayExitWatcher(child: ChildProcess): void {
-    child.once('exit', (code: number | null, signal: NodeJS.Signals | null) => {
-      if (stopping) {
-        bootLog(`gateway process exited cleanly: code=${code} signal=${signal ?? 'null'}`);
-        return;
-      }
-      bootLog(`gateway process exited unexpectedly: code=${code} signal=${signal ?? 'null'}`);
-      if (!diagnostics) {
-        return;
-      }
-      const payload: RuntimeDiagnosticPayload = {
-        pid: process.pid,
-        platform: process.platform,
-        appVersion: options.appVersion,
-        runtimeRoot: options.paths.runtimeRoot,
-        child: {
-          label: 'gateway',
-          pid: child.pid ?? null,
-          exitCode: code,
-          signal: signal ?? null,
-          lastStderr: [],
-        },
-        childrenState: captureChildrenState(),
-      };
-      void diagnostics.recordEvent('child_unexpected_exit', payload);
-    });
   }
 
   async function stop(): Promise<void> {
@@ -466,20 +273,6 @@ export function createDesktopRuntimeService(
       await handle.stop();
     }
 
-    if (workflowSidecarManager) {
-      bootLog('stopping workflow sidecar');
-      const handle = workflowSidecarManager;
-      workflowSidecarManager = null;
-      await handle.stop();
-    }
-
-    if (gatewayProcess) {
-      bootLog('stopping gateway process');
-      const child = gatewayProcess;
-      gatewayProcess = null;
-      await stopChildProcess(child);
-    }
-
     bootLog('runtime service stopped');
   }
 
@@ -492,57 +285,11 @@ export function createDesktopRuntimeService(
     const explicitPlanningDatabaseUrl = String(options.env.INSTRUCTION_ENGINE_PLANNING_DB_URL || '').trim();
     const desktopUiToken = createRandomHex(32);
 
-    bootLog('ensuring default gateway config');
-    ensureDefaultGatewayConfig(options.paths, runtimeFs);
     bootLog('ensuring planning authority env');
     ensurePlanningAuthorityEnv(options, runtimeFs);
 
     try {
-      const trackerToken =
-        String(options.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN || '').trim()
-        || createRandomHex(32);
-      options.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN = trackerToken;
-
-      const localTrackerRoot = path.join(options.paths.runtimeRoot, 'local-tracker');
-      if (runtimeFs.existsSync(localTrackerRoot)) {
-        bootLog(`local-tracker found at ${localTrackerRoot}, starting gateway`);
-        const gatewayEnv = {
-          ...options.env,
-          INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN: trackerToken,
-          INSTRUCTION_ENGINE_GATEWAY_ALLOW_PLATFORMLESS: '1',
-          INSTRUCTION_ENGINE_GATEWAY_MODE: 'disconnected',
-          INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON: buildGatewayInlineConfig(options.paths.workspaceRoot),
-        };
-        gatewayProcess = options.isPackaged
-          ? options.shellAdapter.launchPackagedGatewayChild({
-            localTrackerRoot,
-            env: gatewayEnv,
-          })
-          : spawnGatewayDependencyForDevelopment(
-            localTrackerRoot,
-            trackerToken,
-            options.paths.workspaceRoot,
-            options,
-            runtimeFs,
-            spawnChildProcess,
-          );
-        if (gatewayProcess) {
-          attachGatewayExitWatcher(gatewayProcess);
-        }
-        bootLog(`gateway process spawned: pid=${gatewayProcess?.pid ?? 'null'}`);
-      } else {
-        bootLog(`local-tracker not found at ${localTrackerRoot}, skipping gateway`);
-      }
-
-      bootLog('starting workflow sidecar');
-      workflowSidecarManager = await dependencies.startWorkflowSidecar({
-        runtimeRoot: options.paths.runtimeRoot,
-        processExecPath: options.processExecPath,
-        isPackaged: options.isPackaged,
-        elegyHome: options.paths.elegyHome,
-        shellAdapter: options.shellAdapter,
-      });
-      bootLog('workflow sidecar started');
+      const trackerToken = createRandomHex(32);
 
       if (options.isPackaged && !explicitPlanningDatabaseUrl) {
         bootLog('starting planning persistence (packaged mode)');
@@ -568,7 +315,6 @@ export function createDesktopRuntimeService(
         trackerUrl: 'http://127.0.0.1:4100',
         trackerToken,
         desktopUiToken,
-        workflowSidecarManager,
         planningPersistenceClient: desktopPlanningPersistenceHandle?.queryClient,
         engineRoot: options.isPackaged ? options.paths.runtimeRoot : undefined,
         env: options.env,

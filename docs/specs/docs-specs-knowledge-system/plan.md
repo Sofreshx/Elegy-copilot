@@ -140,14 +140,12 @@ Phases A–D are independent and can run concurrently. Phase E requires the tool
 - **File:** `AGENTS.md`
   - Orientation table: `specs/` → `docs/specs/`
   - Add concision rule (R12): "Future docs and specs must be concise, map-like, and scoped to their stated purpose (no tangential exposition, no duplicated policy)."
-- **File:** `guidelines.md`
-  - Line ~36: `specs/<slug>/spec.md + specs/index.md` → `docs/specs/<slug>/spec.md + docs/specs/index.md`
 
 ### C8: Add concision rules to harness home files (R12)
 - **Files:** `codex-assets/home/AGENTS.md`, `opencode-assets/home/AGENTS.md`, `antigravity-assets/home/GEMINI.md`
 - Add: "Keep instruction surfaces compact. Future specs and docs must be concise, map-like, and scoped to their stated purpose."
 
-**Validation gate C:** `rg "specs/<" codex-assets/home/ opencode-assets/home/ antigravity-assets/home/GEMINI.md engine-assets/copilot-instructions.md .github/copilot-instructions.md catalog-assets/shared-skills/spec-*/ AGENTS.md guidelines.md` returns zero matches for old path pattern in updated files
+**Validation gate C:** `rg "specs/<" codex-assets/home/ opencode-assets/home/ antigravity-assets/home/GEMINI.md engine-assets/copilot-instructions.md .github/copilot-instructions.md catalog-assets/shared-skills/spec-*/ AGENTS.md` returns zero matches for old path pattern in updated files
 
 ---
 

@@ -8,9 +8,8 @@ Composed at install time with the shared baseline.
 |---|---|
 | 1 | Explicit user instruction |
 | 2 | Repo-local canonical docs |
-| 3 | Nearest `guidelines.md` |
-| 4 | `README.md` and maintained docs |
-| 5 | Repeated implementation patterns |
+| 3 | `README.md` and maintained docs |
+| 4 | Repeated implementation patterns |
 
 If sources conflict, follow the highest authority and report the conflict.
 
@@ -49,6 +48,8 @@ Primary skills available:
 - `worktree` — OpenCode worktree helper skill backed by the worktree plugin
 - `commit-check-setup` — Bootstrap or update commit-check infrastructure in a repo. Copies scripts, generates `.copilot/commit-checks.json` config, runs smoke test. Use when setting up a repo for use with Elegy Copilot UI.
 - `ui-system` — Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; treat Figma / Storybook MCP data as context, not authority.
+- `skill-authoring` — Create or refine portable Agent Skills (SKILL.md) that work across Codex, Claude Code, OpenCode, Cursor, and 30+ tools. Follows the [agentskills.io](https://agentskills.io/specification) open standard.
+- `agents-md-authoring` — Create or refine per-harness instruction files (AGENTS.md, CLAUDE.md, GEMINI.md, copilot-instructions.md) that follow the open [AGENTS.md](https://agents.md) standard.
 
 See the [Curated Subagents](#curated-subagents) section for built-in subagent descriptions and role routing.
 

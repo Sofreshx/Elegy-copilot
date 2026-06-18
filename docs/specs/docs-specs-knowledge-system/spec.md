@@ -40,7 +40,7 @@ Make `docs/` the canonical knowledge root for Elegy Copilot and bootstrapped rep
 - `catalog-assets/shared-skills/spec-authoring/SKILL.md`, `catalog-assets/shared-skills/spec-dev/SKILL.md`, `catalog-assets/shared-skills/spec-review/SKILL.md` are authoritative skill sources that reference `specs/` paths
 - `engine-assets/skills/repo-setup-governance/profile-definitions.json` references `specs/index.md` in the `spec-driven` overlay profile
 - `scripts/validate-repo-setup-profiles.js:27-42` hardcodes expected `specs/index.md` in the spec-driven profile validation
-- `AGENTS.md:25` lists `specs/` in the orientation table; `guidelines.md:36` references `specs/<slug>/spec.md`
+- `AGENTS.md:25` lists `specs/` in the orientation table
 - `package.json:21` script `validate:specs` delegates to `scripts/validate-specs.js --strict` which defaults to `specs/`
 
 ## Requirements
@@ -86,7 +86,6 @@ Make `docs/` the canonical knowledge root for Elegy Copilot and bootstrapped rep
 
 ### R8: Update repo root files
 - `AGENTS.md`: update orientation table `specs/` to `docs/specs/`, add concision rule
-- `guidelines.md`: update `specs/<slug>/spec.md` to `docs/specs/<slug>/spec.md`
 
 ### R9: Update canonical governance docs
 - `docs/system/repo-setup-governance.md`: change `specs/` → `docs/specs/` in the spec-driven overlay profile section (lines 154-178), update `specs/index.md` → `docs/specs/index.md` in bootstrap resource paths
@@ -168,7 +167,6 @@ Make `docs/` the canonical knowledge root for Elegy Copilot and bootstrapped rep
 - `scripts/validate-doc-graph.js`
 - `.github/workflows/repo-ci.yml`
 - `AGENTS.md`
-- `guidelines.md`
 - `codex-assets/home/AGENTS.md`
 - `opencode-assets/home/AGENTS.md`
 - `opencode-assets/agents/spec.md` — deleted during lane restructuring; migration work was completed before deletion

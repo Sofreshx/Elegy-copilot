@@ -185,18 +185,10 @@ async function handleAgentHealth(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
 
-  try {
-    const server = require('../lib/opencodeServer');
-    sendJson(res, 200, {
-      serverRunning: server.isRunning(),
-      lastError: server.getLastError() ? server.getLastError().message : null,
-    });
-  } catch (err) {
-    sendJson(res, 200, {
-      serverRunning: false,
-      lastError: String(err.message || err),
-    });
-  }
+  sendJson(res, 200, {
+    serverRunning: false,
+    lastError: 'opencodeServer manager removed — Kimaki owns OpenCode',
+  });
 }
 
 // ── SSE stream for a run ──

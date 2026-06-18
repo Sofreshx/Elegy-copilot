@@ -11,6 +11,7 @@ export type CatalogSectionId = (typeof CATALOG_SECTION_IDS)[number];
 
 export const SIDEBAR_IDS = [
   'workspace',
+  'remote',
   'lexicon',
   'repositories',
   'settings',
@@ -20,7 +21,7 @@ export type SidebarItemId = (typeof SIDEBAR_IDS)[number];
 
 export type ProjectSubView = 'overview' | 'sessions' | 'tasks' | 'git' | 'config';
 export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | 'git' | 'usage';
-export type MaintenanceSection = 'updates' | 'sandboxes' | 'diagnostics';
+export type MaintenanceSection = 'updates' | 'diagnostics';
 export type WizardType = 'project' | 'asset' | null;
 
 export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'telemetry' | 'maintenance' | 'runtime' | 'codex' | 'claude-code' | 'github' | 'shell' | 'notes';
@@ -77,6 +78,7 @@ export type SidebarNavItem = {
 
 export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
   { id: 'repositories', label: 'Repositories', icon: 'repo', description: 'Browse and open registered repositories' },
+  { id: 'remote', label: 'Remote', icon: 'hexagon', description: 'Manage Discord-driven remote sessions via Kimaki' },
   { id: 'lexicon', label: 'Lexicon', icon: 'diamond', description: 'Searchable vocabulary reference for UI, design, architecture, and software engineering terms' },
   { id: 'settings', label: 'Settings', icon: 'settings', description: 'App configuration and preferences' },
 ];

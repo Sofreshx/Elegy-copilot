@@ -2,6 +2,31 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "skill": "agents-md-authoring",
+      "name": "agents-md-authoring",
+      "description": "Create or refine per-harness instruction files (AGENTS.md, CLAUDE.md, GEMINI.md, copilot-instructions.md) that follow the open AGENTS.md standard. Use when adding a new instruction file, layering repo-specific overrides, or auditing which instruction files an agent will load. Triggers on: create AGENTS.md, write CLAUDE.md, instruction file, override, AGENTS.override.md, repo instructions.",
+      "triggersOn": [
+        "agents.override.md",
+        "create agents.md",
+        "instruction file",
+        "override",
+        "repo instructions",
+        "write claude.md"
+      ],
+      "aliasKeys": [
+        "agents.override.md",
+        "create agents.md",
+        "instruction file",
+        "override",
+        "repo instructions",
+        "write claude.md"
+      ],
+      "manifest": {
+        "id": "skill-agents-md-authoring",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "commit-check-setup",
       "name": "commit-check-setup",
       "description": "Full bootstrap or update of commit-check setup for a target repo. Copies commit-check scripts, generates .copilot/commit-checks.json config, adds npm script, and smoke tests. Triggers on: commit check setup, setup commit checks, bootstrap commit checks, configure pre-commit checks, update commit checks, init commit checks.",
@@ -113,16 +138,6 @@
       }
     },
     {
-      "skill": "guidelines-authoring",
-      "name": "guidelines-authoring",
-      "description": "How to create or update guidelines.md files with clear authority, minimal scope, and askQuestions-driven approval for new convention surfaces.",
-      "triggersOn": [],
-      "manifest": {
-        "id": "skill-guidelines-authoring",
-        "loadMode": "on-demand"
-      }
-    },
-    {
       "skill": "implementation-handoff",
       "name": "implementation-handoff",
       "description": "Convert a feature plan, roadmap slice, or architecture note into a repo-grounded implementation handoff brief. Triggers on: implementation handoff, executor brief, delegation brief, model handoff, plan to implementation brief.",
@@ -163,16 +178,6 @@
       "manifest": {
         "id": "skill-project-conventions-governance",
         "loadMode": "on-demand"
-      }
-    },
-    {
-      "skill": "project-guidelines",
-      "name": "project-guidelines",
-      "description": "Always-loaded guidance for locating and following repository or project guidelines.md files before write-capable work.",
-      "triggersOn": [],
-      "manifest": {
-        "id": "skill-project-guidelines",
-        "loadMode": "always"
       }
     },
     {
@@ -242,6 +247,31 @@
       }
     },
     {
+      "skill": "skill-authoring",
+      "name": "skill-authoring",
+      "description": "Create or refine portable Agent Skills (SKILL.md) that work across Codex, Claude Code, OpenCode, Cursor, and 30+ tools. Use when designing a new skill, fixing a skill that triggers at the wrong time, or packaging instructions as a reusable workflow. Triggers on: create skill, write SKILL.md, refine skill, skill frontmatter, skill description, agent skill.",
+      "triggersOn": [
+        "agent skill",
+        "create skill",
+        "refine skill",
+        "skill description",
+        "skill frontmatter",
+        "write skill.md"
+      ],
+      "aliasKeys": [
+        "agent skill",
+        "create skill",
+        "refine skill",
+        "skill description",
+        "skill frontmatter",
+        "write skill.md"
+      ],
+      "manifest": {
+        "id": "skill-skill-authoring",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "skill-discovery",
       "name": "skill-discovery",
       "description": "Vault-first skill routing for the search/execute pattern. Use this to resolve the smallest matching on-demand skill, apply the deterministic resolver chain, and load only the skills needed for the current step.",
@@ -295,6 +325,29 @@
       ],
       "manifest": {
         "id": "skill-spec-dev",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "spec-planning-bridge",
+      "name": "spec-planning-bridge",
+      "description": "Combines spec-dev, spec-authoring, spec-review, and elegy-planning without merging their authority. Use after spec review to hand an approved spec to a planning lane. Triggers on: spec handoff, spec to planning, bridge spec to plan, link spec to roadmap, spec planning bridge.",
+      "triggersOn": [
+        "bridge spec to plan",
+        "link spec to roadmap",
+        "spec handoff",
+        "spec planning bridge",
+        "spec to planning"
+      ],
+      "tags": [
+        "bridge",
+        "elegy-planning",
+        "handoff",
+        "planning",
+        "specs"
+      ],
+      "manifest": {
+        "id": "skill-spec-planning-bridge",
         "loadMode": "on-demand"
       }
     },

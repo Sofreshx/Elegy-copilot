@@ -293,7 +293,8 @@ async function run() {
     await withTempDir(async (root) => {
       const elegyHome = path.join(root, '.elegy');
       const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
+      fs.mkdirSync(elegyHome, { recursive: true });
+      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
@@ -390,7 +391,8 @@ async function run() {
     await withTempDir(async (root) => {
       const elegyHome = path.join(root, '.elegy');
       const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
+      fs.mkdirSync(elegyHome, { recursive: true });
+      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
@@ -433,366 +435,6 @@ async function run() {
         assert.ok(response.body.runtime.finishCompatibilityHook);
         assert.strictEqual(response.body.runtime.finishCompatibilityHook.contractVersion, FINISH_COMPATIBILITY_HOOK_CONTRACT_VERSION);
         assert.strictEqual(response.body.runtime.finishCompatibilityHook.providerAgnostic, true);
-      } finally {
-        await stopTrackedProcess(server);
-      }
-      if (stderr.trim()) {
-        assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
-      }
-    });
-  });
-  await test('gateway state/connect and planning persistence init return deterministic degraded envelopes when gateway is not configured', async () => {
-    await withTempDir(async (root) => {
-      const elegyHome = path.join(root, '.elegy');
-      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
-      const baseUrl = `http://127.0.0.1:${port}`;
-      const server = trackProcess(childProcess.spawn(process.execPath, [
-        serverPath,
-        '--host',
-        '127.0.0.1',
-        '--port',
-        String(port),
-        '--elegy-home',
-        elegyHome,
-        '--sandboxes-home',
-        sandboxesHome,
-      ], {
-        env: {
-          ...process.env,
-          INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
-          INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
-          INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN: '',
-          INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH: path.join(root, '.instruction-engine', 'missing-gateway-config.json'),
-        },
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
-      }));
-      let stderr = '';
-      server.stderr.on('data', (chunk) => {
-        stderr += chunk.toString('utf8');
-      });
-      try {
-        await waitForHealth(baseUrl);
-        const state = await fetchJson(`${baseUrl}/api/gateway/state`);
-        assert.strictEqual(state.statusCode, 200);
-        assert.strictEqual(state.body.kind, 'gateway.state');
-        assert.strictEqual(state.body.deterministic, true);
-        assert.strictEqual(state.body.ready, false);
-        assert.ok(state.body.gateway);
-        assert.strictEqual(state.body.gateway.ready, false);
-        assert.ok(state.body.tracker);
-        assert.strictEqual(state.body.tracker.ready, false);
-        assert.ok(Array.isArray(state.body.errors));
-        assert.ok(state.body.errors.some((entry) => entry && entry.code === 'gateway_config_missing'));
-        assert.ok(state.body.errors.some((entry) => entry && entry.code === 'tracker_token_missing'));
-        const connect = await postJson(`${baseUrl}/api/gateway/connect`, {});
-        assert.strictEqual(connect.statusCode, 503);
-        assert.strictEqual(connect.body.kind, 'gateway.connect');
-        assert.strictEqual(connect.body.action, 'connect');
-        assert.strictEqual(connect.body.deterministic, true);
-        assert.strictEqual(connect.body.ready, false);
-        assert.strictEqual(connect.body.connected, false);
-        assert.ok(Array.isArray(connect.body.errors));
-        assert.ok(connect.body.errors.length >= 1);
-        assert.ok(connect.body.error);
-        const initDb = await postJson(`${baseUrl}/api/planning/persistence/init`, {});
-        assert.strictEqual(initDb.statusCode, 200);
-        assert.strictEqual(initDb.body.kind, 'planning.persistence.init');
-        assert.strictEqual(initDb.body.deterministic, true);
-        assert.strictEqual(initDb.body.ready, true);
-        assert.strictEqual(initDb.body.initialized, true);
-        assert.ok(initDb.body.result);
-        assert.strictEqual(initDb.body.result.mode, 'noop_optional_persistence');
-        assert.ok(Array.isArray(initDb.body.errors));
-        assert.strictEqual(initDb.body.errors.length, 0);
-      } finally {
-        await stopTrackedProcess(server);
-      }
-      if (stderr.trim()) {
-        assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
-      }
-    });
-  });
-  await test('gateway connect returns deterministic ready envelope when config and tracker are ready', async () => {
-    await withTempDir(async (root) => {
-      const elegyHome = path.join(root, '.elegy');
-      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const gatewayConfigPath = path.join(root, '.elegy', 'messaging-gateway.config.json');
-      fs.mkdirSync(path.dirname(gatewayConfigPath), { recursive: true });
-      fs.writeFileSync(gatewayConfigPath, JSON.stringify({
-        mode: 'auto',
-        workspaces: {
-          allowedRoots: [root],
-          activeRoot: root,
-        },
-      }, null, 2));
-      const tracker = await startMockTrackerStatusServer('ws2-tracker-token');
-      const port = await getFreePort();
-      const baseUrl = `http://127.0.0.1:${port}`;
-      const server = trackProcess(childProcess.spawn(process.execPath, [
-        serverPath,
-        '--host',
-        '127.0.0.1',
-        '--port',
-        String(port),
-        '--elegy-home',
-        elegyHome,
-        '--sandboxes-home',
-        sandboxesHome,
-        '--tracker-url',
-        `http://127.0.0.1:${tracker.port}`,
-      ], {
-        env: {
-          ...process.env,
-          INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
-          INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
-          INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN: 'ws2-tracker-token',
-          INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH: gatewayConfigPath,
-        },
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
-      }));
-      let stderr = '';
-      server.stderr.on('data', (chunk) => {
-        stderr += chunk.toString('utf8');
-      });
-      try {
-        await waitForHealth(baseUrl);
-        const connect = await postJson(`${baseUrl}/api/gateway/connect`, {});
-        assert.strictEqual(connect.statusCode, 200);
-        assert.strictEqual(connect.body.kind, 'gateway.connect');
-        assert.strictEqual(connect.body.deterministic, true);
-        assert.strictEqual(connect.body.status, 'ready');
-        assert.strictEqual(connect.body.ready, true);
-        assert.strictEqual(connect.body.connected, true);
-        assert.strictEqual(connect.body.gateway.config.path, path.resolve(gatewayConfigPath));
-        assert.ok(Array.isArray(connect.body.errors));
-        assert.strictEqual(connect.body.errors.length, 0);
-        const state = await fetchJson(`${baseUrl}/api/gateway/state`);
-        assert.strictEqual(state.statusCode, 200);
-        assert.strictEqual(state.body.kind, 'gateway.state');
-        assert.strictEqual(state.body.ready, true);
-        assert.strictEqual(state.body.gateway.config.path, path.resolve(gatewayConfigPath));
-        assert.ok(Array.isArray(state.body.errors));
-        assert.strictEqual(state.body.errors.length, 0);
-      } finally {
-        await stopTrackedProcess(server);
-        await tracker.close();
-      }
-      if (stderr.trim()) {
-        assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
-      }
-    });
-  });
-  await test('gateway config deterministically rehomes legacy instruction-engine path to canonical copilot path when env override is absent', async () => {
-    await withTempDir(async (root) => {
-      const elegyHome = path.join(root, '.elegy');
-      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const legacyConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
-      const legacyConfig = {
-        mode: 'auto',
-        workspaces: {
-          allowedRoots: [root],
-          activeRoot: root,
-        },
-      };
-      fs.mkdirSync(path.dirname(legacyConfigPath), { recursive: true });
-      fs.writeFileSync(legacyConfigPath, JSON.stringify(legacyConfig, null, 2));
-      const port = await getFreePort();
-      const baseUrl = `http://127.0.0.1:${port}`;
-      const server = trackProcess(childProcess.spawn(process.execPath, [
-        serverPath,
-        '--host',
-        '127.0.0.1',
-        '--port',
-        String(port),
-        '--elegy-home',
-        elegyHome,
-        '--sandboxes-home',
-        sandboxesHome,
-      ], {
-        env: {
-          ...process.env,
-          HOME: root,
-          USERPROFILE: root,
-          INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
-          INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
-          INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH: '',
-        },
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
-      }));
-      let stderr = '';
-      server.stderr.on('data', (chunk) => {
-        stderr += chunk.toString('utf8');
-      });
-      try {
-        await waitForHealth(baseUrl);
-        const configResponse = await fetchJson(`${baseUrl}/api/gateway/config`);
-        assert.strictEqual(configResponse.statusCode, 200);
-        assert.strictEqual(configResponse.body.exists, true);
-        const resolvedConfigPath = path.resolve(configResponse.body.configPath);
-        assert.ok(
-          resolvedConfigPath.toLowerCase().endsWith(path.join('.elegy', 'messaging-gateway.config.json').toLowerCase())
-        );
-        assert.notStrictEqual(resolvedConfigPath.toLowerCase(), path.resolve(legacyConfigPath).toLowerCase());
-        assert.deepStrictEqual(configResponse.body.config, legacyConfig);
-        assert.strictEqual(fs.existsSync(resolvedConfigPath), true);
-        assert.strictEqual(fs.existsSync(legacyConfigPath), false);
-        const persistedCanonicalConfig = JSON.parse(fs.readFileSync(resolvedConfigPath, 'utf8'));
-        assert.deepStrictEqual(persistedCanonicalConfig, legacyConfig);
-      } finally {
-        await stopTrackedProcess(server);
-      }
-      if (stderr.trim()) {
-        assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
-      }
-    });
-  });
-  await test('gateway config path honors env override ahead of canonical default and does not rehome legacy path', async () => {
-    await withTempDir(async (root) => {
-      const elegyHome = path.join(root, '.elegy');
-      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const legacyConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
-      const canonicalConfigPath = path.join(root, '.elegy', 'messaging-gateway.config.json');
-      const envConfigPath = path.join(root, 'config-overrides', 'gateway-config.json');
-      const legacyConfig = {
-        mode: 'disconnected',
-        workspaces: {
-          allowedRoots: [root],
-          activeRoot: root,
-        },
-      };
-      const canonicalConfig = {
-        mode: 'connected',
-        workspaces: {
-          allowedRoots: [root],
-          activeRoot: root,
-        },
-      };
-      const envConfig = {
-        mode: 'auto',
-        workspaces: {
-          allowedRoots: [root],
-          activeRoot: root,
-        },
-      };
-      fs.mkdirSync(path.dirname(legacyConfigPath), { recursive: true });
-      fs.writeFileSync(legacyConfigPath, JSON.stringify(legacyConfig, null, 2));
-      fs.mkdirSync(path.dirname(canonicalConfigPath), { recursive: true });
-      fs.writeFileSync(canonicalConfigPath, JSON.stringify(canonicalConfig, null, 2));
-      fs.mkdirSync(path.dirname(envConfigPath), { recursive: true });
-      fs.writeFileSync(envConfigPath, JSON.stringify(envConfig, null, 2));
-      const port = await getFreePort();
-      const baseUrl = `http://127.0.0.1:${port}`;
-      const server = trackProcess(childProcess.spawn(process.execPath, [
-        serverPath,
-        '--host',
-        '127.0.0.1',
-        '--port',
-        String(port),
-        '--elegy-home',
-        elegyHome,
-        '--sandboxes-home',
-        sandboxesHome,
-      ], {
-        env: {
-          ...process.env,
-          HOME: root,
-          USERPROFILE: root,
-          INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
-          INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
-          INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH: envConfigPath,
-        },
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
-      }));
-      let stderr = '';
-      server.stderr.on('data', (chunk) => {
-        stderr += chunk.toString('utf8');
-      });
-      try {
-        await waitForHealth(baseUrl);
-        const configResponse = await fetchJson(`${baseUrl}/api/gateway/config`);
-        assert.strictEqual(configResponse.statusCode, 200);
-        assert.strictEqual(configResponse.body.exists, true);
-        assert.strictEqual(
-          path.resolve(configResponse.body.configPath).toLowerCase(),
-          path.resolve(envConfigPath).toLowerCase()
-        );
-        assert.deepStrictEqual(configResponse.body.config, envConfig);
-        assert.strictEqual(fs.existsSync(legacyConfigPath), true);
-        assert.strictEqual(fs.existsSync(canonicalConfigPath), true);
-        assert.deepStrictEqual(JSON.parse(fs.readFileSync(canonicalConfigPath, 'utf8')), canonicalConfig);
-      } finally {
-        await stopTrackedProcess(server);
-      }
-      if (stderr.trim()) {
-        assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
-      }
-    });
-  });
-  await test('non-docker provider returns deterministic unsupported marker for capability-gated lifecycle actions', async () => {
-    await withTempDir(async (root) => {
-      const elegyHome = path.join(root, '.elegy');
-      const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
-      const baseUrl = `http://127.0.0.1:${port}`;
-      const server = trackProcess(childProcess.spawn(process.execPath, [
-        serverPath,
-        '--host',
-        '127.0.0.1',
-        '--port',
-        String(port),
-        '--elegy-home',
-        elegyHome,
-        '--sandboxes-home',
-        sandboxesHome,
-      ], {
-        env: {
-          ...process.env,
-          INSTRUCTION_ENGINE_RUNTIME_PROVIDER_SELECTED: 'non-docker',
-          INSTRUCTION_ENGINE_RUNTIME_PROVIDER_DEFAULT: 'non-docker',
-          INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN: 'ws2-runtime-health-token',
-          INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
-          INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
-        },
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
-      }));
-      let stderr = '';
-      server.stderr.on('data', (chunk) => {
-        stderr += chunk.toString('utf8');
-      });
-      try {
-        await waitForHealth(baseUrl);
-        const response = await postJson(`${baseUrl}/api/sandboxes/lifecycle/pr-open`, {
-          sandboxId: 'ws2-guardrail-sandbox',
-        });
-        assert.strictEqual(response.statusCode, 501);
-        assert.strictEqual(response.body.error, 'Lifecycle capability unsupported');
-        assert.strictEqual(response.body.code, 'lifecycle_capability_unsupported');
-        assert.strictEqual(response.body.action, 'pr-open');
-        assert.strictEqual(response.body.reason, 'provider_capability_unsupported');
-        assert.strictEqual(response.body.deterministic, true);
-        assert.ok(response.body.unsupported);
-        assert.strictEqual(response.body.unsupported.marker, 'unsupported');
-        assert.strictEqual(response.body.unsupported.provider, RUNTIME_PROVIDERS.NON_DOCKER);
-        assert.ok(response.body.capability);
-        assert.strictEqual(response.body.capability.supported, false);
-        assert.strictEqual(response.body.capability.shared, false);
-        assert.strictEqual(response.body.capability.marker, 'unsupported');
-        assert.ok(response.body.finishCompatibilityHook);
-        assert.strictEqual(response.body.finishCompatibilityHook.contractVersion, FINISH_COMPATIBILITY_HOOK_CONTRACT_VERSION);
-        assert.strictEqual(response.body.finishCompatibilityHook.apiContractVersion, PLANNING_API_CONTRACT_VERSION);
-        assert.strictEqual(response.body.finishCompatibilityHook.providerAgnostic, true);
-        assert.strictEqual(response.body.finishCompatibilityHook.scopeBoundary, 'ws2_contract_hook_only');
-        assert.strictEqual(response.body.finishCompatibilityHook.ws4Ownership, 'finish_behavior_and_ux');
-        assert.ok(response.body.finishCompatibilityHook.receipt);
-        assert.strictEqual(response.body.finishCompatibilityHook.receipt.contractVersion, FINISH_COMPATIBILITY_RECEIPT_CONTRACT_VERSION);
-        assert.strictEqual(Object.prototype.hasOwnProperty.call(response.body, 'prPrompt'), false);
-        assert.strictEqual(Object.prototype.hasOwnProperty.call(response.body, 'closeAllowed'), false);
       } finally {
         await stopTrackedProcess(server);
       }
@@ -862,7 +504,8 @@ async function run() {
     await withTempDir(async (root) => {
       const elegyHome = path.join(root, '.elegy');
       const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
+      fs.mkdirSync(elegyHome, { recursive: true });
+      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
@@ -936,7 +579,8 @@ async function run() {
     await withTempDir(async (root) => {
       const elegyHome = path.join(root, '.elegy');
       const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
+      fs.mkdirSync(elegyHome, { recursive: true });
+      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
@@ -1020,7 +664,8 @@ async function run() {
     await withTempDir(async (root) => {
       const elegyHome = path.join(root, '.elegy');
       const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
+      fs.mkdirSync(elegyHome, { recursive: true });
+      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
       const noisyDiagnostic = `ws5a-m1-noisy-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       let runningServer = null;
@@ -1032,7 +677,8 @@ async function run() {
           runningServer = await startServer({
             host: '127.0.0.1',
             port,
-            elegyHome,            sandboxesHome,
+            elegyHome,
+            sandboxesHome,
             planningPersistenceClient: {
               query: async () => {
                 throw new Error(noisyDiagnostic);
@@ -1091,7 +737,8 @@ async function run() {
     await withTempDir(async (root) => {
       const elegyHome = path.join(root, '.elegy');
       const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const port = await getFreePort();
+      fs.mkdirSync(elegyHome, { recursive: true });
+      const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
       const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
@@ -1194,11 +841,13 @@ async function run() {
     await withTempDir(async (root) => {
       const elegyHome = path.join(root, '.elegy');
       const sandboxesHome = path.join(elegyHome, 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const server = await startServer({
+      fs.mkdirSync(elegyHome, { recursive: true });
+      const server = await startServer({
         host: '127.0.0.1',
         port: await getFreePort(),
         engineRoot: root,
-        elegyHome,        sandboxesHome,
+        elegyHome,
+        sandboxesHome,
         quiet: true,
       });
       try {
@@ -1232,7 +881,8 @@ async function run() {
     await withTempDir(async (root) => {
       const elegyHome = path.join(root, '.elegy');
       const sandboxesHome = path.join(elegyHome, 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const syncCalls = [];
+      fs.mkdirSync(elegyHome, { recursive: true });
+      const syncCalls = [];
       const originalSyncManagedInstall = assets.syncManagedInstall;
       assets.syncManagedInstall = (engineRoot, home, options = {}) => {
         syncCalls.push({ engineRoot, home, options: { ...options } });
@@ -1247,7 +897,8 @@ async function run() {
           host: '127.0.0.1',
           port: await getFreePort(),
           engineRoot: root,
-          elegyHome,          sandboxesHome,
+          elegyHome,
+          sandboxesHome,
           quiet: true,
         });
         try {
@@ -1273,11 +924,13 @@ async function run() {
     await withTempDir(async (root) => {
       const elegyHome = path.join(root, '.elegy');
       const sandboxesHome = path.join(elegyHome, 'sandboxes');
-      fs.mkdirSync(elegyHome, { recursive: true });      const server = await startServer({
+      fs.mkdirSync(elegyHome, { recursive: true });
+      const server = await startServer({
         host: '127.0.0.1',
         port: await getFreePort(),
         engineRoot: root,
-        elegyHome,        sandboxesHome,
+        elegyHome,
+        sandboxesHome,
         managedAssetSyncOnStart: false,
         quiet: true,
       });

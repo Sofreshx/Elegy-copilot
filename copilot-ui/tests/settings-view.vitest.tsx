@@ -61,11 +61,6 @@ describe('SettingsView', () => {
       providerId: 'openai',
       hasManagedBlock: false,
       hasBackup: true,
-      gateway: {
-        providerId: 'elegy',
-        model: 'opencode-go',
-        baseUrl: 'http://127.0.0.1:4318/v1',
-      },
       deepseek: {
         bridgePath: null,
         bridgeConfigPath: null,
@@ -95,11 +90,6 @@ describe('SettingsView', () => {
       providerId: 'instruction_engine_deepseek',
       hasManagedBlock: true,
       hasBackup: true,
-      gateway: {
-        providerId: 'instruction_engine_deepseek',
-        model: 'deepseek-v4-pro',
-        baseUrl: 'http://127.0.0.1:38440/v1',
-      },
       deepseek: {
         bridgePath: '/path/to/bridge.exe',
         bridgeConfigPath: null,
@@ -120,11 +110,6 @@ describe('SettingsView', () => {
       providerId: 'openai',
       hasManagedBlock: false,
       hasBackup: true,
-      gateway: {
-        providerId: 'elegy',
-        model: 'opencode-go',
-        baseUrl: 'http://127.0.0.1:4318/v1',
-      },
       deepseek: {
         bridgePath: null,
         bridgeConfigPath: null,

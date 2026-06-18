@@ -133,8 +133,8 @@
         "skill-project-conventions-governance",
         "skill-documentation-structure-governance",
         "skill-documentation-authoring",
-        "skill-project-guidelines",
-        "skill-guidelines-authoring"
+        "skill-skill-authoring",
+        "skill-agents-md-authoring"
       ],
       "installTarget": "repo-local",
       "activationScope": "repo",
@@ -173,8 +173,8 @@
         "skill-project-conventions-governance",
         "skill-documentation-structure-governance",
         "skill-documentation-authoring",
-        "skill-project-guidelines",
-        "skill-guidelines-authoring"
+        "skill-skill-authoring",
+        "skill-agents-md-authoring"
       ],
       "installTarget": "repo-local",
       "activationScope": "repo",
@@ -422,13 +422,6 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "skill-guidelines-authoring",
-      "type": "skill",
-      "source": "engine-assets/skills/guidelines-authoring",
-      "destination": "skills/guidelines-authoring",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "skill-implementation-handoff",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-handoff",
@@ -448,13 +441,6 @@
       "source": "engine-assets/skills/project-conventions-governance",
       "destination": "skills/project-conventions-governance",
       "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-project-guidelines",
-      "type": "skill",
-      "source": "engine-assets/skills/project-guidelines",
-      "destination": "skills/project-guidelines",
-      "loadMode": "always"
     },
     {
       "id": "skill-repo-setup-governance",
@@ -538,6 +524,20 @@
       "type": "skill",
       "source": "engine-assets/skills/commit-validation-governance",
       "destination": "skills/commit-validation-governance",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-skill-authoring",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/skill-authoring",
+      "destination": "skills/skill-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-agents-md-authoring",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/agents-md-authoring",
+      "destination": "skills/agents-md-authoring",
       "loadMode": "on-demand"
     }
   ],

@@ -7,7 +7,7 @@ export * from './executor';
 export * from './assets';
 export * from './catalog';
 export * from './planning';
-export * from './gateway';
+export * from './remote';
 export * from './git';
 export * from './repoDocs';
 export * from './projects';

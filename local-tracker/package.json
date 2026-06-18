@@ -6,11 +6,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "build:gateway": "tsc -p tsconfig.build.gateway.json",
     "dev": "ts-node src/index.ts",
-    "dev:gateway": "ts-node src/messagingGateway/index.ts",
     "start": "node dist/index.js",
-    "start:gateway": "node dist/messagingGateway/index.js",
     "watch": "tsc --watch",
     "test": "node scripts/test-with-ledger.js",
     "test:jest": "jest",
@@ -24,10 +21,7 @@
     "dotenv": "^16.4.7",
     "zod": "^3.24.2"
   },
-  "optionalDependencies": {
-    "discord.js": "^14.0.0",
-    "grammy": "^1.40.1"
-  },
+  "optionalDependencies": {},
   "devDependencies": {
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.57.0",

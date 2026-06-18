@@ -5,9 +5,6 @@ import type {
   LspConfigResponse,
   LspInstallResponse,
   ManagedAssetsResponse,
-  SandboxLifecycleAction,
-  SandboxLifecyclePayload,
-  SandboxLifecycleResponse,
   SkillsPreviewResponse,
 } from '../types';
 import { apiRequest } from './core';
@@ -46,24 +43,6 @@ export function installSurfaces(
     },
     body: JSON.stringify({ target, force, dryRun, pointerMode }),
   });
-}
-
-export function runSandboxLifecycleAction(
-  action: SandboxLifecycleAction,
-  payload: SandboxLifecyclePayload,
-  baseUrl?: string
-): Promise<SandboxLifecycleResponse> {
-  return apiRequest<SandboxLifecycleResponse>(
-    `/api/sandboxes/lifecycle/${encodeURIComponent(action)}`,
-    {
-      baseUrl,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload ?? {}),
-    }
-  );
 }
 
 export function getLspConfig(baseUrl?: string): Promise<LspConfigResponse> {

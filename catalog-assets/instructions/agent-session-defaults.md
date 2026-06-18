@@ -165,6 +165,26 @@ Use ADRs only for key architectural, workflow-authority, trust-boundary, or
 long-lived contract decisions. Do not create ADRs for ordinary local
 implementation choices.
 
+## Code Quality Posture
+
+Hard rules:
+
+- Always remove dead code before merging. Reviewers flag dead code as
+  blocking.
+- Keep nesting shallow. Maximum four levels; use early returns and guard
+  clauses to flatten.
+- If a change requires understanding more than three files in the same diff,
+  refactor first.
+- Delete code, do not comment it out. Version control preserves history.
+
+Heuristics:
+
+- Prefer the simplest solution that works. Reject clever complexity.
+- Keep functions focused. Split when a function does more than one job.
+- Add complexity only when justified by a stated or measured requirement.
+
+Failure to follow this posture in a change is a review-blocker.
+
 ## Review Rule
 
 Review must flag instruction drift.
@@ -180,6 +200,9 @@ Flag:
 - sections with no purpose, contract, usage, failure mode, validation, or next link
 - harness files copying policy instead of pointing to it
 - UI copy that explains instead of naming state and action
+- dead code left in place
+- unnecessary nesting or complexity that should have been flattened
+- clever abstractions without a stated need
 
 ## Validation Rule
 

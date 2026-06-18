@@ -21,6 +21,7 @@ const AssetCreationWizard = lazy(() => import('./views/Catalog/AssetCreationWiza
 const AddProjectWizard = lazy(() => import('./views/Project/AddProjectWizard'));
 const WorkspaceView = lazy(() => import('./views/Workspace/WorkspaceView'));
 const RepositoriesView = lazy(() => import('./views/Repositories/RepositoriesView'));
+const RemoteView = lazy(() => import('./tabs/Remote/RemoteView'));
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
   const desktopUpdaterState = useStoreValue(desktopUpdaterStore);
@@ -85,6 +86,8 @@ export default function App() {
         return navigationState.activeWorkspaceId
           ? <WorkspaceView />
           : <RepositoriesView />;
+      case 'remote':
+        return <RemoteView />;
       case 'lexicon':
         return <LexiconView />;
       case 'repositories':

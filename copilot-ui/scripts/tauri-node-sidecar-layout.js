@@ -140,7 +140,6 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
   assert(manifest.shell === 'tauri', `Expected ${manifestPath} shell=tauri.`);
   assert(manifest.status === 'windows_release_preview_lane_ready', `Unexpected ${manifestPath} status ${manifest.status || '(missing)'}.`);
   assert(manifest.resourceRoot === '.', `Expected ${manifestPath} resourceRoot=.`);
-  assert(manifest.workflowSidecarPosture === 'bundled_default_disabled', `Expected ${manifestPath} workflowSidecarPosture=bundled_default_disabled.`);
   assert(manifest.releaseLane && typeof manifest.releaseLane === 'object', `Expected ${manifestPath} releaseLane object.`);
   assert(manifest.releaseLane.packaging === 'windows_nsis_preview_installer', `Expected ${manifestPath} releaseLane.packaging=windows_nsis_preview_installer.`);
   assert(manifest.releaseLane.updateMode === 'manual_installer', `Expected ${manifestPath} releaseLane.updateMode=manual_installer.`);
@@ -151,8 +150,6 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
   assert(manifest.nodeRuntime.hostInstalledNodeAllowed === false, `Expected ${manifestPath} nodeRuntime.hostInstalledNodeAllowed=false.`);
   assert(manifest.entrypoints && typeof manifest.entrypoints === 'object', `Expected ${manifestPath} entrypoints object.`);
   assert(manifest.entrypoints.server === 'copilot-ui/server.js', `Expected ${manifestPath} entrypoints.server=copilot-ui/server.js.`);
-  assert(manifest.entrypoints.gateway === 'local-tracker/dist/messagingGateway/index.js', `Expected ${manifestPath} entrypoints.gateway=local-tracker/dist/messagingGateway/index.js.`);
-  assert(manifest.entrypoints.workflowSidecar === 'local-tracker/dist/messagingGateway/workflowSidecar.js', `Expected ${manifestPath} entrypoints.workflowSidecar=local-tracker/dist/messagingGateway/workflowSidecar.js.`);
   assert(Array.isArray(manifest.resourceCopies), `Expected ${manifestPath} resourceCopies array.`);
 
   for (const resourceId of requiredResourceIds) {
@@ -230,11 +227,8 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
   return {
     manifestPath,
     validatedResourceCount,
-    workflowSidecarPosture: manifest.workflowSidecarPosture,
     nodeRuntimeRelativePath: manifest.nodeRuntime.relativePath,
     serverEntrypoint: manifest.entrypoints.server,
-    gatewayEntrypoint: manifest.entrypoints.gateway,
-    workflowSidecarEntrypoint: manifest.entrypoints.workflowSidecar,
     pgliteTargetDist: manifest.pglite.targetDist,
     updateMode: manifest.releaseLane.updateMode,
     packaging: manifest.releaseLane.packaging,

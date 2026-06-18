@@ -45,9 +45,8 @@ node copilot-ui/server.js       # Raw server (API debugging only)
 |---|---|
 | 1 | Explicit user instruction |
 | 2 | Repo-local canonical docs |
-| 3 | Nearest `guidelines.md` |
-| 4 | `README.md` and maintained docs |
-| 5 | Repeated implementation patterns |
+| 3 | `README.md` and maintained docs |
+| 4 | Repeated implementation patterns |
 
 If sources conflict, follow the highest authority and report the conflict.
 
@@ -135,7 +134,7 @@ Good clarification:
 ```text
 Which source should be authoritative for this change?
 - Repo-local canonical docs: durable repo policy
-- Nearest `guidelines.md` or AGENTS.md: local entrypoint
+- Per-harness instruction file: local entrypoint
 ```
 
 Bad clarification:
@@ -178,7 +177,7 @@ Validation or next link
 Documentation should route downward:
 
 ```text
-README / AGENTS.md / guidelines.md / harness instructions
+README / AGENTS.md / harness instructions
   -> docs/system/index.md
     -> relevant MOC
       -> smallest canonical node

@@ -94,8 +94,6 @@ async function run() {
   console.log('\nSmoke Tests - copilot-ui server decomposition\n');
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-smoke-'));
   const elegyHome = path.join(tmpRoot, '.elegy');
-  const sandboxesHome = path.join(tmpRoot, '.elegy', 'sandboxes');
-  fs.mkdirSync(elegyHome, { recursive: true });  fs.mkdirSync(sandboxesHome, { recursive: true });
   const port = await getFreePort();
   const host = '127.0.0.1';
   const baseUrl = `http://${host}:${port}`;
@@ -106,7 +104,7 @@ async function run() {
       host,
       port,
       desktopUiToken: 'desktop-smoke-token',
-      elegyHome,      sandboxesHome,
+      elegyHome,
       quiet: true,
     });
     await test('startServer() resolves contract with required keys', async () => {
@@ -116,7 +114,7 @@ async function run() {
         'host',
         'port',
         'token',
-        'elegyHome',        'sandboxesHome',
+        'elegyHome',
         'trackerUrl',
         'close',
       ];

@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-06-08
+updated: 2026-06-18
 category: system
 status: current
 doc_kind: node
@@ -77,7 +77,7 @@ README / guidelines / tool instructions
 | `docs/system/index.md` | global start point | route to the right MOC | rule-family detail dumps |
 | MOC | cluster and route | when to read + next nodes | duplicating node policy |
 | Canonical node | single source of truth for one rule family | durable policy, constraints, examples | unrelated workflow bundles |
-| README / `guidelines.md` / tool instructions | discovery and local application | brief summary + pointer to canonical docs | peer-authority policy copies |
+| README / per-harness instruction files / tool instructions | discovery and local application | brief summary + pointer to canonical docs | peer-authority policy copies |
 
 Secondary entrypoints should stay thin: tell the reader where to start, what local nuance applies,
 and which canonical node owns the rule.

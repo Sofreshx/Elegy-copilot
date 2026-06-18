@@ -116,11 +116,6 @@ export default function CodexProviderPanel() {
               <span className="settings-row-description">
                 Config: <code>{status.configPath}</code>
               </span>
-              {status.gateway?.baseUrl ? (
-                <span className="settings-row-description">
-                  Gateway: <code>{status.gateway.baseUrl}</code>
-                </span>
-              ) : null}
             </div>
             <div className="settings-row-action">
               {status.hasBackup ? <Badge tone="brand" testId="codex-provider-backup-badge">Backup Ready</Badge> : null}

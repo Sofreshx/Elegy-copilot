@@ -232,14 +232,6 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/audit/assets' },
   { method: 'GET', path: '/api/audit/events' },
   { method: 'GET', path: '/api/runtime/catalog-health' },
-  // Gateway (5)
-  { method: 'GET', path: '/api/gateway/state' },
-  { method: 'POST', path: '/api/gateway/connect' },
-  { method: 'GET', path: '/api/gateway/config' },
-  { method: 'POST', path: '/api/gateway/config' },
-  { method: 'GET', path: '/api/gateway/scan-repos' },
-  // Sandbox lifecycle (1)
-  { method: 'POST', path: '/api/sandboxes/lifecycle/start' },
   // UI Runtime Overlay (8)
   { method: 'GET', path: '/api/ui-runtime-overlay/sessions' },
   { method: 'POST', path: '/api/ui-runtime-overlay/sessions' },
@@ -303,14 +295,14 @@ async function run() {
   // Setup temp directories
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-api-contract-'));
   const elegyHome = path.join(tmpRoot, '.elegy');
-  const sandboxesHome = path.join(tmpRoot, '.elegy', 'sandboxes');
-  fs.mkdirSync(elegyHome, { recursive: true });  fs.mkdirSync(sandboxesHome, { recursive: true });
+
+  fs.mkdirSync(elegyHome, { recursive: true });
   let runningServer = null;
   try {
     runningServer = await startServer({
       host: '127.0.0.1',
       port: 0,
-      elegyHome,      sandboxesHome,
+      elegyHome,
       quiet: true,
       env: testEnv,
     });
@@ -428,7 +420,7 @@ async function run() {
     }
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 155, `Expected 155 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 150, `Expected 150 routes, got ${ROUTE_INVENTORY.length}`);
   });
   } finally {
     if (runningServer) {

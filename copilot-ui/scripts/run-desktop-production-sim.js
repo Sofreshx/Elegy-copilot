@@ -90,7 +90,7 @@ function resolveStagedEntrypoint(relativePath, label) {
   return fullPath;
 }
 
-function buildSimEnv(serverPort, workflowSidecarPort) {
+function buildSimEnv(serverPort) {
   const isolatedHome = path.join(simStateRoot, 'home');
   const isolatedAppData = path.join(simStateRoot, 'appdata');
   const isolatedLocalAppData = path.join(simStateRoot, 'localappdata');
@@ -110,14 +110,6 @@ function buildSimEnv(serverPort, workflowSidecarPort) {
     path.join('copilot-ui', 'server.js'),
     'server entrypoint',
   );
-  const gatewayEntrypoint = resolveStagedEntrypoint(
-    path.join('local-tracker', 'dist', 'messagingGateway', 'index.js'),
-    'gateway entrypoint',
-  );
-  const workflowSidecarEntrypoint = resolveStagedEntrypoint(
-    path.join('local-tracker', 'dist', 'messagingGateway', 'workflowSidecar.js'),
-    'workflow sidecar entrypoint',
-  );
 
   return {
     env: {
@@ -131,19 +123,14 @@ function buildSimEnv(serverPort, workflowSidecarPort) {
       ELEGY_TAURI_RUNTIME_ROOT: stagedResourcesRoot,
       ELEGY_TAURI_NODE_EXECUTABLE: nodeExecutable,
       ELEGY_TAURI_SERVER_ENTRYPOINT: serverEntrypoint,
-      ELEGY_TAURI_GATEWAY_ENTRYPOINT: gatewayEntrypoint,
-      ELEGY_TAURI_WORKFLOW_SIDECAR_ENTRYPOINT: workflowSidecarEntrypoint,
       ELEGY_TAURI_IS_PACKAGED: '1',
       ELEGY_TAURI_APP_VERSION: packageJson.version,
       INSTRUCTION_ENGINE_DESKTOP_SERVER_PORT: String(serverPort),
-      INSTRUCTION_ENGINE_WORKFLOW_SIDECAR_PORT: String(workflowSidecarPort),
       INSTRUCTION_ENGINE_DISABLE_STARTUP_ASSET_SYNC: '1',
     },
     nodeExecutable,
     runtimeHostPath,
     serverEntrypoint,
-    gatewayEntrypoint,
-    workflowSidecarEntrypoint,
     isolatedHome,
     appVersion: packageJson.version,
   };
@@ -346,18 +333,14 @@ async function main() {
   assert(fs.existsSync(stagedResourcesRoot), `Staged resources not found: ${stagedResourcesRoot}. Run without --skip-build first.`);
 
   const serverPort = await getFreePort();
-  const workflowSidecarPort = await getFreePort();
-  const simConfig = buildSimEnv(serverPort, workflowSidecarPort);
+  const simConfig = buildSimEnv(serverPort);
 
   console.log(`\n[sim] configuration:`);
   console.log(`  runtimeRoot: ${stagedResourcesRoot}`);
   console.log(`  nodeExecutable: ${simConfig.nodeExecutable}`);
   console.log(`  runtimeHost: ${simConfig.runtimeHostPath}`);
   console.log(`  serverEntrypoint: ${simConfig.serverEntrypoint}`);
-  console.log(`  gatewayEntrypoint: ${simConfig.gatewayEntrypoint}`);
-  console.log(`  workflowSidecarEntrypoint: ${simConfig.workflowSidecarEntrypoint}`);
   console.log(`  serverPort: ${serverPort}`);
-  console.log(`  workflowSidecarPort: ${workflowSidecarPort}`);
   console.log(`  appVersion: ${simConfig.appVersion}`);
   console.log(`  isolatedHome: ${simConfig.isolatedHome}`);
 
