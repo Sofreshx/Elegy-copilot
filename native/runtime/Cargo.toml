@@ -26,6 +26,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
 regex.workspace = true
+thiserror = "2"
 
 [[bin]]
 name = "elegy-native-runtime"

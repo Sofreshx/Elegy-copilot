@@ -6,6 +6,7 @@ pub mod dashboard;
 pub mod db;
 pub mod error;
 pub mod executor;
+pub mod orchestrator;
 pub mod persistence;
 pub mod planning_health;
 pub mod policy;
