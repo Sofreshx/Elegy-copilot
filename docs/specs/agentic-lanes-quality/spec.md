@@ -1,9 +1,12 @@
 ---
 spec_id: agentic-lanes-quality
 title: OpenCode Agentic Lanes Quality Evaluation and Hardening
-status: implemented
+status: abandoned
 type: workflow
 updated: 2026-06-03
+liveness_skip_paths:
+  - opencode-assets/agents/standard.md
+  - opencode-assets/agents/spec.md
 ---
 
 # OpenCode Agentic Lanes Quality Evaluation and Hardening
@@ -113,7 +116,7 @@ Add tests for:
 - `quick.md` contains explicit rejection rule for ambiguous/user-facing/API work.
   → verify: `Select-String -Path opencode-assets/agents/quick.md -Pattern "ambiguous|user-facing|API contract|switch to"`
 - `spec.md` contains "explore first" clarification policy when contract boundary is discoverable.
-  → verify: `Select-String -Path opencode-assets/agents/spec.md -Pattern "explore.*first|discoverable from code|evidence-first"`
+  → verify: pending — spec.md agent was deleted; requirement absorbed into spec-authoring skill
 - `project.md` contains zero references to `goal current`, `lease list`, `work-point list`, `evidence add`.
   → verify: `Select-String -Path opencode-assets/agents/project.md -Pattern "goal current|lease list|work-point list|evidence add" -NotMatch`
 

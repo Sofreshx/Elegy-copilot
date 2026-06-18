@@ -370,6 +370,29 @@ function detectTerminal() {
   if (platform !== 'win32') return null;
 
   const { execSync } = require('child_process');
+
+  // 1. Probe WSL (highest priority — always preferred if available)
+  try {
+    const wsl = execSync('wsl.exe --status', { timeout: 3000, stdio: 'pipe' }).toString();
+    if (wsl.includes('Default Distribution')) {
+      return { type: 'wsl', cmd: 'wsl.exe', name: 'WSL' };
+    }
+  } catch { /* wsl not available */ }
+
+  // 2. Probe Git Bash (avoid WSL's stub bash.exe in System32)
+  try {
+    const bash = execSync('where bash.exe', { timeout: 2000, stdio: 'pipe' }).toString().trim();
+    if (bash && !bash.includes('System32')) {
+      return { type: 'gitbash', cmd: bash.split('\n')[0].trim(), name: 'Git Bash' };
+    }
+  } catch { /* bash not found in PATH */ }
+
+  // 3. Probe Git Bash via environment variable
+  if (process.env.OPENCODE_GIT_BASH_PATH) {
+    return { type: 'gitbash', cmd: process.env.OPENCODE_GIT_BASH_PATH, name: 'Git Bash' };
+  }
+
+  // 4. Existing probes: wt.exe, pwsh.exe, powershell.exe
   const candidates = [
     { cmd: 'wt.exe', type: 'wt' },
     { cmd: 'pwsh.exe', type: 'pwsh' },
@@ -393,6 +416,15 @@ function buildLauncherCommand(launcher, repoPath, platform, terminalInfo) {
   if (platform === 'win32') {
     // --- Terminal launcher ---
     if (isTerminalObj) {
+      // WSL terminal — wsl.exe opens its own terminal window
+      if (terminalInfo && terminalInfo.type === 'wsl') {
+        const wslPath = repoPath.replace(/^([A-Z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`).replace(/\\/g, '/');
+        return { cmd: 'wsl.exe', args: ['--cd', wslPath] };
+      }
+      // Git Bash terminal — bash.exe opens its own terminal window when spawned detached
+      if (terminalInfo && terminalInfo.type === 'gitbash') {
+        return { cmd: terminalInfo.cmd, args: ['-c', `cd '${repoPath}' && exec bash`] };
+      }
       if (terminalInfo && terminalInfo.type === 'wt') {
         return { cmd: 'wt.exe', args: ['-d', repoPath, 'pwsh', '-NoExit'] };
       }
@@ -412,6 +444,15 @@ function buildLauncherCommand(launcher, repoPath, platform, terminalInfo) {
       };
       const agentSubCommand = AGENT_SUBCOMMANDS[launcher.id] || `${launcher.command} .`;
 
+      // WSL agent — wsl.exe opens its own terminal window
+      if (terminalInfo && terminalInfo.type === 'wsl') {
+        const wslPath = repoPath.replace(/^([A-Z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`).replace(/\\/g, '/');
+        return { cmd: 'wsl.exe', args: ['--cd', wslPath, '--', agentSubCommand] };
+      }
+      // Git Bash agent — bash.exe opens its own terminal window when spawned detached
+      if (terminalInfo && terminalInfo.type === 'gitbash') {
+        return { cmd: terminalInfo.cmd, args: ['-c', `cd '${repoPath}' && ${agentSubCommand} && exec bash`] };
+      }
       if (terminalInfo && terminalInfo.type === 'wt') {
         return { cmd: 'wt.exe', args: ['-d', repoPath, 'pwsh', '-NoExit', '-Command', agentSubCommand] };
       }

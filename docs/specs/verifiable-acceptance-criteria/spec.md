@@ -4,6 +4,8 @@ title: Verifiable Acceptance Criteria
 status: draft
 type: contract
 updated: 2026-06-04
+liveness_skip_paths:
+  - opencode-assets/agents/spec.md
 ---
 
 # Verifiable Acceptance Criteria
@@ -33,8 +35,8 @@ Acceptance criteria across specs and project plans must include concrete verific
 - **R5:** The spec-authoring skill template and authoring rules must reflect the required verification method format.
 - **R6:** The spec-review skill must explicitly check that each acceptance check has a concrete verification method, not just that it is "observable."
 - **R7:** The spec-driven-development doc (`docs/system/spec-driven-development.md`) must show an updated example with verification methods.
-- **R8:** The spec lane agent and reviewer agent instructions must reference verification methods in their acceptance criteria guidance.
-- **R8b:** The project lane agent (`opencode-assets/agents/project.md`) must reference running acceptance verification methods as part of its Phase 3 validation standard.
+- **R8:** The spec-authoring skill and reviewer agent instructions must reference verification methods in their acceptance criteria guidance.
+- **R8b:** The project lane agent (`opencode-assets/agents/project.md`) must reference running acceptance verification methods as part of its validation standard (via the `project-workflow` skill).
 - **R9:** Existing spec examples (the one in `docs/system/spec-driven-development.md` and any in `specs/`) are updated to the new format.
 
 For existing specs where the implementer lacks domain knowledge to write meaningful verification methods, add a placeholder `→ verify: pending — author review needed` and do not block the change on perfect verification lines. The goal is structural compliance; content quality is the spec author's responsibility.
@@ -74,8 +76,8 @@ The `→ verify:` marker is the canonical way to attach a verification method to
   → verify: `rg -i "verification method|verify line|concrete check" catalog-assets/shared-skills/spec-review/SKILL.md` returns at least 1 match
 - [ ] Spec-driven-development doc example includes `→ verify:` lines
   → verify: `rg "→ verify:" docs/system/spec-driven-development.md` returns at least 1 match
-- [ ] Spec lane agent Phase 4 Verify mentions running acceptance verification methods
-  → verify: `rg -i "acceptance.*verif|verify.*acceptance|verification method" opencode-assets/agents/spec.md` returns at least 1 match
+- [ ] Spec lane agent Phase 4 Verify mentions running acceptance verification methods — MOOT (spec lane agent was deleted)
+  → verify: spec lane agent was removed; hardening absorbed into `spec-authoring` skill
 - [ ] Reviewer agent spec-review mode mentions verification methods in testability check
   → verify: `rg -i "verification method|verify line" opencode-assets/agents/reviewer.md` returns at least 1 match
 - [ ] Project lane agent references acceptance verification methods in its validation standard
@@ -88,7 +90,7 @@ The `→ verify:` marker is the canonical way to attach a verification method to
 - `scripts/validate-specs.js`
 - `scripts/validate-planpack.js`
 - `docs/system/spec-driven-development.md`
-- `opencode-assets/agents/spec.md`
+- `opencode-assets/agents/spec.md` — deleted during lane restructuring; R8 work was absorbed into skills
 - `opencode-assets/agents/reviewer.md`
 - `opencode-assets/agents/project.md`
 

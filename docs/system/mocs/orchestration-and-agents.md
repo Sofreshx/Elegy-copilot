@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-04-27
+updated: 2026-06-15
 category: system
 status: current
 doc_kind: moc
@@ -36,11 +36,12 @@ related: [system-docs-index]
 - Governance lanes: [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
 - Documentation/structure governance: [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
 - Repo setup governance: [[repo-setup-governance]] [docs/system/repo-setup-governance.md](docs/system/repo-setup-governance.md)
-- Reviewer lane contract: [[reviewer-lane-governance]] [docs/system/reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)
+- Reviewer contract: [[reviewer-lane-governance]] [docs/system/reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)
 - Follow-up and research governance: [[follow-up-discovery-governance]] [docs/system/follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
 - High-level goal contract and unresolved-goal carryover: [[goal-contract-governance]] [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md)
 - System upgrade direction: [[system-upgrade-direction-2026]] [docs/system/system-upgrade-direction-2026.md](docs/system/system-upgrade-direction-2026.md)
 - Software design concepts: [[moc-software-design-concepts]] [docs/system/mocs/software-design-concepts.md](docs/system/mocs/software-design-concepts.md)
+- Windows shell optimization for agents: [[windows-shell-optimization]] [docs/system/windows-shell-optimization.md](docs/system/windows-shell-optimization.md)
 
 ## Depends on
 

@@ -4,6 +4,8 @@ title: Spec-Driven Development System Hardening
 status: draft
 type: workflow
 updated: 2026-06-08
+liveness_skip_paths:
+  - opencode-assets/agents/spec.md
 ---
 
 # Spec-Driven Development System Hardening
@@ -22,8 +24,8 @@ The spec-driven development system produces durable requirements artifacts but t
 - `docs/specs/planning-visibility-canonicalization/spec.md` (status: draft) — `supersedes` field could reference superseded specs but no validation exists for cross-spec ID resolution
 - `docs/specs/align-elegy-db-assets/spec.md` (status: draft) — effectively superseded by `planning-visibility-canonicalization` but not marked as such
 - `docs/specs/planning-explorer-view/spec.md` (status: draft) — effectively superseded by `planning-visibility-canonicalization` but not marked as such
-- `opencode-assets/agents/spec.md` — spec lane agent with 6 phases; Phase 2 mentions `--strict` but with inconsistent language; Phase 4 mentions acceptance verification but not by explicit `→ verify:` reference; no validation-failure gate in Safety section
-- `docs/specs/verifiable-acceptance-criteria/spec.md` (status: draft) — this spec builds on verifiable-acceptance-criteria's `→ verify:` format (R1), shares the same validator file (`scripts/validate-specs.js`), and modifies overlapping skill/agent files (`catalog-assets/shared-skills/spec-review/SKILL.md`, `catalog-assets/shared-skills/spec-authoring/SKILL.md`, `opencode-assets/agents/spec.md`). Implementation ordering must coordinate to avoid merge conflicts on the shared files.
+- `opencode-assets/agents/spec.md` — (deleted in agentic-lanes-quality-v2; spec authoring now handled by `spec-authoring` skill and `project-workflow` skill)
+- `docs/specs/verifiable-acceptance-criteria/spec.md` (status: draft) — this spec builds on verifiable-acceptance-criteria's `→ verify:` format (R1), shares the same validator file (`scripts/validate-specs.js`), and modifies overlapping skill/agent files (`catalog-assets/shared-skills/spec-review/SKILL.md`, `catalog-assets/shared-skills/spec-authoring/SKILL.md`). Implementation ordering must coordinate to avoid merge conflicts on the shared files.
 
 ## Requirements
 
@@ -98,16 +100,9 @@ Mark the two specs that are effectively superseded by `planning-visibility-canon
 - R8.3: `docs/specs/planning-visibility-canonicalization/spec.md`: add `supersedes: [align-elegy-db-assets, planning-explorer-view]` to frontmatter
 - R8.4: After cleanup, run `node scripts/generate-spec-index.js` to regenerate the index with corrected statuses
 
-### R9 — Spec Lane Agent Consistency
+### R9 — Spec Lane Agent Consistency — MOOT
 
-Update `opencode-assets/agents/spec.md` to align with the hardened system.
-
-- R9.1: Phase 1.6 — Clarify that recording in elegy-planning is OPTIONAL; specs are standalone requirements artifacts
-- R9.2: Phase 2.2 — Change `--strict` mention to integrated validation: "Run `node scripts/validate-specs.js --strict` on the spec and fix all errors before review." Verify current text is already correct and update if needed.
-- R9.3: Phase 4.2 — Change to explicitly reference: "Run `→ verify:` commands from the spec's Acceptance Checks section and capture output as Validation Evidence."
-- R9.4: Safety section — Add: "If the spec validator (`validate-specs.js --strict`) fails at any phase, stop and fix the spec before proceeding. Never bypass a failing validation gate."
-- R9.5: Prerequisites — Reference the pre-commit hook: "Ensure `node scripts/install-spec-hooks.mjs` has been run once in this repo."
-- R9.6: Add a CI expectation note: "Spec validation runs in CI on every push. Commits that break spec validation will be rejected."
+`opencode-assets/agents/spec.md` was deleted during the lane agent restructuring. Its hardening work (R9.1–9.6) was absorbed into the `spec-authoring` skill and `project-workflow` skill instead. No spec lane agent file exists to update.
 
 ### R10 — Documentation Updates
 
@@ -171,11 +166,8 @@ Ensure the CI gate (R1) can pass on Linux by handling machine-local paths in exi
    → verify: `rg "superseded_by: planning-visibility-canonicalization" docs/specs/planning-explorer-view/spec.md` returns at least 1 match
    → verify: `rg "supersedes:.*align-elegy-db-assets" docs/specs/planning-visibility-canonicalization/spec.md` returns at least 1 match
    → verify: `rg "supersedes:.*planning-explorer-view" docs/specs/planning-visibility-canonicalization/spec.md` returns at least 1 match
-- [ ] Spec lane agent `opencode-assets/agents/spec.md` includes hardening gates
-  → verify: `rg "fix all errors before review" opencode-assets/agents/spec.md` returns at least 1 match
-  → verify: `rg "Never bypass a failing validation gate" opencode-assets/agents/spec.md` returns at least 1 match
-  → verify: `rg "install-spec-hooks" opencode-assets/agents/spec.md` returns at least 1 match
-  → verify: `rg "spec validation runs in CI on every push" opencode-assets/agents/spec.md` returns at least 1 match
+- [ ] Spec lane agent hardening was absorbed into `spec-authoring` skill and `project-workflow` skill (spec lane agent was deleted during restructuring)
+  → verify: pending — spec lane agent was removed
 - [ ] Documentation updates reference the new hardening mechanisms
   → verify: `rg "pre-commit|freshness warning|validate:specs" docs/system/spec-driven-development.md` returns matches for all three terms
   → verify: `rg "validate-specs" catalog-assets/shared-skills/spec-review/SKILL.md` returns at least 1 match referencing plan.md check
@@ -206,7 +198,7 @@ Ensure the CI gate (R1) can pass on Linux by handling machine-local paths in exi
 - `docs/specs/planning-explorer-view/spec.md` — status changed to superseded
 - `docs/specs/planning-visibility-canonicalization/spec.md` — added supersedes
 - `docs/specs/index.md` — regenerated after cleanup
-- `opencode-assets/agents/spec.md` — R9 updates
+- `opencode-assets/agents/spec.md` — R9 (moot — agent file was deleted)
 - `docs/system/spec-driven-development.md` — R10.1 updates
 - `catalog-assets/shared-skills/spec-review/SKILL.md` — R10.2
 - `catalog-assets/shared-skills/spec-authoring/SKILL.md` — R10.3

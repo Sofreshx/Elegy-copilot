@@ -83,19 +83,24 @@ export const SHIPPED_ASSETS = [
   skill('opencode-project-conventions-governance-skill', 'engine-assets/skills/project-conventions-governance'),
   skill('opencode-security-skill', 'engine-assets/skills/security'),
   skill('opencode-worktree-skill', 'opencode-assets/skills/worktree'),
+  skill('opencode-project-workflow-skill', 'opencode-assets/skills/project-workflow'),
   plugin('opencode-worktree-plugin', 'opencode-assets/plugins/worktree.js'),
 
   // OpenCode native agents
   agent('opencode-agent-quick', 'opencode-assets/agents/quick.md'),
-  agent('opencode-agent-standard', 'opencode-assets/agents/standard.md'),
-  agent('opencode-agent-spec', 'opencode-assets/agents/spec.md'),
   agent('opencode-agent-project', 'opencode-assets/agents/project.md'),
   agent('opencode-agent-impl', 'opencode-assets/agents/impl.md'),
   agent('opencode-agent-reviewer', 'opencode-assets/agents/reviewer.md'),
   agent('opencode-agent-explorer', 'opencode-assets/agents/explorer.md'),
+  agent('opencode-agent-scout', 'opencode-assets/agents/scout.md'),
+  agent('notes-enhance', 'opencode-assets/agents/notes-enhance.md'),
+  agent('notes-reexamine', 'opencode-assets/agents/notes-reexamine.md'),
+  agent('notes-research', 'opencode-assets/agents/notes-research.md'),
+  agent('notes-deduplicate', 'opencode-assets/agents/notes-deduplicate.md'),
   // OpenCode plugins and skills
   plugin('opencode-plugins-package-json', 'opencode-assets/plugins/package.json'),
   plugin('opencode-planning-plugin', 'opencode-assets/plugins/planning.js'),
+  plugin('opencode-notify-plugin', 'opencode-assets/plugins/notify.js'),
   skill('opencode-planning-tools-skill', 'opencode-assets/skills/planning-tools'),
 
   instructions('antigravity-global-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {

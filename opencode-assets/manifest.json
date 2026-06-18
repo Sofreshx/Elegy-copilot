@@ -79,44 +79,34 @@
       "destination": "agents/reviewer.md"
     },
     {
-      "id": "opencode-agent-spec",
+      "id": "opencode-agent-scout",
       "type": "agent",
-      "source": "opencode-assets/agents/spec.md",
-      "destination": "agents/spec.md"
-    },
-    {
-      "id": "opencode-agent-standard",
-      "type": "agent",
-      "source": "opencode-assets/agents/standard.md",
-      "destination": "agents/standard.md"
+      "source": "opencode-assets/agents/scout.md",
+      "destination": "agents/scout.md"
     },
     {
       "id": "notes-enhance",
       "type": "agent",
       "source": "opencode-assets/agents/notes-enhance.md",
-      "destination": "agents/notes-enhance.md",
-      "loadMode": "managed"
+      "destination": "agents/notes-enhance.md"
     },
     {
       "id": "notes-reexamine",
       "type": "agent",
       "source": "opencode-assets/agents/notes-reexamine.md",
-      "destination": "agents/notes-reexamine.md",
-      "loadMode": "managed"
+      "destination": "agents/notes-reexamine.md"
     },
     {
       "id": "notes-research",
       "type": "agent",
       "source": "opencode-assets/agents/notes-research.md",
-      "destination": "agents/notes-research.md",
-      "loadMode": "managed"
+      "destination": "agents/notes-research.md"
     },
     {
       "id": "notes-deduplicate",
       "type": "agent",
       "source": "opencode-assets/agents/notes-deduplicate.md",
-      "destination": "agents/notes-deduplicate.md",
-      "loadMode": "managed"
+      "destination": "agents/notes-deduplicate.md"
     },
     {
       "id": "opencode-code-review-skill",
@@ -190,6 +180,12 @@
       "type": "plugin",
       "source": "opencode-assets/plugins/package.json",
       "destination": "plugins/package.json"
+    },
+    {
+      "id": "opencode-notify-plugin",
+      "type": "plugin",
+      "source": "opencode-assets/plugins/notify.js",
+      "destination": "plugins/notify.js"
     },
     {
       "id": "opencode-project-conventions-governance-skill",
@@ -266,16 +262,16 @@
       "destination": "plugins/worktree.js"
     },
     {
-      "id": "opencode-notify-plugin",
-      "type": "plugin",
-      "source": "opencode-assets/plugins/notify.js",
-      "destination": "plugins/notify.js"
-    },
-    {
       "id": "opencode-worktree-skill",
       "type": "skill",
       "source": "opencode-assets/skills/worktree",
       "destination": "skills/worktree"
+    },
+    {
+      "id": "opencode-project-workflow-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/project-workflow",
+      "destination": "skills/project-workflow"
     }
   ],
   "sourcePatterns": []

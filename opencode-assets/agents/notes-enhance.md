@@ -1,6 +1,11 @@
 ---
 mode: subagent
 hidden: true
+model: deepseek/deepseek-v4-pro
+reasoningEffort: max
+temperature: 0.3
+color: accent
+steps: 30
 description: "Enhance a note: improve clarity, fix grammar, expand ideas, restructure for readability. Write access enabled."
 permission:
   read: allow

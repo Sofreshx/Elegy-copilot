@@ -1,6 +1,11 @@
 ---
 mode: subagent
 hidden: true
+model: deepseek/deepseek-v4-pro
+reasoningEffort: max
+temperature: 0.2
+color: accent
+steps: 30
 description: "Re-examine a previous agent run's output with a fresh perspective. Compare approaches, challenge assumptions."
 permission:
   read: allow

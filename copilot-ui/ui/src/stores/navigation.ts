@@ -23,7 +23,7 @@ export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | '
 export type MaintenanceSection = 'updates' | 'sandboxes' | 'diagnostics';
 export type WizardType = 'project' | 'asset' | null;
 
-export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'telemetry' | 'maintenance' | 'runtime' | 'codex' | 'claude-code' | 'github' | 'notes';
+export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'telemetry' | 'maintenance' | 'runtime' | 'codex' | 'claude-code' | 'github' | 'shell' | 'notes';
 
 export interface SettingsNavItem {
   id: SettingsSection;
@@ -41,6 +41,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
   { id: 'codex', label: 'Codex', icon: 'codex' },
   { id: 'claude-code', label: 'Claude Code', icon: 'claude-code' },
   { id: 'github', label: 'GitHub CLI', icon: 'git-branch' },
+  { id: 'shell', label: 'Shell', icon: 'play' },
   { id: 'notes', label: 'Notes', icon: 'file-text' },
 ];
 

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, rm, readFile, readdir, stat, writeFile, cp, copyFile, rename } from "node:fs/promises";
 import { join, basename, dirname, resolve as pathResolve } from "node:path";
 import { existsSync } from "node:fs";
-import { execFile } from "node:child_process";
+import { execFile, execSync } from "node:child_process";
 
 const WORKTREE_BASE = process.env.OPENCODE_WORKTREE_BASE
   || join(process.env.HOME || process.env.USERPROFILE || "~", ".local", "share", "opencode", "worktree");
@@ -367,11 +367,42 @@ function runGit(args, cwd) {
   });
 }
 
+// Detect best available shell on Windows at plugin init time.
+// Uses lightweight PATH probes — no heavy WSL or registry checks needed at runtime.
+function detectShell() {
+  if (process.platform !== "win32") return null;
+  try {
+    // Prefer Git Bash if available
+    const gitBash = execSync("where bash.exe", { timeout: 2000, stdio: "pipe", encoding: "utf8" }).toString().trim();
+    if (gitBash) return { path: gitBash.split("\n")[0].trim(), type: "bash" };
+  } catch {}
+  try {
+    // Fall back to pwsh
+    const pwsh = execSync("where pwsh.exe", { timeout: 2000, stdio: "pipe", encoding: "utf8" }).toString().trim();
+    if (pwsh) return { path: pwsh.split("\n")[0].trim(), type: "pwsh" };
+  } catch {}
+  // Last resort: keep cmd
+  return { path: "cmd", type: "cmd" };
+}
+
+const detectedShell = detectShell();
+
 function runShellCommand(cmd, cwd) {
   return new Promise((resolve, reject) => {
-    const isWin = process.platform === "win32";
-    const shell = isWin ? "cmd" : "/bin/sh";
-    const shellArgs = isWin ? ["/c", cmd] : ["-c", cmd];
+    let shell, shellArgs;
+
+    if (detectedShell && detectedShell.type === "bash") {
+      shell = detectedShell.path;
+      shellArgs = ["-c", cmd];
+    } else if (detectedShell && detectedShell.type === "pwsh") {
+      shell = detectedShell.path;
+      shellArgs = ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", cmd];
+    } else {
+      const isWin = process.platform === "win32";
+      shell = isWin ? "cmd" : "/bin/sh";
+      shellArgs = isWin ? ["/c", cmd] : ["-c", cmd];
+    }
+
     execFile(shell, shellArgs, { cwd, timeout: 120000 }, (err, stdout, stderr) => {
       if (err) reject(new Error("Command failed: " + cmd + ": " + (stderr || err.message)));
       else resolve(stdout.trim());

@@ -122,6 +122,8 @@ When the current workspace is the Instruction Engine / Elegy Copilot repo:
 - Start repo-rule work at `docs/system/index.md`, then the nearest MOC, then the smallest canonical node.
 - For spec-driven work, follow `docs/system/spec-driven-development.md`; durable specs live at `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`, and the repo-local validator is `node scripts/validate-specs.js <spec-root>`.
 
+Specs describe intent (requirements). Docs describe state (how it works). ADRs record decisions (what was chosen). See `docs-practice` skill for structure guidance.
+
 ## Implementation Friction Capture
 - Constructive complaints about hard-to-work-with code are allowed when they help delivery.
 - When recurring implementation friction is detected, capture it briefly in chat or the user-requested tracking surface, then continue delivery without deep side-tracking.

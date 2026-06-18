@@ -1,6 +1,6 @@
 ---
 created: 2026-05-11
-updated: 2026-05-29
+updated: 2026-06-16
 category: system
 status: current
 doc_kind: node
@@ -33,7 +33,7 @@ bash scripts/opencode-install.sh
 ## Operating Model
 
 - Built-in agents stay primary: `Build`, `Plan`, `Explore`, `Scout`, `General`.
-- Primary skills: `skill-discovery`, `rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, `stack-detector`, `worktree`, `elegy-obsidian`.
+- Primary skills: `skill-discovery`, `rubberduck-plan-review`, `planning-tools`, `project-workflow`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, `stack-detector`, `worktree`, `elegy-obsidian`.
 - Planning, review, and spec skills are installed by default under `~/.config/opencode/skills/`; load them with the skill tool only when they materially improve the current step.
 - Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`.
 - Shared installed planning and review behavior now narrows constraints to the minimum active set and treats ADRs as key-decision records rather than default documentation for every non-trivial change.
@@ -45,14 +45,26 @@ bash scripts/opencode-install.sh
 
 ## Agentic Lanes
 
-OpenCode provides four public lane agents for matching effort to task scope. Select the agent via Tab cycling in OpenCode:
+Instruction Engine ships two primary lane agents for matching effort to task scope. Select the agent
+via Tab cycling in OpenCode alongside the built-in Build and Plan agents.
 
 - **quick**: Small UI tweaks and tiny bug fixes; Flash only; no spec or roadmap
-- **standard**: Scoped features and normal bug fixes; Flash for execution, Pro at gates
-- **spec**: Contract/API/user-facing behavior; spec-first workflow; Pro for spec review
 - **project**: Multi-session roadmap work; Elegy Planning, worktree, evidence, review
 
-See `opencode-assets/home/AGENTS.md` (installed to `~/.config/opencode/AGENTS.md`) for the full OpenCode Method specification.
+### Curated Subagents
+
+The following subagents extend OpenCode's built-in agents for scoped implementation, exploration,
+review, and research. Invoke via the Task tool or `@mention` from any primary agent.
+
+| Agent | Access | Description |
+|---|---|---|
+| `impl` | Write-capable | Bounded implementation — file edits, commands, validation |
+| `reviewer` | Read-only | Review gate — code, spec, plan, and evidence review |
+| `explorer` | Read-only | Codebase discovery — patterns, traces, dependencies |
+| `scout` | Read-only (restricted bash) | External docs and dependency research |
+
+Support subagents are leaf-only. `impl`, `explorer`, `reviewer`, `scout`, and managed note subagents
+must deny Task delegation. Validate with `node scripts/validate-opencode-agent-topology.js`.
 
 ### Provider Profiles
 
@@ -60,7 +72,7 @@ Profiles configure model routing across five task roles. Each profile maps model
 
 | Role | Description | Agents |
 |---|---|---|
-| `planning` | Planning, spec authoring, roadmap work | `plan`, `standard`, `spec`, `project` |
+| `planning` | Planning, spec authoring, roadmap work | `plan`, `project` |
 | `implementation` | Code edits, file writes, commands | `build`, `impl`, `quick` |
 | `exploration` | Read-only code discovery | `explore`, `explorer` |
 | `review` | Review gates (spec, plan, code) | `reviewer` |

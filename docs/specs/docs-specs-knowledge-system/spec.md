@@ -13,6 +13,7 @@ liveness_skip_paths:
   - specs/<slug>/spec.md
   - spec-dev/SKILL.md
   - spec-review/SKILL.md
+  - opencode-assets/agents/spec.md
 ---
 
 # Docs / Specs Knowledge System Enhancement
@@ -74,7 +75,7 @@ Make `docs/` the canonical knowledge root for Elegy Copilot and bootstrapped rep
 ### R6: Update all shipped harness instructions
 - `codex-assets/home/AGENTS.md`: replace all `specs/<slug>/spec.md` with `docs/specs/<slug>/spec.md`
 - `opencode-assets/home/AGENTS.md`: replace all `specs/<slug>/spec.md` with `docs/specs/<slug>/spec.md`
-- `opencode-assets/agents/spec.md`: replace all `specs/<slug>/spec.md` with `docs/specs/<slug>/spec.md`, update hardcoded `--strict specs` to `--strict docs/specs`
+- `opencode-assets/agents/spec.md`: replace all `specs/<slug>/spec.md` with `docs/specs/<slug>/spec.md`, update hardcoded `--strict specs` to `--strict docs/specs` (NOTE: file was later deleted during lane restructuring — this was implemented before deletion)
 - `antigravity-assets/home/GEMINI.md`: replace all `specs/<spec-slug>/spec.md` with `docs/specs/<spec-slug>/spec.md`
 - `engine-assets/copilot-instructions.md`: replace `specs/<spec-slug>/spec.md` with `docs/specs/<spec-slug>/spec.md`
 
@@ -140,7 +141,7 @@ Make `docs/` the canonical knowledge root for Elegy Copilot and bootstrapped rep
 - No hardcoded `specs/` path remains in scripts, hooks, or CI
   → verify: `rg "[\"']specs[\"']" scripts/ .github/workflows/ --type-add 'code:*.{js,mjs,ts,yml,yaml}'` returns zero results for the old hardcoded path (allowing only `docs/specs`) 
 - All four harness home files reference `docs/specs/` not `specs/`
-  → verify: `rg "specs/<" codex-assets/home/ opencode-assets/home/ opencode-assets/agents/spec.md antigravity-assets/home/GEMINI.md engine-assets/copilot-instructions.md` returns zero matches for old path pattern
+  → verify: `rg "specs/<" codex-assets/home/ opencode-assets/home/ antigravity-assets/home/GEMINI.md engine-assets/copilot-instructions.md` returns zero matches for old path pattern (opencode-assets/agents/spec.md deleted; path removed from check)
 - Repo setup profile validates with updated spec paths
   → verify: `node scripts/generate-repo-setup-profiles.mjs && node scripts/validate-repo-setup-profiles.js` exits 0
 - `npm run ci:local` passes end-to-end
@@ -170,7 +171,7 @@ Make `docs/` the canonical knowledge root for Elegy Copilot and bootstrapped rep
 - `guidelines.md`
 - `codex-assets/home/AGENTS.md`
 - `opencode-assets/home/AGENTS.md`
-- `opencode-assets/agents/spec.md`
+- `opencode-assets/agents/spec.md` — deleted during lane restructuring; migration work was completed before deletion
 - `antigravity-assets/home/GEMINI.md`
 - `engine-assets/copilot-instructions.md`
 - `engine-assets/skills/repo-setup-governance/profile-definitions.json`

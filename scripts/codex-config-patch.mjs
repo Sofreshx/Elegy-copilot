@@ -3,6 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getBestShell } from './shell-detect.mjs';
 
 export const DEFAULT_REVIEW_MODEL = 'deepseek-v4-pro';
 export const DEFAULT_PROFILE_NAME = 'instruction_engine_plan_review';
@@ -43,6 +44,7 @@ function parseArgs(argv) {
     enableExternalProviders: true,
     providerId: '',
     modelId: '',
+    shell: '',
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -117,6 +119,18 @@ function parseArgs(argv) {
         throw new Error('Missing required --model-id <id>');
       }
       args.modelId = argv[i] || '';
+      continue;
+    }
+    if (value.startsWith('--shell=')) {
+      args.shell = value.slice('--shell='.length);
+      continue;
+    }
+    if (value === '--shell') {
+      i += 1;
+      if (i >= argv.length || String(argv[i]).startsWith('--')) {
+        throw new Error('Missing required --shell <value>');
+      }
+      args.shell = argv[i] || '';
       continue;
     }
     throw new Error(`Unknown arg: ${value}`);
@@ -346,26 +360,50 @@ const isMainModule = process.argv[1]
   : false;
 
 if (isMainModule) {
-  try {
-    const args = parseArgs(process.argv.slice(2));
-    const result = patchConfigFile(args.config, {
-      dryRun: args.dryRun,
-      reviewModel: args.reviewModel,
-      profileName: args.profileName,
-      enableExternalProviders: args.enableExternalProviders,
-      providerId: args.providerId || undefined,
-      modelId: args.modelId || undefined,
-    });
+  (async () => {
+    try {
+      const args = parseArgs(process.argv.slice(2));
 
-    if (args.dryRun) {
-      process.stdout.write(result.content);
-    } else if (result.changed) {
-      console.log(`[CONFIG] ${args.config}`);
-    } else {
-      console.log(`[SKIP]   ${args.config} (up-to-date)`);
+      // Resolve shell: prefer --shell flag, otherwise auto-detect
+      let shellValue = args.shell || null;
+      if (!shellValue) {
+        const bestShell = await getBestShell({ skipSlowProbes: true });
+        if (bestShell) {
+          shellValue = bestShell.path.includes('bash') ? 'bash' : bestShell.path.includes('pwsh') ? 'pwsh' : 'cmd';
+        }
+      }
+
+      const result = patchConfigFile(args.config, {
+        dryRun: args.dryRun,
+        reviewModel: args.reviewModel,
+        profileName: args.profileName,
+        enableExternalProviders: args.enableExternalProviders,
+        providerId: args.providerId || undefined,
+        modelId: args.modelId || undefined,
+      });
+
+      // Apply [windows] shell section if not already present
+      let finalContent = result.content;
+      let shellChanged = false;
+      if (shellValue && !finalContent.includes('[windows]')) {
+        finalContent = ensureTrailingNewline(finalContent) + `[windows]\nshell = "${shellValue}"\n`;
+        shellChanged = true;
+      }
+
+      if (args.dryRun) {
+        process.stdout.write(finalContent);
+      } else if (result.changed || shellChanged) {
+        if (shellChanged && !args.dryRun) {
+          fs.mkdirSync(path.dirname(args.config), { recursive: true });
+          fs.writeFileSync(args.config, finalContent, 'utf8');
+        }
+        console.log(`[CONFIG] ${args.config}`);
+      } else {
+        console.log(`[SKIP]   ${args.config} (up-to-date)`);
+      }
+    } catch (error) {
+      console.error(error.message || String(error));
+      process.exit(1);
     }
-  } catch (error) {
-    console.error(error.message || String(error));
-    process.exit(1);
-  }
+  })();
 }

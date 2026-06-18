@@ -77,19 +77,22 @@ async function main() {
       assert.ok(opencodeConfig.plugin.includes('./plugins/planning.js'), 'planning plugin should be registered');
       assert.ok(opencodeConfig.plugin.includes('./plugins/notify.js'), 'notify plugin should be registered');
 
-      // R8: verify all 4 lane agents are installed
-      for (const agent of ['quick', 'standard', 'spec', 'project']) {
+      // R8: verify all lane agents are installed
+      for (const agent of ['quick', 'project']) {
         assert.ok(fs.existsSync(path.join(agentsDir, `${agent}.md`)), `lane agent ${agent}.md should exist`);
       }
-      // R8: verify all 3 required subagents are installed
-      for (const subagent of ['impl', 'reviewer', 'explorer']) {
+      // R8: verify all shipped subagents are installed
+      for (const subagent of ['impl', 'reviewer', 'explorer', 'scout']) {
         assert.ok(fs.existsSync(path.join(agentsDir, `${subagent}.md`)), `subagent ${subagent}.md should exist`);
       }
 
-      // R9: verify agent count is exactly 4 primary lanes + 3 hidden subagents = 7 total
+      // R9: verify installed agent count matches the manifest-managed agent surface.
       const agentFiles = fs.readdirSync(agentsDir).filter(f => f.endsWith('.md'));
-      assert.strictEqual(agentFiles.length, 7,
-        `agent count should be exactly 7 (4 lanes + 3 subagents), found ${agentFiles.length}: ${agentFiles.join(', ')}`);
+      const manifestPath = path.resolve(__dirname, '..', 'opencode-assets', 'manifest.json');
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      const manifestAgentCount = manifest.assets.filter(a => a.type === 'agent').length;
+      assert.strictEqual(agentFiles.length, manifestAgentCount,
+        `agent count should match manifest (${manifestAgentCount}), found ${agentFiles.length}: ${agentFiles.join(', ')}`);
 
       const secondSummary = await installer.runInstall({
         opencodeHome,
@@ -228,14 +231,7 @@ async function main() {
     }
   });
 
-  // R8: lane quality validators pass against source files (run as subprocess)
-  await test('lane doc refs validator passes', async () => {
-    execFileSync('node', ['scripts/validate-lane-doc-refs.js'], {
-      cwd: path.resolve(__dirname, '..'),
-      stdio: 'pipe',
-    });
-  });
-
+  // R8: shipped validators pass against source files (run as subprocess)
   await test('lane prompt sections validator passes', async () => {
     execFileSync('node', ['scripts/validate-lane-prompt-sections.js'], {
       cwd: path.resolve(__dirname, '..'),
@@ -243,8 +239,22 @@ async function main() {
     });
   });
 
+  await test('lane doc refs validator passes', async () => {
+    execFileSync('node', ['scripts/validate-lane-doc-refs.js'], {
+      cwd: path.resolve(__dirname, '..'),
+      stdio: 'pipe',
+    });
+  });
+
   await test('profile role coverage validator passes', async () => {
     execFileSync('node', ['scripts/validate-profile-role-coverage.js'], {
+      cwd: path.resolve(__dirname, '..'),
+      stdio: 'pipe',
+    });
+  });
+
+  await test('opencode agent topology validator passes', async () => {
+    execFileSync('node', ['scripts/validate-opencode-agent-topology.js'], {
       cwd: path.resolve(__dirname, '..'),
       stdio: 'pipe',
     });
@@ -328,15 +338,15 @@ async function main() {
       
       // Verify profile injection shows all agents assigned to correct roles
       if (summary.profileInjection && summary.profileInjection.length > 0) {
-        // impl should be on implementation role (Flash)
-        const implInjection = summary.profileInjection.find(r => r.agent === 'impl');
-        assert.ok(implInjection, 'impl should be in profile injection');
-        assert.ok(implInjection.newModel.includes('flash'), 'impl should route to Flash');
-        
         // project should be on planning role (Pro)
         const projectInjection = summary.profileInjection.find(r => r.agent === 'project');
         assert.ok(projectInjection, 'project should be in profile injection');
         assert.ok(projectInjection.newModel.includes('pro'), 'project should route to Pro');
+        
+        // impl should be on implementation role (Flash)
+        const implInjection = summary.profileInjection.find(r => r.agent === 'impl');
+        assert.ok(implInjection, 'impl should be in profile injection');
+        assert.ok(implInjection.newModel.includes('flash'), 'impl should route to Flash');
         
         // quick should be on implementation role (Flash)
         const quickInjection = summary.profileInjection.find(r => r.agent === 'quick');

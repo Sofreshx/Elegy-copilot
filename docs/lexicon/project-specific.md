@@ -125,7 +125,7 @@ tags: [lexicon, elegy-copilot, holon]
 
 ### Canonical Doc
 **Definition:** An authoritative document in `docs/system/` that is the single source of truth for a given concept, policy, or workflow.
-**Usage:** Use to refer to docs that agents should treat as authoritative over research notes, planning docs, or conversational artifacts. Canonical docs use the doc-graph spec frontmatter.
+**Usage:** Canonical docs describe current system state — how the system works, what policies apply, what workflows are in effect. Use to refer to docs that agents should treat as authoritative over research notes, planning docs, or conversational artifacts. Distinguish from Spec (intent) and ADR (decision). Canonical docs use the doc-graph spec frontmatter.
 **Related:** Research Doc (exploratory, not authoritative), MOC (map of content), Node (canonical content page)
 **Tags:** elegy, documentation, canonical
 
@@ -137,9 +137,15 @@ tags: [lexicon, elegy-copilot, holon]
 
 ### ADR (Architecture Decision Record)
 **Definition:** A structured document capturing a significant architectural decision, its context, alternatives considered, and the chosen approach.
-**Usage:** Use for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Not for ordinary implementation choices. ADRs are durable and should be reviewed but rarely changed.
+**Usage:** Use for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Not for ordinary implementation choices. ADRs record decision state — what was chosen and why. Distinguish from Spec (intent/requirements) and Canonical Doc (current system state). ADRs are durable and should be reviewed but rarely changed.
 **Related:** Spec (broader contract), RFC (proposal, not yet decided), Decision Log (all decisions)
 **Tags:** elegy, documentation, adr
+
+### Spec
+**Definition:** A durable requirements contract describing intent — what the system should do, not how it works. The permanent requirements record.
+**Usage:** Use for requirements, allowed/behavior boundaries, and acceptance criteria. Distinguish from Canonical Doc (state — describes how the system works) and ADR (decision state — records what was chosen). Spec drift measures divergence between spec intent and implementation state.
+**Related:** Canonical Doc (state), ADR (decision), Drift (measurement), Spec-first (workflow)
+**Tags:** elegy, documentation, spec, intent
 
 ## Quality
 

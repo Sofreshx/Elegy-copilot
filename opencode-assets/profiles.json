@@ -105,8 +105,6 @@
   "roleToAgent": {
     "planning": [
       "plan",
-      "standard",
-      "spec",
       "project"
     ],
     "implementation": [
@@ -139,12 +137,11 @@
   },
   "agentRoles": {
     "quick": "small",
-    "standard": "big",
-    "spec": "big",
     "project": "big",
     "impl": "small",
     "reviewer": "review",
     "explorer": "small",
+    "scout": "big",
     "notes-enhance": "big",
     "notes-reexamine": "big",
     "notes-research": "big",

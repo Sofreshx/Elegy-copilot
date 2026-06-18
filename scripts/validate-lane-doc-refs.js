@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const LANE_AGENT_NAMES = ['lane-quick', 'lane-standard', 'lane-spec', 'lane-project'];
+const LANE_AGENT_NAMES = ['lane-quick', 'lane-project'];
 
 function toPosix(filePath) {
   return String(filePath || '').replace(/\\/g, '/');

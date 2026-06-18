@@ -130,11 +130,11 @@ updated: YYYY-MM-DD
 
 ## Intent
 
-<one compact paragraph or bullet list>
+<one compact paragraph or bullet list describing what the system should do — intent, not current state>
 
 ## Context Evidence
 
-- `<path or command>`: <why it matters>
+- `<path or command>`: <why it matters — current-state justification for the intent above>
 
 ## Requirements
 

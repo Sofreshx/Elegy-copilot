@@ -5,6 +5,7 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { createRequire } from 'module';
+import { getBestShell } from './shell-detect.mjs';
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
 import { normalizeProfile } from './lib/profile-normalizer.mjs';
 import { updateAgentModel } from './frontmatter-utils.mjs';
@@ -568,7 +569,15 @@ export async function runInstall(args = {}) {
         }
 
           try {
-          const config = readConfig(opencodeHome);
+            const config = readConfig(opencodeHome);
+
+          // Detect best available shell for Windows and add to config
+          let shellUpdated = false;
+          const bestShell = await getBestShell({ skipSlowProbes: true });
+          if (bestShell) {
+            config.shell = bestShell.path;
+            shellUpdated = true;
+          }
 
           // Write config.agentRoleModels from profile.roleModels (role-level model routing)
           if (!config.agentRoleModels || typeof config.agentRoleModels !== 'object') {
@@ -608,7 +617,7 @@ export async function runInstall(args = {}) {
             configUpdated += 1;
           }
 
-          if ((configUpdated > 0 || Object.keys(config.agentRoleModels).length > 0) && !args.dryRun) {
+          if ((configUpdated > 0 || shellUpdated || Object.keys(config.agentRoleModels).length > 0) && !args.dryRun) {
             writeConfig(opencodeHome, config);
           }
 

@@ -27,6 +27,18 @@ replace them, and it does not introduce a new orchestrator fleet.
 - Keep implementation review and validation in the existing review and validation lanes.
 - Physical spec archiving (moving specs to an archive folder) is not the default. Specs are the permanent requirements record.
 
+## Artifact Roles
+
+Specs describe intent. Docs describe state. ADRs record decisions.
+
+| Artifact | Mode | Describes | Answers |
+|----------|------|-----------|---------|
+| Spec | Intent | What the system should do (requirements) | "What should it do?" |
+| Canonical doc | State | How the system currently works | "How does it work?" |
+| ADR | Decision state | What architectural decision was made | "Why this way?" |
+
+Drift measures divergence between spec intent and implementation state.
+
 ## Repo Setup Integration
 
 - Shared spec skills install globally per harness as always-available skills; load them into active context only when the current step needs spec-driven guidance.
@@ -144,7 +156,7 @@ Durable specs follow a predictable lifecycle. The `status` field is the primary 
 |---|---|---|---|
 | `draft` | Spec is being authored, content is provisional | `approved` or superseded by another spec | Required frontmatter only |
 | `approved` | Spec has passed review and is ready to anchor planning | `implemented` or `superseded` | `approved_at` recommended |
-| `implemented` | Requirements have been met, acceptance checks pass | `superseded` (if replaced) or remains | `implemented_at` recommended; `Validation Evidence` must be non-empty |
+| `implemented` | Requirements have been met, acceptance checks pass. Spec remains as the permanent requirements record (intent realized, not state). | `superseded` (if replaced) or remains | `implemented_at` recommended; `Validation Evidence` must be non-empty |
 | `superseded` | Spec is replaced by a newer spec | terminal | `superseded_by` required; `superseded_at` recommended |
 | `abandoned` | Reviewed decision not to implement the spec | terminal | `abandoned_at` recommended; must not set `superseded_by` |
 
@@ -207,13 +219,13 @@ Freshness is advisory, not structural. The validator does not enforce time limit
 
 Specs are the durable requirements contract. `elegy-planning` is the durable execution and roadmap authority. They complement each other without merging.
 
-When a spec reaches `approved` status, the spec lane hands it to the project lane or standard lane for implementation:
+When a spec reaches `approved` status, the project lane picks it up for implementation via the `spec-planning-bridge` skill:
 
 | Role | Owner | Artifact |
 |---|---|---|
-| Requirements | spec lane | `docs/specs/<slug>/spec.md` |
+| Requirements | spec-authoring skill | `docs/specs/<slug>/spec.md` |
 | Execution planning | project lane | `elegy-planning` roadmap → plan → work points |
-| Implementation | standard lane or project lane | Code changes + validation evidence |
+| Implementation | project lane | Code changes + validation evidence |
 
 ### Handoff Contract
 
@@ -276,13 +288,15 @@ Allowed examples:
 Do not use `spec-as-source` for general application code, open-ended implementation notes, or a new
 planner abstraction.
 
+> **Note:** In spec-as-source mode, the spec IS the canonical state — code is generated from it. This is the exception to the general rule that specs describe intent. Use only when the spec is the single source of truth and other artifacts are projections.
+
 ## Workflow
 
 1. Use the `spec-dev` skill to choose `spec-first`, `spec-anchored`, or `spec-as-source`.
 2. Use `spec-authoring` to create or refine the durable spec when the work is spec-anchored or spec-as-source. The authoring gate must pass (context evidence, allowed/forbidden behavior, verifiable acceptance checks).
 3. Use `spec-review` before implementation planning when the spec should drive later work.
 4. Use `spec-planning-bridge` to link the approved spec to an `elegy-planning` roadmap or plan via `exact:primary:docs/specs/<spec-slug>/spec.md` file-scope selector.
-5. Move into the project lane (for multi-session work) or standard lane (for scoped work) after the handoff is complete.
+5. Move into the project lane after the handoff is complete.
 
 ## Specs Location
 

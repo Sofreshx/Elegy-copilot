@@ -24,9 +24,9 @@ OpenCode's built-in agents stay primary for Tab-selection:
 - `Scout` — external docs and dependency research
 - `General` — bounded delegated multi-step work
 
-These are the OpenCode-native agents available at the TUI level, distinct from the
-same-named subagents in the lane system below. Prefer the built-in `Explore` and `Scout`
-for standalone discovery; use the `explorer` subagent only inside a lane workflow.
+These are the OpenCode-native agents available at the TUI level. The `impl`, `explorer`,
+`reviewer`, and `scout` subagents (described below) extend them for scoped implementation,
+exploration, review, and research work.
 
 ## Skills
 
@@ -45,16 +45,18 @@ Primary skills available:
 - `security` — Targeted security review for vulnerabilities LLMs commonly miss (secrets in git, auth bypass, dependency confusion, path traversal, cookie security, injection)
 - `project-conventions-governance` — Repo conventions and governance
 - `planning-tools` — OpenCode planning helpers backed by the planning plugin
+- `project-workflow` — Project lane phase-by-phase execution guide (setup, plan, execute, complete)
 - `worktree` — OpenCode worktree helper skill backed by the worktree plugin
 - `commit-check-setup` — Bootstrap or update commit-check infrastructure in a repo. Copies scripts, generates `.copilot/commit-checks.json` config, runs smoke test. Use when setting up a repo for use with Elegy Copilot UI.
 - `ui-system` — Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; treat Figma / Storybook MCP data as context, not authority.
 
-See the [Lane Agents](#lane-agents) section for lane selection, agent profiles, and escalation rules.
+See the [Curated Subagents](#curated-subagents) section for built-in subagent descriptions and role routing.
 
 Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Do not create ADRs for ordinary local implementation choices.
 
 Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`.
 Follow `docs/system/spec-driven-development.md` in the Instruction Engine repo when a target repo opts into spec-driven work, and run the target repo's `node scripts/validate-specs.js <spec-root>` validator when present.
+Specs describe intent (requirements). Docs describe state (how it works). ADRs record decisions (what was chosen).
 
 ## Instruction Engine Repo Map
 
@@ -74,72 +76,34 @@ Use the skill tool when domain guidance changes the outcome, not just because a 
 
 ## Lane Agents
 
-Instruction Engine ships four primary lane agents and three supporting subagents. Lane agents are selected via **Tab cycling** in OpenCode, just like the built-in Build and Plan agents. They enforce workflow phases and delegate to subagents for implementation, review, and exploration.
+Instruction Engine ships two primary lane agents for Tab-selection alongside OpenCode's built-in agents.
+Lane agents enforce workflow phases and delegate to subagents for implementation and review.
 
 ### Primary Lane Agents
 
-| Agent | Model | Spec | elegy-planning | Description |
-|---|---|---|---|---|
-| `quick` | small (Flash) | No | No | <5 min, 1-2 files, no ambiguity |
-| `standard` | big (Pro) | No | No | Scoped features, normal bug fixes |
-| `spec` | big (Pro) | Yes | Yes | Contract/API/user-facing, spec-first |
-| `project` | big (Pro) | Yes (per WP) | Yes | Multi-session roadmap work, orchestrator |
+| Agent | Model | Description |
+|---|---|---|
+| `quick` | small (Flash) | Small UI tweaks and tiny bug fixes (<5 min, 1-2 files, no ambiguity) |
+| `project` | big (Pro) | Multi-session roadmap work with elegy-planning, worktree isolation, evidence chains |
 
 ### Subagents (invoked by lane primaries)
 
 | Agent | Model | Access | Description |
 |---|---|---|---|
-| `impl` | small (Flash) | Write-capable | Build replacement — file edits, commands, validation |
+| `impl` | small (Flash) | Write-capable | Bounded implementation — file edits, commands, validation |
 | `reviewer` | big (Pro) | Read-only | Review gate — code, spec, plan, and evidence review |
 | `explorer` | small (Flash) | Read-only | Codebase discovery — patterns, traces, dependencies |
+| `scout` | big (Pro) | Read-only (restricted bash) | External docs and dependency research |
 
 Subagents are hidden from user autocomplete. Only lane primary agents invoke them via the Task tool.
 
-### Lane Quick
-Small UI tweaks and tiny bug fixes. Flash only; no spec or roadmap required.
-
-- **Model:** `small` (DeepSeek V4 Flash)
-- **Escalation:** Not needed; if scope exceeds lane bounds, tell user to switch to `standard`
-- **Spec required:** No
-- **Worktree required:** No
-- **Validation:** Narrowest relevant lint/test
-
-### Lane Standard
-Scoped feature or normal bug fix. Pro for implementation; reviewer subagent for gates.
-
-- **Model:** `big` (DeepSeek V4 Pro)
-- **Escalation:** Delegate to `reviewer` subagent for design ambiguity, architecture decisions, and final review
-- **Spec required:** No (but recommended for anything that touches user-facing behavior)
-- **Worktree required:** No
-- **Validation:** Focused tests, lint, typecheck
-
-### Lane Spec
-Contract, workflow, API, or user-facing behavior changes. Spec-first workflow with mandatory review gates. Uses elegy-planning for state tracking.
-
-- **Model:** `big` (DeepSeek V4 Pro)
-- **Gates:** `reviewer` subagent for spec review (before implementation) and plan review
-- **Spec required:** Yes — durable spec under `docs/specs/<slug>/spec.md`
-- **Worktree required:** No
-- **Validation:** Spec validation + focused tests
-- **Skills:** Load `spec-dev`, `spec-authoring`, `spec-review`, `elegy-planning`
-
-### Lane Project
-Multi-session roadmap work. Orchestrator that coordinates elegy-planning goal/roadmap/plan, worktrees, evidence chains, and review gates.
-
-- **Model:** `big` (DeepSeek V4 Pro)
-- **Gates:** `reviewer` subagent at each plan: plan review, implementation review, evidence review
-- **Spec required:** Yes (per plan)
-- **Worktree required:** Yes — use `worktree_create`, manual commit, `worktree_delete`
-- **Validation:** Full evidence chain: expectations → results → review
-- **Skills:** Load `elegy-planning`, `worktree`, `implementation-review`, `rubberduck-plan-review`
-
 ### Provider Profiles
 
-Profiles define model+provider routing for all lane agents and subagents using five task roles. Profiles are configured in `opencode-assets/profiles.json` and applied at install time or via the profile switch command.
+Profiles define model+provider routing across five task roles. Profiles are configured in `opencode-assets/profiles.json` and applied at install time or via the profile switch command.
 
 | Role | Default (opencode-go-balanced) | Agents |
 |---|---|---|
-| `planning` | `opencode-go/deepseek-v4-pro` | `plan`, `standard`, `spec`, `project` |
+| `planning` | `opencode-go/deepseek-v4-pro` | `plan`, `project` |
 | `implementation` | `opencode-go/deepseek-v4-flash` | `build`, `impl`, `quick` |
 | `exploration` | `opencode-go/deepseek-v4-flash` | `explore`, `explorer` |
 | `review` | `opencode-go/deepseek-v4-pro` | `reviewer` |
@@ -164,13 +128,6 @@ Profile definitions live in `opencode-assets/profiles.json`. The install script 
 
 The legacy `small`/`big`/`review` profile fields remain supported for backward compatibility and normalize to role models at runtime.
 
-### Lane Agent Selection
-Switch between lane agents using **Tab** in the OpenCode TUI:
-- `quick` — Quick fixes and small UI tweaks
-- `standard` — Scoped features and normal bug fixes
-- `spec` — Spec-driven contract/API work
-- `project` — Multi-session roadmap work with Elegy Planning
-
 ## Boundaries
 
 - Keep this global file workflow-specific, not repo-specific.
@@ -184,7 +141,7 @@ Switch between lane agents using **Tab** in the OpenCode TUI:
 
 Canonical docs and code are a shared surface. When code changes a public contract, workflow policy,
 or command path, the owning canonical doc's frontmatter `updated` field MUST be bumped in the same
-commit or an immediately following commit. Reviewer lanes should flag stale or missing `updated`
+commit or an immediately following commit. The reviewer subagent should flag stale or missing `updated`
 dates as `rule_drift` when the code change touches the described surface.
 
 See `docs/system/documentation-structure-governance.md` for the full Doc Freshness Sync Rule.
@@ -195,7 +152,7 @@ The following paths are pre-allowed for OpenCode operations on this machine.
 Add these to your `opencode.jsonc` `allowedDirectories` or `permissions.allow`:
 
 ### OpenCode worktree roots
-- `~/.local/share/opencode/worktree/` — Worktree isolation for project-lane sessions
+- `~/.local/share/opencode/worktree/` — Worktree isolation for project sessions
 - `~/.local/share/opencode/worktree/.state/` — Plugin-local auxiliary state (not the durable authority)
 
 ### Shared worktree registry (Elegy Copilot authority)
@@ -206,4 +163,4 @@ Add these to your `opencode.jsonc` `allowedDirectories` or `permissions.allow`:
 - `~/.elegy/planning-session.json` — Active planning session sidecar
 - `~/.elegy/managed-cli/planning/` — Managed elegy-planning CLI binary
 
-Do not block directory access prompts for these paths during normal project-lane work.
+Do not block directory access prompts for these paths during normal work.
