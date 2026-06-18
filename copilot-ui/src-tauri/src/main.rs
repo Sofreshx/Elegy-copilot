@@ -1237,20 +1237,20 @@ fn main() {
                     let _ = clone.write_all(format!("[{ts}] setup closure entered\n").as_bytes());
                 }
             }
-            let use_node_backend = std::env::args().any(|a| a == "--node-backend")
-                || std::env::var("NODE_BACKEND").map(|v| v == "1").unwrap_or(false);
+            let use_rust_backend = std::env::args().any(|a| a == "--rust-backend")
+                || std::env::var("RUST_BACKEND").map(|v| v == "1").unwrap_or(false);
 
-            let window_url = if use_node_backend {
-                eprintln!("[tauri-runtime] using Node.js backend (legacy)");
-                launch_runtime_host(app.handle(), stderr_capture_for_setup)?
-            } else {
-                eprintln!("[tauri-runtime] using Rust native backend");
+            let window_url = if use_rust_backend {
+                eprintln!("[tauri-runtime] using Rust native backend (in development)");
                 let runtime_root = runtime_root(app.handle())?;
                 launch_rust_runtime(
                     app.handle(),
                     &runtime_root.to_string_lossy(),
                     stderr_capture_for_setup,
                 )?
+            } else {
+                eprintln!("[tauri-runtime] using Node.js backend (default)");
+                launch_runtime_host(app.handle(), stderr_capture_for_setup)?
             };
             create_main_window(app.handle(), &window_url)?;
             Ok(())

@@ -1,8 +1,8 @@
 # Rust Backend Migration
 
-## Status: Production-Ready (96% single-user, 80% multi-user)
+## Status: In development (opt-in)
 
-The Node.js HTTP server (`copilot-ui/server.js`) is replaced by a Rust Axum server (`native/runtime/`) as the default backend. Node.js remains available via `--node-backend` flag for fallback.
+The Node.js HTTP server (`copilot-ui/server.js`) is the default backend. The Rust Axum server (`native/runtime/`) remains in development and is opt-in via the `--rust-backend` flag or `RUST_BACKEND=1` env var. Use Rust only when validating the new runtime.
 
 ## What's Done
 
@@ -16,7 +16,7 @@ The Node.js HTTP server (`copilot-ui/server.js`) is replaced by a Rust Axum serv
 | Bearer token auth with loopback bypass | ✅ | Token resolution: CLI > env > auto-gen |
 | 18 CRUD persistence methods | ✅ | Records, suggestions, recaps, artifacts, compare, merge, idempotency |
 | ~276 API routes (99.3% of Node.js) | ✅ | 37 route modules |
-| Tauri launches Rust as default backend | ✅ | `launch_rust_runtime()` with stdout readiness |
+| Tauri launches Node.js as default backend; Rust opt-in | ✅ | `launch_runtime_host()` default; `launch_rust_runtime()` via `--rust-backend` |
 | Real planning persistence health check | ✅ | Table presence, integrity_check |
 | Graceful shutdown via stdin + Ctrl+C | ✅ | Reads "shutdown\n" from Tauri stdin |
 | Structured HTTP logging with request IDs | ✅ | x-request-id UUID per request, span with method/uri/status |
@@ -61,8 +61,8 @@ cargo test -p elegy-native-runtime
 ```bash
 cd copilot-ui
 cargo build -p elegy-copilot-tauri-shell
-cargo run -p elegy-copilot-tauri-shell  # Rust is default
-cargo run -p elegy-copilot-tauri-shell -- --node-backend  # Fallback
+cargo run -p elegy-copilot-tauri-shell                       # Node.js is default
+cargo run -p elegy-copilot-tauri-shell -- --rust-backend     # Opt into Rust runtime
 ```
 
 ## Remaining Work
@@ -71,6 +71,6 @@ cargo run -p elegy-copilot-tauri-shell -- --node-backend  # Fallback
 |---|---|---|
 | `agent/runs/stream` SSE endpoint | Cannot implement as REST — stub remains | Medium |
 | Full catalog projection service | Replace filesystem-backed CRUD with real projection | Medium |
-| Node.js removal from Tauri bundle | Manual packaging step; Node.js path works via `--node-backend` | Low |
+| Node.js removal from Tauri bundle | Deferred until Rust is the default again | Low |
 | CI pipeline | Needs `cargo build --workspace` in CI | Low |
 | Installer migration | Tauri installer needs Rust binary bundled | Low |
