@@ -73,6 +73,13 @@ export async function readRepoDoc(repoPath: string, docPath: string, baseUrl?: s
 }
 
 
+export interface GraphNode {
+  id: string;
+  label: string;
+  path: string;
+  depth: number;
+}
+
 export interface GraphEdge {
   source: string;
   target: string;

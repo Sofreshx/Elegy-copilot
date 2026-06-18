@@ -1030,6 +1030,106 @@ fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result
     Ok(parsed.window_url)
 }
 
+fn rust_binary_path(runtime_root: &str) -> Result<String, String> {
+    let bin_name = if cfg!(target_os = "windows") {
+        "elegy-native-runtime.exe"
+    } else {
+        "elegy-native-runtime"
+    };
+
+    // Debug: look in native/runtime/target/debug/
+    let debug_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("native")
+        .join("runtime")
+        .join("target")
+        .join("debug")
+        .join(bin_name);
+    if debug_path.exists() {
+        return Ok(debug_path.to_string_lossy().to_string());
+    }
+
+    // Debug (workspace): look in workspace root target/debug/
+    let workspace_debug_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("target")
+        .join("debug")
+        .join(bin_name);
+    if workspace_debug_path.exists() {
+        return Ok(workspace_debug_path.to_string_lossy().to_string());
+    }
+
+    // Release: look in resource dir
+    let release_path = std::path::Path::new(runtime_root).join(bin_name);
+    if release_path.exists() {
+        return Ok(release_path.to_string_lossy().to_string());
+    }
+
+    // Fallback: try PATH
+    if which::which(bin_name).is_ok() {
+        return Ok(bin_name.to_string());
+    }
+
+    Err(format!(
+        "Rust runtime binary '{}' not found. Build with: cargo build -p elegy-native-runtime",
+        bin_name
+    ))
+}
+
+fn launch_rust_runtime(
+    app: &AppHandle,
+    runtime_root: &str,
+    stderr_capture: StderrCapture,
+) -> Result<String, String> {
+    let binary = rust_binary_path(runtime_root)?;
+    eprintln!("[tauri-runtime] Rust binary: {}", binary);
+
+    let mut child = Command::new(&binary)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env("RUST_LOG", "elegy_native_runtime=info,tower_http=info")
+        .spawn()
+        .map_err(|e| format!("Failed to spawn Rust runtime: {}", e))?;
+
+    let child_pid = child.id();
+    eprintln!("[tauri-runtime] Rust runtime pid={}", child_pid);
+
+    let stderr_capture_for_watchdog = Arc::clone(&stderr_capture);
+    let ready_payload = drain_runtime_output(&mut child, stderr_capture_for_watchdog.clone())?;
+    let parsed: RuntimeReadyPayload = serde_json::from_str(&ready_payload)
+        .map_err(|error| format!("Invalid readiness payload from Rust runtime: {error}"))?;
+
+    let runtime_state = app.state::<RuntimeChildState>();
+    {
+        let mut inner_guard = runtime_state
+            .inner
+            .lock()
+            .map_err(|_| "Unable to lock runtime child state.".to_string())?;
+        inner_guard.replace(child);
+    }
+    *runtime_state
+        .pid
+        .lock()
+        .map_err(|_| "Unable to lock runtime pid state.".to_string())? = Some(child_pid);
+    *runtime_state
+        .window_url
+        .lock()
+        .map_err(|_| "Unable to lock runtime window url state.".to_string())? =
+        Some(parsed.window_url.clone());
+    *runtime_state
+        .stderr_capture
+        .lock()
+        .map_err(|_| "Unable to lock runtime stderr capture state.".to_string())? =
+        Some(stderr_capture_for_watchdog);
+
+    spawn_runtime_watchdog(app.clone(), runtime_state.cancel.clone());
+
+    Ok(parsed.window_url)
+}
+
 fn shutdown_runtime(app: &AppHandle) {
     let runtime_state = app.state::<RuntimeChildState>();
     runtime_state.cancel.store(true, Ordering::SeqCst);
@@ -1137,7 +1237,21 @@ fn main() {
                     let _ = clone.write_all(format!("[{ts}] setup closure entered\n").as_bytes());
                 }
             }
-            let window_url = launch_runtime_host(app.handle(), stderr_capture_for_setup)?;
+            let use_rust_backend = std::env::args().any(|a| a == "--rust-backend")
+                || std::env::var("RUST_BACKEND").map(|v| v == "1").unwrap_or(false);
+
+            let window_url = if use_rust_backend {
+                eprintln!("[tauri-runtime] using Rust native backend (in development)");
+                let runtime_root = runtime_root(app.handle())?;
+                launch_rust_runtime(
+                    app.handle(),
+                    &runtime_root.to_string_lossy(),
+                    stderr_capture_for_setup,
+                )?
+            } else {
+                eprintln!("[tauri-runtime] using Node.js backend (default)");
+                launch_runtime_host(app.handle(), stderr_capture_for_setup)?
+            };
             create_main_window(app.handle(), &window_url)?;
             Ok(())
         })

@@ -1,10 +1,10 @@
 use std::path::Path;
 
-use elegy_native_contracts::{DashboardRecentActivityItem, DashboardSummaryResponse};
+use elegy_native_contracts::{DashboardRecentActivityItem, DashboardSummaryResponseWithSource};
 
 use crate::sessions::list_sessions;
 
-pub fn build_dashboard_summary(elegy_home: &Path) -> DashboardSummaryResponse {
+pub fn build_dashboard_summary(elegy_home: &Path) -> DashboardSummaryResponseWithSource {
     let sessions = list_sessions(elegy_home);
     let active_session_count = sessions
         .iter()
@@ -22,11 +22,12 @@ pub fn build_dashboard_summary(elegy_home: &Path) -> DashboardSummaryResponse {
         .collect::<Vec<_>>();
     let health_indicator = derive_health_indicator(&sessions);
 
-    DashboardSummaryResponse {
+    DashboardSummaryResponseWithSource {
         active_session_count,
         total_session_count,
         recent_activity,
         health_indicator,
+        source: "rust-runtime".to_string(),
     }
 }
 

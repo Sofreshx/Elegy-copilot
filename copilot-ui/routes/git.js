@@ -183,8 +183,8 @@ async function resolvePullRequest(childProcessImpl, repoPath) {
 
 async function resolveGitStatus(childProcessImpl, repoPath) {
   const [statusResult, branchResult, aheadBehindResult, upstreamResult, topLevelResult] = await Promise.all([
-    runGit(childProcessImpl, ['status', '--porcelain=v1'], repoPath),
-    runGit(childProcessImpl, ['branch', '--show-current'], repoPath),
+    runGit(childProcessImpl, ['status', '--porcelain=v1'], repoPath).catch(() => ({ stdout: '', stderr: '' })),
+    runGit(childProcessImpl, ['branch', '--show-current'], repoPath).catch(() => ({ stdout: '', stderr: '' })),
     runGit(childProcessImpl, ['status', '--branch', '--porcelain=v2'], repoPath).catch(() => ({ stdout: '', stderr: '' })),
     runGit(childProcessImpl, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], repoPath).catch(() => ({ stdout: '', stderr: '' })),
     runGit(childProcessImpl, ['rev-parse', '--show-toplevel'], repoPath).catch(() => ({ stdout: '', stderr: '' })),

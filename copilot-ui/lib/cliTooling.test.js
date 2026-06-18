@@ -37,10 +37,10 @@ function createMockChildProcess(execSyncImpl) {
 async function run() {
   console.log('\nCLI Tooling Tests\n');
 
-  await test('catalog has four tools', () => {
-    assert.equal(CLI_TOOLING_CATALOG.length, 4);
+  await test('catalog has five tools', () => {
+    assert.equal(CLI_TOOLING_CATALOG.length, 5);
     const ids = CLI_TOOLING_CATALOG.map((entry) => entry.id).sort();
-    assert.deepEqual(ids, ['claude-cli', 'codex-cli', 'gemini-cli', 'opencode-cli']);
+    assert.deepEqual(ids, ['claude-cli', 'codex-cli', 'elegy-planning', 'gemini-cli', 'opencode-cli']);
   });
 
   await test('resolveCliToolingCommand returns npm install command for opencode-cli', () => {

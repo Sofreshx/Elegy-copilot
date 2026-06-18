@@ -2,7 +2,7 @@ use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionSummary {
@@ -20,8 +20,8 @@ pub struct SessionSummary {
     pub status: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct EventRecord {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EventRecord {
     #[serde(default)]
     r#type: Option<String>,
     #[serde(default)]
@@ -48,7 +48,7 @@ struct EventRecord {
     #[serde(default)]
     meta: Option<serde_json::Value>,
     #[serde(default)]
-    payload: Option<serde_json::Value>,
+    pub payload: Option<serde_json::Value>,
     #[serde(default)]
     data: Option<serde_json::Value>,
     #[serde(default)]
@@ -197,7 +197,7 @@ fn parse_start_context(event: &EventRecord) -> StartContext {
     }
 }
 
-fn read_recent_events(events_path: &Path, limit: usize) -> Vec<EventRecord> {
+pub fn read_recent_events(events_path: &Path, limit: usize) -> Vec<EventRecord> {
     let Ok(text) = fs::read_to_string(events_path) else {
         return Vec::new();
     };
@@ -213,7 +213,7 @@ fn read_recent_events(events_path: &Path, limit: usize) -> Vec<EventRecord> {
         .collect()
 }
 
-fn event_type(event: &EventRecord) -> Option<String> {
+pub fn event_type(event: &EventRecord) -> Option<String> {
     event
         .r#type
         .clone()
@@ -314,9 +314,7 @@ fn payload_repository_full_name(
 }
 
 fn meta_time(value: Option<&serde_json::Value>) -> Option<u64> {
-    let Some(meta) = value.and_then(serde_json::Value::as_object) else {
-        return None;
-    };
+    let meta = value.and_then(serde_json::Value::as_object)?;
     parse_time(meta.get("time"))
         .or_else(|| parse_time(meta.get("timestamp")))
         .or_else(|| parse_time(meta.get("ts")))
@@ -404,7 +402,10 @@ mod tests {
         assert_eq!(summary.branch.as_deref(), Some("main"));
         assert_eq!(summary.cwd.as_deref(), Some("/tmp/repo-a"));
         assert_eq!(summary.sandbox_parent_repo.as_deref(), Some("/tmp/repo-a"));
-        assert_eq!(summary.repository_full_name.as_deref(), Some("owner/repo-a"));
+        assert_eq!(
+            summary.repository_full_name.as_deref(),
+            Some("owner/repo-a")
+        );
         assert_eq!(summary.start_time, Some(1000));
         assert_eq!(summary.last_event_time, Some(3000));
 

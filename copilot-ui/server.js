@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+// DEPRECATED: This Node.js server is being replaced by the Rust backend (native/runtime/).
+// The Rust axum server now handles all API routes. Run with `cargo run -p elegy-native-runtime`.
+// This file is kept for backward compatibility during the migration period.
+// See docs/system/rust-backend-migration.md for details.
 /* eslint-disable no-console */
 const http = require('http');
 const fs = require('fs');

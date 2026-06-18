@@ -6,37 +6,57 @@ use elegy_native_contracts::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 use crate::sessions::{list_sessions, SessionSummary};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RepoInventoryState {
+pub struct RepoInventoryState {
     #[serde(default)]
-    manual_repos: Vec<ManualRepoEntry>,
+    pub manual_repos: Vec<ManualRepoEntry>,
+    #[serde(default)]
+    pub selected_repo_id: Option<String>,
+    #[serde(default)]
+    pub selected_repo_path: Option<String>,
+    #[serde(default)]
+    pub selected_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ManualRepoEntry {
-    repo_id: String,
-    repo_path: String,
-    repo_label: String,
+pub struct ManualRepoEntry {
+    pub repo_id: String,
+    pub repo_path: String,
+    pub repo_label: String,
     #[serde(default)]
-    added_at: Option<String>,
+    pub added_at: Option<String>,
     #[serde(default)]
-    updated_at: Option<String>,
+    pub updated_at: Option<String>,
     #[serde(default)]
-    pinned: bool,
+    pub pinned: bool,
     #[serde(default)]
-    last_activity_ms: Option<u64>,
+    pub last_activity_ms: Option<u64>,
     #[serde(default)]
-    canonical_remote: Option<String>,
+    pub canonical_remote: Option<String>,
 }
 
 pub fn list_projects(elegy_home: &Path) -> Vec<ProjectResponse> {
     let state = load_repo_inventory_state(elegy_home);
     let sessions = list_sessions(elegy_home);
+
+    // Enrich and log repo info for each entry (backward-compat, shape unchanged)
+    for entry in &state.manual_repos {
+        let info = enrich_repo(&entry.repo_path);
+        tracing::debug!(
+            repo_id = %entry.repo_id,
+            exists = %info.exists,
+            is_git_root = %info.is_git_root,
+            agent_count = %info.agent_count,
+            skill_count = %info.skill_count,
+            "repo enrichment info",
+        );
+    }
 
     state
         .manual_repos
@@ -73,10 +93,7 @@ pub fn list_project_sessions(elegy_home: &Path, project_id: &str) -> Vec<Project
         .collect()
 }
 
-pub fn list_project_activity(
-    elegy_home: &Path,
-    project_id: &str,
-) -> Vec<ProjectActivityResponse> {
+pub fn list_project_activity(elegy_home: &Path, project_id: &str) -> Vec<ProjectActivityResponse> {
     let requested_project_id = project_id.trim();
     if requested_project_id.is_empty() {
         return Vec::new();
@@ -134,7 +151,10 @@ pub fn update_project_fields(
         .into_iter()
         .find(|entry| entry.repo_id == normalized_project_id)?;
 
-    Some(build_project_response(&refreshed, &list_sessions(elegy_home)))
+    Some(build_project_response(
+        &refreshed,
+        &list_sessions(elegy_home),
+    ))
 }
 
 fn build_project_response(entry: &ManualRepoEntry, sessions: &[SessionSummary]) -> ProjectResponse {
@@ -176,10 +196,16 @@ fn load_repo_inventory_state(elegy_home: &Path) -> RepoInventoryState {
     let Ok(text) = fs::read_to_string(inventory_path) else {
         return RepoInventoryState {
             manual_repos: Vec::new(),
+            selected_repo_id: None,
+            selected_repo_path: None,
+            selected_at: None,
         };
     };
     serde_json::from_str(&text).unwrap_or(RepoInventoryState {
         manual_repos: Vec::new(),
+        selected_repo_id: None,
+        selected_repo_path: None,
+        selected_at: None,
     })
 }
 
@@ -187,13 +213,27 @@ fn resolve_repo_inventory_path(elegy_home: &Path) -> PathBuf {
     elegy_home.join("catalog").join("repo-inventory.json")
 }
 
+pub fn repo_inventory_path(elegy_home: &Path) -> PathBuf {
+    resolve_repo_inventory_path(elegy_home)
+}
+
+pub fn repo_inventory_state(elegy_home: &Path) -> RepoInventoryState {
+    load_repo_inventory_state(elegy_home)
+}
+
+pub fn manual_repos(elegy_home: &Path) -> Vec<ManualRepoEntry> {
+    load_repo_inventory_state(elegy_home).manual_repos
+}
+
 fn save_repo_inventory_state(inventory_path: &Path, state: &RepoInventoryState) {
     if let Some(parent) = inventory_path.parent() {
         let _ = fs::create_dir_all(parent);
     }
-    let serialized = serde_json::to_string_pretty(state)
-        .expect("repo inventory state should serialize")
-        + "\n";
+    let serialized =
+        serde_json::to_string_pretty(state).unwrap_or_else(|e| {
+            tracing::error!("Failed to serialize repo inventory: {}", e);
+            "{}".to_string()
+        }) + "\n";
     let _ = fs::write(inventory_path, serialized);
 }
 
@@ -287,7 +327,12 @@ fn is_worktree_session_path(session_path: Option<&str>, project_path: &str) -> b
     let Some(session_path) = session_path else {
         return false;
     };
-    let worktree_root = normalize_path(PathBuf::from(project_path).join(".worktrees").to_string_lossy().as_ref());
+    let worktree_root = normalize_path(
+        PathBuf::from(project_path)
+            .join(".worktrees")
+            .to_string_lossy()
+            .as_ref(),
+    );
     let worktree_prefix = format!("{worktree_root}{}", std::path::MAIN_SEPARATOR);
     session_path.starts_with(&worktree_prefix)
 }
@@ -313,6 +358,249 @@ fn matches_canonical_remote(
     let canonical_remote = canonical_remote.to_lowercase();
     canonical_remote == repository_full_name
         || canonical_remote.ends_with(&format!("/{repository_full_name}"))
+}
+
+// ---------------------------------------------------------------------------
+// Repo registration, unregistration, selection
+// ---------------------------------------------------------------------------
+
+/// Compute repo_id from absolute path (matches Node.js: sha256 hex first 12 chars)
+fn compute_repo_id(repo_path: &str) -> String {
+    let normalized = repo_path.to_lowercase().replace('\\', "/");
+    let hash = Sha256::digest(normalized.as_bytes());
+    hex::encode(&hash[..6]) // first 12 hex chars = first 6 bytes
+}
+
+/// Result of a register_repo mutation
+pub struct RepoMutationResult {
+    pub repo_id: String,
+    pub repo_path: String,
+    pub repo_label: String,
+    pub was_selected: bool,
+}
+
+/// Register a repo by filesystem path. Optionally select it.
+pub fn register_repo(
+    elegy_home: &Path,
+    repo_path: &str,
+    repo_label: Option<&str>,
+    select: bool,
+) -> Result<RepoMutationResult, String> {
+    let path = Path::new(repo_path);
+    if !path.exists() || !path.is_dir() {
+        return Err(format!(
+            "Repository path does not exist or is not a directory: {}",
+            repo_path
+        ));
+    }
+    let path = path.canonicalize().unwrap_or(path.to_path_buf());
+    let abs_path = path.to_string_lossy().to_string();
+
+    let mut inventory = load_repo_inventory_state(elegy_home);
+    let repo_id = compute_repo_id(&abs_path);
+    let label = repo_label
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| {
+            path.file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or(abs_path.clone())
+        });
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // Check if already registered
+    let existing = inventory
+        .manual_repos
+        .iter()
+        .position(|r| r.repo_id == repo_id);
+    if let Some(idx) = existing {
+        // Update existing entry
+        inventory.manual_repos[idx].repo_label = label.clone();
+        inventory.manual_repos[idx].updated_at = Some(now.clone());
+    } else {
+        inventory.manual_repos.push(ManualRepoEntry {
+            repo_id: repo_id.clone(),
+            repo_path: abs_path.clone(),
+            repo_label: label.clone(),
+            added_at: Some(now.clone()),
+            updated_at: Some(now.clone()),
+            pinned: false,
+            last_activity_ms: None,
+            canonical_remote: extract_canonical_remote(&abs_path).ok(),
+        });
+    }
+
+    if select {
+        inventory.selected_repo_id = Some(repo_id.clone());
+        inventory.selected_repo_path = Some(abs_path.clone());
+        inventory.selected_at = Some(now);
+    }
+
+    let inventory_path = resolve_repo_inventory_path(elegy_home);
+    save_repo_inventory_state(&inventory_path, &inventory);
+
+    Ok(RepoMutationResult {
+        repo_id,
+        repo_path: abs_path,
+        repo_label: label,
+        was_selected: select,
+    })
+}
+
+/// Unregister a repo by repo_id. Optionally clear the current selection.
+pub fn unregister_repo(
+    elegy_home: &Path,
+    repo_id: &str,
+    clear_selection: bool,
+) -> Result<Option<String>, String> {
+    let mut inventory = load_repo_inventory_state(elegy_home);
+
+    let idx = inventory
+        .manual_repos
+        .iter()
+        .position(|r| r.repo_id == repo_id)
+        .ok_or_else(|| format!("Repository not found: {}", repo_id))?;
+
+    let removed_path = inventory.manual_repos.remove(idx).repo_path;
+
+    if clear_selection {
+        if inventory.selected_repo_id.as_deref() == Some(repo_id) {
+            inventory.selected_repo_id = None;
+            inventory.selected_repo_path = None;
+            inventory.selected_at = None;
+        }
+    }
+
+    let inventory_path = resolve_repo_inventory_path(elegy_home);
+    save_repo_inventory_state(&inventory_path, &inventory);
+
+    Ok(Some(removed_path))
+}
+
+/// Select a repo by repo_id (or clear selection if None).
+pub fn select_repo(
+    elegy_home: &Path,
+    repo_id: Option<&str>,
+) -> Result<Option<String>, String> {
+    let mut inventory = load_repo_inventory_state(elegy_home);
+
+    if let Some(id) = repo_id {
+        // Verify repo exists in inventory
+        if !inventory.manual_repos.iter().any(|r| r.repo_id == id) {
+            return Err(format!("Repository not found: {}", id));
+        }
+        let path = inventory
+            .manual_repos
+            .iter()
+            .find(|r| r.repo_id == id)
+            .map(|r| r.repo_path.clone());
+        inventory.selected_repo_id = Some(id.to_string());
+        inventory.selected_repo_path = path;
+        inventory.selected_at = Some(chrono::Utc::now().to_rfc3339());
+    } else {
+        // Clear selection
+        inventory.selected_repo_id = None;
+        inventory.selected_repo_path = None;
+        inventory.selected_at = None;
+    }
+
+    let inventory_path = resolve_repo_inventory_path(elegy_home);
+    save_repo_inventory_state(&inventory_path, &inventory);
+
+    Ok(inventory.selected_repo_id.clone())
+}
+
+// ---------------------------------------------------------------------------
+// Canonical remote extraction from .git/config
+// ---------------------------------------------------------------------------
+
+/// Extract `owner/repo` from the origin remote URL in `.git/config`.
+pub fn extract_canonical_remote(repo_path: &str) -> Result<String, String> {
+    let git_config = Path::new(repo_path).join(".git").join("config");
+    if !git_config.exists() {
+        return Err("No .git/config found".to_string());
+    }
+    let content = std::fs::read_to_string(&git_config).map_err(|e| e.to_string())?;
+
+    // Simple parser: find [remote "origin"] section, extract url
+    let mut in_origin = false;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("[remote ") && trimmed.contains("\"origin\"") {
+            in_origin = true;
+        } else if trimmed.starts_with('[') && in_origin {
+            in_origin = false;
+        }
+        if in_origin && trimmed.starts_with("url = ") {
+            let url = trimmed
+                .strip_prefix("url = ")
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            return parse_remote_to_owner_repo(&url);
+        }
+    }
+    Err("No origin remote URL found".to_string())
+}
+
+fn parse_remote_to_owner_repo(url: &str) -> Result<String, String> {
+    // Handle: git@github.com:owner/repo.git, https://github.com/owner/repo.git, etc.
+    let cleaned = url
+        .trim_end_matches(".git")
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .trim_start_matches("git@");
+
+    // For SSH: git@github.com:owner/repo -> github.com/owner/repo
+    let cleaned = cleaned.replace(':', "/");
+
+    // Extract owner/repo from path
+    let parts: Vec<&str> = cleaned.split('/').collect();
+    if parts.len() >= 2 {
+        Ok(format!(
+            "{}/{}",
+            parts[parts.len() - 2],
+            parts[parts.len() - 1]
+        ))
+    } else {
+        Err("Could not parse owner/repo from remote URL".to_string())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Repo enrichment
+// ---------------------------------------------------------------------------
+
+/// Enrichment metadata for a repo path.
+#[derive(Debug, Clone)]
+pub struct EnrichedRepoInfo {
+    pub exists: bool,
+    pub is_git_root: bool,
+    pub agent_count: u64,
+    pub skill_count: u64,
+    pub has_package_json: bool,
+    pub has_cargo_toml: bool,
+}
+
+/// Probe a repo path for enrichment metadata.
+pub fn enrich_repo(repo_path: &str) -> EnrichedRepoInfo {
+    let path = Path::new(repo_path);
+    EnrichedRepoInfo {
+        exists: path.exists() && path.is_dir(),
+        is_git_root: path.join(".git").exists(),
+        agent_count: count_files_in_glob(path, ".github/agents/*.agent.md"),
+        skill_count: count_files_in_glob(path, ".github/skills/*/SKILL.md"),
+        has_package_json: path.join("package.json").exists(),
+        has_cargo_toml: path.join("Cargo.toml").exists(),
+    }
+}
+
+fn count_files_in_glob(root: &Path, pattern: &str) -> u64 {
+    let full_pattern = root.join(pattern);
+    let pattern_str = full_pattern.to_string_lossy();
+    match glob::glob(&pattern_str) {
+        Ok(paths) => paths.filter_map(|p| p.ok()).count() as u64,
+        Err(_) => 0,
+    }
 }
 
 #[cfg(test)]
@@ -482,7 +770,10 @@ mod tests {
             .find(|entry| entry.repo_id == "proj-a")
             .expect("persisted entry should exist");
         assert!(persisted_entry.pinned);
-        assert_eq!(persisted_entry.canonical_remote.as_deref(), Some("owner/repo-a"));
+        assert_eq!(
+            persisted_entry.canonical_remote.as_deref(),
+            Some("owner/repo-a")
+        );
         assert_eq!(persisted_entry.repo_label, "Repo A");
         assert!(persisted_entry.updated_at.is_some());
 

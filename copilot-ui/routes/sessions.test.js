@@ -177,7 +177,10 @@ async function run() {
           }
           return [];
         },
-        listSandboxSessions() {
+        listSandboxSessions(home) {
+          if (home === 'C:\\sandboxes-home') {
+            return [{ id: 'sandbox-session-1', status: 'active' }];
+          }
           return [];
         },
         applySessionReconciliation(session) {

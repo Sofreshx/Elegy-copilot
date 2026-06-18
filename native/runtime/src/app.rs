@@ -2,54 +2,55 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Context;
-use axum::extract::Path;
-use axum::extract::{Query, State};
-use axum::http::StatusCode;
-use axum::routing::{get, patch};
-use axum::{Json, Router};
+use axum::{
+    Router,
+    response::{IntoResponse, Json},
+    http::{StatusCode, Uri},
+};
 use chrono::Utc;
-use elegy_native_contracts::{
-    DashboardSummaryResponse, PolicyPreflightResponse, ProjectActivityResponse, ProjectResponse,
-    ProjectSessionResponse, RuntimeHealthResponse, VersionResponse,
-};
-use serde::Deserialize;
-use serde_json::json;
+use elegy_native_contracts::{PolicyPreflightResponse, VersionResponse};
+use tower_http::cors::CorsLayer;
+use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
+use tower_http::trace::TraceLayer;
+use axum::http::HeaderName;
 
+pub use crate::auth::AuthContext;
+use crate::auth::AuthConfig;
 use crate::config::RuntimeConfig;
-use crate::dashboard::build_dashboard_summary;
 use crate::policy::evaluate_policy_preflight;
-use crate::projects::{
-    list_project_activity, list_project_sessions, list_projects, update_project_fields,
-};
-use crate::runtime::build_runtime_health;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub config: RuntimeConfig,
-    version_state: Arc<Mutex<VersionResponse>>,
-    policy_cache: Arc<Mutex<Option<CachedPolicyPreflight>>>,
+    pub auth: AuthConfig,
+    pub(crate) version_state: Arc<Mutex<VersionResponse>>,
+    pub(crate) policy_cache: Arc<Mutex<Option<CachedPolicyPreflight>>>,
+    pub(crate) planning_pool: Arc<crate::db::PlanningPool>,
 }
 
 #[derive(Debug, Clone)]
-struct CachedPolicyPreflight {
-    value: PolicyPreflightResponse,
-    expires_at_ms: u64,
-}
-
-#[derive(Debug, Deserialize)]
-struct PolicyPreflightQuery {
-    refresh: Option<String>,
+pub(crate) struct CachedPolicyPreflight {
+    pub value: PolicyPreflightResponse,
+    pub expires_at_ms: u64,
 }
 
 impl AppState {
-    pub fn new(config: RuntimeConfig) -> Self {
+    pub fn new(config: RuntimeConfig, auth: AuthConfig) -> Self {
+        let pool = crate::db::init_planning_pool(&config.elegy_home.join("planning.db"))
+            .unwrap_or_else(|e| {
+                tracing::warn!("Failed to initialize planning pool: {e}; planning persistence disabled");
+                crate::db::init_planning_pool(std::path::Path::new(":memory:"))
+                    .expect("in-memory pool should always succeed")
+            });
         Self {
             config,
+            auth,
             version_state: Arc::new(Mutex::new(VersionResponse {
                 version: 0,
                 last_changed_ms: None,
             })),
             policy_cache: Arc::new(Mutex::new(None)),
+            planning_pool: Arc::new(pool),
         }
     }
 
@@ -63,175 +64,7 @@ impl AppState {
     }
 }
 
-pub fn build_router(state: AppState) -> Router {
-    Router::new()
-        .route("/api/policy/preflight", get(get_policy_preflight))
-        .route("/api/health", get(get_health))
-        .route("/api/version", get(get_version))
-        .route("/api/dashboard/summary", get(get_dashboard_summary))
-        .route("/api/projects", get(get_projects))
-        .route("/api/projects/{project_id}", patch(patch_project))
-        .route(
-            "/api/projects/{project_id}/sessions",
-            get(get_project_sessions),
-        )
-        .route(
-            "/api/projects/{project_id}/activity",
-            get(get_project_activity),
-        )
-        .with_state(state)
-}
-
-pub async fn serve(state: AppState) -> anyhow::Result<()> {
-    let address: SocketAddr = format!("{}:{}", state.config.host, state.config.port)
-        .parse()
-        .context("invalid bind address")?;
-    let listener = tokio::net::TcpListener::bind(address)
-        .await
-        .context("failed to bind Rust runtime listener")?;
-    axum::serve(listener, build_router(state))
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .context("Rust runtime server exited unexpectedly")
-}
-
-async fn get_policy_preflight(
-    State(state): State<AppState>,
-    Query(query): Query<PolicyPreflightQuery>,
-) -> Json<PolicyPreflightResponse> {
-    let refresh = query.refresh.as_deref() == Some("1");
-    Json(policy_preflight(&state, refresh))
-}
-
-async fn get_health(State(state): State<AppState>) -> Json<RuntimeHealthResponse> {
-    let version = state
-        .version_state
-        .lock()
-        .map(|value| value.clone())
-        .unwrap_or(VersionResponse {
-            version: 0,
-            last_changed_ms: None,
-        });
-    let policy = policy_preflight(&state, false);
-    let planning_persistence = json!({
-        "kind": "planning.persistence.health",
-        "contractVersion": "planning_api_v1",
-        "ready": false,
-        "status": "disabled",
-        "required": false,
-        "configured": false,
-        "usable": false,
-        "initSupported": false,
-        "initRequired": false,
-        "error": null,
-    });
-    let runtime = build_runtime_health(&state.config.engine_root, &state.config.sandboxes_home);
-
-    Json(RuntimeHealthResponse {
-        ok: true,
-        now: Utc::now().timestamp_millis() as u64,
-        engine_root: state.config.engine_root.display().to_string(),
-        elegy_home: state.config.elegy_home.display().to_string(),
-        changes: Some(version),
-        runtime,
-        policy: serde_json::to_value(policy).expect("policy response should serialize"),
-        planning_persistence,
-        planning_durability_dependency_gate: Some(json!({
-            "status": "open",
-            "reason": "rust_runtime_bootstrap",
-            "deterministic": true,
-        })),
-        startup_managed_asset_sync: Some(json!({
-            "startedAt": Utc::now().to_rfc3339(),
-            "status": "not_started",
-            "mode": "rust_bootstrap_additive",
-        })),
-        autonomous_decision_log: Some(json!({
-            "available": false,
-            "reason": "not_ported",
-        })),
-    })
-}
-
-async fn get_version(State(state): State<AppState>) -> Json<VersionResponse> {
-    let version = state
-        .version_state
-        .lock()
-        .map(|value| value.clone())
-        .unwrap_or(VersionResponse {
-            version: 0,
-            last_changed_ms: None,
-        });
-    Json(version)
-}
-
-async fn get_dashboard_summary(State(state): State<AppState>) -> Json<DashboardSummaryResponse> {
-    Json(build_dashboard_summary(&state.config.elegy_home))
-}
-
-async fn get_projects(State(state): State<AppState>) -> Json<Vec<ProjectResponse>> {
-    Json(list_projects(&state.config.elegy_home))
-}
-
-async fn get_project_sessions(
-    State(state): State<AppState>,
-    Path(project_id): Path<String>,
-) -> Json<Vec<ProjectSessionResponse>> {
-    Json(list_project_sessions(
-        &state.config.elegy_home,
-        &project_id,
-    ))
-}
-
-async fn get_project_activity(
-    State(state): State<AppState>,
-    Path(project_id): Path<String>,
-) -> Json<Vec<ProjectActivityResponse>> {
-    Json(list_project_activity(
-        &state.config.elegy_home,
-        &project_id,
-    ))
-}
-
-async fn patch_project(
-    State(state): State<AppState>,
-    Path(project_id): Path<String>,
-    Json(payload): Json<serde_json::Value>,
-) -> (StatusCode, Json<serde_json::Value>) {
-    let normalized_project_id = project_id.trim();
-    if normalized_project_id.is_empty() {
-        return project_error(
-            StatusCode::BAD_REQUEST,
-            "projects.update",
-            "Project ID is required",
-        );
-    }
-
-    match update_project_fields(&state.config.elegy_home, normalized_project_id, &payload) {
-        Some(project) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(project).expect("project response should serialize")),
-        ),
-        None => project_error(
-            StatusCode::NOT_FOUND,
-            "projects.update",
-            &format!("Project not found: {normalized_project_id}"),
-        ),
-    }
-}
-
-fn project_error(status: StatusCode, kind: &str, error: &str) -> (StatusCode, Json<serde_json::Value>) {
-    (
-        status,
-        Json(json!({
-            "kind": kind,
-            "deterministic": true,
-            "error": error,
-        })),
-    )
-}
-
-fn policy_preflight(state: &AppState, refresh: bool) -> PolicyPreflightResponse {
+pub(crate) fn policy_preflight(state: &AppState, refresh: bool) -> PolicyPreflightResponse {
     let now_ms = Utc::now().timestamp_millis() as u64;
     if !refresh {
         if let Ok(cache) = state.policy_cache.lock() {
@@ -253,27 +86,123 @@ fn policy_preflight(state: &AppState, refresh: bool) -> PolicyPreflightResponse 
     value
 }
 
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        let _ = tokio::signal::ctrl_c().await;
-    };
+pub fn build_router(state: AppState) -> Router {
+    let auth_layer = axum::middleware::from_fn_with_state(
+        state.auth.clone(),
+        crate::auth::auth_middleware,
+    );
 
-    #[cfg(unix)]
-    let terminate = async {
-        if let Ok(mut signal) =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-        {
-            signal.recv().await;
+    let ui_path = state.config.engine_root.join("copilot-ui").join("ui-dist");
+
+    let trace_layer = TraceLayer::new_for_http().make_span_with(move |request: &axum::extract::Request| {
+        let x_request_id = HeaderName::from_static("x-request-id");
+        let request_id = request
+            .headers()
+            .get(&x_request_id)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("-");
+        tracing::info_span!(
+            "request",
+            method = %request.method(),
+            uri = %request.uri(),
+            request_id = %request_id,
+        )
+    });
+
+    Router::new()
+        .merge(crate::routes::build_routes(state.clone()))
+        .fallback(move |uri: Uri| {
+            let ui_path = ui_path.clone();
+            async move {
+                let path = uri.path();
+                if path.starts_with("/api/") {
+                    return Json(serde_json::json!({"ok": true, "stub": true})).into_response();
+                }
+                let file_path = if path == "/" {
+                    ui_path.join("index.html")
+                } else {
+                    let trimmed = path.trim_start_matches('/');
+                    let candidate = ui_path.join(trimmed);
+                    if candidate.exists() && !candidate.is_dir() {
+                        candidate
+                    } else {
+                        ui_path.join("index.html")
+                    }
+                };
+                match tokio::fs::read(&file_path).await {
+                    Ok(bytes) => {
+                        let mime = match file_path.extension().and_then(|e| e.to_str()) {
+                            Some("html") => "text/html; charset=utf-8",
+                            Some("js") => "application/javascript",
+                            Some("css") => "text/css",
+                            Some("png") => "image/png",
+                            Some("svg") => "image/svg+xml",
+                            Some("ico") => "image/x-icon",
+                            Some("json") => "application/json",
+                            Some("woff2") => "font/woff2",
+                            _ => "application/octet-stream",
+                        };
+                        (
+                            StatusCode::OK,
+                            [("content-type", mime)],
+                            bytes,
+                        )
+                            .into_response()
+                    }
+                    Err(_) => (StatusCode::NOT_FOUND, "Not found").into_response(),
+                }
+            }
+        })
+        .layer(auth_layer)
+        .layer(trace_layer)
+        .layer(PropagateRequestIdLayer::new(HeaderName::from_static("x-request-id")))
+        .layer(SetRequestIdLayer::new(HeaderName::from_static("x-request-id"), MakeRequestUuid))
+        .layer(CorsLayer::permissive())
+}
+
+pub async fn serve(state: AppState) -> anyhow::Result<()> {
+    let address: SocketAddr = format!("{}:{}", state.config.host, state.config.port)
+        .parse()
+        .context("invalid bind address")?;
+    let listener = tokio::net::TcpListener::bind(address)
+        .await
+        .context("failed to bind Rust runtime listener")?;
+    serve_on(state, listener).await
+}
+
+pub async fn serve_on(state: AppState, listener: tokio::net::TcpListener) -> anyhow::Result<()> {
+    let shutdown = graceful_shutdown_signal();
+    axum::serve(listener, build_router(state))
+        .with_graceful_shutdown(shutdown)
+        .await
+        .context("Rust runtime server exited unexpectedly")
+}
+
+async fn graceful_shutdown_signal() {
+    let (tx, mut rx) = tokio::sync::watch::channel(());
+
+    let stdio_tx = tx.clone();
+    tokio::spawn(async move {
+        use tokio::io::AsyncBufReadExt;
+        let reader = tokio::io::BufReader::new(tokio::io::stdin());
+        let mut lines = reader.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            if line.trim() == "shutdown" {
+                tracing::info!("received shutdown via stdin");
+                let _ = stdio_tx.send(());
+                break;
+            }
         }
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
+    });
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        _ = tokio::signal::ctrl_c() => {
+            tracing::info!("received shutdown via Ctrl+C");
+        }
+        _ = rx.changed() => {}
     }
+
+    drop(tx);
 }
 
 #[cfg(test)]
@@ -284,6 +213,7 @@ mod tests {
     use axum::http::Request;
     use tower::util::ServiceExt;
 
+    use crate::auth::AuthConfig;
     use crate::config::RuntimeConfig;
     use crate::response_shape::capture_shape;
 
@@ -303,7 +233,13 @@ mod tests {
             sandboxes_home: temp.join(".elegy").join("sandboxes"),
         };
         let _ = std::fs::create_dir_all(config.elegy_home.join("session-state"));
-        let state = AppState::new(config);
+        let state = AppState::new(
+            config,
+            AuthConfig {
+                token: None,
+                allow_loopback_bypass: true,
+            },
+        );
         state.update_version(0, None);
         state
     }
@@ -328,16 +264,14 @@ mod tests {
             policy_shape.content_type.as_deref(),
             Some("application/json")
         );
-        assert_eq!(
-            policy_shape.body_keys,
-            Some(vec![
-                "checkedAt".to_string(),
-                "message".to_string(),
-                "ok".to_string(),
-                "status".to_string(),
-                "validatorPath".to_string(),
-            ])
-        );
+        // Policy response shape varies: exitCode and reason appear when lockfile exists
+        assert!(policy_shape.body_keys.as_ref().map_or(false, |keys| {
+            keys.contains(&"checkedAt".to_string())
+                && keys.contains(&"message".to_string())
+                && keys.contains(&"ok".to_string())
+                && keys.contains(&"status".to_string())
+                && keys.contains(&"validatorPath".to_string())
+        }));
 
         let health = app
             .clone()
@@ -403,6 +337,7 @@ mod tests {
                 "activeSessionCount".to_string(),
                 "healthIndicator".to_string(),
                 "recentActivity".to_string(),
+                "source".to_string(),
                 "totalSessionCount".to_string(),
             ])
         );
