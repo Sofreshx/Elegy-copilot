@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "orchestrator-dispatch/v1",
+  "kind": "dispatch-request",
+  "identity": {
+    "repoId": "repo-1",
+    "goalId": "goal-1",
+    "roadmapId": "roadmap-1",
+    "workPointId": "work-1",
+    "runId": "run-1"
+  },
+  "adapterId": "codex-exec",
+  "fencingToken": 3,
+  "idempotencyKey": "dispatch-1",
+  "worktreePath": "C:/worktrees/run-1",
+  "fileScopes": ["native/runtime/src/**"],
+  "prompt": "Implement the selected work point."
+}

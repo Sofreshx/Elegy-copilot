@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "orchestrator-dispatch/v2",
+  "kind": "dispatch-request",
+  "identity": {
+    "goalId": "goal-1",
+    "roadmapId": "roadmap-1",
+    "workPointId": "work-1",
+    "runId": "run-1"
+  },
+  "adapterId": "claude-code",
+  "fencingToken": 0,
+  "idempotencyKey": "",
+  "worktreePath": "",
+  "fileScopes": []
+}

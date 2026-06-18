@@ -88,7 +88,7 @@ State:
 
 ## Decision: Worker Trust Model
 
-Workers (OpenCode, Codex, Claude Code, native adapters) are untrusted producers:
+Workers (OpenCode, Codex, and native adapters) are untrusted producers:
 - Workers may produce malformed output, claim false validation success, modify out-of-scope files, or fail silently.
 - The orchestrator is the sole verifier of actual repository state after worker completion.
 - Evidence claims from workers are recorded but not trusted until orchestrator verification.
@@ -144,7 +144,8 @@ Verifying is restartable (not replayable) because verification steps may involve
 - No automatic merge (requires explicit approval)
 - No second Execution tab, native daemon, planning authority, or worktree schema
 - No multi-repository concurrent runs (one active run per repository). Rationale: the append-only journal serializes per-repository because worktree isolation uses the repo's shared worktree registry and the journal's ordering guarantees require single-writer semantics per repo. Per-worktree journal partitions are a v2 scope item.
-- No Codex or Claude Code adapters until protocol spikes prove feasibility
+- No Claude Code adapter in v1. The protocol spike was cancelled after account-level
+  HTTP 402 failures prevented conformance evidence.
 
 ## Lease dependency fallback
 
@@ -174,6 +175,8 @@ Migration:
 - Existing OpenCode lanes and workspace tabs continue unchanged
 - Experimental flag defaults off
 - Pilot with one repository and one proven adapter before expansion
+- The canonical wire contracts are defined in
+  `docs/system/orchestrator-contracts.md`.
 
 ## Validation notes
 

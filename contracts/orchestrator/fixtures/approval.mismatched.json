@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "orchestrator-approval/v1",
+  "kind": "approval-token",
+  "tokenId": "approval-2",
+  "identity": {
+    "repoId": "repo-1",
+    "goalId": "goal-1",
+    "roadmapId": "roadmap-1",
+    "workPointId": "work-1",
+    "runId": "run-1"
+  },
+  "repositoryState": {
+    "baseHeadSha": "1111111111111111111111111111111111111111",
+    "resultTreeSha": "2222222222222222222222222222222222222222",
+    "diffHash": "3333333333333333333333333333333333333333333333333333333333333333",
+    "targetHeadSha": "4444444444444444444444444444444444444444"
+  },
+  "expiresAtUnixMs": 4102444800000,
+  "idempotencyKey": "approval-key-2",
+  "binding": "5555555555555555555555555555555555555555555555555555555555555555",
+  "expectedRepositoryState": {
+    "baseHeadSha": "1111111111111111111111111111111111111111",
+    "resultTreeSha": "2222222222222222222222222222222222222222",
+    "diffHash": "3333333333333333333333333333333333333333333333333333333333333333",
+    "targetHeadSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

@@ -12,7 +12,7 @@ related:
 
 ## Intent
 
-Build a Rust-owned durable execution control plane that dispatches isolated coding workers through OpenCode, Codex, Claude Code, and deterministic native adapters; binds execution to `elegy-planning` work points; verifies actual repository state; and exposes safe human approval controls in the existing workspace Execution tab.
+Build a Rust-owned durable execution control plane that dispatches isolated coding workers through OpenCode, Codex, and deterministic native adapters; binds execution to `elegy-planning` work points; verifies actual repository state; and exposes safe human approval controls in the existing workspace Execution tab.
 
 ## Context Evidence
 
@@ -100,7 +100,7 @@ Approvals MUST be single-use tokens bound to immutable Git state. Binding contra
 
 ### R6 — Worker adapter conformance
 
-Each adapter (OpenCode ACP, Codex exec, Claude Code) MUST pass common dispatch, cancellation, timeout, malformed-output, and resume fixtures.
+Each v1 adapter (OpenCode ACP, Codex exec, native) MUST pass its applicable common dispatch, cancellation, timeout, malformed-output, and resume fixtures.
 
 - Child process trees MUST be terminated on timeout and cancellation.
 - Unavailable capabilities MUST be reported before dispatch.
@@ -186,7 +186,7 @@ Tests MUST exercise:
 - Permanent warm worker processes
 - Automatic merge without approval
 - Multi-repository concurrent runs (v1 limit: one active run per repo). Rationale: the append-only journal serializes per-repository because worktree isolation uses the repo's shared worktree registry and the journal's ordering guarantees require single-writer semantics per repo. Per-worktree journal partitions are a v2 scope item.
-- Codex/Claude Code adapters before protocol spikes prove feasibility
+- Claude Code adapter. Its protocol spike was cancelled after account-level HTTP 402 failures prevented conformance evidence.
 - Second Execution tab, native daemon, planning authority, or worktree schema
 
 ## Acceptance Checks
@@ -200,7 +200,7 @@ Tests MUST exercise:
 - Existing OpenCode lanes and current Node/Rust runtime topology continue to operate without behavioral regression.
   → verify: Regression suite (ORCH-015) — all existing workspace tab tests pass
 
-- OpenCode, Codex, and Claude Code integrations use supported machine protocols or non-interactive CLI surfaces rather than invented flags.
+- OpenCode and Codex integrations use supported machine protocols or non-interactive CLI surfaces rather than invented flags.
   → verify: Adapter conformance fixtures (ORCH-012) — common dispatch/cancel/timeout/resume across all adapters
 
 - The existing workspace Execution tab provides session state, evidence, input requests, approvals, cancellation, and recovery controls.

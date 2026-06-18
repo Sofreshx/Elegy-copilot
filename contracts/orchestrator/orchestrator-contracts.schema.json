@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elegy.local/contracts/orchestrator-contracts.schema.json",
+  "title": "Harness Execution Orchestrator Contracts",
+  "oneOf": [
+    { "$ref": "#/$defs/dispatchRequest" },
+    { "$ref": "#/$defs/workerResult" },
+    { "$ref": "#/$defs/adapterCapabilities" },
+    { "$ref": "#/$defs/executionEvent" },
+    { "$ref": "#/$defs/evidenceClaim" },
+    { "$ref": "#/$defs/approvalToken" },
+    { "$ref": "#/$defs/idempotencyRecord" },
+    { "$ref": "#/$defs/apiError" }
+  ],
+  "$defs": {
+    "identity": {
+      "type": "object",
+      "required": ["repoId", "goalId", "roadmapId", "workPointId", "runId"],
+      "properties": {
+        "repoId": { "type": "string", "minLength": 1 },
+        "goalId": { "type": "string", "minLength": 1 },
+        "roadmapId": { "type": "string", "minLength": 1 },
+        "workPointId": { "type": "string", "minLength": 1 },
+        "runId": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "repositoryState": {
+      "type": "object",
+      "required": ["baseHeadSha", "resultTreeSha", "diffHash", "targetHeadSha"],
+      "properties": {
+        "baseHeadSha": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+        "resultTreeSha": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+        "diffHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "targetHeadSha": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" }
+      },
+      "additionalProperties": true
+    },
+    "dispatchRequest": {
+      "type": "object",
+      "required": ["schemaVersion", "kind", "identity", "adapterId", "fencingToken", "idempotencyKey", "worktreePath", "fileScopes"],
+      "properties": {
+        "schemaVersion": { "const": "orchestrator-dispatch/v1" },
+        "kind": { "const": "dispatch-request" },
+        "identity": { "$ref": "#/$defs/identity" },
+        "adapterId": { "enum": ["opencode-acp", "codex-exec", "native"] },
+        "fencingToken": { "type": "integer", "minimum": 1 },
+        "idempotencyKey": { "type": "string", "minLength": 1 },
+        "worktreePath": { "type": "string", "minLength": 1 },
+        "fileScopes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "prompt": { "type": "string", "maxLength": 262144 },
+        "resumeSessionId": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "workerResult": {
+      "type": "object",
+      "required": ["schemaVersion", "kind", "identity", "adapterId", "status", "observedOutputBytes", "claims"],
+      "properties": {
+        "schemaVersion": { "const": "orchestrator-worker-result/v1" },
+        "kind": { "const": "worker-result" },
+        "identity": { "$ref": "#/$defs/identity" },
+        "adapterId": { "enum": ["opencode-acp", "codex-exec", "native"] },
+        "status": { "enum": ["completed", "failed", "cancelled", "timed-out", "malformed"] },
+        "logicalSessionId": { "type": ["string", "null"] },
+        "summary": { "type": ["string", "null"], "maxLength": 65536 },
+        "observedOutputBytes": { "type": "integer", "minimum": 0, "maximum": 1048576 },
+        "claims": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceClaim" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "adapterCapabilities": {
+      "type": "object",
+      "required": ["schemaVersion", "kind", "adapterId", "available", "supportsCancellation", "supportsResume", "supportsStructuredResult", "maxConcurrent"],
+      "properties": {
+        "schemaVersion": { "const": "orchestrator-adapter-capabilities/v1" },
+        "kind": { "const": "adapter-capabilities" },
+        "adapterId": { "enum": ["opencode-acp", "codex-exec", "native"] },
+        "available": { "type": "boolean" },
+        "supportsCancellation": { "type": "boolean" },
+        "supportsResume": { "type": "boolean" },
+        "supportsStructuredResult": { "type": "boolean" },
+        "maxConcurrent": { "type": "integer", "minimum": 0 },
+        "unavailableReason": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "executionEvent": {
+      "type": "object",
+      "required": ["schemaVersion", "kind", "eventId", "sequence", "identity", "eventType", "occurredAt", "payload"],
+      "properties": {
+        "schemaVersion": { "const": "orchestrator-execution-event/v1" },
+        "kind": { "const": "execution-event" },
+        "eventId": { "type": "string", "minLength": 1 },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "identity": { "$ref": "#/$defs/identity" },
+        "eventType": { "type": "string", "minLength": 1 },
+        "occurredAt": { "type": "string", "format": "date-time" },
+        "payload": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "evidenceClaim": {
+      "type": "object",
+      "required": ["schemaVersion", "kind", "claimId", "claimType", "source", "summary"],
+      "properties": {
+        "schemaVersion": { "const": "orchestrator-evidence-claim/v1" },
+        "kind": { "const": "evidence-claim" },
+        "claimId": { "type": "string", "minLength": 1 },
+        "claimType": { "enum": ["worker-reported", "orchestrator-observed"] },
+        "source": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 65536 },
+        "command": { "type": ["string", "null"] },
+        "exitCode": { "type": ["integer", "null"] },
+        "durationMs": { "type": ["integer", "null"], "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "approvalToken": {
+      "type": "object",
+      "required": ["schemaVersion", "kind", "tokenId", "identity", "repositoryState", "expiresAtUnixMs", "idempotencyKey", "binding"],
+      "properties": {
+        "schemaVersion": { "const": "orchestrator-approval/v1" },
+        "kind": { "const": "approval-token" },
+        "tokenId": { "type": "string", "minLength": 1 },
+        "identity": { "$ref": "#/$defs/identity" },
+        "repositoryState": { "$ref": "#/$defs/repositoryState" },
+        "expiresAtUnixMs": { "type": "integer", "minimum": 1 },
+        "idempotencyKey": { "type": "string", "minLength": 1 },
+        "binding": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "consumedAtUnixMs": { "type": ["integer", "null"], "minimum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "idempotencyRecord": {
+      "type": "object",
+      "required": ["schemaVersion", "kind", "idempotencyKey", "operation", "payloadHash", "createdAtUnixMs"],
+      "properties": {
+        "schemaVersion": { "const": "orchestrator-idempotency/v1" },
+        "kind": { "const": "idempotency-record" },
+        "idempotencyKey": { "type": "string", "minLength": 1 },
+        "operation": { "type": "string", "minLength": 1 },
+        "payloadHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "createdAtUnixMs": { "type": "integer", "minimum": 1 },
+        "response": {}
+      },
+      "additionalProperties": true
+    },
+    "apiError": {
+      "type": "object",
+      "required": ["schemaVersion", "kind", "code", "message", "retryable"],
+      "properties": {
+        "schemaVersion": { "const": "orchestrator-api-error/v1" },
+        "kind": { "const": "api-error" },
+        "code": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "message": { "type": "string", "minLength": 1 },
+        "retryable": { "type": "boolean" },
+        "details": { "type": ["object", "null"] }
+      },
+      "additionalProperties": true
+    }
+  }
+}

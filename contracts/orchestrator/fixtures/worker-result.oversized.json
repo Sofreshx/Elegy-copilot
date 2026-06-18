@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "orchestrator-worker-result/v1",
+  "kind": "worker-result",
+  "identity": {
+    "repoId": "repo-1",
+    "goalId": "goal-1",
+    "roadmapId": "roadmap-1",
+    "workPointId": "work-1",
+    "runId": "run-1"
+  },
+  "adapterId": "codex-exec",
+  "status": "completed",
+  "observedOutputBytes": 1048577,
+  "claims": []
+}
