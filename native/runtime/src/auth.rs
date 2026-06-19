@@ -232,6 +232,8 @@ mod tests {
                 port: 0,
                 elegy_home: temp.join(".elegy"),
                 sandboxes_home: temp.join(".elegy").join("sandboxes"),
+                node_executable: None,
+                kimaki_entrypoint: None,
             },
             AuthConfig {
                 token: None,

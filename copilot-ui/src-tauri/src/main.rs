@@ -1068,6 +1068,19 @@ fn launch_rust_runtime(
     stderr_capture: StderrCapture,
 ) -> Result<String, String> {
     let binary = rust_binary_path(runtime_root)?;
+    let runtime_root_path = std::path::Path::new(runtime_root);
+    let bundled_node = bundled_node_path(app, runtime_root_path)?;
+    let hoisted_kimaki = runtime_root_path.join("node_modules").join("kimaki").join("bin.js");
+    let packaged_kimaki = runtime_root_path
+        .join("copilot-ui")
+        .join("node_modules")
+        .join("kimaki")
+        .join("bin.js");
+    let kimaki_entrypoint = if hoisted_kimaki.exists() {
+        hoisted_kimaki
+    } else {
+        packaged_kimaki
+    };
     eprintln!("[tauri-runtime] Rust binary: {}", binary);
 
     let mut child = Command::new(&binary)
@@ -1075,6 +1088,8 @@ fn launch_rust_runtime(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .env("RUST_LOG", "elegy_native_runtime=info,tower_http=info")
+        .env("INSTRUCTION_ENGINE_NODE_EXECUTABLE", bundled_node)
+        .env("INSTRUCTION_ENGINE_KIMAKI_ENTRYPOINT", kimaki_entrypoint)
         .spawn()
         .map_err(|e| format!("Failed to spawn Rust runtime: {}", e))?;
 

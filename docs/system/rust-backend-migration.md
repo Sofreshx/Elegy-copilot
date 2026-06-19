@@ -23,6 +23,7 @@ The Node.js HTTP server (`copilot-ui/server.js`) is the default backend. The Rus
 | Per-domain e2e happy path tests | ✅ | 46 integration tests + 1 concurrent test |
 | Response-shape parity with frontend | ✅ | `catalog/repos`, `assets/managed`, `assets/installed`, `catalog/summary`, `dashboard/summary` |
 | Frontend SPA served from ui-dist/ | ✅ | Custom fallback for non-API paths |
+| Kimaki Remote API parity | ✅ | Rust supervises the pinned Kimaki Node child and serves `/api/remote/*` |
 
 ## Known Limitations
 

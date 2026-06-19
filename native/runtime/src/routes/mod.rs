@@ -26,6 +26,7 @@ mod planning_live;
 mod policy;
 mod projects;
 mod repo_docs;
+mod remote;
 mod sessions;
 mod tooling_updates;
 mod ui_runtime_overlay;
@@ -67,6 +68,7 @@ pub fn build_routes(state: AppState) -> Router {
         .merge(workspace::router(state.clone()))
         .merge(ui_runtime_overlay::router(state.clone()))
         .merge(repo_docs::router(state.clone()))
+        .merge(remote::router(state.clone()))
         .merge(checks::router(state.clone()))
         .merge(planning_obsidian::router(state.clone()))
         .merge(codex::router(state.clone()))

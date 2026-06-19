@@ -17,92 +17,107 @@ interface RemoteState {
   projects: RemoteProject[];
   sessions: RemoteSession[];
   logsTail: string[];
-  loading: boolean;
+  statusLoading: boolean;
+  actionLoading: boolean;
   error: string | null;
-
-  loadStatus: () => Promise<void>;
-  loadProjects: () => Promise<void>;
-  loadSessions: (projectDir?: string) => Promise<void>;
+  loadStatus: () => Promise<RemoteStatus | null>;
+  loadOperations: () => Promise<void>;
   sendPrompt: (project: string, prompt: string, threadId?: string, permission?: string[]) => Promise<void>;
   addProject: (dir: string, guildId?: string) => Promise<void>;
   refreshLogs: () => Promise<void>;
   restart: () => Promise<void>;
 }
 
+let statusRequest: Promise<RemoteStatus | null> | null = null;
+let operationsRequest: Promise<void> | null = null;
+
 export const useRemoteStore = create<RemoteState>((set, get) => ({
   status: null,
   projects: [],
   sessions: [],
   logsTail: [],
-  loading: false,
+  statusLoading: false,
+  actionLoading: false,
   error: null,
 
   loadStatus: async () => {
-    try {
-      const status = await getRemoteStatus();
-      set({ status, error: null });
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : String(err) });
-    }
+    if (statusRequest) return statusRequest;
+    statusRequest = (async () => {
+      set({ statusLoading: true });
+      try {
+        const status = await getRemoteStatus();
+        set({ status, statusLoading: false, error: null });
+        return status;
+      } catch (err) {
+        set({ statusLoading: false, error: err instanceof Error ? err.message : String(err) });
+        return null;
+      } finally {
+        statusRequest = null;
+      }
+    })();
+    return statusRequest;
   },
 
-  loadProjects: async () => {
-    try {
-      set({ loading: true });
-      const { projects } = await listRemoteProjects();
-      set({ projects, loading: false, error: null });
-    } catch (err) {
-      set({ loading: false, error: err instanceof Error ? err.message : String(err) });
-    }
-  },
-
-  loadSessions: async (projectDir?: string) => {
-    try {
-      const { sessions } = await listRemoteSessions({ project: projectDir, limit: 50 });
-      set({ sessions, error: null });
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : String(err) });
-    }
+  loadOperations: async () => {
+    if (!get().status?.ready || operationsRequest) return operationsRequest ?? Promise.resolve();
+    operationsRequest = (async () => {
+      try {
+        const [{ projects }, { sessions }] = await Promise.all([
+          listRemoteProjects(),
+          listRemoteSessions({ limit: 50 }),
+        ]);
+        set({ projects, sessions, error: null });
+      } catch (err) {
+        set({ error: err instanceof Error ? err.message : String(err) });
+      } finally {
+        operationsRequest = null;
+      }
+    })();
+    return operationsRequest;
   },
 
   sendPrompt: async (project, prompt, threadId, permission) => {
+    set({ actionLoading: true, error: null });
     try {
-      set({ loading: true });
       await sendRemotePrompt({ project, prompt, threadId, permission });
-      set({ loading: false, error: null });
+      await get().loadOperations();
     } catch (err) {
-      set({ loading: false, error: err instanceof Error ? err.message : String(err) });
+      set({ error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      set({ actionLoading: false });
     }
   },
 
   addProject: async (dir, guildId) => {
+    set({ actionLoading: true, error: null });
     try {
-      set({ loading: true });
       await addRemoteProject({ directory: dir, guildId });
-      await get().loadProjects();
-      set({ loading: false });
+      await get().loadOperations();
     } catch (err) {
-      set({ loading: false, error: err instanceof Error ? err.message : String(err) });
+      set({ error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      set({ actionLoading: false });
     }
   },
 
   refreshLogs: async () => {
     try {
-      const { lines } = await getRemoteLogs(50);
-      set({ logsTail: lines, error: null });
+      const { lines } = await getRemoteLogs(100);
+      set({ logsTail: lines });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : String(err) });
     }
   },
 
   restart: async () => {
+    set({ actionLoading: true, error: null, projects: [], sessions: [] });
     try {
-      set({ loading: true, error: null });
       await restartRemoteRuntime();
       await get().loadStatus();
-      set({ loading: false });
     } catch (err) {
-      set({ loading: false, error: err instanceof Error ? err.message : String(err) });
+      set({ error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      set({ actionLoading: false });
     }
   },
 }));

@@ -3,12 +3,26 @@
  */
 
 export interface RemoteStatus {
-  state: 'idle' | 'awaiting_install' | 'awaiting_auth' | 'ready' | 'error' | 'unavailable';
+  state: 'idle' | 'starting' | 'awaiting_install' | 'awaiting_auth' | 'ready' | 'restarting' | 'error' | 'unavailable';
+  available: boolean;
+  ready: boolean;
+  phase: string;
+  reason: string | null;
+  message: string;
+  runtime: 'node' | 'rust';
   installUrl: string | null;
   guildIds: string[];
   appId: string | null;
   dataDir: string | null;
   lastError: string | null;
+}
+
+async function readRemoteResponse<T>(res: Response, fallback: string): Promise<T> {
+  const body = await res.json().catch(() => null) as { message?: string } | null;
+  if (!res.ok) {
+    throw new Error(body?.message || fallback);
+  }
+  return body as T;
 }
 
 export interface RemoteProject {
@@ -32,20 +46,17 @@ export interface RemoteSession {
 
 export async function getRemoteStatus(): Promise<RemoteStatus> {
   const res = await fetch('/api/remote/status');
-  if (!res.ok) throw new Error(`Failed to get remote status: ${res.status}`);
-  return res.json();
+  return readRemoteResponse(res, `Failed to get remote status: ${res.status}`);
 }
 
 export async function restartRemoteRuntime(): Promise<{ success: boolean; state: RemoteStatus['state'] }> {
   const res = await fetch('/api/remote/restart', { method: 'POST' });
-  if (!res.ok) throw new Error(`Failed to restart remote runtime: ${res.status}`);
-  return res.json();
+  return readRemoteResponse(res, `Failed to restart remote runtime: ${res.status}`);
 }
 
 export async function listRemoteProjects(): Promise<{ projects: RemoteProject[] }> {
   const res = await fetch('/api/remote/projects');
-  if (!res.ok) throw new Error(`Failed to list projects: ${res.status}`);
-  return res.json();
+  return readRemoteResponse(res, `Failed to list projects: ${res.status}`);
 }
 
 export async function listRemoteSessions(opts?: { project?: string; limit?: number }): Promise<{ sessions: RemoteSession[] }> {
@@ -54,8 +65,7 @@ export async function listRemoteSessions(opts?: { project?: string; limit?: numb
   if (opts?.limit) params.set('limit', String(opts.limit));
   const query = params.toString();
   const res = await fetch(`/api/remote/sessions${query ? `?${query}` : ''}`);
-  if (!res.ok) throw new Error(`Failed to list sessions: ${res.status}`);
-  return res.json();
+  return readRemoteResponse(res, `Failed to list sessions: ${res.status}`);
 }
 
 export async function sendRemotePrompt(body: {
@@ -69,8 +79,7 @@ export async function sendRemotePrompt(body: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`Failed to send prompt: ${res.status}`);
-  return res.json();
+  return readRemoteResponse(res, `Failed to send prompt: ${res.status}`);
 }
 
 export async function addRemoteProject(body: {
@@ -82,12 +91,10 @@ export async function addRemoteProject(body: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`Failed to add project: ${res.status}`);
-  return res.json();
+  return readRemoteResponse(res, `Failed to add project: ${res.status}`);
 }
 
 export async function getRemoteLogs(tail = 50): Promise<{ lines: string[] }> {
   const res = await fetch(`/api/remote/logs?tail=${tail}`);
-  if (!res.ok) throw new Error(`Failed to get logs: ${res.status}`);
-  return res.json();
+  return readRemoteResponse(res, `Failed to get logs: ${res.status}`);
 }

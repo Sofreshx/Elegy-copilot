@@ -26,6 +26,7 @@ pub struct AppState {
     pub(crate) version_state: Arc<Mutex<VersionResponse>>,
     pub(crate) policy_cache: Arc<Mutex<Option<CachedPolicyPreflight>>>,
     pub(crate) planning_pool: Arc<crate::db::PlanningPool>,
+    pub remote_runtime: crate::remote::RemoteRuntime,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +43,13 @@ impl AppState {
                 crate::db::init_planning_pool(std::path::Path::new(":memory:"))
                     .expect("in-memory pool should always succeed")
             });
+        let remote_runtime = crate::remote::RemoteRuntime::new(&config);
+        if remote_runtime.available() {
+            if let Err(error) = remote_runtime.start() {
+                tracing::warn!("Failed to start Kimaki runtime: {error}");
+            }
+        }
+
         Self {
             config,
             auth,
@@ -51,6 +59,7 @@ impl AppState {
             })),
             policy_cache: Arc::new(Mutex::new(None)),
             planning_pool: Arc::new(pool),
+            remote_runtime,
         }
     }
 
@@ -186,11 +195,14 @@ pub async fn serve(state: AppState) -> anyhow::Result<()> {
 }
 
 pub async fn serve_on(state: AppState, listener: tokio::net::TcpListener) -> anyhow::Result<()> {
+    let remote_runtime = state.remote_runtime.clone();
     let shutdown = graceful_shutdown_signal();
-    axum::serve(listener, build_router(state))
+    let result = axum::serve(listener, build_router(state))
         .with_graceful_shutdown(shutdown)
         .await
-        .context("Rust runtime server exited unexpectedly")
+        .context("Rust runtime server exited unexpectedly");
+    let _ = remote_runtime.stop();
+    result
 }
 
 async fn graceful_shutdown_signal() {
@@ -246,6 +258,8 @@ mod tests {
             port: 0,
             elegy_home: temp.join(".elegy"),
             sandboxes_home: temp.join(".elegy").join("sandboxes"),
+            node_executable: None,
+            kimaki_entrypoint: None,
         };
         let _ = std::fs::create_dir_all(config.elegy_home.join("session-state"));
         let state = AppState::new(

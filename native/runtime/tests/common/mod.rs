@@ -25,6 +25,8 @@ pub fn test_state(tmp: &Path) -> AppState {
         port: 0,
         elegy_home,
         sandboxes_home,
+        node_executable: None,
+        kimaki_entrypoint: None,
     };
 
     let state = AppState::new(

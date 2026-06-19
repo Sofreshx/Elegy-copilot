@@ -11,6 +11,7 @@ pub mod planning_health;
 pub mod policy;
 pub mod projects;
 pub mod response_shape;
+pub mod remote;
 pub mod routes;
 pub mod runtime;
 pub mod sessions;
