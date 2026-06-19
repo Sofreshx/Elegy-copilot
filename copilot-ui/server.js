@@ -11,6 +11,7 @@ const os = require('os');
 const childProcess = require('child_process');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
+const { proxyToNativeRuntime: proxyNativeRuntimeRequest } = require('./lib/nativeRuntimeProxy');
 
 /**
  * @typedef {import('@elegy-copilot/contracts').WorkflowStep} ContractWorkflowStep
@@ -4344,45 +4345,7 @@ function relayTrackerSSE(trackerUrl, trackerToken, req, res) {
 }
 
 function proxyToNativeRuntime(nativeRuntimeUrl, pathname, req, res) {
-  const parsed = new URL(pathname, nativeRuntimeUrl);
-  const options = {
-    hostname: parsed.hostname,
-    port: parsed.port,
-    path: parsed.pathname + parsed.search,
-    method: req.method,
-    headers: {
-      'Accept': 'application/json',
-    },
-    timeout: 10000,
-  };
-
-  const proxyReq = http.request(options, (proxyRes) => {
-    const chunks = [];
-    proxyRes.on('data', (chunk) => chunks.push(chunk));
-    proxyRes.on('end', () => {
-      res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
-      res.end(Buffer.concat(chunks));
-    });
-  });
-
-  proxyReq.on('error', (err) => {
-    if (!res.headersSent) {
-      sendJson(res, 502, { error: `Native runtime unreachable: ${err.message}` });
-    }
-  });
-
-  proxyReq.on('timeout', () => {
-    proxyReq.destroy();
-    if (!res.headersSent) {
-      sendJson(res, 504, { error: 'Native runtime request timed out' });
-    }
-  });
-
-  if (req.method === 'PATCH' || req.method === 'POST' || req.method === 'PUT') {
-    req.pipe(proxyReq);
-  } else {
-    proxyReq.end();
-  }
+  return proxyNativeRuntimeRequest(nativeRuntimeUrl, pathname, req, res);
 }
 
 function loadNativeRuntimeFallbackSessions(elegyHome) {
@@ -4627,6 +4590,7 @@ function handleApi({ req, res, u, elegyHome, sandboxesHome, engineRoot, changeTr
   }
 
   if (
+    pathname.startsWith('/api/orchestrator') ||
     pathname.startsWith('/api/projects') ||
     pathname === '/api/dashboard/summary'
   ) {

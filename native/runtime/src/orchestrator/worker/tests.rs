@@ -224,7 +224,10 @@ const rl = readline.createInterface({input: process.stdin})
 rl.on('line', line => {
   const request = JSON.parse(line)
   if (request.id === 1) console.log(JSON.stringify({jsonrpc:'2.0', id:1, result:{protocolVersion:1}}))
-  if (request.id === 2) console.log(JSON.stringify({jsonrpc:'2.0', id:2, result:{sessionId:'session-cancel'}}))
+  if (request.id === 2) {
+    require('fs').writeFileSync('session-ready.txt', 'yes')
+    console.log(JSON.stringify({jsonrpc:'2.0', id:2, result:{sessionId:'session-cancel'}}))
+  }
   if (request.method === 'session/cancel') require('fs').writeFileSync('cancel-seen.txt', 'yes')
 })
 setTimeout(() => {}, 10000)
@@ -237,7 +240,13 @@ setTimeout(() => {}, 10000)
     let worker_request = request(AdapterId::OpencodeAcp, root.path(), "cancel");
     let handle =
         thread::spawn(move || worker_adapter.dispatch(&worker_request, &worker_cancellation));
-    thread::sleep(Duration::from_millis(100));
+    for _ in 0..100 {
+        if root.path().join("session-ready.txt").exists() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert!(root.path().join("session-ready.txt").exists());
     cancellation.cancel();
     assert_eq!(
         handle

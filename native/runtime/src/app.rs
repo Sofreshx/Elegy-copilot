@@ -26,6 +26,7 @@ pub struct AppState {
     pub(crate) version_state: Arc<Mutex<VersionResponse>>,
     pub(crate) policy_cache: Arc<Mutex<Option<CachedPolicyPreflight>>>,
     pub(crate) planning_pool: Arc<crate::db::PlanningPool>,
+    pub(crate) orchestrator_api: Arc<crate::orchestrator::api::OrchestratorApi>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +43,8 @@ impl AppState {
                 crate::db::init_planning_pool(std::path::Path::new(":memory:"))
                     .expect("in-memory pool should always succeed")
             });
+        let orchestrator_api = crate::orchestrator::api::OrchestratorApi::open(&config)
+            .unwrap_or_else(|error| panic!("failed to initialize orchestrator API state: {error}"));
         Self {
             config,
             auth,
@@ -51,6 +54,7 @@ impl AppState {
             })),
             policy_cache: Arc::new(Mutex::new(None)),
             planning_pool: Arc::new(pool),
+            orchestrator_api: Arc::new(orchestrator_api),
         }
     }
 

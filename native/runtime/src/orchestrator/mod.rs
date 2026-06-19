@@ -1,3 +1,4 @@
+pub mod api;
 pub mod approval;
 pub mod journal;
 pub mod planning;

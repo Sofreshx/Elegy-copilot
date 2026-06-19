@@ -80,6 +80,7 @@ pub fn build_routes(state: AppState) -> Router {
         .merge(lexicon::router(state.clone()))
         .merge(telemetry::router(state.clone()))
         .merge(code_review::router(state.clone()))
+        .merge(crate::orchestrator::api::router(state.clone()))
         .fallback(any(smart_fallback))
 }
 
