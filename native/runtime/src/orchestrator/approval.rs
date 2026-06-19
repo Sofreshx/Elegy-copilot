@@ -216,7 +216,11 @@ impl ApprovalService {
         if current_state != expected {
             return Err(ApprovalError::StaleRepositoryState);
         }
-        git_success(repository, &["merge", "--no-ff", "--no-edit", source_ref])?;
+        if let Err(error) = git_success(repository, &["merge", "--no-ff", "--no-edit", source_ref])
+        {
+            let _ = git_success(repository, &["merge", "--abort"]);
+            return Err(ApprovalError::MergeConflict(error.to_string()));
+        }
         git_text(repository, &["rev-parse", "HEAD"])
     }
 
@@ -368,6 +372,8 @@ pub enum ApprovalError {
     Worktree(#[from] super::worktree::WorktreeError),
     #[error("git {command} failed: {detail}")]
     Git { command: String, detail: String },
+    #[error("approved merge conflicted and was aborted: {0}")]
+    MergeConflict(String),
 }
 
 #[cfg(test)]
