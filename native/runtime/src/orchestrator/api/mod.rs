@@ -22,6 +22,10 @@ use tokio_stream::{self as stream, Stream, StreamExt};
 
 use crate::app::AppState;
 use crate::config::RuntimeConfig;
+use crate::orchestrator::pilot::{
+    adapter_allowed, merge_enabled, PilotEventCategory, PilotEventInput, PilotTelemetry,
+    PILOT_ADAPTERS,
+};
 use crate::orchestrator::worker::{
     CodexExecAdapter, NativeAdapter, OpenCodeAcpAdapter, WorkerAdapter,
 };
@@ -83,6 +87,7 @@ pub struct OrchestratorApi {
     store: Mutex<ApiStore>,
     events: broadcast::Sender<ApiEvent>,
     config: RuntimeConfig,
+    telemetry: PilotTelemetry,
 }
 
 impl OrchestratorApi {
@@ -103,11 +108,13 @@ impl OrchestratorApi {
             return Err(ApiFailure::UnsupportedStore(store.schema_version));
         }
         let (events, _) = broadcast::channel(256);
+        let telemetry = PilotTelemetry::open(&config.elegy_home)?;
         Ok(Self {
             path,
             store: Mutex::new(store),
             events,
             config: config.clone(),
+            telemetry,
         })
     }
 
@@ -221,9 +228,15 @@ impl OrchestratorApi {
         let orphan_recovery = fs::read_dir(&journal_directory)
             .map(|entries| entries.filter_map(Result::ok).count())
             .unwrap_or(0);
+        let pilot_merge_enabled =
+            merge_enabled(&self.config.orchestrator_pilot, &self.config.elegy_home);
+        let telemetry_count = self.telemetry.event_count();
+        let telemetry_ready = telemetry_count.is_ok();
+        let telemetry_error = telemetry_count.as_ref().err().map(ToString::to_string);
         serde_json::json!({
             "schemaVersion": "orchestrator-health/v1",
-            "ok": planning_path.is_some(),
+            "ok": planning_path.is_some()
+                && (!self.config.orchestrator_pilot.enabled || telemetry_ready),
             "planning": {
                 "compatible": planning_path.is_some(),
                 "negotiated": false,
@@ -239,6 +252,18 @@ impl OrchestratorApi {
             "orphanRecovery": {
                 "ready": true,
                 "recoverableJournalCount": orphan_recovery
+            },
+            "pilot": {
+                "enabled": self.config.orchestrator_pilot.enabled,
+                "allowedAdapters": PILOT_ADAPTERS,
+                "oneActiveRunPerRepository": true,
+                "approvedOperation": "commit",
+                "mergeRequested": self.config.orchestrator_pilot.merge_requested,
+                "mergeEnabled": pilot_merge_enabled,
+                "telemetryPath": self.telemetry.path(),
+                "telemetryReady": telemetry_ready,
+                "telemetryError": telemetry_error,
+                "telemetryEventCount": telemetry_count.unwrap_or(0)
             }
         })
     }
@@ -265,6 +290,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/orchestrator/sessions/{id}/resume", post(resume))
         .route("/api/orchestrator/sessions/{id}/cancel", post(cancel))
         .route("/api/orchestrator/sessions/{id}/events", get(events))
+        .route("/api/orchestrator/pilot/events", post(record_pilot_event))
         .with_state(state)
 }
 
@@ -293,6 +319,9 @@ async fn create_session(
     Json(body): Json<Value>,
 ) -> Result<Response, ApiFailure> {
     let key = idempotency_key(&headers)?;
+    if !state.config.orchestrator_pilot.enabled {
+        return Err(ApiFailure::PilotDisabled);
+    }
     let result = state.orchestrator_api.mutate(
         "POST",
         "/api/orchestrator/sessions",
@@ -301,8 +330,28 @@ async fn create_session(
         |store| {
             let repo_id = required_string(&body, "repoId")?;
             let adapter_id = required_string(&body, "adapterId")?;
-            if !matches!(adapter_id, "opencode-acp" | "codex-exec" | "native") {
-                return Err(ApiFailure::Invalid("unsupported adapterId".into()));
+            if !adapter_allowed(&state.config.orchestrator_pilot, adapter_id) {
+                return Err(ApiFailure::PilotPolicy(format!(
+                    "adapter {adapter_id} is not enabled for the bounded pilot"
+                )));
+            }
+            if let Some(existing) = store.sessions.values().find(|session| {
+                session.repo_id == repo_id && !is_terminal_session_state(&session.state)
+            }) {
+                state.orchestrator_api.telemetry.record_idempotent(
+                    &format!("dispatch-rejected:{key}"),
+                    PilotEventInput::new(
+                        PilotEventCategory::DuplicateDispatchAttempt,
+                        Some(repo_id),
+                        Some(&existing.session_id),
+                        "rejected",
+                        None,
+                        serde_json::json!({ "requestedAdapterId": adapter_id }),
+                    ),
+                )?;
+                return Err(ApiFailure::Conflict(
+                    "repository already has an active orchestrator session".into(),
+                ));
             }
             let now = Utc::now().to_rfc3339();
             let session_id = body
@@ -373,7 +422,46 @@ async fn add_approval(
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Result<Response, ApiFailure> {
-    mutate_session_collection(
+    let telemetry_key = format!("approval:{id}:{}", idempotency_key(&headers)?);
+    let mut telemetry = None;
+    if state.config.orchestrator_pilot.enabled {
+        let operation = body
+            .get("operation")
+            .and_then(Value::as_str)
+            .unwrap_or("commit");
+        if operation == "merge"
+            && !merge_enabled(&state.config.orchestrator_pilot, &state.config.elegy_home)
+        {
+            return Err(ApiFailure::PilotPolicy(
+                "merge promotion gates are not satisfied".into(),
+            ));
+        }
+        if operation != "commit" && operation != "merge" {
+            return Err(ApiFailure::PilotPolicy(
+                "bounded pilot approvals support commit only".into(),
+            ));
+        }
+        let duration_ms = body
+            .get("requestedAtUnixMs")
+            .and_then(Value::as_u64)
+            .map(|requested| {
+                (Utc::now().timestamp_millis().max(0) as u64).saturating_sub(requested)
+            });
+        telemetry = Some((
+            state
+                .orchestrator_api
+                .read_session(&id)
+                .ok()
+                .map(|session| session.repo_id),
+            body.get("decision")
+                .and_then(Value::as_str)
+                .unwrap_or("recorded")
+                .to_string(),
+            duration_ms,
+            serde_json::json!({ "operation": operation }),
+        ));
+    }
+    let response = mutate_session_collection(
         &state,
         &id,
         "approvals",
@@ -381,7 +469,21 @@ async fn add_approval(
         headers,
         body,
         |session, body| session.approvals.push(body),
-    )
+    )?;
+    if let Some((repo_id, outcome, duration_ms, detail)) = telemetry {
+        state.orchestrator_api.telemetry.record_idempotent(
+            &telemetry_key,
+            PilotEventInput::new(
+                PilotEventCategory::ApprovalLatency,
+                repo_id.as_deref(),
+                Some(&id),
+                outcome,
+                duration_ms,
+                detail,
+            ),
+        )?;
+    }
+    Ok(response)
 }
 
 async fn add_input(
@@ -454,7 +556,67 @@ async fn cancel(
     headers: HeaderMap,
     body: Json<Value>,
 ) -> Result<Response, ApiFailure> {
-    action(state, id, headers, body, "cancelled", "cancel-requested")
+    let session_id = id.0.clone();
+    let telemetry_key = format!("cancel:{session_id}:{}", idempotency_key(&headers)?);
+    let repo_id = state
+        .orchestrator_api
+        .read_session(&session_id)
+        .ok()
+        .map(|session| session.repo_id);
+    let response = action(
+        state.clone(),
+        id,
+        headers,
+        body,
+        "cancelled",
+        "cancel-requested",
+    )?;
+    if state.config.orchestrator_pilot.enabled {
+        state.orchestrator_api.telemetry.record_idempotent(
+            &telemetry_key,
+            PilotEventInput::new(
+                PilotEventCategory::CancellationOutcome,
+                repo_id.as_deref(),
+                Some(&session_id),
+                "cancelled",
+                None,
+                Value::Null,
+            ),
+        )?;
+    }
+    Ok(response)
+}
+
+async fn record_pilot_event(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Result<Response, ApiFailure> {
+    if !state.config.orchestrator_pilot.enabled {
+        return Err(ApiFailure::PilotDisabled);
+    }
+    let category = body
+        .get("category")
+        .cloned()
+        .ok_or_else(|| ApiFailure::Invalid("category is required".into()))
+        .and_then(|value| {
+            serde_json::from_value::<PilotEventCategory>(value)
+                .map_err(|_| ApiFailure::Invalid("unsupported pilot event category".into()))
+        })?;
+    let event = state.orchestrator_api.telemetry.record_idempotent(
+        idempotency_key(&headers)?,
+        PilotEventInput::new(
+            category,
+            body.get("repoId").and_then(Value::as_str),
+            body.get("sessionId").and_then(Value::as_str),
+            body.get("outcome")
+                .and_then(Value::as_str)
+                .unwrap_or("observed"),
+            body.get("durationMs").and_then(Value::as_u64),
+            body.get("detail").cloned().unwrap_or(Value::Null),
+        ),
+    )?;
+    Ok((StatusCode::CREATED, Json(serde_json::to_value(event)?)).into_response())
 }
 
 fn action(
@@ -576,6 +738,13 @@ fn require_revision(session: &ApiSession, expected: Option<u64>) -> Result<(), A
     Ok(())
 }
 
+fn is_terminal_session_state(state: &str) -> bool {
+    matches!(
+        state,
+        "completed" | "failed" | "cancelled" | "committed" | "merged"
+    )
+}
+
 fn error_body(code: &str, message: String, retryable: bool, details: Option<Value>) -> Value {
     serde_json::to_value(OrchestratorApiError {
         schema_version: "orchestrator-api-error/v1".into(),
@@ -610,6 +779,12 @@ pub enum ApiFailure {
     Conflict(String),
     #[error("stale revision: expected {expected}, actual {actual}")]
     Stale { expected: u64, actual: u64 },
+    #[error("orchestrator experimental pilot is disabled")]
+    PilotDisabled,
+    #[error("pilot policy rejected the request: {0}")]
+    PilotPolicy(String),
+    #[error(transparent)]
+    Pilot(#[from] crate::orchestrator::pilot::PilotError),
 }
 
 impl IntoResponse for ApiFailure {
@@ -633,7 +808,18 @@ impl IntoResponse for ApiFailure {
                 false,
                 Some(serde_json::json!({ "expectedRevision": expected, "actualRevision": actual })),
             ),
-            Self::Io(_) | Self::Json(_) | Self::LockPoisoned | Self::UnsupportedStore(_) => (
+            Self::PilotDisabled => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "pilot_disabled",
+                false,
+                None,
+            ),
+            Self::PilotPolicy(_) => (StatusCode::FORBIDDEN, "pilot_policy_rejected", false, None),
+            Self::Io(_)
+            | Self::Json(_)
+            | Self::LockPoisoned
+            | Self::UnsupportedStore(_)
+            | Self::Pilot(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal_error",
                 true,

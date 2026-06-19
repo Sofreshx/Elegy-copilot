@@ -35,6 +35,18 @@ const health: OrchestratorHealth = {
   ],
   journal: { ready: true, journalCount: 1 },
   orphanRecovery: { ready: true, recoverableJournalCount: 0 },
+  pilot: {
+    enabled: true,
+    allowedAdapters: ['native', 'codex-exec'],
+    oneActiveRunPerRepository: true,
+    approvedOperation: 'commit',
+    mergeRequested: false,
+    mergeEnabled: false,
+    telemetryPath: 'C:/temp/events.jsonl',
+    telemetryReady: true,
+    telemetryError: null,
+    telemetryEventCount: 0,
+  },
 };
 
 function session(overrides: Partial<OrchestratorSession> = {}): OrchestratorSession {
@@ -141,6 +153,17 @@ describe('WorkspaceExecutionTab', () => {
       expect(screen.getByTestId('workspace-execution-state-disconnected')).toBeInTheDocument();
     });
     expect(screen.getByTestId('workspace-execution-create-button')).toBeDisabled();
+  });
+
+  it('shows the default-off pilot state and disables unavailable adapters', async () => {
+    vi.mocked(api.getOrchestratorHealth).mockResolvedValue({
+      ...health,
+      pilot: { ...health.pilot!, enabled: false },
+    });
+    render(<WorkspaceExecutionTab repoPath="/repo" repoId="repo-1" repoLabel="Repo One" />);
+    expect(await screen.findByTestId('workspace-execution-pilot-disabled')).toBeInTheDocument();
+    expect(screen.getByTestId('workspace-execution-create-button')).toBeDisabled();
+    expect(screen.getByRole('option', { name: 'OpenCode' })).toBeDisabled();
   });
 
   it('identifies the approval target and surfaces stale conflicts', async () => {

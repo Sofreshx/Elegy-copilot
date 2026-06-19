@@ -1,5 +1,20 @@
 use std::path::{Path, PathBuf};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrchestratorPilotConfig {
+    pub enabled: bool,
+    pub merge_requested: bool,
+}
+
+impl OrchestratorPilotConfig {
+    pub fn from_env(env: &std::collections::HashMap<String, String>) -> Self {
+        Self {
+            enabled: env_flag(env, "ELEGY_ORCHESTRATOR_EXPERIMENTAL"),
+            merge_requested: env_flag(env, "ELEGY_ORCHESTRATOR_PILOT_MERGE"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RuntimeConfig {
     pub engine_root: PathBuf,
@@ -7,6 +22,7 @@ pub struct RuntimeConfig {
     pub port: u16,
     pub elegy_home: PathBuf,
     pub sandboxes_home: PathBuf,
+    pub orchestrator_pilot: OrchestratorPilotConfig,
 }
 
 impl RuntimeConfig {
@@ -31,8 +47,20 @@ impl RuntimeConfig {
             port: port_override.unwrap_or(3211),
             elegy_home,
             sandboxes_home,
+            orchestrator_pilot: OrchestratorPilotConfig::from_env(&env),
         }
     }
+}
+
+fn env_flag(env: &std::collections::HashMap<String, String>, name: &str) -> bool {
+    env.get(name)
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
 }
 
 fn default_engine_root() -> PathBuf {
@@ -71,4 +99,35 @@ fn resolve_elegy_home(env: &std::collections::HashMap<String, String>, home_dir:
 
 fn resolve_sandboxes_home(home_dir: &Path) -> PathBuf {
     home_dir.join(".elegy").join("sandboxes")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn orchestrator_pilot_defaults_off() {
+        assert_eq!(
+            OrchestratorPilotConfig::from_env(&std::collections::HashMap::new()),
+            OrchestratorPilotConfig {
+                enabled: false,
+                merge_requested: false,
+            }
+        );
+    }
+
+    #[test]
+    fn orchestrator_pilot_flags_require_explicit_truthy_values() {
+        let env = std::collections::HashMap::from([
+            ("ELEGY_ORCHESTRATOR_EXPERIMENTAL".into(), "true".into()),
+            ("ELEGY_ORCHESTRATOR_PILOT_MERGE".into(), "1".into()),
+        ]);
+        assert_eq!(
+            OrchestratorPilotConfig::from_env(&env),
+            OrchestratorPilotConfig {
+                enabled: true,
+                merge_requested: true,
+            }
+        );
+    }
 }

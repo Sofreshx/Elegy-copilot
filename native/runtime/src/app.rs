@@ -218,7 +218,7 @@ mod tests {
     use tower::util::ServiceExt;
 
     use crate::auth::AuthConfig;
-    use crate::config::RuntimeConfig;
+    use crate::config::{OrchestratorPilotConfig, RuntimeConfig};
     use crate::response_shape::capture_shape;
 
     use super::*;
@@ -235,6 +235,10 @@ mod tests {
             port: 0,
             elegy_home: temp.join(".elegy"),
             sandboxes_home: temp.join(".elegy").join("sandboxes"),
+            orchestrator_pilot: OrchestratorPilotConfig {
+                enabled: false,
+                merge_requested: false,
+            },
         };
         let _ = std::fs::create_dir_all(config.elegy_home.join("session-state"));
         let state = AppState::new(

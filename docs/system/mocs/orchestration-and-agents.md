@@ -23,6 +23,7 @@ related: [system-docs-index]
 - If you are changing staged capability routing: read `docs/system/search-execute-workflow.md`.
 - If you are changing calibrated questioning, evidence-bound challenge, or explicit deep/grill overlays across planning and review: read [docs/system/calibrated-questioning-and-depth-governance.md](docs/system/calibrated-questioning-and-depth-governance.md).
 - Contract shape and planning constraints: `docs/system/workflow-planning-contract.md`.
+- Harness execution rollout gates: [docs/system/orchestrator-pilot-rollout.md](docs/system/orchestrator-pilot-rollout.md).
 - Research promotion checklist: `docs/system/research-promotion-checklist.md`.
 
 ## See also

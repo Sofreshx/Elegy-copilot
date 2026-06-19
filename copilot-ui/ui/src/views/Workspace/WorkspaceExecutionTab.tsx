@@ -217,6 +217,11 @@ export default function WorkspaceExecutionTab({
   const adapterAvailability = useMemo(() => new Map(
     (health?.adapters ?? []).map((adapter) => [adapter.adapterId, adapter.available]),
   ), [health]);
+  const pilotEnabled = health?.pilot?.enabled ?? true;
+  const pilotAdapters = useMemo(
+    () => new Set(health?.pilot?.allowedAdapters ?? ['native', 'codex-exec', 'opencode-acp']),
+    [health],
+  );
   const planningRefs = useMemo(() => [
     ['Goal', readString(planning, 'goalId')],
     ['Roadmap', readString(planning, 'roadmapId')],
@@ -252,6 +257,12 @@ export default function WorkspaceExecutionTab({
         </div>
       )}
       {error && <div className="workspace-execution-error" role="alert">{error}</div>}
+      {!pilotEnabled && (
+        <div className="workspace-execution-alert workspace-execution-alert--accent" data-testid="workspace-execution-pilot-disabled">
+          <AppIcon name="warning" size={18} />
+          <div><strong>Experimental pilot is off</strong><span>Set ELEGY_ORCHESTRATOR_EXPERIMENTAL=1 to enable bounded execution.</span></div>
+        </div>
+      )}
 
       <Panel title="New session" subtitle={repoPath} testId="workspace-execution-create">
         <div className="workspace-execution-create-row">
@@ -271,14 +282,14 @@ export default function WorkspaceExecutionTab({
               onChange={(event) => setAdapterId(event.target.value as OrchestratorAdapterId)}
               data-testid="workspace-execution-adapter"
             >
-              <option value="native">Native checks</option>
-              <option value="codex-exec" disabled={adapterAvailability.get('codex-exec') === false}>Codex</option>
-              <option value="opencode-acp" disabled={adapterAvailability.get('opencode-acp') === false}>OpenCode</option>
+              <option value="native" disabled={!pilotAdapters.has('native')}>Native checks</option>
+              <option value="codex-exec" disabled={!pilotAdapters.has('codex-exec') || adapterAvailability.get('codex-exec') === false}>Codex</option>
+              <option value="opencode-acp" disabled={!pilotAdapters.has('opencode-acp') || adapterAvailability.get('opencode-acp') === false}>OpenCode</option>
             </select>
           </label>
           <Button
             onClick={() => void createSession()}
-            disabled={!connected || busyAction === 'create'}
+            disabled={!connected || !pilotEnabled || busyAction === 'create'}
             testId="workspace-execution-create-button"
           >
             <AppIcon name="play" size={15} />

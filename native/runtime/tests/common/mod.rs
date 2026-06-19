@@ -4,7 +4,7 @@ use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use elegy_native_runtime::app::{build_router, AppState};
 use elegy_native_runtime::auth::AuthConfig;
-use elegy_native_runtime::config::RuntimeConfig;
+use elegy_native_runtime::config::{OrchestratorPilotConfig, RuntimeConfig};
 use serde_json::Value;
 use tower::util::ServiceExt;
 
@@ -25,6 +25,10 @@ pub fn test_state(tmp: &Path) -> AppState {
         port: 0,
         elegy_home,
         sandboxes_home,
+        orchestrator_pilot: OrchestratorPilotConfig {
+            enabled: true,
+            merge_requested: false,
+        },
     };
 
     let state = AppState::new(

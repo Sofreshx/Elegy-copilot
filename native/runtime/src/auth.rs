@@ -216,7 +216,7 @@ mod tests {
 
     use super::*;
     use crate::app::AppState;
-    use crate::config::RuntimeConfig;
+    use crate::config::{OrchestratorPilotConfig, RuntimeConfig};
     use std::path::PathBuf;
 
     fn test_state() -> AppState {
@@ -232,6 +232,10 @@ mod tests {
                 port: 0,
                 elegy_home: temp.join(".elegy"),
                 sandboxes_home: temp.join(".elegy").join("sandboxes"),
+                orchestrator_pilot: OrchestratorPilotConfig {
+                    enabled: false,
+                    merge_requested: false,
+                },
             },
             AuthConfig {
                 token: None,

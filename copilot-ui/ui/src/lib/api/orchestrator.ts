@@ -43,6 +43,18 @@ export interface OrchestratorHealth {
   }>;
   journal: { ready: boolean; journalCount: number };
   orphanRecovery: { ready: boolean; recoverableJournalCount: number };
+  pilot?: {
+    enabled: boolean;
+    allowedAdapters: OrchestratorAdapterId[];
+    oneActiveRunPerRepository: boolean;
+    approvedOperation: 'commit';
+    mergeRequested: boolean;
+    mergeEnabled: boolean;
+    telemetryPath: string;
+    telemetryReady: boolean;
+    telemetryError?: string | null;
+    telemetryEventCount: number;
+  };
 }
 
 function idempotencyKey(prefix: string): string {
