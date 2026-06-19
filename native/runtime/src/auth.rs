@@ -236,6 +236,8 @@ mod tests {
                     enabled: false,
                     merge_requested: false,
                 },
+                node_executable: None,
+                kimaki_entrypoint: None,
             },
             AuthConfig {
                 token: None,

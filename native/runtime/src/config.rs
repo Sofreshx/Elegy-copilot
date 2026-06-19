@@ -23,6 +23,8 @@ pub struct RuntimeConfig {
     pub elegy_home: PathBuf,
     pub sandboxes_home: PathBuf,
     pub orchestrator_pilot: OrchestratorPilotConfig,
+    pub node_executable: Option<PathBuf>,
+    pub kimaki_entrypoint: Option<PathBuf>,
 }
 
 impl RuntimeConfig {
@@ -41,6 +43,22 @@ impl RuntimeConfig {
         let sandboxes_home =
             sandboxes_home_override.unwrap_or_else(|| resolve_sandboxes_home(&home_dir));
 
+        let node_executable = resolve_runtime_path(&env, "INSTRUCTION_ENGINE_NODE_EXECUTABLE")
+            .or_else(|| resolve_command("node"));
+        let kimaki_entrypoint =
+            resolve_runtime_path(&env, "INSTRUCTION_ENGINE_KIMAKI_ENTRYPOINT").or_else(|| {
+                [
+                    engine_root.join("node_modules").join("kimaki").join("bin.js"),
+                    engine_root
+                        .join("copilot-ui")
+                        .join("node_modules")
+                        .join("kimaki")
+                        .join("bin.js"),
+                ]
+                .into_iter()
+                .find(|candidate| candidate.exists())
+            });
+
         Self {
             engine_root,
             host: host_override.unwrap_or_else(|| "127.0.0.1".to_string()),
@@ -48,6 +66,8 @@ impl RuntimeConfig {
             elegy_home,
             sandboxes_home,
             orchestrator_pilot: OrchestratorPilotConfig::from_env(&env),
+            node_executable,
+            kimaki_entrypoint,
         }
     }
 }
@@ -61,6 +81,26 @@ fn env_flag(env: &std::collections::HashMap<String, String>, name: &str) -> bool
             )
         })
         .unwrap_or(false)
+}
+
+fn resolve_runtime_path(
+    env: &std::collections::HashMap<String, String>,
+    name: &str,
+) -> Option<PathBuf> {
+    env.get(name)
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .filter(|candidate| candidate.exists())
+}
+
+fn resolve_command(command: &str) -> Option<PathBuf> {
+    std::process::Command::new(command)
+        .arg("--version")
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|_| PathBuf::from(command))
 }
 
 fn default_engine_root() -> PathBuf {

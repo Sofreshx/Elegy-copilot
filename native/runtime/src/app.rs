@@ -27,6 +27,7 @@ pub struct AppState {
     pub(crate) policy_cache: Arc<Mutex<Option<CachedPolicyPreflight>>>,
     pub(crate) planning_pool: Arc<crate::db::PlanningPool>,
     pub(crate) orchestrator_api: Arc<crate::orchestrator::api::OrchestratorApi>,
+    pub remote_runtime: crate::remote::RemoteRuntime,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +46,12 @@ impl AppState {
             });
         let orchestrator_api = crate::orchestrator::api::OrchestratorApi::open(&config)
             .unwrap_or_else(|error| panic!("failed to initialize orchestrator API state: {error}"));
+        let remote_runtime = crate::remote::RemoteRuntime::new(&config);
+        if remote_runtime.available() {
+            if let Err(error) = remote_runtime.start() {
+                tracing::warn!("Failed to start Kimaki runtime: {error}");
+            }
+        }
         Self {
             config,
             auth,
@@ -55,6 +62,7 @@ impl AppState {
             policy_cache: Arc::new(Mutex::new(None)),
             planning_pool: Arc::new(pool),
             orchestrator_api: Arc::new(orchestrator_api),
+            remote_runtime,
         }
     }
 
@@ -190,11 +198,14 @@ pub async fn serve(state: AppState) -> anyhow::Result<()> {
 }
 
 pub async fn serve_on(state: AppState, listener: tokio::net::TcpListener) -> anyhow::Result<()> {
+    let remote_runtime = state.remote_runtime.clone();
     let shutdown = graceful_shutdown_signal();
-    axum::serve(listener, build_router(state))
+    let result = axum::serve(listener, build_router(state))
         .with_graceful_shutdown(shutdown)
         .await
-        .context("Rust runtime server exited unexpectedly")
+        .context("Rust runtime server exited unexpectedly");
+    let _ = remote_runtime.stop();
+    result
 }
 
 async fn graceful_shutdown_signal() {
@@ -254,6 +265,8 @@ mod tests {
                 enabled: false,
                 merge_requested: false,
             },
+            node_executable: None,
+            kimaki_entrypoint: None,
         };
         let _ = std::fs::create_dir_all(config.elegy_home.join("session-state"));
         let state = AppState::new(

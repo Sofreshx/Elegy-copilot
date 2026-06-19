@@ -1,229 +1,266 @@
-import { useEffect, useCallback, useRef } from 'react';
-import { Button, PageContainer, Panel } from '../../components';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
+import {
+  Button,
+  FormInput,
+  LogViewer,
+  PageContainer,
+  Panel,
+  StatusBadge,
+} from '../../components';
 import { useRemoteStore } from './RemoteStore';
 
 const STATUS_LABELS: Record<string, string> = {
-  idle: 'Idle',
-  awaiting_install: 'Awaiting Install',
-  awaiting_auth: 'Awaiting Authorization',
-  ready: 'Ready',
-  error: 'Error',
-  unavailable: 'Unavailable',
+  idle: 'Starting',
+  starting: 'Starting',
+  awaiting_install: 'Install required',
+  awaiting_auth: 'Authorizing',
+  ready: 'Connected',
+  restarting: 'Restarting',
+  error: 'Connection error',
+  unavailable: 'Runtime unavailable',
 };
+
+function statusTone(state?: string): 'neutral' | 'brand' | 'accent' | 'success' | 'danger' {
+  if (state === 'ready') return 'success';
+  if (state === 'error' || state === 'unavailable') return 'danger';
+  if (state === 'awaiting_install' || state === 'awaiting_auth') return 'accent';
+  return 'brand';
+}
 
 export default function RemoteView() {
   const store = useRemoteStore();
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const { status, projects, sessions, logsTail, loading, error } = store;
+  const [showAddProject, setShowAddProject] = useState(false);
+  const [directory, setDirectory] = useState('');
+  const [project, setProject] = useState('');
+  const [prompt, setPrompt] = useState('');
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const { status, projects, sessions, logsTail, statusLoading, actionLoading, error } = store;
 
   useEffect(() => {
-    store.loadStatus();
-    store.loadProjects();
-    store.loadSessions();
-    store.refreshLogs();
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
-    intervalRef.current = setInterval(() => {
-      store.loadStatus();
-      store.loadProjects();
-      store.loadSessions();
-    }, 10_000);
+    const refresh = async () => {
+      const nextStatus = await store.loadStatus();
+      if (cancelled) return;
+      if (nextStatus?.ready) {
+        await store.loadOperations();
+      }
+      timer = setTimeout(refresh, nextStatus?.ready ? 10_000 : 3_000);
+    };
 
+    void refresh();
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      cancelled = true;
+      if (timer) clearTimeout(timer);
     };
   }, []);
 
-  const handleInstall = useCallback(() => {
-    if (status?.installUrl) {
-      window.open(status.installUrl, '_blank');
+  useEffect(() => {
+    if (!project && projects.length > 0) {
+      setProject(projects[0].directory);
     }
+  }, [project, projects]);
+
+  const handleInstall = useCallback(() => {
+    if (status?.installUrl) window.open(status.installUrl, '_blank');
   }, [status?.installUrl]);
 
-  const handleRestart = useCallback(async () => {
-    await store.restart();
-  }, []);
+  const handleAddProject = async (event: FormEvent) => {
+    event.preventDefault();
+    const normalized = directory.trim();
+    if (!normalized) return;
+    await store.addProject(normalized, status?.guildIds.length === 1 ? status.guildIds[0] : undefined);
+    setDirectory('');
+    setShowAddProject(false);
+  };
 
-  const handleAddProject = useCallback(async () => {
-    const dir = prompt('Enter project directory path:');
-    if (dir) {
-      await store.addProject(dir);
-    }
-  }, []);
+  const handleSend = async (event: FormEvent) => {
+    event.preventDefault();
+    const normalized = prompt.trim();
+    if (!project || !normalized) return;
+    await store.sendPrompt(project, normalized);
+    setPrompt('');
+  };
 
-  const handleSendPrompt = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const formData = new FormData(form);
-    const project = formData.get('project') as string;
-    const prompt = formData.get('prompt') as string;
-
-    if (!project || !prompt) return;
-
-    await store.sendPrompt(project, prompt);
-    form.reset();
-  }, []);
+  const connectionState = status?.state || 'starting';
+  const isReady = Boolean(status?.ready);
 
   return (
     <PageContainer testId="remote-view">
-      <h2>Remote Sessions (Kimaki)</h2>
+      <div className="remote-shell">
+        <header className="remote-header">
+          <div>
+            <span className="kicker">Discord connection</span>
+            <h2>Remote Sessions</h2>
+            <p>Start and continue OpenCode work from Discord through Kimaki.</p>
+          </div>
+          <StatusBadge
+            status={STATUS_LABELS[connectionState] || connectionState}
+            tone={statusTone(connectionState)}
+            testId="remote-status-badge"
+          />
+        </header>
 
-      {error && (
-        <div className="remote-error" data-testid="remote-error">
-          {error}
-        </div>
-      )}
+        {error ? <div className="remote-alert" role="alert" data-testid="remote-error">{error}</div> : null}
 
-      <Panel
-        title="Status"
-        testId="remote-status"
-        actions={(
+        {!isReady ? (
+          <Panel testId="remote-onboarding">
+            <div className="remote-onboarding">
+              <div className="remote-onboarding-copy">
+                <h3>{STATUS_LABELS[connectionState] || 'Connect Discord'}</h3>
+                <p>{status?.message || 'Checking the Kimaki runtime and Discord connection.'}</p>
+              </div>
+
+              <ol className="remote-steps" aria-label="Discord setup progress">
+                <li className={status?.available ? 'complete' : 'active'}>
+                  <span>1</span>
+                  <div><strong>Runtime</strong><small>Locate the bundled Kimaki service.</small></div>
+                </li>
+                <li className={connectionState === 'awaiting_install' ? 'active' : status?.ready || connectionState === 'awaiting_auth' ? 'complete' : ''}>
+                  <span>2</span>
+                  <div><strong>Install</strong><small>Add Kimaki to your Discord server.</small></div>
+                </li>
+                <li className={connectionState === 'awaiting_auth' ? 'active' : status?.ready ? 'complete' : ''}>
+                  <span>3</span>
+                  <div><strong>Authorize</strong><small>Confirm the selected Discord server.</small></div>
+                </li>
+                <li className={status?.ready ? 'complete' : ''}>
+                  <span>4</span>
+                  <div><strong>Connected</strong><small>Remote projects and sessions become available.</small></div>
+                </li>
+              </ol>
+
+              <div className="remote-onboarding-actions">
+                {status?.installUrl ? (
+                  <Button onClick={handleInstall} testId="remote-install">
+                    Install in Discord
+                  </Button>
+                ) : null}
+                {(connectionState === 'error' || connectionState === 'unavailable') ? (
+                  <Button onClick={() => store.restart()} loading={actionLoading} testId="remote-restart">
+                    Retry runtime
+                  </Button>
+                ) : null}
+                {statusLoading ? <span className="state-message">Checking connection…</span> : null}
+              </div>
+              {status?.lastError ? <code className="remote-inline-error">{status.lastError}</code> : null}
+            </div>
+          </Panel>
+        ) : (
           <>
-            <Button onClick={handleRestart} variant="secondary" loading={loading} testId="remote-restart">
-              Restart
-            </Button>
-            {status?.state !== 'ready' && status?.installUrl ? (
-              <Button onClick={handleInstall} testId="remote-install">
-                Install Kimaki to Discord
-              </Button>
-            ) : null}
+            <Panel
+              title="Connection"
+              subtitle={`${status?.guildIds.length || 0} Discord server${status?.guildIds.length === 1 ? '' : 's'} connected via ${status?.runtime || 'node'}.`}
+              testId="remote-status"
+              actions={(
+                <Button onClick={() => store.restart()} variant="secondary" loading={actionLoading} testId="remote-restart">
+                  Restart
+                </Button>
+              )}
+            >
+              <div className="remote-connection-meta">
+                <span><strong>App</strong> {status?.appId || 'Connected'}</span>
+                <span><strong>Data</strong> {status?.dataDir || 'Managed by Elegy'}</span>
+              </div>
+            </Panel>
+
+            <div className="remote-operations-grid">
+              <Panel
+                title="Projects"
+                subtitle="Repositories mapped to Discord channels."
+                testId="remote-projects"
+                actions={<Button onClick={() => setShowAddProject((value) => !value)} testId="remote-add-project">Add project</Button>}
+              >
+                {showAddProject ? (
+                  <form className="remote-inline-form" onSubmit={handleAddProject}>
+                    <FormInput
+                      label="Project directory"
+                      value={directory}
+                      placeholder="C:\path\to\repository"
+                      onValueChange={setDirectory}
+                      testId="remote-project-directory"
+                    />
+                    <div className="remote-form-actions">
+                      <Button type="submit" loading={actionLoading}>Create Discord channel</Button>
+                      <Button type="button" variant="ghost" onClick={() => setShowAddProject(false)}>Cancel</Button>
+                    </div>
+                  </form>
+                ) : null}
+                <div className="table-wrap">
+                  <table>
+                    <thead><tr><th>Project</th><th>Discord</th><th>Added</th></tr></thead>
+                    <tbody>
+                      {projects.map((item) => (
+                        <tr key={item.directory}>
+                          <td><code>{item.directory}</code></td>
+                          <td>{item.channelId && item.guildId ? <a href={`https://discord.com/channels/${item.guildId}/${item.channelId}`} target="_blank" rel="noreferrer">Open channel</a> : 'Pending'}</td>
+                          <td>{item.lastActivity || '—'}</td>
+                        </tr>
+                      ))}
+                      {projects.length === 0 ? <tr><td className="empty-cell" colSpan={3}>Add a project to create its Discord channel.</td></tr> : null}
+                    </tbody>
+                  </table>
+                </div>
+              </Panel>
+
+              <Panel title="Send a prompt" subtitle="Create a new Discord thread and OpenCode session." testId="remote-send">
+                <form className="remote-composer" onSubmit={handleSend}>
+                  <label className="form-input">
+                    <span className="form-label">Project</span>
+                    <select value={project} onChange={(event) => setProject(event.target.value)} disabled={projects.length === 0} data-testid="remote-send-project">
+                      {projects.length === 0 ? <option value="">Add a project first</option> : null}
+                      {projects.map((item) => <option key={item.directory} value={item.directory}>{item.directory}</option>)}
+                    </select>
+                  </label>
+                  <label className="form-input">
+                    <span className="form-label">Prompt</span>
+                    <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={5} placeholder="What should the remote session work on?" data-testid="remote-send-prompt" />
+                  </label>
+                  <Button type="submit" disabled={!project || !prompt.trim()} loading={actionLoading} testId="remote-send-btn">Start session</Button>
+                </form>
+              </Panel>
+            </div>
+
+            <Panel title="Recent sessions" subtitle="Threads started or synchronized by Kimaki." testId="remote-sessions">
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Thread</th><th>Project</th><th>Updated</th><th>Discord</th></tr></thead>
+                  <tbody>
+                    {sessions.map((session) => (
+                      <tr key={session.threadId}>
+                        <td>{session.threadName || session.threadId}</td>
+                        <td><code>{session.project || '—'}</code></td>
+                        <td>{session.updatedAt || '—'}</td>
+                        <td>{session.guildId ? <a href={`https://discord.com/channels/${session.guildId}/${session.threadId}`} target="_blank" rel="noreferrer">Open thread</a> : '—'}</td>
+                      </tr>
+                    ))}
+                    {sessions.length === 0 ? <tr><td className="empty-cell" colSpan={4}>No remote sessions yet.</td></tr> : null}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
           </>
         )}
-      >
-        <div>
-          <span className={`status-badge status-${status?.state || 'unknown'}`}>
-            {STATUS_LABELS[status?.state || 'unknown'] || status?.state}
-          </span>
-          {status?.dataDir && <span className="remote-data-dir">Data: {status.dataDir}</span>}
-          {status?.lastError && <span className="remote-last-error">{status.lastError}</span>}
-        </div>
-      </Panel>
 
-      <Panel
-        title="Projects"
-        testId="remote-projects"
-        actions={<Button onClick={handleAddProject} testId="remote-add-project">Add Project</Button>}
-      >
-        <table>
-          <thead>
-            <tr>
-              <th>Directory</th>
-              <th>Channel</th>
-              <th>Last Activity</th>
-            </tr>
-          </thead>
-          <tbody>
-            {projects.map((p) => (
-              <tr key={p.directory}>
-                <td>{p.directory}</td>
-                <td>
-                  {p.channelId && p.guildId ? (
-                    <a
-                      href={`https://discord.com/channels/${p.guildId}/${p.channelId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Open
-                    </a>
-                  ) : (
-                    '-'
-                  )}
-                </td>
-                <td>{p.lastActivity || '-'}</td>
-              </tr>
-            ))}
-            {projects.length === 0 && (
-              <tr>
-                <td colSpan={3}>No projects configured</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </Panel>
-
-      <Panel title="Sessions" testId="remote-sessions">
-        <table>
-          <thead>
-            <tr>
-              <th>Thread</th>
-              <th>Project</th>
-              <th>Source</th>
-              <th>Last Message</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sessions.map((s) => (
-              <tr key={s.threadId}>
-                <td>{s.threadName || s.threadId}</td>
-                <td>{s.project || '-'}</td>
-                <td>{s.source}</td>
-                <td>{s.updatedAt || '-'}</td>
-                <td>
-                  {s.guildId ? (
-                    <a
-                      href={`https://discord.com/channels/${s.guildId}/${s.threadId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Open Thread
-                    </a>
-                  ) : (
-                    '-'
-                  )}
-                </td>
-              </tr>
-            ))}
-            {sessions.length === 0 && (
-              <tr>
-                <td colSpan={5}>No active sessions</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </Panel>
-
-      <Panel title="Send Prompt" testId="remote-send">
-        <form onSubmit={handleSendPrompt}>
-          <select name="project" required data-testid="remote-send-project">
-            <option value="">Select project...</option>
-            {projects.map((p) => (
-              <option key={p.directory} value={p.directory}>
-                {p.directory}
-              </option>
-            ))}
-          </select>
-          <textarea
-            name="prompt"
-            placeholder="Enter prompt..."
-            required
-            rows={4}
-            data-testid="remote-send-prompt"
-          />
-          <Button type="submit" loading={loading} testId="remote-send-btn">
-            Send
-          </Button>
-        </form>
-      </Panel>
-
-      <Panel
-        title="Logs"
-        testId="remote-logs"
-        actions={<Button onClick={() => store.refreshLogs()} variant="secondary" testId="remote-refresh-logs">Refresh</Button>}
-      >
-        <pre className="remote-log-block">
-          {logsTail.join('\n') || 'No log entries'}
-        </pre>
-      </Panel>
-
-      <section className="remote-troubleshooting">
-        <h3>Troubleshooting</h3>
-        <ul>
-          <li>If Kimaki is not responding, try <strong>Restart</strong></li>
-          <li>Use <code>/upgrade-and-restart</code> in Discord to update Kimaki</li>
-          <li>See <a href="https://kimaki.dev" target="_blank" rel="noopener noreferrer">kimaki.dev</a> for documentation</li>
-        </ul>
-      </section>
+        <section className="remote-diagnostics">
+          <button type="button" onClick={() => {
+            const next = !showDiagnostics;
+            setShowDiagnostics(next);
+            if (next) void store.refreshLogs();
+          }} aria-expanded={showDiagnostics}>
+            Diagnostics
+          </button>
+          {showDiagnostics ? (
+            <Panel
+              testId="remote-logs"
+              actions={<Button variant="secondary" onClick={() => store.refreshLogs()} testId="remote-refresh-logs">Refresh logs</Button>}
+            >
+              <LogViewer lines={logsTail} showLevel={false} testId="remote-log-viewer" />
+            </Panel>
+          ) : null}
+        </section>
+      </div>
     </PageContainer>
   );
 }

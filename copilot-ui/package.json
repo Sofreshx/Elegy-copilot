@@ -14,7 +14,7 @@
     "build:local-tracker": "npm --prefix ../local-tracker run build",
     "build:local-tracker:desktop": "npm --prefix ../local-tracker run build",
     "build:tauri-runtime-host": "node ..\\node_modules\\typescript\\bin\\tsc -p tsconfig.tauri-runtime.json",
-    "test:tauri-runtime-host": "npm run build:tauri-runtime-host && node --test lib\\desktop-shell\\desktopRuntime\\runtimeService.test.js lib\\desktop-shell\\desktopRuntime\\kimakiSseParser.test.js lib\\desktop-shell\\desktopRuntime\\kimakiCli.test.js lib\\desktop-shell\\desktopRuntime\\kimakiRuntimeService.test.js",
+    "test:tauri-runtime-host": "npm run build:tauri-runtime-host && node --test lib\\desktop-shell\\desktopRuntime\\runtimeService.test.js lib\\desktop-shell\\desktopRuntime\\kimakiRuntimeResolver.test.js lib\\desktop-shell\\desktopRuntime\\kimakiSseParser.test.js lib\\desktop-shell\\desktopRuntime\\kimakiCli.test.js lib\\desktop-shell\\desktopRuntime\\kimakiRuntimeService.test.js",
     "desktop:dev": "npm run tauri:dev:windows",
     "desktop:prod-sim": "node scripts/run-desktop-production-sim.js",
     "desktop:prod-sim:skip-build": "node scripts/run-desktop-production-sim.js --skip-build --keep-staging",

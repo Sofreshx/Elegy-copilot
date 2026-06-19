@@ -7,6 +7,7 @@ import {
   createKimakiRuntimeService,
   type KimakiRuntimeService,
 } from './kimakiRuntimeService';
+import { resolveKimakiEntrypoint } from './kimakiRuntimeResolver';
 import type { RuntimeDiagnostics, RuntimeDiagnosticPayload } from './runtimeDiagnostics';
 
 const DESKTOP_UI_ACCESS_QUERY_PARAM = 'desktop-ui-token';
@@ -326,10 +327,16 @@ export function createDesktopRuntimeService(
       }
 
       bootLog('starting HTTP server');
-      const kimakiEntrypoint = path.join(options.appPath, 'node_modules', 'kimaki', 'bin.js');
+      const kimakiResolution = resolveKimakiEntrypoint({
+        appPath: options.appPath,
+        runtimeRoot: options.paths.runtimeRoot,
+        explicitPath: options.env.INSTRUCTION_ENGINE_KIMAKI_ENTRYPOINT,
+        existsSync: runtimeFs.existsSync,
+      });
       const kimakiDataDir = path.join(options.paths.elegyHome, 'kimaki');
       let kimakiCli: KimakiCli | undefined;
-      if (runtimeFs.existsSync(kimakiEntrypoint)) {
+      if (kimakiResolution.entrypoint) {
+        const kimakiEntrypoint = kimakiResolution.entrypoint;
         kimakiRuntimeService = createKimakiRuntimeService({
           elegyHome: options.paths.elegyHome,
           nodeExecutable: options.processExecPath,
@@ -342,7 +349,9 @@ export function createDesktopRuntimeService(
           dataDir: kimakiDataDir,
         });
       } else {
-        logger.warn(`Kimaki entrypoint is unavailable: ${kimakiEntrypoint}`);
+        logger.warn(
+          `Kimaki entrypoint is unavailable. Checked: ${kimakiResolution.checkedPaths.join(', ')}`,
+        );
       }
 
       serverHandle = await dependencies.startServer({

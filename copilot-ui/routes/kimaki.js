@@ -20,11 +20,33 @@ const ROUTES = [
 function register(context) {
   const { kimakiRuntimeService, kimakiCli, sqliteReader, logReader, sendJson } = context;
 
+  function sendRemoteError(res, status, code, message) {
+    sendJson(res, status, { error: code, code, message });
+  }
+
+  function requireReady(res) {
+    if (!kimakiRuntimeService || !kimakiCli) {
+      sendRemoteError(res, 503, 'remote_runtime_unavailable', 'Kimaki runtime files are unavailable.');
+      return false;
+    }
+    if (!kimakiRuntimeService.getReady()) {
+      sendRemoteError(res, 409, 'remote_not_ready', 'Complete Discord setup before using remote sessions.');
+      return false;
+    }
+    return true;
+  }
+
   function handleStatus(ctx) {
     const service = kimakiRuntimeService;
     if (!service) {
       sendJson(ctx.res, 200, {
         state: 'unavailable',
+        available: false,
+        ready: false,
+        phase: 'error',
+        reason: 'kimaki_entrypoint_missing',
+        message: 'Kimaki runtime files are unavailable.',
+        runtime: 'node',
         installUrl: null,
         guildIds: [],
         appId: null,
@@ -36,6 +58,14 @@ function register(context) {
 
     sendJson(ctx.res, 200, {
       state: service.getState(),
+      available: service.getAvailable(),
+      ready: service.getReady(),
+      phase: service.getState(),
+      reason: service.getReason(),
+      message: service.getReady()
+        ? 'Discord remote sessions are connected.'
+        : service.getLastError() || 'Complete the Discord installation to connect remote sessions.',
+      runtime: 'node',
       installUrl: service.getInstallUrl(),
       guildIds: service.getGuildIds(),
       appId: service.getAppId(),
@@ -45,8 +75,11 @@ function register(context) {
   }
 
   async function handleProjects(ctx) {
-    if (!sqliteReader || !kimakiRuntimeService || !kimakiCli) {
-      sendJson(ctx.res, 503, { error: 'Kimaki runtime is not available' });
+    if (!sqliteReader) {
+      sendRemoteError(ctx.res, 503, 'remote_storage_unavailable', 'Kimaki storage reader is unavailable.');
+      return;
+    }
+    if (!requireReady(ctx.res)) {
       return;
     }
 
@@ -66,7 +99,7 @@ function register(context) {
 
   async function handleRestart(ctx) {
     if (!kimakiRuntimeService) {
-      sendJson(ctx.res, 503, { error: 'Kimaki runtime is not available' });
+      sendRemoteError(ctx.res, 503, 'remote_runtime_unavailable', 'Kimaki runtime files are unavailable.');
       return;
     }
     try {
@@ -78,8 +111,11 @@ function register(context) {
   }
 
   async function handleSessions(ctx) {
-    if (!sqliteReader || !kimakiRuntimeService) {
-      sendJson(ctx.res, 503, { error: 'Kimaki runtime is not available' });
+    if (!sqliteReader) {
+      sendRemoteError(ctx.res, 503, 'remote_storage_unavailable', 'Kimaki storage reader is unavailable.');
+      return;
+    }
+    if (!requireReady(ctx.res)) {
       return;
     }
 
@@ -116,8 +152,7 @@ function register(context) {
   }
 
   async function handleSend(ctx) {
-    if (!kimakiCli) {
-      sendJson(ctx.res, 503, { error: 'Kimaki CLI not available' });
+    if (!requireReady(ctx.res)) {
       return;
     }
 
@@ -138,8 +173,7 @@ function register(context) {
   }
 
   async function handleProjectAdd(ctx) {
-    if (!kimakiCli) {
-      sendJson(ctx.res, 503, { error: 'Kimaki CLI not available' });
+    if (!requireReady(ctx.res)) {
       return;
     }
 
@@ -161,7 +195,7 @@ function register(context) {
 
   function handleLogs(ctx) {
     if (!logReader || !kimakiRuntimeService) {
-      sendJson(ctx.res, 503, { error: 'Kimaki runtime is not available' });
+      sendJson(ctx.res, 200, { lines: [] });
       return;
     }
 

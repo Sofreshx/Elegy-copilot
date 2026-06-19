@@ -29,9 +29,9 @@ Replace the retired messaging gateway and sandbox control surfaces with a Kimaki
 
 - The desktop runtime starts one pinned Kimaki `0.17.1` child with data under `~/.elegy/kimaki`.
 - The runtime exposes Kimaki state without exposing gateway credentials.
-- The Node API exposes status, project listing/addition, session listing, prompt sending, and log-tail routes under `/api/remote/*`.
+- The Node and Rust APIs expose status, project listing/addition, session listing, prompt sending, and log-tail routes under `/api/remote/*`.
 - Project and session reads use Kimaki's SQLite database in read-only mode.
-- The Remote tab shows onboarding state, projects, sessions, prompt submission, and logs.
+- The Remote tab gates operational polling behind a guided Discord onboarding state, then shows projects, sessions, prompt submission, and collapsible logs.
 - The Node/Tauri and Rust runtimes do not expose legacy `/api/gateway/*` or `/api/sandboxes*` control routes.
 - Internal sandbox storage may remain where existing session aggregation depends on it.
 - Packaged Tauri resources contain no messaging-gateway or workflow-sidecar entrypoints.
@@ -46,7 +46,6 @@ Replace the retired messaging gateway and sandbox control surfaces with a Kimaki
 ## Non-Goals
 
 - Replacing Kimaki's Discord onboarding flow.
-- Porting Kimaki child-process supervision into the optional Rust backend.
 - Removing internal sandbox-backed historical session reads.
 - Supporting Kimaki versions other than `0.17.1` in this migration.
 
@@ -58,6 +57,8 @@ Replace the retired messaging gateway and sandbox control surfaces with a Kimaki
   → verify: `node --test copilot-ui/lib/desktop-shell/desktopRuntime/kimakiSseParser.test.js copilot-ui/lib/desktop-shell/desktopRuntime/kimakiRuntimeService.test.js`
 - The Node route registry contains `/api/remote/*` and no gateway or sandbox-control routes.
   → verify: `node --test copilot-ui/routes/kimaki.test.js`
+- The Rust runtime supervises the pinned Kimaki Node child and exposes matching `/api/remote/*` routes.
+  → verify: `cargo test -p elegy-native-runtime routes::remote`
 - The Remote UI builds and its empty/ready states render through existing UI primitives.
   → verify: `npm --prefix copilot-ui run test:vitest -- tests/remote-view.vitest.tsx`
 - The Rust runtime returns 404 for retired gateway and sandbox-control paths.
@@ -76,6 +77,7 @@ Replace the retired messaging gateway and sandbox control surfaces with a Kimaki
 - `copilot-ui/routes/kimaki.js`
 - `copilot-ui/ui/src/tabs/Remote/RemoteView.tsx`
 - `native/runtime/src/routes/mod.rs`
+- `native/runtime/src/routes/remote.rs`
 
 ## Validation Evidence
 

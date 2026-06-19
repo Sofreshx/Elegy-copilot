@@ -18,7 +18,6 @@ async fn main() -> anyhow::Result<()> {
 
     let config = RuntimeConfig::from_env_and_args(None, None, None, None, None);
     let auth = AuthConfig::resolve(None, &config.host);
-    let state = AppState::new(config.clone(), auth);
 
     let address: SocketAddr = format!("{}:{}", config.host, config.port)
         .parse()
@@ -26,6 +25,7 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(address)
         .await
         .context("failed to bind Rust runtime listener")?;
+    let state = AppState::new(config.clone(), auth);
 
     let window_url = format!("http://{}:{}", config.host, config.port);
     let payload = serde_json::json!({ "windowUrl": window_url });

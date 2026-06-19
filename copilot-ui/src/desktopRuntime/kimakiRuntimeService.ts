@@ -1,9 +1,10 @@
 import { spawn, type ChildProcess } from 'child_process';
+import fs from 'fs';
 import path from 'path';
 
 import { createKimakiSseParser } from './kimakiSseParser';
 
-export type KimakiRuntimeState = 'idle' | 'awaiting_install' | 'awaiting_auth' | 'ready' | 'error';
+export type KimakiRuntimeState = 'idle' | 'starting' | 'awaiting_install' | 'awaiting_auth' | 'ready' | 'restarting' | 'error';
 
 export interface KimakiRuntimeService {
   start: (options?: { callbackUrl?: string }) => void;
@@ -16,6 +17,8 @@ export interface KimakiRuntimeService {
   getAppId: () => string | null;
   getLastError: () => string | null;
   getDataDir: () => string;
+  getAvailable: () => boolean;
+  getReason: () => string | null;
 }
 
 export interface KimakiRuntimeServiceOptions {
@@ -26,6 +29,7 @@ export interface KimakiRuntimeServiceOptions {
   spawnImpl?: typeof spawn;
   lockPort?: number;
   stopTimeoutMs?: number;
+  appendLog?: (logPath: string, line: string) => void;
 }
 
 export function buildKimakiRuntimeArgs(
@@ -44,14 +48,25 @@ export function createKimakiRuntimeService(
   options: KimakiRuntimeServiceOptions,
 ): KimakiRuntimeService {
   const dataDir = path.join(options.elegyHome, 'kimaki');
+  const logPath = path.join(dataDir, 'kimaki.log');
   const spawnImpl = options.spawnImpl ?? spawn;
-  const log = (message: string): void => options.logger?.log(`[kimaki] ${message}`);
+  const appendLog = options.appendLog ?? ((target, line) => {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.appendFileSync(target, `${line}\n`, 'utf8');
+  });
+  const log = (message: string): void => {
+    const normalized = message.trim();
+    if (!normalized) return;
+    options.logger?.log(`[kimaki] ${normalized}`);
+    appendLog(logPath, `${new Date().toISOString()} ${normalized}`);
+  };
 
   let state: KimakiRuntimeState = 'idle';
   let installUrl: string | null = null;
   let guildIds: string[] = [];
   let appId: string | null = null;
   let lastError: string | null = null;
+  let reason: string | null = null;
   let child: ChildProcess | null = null;
   let stopping = false;
   let lastStartOptions: { callbackUrl?: string } = {};
@@ -71,10 +86,12 @@ export function createKimakiRuntimeService(
       appId = event.app_id;
       guildIds = event.guild_ids;
       lastError = null;
+      reason = null;
       return;
     }
     state = 'error';
     lastError = event.message;
+    reason = 'kimaki_reported_error';
     installUrl = event.install_url ?? installUrl;
   });
 
@@ -85,8 +102,9 @@ export function createKimakiRuntimeService(
 
     lastStartOptions = { ...startOptions };
     stopping = false;
-    state = 'idle';
+    state = 'starting';
     lastError = null;
+    reason = null;
     parser.reset();
     const spawnedChild = spawnImpl(
       options.nodeExecutable,
@@ -107,12 +125,16 @@ export function createKimakiRuntimeService(
     spawnedChild.on('error', (error) => {
       state = 'error';
       lastError = error.message;
+      reason = 'kimaki_spawn_failed';
+      log(error.message);
       child = null;
     });
     spawnedChild.on('exit', (code) => {
       if (!stopping) {
         state = 'error';
         lastError = `Kimaki exited unexpectedly (code=${code ?? 'unknown'})`;
+        reason = 'kimaki_exited';
+        log(lastError);
       }
       child = null;
     });
@@ -148,6 +170,7 @@ export function createKimakiRuntimeService(
     start,
     stop,
     async restart(startOptions = lastStartOptions) {
+      state = 'restarting';
       await stop();
       start(startOptions);
     },
@@ -158,5 +181,7 @@ export function createKimakiRuntimeService(
     getAppId: () => appId,
     getLastError: () => lastError,
     getDataDir: () => dataDir,
+    getAvailable: () => true,
+    getReason: () => reason,
   };
 }

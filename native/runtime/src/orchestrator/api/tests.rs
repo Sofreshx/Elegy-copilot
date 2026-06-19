@@ -30,6 +30,8 @@ fn state_with_pilot(root: &Path, enabled: bool, merge_requested: bool) -> AppSta
                 enabled,
                 merge_requested,
             },
+            node_executable: None,
+            kimaki_entrypoint: None,
         },
         AuthConfig {
             token: None,
