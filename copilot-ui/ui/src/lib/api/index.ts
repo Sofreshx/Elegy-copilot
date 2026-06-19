@@ -20,3 +20,4 @@ export * from './stats';
 export * from './elegyDb';
 export * from './github';
 export * from './repoAssets';
+export * from './orchestrator';

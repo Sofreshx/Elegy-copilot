@@ -311,7 +311,11 @@ export default function WorkspaceView() {
               />
             )}
             {navState.activeWorkspaceLocalTab === 'execution' && (
-              <WorkspaceExecutionTab repoPath={selectedRepoPath} />
+              <WorkspaceExecutionTab
+                repoPath={selectedRepoPath}
+                repoId={displayRepo?.repoId ?? null}
+                repoLabel={displayRepo?.repoLabel ?? null}
+              />
             )}
             {navState.activeWorkspaceLocalTab === 'assets' && (
               <WorkspaceAssetsTab repoPath={selectedRepoPath} />
