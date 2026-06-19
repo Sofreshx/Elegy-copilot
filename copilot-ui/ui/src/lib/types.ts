@@ -1365,27 +1365,6 @@ export interface InstallSurfacesResponse {
   surfaces: InstallSurfaceSummary[];
 }
 
-export type SandboxLifecycleAction =
-  | 'create'
-  | 'start'
-  | 'stop'
-  | 'open-terminal'
-  | 'pr-open'
-  | string;
-
-export interface SandboxLifecyclePayload {
-  sandboxId?: string;
-  baseBranch?: string;
-  headBranch?: string;
-  [key: string]: unknown;
-}
-
-export interface SandboxLifecycleResponse {
-  ok?: boolean;
-  sandboxId?: string;
-  result?: Record<string, unknown>;
-  [key: string]: unknown;
-}
 
 export interface LspConfigResponse {
   config: Record<string, unknown>;
@@ -3262,38 +3241,6 @@ export interface PlanningMergeResponse {
   [key: string]: unknown;
 }
 
-export interface GatewayConfig {
-  mode?: string;
-  acp?: {
-    host?: string;
-    port?: number;
-    [key: string]: unknown;
-  };
-  discord?: {
-    allowlistedUserIds?: string[];
-    guildId?: string;
-    channelId?: string;
-    permissionsChannelId?: string;
-    [key: string]: unknown;
-  };
-  telegram?: {
-    allowlistedUserIds?: string[];
-    [key: string]: unknown;
-  };
-  workspaces?: {
-    allowedRoots?: string[];
-    activeRoot?: string;
-    [key: string]: unknown;
-  };
-  [key: string]: unknown;
-}
-
-export interface GatewayConfigResponse {
-  exists: boolean;
-  configPath: string;
-  config: GatewayConfig | null;
-  [key: string]: unknown;
-}
 
 export interface CodexProviderGatewayConfig {
   providerId: string;
@@ -3369,79 +3316,6 @@ export interface CodexPlanningStatusResponse {
   ready: boolean;
 }
 
-export interface GatewaySaveConfigResponse {
-  ok?: boolean;
-  configPath?: string;
-  error?: string;
-  [key: string]: unknown;
-}
-
-export interface GatewayStateError {
-  code?: string;
-  reason?: string;
-  message?: string;
-  statusCode?: number | null;
-  [key: string]: unknown;
-}
-
-export interface GatewayStateSegment {
-  ready?: boolean;
-  status?: string;
-  statusCode?: number | null;
-  error?: GatewayStateError | null;
-  [key: string]: unknown;
-}
-
-export interface GatewayStateResponse {
-  ready?: boolean;
-  checkedAt?: string;
-  error?: GatewayStateError | null;
-  errors?: GatewayStateError[];
-  gateway?: GatewayStateSegment & {
-    config?: {
-      exists?: boolean;
-      path?: string;
-      mode?: string | null;
-      activeRoot?: string | null;
-      allowedRootCount?: number;
-      [key: string]: unknown;
-    };
-  };
-  tracker?: GatewayStateSegment;
-  planningPersistence?: GatewayStateSegment & {
-    required?: boolean;
-    configured?: boolean;
-    usable?: boolean;
-    initSupported?: boolean;
-    initRequired?: boolean;
-  };
-  planningAuthority?: GatewayStateSegment & {
-    enabled?: boolean;
-    configured?: boolean;
-    cliPath?: string | null;
-    dbPath?: string | null;
-    diagnostics?: Record<string, unknown>;
-  } | null;
-  [key: string]: unknown;
-}
-
-export interface GatewayScannedRepo {
-  absPath: string;
-  name: string;
-  isGit?: boolean;
-  [key: string]: unknown;
-}
-
-export interface GatewayScanRoot {
-  scanRoot: string;
-  repos: GatewayScannedRepo[];
-  [key: string]: unknown;
-}
-
-export interface GatewayScanReposResponse {
-  roots: GatewayScanRoot[];
-  [key: string]: unknown;
-}
 
 export interface PlanningPersistenceInitResponse {
   ready?: boolean;

@@ -12,7 +12,7 @@
     "test": "node scripts/test-with-ledger.js && npm run test:vitest",
     "test:vitest": "node scripts/run-vitest.js",
     "build:local-tracker": "npm --prefix ../local-tracker run build",
-    "build:local-tracker:desktop": "npm --prefix ../local-tracker run build && npm --prefix ../local-tracker run build:gateway",
+    "build:local-tracker:desktop": "npm --prefix ../local-tracker run build",
     "build:tauri-runtime-host": "node ..\\node_modules\\typescript\\bin\\tsc -p tsconfig.tauri-runtime.json",
     "test:tauri-runtime-host": "npm run build:tauri-runtime-host && node --test lib\\desktop-shell\\desktopRuntime\\runtimeService.test.js lib\\desktop-shell\\gatewayChildMode.test.js lib\\desktop-shell\\workflowSidecar.test.js",
     "desktop:dev": "npm run tauri:dev:windows",
@@ -54,7 +54,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "toml": "^4.1.1",
-    "which": "^4.0.0"
+    "which": "^4.0.0",
+    "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.1",

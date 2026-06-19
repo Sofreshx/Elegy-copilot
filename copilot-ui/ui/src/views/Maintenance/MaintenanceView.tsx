@@ -2,12 +2,10 @@ import { Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { navigationStore, type MaintenanceSection } from '../../stores/navigation';
 import DiagnosticsPanel from './DiagnosticsPanel';
-import SandboxesPanel from './SandboxesPanel';
 import UpdatesSection from './UpdatesSection';
 
 const TABS: { id: MaintenanceSection; label: string }[] = [
   { id: 'updates', label: 'Updates' },
-  { id: 'sandboxes', label: 'Sandboxes' },
   { id: 'diagnostics', label: 'Diagnostics' },
 ];
 
@@ -15,8 +13,6 @@ function renderSection(section: MaintenanceSection) {
   switch (section) {
     case 'updates':
       return <UpdatesSection />;
-    case 'sandboxes':
-      return <SandboxesPanel />;
     case 'diagnostics':
       return <DiagnosticsPanel />;
     default:

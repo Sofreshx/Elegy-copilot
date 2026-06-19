@@ -35,12 +35,6 @@ import type {
   ExecutorWorktreeDiscovery,
   ExecutorWorktreeRecord,
   ExecutorWorktreesResponse,
-  GatewayConfig,
-  GatewayConfigResponse,
-  GatewaySaveConfigResponse,
-  GatewayScanReposResponse,
-  GatewayStateError,
-  GatewayStateResponse,
   HealthResponse,
   InstalledAssetsResponse,
   LspConfigResponse,
@@ -106,9 +100,6 @@ import type {
   PlanningTaskBoardResponse,
   PolicyPreflightResponse,
   RuntimeCatalogHealthResponse,
-  SandboxLifecycleAction,
-  SandboxLifecyclePayload,
-  SandboxLifecycleResponse,
   SdkHealthResponse,
   SdkSendResponse,
   SdkSessionSummary,
@@ -380,26 +371,6 @@ export interface PlanningResearchNoteInput {
   sources?: string[];
 }
 
-export interface GatewaySaveConfigPayload {
-  mode?: string;
-  acp?: {
-    host?: string;
-    port?: number;
-  };
-  discord?: {
-    allowlistedUserIds?: string[];
-    guildId?: string;
-    channelId?: string;
-    permissionsChannelId?: string;
-  };
-  telegram?: {
-    allowlistedUserIds?: string[];
-  };
-  workspaces: {
-    allowedRoots: string[];
-    activeRoot: string;
-  };
-}
 
 export interface CatalogSelectorQuery {
   repoId?: string;
@@ -1866,174 +1837,6 @@ export function buildPlanningRoadmapDirectoryRef(
   };
 }
 
-export const SANDBOX_TOKEN_CANONICAL_STATE = 'token_missing';
-export const SANDBOX_TOKEN_CANONICAL_CODE = 'MISSING_SANDBOX_TOKEN';
-export const SANDBOX_TOKEN_REMEDIATION_GUIDANCE =
-  'Provide tracker auth via --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.';
-
-export const LEGACY_SANDBOX_TOKEN_STATE = `${'missing'}_token`;
-export const LEGACY_SANDBOX_TOKEN_CODE = ['tracker', 'token', 'missing'].join('_');
-export const LEGACY_SANDBOX_TOKEN_MESSAGE_PREFIX = ['tracker', 'token', 'not', 'configured'].join(' ');
-
-export const SANDBOX_TOKEN_KNOWN_INDICATORS = new Set([
-  SANDBOX_TOKEN_CANONICAL_STATE,
-  SANDBOX_TOKEN_CANONICAL_CODE.toLowerCase(),
-  LEGACY_SANDBOX_TOKEN_STATE,
-  LEGACY_SANDBOX_TOKEN_CODE,
-  LEGACY_SANDBOX_TOKEN_MESSAGE_PREFIX,
-]);
-
-export interface CanonicalSandboxMissingTokenError {
-  status: typeof SANDBOX_TOKEN_CANONICAL_STATE;
-  code: typeof SANDBOX_TOKEN_CANONICAL_CODE;
-  reason: typeof SANDBOX_TOKEN_CANONICAL_STATE;
-  message: string;
-  legacyCode: string;
-  legacyReason: string;
-}
-
-export function normalizeIndicatorToken(value: unknown): string {
-  return typeof value === 'string' ? value.trim().toLowerCase() : '';
-}
-
-export function collectSandboxTokenIndicators(payload: unknown, out: string[] = [], depth = 0): string[] {
-  if (payload == null || depth > 3) {
-    return out;
-  }
-
-  if (typeof payload === 'string') {
-    out.push(normalizeIndicatorToken(payload));
-    return out;
-  }
-
-  if (Array.isArray(payload)) {
-    for (const entry of payload) {
-      collectSandboxTokenIndicators(entry, out, depth + 1);
-    }
-    return out;
-  }
-
-  if (typeof payload !== 'object') {
-    return out;
-  }
-
-  const source = payload as Record<string, unknown>;
-  const fields = ['status', 'state', 'code', 'reason', 'message', 'error', 'errors', 'legacyCode', 'legacyReason'];
-
-  for (const field of fields) {
-    if (!Object.prototype.hasOwnProperty.call(source, field)) {
-      continue;
-    }
-
-    const value = source[field];
-    if (typeof value === 'string') {
-      out.push(normalizeIndicatorToken(value));
-      continue;
-    }
-
-    collectSandboxTokenIndicators(value, out, depth + 1);
-  }
-
-  return out;
-}
-
-export function isSandboxMissingTokenIndicator(payload: unknown): boolean {
-  const tokens = collectSandboxTokenIndicators(payload);
-  return tokens.some((token) => {
-    if (!token) {
-      return false;
-    }
-
-    return SANDBOX_TOKEN_KNOWN_INDICATORS.has(token)
-      || token.startsWith(LEGACY_SANDBOX_TOKEN_MESSAGE_PREFIX);
-  });
-}
-
-export function extractSandboxTokenMessage(payload: unknown): string {
-  if (!payload || typeof payload !== 'object') {
-    return '';
-  }
-
-  const source = payload as Record<string, unknown>;
-  if (typeof source.message === 'string' && source.message.trim()) {
-    return source.message.trim();
-  }
-  if (typeof source.error === 'string' && source.error.trim()) {
-    return source.error.trim();
-  }
-
-  if (source.error && typeof source.error === 'object') {
-    const nestedError = source.error as Record<string, unknown>;
-    if (typeof nestedError.message === 'string' && nestedError.message.trim()) {
-      return nestedError.message.trim();
-    }
-  }
-
-  if (Array.isArray(source.errors)) {
-    for (const item of source.errors) {
-      const candidate = extractSandboxTokenMessage(item);
-      if (candidate) {
-        return candidate;
-      }
-    }
-  }
-
-  return '';
-}
-
-export function toCanonicalSandboxMissingTokenError(payload: unknown): CanonicalSandboxMissingTokenError | null {
-  if (!isSandboxMissingTokenIndicator(payload)) {
-    return null;
-  }
-
-  return {
-    status: SANDBOX_TOKEN_CANONICAL_STATE,
-    code: SANDBOX_TOKEN_CANONICAL_CODE,
-    reason: SANDBOX_TOKEN_CANONICAL_STATE,
-    message: extractSandboxTokenMessage(payload) || 'Sandbox tracker token is missing',
-    legacyCode: LEGACY_SANDBOX_TOKEN_CODE,
-    legacyReason: LEGACY_SANDBOX_TOKEN_CODE,
-  };
-}
-
-export function toCanonicalSandboxMissingTokenErrorFromUnknown(error: unknown): CanonicalSandboxMissingTokenError | null {
-  const candidates: unknown[] = [error];
-
-  if (error && typeof error === 'object') {
-    const record = error as Record<string, unknown>;
-    if (record.payload != null) {
-      candidates.push(record.payload);
-    }
-    if (record.cause != null) {
-      candidates.push(record.cause);
-    }
-  }
-
-  for (const candidate of candidates) {
-    const mapped = toCanonicalSandboxMissingTokenError(candidate);
-    if (mapped) {
-      return mapped;
-    }
-  }
-
-  return null;
-}
-
-export function toSandboxTokenRemediationMessage(errorOrPayload?: unknown): string {
-  const mapped = toCanonicalSandboxMissingTokenErrorFromUnknown(errorOrPayload)
-    ?? toCanonicalSandboxMissingTokenError(errorOrPayload);
-
-  const baseMessage = mapped?.message?.trim() || 'Sandbox tracker token is missing';
-  const hasGuidance = baseMessage.includes('--tracker-token')
-    && baseMessage.includes('INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN');
-
-  if (hasGuidance) {
-    return baseMessage;
-  }
-
-  const normalizedBase = /[.!?]$/.test(baseMessage) ? baseMessage : `${baseMessage}.`;
-  return `${normalizedBase} ${SANDBOX_TOKEN_REMEDIATION_GUIDANCE}`;
-}
 
 export function normalizePlanningRecord(value: unknown): PlanningRecordItem | null {
   const record = asRecord(value);
@@ -2497,55 +2300,6 @@ export function normalizePlanningDiagramsResponse(payload: unknown): PlanningDia
   };
 }
 
-export function normalizeGatewayConfig(value: unknown): GatewayConfig {
-  const config = asRecord(value);
-  const acp = asRecord(config.acp);
-  const discord = asRecord(config.discord);
-  const telegram = asRecord(config.telegram);
-  const workspaces = asRecord(config.workspaces);
-
-  return {
-    ...config,
-    mode: asTrimmedString(config.mode) || 'auto',
-    acp: {
-      ...acp,
-      host: asTrimmedString(acp.host) || '127.0.0.1',
-      port: asNumber(acp.port, 3000),
-    },
-    discord: Object.keys(discord).length
-      ? {
-        ...discord,
-        allowlistedUserIds: asStringList(discord.allowlistedUserIds),
-        guildId: asTrimmedString(discord.guildId) || undefined,
-        channelId: asTrimmedString(discord.channelId) || undefined,
-        permissionsChannelId: asTrimmedString(discord.permissionsChannelId) || undefined,
-      }
-      : undefined,
-    telegram: Object.keys(telegram).length
-      ? {
-        ...telegram,
-        allowlistedUserIds: asStringList(telegram.allowlistedUserIds),
-      }
-      : undefined,
-    workspaces: {
-      ...workspaces,
-      allowedRoots: asStringList(workspaces.allowedRoots),
-      activeRoot: asTrimmedString(workspaces.activeRoot),
-    },
-  };
-}
-
-export function normalizeGatewayConfigResponse(payload: unknown): GatewayConfigResponse {
-  const record = asRecord(payload);
-
-  return {
-    ...record,
-    exists: asBoolean(record.exists, false),
-    configPath: asString(record.configPath),
-    config: record.config && typeof record.config === 'object' ? normalizeGatewayConfig(record.config) : null,
-  };
-}
-
 export function normalizeCodexProviderStatusResponse(payload: unknown): CodexProviderStatusResponse {
   const record = asRecord(payload);
   const gateway = asRecord(record.gateway);
@@ -2588,125 +2342,6 @@ export function normalizeCodexProviderStatusResponse(payload: unknown): CodexPro
       modelIds: Array.isArray(deepseek.modelIds) ? deepseek.modelIds as string[] : undefined,
       probeError: typeof deepseek.probeError === 'string' ? deepseek.probeError : null,
     } : undefined,
-  };
-}
-
-
-export function normalizeGatewaySaveConfigResponse(payload: unknown): GatewaySaveConfigResponse {
-  const record = asRecord(payload);
-
-  return {
-    ...record,
-    ok: asBoolean(record.ok, false),
-    configPath: asTrimmedString(record.configPath) || undefined,
-    error: asTrimmedString(record.error) || undefined,
-  };
-}
-
-export function normalizeGatewayStateError(value: unknown): GatewayStateError {
-  const error = asRecord(value);
-
-  return {
-    ...error,
-    code: asTrimmedString(error.code) || undefined,
-    reason: asTrimmedString(error.reason) || undefined,
-    message: asTrimmedString(error.message) || undefined,
-    statusCode: asNullableNumber(error.statusCode),
-  };
-}
-
-export function normalizeGatewayStateResponse(payload: unknown): GatewayStateResponse {
-  const record = asRecord(payload);
-  const gateway = asRecord(record.gateway);
-  const tracker = asRecord(record.tracker);
-  const planningPersistence = asRecord(record.planningPersistence);
-  const planningAuthority = asRecord(record.planningAuthority);
-
-  return {
-    ...record,
-    ready: asBoolean(record.ready, false),
-    checkedAt: asTrimmedString(record.checkedAt) || undefined,
-    error: record.error && typeof record.error === 'object'
-      ? normalizeGatewayStateError(record.error)
-      : null,
-    errors: asArray(record.errors)
-      .map((entry) => normalizeGatewayStateError(entry))
-      .filter((entry) => Boolean(entry.code || entry.reason || entry.message || entry.statusCode != null)),
-    gateway: {
-      ...gateway,
-      ready: asBoolean(gateway.ready, false),
-      status: asTrimmedString(gateway.status) || 'unknown',
-      config: asRecord(gateway.config),
-    },
-    tracker: {
-      ...tracker,
-      ready: asBoolean(tracker.ready, false),
-      status: asTrimmedString(tracker.status) || 'unknown',
-      statusCode: asNullableNumber(tracker.statusCode),
-      error: tracker.error && typeof tracker.error === 'object' ? normalizeGatewayStateError(tracker.error) : null,
-    },
-    planningPersistence: {
-      ...planningPersistence,
-      ready: asBoolean(planningPersistence.ready, false),
-      status: asTrimmedString(planningPersistence.status) || 'unknown',
-      required: asBoolean(planningPersistence.required, false),
-      configured: asBoolean(planningPersistence.configured, false),
-      usable: asBoolean(planningPersistence.usable, false),
-      initSupported: asBoolean(planningPersistence.initSupported, false),
-      initRequired: asBoolean(planningPersistence.initRequired, false),
-      error: planningPersistence.error && typeof planningPersistence.error === 'object'
-        ? normalizeGatewayStateError(planningPersistence.error)
-        : null,
-    },
-    planningAuthority: Object.keys(planningAuthority).length > 0
-      ? {
-          ...planningAuthority,
-          ready: asBoolean(planningAuthority.ready, false),
-          enabled: asBoolean(planningAuthority.enabled, false),
-          configured: asBoolean(planningAuthority.configured, false),
-          status: asTrimmedString(planningAuthority.status) || 'unknown',
-          cliPath: asTrimmedString(planningAuthority.cliPath) || null,
-          dbPath: asTrimmedString(planningAuthority.dbPath) || null,
-          diagnostics: asRecord(planningAuthority.diagnostics),
-          error: planningAuthority.error && typeof planningAuthority.error === 'object'
-            ? normalizeGatewayStateError(planningAuthority.error)
-            : null,
-        }
-      : null,
-  };
-}
-
-export function normalizeGatewayScanReposResponse(payload: unknown): GatewayScanReposResponse {
-  const record = asRecord(payload);
-  const roots = asArray(record.roots).map((entry) => {
-    const rootRecord = asRecord(entry);
-    const repos = asArray(rootRecord.repos)
-      .map((repo) => {
-        const repoRecord = asRecord(repo);
-        const absPath = asTrimmedString(repoRecord.absPath);
-        if (!absPath) {
-          return null;
-        }
-
-        return {
-          ...repoRecord,
-          absPath,
-          name: asTrimmedString(repoRecord.name) || absPath,
-          isGit: asBoolean(repoRecord.isGit, true),
-        };
-      })
-      .filter((repo): repo is { absPath: string; name: string; isGit: boolean; [key: string]: unknown } => repo !== null);
-
-    return {
-      ...rootRecord,
-      scanRoot: asTrimmedString(rootRecord.scanRoot) || '(unknown root)',
-      repos,
-    };
-  });
-
-  return {
-    ...record,
-    roots,
   };
 }
 
