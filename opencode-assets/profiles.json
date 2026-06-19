@@ -1,5 +1,5 @@
 {
-  "activeProfile": "opencode-go-balanced",
+  "activeProfile": "deepseek-direct",
   "profiles": {
     "opencode-go-balanced": {
       "label": "OpenCode Go Balanced",
@@ -19,7 +19,6 @@
       "small": "opencode-go/deepseek-v4-flash",
       "big": "opencode-go/deepseek-v4-pro",
       "review": "opencode-go/deepseek-v4-pro",
-      "reasoningEffort": "max",
       "smallLabel": "DeepSeek V4 Flash",
       "bigLabel": "DeepSeek V4 Pro",
       "reviewLabel": "DeepSeek V4 Pro"
@@ -41,8 +40,7 @@
       },
       "small": "opencode-go/deepseek-v4-flash",
       "big": "opencode-go/deepseek-v4-pro",
-      "review": "opencode-go/deepseek-v4-pro",
-      "reasoningEffort": "max"
+      "review": "opencode-go/deepseek-v4-pro"
     },
     "opencode-zen-free": {
       "label": "OpenCode Zen Free",
@@ -58,8 +56,7 @@
         "exploration": "opencode/deepseek-v4-flash-free",
         "review": "opencode/deepseek-v4-pro-free",
         "research": "opencode/deepseek-v4-flash-free"
-      },
-      "reasoningEffort": "max"
+      }
     },
     "opencode-zen-mixed": {
       "label": "OpenCode Zen Mixed",
@@ -75,8 +72,7 @@
         "exploration": "opencode/deepseek-v4-flash-free",
         "review": "opencode/deepseek-v4-pro",
         "research": "opencode/deepseek-v4-flash-free"
-      },
-      "reasoningEffort": "max"
+      }
     },
     "deepseek-direct": {
       "label": "Direct DeepSeek",
@@ -96,7 +92,6 @@
       "small": "deepseek/deepseek-v4-flash",
       "big": "deepseek/deepseek-v4-pro",
       "review": "deepseek/deepseek-v4-pro",
-      "reasoningEffort": "max",
       "smallLabel": "DeepSeek V4 Flash Max",
       "bigLabel": "DeepSeek V4 Pro Max",
       "reviewLabel": "DeepSeek V4 Pro High"
@@ -105,7 +100,9 @@
   "roleToAgent": {
     "planning": [
       "plan",
-      "project"
+      "project",
+      "runner",
+      "runner-flash"
     ],
     "implementation": [
       "build",
@@ -138,7 +135,10 @@
   "agentRoles": {
     "quick": "small",
     "project": "big",
+    "runner": "big",
+    "runner-flash": "big",
     "impl": "small",
+    "impl-pro": "big",
     "reviewer": "review",
     "explorer": "small",
     "scout": "big",

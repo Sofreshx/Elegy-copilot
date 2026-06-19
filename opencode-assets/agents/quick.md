@@ -1,7 +1,6 @@
 ---
 mode: primary
 model: deepseek/deepseek-v4-flash
-reasoningEffort: max
 temperature: 0.3
 color: success
 steps: 20

@@ -38,16 +38,16 @@ async function main() {
       fs.mkdirSync(agentsDir, { recursive: true });
 
       const agents = {
-        quick: { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
-        project: { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
-        impl: { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
-        reviewer: { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
-        explorer: { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
-        scout: { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
-        'notes-enhance': { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
-        'notes-reexamine': { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
-        'notes-research': { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
-        'notes-deduplicate': { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
+        quick: { model: 'opencode-go/deepseek-v4-flash' },
+        project: { model: 'opencode-go/deepseek-v4-pro' },
+        impl: { model: 'opencode-go/deepseek-v4-flash' },
+        reviewer: { model: 'opencode-go/deepseek-v4-pro' },
+        explorer: { model: 'opencode-go/deepseek-v4-flash' },
+        scout: { model: 'opencode-go/deepseek-v4-pro' },
+        'notes-enhance': { model: 'opencode-go/deepseek-v4-pro' },
+        'notes-reexamine': { model: 'opencode-go/deepseek-v4-pro' },
+        'notes-research': { model: 'opencode-go/deepseek-v4-pro' },
+        'notes-deduplicate': { model: 'opencode-go/deepseek-v4-flash' },
       };
 
       const agentRoles = {
@@ -67,7 +67,7 @@ async function main() {
         const filePath = path.join(agentsDir, `${name}.md`);
         const isPrimary = ['quick', 'project'].includes(name);
         const modeLine = isPrimary ? 'mode: primary' : 'mode: subagent\nhidden: true';
-        const content = `---\n${modeLine}\nmodel: ${fields.model}\nreasoningEffort: ${fields.reasoningEffort}\ndescription: "Test agent"\n---\n\n# ${name} agent\n`;
+        const content = `---\n${modeLine}\nmodel: ${fields.model}\ndescription: "Test agent"\n---\n\n# ${name} agent\n`;
         fs.writeFileSync(filePath, content, 'utf8');
       }
 
@@ -75,7 +75,6 @@ async function main() {
         small: 'deepseek/deepseek-v4-flash',
         big: 'deepseek/deepseek-v4-pro',
         review: 'deepseek/deepseek-v4-pro',
-        reasoningEffort: 'max',
       };
 
       let updatedCount = 0;
@@ -107,13 +106,13 @@ async function main() {
     });
   });
 
-  await test('profile switching preserves reasoningEffort', async () => {
+  await test('profile switching does not write reasoningEffort when not in profile', async () => {
     withTempDir((root) => {
       const agentsDir = path.join(root, 'agents');
       fs.mkdirSync(agentsDir, { recursive: true });
 
       const filePath = path.join(agentsDir, 'impl.md');
-      const content = `---\nmode: subagent\nhidden: true\nmodel: opencode-go/deepseek-v4-flash\nreasoningEffort: max\ndescription: "Impl agent"\n---\n\n# Impl agent\n`;
+      const content = `---\nmode: subagent\nhidden: true\nmodel: opencode-go/deepseek-v4-flash\ndescription: "Impl agent"\n---\n\n# Impl agent\n`;
       fs.writeFileSync(filePath, content, 'utf8');
 
       const agentRoles = { impl: 'small' };
@@ -121,13 +120,12 @@ async function main() {
         small: 'deepseek/deepseek-v4-flash',
         big: 'deepseek/deepseek-v4-pro',
         review: 'deepseek/deepseek-v4-pro',
-        reasoningEffort: 'medium',
       };
 
       utils.updateAgentModel(filePath, profile, agentRoles);
 
       const updated = fs.readFileSync(filePath, 'utf8');
-      assert.ok(updated.includes('reasoningEffort: medium'), 'reasoningEffort should be updated from profile');
+      assert.ok(!updated.includes('reasoningEffort'), 'reasoningEffort should not be written when not in profile');
       assert.ok(updated.includes('model: deepseek/deepseek-v4-flash'), 'model should be updated');
     });
   });
@@ -138,7 +136,7 @@ async function main() {
       fs.mkdirSync(agentsDir, { recursive: true });
 
       const agentPath = path.join(agentsDir, 'impl.md');
-      fs.writeFileSync(agentPath, `---\nmode: subagent\nhidden: true\nmodel: opencode-go/deepseek-v4-flash\nreasoningEffort: max\ndescription: "Impl"\n---\n\n# Impl\n`, 'utf8');
+      fs.writeFileSync(agentPath, `---\nmode: subagent\nhidden: true\nmodel: opencode-go/deepseek-v4-flash\ndescription: "Impl"\n---\n\n# Impl\n`, 'utf8');
 
       const customPath = path.join(agentsDir, 'custom-agent.md');
       fs.writeFileSync(customPath, `---\nmode: subagent\nhidden: true\nmodel: opencode-go/deepseek-v4-flash\ndescription: "Custom"\n---\n\n# Custom\n`, 'utf8');
@@ -146,7 +144,6 @@ async function main() {
       const agentRoles = { impl: 'small' };
       const profile = {
         small: 'deepseek/deepseek-v4-flash',
-        reasoningEffort: 'max',
       };
 
       const result = utils.updateAgentModel(customPath, profile, agentRoles);
@@ -167,7 +164,7 @@ async function main() {
       fs.mkdirSync(agentsDir, { recursive: true });
 
       const implPath = path.join(agentsDir, 'impl.md');
-      fs.writeFileSync(implPath, '---\nmode: subagent\nhidden: true\nmodel: opencode-go/deepseek-v4-flash\nreasoningEffort: max\ndescription: "Impl"\n---\n\n# Impl\n', 'utf8');
+      fs.writeFileSync(implPath, '---\nmode: subagent\nhidden: true\nmodel: opencode-go/deepseek-v4-flash\ndescription: "Impl"\n---\n\n# Impl\n', 'utf8');
 
       const agentRoles = { impl: 'small' };
       const profile = {
@@ -181,7 +178,6 @@ async function main() {
           review: 'opencode-go/deepseek-v4-pro',
           research: 'opencode-go/deepseek-v4-pro',
         },
-        reasoningEffort: 'max',
       };
 
       assert.ok(profile.roleModels, 'profile should have roleModels');
@@ -190,17 +186,17 @@ async function main() {
     });
   });
 
-  await test('profile switching updates reasoningEffort in opencode.jsonc', async () => {
+  await test('profile switching updates opencode.jsonc model without writing reasoningEffort', async () => {
     withTempDir((root) => {
       const agentsDir = path.join(root, 'agents');
       fs.mkdirSync(agentsDir, { recursive: true });
 
       const agents = {
-        impl: { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
-        build: { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
-        plan: { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
-        explore: { model: 'opencode-go/deepseek-v4-flash', reasoningEffort: 'max' },
-        scout: { model: 'opencode-go/deepseek-v4-pro', reasoningEffort: 'max' },
+        impl: { model: 'opencode-go/deepseek-v4-flash' },
+        build: { model: 'opencode-go/deepseek-v4-flash' },
+        plan: { model: 'opencode-go/deepseek-v4-pro' },
+        explore: { model: 'opencode-go/deepseek-v4-flash' },
+        scout: { model: 'opencode-go/deepseek-v4-pro' },
       };
 
       const agentRoles = {
@@ -216,20 +212,12 @@ async function main() {
 
       for (const [name, fields] of Object.entries(agents)) {
         const filePath = path.join(agentsDir, `${name}.md`);
-        const content = `---\nmode: subagent\nhidden: true\nmodel: ${fields.model}\nreasoningEffort: ${fields.reasoningEffort}\ndescription: "Test agent"\n---\n\n# ${name} agent\n`;
+        const content = `---\nmode: subagent\nhidden: true\nmodel: ${fields.model}\ndescription: "Test agent"\n---\n\n# ${name} agent\n`;
         fs.writeFileSync(filePath, content, 'utf8');
       }
 
       const configPath = path.join(root, 'opencode.jsonc');
-      const initialConfig = {
-        agent: {
-          build: { reasoningEffort: 'high' },
-          plan: { reasoningEffort: 'high' },
-          explore: { reasoningEffort: 'high' },
-          scout: { reasoningEffort: 'high' },
-          impl: { reasoningEffort: 'high' },
-        }
-      };
+      const initialConfig = { agent: {} };
       fs.writeFileSync(configPath, JSON.stringify(initialConfig, null, 2), 'utf8');
 
       const profile = {
@@ -243,7 +231,6 @@ async function main() {
           review: 'opencode-go/deepseek-v4-pro',
           research: 'opencode-go/deepseek-v4-pro',
         },
-        reasoningEffort: 'max',
       };
 
       const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -282,19 +269,20 @@ async function main() {
           config.agent[agentName] = {};
         }
         config.agent[agentName].model = modelValue;
-        if (profile.reasoningEffort) {
-          config.agent[agentName].reasoningEffort = profile.reasoningEffort;
-        }
       }
 
       fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
 
       const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      assert.strictEqual(updatedConfig.agent.build.reasoningEffort, 'max', 'build should have max reasoningEffort');
-      assert.strictEqual(updatedConfig.agent.plan.reasoningEffort, 'max', 'plan should have max reasoningEffort');
-      assert.strictEqual(updatedConfig.agent.explore.reasoningEffort, 'max', 'explore should have max reasoningEffort');
-      assert.strictEqual(updatedConfig.agent.scout.reasoningEffort, 'max', 'scout should have max reasoningEffort');
-      assert.strictEqual(updatedConfig.agent.impl.reasoningEffort, 'max', 'impl should have max reasoningEffort');
+      assert.strictEqual(updatedConfig.agent.build.model, 'opencode-go/deepseek-v4-flash');
+      assert.strictEqual(updatedConfig.agent.impl.model, 'opencode-go/deepseek-v4-flash');
+      assert.strictEqual(updatedConfig.agent.plan.model, 'opencode-go/deepseek-v4-pro');
+      assert.strictEqual(updatedConfig.agent.scout.model, 'opencode-go/deepseek-v4-pro');
+      assert.strictEqual(updatedConfig.agent.explore.model, 'opencode-go/deepseek-v4-flash');
+      // reasoningEffort should not be written since profile doesn't have it
+      for (const name of ['build', 'impl', 'plan', 'scout', 'explore']) {
+        assert.ok(!updatedConfig.agent[name].reasoningEffort, `${name} should not have reasoningEffort`);
+      }
     });
   });
 

@@ -2,7 +2,6 @@
 mode: subagent
 hidden: true
 model: deepseek/deepseek-v4-pro
-reasoningEffort: max
 temperature: 0.1
 color: warning
 steps: 30

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-15
+updated: 2026-06-19
 category: system
 status: current
 doc_kind: moc
@@ -31,6 +31,7 @@ related: [system-docs-index]
 - Agents vs skills: `docs/system/agents-vs-skills.md`
 - Agent architecture simplicity: `docs/system/agent-architecture-simplicity.md`
 - Agent hooks: `docs/system/agent-hooks.md`
+- Runner lane design: `docs/system/runner-lane-design.md`
 - Model capability profiles: `docs/system/model-capability-profile.md`
 - Channel capability matrix: `docs/system/channel-capability-matrix.md`
 - Repository backlog, roadmap, and plan-pack boundaries: [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md)

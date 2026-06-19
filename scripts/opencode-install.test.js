@@ -288,7 +288,7 @@ async function main() {
       assert.strictEqual(installedAgentCount, manifestAgentCount,
         `installed agents (${installedAgentCount}) should match manifest count (${manifestAgentCount})`);
 
-      // Verify every agentRoles key has model + reasoningEffort in installed agent file
+      // Verify every agentRoles key has model in installed agent file
       const profilesPath = path.resolve(__dirname, '..', 'opencode-assets', 'profiles.json');
       const profilesConfig = JSON.parse(fs.readFileSync(profilesPath, 'utf8'));
       const agentRoles = profilesConfig.agentRoles || {};
@@ -319,8 +319,6 @@ async function main() {
 
         assert.ok(frontmatter.model,
           `agentRole '${agentName}' (${agentName}.md) must have 'model' in frontmatter (role: ${roleKey})`);
-        assert.ok(frontmatter.reasoningEffort,
-          `agentRole '${agentName}' (${agentName}.md) must have 'reasoningEffort' in frontmatter (role: ${roleKey})`);
       }
     });
   });

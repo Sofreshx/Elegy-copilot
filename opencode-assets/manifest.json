@@ -61,6 +61,12 @@
       "destination": "agents/impl.md"
     },
     {
+      "id": "opencode-agent-impl-pro",
+      "type": "agent",
+      "source": "opencode-assets/agents/impl-pro.md",
+      "destination": "agents/impl-pro.md"
+    },
+    {
       "id": "opencode-agent-project",
       "type": "agent",
       "source": "opencode-assets/agents/project.md",
@@ -77,6 +83,18 @@
       "type": "agent",
       "source": "opencode-assets/agents/reviewer.md",
       "destination": "agents/reviewer.md"
+    },
+    {
+      "id": "opencode-agent-runner",
+      "type": "agent",
+      "source": "opencode-assets/agents/runner.md",
+      "destination": "agents/runner.md"
+    },
+    {
+      "id": "opencode-agent-runner-flash",
+      "type": "agent",
+      "source": "opencode-assets/agents/runner-flash.md",
+      "destination": "agents/runner-flash.md"
     },
     {
       "id": "opencode-agent-scout",
@@ -290,6 +308,12 @@
       "type": "skill",
       "source": "opencode-assets/skills/project-workflow",
       "destination": "skills/project-workflow"
+    },
+    {
+      "id": "opencode-runner-workflow-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/runner-workflow",
+      "destination": "skills/runner-workflow"
     },
     {
       "id": "opencode-skill-authoring-skill",

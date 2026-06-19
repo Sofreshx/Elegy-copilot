@@ -2501,6 +2501,32 @@ textarea:focus-visible,
   gap: var(--space-sm);
 }
 
+.remote-sync-guide {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-100);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-500);
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+}
+
+.remote-sync-guide strong {
+  color: var(--color-ink-900);
+}
+
+.remote-sync-guide ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-lg);
+  margin: 0;
+  padding-left: var(--space-lg);
+}
+
+.remote-sync-guide p {
+  margin: 0;
+}
+
 .remote-diagnostics > button {
   background: transparent;
   border: 0;

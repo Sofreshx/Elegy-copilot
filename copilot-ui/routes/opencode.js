@@ -230,6 +230,72 @@ function buildLanes() {
       worktreeBehavior: 'git-worktree-based isolation with automatic cleanup',
       escalationTriggers: ['planning-graph-unavailable', 'lease-failure', 'worktree-creation-failure'],
     },
+    {
+      id: 'runner',
+      label: 'Runner',
+      description: 'Execute a text plan via sub-agents with full review gates. No elegy-planning.',
+      nodes: [
+        { id: 'user-request', label: 'User Request', kind: 'start' },
+        { id: 'parse-plan', label: 'Parse Text Plan', kind: 'action' },
+        { id: 'plan-review', label: 'Plan Review', kind: 'gate' },
+        { id: 'exploration', label: 'Exploration (Flash)', kind: 'action' },
+        { id: 'implementation', label: 'Implementation (Pro)', kind: 'action' },
+        { id: 'code-review', label: 'Code Review', kind: 'gate' },
+        { id: 'fix-retry', label: 'Auto-Fix Retry', kind: 'action' },
+        { id: 'evidence-review', label: 'Evidence Review', kind: 'gate' },
+      ],
+      edges: [
+        { from: 'user-request', to: 'parse-plan', label: 'plan text' },
+        { from: 'parse-plan', to: 'plan-review', label: 'tasks parsed' },
+        { from: 'plan-review', to: 'exploration', label: 'approved' },
+        { from: 'plan-review', to: 'parse-plan', label: 'revise' },
+        { from: 'exploration', to: 'implementation', label: 'context ready' },
+        { from: 'implementation', to: 'code-review', label: 'impl done' },
+        { from: 'code-review', to: 'fix-retry', label: 'changes-requested' },
+        { from: 'code-review', to: 'evidence-review', label: 'approved' },
+        { from: 'fix-retry', to: 'code-review', label: 'fixed (max 2x)' },
+        { from: 'fix-retry', to: 'user-request', label: 'retries exhausted' },
+        { from: 'evidence-review', to: 'implementation', label: 'gaps found' },
+      ],
+      modelPolicy: { small: 'DeepSeek V4 Flash Max', big: 'DeepSeek V4 Pro Max', review: 'DeepSeek V4 Pro High' },
+      requiredSetup: ['opencode-config', 'opencode-assets'],
+      clarificationGates: ['plan-ambiguity', 'missing-tasks'],
+      worktreeBehavior: 'optional-on-request',
+      escalationTriggers: ['plan-review-blocked', 'retries-exhausted', 'code-review-blocked'],
+    },
+    {
+      id: 'runner-flash',
+      label: 'Runner Flash',
+      description: 'Same as Runner but uses Flash implementation model for lower cost.',
+      nodes: [
+        { id: 'user-request', label: 'User Request', kind: 'start' },
+        { id: 'parse-plan', label: 'Parse Text Plan', kind: 'action' },
+        { id: 'plan-review', label: 'Plan Review', kind: 'gate' },
+        { id: 'exploration', label: 'Exploration (Flash)', kind: 'action' },
+        { id: 'implementation', label: 'Implementation (Flash)', kind: 'action' },
+        { id: 'code-review', label: 'Code Review', kind: 'gate' },
+        { id: 'fix-retry', label: 'Auto-Fix Retry', kind: 'action' },
+        { id: 'evidence-review', label: 'Evidence Review', kind: 'gate' },
+      ],
+      edges: [
+        { from: 'user-request', to: 'parse-plan', label: 'plan text' },
+        { from: 'parse-plan', to: 'plan-review', label: 'tasks parsed' },
+        { from: 'plan-review', to: 'exploration', label: 'approved' },
+        { from: 'plan-review', to: 'parse-plan', label: 'revise' },
+        { from: 'exploration', to: 'implementation', label: 'context ready' },
+        { from: 'implementation', to: 'code-review', label: 'impl done' },
+        { from: 'code-review', to: 'fix-retry', label: 'changes-requested' },
+        { from: 'code-review', to: 'evidence-review', label: 'approved' },
+        { from: 'fix-retry', to: 'code-review', label: 'fixed (max 2x)' },
+        { from: 'fix-retry', to: 'user-request', label: 'retries exhausted' },
+        { from: 'evidence-review', to: 'implementation', label: 'gaps found' },
+      ],
+      modelPolicy: { small: 'DeepSeek V4 Flash Max', big: 'DeepSeek V4 Pro Max', review: 'DeepSeek V4 Pro High' },
+      requiredSetup: ['opencode-config', 'opencode-assets'],
+      clarificationGates: ['plan-ambiguity', 'missing-tasks'],
+      worktreeBehavior: 'optional-on-request',
+      escalationTriggers: ['plan-review-blocked', 'retries-exhausted', 'code-review-blocked'],
+    },
   ];
 }
 
@@ -558,6 +624,32 @@ function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, o
     action: specLaneBlockers.length === 0 ? null : { kind: 'info', label: 'Resolve blockers', target: '#setup' },
   });
 
+  // Runner lane: requires opencode-config + installed agent files + required skills
+  const runnerLaneDeps = checks.filter((c) =>
+    c.id === 'opencode-config' || c.id === 'opencode-assets'
+  );
+  const runnerLaneBlockers = runnerLaneDeps.filter((c) => c.status !== 'ok');
+  const runnerAgentFiles = ['runner.md', 'runner-flash.md', 'impl.md', 'impl-pro.md', 'reviewer.md', 'explorer.md']
+    .filter((name) => !fs.existsSync(path.join(opencodeHome, 'agents', name)));
+  const runnerSkillsMissing = ['runner-workflow', 'implementation-review', 'rubberduck-plan-review']
+    .filter((name) => !fs.existsSync(path.join(opencodeHome, 'skills', name)));
+  const runnerMissing = runnerAgentFiles.length + runnerSkillsMissing.length;
+  checks.push({
+    id: 'runner-lane',
+    label: 'Runner lane ready',
+    status: runnerLaneBlockers.length === 0 && runnerMissing === 0 ? 'ok'
+      : (runnerLaneBlockers.length <= 1 && runnerMissing <= 2 ? 'warning' : 'blocked'),
+    detail: runnerLaneBlockers.length === 0 && runnerMissing === 0
+      ? 'All runner lane dependencies are satisfied'
+      : [
+        runnerLaneBlockers.length > 0 ? `Blocked by ${runnerLaneBlockers.length} missing check(s): ${runnerLaneBlockers.map((c) => c.id).join(', ')}` : '',
+        runnerAgentFiles.length > 0 ? `Missing agents: ${runnerAgentFiles.join(', ')}` : '',
+        runnerSkillsMissing.length > 0 ? `Missing skills: ${runnerSkillsMissing.join(', ')}` : '',
+      ].filter(Boolean).join('. '),
+    action: runnerLaneBlockers.length === 0 && runnerMissing === 0 ? null
+      : { kind: 'info', label: 'Resolve blockers', target: '#assets' },
+  });
+
   // Instruction Governance — validate shared baseline + authoring skills wiring across all harnesses
   try {
     const scriptPath = path.join(engineRoot, 'scripts', 'validate-instruction-wiring.mjs');
@@ -616,7 +708,7 @@ function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, o
 }
 
 function resolveOverallStatus(setupChecks) {
-  const criticalSystemChecks = setupChecks.filter((c) => c.id !== 'project-lane' && c.id !== 'spec-lane');
+  const criticalSystemChecks = setupChecks.filter((c) => c.id !== 'project-lane' && c.id !== 'spec-lane' && c.id !== 'runner-lane');
   const blocked = criticalSystemChecks.some((c) => c.status === 'blocked');
   const degraded = setupChecks.some((c) => c.status !== 'ok');
   if (blocked) return 'blocked';

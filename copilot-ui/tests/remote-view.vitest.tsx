@@ -23,10 +23,13 @@ const store = {
   }],
   sessions: [{
     threadId: 'thread-1',
+    sessionId: 'session-1',
     threadName: 'Fix tests',
-    source: 'kimaki',
+    source: 'kimaki' as const,
+    syncStatus: 'connected' as const,
     project: 'C:/repo',
     guildId: 'guild-1',
+    discordUrl: 'https://discord.com/channels/guild-1/thread-1',
     createdAt: '2026-06-18T10:00:00Z',
     updatedAt: '2026-06-18T10:05:00Z',
   }],
@@ -56,7 +59,7 @@ describe('RemoteView', () => {
   it('renders ready state, projects, sessions, send form, and logs', () => {
     render(<RemoteView />);
     expect(screen.getByTestId('remote-view')).toBeTruthy();
-    expect(screen.getByText('Connected')).toBeTruthy();
+    expect(screen.getByTestId('remote-status-badge').textContent).toBe('Connected');
     expect(screen.getAllByText('C:/repo').length).toBeGreaterThan(0);
     expect(screen.getByText('Fix tests')).toBeTruthy();
     expect(screen.getByTestId('remote-send-btn')).toBeTruthy();
@@ -87,5 +90,35 @@ describe('RemoteView', () => {
       installUrl: null,
       message: 'Discord remote sessions are connected.',
     };
+  });
+
+  it('renders ordinary OpenCode sessions as pending Discord sync', () => {
+    store.sessions = [{
+      threadId: null,
+      sessionId: 'session-external',
+      threadName: 'Local CLI work',
+      source: 'opencode',
+      syncStatus: 'pending',
+      project: 'C:/repo',
+      discordUrl: null,
+      updatedAt: '2026-06-19T14:00:00Z',
+    }];
+
+    render(<RemoteView />);
+    expect(screen.getByText('Local CLI work')).toBeTruthy();
+    expect(screen.getByText('Pending sync')).toBeTruthy();
+    expect(screen.getByText('Waiting for Kimaki')).toBeTruthy();
+
+    store.sessions = [{
+      threadId: 'thread-1',
+      sessionId: 'session-1',
+      threadName: 'Fix tests',
+      source: 'kimaki',
+      syncStatus: 'connected',
+      project: 'C:/repo',
+      guildId: 'guild-1',
+      discordUrl: 'https://discord.com/channels/guild-1/thread-1',
+      updatedAt: '2026-06-18T10:05:00Z',
+    }];
   });
 });

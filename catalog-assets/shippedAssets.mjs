@@ -84,12 +84,16 @@ export const SHIPPED_ASSETS = [
   skill('opencode-security-skill', 'engine-assets/skills/security'),
   skill('opencode-worktree-skill', 'opencode-assets/skills/worktree'),
   skill('opencode-project-workflow-skill', 'opencode-assets/skills/project-workflow'),
+  skill('opencode-runner-workflow-skill', 'opencode-assets/skills/runner-workflow'),
   plugin('opencode-worktree-plugin', 'opencode-assets/plugins/worktree.js'),
 
   // OpenCode native agents
   agent('opencode-agent-quick', 'opencode-assets/agents/quick.md'),
   agent('opencode-agent-project', 'opencode-assets/agents/project.md'),
+  agent('opencode-agent-runner', 'opencode-assets/agents/runner.md'),
+  agent('opencode-agent-runner-flash', 'opencode-assets/agents/runner-flash.md'),
   agent('opencode-agent-impl', 'opencode-assets/agents/impl.md'),
+  agent('opencode-agent-impl-pro', 'opencode-assets/agents/impl-pro.md'),
   agent('opencode-agent-reviewer', 'opencode-assets/agents/reviewer.md'),
   agent('opencode-agent-explorer', 'opencode-assets/agents/explorer.md'),
   agent('opencode-agent-scout', 'opencode-assets/agents/scout.md'),

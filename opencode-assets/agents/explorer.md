@@ -2,7 +2,6 @@
 mode: subagent
 hidden: true
 model: deepseek/deepseek-v4-flash
-reasoningEffort: max
 temperature: 0.3
 color: info
 steps: 40

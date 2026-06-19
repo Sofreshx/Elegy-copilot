@@ -109,7 +109,6 @@ Profiles define model+provider routing across five task roles. Profiles are conf
 | `exploration` | `opencode-go/deepseek-v4-flash` | `explore`, `explorer` |
 | `review` | `opencode-go/deepseek-v4-pro` | `reviewer` |
 | `research` | `opencode-go/deepseek-v4-pro` | `scout` |
-| `reasoningEffort` | `max` | Max reasoning effort on all DeepSeek models |
 
 **Available profiles:**
 - `opencode-go-balanced` — Go provider with DeepSeek defaults

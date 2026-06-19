@@ -68,7 +68,7 @@ must deny Task delegation. Validate with `node scripts/validate-opencode-agent-t
 
 ### Provider Profiles
 
-Profiles configure model routing across five task roles. Each profile maps models to roles using OpenCode Go (`opencode-go/<model-id>`) or OpenCode Zen (`opencode/<model-id>`) provider prefixes. All DeepSeek models use max reasoning effort (`reasoningEffort: max`).
+Profiles configure model routing across five task roles. Each profile maps models to roles using OpenCode Go (`opencode-go/<model-id>`) or OpenCode Zen (`opencode/<model-id>`) provider prefixes. DeepSeek models use their built-in default reasoning effort (e.g., `deepseek-v4-pro` defaults to `high`, `deepseek-v4-flash` defaults to `medium`).
 
 | Role | Description | Agents |
 |---|---|---|

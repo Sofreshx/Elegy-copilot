@@ -33,15 +33,17 @@ export interface RemoteProject {
 }
 
 export interface RemoteSession {
-  threadId: string;
+  threadId: string | null;
   sessionId?: string;
   threadName: string;
-  source: string;
+  source: 'opencode' | 'kimaki';
+  syncStatus: 'pending' | 'connected';
   project: string;
-  guildId?: string;
+  guildId?: string | null;
   channelId?: string;
-  createdAt: string;
-  updatedAt: string;
+  discordUrl?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export async function getRemoteStatus(): Promise<RemoteStatus> {
@@ -97,4 +99,16 @@ export async function addRemoteProject(body: {
 export async function getRemoteLogs(tail = 50): Promise<{ lines: string[] }> {
   const res = await fetch(`/api/remote/logs?tail=${tail}`);
   return readRemoteResponse(res, `Failed to get logs: ${res.status}`);
+}
+
+export async function renameRemoteSession(body: {
+  sessionId: string;
+  title: string;
+}): Promise<{ ok: boolean; sessionId: string; title: string }> {
+  const res = await fetch('/api/remote/sessions/rename', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return readRemoteResponse(res, `Failed to rename session: ${res.status}`);
 }

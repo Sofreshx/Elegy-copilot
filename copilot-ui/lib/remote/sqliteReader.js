@@ -6,6 +6,8 @@
  */
 
 const Database = require('better-sqlite3');
+const os = require('node:os');
+const path = require('node:path');
 
 /**
  * Open Kimaki's database in read-only mode.
@@ -14,6 +16,11 @@ const Database = require('better-sqlite3');
  */
 function openDb(dbPath) {
   return new Database(dbPath, { readonly: true, fileMustExist: true });
+}
+
+function getOpenCodeDbPath() {
+  return process.env.OPENCODE_DB_PATH
+    || path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
 }
 
 /**
@@ -96,6 +103,53 @@ function listSessions(dbPath, filters = {}) {
 }
 
 /**
+ * Read OpenCode sessions without invoking the OpenCode or Kimaki CLIs.
+ * @param {string[]} projectDirectories
+ * @param {number} [limit]
+ * @param {string} [dbPath]
+ */
+function listOpenCodeSessions(projectDirectories, limit = 50, dbPath = getOpenCodeDbPath()) {
+  const directories = [...new Set((projectDirectories || []).flatMap((directory) => {
+    const value = String(directory || '').trim().replace(/[/\\]+$/, '');
+    if (!value) return [];
+    return [
+      value,
+      value.replaceAll('\\', '/'),
+      value.replaceAll('/', '\\'),
+      value.toLowerCase(),
+      value.replaceAll('\\', '/').toLowerCase(),
+      value.replaceAll('/', '\\').toLowerCase(),
+    ];
+  }))];
+  if (directories.length === 0) return [];
+
+  const db = openDb(dbPath);
+  try {
+    const placeholders = directories.map(() => '?').join(', ');
+    const boundedLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 500) : 50;
+    const rows = db.prepare(`
+      SELECT id, directory, title, time_created, time_updated
+      FROM session
+      WHERE directory IN (${placeholders})
+        AND time_archived IS NULL
+        AND parent_id IS NULL
+      ORDER BY time_updated DESC
+      LIMIT ?
+    `).all(...directories, boundedLimit);
+
+    return rows.map((row) => ({
+      sessionId: row.id,
+      project: row.directory,
+      threadName: row.title,
+      createdAt: row.time_created,
+      updatedAt: row.time_updated,
+    }));
+  } finally {
+    db.close();
+  }
+}
+
+/**
  * Get a single session by ID.
  * @param {string} dbPath
  * @param {string} sessionId
@@ -131,4 +185,10 @@ function getSession(dbPath, sessionId) {
   }
 }
 
-module.exports = { listProjects, listSessions, getSession };
+module.exports = {
+  getOpenCodeDbPath,
+  listProjects,
+  listSessions,
+  listOpenCodeSessions,
+  getSession,
+};

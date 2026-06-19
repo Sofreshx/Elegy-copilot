@@ -6,6 +6,8 @@
  */
 
 const path = require('path');
+const Database = require('better-sqlite3');
+const os = require('node:os');
 
 const ROUTES = [
   { method: 'GET', path: '/api/remote/status' },
@@ -22,6 +24,15 @@ function register(context) {
 
   function sendRemoteError(res, status, code, message) {
     sendJson(res, status, { error: code, code, message });
+  }
+
+  function sendCliError(res, error) {
+    sendRemoteError(
+      res,
+      500,
+      'remote_cli_error',
+      error instanceof Error ? error.message : String(error),
+    );
   }
 
   function requireReady(res) {
@@ -127,27 +138,42 @@ function register(context) {
       const projectDirectories = projectDir
         ? [projectDir]
         : sqliteReader.listProjects(dbPath).map((project) => project.directory);
-      const sessionGroups = await Promise.all(
-        projectDirectories.map(async (directory) => {
-          const result = await kimakiCli.sessionList(directory);
-          return Array.isArray(result) ? result : [];
-        }),
+      const requestedLimit = Number.isFinite(limit) && limit > 0 ? limit : 50;
+      const openCodeSessions = sqliteReader.listOpenCodeSessions(projectDirectories, requestedLimit);
+      const kimakiSessions = sqliteReader.listSessions(dbPath);
+      const kimakiBySessionId = new Map(
+        kimakiSessions.map((session) => [session.sessionId, session]),
       );
-      const sessions = sessionGroups
-        .flat()
-        .map((session) => ({
-          sessionId: session.id,
-          threadId: session.threadId,
-          threadName: session.title,
-          source: session.source,
-          project: session.directory,
-          updatedAt: session.updated,
-        }))
-        .filter((session) => session.threadId)
-        .slice(0, Number.isFinite(limit) && limit > 0 ? limit : undefined);
+      const guildId = service.getGuildIds()[0] || null;
+      const sessions = openCodeSessions.map((session) => {
+        const mapping = kimakiBySessionId.get(session.sessionId);
+        const threadId = mapping?.threadId || null;
+        const rawName = mapping?.threadName || session.threadName || '';
+        const threadName = /^New session\b/i.test(rawName)
+          ? session.sessionId.slice(0, 8) || 'Unnamed'
+          : rawName;
+        return {
+          sessionId: session.sessionId,
+          threadId,
+          threadName,
+          source: threadId ? 'kimaki' : 'opencode',
+          syncStatus: threadId ? 'connected' : 'pending',
+          project: session.project,
+          updatedAt: session.updatedAt,
+          guildId: threadId ? guildId : null,
+          discordUrl: threadId && guildId
+            ? `https://discord.com/channels/${guildId}/${threadId}`
+            : null,
+        };
+      });
       sendJson(ctx.res, 200, { sessions });
     } catch (err) {
-      sendJson(ctx.res, 500, { error: err.message });
+      sendRemoteError(
+        ctx.res,
+        500,
+        'remote_storage_error',
+        err instanceof Error ? err.message : String(err),
+      );
     }
   }
 
@@ -168,7 +194,7 @@ function register(context) {
       const result = await kimakiCli.send({ project, prompt, threadId, permission });
       sendJson(ctx.res, 200, { success: true, result });
     } catch (err) {
-      sendJson(ctx.res, 500, { error: err.message });
+      sendCliError(ctx.res, err);
     }
   }
 
@@ -189,7 +215,7 @@ function register(context) {
       const result = await kimakiCli.projectAdd(directory, guildId);
       sendJson(ctx.res, 200, { success: true, result });
     } catch (err) {
-      sendJson(ctx.res, 500, { error: err.message });
+      sendCliError(ctx.res, err);
     }
   }
 
@@ -210,6 +236,36 @@ function register(context) {
     }
   }
 
+  async function handleSessionRename(ctx) {
+    try {
+      const body = await readBody(ctx.req);
+      const { sessionId, title } = JSON.parse(body);
+
+      if (!sessionId || !title) {
+        sendJson(ctx.res, 400, { error: 'sessionId and title are required' });
+        return;
+      }
+
+      const dbPath = process.env.OPENCODE_DB_PATH
+        || path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
+
+      const db = new Database(dbPath, { readonly: false });
+      try {
+        db.pragma('busy_timeout = 3000');
+        const result = db.prepare('UPDATE session SET title = ? WHERE id = ?').run(title, sessionId);
+        if (result.changes === 0) {
+          sendJson(ctx.res, 404, { error: `No session found with id ${sessionId}` });
+          return;
+        }
+        sendJson(ctx.res, 200, { ok: true, sessionId, title });
+      } finally {
+        db.close();
+      }
+    } catch (err) {
+      sendJson(ctx.res, 500, { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
   return [
     { method: 'GET', path: '/api/remote/status', handler: handleStatus },
     { method: 'POST', path: '/api/remote/restart', handler: handleRestart },
@@ -218,6 +274,7 @@ function register(context) {
     { method: 'POST', path: '/api/remote/send', handler: handleSend },
     { method: 'POST', path: '/api/remote/projects/add', handler: handleProjectAdd },
     { method: 'GET', path: '/api/remote/logs', handler: handleLogs },
+    { method: 'POST', path: '/api/remote/sessions/rename', handler: handleSessionRename },
   ];
 }
 

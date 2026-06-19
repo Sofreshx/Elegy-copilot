@@ -1,4 +1,5 @@
 import { execFile } from 'child_process';
+import path from 'path';
 
 export interface KimakiCli {
   projectList: () => Promise<unknown>;
@@ -22,10 +23,29 @@ export interface KimakiCliOptions {
 
 export function buildKimakiArgs(
   kimakiEntrypoint: string,
-  dataDir: string,
   commandArgs: string[],
 ): string[] {
-  return [kimakiEntrypoint, ...commandArgs, '--data-dir', dataDir];
+  return [kimakiEntrypoint, ...commandArgs];
+}
+
+export function buildKimakiCliEnv(
+  dataDir: string,
+  baseEnv: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...baseEnv,
+    KIMAKI_DB_URL: `file:${path.join(dataDir, 'discord-sessions.db')}`,
+  };
+  delete env.KIMAKI_DB_AUTH_TOKEN;
+  return env;
+}
+
+function sanitizeCliDetail(value: string): string {
+  return value
+    .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 1000);
 }
 
 export function createKimakiCli(options: KimakiCliOptions): KimakiCli {
@@ -35,11 +55,17 @@ export function createKimakiCli(options: KimakiCliOptions): KimakiCli {
     return new Promise((resolve, reject) => {
       execFileImpl(
         options.nodeExecutable,
-        buildKimakiArgs(options.kimakiEntrypoint, options.dataDir, commandArgs),
-        { timeout: 30_000, windowsHide: true },
+        buildKimakiArgs(options.kimakiEntrypoint, commandArgs),
+        {
+          timeout: 30_000,
+          windowsHide: true,
+          env: buildKimakiCliEnv(options.dataDir),
+        },
         (error, stdout, stderr) => {
           if (error) {
-            reject(new Error(`kimaki ${commandArgs[0]} failed: ${error.message}\n${stderr}`.trim()));
+            const command = commandArgs.join(' ');
+            const detail = sanitizeCliDetail(stderr || error.message);
+            reject(new Error(`Kimaki command failed (${command}): ${detail || 'unknown error'}`));
             return;
           }
           resolve(stdout.trim());

@@ -34,6 +34,9 @@ export default function RemoteView() {
   const [project, setProject] = useState('');
   const [prompt, setPrompt] = useState('');
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
+  const [renameSessionId, setRenameSessionId] = useState('');
+  const [renameTitle, setRenameTitle] = useState('');
   const { status, projects, sessions, logsTail, statusLoading, actionLoading, error } = store;
 
   useEffect(() => {
@@ -222,22 +225,45 @@ export default function RemoteView() {
               </Panel>
             </div>
 
-            <Panel title="Recent sessions" subtitle="Threads started or synchronized by Kimaki." testId="remote-sessions">
+            <Panel
+              title="Recent sessions"
+              subtitle="OpenCode sessions in registered projects. Kimaki mirrors them into Discord automatically."
+              testId="remote-sessions"
+            >
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Thread</th><th>Project</th><th>Updated</th><th>Discord</th></tr></thead>
+                  <thead><tr><th>Session</th><th>Project</th><th>Sync</th><th>Updated</th><th>Discord</th></tr></thead>
                   <tbody>
                     {sessions.map((session) => (
-                      <tr key={session.threadId}>
-                        <td>{session.threadName || session.threadId}</td>
+                      <tr key={session.sessionId || session.threadId || `${session.project}-${session.updatedAt}`}>
+                        <td>{session.threadName || session.sessionId || 'Untitled session'}</td>
                         <td><code>{session.project || '—'}</code></td>
+                        <td>
+                          <StatusBadge
+                            status={session.syncStatus === 'connected' ? 'Connected' : 'Pending sync'}
+                            tone={session.syncStatus === 'connected' ? 'success' : 'accent'}
+                          />
+                        </td>
                         <td>{session.updatedAt || '—'}</td>
-                        <td>{session.guildId ? <a href={`https://discord.com/channels/${session.guildId}/${session.threadId}`} target="_blank" rel="noreferrer">Open thread</a> : '—'}</td>
+                        <td>
+                          {session.discordUrl
+                            ? <a href={session.discordUrl} target="_blank" rel="noreferrer">Open Discord thread</a>
+                            : 'Waiting for Kimaki'}
+                        </td>
                       </tr>
                     ))}
-                    {sessions.length === 0 ? <tr><td className="empty-cell" colSpan={4}>No remote sessions yet.</td></tr> : null}
+                    {sessions.length === 0 ? <tr><td className="empty-cell" colSpan={5}>No OpenCode sessions found in registered projects.</td></tr> : null}
                   </tbody>
                 </table>
+              </div>
+              <div className="remote-sync-guide">
+                <strong>Automatic Discord sync</strong>
+                <ol>
+                  <li>Keep Kimaki connected.</li>
+                  <li>Register the project directory above.</li>
+                  <li>Start or continue OpenCode from that directory.</li>
+                </ol>
+                <p>Kimaki mirrors the conversation into a Discord thread. It does not stream terminal output.</p>
               </div>
             </Panel>
           </>
@@ -257,6 +283,60 @@ export default function RemoteView() {
               actions={<Button variant="secondary" onClick={() => store.refreshLogs()} testId="remote-refresh-logs">Refresh logs</Button>}
             >
               <LogViewer lines={logsTail} showLevel={false} testId="remote-log-viewer" />
+            </Panel>
+          ) : null}
+        </section>
+
+        <section className="remote-debug">
+          <button type="button" onClick={() => {
+            const next = !showDebug;
+            setShowDebug(next);
+            if (next) setRenameSessionId(sessions[0]?.sessionId || '');
+          }} aria-expanded={showDebug}>
+            Session debug
+          </button>
+          {showDebug ? (
+            <Panel testId="remote-session-debug">
+              <div className="remote-debug-form">
+                <label className="form-input">
+                  <span className="form-label">Session</span>
+                  <select value={renameSessionId} onChange={(e) => {
+                    setRenameSessionId(e.target.value);
+                    const session = sessions.find((s) => s.sessionId === e.target.value);
+                    if (session) setRenameTitle(session.threadName || '');
+                  }} data-testid="remote-rename-session-select">
+                    {sessions.length === 0 ? <option value="">No sessions loaded</option> : null}
+                    {sessions.map((s) => (
+                      <option key={s.sessionId} value={s.sessionId || ''}>
+                        {s.threadName || s.sessionId || 'Untitled'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-input">
+                  <span className="form-label">New name</span>
+                  <input
+                    type="text"
+                    value={renameTitle}
+                    onChange={(e) => setRenameTitle(e.target.value)}
+                    placeholder="Enter new session name"
+                    data-testid="remote-rename-title-input"
+                  />
+                </label>
+                <Button
+                  onClick={async () => {
+                    const id = renameSessionId.trim();
+                    const name = renameTitle.trim();
+                    if (!id || !name) return;
+                    await store.renameSession(id, name);
+                  }}
+                  disabled={!renameSessionId.trim() || !renameTitle.trim()}
+                  loading={actionLoading}
+                  testId="remote-rename-btn"
+                >
+                  Rename
+                </Button>
+              </div>
             </Panel>
           ) : null}
         </section>

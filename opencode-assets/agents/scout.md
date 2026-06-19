@@ -2,7 +2,6 @@
 mode: subagent
 hidden: true
 model: opencode-go/deepseek-v4-pro
-reasoningEffort: max
 temperature: 0.2
 color: info
 steps: 40

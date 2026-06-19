@@ -132,15 +132,12 @@ function main() {
       continue; // Not a role-mapped agent, skip
     }
 
-    // Role-mapped agent must have model and reasoningEffort in frontmatter
+    // Role-mapped agent must have model in frontmatter
     if (!agent.frontmatter) {
       errors.push(`${agentName} (${toDisplayPath(agent.filePath)}): missing frontmatter`);
     } else {
       if (!agent.frontmatter.model) {
         errors.push(`${agentName} (${toDisplayPath(agent.filePath)}): frontmatter missing 'model'`);
-      }
-      if (!agent.frontmatter.reasoningEffort) {
-        errors.push(`${agentName} (${toDisplayPath(agent.filePath)}): frontmatter missing 'reasoningEffort'`);
       }
     }
   }

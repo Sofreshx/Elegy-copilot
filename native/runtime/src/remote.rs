@@ -48,6 +48,12 @@ pub struct RemoteRuntime {
     inner: Arc<Mutex<RemoteInner>>,
 }
 
+#[derive(Debug, PartialEq)]
+struct KimakiCliSpec {
+    args: Vec<String>,
+    db_url: String,
+}
+
 impl RemoteRuntime {
     pub fn new(config: &RuntimeConfig) -> Self {
         Self {
@@ -218,18 +224,45 @@ impl RemoteRuntime {
         if !self.available() {
             return Err("Kimaki runtime files are unavailable.".to_string());
         }
+        let spec = self.cli_spec(args);
+        let command_label = spec.args.join(" ");
         let output = Command::new(self.node_executable.as_ref().expect("checked"))
             .arg(self.kimaki_entrypoint.as_ref().expect("checked"))
-            .args(args)
-            .arg("--data-dir")
-            .arg(&self.data_dir)
+            .args(&spec.args)
+            .env("KIMAKI_DB_URL", &spec.db_url)
+            .env_remove("KIMAKI_DB_AUTH_TOKEN")
             .output()
             .map_err(|error| error.to_string())?;
         if !output.status.success() {
-            return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+            let detail = sanitize_cli_detail(&String::from_utf8_lossy(&output.stderr));
+            return Err(format!(
+                "Kimaki command failed ({command_label}): {}",
+                if detail.is_empty() { "unknown error" } else { &detail }
+            ));
         }
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     }
+
+    fn cli_spec(&self, args: &[String]) -> KimakiCliSpec {
+        KimakiCliSpec {
+            args: args.to_vec(),
+            db_url: format!(
+                "file:{}",
+                self.data_dir.join("discord-sessions.db").to_string_lossy()
+            ),
+        }
+    }
+}
+
+fn sanitize_cli_detail(value: &str) -> String {
+    let ansi = regex::Regex::new(r"\x1B\[[0-?]*[ -/]*[@-~]").expect("valid ANSI regex");
+    ansi.replace_all(value, "")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(1000)
+        .collect()
 }
 
 fn apply_event(state: &Arc<Mutex<RemoteInner>>, event: &serde_json::Value) {
@@ -276,5 +309,50 @@ fn append_log(path: &Path, line: &str) {
     }
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
         let _ = writeln!(file, "{line}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{OrchestratorPilotConfig, RuntimeConfig};
+
+    #[test]
+    fn cli_spec_uses_database_environment_without_data_dir_argument() {
+        let config = RuntimeConfig {
+            engine_root: PathBuf::from("C:\\repo"),
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            elegy_home: PathBuf::from("C:\\Users\\test\\.elegy"),
+            sandboxes_home: PathBuf::from("C:\\Users\\test\\.elegy\\sandboxes"),
+            orchestrator_pilot: OrchestratorPilotConfig {
+                enabled: false,
+                merge_requested: false,
+            },
+            node_executable: Some(PathBuf::from("node.exe")),
+            kimaki_entrypoint: Some(PathBuf::from("kimaki\\bin.js")),
+        };
+        let runtime = RemoteRuntime::new(&config);
+        let spec = runtime.cli_spec(&[
+            "session".to_string(),
+            "list".to_string(),
+            "--json".to_string(),
+        ]);
+
+        assert_eq!(spec.args, vec!["session", "list", "--json"]);
+        assert!(!spec.args.iter().any(|arg| arg == "--data-dir"));
+        assert_eq!(
+            spec.db_url,
+            "file:C:\\Users\\test\\.elegy\\kimaki\\discord-sessions.db"
+        );
+    }
+
+    #[test]
+    fn cli_error_detail_removes_ansi_and_bounds_output() {
+        assert_eq!(
+            sanitize_cli_detail("\u{1b}[31merror:\u{1b}[0m bad option\n"),
+            "error: bad option"
+        );
+        assert_eq!(sanitize_cli_detail(&"x".repeat(1200)).len(), 1000);
     }
 }

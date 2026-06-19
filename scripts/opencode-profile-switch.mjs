@@ -161,7 +161,6 @@ function main() {
     }
 
     let configUpdated = 0;
-    const reasoningEffort = profile.reasoningEffort;
     
     // Build a set of all agents to update: roleToAgent agents + agentRoles agents
     const allAgents = new Set();
@@ -205,21 +204,15 @@ function main() {
       if (!modelValue) continue;
       
       const prevModel = config.agent[agentName]?.model;
-      const prevReasoningEffort = config.agent[agentName]?.reasoningEffort;
       if (!config.agent[agentName] || typeof config.agent[agentName] !== 'object') {
         config.agent[agentName] = {};
       }
       config.agent[agentName].model = modelValue;
-      if (reasoningEffort) {
-        config.agent[agentName].reasoningEffort = reasoningEffort;
-      }
       configSyncResults.push({ 
         agent: agentName, 
         role: roleName || 'unknown', 
         oldModel: prevModel || 'none', 
         newModel: modelValue,
-        oldReasoningEffort: prevReasoningEffort || 'none',
-        newReasoningEffort: reasoningEffort || 'none'
       });
       configUpdated += 1;
     }

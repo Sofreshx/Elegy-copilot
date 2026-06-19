@@ -6,6 +6,7 @@ import {
   listRemoteSessions,
   sendRemotePrompt,
   addRemoteProject,
+  renameRemoteSession,
   getRemoteLogs,
   type RemoteStatus,
   type RemoteProject,
@@ -24,12 +25,21 @@ interface RemoteState {
   loadOperations: () => Promise<void>;
   sendPrompt: (project: string, prompt: string, threadId?: string, permission?: string[]) => Promise<void>;
   addProject: (dir: string, guildId?: string) => Promise<void>;
+  renameSession: (sessionId: string, title: string) => Promise<void>;
   refreshLogs: () => Promise<void>;
   restart: () => Promise<void>;
 }
 
 let statusRequest: Promise<RemoteStatus | null> | null = null;
 let operationsRequest: Promise<void> | null = null;
+
+function setStableError(
+  set: (updater: (state: RemoteState) => Partial<RemoteState>) => void,
+  error: unknown,
+): void {
+  const message = error instanceof Error ? error.message : String(error);
+  set((state) => state.error === message ? {} : { error: message });
+}
 
 export const useRemoteStore = create<RemoteState>((set, get) => ({
   status: null,
@@ -49,7 +59,8 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
         set({ status, statusLoading: false, error: null });
         return status;
       } catch (err) {
-        set({ statusLoading: false, error: err instanceof Error ? err.message : String(err) });
+        set({ statusLoading: false });
+        setStableError(set, err);
         return null;
       } finally {
         statusRequest = null;
@@ -68,7 +79,7 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
         ]);
         set({ projects, sessions, error: null });
       } catch (err) {
-        set({ error: err instanceof Error ? err.message : String(err) });
+        setStableError(set, err);
       } finally {
         operationsRequest = null;
       }
@@ -82,7 +93,7 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
       await sendRemotePrompt({ project, prompt, threadId, permission });
       await get().loadOperations();
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : String(err) });
+      setStableError(set, err);
     } finally {
       set({ actionLoading: false });
     }
@@ -94,9 +105,19 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
       await addRemoteProject({ directory: dir, guildId });
       await get().loadOperations();
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : String(err) });
+      setStableError(set, err);
     } finally {
       set({ actionLoading: false });
+    }
+  },
+
+  renameSession: async (sessionId, title) => {
+    set({ error: null });
+    try {
+      await renameRemoteSession({ sessionId, title });
+      await get().loadOperations();
+    } catch (err) {
+      setStableError(set, err);
     }
   },
 
@@ -105,7 +126,7 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
       const { lines } = await getRemoteLogs(100);
       set({ logsTail: lines });
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : String(err) });
+      setStableError(set, err);
     }
   },
 
@@ -115,7 +136,7 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
       await restartRemoteRuntime();
       await get().loadStatus();
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : String(err) });
+      setStableError(set, err);
     } finally {
       set({ actionLoading: false });
     }

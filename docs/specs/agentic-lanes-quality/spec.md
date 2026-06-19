@@ -65,7 +65,7 @@ Every lane agent prompt must include:
 - `scripts/opencode-profile-switch.mjs` remains the canonical writer of `model` fields into installed agent frontmatter. It must read exclusively from `profiles.json`.
 - No other file (dashboard HTML, docs, hardcoded config) may independently declare model labels for agents whose role is defined in `agentRoles`. Documentation may describe the profile but must not duplicate the mapping.
 - Validate that every `agentRoles` key maps to an installed agent file in `opencode-assets/agents/`.
-- Validate that every installed agent with a role entry has `model` and `reasoningEffort` fields (either in frontmatter or derived from profile).
+- Validate that every installed agent with a role entry has a `model` field (either in frontmatter or derived from profile).
 - Any UI or dashboard that displays model information must be clearly labeled as affecting lane agents, built-in agents, or both.
 
 ### R7 — Lightweight Validators
@@ -79,7 +79,7 @@ Add the following validation checks:
 ### R8 — Targeted Tests
 Add tests for:
 - Install output contains all four lane agents (`quick`, `standard`, `spec`, `project`) and required support subagents (`impl`, `reviewer`, `explorer`).
-- Profile switching updates all role-mapped agent files and preserves `reasoningEffort`.
+- Profile switching updates all role-mapped agent files with the correct model.
 - Docs do not reference missing `lane-*` skills.
 - `project.md` prompt references only documented Elegy command families.
 - `spec.md` prompt references installed skills only.
@@ -111,7 +111,7 @@ Add tests for:
   → verify: `node scripts/validate-manifest.js`
 - New install test confirms all lane agents and subagents are present after install.
   → verify: `node scripts/opencode-install.test.js`
-- Profile switching test confirms model fields update for all role-mapped agents and `reasoningEffort` is preserved.
+- Profile switching test confirms model fields update for all role-mapped agents without adding `reasoningEffort`.
   → verify: `node scripts/opencode-profile-switch.test.js`
 - `quick.md` contains explicit rejection rule for ambiguous/user-facing/API work.
   → verify: `Select-String -Path opencode-assets/agents/quick.md -Pattern "ambiguous|user-facing|API contract|switch to"`
@@ -146,7 +146,7 @@ Add tests for:
 - `node scripts/validate-profile-role-coverage.js`: profile-role-coverage ok — all agentRoles map to installed agents
 - `node scripts/validate-elegy-command-refs.js`: elegy-command-refs ok — project.md uses only documented Elegy commands
 - `node scripts/opencode-install.test.js`: 9 tests passed (5 original + 4 new validator tests)
-- `node scripts/opencode-profile-switch.test.js`: 3 tests passed (profile switching + reasoningEffort preservation + role filtering)
+- `node scripts/opencode-profile-switch.test.js`: 4 tests passed (profile switching + no reasoningEffort written + role filtering + config sync)
 
 ## Drift Notes
 

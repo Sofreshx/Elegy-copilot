@@ -80,8 +80,6 @@ export function updateAgentModel(filePath, profile, agentRoles, roleToAgent = nu
     newModel = profile[modelKey];
   }
 
-  const reasoningEffort = profile.reasoningEffort;
-
   if (!newModel) return null;
 
   let content = fs.readFileSync(filePath, 'utf8');
@@ -91,9 +89,6 @@ export function updateAgentModel(filePath, profile, agentRoles, roleToAgent = nu
   const oldModel = frontmatter.model;
 
   content = replaceFrontmatterField(content, 'model', newModel);
-  if (reasoningEffort) {
-    content = replaceFrontmatterField(content, 'reasoningEffort', reasoningEffort);
-  }
 
   fs.writeFileSync(filePath, content, 'utf8');
 

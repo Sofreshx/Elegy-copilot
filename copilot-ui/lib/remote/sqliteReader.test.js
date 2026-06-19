@@ -7,7 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 
-const { listProjects, listSessions } = require('./sqliteReader');
+const { listProjects, listSessions, listOpenCodeSessions } = require('./sqliteReader');
 
 test('reads Kimaki 0.17.1 project and session schema without writes', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'kimaki-reader-'));
@@ -57,6 +57,39 @@ test('reads Kimaki 0.17.1 project and session schema without writes', () => {
     project: 'C:/repo',
     createdAt: '2026-06-18T10:00:00Z',
     updatedAt: 1234,
+  }]);
+
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('reads ordinary OpenCode sessions without starting a CLI process', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opencode-reader-'));
+  const dbPath = path.join(root, 'opencode.db');
+  const db = new Database(dbPath);
+  db.exec(`
+    CREATE TABLE session (
+      id TEXT PRIMARY KEY,
+      directory TEXT NOT NULL,
+      title TEXT NOT NULL,
+      parent_id TEXT,
+      time_created INTEGER NOT NULL,
+      time_updated INTEGER NOT NULL,
+      time_archived INTEGER
+    );
+    INSERT INTO session VALUES
+      ('session-new', 'C:/repo', 'Local work', NULL, 1000, 3000, NULL),
+      ('session-old', 'C:/repo', 'Older work', NULL, 500, 2000, NULL),
+      ('session-child', 'C:/repo', 'Subagent', 'session-new', 1000, 4000, NULL),
+      ('session-other', 'C:/other', 'Other project', NULL, 1000, 5000, NULL);
+  `);
+  db.close();
+
+  assert.deepEqual(listOpenCodeSessions(['C:\\repo'], 1, dbPath), [{
+    sessionId: 'session-new',
+    project: 'C:/repo',
+    threadName: 'Local work',
+    createdAt: 1000,
+    updatedAt: 3000,
   }]);
 
   fs.rmSync(root, { recursive: true, force: true });
