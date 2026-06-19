@@ -13,6 +13,7 @@ dirs.workspace = true
 glob.workspace = true
 elegy-native-contracts = { path = "../contracts" }
 hex.workspace = true
+hmac.workspace = true
 http.workspace = true
 rand.workspace = true
 r2d2.workspace = true

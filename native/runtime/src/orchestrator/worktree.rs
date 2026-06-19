@@ -141,9 +141,16 @@ impl OrchestratorWorktree {
     }
 }
 
-fn verify_git_worktree(
+pub(crate) fn verify_git_worktree(
     worktree_path: &Path,
     file_scopes: &[String],
+) -> Result<GitEvidence, WorktreeError> {
+    derive_git_evidence(worktree_path, Some(file_scopes))
+}
+
+pub(crate) fn derive_git_evidence(
+    worktree_path: &Path,
+    file_scopes: Option<&[String]>,
 ) -> Result<GitEvidence, WorktreeError> {
     let status = git(worktree_path, &["status", "--porcelain=v1", "-z"], None)?;
     if !status.status.success() {
@@ -154,24 +161,26 @@ fn verify_git_worktree(
         return Err(WorktreeError::NoChanges);
     }
 
-    let patterns = file_scopes
-        .iter()
-        .map(|scope| {
-            Pattern::new(scope).map_err(|source| WorktreeError::InvalidScope {
-                scope: scope.clone(),
-                source,
+    if let Some(file_scopes) = file_scopes {
+        let patterns = file_scopes
+            .iter()
+            .map(|scope| {
+                Pattern::new(scope).map_err(|source| WorktreeError::InvalidScope {
+                    scope: scope.clone(),
+                    source,
+                })
             })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let out_of_scope = changed_paths
-        .iter()
-        .filter(|path| !patterns.iter().any(|pattern| pattern.matches(path)))
-        .cloned()
-        .collect::<Vec<_>>();
-    if !out_of_scope.is_empty() {
-        return Err(WorktreeError::OutOfScope {
-            paths: out_of_scope,
-        });
+            .collect::<Result<Vec<_>, _>>()?;
+        let out_of_scope = changed_paths
+            .iter()
+            .filter(|path| !patterns.iter().any(|pattern| pattern.matches(path)))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !out_of_scope.is_empty() {
+            return Err(WorktreeError::OutOfScope {
+                paths: out_of_scope,
+            });
+        }
     }
 
     let base_head_sha = git_text(worktree_path, &["rev-parse", "HEAD"], None)?;
