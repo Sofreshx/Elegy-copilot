@@ -9,21 +9,28 @@ const path = require('path');
 
 const ROUTES = [
   { method: 'GET', path: '/api/remote/status' },
+  { method: 'POST', path: '/api/remote/restart' },
   { method: 'GET', path: '/api/remote/projects' },
   { method: 'GET', path: '/api/remote/sessions' },
   { method: 'POST', path: '/api/remote/send' },
   { method: 'POST', path: '/api/remote/projects/add' },
-  { method: 'DELETE', path: '/api/remote/projects/remove' },
   { method: 'GET', path: '/api/remote/logs' },
 ];
 
 function register(context) {
-  const { kimakiRuntimeService, kimakiCli, sqliteReader, logReader, sendJson, requireAuth } = context;
+  const { kimakiRuntimeService, kimakiCli, sqliteReader, logReader, sendJson } = context;
 
   function handleStatus(ctx) {
     const service = kimakiRuntimeService;
     if (!service) {
-      sendJson(ctx.res, 200, { state: 'unavailable', error: 'Kimaki service not initialized' });
+      sendJson(ctx.res, 200, {
+        state: 'unavailable',
+        installUrl: null,
+        guildIds: [],
+        appId: null,
+        dataDir: null,
+        lastError: 'Kimaki service not initialized',
+      });
       return;
     }
 
@@ -38,33 +45,70 @@ function register(context) {
   }
 
   async function handleProjects(ctx) {
-    if (!sqliteReader) {
-      sendJson(ctx.res, 503, { error: 'SQLite reader not available' });
+    if (!sqliteReader || !kimakiRuntimeService || !kimakiCli) {
+      sendJson(ctx.res, 503, { error: 'Kimaki runtime is not available' });
       return;
     }
 
     try {
       const service = kimakiRuntimeService;
       const dbPath = path.join(service.getDataDir(), 'discord-sessions.db');
-      const projects = sqliteReader.listProjects(dbPath);
+      const guildId = service.getGuildIds()[0];
+      const projects = sqliteReader.listProjects(dbPath).map((project) => ({
+        ...project,
+        guildId,
+      }));
       sendJson(ctx.res, 200, { projects });
     } catch (err) {
       sendJson(ctx.res, 500, { error: err.message });
     }
   }
 
+  async function handleRestart(ctx) {
+    if (!kimakiRuntimeService) {
+      sendJson(ctx.res, 503, { error: 'Kimaki runtime is not available' });
+      return;
+    }
+    try {
+      await kimakiRuntimeService.restart();
+      sendJson(ctx.res, 200, { success: true, state: kimakiRuntimeService.getState() });
+    } catch (err) {
+      sendJson(ctx.res, 500, { error: err.message });
+    }
+  }
+
   async function handleSessions(ctx) {
-    if (!sqliteReader) {
-      sendJson(ctx.res, 503, { error: 'SQLite reader not available' });
+    if (!sqliteReader || !kimakiRuntimeService) {
+      sendJson(ctx.res, 503, { error: 'Kimaki runtime is not available' });
       return;
     }
 
     try {
       const service = kimakiRuntimeService;
-      const dbPath = path.join(service.getDataDir(), 'discord-sessions.db');
       const projectDir = ctx.u.searchParams.get('project') || undefined;
       const limit = ctx.u.searchParams.get('limit') ? Number(ctx.u.searchParams.get('limit')) : undefined;
-      const sessions = sqliteReader.listSessions(dbPath, { projectDir, limit });
+      const dbPath = path.join(service.getDataDir(), 'discord-sessions.db');
+      const projectDirectories = projectDir
+        ? [projectDir]
+        : sqliteReader.listProjects(dbPath).map((project) => project.directory);
+      const sessionGroups = await Promise.all(
+        projectDirectories.map(async (directory) => {
+          const result = await kimakiCli.sessionList(directory);
+          return Array.isArray(result) ? result : [];
+        }),
+      );
+      const sessions = sessionGroups
+        .flat()
+        .map((session) => ({
+          sessionId: session.id,
+          threadId: session.threadId,
+          threadName: session.title,
+          source: session.source,
+          project: session.directory,
+          updatedAt: session.updated,
+        }))
+        .filter((session) => session.threadId)
+        .slice(0, Number.isFinite(limit) && limit > 0 ? limit : undefined);
       sendJson(ctx.res, 200, { sessions });
     } catch (err) {
       sendJson(ctx.res, 500, { error: err.message });
@@ -115,31 +159,9 @@ function register(context) {
     }
   }
 
-  async function handleProjectRemove(ctx) {
-    if (!kimakiCli) {
-      sendJson(ctx.res, 503, { error: 'Kimaki CLI not available' });
-      return;
-    }
-
-    try {
-      const body = await readBody(ctx.req);
-      const { directory } = JSON.parse(body);
-
-      if (!directory) {
-        sendJson(ctx.res, 400, { error: 'directory is required' });
-        return;
-      }
-
-      const result = await kimakiCli.projectRemove(directory);
-      sendJson(ctx.res, 200, { success: true, result });
-    } catch (err) {
-      sendJson(ctx.res, 500, { error: err.message });
-    }
-  }
-
   function handleLogs(ctx) {
-    if (!logReader) {
-      sendJson(ctx.res, 503, { error: 'Log reader not available' });
+    if (!logReader || !kimakiRuntimeService) {
+      sendJson(ctx.res, 503, { error: 'Kimaki runtime is not available' });
       return;
     }
 
@@ -156,11 +178,11 @@ function register(context) {
 
   return [
     { method: 'GET', path: '/api/remote/status', handler: handleStatus },
+    { method: 'POST', path: '/api/remote/restart', handler: handleRestart },
     { method: 'GET', path: '/api/remote/projects', handler: handleProjects },
     { method: 'GET', path: '/api/remote/sessions', handler: handleSessions },
     { method: 'POST', path: '/api/remote/send', handler: handleSend },
     { method: 'POST', path: '/api/remote/projects/add', handler: handleProjectAdd },
-    { method: 'DELETE', path: '/api/remote/projects/remove', handler: handleProjectRemove },
     { method: 'GET', path: '/api/remote/logs', handler: handleLogs },
   ];
 }

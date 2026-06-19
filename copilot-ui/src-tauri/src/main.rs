@@ -963,17 +963,6 @@ fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result
     let stderr_capture_for_watchdog = Arc::clone(&stderr_capture);
     let copilot_ui_root = root.join("copilot-ui");
     let server_entrypoint = copilot_ui_root.join("server.js");
-    let gateway_entrypoint = root
-        .join("local-tracker")
-        .join("dist")
-        .join("messagingGateway")
-        .join("index.js");
-    let workflow_entrypoint = root
-        .join("local-tracker")
-        .join("dist")
-        .join("messagingGateway")
-        .join("workflowSidecar.js");
-
     eprintln!("[tauri-runtime] spawning node runtime host");
     let mut child = Command::new(node_executable)
         .arg(runtime_host)
@@ -985,14 +974,9 @@ fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result
             "ELEGY_TAURI_IS_PACKAGED",
             if cfg!(debug_assertions) { "0" } else { "1" },
         )
-        .env("ELEGY_TAURI_GATEWAY_ENTRYPOINT", gateway_entrypoint)
         .env("ELEGY_TAURI_NODE_EXECUTABLE", bundled_node_path(app, &root)?)
         .env("ELEGY_TAURI_RUNTIME_ROOT", &root)
         .env("ELEGY_TAURI_SERVER_ENTRYPOINT", server_entrypoint)
-        .env(
-            "ELEGY_TAURI_WORKFLOW_SIDECAR_ENTRYPOINT",
-            workflow_entrypoint,
-        )
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

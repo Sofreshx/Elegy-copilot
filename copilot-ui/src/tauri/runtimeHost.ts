@@ -1,4 +1,3 @@
-import { spawn } from 'child_process';
 import os from 'os';
 import path from 'path';
 import readline from 'readline';
@@ -13,7 +12,6 @@ import {
   type RuntimeDiagnosticPayload,
   type RuntimeDiagnostics,
 } from '../desktopRuntime/runtimeDiagnostics';
-import { startWorkflowSidecar } from '../workflowSidecar';
 
 const READY_PREFIX = 'TAURI_RUNTIME_READY ';
 const ERROR_PREFIX = 'TAURI_RUNTIME_ERROR ';
@@ -41,20 +39,15 @@ async function main(): Promise<void> {
   const runtimeRoot = requireEnv('ELEGY_TAURI_RUNTIME_ROOT');
   const nodeExecutablePath = requireEnv('ELEGY_TAURI_NODE_EXECUTABLE');
   const serverEntrypointPath = requireEnv('ELEGY_TAURI_SERVER_ENTRYPOINT');
-  const gatewayEntrypointPath = requireEnv('ELEGY_TAURI_GATEWAY_ENTRYPOINT');
-  const workflowSidecarEntrypointPath = requireEnv('ELEGY_TAURI_WORKFLOW_SIDECAR_ENTRYPOINT');
   const appVersion = requireEnv('ELEGY_TAURI_APP_VERSION');
   const copilotUiRoot = path.dirname(serverEntrypointPath);
   const currentDirname = path.dirname(__filename);
-  const localTrackerRoot = path.join(runtimeRoot, 'local-tracker');
   const elegyHome = path.join(os.homedir(), '.elegy');
   const isPackaged = isPackagedHost();
 
   bootLog(`runtimeRoot=${runtimeRoot}`);
   bootLog(`nodeExecutable=${nodeExecutablePath}`);
   bootLog(`serverEntrypoint=${serverEntrypointPath}`);
-  bootLog(`gatewayEntrypoint=${gatewayEntrypointPath}`);
-  bootLog(`workflowSidecarEntrypoint=${workflowSidecarEntrypointPath}`);
   bootLog(`isPackaged=${isPackaged}, appVersion=${appVersion}`);
 
   bootLog('loading planning persistence module');

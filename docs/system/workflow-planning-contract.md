@@ -32,7 +32,7 @@ A shared package that emits CommonJS plus `.d.ts` declarations for use across th
 | `bridge` | `WorkflowPlanningBridge`, `ExecutorPolicyRequest`, `ExecutorPolicyResponse` | Legacy workflow-to-planning-record bridge types plus executor policy payloads |
 
 This document focuses on the planning-adjacent modules. The package also exports non-planning
-contracts such as catalog, provider-catalog, agentic, and messaging-gateway types.
+contracts such as catalog, provider-catalog, and agentic types.
 
 ## Roadmap Workflow Artifact Contract
 
@@ -108,7 +108,7 @@ state still lives in `~/.copilot/session-state/<SESSION_ID>/plan.md`.
 
 ## Consumption
 
-- `local-tracker` imports contracts directly. Compile-time conformance assertions in `local-tracker/src/messagingGateway/workflows/workflowSchema.conformance.ts` verify that workflow schema inference remains assignable to the exported workflow interfaces.
+- Runtime packages import shared workflow contracts directly.
 - `copilot-ui` imports runtime constants, envelope helpers, and artifact parsers directly from `@elegy-copilot/contracts` in JS route modules such as `routes/planning.js`.
 - The planning bridge and the planning API therefore share one artifact parser, one schema-version value, and one set of kind/phase/status enumerations.
 
@@ -131,7 +131,6 @@ Current planning-adjacent version anchors:
 
 Primary drift checks:
 
-- `local-tracker/src/messagingGateway/workflows/workflowSchema.conformance.ts`
 - `copilot-ui/routes/planning.test.js`
 - `copilot-ui/tests/api-contract.test.js`
 - `copilot-ui/scripts/validate-roadmap-workflow-e2e.js`

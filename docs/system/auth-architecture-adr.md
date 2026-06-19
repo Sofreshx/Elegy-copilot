@@ -5,7 +5,7 @@ category: system
 status: current
 doc_kind: node
 id: auth-architecture-adr
-summary: Auth architecture ADR for the sandbox-orchestrator surfaces (ACP localhost, Discord gateway, copilot-ui↔local-tracker bridge). No broker dependencies.
+summary: Historical auth architecture ADR for retired sandbox-orchestrator surfaces.
 tags: [security, auth, adr, sandbox-orchestrator]
 related: [security-model, session-state-artifacts, adr-governance]
 ---
@@ -14,11 +14,10 @@ related: [security-model, session-state-artifacts, adr-governance]
 
 ## Scope
 
-This ADR documents **only the new auth surfaces introduced by the sandbox-orchestrator plan**:
+This ADR records historical auth surfaces introduced by the retired sandbox-orchestrator plan.
 
 - Local Copilot CLI **ACP** TCP server (loopback-only)
-- Discord messaging gateway (bot token)
-- `copilot-ui` ↔ `local-tracker` control-plane bridge (shared secret)
+- The Discord gateway and UI gateway bridge described below are retired.
 
 Out of scope: remote notification pipelines (message brokers, remote approval relays, etc.).
 

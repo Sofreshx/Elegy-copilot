@@ -4,12 +4,22 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 
-const {
-  SANDBOX_TOKEN_CANONICAL_STATE,
-  SANDBOX_TOKEN_CANONICAL_CODE,
-  toCanonicalMissingTokenError,
-} = require('../sandboxLifecycleTokenContract');
 const { buildPlanningPersistenceHealthEnvelope } = require('../planningApiContracts');
+
+const SANDBOX_TOKEN_CANONICAL_STATE = 'token_missing';
+const SANDBOX_TOKEN_CANONICAL_CODE = 'MISSING_SANDBOX_TOKEN';
+
+function toCanonicalMissingTokenError(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  return {
+    status: SANDBOX_TOKEN_CANONICAL_STATE,
+    code: SANDBOX_TOKEN_CANONICAL_CODE,
+    reason: SANDBOX_TOKEN_CANONICAL_STATE,
+    message: 'Tracker token not configured',
+    legacyCode: 'tracker_token_missing',
+    legacyReason: 'tracker_token_missing',
+  };
+}
 
 const LOCAL_TRACKER_SECRETS_MODULE_PATH = path.join(
   __dirname,

@@ -1,14 +1,11 @@
 'use strict';
 
 const fs = require('fs');
-const http = require('http');
-const https = require('https');
 const path = require('path');
 
 const WORKFLOW_LAYER_CONTRACT_VERSION = '1';
 const MAX_TRIGGER_ENTRIES = 200;
-const DEFAULT_DISPATCH_TIMEOUT_MS = 3000;
-const DEFAULT_AUTOMATION_REASON = 'workflow_layer_off_path';
+const DEFAULT_AUTOMATION_REASON = 'local_workflow_automation_retired';
 const EXECUTOR_EVENT_TYPES = new Set([
   'executor.run.queued',
   'executor.attempt.started',
@@ -35,32 +32,17 @@ function nowIso(nowFn) {
   return new Date(typeof nowFn === 'function' ? nowFn() : Date.now()).toISOString();
 }
 
-function isLoopbackHostname(value) {
-  const hostname = asTrimmedString(value).toLowerCase();
-  return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
-}
-
-function toErrorMessage(error) {
-  if (error instanceof Error && typeof error.message === 'string' && error.message.trim()) {
-    return error.message.trim();
-  }
-  return String(error || 'Unknown error');
-}
-
 class WorkflowLayerService {
   constructor(config = {}, deps = {}) {
     this._config = isObject(config) ? config : {};
     this._fs = deps.fs || fs;
     this._path = deps.path || path;
-    this._http = deps.http || http;
-    this._https = deps.https || https;
     this._now = typeof deps.now === 'function' ? deps.now : () => Date.now();
     this._statePath = this._path.join(
       this._path.resolve(String(this._config.elegyHome || this._config.copilotHome || '.')),
       'executor',
       'workflow-layer.json'
     );
-    this._workflowSidecarManager = this._config.workflowSidecarManager || null;
     this._executorService = this._config.executorService || null;
     const envKillSwitch = String(process.env.INSTRUCTION_ENGINE_DISABLE_LOCAL_WORKFLOW_AUTOMATION || '').trim() === '1';
     this._state = {
@@ -111,7 +93,6 @@ class WorkflowLayerService {
   }
 
   getHealth() {
-    const sidecarState = this._getSidecarState();
     return {
       contractVersion: WORKFLOW_LAYER_CONTRACT_VERSION,
       enabled: this._state.automationEnabled === true,
@@ -122,7 +103,10 @@ class WorkflowLayerService {
       lastTriggerAt: this._state.recentTriggers.length
         ? this._state.recentTriggers[this._state.recentTriggers.length - 1].capturedAt
         : null,
-      sidecar: sidecarState,
+      dispatchTarget: {
+        state: 'retired',
+        reason: DEFAULT_AUTOMATION_REASON,
+      },
       dispatchSummary: clone(this._state.dispatchSummary),
     };
   }
@@ -194,21 +178,11 @@ class WorkflowLayerService {
       };
     }
 
-    const sidecarState = this._getSidecarState();
-    if (!sidecarState || sidecarState.state !== 'ready') {
-      return {
-        allowed: false,
-        source: 'runtime',
-        reason: DEFAULT_AUTOMATION_REASON,
-        message: 'Local workflow automation stays disabled until the desktop-managed workflow sidecar is explicitly enabled and ready.',
-      };
-    }
-
     return {
-      allowed: true,
+      allowed: false,
       source: 'runtime',
-      reason: null,
-      message: null,
+      reason: DEFAULT_AUTOMATION_REASON,
+      message: 'Local workflow automation dispatch is retired.',
     };
   }
 
@@ -223,17 +197,6 @@ class WorkflowLayerService {
     this._state.automationReason = availability.reason;
     this._state.updatedAt = nowIso(this._now);
     this._persistState();
-  }
-
-  _getSidecarState() {
-    if (!this._workflowSidecarManager || typeof this._workflowSidecarManager.getPublicState !== 'function') {
-      return {
-        contractVersion: '1',
-        state: 'unavailable',
-        reason: 'desktop_workflow_sidecar_unavailable',
-      };
-    }
-    return clone(this._workflowSidecarManager.getPublicState());
   }
 
   async _handleExecutorEvent(event) {
@@ -258,30 +221,10 @@ class WorkflowLayerService {
       return;
     }
 
-    const dispatchTarget = this._resolveDispatchTarget();
-    if (!dispatchTarget) {
-      triggerRecord.delivery = {
-        state: 'captured',
-        reason: 'workflow_sidecar_unavailable',
-      };
-      this._recordTrigger(triggerRecord);
-      return;
-    }
-
-    try {
-      const response = await this._dispatchTrigger(dispatchTarget, triggerRecord);
-      triggerRecord.delivery = {
-        state: 'delivered',
-        statusCode: response.statusCode,
-        accepted: response.accepted === true,
-      };
-    } catch (error) {
-      triggerRecord.delivery = {
-        state: 'failed',
-        reason: toErrorMessage(error),
-      };
-    }
-
+    triggerRecord.delivery = {
+      state: 'suppressed',
+      reason: DEFAULT_AUTOMATION_REASON,
+    };
     this._recordTrigger(triggerRecord);
   }
 
@@ -353,97 +296,6 @@ class WorkflowLayerService {
       },
       data: isObject(event.data) ? clone(event.data) : null,
     };
-  }
-
-  _resolveDispatchTarget() {
-    if (!this._workflowSidecarManager || typeof this._workflowSidecarManager.getDispatchTarget !== 'function') {
-      return null;
-    }
-    const target = this._workflowSidecarManager.getDispatchTarget();
-    if (!target || !isObject(target)) {
-      return null;
-    }
-
-    const triggerUrl = asTrimmedString(target.triggerUrl);
-    const bearerToken = asTrimmedString(target.bearerToken);
-    if (!triggerUrl || !bearerToken) {
-      return null;
-    }
-
-    let parsed;
-    try {
-      parsed = new URL(triggerUrl);
-    } catch {
-      return null;
-    }
-    if (!isLoopbackHostname(parsed.hostname)) {
-      return null;
-    }
-
-    return {
-      triggerUrl,
-      bearerToken,
-    };
-  }
-
-  async _dispatchTrigger(target, triggerRecord) {
-    const parsed = new URL(target.triggerUrl);
-    const transport = parsed.protocol === 'https:' ? this._https : this._http;
-    const body = JSON.stringify({
-      contractVersion: triggerRecord.contractVersion,
-      triggerId: triggerRecord.triggerId,
-      source: triggerRecord.source,
-      eventType: triggerRecord.eventType,
-      at: triggerRecord.at,
-      context: triggerRecord.context,
-      data: triggerRecord.data,
-    });
-
-    return await new Promise((resolve, reject) => {
-      const request = transport.request({
-        protocol: parsed.protocol,
-        hostname: parsed.hostname,
-        port: parsed.port,
-        path: `${parsed.pathname}${parsed.search || ''}`,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body),
-          'Authorization': `Bearer ${target.bearerToken}`,
-        },
-        timeout: DEFAULT_DISPATCH_TIMEOUT_MS,
-      }, (response) => {
-        const chunks = [];
-        response.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-        response.on('end', () => {
-          const raw = Buffer.concat(chunks).toString('utf8').trim();
-          let parsedBody = {};
-          if (raw) {
-            try {
-              parsedBody = JSON.parse(raw);
-            } catch {
-              parsedBody = { raw };
-            }
-          }
-          const statusCode = Number(response.statusCode) || 500;
-          if (statusCode < 200 || statusCode >= 300) {
-            reject(new Error(`Workflow sidecar rejected trigger (${statusCode})`));
-            return;
-          }
-          resolve({
-            statusCode,
-            accepted: parsedBody && parsedBody.accepted === true,
-          });
-        });
-      });
-
-      request.on('timeout', () => {
-        request.destroy(new Error('Workflow sidecar dispatch timed out'));
-      });
-      request.on('error', reject);
-      request.write(body);
-      request.end();
-    });
   }
 
   _recordTrigger(triggerRecord) {

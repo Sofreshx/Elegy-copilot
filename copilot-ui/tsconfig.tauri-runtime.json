@@ -12,11 +12,7 @@
   },
   "include": [
     "src/desktopRuntime/**/*.ts",
-    "src/gatewayChildMode.ts",
-    "src/gatewayChildMode.test.ts",
     "src/tauri/**/*.ts",
-    "src/updatePolicy.ts",
-    "src/workflowSidecar.ts",
-    "src/workflowSidecar.test.ts"
+    "src/updatePolicy.ts"
   ]
 }

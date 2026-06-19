@@ -7,7 +7,7 @@ export interface RemoteStatus {
   installUrl: string | null;
   guildIds: string[];
   appId: string | null;
-  dataDir: string;
+  dataDir: string | null;
   lastError: string | null;
 }
 
@@ -20,8 +20,9 @@ export interface RemoteProject {
 
 export interface RemoteSession {
   threadId: string;
+  sessionId?: string;
   threadName: string;
-  status: string;
+  source: string;
   project: string;
   guildId?: string;
   channelId?: string;
@@ -32,6 +33,12 @@ export interface RemoteSession {
 export async function getRemoteStatus(): Promise<RemoteStatus> {
   const res = await fetch('/api/remote/status');
   if (!res.ok) throw new Error(`Failed to get remote status: ${res.status}`);
+  return res.json();
+}
+
+export async function restartRemoteRuntime(): Promise<{ success: boolean; state: RemoteStatus['state'] }> {
+  const res = await fetch('/api/remote/restart', { method: 'POST' });
+  if (!res.ok) throw new Error(`Failed to restart remote runtime: ${res.status}`);
   return res.json();
 }
 
@@ -76,18 +83,6 @@ export async function addRemoteProject(body: {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Failed to add project: ${res.status}`);
-  return res.json();
-}
-
-export async function removeRemoteProject(body: {
-  directory: string;
-}): Promise<{ success: boolean; result: unknown }> {
-  const res = await fetch('/api/remote/projects/remove', {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`Failed to remove project: ${res.status}`);
   return res.json();
 }
 

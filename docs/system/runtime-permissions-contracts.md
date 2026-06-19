@@ -93,9 +93,9 @@ WS6 release readiness is contractually valid only when the following evidence ar
   - Source: `docs/system/runtime-permissions-contracts.md` and `README.md`.
   - Requirement: both documents preserve WS6 sequencing (post-WS1 freeze) and WS2 ownership of primary non-Docker default behavior.
 
-2. `WS6-E2 MixedVersionMatrix`
-  - Source: `node copilot-ui/server.lifecycle-proxy.test.js` and `npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/gatewayHttpServer.test.ts`.
-  - Requirement: evidence includes deterministic unsupported marker (`code=lifecycle_compatibility_unsupported`) and deterministic supported path (`reason=compatibility_supported`) for mixed-version lifecycle checks.
+2. `WS6-E2 RemoteRuntimeBoundary`
+  - Source: `node --test copilot-ui/routes/kimaki.test.js` and the native retired-route test.
+  - Requirement: `/api/remote/*` delegates to Kimaki and retired gateway/sandbox routes return `404`.
 
 3. `WS6-E3 ChecksumSafety`
   - Source: `node copilot-ui/lib/planningPersistence.test.js` and `node copilot-ui/server.runtime-health.test.js`.
@@ -142,9 +142,9 @@ WS6 validation follows this ordered ladder:
   - `node scripts/validate-manifest.js`
   - `node scripts/validate-doc-graph.js`
 
-2. Compatibility + checksum guards
-  - `node copilot-ui/server.lifecycle-proxy.test.js`
-  - `npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/gatewayHttpServer.test.ts`
+2. Remote runtime + checksum guards
+  - `node --test copilot-ui/routes/kimaki.test.js`
+  - `npm --prefix copilot-ui run test:tauri-runtime-host`
   - `node copilot-ui/lib/planningPersistence.test.js`
   - `node copilot-ui/server.runtime-health.test.js`
 
@@ -178,11 +178,11 @@ WS4 closure is complete only when freeze evidence and tracker alignment semantic
   - `node copilot-ui/lib/planningPersistence.test.js`
   - `node copilot-ui/lib/planningApiContracts.test.js`
   - `node copilot-ui/server.runtime-health.test.js`
-  - `npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/lifecycleOperations.test.ts src/messagingGateway/__tests__/gatewayHttpServer.test.ts`
 
-2. Path alignment requirement
-   - copilot-ui gateway-state/config surfaces must resolve tracker config deterministically with `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` override support.
-   - Canonical machine-global default is `~/.copilot/messaging-gateway.config.json`; legacy `~/.instruction-engine` config is compatibility-only rehome input.
+2. Current remote-session boundary
+   - Messaging-gateway and sandbox lifecycle surfaces are retired.
+   - Kimaki state is rooted under `~/.elegy/kimaki`.
+   - See `docs/specs/remote-session-management/spec.md`.
 
 3. Idempotency alignment requirement
   - lifecycle retry and conflict behavior remains deterministic and explicit.

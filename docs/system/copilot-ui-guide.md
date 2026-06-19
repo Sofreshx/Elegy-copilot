@@ -38,6 +38,7 @@ node copilot-ui/server.js
 |------|------|
 | Repositories | Browse and open registered repositories |
 | Lexicon | Searchable vocabulary reference |
+| Remote | Kimaki onboarding, projects, Discord sessions, prompts, and logs |
 | Workspace | Appears when a repository is opened; shows docs, git (stash management, force commit, worktree checks/merge), planning, and execution tabs |
 | Settings (bottom) | App configuration (via settings gear icon) |
 
@@ -50,7 +51,7 @@ Settings is a rich view with these tabs:
 | App Settings | Keyboard shortcuts, about/about info |
 | Assets & Tools | Catalog control plane (CatalogShellView) — repo registration, asset install, surface management |
 | OpenCode Setup | OpenCode configuration, CLI tooling, provider stats |
-| Maintenance | Updates, sandboxes, diagnostics (gateway, LSP, stats) |
+| Maintenance | Updates and diagnostics (LSP, stats) |
 | Runtime | Dashboard health view (DashboardView) |
 | Codex Providers | Provider configuration panel |
 | Claude Code Setup | Claude Code configuration panel |
@@ -64,7 +65,8 @@ The sidebar and settings structure are defined in `copilot-ui/ui/src/stores/navi
 - **Sessions**: session browse, detail view with activity stream, artifacts, task board, skill usage.
 - **Lexicon**: searchable terminology reference for UI, design, and architecture terms.
 - **Settings**: app info, catalog, OpenCode/Codex/Claude Code configuration.
-- **Maintenance**: desktop updates, sandbox management, gateway/LSP diagnostics.
+- **Remote**: Kimaki-backed Discord session management.
+- **Maintenance**: desktop updates and LSP diagnostics.
 - **Local API delivery**: all of the above served as HTTP routes for the desktop app.
 
 ## Planning Boundary

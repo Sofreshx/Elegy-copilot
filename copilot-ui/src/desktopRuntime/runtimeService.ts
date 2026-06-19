@@ -2,6 +2,11 @@ import { randomBytes } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
+import { createKimakiCli, type KimakiCli } from './kimakiCli';
+import {
+  createKimakiRuntimeService,
+  type KimakiRuntimeService,
+} from './kimakiRuntimeService';
 import type { RuntimeDiagnostics, RuntimeDiagnosticPayload } from './runtimeDiagnostics';
 
 const DESKTOP_UI_ACCESS_QUERY_PARAM = 'desktop-ui-token';
@@ -85,6 +90,8 @@ export interface DesktopRuntimeServiceDependencies {
     planningPersistenceClient?: PlanningPersistenceQueryClient;
     engineRoot?: string;
     env?: NodeJS.ProcessEnv;
+    kimakiRuntimeService?: KimakiRuntimeService;
+    kimakiCli?: KimakiCli;
     quiet: boolean;
   }) => Promise<DesktopServerHandle>;
   fs?: DesktopRuntimeFs;
@@ -238,6 +245,7 @@ export function createDesktopRuntimeService(
 
   let desktopPlanningPersistenceHandle: DesktopPlanningPersistenceHandle | null = null;
   let serverHandle: DesktopServerHandle | null = null;
+  let kimakiRuntimeService: KimakiRuntimeService | null = null;
   let currentStartResult: DesktopRuntimeStartResult | null = null;
   let stopping = false;
 
@@ -251,6 +259,10 @@ export function createDesktopRuntimeService(
         status: serverHandle ? 'running' : 'not_started',
         pid: null,
       },
+      kimaki: {
+        status: kimakiRuntimeService?.getState() ?? 'not_started',
+        pid: null,
+      },
     };
   }
 
@@ -258,6 +270,13 @@ export function createDesktopRuntimeService(
     bootLog('stopping runtime service');
     stopping = true;
     currentStartResult = null;
+
+    if (kimakiRuntimeService) {
+      bootLog('stopping Kimaki');
+      const service = kimakiRuntimeService;
+      kimakiRuntimeService = null;
+      await service.stop();
+    }
 
     if (serverHandle) {
       bootLog('closing HTTP server');
@@ -307,6 +326,25 @@ export function createDesktopRuntimeService(
       }
 
       bootLog('starting HTTP server');
+      const kimakiEntrypoint = path.join(options.appPath, 'node_modules', 'kimaki', 'bin.js');
+      const kimakiDataDir = path.join(options.paths.elegyHome, 'kimaki');
+      let kimakiCli: KimakiCli | undefined;
+      if (runtimeFs.existsSync(kimakiEntrypoint)) {
+        kimakiRuntimeService = createKimakiRuntimeService({
+          elegyHome: options.paths.elegyHome,
+          nodeExecutable: options.processExecPath,
+          kimakiEntrypoint,
+          logger,
+        });
+        kimakiCli = createKimakiCli({
+          nodeExecutable: options.processExecPath,
+          kimakiEntrypoint,
+          dataDir: kimakiDataDir,
+        });
+      } else {
+        logger.warn(`Kimaki entrypoint is unavailable: ${kimakiEntrypoint}`);
+      }
+
       serverHandle = await dependencies.startServer({
         host: '127.0.0.1',
         port: resolveDesktopServerPort(options.env),
@@ -318,9 +356,18 @@ export function createDesktopRuntimeService(
         planningPersistenceClient: desktopPlanningPersistenceHandle?.queryClient,
         engineRoot: options.isPackaged ? options.paths.runtimeRoot : undefined,
         env: options.env,
+        kimakiRuntimeService: kimakiRuntimeService ?? undefined,
+        kimakiCli,
         quiet: true,
       });
       bootLog(`HTTP server listening on ${serverHandle.host}:${serverHandle.port}`);
+
+      if (kimakiRuntimeService) {
+        kimakiRuntimeService.start({
+          callbackUrl: `http://${serverHandle.host}:${serverHandle.port}/?remote-onboarding=complete`,
+        });
+        bootLog('Kimaki started');
+      }
 
       currentStartResult = {
         host: serverHandle.host,

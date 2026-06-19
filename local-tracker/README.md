@@ -1,6 +1,6 @@
 # Local Agent Tracker
 
-Lightweight Node.js service that runs locally alongside the desktop control plane. By default it watches task file and git changes, forwards local state to connected surfaces, and exposes local loopback runtime endpoints. The Messaging Gateway is an optional companion runtime for people who want Discord/Telegram-based remote control.
+Lightweight Node.js service that runs locally alongside the desktop control plane. It watches task file and git changes, forwards local state to connected surfaces, and exposes local loopback runtime endpoints.
 
 ## Overview
 
@@ -22,14 +22,6 @@ The tracker stays loopback-only for these local surfaces. Obsidian monitoring on
 broadcasts the resulting events to connected local clients; it does not open any additional remote
 listener.
 
-## Optional Messaging Gateway
-
-If you want a separate remote-control surface, the Messaging Gateway can be started independently of the default tracker process. Core tracking, repo-state watching, and the local runtime endpoints do **not** require it.
-
-For the optional Messaging Gateway docs, see:
-- [docs/messaging-gateway.md](docs/messaging-gateway.md)
-- [docs/telegram-setup.md](docs/telegram-setup.md)
-
 ## Setup
 
 ```bash
@@ -37,20 +29,12 @@ npm install --omit=optional
 npm run build
 ```
 
-This keeps the default tracker install/build lighter and builds the tracker only.
-
-If you want the optional Messaging Gateway too, install its optional runtime dependencies first (or re-include them if you previously used `--omit=optional`), then compile the gateway entrypoint:
-
-```bash
-npm install --include=optional
-npm run build:gateway
-```
+This installs and builds the tracker.
 
 ## Development
 
 ```bash
 npm run dev          # default tracker
-npm run dev:gateway  # optional messaging gateway (requires optional deps installed)
 ```
 
 ## Authentication
@@ -132,8 +116,8 @@ Workflow execution, hook evaluations, and session operations can emit OpenTeleme
 # Start a local Jaeger instance with OTLP support
 docker compose -f docker/docker-compose.otel.yml up -d
 
-# Run the gateway with tracing enabled
-OTEL_WORKFLOW_TRACING_ENABLED=true npm run dev:gateway
+# Run the tracker with tracing enabled
+OTEL_WORKFLOW_TRACING_ENABLED=true npm run dev
 ```
 
 Open the Jaeger UI at [http://localhost:16686](http://localhost:16686) to view traces.

@@ -251,6 +251,13 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/config/codex-provider' },
   { method: 'PUT', path: '/api/config/codex-provider' },
   { method: 'POST', path: '/api/config/codex-provider/reset' },
+  { method: 'GET', path: '/api/remote/status' },
+  { method: 'POST', path: '/api/remote/restart' },
+  { method: 'GET', path: '/api/remote/projects' },
+  { method: 'GET', path: '/api/remote/sessions' },
+  { method: 'POST', path: '/api/remote/send' },
+  { method: 'POST', path: '/api/remote/projects/add' },
+  { method: 'GET', path: '/api/remote/logs' },
   { method: 'GET', path: '/api/tooling-updates/status' },
   { method: 'POST', path: '/api/tooling-updates/check' },
   { method: 'POST', path: '/api/tooling-updates/update/elegy-planning' },
@@ -420,7 +427,7 @@ async function run() {
     }
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 150, `Expected 150 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 157, `Expected 157 routes, got ${ROUTE_INVENTORY.length}`);
   });
   } finally {
     if (runningServer) {
