@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import {
   getRemoteStatus,
+  restartRemoteRuntime,
   listRemoteProjects,
   listRemoteSessions,
   sendRemotePrompt,
   addRemoteProject,
-  removeRemoteProject,
   getRemoteLogs,
   type RemoteStatus,
   type RemoteProject,
@@ -25,9 +25,8 @@ interface RemoteState {
   loadSessions: (projectDir?: string) => Promise<void>;
   sendPrompt: (project: string, prompt: string, threadId?: string, permission?: string[]) => Promise<void>;
   addProject: (dir: string, guildId?: string) => Promise<void>;
-  removeProject: (dir: string) => Promise<void>;
   refreshLogs: () => Promise<void>;
-  restart: () => void;
+  restart: () => Promise<void>;
 }
 
 export const useRemoteStore = create<RemoteState>((set, get) => ({
@@ -87,17 +86,6 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
     }
   },
 
-  removeProject: async (dir) => {
-    try {
-      set({ loading: true });
-      await removeRemoteProject({ directory: dir });
-      await get().loadProjects();
-      set({ loading: false });
-    } catch (err) {
-      set({ loading: false, error: err instanceof Error ? err.message : String(err) });
-    }
-  },
-
   refreshLogs: async () => {
     try {
       const { lines } = await getRemoteLogs(50);
@@ -107,8 +95,14 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
     }
   },
 
-  restart: () => {
-    set({ status: null, projects: [], sessions: [], logsTail: [], error: null });
-    get().loadStatus();
+  restart: async () => {
+    try {
+      set({ loading: true, error: null });
+      await restartRemoteRuntime();
+      await get().loadStatus();
+      set({ loading: false });
+    } catch (err) {
+      set({ loading: false, error: err instanceof Error ? err.message : String(err) });
+    }
   },
 }));

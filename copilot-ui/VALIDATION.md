@@ -46,8 +46,9 @@ Use `npm run test:tauri-runtime-host` from `copilot-ui` as the canonical runner 
 runtime source tests:
 
 - `src/desktopRuntime/runtimeService.test.ts`
-- `src/gatewayChildMode.test.ts`
-- `src/workflowSidecar.test.ts`
+- `src/desktopRuntime/kimakiSseParser.test.ts`
+- `src/desktopRuntime/kimakiCli.test.ts`
+- `src/desktopRuntime/kimakiRuntimeService.test.ts`
 
 This path is intentionally build-first: it compiles the runtime host with
 `tsconfig.tauri-runtime.json`, then runs the emitted CommonJS tests from `lib/desktop-shell`.
@@ -480,8 +481,8 @@ Run these from repository root (`instruction-engine`) to validate the frozen con
 ```bash
 node copilot-ui/lib/runtimeContracts.test.js
 node copilot-ui/server.runtime-health.test.js
-node copilot-ui/server.lifecycle-proxy.test.js
-npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/lifecycleOperations.test.ts src/messagingGateway/__tests__/gatewayHttpServer.test.ts
+npm --prefix copilot-ui run test:tauri-runtime-host
+node --test copilot-ui/routes/kimaki.test.js
 ```
 
 Expected gate result:
@@ -638,7 +639,8 @@ Run this checkpoint from repository root (`instruction-engine`) whenever validat
 
 ```bash
 node copilot-ui/server.lifecycle-proxy.test.js
-npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/lifecycleOperations.test.ts src/messagingGateway/__tests__/gatewayHttpServer.test.ts
+npm --prefix copilot-ui run test:tauri-runtime-host
+node --test copilot-ui/routes/kimaki.test.js
 ```
 
 Expected checkpoint result:
@@ -754,7 +756,8 @@ Run this closure pack from repository root (`instruction-engine`):
 node copilot-ui/lib/planningPersistence.test.js
 node copilot-ui/lib/planningApiContracts.test.js
 node copilot-ui/server.runtime-health.test.js
-npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/lifecycleOperations.test.ts src/messagingGateway/__tests__/gatewayHttpServer.test.ts
+npm --prefix copilot-ui run test:tauri-runtime-host
+node --test copilot-ui/routes/kimaki.test.js
 ```
 
 Required DoD markers:

@@ -186,7 +186,7 @@ flowchart TD
 | WS2-WU-02 | Stack detection rule expansion for uncovered skills | `engine-assets/skills/stack-detector/SKILL.md` | New rules present for targeted gaps (for example `openai`, `Microsoft.Agents*`) |
 | WS2-WU-03 | Skill-map parity validator implemented | `scripts/validate-skill-discovery-map.js` (new), `scripts/package.json` | Validator runs in CI and fails on unmapped vault skills |
 | WS2-WU-04 | Skill metadata index generation contract | `scripts/generate-skill-metadata-index.mjs` (new), `engine-assets/skills/**/SKILL.md` | Generated index is deterministic and consumed by discovery flow |
-| WS2-WU-05 | Discovery telemetry schema and ingestion points | `local-tracker/src/messagingGateway/commandRouter.ts`, `local-tracker/src/messagingGateway/status.ts`, `docs/system/` telemetry node | Ambiguity/miss reason events appear in sampled telemetry |
+| WS2-WU-05 | Discovery telemetry schema and ingestion points | shared catalog search telemetry and `docs/system/` telemetry node | Ambiguity/miss reason events appear in sampled telemetry |
 
 ## WS3: Orchestration Contracts and Context-Economics Hardening
 

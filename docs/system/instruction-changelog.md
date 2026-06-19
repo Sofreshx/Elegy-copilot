@@ -66,7 +66,7 @@ The `copilot` harness is now a peer alongside `codex`, `opencode`, `antigravity`
 - Added `scripts/package.json` command `generate:skill-metadata-index` and deterministic generator test coverage.
 - Updated `engine-assets/skills/skill-discovery/SKILL.md` metadata resolver step to consume the generated index first.
 - Added command-router discovery miss telemetry (`keyword_miss`, `ambiguity`, `stale_map`, `no_route`) with bounded sampling and summary counters.
-- Extended gateway status contract to surface discovery telemetry in `runtime.discoveryTelemetry`, including contract version, counters by reason, and sampled buffer metadata.
+- Historical: the retired gateway status contract previously surfaced discovery telemetry.
 - Added canonical node `docs/system/skill-discovery-telemetry.md` and linked it from system docs index + skills governance MOC.
 
 ## 2026-03-01 - WS2 skill discovery determinism and parity validation

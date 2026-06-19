@@ -182,19 +182,6 @@ async fn lifecycle_status() {
     assert_ok(status);
 }
 
-#[tokio::test]
-async fn lifecycle_full_sandboxes() {
-    let dir = tmp();
-    let (status, _) = get_json(app(&dir), "/api/lifecycle/sandboxes").await;
-    assert_ok(status);
-}
-
-#[tokio::test]
-async fn sandboxes_list() {
-    let dir = tmp();
-    let (status, _) = get_json(app(&dir), "/api/sandboxes").await;
-    assert_ok(status);
-}
 
 #[tokio::test]
 async fn assets_list() {
@@ -211,10 +198,18 @@ async fn ui_runtime_overlay_get() {
 }
 
 #[tokio::test]
-async fn gateway_config() {
+async fn retired_gateway_and_sandbox_routes_are_not_exposed() {
     let dir = tmp();
-    let (status, _) = get_json(app(&dir), "/api/gateway/config").await;
-    assert_ok(status);
+    for path in [
+        "/api/gateway/config",
+        "/api/sandboxes",
+        "/api/sandboxes/lifecycle/start",
+        "/api/lifecycle/sandboxes",
+    ] {
+        let (status, body) = get_json(app(&dir), path).await;
+        assert_eq!(status, axum::http::StatusCode::NOT_FOUND, "{path}");
+        assert_eq!(body.get("error").and_then(|value| value.as_str()), Some("retired_route"));
+    }
 }
 
 #[tokio::test]

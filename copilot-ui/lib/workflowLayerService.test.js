@@ -41,30 +41,34 @@ async function withEnv(name, value, fn) {
 }
 
 async function run() {
-  await test('workflow automation stays disabled off-path until the sidecar is ready', async () => {
+  await test('workflow automation stays disabled after local dispatch retirement', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-workflow-layer-'));
     try {
       const service = await createWorkflowLayerService({ elegyHome: tmpRoot }).init();
       const health = service.getHealth();
 
       assert.equal(health.enabled, false);
-      assert.equal(health.automationReason, 'workflow_layer_off_path');
+      assert.equal(health.automationReason, 'local_workflow_automation_retired');
+      assert.deepEqual(health.dispatchTarget, {
+        state: 'retired',
+        reason: 'local_workflow_automation_retired',
+      });
       await assert.rejects(
         async () => service.setAutomationEnabled(true, { source: 'api' }),
         (error) => error && error.statusCode === 409
-          && /explicitly enabled and ready/i.test(String(error.message || ''))
+          && /dispatch is retired/i.test(String(error.message || ''))
       );
     } finally {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
 
-  await test('workflow automation can be enabled when the desktop-managed sidecar is ready', async () => {
+  await test('workflow automation cannot be re-enabled through retired manager configuration', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-workflow-layer-'));
     try {
       const service = await createWorkflowLayerService({
         elegyHome: tmpRoot,
-        workflowSidecarManager: {
+        legacyDispatchManager: {
           getPublicState: () => ({
             contractVersion: '1',
             state: 'ready',
@@ -76,21 +80,22 @@ async function run() {
         },
       }).init();
 
-      const health = service.setAutomationEnabled(true, { source: 'api' });
-      assert.equal(health.enabled, true);
-      assert.equal(health.automationReason, null);
+      assert.throws(
+        () => service.setAutomationEnabled(true, { source: 'api' }),
+        (error) => error && error.statusCode === 409
+      );
     } finally {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
 
-  await test('environment kill switch still wins over a ready sidecar', async () => {
+  await test('environment kill switch remains explicit after dispatch retirement', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-workflow-layer-'));
     try {
       await withEnv('INSTRUCTION_ENGINE_DISABLE_LOCAL_WORKFLOW_AUTOMATION', '1', async () => {
         const service = await createWorkflowLayerService({
           elegyHome: tmpRoot,
-          workflowSidecarManager: {
+          legacyDispatchManager: {
             getPublicState: () => ({
               contractVersion: '1',
               state: 'ready',

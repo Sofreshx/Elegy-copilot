@@ -115,6 +115,21 @@ pub fn build_router(state: AppState) -> Router {
             let ui_path = ui_path.clone();
             async move {
                 let path = uri.path();
+                if path.starts_with("/api/gateway")
+                    || path.starts_with("/api/sandboxes")
+                    || path.starts_with("/api/lifecycle/sandboxes")
+                {
+                    return (
+                        StatusCode::NOT_FOUND,
+                        [("content-type", "application/json")],
+                        serde_json::to_vec(&serde_json::json!({
+                            "error": "retired_route",
+                            "path": path,
+                        }))
+                        .unwrap_or_default(),
+                    )
+                        .into_response();
+                }
                 if path.starts_with("/api/") {
                     return Json(serde_json::json!({"ok": true, "stub": true})).into_response();
                 }

@@ -32,7 +32,7 @@ an incidental code change.
 | Domain | Canonical authority | Canonical location / surface | Legacy / secondary surfaces |
 |---|---|---|---|
 | State roots and storage paths | Unified `~/.elegy` runtime state model | `~/.elegy/*` with the shared layout defined below | `~/.instruction-engine/*` only as migration-era exceptions, not a competing root |
-| Runtime and readiness state | Split by authority domain: control-plane runtime via `copilot-ui`, gateway readiness via status file | `copilot-ui` `GET /api/health` for backend runtime/control-plane state; `~/.elegy/messaging-gateway.status.json` for messaging-gateway readiness | `GET /api/gateway/state`, UI panels, and extension trees are projections/consumers; tracker live APIs are operational APIs, not readiness authority |
+| Runtime and readiness state | `copilot-ui` owns control-plane health; Kimaki owns remote-session process state | `GET /api/health` and `GET /api/remote/status` | Retired messaging-gateway status files and `/api/gateway/*` routes are not authorities |
 | Asset mutation authority | `copilot-ui` local backend control plane | catalog mutation and install/enable/disable APIs | legacy direct editor mutations are retired |
 | Enablement persistence | Repo registry overlay | `~/.elegy/repo-state/<repoId>/registry.json` | legacy imported settings are compatibility input only |
 | Session authority | ACP/runtime session state | runtime-backed session reconciliation, with runtime winning when present | filesystem artifacts remain durable projections and archive/offline fallback |
@@ -53,7 +53,7 @@ All shared runtime state must converge on that root model, including:
 - session artifacts under `session-state/` and `sessions-archive/`
 - repo-scoped overlays and durable repo state under `repo-state/<repoId>/`
 - catalog projections, inventory, audit, and telemetry under `catalog/`
-- sandbox state under `sandboxes/` when sandbox runtimes are used
+- Kimaki state under `kimaki/`
 
 **Canonical path contract**
 
@@ -76,7 +76,7 @@ Unless an explicit root override is supplied, the expected layout is:
     contexts/
     audit/
   catalog/
-  sandboxes/
+  kimaki/
 ```
 
 Root overrides are allowed only as **root remaps** that preserve this subdirectory contract.
@@ -91,56 +91,24 @@ That means:
 `~/.instruction-engine/*` is frozen as a **legacy compatibility namespace**, not as a second
 authoritative root.
 
-Current runtime behavior treats that namespace as migration-only input. For example, older
-`local-tracker` messaging-gateway config/status artifacts may be rehomed into `~/.elegy`, but the
-legacy path is no longer a peer default that current surfaces should present as canonical.
+Current runtime behavior treats that namespace as migration-only input.
 
 ### 2) Runtime and readiness state
 
 **Decision**
 
-Runtime/state authority is frozen into distinct, non-overlapping domains:
+Runtime/state authority is split into two non-overlapping domains:
 
-- `copilot-ui` `GET /api/health` is the canonical HTTP authority for backend runtime/control-plane
-  state
-- `~/.elegy/messaging-gateway.status.json` is the canonical authority for messaging-gateway
-  readiness
-- `copilot-ui` `GET /api/gateway/state`, HTTP responses derived from gateway probes, and UI surfaces
-  that render gateway state are projections or operational envelopes over those authorities, not peer
-  readiness authorities
-- tracker live APIs remain operational APIs for live interaction and probing, distinct from the
-  canonical readiness authority
-
-This freeze is specifically intended to stop new overlap between `copilot-ui`, `local-tracker`, and
-legacy editor surfaces while current implementations are still converging.
+- `GET /api/health` owns backend runtime and control-plane health.
+- The Kimaki runtime service owns remote-session process state. `GET /api/remote/status` projects
+  that state to the Remote tab.
 
 **Authority boundary**
 
-`GET /api/health` remains the control-plane runtime surface because it owns backend runtime health
-composition for capabilities, provider selection, policy, planning persistence, and related backend
-status.
-
-Messaging-gateway readiness is different. The canonical shared readiness contract is the status file
-written by `local-tracker` at:
-
-```text
-~/.elegy/messaging-gateway.status.json
-```
-
-The locked architectural choice is:
-
-1. the status file is canonical
-2. HTTP/UI surfaces project from it
-3. no new surface should present itself as an independent readiness source of truth
-
-That means:
-
-- `GET /api/gateway/state` may aggregate config state, tracker probe results, and planning
-  persistence context for the UI, but it must not become a competing readiness authority
-- UI badges, dashboards, and extension trees may summarize readiness for operators, but they are
-  consumers of the shared authority contract
-- tracker probe success/failure is useful live operational information, but it is not the canonical
-  answer to whether shared gateway readiness state is currently authoritative
+`GET /api/health` owns capabilities, provider selection, policy, planning persistence, and backend
+status. Kimaki stores runtime data under `~/.elegy/kimaki`; the Remote API reads that data and
+controls the managed Kimaki process. Retired `/api/gateway/*` and `/api/sandboxes/*` surfaces must
+remain unavailable.
 
 **Legacy extension boundary**
 
@@ -341,17 +309,10 @@ The following constraints are now frozen:
   authorities instead of preserving extension-specific behavior.
 - `local-tracker/src/watchers.ts` now targets canonical repo-state task paths and keeps repo-local
   `.instructions/tasks` watching behind an explicit legacy compatibility switch.
-- `local-tracker/src/messagingGateway/config.ts` now defaults messaging-gateway config under
-  `~/.elegy` and treats `~/.instruction-engine` as a legacy compatibility rehome input rather than
-  a competing default.
-- `local-tracker/src/messagingGateway/statusFile.ts` defines `~/.elegy/messaging-gateway.status.json`
-  as the canonical status path and keeps `~/.instruction-engine` only as a legacy compatibility
-  source for rehome.
 - `copilot-ui/routes/lifecycle.js` and `copilot-ui/lib/server/runtimeHealth.js` already centralize
   backend runtime/control-plane health behind `GET /api/health`.
-- `copilot-ui/routes/gateway.js` assembles gateway state from config, tracker probes, and planning
-  persistence, confirming that `GET /api/gateway/state` is an operational envelope rather than the
-  canonical readiness authority itself.
+- `copilot-ui/routes/kimaki.js` projects Kimaki process, project, session, and log state through
+  `/api/remote/*`.
 - The retired extension's connection/request/permission trees were extension-local operational
   surfaces, reinforcing that shared readiness authority belongs to the messaging-gateway status
   contract rather than any editor-specific tree.

@@ -53,8 +53,7 @@ The desktop shell has shifted to Tauri for the primary Windows path, but the run
 | Window lifecycle, focus, single-instance behavior | Tauri shell |
 | Startup token minting + first navigation handoff | Tauri shell |
 | Local backend boot supervision | Tauri shell launching bundled Node sidecar |
-| Gateway boot supervision | Tauri shell launching bundled Node sidecar |
-| Workflow-sidecar boot supervision | Tauri shell launching bundled Node sidecar |
+| Kimaki boot supervision | Desktop Node runtime |
 | Runtime HTTP/API behavior | Node local runtime (`copilot-ui/server.js` and its modules) |
 | Planning persistence bootstrap | Desktop runtime bootstrap, still rooted in `~/.copilot/planning-db` |
 | Managed CLI lane enforcement | Desktop runtime bootstrap + bundled/seeded CLI contract |
@@ -99,7 +98,7 @@ Layout rules:
 - `copilot-ui/package.json` and `copilot-ui/node_modules/` stay co-located so `server.js` can resolve its runtime dependencies without a host-installed Node environment.
 - `@electric-sql/pglite` payloads under `copilot-ui/node_modules/@electric-sql/pglite/dist/` must remain filesystem-readable in packaged form because the runtime loads wasm/data side assets from disk-relative paths.
 - `~/.copilot` remains the runtime state root; packaged resources are read-only app assets, not mutable state.
-- The workflow-sidecar payload remains bundled for parity validation even while its operator-facing posture stays default-disabled until lifecycle binding is complete.
+- Kimaki is installed with the desktop runtime and stores mutable state under `~/.elegy/kimaki`.
 
 ## Bundled Node sidecar model
 
@@ -109,14 +108,10 @@ The first Tauri cut ships with a bundled Windows Node runtime sidecar.
 - The shell does **not** rely on Electron-style `process.execPath` self-spawn behavior.
 - The shell launches explicit JS entrypoints from the resource directory:
   - `copilot-ui/server.js`
-  - `local-tracker/dist/messagingGateway/index.js`
-  - `local-tracker/dist/messagingGateway/workflowSidecar.js`
 - Shell-neutral services must accept resolved paths for:
   - resource root
   - bundled Node executable
   - server entrypoint
-  - gateway entrypoint
-  - workflow-sidecar entrypoint
 
 Packaging contract:
 

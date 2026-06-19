@@ -6,7 +6,6 @@
  */
 
 const Database = require('better-sqlite3');
-const path = require('path');
 
 /**
  * Open Kimaki's database in read-only mode.
@@ -26,16 +25,16 @@ function listProjects(dbPath) {
   const db = openDb(dbPath);
   try {
     const rows = db.prepare(`
-      SELECT directory, guild_id, channel_id, updated_at
-      FROM directories
-      ORDER BY updated_at DESC
+      SELECT directory, channel_id, created_at
+      FROM channel_directories
+      WHERE channel_type = 'text'
+      ORDER BY created_at DESC
     `).all();
 
     return rows.map((row) => ({
       directory: row.directory,
-      guildId: row.guild_id || undefined,
       channelId: row.channel_id || undefined,
-      lastActivity: row.updated_at || undefined,
+      lastActivity: row.created_at || undefined,
     }));
   } finally {
     db.close();
@@ -55,25 +54,25 @@ function listSessions(dbPath, filters = {}) {
   const db = openDb(dbPath);
   try {
     let sql = `
-      SELECT t.thread_id, t.thread_name, t.status, t.created_at, t.updated_at,
-             d.directory, d.guild_id, d.channel_id
-      FROM threads t
-      LEFT JOIN directories d ON t.directory_id = d.id
+      SELECT t.thread_id, t.session_id, t.source, t.last_synced_name, t.created_at,
+             w.project_directory,
+             MAX(e.timestamp) AS updated_at
+      FROM thread_sessions t
+      LEFT JOIN thread_worktrees w ON t.thread_id = w.thread_id
+      LEFT JOIN session_events e ON t.thread_id = e.thread_id
       WHERE 1=1
     `;
     const params = {};
 
     if (filters.projectDir) {
-      sql += ` AND d.directory = @projectDir`;
+      sql += ` AND w.project_directory = @projectDir`;
       params.projectDir = filters.projectDir;
     }
 
-    if (filters.status) {
-      sql += ` AND t.status = @status`;
-      params.status = filters.status;
-    }
-
-    sql += ` ORDER BY t.updated_at DESC`;
+    sql += `
+      GROUP BY t.thread_id, t.session_id, t.source, t.last_synced_name, t.created_at, w.project_directory
+      ORDER BY COALESCE(MAX(e.timestamp), t.created_at) DESC
+    `;
 
     if (filters.limit) {
       sql += ` LIMIT @limit`;
@@ -84,11 +83,10 @@ function listSessions(dbPath, filters = {}) {
 
     return rows.map((row) => ({
       threadId: row.thread_id,
-      threadName: row.thread_name,
-      status: row.status,
-      project: row.directory,
-      guildId: row.guild_id,
-      channelId: row.channel_id,
+      sessionId: row.session_id,
+      threadName: row.last_synced_name,
+      status: row.source || 'kimaki',
+      project: row.project_directory,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
@@ -107,22 +105,24 @@ function getSession(dbPath, sessionId) {
   const db = openDb(dbPath);
   try {
     const row = db.prepare(`
-      SELECT t.thread_id, t.thread_name, t.status, t.created_at, t.updated_at,
-             d.directory, d.guild_id, d.channel_id
-      FROM threads t
-      LEFT JOIN directories d ON t.directory_id = d.id
+      SELECT t.thread_id, t.session_id, t.source, t.last_synced_name, t.created_at,
+             w.project_directory,
+             MAX(e.timestamp) AS updated_at
+      FROM thread_sessions t
+      LEFT JOIN thread_worktrees w ON t.thread_id = w.thread_id
+      LEFT JOIN session_events e ON t.thread_id = e.thread_id
       WHERE t.thread_id = ?
+      GROUP BY t.thread_id, t.session_id, t.source, t.last_synced_name, t.created_at, w.project_directory
     `).get(sessionId);
 
     if (!row) return null;
 
     return {
       threadId: row.thread_id,
-      threadName: row.thread_name,
-      status: row.status,
-      project: row.directory,
-      guildId: row.guild_id,
-      channelId: row.channel_id,
+      sessionId: row.session_id,
+      threadName: row.last_synced_name,
+      status: row.source || 'kimaki',
+      project: row.project_directory,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

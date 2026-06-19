@@ -16,7 +16,6 @@ mod dashboard;
 mod desktop_updater;
 mod elegy_db;
 mod executor;
-mod gateway;
 mod git;
 mod health;
 mod lifecycle;
@@ -35,7 +34,6 @@ mod workspace;
 mod planning_obsidian;
 mod codex;
 mod lifecycle_full;
-mod sandboxes;
 mod cli_detection;
 mod cli_tooling;
 mod repo_assets;
@@ -65,7 +63,6 @@ pub fn build_routes(state: AppState) -> Router {
         .merge(sessions::router(state.clone()))
         .merge(desktop_updater::router(state.clone()))
         .merge(elegy_db::router(state.clone()))
-        .merge(gateway::router(state.clone()))
         .merge(tooling_updates::router(state.clone()))
         .merge(workspace::router(state.clone()))
         .merge(ui_runtime_overlay::router(state.clone()))
@@ -74,7 +71,6 @@ pub fn build_routes(state: AppState) -> Router {
         .merge(planning_obsidian::router(state.clone()))
         .merge(codex::router(state.clone()))
         .merge(lifecycle_full::router(state.clone()))
-        .merge(sandboxes::router(state.clone()))
         .merge(cli_tooling::router(state.clone()))
         .merge(repo_assets::router(state.clone()))
         .merge(lexicon::router(state.clone()))
@@ -96,6 +92,19 @@ async fn smart_fallback(req: Request) -> (StatusCode, axum::Json<serde_json::Val
         path = %path,
         "unmatched route, returning shape-safe fallback"
     );
+
+    if path.starts_with("/api/gateway")
+        || path.starts_with("/api/sandboxes")
+        || path.starts_with("/api/lifecycle/sandboxes")
+    {
+        return (
+            StatusCode::NOT_FOUND,
+            axum::Json(serde_json::json!({
+                "error": "retired_route",
+                "path": path,
+            })),
+        );
+    }
 
     let body = shape_safe_default(&path);
     (StatusCode::OK, axum::Json(body))
@@ -506,11 +515,6 @@ fn shape_safe_default(path: &str) -> serde_json::Value {
             "ok": false,
             "status": "unavailable",
         });
-    }
-
-    // /api/sandbox
-    if path.starts_with("/api/sandboxes") {
-        return serde_json::json!({ "sandboxes": [], "count": 0 });
     }
 
     // /api/lifecycle

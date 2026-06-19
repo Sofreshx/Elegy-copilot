@@ -88,8 +88,7 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./planning-obsidian'), context);
   registry.registerModule(require('./sessions'), context);
   registry.registerModule(require('./uiRuntimeOverlay'), context);
-  registry.registerModule(require('./gateway'), context);
-  registry.registerModule(require('./sandboxes'), context);
+  registry.registerModule(require('./kimaki'), context);
   registry.registerModule(require('./desktopUpdater'), context);
   registry.registerModule(require('./toolingUpdates'), context);
   registry.registerModule(require('./cliTooling'), context);

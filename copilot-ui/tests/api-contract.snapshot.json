@@ -26,7 +26,7 @@
       "planningPersistence",
       "policy",
       "runtime",
-      "startupManagedAssetSync",
+      "startupManagedAssetSync"
     ]
   },
   "GET /api/version": {
@@ -1172,86 +1172,71 @@
       "projection"
     ]
   },
-  "GET /api/gateway/state": {
+  "GET /api/remote/status": {
     "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "checkedAt",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "errors",
-      "gateway",
-      "kind",
-      "planningAuthority",
-      "planningPersistence",
-      "ready",
-      "tracker"
+      "appId",
+      "dataDir",
+      "guildIds",
+      "installUrl",
+      "lastError",
+      "state"
     ]
   },
-  "POST /api/gateway/connect": {
+  "POST /api/remote/restart": {
     "status": 503,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "action",
-      "checkedAt",
-      "connected",
-      "contractVersion",
-      "deterministic",
+      "code",
       "error",
-      "errors",
-      "gateway",
-      "kind",
-      "planningAuthority",
-      "planningPersistence",
-      "ready",
-      "status",
-      "tracker"
+      "policy"
     ]
   },
-  "GET /api/gateway/config": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "config",
-      "configPath",
-      "exists"
-    ]
-  },
-  "POST /api/gateway/config": {
-    "status": 400,
+  "GET /api/remote/projects": {
+    "status": 503,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "error"
     ]
   },
-  "GET /api/gateway/scan-repos": {
-    "status": 200,
+  "GET /api/remote/sessions": {
+    "status": 503,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "customScanRoots",
-      "defaultRoots",
-      "roots",
-      "scanRoots",
-      "storage"
+      "error"
     ]
   },
-  "POST /api/sandboxes/lifecycle/start": {
-    "status": 502,
+  "POST /api/remote/send": {
+    "status": 503,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "code",
-      "legacyCode",
-      "legacyReason",
-      "message",
-      "reason",
-      "status"
+      "error",
+      "policy"
+    ]
+  },
+  "POST /api/remote/projects/add": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "policy"
+    ]
+  },
+  "GET /api/remote/logs": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
     ]
   },
   "GET /api/ui-runtime-overlay/sessions": {

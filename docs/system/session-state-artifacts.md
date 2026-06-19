@@ -647,12 +647,11 @@ WS4 M3 closes governance scope for persistence operations and freezes evidence e
   - `node copilot-ui/lib/planningPersistence.test.js`
   - `node copilot-ui/lib/planningApiContracts.test.js`
   - `node copilot-ui/server.runtime-health.test.js`
-  - `npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/lifecycleOperations.test.ts src/messagingGateway/__tests__/gatewayHttpServer.test.ts`
 
-3. Path/idempotency checkpoint expectations
-  - gateway config path resolution is deterministic and tracker-compatible (`INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` override; canonical default under `~/.copilot/messaging-gateway.config.json`; legacy `~/.instruction-engine` config is rehome-only compatibility input)
-  - status artifact path remains deterministic and machine-global (`~/.copilot/messaging-gateway.status.json`; legacy `~/.instruction-engine` status is rehome-only compatibility input)
-  - lifecycle finish retries preserve canonical sandbox ID and idempotency conflict envelopes stay explicit (`idempotency_conflict`, `idempotency_key_payload_mismatch`)
+3. Current remote-session checkpoint
+  - gateway and sandbox lifecycle contracts are retired
+  - Kimaki runtime data stays under `~/.elegy/kimaki`
+  - remote session behavior is governed by `docs/specs/remote-session-management/spec.md`
 
 4. Gate decision
   - **Pass**: all evidence commands exit `0` and required deterministic markers are present.

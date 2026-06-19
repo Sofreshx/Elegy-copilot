@@ -99,7 +99,7 @@ const {
   evictPlanningIdempotencyEntry,
 } = require('./lib/planningApiContracts');
 const { createPostgresPlanningPersistenceClient } = require('./lib/planningPersistenceClient');
-const { createDesktopUpdaterController } = require('./lib/desktop-shell/updater');
+const { createDesktopUpdaterController } = require('./lib/desktopUpdaterController');
 const { createRegistry } = require('./routes');
 const { createExecutorService } = require('./lib/executorService');
 const { createSessionHooks } = require('./lib/sessionHooks');
@@ -114,7 +114,6 @@ const {
 const {
   resolveElegyHome,
   resolveSandboxesHome,
-  resolveMessagingGatewayConfigPath,
   resolveSessionsHome,
 } = require('./lib/server/paths');
 const { createRuntimeHealthResolver } = require('./lib/server/runtimeHealth');
@@ -4754,9 +4753,6 @@ async function startServer(options = {}) {
     sandboxesHome: typeof options.sandboxesHome === 'string' && options.sandboxesHome.trim() ? options.sandboxesHome.trim() : null,
     trackerUrl: typeof options.trackerUrl === 'string' && options.trackerUrl.trim() ? options.trackerUrl.trim() : null,
     trackerToken: typeof options.trackerToken === 'string' && options.trackerToken.trim() ? options.trackerToken.trim() : null,
-    workflowSidecarManager: options.workflowSidecarManager && typeof options.workflowSidecarManager === 'object'
-      ? options.workflowSidecarManager
-      : null,
   };
 
   const quiet = options.quiet === true;
@@ -4996,7 +4992,6 @@ async function startServer(options = {}) {
     workflowLayerService = await createWorkflowLayerService({
       elegyHome,
       executorService,
-      workflowSidecarManager: args.workflowSidecarManager,
     }).init();
   } catch (error) {
     stopDesktopUpdaterBackgroundWork();
@@ -5101,7 +5096,6 @@ async function startServer(options = {}) {
       resolveSessionsHome,
       isValidSessionId,
       ensureDir,
-      resolveMessagingGatewayConfigPath,
       readJsonFileSafe,
       resolvePlanningPersistenceAuthorityState,
       resolvePlanningLiveAuthorityState,
@@ -5164,6 +5158,10 @@ async function startServer(options = {}) {
       executorService,
       workflowLayerService,
       uiRuntimeOverlayService,
+      kimakiRuntimeService: options.kimakiRuntimeService || null,
+      kimakiCli: options.kimakiCli || null,
+      sqliteReader: require('./lib/remote/sqliteReader'),
+      logReader: require('./lib/remote/logReader'),
     });
   } catch (error) {
     stopDesktopUpdaterBackgroundWork();

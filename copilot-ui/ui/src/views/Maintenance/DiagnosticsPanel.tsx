@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Panel } from '../../components';
-import GatewayView from '../../tabs/Gateway/GatewayView';
 import LspView from '../../tabs/LSP/LspView';
 import StatsView from '../../tabs/Stats/StatsView';
 
@@ -12,14 +11,12 @@ interface DiagnosticSection {
 
 const SECTIONS: DiagnosticSection[] = [
   { id: 'stats', label: 'Runtime & Stats', content: <StatsView /> },
-  { id: 'gateway', label: 'Gateway', content: <GatewayView /> },
   { id: 'lsp', label: 'LSP', content: <LspView /> },
 ];
 
 export default function DiagnosticsPanel() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     stats: true,
-    gateway: false,
     lsp: false,
   });
 

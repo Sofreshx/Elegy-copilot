@@ -4,7 +4,6 @@
   "shell": "tauri",
   "status": "windows_release_preview_lane_ready",
   "resourceRoot": ".",
-  "workflowSidecarPosture": "bundled_default_disabled",
   "releaseLane": {
     "packaging": "windows_nsis_preview_installer",
     "updateMode": "manual_installer",
@@ -17,9 +16,7 @@
     "hostInstalledNodeAllowed": false
   },
   "entrypoints": {
-    "server": "copilot-ui/server.js",
-    "gateway": "local-tracker/dist/messagingGateway/index.js",
-    "workflowSidecar": "local-tracker/dist/messagingGateway/workflowSidecar.js"
+    "server": "copilot-ui/server.js"
   },
   "resourceCopies": [
     {
@@ -124,6 +121,9 @@
     "requiredRuntimePackages": [
       "@electric-sql/pglite",
       "@elegy-copilot/contracts",
+      "better-sqlite3",
+      "eventsource-parser",
+      "kimaki",
       "pg",
       "toml"
     ]
@@ -143,6 +143,6 @@
     "The first Windows-first Tauri shell bootstrap resolves localhost runtime assets through the Tauri resource/app-path seam.",
     "The Tauri shell must resolve bundled paths through app resource APIs instead of inferring them from the executable path.",
     "Packaged resources are read-only app assets; mutable runtime state stays rooted under ~/.elegy.",
-    "The workflow sidecar payload remains bundled for parity validation while staying default-disabled until lifecycle binding is complete."
+    "Kimaki runtime state stays under ~/.elegy/kimaki."
   ]
 }

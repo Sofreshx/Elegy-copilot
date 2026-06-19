@@ -46,7 +46,7 @@ related: [copilot-ui-guide, catalog-control-plane, index]
 
 ### 2. HTTP Server (`copilot-ui/server.js`)
 - Single Node.js process serving both the API and (in dev mode) the UI.
-- **Routes** (`copilot-ui/routes/`): catalog, sessions, planning, git, sandboxes, tooling, etc.
+- **Routes** (`copilot-ui/routes/`): catalog, sessions, planning, git, remote sessions, tooling, etc.
 - **Services** (`copilot-ui/lib/`): planning persistence, obsidian sync, repo inventory, executor, workflow layer.
 
 ### 3. Persistence (`~/.elegy/`)
@@ -73,7 +73,7 @@ antigravity-assets/ ─install─► ~/.gemini/antigravity/
 | Surface | Integration |
 |---------|------------|
 | Obsidian | Read/write via `obsidianCli.js` — vault mirror for planning notes |
-| Discord Gateway | `local-tracker/` — bot commands for remote session control |
+| Remote Sessions | Kimaki child process managed by the desktop runtime |
 | Native Runtime | Optional Rust sidecar for health/version/policy routes |
 | Elegy Planning CLI | Managed binary under `~/.elegy/managed-cli/planning/` |
 
