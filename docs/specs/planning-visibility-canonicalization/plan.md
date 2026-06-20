@@ -63,7 +63,7 @@ A pure Node script (no CLI dependency) that:
 3. On startup, copies the DB to `<dbDir>/../backups/elegy-planning.db.bak-<ISO8601 timestamp>`. If the copy fails, exit 1 with the error.
 4. Opens the DB with `better-sqlite3` in read-write mode.
 5. Defines a canonical tag merge function:
-   - `buildGoalTags(existing) → tags`: starts from existing tags, de-duplicates case-insensitively on `repo:*`/`source:*` labels, then adds `repo:74af0f7b5cc4`, `repo:55f0c2816d6a`, `repo:instruction-engine`, `repo:elegy`, `source:codex`, `theme:consolidation`, `phase:1` (only if missing). Returns a JSON string.
+   - `buildGoalTags(existing) → tags`: starts from existing tags, de-duplicates case-insensitively on `repo:*`/`source:*` labels, then adds `repo:74af0f7b5cc4`, `repo:55f0c2816d6a`, `repo:elegy-copilot`, `repo:elegy`, `source:codex`, `theme:consolidation`, `phase:1` (only if missing). Returns a JSON string.
    - `buildRoadmapTags(existing, theme) → tags`: same pattern with the four repo tags (hashed + label), `source:codex`, `theme:git-ui | theme:worktrees | theme:validation | theme:hooks | theme:codex-planning` (chosen per roadmap from the existing feature tags), `phase:1`.
 6. Computes a plan: for the goal and 5 roadmaps, the desired tag set and the diff (added tags).
 7. Inside a single transaction:

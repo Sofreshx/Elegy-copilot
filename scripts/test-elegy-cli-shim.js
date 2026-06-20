@@ -7,8 +7,8 @@ const path = require('path');
 const workspaceRoot = path.resolve(__dirname, '..');
 const instructionsContent = fs.readFileSync(path.join(workspaceRoot, 'configuration', 'assets', 'spec-driven-instructions.md'), 'utf8').trimEnd();
 const validatorSourcePath = path.join(workspaceRoot, 'scripts', 'validate-specs.js');
-const startMarker = '<!-- instruction-engine:begin spec-driven -->';
-const endMarker = '<!-- instruction-engine:end spec-driven -->';
+const startMarker = '<!-- elegy-copilot:begin spec-driven -->';
+const endMarker = '<!-- elegy-copilot:end spec-driven -->';
 
 function shaText(text) {
   return crypto.createHash('sha256').update(String(text || ''), 'utf8').digest('hex');
@@ -128,7 +128,7 @@ function buildEntry(action, filePath, operationId, templateId, expectedHash, act
 }
 
 function patchTextBlock(targetPath, operationId, options = {}) {
-  const templateId = 'instruction-engine-spec-driven-overlays-template';
+  const templateId = 'elegy-copilot-spec-driven-overlays-template';
   const currentText = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, 'utf8') : '';
   const nextText = renderPatchedText(currentText);
   const expectedHash = shaText(nextText);
@@ -158,7 +158,7 @@ function patchTextBlock(targetPath, operationId, options = {}) {
 }
 
 function copyFile(targetPath, options = {}) {
-  const templateId = 'instruction-engine-spec-driven-validator-template';
+  const templateId = 'elegy-copilot-spec-driven-validator-template';
   const operationId = 'copy-spec-validator';
   const sourceHash = shaFile(validatorSourcePath);
   const destinationExists = fs.existsSync(targetPath);
@@ -204,7 +204,7 @@ function copyFile(targetPath, options = {}) {
 
 function applyProfile(args) {
   const repoRoot = path.resolve(args.targetRoot);
-  if (args.profileId === 'instruction-engine-spec-driven-overlays') {
+  if (args.profileId === 'elegy-copilot-spec-driven-overlays') {
     const targetInstructions = String(args.bindings['target.instructions'] || '').trim();
     if (!targetInstructions) {
       throw new Error('Missing required target.instructions binding');
@@ -216,7 +216,7 @@ function applyProfile(args) {
     ];
   }
 
-  if (args.profileId === 'instruction-engine-spec-driven-validator') {
+  if (args.profileId === 'elegy-copilot-spec-driven-validator') {
     return [
       copyFile(path.join(repoRoot, 'scripts', 'validate-specs.js'), args),
     ];

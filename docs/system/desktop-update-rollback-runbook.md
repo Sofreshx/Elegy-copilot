@@ -34,7 +34,7 @@ Migration posture:
 
 ## Ownership
 
-- **Primary owner:** Desktop release owner (Instruction Engine maintainers)
+- **Primary owner:** Desktop release owner (Elegy Copilot maintainers)
 - **Approver for rollback/kill switch:** On-call incident commander for desktop release incidents
 - **Executor:** Release engineer with repo + CI variable access
 

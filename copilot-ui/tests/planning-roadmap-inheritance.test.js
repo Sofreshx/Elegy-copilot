@@ -138,8 +138,8 @@ test('no match: roadmap has no repo tag, no parentTags → false', () => {
 
 test('label match: entity has repoLabel field matching repoLabel selection → true', () => {
   // The function checks entity.repoLabel against selection.repoLabel directly
-  const entity = { id: 'rm-1', tags: [], repoLabel: 'instruction-engine' };
-  const repo = makeRepo('', '', 'instruction-engine');
+  const entity = { id: 'rm-1', tags: [], repoLabel: 'elegy-copilot' };
+  const repo = makeRepo('', '', 'elegy-copilot');
   const result = planningEntityMatchesRepoSelection(entity, repo, null, null);
   assert.strictEqual(result, true);
 });
@@ -147,8 +147,8 @@ test('label match: entity has repoLabel field matching repoLabel selection → t
 test('case-insensitive parent tag with different repo ID → false', () => {
   const entity = { id: 'rm-1', tags: [] };
   const repo = makeRepo('74af0f7b5cc4');
-  // parentTags has repo:INSTRUCTION-ENGINE (upper), repo selects a different repoId
-  const result = planningEntityMatchesRepoSelection(entity, repo, null, ['repo:INSTRUCTION-ENGINE']);
+  // parentTags has repo:elegy-copilot (upper), repo selects a different repoId
+  const result = planningEntityMatchesRepoSelection(entity, repo, null, ['repo:elegy-copilot']);
   assert.strictEqual(result, false);
 });
 

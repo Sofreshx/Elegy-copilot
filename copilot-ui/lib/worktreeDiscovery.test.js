@@ -98,7 +98,7 @@ async function run() {
   await test('inferWorktreeSource maps paths to expected source buckets', () => {
     const pathImpl = path;
     assert.equal(
-      inferWorktreeSource(pathImpl.resolve('C:/Users/me/.codex/worktrees/436c/instruction-engine'), null),
+      inferWorktreeSource(pathImpl.resolve('C:/Users/me/.codex/worktrees/436c/elegy-copilot'), null),
       WORKTREE_DISCOVERY_SOURCES.CODEX,
     );
     assert.equal(
@@ -150,10 +150,10 @@ async function run() {
     const persisted = [
       {
         worktreeId: 'wt-1',
-        repoId: 'instruction-engine',
-        repoPath: 'C:/repos/instruction-engine',
+        repoId: 'elegy-copilot',
+        repoPath: 'C:/repos/elegy-copilot',
         mode: 'dedicated',
-        path: 'C:\\repos\\instruction-engine-worktrees\\wt-1',
+        path: 'C:\\repos\\elegy-copilot-worktrees\\wt-1',
         source: 'executor',
         status: 'ready',
         launch: { blocked: false, reason: null },
@@ -164,7 +164,7 @@ async function run() {
     ];
     const discovered = [
       {
-        path: 'C:/repos/instruction-engine-worktrees/wt-1',
+        path: 'C:/repos/elegy-copilot-worktrees/wt-1',
         branch: 'feature/missing',
         source: 'elegy',
         git: { head: 'abc', ahead: 0, behind: 0, staged: 0, unstaged: 1, untracked: 0, changed: 1, detached: false },
@@ -173,7 +173,7 @@ async function run() {
         updatedAt: '2026-06-02T00:00:00.000Z',
       },
       {
-        path: 'C:/Users/me/.codex/worktrees/436c/instruction-engine',
+        path: 'C:/Users/me/.codex/worktrees/436c/elegy-copilot',
         branch: 'main',
         source: 'codex',
         git: { head: 'def', ahead: 0, behind: 0, staged: 0, unstaged: 0, untracked: 0, changed: 0, detached: true },
@@ -311,10 +311,10 @@ async function run() {
   });
   await test('discoverAndMergeWorktrees merges git discovery with persisted records using fake child process', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-wt-discovery-'));
-    const repoPath = path.join(tmpRoot, 'instruction-engine');
-    const wt1 = path.join(tmpRoot, 'instruction-engine-worktrees', 'wt-1');
+    const repoPath = path.join(tmpRoot, 'elegy-copilot');
+    const wt1 = path.join(tmpRoot, 'elegy-copilot-worktrees', 'wt-1');
     const wt2 = path.join(tmpRoot, 'manual-tmp');
-    const codex = path.join(tmpRoot, '.codex', 'worktrees', '436c', 'instruction-engine');
+    const codex = path.join(tmpRoot, '.codex', 'worktrees', '436c', 'elegy-copilot');
     fs.mkdirSync(wt1, { recursive: true });
     fs.mkdirSync(wt2, { recursive: true });
     fs.mkdirSync(codex, { recursive: true });
@@ -355,7 +355,7 @@ async function run() {
     const persisted = [
       {
         worktreeId: 'wt-1',
-        repoId: 'instruction-engine',
+        repoId: 'elegy-copilot',
         repoPath,
         mode: 'dedicated',
         path: wt1,

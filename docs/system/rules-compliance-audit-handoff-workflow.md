@@ -14,7 +14,7 @@ related: [system-docs-index, moc-conventions-and-governance, project-conventions
 
 ## Purpose
 
-Use this node as the compact overview for the instruction-engine-first first implementation slice.
+Use this node as the compact overview for the elegy-copilot-first first implementation slice.
 It turns the approved distributed governance updates into one discoverable path without replacing the
 atomic nodes that already own each rule family.
 
@@ -96,7 +96,7 @@ authority or persistence surfaces.
 
 ## Rollout posture
 
-- **instruction-engine first:** prove the workflow in this repo before treating it as a reusable
+- **elegy-copilot first:** prove the workflow in this repo before treating it as a reusable
   downstream pattern
 - **canonical-docs first:** authority remains in `docs/system/**`; prompts, agent assets, and issue
   logs stay subordinate unless canonically promoted

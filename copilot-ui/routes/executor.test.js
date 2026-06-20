@@ -177,7 +177,7 @@ async function run() {
           ...(input && input.persistedRecords ? input.persistedRecords : []),
           {
             worktreeId: 'wt-codex-1',
-            path: '/Users/me/.codex/worktrees/436c/instruction-engine',
+            path: '/Users/me/.codex/worktrees/436c/elegy-copilot',
             mode: 'discovered',
             source: 'codex',
             status: 'discovered',
@@ -268,7 +268,7 @@ async function run() {
     const response = await invokeWithQuery(
       routes,
       'GET',
-      '/api/executor/worktrees?repoId=repo-1&repoPath=/repos/instruction-engine',
+      '/api/executor/worktrees?repoId=repo-1&repoPath=/repos/elegy-copilot',
       { sendJson(res, code, payload) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(payload)); } },
     );
     assert.equal(response.res.statusCode, 200);
@@ -317,7 +317,7 @@ async function run() {
     const response = await invokeWithQuery(
       guardedRoutes,
       'GET',
-      '/api/executor/worktrees?repoId=repo-1&repoPath=/repos/instruction-engine&includeGit=false',
+      '/api/executor/worktrees?repoId=repo-1&repoPath=/repos/elegy-copilot&includeGit=false',
       { sendJson(res, code, payload) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(payload)); } },
     );
     assert.equal(response.res.statusCode, 200);
@@ -344,7 +344,7 @@ async function run() {
     const response = await invokeWithQuery(
       explodingRoutes,
       'GET',
-      '/api/executor/worktrees?repoId=repo-1&repoPath=/repos/instruction-engine',
+      '/api/executor/worktrees?repoId=repo-1&repoPath=/repos/elegy-copilot',
       { sendJson(res, code, payload) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(payload)); } },
     );
     assert.equal(response.res.statusCode, 200);

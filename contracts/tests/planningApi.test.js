@@ -183,26 +183,26 @@ test('obsidian synced-note config canonicalizes the external notes template with
 
 test('obsidian synced-note ids stay deterministic for the selected repo context', () => {
   const derivedId = deriveObsidianSyncedNoteId({
-    repoId: 'repo-instruction-engine',
+    repoId: 'repo-elegy-copilot',
     vaultName: 'Ops Planning',
-    notePath: 'Planning/repo-instruction-engine/current-work.md',
+    notePath: 'Planning/repo-elegy-copilot/current-work.md',
   });
 
   assert.match(derivedId, new RegExp(`^${OBSIDIAN_SYNCED_NOTE_ID_PREFIX}_[a-f0-9]{32}$`));
   assert.equal(
     derivedId,
     deriveObsidianSyncedNoteId({
-      repoId: 'repo-instruction-engine',
+      repoId: 'repo-elegy-copilot',
       vaultName: 'Ops Planning',
-      notePath: 'Planning\\repo-instruction-engine\\current-work.md',
+      notePath: 'Planning\\repo-elegy-copilot\\current-work.md',
     }),
   );
   assert.notEqual(
     derivedId,
     deriveObsidianSyncedNoteId({
-      repoId: 'repo-instruction-engine',
+      repoId: 'repo-elegy-copilot',
       vaultName: 'Ops Planning',
-      notePath: 'Planning/repo-instruction-engine/follow-up.md',
+      notePath: 'Planning/repo-elegy-copilot/follow-up.md',
     }),
   );
 });
@@ -214,7 +214,7 @@ test('roadmap workflow structured artifacts normalize required deterministic fie
     sliceId: 'RM-core-001',
     phase: 'review',
     status: 'pass',
-    repoId: 'instruction-engine',
+    repoId: 'elegy-copilot',
     followUps: ['none'],
     requiresUserDecision: true,
     suggestedNextAction: 'plan-next-slice',
@@ -231,7 +231,7 @@ test('roadmap workflow structured artifacts normalize required deterministic fie
     sliceId: 'RM-core-001',
     phase: 'review',
     status: 'pass',
-    repoId: 'instruction-engine',
+    repoId: 'elegy-copilot',
     followUps: ['none'],
     requiresUserDecision: true,
     suggestedNextAction: 'plan-next-slice',

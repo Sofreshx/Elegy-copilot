@@ -93,7 +93,7 @@ async function run() {
       );
     });
     await test('sync-all prunes missing-source manifest assets from disk and install state', async () => {
-      const staleStatePath = path.join(elegyHomeAbs, '.instruction-engine-install-state.json');
+      const staleStatePath = path.join(elegyHomeAbs, '.elegy-copilot-install-state.json');
       writeText(path.join(elegyHomeAbs, 'skills', 'missing-skill', 'SKILL.md'), '# Missing Skill\n');
       writeText(path.join(elegyHomeAbs, 'skills-vault', 'missing-skill', 'SKILL.md'), '# Missing Skill Vault\n');
       writeJson(staleStatePath, {
@@ -123,7 +123,7 @@ async function run() {
       assert.deepStrictEqual(nextState.vaultSkills, ['valid-skill']);
     });
     await test('sync-all prunes stale managed assets recorded in the prior install state', async () => {
-      const staleStatePath = path.join(elegyHomeAbs, '.instruction-engine-install-state.json');
+      const staleStatePath = path.join(elegyHomeAbs, '.elegy-copilot-install-state.json');
       writeJson(path.join(engineRoot, 'engine-assets', 'manifest.json'), {
         assets: [
           {

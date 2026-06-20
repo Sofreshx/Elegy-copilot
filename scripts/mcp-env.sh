@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEFAULT_ENV_FILE="${HOME}/.config/instruction-engine/mcp.env"
+DEFAULT_ENV_FILE="${HOME}/.config/elegy-copilot/mcp.env"
 ENV_FILE="${MCP_ENV_FILE:-$DEFAULT_ENV_FILE}"
 LOCAL_ENV_FILE="${ENV_FILE}.local"
 

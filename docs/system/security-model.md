@@ -5,19 +5,19 @@ category: system
 status: current
 doc_kind: node
 id: security-model
-summary: Implemented security architecture and threat model for the Instruction Engine relay ecosystem.
+summary: Implemented security architecture and threat model for the Elegy Copilot relay ecosystem.
 tags: [security]
 ---
 
-# Security Model — Instruction Engine Relay (v1)
+# Security Model — Elegy Copilot Relay (v1)
 
 > **Last updated**: 2026-04-09
 >
-> This document describes the **actual, implemented** security architecture of the Instruction Engine runtime ecosystem. Claims are verified against source code. Planned-but-unimplemented features are clearly marked as **v2 Planned**.
+> This document describes the **actual, implemented** security architecture of the Elegy Copilot runtime ecosystem. Claims are verified against source code. Planned-but-unimplemented features are clearly marked as **v2 Planned**.
 
 ## Desktop Distribution Trust Chain — Current State + Approved Migration Target (G-02-WU-01)
 
-These decisions are locked for the desktop-distributed `instruction-engine` runtime. The current
+These decisions are locked for the desktop-distributed `elegy-copilot` runtime. The current
 desktop path is a Windows-first Tauri shell with a bundled Node sidecar, as defined in
 [[desktop-runtime-tauri-migration-contract]]
 [docs/system/desktop-runtime-tauri-migration-contract.md](docs/system/desktop-runtime-tauri-migration-contract.md).
@@ -258,8 +258,8 @@ All relay-issued tokens are **HS256 JWTs** signed with a shared secret (`JWT_SEC
 | `client_type` | Client kind | `mobile` or another trusted desktop/non-browser client |
 | `scopes` | Authorization scopes (array) | `["read:status", ...]` |
 | `github_login` | GitHub username | `octocat` |
-| `iss` | Issuer | `instruction-engine-relay` |
-| `aud` | Audience | `instruction-engine` |
+| `iss` | Issuer | `elegy-copilot-relay` |
+| `aud` | Audience | `elegy-copilot` |
 | `iat` | Issued at (epoch) | `1738972800` |
 | `exp` | Expires at (epoch) | `iat + 3600` |
 

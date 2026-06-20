@@ -36,7 +36,7 @@ function assertIncludes(relativePath, snippets) {
       name: 'ordinary planning and review stays lightweight',
       checks: [
         {
-          relativePath: 'engine-assets/prompts/instruction-engine-plan.prompt.md',
+          relativePath: 'engine-assets/prompts/elegy-copilot-plan.prompt.md',
           requiredSnippets: ['Complexity alone does not justify a question barrage.'],
         },
       ],

@@ -5,7 +5,7 @@ category: system
 status: current
 doc_kind: node
 id: architecture-overview
-summary: One-page architecture overview of the Instruction Engine / Elegy Copilot system layers.
+summary: One-page architecture overview of the Elegy Copilot / Elegy Copilot system layers.
 tags: [architecture, overview, layers, desktop, copilot-ui]
 related: [copilot-ui-guide, catalog-control-plane, index]
 ---

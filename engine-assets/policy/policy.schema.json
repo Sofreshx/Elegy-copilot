@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://instruction-engine.dev/schemas/policy.schema.json",
-  "title": "Instruction Engine Pipeline Policy",
+  "$id": "https://elegy-copilot.dev/schemas/policy.schema.json",
+  "title": "Elegy Copilot Pipeline Policy",
   "type": "object",
   "additionalProperties": false,
   "required": [

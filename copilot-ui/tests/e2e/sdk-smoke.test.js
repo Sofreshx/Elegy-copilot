@@ -69,7 +69,7 @@ function formatHarnessGuidance({ mode, copilotSdkRoot, replayHarnessPath, resolu
     `Mode: ${mode}`,
     `Resolved copilot-sdk root (${resolutionSource}): ${copilotSdkRoot}`,
     `Expected replay harness: ${replayHarnessPath}`,
-    'Setup: check out copilot-sdk next to instruction-engine or set COPILOT_SDK_ROOT to that checkout.',
+    'Setup: check out copilot-sdk next to elegy-copilot or set COPILOT_SDK_ROOT to that checkout.',
     'Fail closed: set INSTRUCTION_ENGINE_SDK_SMOKE_MODE=require.',
     'Intentional local skip: set INSTRUCTION_ENGINE_SDK_SMOKE_MODE=skip.',
     'Command: node copilot-ui\\tests\\e2e\\sdk-smoke.test.js',
@@ -80,8 +80,8 @@ function run() {
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const snapshotPath = path.resolve(__dirname, 'snapshots', 'sdk-smoke.yaml');
   const snapshot = validateSnapshot(snapshotPath);
-  if (!snapshot.includes('instruction-engine-sdk-smoke')) {
-    throw new Error('Snapshot id mismatch for instruction-engine smoke test.');
+  if (!snapshot.includes('elegy-copilot-sdk-smoke')) {
+    throw new Error('Snapshot id mismatch for elegy-copilot smoke test.');
   }
 
   const smokeMode = resolveSmokeMode();

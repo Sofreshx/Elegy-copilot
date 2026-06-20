@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "package": {
-    "name": "instruction-engine-antigravity",
+    "name": "elegy-copilot-antigravity",
     "version": "0.1.0",
     "sourceCommitSha": "<REPLACE_WITH_GIT_SHA>"
   },
@@ -10,12 +10,12 @@
     "antigravityHome": "~/.gemini/antigravity",
     "skillsDir": "~/.gemini/antigravity/skills",
     "instructionsFile": "~/.gemini/GEMINI.md",
-    "description": "Home-installed Antigravity 2 / Antigravity CLI assets using the current Gemini-compatible layout for shared skills plus a bounded instruction-engine block in GEMINI.md."
+    "description": "Home-installed Antigravity 2 / Antigravity CLI assets using the current Gemini-compatible layout for shared skills plus a bounded elegy-copilot block in GEMINI.md."
   },
   "installerHints": {
     "preferExplicitDestinations": true,
     "skillsRequireFolderName": true,
-    "notes": "Install shared skills under ~/.gemini/antigravity/skills and manage only the instruction-engine block inside the current Gemini-compatible ~/.gemini/GEMINI.md layout."
+    "notes": "Install shared skills under ~/.gemini/antigravity/skills and manage only the elegy-copilot block inside the current Gemini-compatible ~/.gemini/GEMINI.md layout."
   },
   "governance": {
     "g05": {

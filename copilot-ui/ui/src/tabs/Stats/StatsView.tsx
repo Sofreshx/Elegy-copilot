@@ -295,7 +295,7 @@ export default function StatsView() {
         >
           <div className="state-card-grid">
             <article className="state-card">
-              <p className="state-card-title">Instruction Engine</p>
+              <p className="state-card-title">Elegy Copilot</p>
               <p className="workspace-section-label">{runtimeStatus}</p>
               <p className="state-card-copy">{runtimeDetail}</p>
             </article>

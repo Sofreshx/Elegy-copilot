@@ -1,4 +1,4 @@
-# Adaptation Notes — Matt Pocock Skills → Instruction Engine
+# Adaptation Notes — Matt Pocock Skills → Elegy Copilot
 
 **Source**: [github.com/mattpocock/skills](https://github.com/mattpocock/skills)  
 **Date adapted**: 2026-06-19  
@@ -27,7 +27,7 @@
 - **New**: Companion references to domain-modeling and rubberduck-plan-review.
 
 ### 3. domain-modeling
-- **Changes**: File structure diagram rewritten for Instruction Engine layout. CONTEXT.md → docs/system/ canonical nodes. docs/adr/ → docs/system/adr/. "Update CONTEXT.md inline" → "Update the owning canonical node".
+- **Changes**: File structure diagram rewritten for Elegy Copilot layout. CONTEXT.md → docs/system/ canonical nodes. docs/adr/ → docs/system/adr/. "Update CONTEXT.md inline" → "Update the owning canonical node".
 - **Removed content**: CONTEXT-FORMAT.md and ADR-FORMAT.md sub-docs. Their key content is now inlined:
   - Glossary format (opinionated definitions with `_Avoid_` tags, project-specific-only rule)
   - ADR format (single-paragraph ADR, three gate criteria, sequential numbering)

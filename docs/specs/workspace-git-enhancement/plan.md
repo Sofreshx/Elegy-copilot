@@ -1285,7 +1285,7 @@ Add tests to `workspace-git-tab-redesign.vitest.tsx` for these new acceptance ch
 **33. Create elegy-planning goal** (5 min)
 - Goal ID: `GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603`
 - Title: "Workspace Git Tab Enhancement"
-- Tags: `repo:instruction-engine`, `repo:elegy`, `source:codex`, `theme:git-ui`, `phase:1`
+- Tags: `repo:elegy-copilot`, `repo:elegy`, `source:codex`, `theme:git-ui`, `phase:1`
 - Link to `specs/workspace-git-enhancement/spec.md`
 
 **34. Create roadmap with work points** (5 min)

@@ -39,7 +39,7 @@ const ENGINE_ASSET_ROUTES = [
   route('hook-session-lifecycle'),
   route('hook-worktree-session-tracker'),
   route('copilot-instructions'),
-  route('prompt-instruction-engine-plan'),
+  route('prompt-elegy-copilot-plan'),
   route('skill-core-guardrails'),
   route('skill-discovery'),
   route('skill-documentation-authoring'),
@@ -68,7 +68,7 @@ export const COMPATIBILITY_MANIFESTS = [
     manifestId: 'engine',
     outputPath: 'engine-assets/manifest.json',
     package: {
-      name: 'instruction-engine',
+      name: 'elegy-copilot',
       version: '0.1.0',
       sourceCommitSha: '<REPLACE_WITH_GIT_SHA>',
     },
@@ -104,7 +104,7 @@ export const COMPATIBILITY_MANIFESTS = [
     bundleIds: [
       'commit-validation-governance',
       'core-global',
-      'instruction-engine-governance-lanes',
+      'elegy-copilot-governance-lanes',
       'orchestrator-workflow',
       'repo-setup-governance-global',
       'roadmap-planning-lane',
@@ -141,7 +141,7 @@ export const COMPATIBILITY_MANIFESTS = [
       'repo-setup-governance-global',
       'orchestrator-workflow',
       'roadmap-planning-lane',
-      'instruction-engine-governance-lanes',
+      'elegy-copilot-governance-lanes',
       'spec-driven-development-lane',
     ],
     allowlistPath: '.cli/manifest.allowlist.json',
@@ -153,7 +153,7 @@ export const COMPATIBILITY_MANIFESTS = [
     manifestId: 'codex',
     outputPath: 'codex-assets/manifest.json',
     package: {
-      name: 'instruction-engine-codex',
+      name: 'elegy-copilot-codex',
       version: '0.1.0',
       sourceCommitSha: '<REPLACE_WITH_GIT_SHA>',
     },
@@ -197,7 +197,7 @@ export const COMPATIBILITY_MANIFESTS = [
     manifestId: 'opencode',
     outputPath: 'opencode-assets/manifest.json',
     package: {
-      name: 'instruction-engine-opencode',
+      name: 'elegy-copilot-opencode',
       version: '0.1.0',
       sourceCommitSha: '<REPLACE_WITH_GIT_SHA>',
     },
@@ -261,7 +261,7 @@ export const COMPATIBILITY_MANIFESTS = [
     manifestId: 'antigravity',
     outputPath: 'antigravity-assets/manifest.json',
     package: {
-      name: 'instruction-engine-antigravity',
+      name: 'elegy-copilot-antigravity',
       version: '0.1.0',
       sourceCommitSha: '<REPLACE_WITH_GIT_SHA>',
     },
@@ -271,13 +271,13 @@ export const COMPATIBILITY_MANIFESTS = [
       skillsDir: '~/.gemini/antigravity/skills',
       instructionsFile: '~/.gemini/GEMINI.md',
       description:
-        'Home-installed Antigravity 2 / Antigravity CLI assets using the current Gemini-compatible layout for shared skills plus a bounded instruction-engine block in GEMINI.md.',
+        'Home-installed Antigravity 2 / Antigravity CLI assets using the current Gemini-compatible layout for shared skills plus a bounded elegy-copilot block in GEMINI.md.',
     },
     installerHints: {
       preferExplicitDestinations: true,
       skillsRequireFolderName: true,
       notes:
-        'Install shared skills under ~/.gemini/antigravity/skills and manage only the instruction-engine block inside the current Gemini-compatible ~/.gemini/GEMINI.md layout.',
+        'Install shared skills under ~/.gemini/antigravity/skills and manage only the elegy-copilot block inside the current Gemini-compatible ~/.gemini/GEMINI.md layout.',
     },
     governance: SHARED_G05_GOVERNANCE,
     assetRoutes: [

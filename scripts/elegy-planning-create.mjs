@@ -32,7 +32,7 @@ function usage() {
 
 Examples:
   node scripts/elegy-planning-create.mjs --type goal --id "GOAL-MY-FEATURE-20260604" --title "My Feature" --source codex
-  node scripts/elegy-planning-create.mjs --type roadmap --goal-id GOAL-MY-FEATURE-20260604 --title "Step 1" --repo-id 74af0f7b5cc4 --repo-label instruction-engine --source codex --dry-run`);
+  node scripts/elegy-planning-create.mjs --type roadmap --goal-id GOAL-MY-FEATURE-20260604 --title "Step 1" --repo-id 74af0f7b5cc4 --repo-label elegy-copilot --source codex --dry-run`);
 }
 
 function parseArgs(argv) {

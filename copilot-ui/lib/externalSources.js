@@ -12,7 +12,7 @@ const opencodeConfig = require('./opencodeConfig');
 const SPEC_KIT_SOURCE_ID = 'spec-kit';
 const SPEC_KIT_INSTALLABLE_ID = 'cli:specify';
 const HOST_TARGET = 'host';
-const INTERNAL_SPEC_DRIVEN_MARKER = 'instruction-engine:begin spec-driven';
+const INTERNAL_SPEC_DRIVEN_MARKER = 'elegy-copilot:begin spec-driven';
 
 function fallbackNormalizeExternalInstallableRecord(value) {
   if (!value || typeof value !== 'object') {

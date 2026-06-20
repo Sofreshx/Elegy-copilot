@@ -143,7 +143,7 @@ The shipped skill (`commit-validation-governance`) performs two modes:
 ## Acceptance Checks
 
 - [ ] `commit-check-discover.mjs` accurately detects TypeScript and Rust lanes in this repo
-  → verify: run against instruction-engine root, confirm test/coverage/lint/format/typecheck lanes are detected for both JS and Rust workspaces
+  → verify: run against elegy-copilot root, confirm test/coverage/lint/format/typecheck lanes are detected for both JS and Rust workspaces
 - [ ] `commit-check-setup.mjs` generates a valid `.copilot/commit-checks.json` that the runner can consume
   → verify: run setup, then run `commit-check-run.mjs --config .copilot/commit-checks.json --json`, confirm exit 0 and valid score JSON
 - [ ] Scoring algorithm is deterministic: same config + same lane results → same composite score

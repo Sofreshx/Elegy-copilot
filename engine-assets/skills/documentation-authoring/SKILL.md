@@ -17,7 +17,7 @@ entrypoints, or discoverability.
 
 ## Canonical Basis
 
-When working inside Instruction Engine, ground this skill in:
+When working inside Elegy Copilot, ground this skill in:
 
 - `docs/system/documentation-authoring-governance.md`
 - `docs/system/documentation-structure-governance.md`

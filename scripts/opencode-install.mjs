@@ -28,7 +28,7 @@ const require = createRequire(import.meta.url);
 const { readConfig, writeConfig } = require('../copilot-ui/lib/opencodeConfig.js');
 const opencodeAssetsRoot = path.join(repoRoot, 'opencode-assets');
 const manifestPath = path.join(opencodeAssetsRoot, 'manifest.json');
-const managedInventoryFileName = '.instruction-engine-opencode-managed.json';
+const managedInventoryFileName = '.elegy-copilot-opencode-managed.json';
 
 function readManifest() {
   return JSON.parse(fs.readFileSync(manifestPath, 'utf8'));

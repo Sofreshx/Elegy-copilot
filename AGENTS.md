@@ -1,6 +1,6 @@
-# Instruction Engine — Agent Entrypoint
+# Elegy Copilot — Agent Entrypoint
 
-This is the Instruction Engine monorepo, also published as Elegy Copilot. It is the shared-asset and control-plane workspace for Copilot, Codex, OpenCode, Antigravity, and Claude Code.
+This is the Elegy Copilot monorepo, also published as Elegy Copilot. It is the shared-asset and control-plane workspace for Copilot, Codex, OpenCode, Antigravity, and Claude Code.
 
 ## Before any work
 

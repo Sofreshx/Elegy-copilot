@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://instruction-engine/contracts/session-state/1.0.0/skill-definition.schema.json",
+  "$id": "https://elegy-copilot/contracts/session-state/1.0.0/skill-definition.schema.json",
   "title": "SkillDefinition",
   "description": "Canonical skill definition contract for cross-runtime consumers.",
   "type": "object",

@@ -14,7 +14,7 @@ echo "[spike] ACP=$ACP_HOST:$ACP_PORT"
 mkdir -p "$ELEGY_HOME" "$ELEGY_HOME/logs" "$ELEGY_HOME/session-state"
 
 # Seed custom agents/skills/instructions into ELEGY_HOME (best-effort; safe if already present)
-ASSETS_ROOT="/opt/instruction-engine/engine-assets"
+ASSETS_ROOT="/opt/elegy-copilot/engine-assets"
 if [[ -d "$ASSETS_ROOT" ]]; then
   mkdir -p "$ELEGY_HOME/agents" "$ELEGY_HOME/skills" "$ELEGY_HOME/prompts"
 
@@ -93,7 +93,7 @@ for i in $(seq 1 50); do
 done
 
 # Invoke a single ACP session/prompt; this is the "agent invocation" proof.
-node /opt/instruction-engine/spike-acp-invoke.mjs \
+node /opt/elegy-copilot/spike-acp-invoke.mjs \
   --host "$ACP_HOST" \
   --port "$ACP_PORT" \
   --prompt "Reply with a single short sentence. Do not use any tools." \

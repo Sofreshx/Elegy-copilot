@@ -177,8 +177,8 @@ lease files.
 Deterministic planning mirror notes live under the selected repo's resolved Obsidian note folder in a
 tool-managed subdirectory:
 
-- `_instruction-engine/planning-mirrors/bullets.md`
-- `_instruction-engine/planning-mirrors/roadmaps/<roadmap-slug>.md`
+- `_elegy-copilot/planning-mirrors/bullets.md`
+- `_elegy-copilot/planning-mirrors/roadmaps/<roadmap-slug>.md`
 
 Those note paths are deterministic, repo-scoped, and remain external/non-canonical.
 

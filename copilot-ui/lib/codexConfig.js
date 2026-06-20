@@ -13,8 +13,8 @@ const DEEPSEEK_STATE_FILENAME = '.elegy-deepseek-state.json';
 const DEEPSEEK_CATALOG_FILENAME = 'models_catalog.deepseek.json';
 const MANAGED_DEEPSEEK_BLOCK_START = '# BEGIN elegy managed deepseek provider';
 const MANAGED_DEEPSEEK_BLOCK_END = '# END elegy managed deepseek provider';
-const IE_MANAGED_BLOCK_START = '# BEGIN instruction-engine managed codex defaults';
-const IE_MANAGED_BLOCK_END = '# END instruction-engine managed codex defaults';
+const IE_MANAGED_BLOCK_START = '# BEGIN elegy-copilot managed codex defaults';
+const IE_MANAGED_BLOCK_END = '# END elegy-copilot managed codex defaults';
 const DEEPSEEK_PROVIDER_ID = 'instruction_engine_deepseek';
 const DEEPSEEK_PROVIDER_NAME = 'DeepSeek V4 via Moon Bridge';
 const DEEPSEEK_MODEL = 'deepseek-v4-pro';
@@ -603,7 +603,7 @@ function setMode(codexHome, mode) {
   }
 
   // When switching to native, strip any root-level model_provider/model keys
-  // that reference instruction-engine-managed provider IDs. These are orphaned
+  // that reference elegy-copilot-managed provider IDs. These are orphaned
   // when the managed provider table block is stripped, leaving Codex unable to
   // resolve the provider (e.g. "Model provider `opencode-go` not found").
   if (normalizedMode === 'native' && nextTextResult.nextText) {

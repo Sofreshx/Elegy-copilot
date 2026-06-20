@@ -14,11 +14,11 @@ related: [catalog-control-plane, copilot-ui-guide, opencode-guide, repo-setup-go
 
 ## Purpose
 
-Document how central assets from the instruction-engine repo are deployed to each harness home directory, and how per-repo files are discovered (not created) by Elegy Copilot.
+Document how central assets from the elegy-copilot repo are deployed to each harness home directory, and how per-repo files are discovered (not created) by Elegy Copilot.
 
 ## Central Asset Sources
 
-Central assets live in the instruction-engine repo under these directories:
+Central assets live in the elegy-copilot repo under these directories:
 
 | Directory | Purpose |
 |-----------|---------|
@@ -33,7 +33,7 @@ Central assets live in the instruction-engine repo under these directories:
 
 ```mermaid
 graph TB
-    subgraph "instruction-engine repo"
+    subgraph "elegy-copilot repo"
         EA["engine-assets/<br/>Copilot agents, skills, prompts"]
         CA["catalog-assets/<br/>Shared skills"]
         OA["opencode-assets/<br/>OpenCode instructions, agents, skills"]
@@ -113,7 +113,7 @@ graph TB
 Install scripts deploy central assets to harness home directories. These are **created by** the install process.
 
 ```text
-instruction-engine repo
+elegy-copilot repo
   ├── engine-assets/      ──┐
   ├── catalog-assets/     ──┤── shared sources
   ├── opencode-assets/    ──┤

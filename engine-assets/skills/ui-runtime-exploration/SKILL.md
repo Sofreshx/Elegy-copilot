@@ -220,4 +220,4 @@ This first setup slice is deliberately minimal. These items are deferred to late
 - `docs/system/e2e-setup-guide.md`
 - `docs/system/mocs/testing-and-e2e.md`
 
-Base directory for this skill: file:///C:/Users/lolzi/Documents/GitHub/instruction-engine/engine-assets/skills/ui-runtime-exploration
+Base directory for this skill: file:///C:/Users/lolzi/Documents/GitHub/elegy-copilot/engine-assets/skills/ui-runtime-exploration

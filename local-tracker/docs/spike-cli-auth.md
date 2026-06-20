@@ -37,7 +37,7 @@ This is a **go/no-go** gate for the Sandbox Orchestrator plan.
 
 ## Build
 
-From the repo root (`instruction-engine/`):
+From the repo root (`elegy-copilot/`):
 
 ```powershell
 docker build -f local-tracker/docker/spike-cli-auth.Dockerfile -t ie-spike-cli-auth .

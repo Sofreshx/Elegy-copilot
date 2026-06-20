@@ -36,7 +36,7 @@ function test(name, fn) {
 	}
 }
 
-test('current instruction-engine/contracts tuple is supported by the matrix', () => {
+test('current elegy-copilot/contracts tuple is supported by the matrix', () => {
 	const matrix = loadJson(matrixPath);
 	const manifest = loadJson(contractManifestPath);
 	const rootPackage = loadJson(rootPackagePath);
@@ -67,7 +67,7 @@ test('current instruction-engine/contracts tuple is supported by the matrix', ()
 	assert.strictEqual(
 		supported,
 		true,
-		`Unsupported tuple: instruction-engine=${instructionEngineVersion}, contracts=${contractBundleVersion}`
+		`Unsupported tuple: elegy-copilot=${instructionEngineVersion}, contracts=${contractBundleVersion}`
 	);
 });
 

@@ -20,7 +20,7 @@ target repo provides that node.
 
 ## Skills
 
-Instruction Engine installs curated skills under Codex. Skills are loaded on-demand
+Elegy Copilot installs curated skills under Codex. Skills are loaded on-demand
 and should be used only when they materially improve the result.
 
 Primary skills available:
@@ -59,7 +59,7 @@ roadmap work under `docs/roadmaps/<roadmap-slug>.md`.
 - To install or refresh the shared Codex agents and skills from this repo, run:
   - Windows: `pwsh -File scripts/codex-install.ps1 --force`
   - macOS/Linux: `bash scripts/codex-install.sh --force`
-- To refresh all supported Instruction Engine surfaces from this repo, run:
+- To refresh all supported Elegy Copilot surfaces from this repo, run:
   - Windows: `pwsh -File scripts/install-all.ps1 --force`
   - macOS/Linux: `bash scripts/install-all.sh --force`
 - Prefer `/plan` for refactors, migrations, ambiguous features, and other multi-step work.
@@ -78,7 +78,7 @@ roadmap work under `docs/roadmaps/<roadmap-slug>.md`.
 
 For repo-specific policy, start at `docs/system/index.md`, then the nearest MOC, then the smallest canonical node.
 
-For the Instruction Engine repo itself, the current identity and delivery model are:
+For the Elegy Copilot repo itself, the current identity and delivery model are:
 
 - `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into the Copilot home install.
 - `catalog-assets/shared-skills/` ships cross-harness shared skills.

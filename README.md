@@ -1,4 +1,4 @@
-# Instruction Engine / Elegy Copilot
+# Elegy Copilot
 
 Shared agent, skill, prompt, instruction, and local-control-plane assets for Copilot, Codex, OpenCode, Antigravity, and Claude Code.
 
@@ -31,7 +31,7 @@ Useful starting points:
 ## Repo layout
 
 ```
-instruction-engine/
+elegy-copilot/
 ├── antigravity-assets/     Antigravity Gemini.md source + skills
 ├── catalog-assets/         Shared cross-surface skill catalog
 ├── claude-assets/          Claude Code CLAUDE.md source + skills

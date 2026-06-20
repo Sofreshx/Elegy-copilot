@@ -266,7 +266,7 @@ Only enable when needed for current task:
 Operations → MCP Providers → Enable [Provider]
 
 # Store secrets outside repo
-~/.config/instruction-engine/mcp.env
+~/.config/elegy-copilot/mcp.env
 ```
 
 Disable when done:
@@ -635,7 +635,7 @@ When a custom agent runs:
 
 ### Installing Agents and Skills
 
-**Recommended: installer script (keeps instruction-engine out of daily workspace)**
+**Recommended: installer script (keeps elegy-copilot out of daily workspace)**
 
 PowerShell (Windows):
 ```powershell
@@ -1037,5 +1037,5 @@ The `/workflow` command supports discovery, execution, inspection, and history:
 ---
 
 **Last Updated:** 2026-02-28  
-**Maintained By:** Instruction Engine Team  
+**Maintained By:** Elegy Copilot Team  
 **Status:** Living document - update as CLI evolves

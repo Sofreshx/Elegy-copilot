@@ -4,7 +4,7 @@ description: "Compact the current conversation into a handoff document for anoth
 argument-hint: "What will the next session be used for?"
 disable-model-invocation: true
 license: Apache-2.0
-metadata: {"source":"https://github.com/mattpocock/skills","adapted":true,"originalName":"handoff","notes":"artifact refs→Instruction Engine types, boundaries added"}
+metadata: {"source":"https://github.com/mattpocock/skills","adapted":true,"originalName":"handoff","notes":"artifact refs→Elegy Copilot types, boundaries added"}
 ---
 
 # Cross-Session Handoff

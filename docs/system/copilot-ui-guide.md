@@ -14,7 +14,7 @@ related: [catalog-control-plane, session-state-artifacts, planning-backlog-roadm
 
 ## Purpose
 
-`copilot-ui` is the local UI, HTTP API, and desktop shell for Instruction Engine. The packaged desktop app (Tauri shell + Node sidecar) is the normal runtime. The backend is Node.js-based; a parallel Rust runtime under `native/runtime` handles select routes (health, version, policy preflight) when the `INSTRUCTION_ENGINE_NATIVE_RUNTIME_URL` env var is set.
+`copilot-ui` is the local UI, HTTP API, and desktop shell for Elegy Copilot. The packaged desktop app (Tauri shell + Node sidecar) is the normal runtime. The backend is Node.js-based; a parallel Rust runtime under `native/runtime` handles select routes (health, version, policy preflight) when the `INSTRUCTION_ENGINE_NATIVE_RUNTIME_URL` env var is set.
 
 ## Start
 

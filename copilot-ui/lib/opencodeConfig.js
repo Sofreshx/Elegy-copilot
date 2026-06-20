@@ -10,7 +10,7 @@ const DEFAULT_WORKTREE_BASE = path.join(os.homedir(), '.local', 'share', 'openco
 const CONFIG_FILENAME = 'opencode.jsonc';
 const STATE_FILENAME = '.elegy-opencode-agent-state.json';
 const WORKTREE_PERMISSION_PROFILE_VERSION = 1;
-const WORKTREE_PERMISSION_PROFILE_MARKER = 'instruction-engine-worktree-permission-profile';
+const WORKTREE_PERMISSION_PROFILE_MARKER = 'elegy-copilot-worktree-permission-profile';
 
 const KNOWN_DEFAULT_EXPLORE_MODEL = 'opencode-go/deepseek-v4-flash';
 const KNOWN_DEFAULT_SCOUT_MODEL = 'opencode-go/deepseek-v4-flash';
@@ -510,7 +510,7 @@ function getWorktreePermissionProfileStatus(opencodeHome) {
 
 // ── Planning plugin permission profile ─────────────────────────────────
 
-const PLANNING_PERMISSION_PROFILE_MARKER = 'instruction-engine-planning-permission-profile';
+const PLANNING_PERMISSION_PROFILE_MARKER = 'elegy-copilot-planning-permission-profile';
 const PLANNING_PERMISSION_PROFILE_VERSION = 1;
 
 function resolveElegyHome() {

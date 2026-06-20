@@ -232,11 +232,11 @@ New users see `expected: false` for every harness until they opt in.
 ## Non-Goals
 
 - Do NOT change `assets.syncAll` / Copilot-ledger behavior. The Copilot
-  `.instruction-engine-install-state.json` ledger is already correct and
+  `.elegy-copilot-install-state.json` ledger is already correct and
   out of scope.
 - Do NOT add new CLI surface. No `elegy-cli sync-ledger` command. The dashboard
   button is the only entry point.
-- Do NOT migrate the existing `.instruction-engine-install-state.json` to
+- Do NOT migrate the existing `.elegy-copilot-install-state.json` to
   the new ledger shape. The two ledgers coexist; Copilot's stays Copilot-only.
 - Do NOT auto-opt the user in for any harness. Opt-in is always an explicit
   click in the Status view.

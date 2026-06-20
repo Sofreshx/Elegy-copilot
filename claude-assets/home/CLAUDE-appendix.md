@@ -15,7 +15,7 @@ If sources conflict, follow the highest authority and report the conflict.
 
 ## Skills
 
-Instruction-engine installs curated skills under Claude Code. Skills are loaded on-demand
+elegy-copilot installs curated skills under Claude Code. Skills are loaded on-demand
 and should be used only when they materially improve the result.
 
 Primary skills available:
@@ -34,7 +34,7 @@ Primary skills available:
 
 For repo-specific policy, start at `docs/system/index.md`, then the nearest MOC, then the smallest canonical node.
 
-For the Instruction Engine repo itself, the current identity and delivery model are:
+For the Elegy Copilot repo itself, the current identity and delivery model are:
 
 - `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into the Copilot home install.
 - `codex-assets/`, `opencode-assets/`, `antigravity-assets/`, and `claude-assets/` ship thinner native home baselines for their harnesses.

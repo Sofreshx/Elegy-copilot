@@ -34,14 +34,14 @@ async function run() {
     const first = planningBullets.createPlanningBullet(repoRoot, {
       title: 'Capture repo-scoped bullets',
       state: 'idea',
-      repoId: 'repo-instruction-engine',
+      repoId: 'repo-elegy-copilot',
       summary: 'Move future-plan seeds into docs/planning/bullets.md.',
       notes: ['Expose bullets in Planning UI'],
     });
     const second = planningBullets.createPlanningBullet(repoRoot, {
       title: 'Review roadmap hierarchy copy',
       state: 'research',
-      repoId: 'repo-instruction-engine',
+      repoId: 'repo-elegy-copilot',
       summary: 'Clarify bullets vs backlog vs roadmaps.',
       notes: [],
     });
@@ -67,7 +67,7 @@ async function run() {
     planningBullets.createPlanningBullet(repoRoot, {
       title: 'Seed planning session from bullet',
       state: 'pre-plan',
-      repoId: 'repo-instruction-engine',
+      repoId: 'repo-elegy-copilot',
       summary: 'Ensure bullet-to-plan traceability stays explicit.',
       notes: ['Reuse linked plan session if present'],
     });

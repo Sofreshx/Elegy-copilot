@@ -24,7 +24,7 @@ export const SHIPPED_ASSETS = [
   instructions('copilot-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {
     appendix: 'engine-assets/copilot-instructions-appendix.md',
   }),
-  prompt('prompt-instruction-engine-plan', 'engine-assets/prompts/instruction-engine-plan.prompt.md'),
+  prompt('prompt-elegy-copilot-plan', 'engine-assets/prompts/elegy-copilot-plan.prompt.md'),
 
   skill('skill-core-guardrails', 'engine-assets/skills/core-guardrails', { loadMode: 'always' }),
   skill('skill-discovery', 'engine-assets/skills/skill-discovery', { loadMode: 'always' }),
@@ -191,17 +191,17 @@ export const SHIPPED_BUNDLES = [
     classification: 'workflow',
     targeting: {
       scopeKinds: ['repo'],
-      tags: ['planning', 'roadmap', 'backlog', 'instruction-engine'],
+      tags: ['planning', 'roadmap', 'backlog', 'elegy-copilot'],
     },
-    tags: ['planning', 'roadmap', 'backlog', 'instruction-engine'],
+    tags: ['planning', 'roadmap', 'backlog', 'elegy-copilot'],
     defaultRecommended: false,
     dependsOn: ['orchestrator-workflow'],
   },
   {
-    id: 'instruction-engine-governance-lanes',
-    title: 'Instruction-Engine Governance Skills',
+    id: 'elegy-copilot-governance-lanes',
+    title: 'elegy-copilot Governance Skills',
     description:
-      'Repo-local governance and conventions/bootstrap skills for instruction-engine-first workflows. Explicit opt-in keeps default routing curated.',
+      'Repo-local governance and conventions/bootstrap skills for elegy-copilot-first workflows. Explicit opt-in keeps default routing curated.',
     assetIds: [
       'skill-project-conventions-governance',
       'skill-documentation-structure-governance',
@@ -215,9 +215,9 @@ export const SHIPPED_BUNDLES = [
     classification: 'scope',
     targeting: {
       scopeKinds: ['repo'],
-      tags: ['instruction-engine', 'governance', 'review', 'follow-up'],
+      tags: ['elegy-copilot', 'governance', 'review', 'follow-up'],
     },
-    tags: ['instruction-engine', 'governance', 'review', 'follow-up'],
+    tags: ['elegy-copilot', 'governance', 'review', 'follow-up'],
     defaultRecommended: false,
     dependsOn: ['orchestrator-workflow'],
   },

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "package": {
-    "name": "instruction-engine-codex",
+    "name": "elegy-copilot-codex",
     "version": "0.1.0",
     "sourceCommitSha": "<REPLACE_WITH_GIT_SHA>"
   },

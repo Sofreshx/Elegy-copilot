@@ -767,7 +767,7 @@ function applyRemoteFeed({ elegyHomeAbs, repo, config, feed }) {
   if (protectedNamespaceConflicts.length > 0) {
     const uniqueConflicts = Array.from(new Set(protectedNamespaceConflicts));
     throw new ObsidianSyncConflictError(
-      `Remote Obsidian sync rejected ${uniqueConflicts.length} protected namespace change(s); _instruction-engine/** is tool-managed and local notes were left unchanged.`,
+      `Remote Obsidian sync rejected ${uniqueConflicts.length} protected namespace change(s); _elegy-copilot/** is tool-managed and local notes were left unchanged.`,
       {
         conflicts: uniqueConflicts,
         appliedCount: 0,

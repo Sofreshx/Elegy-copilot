@@ -38,7 +38,7 @@ const REQUIRED_SECTIONS = [
 ];
 
 const BANNED_TERMS = [
-  { pattern: /instruction\s*engine/gi, name: 'Instruction Engine' },
+  { pattern: /instruction\s*engine/gi, name: 'Elegy Copilot' },
   { pattern: /elegy\s*copilot/gi, name: 'Elegy Copilot' },
   { pattern: /docs\/system/gi, name: 'docs/system' },
   { pattern: /guidelines\.md/gi, name: 'guidelines.md' },

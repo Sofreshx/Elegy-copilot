@@ -225,7 +225,7 @@ test('listRepoStateTasks scopes structured-state task reads to the owning sessio
 
   try {
     fs.readdirSync = (targetPath, options) => {
-      assert.strictEqual(targetPath, path.join(path.resolve('C:\\cli-home'), 'repo-state', 'instruction-engine', 'tasks'));
+      assert.strictEqual(targetPath, path.join(path.resolve('C:\\cli-home'), 'repo-state', 'elegy-copilot', 'tasks'));
       assert.deepStrictEqual(options, { withFileTypes: true });
       return Object.keys(taskPayloads).map((name) => ({
         name,
@@ -239,7 +239,7 @@ test('listRepoStateTasks scopes structured-state task reads to the owning sessio
       return JSON.stringify(taskPayloads[path.basename(targetPath)]);
     };
 
-    const tasks = listRepoStateTasks('C:\\cli-home', 'instruction-engine', {
+    const tasks = listRepoStateTasks('C:\\cli-home', 'elegy-copilot', {
       sessionId: 'session-123',
       workflowRunIds: ['run-123'],
       worktreeIds: ['wt-123'],

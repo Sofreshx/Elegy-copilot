@@ -29,7 +29,7 @@ exploration, review, and research work.
 
 ## Skills
 
-Instruction Engine installs curated skills under OpenCode. Skills are loaded via the skill tool and should be loaded only when they materially improve the result.
+Elegy Copilot installs curated skills under OpenCode. Skills are loaded via the skill tool and should be loaded only when they materially improve the result.
 
 Primary skills available:
 - `skill-discovery` — Vault-first skill resolver for on-demand capability routing
@@ -56,12 +56,12 @@ See the [Curated Subagents](#curated-subagents) section for built-in subagent de
 Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Do not create ADRs for ordinary local implementation choices.
 
 Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`.
-Follow `docs/system/spec-driven-development.md` in the Instruction Engine repo when a target repo opts into spec-driven work, and run the target repo's `node scripts/validate-specs.js <spec-root>` validator when present.
+Follow `docs/system/spec-driven-development.md` in the Elegy Copilot repo when a target repo opts into spec-driven work, and run the target repo's `node scripts/validate-specs.js <spec-root>` validator when present.
 Specs describe intent (requirements). Docs describe state (how it works). ADRs record decisions (what was chosen).
 
-## Instruction Engine Repo Map
+## Elegy Copilot Repo Map
 
-When the current workspace is Instruction Engine / Elegy Copilot:
+When the current workspace is Elegy Copilot / Elegy Copilot:
 
 - `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into `~/.elegy`.
 - `catalog-assets/shared-skills/` ships cross-harness shared skills.
@@ -77,7 +77,7 @@ Use the skill tool when domain guidance changes the outcome, not just because a 
 
 ## Lane Agents
 
-Instruction Engine ships two primary lane agents for Tab-selection alongside OpenCode's built-in agents.
+Elegy Copilot ships two primary lane agents for Tab-selection alongside OpenCode's built-in agents.
 Lane agents enforce workflow phases and delegate to subagents for implementation and review.
 
 ### Primary Lane Agents

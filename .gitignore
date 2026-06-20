@@ -42,7 +42,7 @@ tmpclaude-*
 .vscode-test/
 **/.vscode-test/
 .vscode/mcp.json
-instruction-engine.code-workspace
+elegy-copilot.code-workspace
 *.tsbuildinfo
 .cli/
 

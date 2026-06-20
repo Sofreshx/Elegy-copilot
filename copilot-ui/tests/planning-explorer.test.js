@@ -81,12 +81,12 @@ test('goal entity gets correct shape with entityType, entityId, title, tags, rep
 test('repoScope.direct contains repo:* tags only', () => {
   const entity = {
     id: 'rm-1',
-    tags: ['repo:instruction-engine', 'repo:elegy', 'feature:ui', 'phase:1'],
+    tags: ['repo:elegy-copilot', 'repo:elegy', 'feature:ui', 'phase:1'],
   };
 
   const result = buildExplorerEntity(entity, 'roadmap');
 
-  assert.deepStrictEqual(result.repoScope.direct, ['repo:instruction-engine', 'repo:elegy']);
+  assert.deepStrictEqual(result.repoScope.direct, ['repo:elegy-copilot', 'repo:elegy']);
 });
 
 test('parentChain preserves goalId, roadmapId, planId', () => {

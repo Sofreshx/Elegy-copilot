@@ -31,7 +31,7 @@ an incidental code change.
 
 | Domain | Canonical authority | Canonical location / surface | Legacy / secondary surfaces |
 |---|---|---|---|
-| State roots and storage paths | Unified `~/.elegy` runtime state model | `~/.elegy/*` with the shared layout defined below | `~/.instruction-engine/*` only as migration-era exceptions, not a competing root |
+| State roots and storage paths | Unified `~/.elegy` runtime state model | `~/.elegy/*` with the shared layout defined below | `~/.elegy-copilot/*` only as migration-era exceptions, not a competing root |
 | Runtime and readiness state | `copilot-ui` owns control-plane health; Kimaki owns remote-session process state | `GET /api/health` and `GET /api/remote/status` | Retired messaging-gateway status files and `/api/gateway/*` routes are not authorities |
 | Asset mutation authority | `copilot-ui` local backend control plane | catalog mutation and install/enable/disable APIs | legacy direct editor mutations are retired |
 | Enablement persistence | Repo registry overlay | `~/.elegy/repo-state/<repoId>/registry.json` | legacy imported settings are compatibility input only |
@@ -88,7 +88,7 @@ That means:
 
 **Migration posture**
 
-`~/.instruction-engine/*` is frozen as a **legacy compatibility namespace**, not as a second
+`~/.elegy-copilot/*` is frozen as a **legacy compatibility namespace**, not as a second
 authoritative root.
 
 Current runtime behavior treats that namespace as migration-only input.

@@ -11,7 +11,7 @@ tags: [mcp]
 
 # MCP Workflow Guide
 
-This guide explains how Instruction Engine integrates MCP providers without loading them all the time.
+This guide explains how Elegy Copilot integrates MCP providers without loading them all the time.
 
 ## Core Idea
 
@@ -23,7 +23,7 @@ This guide explains how Instruction Engine integrates MCP providers without load
 
 1. Open the desktop Catalog status surface.
 2. Enable only the external source/provider you need for the current task.
-3. Store MCP secrets outside the repo (for example, `~/.config/instruction-engine/mcp.env`) or set `MCP_ENV_FILE`.
+3. Store MCP secrets outside the repo (for example, `~/.config/elegy-copilot/mcp.env`) or set `MCP_ENV_FILE`.
 4. Use the provider-specific agent or skill through the desktop runtime.
 5. Disable the provider when done.
 
@@ -38,7 +38,7 @@ MCP config is managed by the selected external source/provider integration.
 
 ## Local MCP Env
 
-Store local MCP secrets outside the repo (for example, `~/.config/instruction-engine/mcp.env`).
+Store local MCP secrets outside the repo (for example, `~/.config/elegy-copilot/mcp.env`).
 Use the helper scripts to load env vars before running local tooling:
 
 - macOS/Linux: `./scripts/mcp-env.sh`

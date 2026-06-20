@@ -59,7 +59,7 @@ Do not route here when the request is mainly:
 
 ## Governance Defaults
 
-- **Instruction-engine first**: optimize for this repo's canonical docs and asset model.
+- **elegy-copilot first**: optimize for this repo's canonical docs and asset model.
 - **Audit/propose first**: default to finding gaps and proposing updates before mutating files.
 - **Graph-preserving**: extend `docs/system/**`; do not create a parallel documentation system.
 - **Smallest useful change**: prefer one node and the minimum index/MOC link updates needed.

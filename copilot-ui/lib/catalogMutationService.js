@@ -503,7 +503,7 @@ function resolveSharedAuthoring(engineRoot, kind, assetKey, authoringRepoPath) {
   const engineRootAbs = path.resolve(engineRoot);
   if (selectedRepoPath !== engineRootAbs) {
     throw Object.assign(
-      new Error('Shared shipped assets may only be authored when instruction-engine is the selected repo/workspace'),
+      new Error('Shared shipped assets may only be authored when elegy-copilot is the selected repo/workspace'),
       { statusCode: 400 },
     );
   }

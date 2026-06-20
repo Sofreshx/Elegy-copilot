@@ -235,7 +235,7 @@ async function run() {
     const { elegyHomeAbs, repoPath } = createFixture();
     const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const notesDir = path.join(vaultPath, 'Planning', 'repo-workspace-repo');
-    const mirrorDir = path.join(notesDir, '_instruction-engine', 'planning-mirrors');
+    const mirrorDir = path.join(notesDir, '_elegy-copilot', 'planning-mirrors');
     fs.mkdirSync(mirrorDir, { recursive: true });
     fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
@@ -305,7 +305,7 @@ async function run() {
     const { elegyHomeAbs, repoPath } = createFixture();
     const vaultPath = path.join(elegyHomeAbs, 'planning-vault');
     const notesDir = path.join(vaultPath, 'Planning', 'repo-workspace-repo');
-    const mirrorPath = path.join(notesDir, '_instruction-engine', 'planning-mirrors', 'bullets.md');
+    const mirrorPath = path.join(notesDir, '_elegy-copilot', 'planning-mirrors', 'bullets.md');
     fs.mkdirSync(path.dirname(mirrorPath), { recursive: true });
     fs.writeFileSync(path.join(elegyHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
@@ -322,7 +322,7 @@ async function run() {
     const mirrorNoteId = obsidianNotesLib.deriveObsidianNoteId({
       repoId: 'repo-workspace-repo',
       vaultName: 'planning-vault',
-      notePath: 'Planning/repo-workspace-repo/_instruction-engine/planning-mirrors/bullets.md',
+      notePath: 'Planning/repo-workspace-repo/_elegy-copilot/planning-mirrors/bullets.md',
     });
     const { res } = await invoke(routes, { elegyHomeAbs }, 'GET', `/api/planning/obsidian/notes/${encodeURIComponent(mirrorNoteId)}`);
     const body = parseJsonBody(res);
@@ -1057,7 +1057,7 @@ async function run() {
         nextCursor: 'cursor-protected',
         notes: [
           {
-            notePath: '_instruction-engine/planning-mirrors/bullets.md',
+            notePath: '_elegy-copilot/planning-mirrors/bullets.md',
             content: '# Reserved mirror overwrite',
             lastModifiedAt: '2026-03-23T10:00:00.000Z',
           },
@@ -1075,7 +1075,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
       'bullets.md',
     );
@@ -1083,7 +1083,7 @@ async function run() {
     assert.equal(body.kind, 'planning.obsidian.sync');
     assert.equal(body.result.state, 'conflict');
     assert.equal(body.result.conflictCount, 1);
-    assert.deepEqual(body.result.conflicts, ['_instruction-engine/planning-mirrors/bullets.md']);
+    assert.deepEqual(body.result.conflicts, ['_elegy-copilot/planning-mirrors/bullets.md']);
     assert.match(body.result.message, /tool-managed/i);
     assert.equal(body.status.remoteSync.state, 'conflict');
     assert.equal(fs.existsSync(protectedMirrorPath), false);
@@ -1255,7 +1255,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
       'roadmaps',
       'platform-foundation.md',
@@ -1351,7 +1351,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
       'bullets.md',
     );
@@ -1359,7 +1359,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
       'roadmaps',
       'platform-foundation.md',
@@ -1424,7 +1424,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
       'bullets.md',
     );
@@ -1495,7 +1495,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
       'bullets.md',
     );
@@ -1503,7 +1503,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
       'roadmaps',
       'platform-foundation.md',
@@ -1586,7 +1586,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
       'bullets.md',
     );
@@ -1620,7 +1620,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
     );
     fs.mkdirSync(mirrorDir, { recursive: true });
@@ -1696,7 +1696,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
       'bullets.md',
     );
@@ -1786,7 +1786,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
       'bullets.md',
     );
@@ -1902,7 +1902,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
       'bullets.md',
     );
@@ -1991,7 +1991,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
     );
     const bulletsMirrorPath = path.join(mirrorBaseDir, 'bullets.md');
@@ -2109,7 +2109,7 @@ async function run() {
       vaultPath,
       'Planning',
       'repo-workspace-repo',
-      '_instruction-engine',
+      '_elegy-copilot',
       'planning-mirrors',
     );
     const bulletsMirrorPath = path.join(mirrorBaseDir, 'bullets.md');

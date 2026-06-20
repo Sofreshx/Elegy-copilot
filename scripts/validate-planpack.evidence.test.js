@@ -92,7 +92,7 @@ ${streamRows.map(row => `| ${row.group} | ${row.predicate || 'execution-log and/
 				commitSha: 'abc123def456',
 				releaseTag: defaultReleaseTag,
 				channel: 'stable',
-				producerIdentity: 'github-actions://instruction-engine/desktop-release',
+				producerIdentity: 'github-actions://elegy-copilot/desktop-release',
 				attestationStatus: 'true',
 				evidenceTimestamp: defaultTimestamp,
 				evidence: 'attestation://release-2026.02.25.1',

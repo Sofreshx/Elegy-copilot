@@ -14,7 +14,7 @@ related: [workflow-planning-contract, validation-governance]
 
 ## Purpose
 
-Define the shared v1 contract for spec-driven development in `instruction-engine`.
+Define the shared v1 contract for spec-driven development in `elegy-copilot`.
 
 This layer complements existing Plan Pack, roadmap, review, and validation assets. It does not
 replace them, and it does not introduce a new orchestrator fleet.

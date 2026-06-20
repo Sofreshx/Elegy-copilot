@@ -13,7 +13,7 @@ function createMockCtx(overrides: Record<string, unknown> = {}) {
   return {
     opencodeHome: '/tmp/.config/opencode',
     elegyHomeAbs: '/tmp/.config/elegy-copilot',
-    engineRoot: '/tmp/instruction-engine',
+    engineRoot: '/tmp/elegy-copilot',
     env: { HOME: '/tmp' },
     req: { method: 'GET' },
     res: { writeHead: vi.fn(), end: vi.fn() },
@@ -49,7 +49,7 @@ function createMockOpenCodeConfig(statusOverrides: Record<string, unknown> = {})
       opencodeHome: '/tmp/.config/opencode',
       profile: {
         permission: { external_directory: 'allow', bash: 'allow' },
-        marker: { version: 1, marker: 'instruction-engine-worktree-permission-profile', worktreeBase: '/tmp/.local/share/opencode/worktree' },
+        marker: { version: 1, marker: 'elegy-copilot-worktree-permission-profile', worktreeBase: '/tmp/.local/share/opencode/worktree' },
       },
     })),
     setAgentModels: vi.fn(),

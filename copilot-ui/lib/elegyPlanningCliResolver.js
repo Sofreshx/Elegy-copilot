@@ -487,7 +487,7 @@ async function fetchLatestReleaseInfo(fetchImpl) {
   const response = await fetchFn(url, {
     headers: {
       'Accept': 'application/vnd.github+json',
-      'User-Agent': 'instruction-engine',
+      'User-Agent': 'elegy-copilot',
     },
   });
 
@@ -532,7 +532,7 @@ async function downloadToFile(fetchImpl, url, destinationPath) {
   await fs.promises.mkdir(path.dirname(destinationPath), { recursive: true });
 
   const response = await fetchFn(url, {
-    headers: { 'User-Agent': 'instruction-engine' },
+    headers: { 'User-Agent': 'elegy-copilot' },
     redirect: 'follow',
   });
 
