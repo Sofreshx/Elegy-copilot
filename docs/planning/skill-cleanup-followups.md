@@ -1,9 +1,9 @@
 ---
 created: 2026-06-09
 updated: 2026-06-18
-category: planning
+category: meta
 status: current
-doc_kind: note
+doc_kind: node
 id: skill-cleanup-followups
 summary: "Remaining work from the June 9 2026 skill audit. Items that need dedicated investigation or implementation in a future session."
 tags: [planning, skills, audit, follow-up]

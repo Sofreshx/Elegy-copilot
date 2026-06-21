@@ -29,6 +29,27 @@ Acceptance criteria across specs and project plans must include concrete verific
 
 ## Requirements
 
+### Allowed Behavior
+
+- `→ verify:` marker lines following each acceptance check bullet as the canonical verification format
+- Spec validator (`validate-specs.js`) detecting missing verification methods and flagging acceptance checks that lack them
+- Vague language detection applying `AC_VAGUE_TOKEN_RE` to acceptance check bullet text as a hard error
+- Plan-pack validator (`validate-planpack.js`) defaulting `acEnforcement` to `'fail'` instead of `'warn'`
+- Spec-authoring skill template including `→ verify:` lines and authoring rules requiring them
+- Spec-review skill explicitly checking for concrete verification methods (not just "observable")
+- Updated spec-driven-development doc examples showing verification methods
+- Placeholder `→ verify: pending — author review needed` for existing specs where domain knowledge is lacking
+
+### Forbidden Behavior
+
+- Acceptance check bullets without at least one `→ verify:` line immediately following
+- Vague or subjective language in acceptance check bullet text (always reject)
+- Plan-pack validator defaulting to `warn` for acceptance criteria enforcement (must be `fail`)
+- Changing the `elegy-planning --acceptance` free-form string interface
+- Requiring automated test execution from acceptance criteria (verification method is a reference, not an auto-run trigger)
+- Changing plan-pack work unit `#### Acceptance Criteria` format (bullets only, no verify marker)
+- Changing roadmap item `Acceptance:` field format
+
 - **R1:** Every acceptance check bullet in a spec must include at least one `→ verify:` line immediately following it (indented 2 spaces, no blank line separator). The verify line content must be non-empty.
 - **R2:** The spec validator (`scripts/validate-specs.js`) must detect verification methods and flag acceptance checks that lack them.
 - **R3:** The spec validator (`scripts/validate-specs.js`) must replicate the `AC_VAGUE_TOKEN_RE` regex from `scripts/validate-planpack.js:457` verbatim and apply it to acceptance check bullet text (not verify lines), reporting errors for any matches. This is a hard error, not a warning.

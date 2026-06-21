@@ -31,6 +31,27 @@ Make the OpenCode lane agent system auditable, internally consistent, and harder
 
 ## Requirements
 
+### Allowed Behavior
+
+- Lane agents are classified as agents (not skills) in all documentation
+- Each lane agent prompt includes evidence-first clarification, explicit refusal, required gates, and observable skill loads where applicable
+- `quick` lane accepts only single-step queries, typo fixes, and 1-2 line changes with no behavioral impact
+- `spec` lane explores codebase first before asking user for contract boundary
+- `project` lane uses only documented Elegy CLI commands
+- Model/profile mapping derives from `profiles.json` as the single source of truth
+- Validators check doc references, prompt sections, profile coverage, and Elegy command references
+- Tests cover install output, profile switching, doc references, and prompt section requirements
+
+### Forbidden Behavior
+
+- Lane agents classified as `lane-*` skills in documentation
+- Lane agent prompts missing clarification, refusal, or gate sections
+- `quick` lane accepting ambiguous, user-facing, API contract, or multi-step orchestration work
+- `spec` lane asking user for contract boundary that is discoverable from code
+- `project` lane referencing undocumented Elegy CLI commands (`goal current`, `lease list`, `work-point list`, `evidence add`)
+- Independent model label declarations outside `profiles.json`
+- Missing validation checks for lane doc references, prompt sections, profile role coverage, or Elegy command references
+
 ### R1 — Normalize Documentation Posture
 - `docs/system/opencode-guide.md` must refer to lane agents, not lane skills.
 - `docs/system/` docs must consistently treat built-in OpenCode agents (`Build`, `Plan`, `Explore`, `Scout`, `General`) as the default and lane agents (`quick`, `standard`, `spec`, `project`) as optional native workflow agents. The validator (R7) is the enforcement mechanism.

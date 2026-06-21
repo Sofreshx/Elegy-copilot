@@ -35,6 +35,28 @@ Replace the current `PlanningAuthorityView` tab with a clean, focused explorer v
 
 ## Requirements
 
+### Allowed Behavior
+
+- Single-purpose roadmap list view replacing the entire `PlanningAuthorityView` tab
+- Multi-repo loading with per-repo `Promise.allSettled` for parallel execution
+- Repository filter bar with toggleable chips and unselected state
+- Sort control with "Created (newest first)" and "Last updated (newest first)" options
+- Opening `PlanningGraphView` in separate browser window via URL-param approach (standalone mode)
+- Roadmap cards showing title, repo label, status chip, summary, and last-updated timestamp
+- Partial API failure handling with non-blocking warning banner for failed repos
+- Extractable pure functions for repo normalization, merging, filtering, sorting, and label resolution
+
+### Forbidden Behavior
+
+- Backend API changes (all repo filtering and merging is client-side)
+- Pagination (add only if roadmap count exceeds 50 in production)
+- Text search bar (can be added later)
+- Roadmap creation or editing from this view
+- Drag-and-drop reordering of roadmaps
+- Persistence of filter/sort state across tab switches or app restarts
+- Changes to `PlanningGraphView.tsx` internals (adaptation via wrapper only)
+- Keeping the old metric grid, authority panel, transfer tab, or inline graph view in this tab
+
 ### R1 — Clean Planning List
 Replace the entire `PlanningAuthorityView` tab content with a single-purpose roadmap list view. The component MUST render:
 - A header region with the view title ("Planning Explorer") and a refresh button.

@@ -4,6 +4,9 @@ title: Skill Authoring Skills + guidelines.md Deprecation
 status: draft
 type: feature
 updated: 2026-06-18
+liveness_skip_paths:
+  - engine-assets/skills/guidelines-authoring/**
+  - engine-assets/skills/project-guidelines/**
 ---
 
 # Skill Authoring Skills + guidelines.md Deprecation
@@ -20,7 +23,7 @@ Add two cross-harness shared skills (`skill-authoring`, `agents-md-authoring`) t
 - `guidelines.md` is referenced from 48+ files across the repo: AGENTS.md, all 4 per-harness appendices, multiple canonical docs, agent definitions, and 2 governing skills
 - `docs/system/commit-validation-governance.md` explicitly defers "code quality beyond lint/format" to a separate governance surface that does not yet exist
 - `docs/system/skills-governance.md:111-116` defines a skill quality bar that does not reference the agentskills.io open standard
-- `engine-assets/skills/guidelines-authoring/SKILL.md` and `engine-assets/skills/project-guidelines/SKILL.md` are narrow surface for a deprecated per-repo entrypoint
+- `engine-assets/skills/guidelines-authoring/SKILL.md` (deleted per deprecation) and `engine-assets/skills/project-guidelines/SKILL.md` (deleted per deprecation) — narrow surfaces for a deprecated per-repo entrypoint
 - Official sources verified:
   - `https://developers.openai.com/codex/guides/agents-md` — official AGENTS.md layering/discovery/override rules
   - `https://developers.openai.com/codex/skills` — official Codex skill format/locations
@@ -30,6 +33,28 @@ Add two cross-harness shared skills (`skill-authoring`, `agents-md-authoring`) t
   - `https://agents.md` — official AGENTS.md website
 
 ## Requirements
+
+### Allowed Behavior
+
+- New `skill-authoring` shared skill packaging official agentskills.io guidance for creating skills
+- New `agents-md-authoring` shared skill for creating AGENTS.md / CLAUDE.md / GEMINI.md files
+- Code quality posture rules added to the shared portable baseline (`agent-session-defaults.md`)
+- Both new skills wired to all 5 harness manifests and appendices with `loadMode: on-demand`
+- Deleting `guidelines.md` at repo root and its two governing skills entirely (no compatibility shims)
+- Removing `guidelines.md` from all shipped instructions, agent files, and canonical docs
+- Updated validator checking banned-term absence, code quality section presence, and new skill existence
+- Doc freshness sync with bumped `updated` frontmatter and changelog entries
+
+### Forbidden Behavior
+
+- Keeping compatibility shims for the deprecated `guidelines.md` surface
+- Migrating the existing `code-review` deprecated compatibility surface (separate follow-up)
+- Building a new orchestrator fleet or lane for skill creation (skills themselves are the deliverable)
+- Converting existing skills to new format (already comply with agentskills.io frontmatter)
+- Adding a custom OpenCode agent for skill creation (use `Build` agent + new `skill-authoring` skill)
+- Creating a Codex-style system skill for skill creation
+- Removing `codex-assets/skills/repo-setup/SKILL.md` (harness-native, not a guidelines surface)
+- Touching `docs/specs/code-quality-control-plane-research/spec.md` (separate workstream)
 
 ### R1: New `skill-authoring` shared skill
 
@@ -137,8 +162,8 @@ Add two cross-harness shared skills (`skill-authoring`, `agents-md-authoring`) t
   → verify: read file, confirm `name` matches parent dir, `description` ≤ 1024 chars, no banned chars
 - New `agents-md-authoring/SKILL.md` exists at `catalog-assets/shared-skills/agents-md-authoring/SKILL.md` with valid agentskills.io frontmatter
   → verify: read file, confirm frontmatter compliance
-- Shared baseline `catalog-assets/instructions/agent-session-defaults.md` contains `## Code Quality Posture` section
-  → verify: grep the file for the section header
+- Shared baseline `catalog-assets/instructions/agent-session-defaults.md` has a new standards section added
+  → verify: confirm the file contains the `## Code Quality Posture` heading
 - All 5 manifests contain entries for both new skills
   → verify: grep all 5 manifest.json files for `skill-authoring` and `agents-md-authoring`
 - All 5 per-harness appendices list the new skills in their skills inventory
@@ -166,8 +191,8 @@ Add two cross-harness shared skills (`skill-authoring`, `agents-md-authoring`) t
 - 5 manifest.json files — add 2 skill entries each
 - 5 per-harness appendix files — add 2 skills to inventories
 - `guidelines.md` — delete
-- `engine-assets/skills/guidelines-authoring/` — delete directory
-- `engine-assets/skills/project-guidelines/` — delete directory
+- `engine-assets/skills/guidelines-authoring/` — deleted per deprecation
+- `engine-assets/skills/project-guidelines/` — deleted per deprecation
 - `AGENTS.md` — drop guidelines.md authority level
 - `docs/system/harness-asset-flow.md` — drop guidelines.md reference
 - `docs/system/concise-instruction-governance.md` — drop guidelines.md level

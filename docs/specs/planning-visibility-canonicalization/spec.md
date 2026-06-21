@@ -71,6 +71,30 @@ work MUST use the `.elegy` paths above.
 
 ## Requirements
 
+### Allowed Behavior
+
+- Canonical `repo:*`, `source:*`, `theme:*`, and `phase:*` tags on all planning entities created by Codex, OpenCode, or Copilot scaffolding
+- In-place repair of existing consolidation goal and roadmaps with stable IDs and event logging
+- Inherited repo scope matching through parent goal tags (server-side bridge filter)
+- Unscoped/inherited records displayed by default in the Planning UI with explicit "Unscoped / inherited" section
+- Rich explorer view with entity-type, repo, status, tag, source-harness, date, parent-goal, and free-text filters
+- Warning buckets panel for unscoped, orphaned, stale, and missing-session records
+- Drill-down side panel showing raw JSON, tags, parent chain, validation state, and copyable CLI commands
+- Active session status panel above the explorer with session metadata or init button
+- Validation script (`validate-planning-metadata.js`) checking unscoped, orphaned, inconsistent tags, and missing work items
+- Shared planning session sidecar at `~/.elegy/planning-session.json` surfaced via new endpoint
+
+### Forbidden Behavior
+
+- Modifying the `elegy-planning` Rust CLI source (shipped pre-compiled)
+- Migrating consolidation records between databases (repair in place only)
+- Repairing non-consolidation goals/roadmaps (out of scope for this spec)
+- Creating placeholder work items for consolidation roadmaps (report gaps only)
+- Periodic re-syncing of separate planning session sidecar (canonical is `~/.elegy/planning-session.json`)
+- Redesigning standalone graph window, catalog workspace store, or planning contract types
+- Persisting explorer filter/sort state across sessions (filters live in component state)
+- Paginating the explorer list (add later if count exceeds 50)
+
 ### R1 — Canonical Repo Tag Format
 
 Every planning entity (goal, roadmap, work point, plan, todo, issue, review point) created or updated by Codex, OpenCode, Copilot scaffolding, or the new `elegy-planning-create` helper MUST carry the canonical tag set. Tags are the public, documented contract for repo and harness scope; non-canonical tags are permitted but MUST NOT replace any of the canonical ones.

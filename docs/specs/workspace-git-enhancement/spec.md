@@ -27,6 +27,30 @@ Enhance `copilot-ui` Workspace Git tab so it becomes a practical local Git contr
 
 ## Requirements
 
+### Allowed Behavior
+
+- Check runner preferring canonical lane-based CI check config when available
+- Fallback to legacy `KNOWN_CHECKS` + githooks discovery when no canonical config exists
+- API responses including `source` metadata, `checkedAt` timestamp, and per-lane results
+- Verify & Commit awaiting check completion before committing (direct `await` on API call)
+- Failed checks rendering failure details and keeping commit blocked
+- Force Commit button requiring override reason sent as `unsafeOverride`
+- Stash management with create, apply, pop, and drop operations via new API routes
+- Computed worktree state chips (current, clean, dirty, checking, checked, mergeable, merged, conflict, etc.) replacing raw `discovered` status
+- Worktree merge flow with dry-run before merge and conflict state display
+- Per-row check, merge, and conflict resolution actions in the Flags column
+
+### Forbidden Behavior
+
+- Bypassing local checks without explicit force override and reason
+- Querying remote GitHub Actions or CI status (local CI only)
+- Per-worktree stash controls (first slice covers active workspace only)
+- Durable or persistent worktree check/merge state across app restarts
+- New icon package or broad visual redesign (must reuse existing `AppIcon`, Button, and CSS token patterns)
+- Full `git stash branch` or `git stash show` command surface
+- Modifying the existing merge-candidates branch merge flow (additive only)
+- Concurrent check execution across multiple worktrees (sequential per worktree)
+
 ### R1 — Canonical commit-check contract
 - The check runner MUST prefer the canonical lane-based CI check config (as read by `scripts/commit-check-run.mjs --json`) when such a config file exists at the path resolved by the script's `resolveConfig` function.
 - When no config exists, the runner MUST fall back to the legacy `KNOWN_CHECKS` + githooks discovery.

@@ -2,7 +2,7 @@
 created: 2026-02-27
 updated: 2026-06-15
 category: system
-status: resolved
+status: archived
 doc_kind: node
 id: implementation-friction-log
 summary: Append-only log of recurring implementation friction discovered during normal delivery work.

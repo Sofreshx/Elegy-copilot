@@ -28,6 +28,26 @@ Define the Elegy-copilot research contract for running, configuring, and visuali
 
 ## Requirements
 
+### Allowed Behavior
+
+- Researching an agentic code quality control surface for installing, running, and displaying code quality systems
+- Orchestrating installed tools, showing status, running commands, displaying results, and launching agent reviews
+- Supporting both TypeScript and Rust repos in the research scope
+- Investigating Semgrep, ast-grep, CodeQL, Joern, and `elegy-codegraph` integration as candidates
+- Persisting operator configuration and last-run state for analyzers
+- Designing an operator dashboard as the first UI with analyzer inventory, policy view, run history, and finding detail
+- Distinguishing proven analyzer output from inferred graph/agent summaries in the UI
+- Existing commit-check lanes remaining the narrow commit gate
+
+### Forbidden Behavior
+
+- Implementing analyzer installation or graph UI in this research spec
+- Making Elegy-copilot the portable source of truth for Semgrep, ast-grep, CodeQL, Joern, or codegraph rules
+- Claiming graph findings replace tests, typechecks, lint, or review
+- Forcing every repo to install heavy analyzers by default
+- Hiding analyzer cost, stale indexes, partial language support, or confidence levels from users
+- Replacing existing commit-check lanes with the code quality control plane
+
 ### Ownership And Product Boundary
 
 - Elegy-copilot owns the local operator experience for code quality systems.

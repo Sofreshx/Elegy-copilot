@@ -179,7 +179,7 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-review",
       "destination": "skills/implementation-review",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-planning-plugin",
@@ -191,29 +191,25 @@
       "id": "opencode-planning-tools-skill",
       "type": "skill",
       "source": "opencode-assets/skills/planning-tools",
-      "destination": "skills/planning-tools",
-      "loadMode": "always"
+      "destination": "skills/planning-tools"
     },
     {
       "id": "opencode-planning-tools-read-skill",
       "type": "skill",
       "source": "opencode-assets/skills/planning-tools-read",
-      "destination": "skills/planning-tools-read",
-      "loadMode": "always"
+      "destination": "skills/planning-tools-read"
     },
     {
       "id": "opencode-planning-tools-write-skill",
       "type": "skill",
       "source": "opencode-assets/skills/planning-tools-write",
-      "destination": "skills/planning-tools-write",
-      "loadMode": "always"
+      "destination": "skills/planning-tools-write"
     },
     {
       "id": "opencode-planning-tools-run-skill",
       "type": "skill",
       "source": "opencode-assets/skills/planning-tools-run",
-      "destination": "skills/planning-tools-run",
-      "loadMode": "always"
+      "destination": "skills/planning-tools-run"
     },
     {
       "id": "opencode-plugins-package-json",
@@ -245,7 +241,7 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",
       "destination": "skills/rubberduck-plan-review",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-security-skill",
@@ -305,15 +301,13 @@
       "id": "opencode-worktree-skill",
       "type": "skill",
       "source": "opencode-assets/skills/worktree",
-      "destination": "skills/worktree",
-      "loadMode": "always"
+      "destination": "skills/worktree"
     },
     {
       "id": "opencode-project-workflow-skill",
       "type": "skill",
       "source": "opencode-assets/skills/project-workflow",
-      "destination": "skills/project-workflow",
-      "loadMode": "always"
+      "destination": "skills/project-workflow"
     },
     {
       "id": "opencode-runner-workflow-skill",

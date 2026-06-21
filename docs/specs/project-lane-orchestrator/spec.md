@@ -49,6 +49,29 @@ Build a Rust-owned durable execution control plane that dispatches isolated codi
 
 ## Requirements
 
+### Allowed Behavior
+
+- Atomic planning leases with compare-and-claim, fencing tokens, heartbeat, and expiry
+- Append-only execution event journal under `~/.elegy/orchestrator/` with guarded state transitions
+- Worktree isolation through existing shared worktree contract with scope violation detection
+- Orchestrator-observed authoritative validation independent of worker claims
+- Single-use approval tokens cryptographically bound to immutable Git state
+- Worker adapter conformance with dispatch, cancellation, timeout, and resume fixtures
+- Idempotent HTTP endpoints with idempotency keys and SSE replay with `Last-Event-ID`
+- Replacing the existing workspace Execution tab placeholder with full session, evidence, and approval controls
+- Adversarial recovery validation suite covering lease expiry, crashes, malformed output, and stale approvals
+- Experimental pilot defaulting off behind `RuntimeConfig` flag with telemetry
+
+### Forbidden Behavior
+
+- Push or pull-request creation (approval-bound only)
+- Permanent warm worker processes (cold process plus resumable session is the default)
+- Automatic merge without human approval
+- Multi-repository concurrent runs in v1 (one active run per repo)
+- Claude Code adapter in v1 (protocol spike cancelled)
+- Second Execution tab, native daemon, planning authority, or worktree schema
+- Duplicate dispatch, duplicate commit, duplicate merge, or stale-owner mutation
+
 ### R1 — Atomic planning leases and fencing
 
 The orchestrator MUST claim work points through `elegy-planning`'s lease primitives (compare-and-claim, fencing token, heartbeat, expiry).

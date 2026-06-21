@@ -57,6 +57,28 @@ Antigravity remains visible as secondary/legacy state where already present, but
 
 ## Requirements
 
+### Allowed Behavior
+
+- Claude Code as a first-class harness across all catalog enumeration points
+- Eight-state catalog summary model (supported, available, not-installed, installed, stale, conflict, unmanaged, unknown) with state derivation rules
+- Managed-only uninstall with hash-based ownership verification
+- Deep check (dry-run validation) reporting drift and warnings per asset
+- Install/sync via existing `POST /api/assets/install-surfaces`
+- Card click opening detail modal as primary management surface (no per-card View button)
+- Scoped sync/install actions per harness tab and detail modal rows
+- External source sync with configured ref/channel refresh and drift display
+
+### Forbidden Behavior
+
+- Adding Claude Code to Antigravity management actions (Antigravity remains secondary/legacy)
+- GitHub latest-release auto-detection in v1 (configured ref/channel refresh only)
+- New CLI surface for asset management (all actions are dashboard-only)
+- Changes to existing Copilot (`engine-assets`) asset flow
+- Auto-opt-in for any harness (opt-in remains explicit)
+- Changes to installer scripts themselves
+- Uninstall when destination hash does not match managed inventory record
+- Global "Sync Harnesses" button (replaced by scoped actions)
+
 ### R1 — Claude Code as first-class harness in catalog
 
 Add Claude Code (`claude-code` harness, `claude` install-surface target) to every enumeration point currently limited to Codex/OpenCode/Antigravity:

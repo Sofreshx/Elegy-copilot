@@ -38,12 +38,34 @@ Make `docs/` the canonical knowledge root for Elegy Copilot and bootstrapped rep
 - Four harness home files reference `specs/<spec-slug>/spec.md`: `codex-assets/home/AGENTS.md`, `opencode-assets/home/AGENTS.md`, `opencode-assets/agents/spec.md`, `antigravity-assets/home/GEMINI.md`
 - `engine-assets/copilot-instructions.md:116` references `specs/<spec-slug>/spec.md`
 - `catalog-assets/shared-skills/spec-authoring/SKILL.md`, `catalog-assets/shared-skills/spec-dev/SKILL.md`, `catalog-assets/shared-skills/spec-review/SKILL.md` are authoritative skill sources that reference `specs/` paths
-- `engine-assets/skills/repo-setup-governance/profile-definitions.json` references `specs/index.md` in the `spec-driven` overlay profile
-- `scripts/validate-repo-setup-profiles.js:27-42` hardcodes expected `specs/index.md` in the spec-driven profile validation
+- `engine-assets/skills/repo-setup-governance/profile-definitions.json` references `docs/specs/index.md` in the `spec-driven` overlay profile
+- `scripts/validate-repo-setup-profiles.js:27-42` hardcodes expected `docs/specs/index.md` in the spec-driven profile validation
 - `AGENTS.md:25` lists `specs/` in the orientation table
 - `package.json:21` script `validate:specs` delegates to `scripts/validate-specs.js --strict` which defaults to `specs/`
 
 ## Requirements
+
+### Allowed Behavior
+
+- `docs/specs/<slug>/spec.md` as the canonical spec location
+- Removing the No Collision Rule between specs and docs
+- Declaring `docs/specs/**` as a governed spec family excluded from doc-graph validation
+- Updating all tooling defaults to use `docs/specs/` paths
+- Updating CI workflow, harness instructions, shared skills, governance docs, and setup profiles
+- Physically migrating spec files from `specs/` to `docs/specs/` with redirect README
+- Adding concise-by-default rules to `AGENTS.md` and governance docs
+- Deleting obsolete, duplicated, or inaccurate prose during touch
+
+### Forbidden Behavior
+
+- Full concision validator with hard-gate enforcement (warn-only first pass in scope)
+- Automated pruning of untouched docs
+- Changing the `elegy-planning` SQLite authority
+- VitePress site rebuild or doc-site publishing pipeline changes
+- Changing the spec file format, frontmatter schema, or validation rules beyond path updates
+- Adding new spec types or changing existing type contracts
+- Concision enforcement for docs/specs not touched during migration
+- Backward compatibility for pre-migration external consumers of `specs/` paths
 
 ### R1: Canonical spec location
 - `docs/specs/<slug>/spec.md` is the only long-term canonical spec location

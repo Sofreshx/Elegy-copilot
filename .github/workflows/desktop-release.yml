@@ -173,6 +173,8 @@ jobs:
 
       - name: Install workspace dependencies
         run: npm ci
+        env:
+          npm_config_msvs_version: '2022'
 
       - name: Build and stage Windows package
         run: npm --prefix copilot-ui run desktop:preview:stage

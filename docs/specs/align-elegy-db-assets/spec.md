@@ -65,6 +65,26 @@ migration proposal.
 
 ## Requirements
 
+### Allowed Behavior
+
+- Migrating specific planning goal and roadmaps from legacy DB to Copilot DB with full backups before any writes
+- Using `health --json` for CLI readiness detection instead of `--version`
+- Using `ctx.env` consistently for environment variable access in status routes
+- Installing Codex `elegy-planning` skill via the existing asset sync flow
+- Refreshing OpenCode managed assets via `syncAll()` mechanism
+- Adding `install-codex-planning` to `TOOLING_INSTALL_KINDS`
+- Fixing TypeScript type narrowing issue with minimal change
+
+### Forbidden Behavior
+
+- Modifying the legacy DB without backup before migration
+- Using `--version` for CLI readiness detection in status routes
+- Using `process.env` instead of `ctx.env` in elegy-planning code paths
+- Omitting `install-codex-planning` from `TOOLING_INSTALL_KINDS`
+- Making `~/.elegy/planning.db` authoritative (legacy migration source only)
+- Changes to the Elegy Planning CLI itself
+- Changes to Copilot UI routing structure beyond the specific fixes listed
+
 ### R1 — Migrate Planning Records to Copilot DB
 
 The goal `GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603` and its 5 roadmaps MUST exist in `~/.copilot/elegy-planning.db`.

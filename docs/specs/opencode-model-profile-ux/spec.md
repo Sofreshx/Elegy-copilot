@@ -32,6 +32,29 @@ The OpenCode settings UI in Elegy Copilot offers profile switching (opencode-go 
 
 ## Requirements
 
+### Allowed Behavior
+
+- Codex config protected from OpenCode profile changes (absolute separation)
+- Object-valued permissions normalized to strings so permissions tab renders without crash
+- Profile activation applying models to agent frontmatter files via `opencode-profile-switch.mjs`
+- Per-role model selection dropdowns derived from `profiles.json` as canonical source
+- Save/Activate button correctly disabled during save operations via `saving` prop
+- Active profile badge reflecting actual agent frontmatter state
+- Profile mismatch detection with warning banner when state file and agent files diverge
+- `codex-config-patch.mjs` accepting `--provider-id` argument for controlled fallback
+
+### Forbidden Behavior
+
+- Writing OpenCode profile changes to `~/.codex/config.toml` under any circumstances
+- Hardcoded default provider ID as root-level key in Codex config assuming `OPENCODE_API_KEY`
+- Codex Provider Panel being bypassed by OpenCode profile switching
+- Permissions tab crashing with object-valued permission entries
+- Free-text model inputs without selector or autocomplete (must use `<select>` dropdowns)
+- `reviewModel` hardcoded instead of reading from active profile
+- `ProfilesSection` using undefined `saving` prop (must be wired via `SectionProps`)
+- Active profile badge based only on state file without cross-checking agent files
+- Adding new profiles beyond existing `opencode-go` and `deepseek-direct`
+
 ### R0 — Codex Config Must Be Isolated from OpenCode Profile Changes
 
 - `scripts/codex-config-patch.mjs` must NOT hardcode a default provider ID at the root level that assumes `OPENCODE_API_KEY` is available. The `DEFAULT_PROVIDER_ID` fallback is scoped to managed block profiles only (written inside `[profiles.X]` tables, not as a root-level `model_provider` key). When no OpenCode API key is configured, Codex falls back to its native provider.

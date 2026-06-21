@@ -34,7 +34,7 @@ Resolution rule for the orchestrator:
 - The Node proxy bridge (`copilot-ui/server.js`) must resolve session artifacts from the path defined by its own runtime config, which currently uses `~/.copilot/`. The bridge is responsible for path normalization when reading artifacts and forwarding them to the orchestrator API.
 - If the `elegy_home` and `copilot_home` roots differ at runtime, the orchestrator health endpoint MUST report `path_divergence_detected` as a warning state rather than failing closed.
 
-## Decision: Authority and State Ownership Matrix
+## Decision
 
 Define these NEW orchestrator domains (extending the 7 domains already frozen in `domain-authorities-freeze.md`):
 

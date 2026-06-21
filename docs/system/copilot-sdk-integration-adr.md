@@ -7,7 +7,7 @@ doc_kind: node
 id: copilot-sdk-integration-adr
 summary: Retired. ADR for initial copilot-ui integration of @github/copilot-sdk using an ESM bridge and additive session artifacts.
 tags: [adr, copilot-sdk, copilot-ui, architecture, retired]
-related: [copilot-sdk-spike, copilot-sdk-auth-strategy, copilot-sdk-artifact-layout, adr-governance]
+related: [adr-governance]
 ---
 
 # Copilot SDK Integration ADR (retired)
