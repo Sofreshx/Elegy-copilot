@@ -38,8 +38,13 @@ function StatusDot({ status }: { status: string }) {
 }
 
 function OverviewSection({ status }: SectionProps) {
-  const overallBadge = status.overallStatus === 'ready' ? 'success'
-    : status.overallStatus === 'degraded' ? 'accent'
+  const overallStatus = status.overallStatus ?? 'unknown';
+  const warnings = status.warnings ?? [];
+  const elegyPlanningCli = status.elegyPlanningCli ?? { cliPath: null, currentVersion: null };
+  const elegySkillsAssets = status.elegySkillsAssets ?? { trackedCount: 0, outdatedCount: 0 };
+  const planningLiveAuthority = status.planningLiveAuthority ?? { ready: false };
+  const overallBadge = overallStatus === 'ready' ? 'success'
+    : overallStatus === 'degraded' ? 'accent'
     : 'danger';
 
   return (
@@ -49,20 +54,20 @@ function OverviewSection({ status }: SectionProps) {
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Overall Status</span>
             <Badge tone={overallBadge} testId="opencode-overall-status">
-              {status.overallStatus.toUpperCase()}
+              {overallStatus.toUpperCase()}
             </Badge>
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">OpenCode Home</span>
-            <code className="opencode-readiness-value">{status.opencodeHome}</code>
+            <code className="opencode-readiness-value">{status.opencodeHome ?? 'Not found'}</code>
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Config Path</span>
-            <code className="opencode-readiness-value">{status.configPath}</code>
+            <code className="opencode-readiness-value">{status.configPath ?? 'Not found'}</code>
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Effective Profile</span>
-            <Badge tone="brand">{status.effectiveProfileId || status.activeProfileId}</Badge>
+            <Badge tone="brand">{status.effectiveProfileId || status.activeProfileId || 'None'}</Badge>
           </div>
           {status.selectedProfileId && status.selectedProfileId !== status.effectiveProfileId ? (
             <div className="opencode-readiness-card">
@@ -72,46 +77,46 @@ function OverviewSection({ status }: SectionProps) {
           ) : null}
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Small Model</span>
-            <code className="opencode-readiness-value">{status.smallModel}</code>
+            <code className="opencode-readiness-value">{status.smallModel ?? '—'}</code>
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Big Model</span>
-            <code className="opencode-readiness-value">{status.bigModel}</code>
+            <code className="opencode-readiness-value">{status.bigModel ?? '—'}</code>
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Elegy Planning CLI</span>
-            <StatusDot status={status.elegyPlanningCli.cliPath ? 'ok' : 'warning'} />
+            <StatusDot status={elegyPlanningCli.cliPath ? 'ok' : 'warning'} />
             <span className="opencode-readiness-value">
-              {status.elegyPlanningCli.cliPath ? status.elegyPlanningCli.currentVersion || 'detected' : 'Not detected'}
+              {elegyPlanningCli.cliPath ? elegyPlanningCli.currentVersion || 'detected' : 'Not detected'}
             </span>
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Elegy Skills</span>
-            <StatusDot status={status.elegySkillsAssets.trackedCount > 0 ? 'ok' : 'warning'} />
+            <StatusDot status={elegySkillsAssets.trackedCount > 0 ? 'ok' : 'warning'} />
             <span className="opencode-readiness-value">
-              {status.elegySkillsAssets.trackedCount} tracked
-              {status.elegySkillsAssets.outdatedCount > 0 ? `, ${status.elegySkillsAssets.outdatedCount} outdated` : ''}
+              {elegySkillsAssets.trackedCount} tracked
+              {elegySkillsAssets.outdatedCount > 0 ? `, ${elegySkillsAssets.outdatedCount} outdated` : ''}
             </span>
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Planning Live Authority</span>
-            <StatusDot status={status.planningLiveAuthority.ready ? 'ok' : 'warning'} />
+            <StatusDot status={planningLiveAuthority.ready ? 'ok' : 'warning'} />
             <span className="opencode-readiness-value">
-              {status.planningLiveAuthority.ready ? 'Ready' : 'Not ready'}
+              {planningLiveAuthority.ready ? 'Ready' : 'Not ready'}
             </span>
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Warnings</span>
-            <Badge tone={status.warnings.length > 0 ? 'accent' : 'success'}>
-              {status.warnings.length > 0 ? `${status.warnings.length} active` : 'None'}
+            <Badge tone={warnings.length > 0 ? 'accent' : 'success'}>
+              {warnings.length > 0 ? `${warnings.length} active` : 'None'}
             </Badge>
           </div>
         </div>
       </Panel>
 
-      {status.warnings.length > 0 ? (
+      {warnings.length > 0 ? (
         <Panel title="Active Warnings" testId="opencode-warnings">
-          {status.warnings.map((w: OpenCodeWarning) => (
+          {warnings.map((w: OpenCodeWarning) => (
             <div key={w.id} className="opencode-warning-row" data-testid={`opencode-warning-${w.id}`}>
               <StatusDot status={w.severity} />
               <div className="opencode-warning-content">
@@ -182,14 +187,15 @@ function LaneDetailPanel({ lane }: { lane: OpenCodeLane }) {
 }
 
 function LaneSection({ status, selectedLaneId, saving }: SectionProps) {
+  const lanes = status.lanes ?? [];
   const selectedLane = selectedLaneId
-    ? status.lanes.find((l: OpenCodeLane) => l.id === selectedLaneId)
+    ? lanes.find((l: OpenCodeLane) => l.id === selectedLaneId)
     : null;
 
   return (
     <div className="opencode-section" data-testid="opencode-lanes">
       <div className="opencode-lane-map" data-testid="opencode-lane-map">
-        {status.lanes.map((lane: OpenCodeLane) => (
+        {lanes.map((lane: OpenCodeLane) => (
           <div
             key={lane.id}
             className={`opencode-lane-card${selectedLaneId === lane.id ? ' opencode-lane-card-active' : ''}`}
@@ -224,23 +230,24 @@ function LaneSection({ status, selectedLaneId, saving }: SectionProps) {
 }
 
 function ProfilesSection({ status, saving }: SectionProps) {
-  const [smallModel, setSmallModel] = useState<string>(status.smallModel);
-  const [bigModel, setBigModel] = useState<string>(status.bigModel);
-  const profileReviewModel = status.profiles.find(p => p.id === status.activeProfileId)?.reviewModel || '';
+  const profiles = status.profiles ?? [];
+  const [smallModel, setSmallModel] = useState<string>(status.smallModel ?? '');
+  const [bigModel, setBigModel] = useState<string>(status.bigModel ?? '');
+  const profileReviewModel = profiles.find(p => p.id === status.activeProfileId)?.reviewModel || '';
   const [reviewModel, setReviewModel] = useState<string>(profileReviewModel);
   const [modelsDirty, setModelsDirty] = useState<boolean>(false);
   const [roleModels, setRoleModels] = useState<Record<string, string>>(status.roleModels || {});
 
   useEffect(() => {
-    setSmallModel(status.smallModel);
-    setBigModel(status.bigModel);
+    setSmallModel(status.smallModel ?? '');
+    setBigModel(status.bigModel ?? '');
     setRoleModels(status.roleModels || {});
-    const profile = status.profiles.find(p => p.id === status.activeProfileId);
+    const profile = profiles.find(p => p.id === status.activeProfileId);
     if (profile) {
       setReviewModel(profile.reviewModel);
     }
     setModelsDirty(false);
-  }, [status.smallModel, status.bigModel, status.activeProfileId, status.profiles, status.roleModels]);
+  }, [status.smallModel, status.bigModel, status.activeProfileId, profiles, status.roleModels]);
 
   const mismatch = status.profileMismatch;
 
@@ -264,7 +271,7 @@ function ProfilesSection({ status, saving }: SectionProps) {
     <div className="opencode-section" data-testid="opencode-profiles">
       <Panel title="Provider Routing" testId="opencode-provider-routing">
         <div className="opencode-profiles-list">
-          {status.profiles.map((profile: OpenCodeProfile) => (
+          {profiles.map((profile: OpenCodeProfile) => (
             <div
               key={profile.id}
               className={`opencode-profile-card${profile.id === (status.effectiveProfileId || status.activeProfileId) ? ' opencode-profile-card-active' : ''}`}
@@ -1541,7 +1548,7 @@ export default function OpenCodeView() {
           <p className="opencode-message" data-testid="opencode-message">{state.message}</p>
         ) : null}
 
-        {state.status && SectionComponent ? (
+        {state.status && state.status.overallStatus && SectionComponent ? (
           <SectionComponent status={state.status} selectedLaneId={state.selectedLaneId} saving={state.saving} />
         ) : null}
       </div>

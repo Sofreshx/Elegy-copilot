@@ -7,7 +7,7 @@ import DocTreeView from './DocTreeView';
 // ── Tree filtering ──
 
 function filterTreeForAssets(nodes: RepoDocTreeNode[]): RepoDocTreeNode[] {
-  return nodes
+  return (nodes ?? [])
     .map((node) => {
       if (node.kind === 'directory') {
         const dir = node as RepoDocTreeDirNode;

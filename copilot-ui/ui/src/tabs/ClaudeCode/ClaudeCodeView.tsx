@@ -18,8 +18,10 @@ function StatusDot({ status }: { status: string }) {
 }
 
 function ReadinessSection({ status }: { status: ClaudeCodeStatusResponse }) {
-  const overallBadge = status.overallStatus === 'ready' ? 'success'
-    : status.overallStatus === 'degraded' ? 'accent'
+  const overallStatus = status.overallStatus ?? 'unknown';
+  const cli = status.cli ?? { installed: false, version: null, lastError: null };
+  const overallBadge = overallStatus === 'ready' ? 'success'
+    : overallStatus === 'degraded' ? 'accent'
     : 'danger';
 
   return (
@@ -29,12 +31,12 @@ function ReadinessSection({ status }: { status: ClaudeCodeStatusResponse }) {
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Overall Status</span>
             <Badge tone={overallBadge} testId="claude-code-overall-status">
-              {status.overallStatus.toUpperCase()}
+              {overallStatus.toUpperCase()}
             </Badge>
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Claude Home</span>
-            <code className="opencode-readiness-value">{status.claudeHome}</code>
+            <code className="opencode-readiness-value">{status.claudeHome ?? 'Not found'}</code>
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Config Path</span>
@@ -42,9 +44,9 @@ function ReadinessSection({ status }: { status: ClaudeCodeStatusResponse }) {
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">CLI Installed</span>
-            <StatusDot status={status.cli.installed ? 'ok' : 'warning'} />
+            <StatusDot status={cli.installed ? 'ok' : 'warning'} />
             <span className="opencode-readiness-value">
-              {status.cli.installed ? (status.cli.version || 'Installed') : 'Not installed'}
+              {cli.installed ? (cli.version || 'Installed') : 'Not installed'}
             </span>
           </div>
         </div>
@@ -55,6 +57,7 @@ function ReadinessSection({ status }: { status: ClaudeCodeStatusResponse }) {
 
 function SetupSection({ status }: { status: ClaudeCodeStatusResponse }) {
   const state = useStoreValue(claudeCodeStore);
+  const cli = status.cli ?? { installed: false, version: null, lastError: null };
 
   const handleInstall = () => {
     void claudeCodeStore.installCli();
@@ -64,22 +67,22 @@ function SetupSection({ status }: { status: ClaudeCodeStatusResponse }) {
     <div className="opencode-section" data-testid="claude-code-setup">
       <Panel title="Setup" testId="claude-code-setup-checklist">
         <div className="opencode-setup-row" data-testid="claude-code-setup-cli">
-          <StatusDot status={status.cli.installed ? 'ok' : 'warning'} />
+          <StatusDot status={cli.installed ? 'ok' : 'warning'} />
           <div className="opencode-setup-content">
             <strong>Claude Code CLI</strong>
             <p>
-              {status.cli.installed
-                ? `Installed${status.cli.version ? `: ${status.cli.version}` : ''}`
+              {cli.installed
+                ? `Installed${cli.version ? `: ${cli.version}` : ''}`
                 : 'Claude Code CLI not detected. Install via npm.'}
             </p>
-            {status.cli.lastError ? (
+            {cli.lastError ? (
               <p style={{ color: 'var(--danger-color, #c00)', fontSize: '0.75rem' }}>
-                {status.cli.lastError}
+                {cli.lastError}
               </p>
             ) : null}
           </div>
           <div className="opencode-setup-action">
-            {!status.cli.installed ? (
+            {!cli.installed ? (
               <Button
                 variant="secondary"
                 size="sm"
@@ -136,7 +139,7 @@ export default function ClaudeCodeView() {
           <p className="opencode-message" data-testid="claude-code-message">{state.message}</p>
         ) : null}
 
-        {state.status ? (
+        {state.status && state.status.overallStatus ? (
           <>
             <ReadinessSection status={state.status} />
             <SetupSection status={state.status} />

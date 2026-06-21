@@ -370,6 +370,39 @@ export default function CatalogShellView() {
           <p className="state-message">{catalogState.installMessage}</p>
         ) : null}
 
+        {/* ACTIONABLE CATALOG ERROR — visible when summary API fails (e.g. missing snapshot) */}
+        {!summary && (summaryError || (!summaryLoading && !summary)) ? (
+          <div
+            className="catalog-actionable-error"
+            data-testid="catalog-actionable-error"
+            role="alert"
+            style={{
+              margin: '0 var(--space-md) var(--space-sm) var(--space-md)',
+              padding: 'var(--space-sm) var(--space-md)',
+              border: '1px solid var(--color-danger-500, #c0392b)',
+              borderRadius: '6px',
+              background: 'rgba(192, 57, 43, 0.08)',
+              color: 'var(--color-danger-700, #7a2018)',
+              fontSize: '0.85rem',
+            }}
+          >
+            <strong style={{ display: 'block', marginBottom: 'var(--space-2xs)' }}>
+              Catalog data could not be loaded
+            </strong>
+            <p style={{ margin: 0, marginBottom: 'var(--space-2xs)' }}>
+              {summaryError ?? 'The catalog projection snapshot is unavailable.'}
+            </p>
+            <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.85 }}>
+              The snapshot is normally stored at{' '}
+              <code style={{ background: 'rgba(0,0,0,0.05)', padding: '1px 4px', borderRadius: '3px' }}>
+                ~/.elegy/catalog/projection/snapshot.json
+              </code>{' '}
+              and is rebuilt automatically. If it is missing or stale, try the{' '}
+              <strong>Refresh</strong> button above, or open the <strong>Operations</strong> tab and trigger a catalog rebuild.
+            </p>
+          </div>
+        ) : null}
+
         {/* TAB BAR */}
         <div className="assets-tools-chip-row" data-testid="assets-tools-tabs">
           {([
@@ -405,7 +438,26 @@ export default function CatalogShellView() {
         {summaryLoading && !summary ? (
           <p className="assets-tools-empty state-message">Loading catalog summary&hellip;</p>
         ) : summaryError && !summary ? (
-          <p className="assets-tools-empty state-error">Catalog summary unavailable</p>
+          <div
+            className="assets-tools-empty state-error"
+            data-testid="catalog-empty-state"
+            style={{ padding: 'var(--space-lg)' }}
+          >
+            <p style={{ marginBottom: 'var(--space-xs)' }}>
+              <strong>Catalog summary unavailable</strong>
+            </p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--color-ink-muted)' }}>
+              {summaryError}
+            </p>
+            <button
+              type="button"
+              className="button button-secondary button-sm"
+              onClick={() => void handleRefresh()}
+              style={{ marginTop: 'var(--space-sm)' }}
+            >
+              Retry
+            </button>
+          </div>
         ) : !summary && !summaryError ? (
           <p className="assets-tools-empty state-error">Catalog summary unavailable</p>
         ) : (

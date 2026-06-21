@@ -226,7 +226,7 @@ export default function RepositoryGitPanel({ repoPath, mode = 'project' }: Repos
               disabled={state.switchingBranch || !state.branches?.branches.length}
             >
               <option value="">Select branch…</option>
-              {state.branches?.branches.filter((branch) => !branch.remote).map((branch) => (
+              {(state.branches?.branches ?? []).filter((branch) => !branch.remote).map((branch) => (
                 <option key={branch.name} value={branch.name}>{branch.name}</option>
               ))}
             </select>
