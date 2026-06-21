@@ -14,7 +14,7 @@ related: [catalog-control-plane, skills-governance, orchestration-and-agents, sy
 
 ## Purpose
 
-Instruction Engine uses a staged search/execute workflow to keep context small while still making
+Elegy Copilot uses a staged search/execute workflow to keep context small while still making
 the full capability set available on demand. The delivered workflow is backed by the shared local
 catalog/search control plane in `copilot-ui`, not by separate per-surface discovery logic.
 
@@ -85,7 +85,7 @@ complete.
 
 ## Repo-Rule Bootstrap for Write-Capable Work
 
-For instruction-engine itself, repo-rule authority stays in `docs/system/**`.
+For elegy-copilot itself, repo-rule authority stays in `docs/system/**`.
 
 - start from `docs/system/index.md`, a relevant MOC, or a deterministic core-lane governance node
 - load the smallest relevant canonical node before write-capable feature or modification work
@@ -100,7 +100,7 @@ For instruction-engine itself, repo-rule authority stays in `docs/system/**`.
 
 ## Canonical Guidance Compliance Loop
 
-Instruction Engine uses one docs-first compliance loop across planning, exploration, execution, and
+Elegy Copilot uses one docs-first compliance loop across planning, exploration, execution, and
 review. It does not create a second rule hierarchy beyond the canonical-doc precedence already
 defined above.
 
@@ -397,7 +397,7 @@ resolution contracts:
 - Secure vault resolution behavior
 - Agent validation contracts
 
-Instruction Engine owns:
+Elegy Copilot owns:
 
 - Prompt and agent assets
 - Install layout and load-mode defaults

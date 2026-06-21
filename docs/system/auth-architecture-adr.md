@@ -21,7 +21,7 @@ This ADR records historical auth surfaces introduced by the retired sandbox-orch
 
 Out of scope: remote notification pipelines (message brokers, remote approval relays, etc.).
 
-Out of scope: auth for the existing Instruction Engine cloud relay/mobile/extension ecosystem (see docs/system/security-model.md).
+Out of scope: auth for the existing Elegy Copilot cloud relay/mobile/extension ecosystem (see docs/system/security-model.md).
 
 ## Context
 
@@ -126,7 +126,7 @@ Mitigations:
 
 - Not building a general multi-user authentication/authorization system for the UI or gateway.
 - Not supporting internet-exposed ACP servers.
-- Not defining token formats for the legacy Instruction Engine relay ecosystem.
+- Not defining token formats for the legacy Elegy Copilot relay ecosystem.
 - Not solving “host is compromised” (local malware) — if the developer machine is compromised, these boundaries are not sufficient.
 
 ## Consequences

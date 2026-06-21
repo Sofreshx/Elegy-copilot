@@ -26,7 +26,7 @@ repository.
 |-------|-----------|----------|
 | **Canonical docs** | Repo (Git) | `docs/system/**`, `docs/research/**`, `docs/specs/**` |
 | **Obsidian vault** | Viewer/editor | Same repo path, opened in-place |
-| **Planning mirrors** | Generated, non-canonical | `_instruction-engine/planning-mirrors/` |
+| **Planning mirrors** | Generated, non-canonical | `_elegy-copilot/planning-mirrors/` |
 | **Personal notes** | User-local, non-canonical | External Obsidian paths |
 
 The repo is always canonical. Obsidian provides a convenient editing

@@ -96,7 +96,7 @@ function buildValidationExpectations(artifact) {
 
 function buildSharedTags(artifact) {
   const tags = [
-    'instruction-engine',
+    'elegy-copilot',
     'roadmap-workflow',
   ];
   const repoId = normalizeString(artifact && artifact.repoId);
@@ -129,14 +129,14 @@ function buildSyncSpecs(artifact) {
       title: normalizeString(metadata.goalTitle) || `Workflow Goal for ${roadmapTitle}`,
       description:
         normalizeString(metadata.goalDescription)
-        || `Compatibility goal seeded from instruction-engine workflow artifacts for roadmap ${roadmapId}.`,
+        || `Compatibility goal seeded from elegy-copilot workflow artifacts for roadmap ${roadmapId}.`,
       acceptanceCriteria: [
         normalizeString(metadata.goalAcceptance)
         || `Durable roadmap ${roadmapId} exists in elegy-planning.`,
       ],
       rejectionCriteria: [
         normalizeString(metadata.goalRejection)
-        || `Roadmap ${roadmapId} remains only in instruction-engine workflow artifacts.`,
+        || `Roadmap ${roadmapId} remains only in elegy-copilot workflow artifacts.`,
       ],
       status: deriveSeedStatus(source.status),
       tags: sharedTags,
@@ -147,7 +147,7 @@ function buildSyncSpecs(artifact) {
       title: roadmapTitle,
       summary:
         normalizeString(metadata.roadmapSummary)
-        || `Compatibility roadmap seeded from instruction-engine workflow artifact ${normalizeString(source.kind) || 'workflow-artifact'}.`,
+        || `Compatibility roadmap seeded from elegy-copilot workflow artifact ${normalizeString(source.kind) || 'workflow-artifact'}.`,
       status: deriveSeedStatus(source.status),
       tags: sharedTags,
     },

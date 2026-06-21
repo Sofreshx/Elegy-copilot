@@ -32,21 +32,21 @@ const LOCAL_TRACKER_SECRETS_MODULE_PATH = path.join(
 );
 const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION = '1';
 const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY = 'mixed-version-lifecycle-v1';
-const LIFECYCLE_COMPATIBILITY_HEADER_CONTRACT_VERSION = 'x-instruction-engine-lifecycle-contract-version';
-const LIFECYCLE_COMPATIBILITY_HEADER_CAPABILITY = 'x-instruction-engine-lifecycle-capability';
+const LIFECYCLE_COMPATIBILITY_HEADER_CONTRACT_VERSION = 'x-elegy-copilot-lifecycle-contract-version';
+const LIFECYCLE_COMPATIBILITY_HEADER_CAPABILITY = 'x-elegy-copilot-lifecycle-capability';
 const TRACKER_PROXY_RESPONSE_HEADER_ALLOWLIST = Object.freeze([
   'content-type',
   'www-authenticate',
   'retry-after',
-  'x-instruction-engine-lifecycle-contract-version',
-  'x-instruction-engine-lifecycle-capability',
+  'x-elegy-copilot-lifecycle-contract-version',
+  'x-elegy-copilot-lifecycle-capability',
 ]);
 const TRACKER_PROXY_RESPONSE_HEADER_MAP = Object.freeze({
   'content-type': 'Content-Type',
   'www-authenticate': 'WWW-Authenticate',
   'retry-after': 'Retry-After',
-  'x-instruction-engine-lifecycle-contract-version': 'X-Instruction-Engine-Lifecycle-Contract-Version',
-  'x-instruction-engine-lifecycle-capability': 'X-Instruction-Engine-Lifecycle-Capability',
+  'x-elegy-copilot-lifecycle-contract-version': 'X-elegy-copilot-Lifecycle-Contract-Version',
+  'x-elegy-copilot-lifecycle-capability': 'X-elegy-copilot-Lifecycle-Capability',
 });
 const LEGACY_TRACKER_TOKEN_MISSING_STATUS = `${'missing'}_token`;
 const LEGACY_TRACKER_TOKEN_MISSING_CODE = ['tracker', 'token', 'missing'].join('_');
@@ -92,8 +92,8 @@ function readLifecycleCompatibilityHeaderToken(headers, headerName) {
 
 function createLifecycleCompatibilityRequestHeaders() {
   return {
-    'X-Instruction-Engine-Lifecycle-Contract-Version': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
-    'X-Instruction-Engine-Lifecycle-Capability': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+    'X-elegy-copilot-Lifecycle-Contract-Version': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+    'X-elegy-copilot-Lifecycle-Capability': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
   };
 }
 

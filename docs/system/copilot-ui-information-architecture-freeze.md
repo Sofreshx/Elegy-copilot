@@ -27,7 +27,7 @@ replacing from scratch.
   (`copilot-ui/ui/src/stores/navigation.ts`, `copilot-ui/ui/src/App.tsx`).
 - Runtime execution is surfaced through `DashboardView`, session detail views, and maintenance
   diagnostics instead of the retired runtime tab shell.
-- Diagnostics now exposes `Instruction Engine Runtime`, `Planning Database`, `Gateway`,
+- Diagnostics now exposes `Elegy Copilot Runtime`, `Planning Database`, `Gateway`,
   `Tracker`, and `LSP` operator surfaces from the active runtime hub.
 - `SessionsWorkspaceView` remains a narrower legacy/runtime workspace component rather than the
   active shell destination (`copilot-ui/ui/src/tabs/Sessions/SessionsWorkspaceView.tsx`).
@@ -130,7 +130,7 @@ The Executor section owns queued/runtime work plus embedded sandbox lifecycle be
 
 Diagnostics is where the operator tools formerly hosted by `StateView` now live:
 
-- Instruction Engine Runtime
+- Elegy Copilot Runtime
 - Planning Database
 - Gateway
 - Tracker
@@ -180,7 +180,7 @@ usage telemetry.
 Stats owns cross-cutting read-only observability that is already available through existing
 contracts but was previously split across Runtime, Catalog, and Session detail views:
 
-- instruction-engine runtime health summary
+- elegy-copilot runtime health summary
 - catalog projection/runtime health summary
 - SDK bridge and executor health summary
 - deduped merged session inventory summary across CLI and sandbox sources

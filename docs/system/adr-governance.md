@@ -14,7 +14,7 @@ related: [self-documenting-code-and-rationale-placement, project-conventions-gov
 
 ## Purpose
 
-Define when Instruction Engine should create an Architecture Decision Record, when it should not,
+Define when Elegy Copilot should create an Architecture Decision Record, when it should not,
 and how ADRs should be structured and reviewed.
 
 ## Core rule

@@ -70,7 +70,7 @@ async function main() {
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'security', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'project-conventions-governance', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(opencodeHome, '.instruction-engine-opencode-managed.json')));
+      assert.ok(fs.existsSync(path.join(opencodeHome, '.elegy-copilot-opencode-managed.json')));
       assert.ok(firstSummary.counts.created > 0);
       const opencodeConfig = JSON.parse(fs.readFileSync(path.join(opencodeHome, 'opencode.jsonc'), 'utf8'));
       assert.ok(opencodeConfig.plugin.includes('./plugins/worktree.js'), 'worktree plugin should be registered');
@@ -106,7 +106,7 @@ async function main() {
     await withTempDir(async (root) => {
       const opencodeHome = path.join(root, '.config', 'opencode');
       const skillsHome = path.join(opencodeHome, 'skills');
-      const inventoryPath = path.join(opencodeHome, '.instruction-engine-opencode-managed.json');
+      const inventoryPath = path.join(opencodeHome, '.elegy-copilot-opencode-managed.json');
 
       await installer.runInstall({
         force: true,
@@ -188,8 +188,8 @@ async function main() {
       const agentsInstructions = fs.readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
       const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
 
-      assert.ok(copilotInstructions.includes('instruction-engine:begin spec-driven'));
-      assert.ok(agentsInstructions.includes('instruction-engine:begin spec-driven'));
+      assert.ok(copilotInstructions.includes('elegy-copilot:begin spec-driven'));
+      assert.ok(agentsInstructions.includes('elegy-copilot:begin spec-driven'));
       assert.ok(fs.existsSync(path.join(repoRoot, 'docs', 'specs', 'index.md')));
       assert.ok(fs.existsSync(path.join(repoRoot, 'scripts', 'validate-specs.js')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.github', 'agents')));

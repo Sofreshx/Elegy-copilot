@@ -18,8 +18,8 @@ const instructionEngineRoot = path.resolve(__dirname, '..');
 const setupProfilesPath = path.join(instructionEngineRoot, 'engine-assets', 'skills', 'repo-setup-governance', 'setup-profiles.json');
 const configurationPackagePath = path.join(instructionEngineRoot, 'configuration', 'elegy-plugin-package.json');
 
-const SPEC_DRIVEN_OVERLAYS_PROFILE_ID = 'instruction-engine-spec-driven-overlays';
-const SPEC_DRIVEN_VALIDATOR_PROFILE_ID = 'instruction-engine-spec-driven-validator';
+const SPEC_DRIVEN_OVERLAYS_PROFILE_ID = 'elegy-copilot-spec-driven-overlays';
+const SPEC_DRIVEN_VALIDATOR_PROFILE_ID = 'elegy-copilot-spec-driven-validator';
 const VALIDATE_SPECS_COMMAND = 'node scripts/validate-specs.js';
 
 function normalizeString(value) {
@@ -177,7 +177,7 @@ function buildSpecsIndexText() {
   return [
     '# Specs',
     '',
-    'This repo opts into instruction-engine spec-driven development for non-trivial work.',
+    'This repo opts into elegy-copilot spec-driven development for non-trivial work.',
     '',
     '- Durable specs live under `docs/specs/<spec-slug>/spec.md`.',
     '- Use `spec-dev` to choose `spec-first`, `spec-anchored`, or `spec-as-source`.',

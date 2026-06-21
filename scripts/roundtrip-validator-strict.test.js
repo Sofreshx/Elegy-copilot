@@ -132,17 +132,17 @@ function seedUntaggedEntities(db) {
       const wpId = `WP-CONSOLIDATION-TEST-${i}`;
       db.prepare(
         'INSERT OR REPLACE INTO work_points (id, roadmap_id, title, tags_json, created_at, updated_at, scope_key) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      ).run(wpId, ROADMAP_IDS[i], `Test work point ${i}`, JSON.stringify(['repo:74af0f7b5cc4', 'repo:55f0c2816d6a', 'repo:instruction-engine', 'repo:elegy']), now, now, 'default');
+      ).run(wpId, ROADMAP_IDS[i], `Test work point ${i}`, JSON.stringify(['repo:74af0f7b5cc4', 'repo:55f0c2816d6a', 'repo:elegy-copilot', 'repo:elegy']), now, now, 'default');
       wpIds.push(wpId);
 
       const planId = `PLAN-CONSOLIDATION-TEST-${i}`;
       db.prepare(
         'INSERT OR REPLACE INTO plans (id, goal_id, roadmap_id, work_point_id, title, tags_json, created_at, updated_at, scope_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      ).run(planId, GOAL_ID, ROADMAP_IDS[i], wpId, `Test plan ${i}`, JSON.stringify(['repo:74af0f7b5cc4', 'repo:55f0c2816d6a', 'repo:instruction-engine', 'repo:elegy']), now, now, 'default');
+      ).run(planId, GOAL_ID, ROADMAP_IDS[i], wpId, `Test plan ${i}`, JSON.stringify(['repo:74af0f7b5cc4', 'repo:55f0c2816d6a', 'repo:elegy-copilot', 'repo:elegy']), now, now, 'default');
 
       db.prepare(
         'INSERT OR REPLACE INTO todos (id, plan_id, work_point_id, title, tags_json, created_at, updated_at, scope_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      ).run(`TODO-CONSOLIDATION-TEST-${i}`, planId, wpId, `Test todo ${i}`, JSON.stringify(['repo:74af0f7b5cc4', 'repo:55f0c2816d6a', 'repo:instruction-engine', 'repo:elegy']), now, now, 'default');
+      ).run(`TODO-CONSOLIDATION-TEST-${i}`, planId, wpId, `Test todo ${i}`, JSON.stringify(['repo:74af0f7b5cc4', 'repo:55f0c2816d6a', 'repo:elegy-copilot', 'repo:elegy']), now, now, 'default');
     }
   });
 

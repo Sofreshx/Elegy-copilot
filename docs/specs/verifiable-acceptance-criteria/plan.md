@@ -4,7 +4,7 @@
 `docs/specs/verifiable-acceptance-criteria/spec.md`
 
 ## Overview
-Add concrete verification methods to acceptance criteria across the instruction-engine codebase. The core change is a `→ verify:` marker format that pairs each acceptance check with a test command, script, or manual step. Validators are upgraded to enforce this, skills and agents are updated to reference it, and existing specs are migrated.
+Add concrete verification methods to acceptance criteria across the elegy-copilot codebase. The core change is a `→ verify:` marker format that pairs each acceptance check with a test command, script, or manual step. Validators are upgraded to enforce this, skills and agents are updated to reference it, and existing specs are migrated.
 
 ## Implementation Order
 

@@ -10,7 +10,7 @@ tags: [setup, validation, commit, quality, bootstrap]
 
 Bootstrap or update a target repo's commit-validation infrastructure so the Elegy Copilot UI can gate git actions on mandatory checks. This skill mutates the target repo — unlike governance skills which are read-only.
 
-The three bundled scripts (`commit-check-{discover,setup,run}.mjs`) are the authoritative copies. The same scripts exist at the instruction-engine repo root (`scripts/`) for self-validation of this repo; the skill copies from its own bundled copies, not from the repo root.
+The three bundled scripts (`commit-check-{discover,setup,run}.mjs`) are the authoritative copies. The same scripts exist at the elegy-copilot repo root (`scripts/`) for self-validation of this repo; the skill copies from its own bundled copies, not from the repo root.
 
 ## Required Inputs
 
@@ -19,7 +19,7 @@ The three bundled scripts (`commit-check-{discover,setup,run}.mjs`) are the auth
 
 ## Runtime Sources
 
-Canonical metadata (instruction-engine repo paths — not resolvable in target repos):
+Canonical metadata (elegy-copilot repo paths — not resolvable in target repos):
 
 - canonical doc authority: `docs/system/commit-validation-governance.md`
 - setup sub-node: `docs/system/commit-check-setup.md`
@@ -96,7 +96,7 @@ If a section has no items, write `- none`.
 
 ## Canonical References
 
-Instruction-engine repo paths (not resolvable in target repos):
+elegy-copilot repo paths (not resolvable in target repos):
 
 - `docs/system/commit-validation-governance.md`
 - `docs/system/commit-check-setup.md`

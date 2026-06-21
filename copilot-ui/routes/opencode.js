@@ -1378,9 +1378,9 @@ function sanitizePermission(value) {
     if (typeof key !== 'string' || !key.trim()) {
       return { ok: false, error: 'permission keys must be non-empty strings' };
     }
-    // Skip the instruction-engine-worktree-permission-profile marker —
+    // Skip the elegy-copilot-worktree-permission-profile marker —
     // it is stored in the state file, not in config.permission.
-    if (key === 'instruction-engine-worktree-permission-profile') {
+    if (key === 'elegy-copilot-worktree-permission-profile') {
       continue;
     }
     if (val !== 'allow' && val !== 'deny' && val !== 'ask') {

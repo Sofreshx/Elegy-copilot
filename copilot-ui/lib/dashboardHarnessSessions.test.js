@@ -65,7 +65,7 @@ async function run() {
               updatedAtMs: Date.UTC(2026, 4, 23, 15, 0, 0),
               startedAtMs: Date.UTC(2026, 4, 23, 14, 0, 0),
               elapsedMs: 3_600_000,
-              repoLabel: 'instruction-engine',
+              repoLabel: 'elegy-copilot',
               source: 'cli',
             },
           ];

@@ -12,7 +12,7 @@ const REPRESENTATION_SCHEMA_VERSION = 1;
 const REPRESENTATION_NOTE_KIND = 'planning-obsidian-representation';
 const REPRESENTATION_PROVIDER = 'obsidian';
 const REPRESENTATION_ID_PREFIX = 'obsrep';
-const REPRESENTATION_SUBDIRECTORY = '_instruction-engine/planning-mirrors';
+const REPRESENTATION_SUBDIRECTORY = '_elegy-copilot/planning-mirrors';
 const INFORMATIONAL_FRONTMATTER_KEYS = new Set([
   'ie_source_updated_at',
   'ie_generated_at',

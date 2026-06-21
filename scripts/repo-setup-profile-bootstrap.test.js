@@ -99,7 +99,7 @@ async function main() {
       assert.strictEqual(summary.repoInstructionFile, 'AGENTS.md');
       assert.strictEqual(summary.elegyCliPath, path.resolve(shim.elegyCliPath));
       assert.ok(agentsInstructions.includes('Keep this section.'));
-      assert.ok(agentsInstructions.includes('instruction-engine:begin spec-driven'));
+      assert.ok(agentsInstructions.includes('elegy-copilot:begin spec-driven'));
       assert.ok(copilotInstructions.includes('spec-authoring'));
       assert.ok(fs.existsSync(path.join(repoRoot, 'specs', 'index.md')));
       assert.ok(fs.existsSync(path.join(repoRoot, 'scripts', 'validate-specs.js')));

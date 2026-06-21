@@ -297,8 +297,8 @@ function validateDocGraph({ repoRoot = defaultRepoRoot } = {}) {
 				if (!redirectTo.startsWith('docs/')) {
 					errors.push(`${rel}: redirect_to must start with 'docs/'. Got '${redirectTo}'.`);
 				}
-				if (redirectTo.includes('\\') || redirectTo.includes('instruction-engine/')) {
-					errors.push(`${rel}: redirect_to must be repo-relative (no backslashes, no instruction-engine/ prefix).`);
+				if (redirectTo.includes('\\') || redirectTo.includes('elegy-copilot/')) {
+					errors.push(`${rel}: redirect_to must be repo-relative (no backslashes, no elegy-copilot/ prefix).`);
 				}
 				const targetAbs = path.join(repoRoot, redirectTo);
 				if (!fs.existsSync(targetAbs)) {

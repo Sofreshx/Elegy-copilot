@@ -45,7 +45,7 @@ Use one section per unresolved goal in this exact field order:
 ## Active Entries
 
 ### GOAL-20260323-01
-- **Goal Statement:** Deploy or implement the out-of-repo Vultr-hosted Obsidian sync service so Instruction Engine can pull note changes end-to-end.
+- **Goal Statement:** Deploy or implement the out-of-repo Vultr-hosted Obsidian sync service so Elegy Copilot can pull note changes end-to-end.
 - **Completion State:** partial
 - **First Seen:** 2026-03-23
 - **Last Reviewed:** 2026-03-23

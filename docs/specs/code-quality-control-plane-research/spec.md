@@ -14,7 +14,7 @@ Define the Elegy-copilot research contract for running, configuring, and visuali
 
 ## Context Evidence
 
-- `docs/system/index.md`: identifies instruction-engine/Elegy Copilot as the shared-asset and control-plane workspace for Copilot, Codex, OpenCode, Antigravity, and Claude Code.
+- `docs/system/index.md`: identifies elegy-copilot/Elegy Copilot as the shared-asset and control-plane workspace for Copilot, Codex, OpenCode, Antigravity, and Claude Code.
 - `docs/system/copilot-ui-guide.md`: current `copilot-ui` responsibilities include local UI/API, repo registration, workspace views, planning graph surfaces, execution views, settings, and diagnostics.
 - `docs/system/catalog-control-plane.md`: catalog control plane manages install/search/external sources and projects file-backed state; it is not a second source of truth.
 - `docs/system/commit-validation-governance.md`: current commit-validation governance already covers test, coverage, lint, format, and typecheck lanes across TypeScript and Rust workspaces.

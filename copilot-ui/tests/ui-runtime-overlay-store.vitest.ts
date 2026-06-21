@@ -36,9 +36,9 @@ function createOverlaySession(changeRequestStatus: 'draft' | 'reserved') {
     runtimeUrl: 'http://127.0.0.1:4173/',
     runtimeOrigin: 'http://127.0.0.1:4173',
     repoId: 'repo-1',
-    repoPath: 'C:\\Repos\\instruction-engine',
-    repoLabel: 'Instruction Engine',
-    packageRoot: 'C:\\Repos\\instruction-engine\\copilot-ui',
+    repoPath: 'C:\\Repos\\elegy-copilot',
+    repoLabel: 'Elegy Copilot',
+    packageRoot: 'C:\\Repos\\elegy-copilot\\copilot-ui',
     observations: [],
     annotations: [],
     changeRequests: [
@@ -155,7 +155,7 @@ describe('uiRuntimeOverlayStore stale load guard', () => {
 
     const loadPromise = uiRuntimeOverlayStore.load();
     const created = await uiRuntimeOverlayStore.createSession({
-      repoPath: 'C:/Repos/instruction-engine',
+      repoPath: 'C:/Repos/elegy-copilot',
       runtimeUrl: 'http://127.0.0.1:4173/',
     });
 

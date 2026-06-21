@@ -14,7 +14,7 @@
   "authority": {
     "canonicalDocKey": "commit-validation-governance",
     "setupSubNodeKey": "commit-check-setup",
-    "note": "Canonical source identifiers, not filesystem paths. Resolve via instruction-engine repo."
+    "note": "Canonical source identifiers, not filesystem paths. Resolve via elegy-copilot repo."
   },
   "modes": {
     "bootstrap": {

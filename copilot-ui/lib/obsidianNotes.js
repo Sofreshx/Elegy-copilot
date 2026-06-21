@@ -10,8 +10,8 @@ const DEFAULT_OBSIDIAN_REMOTE_POLL_INTERVAL_MS = 60_000;
 const DEFAULT_OBSIDIAN_SYNC_TIMEOUT_MS = 15_000;
 const OBSIDIAN_NOTE_ID_PREFIX = 'obsnote';
 const OBSIDIAN_PLANNING_REPRESENTATION_KIND = 'planning-obsidian-representation';
-const OBSIDIAN_TOOL_MANAGED_ROOT = '_instruction-engine';
-const OBSIDIAN_PLANNING_MIRROR_DIRECTORY = '_instruction-engine/planning-mirrors';
+const OBSIDIAN_TOOL_MANAGED_ROOT = '_elegy-copilot';
+const OBSIDIAN_PLANNING_MIRROR_DIRECTORY = '_elegy-copilot/planning-mirrors';
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';

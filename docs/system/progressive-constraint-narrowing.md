@@ -14,7 +14,7 @@ related: [search-execute-workflow, calibrated-questioning-and-depth-governance, 
 
 ## Purpose
 
-Define how Instruction Engine should shrink a broad pool of candidate constraints into the smallest
+Define how Elegy Copilot should shrink a broad pool of candidate constraints into the smallest
 authoritative set needed for the current step.
 
 This rule is shared across planning, delegation, review, installed shared skills, and harness-facing

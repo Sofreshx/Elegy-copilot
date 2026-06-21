@@ -89,7 +89,7 @@ function buildWorkflowArtifactMarkdown() {
       sliceId: 'RM-platform-foundation-001',
       phase: 'review',
       status: 'pass',
-      repoId: 'repo-instruction-engine-fixture',
+      repoId: 'repo-elegy-copilot-fixture',
       sourceHarness: 'opencode',
       sourceModel: 'github-copilot/gpt-5.4',
       sessionId: 'session-e2e-1',
@@ -112,7 +112,7 @@ function buildWorkflowArtifactMarkdown() {
   ].join('\n');
 }
 async function main() {
-  const root = mkdtemp('instruction-engine-roadmap-e2e-');
+  const root = mkdtemp('elegy-copilot-roadmap-e2e-');
   const repoRoot = path.join(root, 'repo');
   const elegyHome = path.join(root, '.elegy');
   const sandboxesHome = path.join(elegyHome, 'sandboxes');
@@ -149,13 +149,13 @@ async function main() {
   writeFile(path.join(repoRoot, 'docs', 'planning', 'platform-foundation', 'index.md'), buildRoadmapMarkdown());
   writeJson(path.join(elegyHome, 'catalog', 'repo-inventory.json'), {
     schemaVersion: 1,
-    selectedRepoId: 'repo-instruction-engine-fixture',
+    selectedRepoId: 'repo-elegy-copilot-fixture',
     selectedRepoPath: repoRoot,
     selectedAt: new Date().toISOString(),
     manualRepos: [{
-      repoId: 'repo-instruction-engine-fixture',
+      repoId: 'repo-elegy-copilot-fixture',
       repoPath: repoRoot,
-      repoLabel: 'Instruction Engine Fixture',
+      repoLabel: 'Elegy Copilot Fixture',
       addedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       pinned: true,
@@ -192,7 +192,7 @@ async function main() {
     const persistResponse = await requestJson(baseUrl, '/api/planning/workflow-artifacts', {
       method: 'POST',
       body: {
-        repoId: 'repo-instruction-engine-fixture',
+        repoId: 'repo-elegy-copilot-fixture',
         artifact: {
           body: buildWorkflowArtifactMarkdown(),
         },
@@ -218,20 +218,20 @@ async function main() {
     });
     const retiredRoadmapsResponse = await requestJson(
       baseUrl,
-      `/api/planning/roadmaps?repoId=repo-instruction-engine-fixture&repoPath=${encodeURIComponent(repoRoot)}`,
+      `/api/planning/roadmaps?repoId=repo-elegy-copilot-fixture&repoPath=${encodeURIComponent(repoRoot)}`,
     );
     assert.equal(retiredRoadmapsResponse.status, 410);
     assert.equal(retiredRoadmapsResponse.body.kind, 'planning.roadmaps.list');
     assert.equal(retiredRoadmapsResponse.body.code, 'planning_repo_file_authority_retired');
     const retiredRoadmapResponse = await requestJson(
       baseUrl,
-      `/api/planning/roadmaps/platform-foundation?repoId=repo-instruction-engine-fixture&repoPath=${encodeURIComponent(repoRoot)}`,
+      `/api/planning/roadmaps/platform-foundation?repoId=repo-elegy-copilot-fixture&repoPath=${encodeURIComponent(repoRoot)}`,
     );
     assert.equal(retiredRoadmapResponse.status, 410);
     assert.equal(retiredRoadmapResponse.body.kind, 'planning.roadmaps.read');
     const workflowReadResponse = await requestJson(
       baseUrl,
-      `/api/planning/workflow-artifacts?artifactId=${encodeURIComponent(persistResponse.body.artifact.artifactId)}&repoId=repo-instruction-engine-fixture`,
+      `/api/planning/workflow-artifacts?artifactId=${encodeURIComponent(persistResponse.body.artifact.artifactId)}&repoId=repo-elegy-copilot-fixture`,
     );
     assert.equal(workflowReadResponse.status, 200);
     assert.equal(workflowReadResponse.body.artifact.kind, 'roadmap.review.result');

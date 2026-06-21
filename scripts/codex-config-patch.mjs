@@ -7,8 +7,8 @@ import { getBestShell } from './shell-detect.mjs';
 
 export const DEFAULT_REVIEW_MODEL = 'deepseek-v4-pro';
 export const DEFAULT_PROFILE_NAME = 'instruction_engine_plan_review';
-export const MANAGED_BLOCK_START = '# BEGIN instruction-engine managed codex defaults';
-export const MANAGED_BLOCK_END = '# END instruction-engine managed codex defaults';
+export const MANAGED_BLOCK_START = '# BEGIN elegy-copilot managed codex defaults';
+export const MANAGED_BLOCK_END = '# END elegy-copilot managed codex defaults';
 export const DEFAULT_PROVIDER_ID = 'opencode-go'; // fallback for managed block profiles, not root-level default
 export const DEFAULT_MODEL = 'mimo-v2-pro';
 

@@ -1,11 +1,11 @@
 {
   "schemaVersion": "elegy-configuration-profile/v1",
-  "profileId": "instruction-engine-spec-driven-overlays",
-  "displayName": "Instruction Engine Spec-Driven Overlays",
+  "profileId": "elegy-copilot-spec-driven-overlays",
+  "displayName": "Elegy Copilot Spec-Driven Overlays",
   "description": "Bounded profile for repo-local spec-driven instruction overlays.",
   "templates": [
     {
-      "templateId": "instruction-engine-spec-driven-overlays-template"
+      "templateId": "elegy-copilot-spec-driven-overlays-template"
     }
   ]
 }

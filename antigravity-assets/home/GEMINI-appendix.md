@@ -27,4 +27,4 @@ When a task clearly maps to an installed skill, load and follow that skill befor
 
 ## Repo map
 
-When the current workspace is Instruction Engine / Elegy Copilot, start repo-rule work at `docs/system/index.md`, then the nearest MOC, then the smallest canonical node. The key repo centers are `engine-assets/` for Copilot assets, `antigravity-assets/` for this installed home baseline, `copilot-ui/` for the local dashboard/catalog control plane, and `scripts/` for installers and validators.
+When the current workspace is Elegy Copilot / Elegy Copilot, start repo-rule work at `docs/system/index.md`, then the nearest MOC, then the smallest canonical node. The key repo centers are `engine-assets/` for Copilot assets, `antigravity-assets/` for this installed home baseline, `copilot-ui/` for the local dashboard/catalog control plane, and `scripts/` for installers and validators.

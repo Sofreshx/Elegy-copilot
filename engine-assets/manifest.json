@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "package": {
-    "name": "instruction-engine",
+    "name": "elegy-copilot",
     "version": "0.1.0",
     "sourceCommitSha": "<REPLACE_WITH_GIT_SHA>"
   },
@@ -126,9 +126,9 @@
       "dependsOn": []
     },
     {
-      "id": "instruction-engine-governance-lanes",
-      "title": "Instruction-Engine Governance Skills",
-      "description": "Repo-local governance and conventions/bootstrap skills for instruction-engine-first workflows. Explicit opt-in keeps default routing curated.",
+      "id": "elegy-copilot-governance-lanes",
+      "title": "elegy-copilot Governance Skills",
+      "description": "Repo-local governance and conventions/bootstrap skills for elegy-copilot-first workflows. Explicit opt-in keeps default routing curated.",
       "assetIds": [
         "skill-project-conventions-governance",
         "skill-documentation-structure-governance",
@@ -145,14 +145,14 @@
           "repo"
         ],
         "tags": [
-          "instruction-engine",
+          "elegy-copilot",
           "governance",
           "review",
           "follow-up"
         ]
       },
       "tags": [
-        "instruction-engine",
+        "elegy-copilot",
         "governance",
         "review",
         "follow-up"
@@ -245,14 +245,14 @@
           "planning",
           "roadmap",
           "backlog",
-          "instruction-engine"
+          "elegy-copilot"
         ]
       },
       "tags": [
         "planning",
         "roadmap",
         "backlog",
-        "instruction-engine"
+        "elegy-copilot"
       ],
       "defaultRecommended": false,
       "dependsOn": [
@@ -429,10 +429,10 @@
       "appendix": "engine-assets/copilot-instructions-appendix.md"
     },
     {
-      "id": "prompt-instruction-engine-plan",
+      "id": "prompt-elegy-copilot-plan",
       "type": "prompt",
-      "source": "engine-assets/prompts/instruction-engine-plan.prompt.md",
-      "destination": "prompts/instruction-engine-plan.prompt.md"
+      "source": "engine-assets/prompts/elegy-copilot-plan.prompt.md",
+      "destination": "prompts/elegy-copilot-plan.prompt.md"
     },
     {
       "id": "skill-core-guardrails",

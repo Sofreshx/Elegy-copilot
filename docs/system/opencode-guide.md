@@ -14,7 +14,7 @@ related: [catalog-control-plane, skills-governance, search-execute-workflow]
 
 ## Purpose
 
-Instruction Engine keeps OpenCode native-first and skill-heavy. Use OpenCode's built-in agents first and add only a small shared global layer.
+Elegy Copilot keeps OpenCode native-first and skill-heavy. Use OpenCode's built-in agents first and add only a small shared global layer.
 
 ## Install Or Refresh
 
@@ -45,7 +45,7 @@ bash scripts/opencode-install.sh
 
 ## Agentic Lanes
 
-Instruction Engine ships two primary lane agents for matching effort to task scope. Select the agent
+Elegy Copilot ships two primary lane agents for matching effort to task scope. Select the agent
 via Tab cycling in OpenCode alongside the built-in Build and Plan agents.
 
 - **quick**: Small UI tweaks and tiny bug fixes; Flash only; no spec or roadmap

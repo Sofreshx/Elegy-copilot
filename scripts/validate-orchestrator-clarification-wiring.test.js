@@ -6,7 +6,7 @@ const repoRoot = path.resolve(__dirname, '..');
 
 const expectations = [
   {
-    relativePath: 'engine-assets/prompts/instruction-engine-plan.prompt.md',
+    relativePath: 'engine-assets/prompts/elegy-copilot-plan.prompt.md',
     requiredSnippets: [
       'use `vscode/askQuestions` only for the smallest set of clarifying questions needed to unblock when the unresolved branch materially changes scope, architecture, validation, or plan safety, then revise.',
       'Use `vscode/askQuestions` rather than a plain-text end-of-plan question when a blocking clarification or explicit proceed-anyway decision is still required.',

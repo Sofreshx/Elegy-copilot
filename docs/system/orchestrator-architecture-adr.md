@@ -14,7 +14,7 @@ related: [domain-authorities-freeze, planning-backlog-roadmap-contract, runtime-
 
 ## Context
 
-The Instruction Engine currently has no durable execution orchestrator. Work is dispatched ad-hoc by OpenCode/Codex sessions with no central lease, evidence chain, or verified repository state.
+The Elegy Copilot currently has no durable execution orchestrator. Work is dispatched ad-hoc by OpenCode/Codex sessions with no central lease, evidence chain, or verified repository state.
 
 `elegy-planning` owns durable planning state (goals, roadmaps, plans, work points, leases, review points). The orchestrator must consume that authority, not duplicate it.
 

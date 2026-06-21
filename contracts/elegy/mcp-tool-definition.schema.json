@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://instruction-engine/contracts/session-state/1.0.0/mcp-tool-definition.schema.json",
+  "$id": "https://elegy-copilot/contracts/session-state/1.0.0/mcp-tool-definition.schema.json",
   "title": "MCP Tool Definition",
   "description": "Describes a single MCP tool with name, description, and input schema.",
   "type": "object",

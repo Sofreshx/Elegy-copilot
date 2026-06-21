@@ -58,8 +58,8 @@ async function main() {
       assert.ok(summary.counts.created > 0);
 
       const geminiInstructions = fs.readFileSync(path.join(geminiHome, 'GEMINI.md'), 'utf8');
-      assert.ok(geminiInstructions.includes('<!-- instruction-engine:begin antigravity -->'));
-      assert.ok(geminiInstructions.includes('<!-- instruction-engine:end antigravity -->'));
+      assert.ok(geminiInstructions.includes('<!-- elegy-copilot:begin antigravity -->'));
+      assert.ok(geminiInstructions.includes('<!-- elegy-copilot:end antigravity -->'));
     });
   });
 
@@ -77,9 +77,9 @@ async function main() {
           '',
           'Keep this section.',
           '',
-          '<!-- instruction-engine:begin antigravity -->',
+          '<!-- elegy-copilot:begin antigravity -->',
           'Outdated managed content.',
-          '<!-- instruction-engine:end antigravity -->',
+          '<!-- elegy-copilot:end antigravity -->',
           '',
           'Keep this footer too.',
           '',
@@ -99,7 +99,7 @@ async function main() {
       assert.ok(updatedInstructions.includes('Keep this section.'));
       assert.ok(updatedInstructions.includes('Keep this footer too.'));
       assert.ok(!updatedInstructions.includes('Outdated managed content.'));
-      assert.strictEqual(updatedInstructions.match(/instruction-engine:begin antigravity/g)?.length || 0, 1);
+      assert.strictEqual(updatedInstructions.match(/elegy-copilot:begin antigravity/g)?.length || 0, 1);
 
       const secondSummary = installer.runInstall({
         geminiHome,
@@ -160,8 +160,8 @@ async function main() {
       const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
 
       assert.ok(geminiInstructions.includes('Keep this footer.'));
-      assert.ok(geminiInstructions.includes('instruction-engine:begin spec-driven'));
-      assert.ok(copilotInstructions.includes('instruction-engine:begin spec-driven'));
+      assert.ok(geminiInstructions.includes('elegy-copilot:begin spec-driven'));
+      assert.ok(copilotInstructions.includes('elegy-copilot:begin spec-driven'));
       assert.ok(fs.existsSync(path.join(repoRoot, 'docs', 'specs', 'index.md')));
       assert.ok(fs.existsSync(path.join(repoRoot, 'scripts', 'validate-specs.js')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.github', 'agents')));

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://instruction-engine.dev/schemas/waiver.schema.json",
-  "title": "Instruction Engine Policy Waiver",
+  "$id": "https://elegy-copilot.dev/schemas/waiver.schema.json",
+  "title": "Elegy Copilot Policy Waiver",
   "type": "object",
   "additionalProperties": false,
   "required": [

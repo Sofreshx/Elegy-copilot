@@ -37,7 +37,7 @@ function createOverlaySession(overrides: Partial<UiRuntimeOverlaySession> = {}):
     runtimeUrl: 'http://127.0.0.1:4173/app',
     runtimeOrigin: 'http://127.0.0.1:4173',
     repoId: 'repo-1',
-    repoPath: 'C:/Repos/instruction-engine',
+    repoPath: 'C:/Repos/elegy-copilot',
     repoLabel: 'Storefront App',
     packageRoot: 'copilot-ui',
     observations: [{

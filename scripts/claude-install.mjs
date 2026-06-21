@@ -16,7 +16,7 @@ const manifestPath = path.join(claudeAssetsRoot, 'manifest.json');
 const DESCRIPTOR = {
   surface: 'claude',
   manifestPath,
-  inventoryFileName: '.instruction-engine-claude-managed.json',
+  inventoryFileName: '.elegy-copilot-claude-managed.json',
   resolveHome(explicit) {
     if (explicit) return path.resolve(explicit);
     if (process.env.CLAUDE_HOME) return path.resolve(process.env.CLAUDE_HOME);

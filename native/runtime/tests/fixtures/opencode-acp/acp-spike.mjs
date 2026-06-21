@@ -82,8 +82,8 @@ class AcpClient {
       protocolVersion: 1,
       clientCapabilities: {},
       clientInfo: {
-        name: 'instruction-engine-acp-spike',
-        title: 'Instruction Engine ACP Spike',
+        name: 'elegy-copilot-acp-spike',
+        title: 'Elegy Copilot ACP Spike',
         version: '1.0.0',
       },
     });

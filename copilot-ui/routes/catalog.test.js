@@ -186,7 +186,7 @@ function createFixtureRoot() {
   writeText(path.join(engineRoot, 'engine-assets', 'agents', 'repo-guide.agent.md'), '# Repo Guide\n');
   fs.mkdirSync(path.join(engineRoot, '.git'), { recursive: true });
   writeJson(path.join(engineRoot, 'package.json'), {
-    name: 'instruction-engine',
+    name: 'elegy-copilot',
     private: true,
     workspaces: ['copilot-ui'],
     dependencies: {

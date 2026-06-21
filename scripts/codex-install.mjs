@@ -24,7 +24,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const codexAssetsRoot = path.join(repoRoot, 'codex-assets');
 const manifestPath = path.join(codexAssetsRoot, 'manifest.json');
-const INVENTORY_FILE = '.instruction-engine-codex-managed.json';
+const INVENTORY_FILE = '.elegy-copilot-codex-managed.json';
 
 function toPosixJoin(...parts) {
   return normalizeRel(path.posix.join(...parts.filter(Boolean)));
@@ -217,7 +217,7 @@ function buildCodexRoleToml(agentSourceAbs, sourceRel) {
   const { attributes, body } = parseFrontmatter(text);
   const fallbackName = path.posix.basename(sourceRel).replace(/\.agent\.md$/i, '');
   const name = String(attributes.name || fallbackName).trim();
-  const description = String(attributes.description || `${name} role installed from instruction-engine.`).trim();
+  const description = String(attributes.description || `${name} role installed from elegy-copilot.`).trim();
   const developerInstructions = String(body || '').trim();
 
   if (!name) {

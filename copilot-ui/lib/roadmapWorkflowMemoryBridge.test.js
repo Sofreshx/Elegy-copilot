@@ -46,7 +46,7 @@ async function run() {
 
     const result = await bridge.persistArtifact({
       artifactId: 'wf-artifact-001',
-      repoId: 'instruction-engine',
+      repoId: 'elegy-copilot',
       roadmapId: 'RM-core',
       sliceId: 'RM-core-001',
       kind: 'roadmap.review.result',

@@ -687,7 +687,7 @@ function PermissionsSection(_props: SectionProps): React.ReactElement {
   };
 
   const permissionEntries = Object.entries(permissions || {})
-    .filter(([key]) => key !== 'instruction-engine-worktree-permission-profile');
+    .filter(([key]) => key !== 'elegy-copilot-worktree-permission-profile');
 
   return (
     <div className="opencode-section" data-testid="opencode-permissions">

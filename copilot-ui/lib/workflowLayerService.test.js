@@ -130,9 +130,9 @@ async function run() {
           id: 'run-123',
           jobId: 'job-123',
           sessionId: null,
-          repoId: 'instruction-engine',
+          repoId: 'elegy-copilot',
           orchestration: {
-            repo: { repoId: 'instruction-engine' },
+            repo: { repoId: 'elegy-copilot' },
             workflow: {
               workflowId: 'workflow-123',
               runId: 'run-123',
@@ -144,7 +144,7 @@ async function run() {
         },
         job: {
           id: 'job-123',
-          repoId: 'instruction-engine',
+          repoId: 'elegy-copilot',
           targetType: 'existing-session',
           orchestration: {
             workflow: {
@@ -174,15 +174,15 @@ async function run() {
           id: 'run-123',
           jobId: 'job-123',
           sessionId: null,
-          repoId: 'instruction-engine',
+          repoId: 'elegy-copilot',
           orchestration: {
-            repo: { repoId: 'instruction-engine' },
+            repo: { repoId: 'elegy-copilot' },
             workflow: {},
           },
         },
         job: {
           id: '',
-          repoId: 'instruction-engine',
+          repoId: 'elegy-copilot',
           targetType: 'existing-session',
           orchestration: {
             workflow: {},

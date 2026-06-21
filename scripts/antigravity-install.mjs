@@ -21,9 +21,9 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const antigravityAssetsRoot = path.join(repoRoot, 'antigravity-assets');
 const manifestPath = path.join(antigravityAssetsRoot, 'manifest.json');
-const MANAGED_BLOCK_START = '<!-- instruction-engine:begin antigravity -->';
-const MANAGED_BLOCK_END = '<!-- instruction-engine:end antigravity -->';
-const INVENTORY_FILE = '.instruction-engine-antigravity-managed.json';
+const MANAGED_BLOCK_START = '<!-- elegy-copilot:begin antigravity -->';
+const MANAGED_BLOCK_END = '<!-- elegy-copilot:end antigravity -->';
+const INVENTORY_FILE = '.elegy-copilot-antigravity-managed.json';
 
 function toPosixJoin(...parts) {
   return normalizeRel(path.posix.join(...parts.filter(Boolean)));

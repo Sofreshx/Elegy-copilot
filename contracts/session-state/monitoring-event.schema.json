@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://instruction-engine/contracts/session-state/1.0.0/monitoring-event.schema.json",
+  "$id": "https://elegy-copilot/contracts/session-state/1.0.0/monitoring-event.schema.json",
   "title": "AgenticEvent",
   "description": "Canonical agentic monitoring event contract for cross-runtime consumers.",
   "type": "object",

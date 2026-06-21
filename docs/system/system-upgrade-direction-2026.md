@@ -12,7 +12,7 @@ related: [orchestration-and-agents, moc-skills-governance, session-state, instru
 
 # System Upgrade Direction (2026)
 
-This document converts recent research into a practical, phased upgrade direction for instruction-engine.
+This document converts recent research into a practical, phased upgrade direction for elegy-copilot.
 
 As of March 2026, the platform is also adopting first-class `@search` and `@execute` agents to make the staged discovery/application workflow explicit rather than implied.
 

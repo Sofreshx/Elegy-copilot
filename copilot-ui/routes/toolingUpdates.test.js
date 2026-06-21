@@ -174,7 +174,7 @@ test('tooling updates elegy-skills endpoint installs from managed GitHub source'
 });
 test('tooling updates elegy-planning endpoint installs from managed GitHub source', async () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-tooling-local-elegy-'));
-  const engineRoot = path.join(tmpRoot, 'instruction-engine');
+  const engineRoot = path.join(tmpRoot, 'elegy-copilot');
   const elegyHome = path.join(tmpRoot, '.elegy');
   const elegyRoot = path.join(elegyHome, 'managed-cli', 'planning', 'source', 'Elegy');
   const rustRoot = path.join(elegyRoot, 'rust');

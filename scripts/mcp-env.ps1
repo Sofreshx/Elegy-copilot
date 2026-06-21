@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $homeDir = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
-$defaultEnvDir = Join-Path $homeDir ".config\instruction-engine"
+$defaultEnvDir = Join-Path $homeDir ".config\elegy-copilot"
 $defaultEnvFile = Join-Path $defaultEnvDir "mcp.env"
 $envFile = if ($env:MCP_ENV_FILE) { $env:MCP_ENV_FILE } else { $defaultEnvFile }
 $localEnvFile = "$envFile.local"
