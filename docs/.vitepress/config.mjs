@@ -15,6 +15,7 @@ export default defineConfig({
 	description: 'Browsable static site for the Elegy Copilot documentation graph.',
 	base: siteBase,
 	cleanUrls: true,
+	srcExclude: ['specs/**'],
 	rewrites: routeRewrites,
 	markdown: {
 		lineNumbers: true,
