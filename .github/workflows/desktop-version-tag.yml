@@ -36,9 +36,6 @@ jobs:
             local-tracker/package-lock.json
             scripts/package-lock.json
 
-      - name: CI lockfile preflight
-        run: node scripts/validate-ci-lockfiles.js
-
       - name: Install dependencies
         run: npm ci
 

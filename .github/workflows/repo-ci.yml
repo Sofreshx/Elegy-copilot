@@ -89,6 +89,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup MSVC build environment
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
