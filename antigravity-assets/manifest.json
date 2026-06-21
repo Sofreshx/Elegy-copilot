@@ -136,6 +136,20 @@
       "source": "catalog-assets/shared-skills/agents-md-authoring",
       "destination": "antigravity/skills/agents-md-authoring",
       "loadMode": "on-demand"
+    },
+    {
+      "id": "antigravity-ui-design-spec-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/ui-design-spec",
+      "destination": "antigravity/skills/ui-design-spec",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "antigravity-ui-visual-review-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/ui-visual-review",
+      "destination": "antigravity/skills/ui-visual-review",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": []

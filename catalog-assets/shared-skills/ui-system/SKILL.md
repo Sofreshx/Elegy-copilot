@@ -1,6 +1,6 @@
 ---
 name: ui-system
-description: "Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; reuse local patterns first, treat Figma and Storybook MCP data as context (not authority), and pick the narrowest available validation. Triggers on: ui, component, frontend, view, screen, panel, dialog, form, button, icon, style, styling, design system, storybook, figma, visual review, styling consistency, design-system reuse."
+description: "Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; reuse local patterns first, treat Figma and Storybook MCP data as context (not authority), and pick the narrowest available validation. Triggers on: ui, component, frontend, view, screen, panel, dialog, form, button, icon, style, styling, design system, storybook, figma, styling consistency, design-system reuse."
 ---
 
 # UI System
@@ -31,9 +31,22 @@ Use this skill when the request is any of:
 - One-line copy or text fixes that do not change the UI surface
 - Replacing this skill with raw MCP fetches; local code is the authority, MCP is context
 
+## Target Contract
+
+Before implementing any UI change, confirm or declare:
+
+- **Target route/surface**: the exact view, panel, dialog, or screen
+- **Viewports**: desktop, mobile, or both
+- **States required**: default, loading, empty, error, disabled, focus
+- **Primary user task**: the one thing the user must accomplish on this surface
+
+If any of these are unknown, clarify before implementing.
+
 ## Core Workflow
 
 ### 1. Inventory First
+
+Before inventory, confirm the target contract (route, viewports, states, primary task).
 
 Before writing or proposing any new UI element, run an inventory:
 
@@ -64,6 +77,19 @@ Apply this order before proposing any new component:
 
 Stop the order at the first hit. Do not skip straight to "new component"
 when a shared primitive already exists.
+
+### 2a. State Handling
+
+Address these states for every interactive surface (state it is N/A when it does not apply):
+
+- **Loading**: skeleton, spinner, or progress indicator
+- **Empty**: meaningful message when no data exists
+- **Error**: error boundary, inline error, or toast
+- **Disabled**: muted styling + `disabled` attribute or `aria-disabled`
+- **Focus**: visible focus ring on keyboard navigation
+- **Responsive**: layout adapts to declared viewports
+
+If a state is not handled, record it as a state gap in the handoff.
 
 ### 3. Icon Rule
 
@@ -105,6 +131,19 @@ Only treat Figma / Storybook as **context**, not as authority:
 
 ## Validation Rule
 
+### Declare a Validation Lane
+
+Every UI change must declare exactly one validation lane:
+
+| Lane | Evidence produced | Gap |
+|------|------------------|-----|
+| `browser` | Screenshots, console output, network log | Does not prove desktop behavior |
+| `desktop` | Native WebView/Tauri screenshot, platform logs | Requires platform tooling |
+| `component` | Unit/render test output | Does not prove visual correctness |
+| `unavailable` | Explicit gap statement | Must be stated in handoff |
+
+### Pick the Narrowest Proof
+
 Pick the **narrowest** available proof that covers the changed behavior:
 
 - component / unit test
@@ -114,8 +153,8 @@ Pick the **narrowest** available proof that covers the changed behavior:
 - accessibility check (axe, keyboard, focus order, contrast)
 - visual diff or regression snapshot
 
-If no UI validation surface is available in the repo, **state the gap
-explicitly** in the handoff. Do not invent or skip validation silently.
+If no UI validation surface is available in the repo, **state the gap explicitly**
+in the handoff. Do not invent or skip validation silently.
 
 ## Handoff Notes
 
@@ -127,3 +166,7 @@ When handing off UI work to another session or model, include:
 - the validation command(s) actually run and the result, or the explicit gap
 - any Figma / Storybook data that informed the work and how it was
   reconciled with local code
+- the declared validation lane and the evidence produced (screenshot path, test output, console log)
+- state gaps: any required states not addressed and why
+- a pointer to the canonical governance doc when applicable:
+  `docs/system/ui-development-governance.md`

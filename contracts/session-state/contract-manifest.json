@@ -77,6 +77,12 @@
       "fixtures": [
         "fixtures/mcp-tool-definition.minimal.json"
       ]
+    },
+    {
+      "name": "ui-check",
+      "schemaVersion": "1.0.0",
+      "file": "ui-check.schema.json",
+      "fixtures": ["fixtures/ui-check.minimal.json"]
     }
   ]
 }

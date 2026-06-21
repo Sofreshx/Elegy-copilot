@@ -35,6 +35,8 @@ Primary skills available:
 - `spec-review` — Adversarial spec review before implementation planning.
 - `commit-check-setup` — Bootstrap or update commit-check infrastructure in a repo. Copies scripts, generates `.copilot/commit-checks.json` config, runs smoke test.
 - `ui-system` — Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; treat Figma / Storybook MCP data as context, not authority.
+- `ui-design-spec` — Convert design inputs (prompts, screenshots, Figma) into a structured repo-grounded UI specification. Use before building new surfaces or redesigns.
+- `ui-visual-review` — Review rendered UI evidence against spec, repo conventions, and accessibility expectations without editing code. Use during review gates with visual evidence.
 - `skill-authoring` — Create or refine portable Agent Skills (SKILL.md) that work across Codex, Claude Code, OpenCode, Cursor, and 30+ tools. Follows the [agentskills.io](https://agentskills.io/specification) open standard.
 - `agents-md-authoring` — Create or refine per-harness instruction files (AGENTS.md, CLAUDE.md, GEMINI.md, copilot-instructions.md) that follow the open [AGENTS.md](https://agents.md) standard.
 

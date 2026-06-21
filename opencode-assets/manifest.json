@@ -292,6 +292,20 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "opencode-ui-design-spec-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/ui-design-spec",
+      "destination": "skills/ui-design-spec",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "opencode-ui-visual-review-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/ui-visual-review",
+      "destination": "skills/ui-visual-review",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "opencode-worktree-plugin",
       "type": "plugin",
       "source": "opencode-assets/plugins/worktree.js",

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "inventory": {
+    "componentRoots": [
+      { "path": "src/components" }
+    ],
+    "tokenFiles": [
+      { "path": "src/styles/tokens.css", "format": "css" }
+    ],
+    "iconRoots": [
+      { "path": "src/components/AppIcon.tsx", "library": "custom" }
+    ],
+    "patternDocs": [
+      { "path": "docs/design-system.md" }
+    ]
+  },
+  "targets": {
+    "catalog": {
+      "lane": "browser",
+      "workingDirectory": "./copilot-ui",
+      "validationCommands": [
+        { "id": "build", "command": "npm run ui:build" }
+      ],
+      "routes": [
+        {
+          "id": "catalog-default",
+          "path": "/catalog",
+          "viewports": ["desktop"],
+          "states": ["default", "N/A"]
+        }
+      ],
+      "evidenceRoot": "./evidence/ui"
+    }
+  }
+}

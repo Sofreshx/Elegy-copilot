@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elegy-copilot/contracts/session-state/1.0.0/ui-check.schema.json",
+  "title": "UI Check Configuration",
+  "description": "Canonical UI validation contract for cross-runtime consumers. Declares component inventory roots, target surfaces with validation lanes, and evidence collection rules.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "inventory", "targets"],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version number."
+    },
+    "inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["componentRoots", "tokenFiles", "iconRoots", "patternDocs"],
+      "properties": {
+        "componentRoots": {
+          "type": "array",
+          "description": "Directories containing shared or domain UI components.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "tokenFiles": {
+          "type": "array",
+          "description": "CSS, JSON, or other design token files.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "format": { "type": "string", "description": "e.g. css, json, toml" }
+            }
+          }
+        },
+        "iconRoots": {
+          "type": "array",
+          "description": "Icon library entrypoints or directories.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "library": { "type": "string", "description": "e.g. lucide, heroicons, custom" }
+            }
+          }
+        },
+        "patternDocs": {
+          "type": "array",
+          "description": "Documentation or spec files describing UI patterns.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "targets": {
+      "type": "object",
+      "description": "Named validation targets keyed by target-id.",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[a-z0-9]+(-[a-z0-9]+)*$": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lane", "workingDirectory", "routes"],
+          "properties": {
+            "lane": {
+              "type": "string",
+              "enum": ["browser", "desktop"],
+              "description": "Validation lane. browser = headless/playwright. desktop = native Tauri/WebView."
+            },
+            "workingDirectory": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Working directory for validation commands."
+            },
+            "validationCommands": {
+              "type": "array",
+              "description": "Repo-owned commands to run per target.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "command"],
+                "properties": {
+                  "id": { "type": "string", "minLength": 1 },
+                  "command": { "type": "string", "minLength": 1 },
+                  "description": { "type": "string" },
+                  "timeout": { "type": "integer", "description": "Timeout in milliseconds." }
+                }
+              }
+            },
+            "routes": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "path", "viewports", "states"],
+                "properties": {
+                  "id": { "type": "string", "minLength": 1 },
+                  "path": { "type": "string", "minLength": 1, "description": "URL path or route identifier." },
+                  "viewports": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "type": "string", "enum": ["desktop", "mobile"] },
+                    "description": "Viewports to validate."
+                  },
+                  "states": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "type": "string", "enum": ["default", "loading", "empty", "error", "disabled", "focus", "N/A"] },
+                    "description": "States that must be evidenced."
+                  },
+                  "description": { "type": "string" }
+                }
+              }
+            },
+            "evidenceRoot": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Directory for collected evidence artifacts."
+            }
+          }
+        }
+      }
+    }
+  }
+}
