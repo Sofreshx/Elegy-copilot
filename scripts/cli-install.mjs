@@ -106,7 +106,7 @@ function buildInstallStateOverride(currentState, previousState, installProfile) 
 }
 
 function writeInstallState(destinationHome, state, options = {}) {
-  const statePath = path.join(path.resolve(destinationHome), '.instruction-engine-install-state.json');
+  const statePath = path.join(path.resolve(destinationHome), '.elegy-copilot-install-state.json');
   const payload = `${JSON.stringify({
     schemaVersion: 3,
     installProfile: String(state?.installProfile || 'minimal'),

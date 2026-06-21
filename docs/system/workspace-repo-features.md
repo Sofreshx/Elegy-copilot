@@ -1,3 +1,14 @@
+---
+created: 2026-06-01
+updated: 2026-06-21
+category: system
+status: current
+doc_kind: node
+id: workspace-repo-features
+summary: Detailed description of workspace and repository management features in Elegy Copilot.
+tags: [workspace, repo, features]
+---
+
 # Workspace & Repository Features
 
 > Implemented: June 2026
@@ -57,7 +68,7 @@ Previously the docs panel showed a flat list of markdown files. Now it shows a p
 
 **Backend:** `copilot-ui/routes/repoDocs.js`
 - New endpoint: `GET /api/repo-docs/tree` returns a recursive tree structure
-- Scans: `specs/`, `docs/`, root `AGENTS.md`/`CLAUDE.md`/`GEMINI.md`, `skills/` dirs, `agents/` dirs
+- Scans: `docs/specs/`, `docs/`, root `AGENTS.md`/`CLAUDE.md`/`GEMINI.md`, `skills/` dirs, `agents/` dirs
 - Also scans harness config dirs: `.opencode/`, `.codex/`, `.copilot/`, `.gemini/`
 - Each node has: name, path, kind (file/directory), children, fileKind (doc/agent/skill/config)
 - Harness-tagged nodes show which harness they belong to

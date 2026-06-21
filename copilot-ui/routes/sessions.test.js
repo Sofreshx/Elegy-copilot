@@ -763,20 +763,20 @@ Verify the new framing surfaces in Sessions.
       sessions: {
         getSessionStartContext() {
           return {
-            cwd: 'C:\\Repos\\instruction-engine',
+            cwd: 'C:\\Repos\\elegy-copilot',
             branch: 'main',
           };
         },
         listRepoStateTasks(elegyHome, repoId, options) {
           assert.equal(elegyHome, 'C:\\cli-home');
-          assert.equal(repoId, 'instruction-engine');
+          assert.equal(repoId, 'elegy-copilot');
           assert.equal(options.sessionId, 'session-123');
           assert.deepEqual(options.workflowRunIds, ['run-1']);
           assert.deepEqual(options.worktreeIds, ['wt-1']);
           return [
             {
               taskId: 'TASK-1',
-              repoId: 'instruction-engine',
+              repoId: 'elegy-copilot',
               title: 'Backend contract',
               status: 'in_progress',
               ownerSessionId: 'session-123',
@@ -794,7 +794,7 @@ Verify the new framing surfaces in Sessions.
                 backlogIds: ['RB-001'],
                 roadmapIds: ['RM-platform-001'],
               },
-              durablePath: 'C:\\cli-home\\repo-state\\instruction-engine\\tasks\\TASK-1.json',
+              durablePath: 'C:\\cli-home\\repo-state\\elegy-copilot\\tasks\\TASK-1.json',
             },
           ];
         },
@@ -811,11 +811,11 @@ Verify the new framing surfaces in Sessions.
         },
         readRepoStateWorktree(elegyHome, repoId, worktreeId) {
           assert.equal(elegyHome, 'C:\\cli-home');
-          assert.equal(repoId, 'instruction-engine');
+          assert.equal(repoId, 'elegy-copilot');
           assert.equal(worktreeId, 'wt-1');
           return {
             worktreeId,
-            path: 'C:\\Repos\\instruction-engine-worktrees\\wt-1',
+            path: 'C:\\Repos\\elegy-copilot-worktrees\\wt-1',
             branch: 'task/task-1',
             status: 'ready',
             launch: {
@@ -829,17 +829,17 @@ Verify the new framing surfaces in Sessions.
         listKnownRepos() {
           return [
             {
-              repoId: 'instruction-engine',
-              repoPath: 'C:\\Repos\\instruction-engine',
-              repoLabel: 'Instruction Engine',
+              repoId: 'elegy-copilot',
+              repoPath: 'C:\\Repos\\elegy-copilot',
+              repoLabel: 'Elegy Copilot',
             },
           ];
         },
         resolveRepoEntry() {
           return {
-            repoId: 'instruction-engine',
-            repoPath: 'C:\\Repos\\instruction-engine',
-            repoLabel: 'Instruction Engine',
+            repoId: 'elegy-copilot',
+            repoPath: 'C:\\Repos\\elegy-copilot',
+            repoLabel: 'Elegy Copilot',
           };
         },
       },
@@ -850,11 +850,11 @@ Verify the new framing surfaces in Sessions.
             sessionId,
             contextType: 'regular',
             sandboxId: null,
-            cwd: 'C:\\Repos\\instruction-engine-worktrees\\wt-1',
+            cwd: 'C:\\Repos\\elegy-copilot-worktrees\\wt-1',
             orchestration: {
               repo: {
-                repoId: 'instruction-engine',
-                repoPath: 'C:\\Repos\\instruction-engine',
+                repoId: 'elegy-copilot',
+                repoPath: 'C:\\Repos\\elegy-copilot',
               },
               isolation: {
                 worktreeId: 'wt-1',
@@ -876,7 +876,7 @@ Verify the new framing surfaces in Sessions.
             {
               id: 'run-1',
               jobId: 'job-1',
-              repoId: 'instruction-engine',
+              repoId: 'elegy-copilot',
               sessionId: 'session-123',
               status: 'running',
               createdAt: '2026-04-07T10:00:00.000Z',
@@ -898,10 +898,10 @@ Verify the new framing surfaces in Sessions.
           return [
             {
               id: 'overlay-1',
-              repoId: 'instruction-engine',
+              repoId: 'elegy-copilot',
               linkedSessionId: 'session-123',
               runtimeUrl: 'http://127.0.0.1:4173',
-              packageRoot: 'C:\\Repos\\instruction-engine-worktrees\\wt-1',
+              packageRoot: 'C:\\Repos\\elegy-copilot-worktrees\\wt-1',
               status: 'attached',
               phase: 'attached',
               updatedAt: '2026-04-07T10:02:00.000Z',
@@ -921,7 +921,7 @@ Verify the new framing surfaces in Sessions.
     assert.equal(res.statusCode, 200);
     assert.equal(body.orchestration.contractVersion, '1');
     assert.equal(body.orchestration.authority.liveSession, 'acp');
-    assert.equal(body.orchestration.repo.repoId, 'instruction-engine');
+    assert.equal(body.orchestration.repo.repoId, 'elegy-copilot');
     assert.equal(body.orchestration.objective, 'Ship the orchestration contract.');
     assert.equal(body.orchestration.isolation.mode, 'dedicated');
     assert.equal(body.orchestration.isolation.worktreeStatus, 'ready');
@@ -948,7 +948,7 @@ Verify the new framing surfaces in Sessions.
       sessions: {
         getSessionStartContext() {
           return {
-            cwd: 'C:\\Repos\\instruction-engine',
+            cwd: 'C:\\Repos\\elegy-copilot',
             branch: 'main',
           };
         },
@@ -965,9 +965,9 @@ Verify the new framing surfaces in Sessions.
       repoInventory: {
         resolveRepoEntry() {
           return {
-            repoId: 'instruction-engine',
-            repoPath: 'C:\\Repos\\instruction-engine',
-            repoLabel: 'Instruction Engine',
+            repoId: 'elegy-copilot',
+            repoPath: 'C:\\Repos\\elegy-copilot',
+            repoLabel: 'Elegy Copilot',
           };
         },
       },
@@ -976,11 +976,11 @@ Verify the new framing surfaces in Sessions.
           assert.equal(sessionId, 'session-123');
           return {
             sessionId,
-            cwd: 'C:\\Repos\\instruction-engine',
+            cwd: 'C:\\Repos\\elegy-copilot',
             orchestration: {
               repo: {
-                repoId: 'instruction-engine',
-                repoPath: 'C:\\Repos\\instruction-engine',
+                repoId: 'elegy-copilot',
+                repoPath: 'C:\\Repos\\elegy-copilot',
               },
             },
           };
@@ -996,10 +996,10 @@ Verify the new framing surfaces in Sessions.
           return [
             {
               id: 'overlay-keep',
-              repoId: 'instruction-engine',
+              repoId: 'elegy-copilot',
               linkedSessionId: 'session-123',
               runtimeUrl: 'http://127.0.0.1:4173',
-              packageRoot: 'C:\\Repos\\instruction-engine-worktrees\\wt-1',
+              packageRoot: 'C:\\Repos\\elegy-copilot-worktrees\\wt-1',
               status: 'attached',
               phase: 'attached',
               updatedAt: '2026-04-07T10:02:00.000Z',
@@ -1010,10 +1010,10 @@ Verify the new framing surfaces in Sessions.
             },
             {
               id: 'overlay-leak',
-              repoId: 'instruction-engine',
+              repoId: 'elegy-copilot',
               linkedSessionId: 'session-999',
               runtimeUrl: 'http://127.0.0.1:4273',
-              packageRoot: 'C:\\Repos\\instruction-engine-worktrees\\wt-2',
+              packageRoot: 'C:\\Repos\\elegy-copilot-worktrees\\wt-2',
               status: 'attached',
               phase: 'attached',
               updatedAt: '2026-04-07T10:03:00.000Z',
@@ -1059,7 +1059,7 @@ Verify the new framing surfaces in Sessions.
       sessions: {
         getSessionStartContext() {
           return {
-            cwd: 'C:\\Repos\\instruction-engine',
+            cwd: 'C:\\Repos\\elegy-copilot',
             branch: 'main',
           };
         },
@@ -1067,7 +1067,7 @@ Verify the new framing surfaces in Sessions.
           return [
             {
               taskId: 'TASK-1',
-              repoId: 'instruction-engine',
+              repoId: 'elegy-copilot',
               title: 'Scoped task',
               status: 'in_progress',
               ownerSessionId: 'session-123',
@@ -1076,7 +1076,7 @@ Verify the new framing surfaces in Sessions.
               },
               worktree: {},
               linkedPlanning: {},
-              durablePath: 'C:\\cli-home\\repo-state\\instruction-engine\\tasks\\TASK-1.json',
+              durablePath: 'C:\\cli-home\\repo-state\\elegy-copilot\\tasks\\TASK-1.json',
             },
           ];
         },
@@ -1090,9 +1090,9 @@ Verify the new framing surfaces in Sessions.
       repoInventory: {
         resolveRepoEntry() {
           return {
-            repoId: 'instruction-engine',
-            repoPath: 'C:\\Repos\\instruction-engine',
-            repoLabel: 'Instruction Engine',
+            repoId: 'elegy-copilot',
+            repoPath: 'C:\\Repos\\elegy-copilot',
+            repoLabel: 'Elegy Copilot',
           };
         },
       },
@@ -1101,11 +1101,11 @@ Verify the new framing surfaces in Sessions.
           assert.equal(sessionId, 'session-123');
           return {
             sessionId,
-            cwd: 'C:\\Repos\\instruction-engine',
+            cwd: 'C:\\Repos\\elegy-copilot',
             orchestration: {
               repo: {
-                repoId: 'instruction-engine',
-                repoPath: 'C:\\Repos\\instruction-engine',
+                repoId: 'elegy-copilot',
+                repoPath: 'C:\\Repos\\elegy-copilot',
               },
             },
           };
@@ -1116,7 +1116,7 @@ Verify the new framing surfaces in Sessions.
           return [
             {
               id: 'run-1',
-              repoId: 'instruction-engine',
+              repoId: 'elegy-copilot',
               sessionId: 'session-123',
               status: 'running',
               updatedAt: '2026-04-07T10:02:00.000Z',
@@ -1126,7 +1126,7 @@ Verify the new framing surfaces in Sessions.
             },
             {
               id: 'run-2',
-              repoId: 'instruction-engine',
+              repoId: 'elegy-copilot',
               sessionId: 'session-999',
               status: 'running',
               updatedAt: '2026-04-07T10:03:00.000Z',
@@ -1136,7 +1136,7 @@ Verify the new framing surfaces in Sessions.
             },
             {
               id: 'run-3',
-              repoId: 'instruction-engine',
+              repoId: 'elegy-copilot',
               sessionId: null,
               status: 'queued',
               updatedAt: '2026-04-07T10:04:00.000Z',
@@ -2787,7 +2787,7 @@ WU-001 — Continue execution
       title: 'Planning follow-up',
       content: '# Planning follow-up\n\n## Problem\n\nClose the planning gap.\n',
       repoId: 'repo-1',
-      repoPath: 'C:\\Repos\\instruction-engine',
+      repoPath: 'C:\\Repos\\elegy-copilot',
       seedArtifact: {
         id: 'PI-001',
         category: 'audit-request',

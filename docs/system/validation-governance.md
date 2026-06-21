@@ -70,7 +70,7 @@ true:
 
 ## Browser Tooling Split
 
-Instruction Engine intentionally keeps two browser-testing paths separate inside the single testing lane:
+Elegy Copilot intentionally keeps two browser-testing paths separate inside the single testing lane:
 
 ### Agent-driven browser validation
 
@@ -89,7 +89,7 @@ Instruction Engine intentionally keeps two browser-testing paths separate inside
 
 ### Not the default path
 
-- Playwright MCP is not the default browser-validation route for Instruction Engine workflows
+- Playwright MCP is not the default browser-validation route for Elegy Copilot workflows
 
 ## Closure Rules
 

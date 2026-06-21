@@ -5,7 +5,7 @@ category: system
 status: current
 doc_kind: node
 id: project-conventions-governance
-summary: Canonical contract for how Instruction Engine defines, audits, and routes project-conventions governance work.
+summary: Canonical contract for how Elegy Copilot defines, audits, and routes project-conventions governance work.
 tags: [governance, conventions, routing]
 related: [search-execute-workflow, documentation-structure-governance, self-documenting-code-and-rationale-placement, reviewer-lane-governance, skills-governance]
 ---
@@ -15,11 +15,11 @@ related: [search-execute-workflow, documentation-structure-governance, self-docu
 ## Purpose
 
 Define the canonical governance contract for creating, auditing, and updating project conventions in
-the Instruction Engine ecosystem.
+the Elegy Copilot ecosystem.
 
 ## Context
 
-This rollout is **instruction-engine first**. The conventions governance lane is therefore defined
+This rollout is **elegy-copilot first**. The conventions governance lane is therefore defined
 first against this repo's own canonical docs, repo layout, operating workflows, and the
 per-harness instruction file pattern, then reused later as a pattern for downstream repos.
 
@@ -97,7 +97,7 @@ before or alongside code or asset changes.
 
 ## Repo Rules Authority and Bootstrap Model
 
-For the instruction-engine first pass, repository rules are authoritative when they are captured in
+For the elegy-copilot first pass, repository rules are authoritative when they are captured in
 canonical docs under `docs/system/**`, with per-harness instruction files (`AGENTS.md`, `CLAUDE.md`,
 `GEMINI.md`, `.github/copilot-instructions.md`) acting as lighter-weight repo/project entrypoints
 that cannot outrank those canonical docs.

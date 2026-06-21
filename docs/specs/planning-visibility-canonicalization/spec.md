@@ -50,7 +50,7 @@ work MUST use the `.elegy` paths above.
 
 - `C:\Users\lolzi\.copilot\elegy-planning.db` (verified) contains `GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603` and 5 child roadmaps (`RM-COPILOT-GIT-UI-20260603`, `RM-WORKTREE-MERGE-CONSISTENCY-20260603`, `RM-VALIDATION-RECEIPTS-20260603`, `RM-HOOKS-AGENT-LANE-ENFORCEMENT-20260603`, `RM-CODEX-PLANNING-BOOTSTRAP-20260603`).
   → verify: `node -e "const db=require('better-sqlite3')('C:/Users/lolzi/.copilot/elegy-planning.db',{readonly:true}); const r=db.prepare(\"SELECT id,title,(SELECT COUNT(*) FROM roadmaps WHERE goal_id=g.id) AS rmcount FROM goals g WHERE id='GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603'\").get(); console.log(r)"`
-- The parent goal carries `repo:elegy` and `repo:instruction-engine`; the 5 child roadmaps carry feature tags only (e.g. `git-ui`, `pull-requests`) and have no `repo:*` tag.
+- The parent goal carries `repo:elegy` and `repo:elegy-copilot`; the 5 child roadmaps carry feature tags only (e.g. `git-ui`, `pull-requests`) and have no `repo:*` tag.
   → verify: `node -e "const db=require('better-sqlite3')('C:/Users/lolzi/.copilot/elegy-planning.db',{readonly:true}); for (const id of ['GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603','RM-COPILOT-GIT-UI-20260603','RM-WORKTREE-MERGE-CONSISTENCY-20260603','RM-VALIDATION-RECEIPTS-20260603','RM-HOOKS-AGENT-LANE-ENFORCEMENT-20260603','RM-CODEX-PLANNING-BOOTSTRAP-20260603']) { const row=db.prepare('SELECT id,tags_json FROM '+({GOAL:'goals',RM:'roadmaps'}[id.startsWith('GOAL')?'GOAL':'RM'])+' WHERE id = ?').get(id); console.log(id, row.tags_json) }"`
 - The Copilot DB contains 6 work points and 6 plans, but NONE of them are linked to the consolidation goal or its 5 roadmaps. Validate currently reports `ROADMAP-NO-WORK-POINTS` for each of the 5 child roadmaps.
   → verify: `& "C:\Users\lolzi\.copilot\managed-cli\planning\elegy-planning.exe" --db "C:\Users\lolzi\.copilot\elegy-planning.db" validate all --json | Select-String -Pattern "ROADMAP-NO-WORK-POINTS" -SimpleMatch`
@@ -60,7 +60,7 @@ work MUST use the `.elegy` paths above.
   → verify: `Remove-Item "C:\Users\lolzi\.elegy\planning-session.json" -ErrorAction SilentlyContinue; & "C:\Users\lolzi\.copilot\managed-cli\planning\elegy-planning.exe" --db "C:\Users\lolzi\.copilot\elegy-planning.db" session init --json; Get-Content "C:\Users\lolzi\.elegy\planning-session.json"`
 - The CLI exposes `goal create`/`roadmap create` with `--tag <TAGS>` but has NO tag-update subcommand. Existing tags can only be edited by writing directly to the SQLite `tags_json` column and the `tag_index` table.
   → verify: `& "C:\Users\lolzi\.copilot\managed-cli\planning\elegy-planning.exe" --db "C:\Users\lolzi\.copilot\elegy-planning.db" --help | Select-String -Pattern "tag|update" -SimpleMatch`
-- The Copilot catalog at `C:\Users\lolzi\.copilot\catalog\projections\repo-*.json` enumerates 4 repos: `74af0f7b5cc4` (`instruction-engine`, `C:\Users\lolzi\Documents\GitHub\instruction-engine`), `55f0c2816d6a` (`Elegy`, `C:\Users\lolzi\Documents\GitHub\Elegy`), `7e193095cbae` (worktree), and `eb3839fab667` (`SAASTools`).
+- The Copilot catalog at `C:\Users\lolzi\.copilot\catalog\projections\repo-*.json` enumerates 4 repos: `74af0f7b5cc4` (`elegy-copilot`, `C:\Users\lolzi\Documents\GitHub\elegy-copilot`), `55f0c2816d6a` (`Elegy`, `C:\Users\lolzi\Documents\GitHub\Elegy`), `7e193095cbae` (worktree), and `eb3839fab667` (`SAASTools`).
   → verify: `Get-ChildItem "C:\Users\lolzi\.copilot\catalog\projections" -Filter "repo-*.json" | ForEach-Object { $j = Get-Content $_.FullName -Raw | ConvertFrom-Json; "$($j.repoContext.repoId) $($j.repoContext.repoLabel) $($j.repoContext.repoPath)" }`
 - The existing `PlanningExplorerView` (`copilot-ui/ui/src/tabs/Planning/PlanningExplorerView.tsx`) already does a multi-repo fetch, a per-repo Promise.allSettled, sort by date, refresh, partial-failure warning, and a global-query fallback for unscoped roadmaps. It is already wired into `App.tsx:94-95` and `StandaloneGraphWindow` is wired into `App.tsx:109-121`.
   → verify: `rg -n "PlanningExplorerView|StandaloneGraphWindow" copilot-ui/ui/src/App.tsx`
@@ -70,6 +70,30 @@ work MUST use the `.elegy` paths above.
   → verify: `rg -n "listPlanningLiveRoadmaps|/api/planning/live/roadmaps" copilot-ui/routes/planning.js copilot-ui/ui/src/lib/api/planning.ts | Select-Object -First 10`
 
 ## Requirements
+
+### Allowed Behavior
+
+- Canonical `repo:*`, `source:*`, `theme:*`, and `phase:*` tags on all planning entities created by Codex, OpenCode, or Copilot scaffolding
+- In-place repair of existing consolidation goal and roadmaps with stable IDs and event logging
+- Inherited repo scope matching through parent goal tags (server-side bridge filter)
+- Unscoped/inherited records displayed by default in the Planning UI with explicit "Unscoped / inherited" section
+- Rich explorer view with entity-type, repo, status, tag, source-harness, date, parent-goal, and free-text filters
+- Warning buckets panel for unscoped, orphaned, stale, and missing-session records
+- Drill-down side panel showing raw JSON, tags, parent chain, validation state, and copyable CLI commands
+- Active session status panel above the explorer with session metadata or init button
+- Validation script (`validate-planning-metadata.js`) checking unscoped, orphaned, inconsistent tags, and missing work items
+- Shared planning session sidecar at `~/.elegy/planning-session.json` surfaced via new endpoint
+
+### Forbidden Behavior
+
+- Modifying the `elegy-planning` Rust CLI source (shipped pre-compiled)
+- Migrating consolidation records between databases (repair in place only)
+- Repairing non-consolidation goals/roadmaps (out of scope for this spec)
+- Creating placeholder work items for consolidation roadmaps (report gaps only)
+- Periodic re-syncing of separate planning session sidecar (canonical is `~/.elegy/planning-session.json`)
+- Redesigning standalone graph window, catalog workspace store, or planning contract types
+- Persisting explorer filter/sort state across sessions (filters live in component state)
+- Paginating the explorer list (add later if count exceeds 50)
 
 ### R1 — Canonical Repo Tag Format
 
@@ -91,14 +115,14 @@ Repair the existing `GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603` goal and its
 - R2.1 — Back up `C:\Users\lolzi\.copilot\elegy-planning.db` to `C:\Users\lolzi\.copilot\backups\elegy-planning.db.bak-<timestamp>` BEFORE any write. If the backup fails, abort and surface the failure.
   → verify: `Get-ChildItem "C:\Users\lolzi\.copilot\backups" -Filter "elegy-planning.db.bak-*" | Sort-Object LastWriteTime -Descending | Select-Object -First 1 | Select-Object Name, LastWriteTime`
 - R2.2 — Run the repair script `scripts/repair-consolidation-tags.mjs --db <path>` which:
-  - For the goal: merges new tags `repo:74af0f7b5cc4`, `repo:55f0c2816d6a`, `repo:instruction-engine`, `repo:elegy`, `source:codex`, `theme:consolidation`, `phase:1` into the existing tag list (de-duplicated, case-insensitive on label tags, case-preserving on insertion).
-  - For each of the 5 roadmaps: merges `repo:74af0f7b5cc4`, `repo:55f0c2816d6a`, `repo:instruction-engine`, `repo:elegy`, `source:codex`, `theme:<roadmap-theme>`, `phase:1` and the original feature tags. This satisfies R1.1's "goal-and-child include both forms" pattern so the roadmaps can match the goal's repo scope even without server-side inheritance.
+  - For the goal: merges new tags `repo:74af0f7b5cc4`, `repo:55f0c2816d6a`, `repo:elegy-copilot`, `repo:elegy`, `source:codex`, `theme:consolidation`, `phase:1` into the existing tag list (de-duplicated, case-insensitive on label tags, case-preserving on insertion).
+  - For each of the 5 roadmaps: merges `repo:74af0f7b5cc4`, `repo:55f0c2816d6a`, `repo:elegy-copilot`, `repo:elegy`, `source:codex`, `theme:<roadmap-theme>`, `phase:1` and the original feature tags. This satisfies R1.1's "goal-and-child include both forms" pattern so the roadmaps can match the goal's repo scope even without server-side inheritance.
   - Updates BOTH the entity's `tags_json` column AND the `tag_index` table inside a single SQLite transaction.
   - Emits one `planning_events` row per change with `correlation_id="copilot-git-consolidation-20260603"`, `event_type="tag_repair_direct_sqlite"`, and `payload_json` shape `{ scriptVersion: string, operator: string, runs: number, before: string[], after: string[], idempotencyKey: string }`. The `idempotencyKey` is `sha256(concatenation of sorted(entityId, "|", join("|", canonicalTags[])) tuples)` (i.e. one hash per entity's full canonical tag array; the SAME definition used in the ADR). An existing row with the same key aborts the run as a no-op. The `event_type` value and payload shape are AUTHORITATIVELY defined in `docs/system/direct-sqlite-repair-for-planning-tags-adr.md` (Decision 5); spec/plan use the same values.
   - Is idempotent: re-running it on a correctly-tagged record changes nothing and exits 0.
   → verify: `node scripts/repair-consolidation-tags.mjs --db "C:\Users\lolzi\.copilot\elegy-planning.db" --dry-run; node scripts/repair-consolidation-tags.mjs --db "C:\Users\lolzi\.copilot\elegy-planning.db"`
-- R2.3 — After repair, `elegy-planning --db <path> tags` MUST show `repo:74af0f7b5cc4` and `repo:55f0c2816d6a` with `entityCount >= 6` (the goal plus 5 roadmaps) and `repo:elegy`, `repo:instruction-engine` MUST still be present (compat tags remain).
-  → verify: `& "C:\Users\lolzi\.copilot\managed-cli\planning\elegy-planning.exe" --db "C:\Users\lolzi\.copilot\elegy-planning.db" tags --json | Select-String -Pattern "repo:74af0f7b5cc4|repo:55f0c2816d6a|repo:elegy|repo:instruction-engine"`
+- R2.3 — After repair, `elegy-planning --db <path> tags` MUST show `repo:74af0f7b5cc4` and `repo:55f0c2816d6a` with `entityCount >= 6` (the goal plus 5 roadmaps) and `repo:elegy`, `repo:elegy-copilot` MUST still be present (compat tags remain).
+  → verify: `& "C:\Users\lolzi\.copilot\managed-cli\planning\elegy-planning.exe" --db "C:\Users\lolzi\.copilot\elegy-planning.db" tags --json | Select-String -Pattern "repo:74af0f7b5cc4|repo:55f0c2816d6a|repo:elegy|repo:elegy-copilot"`
 - R2.4 — After repair, `elegy-planning --db <path> goal show --goal-id GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603 --json` MUST list the same 5 roadmaps, with the same IDs. No duplicates created.
   → verify: `& "C:\Users\lolzi\.copilot\managed-cli\planning\elegy-planning.exe" --db "C:\Users\lolzi\.copilot\elegy-planning.db" goal show --goal-id GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603 --json | Select-String -Pattern "RM-" -SimpleMatch`
 
@@ -207,7 +231,7 @@ The existing `roadmapWorkflowPlanningBridge` (`copilot-ui/lib/roadmapWorkflowPla
 - [ ] Goal `GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603` and all 5 child roadmaps carry the canonical `repo:<id>`, `repo:<label>`, `source:<harness>`, `theme:<token>`, `phase:<token>` tag set after running the repair script, with stable IDs.
   → verify: `node -e "const j=require('child_process').execSync('node scripts/validate-planning-metadata.js --db \"C:/Users/lolzi/.copilot/elegy-planning.db\" --json',{encoding:'utf8'});const r=JSON.parse(j);const ids=['GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603','RM-COPILOT-GIT-UI-20260603','RM-WORKTREE-MERGE-CONSISTENCY-20260603','RM-VALIDATION-RECEIPTS-20260603','RM-HOOKS-AGENT-LANE-ENFORCEMENT-20260603','RM-CODEX-PLANNING-BOOTSTRAP-20260603'];const fail=ids.flatMap(id=>['unscoped','orphaned','inconsistentTags'].flatMap(k=>(r[k]||[]).filter(x=>x.entityId===id)));if(fail.length){console.error('FAIL',fail);process.exit(1)}else{console.log('OK')}"` exits 0.
 - [ ] Server-side roadmap filter matches a child roadmap against its parent goal's repo scope when the child has no `repo:*` tag of its own.
-  → verify: `node copilot-ui/tests/planning-roadmap-inheritance.test.js` exits 0 and includes a test case named `child roadmap inherits parent goal repo scope` that asserts `RM-COPILOT-GIT-UI-20260603` matches `repo:instruction-engine` even after the roadmap's own `repo:*` tags are stripped in the test fixture.
+  → verify: `node copilot-ui/tests/planning-roadmap-inheritance.test.js` exits 0 and includes a test case named `child roadmap inherits parent goal repo scope` that asserts `RM-COPILOT-GIT-UI-20260603` matches `repo:elegy-copilot` even after the roadmap's own `repo:*` tags are stripped in the test fixture.
 - [ ] `GET /api/planning/live/roadmaps?repoId=74af0f7b5cc4` returns the 5 consolidation roadmaps AND any other roadmaps tagged for the same repo.
   → verify: `node copilot-ui/tests/planning-live-roadmaps-repo-filter.test.js` exits 0; the test starts an in-process server with a mock bridge seeded with the consolidation roadmap set, sends `GET /api/planning/live/roadmaps?repoId=74af0f7b5cc4`, and asserts the response body includes all 5 consolidation roadmaps (does not require a live server, a UI build, or a port allocation).
 - [ ] Planning tab shows the consolidation roadmaps even when no repo is selected, and the active-session status panel is visible above the list.

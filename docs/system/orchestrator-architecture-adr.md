@@ -14,7 +14,7 @@ related: [domain-authorities-freeze, planning-backlog-roadmap-contract, runtime-
 
 ## Context
 
-The Instruction Engine currently has no durable execution orchestrator. Work is dispatched ad-hoc by OpenCode/Codex sessions with no central lease, evidence chain, or verified repository state.
+The Elegy Copilot currently has no durable execution orchestrator. Work is dispatched ad-hoc by OpenCode/Codex sessions with no central lease, evidence chain, or verified repository state.
 
 `elegy-planning` owns durable planning state (goals, roadmaps, plans, work points, leases, review points). The orchestrator must consume that authority, not duplicate it.
 
@@ -34,7 +34,7 @@ Resolution rule for the orchestrator:
 - The Node proxy bridge (`copilot-ui/server.js`) must resolve session artifacts from the path defined by its own runtime config, which currently uses `~/.copilot/`. The bridge is responsible for path normalization when reading artifacts and forwarding them to the orchestrator API.
 - If the `elegy_home` and `copilot_home` roots differ at runtime, the orchestrator health endpoint MUST report `path_divergence_detected` as a warning state rather than failing closed.
 
-## Decision: Authority and State Ownership Matrix
+## Decision
 
 Define these NEW orchestrator domains (extending the 7 domains already frozen in `domain-authorities-freeze.md`):
 

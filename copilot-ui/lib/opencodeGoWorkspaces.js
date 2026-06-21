@@ -5,7 +5,7 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 
-const KEYRING_SERVICE_NAME = 'instruction-engine.elegy-copilot.opencode-go';
+const KEYRING_SERVICE_NAME = 'elegy-copilot.elegy-copilot.opencode-go';
 const STORE_FILENAME = '.elegy-opencode-go-workspaces.json';
 const NATIVE_AUTH_FILENAME = 'auth.json';
 const NATIVE_OPENCODE_GO_PROVIDER = 'opencode-go';

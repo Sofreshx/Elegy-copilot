@@ -943,7 +943,7 @@ function handleSessionPlanMutation(ctx, deps) {
           time: timestamp,
           payload: {
             sessionId,
-            source: 'instruction-engine-ui',
+            source: 'elegy-copilot-ui',
             mode: 'planning',
             startTime: timestamp,
             cwd: repoPath || null,

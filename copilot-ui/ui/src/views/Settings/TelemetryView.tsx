@@ -43,15 +43,17 @@ function CountTable({
   title,
   empty,
   rows,
+  subtitle,
   testId,
 }: {
   title: string;
   empty: string;
   rows: Array<{ name: string; count: number; provider?: string }>;
+  subtitle?: string;
   testId: string;
 }) {
   return (
-    <Panel title={title} testId={testId}>
+    <Panel title={title} subtitle={subtitle} testId={testId}>
       {rows.length === 0 ? (
         <p className="state-message">{empty}</p>
       ) : (
@@ -153,8 +155,12 @@ function HarnessPanel({
 
   return (
     <div className="telemetry-harness" data-testid={`telemetry-harness-${harness.id}`}>
-      <Panel title={`${harness.label} Coverage`} subtitle={harness.coverage} testId="telemetry-coverage">
+      <Panel title={`${harness.label} Coverage`} subtitle="Session data collected by this harness" testId="telemetry-coverage">
         <div className="opencode-readiness-cards telemetry-summary-cards">
+          <div className="opencode-readiness-card">
+            <span className="opencode-readiness-label">Coverage</span>
+            <code className="opencode-readiness-value">{harness.coverage}</code>
+          </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Source</span>
             <code className="opencode-readiness-value">{harness.source.path}</code>
@@ -186,7 +192,7 @@ function HarnessPanel({
         </div>
       </Panel>
 
-      <Panel title="Summary" testId="telemetry-summary">
+      <Panel title="Summary" subtitle="Overview of telemetry events collected across all harnesses" testId="telemetry-summary">
         <div className="opencode-readiness-cards telemetry-summary-cards">
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Requests</span>
@@ -214,19 +220,21 @@ function HarnessPanel({
       <div className="telemetry-grid">
         <CountTable
           title="Most Used Tools"
+          subtitle="Tools invoked most frequently across sessions"
           empty="No tool usage was detected in the sampled data."
           rows={harness.topTools || []}
           testId="telemetry-tools"
         />
         <CountTable
           title="Errors By Type"
+          subtitle="Error frequency breakdown by error type"
           empty="No errors were detected in the sampled data."
           rows={harness.errorsByType || []}
           testId="telemetry-errors"
         />
       </div>
 
-      <Panel title="Recent Events" testId="telemetry-events">
+      <Panel title="Recent Events" subtitle="Latest session and tool events across harnesses" testId="telemetry-events">
         <div className="telemetry-filters">
           <div className="workspace-nav telemetry-filter-tabs" role="tablist" aria-label="Telemetry event filters">
             {EVENT_FILTERS.map((filter) => (

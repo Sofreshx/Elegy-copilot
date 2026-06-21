@@ -26,8 +26,8 @@ tags: [lexicon, elegy-copilot, holon]
 **Tags:** elegy, opencode, agent, subagent
 
 ### Built-in Agent
-**Definition:** An OpenCode-native agent (Build, Plan, Explore, Scout, General) that ships with OpenCode and does not live in the instruction-engine repo.
-**Usage:** Use to distinguish OpenCode's native agents from custom lane/subagents defined in the instruction-engine workspace. Built-in agents are always available.
+**Definition:** An OpenCode-native agent (Build, Plan, Explore, Scout, General) that ships with OpenCode and does not live in the elegy-copilot repo.
+**Usage:** Use to distinguish OpenCode's native agents from custom lane/subagents defined in the elegy-copilot workspace. Built-in agents are always available.
 **Related:** Lane Agent (custom, workflow-enforcing), Engine Agent (Copilot format), Custom Agent (user-defined)
 **Tags:** elegy, opencode, agent
 
@@ -38,7 +38,7 @@ tags: [lexicon, elegy-copilot, holon]
 **Tags:** elegy, copilot, agent
 
 ### Engine Agent
-**Definition:** An agent shipped as part of the instruction-engine control plane — search, execute, impl, code-reviewer, code-explorer, test-runner — in Copilot `.agent.md` format.
+**Definition:** An agent shipped as part of the elegy-copilot control plane — search, execute, impl, code-reviewer, code-explorer, test-runner — in Copilot `.agent.md` format.
 **Usage:** Use to refer to the set of agents installed via `engine-assets/agents/` that provide the Copilot runtime capability layer. They underpin the lane agent workflow.
 **Related:** Lane Agent (orchestrator), Shared Skill (companion capability), Engine Asset (broader category)
 **Tags:** elegy, engine, agent
@@ -220,7 +220,7 @@ tags: [lexicon, elegy-copilot, holon]
 **Tags:** catalog, assets, managed, ownership, install
 
 ### Externally-managed (asset)
-**Definition:** An asset installed by an external source (such as OpenCode or another AI coding tool) and activated through Elegy Copilot. These assets are tracked in a secondary ledger (e.g., .instruction-engine-opencode-managed.json or elegy-assets.install.json) rather than in the primary Copilot install ledger.
+**Definition:** An asset installed by an external source (such as OpenCode or another AI coding tool) and activated through Elegy Copilot. These assets are tracked in a secondary ledger (e.g., .elegy-copilot-opencode-managed.json or elegy-assets.install.json) rather than in the primary Copilot install ledger.
 **Usage:** Externally-managed assets support activate and deactivate actions in the External Inventory. They are not managed by the Copilot managed installer and cannot be uninstalled through it. Check the External Inventory tab to see activation status.
 **Related:** Asset Ownership State, Managed (asset), Unmanaged (asset), External Inventory, External Source, Install Ledger
 **Tags:** catalog, assets, external, ownership, activation

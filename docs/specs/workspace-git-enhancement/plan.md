@@ -1,6 +1,6 @@
 # Implementation Plan: Workspace Git Tab Enhancement
 
-**Spec:** `specs/workspace-git-enhancement/spec.md`
+**Spec:** `docs/specs/workspace-git-enhancement/spec.md`
 **Created:** 2026-06-08
 **Status:** draft
 
@@ -1269,7 +1269,7 @@ Add tests to `workspace-git-tab-redesign.vitest.tsx` for these new acceptance ch
 - Add section "Git Tab — Worktree Merge Flow": document the Run checks → dry-run → merge → remove flow
 
 **31. Run spec validation** (3 min)
-- `node scripts/validate-specs.js --strict specs/workspace-git-enhancement/spec.md`
+- `node scripts/validate-specs.js --strict docs/specs/workspace-git-enhancement/spec.md`
 - Fix any spec-level issues reported
 - `node scripts/generate-spec-index.js` to keep the index current
 
@@ -1286,7 +1286,7 @@ Add tests to `workspace-git-tab-redesign.vitest.tsx` for these new acceptance ch
 - Goal ID: `GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603`
 - Title: "Workspace Git Tab Enhancement"
 - Tags: `repo:instruction-engine`, `repo:elegy`, `source:codex`, `theme:git-ui`, `phase:1`
-- Link to `specs/workspace-git-enhancement/spec.md`
+- Link to `docs/specs/workspace-git-enhancement/spec.md`
 
 **34. Create roadmap with work points** (5 min)
 - Create a roadmap for this goal with 6 work points, one per phase:
@@ -1299,7 +1299,7 @@ Add tests to `workspace-git-tab-redesign.vitest.tsx` for these new acceptance ch
   - WP-6 (optional): elegy-planning recording
 
 **35. Record initial state** (5 min)
-- Run `node scripts/validate-specs.js --strict specs/workspace-git-enhancement/spec.md` and capture output
+- Run `node scripts/validate-specs.js --strict docs/specs/workspace-git-enhancement/spec.md` and capture output
 - Note current test pass/fail counts as baselines
 - Record any open questions or known risks
 
@@ -1388,4 +1388,4 @@ Phase 0: Verification
 | `copilot-ui/ui/src/views/Workspace/WorkspaceGitTab.tsx` | Modified | 2c, 2d, 2e, 3a, 3b, 4 |
 | `copilot-ui/tests/workspace-git-tab-redesign.vitest.tsx` | Modified | 2e, 5 |
 | `docs/system/copilot-ui-guide.md` | Modified | 5 |
-| `specs/index.md` | Regenerated | 5 |
+| `docs/specs/index.md` | Regenerated | 5 |

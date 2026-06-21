@@ -45,7 +45,7 @@ This contract governs the **planning surface** exposed inside
 seeding, mirror generation, and operator context.
 
 It does NOT govern using Obsidian as a viewer/editor over canonical repo
-documentation (`docs/system/**`, `docs/research/**`, `specs/**`). That
+documentation (`docs/system/**`, `docs/research/**`, `docs/specs/**`). That
 workflow — opening a repo folder directly as an Obsidian vault with the
 repo retaining full authority — is covered by the
 [[repo-backed-obsidian-docs]]
@@ -177,8 +177,8 @@ lease files.
 Deterministic planning mirror notes live under the selected repo's resolved Obsidian note folder in a
 tool-managed subdirectory:
 
-- `_instruction-engine/planning-mirrors/bullets.md`
-- `_instruction-engine/planning-mirrors/roadmaps/<roadmap-slug>.md`
+- `_elegy-copilot/planning-mirrors/bullets.md`
+- `_elegy-copilot/planning-mirrors/roadmaps/<roadmap-slug>.md`
 
 Those note paths are deterministic, repo-scoped, and remain external/non-canonical.
 

@@ -480,7 +480,7 @@ const mockState = {
       {
         repoId: 'workspace-repo',
         repoPath: 'C:\\workspace',
-        repoLabel: 'instruction-engine',
+        repoLabel: 'elegy-copilot',
         selected: false,
         registered: false,
         scanStatus: 'ready',

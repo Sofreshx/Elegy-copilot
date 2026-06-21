@@ -1,3 +1,14 @@
+---
+created: 2026-06-01
+updated: 2026-06-21
+category: system
+status: current
+doc_kind: node
+id: workspace-repo-features-summary
+summary: Summary of workspace and repository management features added to Elegy Copilot.
+tags: [workspace, repo, features, summary]
+---
+
 # Workspace & Repository Features — Summary
 
 > Implemented: June 2026

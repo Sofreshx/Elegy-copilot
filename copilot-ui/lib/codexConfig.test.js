@@ -99,7 +99,7 @@ describe('codexConfig', () => {
     });
     it('getStatus reports hasLegacyBlock when IE managed block is present', () => {
       const configPath = resolveConfigPath(tmpDir);
-      const legacyContent = '# BEGIN instruction-engine managed codex defaults\nmodel_provider = "old-provider"\n# END instruction-engine managed codex defaults\nmodel = "gpt-5.4"\n';
+      const legacyContent = '# BEGIN elegy-copilot managed codex defaults\nmodel_provider = "old-provider"\n# END elegy-copilot managed codex defaults\nmodel = "gpt-5.4"\n';
       fs.writeFileSync(configPath, legacyContent, 'utf8');
       const status = getStatus(tmpDir);
       assert.equal(status.activeMode, 'native');
@@ -115,32 +115,32 @@ describe('codexConfig', () => {
     });
     it('setMode deepseek-bridge strips legacy IE block before activating', () => {
       const configPath = resolveConfigPath(tmpDir);
-      const legacyContent = '# BEGIN instruction-engine managed codex defaults\nmodel_provider = "old-provider"\n# END instruction-engine managed codex defaults\nmodel = "gpt-5.4"\n';
+      const legacyContent = '# BEGIN elegy-copilot managed codex defaults\nmodel_provider = "old-provider"\n# END elegy-copilot managed codex defaults\nmodel = "gpt-5.4"\n';
       fs.writeFileSync(configPath, legacyContent, 'utf8');
       setMode(tmpDir, 'deepseek-bridge');
       const config = fs.readFileSync(configPath, 'utf8');
       assert.ok(config.includes(MANAGED_DEEPSEEK_BLOCK_START));
-      assert.ok(!config.includes('instruction-engine managed codex defaults'));
+      assert.ok(!config.includes('elegy-copilot managed codex defaults'));
       assert.ok(config.includes('model = "deepseek-v4-pro"'));
       assert.ok(config.includes('model_catalog_json'));
     });
     it('setMode native strips legacy IE block', () => {
       const configPath = resolveConfigPath(tmpDir);
-      const legacyContent = '# BEGIN instruction-engine managed codex defaults\nmodel_provider = "old-provider"\n# END instruction-engine managed codex defaults\nmodel = "gpt-5.4"\n';
+      const legacyContent = '# BEGIN elegy-copilot managed codex defaults\nmodel_provider = "old-provider"\n# END elegy-copilot managed codex defaults\nmodel = "gpt-5.4"\n';
       fs.writeFileSync(configPath, legacyContent, 'utf8');
       setMode(tmpDir, 'native');
       const config = fs.readFileSync(configPath, 'utf8');
-      assert.ok(!config.includes('instruction-engine managed codex defaults'));
+      assert.ok(!config.includes('elegy-copilot managed codex defaults'));
       assert.ok(config.includes('model = "gpt-5.4"'));
     });
     it('hardReset strips legacy IE blocks from backup before restoring', () => {
       const configPath = resolveConfigPath(tmpDir);
-      const originalContent = '# BEGIN instruction-engine managed codex defaults\nmodel_provider = "old-provider"\n# END instruction-engine managed codex defaults\nmodel = "gpt-5.4"\n';
+      const originalContent = '# BEGIN elegy-copilot managed codex defaults\nmodel_provider = "old-provider"\n# END elegy-copilot managed codex defaults\nmodel = "gpt-5.4"\n';
       fs.writeFileSync(configPath, originalContent, 'utf8');
       setMode(tmpDir, 'deepseek-bridge');
       hardReset(tmpDir);
       const restored = fs.readFileSync(configPath, 'utf8');
-      assert.ok(!restored.includes('instruction-engine managed codex defaults'));
+      assert.ok(!restored.includes('elegy-copilot managed codex defaults'));
       assert.ok(!restored.includes('instruction_engine_deepseek'));
       assert.ok(restored.includes('model = "gpt-5.4"'));
     });

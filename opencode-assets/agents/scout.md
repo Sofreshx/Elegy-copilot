@@ -10,7 +10,7 @@ permission:
   edit: deny
   write: deny
   bash:
-    "*": ask
+    "*": allow
     "git clone *": allow
     "git fetch *": allow
     "git checkout *": allow

@@ -47,7 +47,7 @@ async function main() {
       assert.ok(fs.existsSync(path.join(elegyHome, 'skills-vault', 'implementation-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(elegyHome, 'skills-vault', 'implementation-handoff', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(elegyHome, 'copilot-instructions.md')));
-      const installState = JSON.parse(fs.readFileSync(path.join(elegyHome, '.instruction-engine-install-state.json'), 'utf8'));
+      const installState = JSON.parse(fs.readFileSync(path.join(elegyHome, '.elegy-copilot-install-state.json'), 'utf8'));
       assert.equal(installState.installProfile, 'minimal');
       assert.ok(Array.isArray(installState.vaultSkills) && installState.vaultSkills.includes('spec-dev'));
       assert.ok(Array.isArray(summary.surfaces) && summary.surfaces.length === 1);

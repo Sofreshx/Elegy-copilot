@@ -135,7 +135,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Stable desktop promotion preflight
         env:
@@ -154,10 +154,13 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Setup MSVC build environment
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: '22.x'
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -170,6 +173,8 @@ jobs:
 
       - name: Install workspace dependencies
         run: npm ci
+        env:
+          npm_config_msvs_version: '2022'
 
       - name: Build and stage Windows package
         run: npm --prefix copilot-ui run desktop:preview:stage
@@ -199,7 +204,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Download Windows artifacts
         uses: actions/download-artifact@v4

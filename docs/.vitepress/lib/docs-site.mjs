@@ -59,6 +59,7 @@ function walkMarkdownFiles(dir) {
 		if (entry.name === '.vitepress') continue;
 		const fullPath = path.join(dir, entry.name);
 		if (entry.isDirectory()) {
+			if (entry.name.startsWith('_')) continue;
 			results.push(...walkMarkdownFiles(fullPath));
 			continue;
 		}

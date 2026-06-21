@@ -104,7 +104,7 @@ function seedTestDb(db) {
       'INSERT OR REPLACE INTO goals (id, tags_json, status, revision, created_at, updated_at, scope_key) VALUES (?, ?, ?, ?, ?, ?, ?)',
     ).run(
       GOAL_ID,
-      JSON.stringify(['repo:elegy', 'repo:instruction-engine']),
+      JSON.stringify(['repo:elegy', 'repo:elegy-copilot']),
       'draft', 1, now, now, 'default',
     );
 
@@ -118,7 +118,7 @@ function seedTestDb(db) {
       'default', 'goal', GOAL_ID, 'repo:elegy',
     );
     db.prepare('INSERT OR REPLACE INTO tag_index (scope_key, entity_type, entity_id, tag) VALUES (?, ?, ?, ?)').run(
-      'default', 'goal', GOAL_ID, 'repo:instruction-engine',
+      'default', 'goal', GOAL_ID, 'repo:elegy-copilot',
     );
   });
 

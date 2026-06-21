@@ -33,7 +33,7 @@ Out of scope:
 - The CLI's own architecture or schema.
 - The replacement of the legacy `align-elegy-db-assets` spec.
 - The validation, inherited-scope, and UI work; those are covered by
-  `specs/planning-visibility-canonicalization/spec.md`.
+  `docs/specs/planning-visibility-canonicalization/spec.md`.
 
 ## Context
 
@@ -51,7 +51,7 @@ consolidation roadmaps (`RM-COPILOT-GIT-UI-20260603`,
 Copilot UI's Planning tab.
 
 The CLI source is shipped pre-compiled and is not available in the
-`instruction-engine` repo. The CLI cannot be rebuilt or patched from this
+`elegy-copilot` repo. The CLI cannot be rebuilt or patched from this
 workspace. The only practical path to add tags to existing records is a
 direct SQLite write.
 
@@ -126,7 +126,7 @@ tag repair, governed by these rules:
 - **Use `node:sqlite` in Node 22.12 to do the write.** Rejected:
   `node:sqlite` is NOT available in Node 22.12 (verified). The script
   MUST use `better-sqlite3`, which is already present at
-  `instruction-engine/node_modules/better-sqlite3`.
+  `elegy-copilot/node_modules/better-sqlite3`.
 - **Add the tags via a UI form.** Rejected: the current Planning UI does
   not expose tag editing, and the consolidation goal/roadmaps may not
   appear in the UI without tags (chicken-and-egg). Adding tag editing to
@@ -140,7 +140,7 @@ Positive:
   `source:codex`, `theme:<token>`, `phase:<token>` tag set without losing
   their original entity IDs or `planning_events` history.
 - The Copilot UI's Planning tab can match these roadmaps against the
-  `instruction-engine` and `elegy` repo selections.
+  `elegy-copilot` and `elegy` repo selections.
 - The repair is idempotent (the `idempotencyKey` check makes re-runs
   safe) and the backup-then-restore fallback is a hard guarantee.
 
@@ -183,8 +183,8 @@ Follow-up:
 
 - `docs/system/adr-governance.md`
 - `docs/system/planning-backlog-roadmap-contract.md`
-- `specs/planning-visibility-canonicalization/spec.md` (R2.2, Drift Notes)
-- `specs/align-elegy-db-assets/spec.md` (predecessor, NOT modified by this ADR)
+- `docs/specs/planning-visibility-canonicalization/spec.md` (R2.2, Drift Notes)
+- `docs/specs/align-elegy-db-assets/spec.md` (predecessor, NOT modified by this ADR)
 - `scripts/repair-consolidation-tags.mjs` (implementation)
 - `scripts/validate-planning-metadata.js` (post-state validator)
 - `C:\Users\lolzi\.copilot\managed-cli\planning\elegy-planning.exe` (CLI, read-only from this ADR's perspective)

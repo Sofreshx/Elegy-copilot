@@ -236,8 +236,8 @@ test('session orchestration helpers normalize actor roles and metadata determini
   const metadata = normalizeSessionOrchestrationMetadata({
     objective: 'Ship the backend slice',
     repo: {
-      repoId: 'instruction-engine',
-      repoPath: 'C:/Repos/instruction-engine',
+      repoId: 'elegy-copilot',
+      repoPath: 'C:/Repos/elegy-copilot',
     },
     isolation: {
       mode: 'dedicated',
@@ -257,8 +257,8 @@ test('session orchestration helpers normalize actor roles and metadata determini
   assert.deepStrictEqual(metadata, {
     objective: 'Ship the backend slice',
     repo: {
-      repoId: 'instruction-engine',
-      repoPath: 'C:/Repos/instruction-engine',
+      repoId: 'elegy-copilot',
+      repoPath: 'C:/Repos/elegy-copilot',
       repoLabel: null,
       branch: null,
       source: null,
@@ -310,7 +310,7 @@ test('buildSessionOrchestrationProjection preserves authority-safe task and work
     sessionId: 'session-1',
     metadata: {
       objective: 'Objective',
-      repo: { repoId: 'instruction-engine' },
+      repo: { repoId: 'elegy-copilot' },
     },
     actors: [{ actorId: 'reviewer', label: 'Reviewer' }],
     taskItems: [{ taskId: 'TASK-1', ownerSessionId: 'session-1' }],
@@ -321,7 +321,7 @@ test('buildSessionOrchestrationProjection preserves authority-safe task and work
 
   assert.strictEqual(projection.contractVersion, '1');
   assert.strictEqual(projection.authority.durableTasks, 'repo-state');
-  assert.strictEqual(projection.repo.repoId, 'instruction-engine');
+  assert.strictEqual(projection.repo.repoId, 'elegy-copilot');
   assert.strictEqual(projection.taskBoard.items[0].taskId, 'TASK-1');
   assert.strictEqual(projection.workflow.runs[0].runId, 'run-1');
   assert.strictEqual(projection.isolation.worktree.worktreeId, 'wt-1');

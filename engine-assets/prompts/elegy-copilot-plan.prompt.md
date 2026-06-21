@@ -1,5 +1,5 @@
 ---
-name: instruction-engine-plan
+name: elegy-copilot-plan
 description: Create an implementation plan (with risks + validation) and use the environment-appropriate review path before coding.
 ---
 

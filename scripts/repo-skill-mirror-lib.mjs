@@ -117,7 +117,7 @@ export function buildUsage(scriptName, description, options = {}) {
     description,
     '',
     'Options:',
-    '  --repo <path>               Repository root to inspect (defaults to instruction-engine repo root)',
+    '  --repo <path>               Repository root to inspect (defaults to elegy-copilot repo root)',
     '  --config <path>             Path to target-map JSON config',
     '  --targets <csv>             Limit to selected targets (for example codex,opencode,antigravity-cli)',
   ];

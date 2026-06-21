@@ -112,7 +112,7 @@ function getAssetHash(elegyHomeAbs, harnessId, assetId) {
 }
 
 function readOpenCodeManagedInventory(opencodeHomeAbs) {
-  const inventoryPath = path.join(path.resolve(opencodeHomeAbs), '.instruction-engine-opencode-managed.json');
+  const inventoryPath = path.join(path.resolve(opencodeHomeAbs), '.elegy-copilot-opencode-managed.json');
   try {
     if (!fs.existsSync(inventoryPath)) return null;
     const content = JSON.parse(fs.readFileSync(inventoryPath, 'utf8'));

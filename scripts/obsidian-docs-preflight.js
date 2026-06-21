@@ -144,7 +144,7 @@ const validatorPath = path.join(targetRepo, 'scripts', 'validate-doc-graph.js');
 const hasValidator = fileExists(validatorPath);
 addCheck('doc-validator', hasValidator, hasValidator ? validatorPath : 'No doc-graph validator found');
 if (!hasValidator) {
-	warn('No scripts/validate-doc-graph.js found. Doc validation will not be available. Consider copying the validator from the instruction-engine repo.');
+	warn('No scripts/validate-doc-graph.js found. Doc validation will not be available. Consider copying the validator from the elegy-copilot repo.');
 }
 
 // ---- 7. Symlink hazard check ----

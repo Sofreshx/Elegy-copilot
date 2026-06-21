@@ -1,6 +1,6 @@
 ## Spec-Driven Development
 
-This repo opts into instruction-engine spec-driven development for non-trivial work.
+This repo opts into elegy-copilot spec-driven development for non-trivial work.
 
 - Use `spec-dev` when a task needs spec-first clarification, a durable repo spec, or a narrow spec-as-source flow.
 - Durable specs live under `docs/specs/<spec-slug>/spec.md`; keep `docs/specs/index.md` current as durable specs accumulate.

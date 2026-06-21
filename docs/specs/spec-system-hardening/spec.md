@@ -1,9 +1,10 @@
 ---
 spec_id: spec-system-hardening
 title: Spec-Driven Development System Hardening
-status: draft
+status: approved
 type: workflow
-updated: 2026-06-08
+updated: 2026-06-20
+approved_at: 2026-06-20
 liveness_skip_paths:
   - opencode-assets/agents/spec.md
 ---
@@ -18,7 +19,7 @@ The spec-driven development system produces durable requirements artifacts but t
 
 - `scripts/validate-specs.js` (592 lines) — flat synchronous pipeline with 11 structural checks; `--strict` enables file-path liveness checks; exports internal functions for other scripts
 - `.github/workflows/repo-ci.yml` — runs validate-manifest, validate-doc-graph, validate-ci-lockfiles; does NOT run `validate-specs.js --strict`
-- `scripts/generate-spec-index.js` — generates `specs/index.md` but must be run manually; no CI check for staleness; uses a simplified YAML parser that cannot handle block-list values
+- `scripts/generate-spec-index.js` — generates `docs/specs/index.md` but must be run manually; no CI check for staleness; uses a simplified YAML parser that cannot handle block-list values
 - `scripts/validate-specs-artifact-liveness.js` — duplicates `collectSpecFiles`, `extractH2Sections`, `matchFrontmatter`, `looksLikeFilePath` from `validate-specs.js` (~150 lines of copy-paste)
 - `docs/system/spec-driven-development.md` — defines 90-day draft staleness and 180-day implemented staleness advisory policy but no code enforces or warns
 - `docs/specs/planning-visibility-canonicalization/spec.md` (status: draft) — `supersedes` field could reference superseded specs but no validation exists for cross-spec ID resolution
@@ -28,6 +29,32 @@ The spec-driven development system produces durable requirements artifacts but t
 - `docs/specs/verifiable-acceptance-criteria/spec.md` (status: draft) — this spec builds on verifiable-acceptance-criteria's `→ verify:` format (R1), shares the same validator file (`scripts/validate-specs.js`), and modifies overlapping skill/agent files (`catalog-assets/shared-skills/spec-review/SKILL.md`, `catalog-assets/shared-skills/spec-authoring/SKILL.md`). Implementation ordering must coordinate to avoid merge conflicts on the shared files.
 
 ## Requirements
+
+### Allowed Behavior
+
+- Running `node scripts/validate-specs.js --strict` in CI as a blocking step
+- Pre-commit hook detecting staged spec files and running full spec validation
+- Index drift detection between spec files on disk and `docs/specs/index.md`
+- Cross-spec relationship validation (`supersedes`/`superseded_by` resolving to real `spec_id` values)
+- Freshness warnings for stale draft specs (90+ days) and stale implemented specs (180+ days)
+- Shared library modules under `scripts/lib/` for spec parsing, collection, headings, and path heuristics
+- Plan.md requirement warning for complex draft/approved specs (5+ requirements) without companion plan
+- Marking effectively-superseded specs (`align-elegy-db-assets`, `planning-explorer-view`) with correct frontmatter
+- `liveness_skip_paths` frontmatter key for skipping machine-local paths during liveness checks
+- `freshness: ignore` frontmatter key to opt out of freshness warnings
+
+### Forbidden Behavior
+
+- Changing the spec file format or adding new required headings
+- Integrating specs with `elegy-planning` database
+- Adding type-to-template correspondence validation
+- Adding ADR cross-reference validation
+- Executing `→ verify:` commands (file existence/presence check only)
+- Adding pagination or search to the spec index
+- Changing how specs relate to plan-packs or roadmaps
+- Adding a spec dashboard or UI
+- Replacing the file-based spec system
+- Merging specs and elegy-planning (remain separate working models)
 
 ### R1 — CI Gate
 
@@ -213,4 +240,5 @@ Ensure the CI gate (R1) can pass on Linux by handling machine-local paths in exi
 
 ## Drift Notes
 
-- None yet. This spec defines the hardening targets; drift from these targets will be captured here during implementation.
+- Promoted to `approved` 2026-06-20. Most hardening work (R1–R8, R11) is substantively complete and operational: CI runs `--strict`, pre-commit hooks gate on staged specs, index integrity and cross-spec checks run, freshness warnings fire, shared libs exist under `scripts/lib/`, superseded specs are cleaned up, and liveness_skip_paths handles portable paths. Individual acceptance checks not yet formally verified with `→ verify:` commands — deferring to `implemented` promotion after verification pass.
+- `docs/specs/spec-driven-development-contract/spec.md` now defines the normative spec contract that this hardening work operationalizes.

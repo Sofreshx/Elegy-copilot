@@ -41,7 +41,7 @@ const ROADMAP_THEMES = {
 const REPO_TAGS = [
   'repo:74af0f7b5cc4',
   'repo:55f0c2816d6a',
-  'repo:instruction-engine',
+  'repo:elegy-copilot',
   'repo:elegy',
 ];
 const SOURCE_TAG = 'source:codex';

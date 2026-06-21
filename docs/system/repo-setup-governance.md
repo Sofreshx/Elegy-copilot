@@ -15,7 +15,7 @@ related: [catalog-control-plane, copilot-ui-guide, domain-authorities-freeze, se
 ## Purpose
 
 This node defines the canonical authority for the shared repo-setup governance lane that evaluates
-whether a target repository is prepared to work well with instruction-engine repo-local surfaces and
+whether a target repository is prepared to work well with elegy-copilot repo-local surfaces and
 proposes the smallest missing setup resources.
 
 Slice A is intentionally narrow:

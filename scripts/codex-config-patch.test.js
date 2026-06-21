@@ -89,7 +89,7 @@ async function main() {
     const profileMatches = patched.match(/\[profiles\.instruction_engine_plan_review\]/g) || [];
     assert.strictEqual(reviewMatches.length, 1, patched);
     assert.strictEqual(profileMatches.length, 1, patched);
-    assert.ok(!patched.includes('# BEGIN instruction-engine managed codex defaults'), patched);
+    assert.ok(!patched.includes('# BEGIN elegy-copilot managed codex defaults'), patched);
   });
   });
 
@@ -107,7 +107,7 @@ async function main() {
     const twice = fs.readFileSync(configPath, 'utf8');
 
     assert.strictEqual(twice, once);
-    assert.ok(twice.includes('# BEGIN instruction-engine managed codex defaults'));
+    assert.ok(twice.includes('# BEGIN elegy-copilot managed codex defaults'));
   });
   });
 
@@ -269,15 +269,15 @@ async function main() {
     assert.ok(patched.includes('review_model = "deepseek-v4-pro"'));
 
     // Verify the managed block END marker exists
-    assert.ok(patched.includes('# END instruction-engine managed codex defaults'), patched);
+    assert.ok(patched.includes('# END elegy-copilot managed codex defaults'), patched);
 
     // Verify no duplicate managed blocks
-    const beginCount = (patched.match(/# BEGIN instruction-engine managed codex defaults/g) || []).length;
+    const beginCount = (patched.match(/# BEGIN elegy-copilot managed codex defaults/g) || []).length;
     assert.strictEqual(beginCount, 1);
   });
   });
 
-  await test('patcher migrates existing instruction-engine block to correct positions', async () => {
+  await test('patcher migrates existing elegy-copilot block to correct positions', async () => {
   withTempDir((root) => {
     const configPath = path.join(root, 'config.toml');
     // Simulate a config with the old-style managed block (root keys inside the managed block)
@@ -287,7 +287,7 @@ async function main() {
       '[windows]',
       'shell = "pwsh"',
       '',
-      '# BEGIN instruction-engine managed codex defaults',
+      '# BEGIN elegy-copilot managed codex defaults',
       'model = "mimo-v2-pro"',
       '',
       'model_provider = "opencode-go"',
@@ -295,7 +295,7 @@ async function main() {
       '[profiles.instruction_engine_plan_review]',
       'model_provider = "opencode-go"',
       'model = "mimo-v2-pro"',
-      '# END instruction-engine managed codex defaults',
+      '# END elegy-copilot managed codex defaults',
     ].join('\n');
     fs.writeFileSync(configPath, configText, 'utf8');
 
@@ -303,7 +303,7 @@ async function main() {
     const patched = fs.readFileSync(configPath, 'utf8');
 
     // After migration, the old style should be gone (managed block only contains tables now)
-    const beginMarkers = (patched.match(/# BEGIN instruction-engine managed codex defaults/g) || []);
+    const beginMarkers = (patched.match(/# BEGIN elegy-copilot managed codex defaults/g) || []);
     assert.strictEqual(beginMarkers.length, 1, 'exactly one managed block');
 
     // Root keys must be before first table header

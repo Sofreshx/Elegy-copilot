@@ -476,7 +476,7 @@ For repeated calls to `GET /api/health`, assert:
 
 ### G-01-WU-04 Contract Regression Gate Commands
 
-Run these from repository root (`instruction-engine`) to validate the frozen contracts from G-01 WU-01..WU-03:
+Run these from repository root (`elegy-copilot`) to validate the frozen contracts from G-01 WU-01..WU-03:
 
 ```bash
 node copilot-ui/lib/runtimeContracts.test.js
@@ -492,7 +492,7 @@ Expected gate result:
 
 ## WS2 — Provider SSOT + Parity Guardrails (G-02-WU-04)
 
-Run this narrow gate from repository root (`instruction-engine`) whenever validating WS2 provider-state/parity scope:
+Run this narrow gate from repository root (`elegy-copilot`) whenever validating WS2 provider-state/parity scope:
 
 ```bash
 node copilot-ui/lib/planningPersistence.test.js
@@ -616,7 +616,7 @@ Expected gate result:
 
 ## G-03 — Reconciliation Invariants Checkpoint (G-03-WU-05)
 
-Run this checkpoint from repository root (`instruction-engine`) whenever validating state authority/reconciliation hardening:
+Run this checkpoint from repository root (`elegy-copilot`) whenever validating state authority/reconciliation hardening:
 
 ```bash
 node copilot-ui/lib/sessionAggregation.test.js
@@ -635,7 +635,7 @@ Expected checkpoint result:
 
 ## G-04 — Finish Proxy Parity + Canonical Sandbox ID Invariant Checkpoint (G-04-WU-04)
 
-Run this checkpoint from repository root (`instruction-engine`) whenever validating cross-WS finish proxy behavior and canonical sandbox ID invariants:
+Run this checkpoint from repository root (`elegy-copilot`) whenever validating cross-WS finish proxy behavior and canonical sandbox ID invariants:
 
 ```bash
 node copilot-ui/server.lifecycle-proxy.test.js
@@ -652,7 +652,7 @@ Expected checkpoint result:
 
 ## G-05 — WS3 Authority Dependency Gate Checkpoint (G-05-WU-01)
 
-Run this checkpoint from repository root (`instruction-engine`) whenever validating planning durability dependency gating behavior:
+Run this checkpoint from repository root (`elegy-copilot`) whenever validating planning durability dependency gating behavior:
 
 ```bash
 node copilot-ui/server.lifecycle-proxy.test.js
@@ -667,7 +667,7 @@ Expected checkpoint result:
 
 ## WS5A M1 — Mandatory Durability Hardening (WU-WS5A-M1-01 / WU-WS5A-M1-02)
 
-Run this WS5A M1 checkpoint from repository root (`instruction-engine`):
+Run this WS5A M1 checkpoint from repository root (`elegy-copilot`):
 
 ```bash
 node copilot-ui/lib/planningPersistence.test.js
@@ -688,7 +688,7 @@ Expected WS5A M1 outcomes:
 
 ## WS5A M3 — Durable Suggestions + Recaps Contract Closure
 
-Run this WS5A M3 checkpoint from repository root (`instruction-engine`):
+Run this WS5A M3 checkpoint from repository root (`elegy-copilot`):
 
 ```bash
 node copilot-ui/server.lifecycle-proxy.test.js
@@ -705,7 +705,7 @@ Expected WS5A M3 outcomes:
 
 ## G-05 — Crash Write-Through + Restart Durability Pack (G-05-WU-05)
 
-Run this narrow durability pack from repository root (`instruction-engine`) to validate crash/restart persistence behavior and deterministic recovery markers:
+Run this narrow durability pack from repository root (`elegy-copilot`) to validate crash/restart persistence behavior and deterministic recovery markers:
 
 ```bash
 node copilot-ui/lib/planningPersistence.test.js
@@ -729,7 +729,7 @@ Reproducible sequence (single pass):
 
 ## WS4 M2 — Retention / Export-Import / Corruption Recovery
 
-Run the WS4 M2 checkpoint pack from repository root (`instruction-engine`):
+Run the WS4 M2 checkpoint pack from repository root (`elegy-copilot`):
 
 ```bash
 node copilot-ui/lib/planningPersistence.test.js
@@ -750,7 +750,7 @@ Expected WS4 M2 outcomes:
 
 ## WS4 M3 — Closure Evidence Gate + DoD
 
-Run this closure pack from repository root (`instruction-engine`):
+Run this closure pack from repository root (`elegy-copilot`):
 
 ```bash
 node copilot-ui/lib/planningPersistence.test.js
@@ -784,7 +784,7 @@ WS4 freeze decision:
 
 ### WS-05 validation command pack
 
-Run from repository root (`instruction-engine`):
+Run from repository root (`elegy-copilot`):
 
 ```bash
 node copilot-ui/lib/sandboxLifecycleTokenContract.test.js

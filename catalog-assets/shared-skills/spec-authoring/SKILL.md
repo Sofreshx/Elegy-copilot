@@ -1,6 +1,7 @@
 ﻿---
 name: spec-authoring
 description: "Create or refine a durable repo spec under docs/specs/<spec-slug>/spec.md using the shared contract. Use when work should be spec-anchored or spec-as-source and needs a concrete spec artifact before implementation planning. Triggers on: author a spec, create a spec, refine spec.md, specs template, specs folder, durable repo spec."
+spec_contract: docs/specs/spec-driven-development-contract/spec.md
 metadata: {"tags":["specs","authoring","requirements","contracts"]}
 ---
 
@@ -8,61 +9,26 @@ metadata: {"tags":["specs","authoring","requirements","contracts"]}
 
 ## Contract
 
-Default durable path:
+The authoritative spec contract is defined at `docs/specs/spec-driven-development-contract/spec.md`. That spec is the single source of truth for required frontmatter, headings, acceptance check format, lifecycle rules, cross-spec relationships, and all other contract requirements. This skill covers how to author against that contract.
 
-- `docs/specs/<spec-slug>/spec.md`
+### Quick Contract Reference
 
-Optional catalog:
-
-- `docs/specs/index.md`
-
-Required frontmatter:
-
-- `spec_id`
-- `title`
-- `status`
-- `type`
-- `updated`
-
-Allowed `status` values:
-
-- `draft`
-- `approved`
-- `implemented`
-- `superseded`
-- `abandoned`
-
-Allowed `type` values:
-
-- `feature`
-- `workflow`
-- `contract`
-- `skill`
-- `agent`
-- `migration`
-
-Required headings:
-
-- `Intent`
-- `Context Evidence`
-- `Requirements`
-- `Non-Goals`
-- `Acceptance Checks`
-- `Implementation Links`
-- `Validation Evidence`
-- `Drift Notes`
+- Location: `docs/specs/<spec-slug>/spec.md`
+- Required frontmatter: `spec_id`, `title`, `status`, `type`, `updated`
+- Required headings: `Intent`, `Context Evidence`, `Requirements`, `Non-Goals`, `Acceptance Checks`, `Implementation Links`, `Validation Evidence`, `Drift Notes`
+- Per-type templates: `docs/specs/_templates/<type>.md`
 
 ## Authoring Rules
 
 - Keep the spec durable and repo-grounded.
 - Use exact file paths, commands, docs, tests, or runtime evidence in `Context Evidence` when available.
 - Keep `Intent` specific and non-empty.
-- Write at least two `Acceptance Checks`, each with a concrete verification method using the `→ verify:` marker (indented 2 spaces, immediately following the bullet, non-empty content).
+- Write at least two `Acceptance Checks`, each with a concrete verification method using the `→ verify:` marker (indented 2 spaces, immediately following the bullet, non-empty content). See normative spec R4.
 - Keep `Non-Goals` explicit near likely scope-creep edges.
 - Use `Implementation Links` for code, docs, plans, PRs, or tickets that materially connect to the spec.
 - When `status: implemented`, `Validation Evidence` must contain real evidence, not a placeholder.
 - Use `Drift Notes` to record deviations, follow-up reconciliation, or `none`.
-- Do not treat a spec as the permanent home for a key architectural or workflow-authority tradeoff when that decision should be promoted into an ADR.
+- Do not treat a spec as the permanent home for a key architectural or workflow-authority tradeoff when that decision should be promoted into an ADR. See normative spec R13.
 - Use the per-type templates under `docs/specs/_templates/` when the default template does not match your `type`.
 
 ### Authoring Gate
@@ -70,21 +36,20 @@ Required headings:
 Before creating `docs/specs/<spec-slug>/spec.md`, the authoring session must establish:
 
 1. **Context evidence**: concrete file paths, commands, docs, or runtime data that justify the spec.
-2. **Allowed Behavior**: what the system should do under the spec's requirements.
-3. **Forbidden Behavior**: what the system must not do — boundary conditions, error states, and excluded paths.
-4. **Verifiable acceptance checks**: at least two checks with concrete `→ verify:` lines.
+2. **Allowed Behavior**: what the system should do under the spec's requirements. See normative spec R5.
+3. **Forbidden Behavior**: what the system must not do — boundary conditions, error states, and excluded paths. See normative spec R5.
+4. **Verifiable acceptance checks**: at least two checks with concrete `→ verify:` lines. See normative spec R4.
 
 Do not create a durable spec without all four gates passed. If evidence is insufficient, pause and gather more before authoring.
 
 ### Spec Link Conventions
 
-Durable specs can declare relationships via frontmatter keys:
+See the normative spec (R7) for the full cross-spec relationship contract. Quick rules:
 
-- `supersedes: <spec_id>` — this spec replaces another spec.
-- `superseded_by: <spec_id>` — this spec is replaced by another spec. Required when `status: superseded`.
+- `supersedes: <spec_id>` — this spec replaces another.
+- `superseded_by: <spec_id>` — this spec is replaced by another. Required when `status: superseded`.
+- Do not set both `supersedes` and `superseded_by` in the same spec.
 - If your spec is related to another but does not supersede or get superseded by it, mention the relationship in `Drift Notes` or `Context Evidence`.
-
-Do not set both `supersedes` and `superseded_by` in the same spec.
 
 ### Spec Readiness Checklist
 
@@ -95,25 +60,26 @@ Before handing a spec to `spec-review`, confirm:
 - [ ] Intent is a specific, non-empty description of the problem or opportunity.
 - [ ] Context Evidence lists concrete file paths, commands, tests, or runtime data with reasons.
 - [ ] Requirements are unambiguous and testable.
-- [ ] Allowed Behavior and Forbidden Behavior subsections are present and concrete.
+- [ ] Allowed Behavior and Forbidden Behavior subsections are present and concrete (normative spec R5).
 - [ ] Non-Goals cover likely scope-creep edges.
-- [ ] Each Acceptance Check has a `→ verify:` line with a concrete command or manual step.
+- [ ] Each Acceptance Check has a `→ verify:` line with a concrete command or manual step (normative spec R4).
 - [ ] Implementation Links list every file, test, or plan that the spec will touch.
-- [ ] Validation Evidence is populated (required for `implemented` status).
+- [ ] Validation Evidence is populated (required for `implemented` status per normative spec R9).
 - [ ] Drift Notes captures any deviation or follow-up, or says "None."
 - [ ] Ensure the spec pre-commit hook is installed: `node scripts/install-spec-hooks.mjs`.
 - [ ] Run `node scripts/validate-specs.js docs/specs/<slug>/spec.md` and fix all errors.
-- [ ] Run `node scripts/validate-specs.js --strict <spec-path>` and verify: no index drift warnings, no cross-spec errors, no stale-draft warnings (unless intentional with `freshness: ignore`), and a `plan.md` exists if the spec has 5+ requirements.
+- [ ] Run `node scripts/validate-specs.js --strict <spec-path>` and verify: no index drift warnings, no cross-spec errors, no stale-draft warnings (unless intentional with `freshness: ignore`), and a `plan.md` exists if the spec has 5+ requirements (normative spec R8).
 - [ ] If the spec has 5+ requirements or 2+ phases, create a sibling `plan.md`.
 
 ## Minimal Workflow
 
 1. Derive a stable spec slug and `spec_id` from the durable subject.
 2. Read the smallest relevant repo evidence before writing requirements.
-3. Create or refine `docs/specs/<spec-slug>/spec.md`.
-4. Update `updated` with the current date.
-5. Run the repo-local spec validator when available.
-6. If implementation will depend on the spec, hand it to `spec-review` before planning.
+3. Load the normative spec contract at `docs/specs/spec-driven-development-contract/spec.md`.
+4. Create or refine `docs/specs/<spec-slug>/spec.md`.
+5. Update `updated` with the current date.
+6. Run the repo-local spec validator when available.
+7. If implementation will depend on the spec, hand it to `spec-review` before planning.
 
 ## Template
 

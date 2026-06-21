@@ -76,7 +76,7 @@ async function run() {
     writeText(path.join(engineRoot, 'engine-assets', 'skills', 'repo-helper', 'SKILL.md'), '# Repo Helper\n');
     fs.mkdirSync(path.join(engineRoot, '.git'), { recursive: true });
     writeJson(path.join(engineRoot, 'package.json'), {
-      name: 'instruction-engine',
+      name: 'elegy-copilot',
       private: true,
       workspaces: ['copilot-ui'],
       dependencies: {
@@ -170,9 +170,9 @@ async function run() {
       assert.equal(workspaceRepo.scanStatus, 'ready');
       assert.ok(workspaceRepo.snapshot.exists, 'expected repo snapshot metadata');
       const engineRepo = resolveRepoEntry(inventory, { repoPath: engineRoot });
-      assert.ok(engineRepo, 'expected instruction-engine workspace entry');
+      assert.ok(engineRepo, 'expected elegy-copilot workspace entry');
       assert.ok(engineRepo.sources.includes('workspace'));
-      assert.equal(engineRepo.repoLabel, 'instruction-engine');
+      assert.equal(engineRepo.repoLabel, 'elegy-copilot');
       const manualRepo = resolveRepoEntry(inventory, { repoPath: manualRepoPath });
       assert.ok(manualRepo, 'expected manual repo entry');
       assert.equal(manualRepo.registered, true);

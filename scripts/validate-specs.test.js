@@ -163,7 +163,13 @@ Test strict mode liveness detection.
 
 ## Requirements
 
+### Allowed Behavior
+
 - Test requirement.
+
+### Forbidden Behavior
+
+- Test forbidden behavior.
 
 ## Non-Goals
 
@@ -222,7 +228,13 @@ Test strict mode passes with valid paths.
 
 ## Requirements
 
+### Allowed Behavior
+
 - Test requirement.
+
+### Forbidden Behavior
+
+- Test forbidden behavior.
 
 ## Non-Goals
 
@@ -282,7 +294,13 @@ Test abandoned status validation.
 
 ## Requirements
 
+### Allowed Behavior
+
 - Test requirement.
+
+### Forbidden Behavior
+
+- Test forbidden behavior.
 
 ## Non-Goals
 
@@ -341,7 +359,13 @@ Test abandoned + superseded_by error.
 
 ## Requirements
 
+### Allowed Behavior
+
 - Test requirement.
+
+### Forbidden Behavior
+
+- Test forbidden behavior.
 
 ## Non-Goals
 
@@ -400,7 +424,13 @@ Test approved staleness warning.
 
 ## Requirements
 
+### Allowed Behavior
+
 - Test requirement.
+
+### Forbidden Behavior
+
+- Test forbidden behavior.
 
 ## Non-Goals
 
@@ -461,7 +491,13 @@ Test abandoned specs do not get staleness warnings.
 
 ## Requirements
 
+### Allowed Behavior
+
 - Test requirement.
+
+### Forbidden Behavior
+
+- Test forbidden behavior.
 
 ## Non-Goals
 

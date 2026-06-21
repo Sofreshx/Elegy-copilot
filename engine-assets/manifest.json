@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "package": {
-    "name": "instruction-engine",
+    "name": "elegy-copilot",
     "version": "0.1.0",
     "sourceCommitSha": "<REPLACE_WITH_GIT_SHA>"
   },
@@ -126,9 +126,9 @@
       "dependsOn": []
     },
     {
-      "id": "instruction-engine-governance-lanes",
-      "title": "Instruction-Engine Governance Skills",
-      "description": "Repo-local governance and conventions/bootstrap skills for instruction-engine-first workflows. Explicit opt-in keeps default routing curated.",
+      "id": "elegy-copilot-governance-lanes",
+      "title": "elegy-copilot Governance Skills",
+      "description": "Repo-local governance and conventions/bootstrap skills for elegy-copilot-first workflows. Explicit opt-in keeps default routing curated.",
       "assetIds": [
         "skill-project-conventions-governance",
         "skill-documentation-structure-governance",
@@ -145,14 +145,14 @@
           "repo"
         ],
         "tags": [
-          "instruction-engine",
+          "elegy-copilot",
           "governance",
           "review",
           "follow-up"
         ]
       },
       "tags": [
-        "instruction-engine",
+        "elegy-copilot",
         "governance",
         "review",
         "follow-up"
@@ -245,14 +245,14 @@
           "planning",
           "roadmap",
           "backlog",
-          "instruction-engine"
+          "elegy-copilot"
         ]
       },
       "tags": [
         "planning",
         "roadmap",
         "backlog",
-        "instruction-engine"
+        "elegy-copilot"
       ],
       "defaultRecommended": false,
       "dependsOn": [
@@ -262,7 +262,7 @@
     {
       "id": "spec-driven-development-lane",
       "title": "Spec-Driven Development Skills",
-      "description": "Repo-local spec routing, authoring, adversarial review, and planning handoff skills for durable specs under specs/ without creating a separate planner fleet.",
+      "description": "Repo-local spec routing, authoring, adversarial review, and planning handoff skills for durable specs under docs/specs/ without creating a separate planner fleet.",
       "assetIds": [
         "skill-spec-dev",
         "skill-spec-authoring",
@@ -329,47 +329,6 @@
       ],
       "defaultRecommended": false,
       "dependsOn": []
-    },
-    {
-      "id": "engineering-toolkit",
-      "title": "Engineering Toolkit",
-      "description": "Adapted from Matt Pocock's skills — grilling, TDD, debugging, domain modeling, codebase design, prototyping, handoff, architecture review, and skill design methodology.",
-      "assetIds": [
-        "skill-codebase-design",
-        "skill-grilling",
-        "skill-domain-modeling",
-        "skill-diagnosing-bugs",
-        "skill-tdd",
-        "skill-writing-great-skills",
-        "skill-handoff",
-        "skill-prototype",
-        "skill-improve-codebase-architecture"
-      ],
-      "installTarget": "repo-local",
-      "activationScope": "repo",
-      "materialization": "on-demand",
-      "classification": "workflow",
-      "targeting": {
-        "scopeKinds": [
-          "repo"
-        ],
-        "tags": [
-          "engineering",
-          "debugging",
-          "tdd",
-          "architecture",
-          "design"
-        ]
-      },
-      "tags": [
-        "engineering",
-        "debugging",
-        "tdd",
-        "architecture",
-        "design"
-      ],
-      "defaultRecommended": false,
-      "dependsOn": []
     }
   ],
   "assets": [
@@ -429,10 +388,10 @@
       "appendix": "engine-assets/copilot-instructions-appendix.md"
     },
     {
-      "id": "prompt-instruction-engine-plan",
+      "id": "prompt-elegy-copilot-plan",
       "type": "prompt",
-      "source": "engine-assets/prompts/instruction-engine-plan.prompt.md",
-      "destination": "prompts/instruction-engine-plan.prompt.md"
+      "source": "engine-assets/prompts/elegy-copilot-plan.prompt.md",
+      "destination": "prompts/elegy-copilot-plan.prompt.md"
     },
     {
       "id": "skill-core-guardrails",
@@ -579,69 +538,6 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/agents-md-authoring",
       "destination": "skills/agents-md-authoring",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-codebase-design",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/codebase-design",
-      "destination": "skills/codebase-design",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-grilling",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/grilling",
-      "destination": "skills/grilling",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-domain-modeling",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/domain-modeling",
-      "destination": "skills/domain-modeling",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-diagnosing-bugs",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/diagnosing-bugs",
-      "destination": "skills/diagnosing-bugs",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-tdd",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/tdd",
-      "destination": "skills/tdd",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-writing-great-skills",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/writing-great-skills",
-      "destination": "skills/writing-great-skills",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-handoff",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/handoff",
-      "destination": "skills/handoff",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-prototype",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/prototype",
-      "destination": "skills/prototype",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-improve-codebase-architecture",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/improve-codebase-architecture",
-      "destination": "skills/improve-codebase-architecture",
       "loadMode": "on-demand"
     }
   ],

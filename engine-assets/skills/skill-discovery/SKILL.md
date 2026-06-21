@@ -10,7 +10,7 @@ metadata: {"aliasKeys":["search-execute"],"stacks":["orchestration"],"tags":["ca
 
 Most domain-specific skills still live in the **skill vault** (`~/.elegy/skills-vault/`) and stay unloaded by default. The planning/spec/review shared lane is the main exception: it is installed on `~/.elegy/skills/` across shipped harnesses so those workflows are always available without extra materialization steps.
 
-In the first-class Instruction Engine workflow, `@search` handles capability discovery and `@execute` handles capability application. This skill is the always-installed routing contract they rely on for selecting the smallest correct skill.
+In the first-class Elegy Copilot workflow, `@search` handles capability discovery and `@execute` handles capability application. This skill is the always-installed routing contract they rely on for selecting the smallest correct skill.
 
 ## Deterministic resolver chain
 

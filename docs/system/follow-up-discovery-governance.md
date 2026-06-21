@@ -61,7 +61,7 @@ Challenged assumptions, evidence gaps, and blocking unknowns inherit from [docs/
 
 ## Durable Handoff Decision
 
-Instruction Engine still does not add a dedicated issue ledger. Durable follow-up routes through the
+Elegy Copilot still does not add a dedicated issue ledger. Durable follow-up routes through the
 existing Repository Backlog family and approved `~/.elegy/backlogs/{repo-name}/issues/*` surfaces.
 
 | Output or condition | Canonical durable surface | Notes |

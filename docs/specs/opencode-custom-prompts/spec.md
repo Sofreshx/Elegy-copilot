@@ -27,6 +27,30 @@ Enable users to add, edit, and remove custom system prompts per OpenCode agent, 
 
 ## Requirements
 
+### Allowed Behavior
+
+- Custom prompts stored in `.elegy-opencode-agent-state.json` with agent → model → prompt mapping
+- Safe overwrite detection via SHA-256 hash-based ownership tracking in `_managedPrompts`
+- Prompt application on profile switch, role model changes, and explicit user save
+- Available model list derived from all profile `roleModels` and user-configured providers
+- Prompts sub-tab with per-agent rows, status indicators, editable textareas, and per-model overrides
+- `POST /api/opencode/prompts` endpoint with applied/skipped/errors response
+- Agent fallback returning to built-in prompt when no override exists for active model
+- `resetConfig()` removing all managed prompts and clearing sidecar entries
+- Effective prompt view showing all assembly layers with source paths
+- Degraded state recovery when sidecar or `opencode.jsonc` is missing
+
+### Forbidden Behavior
+
+- Clobbering manually edited agent prompts in `opencode.jsonc` (skip if hash mismatches)
+- Auto-claiming ownership of pre-existing `agent.<name>.prompt` values when sidecar is missing
+- Per-role prompts (storage maps agent → model → prompt only)
+- Prompt template variables or variable substitution
+- Prompts for non-standard models not listed in `profiles.json` or configured providers
+- Prompt preview or testing against live models
+- Prompt versioning, undo/redo, or revision history
+- Extending custom prompts to non-OpenCode harnesses
+
 ### R1: Prompt Storage
 
 Custom prompts are stored in `.elegy-opencode-agent-state.json` under a `customPrompts` key.

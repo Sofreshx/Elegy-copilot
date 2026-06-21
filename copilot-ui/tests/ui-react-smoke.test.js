@@ -95,19 +95,19 @@ async function run() {
     );
 
     // Icon rail specific elements (items are rendered from dynamic items array)
-    assert.ok(sidebarSource.includes('aria-label="Main navigation"'), 'Expected aria-label on nav element');
-    assert.ok(sidebarSource.includes("'sidebar'"), "Expected sidebar testId");
+    assert.ok(sidebarSource.includes('className="sidebar"'), 'Expected sidebar className on nav element');
+    assert.ok(sidebarSource.includes('data-testid="sidebar"'), "Expected sidebar data-testid");
     assert.ok(sidebarSource.includes('sidebar-item-icon'), 'Expected icon-only items with sidebar-item-icon');
     assert.ok(sidebarSource.includes('sidebar-item-'), 'Expected sidebar items with dynamic sidebar-item- pattern');
-    assert.ok(sidebarSource.includes('sidebar-item-settings'), 'Expected settings sidebar item');
-    assert.ok(sidebarSource.includes('sidebar-item-workspace'), 'Expected workspace item test id');
-
     // Dynamic item rendering pattern (sidebar-item-${item.id})
     assert.ok(sidebarSource.includes('sidebar-item-${'), 'Expected items rendered via dynamic template literal');
+    assert.ok(sidebarSource.includes('sidebar-item-icon'), 'Expected icon-only items with sidebar-item-icon');
+    assert.ok(sidebarSource.includes('sidebar-nav'), 'Expected sidebar-nav container');
 
-    // Uses navigationStore directly
-    assert.ok(sidebarSource.includes('useStoreValue'), 'Expected useStoreValue import for navigationStore');
-    assert.ok(sidebarSource.includes("from '../stores/navigation'"), 'Expected navigationStore import');
+    // Uses SidebarItemId type from stores/navigation and AppIcon from ./AppIcon
+    assert.ok(sidebarSource.includes('SidebarItemId'), 'Expected SidebarItemId import from stores/navigation');
+    assert.ok(sidebarSource.includes("'../stores/navigation'"), 'Expected stores/navigation import');
+    assert.ok(sidebarSource.includes('AppIcon'), 'Expected AppIcon import');
   });
 
   await test('main.tsx and App.tsx exist', async () => {
@@ -118,7 +118,7 @@ async function run() {
   await test('active sidebar view files exist for execution, planning, catalog, maintenance, and settings', async () => {
     const expectedViews = [
       path.join(uiSrcRoot, 'views', 'DashboardView.tsx'),
-      path.join(uiSrcRoot, 'tabs', 'Planning', 'PlanningAuthorityView.tsx'),
+      path.join(uiSrcRoot, 'tabs', 'Planning', 'PlanningGraphView.tsx'),
       path.join(uiSrcRoot, 'views', 'Catalog', 'CatalogShellView.tsx'),
       path.join(uiSrcRoot, 'views', 'Maintenance', 'MaintenanceView.tsx'),
       path.join(uiSrcRoot, 'views', 'Settings', 'SettingsView.tsx'),
@@ -438,20 +438,29 @@ async function run() {
     assert.ok(!appSource.includes('sidebarCollapsed'), 'Expected NO sidebarCollapsed prop on AppLayout');
   });
 
-  await test('Workspace focus mode toggle exists in docs toolbar and viewer', async () => {
+  await test('WorkspaceDocsTab renders WorkspaceDocsCenter with correct props', async () => {
     const docsTabSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceDocsTab.tsx'), 'utf8');
     const docsCenterSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceDocsCenter.tsx'), 'utf8');
-    assert.ok(docsTabSource.includes('workspace-docs-focus-toggle'), 'Expected focus toggle in docs toolbar');
-    assert.ok(docsCenterSource.includes('workspace-docs-focus-toggle'), 'Expected focus toggle in doc viewer header');
-    assert.ok(docsCenterSource.includes('toggleWorkspaceCenterFocus'), 'Expected focus toggle action');
+    assert.ok(docsTabSource.includes('workspace-docs-tab'), 'Expected workspace-docs-tab data-testid');
+    assert.ok(docsTabSource.includes('WorkspaceDocsCenter'), 'Expected WorkspaceDocsCenter import');
+    assert.ok(docsTabSource.includes('<WorkspaceDocsCenter'), 'Expected WorkspaceDocsCenter rendering');
+    assert.ok(docsTabSource.includes('repoPath'), 'Expected repoPath prop passed to WorkspaceDocsCenter');
+    assert.ok(docsCenterSource.includes('workspace-docs-center'), 'Expected workspace-docs-center data-testid in WorkspaceDocsCenter');
+    assert.ok(docsCenterSource.includes('workspace-docs-tree'), 'Expected workspace-docs-tree sidebar in WorkspaceDocsCenter');
+    assert.ok(docsCenterSource.includes('workspace-docs-viewer'), 'Expected workspace-docs-viewer content area');
   });
 
-  await test('WorkspaceDocsCenter accepts isFocused, treeVisible, and onToggleTree props', async () => {
+  await test('WorkspaceDocsCenter renders docs tree, viewer, and editing controls', async () => {
     const docsSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceDocsCenter.tsx'), 'utf8');
-    assert.ok(docsSource.includes('isFocused'), 'Expected isFocused prop in WorkspaceDocsCenter');
-    assert.ok(docsSource.includes('treeVisible'), 'Expected treeVisible prop in WorkspaceDocsCenter');
-    assert.ok(docsSource.includes('onToggleTree'), 'Expected onToggleTree prop in WorkspaceDocsCenter');
     assert.ok(docsSource.includes('workspace-docs-tree-header'), 'Expected tree header with docs title');
+    assert.ok(docsSource.includes('workspace-docs-tree-title'), 'Expected tree title');
+    assert.ok(docsSource.includes('workspace-docs-viewer-header'), 'Expected viewer header');
+    assert.ok(docsSource.includes('workspace-docs-viewer-edit-btn'), 'Expected edit button');
+    assert.ok(docsSource.includes('workspace-docs-viewer-save-btn'), 'Expected save button');
+    assert.ok(docsSource.includes('workspace-docs-viewer-delete-btn'), 'Expected delete button');
+    assert.ok(docsSource.includes('workspace-docs-editor'), 'Expected doc editor');
+    assert.ok(docsSource.includes('workspace-docs-markdown'), 'Expected markdown display');
+    assert.ok(docsSource.includes('workspace-docs-empty'), 'Expected empty state');
   });
 
   await test('docTree helper module exports tree building functions', async () => {
@@ -475,32 +484,17 @@ async function run() {
     assert.ok(mdSource.includes("'h4'"), "Expected h4 tag in DOMPurify allowlist");
   });
 
-  await test('WorkspaceDocsTab uses icon-only toolbar instead of text buttons', async () => {
+  await test('WorkspaceDocsTab is a thin shell delegating to WorkspaceDocsCenter', async () => {
     const docsTabSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Workspace', 'WorkspaceDocsTab.tsx'), 'utf8');
-    // No text button header
-    assert.ok(!docsTabSource.includes('workspace-docs-tab-header'), 'Expected NO old text-button header');
-    // New icon toolbar
-    assert.ok(docsTabSource.includes('workspace-docs-toolbar'), 'Expected icon toolbar container');
-    assert.ok(docsTabSource.includes('workspace-docs-toolbar-btn'), 'Expected icon toolbar buttons');
-    // No text labels for actions
-    assert.ok(!docsTabSource.includes('>Focus<'), 'Expected no "Focus" text label');
-    assert.ok(!docsTabSource.includes('>Graph view<'), 'Expected no "Graph view" text label');
-    assert.ok(!docsTabSource.includes('>Hide tree<'), 'Expected no "Hide tree" text label');
-    // Uses unicode icons
-    assert.ok(docsTabSource.includes('workspace-docs-focus-toggle'), 'Expected focus toggle testId');
-    assert.ok(!docsTabSource.includes('workspace-docs-graph-toggle'), 'Expected no graph toggle testId (removed)');
-    assert.ok(docsTabSource.includes('workspace-docs-tree-toggle'), 'Expected tree toggle testId');
-  });
-
-  await test('WorkspaceDocsTab toolbar excludes graph toggle', async () => {
-    const docsTabPath = path.resolve(__dirname, '..', 'ui', 'src', 'views', 'Workspace', 'WorkspaceDocsTab.tsx');
-    assert.ok(fs.existsSync(docsTabPath));
-    const docsTabSource = fs.readFileSync(docsTabPath, 'utf8');
-    // Graph toggle removed — only focus and tree toggle remain
-    assert.ok(!docsTabSource.includes('workspace-docs-graph-toggle'), 'workspace-docs-graph-toggle should be removed');
+    // Minimal thin shell
+    assert.ok(docsTabSource.includes('workspace-docs-tab'), 'Expected workspace-docs-tab data-testid');
+    assert.ok(docsTabSource.includes('WorkspaceDocsCenter'), 'Expected WorkspaceDocsCenter import');
+    assert.ok(docsTabSource.includes('<WorkspaceDocsCenter'), 'Expected WorkspaceDocsCenter rendering');
+    assert.ok(docsTabSource.includes('repoPath={repoPath}'), 'Expected repoPath prop delegation');
+    // No toolbar or graph toggle
+    assert.ok(!docsTabSource.includes('workspace-docs-toolbar'), 'Expected no standalone toolbar');
     assert.ok(!docsTabSource.includes('DocumentationGraphView'), 'DocumentationGraphView should not be imported');
-    assert.ok(docsTabSource.includes('workspace-docs-focus-toggle'), 'focus toggle should remain');
-    assert.ok(docsTabSource.includes('workspace-docs-tree-toggle'), 'tree toggle should remain');
+    assert.ok(!docsTabSource.includes('workspace-docs-graph-toggle'), 'graph toggle testId should not exist');
   });
 
   await test('Enhanced markdown CSS includes new heading, table, callout, and tag styles', async () => {

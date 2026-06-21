@@ -690,6 +690,23 @@ function validateSpecFile(filePath, options, specIdMap) {
     }
   }
 
+  // R5 — Allowed/Forbidden Behavior subsections must be present under Requirements
+  // Structural check per normative spec contract; strict-only to allow existing specs
+  // time to migrate while CI enforces it going forward.
+  if (options && options.strict) {
+    const requirementsSection = sections.get('Requirements') || '';
+    if (requirementsSection.trim()) {
+      const hasAllowed = /^###\s+Allowed\s+Behavior\s*$/m.test(requirementsSection);
+      const hasForbidden = /^###\s+Forbidden\s+Behavior\s*$/m.test(requirementsSection);
+      if (!hasAllowed) {
+        errors.push(`Requirements section missing '### Allowed Behavior' subsection`);
+      }
+      if (!hasForbidden) {
+        errors.push(`Requirements section missing '### Forbidden Behavior' subsection`);
+      }
+    }
+  }
+
   const intent = sections.get('Intent') || '';
   if (!hasMeaningfulContent(intent)) {
     errors.push('Intent must be non-empty');
@@ -781,6 +798,29 @@ function validateSpecsRoot(options = {}) {
   let specIdMap = null;
   if (options && options.strict && specFiles.length > 0) {
     specIdMap = buildSpecIdMap(specFiles);
+
+    // R2.2 — Unique spec_id check (strict mode, cross-spec)
+    const specIdCounts = new Map();
+    for (const specFile of specFiles) {
+      const content = fs.readFileSync(specFile, 'utf8');
+      const fm = matchFrontmatter(content);
+      if (!fm) continue;
+      try {
+        const meta = parseFrontmatterYaml(fm.yaml);
+        const sid = String(meta.spec_id || '').trim();
+        if (sid) {
+          if (!specIdCounts.has(sid)) specIdCounts.set(sid, []);
+          specIdCounts.get(sid).push(specFile);
+        }
+      } catch (e) {
+        // Skip files with unparseable frontmatter
+      }
+    }
+    for (const [sid, files] of specIdCounts) {
+      if (files.length > 1) {
+        errors.push(`duplicate spec_id '${sid}' in: ${files.map(toDisplayPath).join(', ')}`);
+      }
+    }
   }
 
   for (const specFile of specFiles) {

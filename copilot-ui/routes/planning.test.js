@@ -1282,13 +1282,13 @@ async function run() {
               backlogIds: ['RB-1'],
               roadmapIds: [],
             },
-            durablePath: 'C:\\copilot\\repo-state\\instruction-engine\\tasks\\TASK-1.json',
+            durablePath: 'C:\\copilot\\repo-state\\elegy-copilot\\tasks\\TASK-1.json',
           }];
         },
       },
     });
 
-    const { res, body } = await invoke(routes, 'GET', '/api/planning/task-board?repoId=instruction-engine&repoLabel=Instruction%20Engine', {
+    const { res, body } = await invoke(routes, 'GET', '/api/planning/task-board?repoId=elegy-copilot&repoLabel=Instruction%20Engine', {
       elegyHome: 'C:\\copilot',
       elegyHomeAbs: 'C:\\copilot',
     });
@@ -1299,10 +1299,10 @@ async function run() {
     assert.equal(body.deterministic, true);
     assert.deepEqual(recorded, [{
       elegyHome: 'C:\\copilot',
-      repoId: 'instruction-engine',
+      repoId: 'elegy-copilot',
     }]);
-    assert.equal(body.projection.repo.repoId, 'instruction-engine');
-    assert.equal(body.projection.repo.repoLabel, 'Instruction Engine');
+    assert.equal(body.projection.repo.repoId, 'elegy-copilot');
+    assert.equal(body.projection.repo.repoLabel, 'Elegy Copilot');
     assert.equal(body.projection.taskBoard.items.length, 1);
     assert.equal(body.projection.taskBoard.items[0].taskId, 'TASK-1');
     assert.equal(body.projection.taskBoard.items[0].projection.durableStore, 'repo-state');
@@ -1406,7 +1406,7 @@ async function run() {
                 goalId: 'GOAL-one',
                 title: 'Basename Matched',
                 status: 'active',
-                tags: ['repo:instruction-engine'],
+                tags: ['repo:elegy-copilot'],
               },
               {
                 id: 'RM-other',
@@ -1424,7 +1424,7 @@ async function run() {
     const { res, body } = await invoke(
       routes,
       'GET',
-      '/api/planning/live/roadmaps?repoId=74af0f7b5cc4&repoPath=C%3A%5CUsers%5Clolzi%5CDocuments%5CGitHub%5Cinstruction-engine&repoLabel=%40elegy-copilot%2Froot',
+      '/api/planning/live/roadmaps?repoId=74af0f7b5cc4&repoPath=C%3A%5CUsers%5Clolzi%5CDocuments%5CGitHub%5Celegy-copilot&repoLabel=%40elegy-copilot%2Froot',
       {},
     );
 
@@ -1448,7 +1448,7 @@ async function run() {
                 id: 'GOAL-draft',
                 title: 'Draft Goal',
                 status: 'draft',
-                tags: ['repo:instruction-engine'],
+                tags: ['repo:elegy-copilot'],
               },
               {
                 id: 'GOAL-other',
@@ -1462,7 +1462,7 @@ async function run() {
       },
     });
 
-    // Elegy repo (different from instruction-engine) should NOT see instruction-engine goals
+    // Elegy repo (different from elegy-copilot) should NOT see elegy-copilot goals
     const { res, body } = await invoke(
       routes,
       'GET',
@@ -1487,9 +1487,9 @@ async function run() {
           return {
             goal: {
               id: 'GOAL-ie',
-              title: 'Instruction Engine Goal',
+              title: 'Elegy Copilot Goal',
               status: 'active',
-              tags: ['repo:instruction-engine'],
+              tags: ['repo:elegy-copilot'],
             },
             roadmaps: [
               {
@@ -1497,7 +1497,7 @@ async function run() {
                 goalId: 'GOAL-ie',
                 title: 'Core Roadmap',
                 status: 'active',
-                tags: ['repo:instruction-engine'],
+                tags: ['repo:elegy-copilot'],
               },
               {
                 id: 'RM-other',
@@ -1516,7 +1516,7 @@ async function run() {
     const { res, body } = await invoke(
       routes,
       'GET',
-      '/api/planning/live/goals/GOAL-ie?repoId=74af0f7b5cc4&repoPath=C%3A%5CUsers%5Clolzi%5CDocuments%5CGitHub%5Cinstruction-engine&repoLabel=%40elegy-copilot%2Froot',
+      '/api/planning/live/goals/GOAL-ie?repoId=74af0f7b5cc4&repoPath=C%3A%5CUsers%5Clolzi%5CDocuments%5CGitHub%5Celegy-copilot&repoLabel=%40elegy-copilot%2Froot',
       {},
     );
 

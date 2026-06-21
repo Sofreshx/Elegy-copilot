@@ -140,11 +140,11 @@ async function run() {
     const result = await service.createJob({
       prompt: 'schedule me',
       scheduleAt: scheduledAt,
-      repoId: 'instruction-engine',
+      repoId: 'elegy-copilot',
       orchestration: {
         objective: 'Queue backend contract workflow',
         repo: {
-          repoId: 'instruction-engine',
+          repoId: 'elegy-copilot',
         },
       },
     });
@@ -166,11 +166,11 @@ async function run() {
 
     const result = await service.createJob({
       prompt: 'implement this now',
-      repoId: 'instruction-engine',
+      repoId: 'elegy-copilot',
       orchestration: {
         objective: 'Execute TASK-1',
         repo: {
-          repoId: 'instruction-engine',
+          repoId: 'elegy-copilot',
         },
         taskRefs: [{ taskId: 'TASK-1' }],
       },
@@ -335,10 +335,10 @@ async function run() {
 
     const result = await service.createJob({
       prompt: 'run in primary checkout',
-      repoId: 'instruction-engine',
+      repoId: 'elegy-copilot',
       orchestration: {
         repo: {
-          repoId: 'instruction-engine',
+          repoId: 'elegy-copilot',
           repoPath,
         },
       },
@@ -363,10 +363,10 @@ async function run() {
 
     const first = await service.createJob({
       prompt: 'first writer',
-      repoId: 'instruction-engine',
+      repoId: 'elegy-copilot',
       orchestration: {
         repo: {
-          repoId: 'instruction-engine',
+          repoId: 'elegy-copilot',
           repoPath,
         },
       },
@@ -375,10 +375,10 @@ async function run() {
 
     const second = await service.createJob({
       prompt: 'second writer',
-      repoId: 'instruction-engine',
+      repoId: 'elegy-copilot',
       orchestration: {
         repo: {
-          repoId: 'instruction-engine',
+          repoId: 'elegy-copilot',
           repoPath,
         },
       },
@@ -388,7 +388,7 @@ async function run() {
     assert.match(second.run.error, /worktree path is not prepared yet/i);
     assert.equal(second.job.worktree.mode, 'dedicated');
     assert.equal(second.job.worktree.launch.blocked, true);
-    assert.equal(service.listWorktrees({ repoId: 'instruction-engine' }).length, 1);
+    assert.equal(service.listWorktrees({ repoId: 'elegy-copilot' }).length, 1);
 
     await service.shutdown();
   });
@@ -405,10 +405,10 @@ async function run() {
 
     const first = await service.createJob({
       prompt: 'first writer',
-      repoId: 'instruction-engine',
+      repoId: 'elegy-copilot',
       orchestration: {
         repo: {
-          repoId: 'instruction-engine',
+          repoId: 'elegy-copilot',
           repoPath,
         },
       },
@@ -417,10 +417,10 @@ async function run() {
 
     const second = await service.createJob({
       prompt: 'second writer',
-      repoId: 'instruction-engine',
+      repoId: 'elegy-copilot',
       orchestration: {
         repo: {
-          repoId: 'instruction-engine',
+          repoId: 'elegy-copilot',
           repoPath,
         },
       },
@@ -435,7 +435,7 @@ async function run() {
     assert.equal(sdkBridge.createSessionCalls[1].cwd, path.resolve(worktreePath));
     assert.equal(sdkBridge.createSessionCalls[1].orchestration.isolation.worktreeId, 'wt-1');
 
-    const activeWorktree = service.listWorktrees({ repoId: 'instruction-engine' })
+    const activeWorktree = service.listWorktrees({ repoId: 'elegy-copilot' })
       .find((entry) => entry.worktreeId === 'wt-1');
     assert.ok(activeWorktree);
     assert.equal(activeWorktree.status, 'active');

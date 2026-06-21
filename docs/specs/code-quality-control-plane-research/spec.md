@@ -14,7 +14,7 @@ Define the Elegy-copilot research contract for running, configuring, and visuali
 
 ## Context Evidence
 
-- `docs/system/index.md`: identifies instruction-engine/Elegy Copilot as the shared-asset and control-plane workspace for Copilot, Codex, OpenCode, Antigravity, and Claude Code.
+- `docs/system/index.md`: identifies elegy-copilot/Elegy Copilot as the shared-asset and control-plane workspace for Copilot, Codex, OpenCode, Antigravity, and Claude Code.
 - `docs/system/copilot-ui-guide.md`: current `copilot-ui` responsibilities include local UI/API, repo registration, workspace views, planning graph surfaces, execution views, settings, and diagnostics.
 - `docs/system/catalog-control-plane.md`: catalog control plane manages install/search/external sources and projects file-backed state; it is not a second source of truth.
 - `docs/system/commit-validation-governance.md`: current commit-validation governance already covers test, coverage, lint, format, and typecheck lanes across TypeScript and Rust workspaces.
@@ -27,6 +27,26 @@ Define the Elegy-copilot research contract for running, configuring, and visuali
   - Tree-sitter, rust-analyzer, and SCIP-style indexes as possible inputs from the future Elegy codegraph plugin.
 
 ## Requirements
+
+### Allowed Behavior
+
+- Researching an agentic code quality control surface for installing, running, and displaying code quality systems
+- Orchestrating installed tools, showing status, running commands, displaying results, and launching agent reviews
+- Supporting both TypeScript and Rust repos in the research scope
+- Investigating Semgrep, ast-grep, CodeQL, Joern, and `elegy-codegraph` integration as candidates
+- Persisting operator configuration and last-run state for analyzers
+- Designing an operator dashboard as the first UI with analyzer inventory, policy view, run history, and finding detail
+- Distinguishing proven analyzer output from inferred graph/agent summaries in the UI
+- Existing commit-check lanes remaining the narrow commit gate
+
+### Forbidden Behavior
+
+- Implementing analyzer installation or graph UI in this research spec
+- Making Elegy-copilot the portable source of truth for Semgrep, ast-grep, CodeQL, Joern, or codegraph rules
+- Claiming graph findings replace tests, typechecks, lint, or review
+- Forcing every repo to install heavy analyzers by default
+- Hiding analyzer cost, stale indexes, partial language support, or confidence levels from users
+- Replacing existing commit-check lanes with the code quality control plane
 
 ### Ownership And Product Boundary
 

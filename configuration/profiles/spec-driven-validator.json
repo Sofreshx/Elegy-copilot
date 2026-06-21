@@ -1,11 +1,11 @@
 {
   "schemaVersion": "elegy-configuration-profile/v1",
-  "profileId": "instruction-engine-spec-driven-validator",
-  "displayName": "Instruction Engine Spec Validator",
+  "profileId": "elegy-copilot-spec-driven-validator",
+  "displayName": "Elegy Copilot Spec Validator",
   "description": "Bounded profile for the repo-local spec validator copy step.",
   "templates": [
     {
-      "templateId": "instruction-engine-spec-driven-validator-template"
+      "templateId": "elegy-copilot-spec-driven-validator-template"
     }
   ]
 }

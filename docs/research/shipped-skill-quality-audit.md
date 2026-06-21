@@ -1,3 +1,14 @@
+---
+created: 2026-06-18
+updated: 2026-06-18
+category: research
+status: current
+doc_kind: node
+id: shipped-skill-quality-audit
+summary: Audit of all shipped skills for quality, metadata, and trigger overlap issues.
+tags: [skills, audit, quality]
+---
+
 # Shipped Skill Quality Audit
 
 Generated at: 2026-06-18T13:38:50.327Z

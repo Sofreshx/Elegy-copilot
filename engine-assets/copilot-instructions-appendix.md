@@ -11,7 +11,7 @@ so explicitly reconcile them (see "Conflicts" below).
 For repo-specific policy, treat these instructions as a thin routing surface and defer to
 canonical docs in `docs/system/**`.
 
-Instruction Engine, also published as Elegy Copilot, is the shared asset and
+Elegy Copilot, also published as Elegy Copilot, is the shared asset and
 control-plane workspace for Copilot, Codex, OpenCode, and Antigravity agents,
 skills, prompts, repo setup overlays, and the local dashboard/runtime. This file
 is the global Copilot baseline installed to `~/.elegy/copilot-instructions.md`,
@@ -89,13 +89,13 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   - exploration/synthesis → `@code-explorer` (or `explore` agent)
   - running builds/tests → route validation through `@test-runner`; it owns unit, integration, and browser/E2E selection, while builds still go through the appropriate execution lane/task agent
   - high-signal review → `@code-reviewer`
-  - plan authoring → native `/plan` or the installed `instruction-engine-plan` prompt, plus any needed `askQuestions` clarification
+  - plan authoring → native `/plan` or the installed `elegy-copilot-plan` prompt, plus any needed `askQuestions` clarification
 - Keep context lean:
   - quote only the minimum necessary code, paths, and logs,
   - prefer file paths + line ranges over large pastes,
   - keep summaries under ~300 words per workstream unless I ask for depth.
 
-## Using Instruction Engine assets
+## Using Elegy Copilot assets
 - A few transversal skills are always loaded (`~/.elegy/skills/`): `core-guardrails`, `skill-discovery`, `roadmap-authoring`.
 - **Most domain-specific skills live in the vault** (`~/.elegy/skills-vault/`) and are NOT loaded by default to save tokens.
 - The vault includes `skill-authoring` and `agents-md-authoring` for creating or refining portable Agent Skills and per-harness instruction files.
@@ -117,7 +117,7 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
 - Prefer canonical documentation in `docs/system/**`; use this file for routing/setup cues, not as a second copy of repo policy.
 - Treat `.instructions/*` paths as legacy and use them only when a repository explicitly opts in.
 
-When the current workspace is the Instruction Engine / Elegy Copilot repo:
+When the current workspace is the Elegy Copilot / Elegy Copilot repo:
 - `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into `~/.elegy`.
 - `codex-assets/`, `opencode-assets/`, and `antigravity-assets/` ship thinner native home baselines for their harnesses.
 - `copilot-ui/` is the local dashboard and catalog control plane; the packaged Windows desktop app is the normal end-user runtime.

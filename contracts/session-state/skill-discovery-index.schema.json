@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://instruction-engine/contracts/session-state/1.0.0/skill-discovery-index.schema.json",
+  "$id": "https://elegy-copilot/contracts/session-state/1.0.0/skill-discovery-index.schema.json",
   "title": "Skill Discovery Index",
   "description": "Runtime contract for engine-assets/skills/skill-metadata-index.json, used by catalog projection and search discovery.",
   "type": "object",

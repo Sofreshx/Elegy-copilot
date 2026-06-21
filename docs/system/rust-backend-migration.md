@@ -1,3 +1,14 @@
+---
+created: 2026-05-01
+updated: 2026-06-21
+category: system
+status: current
+doc_kind: node
+id: rust-backend-migration
+summary: Migration status and progress for the Rust Axum backend runtime.
+tags: [rust, backend, migration, axum]
+---
+
 # Rust Backend Migration
 
 ## Status: In development (opt-in)

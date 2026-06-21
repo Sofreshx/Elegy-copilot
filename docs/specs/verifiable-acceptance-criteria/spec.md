@@ -1,9 +1,10 @@
 ---
 spec_id: verifiable-acceptance-criteria
 title: Verifiable Acceptance Criteria
-status: draft
+status: superseded
 type: contract
-updated: 2026-06-04
+updated: 2026-06-20
+superseded_by: spec-driven-development-contract
 liveness_skip_paths:
   - opencode-assets/agents/spec.md
 ---
@@ -28,6 +29,27 @@ Acceptance criteria across specs and project plans must include concrete verific
 
 ## Requirements
 
+### Allowed Behavior
+
+- `→ verify:` marker lines following each acceptance check bullet as the canonical verification format
+- Spec validator (`validate-specs.js`) detecting missing verification methods and flagging acceptance checks that lack them
+- Vague language detection applying `AC_VAGUE_TOKEN_RE` to acceptance check bullet text as a hard error
+- Plan-pack validator (`validate-planpack.js`) defaulting `acEnforcement` to `'fail'` instead of `'warn'`
+- Spec-authoring skill template including `→ verify:` lines and authoring rules requiring them
+- Spec-review skill explicitly checking for concrete verification methods (not just "observable")
+- Updated spec-driven-development doc examples showing verification methods
+- Placeholder `→ verify: pending — author review needed` for existing specs where domain knowledge is lacking
+
+### Forbidden Behavior
+
+- Acceptance check bullets without at least one `→ verify:` line immediately following
+- Vague or subjective language in acceptance check bullet text (always reject)
+- Plan-pack validator defaulting to `warn` for acceptance criteria enforcement (must be `fail`)
+- Changing the `elegy-planning --acceptance` free-form string interface
+- Requiring automated test execution from acceptance criteria (verification method is a reference, not an auto-run trigger)
+- Changing plan-pack work unit `#### Acceptance Criteria` format (bullets only, no verify marker)
+- Changing roadmap item `Acceptance:` field format
+
 - **R1:** Every acceptance check bullet in a spec must include at least one `→ verify:` line immediately following it (indented 2 spaces, no blank line separator). The verify line content must be non-empty.
 - **R2:** The spec validator (`scripts/validate-specs.js`) must detect verification methods and flag acceptance checks that lack them.
 - **R3:** The spec validator (`scripts/validate-specs.js`) must replicate the `AC_VAGUE_TOKEN_RE` regex from `scripts/validate-planpack.js:457` verbatim and apply it to acceptance check bullet text (not verify lines), reporting errors for any matches. This is a hard error, not a warning.
@@ -37,7 +59,7 @@ Acceptance criteria across specs and project plans must include concrete verific
 - **R7:** The spec-driven-development doc (`docs/system/spec-driven-development.md`) must show an updated example with verification methods.
 - **R8:** The spec-authoring skill and reviewer agent instructions must reference verification methods in their acceptance criteria guidance.
 - **R8b:** The project lane agent (`opencode-assets/agents/project.md`) must reference running acceptance verification methods as part of its validation standard (via the `project-workflow` skill).
-- **R9:** Existing spec examples (the one in `docs/system/spec-driven-development.md` and any in `specs/`) are updated to the new format.
+- **R9:** Existing spec examples (the one in `docs/system/spec-driven-development.md` and any in `docs/specs/`) are updated to the new format.
 
 For existing specs where the implementer lacks domain knowledge to write meaningful verification methods, add a placeholder `→ verify: pending — author review needed` and do not block the change on perfect verification lines. The goal is structural compliance; content quality is the spec author's responsibility.
 
@@ -100,4 +122,5 @@ The `→ verify:` marker is the canonical way to attach a verification method to
 
 ## Drift Notes
 
-- R3: clause "replicate verbatim (not imported/shared — a copy maintained in validate-specs.js)" overridden by shared module. The `AC_VAGUE_TOKEN_RE` is now exported from `scripts/lib/ac-vague-tokens.js` and imported by both `validate-specs.js` and `validate-planpack.js`. This eliminates copy-drift risk with no behavioral change. See spec-contract-evolution implementation.
+- This spec is superseded by `spec-driven-development-contract`. The `→ verify:` marker format (R1) is absorbed as R4 in the normative spec; the vague-language detection (R2, R3) is absorbed as R4.3; the plan-pack and skill update requirements are subsumed by the normative contract or delegated to operational docs.
+- R3: clause "replicate verbatim (not imported/shared — a copy maintained in validate-specs.js)" was overridden by shared module before supersession. The `AC_VAGUE_TOKEN_RE` is now exported from `scripts/lib/ac-vague-tokens.js` and imported by both `validate-specs.js` and `validate-planpack.js`.

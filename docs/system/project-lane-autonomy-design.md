@@ -1,3 +1,14 @@
+---
+created: 2026-04-01
+updated: 2026-06-01
+category: system
+status: archived
+doc_kind: node
+id: project-lane-autonomy-design
+summary: Former design for project lane autonomy. Superseded by calibrated questioning and depth governance.
+tags: [project-lane, autonomy, design, archived]
+---
+
 # Project Lane Autonomy Design
 
 **Status:** Superseded. Project lane was removed during the agentic lanes quality rework.

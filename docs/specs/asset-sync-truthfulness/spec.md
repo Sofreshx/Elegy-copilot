@@ -59,6 +59,25 @@ canonical snapshot shared by both views.
 
 ## Requirements
 
+### Allowed Behavior
+
+- Three-case warning system (expected-and-missing, supported-but-inactive, external-source-unsynced) with per-asset detail
+- Per-asset failure results surfaced through the workspace store from installer output
+- Install ledger at `~/.elegy/catalog/install-ledger.json` tracking managed asset IDs per harness
+- Per-harness opt-in toggle in `CatalogStatusView` with explicit user action
+- Global and Status views sharing the same `catalogState.summary` snapshot
+- Regression tests for warning clearing and per-asset failure surfacing
+- `isAssetExpectedForUser` helper replacing hardcoded `expected: true` literals
+
+### Forbidden Behavior
+
+- Hardcoded `expected: true` for all manifest assets regardless of user harness usage
+- Silent installer failure when source path is missing (must surface per-asset errors)
+- Two separate sources of truth for Global and Status views that can disagree
+- Auto-opting user into any harness (opt-in is always an explicit click)
+- Changes to Copilot ledger or installer scripts themselves
+- Adding new CLI surface for sync-ledger operations
+
 ### R1 — Honest warning copy with per-target detail
 
 The global view warning MUST be split into three mutually exclusive cases:
@@ -232,11 +251,11 @@ New users see `expected: false` for every harness until they opt in.
 ## Non-Goals
 
 - Do NOT change `assets.syncAll` / Copilot-ledger behavior. The Copilot
-  `.instruction-engine-install-state.json` ledger is already correct and
+  `.elegy-copilot-install-state.json` ledger is already correct and
   out of scope.
 - Do NOT add new CLI surface. No `elegy-cli sync-ledger` command. The dashboard
   button is the only entry point.
-- Do NOT migrate the existing `.instruction-engine-install-state.json` to
+- Do NOT migrate the existing `.elegy-copilot-install-state.json` to
   the new ledger shape. The two ledgers coexist; Copilot's stays Copilot-only.
 - Do NOT auto-opt the user in for any harness. Opt-in is always an explicit
   click in the Status view.

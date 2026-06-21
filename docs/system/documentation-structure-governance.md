@@ -31,7 +31,7 @@ Drift measures divergence between spec intent and implementation state.
 
 ## Context
 
-Instruction Engine already uses the doc graph in `docs/system/**` as its canonical documentation
+Elegy Copilot already uses the doc graph in `docs/system/**` as its canonical documentation
 system. This governance lane extends that model rather than replacing it.
 
 Feature and modification work is docs-first. When a new feature or modification changes intended
@@ -57,7 +57,7 @@ question.
 
 For this rollout:
 
-- scope is **instruction-engine first**
+- scope is **elegy-copilot first**
 - governance remains **audit/propose first**
 - edits flow through normal documentation execution only after approval
 

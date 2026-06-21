@@ -18,7 +18,7 @@ This file keeps the historical `planning-backlog-roadmap-contract.md` path for b
 The live contract no longer makes repo-file backlog or roadmap docs the primary planning authority.
 
 Define the live planning authority, semantic rules, and compatibility boundaries for planning in
-`instruction-engine` / `elegy-copilot`.
+`elegy-copilot` / `elegy-copilot`.
 
 ## Live Posture
 
@@ -36,16 +36,16 @@ Define the live planning authority, semantic rules, and compatibility boundaries
 | Goal | Top-level durable planning objective | Every roadmap must have a parent goal |
 | Roadmap | Durable multi-session planning structure under a goal | A roadmap never exists without a goal |
 | Work point | Durable slice or roadmap item | The current workflow-artifact bridge derives it from `sliceId` when present |
-| Plan | Durable planning artifact inside `elegy-planning` | The current instruction-engine live UI does not expose full plan CRUD yet |
+| Plan | Durable planning artifact inside `elegy-planning` | The current elegy-copilot live UI does not expose full plan CRUD yet |
 | Todo | Execution-oriented planning item | It may be standalone or plan-derived |
 | Issue | Durable problem or follow-up record | It is first-class, not a second-class note |
 | Review point | Attached review or evidence record | It attaches to another planning object and is not a top-level aggregate |
 | Validation finding | Deterministic validation output | Validation should steer and repair authoring instead of blocking routine authoring by default |
 | Planning event | Append-only planning history | Events are evidence and traceability, not a competing editable source of truth |
 
-## Current Instruction-Engine Integration
+## Current elegy-copilot Integration
 
-The live `instruction-engine` planning bridge currently materializes a narrow subset of the full
+The live `elegy-copilot` planning bridge currently materializes a narrow subset of the full
 authority model:
 
 | Input surface | Live result |

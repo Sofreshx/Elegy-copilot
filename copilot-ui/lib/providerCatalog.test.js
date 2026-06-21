@@ -10,7 +10,7 @@ const { DEFAULT_PROVIDER_CATALOG } = require('@elegy-copilot/contracts');
 const { loadProviderCatalog } = require('./providerCatalog');
 
 function makeTempEngineRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'instruction-engine-provider-catalog-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'elegy-copilot-provider-catalog-'));
 }
 
 test('loadProviderCatalog reads engine-assets/providers.json as the canonical source', () => {

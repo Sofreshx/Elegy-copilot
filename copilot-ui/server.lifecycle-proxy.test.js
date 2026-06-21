@@ -572,8 +572,8 @@ async function run() {
       action: 'finish',
       direction: 'new_client_old_tracker',
       headers: {
-        'x-instruction-engine-lifecycle-contract-version': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
-        'x-instruction-engine-lifecycle-capability': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+        'x-elegy-copilot-lifecycle-contract-version': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+        'x-elegy-copilot-lifecycle-capability': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
       },
     });
 
@@ -648,8 +648,8 @@ async function run() {
         'content-type': 'application/json; charset=utf-8',
         'www-authenticate': 'Bearer realm="tracker"',
         'retry-after': '30',
-        'x-instruction-engine-lifecycle-contract-version': '1',
-        'x-instruction-engine-lifecycle-capability': 'mixed-version-lifecycle-v1',
+        'x-elegy-copilot-lifecycle-contract-version': '1',
+        'x-elegy-copilot-lifecycle-capability': 'mixed-version-lifecycle-v1',
         'x-extra-header': 'blocked',
       },
       bodyText: rawBody,
@@ -663,8 +663,8 @@ async function run() {
       'Content-Type': 'application/json; charset=utf-8',
       'WWW-Authenticate': 'Bearer realm="tracker"',
       'Retry-After': '30',
-      'X-Instruction-Engine-Lifecycle-Contract-Version': '1',
-      'X-Instruction-Engine-Lifecycle-Capability': 'mixed-version-lifecycle-v1',
+      'X-elegy-copilot-Lifecycle-Contract-Version': '1',
+      'X-elegy-copilot-Lifecycle-Capability': 'mixed-version-lifecycle-v1',
     });
   });
 

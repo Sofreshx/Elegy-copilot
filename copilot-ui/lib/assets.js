@@ -14,7 +14,7 @@ const {
   buildCatalogProjection,
 } = require('./catalogProjectionService');
 
-const INSTALL_STATE_FILE_NAME = '.instruction-engine-install-state.json';
+const INSTALL_STATE_FILE_NAME = '.elegy-copilot-install-state.json';
 const INSTALL_STATE_SCHEMA_VERSION = 3;
 
 function toPosixRelPath(p) {

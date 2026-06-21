@@ -242,7 +242,7 @@ describe('opencode go workspaces routes', () => {
     expect(body.registered[0].keySource).toBe('keychain');
     expect(body.registered[0].active).toBe(true);
     expect(JSON.stringify(body).includes('super-secret-1234567890')).toBe(false);
-    const stored = await keyring.module.getPassword('instruction-engine.elegy-copilot.opencode-go', 'keychain:wrk_primary');
+    const stored = await keyring.module.getPassword('elegy-copilot.elegy-copilot.opencode-go', 'keychain:wrk_primary');
     expect(stored).toBe('super-secret-1234567890');
   });
 
@@ -379,7 +379,7 @@ describe('opencode go workspaces routes', () => {
     expect(call[1]).toBe(200);
     expect(call[2].ok).toBe(true);
     expect(call[2].registered.length).toBe(0);
-    const stored = await keyring.module.getPassword('instruction-engine.elegy-copilot.opencode-go', 'keychain:wrk_a');
+    const stored = await keyring.module.getPassword('elegy-copilot.elegy-copilot.opencode-go', 'keychain:wrk_a');
     expect(stored).toBe(null);
   });
 

@@ -26,7 +26,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: '22.x'
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -67,7 +67,7 @@ jobs:
         run: npm --prefix local-tracker run build
 
       - name: Tauri config preflight (Linux)
-        run: npm --prefix copilot-ui run tauri:check
+        run: npm --prefix copilot-ui run tauri:check:linux
 
       - name: Validate Tauri sidecar layout
         run: npm --prefix copilot-ui run validate:tauri-node-sidecar-layout
@@ -89,10 +89,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup MSVC build environment
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: '22.x'
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -102,6 +105,8 @@ jobs:
 
       - name: Install workspace dependencies
         run: npm ci
+        env:
+          npm_config_msvs_version: '2022'
 
       - name: Generate CLI artifacts
         run: |
