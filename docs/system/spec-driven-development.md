@@ -1,6 +1,6 @@
 ---
 created: 2026-05-21
-updated: 2026-06-14
+updated: 2026-06-20
 category: system
 status: current
 doc_kind: node
@@ -49,51 +49,15 @@ Drift measures divergence between spec intent and implementation state.
 - The approved `spec-driven` bootstrap adds bounded repo-local instruction overlays, `docs/specs/index.md`, the repo-local spec validator, and the selected harness's repo-skill mirrors.
 - This exists to make spec-driven work easy to opt into without introducing a separate runtime, planner fleet, or second spec contract.
 
-## Repository Spec Contract
+## Spec Contract
 
-Default durable spec path:
+The authoritative durable spec contract is defined normatively at:
 
-- `docs/specs/<spec-slug>/spec.md`
+- **`docs/specs/spec-driven-development-contract/spec.md`**
 
-Optional catalog:
+That spec is the single source of truth for required frontmatter keys, allowed status/type values, required headings, acceptance check format, cross-spec relationships, lifecycle rules, retention policy, freshness policy, file-scope selector grammar, and ADR promotion thresholds. All downstream consumers (validator, skills, docs) derive their requirements from it.
 
-- `docs/specs/index.md`
-
-Required frontmatter keys:
-
-- `spec_id`
-- `title`
-- `status`
-- `type`
-- `updated`
-
-Allowed `status` values:
-
-- `draft`
-- `approved`
-- `implemented`
-- `superseded`
-- `abandoned`
-
-Allowed `type` values:
-
-- `feature`
-- `workflow`
-- `contract`
-- `skill`
-- `agent`
-- `migration`
-
-Required headings:
-
-- `Intent`
-- `Context Evidence`
-- `Requirements`
-- `Non-Goals`
-- `Acceptance Checks`
-- `Implementation Links`
-- `Validation Evidence`
-- `Drift Notes`
+This doc describes the operating model and workflows around that contract, not the contract itself.
 
 Recommended template:
 
@@ -148,21 +112,17 @@ Define the durable product and implementation contract for session refresh behav
 - None.
 ```
 
-## Spec Lifecycle
+## Spec Lifecycle Summary
 
-Durable specs follow a predictable lifecycle. The `status` field is the primary lifecycle indicator; optional date keys provide timestamps for transitions.
+See the normative spec (R6) for the full lifecycle contract. Quick reference:
 
-| Status | Meaning | Typical next status | Required metadata |
-|---|---|---|---|
-| `draft` | Spec is being authored, content is provisional | `approved` or superseded by another spec | Required frontmatter only |
-| `approved` | Spec has passed review and is ready to anchor planning | `implemented` or `superseded` | `approved_at` recommended |
-| `implemented` | Requirements have been met, acceptance checks pass. Spec remains as the permanent requirements record (intent realized, not state). | `superseded` (if replaced) or remains | `implemented_at` recommended; `Validation Evidence` must be non-empty |
-| `superseded` | Spec is replaced by a newer spec | terminal | `superseded_by` required; `superseded_at` recommended |
-| `abandoned` | Reviewed decision not to implement the spec | terminal | `abandoned_at` recommended; must not set `superseded_by` |
-
-Optional date keys (`created`, `approved_at`, `implemented_at`, `superseded_at`, `abandoned_at`) are validated as ISO-8601 dates when present but are not required for structural compliance. The validator will warn if they are present with invalid format.
-
-Optional hardening keys: `freshness: ignore` (skips staleness warnings), `liveness_skip_paths` (list of path patterns to skip in liveness checks).
+| Status | Meaning | Next |
+|---|---|---|
+| `draft` | Authoring in progress | `approved`, `superseded`, or `abandoned` |
+| `approved` | Passed review, ready for planning | `implemented` or `superseded` |
+| `implemented` | Requirements met, permanent record | `superseded` (if replaced) |
+| `superseded` | Replaced by newer spec | Terminal |
+| `abandoned` | Reviewed decision not to implement | Terminal |
 
 ## Pre-Commit Hook
 
@@ -170,50 +130,32 @@ Run `node scripts/install-spec-hooks.mjs` once to install a pre-commit gate that
 
 ## Spec Relationships
 
-Specs can declare relationships via frontmatter keys:
+See the normative spec (R7) for the full relationship contract. Brief rules:
 
-- `supersedes: <spec_id>` — this spec replaces another spec. Use when a new spec renders an existing spec obsolete.
-- `superseded_by: <spec_id>` — this spec is replaced by another spec. **Required** when `status: superseded`.
+- `supersedes: <spec_id>` — this spec replaces another.
+- `superseded_by: <spec_id>` — **required** when `status: superseded`.
+- Never set both in the same spec.
+- All referenced IDs must resolve to real spec files.
+- Chains must be acyclic with bidirectional validation.
+- Non-authoritative relationships go in `Drift Notes` or `Context Evidence`.
 
-Rules:
-- Do not set both `supersedes` and `superseded_by` in the same spec (validator enforces).
-- The referenced spec ID should match the `spec_id` of another spec in the repo.
-- For non-authoritative relationships (related but not superseding), use `Drift Notes` or `Context Evidence` prose.
+## Spec Retention
 
-## Spec Retention Rules
+See the normative spec (R11) for the full retention contract. Key points:
 
-Durable specs are the permanent requirements record. Do not physically archive or move them to a separate folder.
+- Specs are the permanent requirements record — do not archive or move them.
+- Review `draft` specs after 90 days; review unlinked `approved` specs after 180 days.
+- Delete only accidental duplicates in `draft` status with no links or evidence.
 
-### Retention by Status
+## Spec Freshness
 
-| Status | Retention rule |
-|---|---|
-| `draft` | Review after 90 days of inactivity. Promote to `approved`, move to `abandoned` (if not implementing), or update content. |
-| `approved` | Must link to an active plan or work point. Review if unlinked for >180 days. |
-| `implemented` | Retained permanently. Update `Drift Notes` if behavior changes. |
-| `superseded` | Retained permanently with `superseded_by`. |
-| `abandoned` | Retained permanently as a record of a reviewed decision not to implement. Must not have `superseded_by` (abandoned ≠ replaced). |
+See the normative spec (R12) for the full freshness contract. The validator produces advisory (never blocking) warnings:
 
-### Deletion Rules
-
-Delete a spec only when ALL of these conditions are true:
-1. The spec was an accidental duplicate (identical spec_id or intent as another spec).
-2. The spec has status `draft`.
-3. The spec has no `Implementation Links`, no `Validation Evidence`, and no planning links.
-
-Never delete `approved`, `implemented`, `superseded`, or `abandoned` specs without explicit approval.
-
-## Spec Freshness Policy
-
-The validator produces advisory warnings for staleness:
-
-- **Draft specs** older than 90 days: [WARN] stale draft.
-- **Approved specs** older than 180 days: [WARN] stale approved spec (must link to active plan/work point or be reviewed).
-- **Implemented specs** older than 180 days: [WARN] stale implemented spec (review for drift).
-- **Abandoned specs**: no staleness warnings (terminal status).
-- **Superseded specs**: no staleness warnings (terminal status).
-
-Freshness is advisory, not structural. The validator does not enforce time limits. Use `freshness: ignore` in frontmatter to suppress warnings for intentional exceptions.
+- `draft` > 90 days: stale draft warning
+- `approved` > 180 days: stale approved warning
+- `implemented` > 180 days: stale implemented warning
+- `abandoned` / `superseded`: no warnings (terminal)
+- Opt out: `freshness: ignore` in frontmatter
 
 ## Spec-to-Planning Handoff
 
@@ -230,9 +172,8 @@ When a spec reaches `approved` status, the project lane picks it up for implemen
 ### Handoff Contract
 
 1. The `approved` spec must have a `spec_id`.
-2. The project plan or work point must reference the spec via a **file-scope selector**: `exact:primary:docs/specs/<spec-slug>/spec.md`.
+2. The project plan or work point must reference the spec via a **file-scope selector** using the grammar defined in the normative spec (R10).
 3. Alternatively, record an explicit `planning_insight_record` with `insightType: 'spec-link'` linking the plan to the spec path.
-4. If the implementation uses a `plan.md` alongside the spec, the `plan.md` must reference the spec's file path.
 
 ### Validation
 

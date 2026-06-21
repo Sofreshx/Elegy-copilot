@@ -429,7 +429,7 @@ export default function CodexProviderPanel() {
       </Panel>
 
       {/* ── Recovery ── */}
-      <Panel title="Recovery" subtitle="Reset, restore, and reinstall" testId="codex-provider-recovery">
+      <Panel title="Recovery" subtitle="Reset Codex config, restore Moon Bridge, or reinstall components" testId="codex-provider-recovery">
         <div className="settings-row">
           <div className="settings-row-label">
             <strong>Provider Reset</strong>

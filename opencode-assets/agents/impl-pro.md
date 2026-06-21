@@ -9,7 +9,7 @@ description: "Strong implementation subagent (Pro model). Write-capable. Execute
 permission:
   edit: allow
   bash:
-    "*": ask
+    "*": allow
     "git status*": allow
     "git diff*": allow
     "git log*": allow

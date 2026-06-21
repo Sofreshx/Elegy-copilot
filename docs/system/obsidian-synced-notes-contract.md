@@ -45,7 +45,7 @@ This contract governs the **planning surface** exposed inside
 seeding, mirror generation, and operator context.
 
 It does NOT govern using Obsidian as a viewer/editor over canonical repo
-documentation (`docs/system/**`, `docs/research/**`, `specs/**`). That
+documentation (`docs/system/**`, `docs/research/**`, `docs/specs/**`). That
 workflow — opening a repo folder directly as an Obsidian vault with the
 repo retaining full authority — is covered by the
 [[repo-backed-obsidian-docs]]

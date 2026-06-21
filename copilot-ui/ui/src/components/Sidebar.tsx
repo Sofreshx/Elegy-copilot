@@ -7,6 +7,7 @@ export interface SidebarItem {
   id: SidebarItemId;
   icon: AppIconName;
   label: string;
+  description?: string;
 }
 
 interface SidebarProps {
@@ -26,7 +27,7 @@ export default function Sidebar({ items, activeItem, onNavigate }: SidebarProps)
             data-testid={`sidebar-item-${item.id}`}
             onClick={() => onNavigate(item.id)}
             aria-label={item.label}
-            title={item.label}
+            title={item.description || item.label}
           >
             <AppIcon name={item.icon} size={20} className="sidebar-item-icon" />
           </button>

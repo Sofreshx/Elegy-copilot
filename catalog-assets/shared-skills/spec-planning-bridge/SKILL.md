@@ -1,6 +1,7 @@
 ---
 name: spec-planning-bridge
 description: "Combines spec-dev, spec-authoring, spec-review, and elegy-planning without merging their authority. Use after spec review to hand an approved spec to a planning lane. Triggers on: spec handoff, spec to planning, bridge spec to plan, link spec to roadmap, spec planning bridge."
+spec_contract: docs/specs/spec-driven-development-contract/spec.md
 metadata: {"tags":["specs","planning","handoff","bridge","elegy-planning"]}
 ---
 
@@ -10,7 +11,7 @@ metadata: {"tags":["specs","planning","handoff","bridge","elegy-planning"]}
 
 Hand an approved durable spec to the execution planning system without merging the two authority domains.
 
-- **Specs** (`docs/specs/<slug>/spec.md`) are the durable requirements contract (spec lane owns them).
+- **Specs** (`docs/specs/<slug>/spec.md`) are the durable requirements contract (spec lane owns them). The normative contract is at `docs/specs/spec-driven-development-contract/spec.md`.
 - **elegy-planning** (roadmap → plan → work points) is the durable execution authority (project lane owns it).
 - This skill bridges the handoff.
 
@@ -18,9 +19,25 @@ Hand an approved durable spec to the execution planning system without merging t
 
 1. Load the approved spec from `docs/specs/<spec-slug>/spec.md`.
 2. Confirm the spec has passed `spec-review` and the validator (`node scripts/validate-specs.js --strict`).
-3. Create or locate the target planning entity (roadmap, plan, or work point) with the `exact:primary:docs/specs/<spec-slug>/spec.md` file-scope selector.
+3. Create or locate the target planning entity (roadmap, plan, or work point) with the file-scope selector per the normative spec (R10).
 4. Record a `planning_insight_record` with `insightType: 'spec-link'` and `entityType: 'plan'` linking the plan to the spec.
 5. Validate the handoff: the plan must reference the spec path, and the spec's `Implementation Links` must reference the plan.
+
+## File-Scope Selector
+
+The file-scope selector grammar is defined in the normative spec (R10):
+
+- Format: `<type>:<intent>:<selector>`
+- Canonical spec selector: `exact:primary:docs/specs/<spec-slug>/spec.md`
+- Where `<spec-slug>` matches the `spec_id` frontmatter key.
+
+This selector is used in:
+- `planning_roadmap_add_work_point` `fileScope` arrays at creation time
+- `planning_plan_create` or `plan revise` `fileScope` arrays
+- `Implementation Links` in the spec itself
+
+For semantic linkage (audit trail), always pair the file-scope with:
+- `planning_insight_record` with `insightType: 'spec-link'`
 
 ## Harness-Specific Routing
 
@@ -65,24 +82,6 @@ elegy-planning --scope repo:<repo-key> --json --non-interactive \
   --entity-id <plan-id> \
   --content "Handoff from spec docs/specs/<slug>/spec.md"
 ```
-
-## File-Scope Selector Contract
-
-Use the standard `elegy-planning` file-scope grammar to link specs:
-
-Format: `exact:primary:docs/specs/<spec-slug>/spec.md`
-
-Where `<spec-slug>` matches the `spec_id` frontmatter key. The grammar is `<type>:<intent>:<selector>`:
-- Type: `exact` (literal path match) or `glob` (pattern match)
-- Intent: `primary` (main artifact), `review`, or `affected`
-
-This selector is used in:
-- `planning_roadmap_add_work_point` `fileScope` arrays at creation time
-- `planning_plan_create` or `plan revise` `fileScope` arrays
-- `Implementation Links` in the spec itself
-
-For semantic linkage (audit trail), always pair the file-scope with:
-- `planning_insight_record` with `insightType: 'spec-link'`
 
 ## Output Contract
 

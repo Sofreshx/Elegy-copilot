@@ -12,7 +12,7 @@ import { execSync } from 'child_process';
  * The installed hook calls scripts/validate-specs-precommit.mjs on every commit
  * that touches spec files. Idempotent — safe to run multiple times.
  *
- * PART OF: spec-system-hardening (specs/spec-system-hardening/spec.md)
+ * PART OF: spec-system-hardening (docs/specs/spec-system-hardening/spec.md)
  * DOCS: docs/system/spec-driven-development.md (Pre-Commit Hook section)
  * AGENT: opencode-assets/agents/spec.md (deleted — Prerequisites moved to spec-authoring skill)
  * REPO: AGENTS.md (Before any work section)

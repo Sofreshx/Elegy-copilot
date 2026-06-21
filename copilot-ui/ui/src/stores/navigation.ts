@@ -30,20 +30,59 @@ export interface SettingsNavItem {
   id: SettingsSection;
   label: string;
   icon: string;
+  description: string;
 }
 
 export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
-  { id: 'app', label: 'App Settings', icon: 'settings' },
-  { id: 'catalog', label: 'Assets & Tools', icon: 'layout' },
-  { id: 'opencode', label: 'OpenCode', icon: 'opencode' },
-  { id: 'telemetry', label: 'Telemetry', icon: 'runtime' },
-  { id: 'maintenance', label: 'Maintenance', icon: 'maintenance' },
-  { id: 'runtime', label: 'Runtime', icon: 'play' },
-  { id: 'codex', label: 'Codex', icon: 'codex' },
-  { id: 'claude-code', label: 'Claude Code', icon: 'claude-code' },
-  { id: 'github', label: 'GitHub CLI', icon: 'git-branch' },
-  { id: 'shell', label: 'Shell', icon: 'play' },
-  { id: 'notes', label: 'Notes', icon: 'file-text' },
+  { id: 'app', label: 'App Settings', icon: 'settings', description: 'Keyboard shortcuts and application information.' },
+  { id: 'catalog', label: 'Assets & Tools', icon: 'layout', description: 'Manage shared skills, agents, prompts, and instructions.' },
+  { id: 'opencode', label: 'OpenCode', icon: 'opencode', description: 'OpenCode readiness, provider routing, and active warnings.' },
+  { id: 'telemetry', label: 'Telemetry', icon: 'runtime', description: 'Session and event telemetry collected by the dashboard.' },
+  { id: 'maintenance', label: 'Maintenance', icon: 'maintenance', description: 'Updates and diagnostics for the desktop runtime.' },
+  { id: 'runtime', label: 'Runtime', icon: 'play', description: 'Live runtime health and harness session status.' },
+  { id: 'codex', label: 'Codex', icon: 'codex', description: 'Switch local Codex between OpenAI defaults and DeepSeek via Moon Bridge.' },
+  { id: 'claude-code', label: 'Claude Code', icon: 'claude-code', description: 'Claude Code installation and configuration.' },
+  { id: 'github', label: 'GitHub CLI', icon: 'git-branch', description: 'GitHub authentication and CLI status.' },
+  { id: 'shell', label: 'Shell', icon: 'play', description: 'Default shell and terminal environment used by sessions.' },
+  { id: 'notes', label: 'Notes', icon: 'file-text', description: 'Workspace notes and scratch settings.' },
+];
+
+export interface SettingsNavGroup {
+  id: string;
+  label: string;
+  items: SettingsNavItem[];
+}
+
+export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
+  {
+    id: 'general',
+    label: 'General',
+    items: [
+      SETTINGS_NAV_ITEMS.find((i) => i.id === 'app')!,
+      SETTINGS_NAV_ITEMS.find((i) => i.id === 'telemetry')!,
+      SETTINGS_NAV_ITEMS.find((i) => i.id === 'runtime')!,
+      SETTINGS_NAV_ITEMS.find((i) => i.id === 'maintenance')!,
+    ],
+  },
+  {
+    id: 'providers',
+    label: 'AI Providers',
+    items: [
+      SETTINGS_NAV_ITEMS.find((i) => i.id === 'catalog')!,
+      SETTINGS_NAV_ITEMS.find((i) => i.id === 'opencode')!,
+      SETTINGS_NAV_ITEMS.find((i) => i.id === 'codex')!,
+      SETTINGS_NAV_ITEMS.find((i) => i.id === 'claude-code')!,
+    ],
+  },
+  {
+    id: 'integrations',
+    label: 'Integrations',
+    items: [
+      SETTINGS_NAV_ITEMS.find((i) => i.id === 'github')!,
+      SETTINGS_NAV_ITEMS.find((i) => i.id === 'shell')!,
+      SETTINGS_NAV_ITEMS.find((i) => i.id === 'notes')!,
+    ],
+  },
 ];
 
 export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal' | 'docs-graph';

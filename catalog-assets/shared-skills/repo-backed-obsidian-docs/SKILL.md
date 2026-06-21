@@ -26,7 +26,7 @@ normal Git workflows.
 
 | Layer | Authority | Location |
 |-------|-----------|----------|
-| **Canonical docs** | Repo (Git) | `docs/system/**`, `docs/research/**`, `specs/**` |
+| **Canonical docs** | Repo (Git) | `docs/system/**`, `docs/research/**`, `docs/specs/**` |
 | **Obsidian vault** | Viewer/editor | Same repo path, opened in-place (no copy, no symlink) |
 | **Inbox/research notes** | Personal, non-canonical | Obsidian vault paths outside the repo |
 | **Mirror notes** | Generated, non-canonical | `_planning-mirrors/` |
@@ -83,7 +83,7 @@ Agents must classify every document operation into one of these tiers:
 
 | Tier | Location | Git Tracked | Obsidian Editable | Authority |
 |------|----------|-------------|-------------------|-----------|
-| **Canonical doc** | `docs/system/**`, `specs/**` | Yes | Read-mostly | Repo |
+| **Canonical doc** | `docs/system/**`, `docs/specs/**` | Yes | Read-mostly | Repo |
 | **Research note** | `docs/research/**` | Yes | Yes | Repo (non-authoritative) |
 | **ADR** | `docs/adr/*.md` | Yes | Read-only | Repo |
 | **Inbox note** | Obsidian vault, outside repo | No | Yes | None |

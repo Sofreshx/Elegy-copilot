@@ -24,7 +24,7 @@ repository.
 
 | Layer | Authority | Location |
 |-------|-----------|----------|
-| **Canonical docs** | Repo (Git) | `docs/system/**`, `docs/research/**`, `specs/**` |
+| **Canonical docs** | Repo (Git) | `docs/system/**`, `docs/research/**`, `docs/specs/**` |
 | **Obsidian vault** | Viewer/editor | Same repo path, opened in-place |
 | **Planning mirrors** | Generated, non-canonical | `_instruction-engine/planning-mirrors/` |
 | **Personal notes** | User-local, non-canonical | External Obsidian paths |
@@ -162,7 +162,7 @@ Rules:
 ## Requirements
 
 1. Repo docs MUST remain in `docs/system/**`, `docs/research/**`, or
-   `specs/**` — never moved into external Obsidian vaults.
+   `docs/specs/**` — never moved into external Obsidian vaults.
 2. The default strategy MUST be direct open (no symlinks).
 3. Symlink mode MUST require explicit opt-in after the user acknowledges
    Obsidian's documented risks.

@@ -9,7 +9,7 @@ description: "Implementation subagent. Write-capable. Execute file edits, run co
 permission:
   edit: allow
   bash:
-    "*": ask
+    "*": allow
     "git status*": allow
     "git diff*": allow
     "git log*": allow

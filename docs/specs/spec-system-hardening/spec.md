@@ -1,9 +1,10 @@
 ---
 spec_id: spec-system-hardening
 title: Spec-Driven Development System Hardening
-status: draft
+status: approved
 type: workflow
-updated: 2026-06-08
+updated: 2026-06-20
+approved_at: 2026-06-20
 liveness_skip_paths:
   - opencode-assets/agents/spec.md
 ---
@@ -213,4 +214,5 @@ Ensure the CI gate (R1) can pass on Linux by handling machine-local paths in exi
 
 ## Drift Notes
 
-- None yet. This spec defines the hardening targets; drift from these targets will be captured here during implementation.
+- Promoted to `approved` 2026-06-20. Most hardening work (R1–R8, R11) is substantively complete and operational: CI runs `--strict`, pre-commit hooks gate on staged specs, index integrity and cross-spec checks run, freshness warnings fire, shared libs exist under `scripts/lib/`, superseded specs are cleaned up, and liveness_skip_paths handles portable paths. Individual acceptance checks not yet formally verified with `→ verify:` commands — deferring to `implemented` promotion after verification pass.
+- `docs/specs/spec-driven-development-contract/spec.md` now defines the normative spec contract that this hardening work operationalizes.

@@ -44,7 +44,7 @@ function OverviewSection({ status }: SectionProps) {
 
   return (
     <div className="opencode-section" data-testid="opencode-overview">
-      <Panel title="Readiness Dashboard" testId="opencode-readiness">
+      <Panel title="Readiness Dashboard" subtitle="OpenCode installation status and dependency checks" testId="opencode-readiness">
         <div className="opencode-readiness-cards">
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Overall Status</span>
@@ -110,7 +110,7 @@ function OverviewSection({ status }: SectionProps) {
       </Panel>
 
       {status.warnings.length > 0 ? (
-        <Panel title="Active Warnings" testId="opencode-warnings">
+        <Panel title="Active Warnings" subtitle="Configuration issues that need attention" testId="opencode-warnings">
           {status.warnings.map((w: OpenCodeWarning) => (
             <div key={w.id} className="opencode-warning-row" data-testid={`opencode-warning-${w.id}`}>
               <StatusDot status={w.severity} />
@@ -262,7 +262,7 @@ function ProfilesSection({ status, saving }: SectionProps) {
 
   return (
     <div className="opencode-section" data-testid="opencode-profiles">
-      <Panel title="Provider Routing" testId="opencode-provider-routing">
+      <Panel title="Provider Routing" subtitle="Which AI provider and model OpenCode uses for each role" testId="opencode-provider-routing">
         <div className="opencode-profiles-list">
           {status.profiles.map((profile: OpenCodeProfile) => (
             <div
@@ -327,7 +327,7 @@ function ProfilesSection({ status, saving }: SectionProps) {
         </div>
       </Panel>
 
-      <Panel title="Model Selection" testId="opencode-model-selection">
+      <Panel title="Model Selection" subtitle="Choose models for planning, implementation, review, research, and exploration roles" testId="opencode-model-selection">
         <div className="opencode-model-form">
           {(['planning', 'implementation', 'exploration', 'review', 'research'] as const).map((role) => (
             <div className="opencode-model-row" key={role}>
@@ -362,7 +362,7 @@ function ProfilesSection({ status, saving }: SectionProps) {
       </Panel>
 
       {mismatch && mismatch.mismatches && mismatch.mismatches.length > 0 ? (
-        <Panel title="Profile Mismatch" testId="opencode-profile-mismatch">
+        <Panel title="Profile Mismatch" subtitle="Warnings when current profile does not match recommended settings" testId="opencode-profile-mismatch">
           <div className="opencode-mismatch-banner" style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: '4px', padding: '12px', marginBottom: '12px' }}>
               <p style={{ margin: 0, color: '#856404' }}>
                 <strong>⚠ Profile mismatch detected:</strong> selected profile is <strong>{mismatch.expectedProfile}</strong> but effective profile is <strong>{mismatch.effectiveProfile || 'custom'}</strong>. {mismatch.mismatches.length} agent(s) use unexpected models. Re-apply to align.
@@ -390,7 +390,7 @@ function ProfilesSection({ status, saving }: SectionProps) {
       ) : null}
 
       {(!mismatch || !mismatch.mismatches || mismatch.mismatches.length === 0) && status.selectedProfileId && status.effectiveProfileId && status.selectedProfileId !== status.effectiveProfileId ? (
-        <Panel title="Profile Configuration Notice" testId="opencode-profile-diff-notice">
+        <Panel title="Profile Configuration Notice" subtitle="Current profile and its active settings" testId="opencode-profile-diff-notice">
           <div className="opencode-mismatch-banner" style={{ background: '#e7f3ff', border: '1px solid #2196f3', borderRadius: '4px', padding: '12px', marginBottom: '12px' }}>
             <p style={{ margin: 0, color: '#0d47a1' }}>
               <strong>ℹ Selected profile</strong> (<code>{status.selectedProfileId}</code>) differs from <strong>effective configuration</strong> (<code>{status.effectiveProfileId || 'custom'}</code>). The dashboard uses the effective profile for status display.
@@ -411,7 +411,7 @@ function ProfilesSection({ status, saving }: SectionProps) {
       ) : null}
 
       {status.configPreview ? (
-        <Panel title="Config Preview" testId="opencode-config-preview">
+        <Panel title="Config Preview" subtitle="Preview the generated OpenCode configuration" testId="opencode-config-preview">
           <pre className="opencode-config-preview">{JSON.stringify(status.configPreview, null, 2)}</pre>
         </Panel>
       ) : null}
@@ -1029,7 +1029,7 @@ function PromptsSection(_props: SectionProps): React.ReactElement {
 
   return (
     <div className="opencode-section" data-testid="opencode-prompts">
-      <Panel title="Custom System Prompts" testId="opencode-prompts-panel">
+      <Panel title="Custom System Prompts" subtitle="Override the default system prompt for OpenCode agents" testId="opencode-prompts-panel">
         {/* Blocked/warning state */}
         {isBlocked ? (
           <div

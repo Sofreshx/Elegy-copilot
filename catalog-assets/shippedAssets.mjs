@@ -225,7 +225,7 @@ export const SHIPPED_BUNDLES = [
     id: 'spec-driven-development-lane',
     title: 'Spec-Driven Development Skills',
     description:
-      'Repo-local spec routing, authoring, adversarial review, and planning handoff skills for durable specs under specs/ without creating a separate planner fleet.',
+      'Repo-local spec routing, authoring, adversarial review, and planning handoff skills for durable specs under docs/specs/ without creating a separate planner fleet.',
     assetIds: ['skill-spec-dev', 'skill-spec-authoring', 'skill-spec-review', 'skill-spec-planning-bridge'],
     installTarget: 'repo-local',
     activationScope: 'repo',

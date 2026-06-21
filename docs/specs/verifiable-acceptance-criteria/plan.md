@@ -1,7 +1,7 @@
 # Implementation Plan: Verifiable Acceptance Criteria
 
 ## Spec
-`specs/verifiable-acceptance-criteria/spec.md`
+`docs/specs/verifiable-acceptance-criteria/spec.md`
 
 ## Overview
 Add concrete verification methods to acceptance criteria across the instruction-engine codebase. The core change is a `→ verify:` marker format that pairs each acceptance check with a test command, script, or manual step. Validators are upgraded to enforce this, skills and agents are updated to reference it, and existing specs are migrated.
@@ -14,7 +14,7 @@ The order is structured so that validators (the enforcement mechanism) are upgra
 
 Before any implementation, verify the environment:
 - Check if plan-pack validator is used in CI: `Select-String -Path "*.yml","*.yaml","package.json" -Pattern "validate-planpack" -Recurse`. If found, note the locations so we can monitor for breakage after Step 1.
-- Run the current spec validator to capture baseline: `node scripts/validate-specs.js specs/` — expected to fail on `align-elegy-db-assets` (invalid status/type, missing headings) and possibly others. Capture the output as baseline.
+- Run the current spec validator to capture baseline: `node scripts/validate-specs.js docs/specs/` — expected to fail on `align-elegy-db-assets` (invalid status/type, missing headings) and possibly others. Capture the output as baseline.
 - Confirm Node.js is available: `node --version`
 
 ### Step 1: Upgrade plan-pack validator default (R4) — 1 line change

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, IconButton, PageContainer, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
-import { navigationStore, SETTINGS_NAV_ITEMS } from '../../stores/navigation';
+import { navigationStore, SETTINGS_NAV_GROUPS } from '../../stores/navigation';
 import CodexProviderPanel from './CodexProviderPanel';
 import CatalogShellView from '../Catalog/CatalogShellView';
 import OpenCodeView from '../../tabs/OpenCode/OpenCodeView';
@@ -100,17 +100,23 @@ export default function SettingsView() {
       <div className="settings-layout">
         <div className="view-static">
           <nav className="settings-nav" data-testid="settings-nav">
-            {SETTINGS_NAV_ITEMS.map((section) => (
-              <button
-                key={section.id}
-                className={`settings-nav-item${activeSection === section.id ? ' settings-nav-item-active' : ''}`}
-                onClick={() => navigationStore.setSettingsSection(section.id)}
-                data-testid={`settings-nav-${section.id}`}
-                type="button"
-              >
-                <span className="settings-nav-icon" aria-hidden="true"><AppIcon name={section.icon as any} size={18} /></span>
-                <span className="settings-nav-label">{section.label}</span>
-              </button>
+            {SETTINGS_NAV_GROUPS.map((group) => (
+              <div key={group.id} className="settings-nav-group">
+                <p className="settings-nav-group-label">{group.label}</p>
+                {group.items.map((section) => (
+                  <button
+                    key={section.id}
+                    className={`settings-nav-item${activeSection === section.id ? ' settings-nav-item-active' : ''}`}
+                    onClick={() => navigationStore.setSettingsSection(section.id)}
+                    data-testid={`settings-nav-${section.id}`}
+                    title={section.description}
+                    type="button"
+                  >
+                    <span className="settings-nav-icon" aria-hidden="true"><AppIcon name={section.icon as any} size={18} /></span>
+                    <span className="settings-nav-label">{section.label}</span>
+                  </button>
+                ))}
+              </div>
             ))}
           </nav>
         </div>

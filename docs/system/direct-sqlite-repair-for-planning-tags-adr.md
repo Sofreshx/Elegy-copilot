@@ -33,7 +33,7 @@ Out of scope:
 - The CLI's own architecture or schema.
 - The replacement of the legacy `align-elegy-db-assets` spec.
 - The validation, inherited-scope, and UI work; those are covered by
-  `specs/planning-visibility-canonicalization/spec.md`.
+  `docs/specs/planning-visibility-canonicalization/spec.md`.
 
 ## Context
 
@@ -183,8 +183,8 @@ Follow-up:
 
 - `docs/system/adr-governance.md`
 - `docs/system/planning-backlog-roadmap-contract.md`
-- `specs/planning-visibility-canonicalization/spec.md` (R2.2, Drift Notes)
-- `specs/align-elegy-db-assets/spec.md` (predecessor, NOT modified by this ADR)
+- `docs/specs/planning-visibility-canonicalization/spec.md` (R2.2, Drift Notes)
+- `docs/specs/align-elegy-db-assets/spec.md` (predecessor, NOT modified by this ADR)
 - `scripts/repair-consolidation-tags.mjs` (implementation)
 - `scripts/validate-planning-metadata.js` (post-state validator)
 - `C:\Users\lolzi\.copilot\managed-cli\planning\elegy-planning.exe` (CLI, read-only from this ADR's perspective)

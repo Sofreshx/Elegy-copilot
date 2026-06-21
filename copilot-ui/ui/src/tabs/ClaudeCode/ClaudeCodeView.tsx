@@ -24,7 +24,7 @@ function ReadinessSection({ status }: { status: ClaudeCodeStatusResponse }) {
 
   return (
     <div className="opencode-section" data-testid="claude-code-readiness">
-      <Panel title="Readiness Dashboard" testId="claude-code-readiness">
+      <Panel title="Readiness Dashboard" subtitle="Claude Code installation status and configuration health" testId="claude-code-readiness">
         <div className="opencode-readiness-cards">
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Overall Status</span>
@@ -62,7 +62,7 @@ function SetupSection({ status }: { status: ClaudeCodeStatusResponse }) {
 
   return (
     <div className="opencode-section" data-testid="claude-code-setup">
-      <Panel title="Setup" testId="claude-code-setup-checklist">
+      <Panel title="Setup" subtitle="Install and configure Claude Code on this machine" testId="claude-code-setup-checklist">
         <div className="opencode-setup-row" data-testid="claude-code-setup-cli">
           <StatusDot status={status.cli.installed ? 'ok' : 'warning'} />
           <div className="opencode-setup-content">

@@ -57,7 +57,7 @@ export default function ShellSettingsView() {
   if (loading) {
     return (
       <div className="shell-settings">
-        <Panel title="Shell Configuration">
+        <Panel title="Shell Configuration" subtitle="Default shell and terminal environment used by sessions">
           <HealthDot tone="loading" /> Checking...
         </Panel>
       </div>
@@ -67,7 +67,7 @@ export default function ShellSettingsView() {
   if (error) {
     return (
       <div className="shell-settings">
-        <Panel title="Shell Configuration">
+        <Panel title="Shell Configuration" subtitle="Default shell and terminal environment used by sessions">
           <HealthDot tone="error" /> Failed to load: {error}
         </Panel>
       </div>
@@ -89,7 +89,7 @@ export default function ShellSettingsView() {
 
       {/* Status cards row */}
       <div className="shell-status-row">
-        <Panel title="WSL2">
+        <Panel title="WSL2" subtitle="Windows Subsystem for Linux detection and configuration">
           <div className="shell-status-card-content">
             <HealthDot tone={data.wsl2 === 'available' ? 'ok' : 'warn'} />
             <span>{data.wsl2 === 'available' ? 'Available' : data.wsl2 === 'unknown' ? 'N/A' : 'Not detected'}</span>
@@ -99,7 +99,7 @@ export default function ShellSettingsView() {
           </div>
         </Panel>
 
-        <Panel title="Detected Shell">
+        <Panel title="Detected Shell" subtitle="Shells found on this system available for sessions">
           <div className="shell-status-card-content">
             {data.detectedShell ? (
               <>
@@ -116,7 +116,7 @@ export default function ShellSettingsView() {
           </div>
         </Panel>
 
-        <Panel title="Configuration">
+        <Panel title="Configuration" subtitle="Edit shell preferences and environment variables">
           <div className="shell-status-card-content">
             <HealthDot tone={data.detectedShell?.posix ? 'ok' : 'warn'} />
             <span>{data.detectedShell?.posix ? 'Auto-detected' : 'Manual setup needed'}</span>
@@ -125,7 +125,7 @@ export default function ShellSettingsView() {
       </div>
 
       {/* Harness configuration table */}
-      <Panel title="Harness Shell Configuration">
+      <Panel title="Harness Shell Configuration" subtitle="Per-harness shell overrides for OpenCode, Codex, Claude Code, and Antigravity">
         <table className="shell-harness-table">
           <thead>
             <tr>
@@ -166,7 +166,7 @@ export default function ShellSettingsView() {
       </Panel>
 
       {/* Troubleshooting panel */}
-      <Panel title="Troubleshooting">
+      <Panel title="Troubleshooting" subtitle="Common shell detection and configuration issues">
         {data.wsl2 !== 'available' && (
           <p className="shell-troubleshoot-item">
             <HealthDot tone="warn" /> WSL2 is not detected. Run <code>wsl --install</code> (requires admin privileges) to install Ubuntu, or install Git for Windows for Git Bash fallback.

@@ -1,9 +1,10 @@
 ---
 spec_id: verifiable-acceptance-criteria
 title: Verifiable Acceptance Criteria
-status: draft
+status: superseded
 type: contract
-updated: 2026-06-04
+updated: 2026-06-20
+superseded_by: spec-driven-development-contract
 liveness_skip_paths:
   - opencode-assets/agents/spec.md
 ---
@@ -37,7 +38,7 @@ Acceptance criteria across specs and project plans must include concrete verific
 - **R7:** The spec-driven-development doc (`docs/system/spec-driven-development.md`) must show an updated example with verification methods.
 - **R8:** The spec-authoring skill and reviewer agent instructions must reference verification methods in their acceptance criteria guidance.
 - **R8b:** The project lane agent (`opencode-assets/agents/project.md`) must reference running acceptance verification methods as part of its validation standard (via the `project-workflow` skill).
-- **R9:** Existing spec examples (the one in `docs/system/spec-driven-development.md` and any in `specs/`) are updated to the new format.
+- **R9:** Existing spec examples (the one in `docs/system/spec-driven-development.md` and any in `docs/specs/`) are updated to the new format.
 
 For existing specs where the implementer lacks domain knowledge to write meaningful verification methods, add a placeholder `→ verify: pending — author review needed` and do not block the change on perfect verification lines. The goal is structural compliance; content quality is the spec author's responsibility.
 
@@ -100,4 +101,5 @@ The `→ verify:` marker is the canonical way to attach a verification method to
 
 ## Drift Notes
 
-- R3: clause "replicate verbatim (not imported/shared — a copy maintained in validate-specs.js)" overridden by shared module. The `AC_VAGUE_TOKEN_RE` is now exported from `scripts/lib/ac-vague-tokens.js` and imported by both `validate-specs.js` and `validate-planpack.js`. This eliminates copy-drift risk with no behavioral change. See spec-contract-evolution implementation.
+- This spec is superseded by `spec-driven-development-contract`. The `→ verify:` marker format (R1) is absorbed as R4 in the normative spec; the vague-language detection (R2, R3) is absorbed as R4.3; the plan-pack and skill update requirements are subsumed by the normative contract or delegated to operational docs.
+- R3: clause "replicate verbatim (not imported/shared — a copy maintained in validate-specs.js)" was overridden by shared module before supersession. The `AC_VAGUE_TOKEN_RE` is now exported from `scripts/lib/ac-vague-tokens.js` and imported by both `validate-specs.js` and `validate-planpack.js`.
