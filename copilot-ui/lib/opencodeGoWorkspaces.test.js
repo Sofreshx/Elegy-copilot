@@ -10,6 +10,7 @@ const {
   createOpenCodeGoWorkspaces,
   KEYRING_SERVICE_NAME,
   KEY_SOURCES,
+  SELECTION_MODES,
   isValidWorkspaceId,
   buildConsoleUrl,
   redactApiKey,
@@ -381,7 +382,7 @@ describe('opencodeGoWorkspaces', () => {
       assert.equal(result.status, 'ok');
       const after = await store.listWorkspaces(opencodeHome);
       const profile = after.registered.find((p) => p.id === 'wrk_a');
-      assert.equal(profile.lastValidationStatus, 'ok');
+      assert.equal(profile.lastValidatedStatus, 'ok');
       assert.equal(typeof profile.lastValidatedAt, 'string');
     });
 
@@ -478,6 +479,361 @@ describe('opencodeGoWorkspaces', () => {
       assert.equal(draft.id, 'wrk_draft');
       assert.equal(draft.workspaceIdKnown, true);
       assert.equal(draft.consoleUrl, 'https://opencode.ai/workspace/wrk_draft/go');
+    });
+  });
+
+  describe('selectionMode', () => {
+    it('returns auto selectionMode for a fresh store with no activeId', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      const result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.selectionMode, SELECTION_MODES.AUTO);
+    });
+
+    it('returns explicit selectionMode when an activeId existed in the store', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      const storePath = resolveStorePath(opencodeHome);
+      fs.writeFileSync(storePath, JSON.stringify({
+        activeId: 'wrk_a',
+        profiles: [{ id: 'wrk_a', label: 'A', keyRef: 'keychain:wrk_a' }],
+      }));
+      const result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.selectionMode, SELECTION_MODES.EXPLICIT);
+    });
+
+    it('infers explicit selectionMode when store has a dangling activeId (raw.activeId truthy)', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      const storePath = resolveStorePath(opencodeHome);
+      fs.writeFileSync(storePath, JSON.stringify({
+        activeId: 'wrk_missing',
+        profiles: [{ id: 'wrk_a', label: 'A' }],
+      }));
+      const result = await store.listWorkspaces(opencodeHome);
+      // readStore uses raw.activeId truthiness for fallback, so dangling id -> explicit
+      assert.equal(result.selectionMode, SELECTION_MODES.EXPLICIT);
+      // The computed activeId is null because no profile matches
+      assert.equal(result.activeId, null);
+    });
+
+    it('persists explicit selectionMode from store JSON', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      const storePath = resolveStorePath(opencodeHome);
+      fs.writeFileSync(storePath, JSON.stringify({
+        selectionMode: SELECTION_MODES.EXPLICIT,
+        activeId: null,
+        profiles: [],
+      }));
+      const result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.selectionMode, SELECTION_MODES.EXPLICIT);
+    });
+
+    it('persists none selectionMode from store JSON', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      const storePath = resolveStorePath(opencodeHome);
+      fs.writeFileSync(storePath, JSON.stringify({
+        selectionMode: SELECTION_MODES.NONE,
+        activeId: null,
+        profiles: [],
+      }));
+      const result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.selectionMode, SELECTION_MODES.NONE);
+    });
+
+    it('sets selectionMode to explicit when registering with activate=true', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      const result = await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a',
+      });
+      assert.equal(result.selectionMode, SELECTION_MODES.EXPLICIT);
+    });
+
+    it('keeps selectionMode unchanged when registering with activate=false', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      const initial = await store.listWorkspaces(opencodeHome);
+      assert.equal(initial.selectionMode, SELECTION_MODES.AUTO);
+      const result = await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a', activate: false,
+      });
+      assert.equal(result.selectionMode, SELECTION_MODES.AUTO);
+    });
+
+    it('sets selectionMode to explicit when activating a workspace', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a', activate: false,
+      });
+      const result = await store.activateWorkspace(opencodeHome, 'wrk_a');
+      assert.equal(result.selectionMode, SELECTION_MODES.EXPLICIT);
+    });
+
+    it('updateWorkspace preserves selectionMode when explicit', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory({ tmpDir });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'Test', workspaceId: 'wrk_test', apiKey: 'key-test',
+      });
+      // Verify it's explicit after activation
+      let result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.selectionMode, 'explicit');
+      // Update label
+      result = await store.updateWorkspace(opencodeHome, 'wrk_test', { label: 'Updated' });
+      assert.equal(result.selectionMode, 'explicit');
+    });
+
+    it('updateWorkspace preserves selectionMode when none', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory({ tmpDir });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'Test', workspaceId: 'wrk_test', apiKey: 'key-test',
+      });
+      // Deactivate (sets to none)
+      let result = await store.deactivateWorkspace(opencodeHome);
+      assert.equal(result.selectionMode, 'none');
+      // Update label
+      result = await store.updateWorkspace(opencodeHome, 'wrk_test', { label: 'Updated' });
+      assert.equal(result.selectionMode, 'none');
+    });
+
+    it('validateWorkspace preserves selectionMode for registered profiles', async () => {
+      const fetchImpl = async () => ({ status: 200 });
+      const { store } = createOpenCodeGoWorkspacesFactory({ tmpDir, fetchImpl });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'Test', workspaceId: 'wrk_test', apiKey: 'key-test',
+      });
+      // Deactivate (sets to none)
+      await store.deactivateWorkspace(opencodeHome);
+      let result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.selectionMode, 'none');
+      // Validate
+      await store.validateWorkspace(opencodeHome, 'wrk_test');
+      result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.selectionMode, 'none');
+    });
+  });
+
+  describe('deactivateWorkspace and selectionMode', () => {
+    it('sets selectionMode to none when deactivating', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      const reg = await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a',
+      });
+      assert.equal(reg.selectionMode, SELECTION_MODES.EXPLICIT);
+      const result = await store.deactivateWorkspace(opencodeHome);
+      assert.equal(result.activeId, null);
+      assert.equal(result.selectionMode, SELECTION_MODES.NONE);
+    });
+
+    it('keeps none selectionMode after deactivation even with detected sources', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory({ env: { OPENCODE_GO_API_KEY: 'env-key' } });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a',
+      });
+      await store.deactivateWorkspace(opencodeHome);
+      const result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.detected.length, 1);
+      assert.equal(result.detected[0].keySource, 'env');
+      assert.equal(result.activeId, null);
+      assert.equal(result.selectionMode, SELECTION_MODES.NONE);
+    });
+  });
+
+  describe('deleteWorkspace and selectionMode', () => {
+    it('sets selectionMode to none when deleting the active workspace', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a',
+      });
+      const result = await store.deleteWorkspace(opencodeHome, 'wrk_a');
+      assert.equal(result.selectionMode, SELECTION_MODES.NONE);
+    });
+
+    it('keeps selectionMode when deleting a non-active workspace', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a', activate: true,
+      });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'B', workspaceId: 'wrk_b', apiKey: 'k-b', activate: false,
+      });
+      const result = await store.deleteWorkspace(opencodeHome, 'wrk_b');
+      assert.equal(result.selectionMode, SELECTION_MODES.EXPLICIT);
+    });
+  });
+
+  describe('resolveActiveApiKey with selectionMode', () => {
+    it('returns MISSING immediately when selectionMode is none, ignoring all sources', async () => {
+      const { store, keyring } = createOpenCodeGoWorkspacesFactory();
+      await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a',
+      });
+      const storePath = resolveStorePath(opencodeHome);
+      const raw = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+      raw.selectionMode = SELECTION_MODES.NONE;
+      fs.writeFileSync(storePath, JSON.stringify(raw));
+      const result = await store.resolveActiveApiKey(opencodeHome);
+      assert.equal(result.source, KEY_SOURCES.MISSING);
+      assert.equal(result.value, undefined);
+    });
+
+    it('returns MISSING immediately when selectionMode is none even with env var set', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory({ env: { OPENCODE_GO_API_KEY: 'env-key' } });
+      const storePath = resolveStorePath(opencodeHome);
+      fs.writeFileSync(storePath, JSON.stringify({
+        selectionMode: SELECTION_MODES.NONE,
+        activeId: null,
+        profiles: [],
+      }));
+      const result = await store.resolveActiveApiKey(opencodeHome);
+      assert.equal(result.source, KEY_SOURCES.MISSING);
+      assert.equal(result.value, undefined);
+    });
+
+    it('returns MISSING immediately when selectionMode is none even with native auth present', async () => {
+      const authDir = path.join(tmpDir, 'xdg', 'opencode');
+      fs.mkdirSync(authDir, { recursive: true });
+      fs.writeFileSync(path.join(authDir, 'auth.json'), JSON.stringify({
+        'opencode-go': { key: 'native-key' },
+      }));
+      const { store } = createOpenCodeGoWorkspacesFactory({
+        env: { XDG_DATA_HOME: path.join(tmpDir, 'xdg') },
+      });
+      const storePath = resolveStorePath(opencodeHome);
+      fs.writeFileSync(storePath, JSON.stringify({
+        selectionMode: SELECTION_MODES.NONE,
+        activeId: null,
+        profiles: [],
+      }));
+      const result = await store.resolveActiveApiKey(opencodeHome);
+      assert.equal(result.source, KEY_SOURCES.MISSING);
+      assert.equal(result.value, undefined);
+    });
+
+    it('resolves from registered profile only when selectionMode is explicit', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a',
+      });
+      const result = await store.resolveActiveApiKey(opencodeHome);
+      assert.equal(result.value, 'k-a');
+      assert.equal(result.source, KEY_SOURCES.KEYCHAIN);
+    });
+
+    it('does not fall back to env when explicit mode activeId has no key in keychain', async () => {
+      const { store, keyring } = createOpenCodeGoWorkspacesFactory({ env: { OPENCODE_GO_API_KEY: 'env-fallback' } });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a',
+      });
+      await keyring.module.deletePassword(KEYRING_SERVICE_NAME, 'keychain:wrk_a');
+      const result = await store.resolveActiveApiKey(opencodeHome);
+      assert.equal(result.source, KEY_SOURCES.MISSING);
+      assert.equal(result.value, undefined);
+    });
+
+    it('returns the detected env key when explicit mode with detected env id', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory({ env: { OPENCODE_GO_API_KEY: 'env-key' } });
+      const storePath = resolveStorePath(opencodeHome);
+      // readStore preserves detected IDs as valid activeId values, so the
+      // detected-ID branch in resolveActiveApiKey now correctly returns the key.
+      fs.writeFileSync(storePath, JSON.stringify({
+        activeId: 'detected:env:opencode-go',
+        selectionMode: SELECTION_MODES.EXPLICIT,
+        profiles: [],
+      }));
+      const result = await store.resolveActiveApiKey(opencodeHome);
+      assert.equal(result.source, KEY_SOURCES.ENV);
+      assert.equal(result.value, 'env-key');
+    });
+
+    it('returns the detected native auth key when explicit mode with detected native id', async () => {
+      const authDir = path.join(tmpDir, 'xdg', 'opencode');
+      fs.mkdirSync(authDir, { recursive: true });
+      fs.writeFileSync(path.join(authDir, 'auth.json'), JSON.stringify({
+        'opencode-go': { key: 'native-key' },
+      }));
+      const { store } = createOpenCodeGoWorkspacesFactory({
+        env: { XDG_DATA_HOME: path.join(tmpDir, 'xdg') },
+      });
+      const storePath = resolveStorePath(opencodeHome);
+      fs.writeFileSync(storePath, JSON.stringify({
+        activeId: 'detected:native:opencode-go',
+        selectionMode: SELECTION_MODES.EXPLICIT,
+        profiles: [],
+      }));
+      const result = await store.resolveActiveApiKey(opencodeHome);
+      assert.equal(result.source, KEY_SOURCES.NATIVE_AUTH);
+      assert.equal(result.value, 'native-key');
+    });
+
+    it('falls back through chain when selectionMode is auto (default)', async () => {
+      const { store, keyring } = createOpenCodeGoWorkspacesFactory({
+        env: { OPENCODE_GO_API_KEY: 'env-key' },
+      });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a',
+      });
+      await keyring.module.deletePassword(KEYRING_SERVICE_NAME, 'keychain:wrk_a');
+      const storePath = resolveStorePath(opencodeHome);
+      const raw = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+      raw.selectionMode = SELECTION_MODES.AUTO;
+      fs.writeFileSync(storePath, JSON.stringify(raw));
+      const result = await store.resolveActiveApiKey(opencodeHome);
+      assert.equal(result.value, 'env-key');
+      assert.equal(result.source, KEY_SOURCES.ENV);
+    });
+
+    it('returns MISSING when explicit mode with detected id but source is absent', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      const storePath = resolveStorePath(opencodeHome);
+      fs.writeFileSync(storePath, JSON.stringify({
+        activeId: 'detected:env:opencode-go',
+        selectionMode: SELECTION_MODES.EXPLICIT,
+        profiles: [],
+      }));
+      const result = await store.resolveActiveApiKey(opencodeHome);
+      assert.equal(result.source, KEY_SOURCES.MISSING);
+      assert.equal(result.value, undefined);
+    });
+  });
+
+  describe('effectiveActiveId with selectionMode', () => {
+    it('returns null when selectionMode is none with valid activeId', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      const storePath = resolveStorePath(opencodeHome);
+      fs.writeFileSync(storePath, JSON.stringify({
+        activeId: 'wrk_a',
+        selectionMode: SELECTION_MODES.NONE,
+        profiles: [{ id: 'wrk_a', label: 'A' }],
+      }));
+      const result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.activeId, null);
+    });
+
+    it('returns activeId when selectionMode is explicit with registered active', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a',
+      });
+      const result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.activeId, 'wrk_a');
+    });
+
+    it('returns null when selectionMode is explicit but no activeId in store', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory();
+      await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a', activate: false,
+      });
+      const storePath = resolveStorePath(opencodeHome);
+      const raw = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+      raw.activeId = null;
+      raw.selectionMode = SELECTION_MODES.EXPLICIT;
+      fs.writeFileSync(storePath, JSON.stringify(raw));
+      const result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.activeId, null);
+    });
+
+    it('auto-selects single detected source when selectionMode is auto', async () => {
+      const { store } = createOpenCodeGoWorkspacesFactory({
+        env: { OPENCODE_GO_API_KEY: 'env-key' },
+      });
+      const result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.activeId, 'detected:env:opencode-go');
     });
   });
 });

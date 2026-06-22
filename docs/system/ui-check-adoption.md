@@ -1,6 +1,6 @@
 ---
 created: 2026-06-21
-updated: 2026-06-21
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -41,18 +41,14 @@ Full schema: `contracts/session-state/ui-check.schema.json`.
 
 ### 2. Validate Config Against Schema
 
-The config file itself is the integration surface. The runner (`npm run ui:check`)
-is a future addition. For now:
+The runner validates configuration automatically. To check config only (no commands):
 
-- **If the repo has `node scripts/validate-agentic-schemas.js`**: the script
-  validates the minimal fixture defined in `contracts/session-state/contract-manifest.json`
-  against `ui-check.schema.json`. Run it to confirm schema conformance.
+```bash
+node scripts/ui-check.mjs --validate-only
+```
 
-- **If the repo does not have the schema validator**: validate manually using
-  `node -e` with a JSON Schema library (e.g. Ajv), or copy the pilot config
-  from `contracts/session-state/fixtures/` as a starting template.
-
-The goal is a valid `.elegy/ui-check.json` — the runner will consume it later.
+This validates the `.elegy/ui-check.json` against the canonical schema,
+checks all inventory paths exist, and verifies working directories.
 
 ### 3. Add Instruction Pointer
 
@@ -65,12 +61,17 @@ Add one line to the repo's instruction entrypoint (AGENTS.md, CLAUDE.md, etc.):
 ### 4. Validate
 
 ```bash
-# Validate the minimal fixture against the schema
-node scripts/validate-agentic-schemas.js
+# Validate config and paths only (no command execution)
+node scripts/ui-check.mjs --validate-only
 
-# Manual validation — ensure .elegy/ui-check.json parses and paths resolve
-node -e "const c = require('./.elegy/ui-check.json'); console.log('parsed ok, targets:', Object.keys(c.targets));"
+# Run a specific target (e.g., settings)
+node scripts/ui-check.mjs --target settings
+
+# Run all declared targets
+node scripts/ui-check.mjs
 ```
+
+Exit code 0 = all targets passed. Non-zero = see the generated report for details.
 
 ## Browser vs Desktop
 
@@ -92,6 +93,14 @@ Per the governance doc, every declared route must address:
 - [ ] Disabled state (where applicable)
 - [ ] Focus state (keyboard navigation)
 
-Mark inapplicable states as `"N/A"` in the route config, or omit them from the
-`states` array. The schema supports `"N/A"` as a sentinel for explicitly
-noting that a state does not apply to a given surface.
+States that do not apply to a route are declared in the route's `excludedStates`
+array with a `reason` field explaining why. For example:
+
+```json
+"excludedStates": [
+  { "state": "empty", "reason": "Settings surface is a static form with no data collection." }
+]
+```
+
+The runner validates that every excluded state carries a `reason` and that
+non-excluded states have matching evidence in the runtime report.

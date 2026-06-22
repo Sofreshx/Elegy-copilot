@@ -29,7 +29,8 @@ Primary skills available:
 - `skill-discovery` — Skill resolver for on-demand capability routing.
 - `rubberduck-plan-review` — Adversarial plan review before complex implementation work.
 - `implementation-review` — Post-edit review before handoff.
-- `implementation-handoff` — Executor-ready brief for another session or model.
+- `implementation-handoff` — Deepens delegated plans into decision-complete briefs for another
+  session, harness, or model; requires plan review for complex or incomplete source plans.
 - `spec-dev` — Spec-driven router for spec-first and spec-anchored work.
 - `spec-authoring` — Durable spec authoring under `docs/specs/<spec-slug>/spec.md`.
 - `spec-review` — Adversarial spec review before implementation planning.

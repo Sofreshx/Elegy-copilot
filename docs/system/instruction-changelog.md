@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-18
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -10,6 +10,17 @@ tags: [changelog]
 ---
 
 # Instruction Changelog
+
+## 2026-06-22 - Collaboration profile with Constructive Coworker preset
+
+- Added `## Collaboration Contract` section to the shared baseline (`catalog-assets/instructions/agent-session-defaults.md`) defining universal anti-sycophancy and critical-coworker behavior.
+- Added a "Constructive Coworker" preset (`catalog-assets/presets/constructive-coworker.md`) providing attention-friendly communication preferences.
+- Added collaboration profile persistence to `~/.elegy/config.json` with enabled/presetId/customInstructions fields. Defaults to enabled with the Constructive Coworker preset when no config key is present.
+- Extended the composition pipeline: instruction precedence is now `shared baseline → collaboration profile (preset + custom) → harness appendix → repo-local instructions → explicit task instructions`.
+- Added `GET /api/config/collaboration-profile` and `PUT /api/config/collaboration-profile` endpoints with per-harness apply results.
+- Added "Collaboration Style" panel to App Settings with enable/disable, preset selector, custom instructions textarea, and save-and-apply workflow.
+- Created `docs/specs/collaboration-style-profile/spec.md` and `docs/system/collaboration-profile-adr.md`.
+- Updated `docs/system/concise-instruction-governance.md`, `docs/system/harness-asset-flow.md`, and the docs index for the new profile layer.
 
 ## 2026-06-18 - Skill authoring skills + guidelines.md deprecation
 

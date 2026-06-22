@@ -17,4 +17,6 @@ export { default as StatusBadge } from './StatusBadge';
 export { default as IconButton } from './IconButton';
 export { default as SteppedWizard } from './SteppedWizard';
 export { default as ToastContainer } from './ToastContainer';
+export { default as UsageCreditSummary } from './UsageCreditSummary';
 export { default as Toolbar } from './Toolbar';
+export { default as ToggleField } from './ToggleField';

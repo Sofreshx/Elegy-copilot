@@ -83,6 +83,12 @@
       "schemaVersion": "1.0.0",
       "file": "ui-check.schema.json",
       "fixtures": ["fixtures/ui-check.minimal.json"]
+    },
+    {
+      "name": "ui-check-runtime-report",
+      "schemaVersion": "1.0.0",
+      "file": "ui-check-runtime-report.schema.json",
+      "fixtures": ["fixtures/ui-check-runtime-report.minimal.json"]
     }
   ]
 }

@@ -3,9 +3,13 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
 import { ensureDir, getUserHome, syncFile, syncText } from './install-surface-utils.mjs';
-import { composeInstructions } from './instruction-compose-utils.mjs';
+import { buildProfileContent, composeInstructions } from './instruction-compose-utils.mjs';
+
+const require = createRequire(import.meta.url);
+const { getCollaborationProfile } = require('../copilot-ui/lib/copilotConfig.js');
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -129,7 +133,9 @@ function writeInstallState(destinationHome, state, options = {}) {
 }
 
 function syncInstructions(baselinePath, appendixPath, destinationHome, options = {}) {
-  const composed = composeInstructions(baselinePath, appendixPath);
+  const profile = getCollaborationProfile();
+  const profileContent = buildProfileContent(profile);
+  const composed = composeInstructions(baselinePath, appendixPath, profileContent);
   return syncText(composed, path.join(destinationHome, 'copilot-instructions.md'), options);
 }
 

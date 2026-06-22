@@ -22,7 +22,11 @@ import {
   syncFile,
   syncText,
 } from './install-surface-utils.mjs';
-import { composeInstructionsFromAsset } from './instruction-compose-utils.mjs';
+import { createRequire } from 'module';
+import { buildProfileContent, composeInstructionsFromAsset } from './instruction-compose-utils.mjs';
+
+const require = createRequire(import.meta.url);
+const { getCollaborationProfile } = require('../copilot-ui/lib/copilotConfig.js');
 
 /**
  * @typedef {Object} HarnessDescriptor
@@ -267,7 +271,9 @@ export function runHarnessInstall(descriptor, args = {}) {
       } else if (asset.type === 'skill') {
         syncResult = syncDirectory(src, dst, args);
       } else if (asset.appendix) {
-        const composed = composeInstructionsFromAsset(asset, repoRoot);
+        const profile = getCollaborationProfile();
+        const profileContent = buildProfileContent(profile);
+        const composed = composeInstructionsFromAsset(asset, repoRoot, profileContent);
         syncResult = syncText(composed, dst, args);
       } else {
         syncResult = syncFile(src, dst, args);
@@ -275,7 +281,9 @@ export function runHarnessInstall(descriptor, args = {}) {
     } else if (asset.type === 'skill') {
       syncResult = syncDirectory(src, dst, args);
     } else if (asset.appendix) {
-      const composed = composeInstructionsFromAsset(asset, repoRoot);
+      const profile = getCollaborationProfile();
+      const profileContent = buildProfileContent(profile);
+      const composed = composeInstructionsFromAsset(asset, repoRoot, profileContent);
       syncResult = syncText(composed, dst, args);
     } else {
       syncResult = syncFile(src, dst, args);

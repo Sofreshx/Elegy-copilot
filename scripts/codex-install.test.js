@@ -49,6 +49,11 @@ async function main() {
       assert.ok(fs.existsSync(path.join(skillsHome, 'skill-discovery', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-handoff', 'SKILL.md')));
+      const handoffSkill = fs.readFileSync(path.join(skillsHome, 'implementation-handoff', 'SKILL.md'), 'utf8');
+      assert.ok(handoffSkill.includes('another harness, model, executor, or session'));
+      assert.ok(handoffSkill.includes('load `rubberduck-plan-review`'));
+      assert.ok(handoffSkill.includes('## Completeness Gate'));
+      assert.ok(handoffSkill.includes('weak-or-unknown'));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-dev', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-authoring', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-review', 'SKILL.md')));

@@ -311,6 +311,123 @@ describe('opencode go workspaces routes', () => {
     expect(active[0].workspaceId).toBe('wrk_b');
   });
 
+  it('POST /api/opencode/go-workspaces/deactivate clears activeId and sets selectionMode to none', async () => {
+    await workspaceStore.registerWorkspace(opencodeHome, { label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a', activate: true });
+    const sendJson = vi.fn();
+    const routes = register({
+      sendJson,
+      readJsonBody: async () => ({}),
+      assets: makeAssetsStub(),
+      opencodeConfig: makeOpenCodeConfigStub(opencodeHome),
+      opencodeLogReader: { readRequestLogs: () => ({ requests: [], total: 0, logFiles: 0 }), DEFAULT_LIMIT: 100 },
+      opencodeGoWorkspaces: workspaceStore,
+      env: { XDG_DATA_HOME: xdgData },
+      childProcess: { spawnSync: () => ({ status: 0, stdout: '1.0.0', stderr: '' }) },
+    });
+    const route = findRoute(routes, 'POST', (s) => s.includes('deactivate'));
+    expect(route).toBeDefined();
+    const ctx = {
+      opencodeHome,
+      elegyHomeAbs: '',
+      engineRoot: '',
+      env: { XDG_DATA_HOME: xdgData },
+      req: { method: 'POST' },
+      res: { writeHead: vi.fn(), end: vi.fn() },
+      u: { pathname: '/api/opencode/go-workspaces/deactivate' },
+      match: ['/api/opencode/go-workspaces/deactivate'],
+    };
+    await route!.handler(ctx);
+    const call = sendJson.mock.calls[0];
+    expect(call[1]).toBe(200);
+    const body = call[2];
+    expect(body.ok).toBe(true);
+    expect(body.activeId).toBe(null);
+    expect(body.selectionMode).toBe('none');
+  });
+
+  it('GET /api/opencode/go-workspaces returns selectionMode and per-workspace origin, workspaceIdKnown, consoleUrl fields', async () => {
+    const sendJson = vi.fn();
+    const routes = register({
+      sendJson,
+      readJsonBody: async () => ({}),
+      assets: makeAssetsStub(),
+      opencodeConfig: makeOpenCodeConfigStub(opencodeHome),
+      opencodeLogReader: { readRequestLogs: () => ({ requests: [], total: 0, logFiles: 0 }), DEFAULT_LIMIT: 100 },
+      opencodeGoWorkspaces: workspaceStore,
+      env: { XDG_DATA_HOME: xdgData },
+      childProcess: { spawnSync: () => ({ status: 0, stdout: '1.0.0', stderr: '' }) },
+    });
+    const route = findRoute(routes, 'GET', (s) => s === '/^\\/api\\/opencode\\/go-workspaces\\/?$/');
+    expect(route).toBeDefined();
+    const ctx = {
+      opencodeHome,
+      elegyHomeAbs: '',
+      engineRoot: '',
+      env: { XDG_DATA_HOME: xdgData },
+      req: { method: 'GET' },
+      res: { writeHead: vi.fn(), end: vi.fn() },
+      u: { pathname: '/api/opencode/go-workspaces' },
+    };
+    await route!.handler(ctx);
+    const call = sendJson.mock.calls[0];
+    expect(call[1]).toBe(200);
+    const body = call[2];
+    // Top-level selectionMode
+    expect(typeof body.selectionMode).toBe('string');
+    expect(['auto', 'explicit', 'none']).toContain(body.selectionMode);
+    // If there are registered workspaces, check per-workspace fields
+    // But for an empty store, detected/registered are empty so we just check the top-level field
+  });
+
+  it('POST /api/opencode/go-workspaces/deactivate returns selectionMode none in response', async () => {
+    await workspaceStore.registerWorkspace(opencodeHome, { label: 'B', workspaceId: 'wrk_b', apiKey: 'k-b', activate: true });
+    const sendJson = vi.fn();
+    const routes = register({
+      sendJson,
+      readJsonBody: async () => ({}),
+      assets: makeAssetsStub(),
+      opencodeConfig: makeOpenCodeConfigStub(opencodeHome),
+      opencodeLogReader: { readRequestLogs: () => ({ requests: [], total: 0, logFiles: 0 }), DEFAULT_LIMIT: 100 },
+      opencodeGoWorkspaces: workspaceStore,
+      env: { XDG_DATA_HOME: xdgData },
+      childProcess: { spawnSync: () => ({ status: 0, stdout: '1.0.0', stderr: '' }) },
+    });
+    // First verify it's active/explicit
+    const listRoute = findRoute(routes, 'GET', (s) => s === '/^\\/api\\/opencode\\/go-workspaces\\/?$/');
+    const listCtx = {
+      opencodeHome,
+      elegyHomeAbs: '',
+      engineRoot: '',
+      env: { XDG_DATA_HOME: xdgData },
+      req: { method: 'GET' },
+      res: { writeHead: vi.fn(), end: vi.fn() },
+      u: { pathname: '/api/opencode/go-workspaces' },
+    };
+    await listRoute!.handler(listCtx);
+    const beforeCall = sendJson.mock.calls[0];
+    expect(beforeCall[2].selectionMode).toBe('explicit');
+    sendJson.mockClear();
+
+    // Now deactivate
+    const deactivateRoute = findRoute(routes, 'POST', (s) => s.includes('deactivate'));
+    const deactCtx = {
+      opencodeHome,
+      elegyHomeAbs: '',
+      engineRoot: '',
+      env: { XDG_DATA_HOME: xdgData },
+      req: { method: 'POST' },
+      res: { writeHead: vi.fn(), end: vi.fn() },
+      u: { pathname: '/api/opencode/go-workspaces/deactivate' },
+      match: ['/api/opencode/go-workspaces/deactivate'],
+    };
+    await deactivateRoute!.handler(deactCtx);
+    const afterCall = sendJson.mock.calls[0];
+    expect(afterCall[1]).toBe(200);
+    expect(afterCall[2].ok).toBe(true);
+    expect(afterCall[2].selectionMode).toBe('none');
+    expect(afterCall[2].activeId).toBe(null);
+  });
+
   it('POST /api/opencode/go-workspaces/:id/validate records status', async () => {
     await workspaceStore.registerWorkspace(opencodeHome, { label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a' });
     const fetchImpl = async () => ({ status: 200 });

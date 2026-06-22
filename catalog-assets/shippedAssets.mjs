@@ -77,6 +77,9 @@ export const SHIPPED_ASSETS = [
   }),
   agent('codex-reviewer-agent', 'codex-assets/agents/reviewer.toml'),
   skill('codex-repo-setup-skill', 'codex-assets/skills/repo-setup'),
+  skill('codex-implementation-handoff-skill', 'codex-assets/skills/implementation-handoff', {
+    loadMode: 'on-demand',
+  }),
 
   instructions('opencode-global-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {
     appendix: 'opencode-assets/home/AGENTS-appendix.md',

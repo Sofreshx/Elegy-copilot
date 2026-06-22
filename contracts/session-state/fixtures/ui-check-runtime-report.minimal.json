@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "runId": "manual-run-001",
+  "targetId": "settings",
+  "timestamp": "2025-06-22T12:00:00.000Z",
+  "surfaceResults": [
+    {
+      "routeId": "settings-default",
+      "viewport": "desktop",
+      "state": "default",
+      "status": "pass",
+      "screenshot": "settings-default-desktop.png",
+      "consoleErrors": [],
+      "pageErrors": [],
+      "networkFailures": []
+    }
+  ]
+}

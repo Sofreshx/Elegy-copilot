@@ -19,13 +19,14 @@ import {
   syncFile,
   syncText,
 } from './install-surface-utils.mjs';
-import { composeInstructionsFromAsset } from './instruction-compose-utils.mjs';
+import { buildProfileContent, composeInstructionsFromAsset } from './instruction-compose-utils.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const require = createRequire(import.meta.url);
 const { readConfig, writeConfig } = require('../copilot-ui/lib/opencodeConfig.js');
+const { getCollaborationProfile } = require('../copilot-ui/lib/copilotConfig.js');
 const opencodeAssetsRoot = path.join(repoRoot, 'opencode-assets');
 const manifestPath = path.join(opencodeAssetsRoot, 'manifest.json');
 const managedInventoryFileName = '.elegy-copilot-opencode-managed.json';
@@ -527,7 +528,9 @@ export async function runInstall(args = {}) {
     if (asset.type === 'skill') {
       syncResult = syncDirectory(src, dst, args);
     } else if (asset.appendix) {
-      const composed = composeInstructionsFromAsset(asset, repoRoot);
+      const profile = getCollaborationProfile();
+      const profileContent = buildProfileContent(profile);
+      const composed = composeInstructionsFromAsset(asset, repoRoot, profileContent);
       syncResult = syncText(composed, dst, args);
     } else {
       syncResult = syncFile(src, dst, args);

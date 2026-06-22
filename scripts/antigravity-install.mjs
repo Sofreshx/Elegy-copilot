@@ -3,8 +3,12 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
-import { composeInstructionsFromAsset } from './instruction-compose-utils.mjs';
+import { buildProfileContent, composeInstructionsFromAsset } from './instruction-compose-utils.mjs';
+
+const require = createRequire(import.meta.url);
+const { getCollaborationProfile } = require('../copilot-ui/lib/copilotConfig.js');
 import {
   dirHash,
   ensureDir,
@@ -552,7 +556,9 @@ export function runInstall(args = {}) {
     if (asset.type === 'instructions') {
       const instructionsPath = path.join(geminiHome, normalizeRel(asset.destination));
       if (asset.appendix) {
-        const composed = composeInstructionsFromAsset(asset, repoRoot);
+        const profile = getCollaborationProfile();
+        const profileContent = buildProfileContent(profile);
+        const composed = composeInstructionsFromAsset(asset, repoRoot, profileContent);
         instructionsResult = syncManagedInstructions(src, instructionsPath, { ...args, templateText: composed });
       } else {
         instructionsResult = syncManagedInstructions(src, instructionsPath, args);

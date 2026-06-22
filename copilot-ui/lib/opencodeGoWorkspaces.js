@@ -21,6 +21,12 @@ const KEY_SOURCES = Object.freeze({
   MISSING: 'missing',
 });
 
+const SELECTION_MODES = Object.freeze({
+  AUTO: 'auto',
+  EXPLICIT: 'explicit',
+  NONE: 'none',
+});
+
 function resolveOpenCodeHome(opencodeHome) {
   return path.resolve(opencodeHome || path.join(os.homedir(), '.config', 'opencode'));
 }
@@ -88,6 +94,10 @@ function isValidWorkspaceId(value) {
   return typeof value === 'string' && /^wrk_[A-Za-z0-9_-]+$/.test(value);
 }
 
+function isDetectedId(id) {
+  return typeof id === 'string' && (id === 'detected:env:opencode-go' || id === 'detected:native:opencode-go');
+}
+
 function buildConsoleUrl(workspaceId) {
   if (!isValidWorkspaceId(workspaceId)) return null;
   return `https://opencode.ai/workspace/${workspaceId}/go`;
@@ -142,11 +152,11 @@ function normalizeStoredProfile(input, now = nowIso()) {
     createdAt: typeof input.createdAt === 'string' ? input.createdAt : now,
     updatedAt: typeof input.updatedAt === 'string' ? input.updatedAt : now,
     lastValidatedAt: typeof input.lastValidatedAt === 'string' ? input.lastValidatedAt : null,
-    lastValidationStatus: typeof input.lastValidationStatus === 'string'
-      ? input.lastValidationStatus
+    lastValidatedStatus: typeof input.lastValidatedStatus === 'string'
+      ? input.lastValidatedStatus
       : null,
-    lastValidationMessage: typeof input.lastValidationMessage === 'string'
-      ? input.lastValidationMessage
+    lastValidatedMessage: typeof input.lastValidatedMessage === 'string'
+      ? input.lastValidatedMessage
       : null,
   };
 }
@@ -155,35 +165,43 @@ function readStore(opencodeHome) {
   const storePath = resolveStorePath(opencodeHome);
   const raw = readJsonFile(storePath);
   if (!raw || typeof raw !== 'object') {
-    return { activeId: null, profiles: [], poolEnabled: false, poolWorkspaceIds: [] };
+    return { activeId: null, profiles: [], poolEnabled: false, poolWorkspaceIds: [], selectionMode: SELECTION_MODES.AUTO };
   }
   const profiles = Array.isArray(raw.profiles)
     ? raw.profiles.map((p) => normalizeStoredProfile(p)).filter(Boolean)
     : [];
-  const activeId = typeof raw.activeId === 'string' && profiles.some((p) => p.id === raw.activeId)
-    ? raw.activeId
-    : null;
+  const activeId = typeof raw.activeId === 'string' && (
+    profiles.some((p) => p.id === raw.activeId) || isDetectedId(raw.activeId)
+  ) ? raw.activeId : null;
+  const selectionMode = [SELECTION_MODES.AUTO, SELECTION_MODES.EXPLICIT, SELECTION_MODES.NONE].includes(raw.selectionMode)
+    ? raw.selectionMode
+    : (raw.activeId ? SELECTION_MODES.EXPLICIT : SELECTION_MODES.AUTO);
   return {
     activeId,
     profiles,
     poolEnabled: raw.poolEnabled === true,
     poolWorkspaceIds: Array.isArray(raw.poolWorkspaceIds) ? raw.poolWorkspaceIds : [],
+    selectionMode,
   };
 }
 
 function writeStore(opencodeHome, state) {
-  const activeId = state.activeId && state.profiles.some((p) => p.id === state.activeId)
-    ? state.activeId
-    : null;
+  const activeId = state.activeId && (
+    state.profiles.some((p) => p.id === state.activeId) || isDetectedId(state.activeId)
+  ) ? state.activeId : null;
   const profiles = state.profiles.map((profile) => ({
     ...profile,
     active: profile.id === activeId,
   }));
+  const selectionMode = [SELECTION_MODES.AUTO, SELECTION_MODES.EXPLICIT, SELECTION_MODES.NONE].includes(state.selectionMode)
+    ? state.selectionMode
+    : SELECTION_MODES.AUTO;
   writeJsonAtomic(resolveStorePath(opencodeHome), {
     activeId,
     profiles,
     poolEnabled: state.poolEnabled === true,
     poolWorkspaceIds: Array.isArray(state.poolWorkspaceIds) ? state.poolWorkspaceIds : [],
+    selectionMode,
   });
 }
 
@@ -230,8 +248,8 @@ function buildRedactedProfile(profile, source) {
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
     lastValidatedAt: profile.lastValidatedAt,
-    lastValidationStatus: profile.lastValidationStatus,
-    lastValidationMessage: profile.lastValidationMessage,
+    lastValidatedStatus: profile.lastValidatedStatus,
+    lastValidatedMessage: profile.lastValidatedMessage,
     origin: 'registered',
   };
 }
@@ -251,8 +269,8 @@ function buildImportedProfile({ id, label, workspaceId, source }) {
     createdAt: now,
     updatedAt: now,
     lastValidatedAt: null,
-    lastValidationStatus: null,
-    lastValidationMessage: null,
+    lastValidatedStatus: null,
+    lastValidatedMessage: null,
   };
   return {
     ...profile,
@@ -262,7 +280,14 @@ function buildImportedProfile({ id, label, workspaceId, source }) {
   };
 }
 
-function effectiveActiveId(state, detectedIds) {
+function effectiveActiveId(state, detectedIds, selectionMode = SELECTION_MODES.AUTO) {
+  if (selectionMode === SELECTION_MODES.NONE) return null;
+  if (selectionMode === SELECTION_MODES.EXPLICIT) {
+    if (state.activeId && (state.profiles.some((p) => p.id === state.activeId) || isDetectedId(state.activeId))) {
+      return state.activeId;
+    }
+    return null;
+  }
   if (state.activeId && state.profiles.some((p) => p.id === state.activeId)) {
     return state.activeId;
   }
@@ -350,7 +375,7 @@ function createOpenCodeGoWorkspaces(deps = {}) {
       );
     }));
 
-    const activeId = effectiveActiveId(state, [...detectedIds]);
+    const activeId = effectiveActiveId(state, [...detectedIds], state.selectionMode);
 
     const orderedRegistered = registered.slice().sort((a, b) => {
       if (a.active && !b.active) return -1;
@@ -366,6 +391,7 @@ function createOpenCodeGoWorkspaces(deps = {}) {
       storePath: resolveStorePath(opencodeHome),
       registered: orderedRegistered,
       detected: orderedDetected,
+      selectionMode: state.selectionMode,
     };
   }
 
@@ -411,7 +437,13 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     await writeKeychainValue(profile.keyRef, apiKey);
     const nextProfiles = state.profiles.filter((p) => p.id !== id).concat(profile);
     const nextActiveId = activate ? id : state.activeId;
-    writeStore(opencodeHome, { activeId: nextActiveId, profiles: nextProfiles });
+    writeStore(opencodeHome, {
+      activeId: nextActiveId,
+      profiles: nextProfiles,
+      poolEnabled: state.poolEnabled,
+      poolWorkspaceIds: state.poolWorkspaceIds,
+      selectionMode: activate ? SELECTION_MODES.EXPLICIT : state.selectionMode,
+    });
     return await listWorkspaces(opencodeHome);
   }
 
@@ -446,7 +478,7 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     if (apiKey) {
       await writeKeychainValue(next.keyRef, apiKey);
     }
-    writeStore(opencodeHome, { activeId: state.activeId, profiles: nextProfiles });
+    writeStore(opencodeHome, { activeId: state.activeId, profiles: nextProfiles, poolEnabled: state.poolEnabled, poolWorkspaceIds: state.poolWorkspaceIds, selectionMode: state.selectionMode });
     return await listWorkspaces(opencodeHome);
   }
 
@@ -461,13 +493,13 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     if (registeredMatch && !(await readKeychainValue(registeredMatch.keyRef))) {
       throw new Error(`Cannot activate ${id}: no API key in keychain.`);
     }
-    writeStore(opencodeHome, { activeId: id, profiles: state.profiles });
+    writeStore(opencodeHome, { activeId: id, profiles: state.profiles, poolEnabled: state.poolEnabled, poolWorkspaceIds: state.poolWorkspaceIds, selectionMode: SELECTION_MODES.EXPLICIT });
     return await listWorkspaces(opencodeHome);
   }
 
   async function deactivateWorkspace(opencodeHome) {
     const state = readStore(opencodeHome);
-    writeStore(opencodeHome, { activeId: null, profiles: state.profiles });
+    writeStore(opencodeHome, { activeId: null, profiles: state.profiles, poolEnabled: state.poolEnabled, poolWorkspaceIds: state.poolWorkspaceIds, selectionMode: SELECTION_MODES.NONE });
     return await listWorkspaces(opencodeHome);
   }
 
@@ -478,7 +510,14 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     await deleteKeychainValue(profile.keyRef);
     const nextProfiles = state.profiles.filter((p) => p.id !== id);
     const nextActiveId = state.activeId === id ? null : state.activeId;
-    writeStore(opencodeHome, { activeId: nextActiveId, profiles: nextProfiles });
+    const isActive = state.activeId === id;
+    writeStore(opencodeHome, {
+      activeId: nextActiveId,
+      profiles: nextProfiles,
+      poolEnabled: state.poolEnabled,
+      poolWorkspaceIds: state.poolWorkspaceIds,
+      selectionMode: isActive ? SELECTION_MODES.NONE : state.selectionMode,
+    });
     return await listWorkspaces(opencodeHome);
   }
 
@@ -505,7 +544,6 @@ function createOpenCodeGoWorkspaces(deps = {}) {
       } else if (detectedMatch.id === 'detected:native:opencode-go') {
         apiKey = nativeState.key;
       }
-      void envState;
     }
     if (!apiKey) {
       const result = {
@@ -562,17 +600,23 @@ function createOpenCodeGoWorkspaces(deps = {}) {
         ? {
           ...profile,
           lastValidatedAt: now,
-          lastValidationStatus: result.status,
-          lastValidationMessage: result.message,
+          lastValidatedStatus: result.status,
+          lastValidatedMessage: result.message,
           updatedAt: now,
         }
         : profile
     ));
-    writeStore(opencodeHome, { activeId: state.activeId, profiles: nextProfiles });
+    writeStore(opencodeHome, { activeId: state.activeId, profiles: nextProfiles, poolEnabled: state.poolEnabled, poolWorkspaceIds: state.poolWorkspaceIds, selectionMode: state.selectionMode });
   }
 
   async function resolveActiveApiKey(opencodeHome, sources = {}) {
     const state = readStore(opencodeHome);
+    const mode = state.selectionMode || SELECTION_MODES.AUTO;
+
+    if (mode === SELECTION_MODES.NONE) {
+      return { value: undefined, source: KEY_SOURCES.MISSING, profile: null };
+    }
+
     if (state.activeId) {
       const profile = state.profiles.find((p) => p.id === state.activeId);
       if (profile) {
@@ -584,8 +628,35 @@ function createOpenCodeGoWorkspaces(deps = {}) {
             profile: buildRedactedProfile(profile, KEY_SOURCES.KEYCHAIN),
           };
         }
+        if (mode === SELECTION_MODES.EXPLICIT) {
+          return { value: undefined, source: KEY_SOURCES.MISSING, profile: null };
+        }
       }
     }
+
+    if (mode === SELECTION_MODES.EXPLICIT && state.activeId) {
+      const detectedIds = ['detected:env:opencode-go', 'detected:native:opencode-go'];
+      if (detectedIds.includes(state.activeId)) {
+        if (state.activeId === 'detected:native:opencode-go') {
+          const nativeState = detectNativeAuth(opencodeHome, env, deps.nativeAuthPath);
+          if (nativeState.key) {
+            return { value: nativeState.key, source: KEY_SOURCES.NATIVE_AUTH, profile: null };
+          }
+        }
+        if (state.activeId === 'detected:env:opencode-go') {
+          const envValue = env[OPENCODE_GO_API_KEY_ENV];
+          if (typeof envValue === 'string' && envValue.trim()) {
+            return { value: envValue.trim(), source: KEY_SOURCES.ENV, profile: null };
+          }
+        }
+        return { value: undefined, source: KEY_SOURCES.MISSING, profile: null };
+      }
+    }
+
+    if (mode === SELECTION_MODES.EXPLICIT) {
+      return { value: undefined, source: KEY_SOURCES.MISSING, profile: null };
+    }
+
     if (sources.allowDetected !== false) {
       const nativeState = detectNativeAuth(opencodeHome, env, deps.nativeAuthPath);
       if (nativeState.key) {
@@ -618,8 +689,8 @@ function createOpenCodeGoWorkspaces(deps = {}) {
       createdAt: now,
       updatedAt: now,
       lastValidatedAt: null,
-      lastValidationStatus: null,
-      lastValidationMessage: null,
+      lastValidatedStatus: null,
+      lastValidatedMessage: null,
       origin: 'draft',
     };
   }
@@ -667,6 +738,7 @@ function createOpenCodeGoWorkspaces(deps = {}) {
   return {
     KEYRING_SERVICE_NAME,
     KEY_SOURCES,
+    SELECTION_MODES,
     OPENCODE_GO_API_KEY_ENV,
     resolveOpenCodeHome,
     resolveStorePath,
@@ -709,6 +781,7 @@ module.exports = {
   createOpenCodeGoWorkspaces,
   KEYRING_SERVICE_NAME,
   KEY_SOURCES,
+  SELECTION_MODES,
   OPENCODE_GO_API_KEY_ENV,
   NATIVE_OPENCODE_GO_PROVIDER,
   VALIDATION_MODEL,

@@ -1,6 +1,6 @@
 ---
 created: 2026-06-21
-updated: 2026-06-21
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -36,7 +36,7 @@ brief → structured UI spec → local inventory → implementation
 
 ## Required Evidence Per Change
 
-Every UI change must declare a **validation lane** and produce **runtime evidence**:
+Every UI change must declare a **validation lane** per target and produce **runtime evidence**:
 
 | Lane | Evidence | Gap |
 |------|----------|-----|
@@ -45,8 +45,9 @@ Every UI change must declare a **validation lane** and produce **runtime evidenc
 | `component` | Unit/render test output | Does not prove visual correctness |
 | `unavailable` | Explicit gap statement | Must be stated in handoff |
 
-Evidence is review material, not a committed regression baseline (unless the project opts into
-visual snapshot testing).
+Each target declares one lane. A UI change may require **multiple targets**
+when claims span browser and desktop behavior (e.g., one browser target and one
+desktop target, each with independent evidence).
 
 ## Required States Per Surface
 
@@ -59,17 +60,22 @@ When a target route/surface is declared, the following states must be addressed:
 - Focus state (keyboard navigation)
 - Responsive state (declared viewports)
 
-If a state is not applicable, the spec must state why.
+If a state is not applicable to a route, declare it in the route's `excludedStates`
+array with a `reason` explaining why. The runner validates that every declared state
+has evidence and every excluded state carries a justification.
 
 ## Validation Commands
 
-Validation commands are **repo-owned** and declared in `.elegy/ui-check.json` (schema v1). The
-contract covers:
+Validation commands are **repo-owned** and declared in `.elegy/ui-check.json` (schema v1).
+The runner (`node scripts/ui-check.mjs`) executes per-target commands, validates the
+runtime report against the evidence contract, and generates pass/fail reports.
 
-- Command execution per target route
-- Console error detection
-- Network failure detection
-- Missing-evidence detection
+The runner, not the schema alone:
+- Executes commands and detects failures and timeouts.
+- Collects and validates runtime reports.
+- Verifies that every declared route × viewport × state has evidence.
+- Flags console errors and failed network requests.
+- Validates that excluded states carry a `reason` instead of requiring evidence.
 
 The contract never claims accessibility compliance from a DOM snapshot alone.
 
@@ -88,15 +94,17 @@ visual judgment out of the implementation lane.
 
 | Priority | Source |
 |----------|--------|
-| 1 | This governance doc |
-| 2 | Repo-local `.elegy/ui-check.json` and design tokens |
-| 3 | `ui-system` skill |
-| 4 | `ui-design-spec` and `ui-visual-review` skills |
+| 1 | Explicit user instruction |
+| 2 | Downstream canonical UI specs and docs |
+| 3 | Repo-local `.elegy/ui-check.json`, config, tokens, and code |
+| 4 | Central governance doc (this doc) and UI skills |
 | 5 | Figma/Storybook/shadcn MCP (context only, never authority) |
 
 ## Adoption
 
 See [[ui-check-adoption]] [docs/system/ui-check-adoption.md](docs/system/ui-check-adoption.md) for the per-repo setup recipe.
+Use `node scripts/ui-check.mjs --validate-only` to validate configuration,
+and `node scripts/ui-check.mjs --target <id>` to run a specific target.
 
 ## Related
 
