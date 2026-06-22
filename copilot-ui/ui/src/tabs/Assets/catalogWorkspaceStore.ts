@@ -36,6 +36,7 @@ import {
   updateCatalogAsset,
   uninstallHarnessAsset as apiUninstallHarnessAsset,
   checkHarnessAssets as apiCheckHarnessAssets,
+  forceDeleteUnmanagedAsset as apiForceDeleteUnmanagedAsset,
   type CheckHarnessAssetResult,
 } from '../../lib/api';
 import type {
@@ -69,6 +70,7 @@ export interface CatalogWorkspaceFilters {
   enabledOnly: boolean;
   availableOnly: boolean;
   overriddenOnly: boolean;
+  stateFilter: 'all' | 'installed' | 'not-installed' | 'available' | 'unavailable';
 }
 
 export interface CatalogWorkspaceState {
@@ -132,6 +134,7 @@ const INITIAL_FILTERS: CatalogWorkspaceFilters = {
   enabledOnly: false,
   availableOnly: false,
   overriddenOnly: false,
+  stateFilter: 'all',
 };
 
 const INITIAL_STATE: CatalogWorkspaceState = {
@@ -1969,6 +1972,35 @@ function createCatalogWorkspaceStore() {
     }
   }
 
+  async function forceDeleteUnmanagedAsset(harnessId: string, assetId: string): Promise<void> {
+    store.setState((state) => ({
+      ...state,
+      mutating: true,
+      error: null,
+      installMessage: `Deleting unmanaged asset ${assetId}...`,
+    }));
+
+    try {
+      const response = await apiForceDeleteUnmanagedAsset({ assetId, harnessId, force: true });
+      if (!response.ok) {
+        throw new Error(response.warnings?.join('; ') || 'Force delete failed');
+      }
+      await loadWorkspace();
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+        installMessage: `Deleted ${response.deleted || assetId}.`,
+      }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+        error: toErrorMessage(error, 'Force delete failed.'),
+      }));
+      throw error;
+    }
+  }
+
   async function checkHarnessAssets(harnessId?: string, assetId?: string): Promise<CheckHarnessAssetResult[]> {
     store.setState((state) => ({
       ...state,
@@ -2012,6 +2044,7 @@ function createCatalogWorkspaceStore() {
     toggleHarnessOptIn,
     uninstallHarnessAsset,
     checkHarnessAssets,
+    forceDeleteUnmanagedAsset,
     syncHarness,
     installAll,
     installBundle,

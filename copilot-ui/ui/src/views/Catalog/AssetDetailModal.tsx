@@ -18,7 +18,8 @@ function getHarnessStateBadgeClass(state: string | undefined | null): string {
     case 'installed': case 'synced': return 'state-badge--ok';
     case 'not-installed': case 'missing': return 'state-badge--warn';
     case 'stale': return 'state-badge--warn';
-    case 'conflict': case 'unmanaged': return 'state-badge--error';
+    case 'conflict': return 'state-badge--error';
+    case 'unmanaged': return 'state-badge--warn';
     case 'available': return 'state-badge--muted';
     default: return 'state-badge--muted';
   }

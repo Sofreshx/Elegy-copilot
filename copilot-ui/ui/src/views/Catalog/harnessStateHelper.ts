@@ -53,7 +53,7 @@ export function getHarnessStateBadgeClass(
     case 'Available': return 'state-badge state-badge--muted';
     case 'Active': return 'state-badge state-badge--ok';
     case 'Conflict': return 'state-badge state-badge--error';
-    case 'Unmanaged': return 'state-badge state-badge--error';
+    case 'Unmanaged': return 'state-badge state-badge--warn';
     case 'External': return 'state-badge state-badge--muted';
     case 'Unsupported': return 'state-badge state-badge--muted';
     default: return 'state-badge state-badge--muted';

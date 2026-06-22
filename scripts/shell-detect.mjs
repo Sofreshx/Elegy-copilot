@@ -184,7 +184,10 @@ export async function getBestShell(options = {}) {
 // --- CLI ---
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  if (process.argv.includes('--json')) {
+  if (process.argv.includes('--json') && process.argv.includes('--all')) {
+    const shells = await detect();
+    process.stdout.write(JSON.stringify(shells, null, 2) + '\n');
+  } else if (process.argv.includes('--json')) {
     const shell = await getBestShell();
     process.stdout.write(JSON.stringify(shell, null, 2) + '\n');
   }

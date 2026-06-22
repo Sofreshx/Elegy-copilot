@@ -16,6 +16,9 @@ import {
   deleteGoWorkspace,
   saveOpenCodePrompts,
   getEffectivePrompt,
+  getGoWorkspacePool,
+  setGoWorkspacePool,
+  validateGoWorkspacePool,
 } from '../lib/api/opencode';
 import { createStore } from '../lib/store';
 import type {
@@ -33,6 +36,7 @@ import type {
   CustomPromptMap,
   EffectivePromptResponse,
 } from '../lib/types';
+import type { OpenCodeGoWorkspacePool } from '../lib/api/opencode';
 
 export interface OpenCodeState {
   status: OpenCodeStatusResponse | null;
@@ -56,6 +60,9 @@ export interface OpenCodeState {
   effectivePrompts: Record<string, EffectivePromptResponse | null>;
   promptsLoading: boolean;
   promptsSaving: boolean;
+  workspacePool: OpenCodeGoWorkspacePool;
+  workspacePoolLoading: boolean;
+  workspacePoolError: string | null;
 }
 
 const INITIAL_STATE: OpenCodeState = {
@@ -80,6 +87,9 @@ const INITIAL_STATE: OpenCodeState = {
   effectivePrompts: {},
   promptsLoading: false,
   promptsSaving: false,
+  workspacePool: { enabled: false, workspaceIds: [] },
+  workspacePoolLoading: false,
+  workspacePoolError: null,
 };
 
 function toErrorMessage(error: unknown): string {
@@ -482,6 +492,39 @@ function createOpenCodeStore() {
     }
   }
 
+  async function loadWorkspacePool(): Promise<void> {
+    store.setState((state) => ({ ...state, workspacePoolLoading: true, workspacePoolError: null }));
+    try {
+      const response = await getGoWorkspacePool();
+      store.setState((state) => ({ ...state, workspacePool: response.pool, workspacePoolLoading: false }));
+    } catch (error) {
+      store.setState((state) => ({ ...state, workspacePoolLoading: false, workspacePoolError: toErrorMessage(error) }));
+    }
+  }
+
+  async function setWorkspacePool(payload: { enabled?: boolean; workspaceIds?: string[] }): Promise<void> {
+    store.setState((state) => ({ ...state, workspacePoolLoading: true, workspacePoolError: null }));
+    try {
+      const response = await setGoWorkspacePool(payload);
+      store.setState((state) => ({ ...state, workspacePool: response.pool, workspacePoolLoading: false }));
+    } catch (error) {
+      store.setState((state) => ({ ...state, workspacePoolLoading: false, workspacePoolError: toErrorMessage(error) }));
+    }
+  }
+
+  async function validateWorkspacePool(): Promise<void> {
+    store.setState((state) => ({ ...state, workspacePoolLoading: true, workspacePoolError: null }));
+    try {
+      await validateGoWorkspacePool();
+      // Reload workspaces to get updated validation status
+      const workspaces = await getGoWorkspaces();
+      const pool = await getGoWorkspacePool();
+      store.setState((state) => ({ ...state, goWorkspaces: workspaces, workspacePool: pool.pool, workspacePoolLoading: false }));
+    } catch (error) {
+      store.setState((state) => ({ ...state, workspacePoolLoading: false, workspacePoolError: toErrorMessage(error) }));
+    }
+  }
+
   return {
     getState: store.getState,
     subscribe: store.subscribe,
@@ -507,6 +550,9 @@ function createOpenCodeStore() {
     validateGoWorkspaceAction,
     deleteGoWorkspaceAction,
     createGoWorkspaceFlowAction,
+    loadWorkspacePool,
+    setWorkspacePool,
+    validateWorkspacePool,
   };
 }
 

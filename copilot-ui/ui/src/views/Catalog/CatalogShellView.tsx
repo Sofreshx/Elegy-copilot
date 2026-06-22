@@ -329,6 +329,22 @@ export default function CatalogShellView() {
             >
               {summaryLoading && !summary ? 'Loading...' : summaryLoading ? 'Refreshing…' : 'Refresh'}
             </Button>
+            <Button
+              disabled={catalogState.installing || catalogState.refreshing || (summaryLoading && !summary)}
+              onClick={() => { void catalogWorkspaceStore.installAll(false); }}
+              testId="assets-tools-install-all"
+              variant="primary"
+            >
+              {catalogState.installing ? 'Installing...' : 'Install All'}
+            </Button>
+            <Button
+              disabled={catalogState.installing || catalogState.refreshing || (summaryLoading && !summary)}
+              onClick={() => { void catalogWorkspaceStore.installAll(true); }}
+              testId="assets-tools-force-install"
+              variant="ghost"
+            >
+              Force All
+            </Button>
 
             {/* Repository Assets moved to Workspace area — see WorkspaceAssetsTab */}
           </div>

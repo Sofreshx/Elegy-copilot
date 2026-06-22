@@ -1346,6 +1346,49 @@ function registerGoWorkspacesRoutes(deps) {
         }
       },
     },
+    // GET /api/opencode/go-workspaces/pool
+    {
+      method: 'GET',
+      path: '/api/opencode/go-workspaces/pool',
+      handler: (ctx) => {
+        try {
+          const store = resolveOpencodeGoWorkspacesStore(deps);
+          const pool = store.getPool(ctx.opencodeHome);
+          deps.sendJson(ctx.res, 200, { pool });
+        } catch (err) {
+          deps.sendJson(ctx.res, 500, { error: String(err.message || err) });
+        }
+      },
+    },
+    // PUT /api/opencode/go-workspaces/pool
+    {
+      method: 'PUT',
+      path: '/api/opencode/go-workspaces/pool',
+      handler: async (ctx) => {
+        try {
+          const body = await deps.readJsonBody(ctx.req);
+          const store = resolveOpencodeGoWorkspacesStore(deps);
+          const pool = store.setPool(ctx.opencodeHome, body);
+          deps.sendJson(ctx.res, 200, { pool });
+        } catch (err) {
+          deps.sendJson(ctx.res, err.statusCode || 500, { error: String(err.message || err) });
+        }
+      },
+    },
+    // POST /api/opencode/go-workspaces/pool/validate
+    {
+      method: 'POST',
+      path: '/api/opencode/go-workspaces/pool/validate',
+      handler: async (ctx) => {
+        try {
+          const store = resolveOpencodeGoWorkspacesStore(deps);
+          const result = await store.validatePool(ctx.opencodeHome);
+          deps.sendJson(ctx.res, 200, result);
+        } catch (err) {
+          deps.sendJson(ctx.res, 500, { error: String(err.message || err) });
+        }
+      },
+    },
   ];
 }
 
