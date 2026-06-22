@@ -18,7 +18,7 @@ function register(deps = {}) {
       path: '/api/telemetry/harnesses',
       handler: async (ctx) => {
         try {
-          const limit = asNumber(ctx.query && ctx.query.limit, undefined);
+          const limit = asNumber(ctx.u.searchParams.get('limit') || undefined, undefined);
           const result = telemetryService.buildHarnessTelemetry({
             limit,
             opencodeHome: ctx.opencodeHome,

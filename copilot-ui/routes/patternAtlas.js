@@ -3,7 +3,7 @@
 const path = require('path');
 const fs = require('fs');
 const yaml = require('js-yaml');
-const { sendJson } = require('./_helpers');
+const { sendJson, getQueryParam, safeListArray } = require('./_helpers');
 
 const PATTERN_ATLAS_DIR = path.resolve(__dirname, '..', 'content', 'pattern-atlas');
 
@@ -69,10 +69,10 @@ function loadAllEntries() {
         domain: doc.domain || '',
         confidence: doc.confidence || '',
         tags: Array.isArray(doc.tags) ? doc.tags.map((t) => String(t).toLowerCase()) : [],
-        traits: Array.isArray(doc.traits) ? doc.traits : [],
+        traits: safeListArray(doc.traits),
         bestFit: Array.isArray(doc.bestFit) ? doc.bestFit : [],
         avoidIf: Array.isArray(doc.avoidIf) ? doc.avoidIf : [],
-        commonFailures: Array.isArray(doc.commonFailures) ? doc.commonFailures : [],
+        commonFailures: safeListArray(doc.commonFailures),
         contrasts: Array.isArray(doc.contrasts) ? doc.contrasts : [],
         compatibilities: Array.isArray(doc.compatibilities) ? doc.compatibilities : [],
         promptLanguage: doc.promptLanguage || '',
@@ -199,11 +199,11 @@ function register(context = {}) {
       path: '/api/pattern-atlas',
       handler: (ctx) => {
         try {
-          const query = (ctx.query && ctx.query.q || '').trim();
-          const typeFilter = (ctx.query && ctx.query.type || '').trim();
-          const domainFilter = (ctx.query && ctx.query.domain || '').trim();
-          const confidenceFilter = (ctx.query && ctx.query.confidence || '').trim();
-          const tagFilter = (ctx.query && ctx.query.tag || '').trim();
+          const query = getQueryParam(ctx, 'q');
+          const typeFilter = getQueryParam(ctx, 'type');
+          const domainFilter = getQueryParam(ctx, 'domain');
+          const confidenceFilter = getQueryParam(ctx, 'confidence');
+          const tagFilter = getQueryParam(ctx, 'tag');
 
           const data = loadAllEntries();
           let filtered = data.entries;

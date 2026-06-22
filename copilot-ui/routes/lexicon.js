@@ -209,8 +209,8 @@ function register(context = {}) {
       path: '/api/lexicon',
       handler: (ctx) => {
         try {
-          const query = (ctx.query && ctx.query.q || '').trim();
-          const category = (ctx.query && ctx.query.category || '').trim();
+          const query = (ctx.u.searchParams.get('q') || '').trim();
+          const category = (ctx.u.searchParams.get('category') || '').trim();
 
           const data = loadAllEntries();
 

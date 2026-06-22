@@ -146,61 +146,6 @@ function buildLanes() {
       escalationTriggers: [],
     },
     {
-      id: 'standard',
-      label: 'Standard',
-      description: 'Balanced implementation with escalation on ambiguity',
-      nodes: [
-        { id: 'user-request', label: 'User Request', kind: 'start' },
-        { id: 'lane-classifier', label: 'Lane Classifier', kind: 'decision' },
-        { id: 'exploration', label: 'Exploration (Flash Max)', kind: 'action' },
-        { id: 'ambiguity-gate', label: 'Clarification Gate', kind: 'gate' },
-        { id: 'escalation', label: 'Escalate on Failure', kind: 'escalation' },
-        { id: 'implementation', label: 'Implementation', kind: 'action' },
-      ],
-      edges: [
-        { from: 'user-request', to: 'lane-classifier', label: 'classify' },
-        { from: 'lane-classifier', to: 'exploration', label: 'standard route' },
-        { from: 'exploration', to: 'ambiguity-gate', label: 'check clarity' },
-        { from: 'ambiguity-gate', to: 'escalation', label: 'ambiguous' },
-        { from: 'ambiguity-gate', to: 'implementation', label: 'clear' },
-        { from: 'escalation', to: 'implementation', label: 'resolved' },
-      ],
-      modelPolicy: { small: 'DeepSeek V4 Flash Max', big: null, review: 'optional' },
-      requiredSetup: ['opencode-config', 'provider-route'],
-      clarificationGates: ['ambiguity', 'missing-context'],
-      worktreeBehavior: null,
-      escalationTriggers: ['ambiguity-detected', 'execution-failure'],
-    },
-    {
-      id: 'spec',
-      label: 'Spec',
-      description: 'Spec-driven development with exploration, planning, and review gates',
-      nodes: [
-        { id: 'user-request', label: 'User Request', kind: 'start' },
-        { id: 'lane-classifier', label: 'Lane Classifier', kind: 'decision' },
-        { id: 'exploration', label: 'Flash Exploration', kind: 'action' },
-        { id: 'spec-gate', label: 'Spec Gate', kind: 'gate' },
-        { id: 'pro-max-plan', label: 'Pro Max Plan', kind: 'action' },
-        { id: 'review-gate', label: 'Review Gate', kind: 'gate' },
-        { id: 'implementation', label: 'Implementation', kind: 'action' },
-      ],
-      edges: [
-        { from: 'user-request', to: 'lane-classifier', label: 'classify' },
-        { from: 'lane-classifier', to: 'exploration', label: 'spec route' },
-        { from: 'exploration', to: 'spec-gate', label: 'draft spec' },
-        { from: 'spec-gate', to: 'pro-max-plan', label: 'approved' },
-        { from: 'spec-gate', to: 'exploration', label: 'revise' },
-        { from: 'pro-max-plan', to: 'review-gate', label: 'plan ready' },
-        { from: 'review-gate', to: 'implementation', label: 'approved' },
-        { from: 'review-gate', to: 'pro-max-plan', label: 'revision needed' },
-      ],
-      modelPolicy: { small: 'DeepSeek V4 Flash Max', big: 'DeepSeek V4 Pro Max', review: 'DeepSeek V4 Pro High' },
-      requiredSetup: ['opencode-config', 'provider-route'],
-      clarificationGates: ['spec-scope', 'acceptance-criteria'],
-      worktreeBehavior: null,
-      escalationTriggers: ['spec-rejected', 'review-failed'],
-    },
-    {
       id: 'project',
       label: 'Project',
       description: 'Full project life cycle via Elegy Planning graph, worktrees, and evidence',
@@ -2024,8 +1969,8 @@ function register(deps = {}) {
       path: '/api/opencode/logs/requests',
       handler: async (ctx) => {
         try {
-          const limit = asNumber(ctx.query && ctx.query.limit, resolvedDeps.opencodeLogReader.DEFAULT_LIMIT);
-          const since = asTrimmedString(ctx.query && ctx.query.since);
+          const limit = asNumber(ctx.u.searchParams.get('limit') || undefined, resolvedDeps.opencodeLogReader.DEFAULT_LIMIT);
+          const since = asTrimmedString(ctx.u.searchParams.get('since') || undefined);
           const result = resolvedDeps.opencodeLogReader.readRequestLogs({ limit, since });
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {

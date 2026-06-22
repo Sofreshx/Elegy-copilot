@@ -27,23 +27,6 @@
       }
     },
     {
-      "skill": "codebase-design",
-      "name": "codebase-design",
-      "description": "Shared vocabulary for designing deep modules. Use when designing or improving a module's interface, finding deepening opportunities, deciding where a seam goes, making code more testable or AI-navigable, or when another skill needs the deep-module vocabulary. Triggers on: deep module, module design, seam, interface design, codebase architecture, deepen module.",
-      "triggersOn": [
-        "codebase architecture",
-        "deep module",
-        "deepen module",
-        "interface design",
-        "module design",
-        "seam"
-      ],
-      "manifest": {
-        "id": "skill-codebase-design",
-        "loadMode": "on-demand"
-      }
-    },
-    {
       "skill": "commit-check-setup",
       "name": "commit-check-setup",
       "description": "Full bootstrap or update of commit-check setup for a target repo. Copies commit-check scripts, generates .copilot/commit-checks.json config, adds npm script, and smoke tests. Triggers on: commit check setup, setup commit checks, bootstrap commit checks, configure pre-commit checks, update commit checks, init commit checks.",
@@ -111,25 +94,6 @@
       }
     },
     {
-      "skill": "diagnosing-bugs",
-      "name": "diagnosing-bugs",
-      "description": "Diagnosis loop for hard bugs and performance regressions. Use when the user says 'diagnose', 'debug this', or reports something broken, throwing, failing, or slow. Triggers on: diagnose, debug, bug, broken, failing, slow, performance regression, find the cause.",
-      "triggersOn": [
-        "broken",
-        "bug",
-        "debug",
-        "diagnose",
-        "failing",
-        "find the cause",
-        "performance regression",
-        "slow"
-      ],
-      "manifest": {
-        "id": "skill-diagnosing-bugs",
-        "loadMode": "on-demand"
-      }
-    },
-    {
       "skill": "documentation-authoring",
       "name": "documentation-authoring",
       "description": "Reusable documentation authoring workflow for durable human-readable and agent-readable docs. Triggers on: documentation authoring, docs writing, docs quality, progressive disclosure, diagram-heavy docs, changelog discipline, docs drift, llms.txt docs.",
@@ -174,43 +138,6 @@
       }
     },
     {
-      "skill": "domain-modeling",
-      "name": "domain-modeling",
-      "description": "Build and sharpen a project's domain model. Use when pinning down domain terminology or a ubiquitous language, recording an architectural decision, or when another skill needs to maintain the domain model. Triggers on: domain model, glossary, ubiquitous language, canonical term, ADR, architectural decision.",
-      "triggersOn": [
-        "adr",
-        "architectural decision",
-        "canonical term",
-        "domain model",
-        "glossary",
-        "ubiquitous language"
-      ],
-      "manifest": {
-        "id": "skill-domain-modeling",
-        "loadMode": "on-demand"
-      }
-    },
-    {
-      "skill": "grilling",
-      "name": "grilling",
-      "description": "Interview the user relentlessly about a plan or design. Use when the user wants to stress-test a plan before building, mentions 'grill', 'grill me', 'interview me', or wants to walk through every branch of a design decision tree. Also reachable from other skills that need a structured questioning loop.",
-      "triggersOn": [],
-      "manifest": {
-        "id": "skill-grilling",
-        "loadMode": "on-demand"
-      }
-    },
-    {
-      "skill": "handoff",
-      "name": "handoff",
-      "description": "Compact the current conversation into a handoff document for another agent to pick up. Use before closing a session or when context is full and work needs to continue in a fresh session.",
-      "triggersOn": [],
-      "manifest": {
-        "id": "skill-handoff",
-        "loadMode": "on-demand"
-      }
-    },
-    {
       "skill": "implementation-handoff",
       "name": "implementation-handoff",
       "description": "Convert a feature plan, roadmap slice, or architecture note into a repo-grounded implementation handoff brief. Triggers on: implementation handoff, executor brief, delegation brief, model handoff, plan to implementation brief.",
@@ -237,16 +164,6 @@
       }
     },
     {
-      "skill": "improve-codebase-architecture",
-      "name": "improve-codebase-architecture",
-      "description": "Scan a codebase for deepening opportunities, present them as a visual HTML report, then grill through whichever one you pick. Use when the user wants to improve architecture, find refactoring candidates, reduce module shallowness, or run a codebase health check.",
-      "triggersOn": [],
-      "manifest": {
-        "id": "skill-improve-codebase-architecture",
-        "loadMode": "on-demand"
-      }
-    },
-    {
       "skill": "project-conventions-governance",
       "name": "project-conventions-governance",
       "description": "",
@@ -260,16 +177,6 @@
       ],
       "manifest": {
         "id": "skill-project-conventions-governance",
-        "loadMode": "on-demand"
-      }
-    },
-    {
-      "skill": "prototype",
-      "name": "prototype",
-      "description": "Build a throwaway prototype to flesh out a design — a runnable terminal app for state/business-logic questions, or several radically different UI variations toggleable from one route. Use when the user wants to prototype, experiment, or test a design before committing to implementation.",
-      "triggersOn": [],
-      "manifest": {
-        "id": "skill-prototype",
         "loadMode": "on-demand"
       }
     },
@@ -461,23 +368,6 @@
       }
     },
     {
-      "skill": "tdd",
-      "name": "tdd",
-      "description": "Test-driven development with red-green-refactor loop. Use when the user wants to build features or fix bugs test-first, mentions 'red-green-refactor', 'TDD', 'test-first', or wants integration tests written before implementation. Triggers on: TDD, test-driven, red-green-refactor, test first, write tests first, vertical slice.",
-      "triggersOn": [
-        "red-green-refactor",
-        "tdd",
-        "test first",
-        "test-driven",
-        "vertical slice",
-        "write tests first"
-      ],
-      "manifest": {
-        "id": "skill-tdd",
-        "loadMode": "on-demand"
-      }
-    },
-    {
       "skill": "ui-design-spec",
       "name": "ui-design-spec",
       "description": "Convert prompts, screenshots, generated concepts, or Figma context into a structured repo-grounded UI specification. Triggers on: ui spec, design spec, UI specification, screen design, component spec, Figma to spec, screenshot to spec, UI requirements.",
@@ -530,7 +420,7 @@
     {
       "skill": "ui-system",
       "name": "ui-system",
-      "description": "Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; reuse local patterns first, treat Figma and Storybook MCP data as context (not authority), and pick the narrowest available validation. Triggers on: ui, component, frontend, view, screen, panel, dialog, form, button, icon, style, styling, design system, storybook, figma, visual review, styling consistency, design-system reuse.",
+      "description": "Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; reuse local patterns first, treat Figma and Storybook MCP data as context (not authority), and pick the narrowest available validation. Triggers on: ui, component, frontend, view, screen, panel, dialog, form, button, icon, style, styling, design system, storybook, figma, styling consistency, design-system reuse.",
       "triggersOn": [
         "button",
         "component",
@@ -548,8 +438,7 @@
         "styling",
         "styling consistency",
         "ui",
-        "view",
-        "visual review"
+        "view"
       ],
       "manifest": {
         "id": "skill-ui-system",
@@ -572,16 +461,6 @@
       ],
       "manifest": {
         "id": "skill-ui-visual-review",
-        "loadMode": "on-demand"
-      }
-    },
-    {
-      "skill": "writing-great-skills",
-      "name": "writing-great-skills",
-      "description": "Reference for writing and editing skills well — the vocabulary and principles that make a skill predictable. Use when designing or refining agent skills, diagnosing skill failure modes, or evaluating skill quality.",
-      "triggersOn": [],
-      "manifest": {
-        "id": "skill-writing-great-skills",
         "loadMode": "on-demand"
       }
     }

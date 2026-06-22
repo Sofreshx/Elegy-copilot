@@ -23,7 +23,7 @@ const mockStatus: OpenCodeStatusResponse = {
     {
       id: 'quick',
       label: 'Quick',
-      description: 'Fast implementation',
+      description: 'Fast, focused implementation with optional review',
       nodes: [
         { id: 'user-request', label: 'User Request', kind: 'start' },
         { id: 'implementation', label: 'Implementation', kind: 'action' },
@@ -34,41 +34,11 @@ const mockStatus: OpenCodeStatusResponse = {
       clarificationGates: [],
       worktreeBehavior: null,
       escalationTriggers: [],
-    },
-    {
-      id: 'standard',
-      label: 'Standard',
-      description: 'Balanced implementation',
-      nodes: [
-        { id: 'user-request', label: 'User Request', kind: 'start' },
-        { id: 'implementation', label: 'Implementation', kind: 'action' },
-      ],
-      edges: [{ from: 'user-request', to: 'implementation', label: 'route' }],
-      modelPolicy: { small: 'Flash Max', big: null, review: null },
-      requiredSetup: ['opencode-config'],
-      clarificationGates: [],
-      worktreeBehavior: null,
-      escalationTriggers: [],
-    },
-    {
-      id: 'spec',
-      label: 'Spec',
-      description: 'Spec-driven development',
-      nodes: [
-        { id: 'user-request', label: 'User Request', kind: 'start' },
-        { id: 'implementation', label: 'Implementation', kind: 'action' },
-      ],
-      edges: [{ from: 'user-request', to: 'implementation', label: 'route' }],
-      modelPolicy: { small: 'Flash Max', big: 'Pro Max', review: 'Pro High' },
-      requiredSetup: ['opencode-config', 'specs-dir'],
-      clarificationGates: ['spec-scope'],
-      worktreeBehavior: null,
-      escalationTriggers: ['spec-rejected'],
     },
     {
       id: 'project',
       label: 'Project',
-      description: 'Full project lifecycle',
+      description: 'Full project life cycle via Elegy Planning graph, worktrees, and evidence',
       nodes: [
         { id: 'user-request', label: 'User Request', kind: 'start' },
         { id: 'implementation', label: 'Implementation', kind: 'action' },
@@ -79,6 +49,36 @@ const mockStatus: OpenCodeStatusResponse = {
       clarificationGates: ['goal-definition'],
       worktreeBehavior: 'git worktree isolation',
       escalationTriggers: ['planning-graph-unavailable'],
+    },
+    {
+      id: 'runner',
+      label: 'Runner',
+      description: 'Execute a text plan via sub-agents with full review gates.',
+      nodes: [
+        { id: 'user-request', label: 'User Request', kind: 'start' },
+        { id: 'implementation', label: 'Implementation', kind: 'action' },
+      ],
+      edges: [{ from: 'user-request', to: 'implementation', label: 'route' }],
+      modelPolicy: { small: 'Flash Max', big: 'Pro Max', review: 'Pro High' },
+      requiredSetup: ['opencode-config'],
+      clarificationGates: [],
+      worktreeBehavior: null,
+      escalationTriggers: [],
+    },
+    {
+      id: 'runner-flash',
+      label: 'Runner Flash',
+      description: 'Same as Runner but uses Flash implementation model.',
+      nodes: [
+        { id: 'user-request', label: 'User Request', kind: 'start' },
+        { id: 'implementation', label: 'Implementation', kind: 'action' },
+      ],
+      edges: [{ from: 'user-request', to: 'implementation', label: 'route' }],
+      modelPolicy: { small: 'Flash Max', big: 'Pro Max', review: 'Pro High' },
+      requiredSetup: ['opencode-config'],
+      clarificationGates: [],
+      worktreeBehavior: null,
+      escalationTriggers: [],
     },
   ],
   configPreview: { provider: { route: 'opencode-go' } },
@@ -148,9 +148,9 @@ describe('OpenCodeView', () => {
     fireEvent.click(screen.getByTestId('opencode-tab-lanes'));
 
     expect(screen.getByTestId('opencode-lane-quick')).toBeInTheDocument();
-    expect(screen.getByTestId('opencode-lane-standard')).toBeInTheDocument();
-    expect(screen.getByTestId('opencode-lane-spec')).toBeInTheDocument();
     expect(screen.getByTestId('opencode-lane-project')).toBeInTheDocument();
+    expect(screen.getByTestId('opencode-lane-runner')).toBeInTheDocument();
+    expect(screen.getByTestId('opencode-lane-runner-flash')).toBeInTheDocument();
   });
 
   it('shows lane detail when lane card is clicked', async () => {
@@ -159,10 +159,10 @@ describe('OpenCodeView', () => {
     render(<OpenCodeView />);
 
     fireEvent.click(screen.getByTestId('opencode-tab-lanes'));
-    fireEvent.click(screen.getByTestId('opencode-lane-spec'));
+    fireEvent.click(screen.getByTestId('opencode-lane-project'));
 
-    expect(screen.getByTestId('opencode-lane-detail-spec')).toBeInTheDocument();
-    expect(screen.getByText('Spec-driven development')).toBeInTheDocument();
+    expect(screen.getByTestId('opencode-lane-detail-project')).toBeInTheDocument();
+    expect(screen.getByText('Full project life cycle via Elegy Planning graph, worktrees, and evidence')).toBeInTheDocument();
   });
 
   it('renders profile cards in profiles section', async () => {
@@ -191,13 +191,13 @@ describe('OpenCodeView', () => {
     render(<OpenCodeView />);
 
     fireEvent.click(screen.getByTestId('opencode-tab-lanes'));
-    expect(screen.queryByTestId('opencode-lane-detail-spec')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opencode-lane-detail-project')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('opencode-lane-spec'));
-    expect(screen.getByTestId('opencode-lane-detail-spec')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('opencode-lane-project'));
+    expect(screen.getByTestId('opencode-lane-detail-project')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('opencode-lane-spec'));
-    expect(screen.queryByTestId('opencode-lane-detail-spec')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('opencode-lane-project'));
+    expect(screen.queryByTestId('opencode-lane-detail-project')).not.toBeInTheDocument();
   });
 
   it('profiles section saves role models via saveConfig (P2c fix)', async () => {

@@ -74,6 +74,9 @@ copilot-ui/tsserver.ps1
 copilot-ui/typescript-language-server
 copilot-ui/typescript-language-server.cmd
 copilot-ui/typescript-language-server.ps1
+copilot-ui/kimaki
+copilot-ui/kimaki.cmd
+copilot-ui/kimaki.ps1
 
 # Skill installer local artifacts
 .skill-installer/
