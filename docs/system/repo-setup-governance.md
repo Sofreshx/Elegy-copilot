@@ -165,15 +165,14 @@ Installer-mediated `spec-driven` bootstrap may create or refresh these repo-loca
 - `.github/agents/`
 - `.github/skills/`
 - `docs/specs/` and starter `docs/specs/index.md`
-- `scripts/validate-specs.js`
-- `package.json` script entry `validate:specs` when `package.json` exists and the script name is free
+- ~~`scripts/validate-specs.js`~~ (removed June 2026 — spec validation no longer enforced)
+- ~~`package.json` script entry `validate:specs` when `package.json` exists and the script name is free~~ (removed June 2026)
 - selected-harness repo skill mirrors derived from `.github/skills/`
 
 Installer-mediated `spec-driven` bootstrap must preserve local user content conservatively:
 
 - use bounded managed blocks for repo instruction overlays instead of replacing whole files
 - do not overwrite an existing `docs/specs/index.md` starter with a new template
-- do not replace an existing conflicting `package.json` `validate:specs` script silently
 - keep `.github/skills/` as the only editable repo-local skill authority and generate mirrors from it
 
 ## Compatibility gate

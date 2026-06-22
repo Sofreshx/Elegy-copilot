@@ -26,10 +26,11 @@ Build a Rust-owned durable execution control plane that dispatches isolated codi
 - `docs/system/security-model.md` — desktop distribution trust chain, kill-switch rules
 - `docs/system/runtime-permissions-contracts.md` — runtime contract v1.0.0, fail-closed semantics
 
+> **Context note (2026-06-22):** The Rust native runtime referenced below was removed from the codebase.
+> The orchestrator would need a new backend if re-implemented.
+
 **Existing runtime:**
-- `native/runtime/src/` — existing Rust Axum sidecar (port 3211, 8 routes: `/api/health`, `/api/version`, `/api/policy/preflight`, `/api/dashboard/summary`, `/api/projects`, `/api/projects/{id}`, `/api/projects/{id}/sessions`, `/api/projects/{id}/activity`). `planning_persistence=disabled`, `autonomous_decision_log=not_ported`.
-- `native/runtime/src/app.rs` — `serve()` binds `{host}:{port}` and serves `build_router()`.
-- `native/runtime/src/lib.rs` — module declarations: `app`, `config`, `dashboard`, `policy`, `projects`, `response_shape`, `runtime`, `sessions`
+- `copilot-ui/server.js` — Node.js HTTP server, primary request router
 
 **Node proxy & UI:**
 - `copilot-ui/server.js` — Node.js HTTP server, primary request router, planning persistence import surface
@@ -138,7 +139,7 @@ All mutating endpoints MUST require idempotency keys and return deterministic st
 - Health endpoint MUST expose planning compatibility, adapter availability, journal readiness, and orphan recovery.
 - Node proxy MUST NOT buffer the event stream and MUST propagate client disconnect.
 - SSE reconnect with `Last-Event-ID` MUST replay missing events in projection order.
-- Endpoints added under `native/runtime/src/orchestrator/api/` — existing routes remain unchanged.
+- Endpoints added under a new backend orchestrator API module — existing routes remain unchanged.
 - → verify: API contract tests with idempotency, SSE replay, and disconnect handling (ORCH-013).
 
 ### R8 — Existing Execution workspace UI
@@ -242,9 +243,7 @@ Tests MUST exercise:
 
 - `docs/system/orchestrator-architecture-adr.md` — companion ADR
 - `docs/specs/project-lane-orchestrator/spec.md` (this file)
-- `native/runtime/src/` — Rust Axum sidecar (port 3211)
-- `native/runtime/src/app.rs` — router builder
-- `native/runtime/src/lib.rs` — module declarations
+- Node.js backend (`copilot-ui/server.js`) — API server
 - `copilot-ui/server.js` — Node.js HTTP server, primary proxy boundary
 - `copilot-ui/ui/src/views/Workspace/WorkspaceExecutionTab.tsx` — existing Execution tab placeholder
 - `docs/system/architecture-overview.md` — current topology

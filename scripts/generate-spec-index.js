@@ -5,7 +5,7 @@
  * Generates docs/specs/index.md from all docs/specs/<spec>/spec.md files.
  * 
  * RELIABILITY: The generated index is validated against the filesystem
- * by validate-specs.js --strict (R3 index drift check). CI enforces
+ * by validate-specs.js --strict (R3 index drift check). No longer enforced in CI.
  * that the index stays in sync.
  * 
  * PART OF: spec-system-hardening (R3.3 — shared YAML parser)

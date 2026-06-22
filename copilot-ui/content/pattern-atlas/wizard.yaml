@@ -1,0 +1,91 @@
+id: wizard
+name: Wizard/Stepped Form
+aliases:
+  - stepped-form
+  - multi-step-form
+  - step-by-step
+  - guided-flow
+  - setup-wizard
+  - sequential-form
+  - sequential-process
+type: ui-component
+domain: ui-ux
+confidence: established
+tagline: A multi-step form or setup flow that breaks complex processes into sequential, manageable steps with progress indication.
+description: >
+  A wizard (or stepped form) is a UI pattern that decomposes a long or complex
+  form into a sequence of discrete steps, presented one at a time with a
+  progress indicator showing the user's position and overall progress. Each
+  step typically focuses on a single task — entering personal information,
+  configuring settings, reviewing choices — before moving to the next.
+
+  Wizards are essential when a form has 8+ fields, when fields depend on
+  earlier selections, or when the process benefits from commitment — the user
+  invests progressively and is less likely to abandon. The pattern includes:
+  a progress indicator (numbered steps, breadcrumb, or progress bar), forward/
+  back navigation, step validation before advancing, a review/confirmation
+  step, and clear calls to action ("Next," "Back," "Submit").
+
+  Key UX requirements: show the total number of steps and current step,
+  validate inline before allowing advancement, preserve data when navigating
+  back, support saving progress for later, and provide clear error messages
+  that indicate which step needs correction. The wizard should feel guided
+  but not restrictive — power users may want step skipping or an overview.
+traits:
+  - Sequential steps presented one at a time with clear forward/back navigation
+  - Progress indicator showing current position and total steps
+  - Step validation before enabling the "Next" button
+  - Preservation of data when navigating between steps
+  - Review/confirmation step before final submission
+bestFit:
+  - Account registration, onboarding, and setup flows
+  - Checkout processes with shipping, billing, and review
+  - Complex configuration and survey forms
+avoidIf:
+  - The form has fewer than 5-7 fields (a single page is simpler)
+  - Users need to compare or reference information across steps
+  - The process needs to be completed quickly without commitment steps
+  - Users frequently perform the task and need speed over guidance
+commonFailures:
+  - Making steps too small, adding unnecessary friction with too many clicks
+  - Making the wizard too rigid — not allowing users to skip optional steps
+  - Failing to preserve data when users navigate back to change earlier selections
+  - Not showing a clear progress indicator, leading to abandonment uncertainty
+  - Showing too many steps in the progress indicator, creating anxiety about the time required
+contrasts:
+  - term: Single Form
+    difference: A wizard breaks the form into sequential steps; a single form shows all fields at once for simple, short inputs.
+  - term: Breadcrumb
+    difference: A wizard guides forward through a linear sequence; breadcrumbs show hierarchical location but do not control navigation flow.
+  - term: Progressive Disclosure
+    difference: A wizard is a linear sequence requiring step completion; progressive disclosure reveals options on demand without a fixed sequence.
+compatibilities:
+  - breadcrumb
+  - progressive-disclosure
+  - drawer
+  - empty-state
+promptLanguage: >
+  Design a wizard component for a multi-step form. Show a progress indicator
+  at the top (Step 1 of 4) with step labels. Display one step at a time with
+  a title, description, and form fields. Include Back and Next/Continue
+  buttons at the bottom. Validate the current step before enabling Next.
+  When the user clicks Back, preserve all entered data. The final step is a
+  review/confirmation page showing all collected information before Submit.
+  Disable Next during async validation. Show step-specific error messages
+  near the relevant fields. Support keyboard navigation (Enter for Next,
+  Escape to cancel).
+sources:
+  - https://www.nngroup.com/articles/wizards/
+  - https://www.w3.org/WAI/tutorials/forms/multi-page/
+  - https://atlassian.design/components/progress-indicator/
+  - https://www.interaction-design.org/literature/topics/wizard-pattern
+  - https://www.smashingmagazine.com/2012/06/form-design-ux-best-practices/
+tags:
+  - wizard
+  - stepped-form
+  - multi-step
+  - onboarding
+  - guided-flow
+  - sequential-process
+  - ux-pattern
+  - form-design

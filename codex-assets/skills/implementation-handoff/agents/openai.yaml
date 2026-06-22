@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implementation Handoff"
+  short_description: "Deepen plans into executor-ready briefs."
+  default_prompt: "Deepen this plan into a decision-complete implementation handoff brief for another executor."

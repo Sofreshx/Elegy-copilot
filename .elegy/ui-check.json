@@ -2,45 +2,41 @@
   "schemaVersion": 1,
   "inventory": {
     "componentRoots": [
-      { "path": "copilot-ui/ui/src/components", "description": "Shared and domain UI components (27 components, flat directory)" }
+      {
+        "path": "copilot-ui/ui/src/components",
+        "description": "Shared UI components used across the dashboard and settings surfaces"
+      },
+      {
+        "path": "copilot-ui/ui/src/tabs/PatternAtlas",
+        "description": "Pattern Atlas tab — visual catalog of UI patterns, styles, components, and system architecture patterns"
+      }
     ],
     "tokenFiles": [
-      { "path": "copilot-ui/ui/src/styles/tokens.css", "format": "css" }
+      {
+        "path": "copilot-ui/ui/src/styles/tokens.css",
+        "format": "css"
+      }
     ],
     "iconRoots": [
-      { "path": "copilot-ui/ui/src/components/AppIcon.tsx", "library": "custom" },
-      { "path": "copilot-ui/ui/src/components/BrandIcon.tsx", "library": "custom" }
+      {
+        "path": "copilot-ui/ui/src/components/AppIcon.tsx",
+        "library": "custom"
+      }
     ],
     "patternDocs": [
-      { "path": "docs/system/copilot-ui-guide.md", "description": "UI navigation, state management, and sidebar structure" },
-      { "path": "docs/system/ui-development-governance.md", "description": "Governed UI workflow: spec → inventory → implement → evidence → visual review → regression proof" }
+      {
+        "path": "copilot-ui/ui/src/tabs/PatternAtlas/PatternAtlasView.tsx",
+        "description": "Pattern Atlas view — renders visual catalog of UI patterns and system architecture patterns"
+      }
     ]
   },
   "targets": {
-    "workspace": {
-      "lane": "browser",
-      "workingDirectory": "./copilot-ui",
-      "validationCommands": [
-        { "id": "build", "command": "npm run ui:build" },
-        { "id": "test", "command": "npm run test:vitest" }
-      ],
-      "routes": [
-        {
-          "id": "workspace-default",
-          "path": "navigation:workspace",
-          "viewports": ["desktop"],
-          "states": ["default", "loading", "empty", "error"],
-          "description": "Workspace view: reached via activeSidebarItem='workspace' when a repository is open"
-        }
-      ],
-      "evidenceRoot": "./evidence/ui/workspace"
-    },
     "settings": {
       "lane": "browser",
-      "workingDirectory": "./copilot-ui",
+      "workingDirectory": "./",
       "validationCommands": [
-        { "id": "build", "command": "npm run ui:build" },
-        { "id": "test", "command": "npm run test:vitest" }
+        { "id": "build", "command": "npm --prefix copilot-ui run ui:build", "description": "Build the copilot-ui renderer" },
+        { "id": "evidence", "command": "node scripts/ui-check-copilot-ui.mjs", "timeout": 180000 }
       ],
       "routes": [
         {
@@ -48,10 +44,91 @@
           "path": "navigation:settings",
           "viewports": ["desktop"],
           "states": ["default"],
+          "excludedStates": [
+            { "state": "empty", "reason": "Settings is a configuration form, not a data collection surface." }
+          ],
           "description": "Settings view: reached via activeSidebarItem='settings' sidebar navigation"
         }
       ],
-      "evidenceRoot": "./evidence/ui/settings"
+      "evidenceRoot": "./evidence/ui/settings",
+      "runtimeReport": "runtime-report.json"
+    },
+    "catalog": {
+      "lane": "browser",
+      "workingDirectory": "./",
+      "validationCommands": [
+        { "id": "build", "command": "npm --prefix copilot-ui run ui:build", "description": "Build the copilot-ui renderer" },
+        { "id": "evidence", "command": "node scripts/ui-check-copilot-ui.mjs", "timeout": 180000 }
+      ],
+      "routes": [
+        {
+          "id": "catalog-default",
+          "path": "navigation:catalog",
+          "viewports": ["desktop"],
+          "states": ["default"],
+          "excludedStates": [
+            { "state": "loading", "reason": "Catalog panel is a statically-rendered section within the Settings view." },
+            { "state": "empty", "reason": "Catalog always shows installed skills/agents — empty is not a reachable state." },
+            { "state": "error", "reason": "Catalog fetch errors surface as inline status text, not a distinct error surface." },
+            { "state": "disabled", "reason": "Catalog has no disabled mode." },
+            { "state": "focus", "reason": "Focus state is a CSS concern covered by component-level testing." }
+          ],
+          "description": "Catalog (Assets & Tools) view: reached via Settings → Assets & Tools section"
+        }
+      ],
+      "evidenceRoot": "./evidence/ui/catalog",
+      "runtimeReport": "runtime-report.json"
+    },
+    "workspace": {
+      "lane": "browser",
+      "workingDirectory": "./",
+      "validationCommands": [
+        { "id": "build", "command": "npm --prefix copilot-ui run ui:build", "description": "Build the copilot-ui renderer" },
+        { "id": "evidence", "command": "node scripts/ui-check-copilot-ui.mjs", "timeout": 180000 }
+      ],
+      "routes": [
+        {
+          "id": "workspace-default",
+          "path": "navigation:workspace",
+          "viewports": ["desktop"],
+          "states": ["default"],
+          "excludedStates": [
+            { "state": "loading", "reason": "Workspace view is a static proxy through repositories — loading happens in repo registration flow." },
+            { "state": "empty", "reason": "Empty is covered by the repositories view when no repos are registered." },
+            { "state": "error", "reason": "Workspace errors surface through the repositories error handling." },
+            { "state": "disabled", "reason": "Workspace has no disabled mode." },
+            { "state": "focus", "reason": "Focus state is a CSS concern covered by component-level testing." }
+          ],
+          "description": "Workspace view: reached via repositories view when a repository is open. Pilot captures repositories as workspace proxy."
+        }
+      ],
+      "evidenceRoot": "./evidence/ui/workspace",
+      "runtimeReport": "runtime-report.json"
+    },
+    "pattern-atlas": {
+      "lane": "browser",
+      "workingDirectory": "./copilot-ui",
+      "validationCommands": [
+        {
+          "id": "build",
+          "command": "npm run ui:build",
+          "description": "Build the UI bundle before validation"
+        }
+      ],
+      "routes": [
+        {
+          "id": "pattern-atlas-view",
+          "path": "/pattern-atlas",
+          "viewports": ["desktop", "mobile"],
+          "states": ["default", "loading", "empty", "error"],
+          "excludedStates": [
+            { "state": "disabled", "reason": "Pattern Atlas is a read-only catalog view with no interactive controls that can be disabled." }
+          ],
+          "description": "Pattern Atlas — visual catalog of UI patterns, styles, components, and system architecture patterns"
+        }
+      ],
+      "evidenceRoot": "./evidence/ui",
+      "runtimeReport": "runtime-report.json"
     }
   }
 }

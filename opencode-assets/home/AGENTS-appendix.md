@@ -58,7 +58,7 @@ See the [Curated Subagents](#curated-subagents) section for built-in subagent de
 Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Do not create ADRs for ordinary local implementation choices.
 
 Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`.
-Follow `docs/system/spec-driven-development.md` in the Elegy Copilot repo when a target repo opts into spec-driven work, and run the target repo's `node scripts/validate-specs.js <spec-root>` validator when present.
+Follow `docs/system/spec-driven-development.md` in the Elegy Copilot repo when a target repo opts into spec-driven work. Specs are optional design artifacts; spec validation is not enforced as repo policy.
 Specs describe intent (requirements). Docs describe state (how it works). ADRs record decisions (what was chosen).
 
 ## Elegy Copilot Repo Map

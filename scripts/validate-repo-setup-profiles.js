@@ -37,8 +37,6 @@ const expectedSpecDrivenRequiredResourcePaths = [
 const expectedSpecDrivenRecommendedResourcePaths = [
   'AGENTS.md',
   'GEMINI.md',
-  'package.json#scripts.validate:specs',
-  'scripts/validate-specs.js',
 ];
 
 function toRepoPath(repoRoot, filePath) {

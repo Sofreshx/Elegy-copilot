@@ -1,0 +1,76 @@
+id: skeuomorphism
+name: Skeuomorphism
+aliases:
+  - skeuomorphic
+  - realistic-ui
+  - metaphorical-design
+type: visual-style
+domain: visual-style
+confidence: established
+tagline: A design approach that mimics real-world materials, textures, and physical interactions in digital interfaces.
+description: >
+  Skeuomorphism is a design philosophy that makes digital interfaces resemble
+  their real-world counterparts. A digital notepad app has lined paper, a
+  leather binding, and a stitching seam. A calculator app has physical buttons
+  with shadows, gradients, and a reflective screen. The core idea is that
+  users can transfer their knowledge of the physical world to understand
+  digital interfaces without learning new conventions.
+
+  The style was dominant in the early smartphone era, most famously in
+  Apple's iOS 1-6 (2007-2013) where Scott Forstall championed realistic
+  textures — green felt in Game Center, leather in Calendar, wood in
+  Newsstand. Skeuomorphism requires sophisticated asset creation: each
+  element needs textures, lighting, shadows, and often multiple states that
+  mirror physical behavior.
+
+  Skeuomorphism fell out of mainstream favor after iOS 7's flat redesign
+  in 2013, criticized for adding visual noise without functional benefit.
+  However, it persists in specific domains — audio production software,
+  digital instruments, e-readers, and any product where real-world metaphor
+  significantly improves learnability.
+traits:
+  - Real-world material textures (leather, wood, felt, paper, metal)
+  - Depth through gradients, drop shadows, bevels, and embossing
+  - Physical affordance simulation (pressed buttons, toggles, sliding knobs)
+  - Detailed, often photorealistic iconography and UI elements
+  - Lighting models that simulate a consistent environmental light source
+bestFit:
+  - Creative professional tools where physical metaphor aids understanding (DAWs, photo editors)
+  - E-readers and note-taking apps that benefit from "book-like" or "notebook-like" interfaces
+  - Digital versions of physical products (musical instruments, journals, board games)
+avoidIf:
+  - Performance and app size are constrained (skeuomorphic assets are large)
+  - The product targets a young audience with no reference to the physical analogs
+  - Rapid iteration is needed — skeuomorphic assets are expensive to create and modify
+commonFailures:
+  - Adding decoration that has no functional purpose but increases cognitive load
+  - Creating inconsistent metaphors that confuse rather than clarify
+  - Neglecting accessibility — photorealistic interfaces often have poor contrast
+contrasts:
+  - term: Flat Design
+    difference: Skeuomorphism deliberately recreates physical materials and depth; flat design removes all real-world metaphor for a purely 2D digital aesthetic.
+  - term: Neumorphism
+    difference: Skeuomorphism mimics specific real-world materials with distinct textures; neumorphism creates an abstract physicality through shadow manipulation without material imitation.
+compatibilities:
+  - art-deco
+  - dashboard-layout
+  - wizard
+promptLanguage: >
+  Design a skeuomorphic interface element that mimics a specific real-world
+  object. Choose the material (leather, wood, metal, paper, fabric) and apply
+  its authentic texture, grain, and finish. Use gradients, drop shadows, and
+  bevels to create realistic depth. The lighting should be consistent — a
+  single top-left light source with matching shadows. Buttons should appear
+  to depress when clicked (use inset shadows for pressed state). The goal is
+  to make the digital element feel tactile and physically real, leveraging
+  the user's existing knowledge of how the real object works.
+sources:
+  - https://en.wikipedia.org/wiki/Skeuomorph
+  - https://www.interaction-design.org/literature/topics/skeuomorphism
+  - https://www.nngroup.com/articles/skeuomorphism-good-or-bad/
+tags:
+  - skeuomorphism
+  - realistic-design
+  - metaphorical-interface
+  - tactile-ui
+  - ios-classic

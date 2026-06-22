@@ -125,8 +125,30 @@
                   "states": {
                     "type": "array",
                     "minItems": 1,
-                    "items": { "type": "string", "enum": ["default", "loading", "empty", "error", "disabled", "focus", "N/A"] },
+                    "uniqueItems": true,
+                    "items": { "type": "string", "enum": ["default", "loading", "empty", "error", "disabled", "focus"] },
                     "description": "States that must be evidenced."
+                  },
+                  "excludedStates": {
+                    "type": "array",
+                    "description": "States explicitly excluded from this route with justification. Carries the 'why' for states not applicable to this route.",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["state", "reason"],
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": ["loading", "empty", "error", "disabled", "focus"]
+                        },
+                        "reason": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "Justification for excluding this state."
+                        }
+                      }
+                    },
+                    "uniqueItems": true
                   },
                   "description": { "type": "string" }
                 }
@@ -136,6 +158,11 @@
               "type": "string",
               "minLength": 1,
               "description": "Directory for collected evidence artifacts."
+            },
+            "runtimeReport": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Path to the runtime report output file, relative to the target's evidence directory. Conforms to ui-check-runtime-report.schema.json"
             }
           }
         }

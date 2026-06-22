@@ -54,6 +54,7 @@ async function main() {
         force: true,
         opencodeHome,
         skillsHome,
+        skipClaudeDedup: true,
       });
 
       const agentsMdPath = path.join(opencodeHome, 'AGENTS.md');
@@ -97,9 +98,50 @@ async function main() {
       const secondSummary = await installer.runInstall({
         opencodeHome,
         skillsHome,
+        skipClaudeDedup: true,
       });
       assert.ok(secondSummary.counts.skipped > 0, 'expected idempotent rerun to skip up-to-date assets');
     });
+  });
+
+  await test('installer delegates skills already present in Claude Code skills dir', async () => {
+    const prevClaudeHome = process.env.CLAUDE_HOME;
+    try {
+      await withTempDir(async (root) => {
+        const opencodeHome = path.join(root, '.config', 'opencode');
+        const skillsHome = path.join(opencodeHome, 'skills');
+
+        // Create a fake Claude skills directory with a skill name that matches a real manifest entry
+        const claudeSkillsDir = path.join(root, '.claude', 'skills', 'rubberduck-plan-review');
+        fs.mkdirSync(claudeSkillsDir, { recursive: true });
+        fs.writeFileSync(path.join(claudeSkillsDir, 'SKILL.md'), '---\nname: rubberduck-plan-review\n---\n# Test\n');
+        process.env.CLAUDE_HOME = path.join(root, '.claude');
+
+        const summary = await installer.runInstall({
+          force: true,
+          opencodeHome,
+          skillsHome,
+          // skipClaudeDedup deliberately NOT set — we want dedup to fire
+        });
+
+        // Dedup should have detected rubberduck-plan-review in Claude's skill dir
+        assert.ok(Array.isArray(summary.delegatedToClaude),
+          'delegatedToClaude should be an array when dedup is active');
+        assert.ok(summary.delegatedToClaude.includes('rubberduck-plan-review'),
+          'rubberduck-plan-review should be delegated to Claude');
+
+        // The rubberduck-plan-review skill should NOT be installed in the OpenCode skills home
+        const opencodeSkillPath = path.join(skillsHome, 'rubberduck-plan-review', 'SKILL.md');
+        assert.ok(!fs.existsSync(opencodeSkillPath),
+          'rubberduck-plan-review should NOT be installed in OpenCode skills when delegated to Claude');
+      });
+    } finally {
+      if (prevClaudeHome === undefined) {
+        delete process.env.CLAUDE_HOME;
+      } else {
+        process.env.CLAUDE_HOME = prevClaudeHome;
+      }
+    }
   });
 
   await test('installer prunes stale managed assets and preserves diverged files', async () => {
@@ -112,6 +154,7 @@ async function main() {
         force: true,
         opencodeHome,
         skillsHome,
+        skipClaudeDedup: true,
       });
 
       const staleAgentPath = path.join(opencodeHome, 'agents', 'legacy-agent.md');
@@ -133,6 +176,7 @@ async function main() {
       const summary = await installer.runInstall({
         opencodeHome,
         skillsHome,
+        skipClaudeDedup: true,
       });
 
       assert.ok(!fs.existsSync(staleAgentPath), 'stale managed agent should be pruned');
@@ -154,6 +198,7 @@ async function main() {
         force: true,
         opencodeHome,
         skillsHome,
+        skipClaudeDedup: true,
       });
 
       assert.ok(!fs.existsSync(opencodeHome));
@@ -182,19 +227,16 @@ async function main() {
         repoRoot,
         elegyCliPath: shim.elegyCliPath,
         setupProfile: 'spec-driven',
+        skipClaudeDedup: true,
       }));
 
       const copilotInstructions = fs.readFileSync(path.join(repoRoot, '.github', 'copilot-instructions.md'), 'utf8');
       const agentsInstructions = fs.readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
-      const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
-
       assert.ok(copilotInstructions.includes('elegy-copilot:begin spec-driven'));
       assert.ok(agentsInstructions.includes('elegy-copilot:begin spec-driven'));
       assert.ok(fs.existsSync(path.join(repoRoot, 'docs', 'specs', 'index.md')));
-      assert.ok(fs.existsSync(path.join(repoRoot, 'scripts', 'validate-specs.js')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.github', 'agents')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.opencode', 'skills', 'repo-helper', 'SKILL.md')));
-      assert.strictEqual(packageJson.scripts['validate:specs'], 'node scripts/validate-specs.js');
       assert.strictEqual(summary.repoSetup.profileKey, 'spec-driven');
       assert.strictEqual(summary.repoSetup.repoInstructionFile, 'AGENTS.md');
       assert.ok(summary.repoSetup.skillMirrors.counts.created > 0 || summary.repoSetup.skillMirrors.counts.skipped > 0);
@@ -278,6 +320,7 @@ async function main() {
         force: true,
         opencodeHome,
         skillsHome,
+        skipClaudeDedup: true,
       });
 
       // Verify agent count = manifest count (7)
@@ -332,6 +375,7 @@ async function main() {
         force: true,
         opencodeHome,
         skillsHome,
+        skipClaudeDedup: true,
       });
       
       // Verify profile injection shows all agents assigned to correct roles

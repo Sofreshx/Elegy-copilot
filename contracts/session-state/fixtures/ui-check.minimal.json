@@ -26,10 +26,14 @@
           "id": "catalog-default",
           "path": "/catalog",
           "viewports": ["desktop"],
-          "states": ["default", "N/A"]
+          "states": ["default"],
+          "excludedStates": [
+            { "state": "empty", "reason": "Catalog is a static intermediate surface with no data collection." }
+          ]
         }
       ],
-      "evidenceRoot": "./evidence/ui"
+      "evidenceRoot": "./evidence/ui",
+      "runtimeReport": "runtime-report.json"
     }
   }
 }

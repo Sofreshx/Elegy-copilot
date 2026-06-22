@@ -12,6 +12,10 @@ related: [domain-authorities-freeze, planning-backlog-roadmap-contract, runtime-
 
 # Harness Execution Orchestrator Architecture ADR
 
+> **Status: Implementation removed (2026-06-22).** The Rust orchestrator modules under
+> `native/runtime/src/orchestrator/` were removed. This ADR is preserved as design reference
+> for any future reimplementation.
+
 ## Context
 
 The Elegy Copilot currently has no durable execution orchestrator. Work is dispatched ad-hoc by OpenCode/Codex sessions with no central lease, evidence chain, or verified repository state.

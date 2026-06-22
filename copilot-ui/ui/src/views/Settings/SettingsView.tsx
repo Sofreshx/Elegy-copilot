@@ -13,6 +13,7 @@ import GitHubSettingsView from './GitHubSettingsView';
 import TelemetryView from './TelemetryView';
 import ShellSettingsView from '../../tabs/Shell/ShellSettingsView';
 import NotesSettingsView from './NotesSettingsView';
+import CollaborationStyleSettingsView from './CollaborationStyleSettingsView';
 import AppIcon from '../../components/AppIcon';
 import { factoryReset, type FactoryResetResponse } from '../../lib/api/system';
 
@@ -152,6 +153,8 @@ function SettingsAppSection({ appInfo, infoLoading }: { appInfo: AppInfo; infoLo
 
   return (
     <div className="settings-section">
+      <CollaborationStyleSettingsView />
+
       <Panel title="Keyboard Shortcuts" subtitle="Navigation and actions" testId="settings-shortcuts">
         <dl className="settings-shortcuts-list">
           <dt><kbd>Ctrl+1</kbd> – <kbd>Ctrl+3</kbd></dt>

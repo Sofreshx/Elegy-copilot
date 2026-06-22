@@ -6,6 +6,11 @@ const copilotConfigDefault = require('../lib/copilotConfig');
 const codexConfigDefault = require('../lib/codexConfig');
 const moonBridgeBootstrapDefault = require('../lib/moonBridgeBootstrap');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const crypto = require('crypto');
+const { composeInstructions, buildProfileContent, loadPresetContent } = require('../lib/compose-instructions.cjs');
 
 const DEFAULT_CODEX_PROVIDER_PREFLIGHT_TIMEOUT_MS = 1500;
 const DEEPSEEK_BRIDGE_READINESS_TIMEOUT_MS = 15000;
@@ -82,6 +87,16 @@ function register(deps = {}) {
     },
     {
       method: 'GET',
+      path: '/api/config/collaboration-profile',
+      handler: (ctx) => handleGetCollaborationProfile(ctx, resolvedDeps),
+    },
+    {
+      method: 'PUT',
+      path: '/api/config/collaboration-profile',
+      handler: (ctx) => handleSaveCollaborationProfile(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
       path: '/api/config/codex-provider',
       handler: (ctx) => handleGetCodexProvider(ctx, resolvedDeps),
     },
@@ -136,6 +151,236 @@ function register(deps = {}) {
       handler: (ctx) => handleBootstrapMoonBridge(ctx, resolvedDeps),
     },
   ];
+}
+
+// --- Collaboration Profile Handlers ---
+
+const REPO_ROOT = path.resolve(__dirname, '..', '..');
+
+const HARNESS_TARGETS = [
+  {
+    id: 'copilot',
+    instructionFile: 'copilot-instructions.md',
+    homeDir: path.join(os.homedir(), '.elegy'),
+    baseline: 'catalog-assets/instructions/agent-session-defaults.md',
+    appendix: 'engine-assets/copilot-instructions-appendix.md',
+    managedBlock: false,
+  },
+  {
+    id: 'codex',
+    instructionFile: 'AGENTS.md',
+    homeDir: path.join(os.homedir(), '.codex'),
+    baseline: 'catalog-assets/instructions/agent-session-defaults.md',
+    appendix: 'codex-assets/home/AGENTS-appendix.md',
+    managedBlock: false,
+  },
+  {
+    id: 'opencode',
+    instructionFile: 'AGENTS.md',
+    homeDir: path.join(os.homedir(), '.config', 'opencode'),
+    baseline: 'catalog-assets/instructions/agent-session-defaults.md',
+    appendix: 'opencode-assets/home/AGENTS-appendix.md',
+    managedBlock: false,
+  },
+  {
+    id: 'claude-code',
+    instructionFile: 'CLAUDE.md',
+    homeDir: path.join(os.homedir(), '.claude'),
+    baseline: 'catalog-assets/instructions/agent-session-defaults.md',
+    appendix: 'claude-assets/home/CLAUDE-appendix.md',
+    managedBlock: false,
+  },
+  {
+    id: 'antigravity',
+    instructionFile: 'GEMINI.md',
+    homeDir: path.join(os.homedir(), '.gemini'),
+    baseline: 'catalog-assets/instructions/agent-session-defaults.md',
+    appendix: 'antigravity-assets/home/GEMINI-appendix.md',
+    managedBlock: true,
+  },
+];
+
+const PRESETS = [
+  {
+    id: 'constructive-coworker',
+    label: 'Constructive Coworker',
+    description: 'Attention-friendly communication: outcome-first, one thread at a time, explicit next actions.',
+    content: fs.readFileSync(
+      path.join(REPO_ROOT, 'catalog-assets', 'presets', 'constructive-coworker.md'),
+      'utf8',
+    ).trim(),
+    isDefault: true,
+  },
+];
+
+const MANAGED_BLOCK_START = '<!-- elegy-copilot:begin antigravity -->';
+const MANAGED_BLOCK_END = '<!-- elegy-copilot:end antigravity -->';
+
+function shaText(text) {
+  return crypto.createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+function applyManagedBlock(target, composedContent) {
+  const instructionsPath = path.join(target.homeDir, target.instructionFile);
+
+  if (!fs.existsSync(instructionsPath)) {
+    return { status: 'not-installed', path: instructionsPath };
+  }
+
+  const existingText = fs.readFileSync(instructionsPath, 'utf8').replace(/\r\n/g, '\n');
+  const managedContent = [
+    MANAGED_BLOCK_START,
+    composedContent.trim(),
+    MANAGED_BLOCK_END,
+    '',
+  ].join('\n');
+
+  // Find existing managed block
+  const startIndex = existingText.indexOf(MANAGED_BLOCK_START);
+  const endIndex = existingText.indexOf(MANAGED_BLOCK_END);
+
+  let nextText;
+  if (startIndex >= 0 && endIndex >= startIndex) {
+    const blockEnd = endIndex + MANAGED_BLOCK_END.length;
+    const before = existingText.slice(0, startIndex).replace(/\s*$/, '');
+    const after = existingText.slice(blockEnd).replace(/^\s*/, '');
+    nextText = [before, managedContent.trimEnd(), after]
+      .filter(Boolean)
+      .join('\n\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd() + '\n';
+  } else {
+    nextText = `${existingText.trimEnd()}\n\n${managedContent}`;
+  }
+
+  const previousHash = shaText(existingText);
+  const nextHash = shaText(nextText);
+
+  if (previousHash === nextHash) {
+    return { status: 'unchanged', path: instructionsPath };
+  }
+
+  fs.writeFileSync(instructionsPath, nextText, 'utf8');
+  return { status: 'applied', path: instructionsPath };
+}
+
+function applyStandardTarget(target, composedContent) {
+  const instructionsPath = path.join(target.homeDir, target.instructionFile);
+
+  if (!fs.existsSync(instructionsPath)) {
+    return { status: 'not-installed', path: instructionsPath };
+  }
+
+  const existingText = fs.readFileSync(instructionsPath, 'utf8');
+  const nextText = composedContent;
+  const previousHash = shaText(existingText);
+  const nextHash = shaText(nextText);
+
+  if (previousHash === nextHash) {
+    return { status: 'unchanged', path: instructionsPath };
+  }
+
+  fs.writeFileSync(instructionsPath, nextText, 'utf8');
+  return { status: 'applied', path: instructionsPath };
+}
+
+function applyProfileToTarget(target, profileContent) {
+  try {
+    const baselinePath = path.resolve(REPO_ROOT, target.baseline);
+    const appendixPath = path.resolve(REPO_ROOT, target.appendix);
+
+    const composedContent = composeInstructions(baselinePath, appendixPath, profileContent);
+
+    if (target.managedBlock) {
+      return applyManagedBlock(target, composedContent);
+    }
+    return applyStandardTarget(target, composedContent);
+  } catch (err) {
+    return { status: 'error', path: path.join(target.homeDir, target.instructionFile), error: err.message };
+  }
+}
+
+function applyCollaborationProfile(profile) {
+  const profileContent = profile.enabled ? buildProfileContent(profile) : '';
+
+  const results = [];
+  let allApplied = true;
+
+  for (const target of HARNESS_TARGETS) {
+    const result = applyProfileToTarget(target, profileContent);
+    if (result.status === 'error') {
+      allApplied = false;
+    }
+    results.push({
+      id: target.id,
+      path: result.path,
+      status: result.status,
+      error: result.error,
+    });
+  }
+
+  return { allApplied, results };
+}
+
+async function handleGetCollaborationProfile(ctx, deps) {
+  try {
+    const profile = deps.copilotConfig.getCollaborationProfile();
+
+    const presets = PRESETS.map((p) => ({ ...p }));
+
+    const targets = HARNESS_TARGETS.map((t) => ({
+      id: t.id,
+      path: path.join(t.homeDir, t.instructionFile),
+      installed: fs.existsSync(path.join(t.homeDir, t.instructionFile)),
+    }));
+
+    deps.sendJson(ctx.res, 200, { profile, presets, targets });
+  } catch (err) {
+    deps.sendJson(ctx.res, 500, { error: err.message });
+  }
+}
+
+async function handleSaveCollaborationProfile(ctx, deps) {
+  try {
+    const body = await deps.readJsonBody(ctx.req);
+
+    // Extract only known fields
+    const update = {};
+    if (body.enabled !== undefined) {
+      if (typeof body.enabled !== 'boolean') {
+        deps.sendJson(ctx.res, 400, { saved: false, error: 'enabled must be a boolean' });
+        return;
+      }
+      update.enabled = body.enabled;
+    }
+    if (typeof body.presetId === 'string') update.presetId = body.presetId.trim();
+    if (typeof body.customInstructions === 'string') update.customInstructions = body.customInstructions.trim();
+
+    const saveResult = deps.copilotConfig.setCollaborationProfile(null, update);
+    if (!saveResult.saved) {
+      deps.sendJson(ctx.res, 400, { saved: false, error: saveResult.error });
+      return;
+    }
+
+    // Read back the effective profile
+    const profile = deps.copilotConfig.getCollaborationProfile();
+
+    // Apply to all installed harnesses
+    const { allApplied, results } = applyCollaborationProfile(profile);
+
+    deps.sendJson(ctx.res, 200, {
+      saved: true,
+      profile,
+      allApplied,
+      results,
+    });
+  } catch (err) {
+    if (err.statusCode) {
+      deps.sendJson(ctx.res, err.statusCode, { error: err.message });
+    } else {
+      deps.sendJson(ctx.res, 500, { error: err.message });
+    }
+  }
 }
 
 function isUserFacingCodexConfigError(statusCode) {

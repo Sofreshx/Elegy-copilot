@@ -1,0 +1,74 @@
+id: least-privilege
+name: Least Privilege
+aliases:
+  - Principle of Least Privilege (PoLP)
+  - Minimal Access
+  - Need-to-Know
+type: system-pattern
+domain: security-reliability
+confidence: established
+tagline: Grant users and systems the minimum permissions required to perform their function.
+description: >
+  The Principle of Least Privilege (PoLP) dictates that any user, process, or system should have
+  only the minimum permissions necessary to complete its task — nothing more. If a service only
+  needs read access to a database table, it should not have write or delete access. If a user only
+  needs to view reports, they should not have administrative privileges.
+
+  Least Privilege applies across all layers: IAM policies (AWS IAM, Azure RBAC, GCP IAM), operating
+  system users, database roles, network firewall rules, container security contexts, and application
+  role-based access control (RBAC). Implementation often involves starting with a deny-all posture
+  and explicitly granting only required permissions. Regular access reviews — automated or manual —
+  ensure that permissions remain minimal as roles evolve.
+
+  The principle reduces the blast radius of security incidents. If an attacker compromises a
+  least-privilege account, the damage is limited to that account's permissions. It also reduces
+  accidental data modification or deletion. Key practices include time-bound access (just-in-time
+  permissions), role-based access control, and automated permission reviews. Least Privilege is a
+  core component of Zero Trust Architecture.
+traits:
+  - Grant the minimum permissions needed for each role or process
+  - Apply deny-by-default, allow-by-exception
+  - Reduce blast radius of compromised accounts
+  - Require regular access reviews and permission audits
+  - Use time-bound, just-in-time access for elevated permissions
+bestFit:
+  - All systems — least privilege is a universal security principle
+  - Cloud environments with fine-grained IAM policies (AWS, Azure, GCP)
+  - Multi-tenant SaaS applications where tenant isolation is critical
+avoidIf:
+  - The system is entirely air-gapped with no external access (still apply for internal processes)
+  - Permissions are so dynamic that maintaining least privilege creates unacceptable administrative overhead
+commonFailures:
+  - Permission creep: users accumulate permissions over time as roles change without cleanup
+  - Over-privileged default: services are deployed with admin credentials "just to get it working" and never refined
+  - Overly broad group membership: users are added to broad groups (e.g., "developers") that grant more access than needed
+contrasts:
+  - term: Zero Trust Architecture
+    difference: Zero Trust is a comprehensive security architecture (never trust, always verify); Least Privilege is a specific access control principle that Zero Trust incorporates along with micro-segmentation, continuous monitoring, and dynamic policy evaluation.
+  - term: Role-Based Access Control (RBAC)
+    difference: RBAC is a mechanism for organizing permissions into roles and assigning roles to users; Least Privilege is the principle that should guide how RBAC roles are designed. RBAC without least privilege can still grant excessive permissions.
+compatibilities:
+  - zero-trust
+  - api-gateway
+  - database-per-service
+  - sidecar-pattern
+promptLanguage: >
+  Audit all IAM roles and policies for the production AWS account. Replace wildcard permissions
+  (Action: "*", Resource: "*") with explicit, scoped actions and resources. Separate read and write
+  permissions into distinct roles. Implement time-bound access via IAM Roles Anywhere or AWS SSO
+  for any elevated permissions. Use IAM Access Analyzer to identify unused permissions. Create a
+  CI/CD check that blocks deployments using administrative credentials. Define Kubernetes RBAC
+  roles with specific verbs (get, list, watch for read; create, update, patch, delete for write)
+  at the namespace level.
+sources:
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/least-privilege
+  - https://www.cisa.gov/principle-of-least-privilege
+  - https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+  - https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+tags:
+  - least-privilege
+  - security
+  - iam
+  - access-control
+  - rbac
+  - cloud-security

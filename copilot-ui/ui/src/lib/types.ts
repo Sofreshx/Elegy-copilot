@@ -3521,9 +3521,12 @@ export interface OpenCodeGoWorkspace {
   id: string;
   label: string;
   workspaceId: string;
+  workspaceIdKnown: boolean;
+  consoleUrl: string | null;
   keySource: string;
   keyPresent: boolean;
   active: boolean;
+  origin: string;
   lastValidatedAt: string | null;
   lastValidatedStatus: string | null;
   lastValidatedMessage: string | null;
@@ -3533,6 +3536,7 @@ export interface OpenCodeGoWorkspacesResponse {
   detected: OpenCodeGoWorkspace[];
   registered: OpenCodeGoWorkspace[];
   activeId: string | null;
+  selectionMode: 'auto' | 'explicit' | 'none';
 }
 
 export interface OpenCodeGoWorkspaceCreatePayload {

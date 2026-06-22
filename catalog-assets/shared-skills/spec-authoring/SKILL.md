@@ -66,7 +66,7 @@ Before handing a spec to `spec-review`, confirm:
 - [ ] Implementation Links list every file, test, or plan that the spec will touch.
 - [ ] Validation Evidence is populated (required for `implemented` status per normative spec R9).
 - [ ] Drift Notes captures any deviation or follow-up, or says "None."
-- [ ] Ensure the spec pre-commit hook is installed: `node scripts/install-spec-hooks.mjs`.
+- [ ] Pre-commit hook (removed June 2026): If cleaning up, `node scripts/install-spec-hooks.mjs` can remove any remaining hook files.
 - [ ] Run `node scripts/validate-specs.js docs/specs/<slug>/spec.md` and fix all errors.
 - [ ] Run `node scripts/validate-specs.js --strict <spec-path>` and verify: no index drift warnings, no cross-spec errors, no stale-draft warnings (unless intentional with `freshness: ignore`), and a `plan.md` exists if the spec has 5+ requirements (normative spec R8).
 - [ ] If the spec has 5+ requirements or 2+ phases, create a sibling `plan.md`.

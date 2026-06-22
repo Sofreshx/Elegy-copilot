@@ -59,7 +59,7 @@
       "id": "codex-global-instructions",
       "type": "instructions",
       "source": "catalog-assets/instructions/agent-session-defaults.md",
-      "destination": "agent-session-defaults.md",
+      "destination": "AGENTS.md",
       "appendix": "codex-assets/home/AGENTS-appendix.md"
     },
     {
@@ -98,7 +98,7 @@
     {
       "id": "codex-implementation-handoff-skill",
       "type": "skill",
-      "source": "catalog-assets/shared-skills/implementation-handoff",
+      "source": "codex-assets/skills/implementation-handoff",
       "destination": "skills/implementation-handoff",
       "loadMode": "on-demand"
     },

@@ -73,7 +73,6 @@ async function main() {
         setupProfile: 'spec-driven',
       }));
       assert.ok(fs.existsSync(path.join(repoRoot, 'docs', 'specs', 'index.md')));
-      assert.ok(fs.existsSync(path.join(repoRoot, 'scripts', 'validate-specs.js')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.github', 'copilot-instructions.md')));
       assert.ok(summary.repoSetup);
       assert.equal(summary.repoSetup.profileKey, 'spec-driven');

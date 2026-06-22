@@ -1,0 +1,75 @@
+id: feature-flag
+name: Feature Flag
+aliases:
+  - Feature Toggle
+  - Feature Switch
+  - Feature Flip
+  - Conditional Feature
+type: system-pattern
+domain: software-architecture
+confidence: established
+tagline: Deploy code behind runtime-configurable flags to control release, experimentation, and operations.
+description: >
+  Feature Flags (also called Feature Toggles) allow code to be deployed without being activated for
+  users until a runtime condition is met. A flag is a conditional branch in code that checks a flag
+  state (on/off, percentage rollout, user cohort) from a configuration source, enabling three
+  primary use cases: release toggles (decouple deploy from release), experiment toggles (A/B
+  testing), and ops toggles (kill switches for risky operations).
+
+  Flags range from simple boolean switches to sophisticated multi-variant rules evaluated against
+  user attributes, geographic regions, or random rollout percentages. Modern feature flag platforms
+  (LaunchDarkly, Unleash, Split) provide real-time flag evaluation, targeting rules, and analytics
+  to measure the impact of each flag. Simpler implementations use environment variables, config
+  files, or database-backed toggles.
+
+  The main risk is flag debt — flags that are never removed become permanent conditional paths that
+  degrade code readability, test coverage, and maintainability. A flag lifecycle policy (creation →
+  release verification → removal) is essential. Feature flags should be treated as temporary
+  controls, not as a substitute for branching or release management.
+traits:
+  - Runtime configurable without redeployment
+  - Supports gradual rollouts (% of users, cohorts)
+  - Decouples feature deployment from feature release
+  - Enables kill-switch capability for risky features
+  - Requires active lifecycle management to avoid flag debt
+bestFit:
+  - Continuous delivery pipelines that deploy multiple times per day
+  - A/B testing and experimentation on user-facing features
+  - Managing risk for large-scale migrations or infrastructure changes
+avoidIf:
+  - The team cannot commit to a flag cleanup process — flag debt will accumulate
+  - The feature is trivial and will be fully released within one deploy cycle
+  - Compliance requires all users to see the same version simultaneously
+commonFailures:
+  - Flag debt: flags left in code permanently, creating dead branches and conditionals that nobody understands
+  - Flag interactions: multiple flags interact in unexpected ways, producing untested combinations
+  - Leaky abstractions: flag-checking logic spreads across layers (frontend, API, data layer) inconsistently
+contrasts:
+  - term: Branch-by-Abstraction
+    difference: Branch-by-Abstraction introduces an abstraction layer to migrate code paths gradually; Feature Flags use a conditional toggle. Branch-by-Abstraction is code-structural, Feature Flags are runtime-configurable.
+  - term: Canary Release
+    difference: Canary Release routes a percentage of traffic to a new version of the entire service; Feature Flags toggle individual features within the same deployed version, enabling finer-grained control.
+compatibilities:
+  - canary-release
+  - strangler-fig
+  - blue-green
+  - circuit-breaker
+promptLanguage: >
+  Add a feature flag for the new checkout flow. Define a `new-checkout` flag in LaunchDarkly with
+  targeting rules: 100% on for internal users, 10% for beta cohort, 0% for everyone else. Wrap the
+  old checkout and new checkout behind the flag in the API layer and UI. Add the flag check at the
+  controller boundary, not scattered through business logic. Instrument flag evaluation events to
+  measure conversion rate per variant. Schedule flag cleanup in the backlog for two weeks after
+  full rollout.
+sources:
+  - https://martinfowler.com/articles/feature-toggles.html
+  - https://launchdarkly.com/blog/what-are-feature-flags/
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/feature-flag
+  - https://featureflags.io/
+tags:
+  - feature-flag
+  - feature-toggle
+  - continuous-delivery
+  - ab-testing
+  - gradual-rollout
+  - release-management

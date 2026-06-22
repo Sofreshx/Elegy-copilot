@@ -19,8 +19,6 @@ const setupProfilesPath = path.join(instructionEngineRoot, 'engine-assets', 'ski
 const configurationPackagePath = path.join(instructionEngineRoot, 'configuration', 'elegy-plugin-package.json');
 
 const SPEC_DRIVEN_OVERLAYS_PROFILE_ID = 'elegy-copilot-spec-driven-overlays';
-const SPEC_DRIVEN_VALIDATOR_PROFILE_ID = 'elegy-copilot-spec-driven-validator';
-const VALIDATE_SPECS_COMMAND = 'node scripts/validate-specs.js';
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -184,7 +182,7 @@ function buildSpecsIndexText() {
     '- Use `spec-authoring` to create or refine durable specs and `spec-review` before implementation planning when the spec will drive the work.',
     '- Narrow candidate constraints to the minimum hard constraints needed for the active step.',
     '- Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions.',
-    '- Validate specs with `node scripts/validate-specs.js` or `npm run validate:specs` when the repo exposes that script.',
+    '- Spec validation is not enforced as repo policy. `scripts/validate-specs.js` is kept as dormant research tooling.',
     '',
     '## Index',
     '',
@@ -427,17 +425,6 @@ export function runRepoSetupProfileBootstrap(options = {}) {
 
   results.push(createTextFileIfMissing(buildSpecsIndexText(), path.join(repoRoot, 'docs', 'specs', 'index.md'), options));
 
-  const validator = runElegyConfigurationApply({
-    elegyCliPath,
-    repoRoot,
-    profileId: SPEC_DRIVEN_VALIDATOR_PROFILE_ID,
-    dryRun: Boolean(options.dryRun),
-    force: Boolean(options.force),
-  });
-  results.push(...receiptEntriesToResults(validator.receipt));
-
-  results.push(syncPackageJsonScript(path.join(repoRoot, 'package.json'), 'validate:specs', VALIDATE_SPECS_COMMAND, options));
-
   const mirrorTarget = getRepoSkillMirrorTarget(surface);
   const skillMirrors = mirrorTarget
     ? runRepoSkillMirrors({
@@ -453,7 +440,7 @@ export function runRepoSetupProfileBootstrap(options = {}) {
   }
 
   return {
-    ok: overlays.exitCode === 0 && validator.exitCode === 0,
+    ok: overlays.exitCode === 0,
     surface,
     repoRoot,
     profileKey,
@@ -465,7 +452,6 @@ export function runRepoSetupProfileBootstrap(options = {}) {
     configurationPackagePath,
     configuration: {
       overlays: overlays.receipt,
-      validator: validator.receipt,
     },
     skillMirrors,
     results,

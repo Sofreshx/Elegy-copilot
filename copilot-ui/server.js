@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-// DEPRECATED: This Node.js server is being replaced by the Rust backend (native/runtime/).
-// The Rust axum server now handles all API routes. Run with `cargo run -p elegy-native-runtime`.
-// This file is kept for backward compatibility during the migration period.
-// See docs/system/rust-backend-migration.md for details.
 /* eslint-disable no-console */
 const http = require('http');
 const fs = require('fs');
@@ -11,7 +7,6 @@ const os = require('os');
 const childProcess = require('child_process');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
-const { proxyToNativeRuntime: proxyNativeRuntimeRequest } = require('./lib/nativeRuntimeProxy');
 
 /**
  * @typedef {import('@elegy-copilot/contracts').WorkflowStep} ContractWorkflowStep
@@ -4343,10 +4338,6 @@ function relayTrackerSSE(trackerUrl, trackerToken, req, res) {
   proxyReq.end();
 }
 
-function proxyToNativeRuntime(nativeRuntimeUrl, pathname, req, res) {
-  return proxyNativeRuntimeRequest(nativeRuntimeUrl, pathname, req, res);
-}
-
 function loadNativeRuntimeFallbackSessions(elegyHome) {
   try {
     const items = sessions.listSessions(elegyHome);
@@ -4459,7 +4450,7 @@ function buildFallbackProjectActivity(sessionsList, limit = 20) {
     .slice(0, limit);
 }
 
-function handleNativeRuntimeFallback({ req, res, pathname, elegyHome }) {
+function serveProjectsDashboardRoute({ req, res, pathname, elegyHome }) {
   const method = String(req.method || 'GET').toUpperCase();
   const sessionsList = loadNativeRuntimeFallbackSessions(elegyHome);
 
@@ -4534,7 +4525,7 @@ function handleNativeRuntimeFallback({ req, res, pathname, elegyHome }) {
   return false;
 }
 
-function handleApi({ req, res, u, elegyHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry, nativeRuntimeUrl, elegyDb, sessionHooks }) {
+function handleApi({ req, res, u, elegyHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry, elegyDb, sessionHooks }) {
   // Auth scope: single-session only. Multi-session aggregate views are deferred.
   // All API endpoints serve one session at a time. No cross-session auth tokens.
   const pathname = u.pathname;
@@ -4589,33 +4580,10 @@ function handleApi({ req, res, u, elegyHome, sandboxesHome, engineRoot, changeTr
   }
 
   if (
-    pathname.startsWith('/api/orchestrator') ||
     pathname.startsWith('/api/projects') ||
     pathname === '/api/dashboard/summary'
   ) {
-    if (!nativeRuntimeUrl && handleNativeRuntimeFallback({ req, res, pathname, elegyHome: elegyHomeAbs })) {
-      return;
-    }
-
-    if (!nativeRuntimeUrl) {
-      sendJson(res, 503, {
-        error: 'Native runtime required',
-        code: 'native_runtime_unavailable',
-        message: `The ${pathname} endpoint requires the Rust native runtime, which is not configured. Set INSTRUCTION_ENGINE_NATIVE_RUNTIME_URL or ELEGY_NATIVE_RUNTIME_URL.`,
-      });
-      return;
-    }
-
-    proxyToNativeRuntime(nativeRuntimeUrl, pathname, req, res);
-    return;
-  }
-
-  if (nativeRuntimeUrl && (
-    pathname === '/api/health' ||
-    pathname === '/api/version' ||
-    pathname === '/api/policy/preflight'
-  )) {
-    proxyToNativeRuntime(nativeRuntimeUrl, pathname, req, res);
+    serveProjectsDashboardRoute({ req, res, pathname, elegyHome: elegyHomeAbs });
     return;
   }
 
@@ -4720,9 +4688,6 @@ async function startServer(options = {}) {
   };
 
   const quiet = options.quiet === true;
-  const nativeRuntimeUrl = typeof options.nativeRuntimeUrl === 'string' && options.nativeRuntimeUrl.trim()
-    ? options.nativeRuntimeUrl.trim()
-    : (String(env.INSTRUCTION_ENGINE_NATIVE_RUNTIME_URL || env.ELEGY_NATIVE_RUNTIME_URL || '').trim() || null);
   const managedAssetSyncOnStart = options.managedAssetSyncOnStart !== false
     && String(env.INSTRUCTION_ENGINE_DISABLE_STARTUP_ASSET_SYNC || '').trim() !== '1';
   const engineRoot =
@@ -5166,7 +5131,6 @@ async function startServer(options = {}) {
           startupManagedAssetSync,
           autonomousDecisionLog,
           routeRegistry,
-          nativeRuntimeUrl,
           elegyDb,
           sessionHooks,
         });
@@ -5336,6 +5300,5 @@ module.exports = {
   issuePlanningMergeIntent,
   executePlanningMerge,
   rollbackMergeCommitAfterPersistenceFailure,
-  proxyToNativeRuntime,
 };
 

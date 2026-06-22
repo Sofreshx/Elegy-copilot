@@ -1,0 +1,77 @@
+id: bauhaus
+name: Bauhaus
+aliases:
+  - bauhaus-style
+  - staatliches-bauhaus
+type: visual-style
+domain: visual-style
+confidence: established
+tagline: An early 20th-century German design movement emphasizing geometric abstraction, primary colors, and the unity of art, craft, and technology.
+description: >
+  The Bauhaus was a revolutionary German school of design, architecture, and
+  applied arts founded by Walter Gropius in 1919. Its visual language became
+  one of the most influential design movements of the modern era, built on the
+  principle that form follows function and that design should serve society.
+  The school operated in Weimar, Dessau, and Berlin before being closed by the
+  Nazi regime in 1933, but its faculty and students spread its principles
+  worldwide.
+
+  Bauhaus visual identity is defined by geometric abstraction — circles,
+  squares, triangles — used as primary building blocks. The color palette is
+  dominated by the primary colors red, blue, and yellow, often combined with
+  black, white, and gray. Typography favors clean sans-serif typefaces, and
+  the grid became a fundamental layout tool. The famous "Bauhaus" wordmark
+  by Herbert Bayer exemplifies the style's reductive, geometric approach.
+
+  The movement's influence extends across architecture, furniture, graphic
+  design, typography, and UI design. Its principles directly inform modern
+  design education and remain foundational to minimalist and functionalist
+  design approaches today. The Bauhaus successor school, the Ulm School of
+  Design (HfG Ulm), further codified these principles into systematic design
+  methodology.
+traits:
+  - Geometric abstraction using circles, squares, and triangles as primary forms
+  - Primary color palette (red, blue, yellow) with black, white, and gray
+  - Clean, sans-serif typography with minimal ornamentation
+  - Asymmetric balance and grid-based composition
+  - Integration of craft, art, and industrial production philosophy
+bestFit:
+  - Brands that want to communicate modernity, clarity, and design heritage
+  - Editorial layouts, posters, and print material needing strong visual structure
+  - Design systems rooted in geometric grid methodology
+avoidIf:
+  - The brand identity requires organic, fluid, or nature-inspired forms
+  - The audience expects ornate, decorative, or embellished visual language
+  - Warmth and handcrafted feeling are core to the brand experience
+commonFailures:
+  - Reducing Bauhaus to a superficial geometric style without understanding its functionalist philosophy
+  - Using Bauhaus elements decoratively without adhering to its underlying grid and composition discipline
+  - Applying Bauhaus color principles without considering cultural context or brand fit
+contrasts:
+  - term: Art Deco
+    difference: Bauhaus is reductive, functionalist, and anti-ornamental; Art Deco is decorative, luxurious, and celebrates ornament and craftsmanship.
+  - term: Memphis Design
+    difference: Bauhaus follows strict functionalism and geometric discipline; Memphis Design is postmodern, playful, deliberately irrational, and rejects functionalist dogma.
+compatibilities:
+  - swiss-style
+  - minimalism
+  - flat-design
+promptLanguage: >
+  Design a composition inspired by Bauhaus principles. Use geometric shapes
+  — circles, squares, and triangles — as the primary visual building blocks.
+  Limit the color palette to primary red, blue, and yellow plus black, white,
+  and gray. Use a clean sans-serif typeface, preferably geometric in
+  construction. Build the layout on a clear underlying grid. Balance
+  asymmetry with structural discipline. Aim for functional clarity over
+  decorative flourish. Every element should serve a purpose in the
+  composition.
+sources:
+  - https://en.wikipedia.org/wiki/Bauhaus
+  - https://www.bauhaus.de/
+  - https://www.moma.org/collection/terms/bauhaus
+tags:
+  - bauhaus
+  - geometric-design
+  - modernism
+  - form-follows-function
+  - primary-colors

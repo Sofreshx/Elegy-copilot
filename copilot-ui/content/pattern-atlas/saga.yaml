@@ -1,0 +1,75 @@
+id: saga
+name: Saga
+aliases:
+  - Saga Pattern
+  - Distributed Transaction
+  - Long-Running Transaction
+type: system-pattern
+domain: software-architecture
+confidence: established
+tagline: Manage data consistency across microservices with local transactions and compensating actions.
+description: >
+  A Saga is a sequence of local transactions, each within a single service, that together accomplish
+  a business goal. If one local transaction fails, the saga executes compensating transactions to
+  undo the changes made by preceding steps. Unlike a distributed transaction (XA/2PC), a saga does
+  not hold locks across services — each step commits its work immediately, which means the system is
+  eventually consistent rather than atomically consistent.
+
+  There are two coordination styles: choreography and orchestration. Choreography uses events — each
+  service publishes events after its local transaction, and the next service reacts. Orchestration
+  uses a central coordinator (the saga orchestrator) that tells each service what to do and handles
+  failure by invoking compensating actions. Orchestration is generally preferred for complex sagas
+  because the flow is explicit and testable.
+
+  Sagas are essential in microservice architectures where a single business operation spans multiple
+  services and data stores. Common examples include order fulfillment (reserve inventory → charge
+  payment → ship order) and booking systems (book flight → book hotel → book car). Each step has a
+  compensating action (release inventory, refund payment, cancel booking) that must be designed as
+  part of the saga contract.
+traits:
+  - Each step is a local, committed transaction within one service
+  - Compensating transactions undo preceding steps on failure
+  - No distributed locks — services remain available during multi-step operations
+  - Choreography or orchestration coordination models
+  - Must handle idempotency: steps and compensations may be retried
+bestFit:
+  - Multi-service business workflows that must maintain data integrity (order-to-cash, booking)
+  - Systems that cannot use distributed transactions (XA/2PC) due to scalability or heterogeneity
+  - Event-driven architectures where workflows span bounded contexts
+avoidIf:
+  - A single database transaction can cover all operations (local transaction is simpler)
+  - Compensating actions are destructive or unsafe (e.g., physically shipped item cannot be "unshipped")
+  - Strong consistency is a hard requirement for the entire workflow
+commonFailures:
+  - Missing compensations: some steps lack compensating actions, leaving the system in an inconsistent state
+  - Non-idempotent steps: retries after network failures cause duplicate charges or double-booking
+  - Orchestrator becomes a monolith: all workflow logic piles into one orchestrator, defeating service autonomy
+contrasts:
+  - term: Transactional Outbox
+    difference: The Outbox pattern ensures reliable event emission from a single service's local transaction; Saga coordinates multiple local transactions across services with compensating rollbacks.
+  - term: Distributed Transaction (XA/2PC)
+    difference: XA/2PC provides atomic commit across resources with locks and a prepare phase; Saga commits each step independently and relies on compensation for rollback, gaining availability at the cost of eventual consistency.
+compatibilities:
+  - transactional-outbox
+  - event-driven
+  - database-per-service
+  - circuit-breaker
+promptLanguage: >
+  Implement an order fulfillment saga using orchestration. Define a SagaOrchestrator service with
+  steps: ReserveInventory, ProcessPayment, ShipOrder. Each step invokes the target service via
+  command, waits for a reply or timeout, and records the saga state in a saga log table. If
+  ProcessPayment fails, the orchestrator runs compensation: CancelReservation. If ShipOrder fails,
+  run compensation: RefundPayment and CancelReservation. Ensure each command and compensation is
+  idempotent by including a saga ID in every request. Store saga state (PENDING, COMPLETED, ABORTED)
+  with step statuses for recovery after orchestrator restart.
+sources:
+  - https://microservices.io/patterns/data/saga.html
+  - https://docs.microsoft.com/en-us/azure/architecture/reference-architectures/saga/saga
+  - https://www.infoq.com/articles/saga-orchestration-vs-choreography/
+tags:
+  - saga
+  - distributed-transaction
+  - compensating-transaction
+  - microservices
+  - eventual-consistency
+  - workflow

@@ -17,8 +17,7 @@ related: [orchestrator-architecture-adr, structured-output-contracts]
 | Surface | Authority |
 |---|---|
 | JSON wire shape | `contracts/orchestrator/orchestrator-contracts.schema.json` |
-| Rust runtime types and semantic validation | `native/contracts/src/types/orchestrator.rs` |
-| Architecture and trust boundaries | `docs/system/orchestrator-architecture-adr.md` |
+| Architecture and trust boundaries | `docs/system/orchestrator-architecture-adr.md` (Rust implementation removed) |
 
 Unknown additive fields are accepted. Unknown `schemaVersion` values fail closed.
 

@@ -49,6 +49,11 @@ async function main() {
       assert.ok(fs.existsSync(path.join(skillsHome, 'skill-discovery', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-handoff', 'SKILL.md')));
+      const handoffSkill = fs.readFileSync(path.join(skillsHome, 'implementation-handoff', 'SKILL.md'), 'utf8');
+      assert.ok(handoffSkill.includes('another harness, model, executor, or session'));
+      assert.ok(handoffSkill.includes('load `rubberduck-plan-review`'));
+      assert.ok(handoffSkill.includes('## Completeness Gate'));
+      assert.ok(handoffSkill.includes('weak-or-unknown'));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-dev', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-authoring', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-review', 'SKILL.md')));
@@ -116,18 +121,14 @@ async function main() {
       const copilotInstructions = fs.readFileSync(path.join(repoRoot, '.github', 'copilot-instructions.md'), 'utf8');
       const agentsInstructions = fs.readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
       const specsIndex = fs.readFileSync(path.join(repoRoot, 'docs', 'specs', 'index.md'), 'utf8');
-      const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
-
       assert.ok(copilotInstructions.includes('elegy-copilot:begin spec-driven'));
       assert.ok(copilotInstructions.includes('spec-authoring'));
       assert.ok(agentsInstructions.includes('Keep this section.'));
       assert.ok(agentsInstructions.includes('elegy-copilot:begin spec-driven'));
       assert.ok(specsIndex.includes('# Specs'));
-      assert.ok(fs.existsSync(path.join(repoRoot, 'scripts', 'validate-specs.js')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.github', 'agents')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.github', 'skills')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.agents', 'skills', 'repo-helper', 'SKILL.md')));
-      assert.strictEqual(packageJson.scripts['validate:specs'], 'node scripts/validate-specs.js');
       assert.strictEqual(summary.repoSetup.profileKey, 'spec-driven');
       assert.strictEqual(summary.repoSetup.repoInstructionFile, 'AGENTS.md');
       assert.ok(summary.repoSetup.skillMirrors.counts.created > 0 || summary.repoSetup.skillMirrors.counts.skipped > 0);

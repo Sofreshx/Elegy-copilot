@@ -1,0 +1,73 @@
+id: micro-frontends
+name: Micro-Frontends
+aliases:
+  - Micro Frontends
+  - MFE
+  - Composed UI
+type: system-pattern
+domain: software-architecture
+confidence: emerging
+tagline: Extend microservice principles to the frontend — independently developed, tested, and deployed UI fragments.
+description: >
+  Micro-Frontends decompose a frontend monolith into smaller, autonomous applications that are owned
+  by independent teams and composed into a single user experience. Each micro-frontend is a
+  self-contained unit with its own build pipeline, deployment, testing, and runtime — typically
+  communicating with the rest of the application through a shared shell or container.
+
+  Integration strategies include server-side composition (SSI, Tailor, Podium), client-side
+  composition via Web Components or iframes, and build-time integration (monorepo with independent
+  packages). Module Federation (Webpack 5) has emerged as a popular runtime integration approach,
+  allowing independently deployed builds to share code at runtime without duplication. Each
+  micro-frontend can use its own framework, state management, and API layer, although framework
+  diversity typically comes with a UX cost (shared design system required).
+
+  Micro-Frontends address the scaling problems of large frontend codebases: team bottlenecks,
+  coupled deployment cycles, and inability to adopt new technology incrementally. However, they
+  introduce complexity in shared state, cross-cutting concerns (auth, routing), performance
+  (duplicate dependencies), and visual consistency.
+traits:
+  - Independently developed, tested, and deployed by separate teams
+  - Owns a distinct business domain or page section
+  - Composed at runtime (preferred) or build time
+  - Framework-agnostic at the integration boundary
+  - Shared shell handles cross-cutting concerns (routing, auth, navigation)
+bestFit:
+  - Large frontend applications where a single team cannot own the entire UI
+  - Organizations aligning frontend teams to backend bounded contexts or microservices
+  - Incremental migration from legacy frontend monolith to modern stack
+avoidIf:
+  - The application is small (3-5 screens) — micro-frontends add cost without benefit
+  - UX consistency across every screen is critical and cannot tolerate composition lag
+  - The organization cannot staff independent teams per micro-frontend
+commonFailures:
+  - Duplicate dependencies: each micro-frontend bundles its own framework copy, bloating the bundle
+  - Inconsistent UX: teams diverge from the design system, creating a disjointed user experience
+  - Cross-cutting bottlenecks: auth, session, and routing become tangled across micro-frontends with no clear owner
+contrasts:
+  - term: Microservices (Backend)
+    difference: Microservices decompose a backend into independently deployable services; Micro-Frontends apply the same decomposition to the frontend UI. Both share the goals of team autonomy and independent deployment, but micro-frontends face unique challenges in visual consistency and runtime composition.
+  - term: Web Components
+    difference: Web Components are a browser standard for reusable custom elements; Micro-Frontends are an architectural pattern. Web Components can be used as an implementation technique within Micro-Frontends, but they are not equivalent.
+compatibilities:
+  - api-gateway
+  - event-driven
+  - database-per-service
+  - feature-flag
+promptLanguage: >
+  Decompose the e-commerce frontend into micro-frontends: ProductCatalog, ShoppingCart, Checkout,
+  and UserAccount. Use Module Federation (Webpack 5) to compose them at runtime in a shared shell
+  application. Each micro-frontend exposes its own entry point and is independently deployed. The
+  shell provides shared state (auth, cart count), routing, and the design system. Each team owns
+  its micro-frontend end-to-end: API integration, state management, and testing. Establish a shared
+  design system and component library to ensure visual consistency.
+sources:
+  - https://martinfowler.com/articles/micro-frontends.html
+  - https://micro-frontends.org/
+  - https://www.thoughtworks.com/radar/techniques/micro-frontends
+  - https://module-federation.io/
+tags:
+  - micro-frontends
+  - frontend-architecture
+  - composed-ui
+  - team-autonomy
+  - module-federation

@@ -1,0 +1,74 @@
+id: canary-release
+name: Canary Release
+aliases:
+  - Canary Deployment
+  - Canary Testing
+  - Percentage Rollout
+type: system-pattern
+domain: infrastructure-ops
+confidence: established
+tagline: Gradually roll out a new version to a subset of users to detect issues before full release.
+description: >
+  Canary Release deploys a new version of an application to a small subset of users or servers first,
+  monitors its behavior, and gradually increases the traffic percentage as confidence grows. If
+  errors spike or metrics degrade, the canary is rolled back immediately without affecting the
+  majority of users. The name comes from the "canary in the coal mine" metaphor — the early-warning
+  signal for danger.
+
+  Implementation typically involves traffic splitting at the load balancer or service mesh level.
+  A common pattern is to route a small percentage of traffic (1-5%) to the canary version, observe
+  key metrics (error rate, latency, CPU, business KPIs) for a cooldown period, then increase the
+  percentage in steps (10%, 25%, 50%, 100%). Each step includes an observation and evaluation gate.
+  If any gate fails, traffic is shifted back to the stable version.
+
+  Canary releases are widely adopted in service mesh architectures (Istio, Linkerd), cloud platforms
+  (AWS CodeDeploy, GCP Cloud Deploy), and CI/CD tools (Argo Rollouts, Flagger, Spinnaker). They are
+  more sophisticated than Blue-Green deployments and require good observability infrastructure. The
+  canary version must be monitored not just for technical health but also for business metrics.
+traits:
+  - Gradual, percentage-based traffic shifting to the new version
+  - Automated metrics-based evaluation gates at each rollout step
+  - Instant rollback by reverting traffic percentage to zero
+  - Requires robust monitoring and observability infrastructure
+  - Canary and stable versions run simultaneously during rollout
+bestFit:
+  - High-risk changes that need real-world validation before full rollout
+  - A/B testing of performance or feature impact in production
+  - Systems with good observability infrastructure and automated rollback capability
+avoidIf:
+  - The change is trivial and does not warrant the rollout complexity
+  - Observability is poor — you cannot detect degradation in the canary
+  - The application state prevents running two versions simultaneously
+commonFailures:
+  - Insufficient canary size: 1% is too small to detect rare errors, giving false confidence
+  - Missing business metrics: only technical metrics (CPU, memory) are monitored, missing user-impact issues
+  - Stateful service issues: the canary version accesses shared state (database, cache) from the stable version, causing corruption
+contrasts:
+  - term: Blue-Green Deployment
+    difference: Blue-Green switches all traffic at once between two full environments; Canary Release shifts traffic gradually through incremental percentages, providing finer-grained risk control but requiring more time and monitoring.
+  - term: Feature Flag
+    difference: Feature Flags control individual feature exposure at runtime within the same deployment; Canary Release controls the entire version and applies to all features in that version. Canary is coarser-grained but simpler for version-level risk.
+compatibilities:
+  - blue-green
+  - feature-flag
+  - api-gateway
+  - circuit-breaker
+promptLanguage: >
+  Configure a canary release for the payments-service update. Use Flagger with Istio service mesh.
+  Define a canary resource: initial traffic weight 5%, step weight 25%, max weight 100%, interval
+  5 minutes. Evaluation metrics: HTTP error rate > 1%, request latency p99 > 500ms, and success
+  rate < 99%. On any metric failure, abort and rollback to primary. For the first 5% step, run a
+  load test against the canary as validation. On full promotion, apply the new version to 100% of
+  traffic and scale down the primary.
+sources:
+  - https://martinfowler.com/bliki/CanaryRelease.html
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/canary-deployment
+  - https://flagger.app/
+  - https://argoproj.github.io/rollouts/
+tags:
+  - canary
+  - deployment
+  - gradual-rollout
+  - service-mesh
+  - traffic-splitting
+  - risk-mitigation

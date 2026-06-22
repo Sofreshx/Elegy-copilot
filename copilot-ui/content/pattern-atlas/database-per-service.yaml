@@ -1,0 +1,74 @@
+id: database-per-service
+name: Database per Service
+aliases:
+  - Database per Microservice
+  - Private-Tables-Per-Service
+  - Data Ownership
+type: system-pattern
+domain: data-integration
+confidence: established
+tagline: Each microservice owns its private data store, accessible only through its API.
+description: >
+  The Database per Service pattern dictates that each microservice has its own private database —
+  no other service can access it directly. All data access must go through the owning service's API.
+  This enforces strong encapsulation and prevents tight coupling between services through shared
+  data schemas. Each service can choose the database technology best suited to its needs (polyglot
+  persistence): a relational database for transactional data, a document store for product catalogs,
+  a graph database for recommendations, or a key-value store for sessions.
+
+  This pattern is foundational to microservice architecture. Without it, services that share a
+  database inevitably couple on schema changes, migration timing, and query patterns. The downside
+  is that queries that span services (joins across databases) are no longer possible — they must be
+  implemented as application-level joins or through eventual consistency via events.
+
+  Implementing this pattern requires discipline in API design and data ownership. Services expose
+  data through well-defined APIs (REST, gRPC, GraphQL) and emit events for data that other services
+  need. The alternative — a shared database — is an anti-pattern in microservices, often called the
+  "distributed monolith."
+traits:
+  - Each microservice owns and manages its own database exclusively
+  - No direct database access across service boundaries
+  - Each service chooses the optimal database type (polyglot persistence)
+  - Data sharing happens through service APIs and events, not shared schemas
+  - Prevents tight coupling on schema, migration, and query patterns
+bestFit:
+  - Microservice architectures that aim for team autonomy and independent deployability
+  - Systems where different services have fundamentally different data and query patterns
+  - Teams that need to scale data layers independently (e.g., read replicas for one service)
+avoidIf:
+  - The system has many cross-service queries that cannot be efficiently implemented as API calls
+  - The organization lacks the operational capability to run multiple database systems
+  - Strong consistency across services is required for every operation
+commonFailures:
+  - Distributed monolith: services use a shared database despite the pattern, defeating encapsulation
+  - Data duplication drift: services cache or duplicate data from other services without sync contracts
+  - API chattiness: services make excessive API calls to assemble data that should be in one store
+contrasts:
+  - term: Shared Database
+    difference: A shared database is accessible by multiple services, creating coupling on schema and queries; Database per Service isolates each service's data behind its API, enforcing boundaries at the data layer.
+  - term: CQRS
+    difference: CQRS splits read and write models within one service boundary; Database per Service splits databases across service boundaries. They can coexist — a service may use CQRS internally while also owning its database exclusively.
+compatibilities:
+  - saga
+  - cqrs
+  - event-driven
+  - api-gateway
+promptLanguage: >
+  Assign each microservice its own database. Orders service gets a PostgreSQL database for
+  transactional order data. Catalog service uses MongoDB for flexible product schemas. Recommendations
+  service uses Neo4j for graph-based product relationships. Session service uses Redis for fast
+  session lookups. No service connects to another service's database directly. When Orders needs
+  product data, it calls the Catalog service API or subscribes to catalog events. Deploy each
+  database in the same deployment unit as its service (container/pod) with its own volume.
+sources:
+  - https://microservices.io/patterns/data/database-per-service.html
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/database-per-service
+  - https://martinfowler.com/articles/microservices.html#HowToTalk
+  - https://samnewman.io/patterns/architectural/database-per-service/
+tags:
+  - microservices
+  - database-per-service
+  - polyglot-persistence
+  - data-ownership
+  - service-boundaries
+  - encapsulation

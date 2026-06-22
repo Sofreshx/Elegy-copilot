@@ -1,29 +1,29 @@
 #!/usr/bin/env node
 /**
- * Spec-System Hardening — Pre-Commit Gate (R2)
- * ==============================================
- * This script is the pre-commit validation gate for spec files.
- * 
- * RELIABILITY LAYER: 2 of 4
+ * DORMANT/LEGACY — Spec-System Hardening Pre-Commit Gate (R2)
+ * =============================================================
+ * This script was the pre-commit validation gate for spec files.
+ *
+ * DORMANT — spec validation is no longer enforced as repo policy.
+ * This file is kept in-repo as dormant implementation history.
+ *
+ * HISTORICAL RELIABILITY LAYER: 2 of 4
  *   Layer 1: validate-specs.js — structural + liveness + cross-spec checks
- *   Layer 2: validate-specs-precommit.mjs — pre-commit gate (this file)
- *   Layer 3: .github/workflows/repo-ci.yml — CI gate
+ *   Layer 2: validate-specs-precommit.mjs — pre-commit gate (this file — DORMANT)
+ *   Layer 3: .github/workflows/repo-ci.yml — CI gate (DORMANT)
  *   Layer 4: spec-review SKILL.md + reviewer agent — human review gate
- * 
- * BEHAVIOR:
- * - Detects staged spec files via git diff
- * - If no spec files staged: exits 0 silently
- * - If spec files staged: runs validate-specs.js --strict specs
- * - Propagates the validator's exit code
- * 
- * BYPASS: SKIP_SPEC_CHECK=1 git commit
- *   The CI gate still enforces — this bypass is for emergency local work only.
+ *
+ * HISTORICAL BEHAVIOR:
+ * - Detected staged spec files via git diff
+ * - If no spec files staged: exited 0 silently
+ * - If spec files staged: ran validate-specs.js --strict specs
+ * - Propagated the validator's exit code
+ *
+ * BYPASS (retained for compatibility): SKIP_SPEC_CHECK=1 git commit
  */
 
-// Spec-system-hardening (R2): Pre-commit validation gate.
-// Detects staged spec files and runs the full spec validator with --strict.
-// Called by .git/hooks/pre-commit (installed by scripts/install-spec-hooks.mjs).
-// Bypass: set SKIP_SPEC_CHECK=1 in the environment before committing.
+// DORMANT — This file is kept as implementation history. No longer called
+// by any pre-commit hook or enforced as repo policy.
 
 if (process.env.SKIP_SPEC_CHECK === '1') {
   process.exit(0);

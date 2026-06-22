@@ -35,6 +35,9 @@ Installed harness surfaces and shared skills must therefore stay thin and consis
 
 Codex should stay leaner than the legacy Copilot fleet:
 - Global Codex install: `AGENTS.md`, one read-only `reviewer` agent, `repo-setup`, `skill-discovery`, `stack-detector`, `rubberduck-plan-review`, `implementation-handoff`, `implementation-review`, `planning-tools`, `spec-dev`, `spec-authoring`, and `spec-review`.
+- Codex uses a stricter `implementation-handoff` variant for explicit delegation. It deepens shallow
+  plans and requires `rubberduck-plan-review` for complex or incomplete source plans before
+  producing a downstream executor brief. Other harnesses retain the shared handoff contract.
 - Repo-specific hazards: repo-local `AGENTS.md` overlays and repo-local skills.
 - Legacy engine/Copilot orchestration agents are not bulk-installed into Codex.
 - Cross-model reviewer agents are not part of the Codex install surface.

@@ -1,0 +1,79 @@
+id: memphis-design
+name: Memphis Design
+aliases:
+  - memphis-style
+  - memphis-group
+  - postmodern-design
+type: visual-style
+domain: visual-style
+confidence: established
+tagline: A postmodern 1980s design movement that rejected good taste with playful geometric shapes, clashing colors, and whimsical patterns.
+description: >
+  Memphis Design was founded by Ettore Sottsass and a group of young Italian
+  architects and designers in Milan in 1981. Named after the Bob Dylan song
+  "Stuck Inside of Mobile with the Memphis Blues Again," the movement was a
+  deliberate rebellion against the seriousness and functionalism of modernism
+  and Bauhaus. Memphis rejected the dictum that form follows function —
+  instead, the group argued that design should be emotionally engaging,
+  humorous, and culturally relevant.
+
+  Visually, Memphis is instantly recognizable: irregular geometric shapes
+  (circles, squiggles, triangles placed at odd angles), bold and deliberately
+  clashing color combinations (often pink, yellow, blue, and black), laminate
+  surfaces with colorful speckled or squiggle patterns, and playful asymmetry.
+  The movement influenced product design, furniture, fashion, and graphic
+  design throughout the 1980s and has seen a major revival in contemporary
+  digital design, particularly in branding and UI.
+
+  Memphis's influence on digital design is significant. The movement's
+  irreverent, colorful, pattern-rich aesthetic is frequently referenced in
+  startup branding, creative agency websites, and any brand that wants to
+  communicate playfulness, creativity, and cultural awareness. Contemporary
+  designers often mix Memphis elements with modern typography and layout
+  conventions.
+traits:
+  - Irregular geometric shapes arranged in playful, asymmetric compositions
+  - Bold, clashing color combinations (pink, yellow, blue, black)
+  - Speckled, squiggle, and abstract surface patterns
+  - Whimsical, non-functional decorative elements
+  - Rejection of conventional "good taste" and functionalist dogma
+bestFit:
+  - Creative agencies, studios, and brands that want to communicate playfulness
+  - Product and brand launches targeting culturally aware, younger audiences
+  - Editorial and advertising needing high visual impact and memorability
+avoidIf:
+  - The product serves a conservative or professional audience expecting restraint
+  - The brand identity needs to communicate trust, reliability, or sophistication
+  - The interface must remain legible and scannable above all else
+commonFailures:
+  - Using Memphis decoration without understanding its ironic, anti-establishment philosophy
+  - Creating visually chaotic layouts that sacrifice all hierarchy and usability
+  - Applying the style to functional interfaces where clarity is priority one
+contrasts:
+  - term: Bauhaus
+    difference: Memphis Design rejects Bauhaus functionalism and "form follows function" in favor of playful, emotionally driven, deliberately irrational design.
+  - term: Art Deco
+    difference: Memphis is intentionally tasteless, playful, and postmodern; Art Deco is sophisticated, luxurious, and rooted in traditional ornament.
+compatibilities:
+  - maximalism
+  - neobrutalism
+  - card-layout
+promptLanguage: >
+  Design a Memphis-style composition. Use irregular geometric shapes —
+  circles, triangles, squiggles — arranged asymmetrically. The color palette
+  should be deliberately clashing: pink, bright yellow, turquoise, and black
+  as a base. Add speckled or squiggle pattern fills to surfaces. Elements
+  should feel playful and slightly off-kilter. Do not worry about conventional
+  good taste — the goal is energy, surprise, and visual fun. Use heavy black
+  outlines on geometric shapes. The typography should be bold and sans-serif
+  but can be playful in weight and placement.
+sources:
+  - https://en.wikipedia.org/wiki/Memphis_Group
+  - https://www.designhistory.org/Postmodern_pages/Memphis.html
+  - https://www.artsy.net/article/artsy-editorial-1980s-memphis-design-movement
+tags:
+  - memphis-design
+  - postmodern
+  - 1980s-style
+  - playful-design
+  - geometric-patterns

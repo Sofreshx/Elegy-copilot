@@ -7,6 +7,9 @@ const {
   inferAssetProvenance,
 } = require('@elegy-copilot/contracts');
 
+const { composeInstructionsFromAsset: composeFromAsset, buildProfileContent } = require('./compose-instructions.cjs');
+const { getCollaborationProfile } = require('./copilotConfig');
+
 const {
   appendCatalogAuditEvent,
 } = require('./catalogAuditAnalytics');
@@ -1093,20 +1096,12 @@ function normalizeAuditAssetKey(asset) {
 
 /**
  * Compose instructions from the shared baseline and a harness appendix.
- * Mirrors scripts/instruction-compose-utils.mjs composeInstructionsFromAsset.
+ * Delegates to scripts/instruction-compose-utils.mjs via the CJS wrapper.
  */
 function composeInstructionsFromAsset(asset, repoRoot) {
-  const baselinePath = path.resolve(repoRoot, asset.source);
-  const appendixPath = path.resolve(repoRoot, asset.appendix);
-  if (!fs.existsSync(baselinePath)) {
-    throw new Error(`Baseline not found: ${baselinePath}`);
-  }
-  if (!fs.existsSync(appendixPath)) {
-    throw new Error(`Appendix not found: ${appendixPath}`);
-  }
-  const baseline = fs.readFileSync(baselinePath, 'utf8');
-  const appendix = fs.readFileSync(appendixPath, 'utf8');
-  return `${baseline.trim()}\n\n---\n\n${appendix.trim()}\n`;
+  const profile = getCollaborationProfile();
+  const profileContent = buildProfileContent(profile);
+  return composeFromAsset(asset, repoRoot, profileContent);
 }
 
 function recordManagedAssetAuditEvent(destinationHome, asset, eventType, details = {}) {

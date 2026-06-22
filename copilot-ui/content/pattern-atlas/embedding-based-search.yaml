@@ -1,0 +1,76 @@
+id: embedding-based-search
+name: Embedding-Based Search
+aliases:
+  - Semantic Search
+  - Vector Search
+  - Dense Retrieval
+  - Neural Search
+type: system-pattern
+domain: ai-systems
+confidence: emerging
+tagline: Search by semantic meaning using dense vector representations and similarity metrics.
+description: >
+  Embedding-Based Search (also called semantic or vector search) uses neural network models to
+  convert text, images, or audio into dense vector embeddings — numerical representations that
+  capture semantic meaning. Queries are converted to the same embedding space, and the search
+  retrieves items whose vectors are closest in that space (using cosine similarity, dot product, or
+  Euclidean distance).
+
+  The pipeline: documents → chunk → embed (with an embedding model like text-embedding-3-small,
+  Cohere, or open-source models) → index in a vector database (Pinecone, Weaviate, Milvus, Qdrant,
+  pgvector). Queries follow the same path: embed → nearest neighbor search → return results. The
+  approach can be combined with keyword search (hybrid search) for better recall — BM25 handles
+  exact term matching, embeddings handle semantic similarity.
+
+  Embedding-based search is the retrieval backbone for RAG systems, recommendation engines, and
+  semantic code search. Its main advantage over keyword search is handling synonyms, paraphrases,
+  and conceptual matches. Challenges include embedding model quality, curse of dimensionality,
+  indexing efficiency for billion-scale datasets, and multilingual support. Approximate Nearest
+  Neighbor (ANN) algorithms (HNSW, IVF) are used for scalable retrieval.
+traits:
+  - Searches by semantic meaning, not keyword overlap
+  - Uses dense vector embeddings from neural network models
+  - Supports hybrid search (vector + keyword) for optimal recall
+  - Scales with ANN algorithms (HNSW, IVF) for large datasets
+  - Multi-modal: text, images, audio all searchable in the same embedding space
+bestFit:
+  - Search over unstructured text where synonyms and paraphrases matter
+  - Retrieval component for RAG systems and question answering
+  - Recommendation systems (find items similar to a query or seed item)
+avoidIf:
+  - Exact keyword matching is required and semantic similarity is not useful
+  - The vocabulary is small and controlled (embedding adds unnecessary complexity)
+  - The search corpus changes very frequently (re-indexing overhead is high)
+commonFailures:
+  - Out-of-domain embeddings: using a general embedding model on domain-specific text gives poor results
+  - Chunking mismatch: document chunk size does not match the embedding model's optimal input length
+  - Cold start: a new corpus has no usage data to validate embedding quality
+contrasts:
+  - term: Keyword Search (BM25, Elasticsearch)
+    difference: Keyword search matches exact terms and relies on TF-IDF or BM25 scoring; Embedding-based search matches semantic meaning. Keyword search is precise for terminology; embedding search captures synonymy and conceptual similarity.
+  - term: Embeddings + ML Classifier
+    difference: Embedding-based search retrieves similar items from a collection; ML classifiers use embeddings as features for prediction. Search finds relevant items; classification assigns categories.
+compatibilities:
+  - rag
+  - agent-loop
+  - prompt-chaining
+  - caching-strategies
+promptLanguage: >
+  Implement semantic search for a product catalog. Use text-embedding-3-small to embed product
+  descriptions, titles, and categories into 1536-dimensional vectors. Store in pgvector with an
+  IVFFlat index (lists=100). On search, embed the user query and perform cosine similarity search
+  with LIMIT 20. Implement hybrid search by combining the vector score with a BM25 keyword score
+  (weighted 0.7 vector + 0.3 keyword). Return results with similarity score and highlight the
+  matched semantic concept. Re-index daily as products are added or updated.
+sources:
+  - https://www.pinecone.io/learn/vector-search/
+  - https://www.elastic.co/what-is/vector-search
+  - https://arxiv.org/abs/2104.08821 (SPLADE)
+  - https://supabase.com/docs/guides/ai/vector-columns
+tags:
+  - embedding-search
+  - semantic-search
+  - vector-search
+  - dense-retrieval
+  - ann
+  - hybrid-search

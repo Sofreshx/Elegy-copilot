@@ -1,0 +1,74 @@
+id: agent-loop
+name: Agent Loop
+aliases:
+  - Autonomous Agent
+  - ReAct Loop
+  - Think-Act-Observe
+  - Tool-Using Agent
+type: system-pattern
+domain: ai-systems
+confidence: emerging
+tagline: LLM-driven loop that perceives, reasons about tasks, takes actions via tools, and observes results.
+description: >
+  The Agent Loop is an architectural pattern where a language model operates in a cycle: Think
+  (reason about the current state and decide the next action), Act (invoke a tool or generate a
+  response), Observe (incorporate the tool's output or environmental feedback), and repeat until the
+  goal is achieved. This is often called the ReAct (Reasoning + Acting) pattern.
+
+  The agent has access to tools — predefined functions like search, calculator, file I/O, API calls,
+  or database queries. The LLM decides which tool to call, with what arguments, based on the
+  current context. The tool's output is fed back into the loop as a new observation. The agent
+  continues iterating until it determines the task is complete or a stopping condition is met.
+
+  Agent loops range from simple (single tool, fixed format) to complex (multi-agent, sub-agent
+  spawning, hierarchical planning). Frameworks like LangChain, AutoGPT, and Anthropic's Tool Use
+  API implement this pattern. Key challenges include prompt-injection risks (tool outputs can
+  contain instructions that manipulate the agent), infinite loops (budget limits and max iterations
+  required), and reliability (non-deterministic agent behavior).
+traits:
+  - Iterative think-act-observe cycle driven by an LLM
+  - Uses tools (functions, APIs, data sources) to interact with the environment
+  - Maintains state across iterations (conversation history, tool outputs)
+  - Decides when to stop based on goal completion or budget limits
+  - Non-deterministic behavior — same input may produce different tool sequences
+bestFit:
+  - Open-ended tasks where the solution path is not known in advance (research, data analysis)
+  - Workflows combining LLM reasoning with external tool calls (calculator, search, database)
+  - Automation of multi-step tasks that require adapting to tool outputs
+avoidIf:
+  - The task has a fixed, known sequence of steps (a prompt chain is simpler and more reliable)
+  - Tool outputs could contain prompt injections (agent may follow instructions from tools)
+  - Reliability and determinism are critical (agent behavior is inherently non-deterministic)
+commonFailures:
+  - Infinite loops: the agent keeps calling tools without making progress toward the goal
+  - Prompt injection: a tool's output contains instructions that change the agent's behavior
+  - Excessive tool calls: the agent calls many unnecessary tools, burning cost and tokens
+contrasts:
+  - term: Prompt Chaining
+    difference: Prompt Chaining uses a predefined deterministic sequence of LLM calls; Agent Loop is autonomous — the LLM decides which tools to call and in what order. Chains are predictable; agents are flexible but less reliable.
+  - term: RAG
+    difference: RAG is a single retrieval-read cycle; Agent Loop can involve multiple tool calls including search, API calls, and iterative refinement. RAG is a simpler pattern; Agent Loop supports dynamic, multi-tool workflows.
+compatibilities:
+  - prompt-chaining
+  - rag
+  - embedding-based-search
+promptLanguage: >
+  Build a research agent that can answer complex questions using the ReAct loop. Provide tools:
+  web_search(query), fetch_page(url), summarize_text(text), and calculator(expression). The agent
+  receives a question, thinks about what information is needed, calls web_search and fetch_page to
+  gather sources, uses calculator for computations, and synthesizes a final answer. Limit to 10
+  iterations with a $0.50 cost budget per run. Log every think-act-observation step to console for
+  debugging. Implement a safety check to prevent the agent from executing shell commands or writing
+  to the filesystem.
+sources:
+  - https://arxiv.org/abs/2210.03629 (ReAct)
+  - https://docs.anthropic.com/en/docs/build-with-claude/tool-use
+  - https://blog.langchain.dev/agents/
+  - https://github.com/langchain-ai/langgraph
+tags:
+  - agent
+  - llm-agent
+  - react
+  - tool-use
+  - autonomous
+  - think-act-observe

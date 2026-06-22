@@ -1,29 +1,32 @@
 #!/usr/bin/env node
 /**
- * Spec-System Hardening — Core Validator (Layer 1 of 4)
- * ======================================================
- * This is the structural and semantic validator for durable repo specs.
- * It is the primary reliability gate in the spec-driven development system.
- * 
- * RELIABILITY LAYERS:
+ * DORMANT/LEGACY — Spec-System Hardening Core Validator (Layer 1 of 4)
+ * =====================================================================
+ * This was the structural and semantic validator for durable repo specs.
+ *
+ * DORMANT — Spec validation is no longer enforced as repo policy.
+ * This validator is kept in-repo as dormant implementation history for
+ * future research.
+ *
+ * HISTORICAL RELIABILITY LAYERS:
  *   Layer 1 (this file): Structural checks — frontmatter, headings, AC bullets,
  *     verify lines, vague language. Strict mode adds liveness, index integrity,
  *     cross-spec references, freshness warnings, and plan.md checks.
- *   Layer 2: scripts/validate-specs-precommit.mjs — pre-commit gate
- *   Layer 3: .github/workflows/repo-ci.yml — CI gate
+ *   Layer 2: scripts/validate-specs-precommit.mjs — pre-commit gate (DORMANT)
+ *   Layer 3: .github/workflows/repo-ci.yml — CI gate (DORMANT)
  *   Layer 4: catalog-assets/shared-skills/spec-review/SKILL.md + reviewer agent
- * 
- * INVOKED BY:
+ *
+ * HISTORICAL INVOCATION:
  *   - Spec lane agent (Phase 2.2, 3.3, 4.2)
  *   - spec-authoring skill (readiness checklist)
  *   - CI (repo-ci.yml)
  *   - Pre-commit hook (validate-specs-precommit.mjs)
- * 
- * MODES:
+ *
+ * MODES (unchanged, code kept intact):
  *   node scripts/validate-specs.js specs/          — structural checks only
  *   node scripts/validate-specs.js --strict specs/ — structural + liveness + R3/R4/R5/R7
  *   node scripts/validate-specs.js --json specs/   — machine-readable output
- * 
+ *
  * HARDENING VERSION: spec-system-hardening (2026-06-08)
  *   Added: R3 (index drift), R4 (cross-spec integrity), R5 (freshness),
  *          R7 (plan.md requirement), R11 (liveness_skip_paths)

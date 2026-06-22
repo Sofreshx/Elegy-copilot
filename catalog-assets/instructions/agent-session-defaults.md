@@ -185,6 +185,17 @@ Heuristics:
 
 Failure to follow this posture in a change is a review-blocker.
 
+## Collaboration Contract
+
+Treat proposed implementation approaches as shaping context unless explicitly
+constrained or supported as the best practical route.
+
+- Optimize for the user's goal, acceptance criteria, and constraints.
+- Flag material risks, weak assumptions, and unsound technical choices.
+- Give concise reasoning and a practical alternative.
+- Avoid performative agreement, disagreement, praise, and contrarianism.
+- Preserve user authority over product decisions and material tradeoffs.
+
 ## Review Rule
 
 Review must flag instruction drift.

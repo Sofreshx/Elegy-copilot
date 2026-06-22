@@ -1,0 +1,78 @@
+id: progressive-disclosure
+name: Progressive Disclosure
+aliases:
+  - progressive-disclosure-pattern
+  - show-more
+  - reveal-advanced
+  - expandable-content
+type: ux-pattern
+domain: ui-ux
+confidence: established
+tagline: A UX strategy that reveals complexity progressively — showing only essential options initially and making advanced features available on demand.
+description: >
+  Progressive disclosure is a fundamental UX principle that advocates showing
+  users only the information and controls they need at the current moment,
+  with the ability to reveal more advanced or rarely needed options on demand.
+  The pattern reduces initial cognitive load, simplifies interfaces for
+  novices while remaining powerful for experts, and prevents overwhelming
+  users with the full complexity of a system.
+
+  Common implementations include: "Advanced settings" collapsible sections,
+  "Show more" links for truncated content, hover/toggle to reveal additional
+  controls, wizard patterns that break complex forms into steps, and accordion
+  components that reveal content panels. The key design decision is what to
+  show by default versus what to hide — default visibility should match the
+  80% use case, with the remaining 20% of functionality hidden but easily
+  accessible.
+
+  Progressive disclosure is distinct from simply hiding features. Well-
+  designed progressive disclosure anticipates what users need and when.
+  It uses visual cues (chevron icons, "More" labels, hover previews) to
+  indicate that additional content is available. The pattern should not be
+  used to hide critical functionality, accessibility features, or privacy
+  controls.
+traits:
+  - Shows essential controls by default; hides advanced options
+  - Provides clear affordance that more content is available
+  - Reveals additional content without page navigation
+  - Reduces initial cognitive load for new users
+  - Maintains expert accessibility through persistent discovery paths
+bestFit:
+  - Complex forms and settings panels with many configuration options
+  - Feature-rich applications serving both novice and expert users
+  - Content-heavy pages where users can choose their reading depth
+avoidIf:
+  - The hidden content is critical for task completion or security
+  - Users need to compare information across hidden and visible sections
+  - The interface has very few options (disclosure adds unnecessary interaction cost)
+commonFailures:
+  - Hiding essential controls that users need for primary tasks
+  - Using unclear affordances that users do not recognize as clickable
+  - Burying privacy, security, or data-deletion options under multiple disclosure layers
+contrasts:
+  - term: Accordion
+    difference: An accordion is a specific UI component for progressive disclosure; progressive disclosure is the broader UX strategy that can use accordions, "show more," wizards, and other mechanisms.
+  - term: Minimalism
+    difference: Minimalism removes elements permanently; progressive disclosure hides elements temporarily with the ability to reveal them on demand.
+compatibilities:
+  - wizard
+  - empty-state
+promptLanguage: >
+  Design a progressive disclosure pattern for a settings panel. Show the most
+  common 2-3 options by default. Below them, include an "Advanced settings"
+  toggle that reveals additional options with a smooth expand animation.
+  Use a chevron icon that rotates to indicate open/closed state. Group
+  advanced options under clear headings. Ensure that screen reader users
+  can navigate to and activate the disclosure toggle and that the expanded
+  content is announced. Avoid hiding critical controls like privacy settings,
+  account deletion, or accessibility options.
+sources:
+  - https://www.nngroup.com/articles/progressive-disclosure/
+  - https://www.interaction-design.org/literature/topics/progressive-disclosure
+  - https://www.w3.org/WAI/tutorials/forms/multi-page/
+tags:
+  - progressive-disclosure
+  - ux-pattern
+  - cognitive-load
+  - information-hiding
+  - usability

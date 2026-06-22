@@ -1,0 +1,78 @@
+id: swiss-style
+name: Swiss/International Style
+aliases:
+  - international-typographic-style
+  - swiss-design
+  - swiss-typography
+type: visual-style
+domain: visual-style
+confidence: established
+tagline: A mid-20th-century design movement rooted in grid systems, sans-serif typography, asymmetric layouts, and objective visual communication.
+description: >
+  The Swiss Style (also known as the International Typographic Style) emerged
+  in Switzerland and Germany in the 1950s and became the dominant approach to
+  graphic design through the 1970s. Its pioneers — Josef Müller-Brockmann,
+  Armin Hofmann, Emil Ruder, and Max Bill — developed a design language
+  prioritizing clarity, objectivity, and universal visual communication above
+  personal expression or decorative embellishment.
+
+  The style is characterized by rigorous use of modular grid systems,
+  left-aligned or asymmetric text layouts, sans-serif typography (especially
+  Helvetica, developed in 1957 by Max Miedinger), and photography over
+  illustration. The grid is the defining structural element — Müller-Brockmann's
+  "Grid Systems in Graphic Design" remains the canonical text on the subject.
+  The philosophy holds that design should be legible, well-structured, and
+  invisible in service of content.
+
+  Swiss Style has had an enduring influence on UI design, web layouts,
+  corporate identity, and information design. Its principles are foundational
+  to modern design systems, responsive grid frameworks, and typographic
+  hierarchy conventions. Google's Material Design grid system and Apple's
+  Human Interface Guidelines both show Swiss Style DNA.
+traits:
+  - Modular grid systems as the foundational layout structure
+  - Sans-serif typography, predominantly Helvetica or Akzidenz-Grotesk
+  - Left-aligned or asymmetric text with strong typographic hierarchy
+  - Photography and objective imagery over illustration and decoration
+  - Content-driven design with minimal ornamentation
+bestFit:
+  - Corporate identity, branding, and wayfinding systems requiring universal legibility
+  - Editorial and publication design for text-heavy content
+  - UI design systems needing a clean, structure-forward foundation
+avoidIf:
+  - The brand demands expressive, illustrative, or decorative visual language
+  - The content is primarily non-Western and benefits from different typographic traditions
+  - Asymmetric layouts conflict with the content's structural requirements
+commonFailures:
+  - Using a grid rigidly without understanding when to break it for emphasis or hierarchy
+  - Assuming Swiss Style means "boring" — it requires exceptional typographic craftsmanship
+  - Neglecting that Swiss Style principles were designed for print and need adaptation for interactive media
+contrasts:
+  - term: Bauhaus
+    difference: Swiss Style evolved from Bauhaus but is more specifically focused on typographic precision, grid methodology, and objective communication over Bauhaus's broader integration of arts and crafts.
+  - term: Neobrutalism
+    difference: Swiss Style pursues mathematical precision and clean structure; neobrutalism deliberately embraces rawness, asymmetry, and unpolished elements.
+compatibilities:
+  - bauhaus
+  - minimalism
+  - flat-design
+  - responsive-breakpoints
+promptLanguage: >
+  Design using Swiss/International Style principles. Build the layout on a
+  modular grid system with clear column structure and consistent gutters. Use
+  a sans-serif typeface (Helvetica, Akzidenz-Grotesk, or similar) for all text.
+  Create strong typographic hierarchy through size, weight, and spacing —
+  not decorative flourishes. Left-align or set text asymmetrically. Use
+  photography for imagery, not illustration. The design should serve the
+  content, not draw attention to itself. Prioritize clarity, legibility, and
+  objective communication.
+sources:
+  - https://en.wikipedia.org/wiki/International_Typographic_Style
+  - https://www.designishistory.com/1950/swiss-style/
+  - https://www.amazon.com/Grid-Systems-Graphic-Design-Communication/dp/3721201450
+tags:
+  - swiss-style
+  - international-typographic-style
+  - grid-system
+  - helvetica
+  - typographic-design

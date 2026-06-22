@@ -1,0 +1,79 @@
+id: master-detail
+name: Master-Detail
+aliases:
+  - split-view
+  - list-detail
+  - master-slave
+  - selection-detail
+type: ux-pattern
+domain: ui-ux
+confidence: established
+tagline: A split-screen layout with a list (master) on one side and a detail panel on the other — selection-driven content display.
+description: >
+  The Master-Detail pattern (also known as split view or list-detail) divides
+  the screen into two panes: a master list (narrower, usually left) containing
+  items for selection, and a detail pane (wider, usually right) showing the
+  full content of the currently selected item. Selecting an item in the master
+  updates the detail pane without a full page navigation. The pattern enables
+  rapid scanning and comparison with fluid context switching.
+
+  Originally popularized by email clients (Outlook, Gmail) and file managers
+  (Finder, Explorer), master-detail is now standard in data-dense applications:
+  email, CRM systems, content management, project management, and music
+  libraries. On mobile, the detail pane often replaces the master list with a
+  back button (drill-down pattern), or uses a drawer to show the list.
+
+  Key UX requirements: maintain scroll position in the master list when
+  navigating items, provide keyboard shortcuts for navigating the list (J/K
+  or Up/Down arrows), show appropriate loading states in the detail pane,
+  and handle empty/null selection states. The master list should be
+  resizable in desktop applications. The pattern performs best when items
+  are independent — selecting one does not affect the state of others.
+traits:
+  - Two-pane layout: master list (narrow) + detail view (wide)
+  - Master selection drives detail content without page navigation
+  - Master list maintains scroll position during item browsing
+  - Responsive adaptation on mobile (stacked or drawer-based)
+  - Keyboard navigation for efficient list browsing
+bestFit:
+  - Email clients, file managers, and content management systems
+  - CRM and data-entry applications with record-based workflows
+  - Music libraries, photo galleries, and reference browsers
+avoidIf:
+  - Users need to see multiple detail panels simultaneously
+  - Items are interdependent (selecting one changes others in the list)
+  - The master list has many items with complex hierarchies (a tree view may be better)
+commonFailures:
+  - Forgetting to maintain scroll position when browsing through items
+  - Not providing a clear visual indicator of the selected item
+  - Poor responsive behavior on mobile where the two-pane layout does not fit
+contrasts:
+  - term: Dashboard Layout
+    difference: A dashboard shows multiple widgets simultaneously for at-a-glance overview; master-detail shows one item's details at a time, driven by selection.
+  - term: Drawer
+    difference: A master-detail layout has both panes visible simultaneously; a drawer slides in from the edge, overlaying content temporarily.
+compatibilities:
+  - drawer
+  - data-grid
+  - dashboard-layout
+  - responsive-breakpoints
+promptLanguage: >
+  Design a master-detail layout with a scrollable list on the left (250-300px)
+  and a content detail pane on the right. Clicking an item in the master list
+  updates the detail pane. The selected item should have a clear visual
+  highlight. Maintain scroll position in the master list when browsing items.
+  Support keyboard navigation (Up/Down arrows to move through list). Show a
+  loading skeleton in the detail pane while content loads. On mobile
+  (<768px), stack vertically: show the detail pane full-width with a back
+  button to return to the list. Make the master list resizable via a drag
+  handle on desktop.
+sources:
+  - https://www.nngroup.com/articles/master-detail-pattern/
+  - https://developer.apple.com/design/human-interface-guidelines/split-views
+  - https://m3.material.io/foundations/layout/adaptive-layout
+tags:
+  - master-detail
+  - split-view
+  - list-detail
+  - selection-driven
+  - responsive-layout

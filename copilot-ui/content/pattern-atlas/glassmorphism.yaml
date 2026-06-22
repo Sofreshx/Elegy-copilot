@@ -1,0 +1,73 @@
+id: glassmorphism
+name: Glassmorphism
+aliases:
+  - glass-effect
+  - frosted-glass
+  - glass-ui
+type: visual-style
+domain: visual-style
+confidence: emerging
+tagline: A visual style using semi-transparency, backdrop blur, and layered surfaces to create a frosted glass effect.
+description: >
+  Glassmorphism creates the illusion of layered frosted glass panels floating
+  above colorful or gradient backgrounds. The effect is achieved through
+  semi-transparent background colors (typically rgba with alpha 0.1–0.4),
+  a backdrop-filter blur (commonly 10–30px), subtle border highlights to
+  simulate a glass edge, and light box shadows for separation.
+
+  The style gained popularity in 2021 when Apple adopted it widely in macOS
+  Big Sur and iOS design patterns. It is often paired with vibrant, colorful
+  backgrounds — either gradients or imagery — because the glass panels need
+  something visually interesting to reveal through their transparency. The
+  technique works best with light-on-dark or dark-on-light high contrast.
+
+  Glassmorphism is primarily a decorative treatment for hero sections, modal
+  overlays, navigation bars, and card surfaces. It is rarely used as a
+  comprehensive design system and is most effective as an accent style
+  rather than a foundational interface pattern.
+traits:
+  - Semi-transparent backgrounds (low-alpha rgba/hsla)
+  - Backdrop-filter blur creating frosted translucency
+  - Subtle inner or outer border highlights simulating glass edges
+  - Layered stacking with visible background content behind panels
+  - Light box shadows to separate glass surfaces from lower layers
+bestFit:
+  - Hero sections, modals, and navigation overlays needing visual flair
+  - Dark-mode interfaces where glass effects add luminous depth
+  - Brand identities that convey sophistication, technology, or futurism
+avoidIf:
+  - Text legibility is paramount and background complexity cannot be controlled
+  - Performance is constrained (backdrop-filter is GPU-intensive on some devices)
+  - The interface must work across a wide range of older browsers and devices
+commonFailures:
+  - Sacrificing text contrast for visual effect — glass panels often fail accessibility contrast ratios
+  - Overusing the effect across every surface, creating visual noise and nausea
+  - Forgetting fallback styles for browsers that do not support backdrop-filter
+contrasts:
+  - term: Neumorphism
+    difference: Glassmorphism relies on transparency and blur to create layered depth; neumorphism uses solid colors with inset/outset shadows to simulate extruded shapes.
+  - term: Claymorphism
+    difference: Glassmorphism creates flat, transparent, frosted panels; claymorphism uses solid, rounded, puffy 3D forms with dual shadows.
+compatibilities:
+  - minimalism
+  - cyberpunk
+  - card-layout
+promptLanguage: >
+  Design a UI card or panel using glassmorphism. The background should feature
+  a vibrant gradient or detailed imagery. The glass surface uses a semi-
+  transparent background (rgba, alpha 0.1–0.3) with backdrop-filter blur
+  (15-25px). Add a subtle 1px border highlight at 10-30% opacity to simulate
+  a glass edge. Apply a soft box shadow for depth separation. Ensure all text
+  on the glass surface maintains at least 4.5:1 contrast ratio against the
+  visible background. Include a fallback solid background for browsers without
+  backdrop-filter support.
+sources:
+  - https://glassmorphism.com/
+  - https://developer.mozilla.org/en-US/docs/Web/CSS/backdrop-filter
+  - https://uxdesign.cc/glassmorphism-in-user-interfaces-1f39bb1308c9
+tags:
+  - glassmorphism
+  - frosted-glass
+  - backdrop-filter
+  - ui-trend
+  - transparency

@@ -1,0 +1,78 @@
+id: context-menu
+name: Context Menu
+aliases:
+  - right-click-menu
+  - popup-menu
+  - contextual-menu
+  - shortcut-menu
+type: ui-component
+domain: ui-ux
+confidence: established
+tagline: A menu that appears on right-click or long-press, providing actions relevant to the clicked element or text selection.
+description: >
+  A context menu is a transient popup menu that appears in response to a
+  right-click (desktop) or long-press (mobile), displaying a list of actions
+  relevant to the current context — the element that was clicked, selected
+  text, or the current application state. It is anchored to the pointer
+  position or the element's location and dismisses when the user clicks
+  outside or presses Escape.
+
+  The context menu pattern must handle precise positioning: the menu should
+  open at the pointer coordinates but flip to the opposite side if it would
+  overflow the viewport edge. It should not obscure the element being acted
+  upon. The menu typically supports keyboard navigation (arrows, Enter,
+  Escape), separators between action groups, disabled items, and submenus
+  (though submenus introduce significant usability challenges).
+
+  Accessibility is critical: the menu must be correctly wired with ARIA
+  (role="menu", role="menuitem"), keyboard interactions must follow the
+  menu button pattern, and focus must move to the first menu item on open.
+  The menu should be dismissible by clicking outside, pressing Escape, or
+  pressing Tab. Context menus should not be the only way to access an
+  action — provide toolbar or keyboard shortcut alternatives.
+traits:
+  - Appears on right-click or long-press with context-relevant actions
+  - Positioned at pointer or element location with viewport boundary detection
+  - Supports keyboard navigation (arrows, Enter, Escape)
+  - Includes separators, disabled items, and optional submenus
+  - Dismisses on outside click, Escape, or action selection
+bestFit:
+  - Document editors, IDEs, and creative tools with element-specific actions
+  - File managers, email clients, and list views with bulk actions
+  - Data grids and tables needing row-specific operations
+avoidIf:
+  - Actions are also available through persistent toolbar or keyboard shortcuts
+  - The target platform is primarily mobile (long-press conflicts with native gestures)
+  - The context menu is the only way to access essential actions
+commonFailures:
+  - Making context menus the only access point for critical features
+  - Poor viewport boundary detection causing the menu to open off-screen
+  - Not implementing keyboard navigation or screen reader support
+contrasts:
+  - term: Dropdown Menu
+    difference: A context menu appears on right-click at the pointer position; a dropdown menu appears on click of a visible trigger button.
+  - term: Command Palette
+    difference: A context menu shows actions for a specific element; a command palette provides global search across all application commands.
+compatibilities:
+  - command-palette
+  - data-grid
+  - drawer
+promptLanguage: >
+  Design a context menu component activated by right-click or long-press. On
+  trigger, position the menu at the pointer coordinates with boundary-aware
+  flipping (if it overflows the viewport, flip to the opposite side). Show a
+  list of actions with icons and keyboard shortcut hints. Support separators
+  between action groups. Implement keyboard navigation: Arrow Up/Down to
+  navigate, Enter to select, Escape to dismiss. Use ARIA roles
+  (role="menu", role="menuitem"). Close the menu on outside click. Ensure
+  focus returns to the triggering element on dismiss.
+sources:
+  - https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/
+  - https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/menu_role
+  - https://www.nngroup.com/articles/context-menus/
+tags:
+  - context-menu
+  - right-click
+  - popup-menu
+  - contextual-actions
+  - shortcut-menu

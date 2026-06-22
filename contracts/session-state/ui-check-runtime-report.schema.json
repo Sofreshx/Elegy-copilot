@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elegy-copilot/contracts/session-state/1.0.0/ui-check-runtime-report.schema.json",
+  "title": "UI Check Runtime Report",
+  "description": "Normalized runtime evidence produced by a UI check adapter. Every declared route × viewport × state must have one result. Excluded states require reasons but no evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "targetId", "surfaceResults"],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version number."
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique run identifier for traceability."
+    },
+    "targetId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Target ID from the ui-check configuration."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the report was generated."
+    },
+    "surfaceResults": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["routeId", "viewport", "state", "status"],
+        "properties": {
+          "routeId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Route ID from the ui-check configuration."
+          },
+          "viewport": {
+            "type": "string",
+            "enum": ["desktop", "mobile"],
+            "description": "Viewport used for this result."
+          },
+          "state": {
+            "type": "string",
+            "enum": ["default", "loading", "empty", "error", "disabled", "focus"],
+            "description": "State captured by this result. Use the name from the excludedStates list for excluded states."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pass", "fail", "excluded"],
+            "description": "Result status. 'excluded' for declared excluded states."
+          },
+          "screenshot": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Relative path to screenshot. Required for pass/fail; may be absent for excluded states."
+          },
+          "consoleErrors": {
+            "type": "array",
+            "description": "Console error messages captured during state observation.",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "pageErrors": {
+            "type": "array",
+            "description": "Uncaught page-level JavaScript error messages.",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "networkFailures": {
+            "type": "array",
+            "description": "Failed network requests captured during state observation.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["url", "status"],
+              "properties": {
+                "url": { "type": "string", "minLength": 1 },
+                "status": { "type": "integer" },
+                "statusText": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

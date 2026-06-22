@@ -1,0 +1,76 @@
+id: api-gateway
+name: API Gateway
+aliases:
+  - API Proxy
+  - Edge Service
+  - Backend for Frontend (BFF)
+type: system-pattern
+domain: software-architecture
+confidence: established
+tagline: Single entry point for client requests that handles routing, composition, auth, and cross-cutting concerns.
+description: >
+  An API Gateway sits at the edge of a system, acting as the single entry point for all client
+  requests. It routes requests to appropriate backend services, aggregates responses, handles
+  authentication and authorization, enforces rate limits, transforms protocols, and collects
+  observability data. Clients interact with one endpoint instead of many, simplifying client code
+  and providing a layer of indirection between clients and the service architecture.
+
+  The pattern is essential in microservice architectures where different clients (web, mobile,
+  third-party) have different data needs. The gateway can compose responses from multiple services
+  into a single client-friendly payload, reducing round trips. A specialized variant — Backend for
+  Frontend (BFF) — deploys separate gateways optimized for each client type, avoiding a one-size
+  fits-all API.
+
+  API Gateways introduce a single point of failure and potential performance bottleneck. They must
+  be designed for high availability, horizontal scaling, and minimal latency overhead. Common
+  implementations include cloud-managed gateways (AWS API Gateway, Azure API Management), open
+  source solutions (Kong, Tyk, Apache APISIX), and ingress controllers with gateway features
+  (Kubernetes Gateway API, Envoy).
+traits:
+  - Single entry point for all client communication
+  - Routes requests to appropriate backend services
+  - Handles cross-cutting concerns centrally (auth, rate limiting, logging, CORS)
+  - Supports response aggregation and protocol translation
+  - Can implement a Backend for Frontend (BFF) per client type
+bestFit:
+  - Microservice architectures where clients would otherwise need to coordinate calls to many services
+  - Mobile and web applications that need optimized, client-specific API surfaces
+  - Systems that need centralized authentication, rate limiting, and traffic management
+avoidIf:
+  - The system has a single service (the gateway adds latency without benefit)
+  - Latency is so critical that every millisecond of proxy overhead is unacceptable
+  - The team cannot properly scale or operate the gateway, creating a single point of failure
+commonFailures:
+  - Monolithic gateway: the gateway accumulates business logic and becomes a "smart proxy" that is itself a monolith
+  - Bottleneck at scale: the gateway is not horizontally scaled and becomes the system's throughput constraint
+  - Coupled deployment: every service change requires a gateway change, creating a deployment bottleneck
+contrasts:
+  - term: Service Mesh
+    difference: A service mesh handles inter-service communication (east-west traffic) within the network, adding mTLS, retries, and observability; an API Gateway manages external client-to-service traffic (north-south) and handles auth, routing, and aggregation.
+  - term: Load Balancer
+    difference: A load balancer distributes traffic across instances for availability and scaling at the network level; an API Gateway operates at the application layer and provides routing decisions, protocol translation, and payload transformation.
+compatibilities:
+  - micro-frontends
+  - strangler-fig
+  - circuit-breaker
+  - rate-limiter
+  - canary-release
+promptLanguage: >
+  Set up an API Gateway using Kong for a set of microservices: orders, inventory, and users. Define
+  routes: `/api/orders/*` → orders-service, `/api/inventory/*` → inventory-service, `/api/users/*`
+  → users-service. Configure JWT authentication on the gateway level. Enable rate limiting: 100
+  requests/minute per API key. Add request logging with correlation IDs. For the mobile client,
+  add a `/api/checkout` route that aggregates data from all three services into a single response.
+  Deploy the gateway with at least 2 replicas behind a load balancer.
+sources:
+  - https://microservices.io/patterns/apigateway.html
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/api-gateway
+  - https://www.nginx.com/blog/building-microservices-using-an-api-gateway/
+  - https://samnewman.io/patterns/architectural/api-gateway/
+tags:
+  - api-gateway
+  - microservices
+  - routing
+  - auth
+  - rate-limiting
+  - bff

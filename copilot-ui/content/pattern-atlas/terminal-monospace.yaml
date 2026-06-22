@@ -1,0 +1,79 @@
+id: terminal-monospace
+name: Terminal/Monospace
+aliases:
+  - cli-aesthetic
+  - terminal-ui
+  - hacker-style
+  - monospace-ui
+type: visual-style
+domain: visual-style
+confidence: established
+tagline: A design aesthetic inspired by command-line interfaces, using monospace typography, high contrast, and minimal visual ornamentation.
+description: >
+  The Terminal/Monospace aesthetic draws directly from the visual conventions
+  of command-line interfaces, text terminals, and code editors. It uses
+  monospace (fixed-width) typography as the primary visual element, high-
+  contrast color schemes (typically light-on-dark or dark-on-light), and
+  minimal graphical ornamentation. The style communicates technical authority,
+  authenticity, and a "no bullshit" attitude.
+
+  The aesthetic is characterized by: monospace font families (Courier, Fira
+  Code, JetBrains Mono, IBM Plex Mono), dark backgrounds with green or amber
+  text (evoking CRT terminals), ASCII art and box-drawing characters, cursor
+  blinking effects, and minimal use of color reserved for semantic meaning
+  (red for errors, green for success, yellow for warnings). The layout avoids
+  images and relies on typographic hierarchy.
+
+  Terminal-inspired design is common in developer tools, DevOps dashboards,
+  coding education platforms, and tech brands that want to signal engineering
+  credibility. It works well for documentation, API explorers, and any
+  interface where technical precision is part of the brand identity. The
+  aesthetic gained mainstream visibility through movies like "The Matrix"
+  and "Jurassic Park" (the iconic "Unix system" interface).
+traits:
+  - Monospace/fixed-width typography as the primary design element
+  - High-contrast color schemes (light-on-dark or dark-on-light)
+  - ASCII art, box-drawing characters, and cursor blink effects
+  - Minimal color — reserved for semantic meaning (error, success, warning)
+  - No images, minimal graphical UI elements, text-dominant layout
+bestFit:
+  - Developer tools, CLIs, and DevOps dashboard interfaces
+  - Technical documentation and API explorers
+  - Tech brands wanting to communicate engineering credibility and authenticity
+avoidIf:
+  - Non-technical users may find the interface intimidating or inaccessible
+  - Rich media content (images, video) is central to the experience
+  - The brand needs to communicate warmth, approachability, or consumer-friendliness
+commonFailures:
+  - Assuming monospace alone creates the aesthetic — it also requires the right color scheme and typographic discipline
+  - Forgetting that real terminal users need functional affordances (copy, scroll, search), not just visual style
+  - Using green-on-black without considering accessibility — the contrast ratio can be insufficient for readability
+contrasts:
+  - term: Minimalism
+    difference: Terminal aesthetic is text-dominant and technically focused; minimalism is a broader philosophy of reduction applicable to all visual elements.
+  - term: Neobrutalism
+    difference: Terminal aesthetic is about precision, technical authenticity, and restrained color; neobrutalism is intentionally raw, high-contrast, and visually aggressive.
+compatibilities:
+  - minimalism
+  - neobrutalism
+  - dashboard-layout
+  - command-palette
+promptLanguage: >
+  Design a terminal-inspired interface. Use a monospace font (JetBrains Mono,
+  Fira Code, or IBM Plex Mono) for all text content. Use a dark background
+  with a single accent color — classic green (#00ff00) or amber (#ffb000) —
+  for all text and UI elements. Reserve additional colors for semantic meaning
+  only. Use ASCII box-drawing characters for borders and separators. Include
+  a blinking cursor effect on input fields. Avoid images and graphical icons
+  — let typography carry the design. The interface should feel technical,
+  authentic, and precise.
+sources:
+  - https://en.wikipedia.org/wiki/Monospace_font
+  - https://nerdfonts.com/
+  - https://www.ibm.com/plex/
+tags:
+  - terminal
+  - monospace
+  - cli-aesthetic
+  - developer-tools
+  - hacker-style

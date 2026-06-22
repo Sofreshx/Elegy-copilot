@@ -1,0 +1,78 @@
+id: responsive-breakpoints
+name: Responsive Breakpoints
+aliases:
+  - media-queries
+  - adaptive-layout
+  - responsive-design
+  - breakpoint-system
+type: ux-pattern
+domain: ui-ux
+confidence: established
+tagline: A system of predefined viewport width thresholds where the layout and component behavior adapt to provide optimal experiences across devices.
+description: >
+  Responsive breakpoints are the foundation of responsive web design — specific
+  viewport widths where a website or application's layout changes to
+  accommodate different screen sizes. At each breakpoint, CSS media queries
+  trigger layout adjustments: multi-column grids collapse to single-column,
+  navigation transforms from horizontal to hamburger, font sizes scale, and
+  components adapt their behavior (e.g., a data table becomes a card list).
+
+  The industry standard breakpoint system (based on common device sizes) is:
+  Base (320px+) — mobile portrait; Sm (640px+) — mobile landscape/large phone;
+  Md (768px+) — tablet portrait; Lg (1024px+) — tablet landscape/small desktop;
+  Xl (1280px+) — desktop; 2Xl (1536px+) — large desktop. However, content-
+  driven breakpoints (adding breakpoints where the content naturally breaks)
+  are increasingly preferred over device-driven breakpoints.
+
+  Modern frameworks implement breakpoints via CSS Grid, Flexbox wrap, Container
+  Queries (component-level responsiveness), and CSS media query ranges.
+  The mobile-first approach — designing for the smallest screen first and
+  enhancing for larger screens — is the standard methodology. Accessibility
+  considerations include ensuring that zoom (200%) does not trigger unexpected
+  layout shifts and that content is not hidden at any viewport width.
+traits:
+  - Predefined viewport width thresholds triggering layout changes
+  - Mobile-first CSS: base styles for small screens, enhancements for larger
+  - Fluid grids that scale between breakpoints
+  - Component adaptation (navigation, tables, cards) at each breakpoint
+  - Content-driven breakpoints rather than device-driven where possible
+bestFit:
+  - All web applications and sites serving multiple device types
+  - Content-heavy sites needing optimal readability across screens
+  - Enterprise applications accessed on both desktop and mobile
+avoidIf:
+  - The application is exclusively desktop (internal enterprise tools on fixed hardware)
+  - A native mobile app handles all mobile traffic (but even then, tablet support may matter)
+commonFailures:
+  - Testing only at exact breakpoint widths and ignoring the ranges between them
+  - Using device-specific breakpoints that break when new device sizes emerge
+  - Hiding content at smaller breakpoints without providing alternative access
+contrasts:
+  - term: Fluid Layout
+    difference: Responsive breakpoints snap layout changes at specific widths; fluid layouts use percentage-based widths that scale continuously without snapping.
+  - term: Adaptive Layout
+    difference: Responsive design uses the same HTML with CSS changes at breakpoints; adaptive design serves different templates/HTML for different devices.
+compatibilities:
+  - card-layout
+  - master-detail
+  - bento-grid
+  - dashboard-layout
+promptLanguage: >
+  Design a responsive breakpoint system. Define breakpoints: sm (640px), md
+  (768px), lg (1024px), xl (1280px), 2xl (1536px). Use a mobile-first
+  approach: write base styles for mobile (min-width: 0), then enhance with
+  @media (min-width: 640px), (min-width: 768px), etc. Use CSS Grid with
+  auto-fill and minmax for fluid card grids. Container Queries for component-
+  level responsiveness. Test at every breakpoint and at intermediate widths.
+  Ensure the site is functional and readable at 400% zoom (WCAG requirement).
+sources:
+  - https://developer.mozilla.org/en-US/docs/Learn/CSS/CSS_layout/Responsive_Design
+  - https://tailwindcss.com/docs/responsive-design
+  - https://web.dev/learn/design/
+  - https://www.w3.org/WAI/WCAG21/Understanding/reflow.html
+tags:
+  - responsive
+  - breakpoints
+  - mobile-first
+  - media-queries
+  - adaptive-layout

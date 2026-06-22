@@ -1,0 +1,82 @@
+id: dashboard-layout
+name: Dashboard Layout
+aliases:
+  - dashboard-ui
+  - admin-dashboard
+  - analytics-dashboard
+  - widget-layout
+type: ux-pattern
+domain: ui-ux
+confidence: established
+tagline: A grid-based layout of widgets and data visualizations providing an at-a-glance overview of key metrics, often customizable by users.
+description: >
+  A dashboard layout is a content surface designed for at-a-glance monitoring
+  of key performance indicators, data visualizations, and actionable widgets.
+  It typically consists of a grid of cards or panels, each showing a specific
+  data view — a chart, a metric with a sparkline, a table of recent activity,
+  a status indicator, or a call to action. The layout prioritizes scanning
+  efficiency: the most important metrics occupy the most prominent positions
+  (top-left or top-center).
+
+  Dashboards are common in analytics platforms, admin panels, monitoring
+  tools, project management software, and business intelligence applications.
+  They range from fixed layouts designed by the product team to fully
+  customizable dashboards where users can add, remove, resize, and rearrange
+  widgets. Customizable dashboards require a layout engine that supports
+  drag-and-drop reordering, persistent state saving, and responsive collapse.
+
+  Key UX principles: focus on the most important metric first (the "northstar
+  metric"), use consistent widget sizes for predictable scanning, limit visual
+  noise through restrained color and typography, provide contextual drill-down
+  from widgets, and include time-range controls for data filtering. Loading
+  states (skeleton loaders per widget) and empty states for unconfigured
+  widgets are essential.
+traits:
+  - Grid-based layout of data widgets and visualizations
+  - Priority placement: most important metrics in prime positions
+  - Consistent widget sizing with optional customization
+  - Time-range and filter controls for data context
+  - Skeleton loading states per widget, not a full-page loader
+bestFit:
+  - Analytics and business intelligence platforms
+  - Admin panels and system monitoring tools
+  - Project management and CRM overview pages
+avoidIf:
+  - The user's primary task is focused data entry or document editing
+  - The data can be summarized in a single clear metric or chart
+  - Real-time data updates are not needed and would add complexity
+commonFailures:
+  - Showing too many widgets, creating information overload and decision paralysis
+  - Using inconsistent widget sizing that makes the layout feel chaotic
+  - Not providing context (time range, filters, benchmarks) for displayed metrics
+contrasts:
+  - term: Bento Grid
+    difference: A dashboard is primarily functional and data-driven; a bento grid is editorial and visual-content-driven, optimized for discovery rather than monitoring.
+  - term: Master-Detail
+    difference: A dashboard shows multiple widgets simultaneously for an overview; master-detail shows one item at a time in detail, driven by selection.
+compatibilities:
+  - data-grid
+  - card-layout
+  - bento-grid
+  - skeleton-loader
+  - responsive-breakpoints
+promptLanguage: >
+  Design a dashboard layout with a 12-column CSS Grid. Place the primary
+  metric (e.g., total revenue) in a 3-column wide card at the top-left. Next
+  to it, place 3 smaller metric cards (3 columns each) showing secondary KPIs.
+  Below, place a chart widget spanning 8 columns and a recent activity list
+  spanning 4 columns. Each widget has a header with title and overflow menu.
+  Add a time-range selector at the top. Support widget customization: drag-
+  and-drop to reorder, resize handles on widget corners, and an "Add widget"
+  button. Save layout to user preferences. On mobile, stack all widgets
+  vertically.
+sources:
+  - https://www.nngroup.com/articles/dashboard-design/
+  - https://www.smashingmagazine.com/2021/04/dashboard-design-patterns/
+  - https://material.io/components/data-display
+tags:
+  - dashboard
+  - analytics
+  - widgets
+  - data-visualization
+  - admin-ui

@@ -1,6 +1,6 @@
 ---
 created: 2026-06-09
-updated: 2026-06-18
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -153,7 +153,7 @@ Per-repo files are **discovered by** Elegy Copilot, not created by it. When `--r
         │           └── AGENTS.md / GEMINI.md / CLAUDE.md
         │
         ├── Creates: docs/specs/index.md
-        ├── Adds: package.json validate:specs script
+        ├── Adds: (none — validator installation was removed June 2026)
         └── Mirrors: skills → .github/skills/
 ```
 
@@ -165,17 +165,17 @@ Per-repo files are created by the **repo owner** (human or CI), not by the insta
 |-----------|---------|----------|-------|-------------|--------|
 | **Home** | `~/.elegy` | `~/.config/opencode` | `~/.codex` | `~/.gemini` | `~/.claude` |
 | **Instructions** | `copilot-instructions.md` | `AGENTS.md` | `AGENTS.md` | `GEMINI.md` | `CLAUDE.md` |
-| **Contract** | Composed baseline+appendix | Composed baseline+appendix | Composed baseline+appendix | Composed baseline+appendix | Composed baseline+appendix |
+| **Contract** | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix |
 | **Agents** | 6 | 7 | 1 | 0 | 0 |
 | **Skills** | 22+ | 18 | 12 | 9 | 6+ |
 | **Plugins** | 0 | 2 | 0 | 0 | 0 |
 | **Managed block** | No | No | No | Yes | No |
-| **Profile injection** | No | Yes | No | No | No |
+| **Profile injection** | Yes | Yes | Yes | Yes | Yes |
 | **Install script** | `cli-install.mjs` | `opencode-install.mjs` | `codex-install.mjs` | `antigravity-install.mjs` | `claude-install.mjs` |
 
 ## Instruction Writing Contract
 
-The instruction writing contract lives in a single shared portable baseline at `catalog-assets/instructions/agent-session-defaults.md`. Harness-specific content stays in per-harness appendix files. Installers compose baseline + appendix via `scripts/instruction-compose-utils.mjs` to produce each installed instruction file. The canonical source for repo policy is `docs/system/concise-instruction-governance.md`.
+The instruction writing contract lives in a single shared portable baseline at `catalog-assets/instructions/agent-session-defaults.md`. An optional user collaboration profile (`~/.elegy/config.json`) is injected between the baseline and appendix. Harness-specific content stays in per-harness appendix files. Installers compose baseline + profile + appendix via `scripts/instruction-compose-utils.mjs` to produce each installed instruction file. The canonical source for repo policy is `docs/system/concise-instruction-governance.md`. See `docs/system/collaboration-profile-adr.md` for the profile architecture.
 
 ## Validation
 
@@ -187,3 +187,4 @@ The instruction writing contract lives in a single shared portable baseline at `
 - `docs/system/concise-instruction-governance.md` — canonical authority for concise instruction standards
 - `docs/system/repo-setup-governance.md` — per-repo overlay and bootstrap governance
 - `scripts/install-surface-utils.mjs` — shared sync primitives (SHA-256, copy, mkdir)
+- `docs/system/collaboration-profile-adr.md` — collaboration profile architecture and composition decision

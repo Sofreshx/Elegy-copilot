@@ -6,7 +6,6 @@ const path = require('path');
 
 const workspaceRoot = path.resolve(__dirname, '..');
 const instructionsContent = fs.readFileSync(path.join(workspaceRoot, 'configuration', 'assets', 'spec-driven-instructions.md'), 'utf8').trimEnd();
-const validatorSourcePath = path.join(workspaceRoot, 'scripts', 'validate-specs.js');
 const startMarker = '<!-- elegy-copilot:begin spec-driven -->';
 const endMarker = '<!-- elegy-copilot:end spec-driven -->';
 
@@ -157,51 +156,6 @@ function patchTextBlock(targetPath, operationId, options = {}) {
   );
 }
 
-function copyFile(targetPath, options = {}) {
-  const templateId = 'elegy-copilot-spec-driven-validator-template';
-  const operationId = 'copy-spec-validator';
-  const sourceHash = shaFile(validatorSourcePath);
-  const destinationExists = fs.existsSync(targetPath);
-  const destinationHash = destinationExists ? shaFile(targetPath) : null;
-
-  if (!destinationExists) {
-    if (!options.dryRun) {
-      ensureParentDirectory(targetPath);
-      fs.copyFileSync(validatorSourcePath, targetPath);
-    }
-    return buildEntry(
-      options.dryRun ? 'would-create' : 'created',
-      targetPath,
-      operationId,
-      templateId,
-      sourceHash,
-      options.dryRun ? null : shaFile(targetPath)
-    );
-  }
-
-  if (destinationHash === sourceHash) {
-    return buildEntry('skipped', targetPath, operationId, templateId, sourceHash, destinationHash, 'up-to-date');
-  }
-
-  if (!options.force) {
-    return buildEntry('conflict', targetPath, operationId, templateId, sourceHash, destinationHash, 'destination differs');
-  }
-
-  if (!options.dryRun) {
-    ensureParentDirectory(targetPath);
-    fs.copyFileSync(validatorSourcePath, targetPath);
-  }
-
-  return buildEntry(
-    options.dryRun ? 'would-update' : 'updated',
-    targetPath,
-    operationId,
-    templateId,
-    sourceHash,
-    options.dryRun ? destinationHash : shaFile(targetPath)
-  );
-}
-
 function applyProfile(args) {
   const repoRoot = path.resolve(args.targetRoot);
   if (args.profileId === 'elegy-copilot-spec-driven-overlays') {
@@ -213,12 +167,6 @@ function applyProfile(args) {
     return [
       patchTextBlock(path.join(repoRoot, '.github', 'copilot-instructions.md'), 'patch-copilot-instructions', args),
       patchTextBlock(path.join(repoRoot, targetInstructions), 'patch-surface-instructions', args),
-    ];
-  }
-
-  if (args.profileId === 'elegy-copilot-spec-driven-validator') {
-    return [
-      copyFile(path.join(repoRoot, 'scripts', 'validate-specs.js'), args),
     ];
   }
 

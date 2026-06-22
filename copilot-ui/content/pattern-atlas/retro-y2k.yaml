@@ -1,0 +1,77 @@
+id: retro-y2k
+name: Retro/Y2K
+aliases:
+  - y2k-aesthetic
+  - 2000s-design
+  - frutiger-aero
+  - early-internet-style
+type: visual-style
+domain: visual-style
+confidence: descriptive
+tagline: A nostalgic design aesthetic inspired by late 1990s and early 2000s digital culture — chrome, gradients, bubbly shapes, and tech optimism.
+description: >
+  The Y2K aesthetic captures the visual culture of the late 1990s and early
+  2000s, a period of technological optimism, dot-com exuberance, and the
+  mainstreaming of the internet. It is characterized by shiny chrome
+  textures, bold gradients (especially blue-to-white or silver-to-black),
+  bubbly and pill-shaped UI elements, and a general sense of futuristic
+  optimism filtered through the limited rendering capabilities of the era.
+
+  Key visual markers include: silver and metallic gradients, translucent
+  "iMac" colored plastics (bondi blue, tangerine, graphite), bubbly rounded
+  shapes, space-themed imagery, and typography from the era (Techno, Arial
+  Bold, and custom wordmarks with 3D effects). The Frutiger Aero sub-style
+  (2000s-2010s) emphasized glossy skeuomorphic interfaces with water, leaves,
+  and清新 aesthetics, seen in Windows Vista, early iOS, and Sony PSP.
+
+  Y2K design has seen a major nostalgic revival in contemporary digital
+  culture, particularly among Gen Z and younger Millennials who experience
+  it as retro futurism. It appears in music visualizers, fashion branding,
+  indie web design, and any context wanting to evoke early internet nostalgia
+  or techno-optimist vibes.
+traits:
+  - Chrome, metallic, and reflective surface textures
+  - Bold gradients (blue-to-white, silver-to-black, vibrant color transitions)
+  - Bubbly, pill-shaped, and rounded UI elements
+  - Translucent "iMac plastic" colored overlays
+  - Space, technology, and futurist imagery from a 2000s perspective
+bestFit:
+  - Music, fashion, and entertainment brands targeting Gen Z audiences
+  - Indie web projects wanting authentic early-internet nostalgia
+  - Retro gaming, streaming, and digital art platforms
+avoidIf:
+  - The brand needs to communicate serious professionalism or enterprise reliability
+  - The interface serves older users who may associate the style with dated, low-quality design
+  - Accessibility and readability are top priorities (chrome and low-contrast gradients are common)
+commonFailures:
+  - Using Y2K elements as shallow decoration without understanding the era's design constraints and culture
+  - Overloading with every Y2K trope simultaneously, creating visual chaos
+  - Failing to adapt the aesthetic for modern usability standards (contrast, readability, responsive layout)
+contrasts:
+  - term: Cyberpunk
+    difference: Y2K is optimistic, bubbly, and chrome-laden techno-optimism; cyberpunk is dark, gritty, and critical of technology's impact on society.
+  - term: Vaporwave
+    difference: Y2K is rooted in actual 2000s digital culture and consumer technology; vaporwave is a post-2010 nostalgic reimagining of 80s/90s corporate culture through a critical lens.
+compatibilities:
+  - glassmorphism
+  - maximalism
+  - skeuomorphism
+promptLanguage: >
+  Design a Y2K-inspired interface. Use silver and chrome gradients, bubbly
+  pill-shaped buttons, and translucent overlays with colored transparency.
+  The color palette should include bright, saturated colors with metallic
+  accents — silver, electric blue, hot pink, lime green. Add star and space
+  motif decorations. Use a bold sans-serif techno font for headings. Include
+  gradient text effects and glossy reflections. Elements should feel rounded,
+  friendly, and imbued with early-2000s tech optimism. Avoid flat design
+  — surfaces should be shiny and dimensional.
+sources:
+  - https://aesthetics.fandom.com/wiki/Y2K
+  - https://en.wikipedia.org/wiki/Y2K_aesthetic
+  - https://www.inputmag.com/style/y2k-aesthetic-design-style-comeback
+tags:
+  - y2k
+  - retro-design
+  - early-internet
+  - nostalgic
+  - chrome-aesthetic

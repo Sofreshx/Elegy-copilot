@@ -1,0 +1,78 @@
+id: cyberpunk
+name: Cyberpunk
+aliases:
+  - cyberpunk-aesthetic
+  - cyberpunk-ui
+  - dystopian-design
+type: visual-style
+domain: visual-style
+confidence: descriptive
+tagline: A dark, neon-lit dystopian aesthetic blending high technology with societal decay, inspired by sci-fi literature and cinema.
+description: >
+  Cyberpunk is a visual aesthetic rooted in the science fiction subgenre
+  popularized by William Gibson's "Neuromancer" (1984), Ridley Scott's "Blade
+  Runner" (1982), and the subsequent wave of cyberpunk media through the
+  1990s. The core visual premise is "high tech, low life" — advanced
+  technology existing within decaying, overcrowded, and often corrupt urban
+  environments.
+
+  The visual language combines: dark color palettes (deep blacks, navy, and
+  purple) with high-contrast neon accents (cyan, magenta, electric blue,
+  and lime green). Rain-slicked streets, holographic billboards, augmented
+  reality HUD overlays, glitch effects, scan lines, and angular, industrial
+  typography complete the look. The atmosphere is dense, layered, and
+  saturated with information.
+
+  Cyberpunk has been highly influential in UI design for dashboards, gaming
+  interfaces, and technology branding. The "cyberpunk UI" style — dark mode
+  with neon accents, grid overlays, and data-visualization-heavy layouts —
+  is a popular design trope for tech products wanting to project power,
+  edge, and sophistication. The 2020 release of CD Projekt Red's "Cyberpunk
+  2077" further mainstreamed the aesthetic.
+traits:
+  - Dark, near-black backgrounds with high-contrast neon accent colors
+  - Neon glow effects on text, borders, and UI elements
+  - Glitch, scan line, and distortion effects
+  - Dense information layers and HUD-inspired overlay elements
+  - Angular, industrial, or monospace typography
+bestFit:
+  - Gaming, esports, and entertainment platforms needing an edgy, immersive aesthetic
+  - Tech dashboards, dev tools, and cybersecurity products
+  - Brand identities that want to communicate power, sophistication, and edge
+avoidIf:
+  - The product serves a broad mainstream audience expecting warmth and accessibility
+  - Long-form reading is central to the experience (dark backgrounds with neon text cause eye strain)
+  - The brand needs to communicate trust, safety, and approachability
+commonFailures:
+  - Making text unreadable by using low-contrast neon on dark backgrounds
+  - Overusing glitch effects to the point of causing discomfort or accessibility issues
+  - Creating interfaces that look "cyberpunk" but sacrifice usability for aesthetic
+contrasts:
+  - term: Vaporwave
+    difference: Cyberpunk is dark, dystopian, and critical of technology's impact; vaporwave is nostalgic, pastel-colored, and critically nostalgic about corporate culture.
+  - term: Retro/Y2K
+    difference: Cyberpunk imagines a dark, gritty technological future; Y2K aesthetic is optimistic, bubbly, and celebrates technology's potential.
+compatibilities:
+  - glassmorphism
+  - terminal-monospace
+  - dashboard-layout
+  - data-grid
+promptLanguage: >
+  Design a cyberpunk UI. Use a dark, near-black background with neon accent
+  colors — cyan, magenta, and electric blue. Add glow effects to borders,
+  text highlights, and key UI elements. Include glitch or scan line overlay
+  effects as subtle texture. Use grid-like background patterns or HUD overlay
+  elements. Typography should be angular, industrial, or monospace for a
+  futuristic feel. Layer information densely but maintain hierarchy. The mood
+  should be high-tech, urban, and slightly dystopian. Ensure all text meets
+  contrast requirements despite the dark palette.
+sources:
+  - https://en.wikipedia.org/wiki/Cyberpunk
+  - https://aesthetics.fandom.com/wiki/Cyberpunk
+  - https://www.creativebloq.com/features/cyberpunk-design-trend
+tags:
+  - cyberpunk
+  - neon-design
+  - dark-ui
+  - dystopian
+  - sci-fi-aesthetic

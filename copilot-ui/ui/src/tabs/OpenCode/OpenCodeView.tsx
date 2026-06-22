@@ -522,15 +522,140 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
     }
   };
 
+  // NEW: Handle workspace switcher change
+  const handleSwitch = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (value === '__none__') {
+      opencodeStore.deactivateGoWorkspaceAction();
+    } else if (value === '__auto__') {
+      opencodeStore.setGoWorkspaceAutoAction();
+    } else if (value) {
+      opencodeStore.activateGoWorkspaceAction(value);
+    }
+  };
+
   const allWorkspaces = [
     ...(goWorkspaces?.detected || []).map((w) => ({ ...w, _type: 'detected' as const })),
     ...(goWorkspaces?.registered || []).map((w) => ({ ...w, _type: 'registered' as const })),
   ];
 
+  const selectionMode = goWorkspaces?.selectionMode || 'auto';
+  const activeId = goWorkspaces?.activeId;
+  const isNoneActive = selectionMode === 'none';
+  const isAutoMode = selectionMode === 'auto';
+
+  // Find active workspace for display
+  const activeWorkspace = activeId
+    ? allWorkspaces.find((w) => w.id === activeId) || null
+    : null;
+
+  // Selection mode badge tone
+  const modeBadgeTone: 'neutral' | 'success' | 'danger' =
+    selectionMode === 'explicit' ? 'success' :
+    selectionMode === 'none' ? 'danger' : 'neutral';
+  const modeLabel =
+    selectionMode === 'explicit' ? 'Explicit' :
+    selectionMode === 'none' ? 'Deactivated' : 'Auto';
+
   return (
     <div className="opencode-section opencode-go-workspaces">
       {error && <div className="opencode-error">{error}</div>}
 
+      {/* === CURRENT WORKSPACE PANEL === */}
+      <Panel title="Current Workspace" subtitle="Select which workspace OpenCode Go uses" testId="opencode-current-workspace">
+        <div className="go-workspace-current-panel">
+          {/* Selector */}
+          <div className="go-workspace-selector-row">
+            <select
+              className="go-workspace-selector"
+              value={
+                selectionMode === 'none' ? '__none__' :
+                selectionMode === 'auto' && !activeId ? '__auto__' :
+                activeId || '__none__'
+              }
+              onChange={handleSwitch}
+              disabled={loading}
+              data-testid="go-workspace-selector"
+            >
+              <option value="__none__">No active workspace</option>
+              <option value="__auto__">Auto (detect credentials)</option>
+              {allWorkspaces
+                .filter((w) => w._type === 'detected')
+                .map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.label} (detected)
+                  </option>
+                ))}
+              {allWorkspaces
+                .filter((w) => w._type === 'registered')
+                .map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.label} {w.workspaceId ? `(${w.workspaceId})` : ''}
+                  </option>
+                ))}
+            </select>
+
+            {activeWorkspace && (
+              <Badge tone="success" testId="go-workspace-active-badge">Active</Badge>
+            )}
+            <Badge tone={modeBadgeTone} testId="go-workspace-mode-badge">{modeLabel}</Badge>
+          </div>
+
+          {/* Status info */}
+          {activeWorkspace && (
+            <div className="go-workspace-current-info">
+              <span className="go-workspace-current-label">{activeWorkspace.label}</span>
+              <span className="go-workspace-current-source">
+                via {activeWorkspace.keySource || 'keychain'}
+              </span>
+              {activeWorkspace.lastValidatedStatus && (
+                <span className={`go-workspace-validation go-workspace-validation-${activeWorkspace.lastValidatedStatus}`}>
+                  {activeWorkspace.lastValidatedStatus === 'ok' ? '✓ Valid' : activeWorkspace.lastValidatedStatus}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Links row */}
+          <div className="go-workspace-current-links">
+            {(isNoneActive || (isAutoMode && !activeId)) && (
+              <a
+                href="https://opencode.ai/workspace/new/go"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="button button-primary button-sm"
+                data-testid="go-workspace-create-cta"
+              >
+                Create OpenCode Go workspace
+              </a>
+            )}
+            {activeWorkspace?.workspaceIdKnown && activeWorkspace?.consoleUrl && (
+              <a
+                href={activeWorkspace.consoleUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="button button-secondary button-sm"
+                data-testid="go-workspace-open-link"
+              >
+                Open in OpenCode
+              </a>
+            )}
+            {activeWorkspace && !isNoneActive && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => opencodeStore.deactivateGoWorkspaceAction()}
+                disabled={loading}
+                testId="go-workspace-deactivate-btn"
+              >
+                Deactivate
+              </Button>
+            )}
+          </div>
+        </div>
+      </Panel>
+
+      {/* === REGISTRATION FORM (keep existing) === */}
       <form className="go-workspaces-register" onSubmit={handleRegister}>
         <h4>Register New Workspace</h4>
         {formError && <div className="opencode-error">{formError}</div>}
@@ -562,13 +687,12 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
         </div>
       </form>
 
-      {/* Workspace Pool Section */}
+      {/* === WORKSPACE POOL (keep existing) === */}
       <div className="go-workspaces-pool" style={{ marginTop: 'var(--space-md)', padding: 'var(--space-sm)', border: '1px solid var(--color-border-100)', borderRadius: 'var(--radius-sm)' }}>
         <h4>Workspace Pool</h4>
         <p className="catalog-inline-note" style={{ marginBottom: 'var(--space-xs)' }}>
           Manage multiple workspaces as a priority-ordered pool. The active workspace is used by default; pool members can be quickly accessed.
         </p>
-
         <label className="planning-checkbox" style={{ marginBottom: 'var(--space-sm)' }}>
           <input
             type="checkbox"
@@ -578,7 +702,6 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
           />
           Enable workspace pool
         </label>
-
         {(state.workspacePool?.enabled) && allWorkspaces.filter(w => w._type === 'registered').length > 0 && (
           <div style={{ marginTop: 'var(--space-xs)' }}>
             <p className="catalog-inline-note">
@@ -616,8 +739,10 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
         )}
       </div>
 
+      {/* === LOADING === */}
       {loading && !goWorkspaces && <div className="opencode-loading">Loading workspaces…</div>}
 
+      {/* === WORKSPACE LIST (keep existing, but updated for known-workspace links) === */}
       {allWorkspaces.length > 0 && (
         <div className="go-workspaces-list">
           <h4>Workspaces</h4>
@@ -648,6 +773,18 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
                     <span className="go-workspace-validated-at" style={{ fontSize: '0.75rem', opacity: 0.7 }}>
                       Last checked: {new Date(workspace.lastValidatedAt).toLocaleDateString()}
                     </span>
+                  )}
+                  {/* NEW: Open in OpenCode link in card details */}
+                  {workspace.workspaceIdKnown && workspace.consoleUrl && (
+                    <a
+                      href={workspace.consoleUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="go-workspace-open-link"
+                      data-testid={`go-workspace-open-${workspace.id}`}
+                    >
+                      Open in OpenCode ↗
+                    </a>
                   )}
                 </div>
                 {isRegistered && (

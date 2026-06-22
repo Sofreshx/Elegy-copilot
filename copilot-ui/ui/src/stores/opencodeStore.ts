@@ -14,6 +14,8 @@ import {
   activateGoWorkspace,
   validateGoWorkspace,
   deleteGoWorkspace,
+  deactivateGoWorkspace,
+  setGoWorkspaceAuto,
   saveOpenCodePrompts,
   getEffectivePrompt,
   getGoWorkspacePool,
@@ -498,6 +500,34 @@ function createOpenCodeStore() {
     }
   }
 
+  async function deactivateGoWorkspaceAction(): Promise<void> {
+    store.setState((state) => ({ ...state, goWorkspacesLoading: true, goWorkspacesError: null }));
+    try {
+      const response = await deactivateGoWorkspace();
+      store.setState((state) => ({ ...state, goWorkspaces: response, goWorkspacesLoading: false }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        goWorkspacesLoading: false,
+        goWorkspacesError: toErrorMessage(error),
+      }));
+    }
+  }
+
+  async function setGoWorkspaceAutoAction(): Promise<void> {
+    store.setState((state) => ({ ...state, goWorkspacesLoading: true, goWorkspacesError: null }));
+    try {
+      const response = await setGoWorkspaceAuto();
+      store.setState((state) => ({ ...state, goWorkspaces: response, goWorkspacesLoading: false }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        goWorkspacesLoading: false,
+        goWorkspacesError: toErrorMessage(error),
+      }));
+    }
+  }
+
   async function createGoWorkspaceFlowAction(payload: OpenCodeGoWorkspaceCreateFlowPayload): Promise<OpenCodeGoWorkspaceCreateFlowResponse> {
     store.setState((state) => ({ ...state, goWorkspacesLoading: true, goWorkspacesError: null }));
     try {
@@ -571,6 +601,8 @@ function createOpenCodeStore() {
     activateGoWorkspaceAction,
     validateGoWorkspaceAction,
     deleteGoWorkspaceAction,
+    deactivateGoWorkspaceAction,
+    setGoWorkspaceAutoAction,
     createGoWorkspaceFlowAction,
     loadWorkspacePool,
     setWorkspacePool,

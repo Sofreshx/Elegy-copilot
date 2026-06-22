@@ -19,13 +19,15 @@ import {
   syncFile,
   syncText,
 } from './install-surface-utils.mjs';
-import { composeInstructionsFromAsset } from './instruction-compose-utils.mjs';
+import { buildProfileContent, composeInstructionsFromAsset } from './instruction-compose-utils.mjs';
+import { resolveClaudeHome } from './claude-install.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const require = createRequire(import.meta.url);
 const { readConfig, writeConfig } = require('../copilot-ui/lib/opencodeConfig.js');
+const { getCollaborationProfile } = require('../copilot-ui/lib/copilotConfig.js');
 const opencodeAssetsRoot = path.join(repoRoot, 'opencode-assets');
 const manifestPath = path.join(opencodeAssetsRoot, 'manifest.json');
 const managedInventoryFileName = '.elegy-copilot-opencode-managed.json';
@@ -293,6 +295,7 @@ export function parseArgs(argv) {
     elegyCliPath: '',
     setupProfile: '',
     skillsHome: '',
+    skipClaudeDedup: false,
     printEnvOnly: false,
   };
 
@@ -370,7 +373,11 @@ export function parseArgs(argv) {
       args.printEnvOnly = true;
       continue;
     }
-    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --opencode-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --setup-profile <key>, --print-env-only)`);
+    if (value === '--skip-claude-dedup') {
+      args.skipClaudeDedup = true;
+      continue;
+    }
+    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --opencode-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --setup-profile <key>, --print-env-only, --skip-claude-dedup)`);
   }
 
   if (args.repoRoot && !args.setupProfile) {
@@ -500,9 +507,47 @@ export async function runInstall(args = {}) {
   ensureDir(skillsHome, args.dryRun);
   ensureDir(path.join(opencodeHome, 'plugins'), args.dryRun);
 
+  // Dedup: skip skills already present in Claude Code's skills directory
+  // OpenCode runtime scans both ~/.config/opencode/skills/ and ~/.claude/skills/
+  // so deploying to both causes "duplicate skill name" warnings.
+  const claudeDelegatedSkills = new Set();
+  if (!args.skipClaudeDedup) {
+    try {
+      const claudeHome = resolveClaudeHome();
+      const claudeSkillsDir = path.join(claudeHome, 'skills');
+      if (fs.existsSync(claudeSkillsDir)) {
+        for (const entry of fs.readdirSync(claudeSkillsDir)) {
+          const entryPath = path.join(claudeSkillsDir, entry);
+          try {
+            if (fs.statSync(entryPath).isDirectory()) {
+              claudeDelegatedSkills.add(entry);
+            }
+          } catch { /* skip unreadable entries */ }
+        }
+        if (claudeDelegatedSkills.size > 0) {
+          console.log(`Claude skills dir found: ${claudeSkillsDir} (${claudeDelegatedSkills.size} skills)`);
+        }
+      }
+    } catch (err) {
+      console.log(`[WARN] Claude dedup check skipped: ${err.message}`);
+    }
+  }
+
   const assetResults = [];
   for (const asset of assets) {
     validateManifestAsset(asset);
+
+    // Skip syncing skills that Claude Code already provides
+    if (asset.type === 'skill' && claudeDelegatedSkills.size > 0) {
+      const dstRel = normalizeRel(asset.destination);
+      const suffix = dstRel.startsWith('skills/') ? dstRel.slice('skills/'.length) : dstRel;
+      const skillName = suffix.split('/').filter(Boolean)[0];
+      if (claudeDelegatedSkills.has(skillName)) {
+        console.log(`[DELEGATE] Skill "${skillName}" already present in Claude dir — skipping OpenCode install`);
+        continue;
+      }
+    }
+
     const src = path.join(repoRoot, normalizeRel(asset.source));
     const dstRel = normalizeRel(asset.destination);
     let dst;
@@ -527,7 +572,9 @@ export async function runInstall(args = {}) {
     if (asset.type === 'skill') {
       syncResult = syncDirectory(src, dst, args);
     } else if (asset.appendix) {
-      const composed = composeInstructionsFromAsset(asset, repoRoot);
+      const profile = getCollaborationProfile();
+      const profileContent = buildProfileContent(profile);
+      const composed = composeInstructionsFromAsset(asset, repoRoot, profileContent);
       syncResult = syncText(composed, dst, args);
     } else {
       syncResult = syncFile(src, dst, args);
@@ -694,6 +741,7 @@ export async function runInstall(args = {}) {
       inventory: inventoryResult,
       pruneResults,
     },
+    delegatedToClaude: args.skipClaudeDedup ? false : (claudeDelegatedSkills.size > 0 ? [...claudeDelegatedSkills] : []),
     profileInjection: profileInjectionResults.length > 0 ? profileInjectionResults : undefined,
     pluginConfig,
     repoSetup,
