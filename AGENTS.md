@@ -7,7 +7,7 @@ This is the Elegy Copilot monorepo, also published as Elegy Copilot. It is the s
 1. Start at `docs/system/index.md` for the task's canonical doc entrypoint.
 2. For governance or instruction-surface work, route through `docs/system/mocs/conventions-and-governance.md`, then open the smallest owning node.
 3. Use the narrowest relevant validator after changes (`npm run test:all`, `npm run ci:local`, or the specific module's test script).
-4. Before authoring specs, install the pre-commit hook: `node scripts/install-spec-hooks.mjs`. The authoritative spec contract is at `docs/specs/spec-driven-development-contract/spec.md`. Operational docs at `docs/system/spec-driven-development.md`.
+4. Specs are optional design artifacts at `docs/specs/<slug>/spec.md`. See `docs/system/spec-driven-development.md` for the current operating model. Spec validation is not enforced as repo policy.
 
 ## Quick orientation
 

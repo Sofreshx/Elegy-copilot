@@ -16,20 +16,12 @@
       {
         "id": "elegy-copilot-spec-driven-overlays-template",
         "path": "templates/spec-driven-overlays.json"
-      },
-      {
-        "id": "elegy-copilot-spec-driven-validator-template",
-        "path": "templates/spec-driven-validator.json"
       }
     ],
     "configurationProfiles": [
       {
         "id": "elegy-copilot-spec-driven-overlays",
         "path": "profiles/spec-driven-overlays.json"
-      },
-      {
-        "id": "elegy-copilot-spec-driven-validator",
-        "path": "profiles/spec-driven-validator.json"
       }
     ]
   }

@@ -64,7 +64,7 @@ function createRepoFixture(root, options = {}) {
   }
 
   if (options.specsIndexText) {
-    writeText(path.join(repoRoot, 'specs', 'index.md'), options.specsIndexText);
+    writeText(path.join(repoRoot, 'docs', 'specs', 'index.md'), options.specsIndexText);
   }
 
   return repoRoot;
@@ -93,18 +93,14 @@ async function main() {
 
       const agentsInstructions = fs.readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
       const copilotInstructions = fs.readFileSync(path.join(repoRoot, '.github', 'copilot-instructions.md'), 'utf8');
-      const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
-
       assert.ok(summary.ok);
       assert.strictEqual(summary.repoInstructionFile, 'AGENTS.md');
       assert.strictEqual(summary.elegyCliPath, path.resolve(shim.elegyCliPath));
       assert.ok(agentsInstructions.includes('Keep this section.'));
       assert.ok(agentsInstructions.includes('elegy-copilot:begin spec-driven'));
       assert.ok(copilotInstructions.includes('spec-authoring'));
-      assert.ok(fs.existsSync(path.join(repoRoot, 'specs', 'index.md')));
-      assert.ok(fs.existsSync(path.join(repoRoot, 'scripts', 'validate-specs.js')));
+      assert.ok(fs.existsSync(path.join(repoRoot, 'docs', 'specs', 'index.md')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.agents', 'skills', 'repo-helper', 'SKILL.md')));
-      assert.strictEqual(packageJson.scripts['validate:specs'], 'node scripts/validate-specs.js');
     });
   });
 
@@ -178,23 +174,21 @@ async function main() {
       assert.ok(summary.ok);
       assert.strictEqual(findResult(summary, path.join(repoRoot, '.github', 'copilot-instructions.md')).action, 'would_create');
       assert.strictEqual(findResult(summary, path.join(repoRoot, 'AGENTS.md')).action, 'would_create');
-      assert.strictEqual(findResult(summary, path.join(repoRoot, 'scripts', 'validate-specs.js')).action, 'would_create');
-      assert.strictEqual(findResult(summary, path.join(repoRoot, 'package.json')).action, 'would_update');
+      assert.strictEqual(findResult(summary, path.join(repoRoot, 'docs', 'specs', 'index.md')).action, 'would_create');
       assert.ok(summary.counts.wouldCreate > 0);
-      assert.ok(summary.counts.wouldUpdate > 0);
+      assert.strictEqual(summary.counts.wouldUpdate, 0);
       assert.ok(!fs.existsSync(path.join(repoRoot, '.github', 'copilot-instructions.md')));
       assert.ok(!fs.existsSync(path.join(repoRoot, 'AGENTS.md')));
-      assert.ok(!fs.existsSync(path.join(repoRoot, 'scripts', 'validate-specs.js')));
-      assert.ok(!fs.existsSync(path.join(repoRoot, 'specs', 'index.md')));
+      assert.ok(!fs.existsSync(path.join(repoRoot, 'docs', 'specs', 'index.md')));
       assert.ok(!fs.existsSync(path.join(repoRoot, '.opencode', 'skills', 'repo-helper', 'SKILL.md')));
     });
   });
 
-  await test('bootstrap preserves existing specs index and validate:specs conflicts', async () => {
+  await test('bootstrap preserves existing specs index', async () => {
     withTempDir((root) => {
       const repoRoot = createRepoFixture(root, {
         instructionFile: 'AGENTS.md',
-        packageScripts: { 'validate:specs': 'pnpm validate-specs' },
+        packageScripts: {},
         specsIndexText: '# Specs\n\n- Custom entry\n',
       });
       const shim = createTestElegyCliShim(root);
@@ -207,13 +201,10 @@ async function main() {
         force: true,
       }));
 
-      const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
-      const specsIndex = fs.readFileSync(path.join(repoRoot, 'specs', 'index.md'), 'utf8');
+      const specsIndex = fs.readFileSync(path.join(repoRoot, 'docs', 'specs', 'index.md'), 'utf8');
 
-      assert.strictEqual(packageJson.scripts['validate:specs'], 'pnpm validate-specs');
       assert.ok(specsIndex.includes('Custom entry'));
-      assert.strictEqual(findResult(summary, path.join(repoRoot, 'package.json')).action, 'skipped_conflict');
-      assert.strictEqual(findResult(summary, path.join(repoRoot, 'specs', 'index.md')).action, 'skipped');
+      assert.strictEqual(findResult(summary, path.join(repoRoot, 'docs', 'specs', 'index.md')).action, 'skipped');
     });
   });
 

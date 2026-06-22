@@ -153,7 +153,7 @@ Per-repo files are **discovered by** Elegy Copilot, not created by it. When `--r
         │           └── AGENTS.md / GEMINI.md / CLAUDE.md
         │
         ├── Creates: docs/specs/index.md
-        ├── Adds: package.json validate:specs script
+        ├── Adds: (none — validator installation was removed June 2026)
         └── Mirrors: skills → .github/skills/
 ```
 

@@ -1,6 +1,6 @@
 ---
 created: 2026-05-21
-updated: 2026-06-20
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -46,7 +46,7 @@ Drift measures divergence between spec intent and implementation state.
 - Repo-local spec bootstrap now shells through `elegy configuration apply`, so Phase 1 examples should pass `--elegy-cli <path>` explicitly.
 - `INSTRUCTION_ENGINE_ELEGY_CLI_PATH` is a convenience fallback for repeated local runs, but it is not the primary documented invocation.
 - Use `--repo-root <path> --setup-profile spec-driven --elegy-cli <path>` with the Codex, OpenCode, or Antigravity installer when a repo should opt into durable spec scaffolding.
-- The approved `spec-driven` bootstrap adds bounded repo-local instruction overlays, `docs/specs/index.md`, the repo-local spec validator, and the selected harness's repo-skill mirrors.
+- The approved `spec-driven` bootstrap adds bounded repo-local instruction overlays, `docs/specs/index.md`, and the selected harness's repo-skill mirrors. The spec validator is no longer installed by bootstrap.
 - This exists to make spec-driven work easy to opt into without introducing a separate runtime, planner fleet, or second spec contract.
 
 ## Spec Contract
@@ -124,9 +124,9 @@ See the normative spec (R6) for the full lifecycle contract. Quick reference:
 | `superseded` | Replaced by newer spec | Terminal |
 | `abandoned` | Reviewed decision not to implement | Terminal |
 
-## Pre-Commit Hook
+## Pre-Commit Hook (Removed)
 
-Run `node scripts/install-spec-hooks.mjs` once to install a pre-commit gate that validates specs before commit. The hook runs `validate-specs.js --strict docs/specs` whenever spec files are staged. Set `SKIP_SPEC_CHECK=1` to bypass.
+Spec pre-commit validation was removed in June 2026. The legacy hook installer (`scripts/install-spec-hooks.mjs`) now functions as a cleanup tool to remove any remaining managed spec-validation blocks. Run it once if your repo still has a legacy hook block.
 
 ## Spec Relationships
 
@@ -177,7 +177,7 @@ When a spec reaches `approved` status, the project lane picks it up for implemen
 
 ### Validation
 
-Run `node scripts/validate-specs.js --strict docs/specs` to verify structural integrity. The spec-review skill checks for the handoff link during review.
+The `spec-review` skill checks for the handoff link during review. A dormant structural validator is available at `scripts/validate-specs.js` for manual research use.
 
 ## When to Write a plan.md
 
@@ -241,28 +241,13 @@ planner abstraction.
 
 ## Specs Location
 
-Specs live under `docs/specs/<spec-slug>/spec.md` as a governed spec family within the canonical `docs/` knowledge root. They are validated by the separate `scripts/validate-specs.js` validator (not by the doc-graph validator). The optional catalog is `docs/specs/index.md`.
+Specs live under `docs/specs/<spec-slug>/spec.md` as optional design artifacts within the canonical `docs/` knowledge root. The optional catalog is `docs/specs/index.md`. Spec validation is not currently enforced as repo policy.
 
-Pre-commit spec validation is installed via `node scripts/install-spec-hooks.mjs` and gates on staged `docs/specs/<slug>/spec.md` files.
+## Validation (Dormant)
 
-## Validation
+Spec validation is not currently enforced as repo policy. The validator (`scripts/validate-specs.js`) and its support files are kept in-repo as dormant implementation history for future research. They are not wired into CI, pre-commit hooks, or repo bootstrap.
 
-### Reliability Layers
-
-The spec validation system operates in four layers, from fastest (local) to most authoritative (human review):
-
-1. **Validator** (`scripts/validate-specs.js`) — Structural, liveness, cross-spec, freshness, and plan.md checks. Runs locally and in CI.
-2. **Pre-commit hook** (`scripts/validate-specs-precommit.mjs`) — Gate on staged spec files. Installed via `scripts/install-spec-hooks.mjs`.
-3. **CI gate** (`.github/workflows/repo-ci.yml`) — Validates all specs on every push. Blocks broken specs from merging.
-4. **Reviewer** (`catalog-assets/shared-skills/spec-review/SKILL.md`) — Human adversarial review before implementation planning. Catches semantic issues automation cannot.
-
-Each layer is additive — a spec must pass all four to be considered implementable.
-
-- Prefer the repo-local validator when present: `node scripts/validate-specs.js <spec-root>`.
-- The v1 validator checks frontmatter keys and enums (including `abandoned`), required headings, non-empty `Intent`, at least two `Acceptance Checks`, and `Validation Evidence` when `status: implemented`.
-- The spec validator now includes freshness warnings (90-day draft, 180-day approved, 180-day implemented, terminal abandoned/superseded), index integrity checks, cross-spec reference validation, and plan.md requirement checks — all under `--strict` mode.
-- **CI Gate:** The `validate:specs` CI step runs `validate-specs.js --strict docs/specs` in GitHub Actions on every push. Broken specs are rejected before merge.
-- Validation is evidence that the spec matches the contract shape, not proof that the implementation is correct.
+If spec validation is revived in the future, it should return as explicit opt-in research/experimental tooling, not default repo policy.
 
 ## Boundaries
 

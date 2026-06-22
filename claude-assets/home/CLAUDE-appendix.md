@@ -43,7 +43,7 @@ For the Elegy Copilot repo itself, the current identity and delivery model are:
 
 For spec-driven work, use the current repo contract in `docs/system/spec-driven-development.md`:
 durable specs live at `docs/specs/<spec-slug>/spec.md`, with optional `docs/specs/index.md`, and should be
-validated with `node scripts/validate-specs.js <spec-root>` when the target repo has that validator.
+treated as optional design artifacts. Spec validation is not enforced as repo policy.
 Specs describe intent (requirements). Docs describe state (how it works). ADRs record decisions (what was chosen). See `docs-practice` skill for structure guidance.
 
 ## Boundaries

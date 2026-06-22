@@ -157,16 +157,12 @@ async function main() {
 
       const geminiInstructions = fs.readFileSync(path.join(repoRoot, 'GEMINI.md'), 'utf8');
       const copilotInstructions = fs.readFileSync(path.join(repoRoot, '.github', 'copilot-instructions.md'), 'utf8');
-      const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
-
       assert.ok(geminiInstructions.includes('Keep this footer.'));
       assert.ok(geminiInstructions.includes('elegy-copilot:begin spec-driven'));
       assert.ok(copilotInstructions.includes('elegy-copilot:begin spec-driven'));
       assert.ok(fs.existsSync(path.join(repoRoot, 'docs', 'specs', 'index.md')));
-      assert.ok(fs.existsSync(path.join(repoRoot, 'scripts', 'validate-specs.js')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.github', 'agents')));
       assert.ok(fs.existsSync(path.join(repoRoot, '.gemini', 'skills', 'repo-helper', 'SKILL.md')));
-      assert.strictEqual(packageJson.scripts['validate:specs'], 'node scripts/validate-specs.js');
       assert.strictEqual(summary.repoSetup.profileKey, 'spec-driven');
       assert.strictEqual(summary.repoSetup.repoInstructionFile, 'GEMINI.md');
       assert.ok(summary.repoSetup.skillMirrors.counts.created > 0 || summary.repoSetup.skillMirrors.counts.skipped > 0);

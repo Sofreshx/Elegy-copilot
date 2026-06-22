@@ -42,7 +42,7 @@ async function main() {
     );
     assert.deepStrictEqual(
       profile.proposals.recommendedResourcePaths,
-      ['AGENTS.md', 'GEMINI.md', 'package.json#scripts.validate:specs', 'scripts/validate-specs.js'],
+      ['AGENTS.md', 'GEMINI.md'],
     );
   });
 

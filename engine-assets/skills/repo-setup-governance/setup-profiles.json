@@ -18,8 +18,8 @@
   },
   "source": {
     "definitionPath": "engine-assets/skills/repo-setup-governance/profile-definitions.json",
-    "sourceRevision": "sha256:728c7ce84d211967dbe784e39bbe65e6fee3422dfd4153804b741aba20df4716",
-    "checksum": "sha256:728c7ce84d211967dbe784e39bbe65e6fee3422dfd4153804b741aba20df4716"
+    "sourceRevision": "sha256:6fa008abc015bd762c7dfd7119b041183ead60b75874022a8e5499769e867a74",
+    "checksum": "sha256:6fa008abc015bd762c7dfd7119b041183ead60b75874022a8e5499769e867a74"
   },
   "profiles": [
     {
@@ -107,9 +107,7 @@
         ],
         "recommendedResourcePaths": [
           "AGENTS.md",
-          "GEMINI.md",
-          "package.json#scripts.validate:specs",
-          "scripts/validate-specs.js"
+          "GEMINI.md"
         ],
         "planningMode": "classify-and-propose-only"
       }

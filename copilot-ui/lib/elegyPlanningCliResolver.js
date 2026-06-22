@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const GITHUB_REPO = 'Sofreshx/Elegy';
-const GITHUB_RELEASE_TAG = 'latest';
+const GITHUB_RELEASE_TAG = 'main-snapshot';
 const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}.git`;
 const BINARY_NAME = 'elegy-planning';
 const INSTALL_METADATA_NAME = 'elegy-planning.install.json';
@@ -427,7 +427,9 @@ async function buildElegyPlanningCliFromSource(options = {}) {
 }
 
 function buildGitHubReleaseUrl() {
-  return `https://api.github.com/repos/${GITHUB_REPO}/releases/${GITHUB_RELEASE_TAG}`;
+  // Use /releases/tags/{tag} for named tags; /releases/latest is a special GitHub API endpoint
+  const tag = GITHUB_RELEASE_TAG === 'latest' ? 'latest' : `tags/${GITHUB_RELEASE_TAG}`;
+  return `https://api.github.com/repos/${GITHUB_REPO}/releases/${tag}`;
 }
 
 function buildTargetTriple() {

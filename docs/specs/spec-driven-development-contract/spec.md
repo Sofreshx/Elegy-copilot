@@ -3,7 +3,7 @@ spec_id: spec-driven-development-contract
 title: Spec-Driven Development Contract
 status: draft
 type: contract
-updated: 2026-06-20
+updated: 2026-06-22
 supersedes:
   - verifiable-acceptance-criteria
 ---
@@ -21,7 +21,7 @@ Define the authoritative, verifiable contract for durable repo specs under `docs
 - `catalog-assets/shared-skills/spec-review/SKILL.md` (52 lines) — 16 review checks; check #1 says "Verify the spec uses the shared contract and required headings" but the contract is not defined in a spec artifact.
 - `catalog-assets/shared-skills/spec-dev/SKILL.md` (78 lines) — routing rules for spec-first, spec-anchored, spec-as-source; references `docs/specs/` as default location without citing a normative contract.
 - `catalog-assets/shared-skills/spec-planning-bridge/SKILL.md` (99 lines) — defines the file-scope selector grammar for elegy-planning handoff inline rather than referencing a spec.
-- `scripts/validate-specs.js` (878 lines) — enforces the contract structurally; its checks define what the contract IS in practice. The validator should reference this spec as its compliance target.
+- `scripts/validate-specs.js` (dormant — historically enforced the contract structurally; kept in-repo as implementation history). The validator should reference this spec as its compliance target.
 - `scripts/validate-specs.test.js` (508 lines) — 16 test cases; validates against the current validator behavior, not against a spec.
 - `docs/specs/verifiable-acceptance-criteria/spec.md` (103 lines, `draft`) — defines the `→ verify:` marker format (R1). This spec absorbs and supersedes it.
 - `docs/specs/spec-system-hardening/spec.md` (216 lines, `draft`) — tracks hardening work (CI, pre-commit, index integrity, freshness). This spec's contract subsumes those hardening checks as normative requirements.

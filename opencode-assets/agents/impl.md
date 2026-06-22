@@ -22,7 +22,6 @@ permission:
     "npx tsc*": allow
     "npx vitest*": allow
     "node scripts/validate-*.js": allow
-    "node scripts/install-spec-hooks.mjs": allow
   read: allow
   glob: allow
   grep: allow

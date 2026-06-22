@@ -7,4 +7,4 @@ This repo opts into elegy-copilot spec-driven development for non-trivial work.
 - Use `spec-authoring` to create or refine durable specs and `spec-review` before implementation planning when the spec will drive the work.
 - Narrow candidate constraints to the minimum hard constraints needed for the active step instead of copying full plan or policy blocks forward.
 - Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions; do not create ADRs for ordinary local implementation choices.
-- Validate specs with `node scripts/validate-specs.js` or `npm run validate:specs` when the repo exposes that script.
+- Spec validation is not enforced as repo policy. The `scripts/validate-specs.js` validator is dormant research tooling.

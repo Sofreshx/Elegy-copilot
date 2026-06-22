@@ -207,7 +207,7 @@ Rules:
 
 - `node scripts/obsidian-docs-preflight.js` — run against this repo
 - `node scripts/validate-doc-graph.js` — must pass
-- `npm run validate:specs` — must pass if spec changes exist
+- Spec validation is not currently enforced as repo policy (June 2026 rollback).
 
 ## Drift Notes
 

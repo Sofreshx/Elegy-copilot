@@ -128,9 +128,7 @@
         ],
         "recommendedResourcePaths": [
           "AGENTS.md",
-          "GEMINI.md",
-          "package.json#scripts.validate:specs",
-          "scripts/validate-specs.js"
+          "GEMINI.md"
         ],
         "planningMode": "classify-and-propose-only"
       }
