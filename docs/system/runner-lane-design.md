@@ -1,6 +1,6 @@
 ---
 created: 2026-06-19
-updated: 2026-06-19
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -14,8 +14,9 @@ related: [orchestration-and-agents, reviewer-lane-governance, project-convention
 
 ## Purpose
 
-Runner lanes execute a text plan from the user's prompt by parsing it into
-discrete tasks and delegating each to sub-agents with a full review chain.
+Runner lanes execute a ready text plan from the user's prompt by parsing it
+into discrete tasks and delegating each to sub-agents with implementation
+review gates. Plan review is optional and user-gated.
 No elegy-planning dependency.
 
 ## Variants
@@ -33,13 +34,13 @@ Runner lanes require no elegy-planning. Required sub-agents:
 - `reviewer` (Pro, read-only)
 - `scout` (Pro, read-only, external research)
 
-Required skills: `runner-workflow`, `worktree`, `rubberduck-plan-review`,
-`implementation-review`.
+Required skills: `runner-workflow`, `worktree`, `rubberduck-plan-review` (before
+optional user-gated plan review), `implementation-review`.
 
 ## Workflow
 
 ```
-Parse → Plan review → Execute (per task) → Complete
+Accept & Parse → [Plan review (optional, user-gated)] → Execute (per task) → Complete
                          │
                          ├─ explorer (pre-impl discovery)
                          ├─ impl(-pro) (bounded implementation + pre-submission checklist)

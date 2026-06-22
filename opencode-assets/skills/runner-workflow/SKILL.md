@@ -32,33 +32,29 @@ Pause for user input only when:
 - All tasks complete — present summary, ask for next steps
 - User explicitly asked to pause
 
-## Phase 0: Parse
+## Phase 0: Accept & Parse
 
-1. Receive plan text from user's prompt.
-2. Parse into discrete tasks. Each task must have:
+1. Receive plan text from user's prompt. Treat it as ready.
+2. Parse into discrete tasks for execution delegation. Each task should have:
    - Title (short, descriptive)
    - Description (what to do, why)
    - File scope (specific files or globs)
    - Validation (command to verify correctness)
    - Dependencies (which tasks must complete first)
-3. If plan lacks any required field, ask one clarifying question.
-4. If still ambiguous → `needs-reroute`.
+3. Present the parsed task list to the user.
+4. Ask: "Review this plan before implementing, or proceed directly?"
+5. If a task boundary is ambiguous when delegating, ask one clarifying question.
+   If still ambiguous → `needs-reroute`.
 
-### Plan Quality Checks
-- No overlapping file scopes between parallel tasks
-- No circular dependencies
-- Every task has explicit validation
-- File scopes are specific, not `src/**` or the whole repo
-- Task descriptions are concrete, not vague ("improve code" → reject)
+## Phase 1: Plan Review (optional, user-gated)
 
-## Phase 1: Plan Review
-
-1. Delegate to `reviewer` (plan-review mode).
-2. Load `rubberduck-plan-review` skill.
-3. Provide the parsed task list with file scopes and dependencies.
-4. Reviewer checks: feasibility, risk, ordering, dependency correctness,
+1. Only invoke if the user explicitly requests plan review.
+2. Delegate to `reviewer` (plan-review mode).
+3. Load `rubberduck-plan-review` skill.
+4. Provide the parsed task list with file scopes and dependencies.
+5. Reviewer checks: feasibility, risk, ordering, dependency correctness,
    missing steps, task separation, scope overlap.
-5. Blocked → fix issues. Approved → proceed.
+6. Address blocking findings, then proceed to execution.
 
 ## Phase 2: Execute
 
@@ -120,7 +116,7 @@ RUNNER_RESULT
 - tasks: <N completed, M remaining>
 - changes: <file:line, commit SHA if committed>
 - evidence:
-  - review: <plan review, per-task code review, evidence review outcomes>
+  - review: <plan review verdict or skipped, per-task code review, evidence review outcomes>
   - validation: <command + result summary>
   - issues: <blocking or notable issues encountered>
 - next: <next task title or done>

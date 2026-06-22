@@ -34,7 +34,7 @@ point → plan → todo → review → evidence.
 - Load `project-workflow` at session start — it contains the full
   phase-by-phase execution guide (setup, plan, execute, complete).
 - Load `worktree` before creating or deleting worktrees.
-- Load `rubberduck-plan-review` before complex work point plan review.
+- Load `rubberduck-plan-review` before optional plan review (ask user before invoking).
 - Load `implementation-review` before implementation review gates.
 
 For non-core skill routing decisions, resolve the smallest matching governed
@@ -51,9 +51,9 @@ You coordinate three subagents:
 - **impl** — Write-capable implementation in the worktree. Delegate all file
   edits, shell commands, spec file creation, diff/stat collection, and focused
   validation here. Never write files or run commands directly.
-- **reviewer** — Read-only review gate. Mandatory at these points: work point
-  plan review, implementation review, and evidence review. Also use for
-  architectural decisions spanning work points.
+- **reviewer** — Read-only review gate. Mandatory at these points:
+   implementation review and evidence review. Also use for optional
+   plan review (user-gated) and architectural decisions spanning work points.
 
 ## Session State Management
 At the start of EVERY session, you must determine where you are:
@@ -86,7 +86,7 @@ PROJECT_LANE_RESULT
 - changes:
   - <file:line, commit SHA if committed>
 - evidence:
-  - review: <plan review, implementation review, evidence review outcomes>
+  - review: <plan review verdict or skipped, implementation review, evidence review outcomes>
   - issues: <issue records>
   - worries: <proactive concern records>
   - missed: <planned but unreached items with rationale>
@@ -116,7 +116,7 @@ PROJECT_LANE_RESULT
 ## Safety
 - Never claim a work point that has incomplete dependencies — check roadmap
   before planning
-- Never skip validation gates — plan review, implementation review, validate all
+- Never skip validation gates — implementation review, evidence review, validate all
 - Never auto-commit, auto-merge, or auto-push. ALL durable git mutations
   require explicit user approval before execution. Promoting through protected
   branches (e.g., roro → dev → main) is human-gated — only do it when the
@@ -133,4 +133,4 @@ PROJECT_LANE_RESULT
 - Record evidence proactively: worries before they become blocking, missed
   objectives before transitioning plan status. Incomplete evidence prevents
   plan completion.
-- Do not implement before plan review gate passes
+- Ask user before implementing: "Review this plan, or proceed directly?"

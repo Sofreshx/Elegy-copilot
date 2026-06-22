@@ -83,8 +83,9 @@ questionnaire.
 0. **Claim lease:**
    `planning_project_run_claim(goalId, roadmapId, workPointId, repo, branch,
    worktree, session, profile)`
-1. **Plan review:** For complex work, load `rubberduck-plan-review` and
-   delegate to `reviewer` for plan review before starting.
+1. **Plan review** (optional, user-gated): Ask user: "Review this plan before implementing, or proceed directly?" If user requests review, load
+   `rubberduck-plan-review` and delegate to `reviewer` for plan review before
+   starting. Otherwise skip to implementation.
 2. **Implement:** Delegate to `impl` in the worktree. Pass clear, bounded
    work unit descriptions. Review results between implementation steps.
 2a. **Activate run:**
@@ -92,11 +93,11 @@ questionnaire.
 3. **Validate:** Ensure validation expectations defined in the plan are
    executed.
 4. **Record evidence for ALL review gates (mandatory before completion):**
-   - Plan review: `planning_review_point_record(entityType: "plan",
-     entityId: "<id>", decision: "approved|blocked|needs-changes",
-     rationale: "...")`
-   - Implementation review: same pattern
-   - Evidence review: same pattern
+    - Plan review (only if performed): `planning_review_point_record(entityType: "plan",
+      entityId: "<id>", decision: "approved|blocked|needs-changes",
+      rationale: "...")`
+    - Implementation review: same pattern
+    - Evidence review: same pattern
 5. **Record findings and concerns (mandatory before completion):**
    - Issues: `planning_issue_record(entityType: "plan", entityId: "<id>",
      title: "...", description: "...")`
