@@ -6,6 +6,9 @@ export interface RemoteStatus {
   state: 'idle' | 'starting' | 'awaiting_install' | 'awaiting_auth' | 'ready' | 'restarting' | 'error' | 'unavailable';
   available: boolean;
   ready: boolean;
+  enabled: boolean;
+  pid: number | null;
+  uptimeMs: number | null;
   phase: string;
   reason: string | null;
   message: string;
@@ -111,4 +114,19 @@ export async function renameRemoteSession(body: {
     body: JSON.stringify(body),
   });
   return readRemoteResponse(res, `Failed to rename session: ${res.status}`);
+}
+
+export async function getRemoteSessionsConfig(): Promise<{ enabled: boolean }> {
+  const res = await fetch('/api/config/remote-sessions');
+  return readRemoteResponse(res, `Failed to get remote sessions config: ${res.status}`);
+}
+
+export async function enableRemoteSessions(): Promise<{ ok: boolean; enabled: boolean; state: string }> {
+  const res = await fetch('/api/remote/enable', { method: 'POST' });
+  return readRemoteResponse(res, `Failed to enable remote sessions: ${res.status}`);
+}
+
+export async function disableRemoteSessions(): Promise<{ ok: boolean; enabled: boolean; state: string }> {
+  const res = await fetch('/api/remote/disable', { method: 'POST' });
+  return readRemoteResponse(res, `Failed to disable remote sessions: ${res.status}`);
 }

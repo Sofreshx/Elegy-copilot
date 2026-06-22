@@ -8,6 +8,7 @@
 const path = require('path');
 const Database = require('better-sqlite3');
 const os = require('node:os');
+const copilotConfig = require('../lib/copilotConfig');
 
 const ROUTES = [
   { method: 'GET', path: '/api/remote/status' },
@@ -47,6 +48,50 @@ function register(context) {
     return true;
   }
 
+  async function handleEnable(ctx) {
+    const { res, elegyHome } = ctx;
+    const service = kimakiRuntimeService;
+
+    try {
+      copilotConfig.setRemoteSessions(elegyHome, true);
+      if (service) {
+        await service.start({});
+      }
+      sendJson(res, 200, {
+        ok: true,
+        enabled: true,
+        state: service ? service.getState() : 'idle',
+      });
+    } catch (error) {
+      sendJson(res, 500, {
+        ok: false,
+        error: String(error.message || error),
+      });
+    }
+  }
+
+  async function handleDisable(ctx) {
+    const { res, elegyHome } = ctx;
+    const service = kimakiRuntimeService;
+
+    try {
+      copilotConfig.setRemoteSessions(elegyHome, false);
+      if (service) {
+        await service.stop();
+      }
+      sendJson(res, 200, {
+        ok: true,
+        enabled: false,
+        state: 'idle',
+      });
+    } catch (error) {
+      sendJson(res, 500, {
+        ok: false,
+        error: String(error.message || error),
+      });
+    }
+  }
+
   function handleStatus(ctx) {
     const service = kimakiRuntimeService;
     if (!service) {
@@ -54,6 +99,9 @@ function register(context) {
         state: 'unavailable',
         available: false,
         ready: false,
+        enabled: false,
+        pid: null,
+        uptimeMs: null,
         phase: 'error',
         reason: 'kimaki_entrypoint_missing',
         message: 'Kimaki runtime files are unavailable.',
@@ -71,6 +119,9 @@ function register(context) {
       state: service.getState(),
       available: service.getAvailable(),
       ready: service.getReady(),
+      enabled: copilotConfig.getRemoteSessions(ctx.elegyHome),
+      pid: typeof service.getPid === 'function' ? service.getPid() : null,
+      uptimeMs: typeof service.getStartedAt === 'function' ? (service.getStartedAt() ? Date.now() - service.getStartedAt() : null) : null,
       phase: service.getState(),
       reason: service.getReason(),
       message: service.getReady()
@@ -275,6 +326,8 @@ function register(context) {
     { method: 'POST', path: '/api/remote/projects/add', handler: handleProjectAdd },
     { method: 'GET', path: '/api/remote/logs', handler: handleLogs },
     { method: 'POST', path: '/api/remote/sessions/rename', handler: handleSessionRename },
+    { method: 'POST', path: '/api/remote/enable', handler: (ctx) => handleEnable(ctx) },
+    { method: 'POST', path: '/api/remote/disable', handler: (ctx) => handleDisable(ctx) },
   ];
 }
 

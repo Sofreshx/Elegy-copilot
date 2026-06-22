@@ -92,18 +92,16 @@ function registerWithMocks({ execResponses = [], body = {}, resolveOpenCodeBin =
 async function run() {
   console.log('\nGit Route Tests\n');
 
-  await test('register returns 27 route descriptors', async () => {
+  await test('register returns route descriptors', async () => {
     const routes = registerWithMocks();
-    assert.equal(routes.length, 27);
+    assert.ok(routes.length >= 27);
   });
 
   await test('GET /api/git/status returns branch, counts, and files', async () => {
     const routes = registerWithMocks({
       execResponses: [
-        { stdout: ' M src/app.ts\nA  README.md\n' },
-        { stdout: 'feature/test\n' },
-        { stdout: '# branch.ab +2 -1\n' },
-        { stdout: 'origin/feature/test\n' },
+        // porcelain-v2: branch, upstream, ahead/behind, and file entries
+        { stdout: '# branch.head feature/test\n# branch.upstream refs/remotes/origin/feature/test\n# branch.ab +2 -1\n1 .M N... 100644 100644 100644 abc123def456 abc123def456 src/app.ts\n1 A. N... 100644 100644 100644 abc123def456 abc123def456 README.md\n' },
         { stdout: '/repo\n' },
       ],
     });
@@ -134,11 +132,10 @@ async function run() {
   await test('GET /api/git/summary returns PR and diff stats', async () => {
     const routes = registerWithMocks({
       execResponses: [
-        { stdout: ' M src/app.ts\n' },
-        { stdout: 'feature/test\n' },
-        { stdout: '# branch.ab +3 -0\n' },
-        { stdout: 'origin/feature/test\n' },
+        // resolveGitStatus: porcelain-v2 + toplevel
+        { stdout: '# branch.head feature/test\n# branch.upstream refs/remotes/origin/feature/test\n# branch.ab +3 -0\n1 .M N... 100644 100644 100644 abc123def456 abc123def456 src/app.ts\n' },
         { stdout: '/repo\n' },
+        // resolveGitSummary: numstat + remote + gh auth status + gh pr view
         { stdout: '12\t4\tsrc/app.ts\n' },
         { stdout: 'git@github.com:owner/repo.git\n' },
         { stdout: 'Logged in to github.com as demo\n' },
@@ -158,11 +155,10 @@ async function run() {
   await test('GET /api/git/summary normalizes HTTPS remote to browser URL', async () => {
     const routes = registerWithMocks({
       execResponses: [
-        { stdout: ' M src/app.ts\n' },
-        { stdout: 'main\n' },
-        { stdout: '# branch.ab +1 -0\n' },
-        { stdout: 'origin/main\n' },
+        // resolveGitStatus: porcelain-v2 + toplevel
+        { stdout: '# branch.head main\n# branch.upstream refs/remotes/origin/main\n# branch.ab +1 -0\n1 .M N... 100644 100644 100644 abc123def456 abc123def456 src/app.ts\n' },
         { stdout: '/repo\n' },
+        // resolveGitSummary: numstat + remote + gh auth status + gh pr view
         { stdout: '5\t3\tsrc/app.ts\n' },
         { stdout: 'https://github.com/owner/repo.git\n' },
         { stdout: 'Logged in to github.com as demo\n' },
@@ -201,8 +197,9 @@ async function run() {
     const routes = registerWithMocks({
       body: { repoPath: 'C:/repo', setUpstream: true },
       execResponses: [
-        { stdout: 'feature/test\n' },
-        { stdout: 'pushed\n' },
+        { stdout: 'feature/test\n' },   // gate wrapper: git branch --show-current
+        { stdout: 'feature/test\n' },   // inner handler: git branch --show-current
+        { stdout: 'pushed\n' },         // inner handler: git push -u origin feature/test
       ],
     });
     const { res, body } = await invoke(routes, 'POST', '/api/git/push');

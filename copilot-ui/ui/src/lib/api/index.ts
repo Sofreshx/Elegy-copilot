@@ -4,6 +4,7 @@ export * from './system';
 export * from './sessions';
 export * from './codexConfig';
 export * from './executor';
+export * from './gateway';
 export * from './assets';
 export * from './catalog';
 export * from './planning';

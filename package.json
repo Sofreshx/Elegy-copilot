@@ -33,8 +33,8 @@
     "commit-check:setup": "node scripts/commit-check-setup.mjs",
     "commit-check:run": "node scripts/commit-check-run.mjs",
     "commit-check": "node scripts/commit-check-run.mjs",
-    "build:rust-backend": "cargo build --workspace",
-    "test:rust-backend": "cargo test --workspace"
+    "build:rust-backend": "cargo build --manifest-path copilot-ui/src-tauri/Cargo.toml",
+    "test:rust-backend": "cargo test --manifest-path copilot-ui/src-tauri/Cargo.toml"
   },
   "dependencies": {
     "@playwright/test": "^1.59.1"

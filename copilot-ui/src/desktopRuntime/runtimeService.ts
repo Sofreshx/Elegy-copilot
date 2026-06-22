@@ -10,6 +10,9 @@ import {
 import { resolveKimakiEntrypoint } from './kimakiRuntimeResolver';
 import type { RuntimeDiagnostics, RuntimeDiagnosticPayload } from './runtimeDiagnostics';
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const copilotConfig = require('../../lib/copilotConfig');
+
 const DESKTOP_UI_ACCESS_QUERY_PARAM = 'desktop-ui-token';
 const DESKTOP_SMOKE_LOG_WINDOW_URL_ENV = 'INSTRUCTION_ENGINE_DESKTOP_SMOKE_LOG_WINDOW_URL';
 const BOOT_DIAGNOSTIC_PREFIX = '[boot:runtimeService]';
@@ -372,10 +375,15 @@ export function createDesktopRuntimeService(
       bootLog(`HTTP server listening on ${serverHandle.host}:${serverHandle.port}`);
 
       if (kimakiRuntimeService) {
-        kimakiRuntimeService.start({
-          callbackUrl: `http://${serverHandle.host}:${serverHandle.port}/?remote-onboarding=complete`,
-        });
-        bootLog('Kimaki started');
+        const remoteEnabled = copilotConfig.getRemoteSessions(options.paths.elegyHome);
+        if (remoteEnabled) {
+          kimakiRuntimeService.start({
+            callbackUrl: `http://${serverHandle.host}:${serverHandle.port}/?remote-onboarding=complete`,
+          });
+          bootLog('Kimaki started');
+        } else {
+          bootLog('Kimaki disabled by config (remoteSessions=false)');
+        }
       }
 
       currentStartResult = {

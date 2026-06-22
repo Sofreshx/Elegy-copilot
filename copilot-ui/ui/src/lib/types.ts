@@ -3874,3 +3874,70 @@ export interface OpenCodePermissionsResponse {
 export interface OpenCodePermissions {
   [key: string]: string | undefined;
 }
+
+/* ------------------------------------------------------------------ */
+/* Gateway                                                             */
+/* ------------------------------------------------------------------ */
+
+export interface GatewayConfigResponse {
+  configPath: string;
+  exists: boolean;
+  config: GatewayConfig;
+  [key: string]: unknown;
+}
+
+export interface GatewayConfig {
+  mode?: string;
+  acp?: { host: string; port: number };
+  workspaces?: { activeRoot: string; allowedRoots: string[] };
+  discord?: GatewayDiscordConfig;
+  telegram?: GatewayTelegramConfig;
+  [key: string]: unknown;
+}
+
+export interface GatewayDiscordConfig {
+  guildId: string;
+  channelId: string;
+  allowlistedUserIds: string[];
+  permissionsChannelId?: string;
+  [key: string]: unknown;
+}
+
+export interface GatewayTelegramConfig {
+  allowlistedUserIds: string[];
+  [key: string]: unknown;
+}
+
+export interface GatewaySaveConfigResponse {
+  ok: boolean;
+  [key: string]: unknown;
+}
+
+export interface GatewayScanReposResponse {
+  roots: GatewayScanRoot[];
+  [key: string]: unknown;
+}
+
+export interface GatewayScanRoot {
+  root: string;
+  repos: GatewayScanRepo[];
+  [key: string]: unknown;
+}
+
+export interface GatewayScanRepo {
+  name: string;
+  path: string;
+  [key: string]: unknown;
+}
+
+export interface GatewayStateResponse {
+  ready: boolean;
+  [key: string]: unknown;
+}
+
+export interface GatewayStateError {
+  code?: string;
+  reason?: string;
+  message?: string;
+  statusCode?: number;
+}

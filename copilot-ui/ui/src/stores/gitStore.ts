@@ -93,12 +93,11 @@ function createGitStore() {
     store.setState((s) => ({ ...s, repoPath, loading: true, error: null }));
 
     try {
-      const [status, log, branches, summary, pullRequest] = await Promise.all([
+      const [status, log, branches, summary] = await Promise.all([
         getGitStatus(repoPath),
         getGitLog(repoPath),
         getGitBranches(repoPath),
         getGitSummary(repoPath),
-        getGitPullRequest(repoPath),
       ]);
 
       if (nextVersion !== requestVersion) return;
@@ -110,7 +109,9 @@ function createGitStore() {
         log,
         branches,
         summary,
-        pullRequest,
+        pullRequest: summary.pullRequest
+          ? { available: true, tool: 'gh' as const, authenticated: true, pullRequest: summary.pullRequest }
+          : null,
         selectedBranch: status.branch || branches.currentBranch || '',
         loading: false,
       }));

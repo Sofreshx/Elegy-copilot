@@ -19,6 +19,8 @@ export interface KimakiRuntimeService {
   getDataDir: () => string;
   getAvailable: () => boolean;
   getReason: () => string | null;
+  getPid: () => number | null;
+  getStartedAt: () => number | null;
 }
 
 export interface KimakiRuntimeServiceOptions {
@@ -68,6 +70,7 @@ export function createKimakiRuntimeService(
   let lastError: string | null = null;
   let reason: string | null = null;
   let child: ChildProcess | null = null;
+  let startedAt: number | null = null;
   let stopping = false;
   let lastStartOptions: { callbackUrl?: string } = {};
 
@@ -119,6 +122,7 @@ export function createKimakiRuntimeService(
       },
     );
     child = spawnedChild;
+    startedAt = Date.now();
 
     spawnedChild.stdout?.on('data', (chunk) => parser.feed(chunk.toString('utf8')));
     spawnedChild.stderr?.on('data', (chunk) => log(chunk.toString('utf8').trim()));
@@ -128,6 +132,7 @@ export function createKimakiRuntimeService(
       reason = 'kimaki_spawn_failed';
       log(error.message);
       child = null;
+      startedAt = null;
     });
     spawnedChild.on('exit', (code) => {
       if (!stopping) {
@@ -137,6 +142,7 @@ export function createKimakiRuntimeService(
         log(lastError);
       }
       child = null;
+      startedAt = null;
     });
   }
 
@@ -144,6 +150,7 @@ export function createKimakiRuntimeService(
     stopping = true;
     const runningChild = child;
     state = 'idle';
+    startedAt = null;
     if (!runningChild) {
       return;
     }
@@ -183,5 +190,7 @@ export function createKimakiRuntimeService(
     getDataDir: () => dataDir,
     getAvailable: () => true,
     getReason: () => reason,
+    getPid: () => child?.pid ?? null,
+    getStartedAt: () => startedAt,
   };
 }

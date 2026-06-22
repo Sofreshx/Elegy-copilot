@@ -202,3 +202,26 @@ export function summarizeSdkHealth(
     detail: health.error || 'SDK bridge is reachable but not connected.',
   };
 }
+
+export function formatGatewaySegmentSummary(
+  segment: Record<string, unknown> | null,
+  fallbackStatus = 'unknown',
+): { statusLabel: string; readinessLabel: string; detail?: string } {
+  if (!segment) {
+    return { statusLabel: fallbackStatus, readinessLabel: 'unavailable' };
+  }
+
+  const rawStatus = typeof segment.status === 'string' && segment.status.trim()
+    ? segment.status
+    : null;
+  const ready = segment.ready === true;
+  const error = typeof segment.error === 'string' && segment.error.trim()
+    ? segment.error
+    : undefined;
+
+  return {
+    statusLabel: humanizeToken(rawStatus, fallbackStatus),
+    readinessLabel: ready ? 'ready' : 'not ready',
+    ...(error ? { detail: error } : {}),
+  };
+}

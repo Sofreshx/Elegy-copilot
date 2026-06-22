@@ -35,6 +35,10 @@ import type {
   ExecutorWorktreeDiscovery,
   ExecutorWorktreeRecord,
   ExecutorWorktreesResponse,
+  GatewayConfigResponse,
+  GatewaySaveConfigResponse,
+  GatewayScanReposResponse,
+  GatewayStateResponse,
   HealthResponse,
   InstalledAssetsResponse,
   LspConfigResponse,
@@ -2629,5 +2633,110 @@ export function normalizeExecutorWorktreeDiscovery(value: unknown): ExecutorWork
     gitListError: asTrimmedString(record.gitListError) || null,
     persistedCount: asNumber(record.persistedCount, 0),
     discoveredCount: asNumber(record.discoveredCount, 0),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Gateway Payload                                                     */
+/* ------------------------------------------------------------------ */
+
+export interface GatewaySaveConfigPayload {
+  mode: string;
+  acp: { host: string; port: number };
+  discord?: {
+    allowlistedUserIds: string[];
+    guildId: string;
+    channelId: string;
+    permissionsChannelId?: string;
+  };
+  telegram?: {
+    allowlistedUserIds: string[];
+  };
+  workspaces: {
+    allowedRoots: string[];
+    activeRoot: string;
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Gateway Normalizers                                                 */
+/* ------------------------------------------------------------------ */
+
+export function normalizeGatewayConfigResponse(payload: unknown): GatewayConfigResponse {
+  const record = asRecord(payload);
+  const config = asRecord(record.config);
+  const acp = asRecord(config.acp);
+  const workspaces = asRecord(config.workspaces);
+  const discord = asRecord(config.discord);
+  const telegram = asRecord(config.telegram);
+
+  return {
+    configPath: asTrimmedString(record.configPath),
+    exists: asBoolean(record.exists, false),
+    config: {
+      mode: asTrimmedString(config.mode) || 'auto',
+      ...(Object.keys(acp).length > 0
+        ? { acp: { host: asTrimmedString(acp.host) || '127.0.0.1', port: asNumber(acp.port, 3000) } }
+        : {}),
+      ...(Object.keys(workspaces).length > 0
+        ? {
+            workspaces: {
+              activeRoot: asTrimmedString(workspaces.activeRoot),
+              allowedRoots: asArray(workspaces.allowedRoots).map((v) => asTrimmedString(v)).filter(Boolean),
+            },
+          }
+        : {}),
+      ...(Object.keys(discord).length > 0
+        ? {
+            discord: {
+              guildId: asTrimmedString(discord.guildId),
+              channelId: asTrimmedString(discord.channelId),
+              allowlistedUserIds: asArray(discord.allowlistedUserIds).map((v) => asTrimmedString(v)).filter(Boolean),
+              ...(asTrimmedString(discord.permissionsChannelId) ? { permissionsChannelId: asTrimmedString(discord.permissionsChannelId) } : {}),
+            },
+          }
+        : {}),
+      ...(Object.keys(telegram).length > 0
+        ? {
+            telegram: {
+              allowlistedUserIds: asArray(telegram.allowlistedUserIds).map((v) => asTrimmedString(v)).filter(Boolean),
+            },
+          }
+        : {}),
+    },
+  };
+}
+
+export function normalizeGatewaySaveConfigResponse(payload: unknown): GatewaySaveConfigResponse {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    ok: asBoolean(record.ok, false),
+  };
+}
+
+export function normalizeGatewayScanReposResponse(payload: unknown): GatewayScanReposResponse {
+  const record = asRecord(payload);
+  const roots = asArray(record.roots).map((r) => {
+    const root = asRecord(r);
+    const repos = asArray(root.repos).map((repo) => {
+      const entry = asRecord(repo);
+      return {
+        ...entry,
+        name: asTrimmedString(entry.name),
+        path: asTrimmedString(entry.path),
+      };
+    });
+    return { ...root, root: asTrimmedString(root.root), repos };
+  });
+
+  return { ...record, roots };
+}
+
+export function normalizeGatewayStateResponse(payload: unknown): GatewayStateResponse {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    ready: asBoolean(record.ready, false),
   };
 }

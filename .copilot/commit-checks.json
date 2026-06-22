@@ -70,7 +70,7 @@
       "ciRequired": true,
       "commands": [
         "npx vitest run",
-        "cargo test"
+        "cargo test --manifest-path copilot-ui/src-tauri/Cargo.toml"
       ]
     },
     "lint": {
@@ -90,7 +90,7 @@
       "ciJob": "",
       "ciRequired": false,
       "commands": [
-        "cargo clippy -- -D warnings"
+        "cargo clippy --manifest-path copilot-ui/src-tauri/Cargo.toml -- -D warnings"
       ]
     },
     "format": {
@@ -110,7 +110,7 @@
       "ciJob": "",
       "ciRequired": false,
       "commands": [
-        "cargo fmt -- --check"
+        "cargo fmt --manifest-path copilot-ui/src-tauri/Cargo.toml -- --check"
       ]
     },
     "typecheck": {
@@ -134,7 +134,7 @@
         "npx tsc -p \"copilot-ui/ui/tsconfig.json\" --noEmit",
         "npx tsc -p \"local-tracker/tsconfig.json\" --noEmit",
         "npx tsc -p \"local-tracker/tsconfig.build.json\" --noEmit",
-        "cargo check"
+        "cargo check --manifest-path copilot-ui/src-tauri/Cargo.toml"
       ]
     },
     "ci-local": {

@@ -3,6 +3,7 @@ import { Button } from '../../components';
 import { notificationStore } from '../../stores/notificationStore';
 import type { CatalogRepoInventoryEntry } from '../../lib/types';
 import type { GitState } from '../../stores/gitStore';
+import { gitStore } from '../../stores/gitStore';
 import type {
   GitCheckResults,
   GitBranchEntry,
@@ -395,6 +396,9 @@ export default function WorkspaceGitTab({
   // ─── Section 3 state: commit log expand ────────────────────────────────────
   const [expandedCommit, setExpandedCommit] = useState<number | null>(null);
 
+  // ─── Commit graph expand (lazy fetch via enabled prop) ─────────────────────
+  const [graphExpanded, setGraphExpanded] = useState(false);
+
   // ─── Merge candidate state ─────────────────────────────────────────────────
   const [mergeCandidates, setMergeCandidates] = useState<MergeCandidate[]>([]);
   const [mergeResults, setMergeResults] = useState<Record<string, MergeDryRunResponse>>({});
@@ -406,6 +410,10 @@ export default function WorkspaceGitTab({
   const [worktreesLoading, setWorktreesLoading] = useState(false);
   const [worktreesError, setWorktreesError] = useState<string | null>(null);
   const [expandedWorktree, setExpandedWorktree] = useState<string | null>(null);
+
+  // ─── Staggered loading state ───────────────────────────────────────────────
+  const [worktreesLoaded, setWorktreesLoaded] = useState(false);
+  const worktreesLoadingRef = useRef(false);
 
   // ─── Worktree cleanup state ────────────────────────────────────────────────
   const [cleanupAnalyses, setCleanupAnalyses] = useState<Record<string, { eligible: boolean; reason: string; dirty: boolean; missing: boolean; assigned: boolean; conflicts: boolean; mergedIntoCurrentOrDefault: boolean; diagnostics: string[] }>>({});
@@ -433,15 +441,13 @@ export default function WorkspaceGitTab({
   const [showSkipVerifyConfirm, setShowSkipVerifyConfirm] = useState(false);
   const [skipVerifyCommitting, setSkipVerifyCommitting] = useState(false);
 
-  // ─── Verify & Commit flow ──────────────────────────────────────────────────
-  const [commitPhase, setCommitPhase] = useState<'idle' | 'running-checks'>('idle');
-  const [checksVerified, setChecksVerified] = useState(false);
+  // ─── Force push / override state ──────────────────────────────────────────
   const [failedCheckResults, setFailedCheckResults] = useState<GitCheckResults | null>(null);
 
-  // ─── Force commit/override state ───────────────────────────────────────────
-  const [showForceCommitDialog, setShowForceCommitDialog] = useState(false);
+  // ─── Force push/override state ─────────────────────────────────────────────
+  const [showForcePushDialog, setShowForcePushDialog] = useState(false);
   const [forceOverrideReason, setForceOverrideReason] = useState('');
-  const [forceCommitting, setForceCommitting] = useState(false);
+  const [forcePushing, setForcePushing] = useState(false);
 
   // ─── Generate commit message state ────────────────────────────────────────
   const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
@@ -462,7 +468,7 @@ export default function WorkspaceGitTab({
 
   // ─── Load merge candidates ─────────────────────────────────────────────────
   useEffect(() => {
-    if (!repoPath) return;
+    if (!repoPath || !worktreesLoaded) return;
     let cancelled = false;
     async function load() {
       try {
@@ -474,7 +480,7 @@ export default function WorkspaceGitTab({
     }
     void load();
     return () => { cancelled = true; };
-  }, [repoPath]);
+  }, [repoPath, worktreesLoaded]);
 
   // ─── Load worktrees ────────────────────────────────────────────────────────
   const loadWorktrees = useCallback(async () => {
@@ -496,17 +502,23 @@ export default function WorkspaceGitTab({
   }, [repoId, repoPath]);
 
   useEffect(() => {
+    if (worktreesLoadingRef.current) return;
+    worktreesLoadingRef.current = true;
     let cancelled = false;
     async function load() {
       if (!cancelled) await loadWorktrees();
+      if (!cancelled) setWorktreesLoaded(true);
     }
     void load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      worktreesLoadingRef.current = false;
+    };
   }, [loadWorktrees]);
 
   // ─── Load enriched worktree data ──────────────────────────────────────────
   useEffect(() => {
-    if (!repoPath) return;
+    if (!repoPath || !worktreesLoaded) return;
     let cancelled = false;
     async function load() {
       setEnrichedLoading(true);
@@ -521,7 +533,7 @@ export default function WorkspaceGitTab({
     }
     void load();
     return () => { cancelled = true; };
-  }, [repoPath]);
+  }, [repoPath, worktreesLoaded]);
 
   // ─── Close branch popover on outside click ─────────────────────────────────
   useEffect(() => {
@@ -626,40 +638,10 @@ export default function WorkspaceGitTab({
     }
   }
 
-  // ─── Verify & Commit handler (direct flow, no useEffect sync) ──────────────
-  async function handleVerifyAndCommit() {
+  // ─── Commit handler (direct flow) ───────────────────────────────────────────
+  async function handleCommit() {
     if (!gitState.commitMessage.trim() || !repoPath) return;
-    setCommitPhase('running-checks');
-    setChecksVerified(false);
-    setFailedCheckResults(null);
-
-    try {
-      const results = await runGitChecks(repoPath);
-
-      if (results.checksAvailable === 0) {
-        // No checks configured — allow commit, show neutral info
-        setChecksVerified(true);
-        notificationStore.success('No checks configured', { message: 'Proceeding with commit.' });
-        onCommit();
-        setCommitPhase('idle');
-        return;
-      }
-
-      if (results.allPassed) {
-        setChecksVerified(true);
-        onCommit();
-        setCommitPhase('idle');
-      } else {
-        setCommitPhase('idle');
-        setFailedCheckResults(results);
-        notificationStore.error('Checks failed', {
-          message: `${results.checksFailed} check(s) failed. Fix issues before committing.`,
-        });
-      }
-    } catch (err) {
-      setCommitPhase('idle');
-      notificationStore.error('Checks error', { message: err instanceof Error ? err.message : String(err) });
-    }
+    onCommit();
   }
 
   function handleComposerRunChecks() {
@@ -667,26 +649,19 @@ export default function WorkspaceGitTab({
     onRunChecks();
   }
 
-  // ─── Force commit handler ──────────────────────────────────────────────────
-  async function handleForceCommit() {
-    if (!forceOverrideReason.trim() || !gitState.commitMessage.trim() || !repoPath) return;
-    setForceCommitting(true);
+  // ─── Force push handler (push gate override) ───────────────────────────────
+  async function handleForcePush() {
+    if (!forceOverrideReason.trim() || !repoPath) return;
+    setForcePushing(true);
+    gitStore.setUnsafeOverrideReason(forceOverrideReason.trim());
     try {
-      const result = await commitGit(repoPath, gitState.commitMessage, { reason: forceOverrideReason.trim() });
-      if (result.error) {
-        notificationStore.error('Force commit failed', { message: result.error });
-      } else {
-        notificationStore.success('Force committed', {
-          message: `Committed with override: "${forceOverrideReason.trim()}"`,
-        });
-        setShowForceCommitDialog(false);
-        setForceOverrideReason('');
-        setFailedCheckResults(null);
-      }
+      await gitStore.push();
+      setShowForcePushDialog(false);
+      setForceOverrideReason('');
     } catch (err) {
-      notificationStore.error('Force commit failed', { message: err instanceof Error ? err.message : String(err) });
+      notificationStore.error('Force push failed', { message: err instanceof Error ? err.message : String(err) });
     } finally {
-      setForceCommitting(false);
+      setForcePushing(false);
     }
   }
 
@@ -743,15 +718,14 @@ export default function WorkspaceGitTab({
     }
   }
 
-  // ─── Reset checksVerified when repoPath changes ────────────────────────────
+  // ─── Reset failed check results when repoPath changes ───────────────────────
   useEffect(() => {
-    setChecksVerified(false);
     setFailedCheckResults(null);
   }, [repoPath]);
 
   // ─── Load stashes on mount ────────────────────────────────────────────────────
   useEffect(() => {
-    if (!repoPath) return;
+    if (!repoPath || !worktreesLoaded) return;
     let cancelled = false;
     async function load() {
       setStashesLoading(true);
@@ -766,7 +740,7 @@ export default function WorkspaceGitTab({
     }
     void load();
     return () => { cancelled = true; };
-  }, [repoPath]);
+  }, [repoPath, worktreesLoaded]);
 
   // ─── Resolve branches ──────────────────────────────────────────────────────
   const localBranches: GitBranchEntry[] = (gitState.branches?.branches ?? []).filter((b) => !b.remote);
@@ -906,7 +880,7 @@ export default function WorkspaceGitTab({
   }
 
   // ─── Push disabled state ───────────────────────────────────────────────────
-  const pushDisabled = (verificationState !== 'verified' && !checksVerified) || changeCount === 0 || gitState.syncing;
+  const pushDisabled = changeCount === 0 || gitState.syncing;
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
@@ -1499,42 +1473,42 @@ export default function WorkspaceGitTab({
       <CompactCheckStatus repoPath={repoPath} />
 
       {/* Commit Graph (collapsible) */}
-      <details className="workspace-git-graph-details" data-testid="workspace-git-graph-details" style={{ marginBottom: 'var(--space-md)' }}>
+      <details className="workspace-git-graph-details" data-testid="workspace-git-graph-details" style={{ marginBottom: 'var(--space-md)' }} onToggle={(e) => setGraphExpanded(e.currentTarget.open)}>
         <summary style={{ cursor: 'pointer', color: 'var(--color-text-200)', fontSize: '0.85em', padding: '4px 0' }}>
           Commit Graph
         </summary>
-        <WorkspaceCommitGraph repoPath={repoPath} compact />
+        <WorkspaceCommitGraph repoPath={repoPath} compact enabled={graphExpanded} />
       </details>
       {/* ================================================================ */}
       {/* SECTION 4 — Sticky Bottom Composer (Verify & Commit)            */}
       {/* ================================================================ */}
       <div className="workspace-git-composer" data-testid="workspace-git-composer">
         <div className="workspace-git-composer-inner">
-          {/* Primary action: Verify & Commit */}
+          {/* Primary action: Commit */}
           <Button
             variant="primary"
             size="sm"
-            disabled={!gitState.commitMessage.trim() || commitPhase === 'running-checks'}
-            onClick={() => void handleVerifyAndCommit()}
+            disabled={!gitState.commitMessage.trim() || gitState.committing}
+            onClick={() => void handleCommit()}
             testId="workspace-verify-commit"
           >
-            {commitPhase === 'running-checks' ? 'Running checks...' : 'Verify & Commit'}
+            {gitState.committing ? 'Committing...' : 'Commit'}
           </Button>
 
-          {/* Force commit area (shown when checks fail) */}
-          {failedCheckResults && (
+          {/* Force push area (shown when push gate fails) */}
+          {(gitState.checkFailed && gitState.showOverrideInput) || showForcePushDialog ? (
             <div className="workspace-git-force-commit-area" data-testid="workspace-force-commit-area">
-              {!showForceCommitDialog ? (
+              {!showForcePushDialog ? (
                 <Button
                   variant="danger"
                   size="sm"
-                  onClick={() => setShowForceCommitDialog(true)}
-                  testId="workspace-force-commit-btn"
+                  onClick={() => setShowForcePushDialog(true)}
+                  testId="workspace-force-push-btn"
                 >
-                  Force Commit
+                  Force Push
                 </Button>
               ) : (
-                <div className="workspace-git-force-dialog" data-testid="workspace-force-commit-dialog">
+                <div className="workspace-git-force-dialog" data-testid="workspace-force-push-dialog">
                   <input
                     className="form-input-field"
                     placeholder="Override reason required..."
@@ -1545,24 +1519,24 @@ export default function WorkspaceGitTab({
                   <Button
                     variant="danger"
                     size="sm"
-                    disabled={!forceOverrideReason.trim() || forceCommitting}
-                    onClick={() => void handleForceCommit()}
-                    testId="workspace-force-commit-confirm"
+                    disabled={!forceOverrideReason.trim() || forcePushing}
+                    onClick={() => void handleForcePush()}
+                    testId="workspace-force-push-confirm"
                   >
-                    {forceCommitting ? '...' : 'Force Commit (skip verification)'}
+                    {forcePushing ? '...' : 'Force Push'}
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => { setShowForceCommitDialog(false); setForceOverrideReason(''); }}
-                    testId="workspace-force-commit-cancel"
+                    onClick={() => { setShowForcePushDialog(false); setForceOverrideReason(''); }}
+                    testId="workspace-force-push-cancel"
                   >
                     Cancel
                   </Button>
                 </div>
               )}
             </div>
-          )}
+          ) : null}
 
           {/* Generate commit message button */}
           <div className="workspace-git-generate-row" data-testid="workspace-generate-row">
@@ -1642,6 +1616,16 @@ export default function WorkspaceGitTab({
           >
             {gitState.syncing ? 'Pushing...' : 'Push ⬆'}
           </Button>
+
+          {/* Force Push hint when gate failed but override not active */}
+          {gitState.checkFailed && !gitState.showOverrideInput && !showForcePushDialog ? (
+            <div style={{ color: 'var(--color-error-500)', fontSize: '0.8rem', marginTop: 'var(--space-xs)' }}>
+              Push blocked — checks failed.{' '}
+              <button type="button" onClick={() => setShowForcePushDialog(true)} style={{ color: 'var(--color-accent-500)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, font: 'inherit' }}>
+                Force push?
+              </button>
+            </div>
+          ) : null}
 
           {/* ─── Stash area ────────────────────────────────────────────────── */}
           <div className="workspace-git-stash-divider" data-testid="workspace-git-stash-divider" style={{
@@ -1766,13 +1750,6 @@ export default function WorkspaceGitTab({
           </div>
         </div>
 
-        {/* Verification warning */}
-        {verificationState !== 'verified' && changeCount > 0 ? (
-          <div className="workspace-git-composer-warning" data-testid="workspace-commit-warning">
-            ⚠ Checks are not verified. Run Verify & Commit before pushing.
-          </div>
-        ) : null}
-
         {/* Commit & Push without verifying */}
         <div className="workspace-git-composer-actions" style={{ marginTop: 'var(--space-sm)', borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-sm)' }}>
           {!showSkipVerifyConfirm ? (
@@ -1796,17 +1773,11 @@ export default function WorkspaceGitTab({
                   if (!repoPath) return;
                   setSkipVerifyCommitting(true);
                   try {
-                    // Use direct commit with skip-verification override
-                    const commitResult = await commitGit(repoPath, gitState.commitMessage, { reason: 'skip verify' });
-                    if (commitResult.error) {
-                      notificationStore.error('Skip-verify commit failed', { message: commitResult.error });
-                      setSkipVerifyCommitting(false);
-                      return;
-                    }
-                    await pushGit(repoPath, false, { reason: 'skip verify' });
-                    notificationStore.success('Committed & pushed', { message: 'Changes committed and pushed (skipped verification)' });
+                    await gitStore.commit();
+                    await gitStore.push();
+                    notificationStore.success('Committed & pushed');
                   } catch (err) {
-                    notificationStore.error('Skip-verify failed', { message: err instanceof Error ? err.message : String(err) });
+                    notificationStore.error('Commit & push failed', { message: err instanceof Error ? err.message : String(err) });
                   } finally {
                     setSkipVerifyCommitting(false);
                     setShowSkipVerifyConfirm(false);
@@ -1828,18 +1799,11 @@ export default function WorkspaceGitTab({
           )}
         </div>
 
-        {/* Push disabled hint */}
-        {pushDisabled && changeCount > 0 ? (
-          <div className="workspace-git-composer-hint" data-testid="workspace-push-hint">
-            Push disabled — run Verify & Commit first
-          </div>
-        ) : null}
-
         <div className="workspace-git-checks-section-wrapper">
           <WorkspaceChecksSection
             repoPath={repoPath}
             checkResults={failedCheckResults || checkResults}
-            runningChecks={runningChecks || commitPhase === 'running-checks'}
+            runningChecks={runningChecks}
             onRunChecks={handleComposerRunChecks}
           />
         </div>

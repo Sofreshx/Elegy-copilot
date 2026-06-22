@@ -8,6 +8,8 @@ import {
   addRemoteProject,
   renameRemoteSession,
   getRemoteLogs,
+  enableRemoteSessions,
+  disableRemoteSessions,
   type RemoteStatus,
   type RemoteProject,
   type RemoteSession,
@@ -15,6 +17,9 @@ import {
 
 interface RemoteState {
   status: RemoteStatus | null;
+  enabled: boolean;
+  pid: number | null;
+  uptimeMs: number | null;
   projects: RemoteProject[];
   sessions: RemoteSession[];
   logsTail: string[];
@@ -28,6 +33,7 @@ interface RemoteState {
   renameSession: (sessionId: string, title: string) => Promise<void>;
   refreshLogs: () => Promise<void>;
   restart: () => Promise<void>;
+  toggleRemote: (newEnabled: boolean) => Promise<void>;
 }
 
 let statusRequest: Promise<RemoteStatus | null> | null = null;
@@ -43,6 +49,9 @@ function setStableError(
 
 export const useRemoteStore = create<RemoteState>((set, get) => ({
   status: null,
+  enabled: false,
+  pid: null,
+  uptimeMs: null,
   projects: [],
   sessions: [],
   logsTail: [],
@@ -56,7 +65,14 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
       set({ statusLoading: true });
       try {
         const status = await getRemoteStatus();
-        set({ status, statusLoading: false, error: null });
+        set({
+          status,
+          enabled: status.enabled,
+          pid: status.pid,
+          uptimeMs: status.uptimeMs,
+          statusLoading: false,
+          error: null,
+        });
         return status;
       } catch (err) {
         set({ statusLoading: false });
@@ -134,6 +150,22 @@ export const useRemoteStore = create<RemoteState>((set, get) => ({
     set({ actionLoading: true, error: null, projects: [], sessions: [] });
     try {
       await restartRemoteRuntime();
+      await get().loadStatus();
+    } catch (err) {
+      setStableError(set, err);
+    } finally {
+      set({ actionLoading: false });
+    }
+  },
+
+  toggleRemote: async (newEnabled: boolean) => {
+    set({ actionLoading: true, error: null });
+    try {
+      if (newEnabled) {
+        await enableRemoteSessions();
+      } else {
+        await disableRemoteSessions();
+      }
       await get().loadStatus();
     } catch (err) {
       setStableError(set, err);

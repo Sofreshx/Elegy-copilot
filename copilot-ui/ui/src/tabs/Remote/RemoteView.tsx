@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   FormInput,
@@ -28,6 +28,15 @@ function statusTone(state?: string): 'neutral' | 'brand' | 'accent' | 'success' 
   return 'brand';
 }
 
+function formatUptime(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}
+
 export default function RemoteView() {
   const store = useRemoteStore();
   const [showAddProject, setShowAddProject] = useState(false);
@@ -38,25 +47,43 @@ export default function RemoteView() {
   const [showDebug, setShowDebug] = useState(false);
   const [renameSessionId, setRenameSessionId] = useState('');
   const [renameTitle, setRenameTitle] = useState('');
-  const { status, projects, sessions, logsTail, statusLoading, actionLoading, error } = store;
+  const { status, enabled, pid, uptimeMs, projects, sessions, logsTail, statusLoading, actionLoading, error } = store;
+  const paused = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
 
     const refresh = async () => {
       const nextStatus = await store.loadStatus();
-      if (cancelled) return;
+      if (cancelled || paused.current) return;
       if (nextStatus?.ready) {
         await store.loadOperations();
       }
-      timer = setTimeout(refresh, nextStatus?.ready ? 10_000 : 3_000);
+      timerRef.current = setTimeout(refresh, nextStatus?.ready ? 10_000 : 3_000);
     };
 
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        paused.current = true;
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+      } else {
+        paused.current = false;
+        void refresh();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
     void refresh();
     return () => {
       cancelled = true;
-      if (timer) clearTimeout(timer);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);
 
@@ -105,6 +132,17 @@ export default function RemoteView() {
               tone={connectionTone}
               testId="remote-status-badge"
             />
+            {enabled !== undefined && (
+              <Button
+                onClick={() => store.toggleRemote(!enabled)}
+                variant={enabled ? 'danger' : 'primary'}
+                size="sm"
+                disabled={actionLoading}
+                testId={enabled ? 'remote-disable' : 'remote-enable'}
+              >
+                {enabled ? 'Disable' : 'Enable'}
+              </Button>
+            )}
             {isReady ? (
               <Button onClick={() => store.restart()} variant="secondary" size="sm" loading={actionLoading} testId="remote-restart">
                 Restart
@@ -118,6 +156,25 @@ export default function RemoteView() {
         <PageContainer>
           <div className="remote-shell">
             {error ? <div className="remote-alert" role="alert" data-testid="remote-error">{error}</div> : null}
+
+            {enabled === false && (
+              <div className="remote-disabled-panel" data-testid="remote-disabled-panel" style={{
+                padding: 'var(--space-xl)',
+                textAlign: 'center',
+                border: '1px dashed var(--color-border-300)',
+                borderRadius: 'var(--radius-md)',
+                margin: 'var(--space-md) 0',
+              }}>
+                <div style={{ fontSize: '2em', marginBottom: 'var(--space-md)' }}>🔌</div>
+                <h3>Remote sessions are disabled</h3>
+                <p style={{ color: 'var(--color-text-300)', marginBottom: 'var(--space-lg)' }}>
+                  Enable remote sessions to connect Discord and access your projects from anywhere.
+                </p>
+                <Button variant="primary" onClick={() => store.toggleRemote(true)} testId="remote-enable-cta">
+                  Enable remote sessions
+                </Button>
+              </div>
+            )}
 
             {!isReady ? (
               <Panel testId="remote-onboarding">
@@ -162,8 +219,31 @@ export default function RemoteView() {
                   {status?.lastError ? <code className="remote-inline-error">{status.lastError}</code> : null}
                 </div>
               </Panel>
-            ) : (
+            ) : enabled ? (
               <>
+                {/* State strip */}
+                {status && (
+                  <div className="remote-state-strip" data-testid="remote-state-strip" style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 'var(--space-md)',
+                    padding: 'var(--space-sm) var(--space-md)',
+                    background: 'var(--color-bg-100)',
+                    borderRadius: 'var(--radius-sm)',
+                    marginBottom: 'var(--space-md)',
+                    fontSize: '0.85em',
+                  }}>
+                    <span>Status: <StatusBadge status={status.state} tone={statusTone(status.state)} /></span>
+                    {status.ready !== undefined && <span>Ready: {status.ready ? '✅' : '❌'}</span>}
+                    {status.guildIds && <span>Guilds: {status.guildIds.length}</span>}
+                    {status.appId && <span>App: {status.appId.slice(0, 8)}...</span>}
+                    {pid != null && <span>PID: {pid}</span>}
+                    {uptimeMs != null && <span>Uptime: {formatUptime(uptimeMs)}</span>}
+                    {status.lastError && <span style={{ color: 'var(--color-error-500)' }}>Error: {status.lastError}</span>}
+                    {status.dataDir && <span title={status.dataDir}>Data: ...{status.dataDir.slice(-20)}</span>}
+                  </div>
+                )}
+
                 <Panel
                   title="Connection"
                   subtitle={`${status?.guildIds.length || 0} Discord server${status?.guildIds.length === 1 ? '' : 's'} connected via ${status?.runtime || 'node'}.`}
@@ -276,7 +356,7 @@ export default function RemoteView() {
                   </div>
                 </Panel>
               </>
-            )}
+            ) : null}
 
             <section className="remote-diagnostics">
               <Button variant="ghost" size="sm" onClick={() => {

@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 const { gateGitAction } = require('../lib/gitCheckRunner');
+const gitPrCache = require('../lib/gitPrCache');
 
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -115,41 +116,61 @@ function parseBranches(output) {
 }
 
 async function resolvePullRequest(childProcessImpl, repoPath) {
-  try {
-    const authResult = await runCommand(childProcessImpl, 'gh', ['auth', 'status'], repoPath, 15000);
-    if (!/Logged in/i.test(authResult.stdout) && !/Logged in/i.test(authResult.stderr)) {
-      return {
+  // Check auth cache first
+  const cachedAuth = gitPrCache.readAuth(repoPath);
+  let authResult;
+  
+  if (cachedAuth) {
+    authResult = cachedAuth;
+  } else {
+    try {
+      const rawResult = await runCommand(childProcessImpl, 'gh', ['auth', 'status'], repoPath, 15000);
+      const authenticated = /Logged in/i.test(rawResult.stdout) || /Logged in/i.test(rawResult.stderr);
+      authResult = {
         available: true,
         tool: 'gh',
+        authenticated,
+        pullRequest: null,
+        error: authenticated ? null : 'GitHub CLI is not authenticated.',
+      };
+    } catch {
+      authResult = {
+        available: false,
+        tool: null,
         authenticated: false,
         pullRequest: null,
-        error: 'GitHub CLI is not authenticated.',
+        error: 'GitHub CLI is unavailable.',
       };
     }
-  } catch {
-    return {
-      available: false,
-      tool: null,
-      authenticated: false,
-      pullRequest: null,
-      error: 'GitHub CLI is unavailable.',
-    };
+    gitPrCache.writeAuth(repoPath, { authenticated: authResult.authenticated, available: authResult.available, error: authResult.error });
+  }
+
+  if (!authResult.available || !authResult.authenticated) {
+    return authResult;
+  }
+
+  // Check PR cache
+  const cachedPr = gitPrCache.readPr(repoPath);
+  if (cachedPr) {
+    return cachedPr;
   }
 
   try {
     const result = await runCommand(childProcessImpl, 'gh', ['pr', 'view', '--json', 'number,url,state'], repoPath, 20000);
     const parsed = JSON.parse(result.stdout || '{}');
     if (!parsed || typeof parsed.number !== 'number') {
-      return {
+      const noPrResult = {
         available: true,
         tool: 'gh',
         authenticated: true,
         pullRequest: null,
         error: null,
       };
+      gitPrCache.writePr(repoPath, noPrResult);
+      return noPrResult;
     }
 
-    return {
+    const prResult = {
       available: true,
       tool: 'gh',
       authenticated: true,
@@ -160,54 +181,108 @@ async function resolvePullRequest(childProcessImpl, repoPath) {
       },
       error: null,
     };
+    gitPrCache.writePr(repoPath, prResult);
+    return prResult;
   } catch (error) {
     const message = String(error.stderr || error.message || error).trim();
     if (/no pull requests found/i.test(message) || /could not find any pull requests/i.test(message)) {
-      return {
+      const noPrResult = {
         available: true,
         tool: 'gh',
         authenticated: true,
         pullRequest: null,
         error: null,
       };
+      gitPrCache.writePr(repoPath, noPrResult);
+      return noPrResult;
     }
-    return {
+    const errResult = {
       available: true,
       tool: 'gh',
       authenticated: true,
       pullRequest: null,
       error: message || null,
     };
+    // Don't cache error results
+    return errResult;
   }
 }
 
 async function resolveGitStatus(childProcessImpl, repoPath) {
-  const [statusResult, branchResult, aheadBehindResult, upstreamResult, topLevelResult] = await Promise.all([
-    runGit(childProcessImpl, ['status', '--porcelain=v1'], repoPath).catch(() => ({ stdout: '', stderr: '' })),
-    runGit(childProcessImpl, ['branch', '--show-current'], repoPath).catch(() => ({ stdout: '', stderr: '' })),
+  const [porcelainV2, topLevel] = await Promise.all([
     runGit(childProcessImpl, ['status', '--branch', '--porcelain=v2'], repoPath).catch(() => ({ stdout: '', stderr: '' })),
-    runGit(childProcessImpl, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], repoPath).catch(() => ({ stdout: '', stderr: '' })),
     runGit(childProcessImpl, ['rev-parse', '--show-toplevel'], repoPath).catch(() => ({ stdout: '', stderr: '' })),
   ]);
 
-  const files = statusResult.stdout
-    .split('\n')
-    .filter((line) => line.trim())
-    .map((line) => ({
-      status: line.substring(0, 2),
-      path: line.substring(3),
-    }));
+  // Parse porcelain-v2 output
+  const text = String(porcelainV2.stdout || '');
+  const lines = text.split('\n');
 
-  const branch = branchResult.stdout.trim() || null;
-  const upstream = upstreamResult.stdout.trim() || null;
-  const { ahead, behind } = parseAheadBehind(aheadBehindResult.stdout);
+  let branch = null;
+  let upstream = null;
+
+  // porcelain-v2 header lines start with '#'
+  // Parse header lines for branch info
+  for (const line of lines) {
+    if (line.startsWith('# branch.head ')) {
+      branch = line.slice('# branch.head '.length).trim() || null;
+    } else if (line.startsWith('# branch.upstream ')) {
+      upstream = line.slice('# branch.upstream '.length).trim() || null;
+      // Convert full ref format to short form: refs/remotes/origin/main -> origin/main
+      if (upstream && upstream.startsWith('refs/remotes/')) {
+        upstream = upstream.slice('refs/remotes/'.length);
+      }
+    }
+    // Stop parsing headers once we hit a non-header line
+    if (!line.startsWith('#') && line.trim() !== '') break;
+  }
+
+  // Parse file entries from porcelain-v2
+  // Format: <1|2> <XY> <sub> <mH> <mI> <mW> <hH> <hI> <path>
+  // OR: ? <path> (untracked)
+  // OR: ! <path> (ignored)
+  const files = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    if (trimmed.startsWith('? ')) {
+      // Untracked file
+      files.push({ status: '??', path: trimmed.slice(2).trim() });
+    } else if (trimmed.startsWith('! ')) {
+      // Ignored — skip
+      continue;
+    } else {
+      // Ordinary (1) or rename/copy (2) entry
+      // Split by space, but path may contain spaces
+      const spaceIdx = trimmed.indexOf(' ');
+      if (spaceIdx === -1) continue;
+      const entryType = trimmed.slice(0, spaceIdx);
+      const rest = trimmed.slice(spaceIdx + 1);
+      // rest format: <XY> <sub> <mH> <mI> <mW> <hH> <hI> <path...>
+      const parts = rest.split(' ');
+      if (parts.length < 8) continue;
+      const xy = parts[0]; // e.g., "M.", ".M", "MM", "A ", " D"
+      // Path starts at index 7 (after 7 metadata fields)
+      const pathPart = parts.slice(7).join(' ');
+      // Convert porcelain-v2 XY to porcelain-v1 style status
+      // v1 uses 2 chars: index-status + worktree-status
+      // v2: X = index, Y = worktree, '.' means unmodified
+      const statusX = xy[0] === '.' ? ' ' : xy[0];
+      const statusY = xy[1] === '.' ? ' ' : xy[1];
+      files.push({ status: statusX + statusY, path: pathPart });
+    }
+  }
+
+  // Reuse existing helpers for ahead/behind and counts
+  const { ahead, behind } = parseAheadBehind(porcelainV2.stdout);
   const { stagedCount, unstagedCount } = resolveStatusCounts(files);
 
   return {
     branch,
     files,
     clean: files.length === 0,
-    repoRoot: topLevelResult.stdout.trim() || null,
+    repoRoot: topLevel.stdout.trim() || null,
     stagedCount,
     unstagedCount,
     ahead,
@@ -419,15 +494,43 @@ function handleGitStage(ctx, deps) {
     });
 }
 
+function handlePrRefresh(ctx, deps) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+  return readJsonBody(req)
+    .then(async (body) => {
+      const repoPath = isNonEmptyString(body.repoPath) ? body.repoPath.trim() : '';
+      if (repoPath) {
+        gitPrCache.bust(repoPath);
+      }
+      sendJson(res, 200, { ok: true });
+    })
+    .catch((error) => {
+      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      sendJson(res, statusCode, { error: String(error.message || error) });
+    });
+}
+
 function handleGitCommit(ctx, deps) {
-  return handleGitActionWithGate(ctx, deps, 'commit', async (repoPath, body) => {
-    const message = isNonEmptyString(body.message) ? body.message.trim() : '';
-    if (!message) {
-      throw Object.assign(new Error('message is required'), { statusCode: 400 });
-    }
-    const result = await runGit(deps.childProcess, ['commit', '-m', message], repoPath);
-    return { committed: true, output: result.stdout.trim() };
-  });
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+
+  return readJsonBody(req)
+    .then(async (body) => {
+      const repoPath = isNonEmptyString(body.repoPath) ? body.repoPath.trim() : '';
+      const message = isNonEmptyString(body.message) ? body.message.trim() : '';
+      if (!repoPath) throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+      if (!message) throw Object.assign(new Error('message is required'), { statusCode: 400 });
+      const result = await runGit(deps.childProcess, ['commit', '-m', message], repoPath);
+      // Bust PR cache after commit
+      if (repoPath) gitPrCache.bust(repoPath);
+      return { committed: true, output: result.stdout.trim() };
+    })
+    .then((r) => sendJson(res, 200, r))
+    .catch((error) => {
+      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      sendJson(res, statusCode, { error: String(error.message || error) });
+    });
 }
 
 function handleGitUnstage(ctx, deps) {
@@ -520,6 +623,7 @@ function handleGitPush(ctx, deps) {
       ? ['push', '-u', 'origin', branch]
       : ['push'];
     const result = await runGit(deps.childProcess, args, repoPath, 30000);
+    gitPrCache.bust(repoPath);
     return { pushed: true, output: `${result.stdout}${result.stderr}`.trim() };
   });
 }
@@ -1698,6 +1802,7 @@ function register(context = {}) {
     { method: 'GET', path: '/api/git/branches', handler: (ctx) => handleGitBranches(ctx, deps) },
     { method: 'GET', path: '/api/git/summary', handler: (ctx) => handleGitSummary(ctx, deps) },
     { method: 'GET', path: '/api/git/pull-request', handler: (ctx) => handleGitPullRequest(ctx, deps) },
+    { method: 'POST', path: '/api/git/pr/refresh', handler: (ctx) => handlePrRefresh(ctx, deps) },
     { method: 'POST', path: '/api/git/stage', handler: (ctx) => handleGitStage(ctx, deps) },
     { method: 'POST', path: '/api/git/unstage', handler: (ctx) => handleGitUnstage(ctx, deps) },
     { method: 'POST', path: '/api/git/commit', handler: (ctx) => handleGitCommit(ctx, deps) },
@@ -1723,6 +1828,7 @@ function register(context = {}) {
 
 module.exports = {
   register,
+  handlePrRefresh,
   handleGitMergeWorktree,
   handleListStashes,
   handleCreateStash,

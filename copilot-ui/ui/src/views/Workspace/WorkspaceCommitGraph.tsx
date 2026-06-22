@@ -21,6 +21,7 @@ interface GraphResponse {
 interface WorkspaceCommitGraphProps {
   repoPath: string;
   compact?: boolean;
+  enabled?: boolean;
 }
 
 const REF_COLORS: Record<string, string> = {
@@ -57,13 +58,13 @@ function renderGraphLine(graph: string): { spans: Array<{ char: string; color: s
   return { spans };
 }
 
-export default function WorkspaceCommitGraph({ repoPath, compact = true }: WorkspaceCommitGraphProps) {
+export default function WorkspaceCommitGraph({ repoPath, compact = true, enabled = true }: WorkspaceCommitGraphProps) {
   const [data, setData] = useState<GraphResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!repoPath) return;
+    if (!repoPath || !enabled) return;
     let cancelled = false;
     setLoading(true);
     apiRequest<GraphResponse>(`/api/git/graph?repoPath=${encodeURIComponent(repoPath)}`)
@@ -71,7 +72,7 @@ export default function WorkspaceCommitGraph({ repoPath, compact = true }: Works
       .catch(e => { if (!cancelled) setError(String(e)); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [repoPath]);
+  }, [repoPath, enabled]);
 
   if (loading) return <div className="state-message">Loading graph...</div>;
   if (error) return <div className="state-message" style={{ color: 'var(--color-error-500)' }}>{error}</div>;
