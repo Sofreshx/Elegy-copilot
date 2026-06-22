@@ -249,3 +249,35 @@ test('tooling updates elegy-planning endpoint installs from managed GitHub sourc
   assert.equal(result.body.status.elegyPlanningCli.features.complete, true);
   assert.equal(result.body.status.elegyPlanningCli.updateAvailable, false);
 });
+
+test('tooling updates status returns 200 when ctx.env is missing (Win10 route safety)', async () => {
+  const routes = register({
+    env: {}, // simulate ctx.env present but empty (was the Win10 crash before the guard)
+    childProcess: {
+      spawnSync(_cmd, args) {
+        if (args && args.includes('health') && args.includes('--json')) {
+          return { stdout: JSON.stringify({ status: 'ok', data: { schemaVersion: '1.0.0' } }), stderr: '' };
+        }
+        return { stdout: 'elegy-planning 1.0.0', stderr: '' };
+      },
+    },
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return { tag_name: 'v1.0.0', assets: [] };
+      },
+    }),
+    assets: {},
+  });
+  // Pass `env: {}` in the ctx by overriding the dep — this asserts the
+  // route does not 500 when ctx.env is an empty object (the original
+  // Win10 crash before the `ctx.env &&` guard).
+  const result = await invoke(routes, 'GET', '/api/tooling-updates/status', {
+    engineRoot: '/repo',
+    elegyHomeAbs: '/copilot-home',
+  });
+  assert.equal(result.statusCode, 200);
+  assert.equal(typeof result.body.elegyPlanningCli, 'object');
+  assert.equal(typeof result.body.elegySkillsAssets, 'object');
+});
