@@ -37,7 +37,7 @@ Status: **conditional GO**.
 - Platform: Windows
 - OpenCode: `1.17.8`
 - ACP protocol: `1`
-- Fixture: `native/runtime/tests/fixtures/opencode-acp/acp-spike.mjs`
+- Fixture: removed with the Rust backend (2026-06-22)
 
 OpenCode advertised:
 

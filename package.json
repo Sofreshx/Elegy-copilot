@@ -28,6 +28,8 @@
     "clean": "npm run clean --workspaces --if-present",
     "ci:local": "node scripts/validate-ci-lockfiles.js && node scripts/generate-cli-manifest.mjs && node scripts/generate-policy-lockfiles.js && node scripts/validate-policy-lockfiles.js && node scripts/validate-manifest.js && node scripts/validate-doc-graph.js && node scripts/validate-guidelines-wiring.mjs && npm run validate:specs && npm --prefix copilot-ui run ui:build && npm --prefix local-tracker run build && node copilot-ui/tests/ui-react-smoke.test.js && node copilot-ui/tests/runtime-startup-contract.test.js && node copilot-ui/lib/repoInventoryService.test.js",
     "ci:local:full": "npm run ci:local && npm --prefix copilot-ui run tauri:check && npm run docs:build",
+    "ui:check": "node scripts/ui-check.mjs",
+    "ui:check:validate": "node scripts/ui-check.mjs --validate-only",
     "commit-check:discover": "node scripts/commit-check-discover.mjs",
     "commit-check:setup": "node scripts/commit-check-setup.mjs",
     "commit-check:run": "node scripts/commit-check-run.mjs",

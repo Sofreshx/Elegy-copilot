@@ -38,7 +38,7 @@ supports `--output-schema` on `exec` but rejects it on `exec resume`.
 - Platform: Windows
 - Codex CLI: `0.119.0-alpha.28`
 - Model: `gpt-5.4`
-- Fixture: `native/runtime/tests/fixtures/codex-exec/codex-spike.mjs`
+- Fixture: removed with the Rust backend (2026-06-22)
 
 The WindowsApps Codex alias returned access denied when launched as a child process. The fixture
 used `%USERPROFILE%\.codex\.sandbox-bin\codex.exe`. Production resolution must use the

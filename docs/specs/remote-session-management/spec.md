@@ -18,9 +18,7 @@ Replace the retired messaging gateway and sandbox control surfaces with a Kimaki
 
 - `docs/system/architecture-overview.md`: current desktop, API, and external integration boundaries.
 - `docs/system/desktop-runtime-tauri-migration-contract.md`: packaged Node runtime ownership and sidecar layout.
-- `docs/system/rust-backend-migration.md`: optional Rust backend route-parity boundary.
 - `copilot-ui/src/desktopRuntime/runtimeService.ts`: desktop child-process lifecycle owner.
-- `native/runtime/src/routes/mod.rs`: Rust API composition root.
 - `kimaki@0.17.1`: non-TTY startup emits SSE-framed `install_url`, `authorized`, `ready`, and `error` events.
 
 ## Requirements
@@ -29,12 +27,12 @@ Replace the retired messaging gateway and sandbox control surfaces with a Kimaki
 
 - The desktop runtime starts one pinned Kimaki `0.17.1` child with data under `~/.elegy/kimaki`.
 - The runtime exposes Kimaki state without exposing gateway credentials.
-- The Node and Rust APIs expose status, project listing/addition, session listing, prompt sending, and log-tail routes under `/api/remote/*`.
+- The Node API exposes status, project listing/addition, session listing, prompt sending, and log-tail routes under `/api/remote/*`.
 - Project and session reads use Kimaki's SQLite database in read-only mode.
 - The Remote tab gates operational polling behind a guided Discord onboarding state, then shows projects, sessions, prompt submission, and collapsible logs.
 - Kimaki subcommands receive the managed database through `KIMAKI_DB_URL`; `--data-dir` is reserved for the long-running bot command.
 - Session listing includes ordinary OpenCode sessions in registered projects and marks them pending until Kimaki creates a Discord thread.
-- The Node/Tauri and Rust runtimes do not expose legacy `/api/gateway/*` or `/api/sandboxes*` control routes.
+- The Node/Tauri runtime does not expose legacy `/api/gateway/*` or `/api/sandboxes*` control routes.
 - Internal sandbox storage may remain where existing session aggregation depends on it.
 - Packaged Tauri resources contain no messaging-gateway or workflow-sidecar entrypoints.
 
@@ -42,7 +40,7 @@ Replace the retired messaging gateway and sandbox control surfaces with a Kimaki
 
 - Do not write directly to Kimaki's private SQLite schema.
 - Do not claim project removal support when the pinned Kimaki CLI does not expose it.
-- Do not retain gateway, workflow-sidecar, or sandbox-control fallback responses in the Rust router.
+- Do not retain gateway, workflow-sidecar, or sandbox-control fallback responses.
 - Do not store Kimaki runtime source only under ignored generated output.
 
 ## Non-Goals
@@ -59,20 +57,20 @@ Replace the retired messaging gateway and sandbox control surfaces with a Kimaki
   → verify: `node --test copilot-ui/lib/desktop-shell/desktopRuntime/kimakiSseParser.test.js copilot-ui/lib/desktop-shell/desktopRuntime/kimakiRuntimeService.test.js`
 - The Node route registry contains `/api/remote/*` and no gateway or sandbox-control routes.
   → verify: `node --test copilot-ui/routes/kimaki.test.js`
-- The Rust runtime supervises the pinned Kimaki Node child and exposes matching `/api/remote/*` routes.
-  → verify: `cargo test -p elegy-native-runtime routes::remote`
+- The Node runtime exposes matching `/api/remote/*` routes.
+  → verify: `node --test copilot-ui/routes/kimaki.test.js`
 - The Remote UI builds and its empty/ready states render through existing UI primitives.
   → verify: `npm --prefix copilot-ui run test:vitest -- tests/remote-view.vitest.tsx`
-- Node and Rust subcommand tests reject the unsupported `--data-dir` argument and verify the managed database environment.
-  → verify: `npm --prefix copilot-ui run test:tauri-runtime-host` and `cargo test -p elegy-native-runtime remote`
+- Node subcommand tests reject the unsupported `--data-dir` argument and verify the managed database environment.
+  → verify: `npm --prefix copilot-ui run test:tauri-runtime-host`
 - Session polling reads OpenCode and Kimaki SQLite state directly and never invokes `kimaki session list`.
-  → verify: `node --test copilot-ui/lib/remote/sqliteReader.test.js copilot-ui/routes/kimaki.test.js` and `cargo test -p elegy-native-runtime routes::remote`
-- The Rust runtime returns 404 for retired gateway and sandbox-control paths.
-  → verify: `cargo test -p elegy-native-runtime retired_gateway_and_sandbox_routes_are_not_exposed`
+  → verify: `node --test copilot-ui/lib/remote/sqliteReader.test.js copilot-ui/routes/kimaki.test.js`
+- The Node runtime returns 404 for retired gateway and sandbox-control paths.
+  → verify: `rg -n "messagingGateway|workflowSidecar|/api/gateway|/api/sandboxes" copilot-ui contracts local-tracker docs/system`
 - Tauri packaging metadata contains no gateway or workflow-sidecar entrypoints.
   → verify: `npm --prefix copilot-ui run validate:tauri-node-sidecar-layout`
 - Legacy messaging-gateway source, contracts, routes, and operator docs are absent.
-  → verify: `rg -n "messagingGateway|workflowSidecar|/api/gateway|/api/sandboxes" copilot-ui contracts local-tracker native/runtime docs/system`
+  → verify: `rg -n "messagingGateway|workflowSidecar|/api/gateway|/api/sandboxes" copilot-ui contracts local-tracker docs/system`
 - The focused migration checks pass before broader CI.
   → verify: `npm run test:all`
 
@@ -82,8 +80,7 @@ Replace the retired messaging gateway and sandbox control surfaces with a Kimaki
 - `copilot-ui/src/desktopRuntime/kimakiRuntimeService.ts`
 - `copilot-ui/routes/kimaki.js`
 - `copilot-ui/ui/src/tabs/Remote/RemoteView.tsx`
-- `native/runtime/src/routes/mod.rs`
-- `native/runtime/src/routes/remote.rs`
+- `copilot-ui/routes/kimaki.js`
 
 ## Validation Evidence
 

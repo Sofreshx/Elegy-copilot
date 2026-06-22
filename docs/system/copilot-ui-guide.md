@@ -14,7 +14,7 @@ related: [catalog-control-plane, session-state-artifacts, planning-backlog-roadm
 
 ## Purpose
 
-`copilot-ui` is the local UI, HTTP API, and desktop shell for Elegy Copilot. The packaged desktop app (Tauri shell + Node sidecar) is the normal runtime. The backend is Node.js-based; a parallel Rust runtime under `native/runtime` handles select routes (health, version, policy preflight) when the `INSTRUCTION_ENGINE_NATIVE_RUNTIME_URL` env var is set.
+`copilot-ui` is the local UI, HTTP API, and desktop shell for Elegy Copilot. The packaged desktop app (Tauri shell + Node sidecar) is the normal runtime. The backend is Node.js-based.
 
 ## Start
 
@@ -27,8 +27,6 @@ node copilot-ui/server.js
 
 - The local backend binds to `127.0.0.1`.
 - Raw server mode is for `/api` work and debugging. The normal app UI is launched through the desktop shell.
-- The Rust rewrite currently owns the bootstrap native routes in `native/runtime` and is expanding across active read surfaces before Node cutover.
-- Set `INSTRUCTION_ENGINE_NATIVE_RUNTIME_URL=http://127.0.0.1:3220` (or pass `nativeRuntimeUrl` to `startServer()`) to hand off `/api/projects*`, `/api/dashboard/summary`, `/api/health`, `/api/version`, and `/api/policy/preflight` routes to the Rust runtime. When unset, these routes return 404 — the JS handlers have been deleted.
 
 ## Main UI
 

@@ -12,7 +12,6 @@ export default tseslint.config(
       '**/.elegy/**',
       '**/target/**',
       '**/coverage/**',
-      'native/target/**',
     ],
   },
   {

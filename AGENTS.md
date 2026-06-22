@@ -23,7 +23,6 @@ This is the Elegy Copilot monorepo, also published as Elegy Copilot. It is the s
 | UI governance | `.elegy/ui-check.json`, `docs/system/ui-development-governance.md`, `catalog-assets/shared-skills/ui-system/`, `ui-design-spec/`, `ui-visual-review/` | Stack-neutral UI workflow with component inventory, validation lanes, and evidence gates |
 | Contracts | `contracts/` | Shared runtime contracts |
 | Local tracker | `local-tracker/` | Session/task tracking + Discord gateway |
-| Native runtime | `native/` | Rust runtime for select API routes |
 | Canonical docs | `docs/system/` | Design, governance, and operational docs |
 | Specs | `docs/specs/` | Durable spec-driven development specs |
 
