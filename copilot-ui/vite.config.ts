@@ -33,7 +33,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: path.resolve(__dirname, 'tests/vitest.setup.ts'),
-    include: ['../tests/**/*.vitest.ts', '../tests/**/*.vitest.tsx', '../ui/src/views/Workspace/*.test.tsx', '../ui/src/views/Catalog/*.test.tsx', '../ui/src/tabs/**/*.test.tsx', '../ui/src/components/*.test.tsx'],
+    include: ['../tests/**/*.vitest.ts', '../tests/**/*.vitest.tsx', '../routes/patternAtlas.test.js', '../ui/src/views/Workspace/*.test.tsx', '../ui/src/views/Catalog/*.test.tsx', '../ui/src/tabs/**/*.test.tsx', '../ui/src/components/*.test.tsx'],
     clearMocks: true,
     testTimeout: 30_000,
     hookTimeout: 15_000,

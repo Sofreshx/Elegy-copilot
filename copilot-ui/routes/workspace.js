@@ -146,28 +146,32 @@ function handleGetCommands(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
   const { u } = ctx;
-  const repoPath = u.searchParams.get('repoPath');
+  try {
+    const repoPath = u.searchParams.get('repoPath');
 
-  if (!isNonEmptyString(repoPath)) {
-    sendJson(res, 400, { error: 'repoPath query parameter is required' });
-    return;
+    if (!isNonEmptyString(repoPath)) {
+      sendJson(res, 400, { error: 'repoPath query parameter is required' });
+      return;
+    }
+
+    const root = repoPath.trim();
+    if (!fs.existsSync(root)) {
+      sendJson(res, 404, { error: 'Repository path not found' });
+      return;
+    }
+
+    const config = readWorkspaceConfig(root);
+    const detected = detectPackageScripts(root);
+
+    sendJson(res, 200, {
+      repoPath: root,
+      commands: config ? config.commands : [],
+      detected,
+      hasConfig: config !== null,
+    });
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err), code: 'internal_error' });
   }
-
-  const root = repoPath.trim();
-  if (!fs.existsSync(root)) {
-    sendJson(res, 404, { error: 'Repository path not found' });
-    return;
-  }
-
-  const config = readWorkspaceConfig(root);
-  const detected = detectPackageScripts(root);
-
-  sendJson(res, 200, {
-    repoPath: root,
-    commands: config ? config.commands : [],
-    detected,
-    hasConfig: config !== null,
-  });
 }
 
 async function handleRunCommand(ctx, deps) {
@@ -299,8 +303,12 @@ async function handleRunCommand(ctx, deps) {
 function handleGetLaunchers(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
-  const launchers = detectLaunchers();
-  sendJson(res, 200, { launchers });
+  try {
+    const launchers = detectLaunchers();
+    sendJson(res, 200, { launchers });
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err), code: 'internal_error' });
+  }
 }
 
 function detectLaunchers() {

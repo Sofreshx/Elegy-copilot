@@ -128,191 +128,199 @@ async function handleListWorktrees(ctx, deps) {
 }
 
 async function handleCleanupAnalyze(ctx, deps) {
-  const executor = requireExecutor(ctx.res, deps);
-  if (!executor) return;
-  
-  const body = await deps.readJsonBody(ctx.req);
-  const repoPath = (body && body.repoPath || '').trim();
-  const worktreePath = (body && body.worktreePath || '').trim();
-  
-  if (!repoPath || !worktreePath) {
-    deps.sendJson(ctx.res, 400, { error: 'repoPath and worktreePath are required' });
-    return;
-  }
-  
-  // Check if worktree path exists
-  const missing = !fs.existsSync(worktreePath);
-  
-  // Check if worktree is dirty via git status
-  let dirty = false;
-  let dirtyFiles = 0;
-  let conflicts = false;
-  let conflictFiles = [];
-  let mergedIntoCurrentOrDefault = false;
-  let diagnostics = [];
-  
   try {
-    const statusOutput = execFileSync('git', ['-C', worktreePath, 'status', '--porcelain'], { 
-      encoding: 'utf8', 
-      timeout: 15000,
-      windowsHide: true 
-    }).trim();
-    if (statusOutput) {
-      dirtyFiles = statusOutput.split('\n').length;
-      dirty = dirtyFiles > 0;
-      // Check for conflicts (UU in porcelain status)
-      const lines = statusOutput.split('\n');
-      conflictFiles = lines
-        .filter(l => l.startsWith('UU ') || l.startsWith('AA ') || l.startsWith('DD '))
-        .map(l => l.slice(3).trim());
-      conflicts = conflictFiles.length > 0;
+    const executor = requireExecutor(ctx.res, deps);
+    if (!executor) return;
+    
+    const body = await deps.readJsonBody(ctx.req);
+    const repoPath = (body && body.repoPath || '').trim();
+    const worktreePath = (body && body.worktreePath || '').trim();
+    
+    if (!repoPath || !worktreePath) {
+      deps.sendJson(ctx.res, 400, { error: 'repoPath and worktreePath are required' });
+      return;
     }
-  } catch (err) {
-    diagnostics.push(`git status failed: ${err.message}`);
-  }
-  
-  // Check if branch is merged into current/default branch
-  let branch = (body && body.branch || '').trim();
-  if (!branch) {
+    
+    // Check if worktree path exists
+    const missing = !fs.existsSync(worktreePath);
+    
+    // Check if worktree is dirty via git status
+    let dirty = false;
+    let dirtyFiles = 0;
+    let conflicts = false;
+    let conflictFiles = [];
+    let mergedIntoCurrentOrDefault = false;
+    let diagnostics = [];
+    
     try {
-      branch = execFileSync('git', ['-C', worktreePath, 'rev-parse', '--abbrev-ref', 'HEAD'], {
-        encoding: 'utf8', timeout: 10000, windowsHide: true
+      const statusOutput = execFileSync('git', ['-C', worktreePath, 'status', '--porcelain'], { 
+        encoding: 'utf8', 
+        timeout: 15000,
+        windowsHide: true 
       }).trim();
-    } catch { /* ignore */ }
-  }
-  
-  if (branch) {
-    try {
-      // Try merging into default branch (main/master) or current branch
-      for (const target of ['main', 'master', 'develop']) {
-        try {
-          execFileSync('git', ['-C', repoPath, 'merge-base', '--is-ancestor', branch, target], {
-            encoding: 'utf8', timeout: 10000, windowsHide: true
-          });
-          mergedIntoCurrentOrDefault = true;
-          break;
-        } catch {
-          // Not an ancestor, try next target
-        }
+      if (statusOutput) {
+        dirtyFiles = statusOutput.split('\n').length;
+        dirty = dirtyFiles > 0;
+        // Check for conflicts (UU in porcelain status)
+        const lines = statusOutput.split('\n');
+        conflictFiles = lines
+          .filter(l => l.startsWith('UU ') || l.startsWith('AA ') || l.startsWith('DD '))
+          .map(l => l.slice(3).trim());
+        conflicts = conflictFiles.length > 0;
       }
-    } catch { /* ignore */ }
-  }
-  
-  // Check assignment (via safe internal access)
-  let assigned = false;
-  try {
-    if (executor._worktreeService && typeof executor._worktreeService._findPersistedRecordByPath === 'function') {
-      const existing = executor._worktreeService._findPersistedRecordByPath(null, null, worktreePath);
-      assigned = !!(existing && existing.assignment && (
-        existing.assignment.sessionId || existing.assignment.runId || existing.assignment.overlaySessionId
-      ));
+    } catch (err) {
+      diagnostics.push(`git status failed: ${err.message}`);
     }
-  } catch {
-    // If we can't check assignments, assume not assigned (safe to remove)
+    
+    // Check if branch is merged into current/default branch
+    let branch = (body && body.branch || '').trim();
+    if (!branch) {
+      try {
+        branch = execFileSync('git', ['-C', worktreePath, 'rev-parse', '--abbrev-ref', 'HEAD'], {
+          encoding: 'utf8', timeout: 10000, windowsHide: true
+        }).trim();
+      } catch { /* ignore */ }
+    }
+    
+    if (branch) {
+      try {
+        // Try merging into default branch (main/master) or current branch
+        for (const target of ['main', 'master', 'develop']) {
+          try {
+            execFileSync('git', ['-C', repoPath, 'merge-base', '--is-ancestor', branch, target], {
+              encoding: 'utf8', timeout: 10000, windowsHide: true
+            });
+            mergedIntoCurrentOrDefault = true;
+            break;
+          } catch {
+            // Not an ancestor, try next target
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    
+    // Check assignment (via safe internal access)
+    let assigned = false;
+    try {
+      if (executor._worktreeService && typeof executor._worktreeService._findPersistedRecordByPath === 'function') {
+        const existing = executor._worktreeService._findPersistedRecordByPath(null, null, worktreePath);
+        assigned = !!(existing && existing.assignment && (
+          existing.assignment.sessionId || existing.assignment.runId || existing.assignment.overlaySessionId
+        ));
+      }
+    } catch {
+      // If we can't check assignments, assume not assigned (safe to remove)
+    }
+    
+    const eligible = !dirty && !conflicts && !missing && !assigned && mergedIntoCurrentOrDefault;
+    const reasons = [];
+    if (dirty) reasons.push('dirty');
+    if (conflicts) reasons.push('conflicts');
+    if (missing) reasons.push('missing');
+    if (assigned) reasons.push('assigned');
+    if (!mergedIntoCurrentOrDefault) reasons.push('not merged into default branch');
+    
+    deps.sendJson(ctx.res, 200, {
+      eligible,
+      reason: eligible ? 'safe to remove' : reasons.join(', ') || 'unknown',
+      dirty,
+      dirtyFiles,
+      missing,
+      assigned,
+      mergedIntoCurrentOrDefault,
+      conflicts,
+      conflictFiles,
+      diagnostics,
+      branch,
+      repoPath,
+      worktreePath,
+    });
+  } catch (err) {
+    deps.sendJson(ctx.res, 500, { ok: false, error: String(err.message || err), code: 'internal_error' });
   }
-  
-  const eligible = !dirty && !conflicts && !missing && !assigned && mergedIntoCurrentOrDefault;
-  const reasons = [];
-  if (dirty) reasons.push('dirty');
-  if (conflicts) reasons.push('conflicts');
-  if (missing) reasons.push('missing');
-  if (assigned) reasons.push('assigned');
-  if (!mergedIntoCurrentOrDefault) reasons.push('not merged into default branch');
-  
-  deps.sendJson(ctx.res, 200, {
-    eligible,
-    reason: eligible ? 'safe to remove' : reasons.join(', ') || 'unknown',
-    dirty,
-    dirtyFiles,
-    missing,
-    assigned,
-    mergedIntoCurrentOrDefault,
-    conflicts,
-    conflictFiles,
-    diagnostics,
-    branch,
-    repoPath,
-    worktreePath,
-  });
 }
 
 async function handleCleanupRemove(ctx, deps) {
-  const executor = requireExecutor(ctx.res, deps);
-  if (!executor) return;
-  
-  const body = await deps.readJsonBody(ctx.req);
-  const repoPath = (body && body.repoPath || '').trim();
-  const worktreePath = (body && body.worktreePath || '').trim();
-  
-  if (!repoPath || !worktreePath) {
-    deps.sendJson(ctx.res, 400, { error: 'repoPath and worktreePath are required' });
-    return;
-  }
-  
-  // Safety check: re-validate before removing
-  if (!fs.existsSync(worktreePath)) {
-    deps.sendJson(ctx.res, 400, { error: 'Worktree path does not exist', missing: true });
-    return;
-  }
-  
-  // Check dirty
-  let dirty = false;
   try {
-    const statusOutput = execFileSync('git', ['-C', worktreePath, 'status', '--porcelain'], {
-      encoding: 'utf8', timeout: 15000, windowsHide: true
-    }).trim();
-    dirty = statusOutput.length > 0;
-  } catch { /* ignore */ }
-  
-  if (dirty && !body.force) {
-    deps.sendJson(ctx.res, 400, { 
-      error: 'Cannot remove dirty worktree. Resolve changes first.',
-      dirty: true 
-    });
-    return;
-  }
-  
-  // Perform removal
-  try {
-    const args = ['-C', repoPath, 'worktree', 'remove', worktreePath];
-    if (body.force) args.push('--force');
-    const output = execFileSync('git', args, {
-      encoding: 'utf8', timeout: 30000, windowsHide: true
-    }).trim();
+    const executor = requireExecutor(ctx.res, deps);
+    if (!executor) return;
     
-    // Notify session hooks about worktree removal
-    if (ctx.sessionHooks && typeof ctx.sessionHooks.onWorktreeRemove === 'function') {
-      ctx.sessionHooks.onWorktreeRemove(worktreePath);
+    const body = await deps.readJsonBody(ctx.req);
+    const repoPath = (body && body.repoPath || '').trim();
+    const worktreePath = (body && body.worktreePath || '').trim();
+    
+    if (!repoPath || !worktreePath) {
+      deps.sendJson(ctx.res, 400, { error: 'repoPath and worktreePath are required' });
+      return;
     }
+    
+    // Safety check: re-validate before removing
+    if (!fs.existsSync(worktreePath)) {
+      deps.sendJson(ctx.res, 400, { error: 'Worktree path does not exist', missing: true });
+      return;
+    }
+    
+    // Check dirty
+    let dirty = false;
+    try {
+      const statusOutput = execFileSync('git', ['-C', worktreePath, 'status', '--porcelain'], {
+        encoding: 'utf8', timeout: 15000, windowsHide: true
+      }).trim();
+      dirty = statusOutput.length > 0;
+    } catch { /* ignore */ }
+    
+    if (dirty && !body.force) {
+      deps.sendJson(ctx.res, 400, { 
+        error: 'Cannot remove dirty worktree. Resolve changes first.',
+        dirty: true 
+      });
+      return;
+    }
+    
+    // Perform removal
+    try {
+      const args = ['-C', repoPath, 'worktree', 'remove', worktreePath];
+      if (body.force) args.push('--force');
+      const output = execFileSync('git', args, {
+        encoding: 'utf8', timeout: 30000, windowsHide: true
+      }).trim();
+      
+      // Notify session hooks about worktree removal
+      if (ctx.sessionHooks && typeof ctx.sessionHooks.onWorktreeRemove === 'function') {
+        ctx.sessionHooks.onWorktreeRemove(worktreePath);
+      }
 
-    // Mark worktree as removed in the file-based registry
-    if (executor._worktreeService && typeof executor._worktreeService.markWorktreeRemoved === 'function') {
-      try {
-        if (executor._worktreeService._findPersistedRecordByPath) {
-          const record = executor._worktreeService._findPersistedRecordByPath(null, null, worktreePath);
-          if (record && record.worktreeId && record.repoId) {
-            executor._worktreeService.markWorktreeRemoved({
-              elegyHome: executor._worktreeService._config.elegyHome || '.',
-              repoId: record.repoId,
-              worktreeId: record.worktreeId,
-            });
+      // Mark worktree as removed in the file-based registry
+      if (executor._worktreeService && typeof executor._worktreeService.markWorktreeRemoved === 'function') {
+        try {
+          if (executor._worktreeService._findPersistedRecordByPath) {
+            const record = executor._worktreeService._findPersistedRecordByPath(null, null, worktreePath);
+            if (record && record.worktreeId && record.repoId) {
+              executor._worktreeService.markWorktreeRemoved({
+                elegyHome: executor._worktreeService._config.elegyHome || '.',
+                repoId: record.repoId,
+                worktreeId: record.worktreeId,
+              });
+            }
           }
-        }
-      } catch { /* best effort — don't fail the request */ }
-    }
+        } catch { /* best effort — don't fail the request */ }
+      }
 
-    deps.sendJson(ctx.res, 200, {
-      removed: true,
-      worktreePath,
-      repoPath,
-      output: output || 'Worktree removed successfully',
-    });
+      deps.sendJson(ctx.res, 200, {
+        removed: true,
+        worktreePath,
+        repoPath,
+        output: output || 'Worktree removed successfully',
+      });
+    } catch (err) {
+      deps.sendJson(ctx.res, 500, {
+        error: `Failed to remove worktree: ${err.message}`,
+        removed: false,
+        worktreePath,
+      });
+    }
   } catch (err) {
-    deps.sendJson(ctx.res, 500, {
-      error: `Failed to remove worktree: ${err.message}`,
-      removed: false,
-      worktreePath,
-    });
+    deps.sendJson(ctx.res, 500, { ok: false, error: String(err.message || err), code: 'internal_error' });
   }
 }
 

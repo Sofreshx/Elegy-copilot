@@ -5110,6 +5110,17 @@ async function startServer(options = {}) {
       return;
     }
     const u = new URL(req.url || '/', 'http://127.0.0.1');
+    const startMs = Date.now();
+    res.on('finish', () => {
+      const ms = Date.now() - startMs;
+      console.log(JSON.stringify({
+        ts: new Date().toISOString(),
+        method: req.method,
+        path: u.pathname,
+        status: res.statusCode,
+        ms,
+      }));
+    });
     try {
       if (u.pathname.startsWith('/api/')) {
         handleApi({
@@ -5155,7 +5166,15 @@ async function startServer(options = {}) {
 
       serveStatic(resolveStaticDir(), u.pathname, res);
     } catch (e) {
-      sendJson(res, 500, { error: String(e.message || e) });
+      console.error(JSON.stringify({
+        ts: new Date().toISOString(),
+        level: 'error',
+        method: req.method,
+        path: u.pathname,
+        error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
+      }));
+      sendJson(res, 500, { ok: false, error: String(e.message || e), code: 'internal_error' });
     }
   });
 
@@ -5176,6 +5195,19 @@ async function startServer(options = {}) {
           reject(error);
         });
     });
+
+  // Crash guard: log unhandled rejections instead of terminating the process.
+  // Async route handlers can throw after await points; without this guard,
+  // Node.js --unhandled-rejections=strict (default in Node 16+) kills the server.
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error(JSON.stringify({
+      ts: new Date().toISOString(),
+      level: 'fatal',
+      event: 'unhandledRejection',
+      error: reason instanceof Error ? reason.message : String(reason),
+      stack: reason instanceof Error ? reason.stack : undefined,
+    }));
+  });
 
     server.listen(args.port, host, () => {
       if (settled) return;

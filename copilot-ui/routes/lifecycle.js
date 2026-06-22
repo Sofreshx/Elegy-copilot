@@ -9,10 +9,13 @@ const { sendJson: defaultSendJson } = require('./_helpers');
 function handlePolicyPreflight(ctx, deps) {
   const { res, u, engineRoot } = ctx;
   const { sendJson, getPolicyPreflight } = deps;
-
-  const refresh = (u.searchParams.get('refresh') || '').trim() === '1';
-  const policy = getPolicyPreflight(engineRoot, { refresh });
-  sendJson(res, 200, policy);
+  try {
+    const refresh = (u.searchParams.get('refresh') || '').trim() === '1';
+    const policy = getPolicyPreflight(engineRoot, { refresh });
+    sendJson(res, 200, policy);
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err), code: 'internal_error' });
+  }
 }
 
 function handleHealth(ctx, deps) {
