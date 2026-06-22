@@ -226,6 +226,7 @@ function FilterBar() {
 
 function GalleryGrid() {
   const state = useStoreValue(patternAtlasStore);
+  const focusedCardRef = useRef<HTMLElement | null>(null);
 
   const handleCardClick = useCallback(
     (entryId: string) => {
@@ -235,6 +236,16 @@ function GalleryGrid() {
     },
     [state.selectedEntryId],
   );
+
+  // Restore focus to the last clicked card when the detail panel closes
+  useEffect(() => {
+    if (!state.selectedEntryId && focusedCardRef.current) {
+      setTimeout(() => {
+        focusedCardRef.current?.focus();
+        focusedCardRef.current = null;
+      }, 100);
+    }
+  }, [state.selectedEntryId]);
 
   if (state.entries.length === 0) {
     return (
@@ -254,11 +265,22 @@ function GalleryGrid() {
         <button
           key={entry.id}
           className={`atlas-card${state.selectedEntryId === entry.id ? ' atlas-card-selected' : ''}`}
-          onClick={() => handleCardClick(entry.id)}
+          onClick={(e) => {
+            handleCardClick(entry.id);
+            focusedCardRef.current = e.currentTarget;
+          }}
           data-testid={`atlas-card-${entry.id}`}
           type="button"
           aria-label={`View details for ${entry.name}`}
         >
+          {entry.image ? (
+            <img
+              src={entry.image}
+              alt={`${entry.name} preview`}
+              className="atlas-card-image"
+              loading="lazy"
+            />
+          ) : null}
           <div className="atlas-card-footer">
             <Badge tone="accent" testId={`atlas-card-badge-type-${entry.id}`}>
               {entry.type}
@@ -288,6 +310,8 @@ function GalleryGrid() {
 /* ── DetailPanel ─────────────────────────────────────────────────── */
 
 function DetailPanel({ entry }: { entry: AtlasEntryDetail }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
   const handleClose = useCallback(() => {
     patternAtlasStore.selectEntry(null);
   }, []);
@@ -309,8 +333,17 @@ function DetailPanel({ entry }: { entry: AtlasEntryDetail }) {
     return () => window.removeEventListener('keydown', handler);
   }, [handleClose]);
 
+  // Focus the close button when the panel opens
+  useEffect(() => {
+    if (entry && panelRef.current) {
+      const closeBtn = panelRef.current.querySelector('button') as HTMLElement;
+      closeBtn?.focus();
+    }
+  }, [entry]);
+
   return (
     <div
+      ref={panelRef}
       className="atlas-detail-panel"
       data-testid="atlas-detail-panel"
       role="complementary"

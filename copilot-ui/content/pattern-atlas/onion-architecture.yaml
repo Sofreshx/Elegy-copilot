@@ -51,7 +51,6 @@ contrasts:
 compatibilities:
   - hexagonal-architecture
   - cqrs
-  - domain-driven-design
   - event-sourcing
 promptLanguage: >
   Structure the OrderManagement bounded context using Onion Architecture. Create four projects:

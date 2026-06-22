@@ -52,7 +52,6 @@ contrasts:
 compatibilities:
   - event-driven
   - database-per-service
-  - domain-driven-design
   - api-gateway
 promptLanguage: >
   Transition the enterprise data platform to a Data Mesh. Identify bounded data domains: Customer,

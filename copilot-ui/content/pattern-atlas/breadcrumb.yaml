@@ -52,7 +52,7 @@ contrasts:
   - term: Progress Stepper/Wizard
     difference: Breadcrumbs reflect the current location in a static hierarchy; a wizard stepper shows progress through a linear sequence of steps.
 compatibilities:
-  - wizard-pattern
+  - wizard
   - progressive-disclosure
   - dashboard-layout
 promptLanguage: >

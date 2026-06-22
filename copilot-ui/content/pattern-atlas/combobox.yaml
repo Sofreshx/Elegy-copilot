@@ -56,7 +56,7 @@ contrasts:
 compatibilities:
   - command-palette
   - progressive-disclosure
-  - wizard-pattern
+  - wizard
 promptLanguage: >
   Design a combobox component that combines a text input with a filtered
   dropdown list. The input should show a placeholder, support clearing,

@@ -50,7 +50,6 @@ contrasts:
     difference: Traditional layered architecture (controller → service → repository) allows domain logic to depend on infrastructure; Hexagonal Architecture inverts those dependencies so the domain never imports infrastructure code.
 compatibilities:
   - onion-architecture
-  - domain-driven-design
   - cqrs
   - micro-frontends
 promptLanguage: >

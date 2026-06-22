@@ -54,7 +54,7 @@ contrasts:
 compatibilities:
   - art-deco
   - dashboard-layout
-  - wizard-pattern
+  - wizard
 promptLanguage: >
   Design a skeuomorphic interface element that mimics a specific real-world
   object. Choose the material (leather, wood, metal, paper, fabric) and apply

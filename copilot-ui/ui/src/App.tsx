@@ -16,7 +16,6 @@ import WorkspaceFloatingCard from './components/WorkspaceFloatingCard';
 const StandaloneGraphWindow = lazy(() => import('./tabs/Planning/StandaloneGraphWindow'));
 const SessionDetailView = lazy(() => import('./views/Sessions/SessionDetailView'));
 const SettingsView = lazy(() => import('./views/Settings/SettingsView'));
-const LexiconView = lazy(() => import('./tabs/Lexicon/LexiconView'));
 const PatternAtlasView = lazy(() => import('./tabs/PatternAtlas/PatternAtlasView'));
 const AssetCreationWizard = lazy(() => import('./views/Catalog/AssetCreationWizard'));
 const AddProjectWizard = lazy(() => import('./views/Project/AddProjectWizard'));

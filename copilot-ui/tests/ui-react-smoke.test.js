@@ -138,7 +138,7 @@ async function run() {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
 
     assert.ok(appSource.includes("./views/Workspace/WorkspaceView"), 'Expected WorkspaceView import in App.tsx');
-    assert.ok(appSource.includes("./tabs/Lexicon/LexiconView"), 'Expected LexiconView import in App.tsx');
+    assert.ok(appSource.includes("./tabs/PatternAtlas/PatternAtlasView"), 'Expected PatternAtlasView import in App.tsx');
     assert.ok(appSource.includes("./views/Settings/SettingsView"), 'Expected SettingsView import in App.tsx');
     assert.ok(appSource.includes('SIDEBAR_NAV_ITEMS'), 'Expected SIDEBAR_NAV_ITEMS import in App.tsx');
     assert.ok(!appSource.includes(["./views", "Workflows", ["Workflows", "Hub"].join("")].join("/")), 'Did not expect standalone workflows hub import in App.tsx');
@@ -159,12 +159,12 @@ async function run() {
 
     // Sidebar nav ordering
     const reposIdx = navSource.indexOf("id: 'repositories'");
-    const lexiconIdx = navSource.indexOf("id: 'lexicon'");
+    const patternAtlasIdx = navSource.indexOf("id: 'pattern-atlas'");
     const settingsIdx = navSource.indexOf("id: 'settings'");
     assert.ok(reposIdx >= 0, 'Expected repositories sidebar item');
-    assert.ok(lexiconIdx >= 0, 'Expected lexicon sidebar item');
+    assert.ok(patternAtlasIdx >= 0, 'Expected pattern-atlas sidebar item');
     assert.ok(settingsIdx >= 0, 'Expected settings sidebar item');
-    assert.ok(reposIdx < lexiconIdx, 'Expected repositories before lexicon in sidebar nav');
+    assert.ok(reposIdx < patternAtlasIdx, 'Expected repositories before pattern-atlas in sidebar nav');
 
     // No static workspace item in SIDEBAR_NAV_ITEMS
     const navItemsStart = navSource.indexOf('SIDEBAR_NAV_ITEMS');

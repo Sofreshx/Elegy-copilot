@@ -51,7 +51,6 @@ contrasts:
 compatibilities:
   - rag
   - agent-loop
-  - tool-use
 promptLanguage: >
   Build a document analysis chain with three steps. Step 1: Classify the document type
   (invoice, contract, report) with a classifier prompt. Step 2: Based on the type, route to a

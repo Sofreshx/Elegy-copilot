@@ -46,8 +46,6 @@ contrasts:
   - term: Bulkhead
     difference: Bulkhead isolates resources into separate pools so a failure in one pool does not starve others; the Circuit Breaker stops calls to a failing dependency entirely, whereas Bulkhead limits the number of concurrent calls regardless of failure state.
 compatibilities:
-  - retry-pattern
-  - bulkhead-pattern
   - api-gateway
   - sidecar-pattern
 promptLanguage: >

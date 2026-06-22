@@ -3,8 +3,11 @@ name: Wizard/Stepped Form
 aliases:
   - stepped-form
   - multi-step-form
+  - step-by-step
+  - guided-flow
   - setup-wizard
   - sequential-form
+  - sequential-process
 type: ui-component
 domain: ui-ux
 confidence: established
@@ -42,15 +45,20 @@ avoidIf:
   - The form has fewer than 5-7 fields (a single page is simpler)
   - Users need to compare or reference information across steps
   - The process needs to be completed quickly without commitment steps
+  - Users frequently perform the task and need speed over guidance
 commonFailures:
   - Making steps too small, adding unnecessary friction with too many clicks
+  - Making the wizard too rigid — not allowing users to skip optional steps
   - Failing to preserve data when users navigate back to change earlier selections
   - Not showing a clear progress indicator, leading to abandonment uncertainty
+  - Showing too many steps in the progress indicator, creating anxiety about the time required
 contrasts:
   - term: Single Form
     difference: A wizard breaks the form into sequential steps; a single form shows all fields at once for simple, short inputs.
   - term: Breadcrumb
     difference: A wizard guides forward through a linear sequence; breadcrumbs show hierarchical location but do not control navigation flow.
+  - term: Progressive Disclosure
+    difference: A wizard is a linear sequence requiring step completion; progressive disclosure reveals options on demand without a fixed sequence.
 compatibilities:
   - breadcrumb
   - progressive-disclosure
@@ -70,9 +78,14 @@ sources:
   - https://www.nngroup.com/articles/wizards/
   - https://www.w3.org/WAI/tutorials/forms/multi-page/
   - https://atlassian.design/components/progress-indicator/
+  - https://www.interaction-design.org/literature/topics/wizard-pattern
+  - https://www.smashingmagazine.com/2012/06/form-design-ux-best-practices/
 tags:
   - wizard
   - stepped-form
   - multi-step
   - onboarding
+  - guided-flow
+  - sequential-process
+  - ux-pattern
   - form-design

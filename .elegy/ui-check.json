@@ -48,8 +48,7 @@
           "viewports": ["desktop", "mobile"],
           "states": ["default", "loading", "empty", "error"],
           "excludedStates": [
-            { "state": "disabled", "reason": "Pattern Atlas is a read-only catalog view with no interactive controls that can be disabled." },
-            { "state": "focus", "reason": "Pattern Atlas is a decorative catalog view; keyboard focus applies to browser chrome, not this route." }
+            { "state": "disabled", "reason": "Pattern Atlas is a read-only catalog view with no interactive controls that can be disabled." }
           ],
           "description": "Pattern Atlas — visual catalog of UI patterns, styles, components, and system architecture patterns"
         }

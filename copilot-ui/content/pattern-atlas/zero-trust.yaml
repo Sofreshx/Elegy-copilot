@@ -52,7 +52,6 @@ contrasts:
 compatibilities:
   - least-privilege
   - api-gateway
-  - service-mesh
   - sidecar-pattern
 promptLanguage: >
   Implement Zero Trust for the corporate application stack. Deploy an identity-aware proxy

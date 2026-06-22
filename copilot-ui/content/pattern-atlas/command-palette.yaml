@@ -55,7 +55,6 @@ contrasts:
 compatibilities:
   - combobox
   - progressive-disclosure
-  - keyboard-nav
 promptLanguage: >
   Design a command palette activated by ⌘K (or Ctrl+K). When opened, overlay
   a centered modal with a search input auto-focused. As the user types,

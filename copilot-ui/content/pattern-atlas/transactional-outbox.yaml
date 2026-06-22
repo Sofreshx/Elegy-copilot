@@ -3,6 +3,7 @@ name: Transactional Outbox
 aliases:
   - Outbox Pattern
   - Outbox Table
+  - Message Relay
 type: system-pattern
 domain: software-architecture
 confidence: established
@@ -29,14 +30,17 @@ traits:
   - Decouples service logic from broker availability
   - Works with any database that supports transactions
   - Supports CDC-based or poller-based relay mechanisms
+  - Eliminates need for distributed transactions (XA) for reliable messaging
 bestFit:
   - Microservices that must emit domain events reliably after database writes
   - Event-driven systems migrating away from distributed transactions (XA/2PC)
   - Audit log pipelines where every state change must produce a verifiable event
+  - CDC pipelines where source database changes must be streamed to downstream systems
 avoidIf:
   - Event loss is acceptable and broker availability is near-100% (the extra complexity is unnecessary)
   - The message volume is extremely high and the outbox table becomes a write bottleneck
   - You lack infrastructure to run a CDC connector or background relay process
+  - There is no operational capacity to monitor and maintain the relay process
 commonFailures:
   - Idempotency gaps: consumers process the same outbox event twice unless deduplication is built in
   - Outbox table growth: missing TTL or archival causes unbounded table size and degraded DB performance
@@ -46,10 +50,13 @@ contrasts:
     difference: Event Sourcing stores all state changes as an append-only event log and derives current state from replay; the Transactional Outbox merely buffers events for reliable delivery without changing the primary storage model.
   - term: Saga
     difference: Saga coordinates multi-step distributed transactions with compensating rollbacks; the Transactional Outbox handles only the single-step problem of reliable local event emission from one service.
+  - term: Two-Phase Commit (XA)
+    difference: XA/2PC coordinates transactions across multiple resources (DB + broker) atomically using a prepare/commit protocol; the Transactional Outbox uses a single local transaction and a relay to achieve reliable delivery without distributed coordination.
 compatibilities:
   - event-sourcing
   - saga
   - cqrs
+  - event-driven
   - database-per-service
 promptLanguage: >
   Implement a Transactional Outbox in a service that needs to publish domain events atomically with
@@ -63,6 +70,7 @@ sources:
   - https://microservices.io/patterns/data/transactional-outbox.html
   - https://www.kamilgrzybek.com/blog/the-outbox-pattern
   - https://debezium.io/
+  - https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html
 tags:
   - outbox
   - dual-write
@@ -70,3 +78,4 @@ tags:
   - microservices
   - cdc
   - message-relay
+  - transactional-messaging

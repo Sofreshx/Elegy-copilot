@@ -56,7 +56,7 @@ contrasts:
 compatibilities:
   - skeleton-loader
   - progressive-disclosure
-  - wizard-pattern
+  - wizard
 promptLanguage: >
   Design an empty state component for a project management app's empty project
   list. Show a friendly illustration (a blank canvas or empty desk scene).

@@ -156,6 +156,89 @@ function validateEntry(entry, fileName, seenIds) {
     }
   }
 
+  // -- Optional field type checks ------------------------------------------
+  if (
+    entry.styleRecipe !== undefined &&
+    entry.styleRecipe !== null &&
+    typeof entry.styleRecipe !== 'string'
+  ) {
+    errors.push(`'styleRecipe' must be a string`);
+  }
+
+  if (entry.image !== undefined && entry.image !== null && typeof entry.image !== 'string') {
+    errors.push(`'image' must be a string`);
+  }
+
+  return errors;
+}
+
+/**
+ * Validate cross-references after all entries have been loaded.
+ * Checks compatibility references, source URLs, and optional fields.
+ * Returns an array of { file, errors[] } objects.
+ */
+function validateCrossReferences(loadedEntries, fileMap) {
+  const errors = [];
+
+  // Build set of all valid entry IDs
+  const validIds = new Set();
+  for (const file of loadedEntries) {
+    validIds.add(fileMap.get(file).id);
+  }
+
+  for (const file of loadedEntries) {
+    const entry = fileMap.get(file);
+    const fileErrors = [];
+
+    // -- 1a. Validate compatibility references ----------------------------
+    if (Array.isArray(entry.compatibilities)) {
+      for (let i = 0; i < entry.compatibilities.length; i++) {
+        const ref = entry.compatibilities[i];
+        if (typeof ref === 'string' && !validIds.has(ref)) {
+          fileErrors.push(
+            `Compatibility '${ref}' not found among known entry IDs`
+          );
+        }
+      }
+    }
+
+    // -- 1b. Validate source URLs ----------------------------------------
+    if (Array.isArray(entry.sources)) {
+      for (let i = 0; i < entry.sources.length; i++) {
+        const source = entry.sources[i];
+        if (typeof source === 'string') {
+          // Must be a URL starting with http:// or https://
+          if (
+            !source.startsWith('http://') &&
+            !source.startsWith('https://')
+          ) {
+            fileErrors.push(
+              `sources[${i}]: '${source}' is not a valid URL (must start with http:// or https://)`
+            );
+          }
+        } else if (source && typeof source === 'object' && source.url) {
+          // Object with url property
+          if (
+            typeof source.url !== 'string' ||
+            (!source.url.startsWith('http://') && !source.url.startsWith('https://'))
+          ) {
+            fileErrors.push(
+              `sources[${i}].url: '${source.url}' is not a valid URL (must start with http:// or https://)`
+            );
+          }
+        } else {
+          fileErrors.push(
+            `sources[${i}]: must be a URL string or an object with a 'url' property`
+          );
+        }
+      }
+    }
+
+    if (fileErrors.length > 0) {
+      errors.push({ file, errors: fileErrors });
+    }
+  }
+
   return errors;
 }
 
@@ -189,6 +272,7 @@ function main() {
 
   const seenIds = new Map();
   const allErrors = []; // { file, errors[] }
+  const fileMap = new Map(); // file -> entry (for cross-references)
   let totalEntries = 0;
 
   for (const file of yamlFiles) {
@@ -214,11 +298,23 @@ function main() {
     if (errors.length > 0) {
       allErrors.push({ file, errors });
     }
+    fileMap.set(file, entry);
   }
 
+  // -- Cross-reference validation after all entries are loaded -------------
+  const loadedFiles = Array.from(fileMap.keys());
+  const xrefErrors = validateCrossReferences(loadedFiles, fileMap);
+  allErrors.push(...xrefErrors);
+
   // -- Report ---------------------------------------------------------------
-  const validCount = totalEntries - allErrors.length;
-  const errorCount = allErrors.length;
+  // Count unique files with errors (avoid double-counting when a file has
+  // both entry-level and cross-reference errors).
+  const errorFiles = new Set();
+  for (const { file } of allErrors) {
+    errorFiles.add(file);
+  }
+  const validCount = totalEntries - errorFiles.size;
+  const errorCount = errorFiles.size;
 
   console.log('Pattern Atlas Validation');
   console.log('-----------------------');

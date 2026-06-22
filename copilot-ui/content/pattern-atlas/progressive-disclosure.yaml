@@ -55,8 +55,7 @@ contrasts:
   - term: Minimalism
     difference: Minimalism removes elements permanently; progressive disclosure hides elements temporarily with the ability to reveal them on demand.
 compatibilities:
-  - wizard-pattern
-  - accordion
+  - wizard
   - empty-state
 promptLanguage: >
   Design a progressive disclosure pattern for a settings panel. Show the most

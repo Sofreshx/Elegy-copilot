@@ -51,7 +51,6 @@ contrasts:
 compatibilities:
   - feature-flag
   - api-gateway
-  - anti-corruption-layer
   - event-driven
 promptLanguage: >
   Design a strangler fig migration for the legacy order monolith. Set up an API gateway that routes

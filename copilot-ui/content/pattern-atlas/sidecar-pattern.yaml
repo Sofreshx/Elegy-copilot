@@ -51,8 +51,6 @@ contrasts:
 compatibilities:
   - api-gateway
   - circuit-breaker
-  - retry-pattern
-  - service-mesh
 promptLanguage: >
   Deploy an Envoy sidecar proxy alongside the user-service container in the same Kubernetes pod.
   Configure the sidecar to handle all inbound and outbound traffic, adding mTLS, request-level
