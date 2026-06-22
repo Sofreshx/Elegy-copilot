@@ -95,7 +95,7 @@ export default function DiagnosticsTab() {
                     <td style={{ padding: 'var(--space-xs)' }}>{r.assetId}</td>
                     <td style={{ padding: 'var(--space-xs)' }}>{r.harnessId}</td>
                     <td style={{ padding: 'var(--space-xs)' }}>
-                      <span className={`state-badge ${r.state === 'installed' ? 'state-badge--ok' : r.state === 'stale' ? 'state-badge--warn' : r.state === 'conflict' || r.state === 'unmanaged' ? 'state-badge--error' : 'state-badge--muted'}`}>
+                      <span className={`state-badge ${r.state === 'installed' ? 'state-badge--ok' : r.state === 'stale' ? 'state-badge--warn' : r.state === 'conflict' ? 'state-badge--error' : r.state === 'unmanaged' ? 'state-badge--warn' : 'state-badge--muted'}`}>
                         {r.state}
                       </span>
                     </td>

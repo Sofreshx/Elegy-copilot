@@ -20,6 +20,7 @@ This is the Elegy Copilot monorepo, also published as Elegy Copilot. It is the s
 | Antigravity assets | `antigravity-assets/` | Antigravity Gemini.md + skills |
 | Claude assets | `claude-assets/` | Claude Code CLAUDE.md + skills |
 | Dashboard UI | `copilot-ui/` | Local dashboard + desktop shell (Node + Tauri) |
+| UI governance | `.elegy/ui-check.json`, `docs/system/ui-development-governance.md`, `catalog-assets/shared-skills/ui-system/`, `ui-design-spec/`, `ui-visual-review/` | Stack-neutral UI workflow with component inventory, validation lanes, and evidence gates |
 | Contracts | `contracts/` | Shared runtime contracts |
 | Local tracker | `local-tracker/` | Session/task tracking + Discord gateway |
 | Native runtime | `native/` | Rust runtime for select API routes |

@@ -272,6 +272,12 @@ function matchesFilters(
   if (filters.overriddenOnly && !asset.overridden) {
     return false;
   }
+  if (filters.stateFilter && filters.stateFilter !== 'all') {
+    if (filters.stateFilter === 'installed' && !asset.installed) return false;
+    if (filters.stateFilter === 'not-installed' && asset.installed) return false;
+    if (filters.stateFilter === 'available' && !asset.available) return false;
+    if (filters.stateFilter === 'unavailable' && asset.available) return false;
+  }
 
   return matchesText(asset, filters.text);
 }
@@ -1919,6 +1925,20 @@ export default function AssetsView() {
                   ))}
                 </div>
               </div>
+              <div className="catalog-filter-group">
+                <span className="form-label">Status</span>
+                <select
+                  className="form-select"
+                  value={catalogState.filters.stateFilter || 'all'}
+                  onChange={(e) => catalogWorkspaceStore.setFilters({ stateFilter: e.target.value as any })}
+                >
+                  <option value="all">All statuses</option>
+                  <option value="installed">Installed</option>
+                  <option value="not-installed">Not installed</option>
+                  <option value="available">Available</option>
+                  <option value="unavailable">Unavailable</option>
+                </select>
+              </div>
               <div className="catalog-check-grid">
                 <label className="planning-checkbox">
                   <input
@@ -2006,16 +2026,44 @@ export default function AssetsView() {
                           <p className="catalog-inline-note">{activationSummary.bundleLabel}</p>
                         </td>
                         <td>
-                          <Button
-                            onClick={() => {
-                              void catalogWorkspaceStore.selectAsset(asset.assetId);
-                            }}
-                            size="sm"
-                            testId="catalog-select-asset"
-                            variant="secondary"
-                          >
-                            Inspect
-                          </Button>
+                          <div className="catalog-action-row" style={{ gap: 'var(--space-xs)' }}>
+                            {!asset.installed && asset.available ? (
+                              <Button
+                                disabled={catalogState.loading || catalogState.installing || catalogState.mutating}
+                                onClick={() => {
+                                  void catalogWorkspaceStore.installAsset({ assetId: asset.assetId });
+                                }}
+                                size="sm"
+                                testId="catalog-install-row-btn"
+                                variant="primary"
+                              >
+                                Install
+                              </Button>
+                            ) : null}
+                            {asset.installed ? (
+                              <Button
+                                disabled={catalogState.loading || catalogState.mutating}
+                                onClick={() => {
+                                  void catalogWorkspaceStore.selectAsset(asset.assetId);
+                                }}
+                                size="sm"
+                                testId="catalog-uninstall-row-btn"
+                                variant="ghost"
+                              >
+                                Uninstall
+                              </Button>
+                            ) : null}
+                            <Button
+                              onClick={() => {
+                                void catalogWorkspaceStore.selectAsset(asset.assetId);
+                              }}
+                              size="sm"
+                              testId="catalog-select-asset"
+                              variant="secondary"
+                            >
+                              Inspect
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -2137,7 +2185,87 @@ export default function AssetsView() {
                 >
                   {selectedAsset.enabled ? 'Disable overlay for selected repo' : 'Enable overlay for selected repo'}
                 </Button>
+                {selectedAsset.installed ? (
+                  <Button
+                    disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating}
+                    onClick={() => {
+                      setConfirmRemoveTargetId(selectedAsset.assetId);
+                    }}
+                    testId="catalog-uninstall-selected"
+                    variant="ghost"
+                  >
+                    Uninstall
+                  </Button>
+                ) : null}
+                {selectedAsset?.installed && (
+                  <div style={{ marginTop: 'var(--space-sm)' }}>
+                    <p className="catalog-inline-note" style={{ color: 'var(--color-warning-600)', marginBottom: 'var(--space-xs)' }}>
+                      Use this to remove files that exist on disk but are not tracked in the install ledger.
+                    </p>
+                    <Button
+                      disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating}
+                      onClick={() => setConfirmRemoveTargetId(selectedAsset.assetId)}
+                      testId="catalog-force-delete-unmanaged"
+                      variant="danger"
+                    >
+                      Delete from disk
+                    </Button>
+                  </div>
+                )}
               </div>
+
+              {confirmRemoveTargetId === selectedAsset.assetId ? (
+                selectedEntry?.installState?.availability === 'unmanaged' ? (
+                  <div className="confirm-block" style={{ marginTop: 'var(--space-sm)', padding: 'var(--space-sm)', border: '1px solid var(--color-warning-200)', borderRadius: 'var(--radius-sm)' }}>
+                    <p style={{ color: 'var(--color-warning-600)' }}>
+                      ⚠️ This file is <strong>not managed</strong> by Elegy. Deleting it will permanently remove the file from disk.
+                    </p>
+                    <div className="catalog-action-row" style={{ gap: 'var(--space-xs)', marginTop: 'var(--space-xs)' }}>
+                      <Button
+                        disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating}
+                        onClick={async () => {
+                          await catalogWorkspaceStore.forceDeleteUnmanagedAsset(
+                            selectedAsset.selectedLayer || 'opencode',
+                            selectedAsset.assetId
+                          );
+                          setConfirmRemoveTargetId(null);
+                        }}
+                        testId="catalog-confirm-force-delete"
+                        variant="danger"
+                      >
+                        Delete Permanently
+                      </Button>
+                      <Button onClick={() => setConfirmRemoveTargetId(null)} variant="ghost">
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="confirm-block" style={{ marginTop: 'var(--space-sm)' }}>
+                    <p>Remove this asset from the managed surface?</p>
+                    <div className="catalog-action-row" style={{ gap: 'var(--space-xs)' }}>
+                      <Button
+                        disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating}
+                        onClick={() => {
+                          void catalogWorkspaceStore.selectAsset(selectedAsset.assetId);
+                          setConfirmRemoveTargetId(null);
+                        }}
+                        testId="catalog-uninstall-selected-confirm"
+                        variant="danger"
+                      >
+                        Confirm Remove
+                      </Button>
+                      <Button
+                        onClick={() => setConfirmRemoveTargetId(null)}
+                        testId="catalog-uninstall-selected-cancel"
+                        variant="ghost"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )
+              ) : null}
 
               <div className="metadata-block">
                 <p className="catalog-section-title">Selected write target</p>

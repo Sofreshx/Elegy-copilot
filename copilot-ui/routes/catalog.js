@@ -3788,6 +3788,128 @@ async function handleCatalogQuality(ctx, deps) {
   }
 }
 
+function handleForceDeleteUnmanaged(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then(async (body) => {
+      const assetId = normalizeString(body?.assetId);
+      const harnessId = normalizeString(body?.harnessId);
+      const force = body?.force === true;
+
+      // Validate required fields
+      if (!assetId) {
+        throw Object.assign(new Error('assetId is required'), { statusCode: 400 });
+      }
+      if (!harnessId) {
+        throw Object.assign(new Error('harnessId is required'), { statusCode: 400 });
+      }
+      if (!force) {
+        throw Object.assign(new Error('force=true is required'), { statusCode: 400 });
+      }
+
+      // Read install ledger to verify the asset IS unmanaged
+      const ledger = installLedgerLib.readInstallLedger(ctx.elegyHomeAbs);
+      const isManaged = installLedgerLib.isAssetExpectedForUser(assetId, harnessId, ledger);
+      if (isManaged) {
+        deps.sendJson(ctx.res, 200, {
+          kind: 'catalog.unmanaged_force_delete',
+          deterministic: true,
+          ok: false,
+          warnings: [`Asset ${assetId} is managed, use regular uninstall`],
+        });
+        return;
+      }
+
+      // Resolve manifest file name for the harness
+      const manifestFileName = harnessId === 'claude-code' ? 'claude-assets/manifest.json'
+        : harnessId === 'codex' ? 'codex-assets/manifest.json'
+        : harnessId === 'opencode' ? 'opencode-assets/manifest.json'
+        : harnessId === 'antigravity' ? 'antigravity-assets/manifest.json'
+        : null;
+      if (!manifestFileName) {
+        deps.sendJson(ctx.res, 200, {
+          kind: 'catalog.unmanaged_force_delete',
+          deterministic: true,
+          ok: false,
+          warnings: [`Unknown harness: ${harnessId}`],
+        });
+        return;
+      }
+
+      try {
+        const manifestScan = loadManifestDocument(deps.engineRoot || ctx.engineRoot, manifestFileName);
+        const assets = expandManifestAssets(deps.engineRoot || ctx.engineRoot, manifestScan.document);
+        const asset = assets.find((a) => normalizeString(a?.id) === assetId);
+        if (!asset) {
+          deps.sendJson(ctx.res, 200, {
+            kind: 'catalog.unmanaged_force_delete',
+            deterministic: true,
+            ok: false,
+            warnings: [`Asset ${assetId} not found in manifest for harness ${harnessId}`],
+          });
+          return;
+        }
+
+        // Resolve destination path from manifest
+        const destCandidates = buildInstalledPathCandidatesForManifestAsset(ctx, harnessId, asset, manifestScan.document);
+        const destPath = destCandidates.find((c) => {
+          try { return deps.fs.statSync(c).isFile(); } catch (_) { return false; }
+        });
+
+        if (!destPath) {
+          deps.sendJson(ctx.res, 200, {
+            kind: 'catalog.unmanaged_force_delete',
+            deterministic: true,
+            ok: false,
+            warnings: [`Asset ${assetId} not found on disk`],
+          });
+          return;
+        }
+
+        // Derived relative path for safety guardrails
+        const destination = normalizeString(asset?.destination);
+        let normalizedDest = destination.split('\\').join('/').replace(/^\/+/, '');
+
+        // Safety guardrails (same as handleAssetsDelete in assets.js)
+        if (!(normalizedDest.startsWith('agents/') || normalizedDest.startsWith('skills/'))) {
+          throw Object.assign(new Error('Only agents/* or skills/* may be deleted'), { statusCode: 400 });
+        }
+        if (normalizedDest === 'agents' || normalizedDest === 'skills' || normalizedDest === 'agents/' || normalizedDest === 'skills/') {
+          throw Object.assign(new Error('Refusing to delete top-level directory'), { statusCode: 400 });
+        }
+        if (normalizedDest.startsWith('agents/') && !normalizedDest.toLowerCase().endsWith('.agent.md')) {
+          throw Object.assign(new Error('Refusing to delete non-agent file under agents/ (expected *.agent.md)'), { statusCode: 400 });
+        }
+        if (normalizedDest.startsWith('skills/')) {
+          const match = normalizedDest.match(/^skills\/([^/]+)(?:\/SKILL\.md)?$/i);
+          if (!match) {
+            throw Object.assign(new Error('Refusing to delete nested skill paths under skills/'), { statusCode: 400 });
+          }
+          normalizedDest = `skills/${match[1]}`;
+        }
+
+        // Delete the file
+        deps.fs.unlinkSync(destPath);
+
+        deps.sendJson(ctx.res, 200, {
+          kind: 'catalog.unmanaged_force_delete',
+          deterministic: true,
+          ok: true,
+          deleted: assetId,
+          path: normalizedDest,
+        });
+      } catch (error) {
+        throw Object.assign(new Error(`Failed to delete unmanaged asset: ${error.message}`), { statusCode: 500 });
+      }
+    })
+    .catch((error) => sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'catalog.unmanaged_force_delete',
+      String(error.message || error),
+    ));
+}
+
 function register(deps = {}) {
   const resolvedDeps = {
     childProcess: deps.childProcess || childProcess,
@@ -3937,6 +4059,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/harness-assets/check',
       handler: (ctx) => handleHarnessAssetCheck(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/unmanaged/force-delete',
+      handler: (ctx) => handleForceDeleteUnmanaged(ctx, resolvedDeps),
     },
     {
       method: 'POST',

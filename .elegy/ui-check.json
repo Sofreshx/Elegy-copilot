@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "inventory": {
+    "componentRoots": [
+      { "path": "copilot-ui/ui/src/components", "description": "Shared and domain UI components (27 components, flat directory)" }
+    ],
+    "tokenFiles": [
+      { "path": "copilot-ui/ui/src/styles/tokens.css", "format": "css" }
+    ],
+    "iconRoots": [
+      { "path": "copilot-ui/ui/src/components/AppIcon.tsx", "library": "custom" },
+      { "path": "copilot-ui/ui/src/components/BrandIcon.tsx", "library": "custom" }
+    ],
+    "patternDocs": [
+      { "path": "docs/system/copilot-ui-guide.md", "description": "UI navigation, state management, and sidebar structure" },
+      { "path": "docs/system/ui-development-governance.md", "description": "Governed UI workflow: spec → inventory → implement → evidence → visual review → regression proof" }
+    ]
+  },
+  "targets": {
+    "workspace": {
+      "lane": "browser",
+      "workingDirectory": "./copilot-ui",
+      "validationCommands": [
+        { "id": "build", "command": "npm run ui:build" },
+        { "id": "test", "command": "npm run test:vitest" }
+      ],
+      "routes": [
+        {
+          "id": "workspace-default",
+          "path": "navigation:workspace",
+          "viewports": ["desktop"],
+          "states": ["default", "loading", "empty", "error"],
+          "description": "Workspace view: reached via activeSidebarItem='workspace' when a repository is open"
+        }
+      ],
+      "evidenceRoot": "./evidence/ui/workspace"
+    },
+    "settings": {
+      "lane": "browser",
+      "workingDirectory": "./copilot-ui",
+      "validationCommands": [
+        { "id": "build", "command": "npm run ui:build" },
+        { "id": "test", "command": "npm run test:vitest" }
+      ],
+      "routes": [
+        {
+          "id": "settings-default",
+          "path": "navigation:settings",
+          "viewports": ["desktop"],
+          "states": ["default"],
+          "description": "Settings view: reached via activeSidebarItem='settings' sidebar navigation"
+        }
+      ],
+      "evidenceRoot": "./evidence/ui/settings"
+    }
+  }
+}

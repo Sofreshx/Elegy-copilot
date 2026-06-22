@@ -569,7 +569,7 @@ function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, o
     try {
       const planningSkillStatus = codexConfig.getPlanningSkillStatus(codexHome);
       const cliPath = resolveElegyPlanningCliPath({
-        cliPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
+        cliPath: ctx.env && ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
         runtimeRoot: engineRoot,
         elegyHome: elegyHomeAbs,
         env: ctx.env,
@@ -1346,6 +1346,49 @@ function registerGoWorkspacesRoutes(deps) {
         }
       },
     },
+    // GET /api/opencode/go-workspaces/pool
+    {
+      method: 'GET',
+      path: '/api/opencode/go-workspaces/pool',
+      handler: (ctx) => {
+        try {
+          const store = resolveOpencodeGoWorkspacesStore(deps);
+          const pool = store.getPool(ctx.opencodeHome);
+          deps.sendJson(ctx.res, 200, { pool });
+        } catch (err) {
+          deps.sendJson(ctx.res, 500, { error: String(err.message || err) });
+        }
+      },
+    },
+    // PUT /api/opencode/go-workspaces/pool
+    {
+      method: 'PUT',
+      path: '/api/opencode/go-workspaces/pool',
+      handler: async (ctx) => {
+        try {
+          const body = await deps.readJsonBody(ctx.req);
+          const store = resolveOpencodeGoWorkspacesStore(deps);
+          const pool = store.setPool(ctx.opencodeHome, body);
+          deps.sendJson(ctx.res, 200, { pool });
+        } catch (err) {
+          deps.sendJson(ctx.res, err.statusCode || 500, { error: String(err.message || err) });
+        }
+      },
+    },
+    // POST /api/opencode/go-workspaces/pool/validate
+    {
+      method: 'POST',
+      path: '/api/opencode/go-workspaces/pool/validate',
+      handler: async (ctx) => {
+        try {
+          const store = resolveOpencodeGoWorkspacesStore(deps);
+          const result = await store.validatePool(ctx.opencodeHome);
+          deps.sendJson(ctx.res, 200, result);
+        } catch (err) {
+          deps.sendJson(ctx.res, 500, { error: String(err.message || err) });
+        }
+      },
+    },
   ];
 }
 
@@ -1967,7 +2010,7 @@ function register(deps = {}) {
           const codexConfig = require('../lib/codexConfig');
           const planningSkillStatus = codexConfig.getPlanningSkillStatus(codexHome);
           const cliPath = resolveElegyPlanningCliPath({
-            cliPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
+            cliPath: ctx.env && ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
             runtimeRoot: ctx.engineRoot,
             elegyHome: ctx.elegyHomeAbs,
             env: ctx.env,
@@ -1976,7 +2019,7 @@ function register(deps = {}) {
             codexHome,
             planningSkill: planningSkillStatus,
             planningCliPath: cliPath || null,
-            planningDbPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH || null,
+            planningDbPath: ctx.env && ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH || null,
             ready: planningSkillStatus.installed && Boolean(cliPath),
           });
         } catch (error) {

@@ -152,6 +152,20 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "codex-ui-design-spec-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/ui-design-spec",
+      "destination": "skills/ui-design-spec",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "codex-ui-visual-review-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/ui-visual-review",
+      "destination": "skills/ui-visual-review",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "codex-commit-check-setup-skill",
       "type": "skill",
       "source": "engine-assets/skills/commit-check-setup",

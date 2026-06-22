@@ -214,6 +214,32 @@ export function uninstallHarnessAsset(
   });
 }
 
+export interface ForceDeleteUnmanagedPayload {
+  assetId: string;
+  harnessId: string;
+  force: boolean;
+}
+
+export interface ForceDeleteUnmanagedResponse {
+  ok: boolean;
+  deleted?: string;
+  path?: string;
+  error?: string;
+  warnings?: string[];
+}
+
+export function forceDeleteUnmanagedAsset(
+  payload: ForceDeleteUnmanagedPayload,
+  baseUrl?: string
+): Promise<ForceDeleteUnmanagedResponse> {
+  return apiRequest<ForceDeleteUnmanagedResponse>('/api/catalog/unmanaged/force-delete', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export interface CheckHarnessAssetsPayload {
   harnessId?: string;
   assetId?: string;

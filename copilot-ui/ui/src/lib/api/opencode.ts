@@ -190,3 +190,46 @@ export function getEffectivePrompt(
     baseUrl,
   });
 }
+
+// --- Workspace Pool API ---
+
+export interface OpenCodeGoWorkspacePool {
+  enabled: boolean;
+  workspaceIds: string[];
+}
+
+export interface OpenCodeGoWorkspacePoolResponse {
+  pool: OpenCodeGoWorkspacePool;
+}
+
+export interface OpenCodeGoWorkspacePoolValidateResponse {
+  pool: string[];
+  results: Array<{
+    id: string;
+    status: string;
+    message: string;
+  }>;
+}
+
+export function getGoWorkspacePool(baseUrl?: string): Promise<OpenCodeGoWorkspacePoolResponse> {
+  return apiRequest<OpenCodeGoWorkspacePoolResponse>('/api/opencode/go-workspaces/pool', { baseUrl });
+}
+
+export function setGoWorkspacePool(
+  payload: { enabled?: boolean; workspaceIds?: string[] },
+  baseUrl?: string,
+): Promise<OpenCodeGoWorkspacePoolResponse> {
+  return apiRequest<OpenCodeGoWorkspacePoolResponse>('/api/opencode/go-workspaces/pool', {
+    baseUrl,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function validateGoWorkspacePool(baseUrl?: string): Promise<OpenCodeGoWorkspacePoolValidateResponse> {
+  return apiRequest<OpenCodeGoWorkspacePoolValidateResponse>('/api/opencode/go-workspaces/pool/validate', {
+    baseUrl,
+    method: 'POST',
+  });
+}

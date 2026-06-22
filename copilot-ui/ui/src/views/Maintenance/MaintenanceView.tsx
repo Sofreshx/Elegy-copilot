@@ -1,12 +1,14 @@
 import { Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { navigationStore, type MaintenanceSection } from '../../stores/navigation';
+import AssetsMaintenancePanel from './AssetsMaintenancePanel';
 import DiagnosticsPanel from './DiagnosticsPanel';
 import UpdatesSection from './UpdatesSection';
 
 const TABS: { id: MaintenanceSection; label: string }[] = [
   { id: 'updates', label: 'Updates' },
   { id: 'diagnostics', label: 'Diagnostics' },
+  { id: 'assets', label: 'Assets' },
 ];
 
 function renderSection(section: MaintenanceSection) {
@@ -15,6 +17,8 @@ function renderSection(section: MaintenanceSection) {
       return <UpdatesSection />;
     case 'diagnostics':
       return <DiagnosticsPanel />;
+    case 'assets':
+      return <AssetsMaintenancePanel />;
     default:
       return <UpdatesSection />;
   }

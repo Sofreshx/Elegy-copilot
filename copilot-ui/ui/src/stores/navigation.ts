@@ -21,7 +21,7 @@ export type SidebarItemId = (typeof SIDEBAR_IDS)[number];
 
 export type ProjectSubView = 'overview' | 'sessions' | 'tasks' | 'git' | 'config';
 export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | 'git' | 'usage';
-export type MaintenanceSection = 'updates' | 'diagnostics';
+export type MaintenanceSection = 'updates' | 'diagnostics' | 'assets';
 export type WizardType = 'project' | 'asset' | null;
 
 export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'telemetry' | 'maintenance' | 'runtime' | 'codex' | 'claude-code' | 'github' | 'shell' | 'notes';

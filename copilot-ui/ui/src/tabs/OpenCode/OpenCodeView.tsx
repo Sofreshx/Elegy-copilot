@@ -562,6 +562,60 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
         </div>
       </form>
 
+      {/* Workspace Pool Section */}
+      <div className="go-workspaces-pool" style={{ marginTop: 'var(--space-md)', padding: 'var(--space-sm)', border: '1px solid var(--color-border-100)', borderRadius: 'var(--radius-sm)' }}>
+        <h4>Workspace Pool</h4>
+        <p className="catalog-inline-note" style={{ marginBottom: 'var(--space-xs)' }}>
+          Manage multiple workspaces as a priority-ordered pool. The active workspace is used by default; pool members can be quickly accessed.
+        </p>
+
+        <label className="planning-checkbox" style={{ marginBottom: 'var(--space-sm)' }}>
+          <input
+            type="checkbox"
+            checked={state.workspacePool?.enabled || false}
+            onChange={(e) => opencodeStore.setWorkspacePool({ enabled: e.target.checked })}
+            disabled={loading}
+          />
+          Enable workspace pool
+        </label>
+
+        {(state.workspacePool?.enabled) && allWorkspaces.filter(w => w._type === 'registered').length > 0 && (
+          <div style={{ marginTop: 'var(--space-xs)' }}>
+            <p className="catalog-inline-note">
+              Pool members ({state.workspacePool?.workspaceIds?.length || 0} selected):
+            </p>
+            {allWorkspaces.filter(w => w._type === 'registered').map((w) => {
+              const isInPool = (state.workspacePool?.workspaceIds || []).includes(w.id);
+              return (
+                <label key={w.id} className="planning-checkbox" style={{ display: 'block', marginBottom: '2px' }}>
+                  <input
+                    type="checkbox"
+                    checked={isInPool}
+                    onChange={(e) => {
+                      const currentIds = state.workspacePool?.workspaceIds || [];
+                      const nextIds = e.target.checked
+                        ? [...currentIds, w.id]
+                        : currentIds.filter((id) => id !== w.id);
+                      opencodeStore.setWorkspacePool({ workspaceIds: nextIds });
+                    }}
+                    disabled={loading}
+                  />
+                  {w.label} ({w.workspaceId || 'no id'})
+                </label>
+              );
+            })}
+            <button
+              className="button button-sm button-ghost"
+              style={{ marginTop: 'var(--space-xs)' }}
+              onClick={() => opencodeStore.validateWorkspacePool()}
+              disabled={loading || state.workspacePoolLoading}
+            >
+              {state.workspacePoolLoading ? 'Validating...' : 'Validate All Pool Members'}
+            </button>
+          </div>
+        )}
+      </div>
+
       {loading && !goWorkspaces && <div className="opencode-loading">Loading workspaces…</div>}
 
       {allWorkspaces.length > 0 && (
@@ -588,6 +642,11 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
                   {workspace.lastValidatedStatus && (
                     <span className={`go-workspace-validation go-workspace-validation-${workspace.lastValidatedStatus}`}>
                       {workspace.lastValidatedStatus === 'ok' ? '✓ Valid' : workspace.lastValidatedStatus}
+                    </span>
+                  )}
+                  {workspace.lastValidatedAt && (
+                    <span className="go-workspace-validated-at" style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                      Last checked: {new Date(workspace.lastValidatedAt).toLocaleDateString()}
                     </span>
                   )}
                 </div>

@@ -300,7 +300,9 @@
       "title": "UI Runtime Validation Skills",
       "description": "Browser and desktop UI validation routing: Playwright for browser-mode regression, agent browser for AI investigation, tauri-driver plus WebDriver client for real Tauri desktop behavior, and cargo test plus Tauri mock runtime for Rust commands.",
       "assetIds": [
-        "skill-ui-runtime-exploration"
+        "skill-ui-runtime-exploration",
+        "skill-ui-design-spec",
+        "skill-ui-visual-review"
       ],
       "installTarget": "repo-local",
       "activationScope": "repo",
@@ -510,6 +512,20 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/ui-system",
       "destination": "skills/ui-system",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-ui-design-spec",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/ui-design-spec",
+      "destination": "skills/ui-design-spec",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-ui-visual-review",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/ui-visual-review",
+      "destination": "skills/ui-visual-review",
       "loadMode": "on-demand"
     },
     {

@@ -103,6 +103,9 @@ test('GET /api/tooling/cli/status returns tools array', async () => {
       capturedCommand = command;
       return '1.0.0\n';
     },
+    spawnSync(_cmd, _args) {
+      return { status: 0, stdout: '1.0.0\n', stderr: '' };
+    },
   };
 
   const routes = register({ childProcess });

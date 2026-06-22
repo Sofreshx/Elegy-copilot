@@ -155,7 +155,7 @@ function readStore(opencodeHome) {
   const storePath = resolveStorePath(opencodeHome);
   const raw = readJsonFile(storePath);
   if (!raw || typeof raw !== 'object') {
-    return { activeId: null, profiles: [] };
+    return { activeId: null, profiles: [], poolEnabled: false, poolWorkspaceIds: [] };
   }
   const profiles = Array.isArray(raw.profiles)
     ? raw.profiles.map((p) => normalizeStoredProfile(p)).filter(Boolean)
@@ -163,7 +163,12 @@ function readStore(opencodeHome) {
   const activeId = typeof raw.activeId === 'string' && profiles.some((p) => p.id === raw.activeId)
     ? raw.activeId
     : null;
-  return { activeId, profiles };
+  return {
+    activeId,
+    profiles,
+    poolEnabled: raw.poolEnabled === true,
+    poolWorkspaceIds: Array.isArray(raw.poolWorkspaceIds) ? raw.poolWorkspaceIds : [],
+  };
 }
 
 function writeStore(opencodeHome, state) {
@@ -174,7 +179,12 @@ function writeStore(opencodeHome, state) {
     ...profile,
     active: profile.id === activeId,
   }));
-  writeJsonAtomic(resolveStorePath(opencodeHome), { activeId, profiles });
+  writeJsonAtomic(resolveStorePath(opencodeHome), {
+    activeId,
+    profiles,
+    poolEnabled: state.poolEnabled === true,
+    poolWorkspaceIds: Array.isArray(state.poolWorkspaceIds) ? state.poolWorkspaceIds : [],
+  });
 }
 
 function detectEnvApiKey(env = process.env) {
@@ -614,6 +624,46 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     };
   }
 
+  // --- Workspace Pool ---
+
+  function getPool(opencodeHome) {
+    const state = readStore(opencodeHome);
+    return {
+      enabled: state.poolEnabled === true,
+      workspaceIds: Array.isArray(state.poolWorkspaceIds) ? state.poolWorkspaceIds : [],
+    };
+  }
+
+  function setPool(opencodeHome, payload = {}) {
+    const state = readStore(opencodeHome);
+    const enabled = payload.enabled !== undefined ? Boolean(payload.enabled) : (state.poolEnabled === true);
+    const workspaceIds = Array.isArray(payload.workspaceIds)
+      ? payload.workspaceIds.filter((id) => typeof id === 'string' && state.profiles.some((p) => p.id === id))
+      : (state.poolWorkspaceIds || []);
+
+    writeStore(opencodeHome, {
+      ...state,
+      poolEnabled: enabled,
+      poolWorkspaceIds: workspaceIds,
+    });
+
+    return getPool(opencodeHome);
+  }
+
+  async function validatePool(opencodeHome) {
+    const pool = getPool(opencodeHome);
+    const results = [];
+    for (const id of pool.workspaceIds) {
+      try {
+        const result = await validateWorkspace(opencodeHome, id, { skipStoreUpdate: false });
+        results.push({ id, status: result.status, message: result.message });
+      } catch (err) {
+        results.push({ id, status: 'error', message: err.message || String(err) });
+      }
+    }
+    return { pool: pool.workspaceIds, results };
+  }
+
   return {
     KEYRING_SERVICE_NAME,
     KEY_SOURCES,
@@ -638,6 +688,9 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     validateWorkspace,
     resolveActiveApiKey,
     createDraftProfile,
+    getPool,
+    setPool,
+    validatePool,
     _internal: {
       fs: fsImpl,
       path: pathImpl,

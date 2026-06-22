@@ -1,13 +1,13 @@
 ---
 created: 2026-02-23
-updated: 2026-06-15
+updated: 2026-06-21
 category: system
 status: current
 doc_kind: index
 id: system-docs-index
 summary: Short entrypoint map for the current canonical docs.
 tags: [documentation, index]
-related: [catalog-control-plane, copilot-ui-guide, opencode-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, commit-check-setup, windows-shell-optimization]
+related: [catalog-control-plane, copilot-ui-guide, opencode-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, commit-check-setup, windows-shell-optimization, ui-development-governance, ui-check-adoption]
 ---
 
 # Docs Index
@@ -21,6 +21,8 @@ Use docs in this order:
 ## Most Useful Entry Docs
 
 - [[copilot-ui-guide]] [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md)
+- [[ui-development-governance]] [docs/system/ui-development-governance.md](docs/system/ui-development-governance.md)
+- [[ui-check-adoption]] [docs/system/ui-check-adoption.md](docs/system/ui-check-adoption.md)
 - [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md)
 - [[architecture-overview]] [docs/system/architecture-overview.md](docs/system/architecture-overview.md)
 - [[opencode-guide]] [docs/system/opencode-guide.md](docs/system/opencode-guide.md)

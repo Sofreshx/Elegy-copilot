@@ -20,6 +20,7 @@ const requiredSchemas = [
 	'agent-create-request.schema.json',
 	'skill-discovery-index.schema.json',
 	'mcp-tool-definition.schema.json',
+	'ui-check.schema.json',
 ];
 
 let hasFailures = false;
