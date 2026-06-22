@@ -221,7 +221,7 @@ export default function RepoGitPanel({ repoPath }: RepoGitPanelProps) {
               disabled={state.switchingBranch || !state.branches?.branches.length}
             >
               <option value="">Select branch\u2026</option>
-              {state.branches?.branches.filter((branch) => !branch.remote).map((branch) => (
+              {(state.branches?.branches ?? []).filter((branch) => !branch.remote).map((branch) => (
                 <option key={branch.name} value={branch.name}>{branch.name}</option>
               ))}
             </select>

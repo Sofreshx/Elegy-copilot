@@ -89,7 +89,7 @@ function buildElegySkillAssetsStatus(targetHome, sourceRepoRoot, sourceGitHead) 
 async function buildToolingStatus(ctx, deps, codexHome) {
   const checkedAtMs = Date.now();
   const cliPath = resolveElegyPlanningCliPath({
-    cliPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
+    cliPath: ctx.env && ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
     runtimeRoot: ctx.engineRoot,
     elegyHome: ctx.elegyHomeAbs,
     env: ctx.env,

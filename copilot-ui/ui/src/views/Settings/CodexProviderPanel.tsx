@@ -560,7 +560,7 @@ export default function CodexProviderPanel() {
         <div className="settings-row" data-testid="codex-planning-status">
           <div className="settings-row-label">
             <div className="settings-row-description" style={{ marginTop: 4 }}>
-              {state.planningStatus?.planningSkill.installed ? (
+              {state.planningStatus?.planningSkill?.installed ? (
                 <span>
                   <Badge tone="success">Installed</Badge>
                   <span style={{ marginLeft: 8, fontSize: '0.75rem', color: 'var(--tertiary-text-color, #666)' }}>
@@ -579,7 +579,7 @@ export default function CodexProviderPanel() {
                 <span style={{ display: 'block', marginTop: 4, fontSize: '0.75rem', color: 'var(--success-color, #0a0)' }}>
                   Ready — skill installed and CLI available.
                 </span>
-              ) : state.planningStatus?.planningSkill.installed && !state.planningStatus?.ready ? (
+              ) : state.planningStatus?.planningSkill?.installed && !state.planningStatus?.ready ? (
                 <span style={{ display: 'block', marginTop: 4, fontSize: '0.75rem', color: 'var(--warning-color, #c90)' }}>
                   Skill installed but CLI not detected. Run the installer to complete setup.
                 </span>
@@ -587,7 +587,7 @@ export default function CodexProviderPanel() {
             </div>
           </div>
           <div className="settings-row-action">
-            {!state.planningStatus?.planningSkill.installed ? (
+            {!state.planningStatus?.planningSkill?.installed ? (
               <Button
                 variant="secondary"
                 size="sm"

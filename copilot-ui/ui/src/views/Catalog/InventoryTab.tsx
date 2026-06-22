@@ -79,14 +79,25 @@ export default function InventoryTab({ sections, harnesses, onItemAction, onUnin
 
       {/* Full-width asset list */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }} data-testid="assets-tools-inventory">
-        <AssetGroupList
-          sections={filteredSections}
-          selectedItem={modalItem}
-          onSelectItem={setModalItem}
-          onItemAction={onItemAction}
-          onUninstall={onUninstall}
-          mutating={mutating}
-        />
+        {filteredSections.length === 0 || filteredSections.every((s) => (s.items ?? []).length === 0) ? (
+          <div className="assets-tools-empty" data-testid="inventory-empty" style={{ padding: 'var(--space-lg)', textAlign: 'center' }}>
+            <p style={{ color: 'var(--color-ink-muted)', marginBottom: 'var(--space-xs)' }}>
+              No assets found in the catalog inventory.
+            </p>
+            <p style={{ color: 'var(--color-ink-muted)', fontSize: '0.85rem' }}>
+              This usually means the catalog projection snapshot is empty or stale. Try the <strong>Refresh</strong> button above, or check that your agent source directories are accessible.
+            </p>
+          </div>
+        ) : (
+          <AssetGroupList
+            sections={filteredSections}
+            selectedItem={modalItem}
+            onSelectItem={setModalItem}
+            onItemAction={onItemAction}
+            onUninstall={onUninstall}
+            mutating={mutating}
+          />
+        )}
       </div>
 
       {/* Modal overlay */}

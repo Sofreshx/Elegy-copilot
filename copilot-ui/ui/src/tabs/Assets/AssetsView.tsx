@@ -774,7 +774,7 @@ export default function AssetsView() {
   }, []);
 
   const filteredAssets = useMemo(() => {
-    return catalogState.assets.filter((asset) => matchesFilters(asset, catalogState.filters));
+    return (catalogState.assets ?? []).filter((asset) => matchesFilters(asset, catalogState.filters));
   }, [catalogState.assets, catalogState.filters]);
 
   const selectedAsset = catalogState.selectedAsset;
@@ -784,14 +784,14 @@ export default function AssetsView() {
   const selectedSuppressed = selectedAsset?.suppressedEntries ?? [];
   const selectedProvenance = summarizeProvenance(selectedEntry);
   const selectedIsReadOnly = readMetadataBoolean(selectedEntry, 'readOnly');
-  const bundleIndex = useMemo(() => buildAssetBundleIndex(catalogState.bundles), [catalogState.bundles]);
+  const bundleIndex = useMemo(() => buildAssetBundleIndex(catalogState.bundles ?? []), [catalogState.bundles]);
   const selectedAssetActivation = useMemo(
     () => (selectedAsset ? deriveAssetActivationSummary(selectedAsset, bundleIndex[selectedAsset.assetId]) : null),
     [selectedAsset, bundleIndex]
   );
-  const recommendedAssets = catalogState.assets.filter((asset) => asset.recommended);
+  const recommendedAssets = (catalogState.assets ?? []).filter((asset) => asset.recommended);
   const workflowBundles = useMemo(
-    () => catalogState.bundles.filter((bundle) => bundle.classification === 'workflow' && !isBundleActive(bundle)),
+    () => (catalogState.bundles ?? []).filter((bundle) => bundle.classification === 'workflow' && !isBundleActive(bundle)),
     [catalogState.bundles]
   );
   const auditCounts = useMemo(() => {
@@ -817,10 +817,10 @@ export default function AssetsView() {
     [savedCustomScanRoots, draftCustomScanRoots]
   );
   const bundleStats = useMemo(() => {
-    const totalCount = catalogState.bundles.length;
-    const activeCount = activationState?.activeBundleIds?.length ?? catalogState.bundles.filter((bundle) => isBundleActive(bundle)).length;
-    const defaultRecommendedCount = catalogState.bundles.filter((bundle) => bundle.defaultRecommended).length;
-    const eligibleMemberCount = catalogState.bundles.reduce((count, bundle) => count + countEligibleBundleMembers(bundle), 0);
+    const totalCount = (catalogState.bundles ?? []).length;
+    const activeCount = activationState?.activeBundleIds?.length ?? (catalogState.bundles ?? []).filter((bundle) => isBundleActive(bundle)).length;
+    const defaultRecommendedCount = (catalogState.bundles ?? []).filter((bundle) => bundle.defaultRecommended).length;
+    const eligibleMemberCount = (catalogState.bundles ?? []).reduce((count, bundle) => count + countEligibleBundleMembers(bundle), 0);
     return {
       totalCount,
       activeCount,

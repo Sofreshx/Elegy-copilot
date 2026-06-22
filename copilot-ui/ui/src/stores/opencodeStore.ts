@@ -104,10 +104,32 @@ function toErrorMessage(error: unknown): string {
 function createOpenCodeStore() {
   const store = createStore<OpenCodeState>(INITIAL_STATE);
 
+  function validateOpenCodeStatus(raw: unknown): OpenCodeStatusResponse | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const status = raw as Record<string, unknown>;
+    if (typeof status.overallStatus !== 'string') return null;
+    if (!Array.isArray(status.warnings)) return null;
+    if (!Array.isArray(status.profiles)) return null;
+    if (!Array.isArray(status.lanes)) return null;
+    if (typeof status.opencodeHome !== 'string') return null;
+    if (typeof status.configPath !== 'string') return null;
+    return raw as OpenCodeStatusResponse;
+  }
+
   async function load(): Promise<void> {
     store.setState((state) => ({ ...state, loading: true, error: null }));
     try {
-      const status = await getOpenCodeStatus();
+      const raw = await getOpenCodeStatus();
+      const status = validateOpenCodeStatus(raw);
+      if (!status) {
+        store.setState((state) => ({
+          ...state,
+          loading: false,
+          error: 'OpenCode status response is incomplete or malformed. OpenCode may not be installed or configured on this system.',
+          status: null,
+        }));
+        return;
+      }
       store.setState((state) => ({
         ...state,
         status,

@@ -206,6 +206,22 @@ function normalizeBundles(input: CatalogBundle[] | undefined): CatalogBundle[] {
     : [];
 }
 
+function normalizeSummary(raw: CatalogSnapshotEnvelope | null | undefined): CatalogSnapshotEnvelope | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const sections = Array.isArray(raw.globalInventory?.sections) ? raw.globalInventory.sections : [];
+  const harnesses = Array.isArray(raw.globalInventory?.harnesses) ? raw.globalInventory.harnesses : [];
+  const externalSources = Array.isArray(raw.externalSources) ? raw.externalSources : [];
+  return {
+    ...raw,
+    globalInventory: {
+      ...(raw.globalInventory ?? {}),
+      sections,
+      harnesses,
+    },
+    externalSources,
+  };
+}
+
 function normalizeEntries(input: CatalogEntry[] | undefined): CatalogEntry[] {
   return Array.isArray(input)
     ? input.filter((entry): entry is CatalogEntry => Boolean(entry?.assetId))
@@ -839,7 +855,7 @@ function createCatalogWorkspaceStore() {
           : null,
       summary:
         summaryResult.status === 'fulfilled'
-          ? summaryResult.value.summary
+          ? normalizeSummary(summaryResult.value.summary)
           : null,
       bundles:
         bundlesResult.status === 'fulfilled'

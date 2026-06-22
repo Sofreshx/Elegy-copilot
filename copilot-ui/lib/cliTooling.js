@@ -124,34 +124,65 @@ function detectCliTool(toolId, options = {}) {
   if (!tool) {
     return { id: toolId, title: null, installed: false, path: null, version: null, error: `Unknown CLI tool: ${toolId}` };
   }
+  const cp = options.childProcess || require('child_process');
+
+  // Win10-friendly probe order:
+  //   1. `npx <pkg> --version` via spawnSync (avoids execSync shell-quoting issues on Win10)
+  //   2. `where <pkg>` (Win) / `which <pkg>` (POSIX) to detect the global binary on PATH
+  //   3. treat as not installed
   try {
-    const childProcess = options.childProcess || require('child_process');
-    const result = childProcess.execSync(`npx ${tool.npmPackage} --version`, {
-      timeout: 15_000,
+    const spawnResult = cp.spawnSync('npx', [tool.npmPackage, '--version'], {
+      timeout: 10_000,
       encoding: 'utf8',
       windowsHide: true,
       shell: true,
       ...(options.execOptions || {}),
     });
-    const version = String(result).trim();
-    return {
-      id: tool.id,
-      title: tool.title,
-      installed: true,
-      path: tool.npmPackage,
-      version: version || null,
-      lastError: null,
-    };
-  } catch (error) {
-    return {
-      id: tool.id,
-      title: tool.title,
-      installed: false,
-      path: null,
-      version: null,
-      lastError: String(error.message || error).slice(0, 200),
-    };
+    if (spawnResult.status === 0 && spawnResult.stdout) {
+      const version = String(spawnResult.stdout).trim();
+      return {
+        id: tool.id,
+        title: tool.title,
+        installed: true,
+        path: tool.npmPackage,
+        version: version || null,
+        lastError: null,
+      };
+    }
+  } catch {
+    // fall through to PATH probe
   }
+
+  try {
+    const probeCmd = process.platform === 'win32' ? 'where' : 'which';
+    const probeResult = cp.spawnSync(probeCmd, [tool.npmPackage], {
+      timeout: 5_000,
+      encoding: 'utf8',
+      windowsHide: true,
+    });
+    if (probeResult.status === 0 && probeResult.stdout) {
+      const binPath = String(probeResult.stdout).trim().split(/\r?\n/)[0] || null;
+      return {
+        id: tool.id,
+        title: tool.title,
+        installed: true,
+        path: binPath,
+        version: null,
+        lastError: null,
+      };
+    }
+  } catch {
+    // fall through to not-installed
+  }
+
+  return {
+    id: tool.id,
+    title: tool.title,
+    installed: false,
+    path: null,
+    version: null,
+    lastError: `${tool.npmPackage} not found on PATH and npx probe failed`,
+  };
 }
 
 module.exports = {

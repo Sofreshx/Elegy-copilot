@@ -39,7 +39,7 @@ export default function QualityTab() {
   }
 
   const { summary, skills, overlapClusters } = report;
-  const skillsWithIssues = skills.filter((s) => s.diagnostics.length > 0);
+  const skillsWithIssues = (skills ?? []).filter((s) => s.diagnostics.length > 0);
 
   // Filter out expected cross-harness duplicate-name warnings
   // (engine-assets and opencode-assets having same-named skills is by design)
@@ -67,10 +67,10 @@ export default function QualityTab() {
   }).filter((skill) => skill.diagnostics.length > 0);
 
   // Also filter overlapClusters to remove cross-root overlaps that are expected
-  const displayOverlapClusters = overlapClusters.filter((cluster) => {
+  const displayOverlapClusters = (overlapClusters ?? []).filter((cluster) => {
     // Get source roots for each skill in the cluster
     const roots = cluster.skills.map((skillId) => {
-      const skill = skills.find((s) => s.skillId === skillId);
+      const skill = (skills ?? []).find((s) => s.skillId === skillId);
       return skill?.sourceRoot || '';
     });
     const uniqueRoots = new Set(roots.filter(Boolean));
@@ -80,7 +80,7 @@ export default function QualityTab() {
   });
 
   // Count only non-cross-root duplicate names for the metric display
-  const filteredDuplicateNames = skills.reduce((count, skill) => {
+  const filteredDuplicateNames = (skills ?? []).reduce((count, skill) => {
     return count + skill.diagnostics.filter((d) => {
       if (d.kind !== 'duplicate-name') return false;
       const peerIds: string[] = Array.isArray((d.detail as any)?.peerSkillIds)

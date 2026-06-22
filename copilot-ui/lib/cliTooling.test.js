@@ -120,20 +120,47 @@ async function run() {
   });
 
   await test('detectCliTool returns installed true when npx succeeds', () => {
-    const childProcess = createMockChildProcess(() => '1.2.3\n');
+    const childProcess = {
+      spawnSync(_cmd, _args) {
+        return { status: 0, stdout: '1.2.3\n', stderr: '' };
+      },
+    };
     const result = detectCliTool('opencode-cli', { childProcess });
     assert.equal(result.installed, true);
     assert.equal(result.version, '1.2.3');
     assert.equal(result.title, 'OpenCode CLI');
   });
 
-  await test('detectCliTool returns installed false when npx throws', () => {
-    const childProcess = createMockChildProcess(() => {
-      throw new Error('command not found: npx');
-    });
+  await test('detectCliTool falls back to where/which PATH probe when npx fails', () => {
+    const calls = [];
+    const childProcess = {
+      spawnSync(cmd, args) {
+        calls.push({ cmd, args });
+        if (cmd === 'npx') {
+          return { status: 1, stdout: '', stderr: 'npx failed' };
+        }
+        if (cmd === 'where' || cmd === 'which') {
+          return { status: 0, stdout: 'C:\\Users\\Tester\\AppData\\Roaming\\npm\\codex.cmd', stderr: '' };
+        }
+        return { status: 1, stdout: '', stderr: '' };
+      },
+    };
     const result = detectCliTool('codex-cli', { childProcess });
+    assert.equal(result.installed, true);
+    assert.equal(result.path, 'C:\\Users\\Tester\\AppData\\Roaming\\npm\\codex.cmd');
+    assert.equal(calls.length, 2, 'should probe npx then where/which');
+    assert.equal(calls[1].cmd, process.platform === 'win32' ? 'where' : 'which');
+  });
+
+  await test('detectCliTool returns not installed when both npx and where/which fail', () => {
+    const childProcess = {
+      spawnSync() {
+        return { status: 1, stdout: '', stderr: 'not found' };
+      },
+    };
+    const result = detectCliTool('claude-cli', { childProcess });
     assert.equal(result.installed, false);
-    assert.equal(result.lastError, 'command not found: npx');
+    assert.equal(result.lastError.includes('claude-cli') || result.lastError.includes('not found'), true);
   });
 
   if (!process.exitCode) {

@@ -569,7 +569,7 @@ function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, o
     try {
       const planningSkillStatus = codexConfig.getPlanningSkillStatus(codexHome);
       const cliPath = resolveElegyPlanningCliPath({
-        cliPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
+        cliPath: ctx.env && ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
         runtimeRoot: engineRoot,
         elegyHome: elegyHomeAbs,
         env: ctx.env,
@@ -2044,7 +2044,7 @@ function register(deps = {}) {
           const codexConfig = require('../lib/codexConfig');
           const planningSkillStatus = codexConfig.getPlanningSkillStatus(codexHome);
           const cliPath = resolveElegyPlanningCliPath({
-            cliPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
+            cliPath: ctx.env && ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
             runtimeRoot: ctx.engineRoot,
             elegyHome: ctx.elegyHomeAbs,
             env: ctx.env,
@@ -2053,7 +2053,7 @@ function register(deps = {}) {
             codexHome,
             planningSkill: planningSkillStatus,
             planningCliPath: cliPath || null,
-            planningDbPath: ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH || null,
+            planningDbPath: ctx.env && ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH || null,
             ready: planningSkillStatus.installed && Boolean(cliPath),
           });
         } catch (error) {
