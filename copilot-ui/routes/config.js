@@ -205,6 +205,10 @@ const PRESETS = [
     id: 'constructive-coworker',
     label: 'Constructive Coworker',
     description: 'Attention-friendly communication: outcome-first, one thread at a time, explicit next actions.',
+    content: fs.readFileSync(
+      path.join(REPO_ROOT, 'catalog-assets', 'presets', 'constructive-coworker.md'),
+      'utf8',
+    ).trim(),
     isDefault: true,
   },
 ];

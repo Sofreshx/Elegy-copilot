@@ -520,6 +520,8 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
     const value = e.target.value;
     if (value === '__none__') {
       opencodeStore.deactivateGoWorkspaceAction();
+    } else if (value === '__auto__') {
+      opencodeStore.setGoWorkspaceAutoAction();
     } else if (value) {
       opencodeStore.activateGoWorkspaceAction(value);
     }
@@ -532,7 +534,8 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
 
   const selectionMode = goWorkspaces?.selectionMode || 'auto';
   const activeId = goWorkspaces?.activeId;
-  const isNoneActive = selectionMode === 'none' || !activeId;
+  const isNoneActive = selectionMode === 'none';
+  const isAutoMode = selectionMode === 'auto';
 
   // Find active workspace for display
   const activeWorkspace = activeId
@@ -558,12 +561,17 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
           <div className="go-workspace-selector-row">
             <select
               className="go-workspace-selector"
-              value={isNoneActive ? '__none__' : (activeId || '__none__')}
+              value={
+                selectionMode === 'none' ? '__none__' :
+                selectionMode === 'auto' && !activeId ? '__auto__' :
+                activeId || '__none__'
+              }
               onChange={handleSwitch}
               disabled={loading}
               data-testid="go-workspace-selector"
             >
               <option value="__none__">No active workspace</option>
+              <option value="__auto__">Auto (detect credentials)</option>
               {allWorkspaces
                 .filter((w) => w._type === 'detected')
                 .map((w) => (
@@ -603,7 +611,7 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
 
           {/* Links row */}
           <div className="go-workspace-current-links">
-            {isNoneActive && (
+            {(isNoneActive || (isAutoMode && !activeId)) && (
               <a
                 href="https://opencode.ai/workspace/new/go"
                 target="_blank"

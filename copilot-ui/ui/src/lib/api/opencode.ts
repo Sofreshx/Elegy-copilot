@@ -121,6 +121,13 @@ export function deactivateGoWorkspace(baseUrl?: string): Promise<OpenCodeGoWorks
   });
 }
 
+export function setGoWorkspaceAuto(baseUrl?: string): Promise<OpenCodeGoWorkspacesResponse & OpenCodeGoWorkspaceActionResponse> {
+  return apiRequest<OpenCodeGoWorkspacesResponse & OpenCodeGoWorkspaceActionResponse>('/api/opencode/go-workspaces/set-auto', {
+    method: 'POST',
+    baseUrl,
+  });
+}
+
 export function validateGoWorkspace(id: string, baseUrl?: string): Promise<OpenCodeGoWorkspaceValidateResponse> {
   return apiRequest<OpenCodeGoWorkspaceValidateResponse>(`/api/opencode/go-workspaces/${encodeURIComponent(id)}/validate`, {
     method: 'POST',

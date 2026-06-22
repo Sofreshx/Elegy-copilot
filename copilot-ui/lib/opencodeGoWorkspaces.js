@@ -154,10 +154,14 @@ function normalizeStoredProfile(input, now = nowIso()) {
     lastValidatedAt: typeof input.lastValidatedAt === 'string' ? input.lastValidatedAt : null,
     lastValidatedStatus: typeof input.lastValidatedStatus === 'string'
       ? input.lastValidatedStatus
-      : null,
+      : (typeof input.lastValidationStatus === 'string'
+        ? input.lastValidationStatus
+        : null),
     lastValidatedMessage: typeof input.lastValidatedMessage === 'string'
       ? input.lastValidatedMessage
-      : null,
+      : (typeof input.lastValidationMessage === 'string'
+        ? input.lastValidationMessage
+        : null),
   };
 }
 
@@ -283,7 +287,7 @@ function buildImportedProfile({ id, label, workspaceId, source }) {
 function effectiveActiveId(state, detectedIds, selectionMode = SELECTION_MODES.AUTO) {
   if (selectionMode === SELECTION_MODES.NONE) return null;
   if (selectionMode === SELECTION_MODES.EXPLICIT) {
-    if (state.activeId && (state.profiles.some((p) => p.id === state.activeId) || isDetectedId(state.activeId))) {
+    if (state.activeId && (state.profiles.some((p) => p.id === state.activeId) || (isDetectedId(state.activeId) && detectedIds.includes(state.activeId)))) {
       return state.activeId;
     }
     return null;
@@ -500,6 +504,12 @@ function createOpenCodeGoWorkspaces(deps = {}) {
   async function deactivateWorkspace(opencodeHome) {
     const state = readStore(opencodeHome);
     writeStore(opencodeHome, { activeId: null, profiles: state.profiles, poolEnabled: state.poolEnabled, poolWorkspaceIds: state.poolWorkspaceIds, selectionMode: SELECTION_MODES.NONE });
+    return await listWorkspaces(opencodeHome);
+  }
+
+  async function setAutoMode(opencodeHome) {
+    const state = readStore(opencodeHome);
+    writeStore(opencodeHome, { activeId: state.activeId, profiles: state.profiles, poolEnabled: state.poolEnabled, poolWorkspaceIds: state.poolWorkspaceIds, selectionMode: SELECTION_MODES.AUTO });
     return await listWorkspaces(opencodeHome);
   }
 
@@ -756,6 +766,7 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     updateWorkspace,
     activateWorkspace,
     deactivateWorkspace,
+    setAutoMode,
     deleteWorkspace,
     validateWorkspace,
     resolveActiveApiKey,

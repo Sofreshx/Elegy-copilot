@@ -1298,6 +1298,23 @@ function registerGoWorkspacesRoutes(deps) {
     },
     {
       method: 'POST',
+      path: '/api/opencode/go-workspaces/set-auto',
+      handler: async (ctx) => {
+        try {
+          const store = resolveOpencodeGoWorkspacesStore(deps);
+          const data = await store.setAutoMode(ctx.opencodeHome);
+          deps.sendJson(ctx.res, 200, { ok: true, ...data });
+        } catch (error) {
+          const status = isValidationError(error) ? 400 : 500;
+          deps.sendJson(ctx.res, status, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
       path: /^\/api\/opencode\/go-workspaces\/([^/]+)\/validate\/?$/,
       handler: async (ctx) => {
         const id = getPathParam(ctx, 'id');

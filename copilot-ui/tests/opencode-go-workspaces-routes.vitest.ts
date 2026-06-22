@@ -346,6 +346,10 @@ describe('opencode go workspaces routes', () => {
   });
 
   it('GET /api/opencode/go-workspaces returns selectionMode and per-workspace origin, workspaceIdKnown, consoleUrl fields', async () => {
+    // Register a workspace so we have actual data to check
+    await workspaceStore.registerWorkspace(opencodeHome, {
+      label: 'Test WS', workspaceId: 'wrk_test', apiKey: 'key-test',
+    });
     const sendJson = vi.fn();
     const routes = register({
       sendJson,
@@ -375,8 +379,16 @@ describe('opencode go workspaces routes', () => {
     // Top-level selectionMode
     expect(typeof body.selectionMode).toBe('string');
     expect(['auto', 'explicit', 'none']).toContain(body.selectionMode);
-    // If there are registered workspaces, check per-workspace fields
-    // But for an empty store, detected/registered are empty so we just check the top-level field
+    // Check registered workspace has per-workspace fields
+    expect(body.registered.length).toBeGreaterThanOrEqual(1);
+    const ws = body.registered[0];
+    expect(typeof ws.origin).toBe('string');
+    expect(typeof ws.workspaceIdKnown).toBe('boolean');
+    expect(ws.workspaceIdKnown).toBe(true);
+    expect(typeof ws.consoleUrl).toBe('string');
+    expect(ws.consoleUrl).toBe('https://opencode.ai/workspace/wrk_test/go');
+    // Verify no raw key in response
+    expect(JSON.stringify(body).includes('key-test')).toBe(false);
   });
 
   it('POST /api/opencode/go-workspaces/deactivate returns selectionMode none in response', async () => {
@@ -426,6 +438,40 @@ describe('opencode go workspaces routes', () => {
     expect(afterCall[2].ok).toBe(true);
     expect(afterCall[2].selectionMode).toBe('none');
     expect(afterCall[2].activeId).toBe(null);
+  });
+
+  it('POST /api/opencode/go-workspaces/set-auto sets selectionMode to auto', async () => {
+    await workspaceStore.registerWorkspace(opencodeHome, { label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a', activate: true });
+    // First deactivate (sets to none)
+    await workspaceStore.deactivateWorkspace(opencodeHome);
+    const sendJson = vi.fn();
+    const routes = register({
+      sendJson,
+      readJsonBody: async () => ({}),
+      assets: makeAssetsStub(),
+      opencodeConfig: makeOpenCodeConfigStub(opencodeHome),
+      opencodeLogReader: { readRequestLogs: () => ({ requests: [], total: 0, logFiles: 0 }), DEFAULT_LIMIT: 100 },
+      opencodeGoWorkspaces: workspaceStore,
+      env: { XDG_DATA_HOME: xdgData },
+      childProcess: { spawnSync: () => ({ status: 0, stdout: '1.0.0', stderr: '' }) },
+    });
+    const route = findRoute(routes, 'POST', (s) => s.includes('set-auto'));
+    expect(route).toBeDefined();
+    const ctx = {
+      opencodeHome,
+      elegyHomeAbs: '',
+      engineRoot: '',
+      env: { XDG_DATA_HOME: xdgData },
+      req: { method: 'POST' },
+      res: { writeHead: vi.fn(), end: vi.fn() },
+      u: { pathname: '/api/opencode/go-workspaces/set-auto' },
+      match: ['/api/opencode/go-workspaces/set-auto'],
+    };
+    await route!.handler(ctx);
+    const call = sendJson.mock.calls[0];
+    expect(call[1]).toBe(200);
+    expect(call[2].ok).toBe(true);
+    expect(call[2].selectionMode).toBe('auto');
   });
 
   it('POST /api/opencode/go-workspaces/:id/validate records status', async () => {

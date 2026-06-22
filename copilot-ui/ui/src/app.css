@@ -14896,6 +14896,50 @@ textarea:focus-visible,
 }
 
 /* Collaboration Style Settings */
+.collab-style-preset-description {
+  margin-top: var(--space-2xs);
+}
+
+.collab-style-guidance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.collab-style-guidance-block {
+  min-width: 0;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-0);
+}
+
+.collab-style-guidance-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.collab-style-guidance-source {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  color: var(--color-ink-400);
+}
+
+.collab-style-guidance-block pre {
+  max-height: 12rem;
+  margin: 0;
+  overflow: auto;
+  color: var(--color-ink-700);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .collab-style-char-count {
   font-size: 0.75rem;
   color: var(--color-ink-400);
@@ -15375,4 +15419,10 @@ textarea:focus-visible,
   font-size: var(--text-sm);
   flex-direction: column;
   gap: var(--space-sm);
+}
+
+@media (max-width: 900px) {
+  .collab-style-guidance-grid {
+    grid-template-columns: 1fr;
+  }
 }

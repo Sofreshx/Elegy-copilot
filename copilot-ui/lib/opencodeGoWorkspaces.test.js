@@ -835,5 +835,21 @@ describe('opencodeGoWorkspaces', () => {
       const result = await store.listWorkspaces(opencodeHome);
       assert.equal(result.activeId, 'detected:env:opencode-go');
     });
+
+    it('returns null when explicit mode with detected id that is no longer available', async () => {
+      // Set env var to make a detected source appear
+      const envWithKey = { OPENCODE_GO_API_KEY: 'temp-key', XDG_DATA_HOME: path.join(tmpDir, 'xdg-empty') };
+      const { store: envStore } = createOpenCodeGoWorkspacesFactory({ tmpDir, env: envWithKey });
+      // Activate the detected env workspace (this writes activeId to store)
+      await envStore.activateWorkspace(opencodeHome, 'detected:env:opencode-go');
+      let result = await envStore.listWorkspaces(opencodeHome);
+      assert.equal(result.selectionMode, 'explicit');
+      assert.equal(result.activeId, 'detected:env:opencode-go');
+      // Now remove the env var by creating a new store factory without it
+      const { store: cleanStore } = createOpenCodeGoWorkspacesFactory({ tmpDir });
+      result = await cleanStore.listWorkspaces(opencodeHome);
+      // The detected workspace is no longer in detectedIds, so activeId should be null
+      assert.equal(result.activeId, null);
+    });
   });
 });
