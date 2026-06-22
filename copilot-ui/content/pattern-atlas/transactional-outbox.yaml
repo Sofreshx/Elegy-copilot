@@ -1,0 +1,81 @@
+id: transactional-outbox
+name: Transactional Outbox
+aliases:
+  - Outbox Pattern
+  - Outbox Table
+  - Message Relay
+type: system-pattern
+domain: software-architecture
+confidence: established
+tagline: Atomic dual-write to database and message broker via a local outbox table.
+description: >
+  The Transactional Outbox pattern solves the dual-write problem when an operation must write to a
+  database AND publish a message or event. Instead of writing to the database and sending to a message
+  broker in a non-atomic two-phase operation, the service writes the event to a local outbox table
+  within the same database transaction. A separate process — often a message relay or CDC connector —
+  reads the outbox table and publishes events to the broker, guaranteeing at-least-once delivery.
+
+  This pattern is foundational to event-driven microservices that require reliable event emission
+  without distributed transactions. It pairs naturally with Event Sourcing and CQRS, and is commonly
+  implemented using CDC tools like Debezium, or via a background poller that scans the outbox table.
+  The outbox table acts as a durable buffer: if the broker is unavailable, events accumulate safely
+  in the database until delivery succeeds.
+
+  The Transactional Outbox is not a replacement for the Saga pattern. Sagas handle multi-step
+  distributed transactions with compensating actions, while the outbox ensures reliable local event
+  publication. They complement each other — a saga step can use an outbox to emit its event reliably.
+traits:
+  - Atomic dual-write within a single database transaction
+  - Guarantees at-least-once event delivery to message brokers
+  - Decouples service logic from broker availability
+  - Works with any database that supports transactions
+  - Supports CDC-based or poller-based relay mechanisms
+  - Eliminates need for distributed transactions (XA) for reliable messaging
+bestFit:
+  - Microservices that must emit domain events reliably after database writes
+  - Event-driven systems migrating away from distributed transactions (XA/2PC)
+  - Audit log pipelines where every state change must produce a verifiable event
+  - CDC pipelines where source database changes must be streamed to downstream systems
+avoidIf:
+  - Event loss is acceptable and broker availability is near-100% (the extra complexity is unnecessary)
+  - The message volume is extremely high and the outbox table becomes a write bottleneck
+  - You lack infrastructure to run a CDC connector or background relay process
+  - There is no operational capacity to monitor and maintain the relay process
+commonFailures:
+  - Idempotency gaps: consumers process the same outbox event twice unless deduplication is built in
+  - Outbox table growth: missing TTL or archival causes unbounded table size and degraded DB performance
+  - Ordering violations: events are published in a different order than committed when using parallel relay workers
+contrasts:
+  - term: Event Sourcing
+    difference: Event Sourcing stores all state changes as an append-only event log and derives current state from replay; the Transactional Outbox merely buffers events for reliable delivery without changing the primary storage model.
+  - term: Saga
+    difference: Saga coordinates multi-step distributed transactions with compensating rollbacks; the Transactional Outbox handles only the single-step problem of reliable local event emission from one service.
+  - term: Two-Phase Commit (XA)
+    difference: XA/2PC coordinates transactions across multiple resources (DB + broker) atomically using a prepare/commit protocol; the Transactional Outbox uses a single local transaction and a relay to achieve reliable delivery without distributed coordination.
+compatibilities:
+  - event-sourcing
+  - saga
+  - cqrs
+  - event-driven
+  - database-per-service
+promptLanguage: >
+  Implement a Transactional Outbox in a service that needs to publish domain events atomically with
+  database writes. Create an outbox table with columns for id, aggregate_id, event_type, payload
+  (JSON/JSONB), and created_at. Write the event into the outbox table within the same database
+  transaction as the business operation. Implement a message relay — either a CDC connector
+  (e.g., Debezium) reading the WAL or a background poller querying unprocessed rows — that publishes
+  each event to the message broker and marks it as processed (or deletes it). Ensure consumer-side
+  idempotency via deduplication keys. Add a TTL or archival job to prevent unbounded outbox table growth.
+sources:
+  - https://microservices.io/patterns/data/transactional-outbox.html
+  - https://www.kamilgrzybek.com/blog/the-outbox-pattern
+  - https://debezium.io/
+  - https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html
+tags:
+  - outbox
+  - dual-write
+  - event-delivery
+  - microservices
+  - cdc
+  - message-relay
+  - transactional-messaging

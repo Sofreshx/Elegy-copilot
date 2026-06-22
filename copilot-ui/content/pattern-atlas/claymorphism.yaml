@@ -1,0 +1,76 @@
+id: claymorphism
+name: Claymorphism
+aliases:
+  - clay-ui
+  - puffy-ui
+  - soft-3d
+  - plastic-ui
+type: visual-style
+domain: visual-style
+confidence: emerging
+tagline: A soft, playful 3D aesthetic featuring puffy, rounded shapes with dual shadows that create a clay-like or plastic appearance.
+description: >
+  Claymorphism (also called Clay UI) is an emerging design trend characterized
+  by soft, inflated, almost puffy 3D shapes that resemble modeling clay or
+  soft plastic. Unlike neumorphism's monochromatic extruded look, claymorphism
+  embraces bright, saturated colors and combines an inner shadow (usually
+  darker) and an outer shadow (lighter or colored) to create the illusion of
+  a soft, rounded, volumetric object.
+
+  The visual technique typically involves: highly rounded shapes (large border-
+  radius), a dark inner shadow inset from the bottom, a lighter outer shadow
+  offset to the bottom, and vibrant, often pastel or saturated fill colors.
+  The result looks like a piece of soft clay or a puffy sticker — tactile,
+  playful, and physically present. The style works well for illustrated
+  elements, icons, cards, and hero graphics.
+
+  Claymorphism gained traction in 2022-2023 through design community
+  experimentation on Dribbble and Behance. It is less established as a
+  comprehensive UI system but works well as an accent style for playful brands,
+  children's products, and creative portfolios. Its main practical challenge
+  is conveying states (hover, active, disabled) through a volumetric form.
+traits:
+  - Highly rounded, puffy shapes with large border-radius
+  - Dual shadow technique: dark inner shadow + light/colored outer shadow
+  - Saturated or pastel fill colors (bright blues, pinks, yellows, greens)
+  - Soft 3D volumetric appearance without hard edges
+  - Playful, tactile, "squeezable" visual quality
+bestFit:
+  - Children's products, educational apps, and playful brand identities
+  - Creative portfolios and illustration-heavy design projects
+  - Hero graphics, icons, cards, and accent UI elements
+avoidIf:
+  - The interface requires extensive state changes (hover, active, focus, disabled)
+  - Performance and file size constraints limit complex shadow rendering
+  - The brand identity demands sophistication, seriousness, or enterprise credibility
+commonFailures:
+  - Making interactive elements look like static decoration due to the soft, non-utilitarian appearance
+  - Overusing the style across every surface, creating visual monotony
+  - Applying claymorphism to form elements, inputs, and data-dense components where it impairs usability
+contrasts:
+  - term: Neumorphism
+    difference: Claymorphism uses saturated, colorful fills with dual shadows for a playful volumetric look; neumorphism uses monochromatic surfaces with single-direction shadows for extruded/recessed effects.
+  - term: Glassmorphism
+    difference: Claymorphism creates solid, opaque, puffy 3D forms; glassmorphism creates flat, transparent, frosted panels with backdrop blur.
+compatibilities:
+  - card-layout
+  - bento-grid
+  - memphis-design
+promptLanguage: >
+  Design a claymorphic UI element. Use a bright, saturated fill color for the
+  base shape. Apply a large border-radius (25-50% of element size) to make it
+  puffy and rounded. Add a dark inner shadow (lower opacity, offset downward)
+  to suggest volume, and a lighter outer shadow (colored to match the
+  background or fill) offset in the same direction. The result should look
+  like soft modeling clay or a puffy sticker. This works best for illustrated
+  icons, cards, and decorative elements rather than functional form controls.
+sources:
+  - https://uxdesign.cc/claymorphism-in-user-interfaces-67f5d1d5c5e5
+  - https://dribbble.com/tags/claymorphism
+  - https://www.figma.com/community/plugin/1044837864766196564/claymorphism
+tags:
+  - claymorphism
+  - soft-3d
+  - puffy-ui
+  - playful-design
+  - volumetric

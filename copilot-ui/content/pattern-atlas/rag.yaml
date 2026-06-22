@@ -1,0 +1,74 @@
+id: rag
+name: RAG / Retrieval-Augmented Generation
+aliases:
+  - Retrieval-Augmented Generation
+  - RAG
+  - Grounded Generation
+type: system-pattern
+domain: ai-systems
+confidence: emerging
+tagline: Enhance LLM outputs by retrieving relevant external knowledge before generation.
+description: >
+  Retrieval-Augmented Generation (RAG) combines a retrieval system with a large language model.
+  When a user query arrives, the system first retrieves relevant documents or chunks from a
+  knowledge base (using embedding similarity or keyword search), then feeds them as context to the
+  LLM alongside the user's prompt. The LLM generates a response grounded in the retrieved
+  information, reducing hallucinations and improving factual accuracy.
+
+  RAG has three main approaches: naïve RAG (simple retrieve + generate pipeline), advanced RAG
+  (pre-retrieval optimization like query rewriting, post-retrieval reranking), and modular RAG
+  (composable modules for search, filtering, fusion). The retrieval step typically uses embedding
+  models to convert text into dense vectors and a vector database (Pinecone, Weaviate, Milvus,
+  pgvector) for similarity search.
+
+  RAG is a leading technique for grounding LLMs in specific domains (legal, medical, enterprise
+  documents) without fine-tuning. It provides transparency — users can inspect the retrieved
+  sources — and makes updating knowledge easy: add or update documents in the knowledge base without
+  retraining the model. Key challenges include chunking strategy, embedding quality, retrieval
+  latency, and handling conflicting or irrelevant retrieved context.
+traits:
+  - Retrieves relevant external knowledge before generating responses
+  - Reduces hallucination by grounding LLM output in retrieved documents
+  - Knowledge base can be updated without model retraining
+  - Provides source attribution for generated responses
+  - Pipeline architecture: query → retrieve → augment → generate
+bestFit:
+  - Enterprise document Q&A (knowledge base querying, document analysis)
+  - Customer support chatbots that need to reference product documentation
+  - Legal, medical, or technical domains where factual accuracy is critical
+avoidIf:
+  - The model's internal knowledge is sufficient and retrieval latency is unacceptable
+  - The knowledge base is very small and/or static (fine-tuning may be simpler)
+  - The latency of a multi-step retrieval + generation pipeline is prohibitive
+commonFailures:
+  - Poor chunking: documents are chunked too small (lost context) or too large (LLM context window exceeded)
+  - Retrieval noise: irrelevant documents are retrieved and confuse the LLM, degrading output quality
+  - Missing source attribution: the system cannot cite which document supported the response
+contrasts:
+  - term: Fine-Tuning
+    difference: Fine-tuning adjusts model weights on domain-specific data for permanent behavior change; RAG keeps the model unchanged and supplies relevant context at inference time. RAG is more flexible for changing knowledge; fine-tuning is better for persistent behavior shifts.
+  - term: Prompt Engineering
+    difference: Prompt engineering crafts static instructions to guide LLM behavior; RAG dynamically injects retrieved content into the prompt. They complement each other — good prompt engineering improves how the LLM uses retrieved context.
+compatibilities:
+  - embedding-based-search
+  - prompt-chaining
+  - agent-loop
+promptLanguage: >
+  Implement a RAG pipeline for an internal knowledge base. Chunk all company documents into 512-token
+  segments with 50-token overlap. Generate embeddings using text-embedding-3-small and store them in
+  pgvector. On user query, rewrite the query for search, retrieve top 10 chunks by cosine similarity,
+  rerank with a cross-encoder model to get top 3, and feed them into GPT-4 with a system prompt
+  instructing it to answer based only on the provided context. Return citations for each claim.
+  Monitor retrieval precision and generation faithfulness metrics.
+sources:
+  - https://arxiv.org/abs/2005.11401
+  - https://docs.anthropic.com/en/docs/build-with-claude/retrieval-augmented-generation
+  - https://www.pinecone.io/learn/retrieval-augmented-generation/
+  - https://blog.langchain.dev/retrieval-augmented-generation-rag/
+tags:
+  - rag
+  - retrieval-augmented-generation
+  - llm
+  - grounding
+  - hallucination-reduction
+  - vector-search

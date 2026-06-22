@@ -1,0 +1,79 @@
+id: toast
+name: Toast Notification
+aliases:
+  - toast-message
+  - snackbar
+  - notification-toast
+  - brief-feedback
+type: ui-component
+domain: ui-ux
+confidence: established
+tagline: A non-blocking, timed notification that appears briefly to provide lightweight feedback without interrupting the user's flow.
+description: >
+  A toast notification (or snackbar) is a small, non-modal message that
+  appears temporarily — usually at the bottom, top, or corner of the screen —
+  to provide feedback on an action without interrupting the user's current
+  task. Toasts are designed for brief, self-dismissing messages: "Saved,"
+  "Message sent," "Item deleted." They appear with a subtle animation, remain
+  visible for 3-6 seconds, and automatically dismiss.
+
+  Toasts are distinct from alerts and modals because they do not require user
+  action, do not block interaction with the page, and are designed for
+  ephemeral information. They typically support four variants: success
+  (green), error (red), warning (yellow), and info (blue). Some toasts include
+  an optional action button ("Undo," "Retry") for time-sensitive operations.
+  Multiple toasts stack vertically, and newer toasts push older ones up or
+  down depending on position.
+
+  Key UX considerations: the toast should not cover critical content; it
+  should be distinguishable from other UI elements; it should be dismissible
+  manually; it should respect reduced-motion preferences; and it should be
+  announced via screen reader live regions. Toast messages should be concise
+  — typically 1-2 lines. The pattern works bestfor non-critical updates that
+  confirm an action or inform about background processes.
+traits:
+  - Non-blocking, auto-dismissing notification (no user action required)
+  - Timed visibility (3-6 seconds) with animated enter/exit
+  - Positioned in a consistent corner or edge of the viewport
+  - Supports success, error, warning, and info variants
+  - Stackable with proper spacing between multiple toasts
+bestFit:
+  - Transient feedback for user actions (save, delete, copy, send)
+  - Background process completion notifications
+  - Brief status updates that do not require user attention
+avoidIf:
+  - The message contains critical information users must act on (use a modal or alert)
+  - The message is long or contains structured content (use a notification center)
+  - Users need to compare multiple pieces of feedback simultaneously
+commonFailures:
+  - Using toasts for critical errors that require user intervention
+  - Displaying too many toasts simultaneously, creating a "toast storm"
+  - Making toasts that disappear too quickly for users to read
+contrasts:
+  - term: Modal Dialog
+    difference: A toast is non-blocking and auto-dismissing; a modal dialog blocks interaction and requires explicit user action to close.
+  - term: Alert/Banner
+    difference: An alert is persistent and appears in-page; a toast is temporary and floats over content.
+compatibilities:
+  - skeleton-loader
+  - drawer
+  - progressive-disclosure
+promptLanguage: >
+  Design a toast notification system. Toasts should appear from the top-right
+  corner with a slide-in animation (300ms). Each toast shows an icon, title,
+  and brief message. Support success (green), error (red), warning (yellow),
+  and info (blue) variants. Auto-dismiss after 4 seconds with a subtle count-
+  down or dismiss animation. Include a close button. Allow stacking of multiple
+  toasts with 8px gap between them. Respect prefers-reduced-motion. Announce
+  content via aria-live="polite". Support an optional action button for
+  "Undo" type interactions.
+sources:
+  - https://atlassian.design/components/flag/
+  - https://material.io/components/snackbar
+  - https://www.w3.org/WAI/WCAG21/Techniques/aria/ARIA19
+tags:
+  - toast
+  - notification
+  - snackbar
+  - feedback
+  - non-blocking

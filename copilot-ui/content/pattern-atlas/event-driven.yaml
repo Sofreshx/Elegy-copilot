@@ -1,0 +1,76 @@
+id: event-driven
+name: Event-Driven Architecture
+aliases:
+  - EDA
+  - Pub/Sub Architecture
+  - Event-Based Architecture
+type: system-pattern
+domain: data-integration
+confidence: established
+tagline: Decouple services through asynchronous event publication and subscription.
+description: >
+  Event-Driven Architecture (EDA) is an architectural style where services communicate by producing
+  and consuming events through a message broker or event bus. Producers publish events without
+  knowing which consumers will process them. Consumers subscribe to events of interest and react
+  asynchronously. This decouples producers from consumers, enabling independent scaling, deployment,
+  and failure isolation.
+
+  EDA can be implemented with message queues (RabbitMQ, Amazon SQS/SNS), stream platforms (Apache
+  Kafka, Amazon Kinesis), or event mesh solutions. It is the backbone of reactive systems and
+  microservice choreography. Events are typically classified as domain events (something meaningful
+  happened in the domain), integration events (cross-service notifications), or event-carried state
+  transfer (event payload carries the data needed by consumers).
+
+  Key challenges include event schema evolution, delivery guarantees (at-least-once vs.
+  exactly-once), event ordering, and observability across asynchronous flows. EDA pairs well with
+  event sourcing, CQRS, and the transactional outbox pattern. It is not a replacement for
+  request-response patterns — synchronous calls remain appropriate for queries and commands that
+  need immediate confirmation.
+traits:
+  - Producers and consumers are fully decoupled via an intermediary
+  - Asynchronous, non-blocking communication
+  - Supports multiple consumer patterns (fan-out, competing consumers, topic subscriptions)
+  - Enables independent scaling of event producers and consumers
+  - Requires careful schema versioning and delivery guarantee design
+bestFit:
+  - Microservice architectures where services must evolve and deploy independently
+  - Systems that need to broadcast state changes to multiple subscribers (notifications, feeds)
+  - Workflows that tolerate eventual consistency and benefit from async processing
+avoidIf:
+  - Every operation requires synchronous confirmation (request-response is simpler)
+  - Event ordering and exactly-once semantics are strictly required (very hard to guarantee)
+  - The team lacks observability tooling for async flows (debugging event-driven systems is harder)
+commonFailures:
+  - Event schema rigidity: events are versioned poorly, breaking consumers when producers change payloads
+  - Dead letter neglect: failed events pile up in DLQs without alerting or reprocessing workflows
+  - Implicit orchestration: events are used to implement request-response flows, creating complex callback chains
+contrasts:
+  - term: Command-Query Separation (CQRS)
+    difference: CQRS separates read and write models architecturally; Event-Driven Architecture separates communication patterns (async events vs sync requests), not storage models. They complement each other — events can synchronize the read model in CQRS.
+  - term: API Gateway / Request-Response
+    difference: Request-response is synchronous, tightly coupled, and requires the caller to wait for a reply; Event-Driven Architecture is asynchronous, decoupled, and does not require the producer to wait for consumers.
+compatibilities:
+  - event-sourcing
+  - cqrs
+  - transactional-outbox
+  - saga
+  - database-per-service
+promptLanguage: >
+  Design an event-driven order processing system using Apache Kafka. Define event schemas in
+  Avro or JSON Schema for OrderPlaced, PaymentProcessed, InventoryReserved, and OrderShipped.
+  Each microservice (Orders, Payments, Inventory, Shipping) produces and consumes relevant events
+  via Kafka topics. Use a single partition per aggregate ID to guarantee event ordering within an
+  order. Implement at-least-once delivery with consumer-side idempotency. Add a DLQ topic for
+  failed events with alerting and a reprocessing job.
+sources:
+  - https://docs.microsoft.com/en-us/azure/architecture/guide/architecture-styles/event-driven
+  - https://www.confluent.io/blog/event-driven-microservices/
+  - https://martinfowler.com/articles/201701-event-driven.html
+  - https://aws.amazon.com/event-driven-architecture/
+tags:
+  - event-driven
+  - pub-sub
+  - messaging
+  - kafka
+  - decoupling
+  - asynchronous

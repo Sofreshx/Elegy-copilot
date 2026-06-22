@@ -1,0 +1,79 @@
+id: skeleton-loader
+name: Skeleton Loader
+aliases:
+  - skeleton-screen
+  - placeholder-loader
+  - shimmer
+  - ghost-loader
+type: ui-component
+domain: ui-ux
+confidence: emerging
+tagline: A placeholder UI that mimics the shape of content while it loads, using animated gray shapes to reduce perceived waiting time.
+description: >
+  A skeleton loader (or skeleton screen) is a UX pattern that displays
+  simplified, animated placeholder shapes — typically gray or light-colored
+  rectangles, circles, and lines — that mirror the layout and structure of
+  the content being loaded. As data arrives, the placeholders are replaced
+  with actual content. The animation (usually a shimmer or pulse) signals
+  that the page is actively loading rather than stuck.
+
+  The pattern improves perceived performance by giving users immediate visual
+  feedback about the page's structure, reducing anxiety about load times, and
+  preventing layout shifts (cumulative layout shift / CLS) when content
+  finally renders. Skeleton screens are a key component of perceived
+  performance strategy, complementing actual performance optimization.
+
+  Skeletons should match the target content's shape precisely — a card layout
+  gets card-shaped skeletons, a list gets row-shaped skeletons, an avatar gets
+  a circle. The shimmer animation (a moving gradient highlight) typically
+  lasts 1.5-2 seconds and loops. Accessibility considerations include:
+  respecting prefers-reduced-motion, adding aria-busy="true" on the container,
+  and ensuring skeleton elements are not announced by screen readers.
+traits:
+  - Placeholder shapes matching the dimensions of target content
+  - Animated shimmer or pulse effect indicating active loading
+  - Disappears progressively as content chunks arrive
+  - Prevents layout shift by reserving content space
+  - Matches content layout (card, list, table, avatar variants)
+bestFit:
+  - Content-heavy pages with asynchronous data loading
+  - Lists, feeds, and cards where content arrives after page render
+  - Dashboard widgets and data visualizations with staggered loading
+avoidIf:
+  - Content loads instantaneously (<300ms) — the skeleton itself becomes visual noise
+  - The page has minimal layout structure (skeleton adds no value for text-only pages)
+  - The design aesthetic is minimal and skeletons would distract from the sparse layout
+commonFailures:
+  - Using skeletons that do not match the final content dimensions, causing jarring replacements
+  - Animating skeletons when prefers-reduced-motion is enabled
+  - Keeping skeletons visible too long after data arrives, creating a flash of replaced content
+contrasts:
+  - term: Spinner/Loading Indicator
+    difference: A skeleton loader shows the content's shape and layout while loading; a spinner just indicates activity without revealing structure.
+  - term: Empty State
+    difference: A skeleton loader is a temporary loading placeholder; an empty state is a permanent state showing no data with guidance for next steps.
+compatibilities:
+  - infinite-scroll
+  - card-layout
+  - data-grid
+  - dashboard-layout
+promptLanguage: >
+  Design a skeleton loader component. Create placeholder shapes that mirror
+  the target content's layout — rounded rectangles for images, smaller
+  rectangles for text lines, circles for avatars. Use a light gray background
+  (#e0e0e0) with a shimmer animation (a gradient sweep from left to right
+  lasting 1.5s, looping). Respect prefers-reduced-motion by disabling the
+  animation. Add aria-busy="true" to the container. Ensure the skeleton has
+  correct dimensions to prevent layout shift when replaced. Show individual
+  skeletons that disappear as each content chunk loads, rather than a blanket
+  skeleton for the entire page.
+sources:
+  - https://www.nngroup.com/articles/skeleton-screens/
+  - https://uxdesign.cc/what-you-should-know-about-skeleton-screens-a10c808d8e7c
+  - https://web.dev/cls/
+tags:
+  - skeleton-loader
+  - placeholder
+  - perceived-performance
+  - shimmer
+  - loading-state

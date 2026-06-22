@@ -1,0 +1,73 @@
+id: blue-green
+name: Blue-Green Deployment
+aliases:
+  - Blue-Green
+  - Red-Black Deployment
+  - Parallel Environment Deployment
+type: system-pattern
+domain: infrastructure-ops
+confidence: established
+tagline: Maintain two identical production environments and switch traffic between them for zero-downtime deployments.
+description: >
+  Blue-Green Deployment runs two production environments — Blue (current live) and Green (new
+  version). Traffic is routed entirely to the Blue environment. The new version is deployed to
+  Green and tested in isolation. Once validated, the router or load balancer switches traffic
+  from Blue to Green. If issues arise, traffic can be instantly switched back to Blue (rollback).
+
+  This pattern provides instant rollback without redeployment, zero downtime during deployment,
+  and a full staging environment for the new version. It requires enough infrastructure to run
+  two complete environments in parallel (double the cost during deployment). The deployment
+  process is: deploy to inactive environment → smoke test → switch traffic → keep old environment
+  warm for rollback → decommission old environment after observation period.
+
+  Blue-Green is most effective when the application is stateless or the database changes are
+  backward compatible. Schema changes that are incompatible with the old version require careful
+  migration planning (expand-contract pattern). The pattern works at multiple levels: DNS-based
+  switching (slower), load balancer switching (faster), or Kubernetes Service label selectors.
+traits:
+  - Two identical environments (Blue and Green) running in parallel
+  - Instant traffic switch between environments for deployment
+  - Zero-downtime deployments with instant rollback capability
+  - Full smoke testing in the inactive environment before production switch
+  - Requires double infrastructure capacity during deployment window
+bestFit:
+  - Critical production systems where downtime is unacceptable
+  - Applications requiring full end-to-end testing before production traffic
+  - Teams that need fast, safe rollback without redeployment
+avoidIf:
+  - Infrastructure cost must be minimized and cannot sustain double capacity
+  - Database schema changes are not backward compatible with the old version
+  - The application has long-lived stateful connections that cannot drain gracefully
+commonFailures:
+  - Database drift: Blue and Green databases diverge during testing, causing data loss on switchback
+  - Incomplete drain: connections to the old environment are not fully drained before decommissioning
+  - Long-lived sessions: users with sticky sessions lose state on traffic switch
+contrasts:
+  - term: Canary Release
+    difference: Canary Release gradually routes a percentage of traffic to the new version, allowing monitoring and rollback during rollout; Blue-Green switches all traffic at once. Canary is safer for high-risk changes but slower; Blue-Green is simpler for low-risk deployments.
+  - term: Rolling Update
+    difference: Rolling Update replaces instances one by one without double infrastructure; Blue-Green runs parallel full environments. Rolling is more cost-efficient; Blue-Green provides instant, full rollback.
+compatibilities:
+  - canary-release
+  - feature-flag
+  - strangler-fig
+  - api-gateway
+promptLanguage: >
+  Set up a Blue-Green deployment for the user-service. Configure two identical deployments in
+  Kubernetes — user-service-blue and user-service-green — each with its own Service. The production
+  Ingress points to the active Service (user-service-blue). Deploy the new version to
+  user-service-green, run smoke tests against the green Service directly, then patch the Ingress to
+  switch traffic to user-service-green. Keep user-service-blue running for 1 hour as a rollback
+  target, then scale it to zero. Use the Rollout Manager or Argo Rollouts for automation.
+sources:
+  - https://martinfowler.com/bliki/BlueGreenDeployment.html
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/blue-green
+  - https://continuousdelivery.com/implementing/blue-green-deployments/
+  - https://www.thoughtworks.com/insights/blog/blue-green-deployment
+tags:
+  - blue-green
+  - deployment
+  - zero-downtime
+  - rollback
+  - continuous-delivery
+  - kubernetes

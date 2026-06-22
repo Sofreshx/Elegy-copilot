@@ -1,0 +1,78 @@
+id: empty-state
+name: Empty State
+aliases:
+  - blank-slate
+  - zero-state
+  - first-run
+  - no-data
+type: ux-pattern
+domain: ui-ux
+confidence: established
+tagline: A UI state displayed when there is no data to show — guiding users with explanation, next steps, or onboarding actions.
+description: >
+  An empty state (also called blank slate or zero state) is what users see
+  when a page, list, or section has no data to display. Instead of showing
+  a blank or confusing empty area, the empty state provides context: why the
+  space is empty, what the user can do to fill it, and where to go next.
+  Well-designed empty states transform a potentially frustrating dead-end
+  into an opportunity for guidance and motivation.
+
+  There are three main empty state scenarios: first-run (the user has not yet
+  created any content, e.g., an empty inbox), empty results (a search or
+  filter returned no matches), and cleared/completed state (the user has
+  processed all items, e.g., an empty todo list). Each requires a different
+  treatment: first-run should welcome and guide; empty results should suggest
+  alternative searches; completed should celebrate or prompt the next action.
+
+  Effective empty states typically include: an illustration or icon that
+  communicates the state, a brief message explaining the situation, a call
+  to action ("Create your first project," "Clear filters," "Add a task"),
+  and optional helpful suggestions or quick-start links. The empty state
+  should feel intentional and designed, not like an error or missing content.
+traits:
+  - Illustration or icon representing the empty state
+  - Clear explanation of why the space is empty
+  - Actionable call-to-action to populate the space
+  - Distinctive appearance for first-run, empty results, and completed states
+  - Empathetic, encouraging tone in messaging
+bestFit:
+  - Inboxes, lists, and feeds with user-generated content
+  - Search results pages with no matches
+  - Dashboard widgets waiting for data
+  - First-run experiences after account creation
+avoidIf:
+  - A loading skeleton is more appropriate (content is incoming, not absent)
+  - Users will never encounter the state during normal usage
+  - A simple "No results" text message is sufficient for the context
+commonFailures:
+  - Showing a generic error or blank page instead of a designed empty state
+  - Including a call to action that leads to a dead end or another empty state
+  - Using empty states that are overly technical or assume user knowledge
+contrasts:
+  - term: Loading State
+    difference: An empty state means there is no data to show (permanent condition); a loading state means data is coming but not yet available (temporary condition).
+  - term: Error State
+    difference: An empty state is a normal condition (no data yet); an error state indicates something went wrong (network failure, permission denied).
+compatibilities:
+  - skeleton-loader
+  - progressive-disclosure
+  - wizard
+promptLanguage: >
+  Design an empty state component for a project management app's empty project
+  list. Show a friendly illustration (a blank canvas or empty desk scene).
+  Include a heading: "No projects yet." Add a subheading: "Create your first
+  project to get started." Include a primary CTA button: "Create Project."
+  Below the button, add a secondary link: "Learn how to get started" that
+  opens a quick-start guide. For empty search results, use a different variant:
+  "No projects match '[query]'" with a "Clear filters" link. Use the same
+  component for empty inbox, empty tasks, and empty activity states.
+sources:
+  - https://www.nngroup.com/articles/empty-state-ux/
+  - https://atlassian.design/components/empty-state/
+  - https://uxdesign.cc/designing-for-the-empty-state-9d3a610bd88c
+tags:
+  - empty-state
+  - blank-slate
+  - zero-state
+  - onboarding
+  - first-run

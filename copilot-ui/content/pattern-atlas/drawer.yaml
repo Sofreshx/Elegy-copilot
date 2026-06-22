@@ -1,0 +1,77 @@
+id: drawer
+name: Drawer
+aliases:
+  - side-panel
+  - slide-over
+  - off-canvas
+  - flyout
+type: ui-component
+domain: ui-ux
+confidence: established
+tagline: A sliding panel that emerges from the edge of the screen, providing secondary content or navigation without leaving the current context.
+description: >
+  A drawer (also called a side panel or slide-over) is a UI surface that
+  slides in from the left, right, bottom, or top edge of the viewport,
+  overlaying or pushing the main content. It is distinct from a modal dialog
+  because it typically anchors to an edge rather than appearing centered, and
+  it is designed for secondary navigation, filtering, detailed content preview,
+  or supplementary tools rather than blocking tasks.
+
+  Drawers can be permanent (always visible on large screens), persistent
+  (toggled open/closed but does not overlay content), or temporary (overlays
+  content with a backdrop). The most common pattern is a left-side navigation
+  drawer (hamburger menu) on mobile, which transforms to a permanent sidebar
+  on desktop. Right-side drawers are used for detail panels, shopping carts,
+  and settings. Bottom drawers are common on mobile for action sheets.
+
+  Key UX considerations include: smooth slide animation with proper easing,
+  backdrop overlay with dismiss-on-click, keyboard dismissal (Escape), focus
+  trapping when open, and responsive behavior that adapts the drawer type
+  (temporary vs. permanent) based on viewport width. The drawer should not
+  be used for primary tasks that require user focus.
+traits:
+  - Slides in from screen edge (left, right, bottom, or top)
+  - Supports permanent, persistent, and temporary variants
+  - Overlays or pushes main content depending on implementation
+  - Includes a backdrop overlay for temporary drawers
+  - Smooth animation with proper easing curves and durations
+bestFit:
+  - Mobile navigation replacing a hamburger menu
+  - Secondary content panels (shopping cart, notifications, settings)
+  - Master-detail layouts where detail opens in an adjacent drawer
+avoidIf:
+  - The content requires user attention and form completion (use a modal instead)
+  - Screen real estate is extremely limited on small devices
+  - The application needs multiple simultaneous open panels
+commonFailures:
+  - Using a drawer for primary tasks that block the user from the main interface
+  - Not implementing proper focus management when the drawer opens and closes
+  - Animating the drawer too slowly, creating a perception of sluggishness
+contrasts:
+  - term: Modal Dialog
+    difference: A modal dialog is centered, blocks interaction with the main page, and is for focused tasks; a drawer slides from an edge and is for secondary content while maintaining context.
+  - term: Popover
+    difference: A popover is a small overlay anchored to a trigger element; a drawer is a large panel anchored to a screen edge.
+compatibilities:
+  - master-detail
+  - progressive-disclosure
+  - dashboard-layout
+promptLanguage: >
+  Design a drawer component that slides in from the right edge of the screen.
+  It should feature a smooth slide animation (300ms ease-out), a semi-
+  transparent backdrop overlay, and the ability to dismiss by clicking the
+  backdrop, pressing Escape, or clicking a close button. Focus should be
+  trapped inside the drawer when open. The header should show a title and
+  close button. Content should be scrollable with a max-height. On large
+  screens, consider a persistent variant that does not overlay content. On
+  mobile, default to temporary overlay behavior.
+sources:
+  - https://atlassian.design/components/drawer/
+  - https://material.io/components/navigation-drawer
+  - https://www.w3.org/WAI/ARIA/apg/patterns/sidebar/
+tags:
+  - drawer
+  - side-panel
+  - off-canvas
+  - navigation
+  - slide-over

@@ -1,0 +1,71 @@
+id: prompt-chaining
+name: Prompt Chaining
+aliases:
+  - LLM Chaining
+  - Multi-Step Prompting
+  - Sequential LLM Calls
+type: system-pattern
+domain: ai-systems
+confidence: emerging
+tagline: Decompose complex tasks into sequential LLM calls, each building on the previous output.
+description: >
+  Prompt Chaining breaks a complex task into a sequence of smaller, focused LLM calls. Each step's
+  output becomes the input (or partial context) for the next step. This approach improves output
+  quality compared to a single monolithic prompt because each subtask is simpler, the model can
+  focus on one thing at a time, and intermediate results can be validated before proceeding.
+
+  Chains follow several patterns: linear chains (step A → step B → step C), branching chains
+  (parallel steps that feed into a merger), and conditional chains (routing to different paths
+  based on intermediate results). Each step typically includes its own system prompt, few-shot
+  examples, and output parser. Validation gates between steps catch errors early and prevent
+  cascading failures.
+
+  Prompt chaining is widely used in LLM applications: summarization chains (extract → summarize →
+  format), extraction chains (classify → extract → validate), and multi-language chains (translate
+  → process → translate back). It is a key building block in agent frameworks (LangChain, LlamaIndex,
+  Vercel AI SDK). The trade-off is increased latency (multiple LLM calls) and cost (more tokens
+  consumed).
+traits:
+  - Decomposes complex tasks into sequential LLM calls
+  - Each step has a focused prompt, output parser, and validation
+  - Intermediate outputs can be inspected and validated before proceeding
+  - Supports linear, branching, and conditional chain topologies
+  - Increases latency and cost compared to single-prompt approaches
+bestFit:
+  - Multi-step tasks like document analysis (extract → classify → summarize → format)
+  - Workflows requiring intermediate validation (extract data → validate → generate report)
+  - Complex QA pipelines (decompose question → sub-queries → aggregate answers)
+avoidIf:
+  - The task fits comfortably in a single well-crafted prompt
+  - Latency is critical and multiple LLM calls are too expensive
+  - The chain is so simple that it adds complexity without quality improvement
+commonFailures:
+  - Error cascade: an error in an early chain step propagates through all downstream steps
+  - Over-engineered chains: a simple task is decomposed into too many steps, adding cost and latency
+  - Brittle parsers: output parsers fail on slight format deviations, breaking the chain
+contrasts:
+  - term: RAG / Retrieval-Augmented Generation
+    difference: RAG retrieves external knowledge and injects it into a single generation step; Prompt Chaining sequences multiple LLM calls to decompose task complexity. They can be combined — a chain step might use RAG for retrieval before the generation call.
+  - term: Agent Loop
+    difference: An Agent Loop is autonomous — the LLM decides which tools to call and when, with iterative think-act-observe cycles; Prompt Chaining has a predefined, deterministic sequence of steps. Chains are predictable; agents are exploratory.
+compatibilities:
+  - rag
+  - agent-loop
+promptLanguage: >
+  Build a document analysis chain with three steps. Step 1: Classify the document type
+  (invoice, contract, report) with a classifier prompt. Step 2: Based on the type, route to a
+  type-specific extraction prompt that extracts key fields (invoice: date, amount, vendor; contract:
+  parties, terms, expiry). Step 3: Validate extracted fields against format constraints and pass to
+  a formatting prompt that produces a JSON output. Add a validation gate between each step — if
+  output is invalid, retry with error feedback (max 2 retries).
+sources:
+  - https://blog.langchain.dev/prompt-chaining/
+  - https://docs.anthropic.com/en/docs/build-with-claude/prompt-chaining
+  - https://www.promptingguide.ai/techniques/prompt-chaining
+  - https://github.com/langchain-ai/langgraph
+tags:
+  - prompt-chaining
+  - llm
+  - multi-step
+  - langchain
+  - chain

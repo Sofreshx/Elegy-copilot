@@ -1,0 +1,79 @@
+id: card-layout
+name: Card Layout
+aliases:
+  - card-grid
+  - card-ui
+  - card-based-layout
+type: ux-pattern
+domain: ui-ux
+confidence: established
+tagline: A layout pattern using uniform rectangular containers (cards) to present content in a scannable, visually consistent grid.
+description: >
+  Card layout is a ubiquitous UI pattern where content — articles, products,
+  users, media — is presented in consistent rectangular containers called
+  cards. Each card acts as an independent content unit with a consistent
+  structure: typically an image or media area at the top, a title, description
+  or metadata, and optional actions at the bottom. Cards are arranged in a
+  responsive grid that reflows from multi-column on desktop to single-column
+  on mobile.
+
+  Cards are highly effective for content scanning because they create visual
+  rhythm and predictability. Users learn that each card represents one item
+  and can quickly scan through many items. Cards work best when each item has
+  roughly equal importance and when the visual preview (image, icon) helps
+  users make quick decisions about relevance. The pattern is the foundation
+  of social media feeds, product catalogs, media galleries, and dashboards.
+
+  Key UX requirements: consistent card dimensions within a row, clear
+  hierarchy within each card (image > title > description > action), proper
+  hover/active/focus states, and responsive breakpoints that adjust the
+  column count. Cards should use subtle shadows or borders for separation.
+  Accessibility requires proper heading hierarchy, focus indicators, and
+  semantic HTML (article element for each card).
+traits:
+  - Uniform rectangular containers with consistent internal structure
+  - Responsive grid that reflows columns based on viewport width
+  - Image/media area at top, content below, optional actions at bottom
+  - Visual separation through shadow, border, or background color
+  - Predictable scanning pattern for rapid content browsing
+bestFit:
+  - E-commerce product listings and category pages
+  - Social media feeds and content discovery surfaces
+  - Media galleries, portfolio sites, and dashboard widgets
+avoidIf:
+  - Content items have very different information density or importance
+  - Users need to compare detailed data across items (a table is more appropriate)
+  - The layout needs to convey hierarchy through varied element sizes
+commonFailures:
+  - Using cards when a simple list would be more scannable and space-efficient
+  - Making cards too large (wasting space) or too small (truncating content)
+  - Inconsistent card heights within the same row creating visual misalignment
+contrasts:
+  - term: Bento Grid
+    difference: Card layout uses uniform card sizes; bento grid uses varied card sizes for visual hierarchy and editorial dynamism.
+  - term: Data Grid
+    difference: Cards present visual content containers optimized for browsing; data grids present structured tabular data optimized for scanning and comparison.
+compatibilities:
+  - bento-grid
+  - infinite-scroll
+  - skeleton-loader
+  - responsive-breakpoints
+promptLanguage: >
+  Design a responsive card layout grid. Each card has an image area at the
+  top (16:9 aspect ratio), a title (2 lines max), a description (3 lines
+  max), and an optional action button. Cards have consistent width and shadow.
+  Use CSS Grid with auto-fill and minmax(280px, 1fr) for responsive columns.
+  On mobile (<640px): 1 column. On tablet (640-1024px): 2 columns. On
+  desktop (>1024px): 3-4 columns. Ensure all cards in the same row have equal
+  height. Add hover state with subtle elevation change. Use article element
+  for each card with proper heading hierarchy.
+sources:
+  - https://www.nngroup.com/articles/cards-component/
+  - https://material.io/components/cards
+  - https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout
+tags:
+  - card-layout
+  - card-grid
+  - content-browsing
+  - responsive-layout
+  - ui-pattern

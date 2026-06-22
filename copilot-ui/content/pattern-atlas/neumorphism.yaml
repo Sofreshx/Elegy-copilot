@@ -1,0 +1,77 @@
+id: neumorphism
+name: Neumorphism
+aliases:
+  - soft-ui
+  - neomorphic
+  - new-skeuomorphism
+type: visual-style
+domain: visual-style
+confidence: emerging
+tagline: A soft UI style using monochromatic shadows to create extruded or recessed shapes that appear to push out of or into the background.
+description: >
+  Neumorphism (also called Soft UI) is a visual design style that creates
+  interface elements appearing to extrude from or recess into the background
+  surface. It uses a solid background color with two shadow directions — a
+  light shadow (top-left, simulating a light source) and a dark shadow
+  (bottom-right, simulating depth) — to create the illusion of physical
+  protrusion or indentation.
+
+  The style emerged around 2019–2020 through Dribbble explorations and was
+  popularized by designer Alexander Plyuto's "Skeuomorph Mobile Banking"
+  concept. Unlike classic skeuomorphism, neumorphism does not attempt to
+  mimic specific real-world materials (wood, leather, fabric). Instead, it
+  creates an abstract physicality using a single background color and careful
+  shadow manipulation.
+
+  Neumorphism is visually striking but has significant accessibility and
+  practicality challenges. The minimal contrast between enabled/disabled
+  states, pressed/released states, and interactive/non-interactive elements
+  makes it difficult to use in functional UIs. It is most often used for
+  concept designs, dashboards, and media playback interfaces where visual
+  impact outweighs usability requirements.
+traits:
+  - Monochromatic color scheme (single hue for background and elements)
+  - Dual shadow direction: light shadow (top-left) and dark shadow (bottom-right)
+  - Inset shadows for pressed/recessed states
+  - Rounded corners on most elements
+  - Minimal color contrast between surface and background
+bestFit:
+  - Concept designs and mood boards where visual impact is the primary goal
+  - Media playback controls and minimal dashboards with few interactive elements
+  - Design exploration for brands wanting a soft, tactile, premium feel
+avoidIf:
+  - Accessibility compliance (WCAG contrast) is a hard requirement
+  - The interface has many interactive states that must be visually distinct
+  - The product serves users with low vision or in high-glare environments
+commonFailures:
+  - Creating interactive elements that users cannot distinguish from static decoration
+  - Applying neumorphism to complex forms, navigation, or data-heavy screens
+  - Ignoring contrast ratios — neumorphic elements typically fail WCAG AA
+contrasts:
+  - term: Skeuomorphism
+    difference: Skeuomorphism mimics specific real-world materials and textures; neumorphism creates abstract physicality through shadow alone without material imitation.
+  - term: Claymorphism
+    difference: Claymorphism uses bright colors, rounded puffy forms, and playful aesthetics; neumorphism is monochromatic, subdued, and aims for a realistic extruded look.
+compatibilities:
+  - minimalism
+  - card-layout
+  - dashboard-layout
+promptLanguage: >
+  Create a neumorphic UI element on a solid background. Use the same hue for
+  the background and element surfaces. Apply a light box-shadow (white or
+  lightened hue) offset -4px -4px with 8px blur, and a dark box-shadow
+  (darkened hue) offset 4px 4px with 8px blur. For pressed/inset states,
+  flip the shadows inward. Use slightly rounded corners (8-12px). Keep the
+  palette monochromatic. Ensure any text maintains sufficient contrast against
+  the surface color, and consider adding a subtle icon or label to distinguish
+  interactive elements from static decoration.
+sources:
+  - https://uxdesign.cc/neumorphism-in-user-interfaces-b47cef3bf3a6
+  - https://en.wikipedia.org/wiki/Neumorphism
+  - https://neumorphism.io/
+tags:
+  - neumorphism
+  - soft-ui
+  - shadow-design
+  - ui-trend
+  - tactile-interface

@@ -1,0 +1,74 @@
+id: infrastructure-as-code
+name: Infrastructure as Code
+aliases:
+  - IaC
+  - Declarative Infrastructure
+  - Configuration as Code
+  - GitOps
+type: system-pattern
+domain: infrastructure-ops
+confidence: established
+tagline: Manage infrastructure through machine-readable definition files, not manual configuration.
+description: >
+  Infrastructure as Code (IaC) treats infrastructure provisioning and configuration as software
+  engineering — files in version control, tested, reviewed, applied automatically. Instead of
+  manually configuring servers, networks, and services via a UI or SSH, teams define desired state
+  in declarative or procedural code. The IaC tool reconciles the actual infrastructure state with
+  the defined state.
+
+  Two main approaches: declarative (Terraform, CloudFormation, Bicep, Pulumi with desired state)
+  where you specify the end state and the tool determines the changes; and procedural (Ansible,
+  Chef, Puppet) where you specify the steps to reach the desired state. GitOps extends IaC by using
+  Git as the single source of truth and automatically applying the state defined in the repository
+  to the target environment.
+
+  IaC brings reproducibility, version control, peer review, auditability, and automation to
+  infrastructure management. It is foundational to DevOps, cloud-native architecture, and platform
+  engineering. Key challenges include state management (especially with Terraform), drift detection,
+  secrets handling, and testing infrastructure changes before applying them to production.
+traits:
+  - Infrastructure defined in version-controlled configuration files
+  - Automated provisioning and reconciliation of desired state
+  - Enables code review, testing, and CI/CD for infrastructure changes
+  - Declarative or procedural approaches available
+  - Eliminates configuration drift when applied consistently
+bestFit:
+  - Cloud-native environments with complex, multi-service infrastructure
+  - Teams practicing DevOps who need reproducible, auditable infrastructure
+  - Organizations that need to provision identical environments (dev, staging, production)
+avoidIf:
+  - The infrastructure is trivially small (a few servers) and unlikely to grow
+  - The team lacks the discipline to treat infrastructure code with the same rigor as application code
+  - Legacy bare-metal environments without API-driven provisioning
+commonFailures:
+  - State corruption: Terraform state becomes inconsistent with real infrastructure when manual changes are made outside IaC
+  - Secret leakage: secrets are committed to the IaC repository in plaintext instead of using a secrets manager
+  - Configuration drift: changes are applied directly in production and never reflected in the IaC code
+contrasts:
+  - term: Configuration Management
+    difference: Configuration management (Ansible, Puppet, Chef) focuses on installing and configuring software on existing servers; IaC (Terraform, CloudFormation) provisions the servers themselves. They are complementary — IaC provisions, configuration management configures.
+  - term: Container Orchestration (Kubernetes)
+    difference: Container orchestration manages containerized applications at runtime (scheduling, scaling, networking); IaC manages the underlying infrastructure (VMs, VPCs, databases) that the orchestrator runs on. Kubernetes YAML manifests are a form of IaC for that platform.
+compatibilities:
+  - blue-green
+  - canary-release
+  - sidecar-pattern
+  - api-gateway
+promptLanguage: >
+  Define a Terraform module for the production VPC with public and private subnets across three
+  availability zones, an Internet Gateway, NAT Gateways, and route tables. Store Terraform state
+  in an S3 bucket with DynamoDB locking. Define outputs for vpc_id, subnet_ids, and security_group_id.
+  Use GitHub Actions to run terraform plan on PR and terraform apply on merge to main. Validate
+  that no manual changes are made via the AWS console — all changes must go through version control.
+sources:
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/infrastructure-as-code
+  - https://www.hashicorp.com/resources/what-is-infrastructure-as-code
+  - https://opengitops.dev/
+  - https://www.terraform.io/
+tags:
+  - infrastructure-as-code
+  - iac
+  - terraform
+  - cloudformation
+  - gitops
+  - devops

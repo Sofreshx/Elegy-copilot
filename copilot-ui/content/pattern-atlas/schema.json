@@ -1,0 +1,189 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Pattern Atlas Entry",
+  "description": "A single entry in the Pattern Atlas catalog — a documented design, architectural, or visual pattern with context, guidance, and relationships.",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "type",
+    "domain",
+    "confidence",
+    "tagline",
+    "description",
+    "traits",
+    "bestFit",
+    "avoidIf",
+    "commonFailures",
+    "contrasts",
+    "compatibilities",
+    "promptLanguage",
+    "sources",
+    "tags"
+  ],
+  "properties": {
+    "id": {
+      "description": "Unique slug identifier for the pattern. Used in URLs and cross-references.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "minLength": 1
+    },
+    "name": {
+      "description": "Human-readable display name of the pattern.",
+      "type": "string",
+      "minLength": 1
+    },
+    "aliases": {
+      "description": "Alternative names or synonyms for this pattern.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "tagline": {
+      "description": "A one-sentence summary of what the pattern is and does.",
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "description": "Detailed explanation of the pattern — how it works, when it emerged, key characteristics.",
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "description": "The category of pattern.",
+      "type": "string",
+      "enum": [
+        "visual-style",
+        "ui-component",
+        "ux-pattern",
+        "system-pattern"
+      ]
+    },
+    "domain": {
+      "description": "The domain or discipline this pattern belongs to.",
+      "type": "string",
+      "enum": [
+        "ui-ux",
+        "visual-style",
+        "software-architecture",
+        "data-integration",
+        "infrastructure-ops",
+        "security-reliability",
+        "ai-systems"
+      ]
+    },
+    "confidence": {
+      "description": "How established or widely accepted this pattern is.",
+      "type": "string",
+      "enum": [
+        "established",
+        "emerging",
+        "descriptive"
+      ]
+    },
+    "tags": {
+      "description": "Keywords for search, filtering, and classification.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "traits": {
+      "description": "Distinguishing characteristics that define this pattern.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 3,
+      "uniqueItems": true
+    },
+    "bestFit": {
+      "description": "Situations or contexts where this pattern excels.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "avoidIf": {
+      "description": "Conditions or constraints that make this pattern a poor choice.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "commonFailures": {
+      "description": "Frequent mistakes or pitfalls when applying this pattern.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "contrasts": {
+      "description": "Comparisons with related patterns, clarifying what makes each distinct.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "term",
+          "difference"
+        ],
+        "properties": {
+          "term": {
+            "description": "The name of the related pattern being contrasted.",
+            "type": "string",
+            "minLength": 1
+          },
+          "difference": {
+            "description": "How the related pattern differs from this one.",
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "compatibilities": {
+      "description": "Other pattern IDs that this pattern works well with or is commonly combined with.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "promptLanguage": {
+      "description": "Example prompt or instruction template for generating or using this pattern with an LLM.",
+      "type": "string",
+      "minLength": 1
+    },
+    "sources": {
+      "description": "Reference URLs, papers, articles, or documentation for the pattern.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri",
+        "minLength": 1
+      }
+    },
+    "image": {
+      "description": "URL to an illustration or screenshot demonstrating the pattern.",
+      "type": "string",
+      "format": "uri"
+    },
+    "styleRecipe": {
+      "description": "CSS or styling recipe for implementing visual-style patterns.",
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false
+}

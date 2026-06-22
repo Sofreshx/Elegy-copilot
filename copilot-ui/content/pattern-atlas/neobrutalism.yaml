@@ -1,0 +1,74 @@
+id: neobrutalism
+name: Neobrutalism
+aliases:
+  - neo-brutalism
+  - brutalist-ui
+  - neo-brutalist
+type: visual-style
+domain: visual-style
+confidence: emerging
+tagline: A raw, in-your-face design aesthetic using high contrast, thick borders, bold typography, and intentionally unpolished layouts.
+description: >
+  Neobrutalism (also called Neo-Brutalism) draws inspiration from the
+  architectural Brutalist movement of the mid-20th century, characterized by
+  raw concrete, exposed structure, and unapologetic functionalism. In UI
+  design, this translates to intentionally crude, high-contrast interfaces
+  that reject subtlety, polish, and conventional beauty standards.
+
+  Key visual markers include: thick black borders (2-4px) around everything,
+  high-contrast color combinations (often black + neon + white), oversized
+  sans-serif typography, minimal to no rounded corners, and deliberately
+  awkward or asymmetrical layouts. The style is unapologetic — it aims to
+  grab attention and communicate confidence and authenticity.
+
+  Neobrutalism gained traction in the late 2010s and early 2020s as a reaction
+  against the homogeneity of polished corporate design. It is commonly used
+  by startups, creative agencies, and media brands that want to stand out and
+  project an anti-establishment or edgy identity. It works best as an
+  aesthetic statement for marketing sites rather than functional applications.
+traits:
+  - Thick, high-contrast borders (2-4px solid black or dark color)
+  - Oversized, bold, often monospace or grotesque sans-serif typography
+  - High-saturation accent colors on dark or white backgrounds
+  - Minimal or no rounded corners; deliberately blocky shapes
+  - Intentionally raw, unpolished, or asymmetrical layouts
+bestFit:
+  - Marketing and landing pages for creative, tech, or media brands
+  - Portfolios and personal sites that need distinctive visual identity
+  - Brands that value authenticity, confidence, and differentiation from corporate design
+avoidIf:
+  - The product serves a broad mainstream audience expecting conventional UX
+  - Long-form reading or data-dense interfaces where readability is critical
+  - Conservative or enterprise contexts where unconventional design is a liability
+commonFailures:
+  - Sacrificing usability for aesthetic — neobrutalism can hide interactive elements
+  - Adding too many high-saturation colors simultaneously, creating visual chaos
+  - Misunderstanding brutalism as "ugly" rather than "intentionally unpolished and functional"
+contrasts:
+  - term: Minimalism
+    difference: Minimalism reduces to essentials with refinement and restraint; neobrutalism deliberately amplifies and exaggerates elements for raw impact.
+  - term: Swiss Style
+    difference: Swiss Style pursues perfect grid alignment and mathematical precision; neobrutalism embraces asymmetry, awkward spacing, and deliberate imperfection.
+compatibilities:
+  - minimalism
+  - terminal-monospace
+  - card-layout
+promptLanguage: >
+  Design a neobrutalist interface. Use a stark white or off-white background
+  with thick 3px black borders around every significant container and element.
+  Choose one or two high-saturation accent colors (neon green, hot pink,
+  electric blue) for emphasis. Use an oversized grotesque or monospace
+  sans-serif font at extreme size contrasts (e.g., 64px headings, 14px body).
+  Keep corners sharp. Layouts should feel intentionally raw — asymmetry is
+  welcome. Avoid gradients, shadows, and decorative illustration. Every
+  element should feel functional and unapologetic.
+sources:
+  - https://neobrutalism.com/
+  - https://brutalistwebsites.com/
+  - https://en.wikipedia.org/wiki/Brutalist_architecture
+tags:
+  - neobrutalism
+  - brutalist-design
+  - high-contrast
+  - raw-ui
+  - anti-design

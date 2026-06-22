@@ -1,0 +1,79 @@
+id: vaporwave
+name: Vaporwave
+aliases:
+  - vaporwave-aesthetic
+  - synthwave
+  - outrun
+  - retrowave
+type: visual-style
+domain: visual-style
+confidence: descriptive
+tagline: A nostalgic, surreal aesthetic blending 1980s/90s corporate culture, glitch art, pastel colors, and retro-digital imagery.
+description: >
+  Vaporwave began as a microgenre of electronic music in the early 2010s
+  (Macintosh Plus' "Floral Shoppe," 2011) and evolved into a full visual
+  aesthetic that critiques and romanticizes late-capitalist consumer culture,
+  corporate branding, and 1980s/90s technology. The style is deeply nostalgic,
+  surreal, and often melancholic, combining found imagery from old ads,
+  computer graphics, and commercial architecture.
+
+  The visual vocabulary includes: pastel and neon color palettes (especially
+  pink, purple, cyan, and teal), Greek busts and classical statues, grid
+  backgrounds with perspective vanishing points (often called "outrun"
+  style), glitch and VHS distortion effects, CRT scan lines, pixelated text,
+  and imagery from early computer interfaces (Windows 95, Mac OS 9). Japanese
+  text and kanji are frequently used as decorative elements, romanizing Asian
+  consumer culture as exotic and futuristic.
+
+  Vaporwave has heavily influenced UI design for creative portfolios, music
+  platforms, and nostalgic-branding projects. Its adjacent style, Synthwave
+  (also called Outrun), leans more into 80s action film aesthetics — neon
+  sunsets, grid lines, and retro-futuristic sports cars. Both remain popular
+  in contemporary digital culture, particularly on platforms like Twitch and
+  Discord.
+traits:
+  - Pastel and neon color palettes (pink, purple, cyan, teal on dark backgrounds)
+  - Classical Greco-Roman busts and architecture as recurring motifs
+  - Perspective grid backgrounds with vanishing points
+  - Glitch, VHS distortion, and CRT scan line effects
+  - Early digital interface elements (Windows 95, old web, pixel art)
+bestFit:
+  - Music, art, and creative portfolio sites targeting internet-culture-aware audiences
+  - Retro-themed streaming channels, Discord servers, and community platforms
+  - Brands that want to evoke nostalgia while communicating cultural awareness
+avoidIf:
+  - The interface must communicate professional authority or enterprise reliability
+  - Accessibility requirements demand high contrast and clean readability
+  - The target audience has no cultural reference for 80s/90s computing aesthetics
+commonFailures:
+  - Using vaporwave motifs without understanding the aesthetic's critical and nostalgic underpinnings
+  - Applying excessive glitch effects that impair readability and cause accessibility failures
+  - Creating an incoherent mix of retro elements without a consistent period or mood
+contrasts:
+  - term: Cyberpunk
+    difference: Vaporwave is nostalgic, pastel-colored, and critically celebrates consumer culture; cyberpunk is dystopian, dark, and critical of technology's societal impact.
+  - term: Retro/Y2K
+    difference: Vaporwave reimagines 80s/90s corporate culture through a critical, surreal lens; Y2K is rooted in the actual optimistic techno-culture of the late 90s and early 2000s.
+compatibilities:
+  - cyberpunk
+  - retro-y2k
+  - glassmorphism
+promptLanguage: >
+  Design a vaporwave-inspired interface. Use a dark purple or navy background
+  with pastel pink, cyan, and teal accents. Add a perspective grid background
+  with a glowing horizon line. Include classical statue silhouettes or
+  Greco-Roman architectural elements. Apply subtle VHS noise or CRT scan line
+  overlays. Use pixelated or retro-digital typography. Include Japanese text
+  or retro-computer interface elements as decorative accents. The mood should
+  be nostalgic, dreamlike, and slightly surreal. References should feel like
+  an old VHS tape or a forgotten Windows 95 installation.
+sources:
+  - https://en.wikipedia.org/wiki/Vaporwave
+  - https://aesthetics.fandom.com/wiki/Vaporwave
+  - https://www.nytimes.com/2019/06/06/style/vaporwave-design.html
+tags:
+  - vaporwave
+  - synthwave
+  - retro-digital
+  - glitch-art
+  - nostalgic

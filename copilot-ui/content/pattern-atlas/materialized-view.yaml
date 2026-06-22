@@ -1,0 +1,72 @@
+id: materialized-view
+name: Materialized View
+aliases:
+  - Materialized Query Table
+  - Precomputed View
+  - Summary Table
+type: system-pattern
+domain: data-integration
+confidence: established
+tagline: Precompute and store query results for efficient reads at the cost of eventual consistency.
+description: >
+  A Materialized View is a precomputed result set stored as a table, derived from one or more source
+  tables through a query. Unlike a regular (virtual) view, a materialized view physically persists
+  the data, trading storage and staleness for dramatic read performance improvements. It is
+  refreshed periodically or on demand, rather than recomputed on every query.
+
+  This pattern is fundamental for read optimization in systems where the source query is expensive
+  (multiple joins, aggregations over large datasets, full-text search) and the result is read more
+  often than written. Common implementations include PostgreSQL MATERIALIZED VIEW, Oracle
+  materialized views, and application-level materialization via scheduled batch jobs or CDC pipelines.
+
+  In distributed systems, materialized views are often built asynchronously — a source table emits
+  change events, and a consumer builds or updates the materialized view. This is a core mechanism in
+  CQRS read models and event-sourced projections. The main trade-off is data freshness: the
+  materialized view is always slightly behind the source table(s) unless updated synchronously.
+traits:
+  - Precomputed and physically stored query results
+  - Dramatically improves read performance for complex queries
+  - Refreshed periodically or event-driven (not automatically with source changes)
+  - Adds storage overhead proportional to the result set
+  - Trades eventual consistency for read speed
+bestFit:
+  - Dashboards and reporting queries that aggregate large datasets
+  - CQRS read models that serve denormalized data for UI consumption
+  - Systems where identical expensive queries run repeatedly (caching the result)
+avoidIf:
+  - Data freshness must be real-time for every read (use a regular view or direct query)
+  - The source data changes too frequently and the refresh overhead outweighs query savings
+  - Storage costs are prohibitive and the query result set is very large
+commonFailures:
+  - Stale views serve incorrect data because refresh frequency is too low
+  - Refresh storms: materialized view refreshes are triggered too often, competing with source table writes
+  - Missing indexes: materialized views are treated as simple copies and lack query-optimizing indexes
+contrasts:
+  - term: Regular (Virtual) View
+    difference: A regular view is a stored query executed at read time — it always returns current data but recomputes every time. A materialized view precomputes and stores the result, returning stale data but much faster.
+  - term: Cache (Cache-Aside)
+    difference: Cache-aside stores individual query results with TTL; a Materialized View stores a precomputed projection of source data that is refreshed in bulk. Materialized views are schema-persistent and queryable with SQL; caches are key-value and typically ephemeral.
+compatibilities:
+  - cqrs
+  - event-sourcing
+  - caching-strategies
+  - database-per-service
+promptLanguage: >
+  Create a materialized view for the monthly sales dashboard query. Define a PostgreSQL
+  MATERIALIZED VIEW called monthly_sales_summary that aggregates invoice lines by
+  product_category, region, and month with SUM(amount), COUNT(invoices), and AVG(discount).
+  Create a unique index on (year_month, product_category, region). Refresh the view every hour via
+  pg_cron or a scheduled job. For near-real-time updates, add a trigger-based incremental refresh
+  using a log table that tracks changes since the last refresh.
+sources:
+  - https://www.postgresql.org/docs/current/rules-materializedviews.html
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/materialized-view
+  - https://martinfowler.com/bliki/CQRS.html
+  - https://www.postgresqltutorial.com/postgresql-materialized-views/
+tags:
+  - materialized-view
+  - read-optimization
+  - cqrs
+  - denormalization
+  - reporting
+  - database
