@@ -1,0 +1,82 @@
+id: data-grid
+name: Data Grid
+aliases:
+  - data-table
+  - table-grid
+  - spreadsheet-grid
+  - ag-grid
+type: ui-component
+domain: ui-ux
+confidence: established
+tagline: A high-performance tabular component for displaying, sorting, filtering, and editing structured data with virtual scrolling.
+description: >
+  A data grid (or data table) is a UI component designed for efficient display
+  and manipulation of structured tabular data. Unlike simple HTML tables, data
+  grids are optimized for performance with large datasets through virtual
+  scrolling — rendering only the visible rows rather than all rows in the DOM.
+  They provide built-in interactions: column sorting, filtering, resizing,
+  reordering, selection (single/multi/checkbox), inline editing, pagination,
+  and row grouping.
+
+  Data grids are foundational for enterprise applications, admin dashboards,
+  financial systems, inventory management, and any interface where users need
+  to browse, analyze, or act on structured data. Key quality attributes
+  include: smooth scrolling performance with thousands of rows, accessible
+  keyboard navigation (including Excel-like arrow navigation), screen reader
+  announcements for sorted/filtered state, and responsive patterns that
+  handle overflow (horizontal scroll, column hiding, card view on mobile).
+
+  Modern data grid libraries (AG Grid, TanStack Table, MUI Data Grid, Handsontable)
+  offer extensive customization: custom cell renderers, inline editors,
+  aggregation rows, tree data, pivoting, and export to CSV/Excel. The
+  complexity of the data grid component means it is almost always implemented
+  via a dedicated library rather than built from scratch.
+traits:
+  - Virtual scrolling for high-performance rendering of large datasets
+  - Column operations: sorting, filtering, resizing, reordering, show/hide
+  - Row selection (single, multi, checkbox) with batch actions
+  - Keyboard navigation and accessibility (ARIA grid role)
+  - Inline editing, cell formatting, and custom renderers
+bestFit:
+  - Enterprise dashboards, admin panels, and back-office applications
+  - Financial, inventory, and data analysis tools
+  - Any interface displaying 20+ rows of structured data with sorting needs
+avoidIf:
+  - The data is best understood visually (charts, cards, kanban boards)
+  - The dataset is small (<20 rows) and does not need sorting or filtering
+  - Mobile-first experiences where horizontal scrolling is undesirable
+commonFailures:
+  - Loading thousands of rows into the DOM without virtualization, causing performance degradation
+  - Implementing complex spreadsheet features without considering mobile and touch interaction
+  - Ignoring accessibility — data grids are notoriously difficult for screen reader users when not properly implemented
+contrasts:
+  - term: Card Layout
+    difference: A data grid displays data in rows and columns optimized for scanning and comparison; card layout presents items as individual content containers optimized for visual browsing.
+  - term: List View
+    difference: A list view is a single-column vertical arrangement; a data grid uses multiple columns for structured data with sorting and filtering.
+compatibilities:
+  - dashboard-layout
+  - master-detail
+  - infinite-scroll
+  - skeleton-loader
+promptLanguage: >
+  Design a data grid component for structured tabular data. Implement virtual
+  scrolling so only visible rows are rendered. Support single and multi-row
+  selection with checkboxes. Each column should be sortable (click header to
+  toggle asc/desc), filterable, and resizable. Enable column reordering via
+  drag-and-drop. Include a row count display and pagination controls. Support
+  keyboard navigation (Tab through cells, Shift+Tab backwards, Arrow keys
+  within grid). Provide a responsive pattern that hides less important columns
+  on smaller screens. Use a sticky header that remains visible during vertical
+  scroll.
+sources:
+  - https://atlassian.design/components/dynamic-table/
+  - https://www.ag-grid.com/
+  - https://tanstack.com/table/latest
+  - https://www.w3.org/WAI/ARIA/apg/patterns/grid/
+tags:
+  - data-grid
+  - data-table
+  - tabular-data
+  - virtual-scroll
+  - enterprise-ui

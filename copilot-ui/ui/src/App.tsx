@@ -17,6 +17,7 @@ const StandaloneGraphWindow = lazy(() => import('./tabs/Planning/StandaloneGraph
 const SessionDetailView = lazy(() => import('./views/Sessions/SessionDetailView'));
 const SettingsView = lazy(() => import('./views/Settings/SettingsView'));
 const LexiconView = lazy(() => import('./tabs/Lexicon/LexiconView'));
+const PatternAtlasView = lazy(() => import('./tabs/PatternAtlas/PatternAtlasView'));
 const AssetCreationWizard = lazy(() => import('./views/Catalog/AssetCreationWizard'));
 const AddProjectWizard = lazy(() => import('./views/Project/AddProjectWizard'));
 const WorkspaceView = lazy(() => import('./views/Workspace/WorkspaceView'));
@@ -88,8 +89,8 @@ export default function App() {
           : <RepositoriesView />;
       case 'remote':
         return <RemoteView />;
-      case 'lexicon':
-        return <LexiconView />;
+      case 'pattern-atlas':
+        return <PatternAtlasView />;
       case 'repositories':
         return <RepositoriesView />;
       case 'settings':

@@ -1,0 +1,74 @@
+id: hexagonal-architecture
+name: Hexagonal Architecture
+aliases:
+  - Ports and Adapters
+  - Ports & Adapters
+  - Onion Architecture (related)
+type: system-pattern
+domain: software-architecture
+confidence: established
+tagline: Isolate domain logic from infrastructure through ports (interfaces) and adapters (implementations).
+description: >
+  Hexagonal Architecture, also known as Ports & Adapters, organizes code around a domain core that
+  is completely independent of external concerns (databases, web frameworks, message queues, UIs).
+  The domain core defines "ports" — interfaces that express what the application needs from the
+  outside world or what it exposes to it. "Adapters" implement those ports, plugging into
+  infrastructure without contaminating the domain logic.
+
+  The architecture is typically depicted as a hexagon with the domain at the center. Each side
+  represents a port category: inbound ports (driving adapters like HTTP controllers or CLI commands)
+  and outbound ports (driven adapters like repository implementations or email senders). Dependency
+  inversion is the key mechanism — domain code depends only on interfaces, never on concrete
+  infrastructure classes.
+
+  This pattern derives from Alistair Cockburn's original formulation and strongly overlaps with
+  the Dependency Inversion Principle (SOLID). It is widely adopted in DDD-aligned microservices,
+  where bounded contexts map naturally to hexagons. Testing is simplified because domain logic can
+  be unit-tested with mock adapters — no database, no web server needed.
+traits:
+  - Domain core has zero infrastructure dependencies
+  - All external communication flows through port interfaces
+  - Adapters are swappable without changing domain logic
+  - Enables isolated unit testing of business rules
+  - Applies dependency inversion at the architectural level
+bestFit:
+  - Domain-Driven Design projects where the domain model must stay pure
+  - Long-lived applications where infrastructure choices may change (e.g., swap databases)
+  - Microservices where each service should be independently testable and portable
+avoidIf:
+  - The application is a simple CRUD wrapper with negligible business logic
+  - The team is small and the extra interface indirection slows iteration without benefit
+  - Infrastructure is never expected to change (the abstraction cost exceeds the flexibility value)
+commonFailures:
+  - Over-abstraction: creating interfaces for every dependency, even when there is only one implementation
+  - Leaky adapters: infrastructure concerns (SQL queries, HTTP details) seep into the domain via port contracts
+  - Port proliferation: too many fine-grained ports create a confusing interface surface that is hard to navigate
+contrasts:
+  - term: Onion Architecture
+    difference: Onion Architecture shares the same dependency-inversion goal but organizes layers concentrically (Domain → Application → Infrastructure) with strict layer boundaries and no cross-layer dependencies. Hexagonal Architecture uses ports and adapters as the mechanism; Onion enforces layer isolation as the primary structure.
+  - term: Layered Architecture
+    difference: Traditional layered architecture (controller → service → repository) allows domain logic to depend on infrastructure; Hexagonal Architecture inverts those dependencies so the domain never imports infrastructure code.
+compatibilities:
+  - onion-architecture
+  - domain-driven-design
+  - cqrs
+  - micro-frontends
+promptLanguage: >
+  Structure the Payment service using Hexagonal Architecture. Define the domain core with entities
+  (Payment, Transaction) and port interfaces (PaymentRepository, PaymentGateway, PaymentNotifier).
+  Implement adapters in an infrastructure package: PostgresPaymentRepository, StripePaymentGateway,
+  EmailPaymentNotifier. Wire adapters to ports at the composition root (main function or DI
+  container). The domain package must not import anything from the infrastructure package. Write
+  unit tests for domain logic with mock adapters — no database or HTTP calls required.
+sources:
+  - https://alistair.cockburn.us/hexagonal-architecture/
+  - https://wiki.c2.com/?HexagonalArchitecture
+  - https://www.oreilly.com/library/view/implementing-domain-driven-design/9780133039894/
+  - https://reflectoring.io/spring-hexagonal/
+tags:
+  - hexagonal-architecture
+  - ports-and-adapters
+  - dependency-inversion
+  - ddd
+  - microservices
+  - testability

@@ -1,0 +1,77 @@
+id: infinite-scroll
+name: Infinite Scroll
+aliases:
+  - endless-scroll
+  - continuous-scroll
+  - progressive-loading
+type: ui-component
+domain: ui-ux
+confidence: established
+tagline: A content loading pattern where new content is automatically loaded and appended as the user scrolls toward the bottom of the page.
+description: >
+  Infinite scroll is a pagination alternative that loads additional content
+  automatically when the user scrolls near the bottom of the currently
+  visible content. Rather than clicking "Next Page," the user scrolls
+  continuously and content loads progressively. The pattern was popularized
+  by social media feeds (Facebook, Twitter, Instagram) and content discovery
+  platforms (Pinterest, Tumblr).
+
+  The implementation uses an intersection observer or scroll position
+  threshold to detect when the user is approaching the end of loaded content.
+  It triggers a fetch for the next page of results, appends them to the DOM,
+  and updates the scroll position so the user continues seamlessly. A loading
+  indicator (spinner or skeleton) at the bottom signals that more content is
+  being fetched.
+
+  Infinite scroll excels for content discovery and social feeds where the
+  goal is continuous browsing. It underperforms for goal-oriented search
+  (finding a specific item), footer accessibility, and paginated content
+  where users need to reference page numbers. Hybrid approaches combine
+  infinite scroll with a "Load More" button for user control, or add a
+  scroll-to-top FAB for navigation back to the top.
+traits:
+  - Automatic content loading triggered by scroll proximity to end
+  - Loading indicator displayed during content fetch
+  - Seamless content appending without page disruption
+  - Single-direction scroll with no page number navigation
+  - Intersection Observer or scroll event-based triggers
+bestFit:
+  - Social media feeds and content discovery platforms
+  - Product and image galleries for browsing (not searching)
+  - Long-form article reading with progressive content loading
+avoidIf:
+  - Users need to find specific items or reference paginated results
+  - The footer contains critical navigation, links, or legal information
+  - Goal-oriented search where users need to compare items across pages
+commonFailures:
+  - Making it impossible for users to reach the footer for navigation or legal links
+  - Losing scroll position when the user navigates to an item and returns
+  - Loading too much content at once, degrading performance and battery life
+contrasts:
+  - term: Pagination
+    difference: Infinite scroll loads content continuously without page numbers; pagination divides content into discrete numbered pages with explicit navigation.
+  - term: Load More Button
+    difference: Infinite scroll triggers automatically; "Load More" requires an explicit user click, giving more control over the loading cadence.
+compatibilities:
+  - skeleton-loader
+  - card-layout
+  - data-grid
+promptLanguage: >
+  Design an infinite scroll component. Use an Intersection Observer to detect
+  when the user scrolls within 200px of the bottom of the loaded content.
+  When triggered, show a loading spinner at the bottom and fetch the next page
+  of content. Append new content to the existing list. Update the scroll
+  position naturally so the user continues without jumping. Handle errors
+  gracefully — show a "Retry" option if the fetch fails. Consider a "Back to
+  Top" FAB that appears after scrolling down 3+ screens. Ensure screen reader
+  announcements for newly loaded content via aria-live="polite".
+sources:
+  - https://www.nngroup.com/articles/infinite-scrolling/
+  - https://www.smashingmagazine.com/2018/05/infinite-scrolling-best-practices/
+  - https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API
+tags:
+  - infinite-scroll
+  - endless-scroll
+  - pagination
+  - progressive-loading
+  - content-feed

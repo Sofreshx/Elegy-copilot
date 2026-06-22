@@ -1,0 +1,73 @@
+id: strangler-fig
+name: Strangler Fig
+aliases:
+  - Strangler Pattern
+  - Strangler Fig Application
+  - Incremental Migration
+type: system-pattern
+domain: software-architecture
+confidence: established
+tagline: Incrementally replace a legacy system by gradually routing functionality to new implementations.
+description: >
+  The Strangler Fig pattern incrementally migrates a legacy system to a new one by routing
+  functionality piece by piece, rather than replacing everything in a big-bang rewrite. A proxy or
+  facade intercepts calls to the legacy system, routing some to the new implementation while others
+  continue to the old. Over time, the legacy system is "strangled" — its functionality is
+  progressively replaced until it can be decommissioned entirely.
+
+  The name comes from the strangler fig vine, which grows around a host tree and eventually replaces
+  it entirely. Martin Fowler popularized the pattern as a safer alternative to full rewrites, which
+  are famously high-risk. The pattern works best when the ingress point (API, web request, message
+  queue) can be intercepted and when each replaced slice can be verified independently.
+
+  Successful strangler migrations require careful identification of migration units (URLs, API
+  endpoints, message types), a robust routing layer (API gateway, reverse proxy), and strict
+  discipline to avoid expanding scope. Feature flags can complement the pattern to control routing
+  without code changes. The new system should be designed with clean interfaces so it can also be
+  strangled in the future if needed.
+traits:
+  - Incremental replacement, not big-bang rewrite
+  - Proxy/facade routes traffic between old and new systems
+  - Each replaced slice is independently deployable and verifiable
+  - Reduces migration risk compared to complete rewrite
+  - Legacy system remains operational throughout the migration
+bestFit:
+  - Large legacy monoliths that cannot be replaced in a single release
+  - Systems where business continuity is critical (financial, healthcare)
+  - Organizations that cannot pause feature development during migration
+avoidIf:
+  - The legacy system is small enough to rewrite in a single cycle
+  - The legacy system has no well-defined ingress point for interception
+  - The interface contracts between old and new are fundamentally incompatible
+commonFailures:
+  - Scope creep: the migration expands to include "while we're at it" improvements, prolonging the project
+  - Dual-run costs: operating two systems in parallel doubles infrastructure and operational burden
+  - Incomplete strangling: the legacy system is never fully decommissioned, accumulating unreplaced functionality
+contrasts:
+  - term: Big-Bang Rewrite
+    difference: A big-bang rewrite replaces the entire legacy system in one release, which is high-risk and often fails; Strangler Fig spreads risk across incremental replacements with continuous verification at each step.
+  - term: Anti-Corruption Layer
+    difference: An Anti-Corruption Layer (ACL) is a translation layer between a new system and a legacy system to prevent legacy concepts from leaking into the new design; the Strangler Fig is a migration strategy, and an ACL can be part of that strategy.
+compatibilities:
+  - feature-flag
+  - api-gateway
+  - anti-corruption-layer
+  - event-driven
+promptLanguage: >
+  Design a strangler fig migration for the legacy order monolith. Set up an API gateway that routes
+  incoming HTTP requests: route `/orders/summary` to the new microservice, and all other `/orders/*`
+  paths to the legacy system. Implement the new service behind the routed path. Add a feature flag
+  `use-new-summary` to switch at the user cohort level for gradual rollout. Monitor error rates and
+  latency on both sides. Once all `/orders/*` endpoints are replaced, decommission the legacy order
+  monolith.
+sources:
+  - https://martinfowler.com/bliki/StranglerFigApplication.html
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/strangler-fig
+  - https://aws.amazon.com/blogs/architecture/how-to-strangle-a-application-on-aws/
+tags:
+  - strangler-fig
+  - migration
+  - legacy-system
+  - incremental-replacement
+  - api-gateway
+  - rewrite

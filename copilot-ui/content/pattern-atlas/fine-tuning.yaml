@@ -1,0 +1,74 @@
+id: fine-tuning
+name: Fine-Tuning
+aliases:
+  - Model Fine-Tuning
+  - Domain Adaptation
+  - Transfer Learning (for LLMs)
+type: system-pattern
+domain: ai-systems
+confidence: established
+tagline: Adapt a pre-trained model to a specific task or domain by updating its weights on task-specific data.
+description: >
+  Fine-tuning takes a pre-trained model (base model) and continues training on a smaller,
+  task-specific dataset to adapt its behavior. Unlike RAG, which supplies context at inference time
+  without changing model weights, fine-tuning permanently modifies the model's weights to improve
+  performance on the target domain or task. It requires a curated dataset of examples and
+  significant compute resources.
+
+  Approaches include full fine-tuning (all model weights updated, highest quality but most
+  expensive), parameter-efficient fine-tuning (PEFT) methods like LoRA (Low-Rank Adaptation) and
+  Adapters (only a small fraction of weights trained, much cheaper, often comparable quality), and
+  instruction fine-tuning (training the model to follow instructions). Fine-tuning can also improve
+  model safety and reduce unwanted behaviors by training on curated examples.
+
+  Fine-tuning is the standard approach for domain-specific models (e.g., legal, medical, code) and
+  for achieving consistent output formatting. The key trade-off is flexibility: fine-tuned models
+  are specialized and may forget general knowledge (catastrophic forgetting). They also require
+  maintaining and versioning the fine-tuned weights. Regular re-evaluation on held-out datasets is
+  essential to detect regressions.
+traits:
+  - Adapts pre-trained model weights on task-specific data
+  - Can be full (all weights) or parameter-efficient (LoRA, adapters)
+  - Permanently changes model behavior for the target domain
+  - Requires curated dataset and compute resources
+  - Risk of catastrophic forgetting (loss of general capabilities)
+bestFit:
+  - Domain-specialized tasks with consistent input/output patterns (legal, medical, code)
+  - When fixed behavior is needed and RAG's inference-time approach is insufficient
+  - Applications requiring consistent output formatting (structured data extraction, classification)
+avoidIf:
+  - The knowledge changes frequently (fine-tuning requires retraining for updates)
+  - The team lacks high-quality training data for the target domain
+  - RAG or prompt engineering achieves acceptable quality at lower cost
+commonFailures:
+  - Overfitting: the model memorizes training data and performs poorly on unseen examples
+  - Catastrophic forgetting: fine-tuning on one task degrades the model's general capabilities
+  - Dataset bias: the fine-tuning dataset does not represent real-world distribution, causing skewed outputs
+contrasts:
+  - term: RAG (Retrieval-Augmented Generation)
+    difference: RAG supplies context at inference time without changing model weights; Fine-Tuning permanently modifies weights. RAG is flexible for changing knowledge; fine-tuning is better for persistent behavior changes.
+  - term: Prompt Engineering
+    difference: Prompt engineering guides model behavior through instructions without weight changes; Fine-Tuning changes the model itself. Prompt engineering is zero-cost but limited; fine-tuning is expensive but produces more reliable domain behavior.
+compatibilities:
+  - rag
+  - embedding-based-search
+  - agent-loop
+promptLanguage: >
+  Fine-tune a base LLM for legal document classification. Collect 10,000 labeled examples of legal
+  documents (contracts, briefs, discovery, motions) with classification labels. Use LoRA with rank
+  16, targeting attention projection matrices. Train for 3 epochs with a learning rate of 2e-4 and
+  batch size of 8. Evaluate on a held-out test set of 1000 examples — target accuracy > 92%.
+  Compare against the base model with zero-shot and few-shot prompting. Track BLEU and ROUGE scores
+  for generation quality on domain-specific text.
+sources:
+  - https://arxiv.org/abs/2106.09685 (LoRA)
+  - https://platform.openai.com/docs/guides/fine-tuning
+  - https://huggingface.co/docs/peft/en/index
+  - https://docs.anthropic.com/en/docs/build-with-claude/fine-tuning
+tags:
+  - fine-tuning
+  - lora
+  - llm
+  - domain-adaptation
+  - transfer-learning
+  - peft

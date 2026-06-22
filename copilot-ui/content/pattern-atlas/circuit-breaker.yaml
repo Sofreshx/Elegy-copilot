@@ -1,0 +1,69 @@
+id: circuit-breaker
+name: Circuit Breaker
+aliases:
+  - Circuit Breaker Pattern
+type: system-pattern
+domain: software-architecture
+confidence: established
+tagline: Detect failures and prevent cascading by stopping calls to a failing dependency.
+description: >
+  The Circuit Breaker pattern prevents a system from repeatedly attempting an operation that is likely
+  to fail. It wraps calls to a remote service or resource in a stateful proxy that tracks recent
+  failure rates. When failures exceed a threshold, the circuit trips to "open" — subsequent calls
+  fail immediately without reaching the dependency, preserving caller resources and giving the
+  dependency time to recover. After a configured timeout, the circuit transitions to "half-open,"
+  allowing a limited probe request. If the probe succeeds, the circuit resets to "closed"; if it
+  fails, it returns to "open."
+
+  This pattern is critical in distributed systems to prevent cascading failures, resource exhaustion,
+  and retry storms. It works alongside retry logic — retries handle transient blips, while the
+  circuit breaker cuts off calls when the dependency is genuinely degraded. Implementations often
+  expose metrics (failure count, state transitions, request latency) for monitoring and alerting.
+
+  Common implementations include Hystrix (Netflix, now in maintenance mode), Resilience4j (Java),
+  Polly (.NET), and built-in libraries in service mesh sidecars like Envoy (via outlier detection).
+traits:
+  - State machine with three states: closed, open, half-open
+  - Fail-fast when dependency is degraded, not merely slow
+  - Configurable failure threshold and recovery timeout
+  - Provides fallback logic for degraded user experience
+  - Exposes metrics for monitoring and alerting
+bestFit:
+  - Microservice architectures where one downstream failure can cascade
+  - API gateways and proxies protecting backend services
+  - Any system that depends on external APIs with variable reliability
+avoidIf:
+  - The dependency is local and in-process (a simple timeout is sufficient)
+  - Failures are always transient and retry-with-backoff handles them adequately
+  - The system cannot tolerate degraded responses (fallback is not possible)
+commonFailures:
+  - Too-sensitive configuration: the circuit opens on transient blips, causing unnecessary degradation
+  - No fallback: the circuit opens but no degraded response is defined, so the caller still errors
+  - Half-open probe volume overwhelms a recovering dependency (defeat the point of the recovery period)
+contrasts:
+  - term: Retry with Backoff
+    difference: Retry logic repeats a failed call with increasing delays, suitable for transient failures; the Circuit Breaker stops all calls for a recovery period, suitable when the dependency is degraded and retries would only make it worse.
+  - term: Bulkhead
+    difference: Bulkhead isolates resources into separate pools so a failure in one pool does not starve others; the Circuit Breaker stops calls to a failing dependency entirely, whereas Bulkhead limits the number of concurrent calls regardless of failure state.
+compatibilities:
+  - retry-pattern
+  - bulkhead-pattern
+  - api-gateway
+  - sidecar-pattern
+promptLanguage: >
+  Add a Circuit Breaker to calls made to the external payment gateway. Wrap the HTTP client in a
+  circuit breaker with a closed-state threshold of 5 consecutive failures before tripping to open.
+  Configure a 30-second recovery timeout before transitioning to half-open, and allow a single probe
+  request in half-open. Define a fallback that returns a cached response or a degraded-service error
+  message when the circuit is open. Expose circuit state, failure count, and request latency as
+  Prometheus metrics. Log every state transition for operational visibility.
+sources:
+  - https://martinfowler.com/bliki/CircuitBreaker.html
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker
+  - https://resilience4j.readme.io/docs/circuitbreaker
+tags:
+  - circuit-breaker
+  - fault-tolerance
+  - resilience
+  - microservices
+  - fail-fast

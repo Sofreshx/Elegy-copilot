@@ -1,0 +1,76 @@
+id: wizard-pattern
+name: Wizard Pattern
+aliases:
+  - step-by-step
+  - guided-flow
+  - sequential-process
+type: ux-pattern
+domain: ui-ux
+confidence: established
+tagline: A guided, step-by-step workflow that breaks complex tasks into manageable sequential steps with clear progression and commitment.
+description: >
+  The Wizard Pattern is a UX design pattern that guides users through a
+  complex process one step at a time. Each step represents a logical unit
+  of the process, and users must complete each step before advancing to the
+  next. The pattern provides a clear sense of progress, reduces errors by
+  focusing attention on one task at a time, and builds commitment as the
+  user invests progressively in the process.
+
+  The pattern differs from a simple multi-step form in its emphasis on
+  guidance and commitment. Wizards typically include: a clear title describing
+  each step, explanatory text, progress indicators, navigation controls
+  (Back/Next/Finish), step validation, and the ability to review all inputs
+  before final submission. Well-designed wizards also support saving progress
+  for later and provide clear error recovery paths.
+
+  Common applications include: software installation (setup wizards), account
+  onboarding, checkout processes, tax filing, configuration flows, and survey
+  completion. The pattern works best for infrequent but important tasks where
+  guidance is valuable. For frequent tasks, a simpler interface with all
+  options visible is usually preferable.
+traits:
+  - Sequential steps presented one at a time
+  - Clear progress indication (Step X of Y)
+  - Forward/back navigation with data preservation
+  - Step validation before allowing advancement
+  - Review and confirmation before final commitment
+bestFit:
+  - Complex setup and configuration processes
+  - Onboarding and account registration flows
+  - Checkout, application, and survey submission processes
+avoidIf:
+  - Users frequently perform the task and need speed over guidance
+  - The process has fewer than 3 distinct steps
+  - Users need to reference information from one step while completing another
+commonFailures:
+  - Making the wizard too rigid — not allowing users to skip optional steps
+  - Losing entered data when users navigate back to previous steps
+  - Showing too many steps in the progress indicator, creating anxiety about the time required
+contrasts:
+  - term: Single-page Form
+    difference: A wizard breaks a complex process into guided steps; a single-page form shows all fields at once for experienced users who value speed.
+  - term: Progressive Disclosure
+    difference: A wizard is a linear sequence requiring step completion; progressive disclosure reveals options on demand without a fixed sequence.
+compatibilities:
+  - progressive-disclosure
+  - breadcrumb
+  - empty-state
+promptLanguage: >
+  Design a wizard pattern for a multi-step onboarding flow. Show a progress
+  bar at the top with step labels (e.g., "Profile", "Preferences",
+  "Integrations", "Review"). Display one step at a time with a clear title,
+  description, and form fields. Validate each step before enabling the
+  "Continue" button. Preserve all data when the user clicks "Back". The
+  final step is a summary page showing all entered information with an
+  "Complete Setup" button. Allow users to save progress and return later.
+  Show a clear exit option with "Save and quit" for long wizards.
+sources:
+  - https://www.nngroup.com/articles/wizards/
+  - https://www.interaction-design.org/literature/topics/wizard-pattern
+  - https://www.smashingmagazine.com/2012/06/form-design-ux-best-practices/
+tags:
+  - wizard
+  - guided-flow
+  - onboarding
+  - sequential-process
+  - ux-pattern

@@ -1,0 +1,75 @@
+id: outbox-pattern
+name: Outbox Pattern
+aliases:
+  - Outbox Table
+  - Transactional Outbox
+  - Message Relay
+type: system-pattern
+domain: data-integration
+confidence: established
+tagline: Reliably publish messages to a broker by writing them to a local outbox table in the same transaction.
+description: >
+  The Outbox Pattern solves the dual-write problem: when an application must update a database AND
+  send a message to a broker, doing both atomically is difficult. A naive implementation risks
+  sending a message without persisting the state change, or persisting a change without publishing
+  the event. The outbox pattern stores the message as a row in a local outbox table within the same
+  database transaction as the business operation. A separate relay process reads the outbox table
+  and publishes each message to the broker.
+
+  The relay can be implemented as a CDC (Change Data Capture) connector (e.g., Debezium reading the
+  database WAL) or a background poller that queries for unprocessed rows. The relay marks messages
+  as sent (or deletes them) after successful delivery. At-least-once delivery is guaranteed because
+  messages remain in the outbox until acknowledged by the broker.
+
+  This pattern is closely related to the Transactional Outbox pattern and Event Sourcing. It enables
+  reliable event emission without distributed transactions (XA/2PC) and is a building block for
+  event-driven microservices, CQRS event buses, and CDC-based data pipelines. The main cost is
+  added complexity: the outbox table, the relay process, and handling of duplicate deliveries.
+traits:
+  - Writes event to outbox table within the same transaction as the business operation
+  - Guarantees at-least-once event delivery to the message broker
+  - Decouples service logic from broker availability
+  - Supports CDC-based or poller-based relay processes
+  - Eliminates need for distributed transactions (XA) for reliable messaging
+bestFit:
+  - Microservices that must publish events reliably without introducing distributed transactions
+  - Event-driven architectures where every database write must produce a corresponding event
+  - CDC pipelines where source database changes must be streamed to downstream systems
+avoidIf:
+  - The event volume is extremely high and the outbox table creates write contention
+  - Message loss is acceptable and the added complexity of the relay is not justified
+  - There is no operational capacity to monitor and maintain the relay process
+commonFailures:
+  - Outbox table bloat: unprocessed rows accumulate because the relay cannot keep up or fails silently
+  - Duplicate message delivery: relay publishes the same event multiple times; consumers must be idempotent
+  - Ordering violations: parallel relay workers publish events out of order if no ordering key is respected
+contrasts:
+  - term: Event Sourcing
+    difference: Event Sourcing replaces the primary storage model with an append-only event log; the Outbox Pattern merely buffers events for reliable delivery while keeping a traditional state storage model.
+  - term: Two-Phase Commit (XA)
+    difference: XA/2PC coordinates transactions across multiple resources (DB + broker) atomically using a prepare/commit protocol; the Outbox Pattern uses a single local transaction and a relay to achieve reliable delivery without distributed coordination.
+compatibilities:
+  - event-driven
+  - event-sourcing
+  - cqrs
+  - saga
+  - database-per-service
+promptLanguage: >
+  Implement the Outbox Pattern in the Orders service. Create an outbox table: outbox (id UUID PRIMARY
+  KEY, aggregate_id VARCHAR, event_type VARCHAR, payload JSONB, created_at TIMESTAMP, processed_at
+  TIMESTAMP). Insert the event row within the same serializable transaction as the order INSERT.
+  Run a background poller every 100ms that SELECTs unprocessed rows (processed_at IS NULL) ordered
+  by created_at, publishes each to the orders Kafka topic, and marks processed_at = NOW(). Use
+  batch processing with a configurable batch size (default 50). Record delivery attempts and
+  implement retry with exponential backoff for failed publications.
+sources:
+  - https://microservices.io/patterns/data/transactional-outbox.html
+  - https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html
+  - https://www.kamilgrzybek.com/blog/the-outbox-pattern
+tags:
+  - outbox
+  - dual-write
+  - event-delivery
+  - cdc
+  - message-relay
+  - transactional-messaging

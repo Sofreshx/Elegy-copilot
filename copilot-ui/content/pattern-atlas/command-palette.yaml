@@ -1,0 +1,78 @@
+id: command-palette
+name: Command Palette
+aliases:
+  - cmd-k
+  - quick-actions
+  - spotlight-search
+  - command-menu
+type: ui-component
+domain: ui-ux
+confidence: established
+tagline: A keyboard-activated overlay providing instant access to search, commands, and actions — popularized by the ⌘K pattern.
+description: >
+  The Command Palette is a power-user interface pattern that provides instant
+  keyboard access to all application commands, navigation destinations, and
+  search functionality through a single unified overlay. Popularized by code
+  editors like VS Code (⌘+Shift+P), Slack (⌘+K), and macOS Spotlight (⌘+Space),
+  the pattern has become a standard feature in modern applications.
+
+  The palette typically opens with a keyboard shortcut (⌘K or ⌘P), displaying
+  a search input with a list of contextual actions. As the user types, the
+  list filters in real time to show matching commands, pages, files, or
+  actions. The palette can be contextual — showing different commands based
+  on the current application state — or global. Results are organized into
+  sections with icons, keyboard shortcuts, and descriptions.
+
+  Key UX requirements: instant open/close animation, focus auto-placed on
+  the search input, keyboard navigation (arrows, Enter, Escape), fuzzy or
+  prefix matching, section headers for categorized results, and recent/
+  frequently-used command prioritization. The palette should handle empty
+  states, loading states for async search, and provide a visible keyboard
+  shortcut hint even when closed.
+traits:
+  - Global keyboard shortcut (⌘K/⌘P) to open from anywhere in the application
+  - Auto-focused search input with real-time filtering
+  - Keyboard-only navigation (arrows, Enter, Escape)
+  - Fuzzy or prefix-based matching with highlighted matches
+  - Sectioned results with icons, descriptions, and shortcut hints
+bestFit:
+  - Complex applications with many commands, views, or navigation destinations
+  - Developer tools, IDEs, and productivity applications
+  - Content-rich platforms where searching is a primary interaction mode
+avoidIf:
+  - The application has fewer than 10-15 total commands or navigation items
+  - The user base is non-technical and primarily mouse-oriented
+  - Keyboard shortcuts conflict with browser or OS defaults
+commonFailures:
+  - Having too few or irrelevant commands, making the palette feel empty or useless
+  - Failing to prioritize recent/frequent items, forcing users to search for common actions
+  - Not closing the palette when it loses focus or the user presses Escape
+contrasts:
+  - term: Combobox
+    difference: A command palette is a global action/navigation overlay with keyboard-first interaction; a combobox is a form field for data entry with suggestions.
+  - term: Search Bar
+    difference: A search bar is typically persistently visible and focused on content search; a command palette is an overlay for executing commands and navigating.
+compatibilities:
+  - combobox
+  - progressive-disclosure
+  - keyboard-nav
+promptLanguage: >
+  Design a command palette activated by ⌘K (or Ctrl+K). When opened, overlay
+  a centered modal with a search input auto-focused. As the user types,
+  filter through available commands, navigation items, and actions in real
+  time using fuzzy matching. Show matching results in sections with icons,
+  keyboard shortcut labels, and descriptions. Arrow keys navigate results,
+  Enter executes the selected item, Escape closes. Prioritize recent and
+  frequently used items. Show a loading spinner for async search results.
+  Include a hint near the app's search bar or footer indicating "Press ⌘K to
+  search commands."
+sources:
+  - https://www.nngroup.com/articles/command-palette/
+  - https://code.visualstudio.com/docs/getstarted/userinterface#_command-palette
+  - https://cmdk.paco.me/
+tags:
+  - command-palette
+  - cmd-k
+  - keyboard-shortcuts
+  - quick-actions
+  - search

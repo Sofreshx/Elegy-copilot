@@ -43,7 +43,7 @@ describe('sidebar', () => {
       />
     );
     expect(screen.getByTestId('sidebar-item-repositories')).toBeInTheDocument();
-    expect(screen.getByTestId('sidebar-item-lexicon')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-item-pattern-atlas')).toBeInTheDocument();
   });
 
   it('is always visible as fixed-width icon rail without collapse', async () => {
@@ -73,8 +73,8 @@ describe('sidebar', () => {
         onNavigate={() => {}}
       />
     );
-    const lexiconBtn = screen.getByTestId('sidebar-item-lexicon');
-    expect(lexiconBtn).toHaveAttribute('aria-label', 'Lexicon');
+    const lexiconBtn = screen.getByTestId('sidebar-item-pattern-atlas');
+    expect(lexiconBtn).toHaveAttribute('aria-label', 'Pattern Atlas');
     expect(lexiconBtn).toHaveAttribute('title');
     expect(lexiconBtn.querySelector('.sidebar-item-icon')).toBeInTheDocument();
   });

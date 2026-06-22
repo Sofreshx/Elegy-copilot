@@ -1,0 +1,78 @@
+id: art-deco
+name: Art Deco
+aliases:
+  - art-deco-style
+  - art-moderne
+  - style-moderne
+type: visual-style
+domain: visual-style
+confidence: established
+tagline: A luxurious 1920s-1930s design style characterized by geometric ornament, rich materials, symmetry, and bold metallic accents.
+description: >
+  Art Deco emerged in France after World War I and reached its peak at the
+  1925 Exposition Internationale des Arts Décoratifs et Industriels Modernes
+  in Paris. It represents a synthesis of multiple influences — Cubism, Bauhaus,
+  Egyptian and Aztec motifs, Fauvism, and the Ballets Russes. Unlike the
+  handcrafted organic forms of Art Nouveau that preceded it, Art Deco embraced
+  machine-age aesthetics, geometric patterning, and industrial materials.
+
+  The visual language of Art Deco is defined by sunburst motifs, chevrons,
+  stepped forms, and geometric repeats. The color palette favors rich, warm
+  tones — gold, silver, chrome, black, deep reds, emerald greens, and
+  sapphire blues. Materials in architecture and product design were
+  deliberately luxurious: mahogany, ivory, chrome, lacquer, stained glass,
+  and marble. Typography is decorative but clean, often custom lettering with
+  geometric construction.
+
+  Art Deco experienced a major revival in the 1980s and continues to
+  influence contemporary design, particularly in luxury branding, hospitality
+  design, and poster/vintage aesthetic work. In UI design, Art Deco flourishes
+  are used for hero sections, premium brand experiences, and themed interfaces.
+  The 2020s have seen renewed interest through period media like The Great
+  Gatsby.
+traits:
+  - Geometric ornamentation (sunbursts, chevrons, stepped forms, zigzags)
+  - Rich, luxurious color palette (gold, silver, black, jewel tones)
+  - Symmetrical compositions with strong vertical emphasis
+  - Blend of expensive materials and industrial finishes
+  - Decorative typography with geometric letterforms
+bestFit:
+  - Luxury brands in hospitality, fashion, jewelry, and spirits
+  - Themed interfaces and event branding needing period authenticity
+  - Premium product packaging and editorial design
+avoidIf:
+  - The brand demands democratic, accessible, or mass-market positioning
+  - Minimalist or functionalist philosophy is core to the brand identity
+  - The interface needs to feel contemporary rather than retro or nostalgic
+commonFailures:
+  - Over-ornamenting to the point where content is overwhelmed by decoration
+  - Using Art Deco motifs without understanding their geometric construction principles
+  - Mixing Art Deco with incompatible styles in a way that feels thematically confused
+contrasts:
+  - term: Bauhaus
+    difference: Art Deco is decorative, luxurious, and celebrates ornament; Bauhaus is reductive, functionalist, and rejects decoration as unnecessary.
+  - term: Memphis Design
+    difference: Art Deco is symmetrical, ordered, and luxurious; Memphis Design is deliberately irrational, playful, and rejects conventional taste.
+compatibilities:
+  - maximalism
+  - skeuomorphism
+  - dashboard-layout
+promptLanguage: >
+  Design an Art Deco-inspired composition. Use geometric motifs: sunbursts,
+  chevrons, stepped arches, and repeating angular patterns. The color palette
+  should be rich and luxurious — gold or chrome metallic accents against deep
+  black, emerald, ruby, or sapphire. Build symmetrically with strong vertical
+  lines. Use decorative typography with geometric letter construction. Add
+  ornamental borders and frames. The overall feel should be opulent, confident,
+  and machine-age elegant. This works well for luxury brand headers, event
+  posters, or premium packaging.
+sources:
+  - https://en.wikipedia.org/wiki/Art_Deco
+  - https://www.vam.ac.uk/collections/art-deco
+  - https://www.metmuseum.org/toah/hd/fldr/hd_fldr.htm
+tags:
+  - art-deco
+  - geometric-design
+  - luxury-design
+  - 1920s-style
+  - ornamental

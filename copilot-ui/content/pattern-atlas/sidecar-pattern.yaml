@@ -1,0 +1,75 @@
+id: sidecar-pattern
+name: Sidecar Pattern
+aliases:
+  - Sidecar
+  - Co-located Helper
+type: system-pattern
+domain: software-architecture
+confidence: established
+tagline: Deploy supporting components (logging, proxy, monitoring) as co-located containers alongside the main application.
+description: >
+  The Sidecar Pattern deploys a helper process (the sidecar) alongside the main application process
+  in the same deployment unit — typically the same pod, VM, or service instance. The sidecar shares
+  the lifecycle of the main process but runs independently, providing cross-cutting services such as
+  logging, monitoring, service discovery, traffic proxying, and configuration management without
+  modifying the application code.
+
+  This pattern is central to service mesh architectures, where a sidecar proxy (Envoy, Linkerd-proxy)
+  handles inter-service communication, retries, observability, and mTLS for every service instance.
+  The main application is unaware of the network — it communicates only with localhost, and the
+  sidecar handles all external traffic. This allows operations teams to add infrastructure
+  capabilities without application changes.
+
+  The Sidecar Pattern is one of three decomposition patterns alongside the Ambassador Pattern
+  (external communication helper) and the Adapter Pattern (output normalization). It is most
+  effective when the platform supports sidecar injection (Kubernetes admission webhooks, Nomad
+  task groups) so that sidecars can be attached declaratively rather than manually configured in
+  every deployment.
+traits:
+  - Co-located with the main process in the same deployment unit
+  - Shares lifecycle (start, stop, restart) with the main container
+  - Provides infrastructure capabilities without application code changes
+  - Communicates with the main process via localhost (not external network)
+  - Supports sidecar injection for declarative attachment
+bestFit:
+  - Adding observability (logs, metrics, traces) to applications that cannot be modified
+  - Service mesh traffic management (routing, retry, mTLS) via sidecar proxies
+  - Applications that need a local caching or configuration agent
+avoidIf:
+  - The main process already embeds the required capability (sidecar adds unnecessary complexity)
+  - The deployment platform cannot manage shared lifecycle (sidecar must start before the main process)
+  - Resource overhead of an extra container per instance is prohibitive
+commonFailures:
+  - Lifecycle mismatch: the sidecar is not ready when the main process starts, causing startup failures
+  - Resource contention: the sidecar and main process compete for CPU/memory without configured limits
+  - Over-abstraction: developers assume the sidecar handles concerns (e.g., mTLS) that they still need to configure correctly
+contrasts:
+  - term: Ambassador Pattern
+    difference: The Ambassador Pattern places a helper process that acts as a proxy for outbound connections; the Sidecar Pattern co-locates helpers for both inbound and outbound functions. An ambassador is a specialized sidecar focused on outbound or external communication.
+  - term: Adapter Pattern (Deployment)
+    difference: The Adapter Pattern normalizes a legacy application's output to a standard interface (e.g., converting log formats); the Sidecar Pattern provides general-purpose infrastructure, not just output normalization.
+compatibilities:
+  - api-gateway
+  - circuit-breaker
+  - retry-pattern
+  - service-mesh
+promptLanguage: >
+  Deploy an Envoy sidecar proxy alongside the user-service container in the same Kubernetes pod.
+  Configure the sidecar to handle all inbound and outbound traffic, adding mTLS, request-level
+  metrics, and distributed tracing headers (OpenTelemetry). The user-service process listens on
+  localhost:8080. The Envoy sidecar listens on port 8443 (inbound) and forwards to localhost:8080.
+  Outbound traffic from user-service goes to localhost:8443 (Envry's outbound listener) which
+  handles routing and mTLS to downstream services. Use a mutating admission webhook to inject the
+  sidecar automatically.
+sources:
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/sidecar
+  - https://www.infoq.com/articles/sidecar-pattern-microservices-ise/
+  - https://istio.io/latest/docs/reference/config/networking/sidecar/
+  - https://www.envoyproxy.io/
+tags:
+  - sidecar
+  - service-mesh
+  - envoy
+  - kubernetes
+  - observability
+  - proxy

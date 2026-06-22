@@ -1,0 +1,76 @@
+id: breadcrumb
+name: Breadcrumb
+aliases:
+  - breadcrumb-trail
+  - breadcrumb-nav
+  - breadcrumb-path
+type: ui-component
+domain: ui-ux
+confidence: established
+tagline: A secondary navigation aid that shows the user's location in a hierarchical structure, with links back to each ancestor level.
+description: >
+  A breadcrumb trail displays the user's current location within a site or
+  application's hierarchical structure, showing each ancestor level as a
+  clickable link separated by a divider character (typically >, /, or an
+  arrow icon). The last item in the trail is the current page and is
+  typically rendered as plain text (not a link). Breadcrumbs provide a quick
+  way to navigate upward without using the browser's back button.
+
+  Breadcrumbs are most effective for deep, hierarchical sites with 3+ levels
+  of nested content — e-commerce category trees, documentation sites, settings
+  pages, and file browsers. They should appear at the top of the content area,
+  below any global navigation. The WAI-ARIA breadcrumb pattern uses
+  `nav aria-label="Breadcrumb"` with an ordered list structure and
+  `aria-current="page"` on the current item.
+
+  There are two main types: location-based (shows the actual hierarchy path)
+  and path-based (shows the user's navigation history). Location-based is the
+  standard and preferred pattern. Breadcrumbs should not replace primary
+  navigation — they are a supplement. On mobile, breadcrumbs may be truncated
+  or replaced with a dropdown of ancestor pages.
+traits:
+  - Hierarchical trail with clickable ancestor links
+  - Current page identified as plain text with aria-current="page"
+  - Consistent divider between levels (>, /, arrow icon)
+  - Positioned at top of content area below global navigation
+  - Truncated or collapsed on narrow viewports
+bestFit:
+  - E-commerce category hierarchies with deep navigation trees
+  - Documentation sites with multi-level content organization
+  - Settings and configuration interfaces with nested sections
+avoidIf:
+  - The site has a flat structure with 1-2 levels of hierarchy
+  - Primary navigation is already hierarchical and visible
+  - The application is a single-page app with no deep navigation paths
+commonFailures:
+  - Making breadcrumb items too long, causing horizontal overflow and truncation
+  - Duplicating the current page as both a link and the active item
+  - Placing breadcrumbs where they interfere with primary navigation or page headers
+contrasts:
+  - term: Tab Navigation
+    difference: Breadcrumbs show hierarchical depth and upward navigation; tabs show sibling pages at the same level for lateral switching.
+  - term: Progress Stepper/Wizard
+    difference: Breadcrumbs reflect the current location in a static hierarchy; a wizard stepper shows progress through a linear sequence of steps.
+compatibilities:
+  - wizard-pattern
+  - progressive-disclosure
+  - dashboard-layout
+promptLanguage: >
+  Design a breadcrumb navigation component. Use a semantic nav element with
+  aria-label="Breadcrumb". Render items as an ordered list. Each ancestor is
+  a link (<a>) with a divider (chevron icon or slash) between items. The
+  current page item is plain text with aria-current="page". Truncate long
+  labels with ellipsis. On mobile, collapse intermediate levels into a
+  dropdown or show only the first and last items. Ensure adequate touch
+  targets (44x44px) for each link. Style active/hover/focus states for each
+  breadcrumb link.
+sources:
+  - https://www.w3.org/WAI/ARIA/apg/patterns/breadcrumb/
+  - https://developers.google.com/style/breadcrumbs
+  - https://www.nngroup.com/articles/breadcrumbs/
+tags:
+  - breadcrumb
+  - navigation
+  - hierarchy
+  - secondary-nav
+  - location

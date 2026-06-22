@@ -1,0 +1,75 @@
+id: rate-limiter
+name: Rate Limiter
+aliases:
+  - Rate Limiting
+  - Throttling
+  - Request Throttling
+type: system-pattern
+domain: security-reliability
+confidence: established
+tagline: Control the rate of requests to a service to prevent abuse, ensure fair usage, and maintain stability.
+description: >
+  Rate Limiting controls how many requests a client can make within a specific time window. It
+  protects services from abuse, DDoS attacks, and unintentional traffic spikes. Rate limiters are
+  typically deployed at the API Gateway, load balancer, or application middleware layer. When a
+  client exceeds the limit, the service returns HTTP 429 (Too Many Requests) with a Retry-After
+  header.
+
+  Common algorithms: Token Bucket (tokens refill at a fixed rate, bursts allowed up to bucket size),
+  Leaky Bucket (requests processed at a fixed rate, excess queued or dropped), Fixed Window (count
+  per window, resets completely — prone to boundary spikes), Sliding Window Log (tracks individual
+  timestamps for precise counts), and Sliding Window Counter (approximate count using Redis sorted
+  sets). The choice depends on whether burst tolerance and precision are required.
+
+  Rate limits can be applied globally (across all clients), per user, per API key, or per IP
+  address. They are often tiered (free tier: 100 req/h, pro tier: 10000 req/h). The rate limiter
+  must be fast and distributed-friendly — Redis is a common implementation choice. Rate limit
+  headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset) should be returned to
+  clients for transparency.
+traits:
+  - Limits request rate per client, user, IP, or API key
+  - Multiple algorithms with different trade-offs (burst, precision, memory)
+  - Returns 429 status code when limit is exceeded
+  - Must be fast and operate in near-zero latency
+  - Distributed-friendly implementations required for multi-instance services
+bestFit:
+  - Public APIs that need to prevent abuse and ensure fair usage
+  - Services vulnerable to traffic spikes that could cause instability
+  - Multi-tenant systems where one tenant should not impact others
+avoidIf:
+  - All clients are trusted and traffic is predictable (rate limiting adds unnecessary complexity)
+  - The service requires real-time burst handling that token bucket or sliding window cannot provide
+  - The rate limiter becomes a bottleneck itself (latency-critical systems)
+commonFailures:
+  - Ineffective limits: limits are set too high to be meaningful or too low, blocking legitimate users
+  - Distributed inconsistency: rate limit state is not shared across service instances, allowing circumvention
+  - Missing headers: clients cannot see their limits and remaining quota, causing confusion and retries
+contrasts:
+  - term: Circuit Breaker
+    difference: Circuit Breaker stops all requests when a downstream service is failing; Rate Limiter limits request volume per client to prevent overload. Circuit Breaker protects downstream; Rate Limiter protects upstream.
+  - term: Backpressure
+    difference: Backpressure is a flow control mechanism where consumers signal producers to slow down; Rate Limiter is a server-side policy that rejects excess requests regardless of consumer capacity.
+compatibilities:
+  - api-gateway
+  - circuit-breaker
+  - caching-strategies
+  - sidecar-pattern
+promptLanguage: >
+  Implement a distributed rate limiter using the Sliding Window Counter algorithm with Redis. For
+  each API key, maintain a sorted set of request timestamps with TTL equal to the window duration.
+  On each request, remove timestamps older than 1 minute, count remaining entries, and reject with
+  429 if count exceeds the limit (100 req/min for free tier, 1000 for pro). Store rate limit state
+  in Redis with the key pattern ratelimit:{api_key}:{endpoint}. Return X-RateLimit-Limit,
+  X-RateLimit-Remaining, and X-RateLimit-Reset headers. Use Lua scripting for atomic operations.
+sources:
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/rate-limiting
+  - https://stripe.com/blog/rate-limiters
+  - https://konghq.com/blog/how-to-design-a-scalable-rate-limiting-algorithm/
+  - https://redis.io/commands/INCR/
+tags:
+  - rate-limiting
+  - throttling
+  - api-protection
+  - dos-protection
+  - token-bucket
+  - sliding-window

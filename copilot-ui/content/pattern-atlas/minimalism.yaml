@@ -1,0 +1,78 @@
+id: minimalism
+name: Minimalism
+aliases:
+  - minimalist-design
+  - minimal-ui
+  - less-is-more
+type: visual-style
+domain: visual-style
+confidence: established
+tagline: A design philosophy of reducing to essentials — stripping away the non-essential to let function and content speak with clarity and precision.
+description: >
+  Minimalism in design is the practice of reducing a composition to its
+  essential elements, removing anything that is decorative, excessive, or
+  non-functional. The philosophy is encapsulated by architect Ludwig Mies van
+  der Rohe's principle "less is more" and Dieter Rams' design maxim "less,
+  but better." In UI and visual design, minimalism means ruthless editing —
+  every element must earn its place.
+
+  Key visual characteristics include abundant whitespace (or negative space),
+  limited color palettes (often monochromatic or near-monochromatic), clean
+  typography with strong hierarchy, and a focus on content as the primary
+  visual element. Minimalist interfaces reduce cognitive load by presenting
+  only what the user needs at each moment. This does not mean "simple" or
+  "easy" — minimalism requires significant discipline to execute well.
+
+  Minimalism has been a dominant influence in web and UI design since the
+  early 2000s, with Apple's product design and website serving as canonical
+  examples. It overlaps with flat design but is a broader philosophy
+  applicable to architecture, product design, typography, and lifestyle.
+  Modern minimalism continues to evolve, often incorporating subtle depth,
+  micro-interactions, and animation without violating its core tenets.
+traits:
+  - Abundant whitespace as a deliberate compositional element
+  - Limited, often monochromatic or restrained color palette
+  - Typography as the primary expressive element
+  - Removal of all decorative or non-functional elements
+  - Strong focus on content hierarchy and readability
+bestFit:
+  - Content-forward interfaces where clarity and reading experience are paramount
+  - Premium brand experiences communicating elegance and sophistication
+  - High-density information displays where every pixel must earn its place
+avoidIf:
+  - The brand identity thrives on abundance, energy, and visual richness
+  - The interface needs strong visual affordances that minimalism cannot provide
+  - The target audience finds sparse interfaces cold, unwelcoming, or confusing
+commonFailures:
+  - Confusing "minimal" with "simple to execute" — minimalism requires exceptional craft and precision
+  - Removing navigational affordances to the point where users cannot find core features
+  - Creating interfaces that feel sterile, cold, or impersonal through excessive reduction
+contrasts:
+  - term: Maximalism
+    difference: Minimalism reduces to essential elements with restraint; maximalism embraces abundance, layering, and sensory density by design.
+  - term: Flat Design
+    difference: Flat design is a specific visual treatment (no gradients/shadows); minimalism is a broader philosophy of reduction that can include subtle depth.
+compatibilities:
+  - swiss-style
+  - bauhaus
+  - flat-design
+  - progressive-disclosure
+promptLanguage: >
+  Design a minimalist interface. Use whitespace abundantly as a structural
+  and breathing element. Limit the color palette to two or three colors
+  maximum — consider a monochromatic or near-monochromatic scheme. Choose a
+  single typeface family and create hierarchy through weight, size, and
+  spacing. Remove every decorative element that does not serve a functional
+  purpose. Each component must justify its existence. The content should be
+  the most visually prominent element on the page. Test by asking: "Does this
+  element add clarity or noise?"
+sources:
+  - https://en.wikipedia.org/wiki/Minimalism
+  - https://www.interaction-design.org/literature/topics/minimalist-design
+  - https://www.vitsoe.com/us/about/good-design
+tags:
+  - minimalism
+  - less-is-more
+  - whitespace
+  - content-first
+  - essential-design

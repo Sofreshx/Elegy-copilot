@@ -1,0 +1,73 @@
+id: onion-architecture
+name: Onion Architecture
+aliases:
+  - Onion Architecture
+  - Concentric Layers Architecture
+type: system-pattern
+domain: software-architecture
+confidence: established
+tagline: Organize code into concentric layers with dependencies pointing inward toward the domain.
+description: >
+  Onion Architecture organizes application code into concentric layers, with the domain model at the
+  center and infrastructure on the outer ring. Dependencies point strictly inward — outer layers can
+  depend on inner layers, but inner layers never depend on outer layers. The innermost layer
+  (domain) contains entities, value objects, and domain services with zero external dependencies.
+  The application layer contains use cases and application services that orchestrate domain objects.
+  The infrastructure layer implements persistence, messaging, and external API integrations.
+
+  The architecture enforces a strict separation of concerns by preventing infrastructure concerns
+  from leaking into business logic. It shares the dependency-inversion principle with Hexagonal
+  Architecture but expresses it differently: as concentric boundaries rather than ports and adapters.
+  Jeffrey Palermo introduced Onion Architecture as an evolution of layered architecture that places
+  the domain at the center, not the database.
+
+  This pattern works well with Domain-Driven Design, where each bounded context can be structured as
+  an onion. It also aligns naturally with CQRS — commands and queries (application layer) orchestrate
+  domain behavior (domain layer) through repository interfaces that are implemented in the
+  infrastructure layer.
+traits:
+  - Domain layer at the center with zero external dependencies
+  - Application layer defines use cases and orchestrates domain objects
+  - Infrastructure layer implements interfaces defined by inner layers
+  - Dependencies point strictly inward
+  - Interfaces (ports) are defined where they are consumed, not where they are implemented
+bestFit:
+  - Enterprise applications with complex business logic that must remain framework-independent
+  - DDD projects needing clear layer boundaries between domain, application, and infrastructure
+  - Long-lived codebases where maintainability and domain clarity are top priorities
+avoidIf:
+  - The application is dominated by data movement with little business logic
+  - The team prefers simpler organization (e.g., feature folders) and finds layers cumbersome
+  - Framework coupling is not a concern and infrastructure can safely live alongside domain code
+commonFailures:
+  - Layer skipping: application code directly calls infrastructure, bypassing domain layer
+  - Anemic domain: the domain layer contains only data structures, pushing all logic to application services
+  - Rigid layering: every cross-cutting concern (logging, caching, auth) requires plumbing through all layers
+contrasts:
+  - term: Hexagonal Architecture
+    difference: Onion Architecture uses concentric layering with strict inward dependencies; Hexagonal Architecture uses ports and adapters as the abstraction mechanism. Onion organizes by layer, Hexagonal organizes by port/adapter pairs. Both achieve domain isolation via dependency inversion.
+  - term: Traditional Layered Architecture (N-tier)
+    difference: N-tier typically places the database at the bottom and dependencies point downward; Onion Architecture places the domain at the center and inverts dependencies so infrastructure depends on domain, not the other way around.
+compatibilities:
+  - hexagonal-architecture
+  - cqrs
+  - domain-driven-design
+  - event-sourcing
+promptLanguage: >
+  Structure the OrderManagement bounded context using Onion Architecture. Create four projects:
+  Domain (entities, value objects, domain events), Application (use case interfaces, command/query
+  handlers, DTOs), Infrastructure (DbContext, repository implementations, message bus), and Api
+  (controllers, middleware, DI composition root). References: Api → Application → Domain, and
+  Api → Infrastructure, and Application → Domain. Infrastructure implements interfaces from
+  Application or Domain. The Domain project must have no external package references.
+sources:
+  - https://jeffreypalermo.com/2008/07/the-onion-architecture-part-1/
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/onion-architecture
+  - https://www.codeguru.com/csharp/onion-architecture/
+tags:
+  - onion-architecture
+  - layers
+  - domain-driven-design
+  - dependency-inversion
+  - architecture
+  - enterprise-patterns

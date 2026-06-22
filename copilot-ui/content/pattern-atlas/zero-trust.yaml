@@ -1,0 +1,76 @@
+id: zero-trust
+name: Zero Trust Architecture
+aliases:
+  - Zero Trust
+  - ZTA
+  - Never Trust, Always Verify
+type: system-pattern
+domain: security-reliability
+confidence: emerging
+tagline: No entity is trusted by default; every access request is authenticated, authorized, and inspected.
+description: >
+  Zero Trust Architecture (ZTA) operates on the principle "never trust, always verify." Unlike
+  traditional perimeter-based security (castle-and-moat), where the internal network is trusted and
+  external traffic is the threat, Zero Trust assumes the network is always hostile — including
+  internal traffic. Every access request, regardless of origin, must be authenticated, authorized,
+  and continuously validated.
+
+  Key components include micro-segmentation (dividing the network into isolated zones with separate
+  access controls), least-privilege access (granting only the minimum permissions needed),
+  continuous monitoring (all traffic is logged and analyzed), and dynamic policy enforcement (access
+  decisions based on user identity, device health, location, and data sensitivity). MFA is typically
+  required for all access.
+
+  The National Institute of Standards and Technology (NIST) published Special Publication 800-207
+  defining ZTA. Implementation is often incremental — starting with identity-aware proxies, then
+  micro-segmentation, then continuous monitoring. The pattern is especially relevant with the rise
+  of remote work, cloud services, and SaaS adoption, where the traditional network perimeter no
+  longer exists.
+traits:
+  - No implicit trust based on network location (internal or external)
+  - Every access request is fully authenticated, authorized, and encrypted
+  - Micro-segmentation enforces granular access controls between workloads
+  - Continuous monitoring and logging of all access attempts
+  - Dynamic policy evaluation based on user, device, location, and data sensitivity
+bestFit:
+  - Organizations with remote/hybrid workforces accessing resources from untrusted networks
+  - Cloud-native and multi-cloud architectures without a fixed perimeter
+  - Regulated industries requiring strict access controls and auditability
+avoidIf:
+  - The organization has a fully air-gapped, physically isolated network with no remote access
+  - The team lacks the operational maturity to implement and maintain continuous verification
+  - Budget constraints prevent the necessary investment in identity management and monitoring
+commonFailures:
+  - Zero trust theater: implementing VPN or MFA in name only while still trusting internal network segments
+  - Overly permissive policies: micro-segmentation is applied too broadly, defeating the purpose
+  - Alert fatigue: continuous monitoring generates too many alerts, causing teams to ignore real threats
+contrasts:
+  - term: Perimeter-Based Security (Castle-and-Moat)
+    difference: Perimeter security trusts everything inside the corporate network; Zero Trust trusts nothing regardless of location. Perimeter relies on a single boundary; Zero Trust uses multiple checkpoints for every access.
+  - term: Least Privilege
+    difference: Least Privilege is a specific access control principle (minimum permissions); Zero Trust is a comprehensive security architecture that incorporates least privilege along with micro-segmentation, continuous monitoring, and dynamic policy enforcement.
+compatibilities:
+  - least-privilege
+  - api-gateway
+  - service-mesh
+  - sidecar-pattern
+promptLanguage: >
+  Implement Zero Trust for the corporate application stack. Deploy an identity-aware proxy
+  (Google IAP, Cloudflare Access, or Pomerium) in front of all internal applications, enforcing
+  authentication and authorization at the proxy level. Configure micro-segmentation with Kubernetes
+  Network Policies to isolate each service tier (web, API, data). Enforce mutual TLS (mTLS) between
+  all services using Istio. Implement continuous logging and monitoring with Falco for runtime
+  anomaly detection. Require MFA for all access, including internal. Use OPA (Open Policy Agent)
+  for dynamic access policy evaluation.
+sources:
+  - https://www.nist.gov/publications/zero-trust-architecture
+  - https://www.cisa.gov/zero-trust-maturity-model
+  - https://cloud.google.com/architecture/security/zero-trust-architecture
+  - https://www.oreilly.com/library/view/zero-trust-networks/9781491962306/
+tags:
+  - zero-trust
+  - security
+  - micro-segmentation
+  - identity-management
+  - nist
+  - beyond-corp

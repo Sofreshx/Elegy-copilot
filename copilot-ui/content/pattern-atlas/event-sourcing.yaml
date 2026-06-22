@@ -1,0 +1,73 @@
+id: event-sourcing
+name: Event Sourcing
+aliases:
+  - Event Store
+  - Event Log
+  - Append-Only Log
+type: system-pattern
+domain: software-architecture
+confidence: established
+tagline: Persist state as an append-only sequence of domain events; derive current state by replay.
+description: >
+  Event Sourcing stores every state-changing event as an immutable, append-only record in an event
+  store, rather than storing current state directly. The current state of any aggregate is derived by
+  replaying all its events in order. This provides a complete audit trail, enables temporal queries
+  ("what was the state at time T?"), and makes it possible to rebuild read models or project
+  different views from the same event stream.
+
+  The event store is the system of record. Events are never updated or deleted — only appended.
+  Projections (also called subscribers or handlers) consume the event stream to build denormalized
+  read models, trigger side effects, or feed analytics pipelines. This decoupling of write-side
+  (append-only) from read-side (projected) maps naturally to CQRS.
+
+  Event Sourcing introduces complexity: event schema evolution, consistent stream ordering, and the
+  computational cost of replaying long streams. Snapshots — periodic saves of aggregate state —
+  mitigate replay cost. The pattern is most justified when audit, traceability, or temporal query is
+  a hard requirement, not merely a nice-to-have.
+traits:
+  - Append-only event store is the single source of truth
+  - Current state derived by replaying events (with optional snapshot optimization)
+  - Complete, immutable audit log of every state change
+  - Enables temporal queries and time-travel debugging
+  - Event schema evolves over time; requires migration or versioning strategy
+bestFit:
+  - Systems requiring a complete audit trail (finance, compliance, healthcare)
+  - Complex domains where business state changes must be traced and explainable
+  - Applications that need multiple read models derived from the same write stream
+avoidIf:
+  - Simple CRUD with no audit requirements (Event Sourcing adds overhead without benefit)
+  - Event volumes are extreme and replay cost is unacceptable (projections must be kept current)
+  - The team is unfamiliar with eventual consistency and stream projection mechanics
+commonFailures:
+  - Event schema rigidity: events are published without versioning, making schema evolution impossible
+  - Projection drift: projections fall behind the event stream, serving stale read models
+  - Over-engineered snapshots: snapshot logic itself becomes a maintenance burden without measurable benefit
+contrasts:
+  - term: Transactional Outbox
+    difference: The Outbox pattern buffers events for reliable delivery without changing the storage model; Event Sourcing replaces the storage model entirely — events ARE the state, not a side effect of state changes.
+  - term: CQRS
+    difference: CQRS separates read models from write models architecturally; Event Sourcing is a specific write-side persistence strategy that pairs naturally with CQRS but can be used independently.
+compatibilities:
+  - cqrs
+  - transactional-outbox
+  - database-per-service
+  - materialized-view
+promptLanguage: >
+  Design the Order aggregate using Event Sourcing. Define events: OrderPlaced, OrderConfirmed,
+  OrderShipped, OrderCancelled. Each event carries a timestamp, aggregate ID, version, and
+  domain-specific payload. Store events in an append-only event store table (PostgreSQL or
+  DynamoDB). Implement an aggregate repository that loads state by replaying events and saves by
+  appending new events atomically. Take a snapshot every 100 events to bound replay cost. Publish
+  events to a message broker for downstream projections (read models, analytics).
+sources:
+  - https://martinfowler.com/eaaDev/EventSourcing.html
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/event-sourcing
+  - https://microservices.io/patterns/data/event-sourcing.html
+  - https://www.eventstore.com/
+tags:
+  - event-sourcing
+  - events
+  - audit-log
+  - append-only
+  - cqrs
+  - event-store

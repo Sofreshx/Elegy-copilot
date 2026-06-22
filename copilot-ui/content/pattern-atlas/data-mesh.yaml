@@ -1,0 +1,76 @@
+id: data-mesh
+name: Data Mesh
+aliases:
+  - Data Mesh Architecture
+  - Domain-Oriented Data
+type: system-pattern
+domain: data-integration
+confidence: emerging
+tagline: Decentralize data ownership by domain, treating data as a product with federated governance.
+description: >
+  Data Mesh is a socio-technical architecture that applies microservice principles to data platforms.
+  It shifts away from centralized data lakes and warehouses managed by a single data engineering team
+  toward a model where domain teams own, produce, and serve their data as products. Each domain is
+  responsible for the quality, schema, documentation, and accessibility of its data — just as
+  microservice teams own their APIs.
+
+  Zhamak Dehghani introduced the concept with four principles: domain ownership (data is owned by
+  the domain that produces it), data as a product (each dataset is treated as a product with SLAs,
+  schema, and documentation), self-serve data platform (domain teams get tooling to build and serve
+  data products without central bottlenecks), and federated computational governance (global
+  standards for interoperability are enforced automatically, not by a central team).
+
+  Data Mesh is not a specific technology but an organizational and architectural paradigm. It
+  typically requires a self-serve infrastructure layer (data catalog, schema registry, policy
+  engine) and cultural adoption of data product thinking. It is most applicable in large
+  organizations where a central data team cannot scale to meet all domain data needs. The
+  transition from centralized data platforms to a mesh involves significant cultural and
+  organizational change.
+traits:
+  - Domain teams own and serve their data as products
+  - Data products have defined SLAs, schemas, documentation, and access controls
+  - Self-serve platform provides shared infrastructure without central bottlenecks
+  - Federated governance enforces global standards through automation, not gatekeeping
+  - Requires significant organizational and cultural change from centralized models
+bestFit:
+  - Large enterprises where a centralized data team is a bottleneck for domain analytics needs
+  - Organizations already practicing domain-driven design or microservices (natural extension)
+  - Multi-domain contexts where each domain has unique data semantics and quality requirements
+avoidIf:
+  - The organization is small enough that a central data team can serve all needs effectively
+  - There is no executive sponsorship for the required organizational restructuring
+  - Domain teams lack the skills or resources to own data as products (platform uplift needed first)
+commonFailures:
+  - Data mesh in name only: teams rename their data pipelines as "data products" without changing ownership or quality practices
+  - Under-invested platform: the self-serve platform is too weak, forcing domain teams to build their own infrastructure
+  - Governance gaps: no federated governance means data products are inconsistent, unfindable, and unjoinable
+contrasts:
+  - term: Data Lake / Data Warehouse
+    difference: A data lake or warehouse centralizes data in a single repository managed by a central team; Data Mesh decentralizes ownership to domain teams, with data served as products rather than centralized in one store.
+  - term: Data Fabric
+    difference: Data Fabric is a technology-centric approach that virtually integrates distributed data sources via metadata and automation; Data Mesh is organization-centric, focusing on ownership and product thinking, though both aim to improve data accessibility.
+compatibilities:
+  - event-driven
+  - database-per-service
+  - domain-driven-design
+  - api-gateway
+promptLanguage: >
+  Transition the enterprise data platform to a Data Mesh. Identify bounded data domains: Customer,
+  Product, Order, Finance, and Inventory. Each domain team creates data products with documented
+  schemas, freshness SLAs, and access policies. Deploy a self-serve data platform with a data
+  catalog (Amundsen or DataHub), schema registry (Schema Registry), and a policy engine (OPA).
+  Implement federated governance through automated schema validation and data quality checks in the
+  CI/CD pipeline. Train domain teams on data product thinking and provide templates for data product
+  documentation.
+sources:
+  - https://martinfowler.com/articles/data-mesh-principles.html
+  - https://www.datamesharchitecture.com/
+  - https://oreil.ly/Data-Mesh
+  - https://www.thoughtworks.com/insights/blog/data-mesh
+tags:
+  - data-mesh
+  - data-architecture
+  - domain-driven-design
+  - data-product
+  - federated-governance
+  - data-platform

@@ -1,0 +1,70 @@
+id: flat-design
+name: Flat Design
+aliases:
+  - flat-ui
+  - flat-style
+type: visual-style
+domain: visual-style
+confidence: established
+tagline: A 2D aesthetic emphasizing simplicity, bold colors, and clean typography without gradients or shadows.
+description: >
+  Flat design emerged as a reaction against skeuomorphism's excessive realism,
+  stripping away all three-dimensional visual cues such as gradients, drop
+  shadows, textures, and bevels. The result is a crisp, minimalist interface
+  that prioritizes content clarity and fast visual scanning.
+
+  Rooted in the Swiss/International Typographic Style and Bauhaus principles,
+  flat design relies on bold color palettes (often high-contrast), generous
+  whitespace, and clean sans-serif typography. Icons are simplified to their
+  essence, and buttons communicate affordance through shape and placement
+  rather than simulated depth.
+
+  Microsoft's Metro design language (Windows 8) and Apple's iOS 7 redesign
+  brought flat design into mainstream UI practice. It remains foundational
+  to modern design systems, often hybridized with subtle depth cues in what
+  is sometimes called "flat 2.0" or "semi-flat" design.
+traits:
+  - No gradients, shadows, or three-dimensional effects
+  - Bold, high-contrast color palettes with limited hues
+  - Clean, sans-serif typography as a primary visual element
+  - Simplified icons and UI elements reduced to essential shapes
+  - Generous whitespace used for structure and hierarchy
+bestFit:
+  - Content-forward interfaces where visual noise competes with readability
+  - Design systems requiring consistent scaling across breakpoints
+  - Brands that communicate modernity, clarity, and approachability
+avoidIf:
+  - The product targets users who benefit from strong visual affordances and depth cues
+  - The brand identity relies on ornate detail, luxury, or tactile realism
+  - Navigation complexity requires hierarchical visual cues that flat surfaces cannot provide
+commonFailures:
+  - Confusing "flat" with "dull" — flat design still needs strong hierarchy and visual rhythm
+  - Reducing affordance to the point where clickable elements become invisible
+  - Overusing flat design's bold color palette to the point of visual fatigue
+contrasts:
+  - term: Skeuomorphism
+    difference: Flat design removes all real-world metaphor and texture; skeuomorphism deliberately recreates physical materials, lighting, and depth.
+  - term: Glassmorphism
+    difference: Glassmorphism uses semi-transparency and backdrop blur to create layered depth; flat design keeps surfaces fully opaque and two-dimensional.
+compatibilities:
+  - minimalism
+  - swiss-style
+  - card-layout
+promptLanguage: >
+  Design a modern UI using flat design principles. Use a bold, high-contrast
+  color palette with no gradients, shadows, or 3D effects. Every element should
+  be two-dimensional. Use clean sans-serif typography for hierarchy. Icons
+  should be simplified to their essential forms. Rely on whitespace, color
+  contrast, and typographic weight — not depth — to create visual hierarchy.
+  Buttons should communicate clickability through shape and color alone. Keep
+  the interface crisp, readable, and content-first.
+sources:
+  - https://www.interaction-design.org/literature/topics/flat-design
+  - https://en.wikipedia.org/wiki/Flat_design
+  - https://www.nngroup.com/articles/flat-design/
+tags:
+  - flat-design
+  - minimal-ui
+  - modern-design
+  - 2d-interface
+  - bold-colors

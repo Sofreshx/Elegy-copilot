@@ -1,0 +1,79 @@
+id: combobox
+name: Combobox
+aliases:
+  - autocomplete
+  - typeahead
+  - suggest-box
+  - autosuggest
+type: ui-component
+domain: ui-ux
+confidence: established
+tagline: A text input combined with a dropdown list that provides real-time suggestions and supports free-form text entry.
+description: >
+  A combobox (also called autocomplete or typeahead) is a hybrid UI control
+  that combines a text input field with a dropdown list of suggestions. As the
+  user types, the control filters and displays matching options in real time,
+  allowing the user to either select from the list or continue typing a custom
+  value. The combobox saves keystrokes, reduces errors, and accelerates data
+  entry by suggesting valid options.
+
+  Comboboxes have two primary variants: the editable combobox (allows free-
+  form text input with suggestions) and the non-editable or "select" combobox
+  (requires selection from a list). ARIA guidelines define the combobox
+  pattern with specific keyboard interactions: arrow keys navigate options,
+  Enter selects, and Escape dismisses. A well-designed combobox handles
+  loading states, empty results, keyboard navigation, screen reader
+  announcements, and debounced async queries.
+
+  Comboboxes are essential for data entry in forms, search interfaces,
+  tag/person pickers, and any scenario where the input value must match a
+  defined set of options while still allowing free-form entry. The component
+  must balance suggestion relevance with performance, especially when querying
+  remote data sources.
+traits:
+  - Combines free-form text input with a filtered suggestion dropdown
+  - Real-time filtering and matching as the user types
+  - Keyboard navigation (arrows, Enter, Escape) for efficient selection
+  - Handles loading, empty, error, and no-results states
+  - Supports both single and multi-select variants
+bestFit:
+  - Form fields for country, state, city, or other controlled vocabularies
+  - Search interfaces with suggested queries or recent searches
+  - Tag, user, or entity pickers in collaborative and enterprise applications
+avoidIf:
+  - The option set is smaller than 5-7 items (a radio group or select is simpler)
+  - The options are not easily filterable or sortable by text input
+  - Mobile touch targets are constrained and the dropdown overlay is difficult to position
+commonFailures:
+  - Filtering options too aggressively so valid matches disappear as the user types
+  - Not debouncing async queries, causing excessive API calls on every keystroke
+  - Forgetting to announce dynamic list changes to screen readers via aria-live regions
+contrasts:
+  - term: Select/Dropdown
+    difference: A select requires choosing from a predefined list; a combobox allows free-form text input with suggested completion.
+  - term: Command Palette
+    difference: A command palette is a global keyboard-triggered overlay for executing commands; a combobox is a form field for data entry with suggestions.
+compatibilities:
+  - command-palette
+  - progressive-disclosure
+  - wizard-pattern
+promptLanguage: >
+  Design a combobox component that combines a text input with a filtered
+  dropdown list. The input should show a placeholder, support clearing,
+  and display the selected value. As the user types, filter and display
+  matching options in a dropdown below the input. Support keyboard navigation:
+  Arrow Up/Down to move through options, Enter to select, Escape to dismiss.
+  Show a loading state when fetching remote options. Display a "no results"
+  message when filtering yields empty. Announce list changes to screen
+  readers. The dropdown should be scrollable with a max-height and handle
+  long option lists efficiently.
+sources:
+  - https://www.w3.org/WAI/ARIA/apg/patterns/combobox/
+  - https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/combobox_role
+  - https://atlassian.design/components/combobox/
+tags:
+  - combobox
+  - autocomplete
+  - typeahead
+  - form-control
+  - dropdown

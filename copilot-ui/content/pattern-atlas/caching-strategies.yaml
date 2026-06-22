@@ -1,0 +1,74 @@
+id: caching-strategies
+name: Caching Strategies
+aliases:
+  - Cache-Aside
+  - Write-Through Cache
+  - Write-Behind Cache
+  - Cache Eviction
+type: system-pattern
+domain: data-integration
+confidence: established
+tagline: Improve read performance and reduce load by storing frequently accessed data in a high-speed cache.
+description: >
+  Caching strategies define how data flows between the primary data store and a cache layer. The
+  most common strategies are Cache-Aside (lazy loading), Write-Through, Write-Behind (Write-Back),
+  and Read-Through. Each strategy makes different trade-offs between read performance, write
+  latency, data staleness, and cache consistency.
+
+  Cache-Aside is the most widely used: the application checks the cache first; on a miss, it loads
+  data from the database, stores it in the cache, and returns it. Write-Through updates both the
+  cache and the database on every write, ensuring consistency but adding write latency. Write-Behind
+  (or Write-Back) updates the cache immediately and asynchronously writes to the database, offering
+  fast writes at the risk of data loss if the cache fails before the write is persisted.
+
+  Effective caching requires choosing the right eviction policy (LRU, LFU, TTL-based), setting
+  appropriate TTLs, and handling cache invalidation when underlying data changes. Over-caching
+  wastes memory; under-caching misses performance gains. Cache stampede (multiple concurrent misses
+  for the same key) must be mitigated with locking or probabilistic early expiration.
+traits:
+  - Reduces read latency and database load by storing hot data in fast storage (memory/SSD)
+  - Multiple strategies with different consistency and performance trade-offs
+  - Eviction policies determine which data stays in cache (LRU, LFU, TTL)
+  - Cache invalidation is the hardest problem — stale cache data causes correctness issues
+  - Works best for read-heavy, write-light workloads with manageable data volumes
+bestFit:
+  - Read-heavy applications with a small working set of frequently accessed data
+  - API responses that are expensive to compute but infrequently change
+  - Session state, user profiles, product catalog, and configuration data
+avoidIf:
+  - Writes dominate and cache invalidation overhead exceeds query savings
+  - Strong consistency between cache and source is required on every read
+  - The dataset is large relative to cache capacity with low access locality
+commonFailures:
+  - Stale data: cache TTLs are too long and users see outdated information
+  - Cache stampede: a popular cache key expires and thousands of concurrent requests hit the database
+  - Cache-as-sole-source: critical data is stored only in cache and lost on cache failure
+contrasts:
+  - term: Materialized View
+    difference: A Materialized View stores precomputed query results in the database itself, queryable via SQL; caching stores key-value data in an external cache layer (Redis, Memcached) and is not schema-queryable.
+  - term: Content Delivery Network (CDN)
+    difference: CDN caches static or dynamic content at edge locations geographically close to users; application caching (Cache-Aside, Write-Through) operates within the data center and caches application-level objects like database query results.
+compatibilities:
+  - materialized-view
+  - cqrs
+  - api-gateway
+  - database-per-service
+promptLanguage: >
+  Implement Cache-Aside for the Product Catalog API. On a product GET request, check Redis for the
+  product key (product:{id}). On a cache hit, return the cached JSON. On a miss, query PostgreSQL
+  for the product data, serialize to JSON, store in Redis with a 5-minute TTL, and return. On write
+  (product update), invalidate the cache key, then write to the database. Use a READ COMMITTED
+  isolation level to minimize concurrency issues. Set a memory limit with an LRU eviction policy.
+  Add cache hit/miss metrics to Prometheus.
+sources:
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/cache-aside
+  - https://aws.amazon.com/caching/
+  - https://redis.io/docs/manual/eviction/
+  - https://martinfowler.com/bliki/TwoHardThings.html
+tags:
+  - caching
+  - cache-aside
+  - write-through
+  - redis
+  - performance
+  - write-behind

@@ -1,0 +1,74 @@
+id: maximalism
+name: Maximalism
+aliases: []
+type: visual-style
+domain: visual-style
+confidence: descriptive
+tagline: A design philosophy that embraces abundance, layering, bold patterns, and sensory richness — more is more, deliberately.
+description: >
+  Maximalism is a design philosophy that intentionally breaks minimalism's
+  rules of restraint and reduction. Where minimalism says "less is more,"
+  maximalism answers "more is more." It celebrates visual abundance — layered
+  textures, clashing patterns, intense color combinations, ornate typography,
+  and dense composition. Every inch of space is an opportunity for visual
+  interest.
+
+  Historically, maximalism has appeared in many movements: Victorian design,
+  Art Nouveau, Memphis, postmodernism, and contemporary eclecticism. In UI
+  design, maximalism is less common for functional applications but appears
+  in creative portfolios, editorial sites, entertainment platforms, and brand
+  identities that want to communicate energy, creativity, and unapologetic
+  confidence. The key challenge is managing complexity without chaos —
+  maximalism still requires composition skill.
+
+  Maximalism excels at creating memorable, emotionally charged visual
+  experiences. It works best when there is a strong curatorial hand — not
+  simply adding everything, but deliberately layering elements with
+  intentionality. The best maximalist designs feel rich, not cluttered.
+  The rise of "more is more" in contemporary branding reflects a reaction
+  against the homogeneity of corporate minimalism.
+traits:
+  - Dense visual composition with multiple focal points
+  - Bold, often clashing color combinations and patterns
+  - Layered textures, overlapping elements, and rich detail
+  - Ornate or eclectic typography mixed across styles
+  - Deliberate rejection of restraint in service of sensory impact
+bestFit:
+  - Creative portfolios, entertainment, and editorial platforms
+  - Brand identities that need to communicate energy and cultural relevance
+  - Experiential and event-based design where memorability is key
+avoidIf:
+  - The interface serves utilitarian tasks requiring quick scanning and low cognitive load
+  - Accessibility and readability are primary constraints
+  - The brand identity requires trust, sobriety, and professional restraint
+commonFailures:
+  - Adding without editing — maximalism needs curation, not accumulation
+  - Sacrificing usability and readability for visual impact
+  - Creating visual noise that overwhelms rather than engages the viewer
+contrasts:
+  - term: Minimalism
+    difference: Maximalism embraces abundance and sensory density; minimalism strips to essentials. They exist on opposite ends of the visual density spectrum.
+  - term: Memphis Design
+    difference: Memphis Design is a specific postmodern style with defined rules; maximalism is a broader philosophy that can incorporate many visual approaches.
+compatibilities:
+  - memphis-design
+  - art-deco
+  - cyberpunk
+promptLanguage: >
+  Design a maximalist composition. Fill the space deliberately — layer
+  patterns, textures, bold colors, and varied typography. Use clashing color
+  combinations intentionally. Mix typeface styles for contrast. Add multiple
+  visual entry points. The goal is visual richness, not chaos — every extra
+  element should add meaning, energy, or emotion. Edit with a curatorial eye:
+  if an element weakens the composition, remove it. Test the design by asking
+  whether it feels abundant or overwhelming.
+sources:
+  - https://en.wikipedia.org/wiki/Maximalism
+  - https://www.creativereview.co.uk/maximalism-design-trend/
+  - https://www.format.com/magazine/graphic-design/maximalist-design-trend
+tags:
+  - maximalism
+  - more-is-more
+  - bold-design
+  - eclectic
+  - visual-density

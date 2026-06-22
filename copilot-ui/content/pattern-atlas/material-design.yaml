@@ -1,0 +1,80 @@
+id: material-design
+name: Material Design
+aliases:
+  - material-ui
+  - material-you
+  - google-material
+type: visual-style
+domain: visual-style
+confidence: established
+tagline: Google's comprehensive design system based on tactile surfaces, bold color, intentional motion, and adaptive layout.
+description: >
+  Material Design is a design language developed by Google in 2014, unified
+  by the metaphor of physical paper and ink. It translates the tactile
+  qualities of printed materials — surface, edge, seam, and shadow — into
+  a digital environment where depth is meaningful but not literal. Every
+  interface element exists on an elevation layer, and shadows communicate
+  which elements are interactive, elevated, or dismissable.
+
+  The system rests on three core principles: Material is the metaphor (tactile
+  surfaces that exist in 3D space), bold graphic design (color, imagery, and
+  typography as intentional storytelling), and meaningful motion (animation
+  that responds to user intent and provides spatial continuity). Material
+  You (Material Design 3, 2021) introduced dynamic color theming from wallpaper
+  extraction and expanded personalization.
+
+  Material Design provides exhaustive guidance for layout (12-column grid,
+  keylines, spacing units), typography (Roboto/Google Sans), elevation (dp
+  system), motion (easing curves, duration tokens), and components (from
+  buttons to bottom sheets). It is the most widely documented design system
+  in the world.
+traits:
+  - Elevation-based depth communicated through shadows and z-translation
+  - Dynamic color extracted from contextual sources (Material You)
+  - Intentional motion with choreographed transitions and responsive animation
+  - Grid-based layout with consistent 8dp/4dp spacing units
+  - Surface-and-edge metaphor for all interactive containers
+bestFit:
+  - Cross-platform applications needing a unified design language
+  - Products where clear hierarchy and navigational depth are critical
+  - Teams that benefit from exhaustive documentation and community resources
+avoidIf:
+  - The product needs a highly differentiated or avant-garde visual identity
+  - Custom animation budgets are limited and Material's motion system cannot be trimmed
+  - The interface is text-dense and benefits from minimal visual structure
+commonFailures:
+  - Over-elevating surfaces, creating a "stack of papers" effect that distracts from content
+  - Following Material guidelines literally without adapting to brand or product needs
+  - Using dynamic color without sufficient contrast testing, especially on light backgrounds
+contrasts:
+  - term: Flat Design
+    difference: Material Design uses elevation and shadows to create spatial depth; Flat Design keeps everything on a single 2D plane.
+  - term: Neumorphism
+    difference: Material Design uses a clear elevation hierarchy with distinct top-down lighting; neumorphism creates ambiguous extruded/recessed effects with side lighting.
+compatibilities:
+  - card-layout
+  - drawer
+  - data-grid
+  - toast
+promptLanguage: >
+  Create a Material Design 3 interface following the Material You system.
+  Use dynamic color tokens derived from a primary source color. Elevation
+  should follow the standard dp system: cards at 1dp, top app bars at 4dp,
+  dialogs at 6dp, and bottom sheets at 8dp. Use the 12-column responsive
+  grid with 8dp spacing units. Typography should use the type scale system
+  (display, headline, title, body, label) with appropriate weight and size
+  hierarchy. Motion should use standard easing curves — emphasized easing
+  for entering elements and standard easing for exiting. Include a color
+  scheme with primary, secondary, tertiary, error, neutral, and neutral
+  variant tones.
+sources:
+  - https://m3.material.io/
+  - https://material.io/design
+  - https://en.wikipedia.org/wiki/Material_Design
+tags:
+  - material-design
+  - google-design
+  - design-system
+  - material-you
+  - elevation-system
+  - motion-design

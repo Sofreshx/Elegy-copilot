@@ -1,0 +1,79 @@
+id: carousel
+name: Carousel
+aliases:
+  - image-slider
+  - slideshow
+  - slider
+  - rotating-banner
+type: ui-component
+domain: ui-ux
+confidence: established
+tagline: A horizontal container that cycles through a set of items — images, cards, or content panels — with navigation controls and pagination dots.
+description: >
+  A carousel (or slider) is a UI component that displays a sequence of items
+  — typically images, cards, or content panels — in a horizontal strip that
+  the user can navigate through. Navigation is provided through arrow buttons
+  (left/right), pagination dots (clickable indicators), and optional auto-
+  play (automatic cycling at a timed interval). Touch swipe gestures are
+  standard on mobile.
+
+  Carousels are widely used for hero banners, featured content, product
+  galleries, testimonials, and any scenario where multiple content items
+  compete for a prominent position. However, they are one of the most debated
+  UI patterns: research shows that users often ignore carousel content
+  ("banner blindness"), auto-play can be disruptive, and keyboard navigation
+  is frequently poorly implemented.
+
+  Best practices include: pausing auto-play on hover/focus, providing visible
+  previous/next controls, supporting keyboard navigation (arrow keys, Tab),
+  using semantic HTML (aria-roledescription="carousel", aria-live="polite"
+  on auto-play, aria-label on controls), ensuring touch/swipe support, and
+  avoiding auto-play entirely for accessibility. Carousels with 3+ items
+  should prioritize the first item as the most important.
+traits:
+  - Horizontal scrolling container with one item visible at a time
+  - Navigation controls (previous/next arrows, pagination dots)
+  - Optional auto-play with configurable interval and pause-on-interaction
+  - Touch swipe support for mobile interaction
+  - Accessible live region announcements for screen readers
+bestFit:
+  - Hero banners on marketing and e-commerce homepages
+  - Product image galleries with multiple views of the same item
+  - Featured or curated content sections with 3-8 items
+avoidIf:
+  - Content is critical — users frequently miss carousel items beyond the first position
+  - Auto-play would be disruptive or distracting (news articles, reading-focused pages)
+  - Touch and keyboard navigation cannot be fully implemented
+commonFailures:
+  - Auto-playing without pause-on-hover, causing motion sickness and accessibility failures
+  - Hiding navigation controls except on hover, making them undiscoverable
+  - Putting critical calls-to-action only in carousel slides beyond the first position
+contrasts:
+  - term: Card Layout Grid
+    difference: A carousel shows one item at a time in a scrolling sequence; a card grid displays multiple items simultaneously for comparison and scanning.
+  - term: Tabs
+    difference: A carousel cycles through content with animation and auto-play; tabs switch between panels statically on click with no animation.
+compatibilities:
+  - card-layout
+  - bento-grid
+  - skeleton-loader
+promptLanguage: >
+  Design an accessible carousel component. Display one item at a time with
+  smooth horizontal slide transitions (300ms ease). Include visible previous
+  and next arrow buttons. Show clickable pagination dots below the carousel
+  indicating the current position. Support keyboard navigation (Left/Right
+  arrows, Tab through controls). Add touch swipe detection for mobile. If
+  auto-play is enabled (5s interval), pause on hover and focus. Use
+  aria-roledescription="carousel", aria-live="polite" during auto-play,
+  and aria-label on all controls. Ensure the carousel is not focusable when
+  not in use to maintain tab order efficiency.
+sources:
+  - https://www.nngroup.com/articles/auto-forwarding/
+  - https://www.w3.org/WAI/tutorials/carousels/
+  - https://www.smashingmagazine.com/2015/07/designing-carousel-usability/
+tags:
+  - carousel
+  - slider
+  - slideshow
+  - image-gallery
+  - banner

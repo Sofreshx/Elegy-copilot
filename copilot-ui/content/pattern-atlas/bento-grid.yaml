@@ -1,0 +1,78 @@
+id: bento-grid
+name: Bento Grid
+aliases:
+  - bento-layout
+  - magazine-layout
+  - dashboard-grid
+  - mosaic-layout
+type: ux-pattern
+domain: ui-ux
+confidence: emerging
+tagline: A modular grid layout where cards of varied sizes and aspect ratios create a dynamic, visually interesting dashboard or content surface.
+description: >
+  The Bento Grid (named after the Japanese bento box with its compartmentalized
+  sections) is a layout pattern consisting of cards or panels of varying sizes
+  arranged on a grid. Unlike a standard uniform card grid where every card
+  has the same dimensions, a bento grid uses 2-4 different card sizes (1x1,
+  2x1, 1x2, 2x2) to create visual hierarchy, emphasize priority content, and
+  make the layout feel dynamic and editorial.
+
+  Apple popularized the modern bento grid with Apple Music and the Apple
+  Sports app, using it to create visually engaging, heterogeneous layouts
+  that feel more curated than algorithmically uniform grids. The pattern is
+  now widely used in dashboards, media platforms, personal start pages, and
+  any interface where content has varying importance or visual weight.
+
+  Implementation requires careful planning: the grid must tile without gaps,
+  content priority must map to card sizes logically, and responsive behavior
+  must collapse large cards to single-column on small screens. CSS Grid with
+  named template areas is the most flexible implementation approach. The
+  pattern works best when cards have strong visual content (images, charts,
+  rich media) that benefits from larger real estate.
+traits:
+  - Cards of varied sizes arranged on a grid without gaps
+  - 2-4 card size variants (small, medium, wide, tall, large)
+  - Visual hierarchy driven by card size and position
+  - Seamless tiling without gaps between cards
+  - Dynamic, editorial feel compared to uniform grids
+bestFit:
+  - Personal dashboards and start pages with widgets of varying importance
+  - Music, video, and media streaming platform home pages
+  - Editorial and content discovery layouts
+  - Sports scores, stock tickers, and data-heavy overviews
+avoidIf:
+  - The content is homogeneous (all items have equal importance)
+  - The layout must support infinite scroll with uniform card sizes
+  - Simple, predictable layouts are preferred over visual complexity
+commonFailures:
+  - Creating layouts that look chaotic because size hierarchy does not match content priority
+  - Not handling responsive collapse properly — large cards break on small screens
+  - Filling the grid with gaps or broken tiles when content count is not a multiple of the grid size
+contrasts:
+  - term: Card Layout
+    difference: Card layout uses uniform card sizes in a predictable grid; bento grid uses varied card sizes for visual hierarchy and dynamism.
+  - term: Dashboard Layout
+    difference: A dashboard layout is typically widget-based and can be customized by users; a bento grid is a curated editorial layout controlled by the designer.
+compatibilities:
+  - card-layout
+  - dashboard-layout
+  - responsive-breakpoints
+promptLanguage: >
+  Design a bento grid layout using CSS Grid with named template areas. Define
+  four card size variants: small (1fr x 1fr), wide (2fr x 1fr), tall (1fr x
+  2fr), and large (2fr x 2fr). Arrange 6-8 cards in a visually interesting
+  pattern where the largest card is positioned at the top-left (prime visual
+  real estate). Use a 12-column grid internally. Ensure cards tile without
+  gaps using consistent padding. On mobile (<768px), collapse all cards to
+  single-column full-width. Use smooth transitions when the grid reflows on
+  resize.
+sources:
+  - https://css-tricks.com/bento-grids/
+  - https://developer.apple.com/design/human-interface-guidelines/bento-grids
+  - https://www.smashingmagazine.com/2020/01/understanding-css-grid-template-areas/
+tags:
+  - bento-grid
+  - magazine-layout
+  - css-grid
+  - editorial-design
+  - dashboard

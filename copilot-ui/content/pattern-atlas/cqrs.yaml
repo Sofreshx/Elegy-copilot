@@ -1,0 +1,73 @@
+id: cqrs
+name: CQRS
+aliases:
+  - Command Query Responsibility Segregation
+  - Separate Read/Write Models
+type: system-pattern
+domain: software-architecture
+confidence: established
+tagline: Segregate read operations from write operations using separate models and data stores.
+description: >
+  CQRS separates the model that reads data from the model that writes data. Commands (writes) use a
+  model optimized for business operations, validation, and consistency. Queries (reads) use a
+  separate model optimized for presentation, search, and reporting. This separation can be as simple
+  as different classes in the same process, or as complete as separate databases, services, and
+  data stores connected via eventual consistency.
+
+  The pattern addresses the impedance mismatch between transactional write models (normalized, rich
+  domain logic) and read models (denormalized, flat, fast). In a conventional CRUD architecture,
+  the single model often compromises both — write logic is complicated by read optimizations, and
+  queries are slow because the model is normalized for writes. CQRS eliminates this trade-off.
+
+  CQRS is frequently paired with Event Sourcing, where the event store serves as the write model
+  and projections build read models. However, CQRS can also be implemented with a traditional
+  database: commands write to a normalized schema while queries read from denormalized views or
+  materialized tables, synchronized synchronously or asynchronously.
+traits:
+  - Separate command (write) and query (read) interfaces and models
+  - Write model optimized for business rules and consistency
+  - Read model optimized for query performance and presentation
+  - Scaling reads and writes independently (different stores, different infrastructure)
+  - Naturally supports eventual consistency between write and read sides
+bestFit:
+  - Complex domains where read and write models naturally differ (collaboration tools, commerce)
+  - High-read-volume applications that need independent scaling of queries
+  - Teams practicing Event Sourcing (CQRS handles the read-side projection naturally)
+avoidIf:
+  - Simple CRUD applications where a single model serves both reads and writes well
+  - Real-time consistency is required between writes and reads (eventual consistency adds latency)
+  - The team is new to the codebase and the added architectural surface is too much overhead
+commonFailures:
+  - Unnecessary separation: applying CQRS to every entity creates explosion of classes and data stores
+  - Inconsistent state propagation: the read model falls behind the write model without monitoring
+  - Duplicated logic: validation rules are implemented in both command and query handlers divergently
+contrasts:
+  - term: Event Sourcing
+    difference: Event Sourcing is a persistence strategy (events as state); CQRS is an architectural separation of read and write models. They pair well but are independent — you can have CQRS without Event Sourcing and vice versa.
+  - term: Database per Service
+    difference: Database per Service splits databases by service boundary; CQRS splits read and write models within a single service or bounded context, and can exist within a single database or across multiple.
+compatibilities:
+  - event-sourcing
+  - materialized-view
+  - database-per-service
+  - hexagonal-architecture
+promptLanguage: >
+  Apply CQRS to the Order domain. Define a CommandHandler for PlaceOrder, CancelOrder, and
+  ShipOrder — each validates business rules and writes to the write-optimized order store (a
+  normalized PostgreSQL schema). Define a separate QueryHandler for GetOrderHistory and
+  GetOrderSummary — these read from a denormalized read store (a Redis cache or materialized
+  PostgreSQL view). When a command succeeds, publish an OrderEvent. The read store subscribes to
+  events and updates its projections asynchronously. Expose separate command and query endpoints,
+  or use a single API gateway that routes by operation intent.
+sources:
+  - https://martinfowler.com/bliki/CQRS.html
+  - https://docs.microsoft.com/en-us/azure/architecture/patterns/cqrs
+  - https://microservices.io/patterns/data/cqrs.html
+  - https://www.eventstore.com/blog/what-is-cqrs
+tags:
+  - cqrs
+  - command-query
+  - read-model
+  - write-model
+  - eventual-consistency
+  - microservices
