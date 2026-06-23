@@ -3,7 +3,7 @@ spec_id: code-quality-control-plane-research
 title: Code Quality Control Plane Research
 status: draft
 type: feature
-updated: 2026-06-13
+updated: 2026-06-23
 ---
 
 # Code Quality Control Plane Research
@@ -94,6 +94,65 @@ Define the Elegy-copilot research contract for running, configuring, and visuali
 - Existing commit-check lanes remain the narrow commit gate.
 - The code quality control plane may suggest or generate commit-check configuration later, but that requires a separate implementation spec.
 - Expensive or optional analyzers should be explicit operator actions until cost, runtime, and reliability are understood.
+
+## Gate Inventory
+
+### Gate Inventory Table
+
+| Gate | Deterministic? | Blocks Merge? | Cost Class | Provenance Class | Why It Exists | First-Slice? |
+|------|---------------|---------|------------|-----------------|---------------|-------------|
+| commit-check (test) | yes | score | cheap | deterministic-tool | Narrows the pre-commit gate: fast deterministic test pass/fail with scoring | yes |
+| commit-check (coverage) | yes | score | cheap | deterministic-tool | Enforces test coverage thresholds without heavy suite runs | yes |
+| commit-check (lint) | yes | score | cheap | deterministic-tool | Catches style/error patterns before review; commit-check owns lint | yes |
+| commit-check (format) | yes | score | cheap | deterministic-tool | Enforces consistent formatting before commit; commit-check owns format | yes |
+| commit-check (typecheck) | yes | yes | cheap | deterministic-tool | Blocks commits with type errors; zero-tolerance hard gate | yes |
+| Semgrep | yes | no | moderate | deterministic-tool | Custom pattern-based static analysis with low false-positive rate | yes |
+| ast-grep | yes | no | moderate | deterministic-tool | Structural code pattern search; complements Semgrep for AST-level rules | defer — requires rule-pack design (QCP-003) |
+| CodeQL | yes | no | expensive | deterministic-tool | Deep semantic analysis for security and correctness; requires build | defer — heavy install, needs database build |
+| Dependency audit (npm/cargo) | yes | no | cheap | deterministic-tool | Detects known vulnerabilities in dependencies; already available via npm/cargo | yes |
+| Codegraph extraction | yes | no | expensive | deterministic-tool | Structural graph for impact analysis and cross-reference queries | defer — depends on elegy-codegraph CLI maturity (QCP-006) |
+| UI runtime signals | no | no | variable | heuristic-tool | Captures browser/desktop UI regressions during agent exploration | defer — requires UI test infrastructure (tauri-driver, QCP-007) |
+| Specs/docs validators | yes | no | cheap | deterministic-tool | Validates spec and documentation structure, links, and freshness | yes |
+| Waivers | no | no | cheap | llm-assisted | Documented exceptions to blocking gates with reason and expiry | yes |
+| LLM review | no | no | variable | llm-only | Agentic review augmenting deterministic findings; cites tool evidence; non-blocking | yes |
+| Secrets scanning | yes | no | cheap | deterministic-tool | Detects hardcoded secrets before they reach remote history | defer — no tool configured in repo; add when integrated |
+| CSS/SCSS lint (stylelint) | yes | no | cheap | deterministic-tool | Catches CSS/SCSS style violations; stylelint already configured in repo | yes |
+
+### Controlled Vocabulary Definitions
+
+- **Deterministic?**: `yes` = reproducible machine output with stable fingerprints; same input always produces same finding. `no` = heuristic or LLM-augmented output that may vary across runs.
+- **Blocks Merge?**: `yes` = hard gate; merge blocked until pass. `no` = advisory; findings reported but do not block. `score` = contributes to composite score; threshold-gated.
+- **Cost Class**: `cheap` = local CLI, &lt;5s typical runtime. `moderate` = local tool, &lt;30s typical runtime. `expensive` = external install required, &gt;30s runtime, requires index build, or heavyweight process. `variable` = runtime depends on repo size or configuration.
+- **Provenance Class**: `deterministic-tool` = reproducible machine output from a pinned tool version. `heuristic-tool` = tool output with documented false-positive rate; may need human triage. `llm-assisted` = LLM augments deterministic findings but always cites underlying tool evidence. `llm-only` = pure LLM analysis; non-blocking; never treated as a deterministic pass/fail gate.
+- **First-Slice?**: `yes` = included in initial QCP deployment. `defer` = deferred to a future slice with stated reason. Deferral criteria: (a) requires external tool install not yet integrated, (b) requires infrastructure not yet built (e.g., codegraph, UI test harness), (c) benefit unclear without upstream QCP components, (d) heavy runtime cost disproportionate to signal.
+
+### Coexistence Boundary
+
+> **QCP ↔ Commit-Check Boundary**
+>
+> **Commit-check owns (exclusively):** test, coverage, lint, format, typecheck. These five lanes are the narrow pre-commit gate. QCP must not replace, duplicate, or override them. Commit checks remain the single "safe to commit" signal.
+>
+> **QCP owns (additively):** deep static analysis (Semgrep, ast-grep, CodeQL), dependency auditing, codegraph extraction, UI runtime signals, specs/docs validation, waivers, secrets scanning, CSS/SCSS lint (stylelint), and LLM review. These gates run outside the commit path and enrich the quality picture without blocking commits.
+>
+> **Bridge (future):** QCP may suggest or generate commit-check configuration in a later slice, but this requires a separate implementation spec and must not alter commit-check scoring without operator approval.
+>
+> **LLM Review coexistence:** QCP-orchestrated LLM review is non-blocking, evidence-citing, and separate from the `@code-reviewer` lane. The reviewer lane remains the single read-only adversarial review surface for implementation-vs-request fit. QCP may launch agent review with structural evidence, but review verdicts belong to the reviewer lane's output contract.
+>
+> **Non-overlap guarantee:** No QCP gate duplicates a commit-check lane's function. QCP findings about test quality (e.g., coverage gaps, test weakening) are reported as advisory evidence, not as commit gates — the testing-quality-governance rules remain authoritative for test quality assessment.
+>
+> Cross-references:
+> - `docs/system/commit-validation-governance.md` §Non-Goals: "Code quality beyond lint/format (separate governance surface)"
+> - `docs/system/reviewer-lane-governance.md` §Coexistence Rules: single reviewer lane, read-only
+> - `docs/system/testing-quality-governance.md` §What Counts As Weakening: QCP must not encourage test weakening
+> - `docs/system/quality-gate-evaluation.md` §Gate Pipeline: QCP feeds into existing confidence mapping as parallel quality dimensions
+
+### First-Slice Deferral Rationale
+
+- **ast-grep**: requires rule-pack design (QCP-003-practice-rule-authoring)
+- **CodeQL**: heavy install, requires database build; cost disproportionate without established benefit (revisit after QCP-004-run-orchestration-adapters)
+- **Codegraph extraction**: depends on elegy-codegraph CLI maturity and integration (QCP-006-codegraph-evidence-integration)
+- **UI runtime signals**: requires UI test infrastructure (tauri-driver/WebDriver setup, QCP-007-workspace-checks-ui)
+- **Secrets scanning**: no secrets scanning tool configured in repo; add in a future slice after tool selection and integration
 
 ## Non-Goals
 
