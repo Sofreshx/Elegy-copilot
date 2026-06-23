@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Button } from '../../components';
+import { Button, StatusBadge } from '../../components';
 import { notificationStore } from '../../stores/notificationStore';
 import type { CatalogRepoInventoryEntry } from '../../lib/types';
 import type { GitState } from '../../stores/gitStore';
@@ -460,6 +460,9 @@ export default function WorkspaceGitTab({
   // ─── PR create form collapse ───────────────────────────────────────────────
   const [showPrForm, setShowPrForm] = useState(false);
 
+  // ─── PR merge state ────────────────────────────────────────────────────────
+  const [prMerging, setPrMerging] = useState(false);
+
   useEffect(() => {
     if (checkResults?.allPassed) {
       setFailedCheckResults(null);
@@ -715,6 +718,30 @@ export default function WorkspaceGitTab({
       setStashes(stashResult.stashes || []);
     } catch (err) {
       notificationStore.error('Drop failed', { message: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  // ─── PR merge handler ──────────────────────────────────────────────────────
+  async function handlePrMerge(prNumber: number) {
+    if (!repoPath) return;
+    setPrMerging(true);
+    try {
+      const response = await fetch(`/api/git/pr/merge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repoPath, number: prNumber, method: 'squash' }),
+      });
+      const data = await response.json();
+      if (data.error) {
+        notificationStore.error('Merge failed', { message: data.error });
+      } else {
+        notificationStore.success('PR merged', { message: data.output || `PR #${prNumber} merged` });
+        onRefreshGitState();
+      }
+    } catch (err) {
+      notificationStore.error('Merge failed', { message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setPrMerging(false);
     }
   }
 
@@ -1584,6 +1611,34 @@ export default function WorkspaceGitTab({
             )}
           </div>
 
+          {/* Generate error display */}
+          {gitState.generateErrorCode && (
+            <div className="workspace-git-generate-error" data-testid="workspace-generate-error" style={{
+              color: 'var(--color-error-500)',
+              fontSize: '0.8rem',
+              marginTop: 'var(--space-xs)',
+            }}>
+              {gitState.generateErrorCode === 'OPENCODE_NOT_FOUND' && '⚠ OpenCode CLI not found. Install OpenCode to use AI commit messages.'}
+              {gitState.generateErrorCode === 'MODEL_CHAIN_FAILED' && (
+                <span>
+                  ⚠ All models failed.{' '}
+                  <button
+                    type="button"
+                    onClick={() => { gitStore.clearGenerateError(); onGenerateCommitMessage(); }}
+                    style={{ color: 'var(--color-accent-500)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, font: 'inherit' }}
+                    data-testid="workspace-generate-retry"
+                  >
+                    Try next model
+                  </button>
+                </span>
+              )}
+              {gitState.generateErrorCode === 'NO_CHANGES' && '⚠ No changes to generate a commit message from.'}
+              {gitState.generateError && !['OPENCODE_NOT_FOUND', 'MODEL_CHAIN_FAILED', 'NO_CHANGES'].includes(gitState.generateErrorCode || '') && (
+                <span>⚠ {gitState.generateError}</span>
+              )}
+            </div>
+          )}
+
           {/* Commit message input */}
           <input
             className="form-input-field workspace-git-composer-input"
@@ -1695,59 +1750,126 @@ export default function WorkspaceGitTab({
             )}
           </div>
 
-          {/* Collapsible PR create */}
-          <div className="workspace-git-composer-pr-area">
-            {pullRequest ? (
-              <div className="workspace-git-pr-existing" data-testid="workspace-git-pr-existing">
-                <a href={pullRequest.url} target="_blank" rel="noopener noreferrer" className="workspace-git-pr-link">
-                  PR #{pullRequest.number} ({pullRequest.state})
-                </a>
-                <Button variant="ghost" size="sm" onClick={onOpenPR} testId="workspace-open-pr">
-                  Open PR
-                </Button>
+          {/* Rich PR panel — MODE B: Observe (PR exists) */}
+          {gitState.pullRequest?.pullRequest ? (
+            <div className="workspace-git-pr-panel" data-testid="workspace-pr-observe-panel" style={{
+              borderTop: '1px solid var(--color-border-200)',
+              marginTop: 'var(--space-sm)',
+              paddingTop: 'var(--space-sm)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-xs)' }}>
+                <span style={{ fontWeight: 600, fontSize: '0.9em' }}>
+                  PR #{gitState.pullRequest.pullRequest.number}
+                </span>
+                <StatusBadge status={gitState.pullRequest.pullRequest.state} tone={gitState.pullRequest.pullRequest.state === 'OPEN' ? 'success' : gitState.pullRequest.pullRequest.state === 'MERGED' ? 'neutral' : 'danger'} />
+                {(gitState.pullRequest.pullRequest as any).isDraft ? <span style={{ color: 'var(--color-text-300)', fontSize: '0.8em' }}>Draft</span> : null}
               </div>
-            ) : hasRemote ? (
-              <>
-                <button
-                  type="button"
-                  className="workspace-git-composer-pr-toggle"
-                  onClick={() => setShowPrForm(!showPrForm)}
-                  data-testid="workspace-toggle-pr-form"
-                >
-                  {showPrForm ? '−' : '+'} Create PR
-                </button>
-                {showPrForm ? (
-                  <div className="workspace-git-pr-create" data-testid="workspace-git-pr-create">
-                    <input
-                      className="form-input-field"
-                      type="text"
-                      placeholder="PR title..."
-                      value={gitState.pullRequestTitle}
-                      onChange={(e) => onSetPullRequestTitle(e.target.value)}
-                      disabled={gitState.creatingPullRequest}
-                    />
-                    <input
-                      className="form-input-field"
-                      type="text"
-                      placeholder="PR body (optional)..."
-                      value={gitState.pullRequestBody}
-                      onChange={(e) => onSetPullRequestBody(e.target.value)}
-                      disabled={gitState.creatingPullRequest}
-                    />
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      disabled={!gitState.pullRequestTitle.trim() || gitState.creatingPullRequest}
-                      onClick={onCreatePR}
-                      testId="workspace-create-pr"
-                    >
-                      {gitState.creatingPullRequest ? 'Creating...' : 'Create pull request'}
-                    </Button>
-                  </div>
+
+              {/* Base ← Head */}
+              <div style={{ fontSize: '0.8em', color: 'var(--color-text-300)', marginBottom: 'var(--space-sm)' }}>
+                {(gitState.pullRequest.pullRequest as any).baseRefName ?? '?'} ← {(gitState.pullRequest.pullRequest as any).headRefName ?? '?'}
+              </div>
+
+              {/* Checks summary chips */}
+              {(gitState.pullRequest.pullRequest as any).checksSummary ? (
+                <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)', fontSize: '0.8em' }}>
+                  <span style={{ color: 'var(--color-success-500)' }}>✓ {(gitState.pullRequest.pullRequest as any).checksSummary.passed}</span>
+                  <span style={{ color: 'var(--color-error-500)' }}>✗ {(gitState.pullRequest.pullRequest as any).checksSummary.failed}</span>
+                  <span style={{ color: 'var(--color-text-300)' }}>⏳ {(gitState.pullRequest.pullRequest as any).checksSummary.pending}</span>
+                </div>
+              ) : null}
+
+              {/* Review decision + mergeable */}
+              <div style={{ display: 'flex', gap: 'var(--space-md)', fontSize: '0.8em', marginBottom: 'var(--space-sm)' }}>
+                {(gitState.pullRequest.pullRequest as any).reviewDecision ? (
+                  <span>Review: {(gitState.pullRequest.pullRequest as any).reviewDecision}</span>
                 ) : null}
-              </>
-            ) : null}
-          </div>
+                {(gitState.pullRequest.pullRequest as any).mergeable ? (
+                  <span style={{ color: (gitState.pullRequest.pullRequest as any).mergeable === 'MERGEABLE' ? 'var(--color-success-500)' : 'var(--color-text-300)' }}>
+                    Merge: {(gitState.pullRequest.pullRequest as any).mergeable} {(gitState.pullRequest.pullRequest as any).mergeStateStatus !== 'UNKNOWN' ? `(${(gitState.pullRequest.pullRequest as any).mergeStateStatus})` : ''}
+                  </span>
+                ) : null}
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => window.open(gitState.pullRequest!.pullRequest!.url, '_blank')}
+                  testId="workspace-pr-open-github"
+                >
+                  Open on GitHub ↗
+                </Button>
+                {(gitState.pullRequest.pullRequest as any).mergeable === 'MERGEABLE' && (gitState.pullRequest.pullRequest as any).mergeStateStatus !== 'BLOCKED' ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => void handlePrMerge(gitState.pullRequest!.pullRequest!.number)}
+                    disabled={prMerging}
+                    testId="workspace-pr-merge"
+                  >
+                    {prMerging ? 'Merging...' : 'Merge (squash)'}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Rich PR panel — MODE A: Create (non-protected branch, has remote, no open PR) */}
+          {branch && branch !== 'main' && branch !== 'master' && summary?.remoteName && !gitState.pullRequest?.pullRequest ? (
+            <div className="workspace-git-pr-panel" data-testid="workspace-pr-create-panel" style={{
+              borderTop: '1px solid var(--color-border-200)',
+              marginTop: 'var(--space-sm)',
+              paddingTop: 'var(--space-sm)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
+                <span style={{ fontWeight: 600, fontSize: '0.9em' }}>Pull Request</span>
+                <span style={{ color: 'var(--color-text-300)', fontSize: '0.8em' }}>
+                  No open PR on {branch}
+                </span>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setShowPrForm(!showPrForm)}
+                testId="workspace-pr-create-toggle"
+              >
+                {showPrForm ? 'Cancel' : 'Create PR'}
+              </Button>
+              {showPrForm ? (
+                <div style={{ marginTop: 'var(--space-sm)' }} data-testid="workspace-pr-create-form">
+                  <input
+                    className="form-input-field"
+                    type="text"
+                    placeholder="PR title..."
+                    value={gitState.pullRequestTitle}
+                    onChange={(e) => onSetPullRequestTitle(e.target.value)}
+                    disabled={gitState.creatingPullRequest}
+                    style={{ marginBottom: 'var(--space-xs)' }}
+                  />
+                  <input
+                    className="form-input-field"
+                    type="text"
+                    placeholder="PR body (optional)..."
+                    value={gitState.pullRequestBody}
+                    onChange={(e) => onSetPullRequestBody(e.target.value)}
+                    disabled={gitState.creatingPullRequest}
+                    style={{ marginBottom: 'var(--space-xs)' }}
+                  />
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={!gitState.pullRequestTitle.trim() || gitState.creatingPullRequest}
+                    onClick={onCreatePR}
+                    testId="workspace-create-pr"
+                  >
+                    {gitState.creatingPullRequest ? 'Creating...' : 'Create pull request'}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         {/* Commit & Push without verifying */}

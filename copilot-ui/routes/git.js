@@ -3,7 +3,7 @@
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
-const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody, getQueryParam: defaultGetQueryParam } = require('./_helpers');
 const { gateGitAction } = require('../lib/gitCheckRunner');
 const gitPrCache = require('../lib/gitPrCache');
 
@@ -115,6 +115,24 @@ function parseBranches(output) {
     });
 }
 
+function computeChecksSummary(statusCheckRollup) {
+  if (!Array.isArray(statusCheckRollup) || statusCheckRollup.length === 0) {
+    return { passed: 0, failed: 0, pending: 0 };
+  }
+  let passed = 0, failed = 0, pending = 0;
+  for (const check of statusCheckRollup) {
+    const conclusion = String(check.conclusion || check.status || '').toUpperCase();
+    if (conclusion === 'SUCCESS' || conclusion === 'NEUTRAL' || conclusion === 'SKIPPED') {
+      passed++;
+    } else if (conclusion === 'FAILURE' || conclusion === 'CANCELLED' || conclusion === 'TIMED_OUT' || conclusion === 'ACTION_REQUIRED') {
+      failed++;
+    } else {
+      pending++;
+    }
+  }
+  return { passed, failed, pending };
+}
+
 async function resolvePullRequest(childProcessImpl, repoPath) {
   // Check auth cache first
   const cachedAuth = gitPrCache.readAuth(repoPath);
@@ -156,7 +174,7 @@ async function resolvePullRequest(childProcessImpl, repoPath) {
   }
 
   try {
-    const result = await runCommand(childProcessImpl, 'gh', ['pr', 'view', '--json', 'number,url,state'], repoPath, 20000);
+    const result = await runCommand(childProcessImpl, 'gh', ['pr', 'view', '--json', 'number,url,state,baseRefName,headRefName,isDraft,statusCheckRollup,reviewDecision,mergeable,mergeStateStatus'], repoPath, 20000);
     const parsed = JSON.parse(result.stdout || '{}');
     if (!parsed || typeof parsed.number !== 'number') {
       const noPrResult = {
@@ -178,6 +196,14 @@ async function resolvePullRequest(childProcessImpl, repoPath) {
         number: parsed.number,
         url: String(parsed.url || ''),
         state: String(parsed.state || 'OPEN'),
+        baseRefName: String(parsed.baseRefName || ''),
+        headRefName: String(parsed.headRefName || ''),
+        isDraft: Boolean(parsed.isDraft),
+        statusCheckRollup: Array.isArray(parsed.statusCheckRollup) ? parsed.statusCheckRollup : [],
+        reviewDecision: typeof parsed.reviewDecision === 'string' ? parsed.reviewDecision : null,
+        mergeable: String(parsed.mergeable || 'UNKNOWN'),
+        mergeStateStatus: String(parsed.mergeStateStatus || 'UNKNOWN'),
+        checksSummary: computeChecksSummary(parsed.statusCheckRollup),
       },
       error: null,
     };
@@ -505,6 +531,48 @@ function handlePrRefresh(ctx, deps) {
       }
       sendJson(res, 200, { ok: true });
     })
+    .catch((error) => {
+      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      sendJson(res, statusCode, { error: String(error.message || error) });
+    });
+}
+
+function handlePrDetail(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const getQueryParam = deps.getQueryParam || defaultGetQueryParam;
+  const repoPath = resolveRepoPath(ctx);
+
+  if (!repoPath) {
+    return sendJson(res, 400, { error: 'repoPath query parameter is required' });
+  }
+
+  return resolvePullRequest(deps.childProcess, repoPath)
+    .then((prResult) => sendJson(res, 200, prResult))
+    .catch((error) => sendJson(res, 500, { error: String(error.message || error) }));
+}
+
+function handlePrMerge(ctx, deps) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+
+  return readJsonBody(req)
+    .then(async (body) => {
+      const repoPath = isNonEmptyString(body.repoPath) ? body.repoPath.trim() : '';
+      const number = typeof body.number === 'number' ? body.number : parseInt(body.number, 10);
+      const method = ['merge', 'squash', 'rebase'].includes(body.method) ? body.method : 'squash';
+
+      if (!repoPath) throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+      if (!number || !Number.isFinite(number)) throw Object.assign(new Error('number is required'), { statusCode: 400 });
+
+      const result = await runCommand(deps.childProcess, 'gh', ['pr', 'merge', String(number), `--${method}`], repoPath, 30000);
+
+      // Bust PR cache after merge
+      gitPrCache.bust(repoPath);
+
+      return { merged: true, method, output: result.stdout.trim() };
+    })
+    .then((r) => sendJson(res, 200, r))
     .catch((error) => {
       const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
       sendJson(res, statusCode, { error: String(error.message || error) });
@@ -1614,27 +1682,70 @@ function extractOpenCodeText(value) {
 
 function parseOpenCodeCommitMessage(stdout) {
   const lines = String(stdout || '').split('\n').filter((line) => line.trim());
-  let messageContent = '';
+  const assistantParts = [];
 
   for (const line of lines) {
     try {
       const event = JSON.parse(line);
-      if (event.type && /error/i.test(String(event.type))) continue;
-      const content = extractOpenCodeText(event).trim();
-      if (content) messageContent = content;
+
+      // Determine the event type
+      const eventType = (event.type || '').toLowerCase();
+
+      // Skip events that are not final assistant output
+      if (!eventType) continue;
+      if (eventType.startsWith('tool_')) continue;
+      if (eventType === 'tool_use' || eventType === 'tool_result') continue;
+      if (eventType === 'reasoning' || eventType === 'thinking') continue;
+      if (eventType === 'system' || eventType === 'error' || eventType === 'warning') continue;
+
+      // Extract text from assistant-type events
+      // Look for content in common NDJSON shapes:
+      // { type: 'assistant', message: { content: [...] } } — common Claude/Anthropic shape
+      // { type: 'message', content: '...' } or { type: 'message', text: '...' }
+      // { type: 'response', output: '...' }
+      // { type: 'text', text: '...' }
+      const text = extractOpenCodeText(event).trim();
+      if (text) assistantParts.push(text);
     } catch (_) {
-      // Non-JSON lines are handled below.
+      // Non-JSON lines ignored in strict mode
     }
   }
 
-  if (!messageContent.trim()) {
-    const textLines = lines.filter((line) => {
-      try { JSON.parse(line); return false; } catch (_) { return true; }
-    });
-    messageContent = textLines.join('\n').trim();
+  let messageContent = assistantParts.join('\n').trim();
+
+  // Fallback: if no assistant parts found, use the original heuristic
+  // but add a warnings flag
+  if (!messageContent) {
+    // Old heuristic: grab any text from any event (last-content-wins)
+    for (const line of lines) {
+      try {
+        const event = JSON.parse(line);
+        if (event.type && /error/i.test(String(event.type))) continue;
+        const content = extractOpenCodeText(event).trim();
+        if (content) messageContent = content;
+      } catch (_) {
+        // Non-JSON lines
+      }
+    }
+
+    if (!messageContent) {
+      // Ultimate fallback: non-JSON text lines
+      const textLines = lines.filter((line) => {
+        try { JSON.parse(line); return false; } catch (_) { return true; }
+      });
+      messageContent = textLines.join('\n').trim();
+    }
+
+    // Mark that fallback was used (caller adds to warnings)
+    if (messageContent) {
+      messageContent = '__FALLBACK__' + messageContent;
+    }
   }
 
-  return messageContent.replace(/```[\s\S]*?```/g, '').replace(/`([^`]+)`/g, '$1').trim();
+  // Strip fences and quotes (existing behavior)
+  const cleaned = messageContent.replace(/```[\s\S]*?```/g, '').replace(/`([^`]+)`/g, '$1').trim();
+
+  return cleaned;
 }
 
 function handleGenerateCommitMessage(ctx, deps) {
@@ -1734,7 +1845,7 @@ ${diffText}`;
         const result = await new Promise((resolve, reject) => {
           const execOpts = {
             cwd: repoPath,
-            timeout: 60000,
+            timeout: 30000,
             windowsHide: true,
             maxBuffer: 1024 * 1024,
           };
@@ -1742,7 +1853,6 @@ ${diffText}`;
           childProcessImpl.execFile(openCodeBin, [
             'run',
             '--model', model,
-            '--agent', 'plan',
             '--format', 'json',
             '--dir', repoPath,
             prompt,
@@ -1755,7 +1865,13 @@ ${diffText}`;
           });
         });
 
-        const messageContent = parseOpenCodeCommitMessage(result.stdout);
+        let messageContent = parseOpenCodeCommitMessage(result.stdout);
+        let usedFallback = false;
+        if (messageContent.startsWith('__FALLBACK__')) {
+          messageContent = messageContent.slice('__FALLBACK__'.length);
+          usedFallback = true;
+          warnings.push('Commit message generated via fallback parser (no assistant text found in NDJSON output)');
+        }
 
         if (messageContent) {
           sendJson(res, 200, {
@@ -1803,6 +1919,8 @@ function register(context = {}) {
     { method: 'GET', path: '/api/git/summary', handler: (ctx) => handleGitSummary(ctx, deps) },
     { method: 'GET', path: '/api/git/pull-request', handler: (ctx) => handleGitPullRequest(ctx, deps) },
     { method: 'POST', path: '/api/git/pr/refresh', handler: (ctx) => handlePrRefresh(ctx, deps) },
+    { method: 'GET', path: '/api/git/pr/detail', handler: (ctx) => handlePrDetail(ctx, deps) },
+    { method: 'POST', path: '/api/git/pr/merge', handler: (ctx) => handlePrMerge(ctx, deps) },
     { method: 'POST', path: '/api/git/stage', handler: (ctx) => handleGitStage(ctx, deps) },
     { method: 'POST', path: '/api/git/unstage', handler: (ctx) => handleGitUnstage(ctx, deps) },
     { method: 'POST', path: '/api/git/commit', handler: (ctx) => handleGitCommit(ctx, deps) },
@@ -1829,6 +1947,8 @@ function register(context = {}) {
 module.exports = {
   register,
   handlePrRefresh,
+  handlePrDetail,
+  handlePrMerge,
   handleGitMergeWorktree,
   handleListStashes,
   handleCreateStash,

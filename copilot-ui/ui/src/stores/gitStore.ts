@@ -39,6 +39,10 @@ export interface GitState {
   generating: boolean;
   /** Which model produced the generated message (shown to user) */
   generatedBy: string | null;
+  /** Error message from last failed generate attempt */
+  generateError: string | null;
+  /** Error code from last failed generate attempt */
+  generateErrorCode: string | null;
   committing: boolean;
   staging: boolean;
   syncing: boolean;
@@ -68,6 +72,8 @@ const INITIAL_STATE: GitState = {
   commitMessage: '',
   generating: false,
   generatedBy: null,
+  generateError: null,
+  generateErrorCode: null,
   committing: false,
   staging: false,
   syncing: false,
@@ -324,7 +330,7 @@ function createGitStore() {
     // NOTE: Caller (UI) must gate non-empty overwrites via confirm dialog.
     // This store action unconditionally sets the generated message.
 
-    store.setState((s) => ({ ...s, generating: true, error: null }));
+    store.setState((s) => ({ ...s, generating: true, error: null, generateError: null, generateErrorCode: null }));
     try {
       const response = await generateCommitMessageApi(repoPath);
 
@@ -334,12 +340,16 @@ function createGitStore() {
           commitMessage: response.message,
           generating: false,
           generatedBy: response.model,
+          generateError: null,
+          generateErrorCode: null,
         }));
       } else {
         store.setState((s) => ({
           ...s,
           generating: false,
           error: response.message || 'No message generated',
+          generateError: response.message || response.lastError || 'Unknown error',
+          generateErrorCode: response.code || null,
         }));
       }
     } catch (e: any) {
@@ -347,6 +357,8 @@ function createGitStore() {
         ...s,
         generating: false,
         error: e?.message || 'Failed to generate commit message',
+        generateError: e?.message || 'Failed to generate commit message',
+        generateErrorCode: 'EXCEPTION',
       }));
     }
   }
@@ -379,6 +391,10 @@ function createGitStore() {
     store.setState((s) => ({ ...s, checkFailed: false, checkResults: null, showOverrideInput: false, unsafeOverrideReason: '' }));
   }
 
+  function clearGenerateError(): void {
+    store.setState((s) => ({ ...s, generateError: null, generateErrorCode: null }));
+  }
+
   function reset(): void {
     requestVersion++;
     store.setState(INITIAL_STATE);
@@ -405,6 +421,7 @@ function createGitStore() {
     setPullRequestBody,
     setUnsafeOverrideReason,
     clearCheckState,
+    clearGenerateError,
     reset,
   };
 }

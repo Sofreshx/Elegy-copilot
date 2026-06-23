@@ -4,40 +4,9 @@ let fs = require('fs');
 const path = require('path');
 let { execFile } = require('child_process');
 const { syncCiState } = require('./ciSync');
+const { resolveCommitCheckConfig } = require('./commitCheckConfig');
 
-/**
- * Known check scripts in priority order.
- * Each entry: { name, path: relative to repoRoot, description }
- */
-const KNOWN_CHECKS = [];
 
-/**
- * Custom check definitions per repo (optional overrides).
- * Add entries here for repos with custom check scripts.
- */
-const REPO_CUSTOM_CHECKS = {};
-
-/**
- * Resolve the canonical commit-check config file for a repo root.
- * Checks .copilot/commit-checks.json first, then .github/commit-checks.json as fallback.
- * Returns parsed config object or null.
- */
-function resolveCommitCheckConfig(repoRoot) {
-  const paths = [
-    path.join(repoRoot, '.copilot', 'commit-checks.json'),
-    path.join(repoRoot, '.github', 'commit-checks.json'),
-  ];
-  for (const configPath of paths) {
-    if (fs.existsSync(configPath)) {
-      try {
-        return JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      } catch {
-        // Invalid JSON — skip
-      }
-    }
-  }
-  return null;
-}
 
 /**
  * Run checks via the canonical commit-check-run.mjs script.
@@ -245,21 +214,7 @@ function discoverChecks(repoRoot) {
     return checks;
   }
 
-  const checks = [...KNOWN_CHECKS];
   const available = [];
-
-  for (const check of checks) {
-    const fullPath = path.join(repoRoot, check.path);
-    if (fs.existsSync(fullPath)) {
-      available.push({
-        name: check.name,
-        path: check.path,
-        fullPath,
-        description: check.description,
-        source: 'legacy',
-      });
-    }
-  }
 
   // Also check for .githooks/ directory existence
   const hooksDir = path.join(repoRoot, '.githooks');
@@ -697,6 +652,11 @@ function resolveGroupResults(checkResults) {
 function __setDeps(deps = {}) {
   if (deps.fs) fs = deps.fs;
   if (deps.execFile) execFile = deps.execFile;
+  // Propagate DI mocks to commitCheckConfig so tests can inject mock fs
+  try {
+    const commitCheckConfig = require('./commitCheckConfig');
+    if (commitCheckConfig.__setDeps) commitCheckConfig.__setDeps(deps);
+  } catch { /* commitCheckConfig not available */ }
 }
 
 /**
@@ -752,10 +712,10 @@ module.exports = {
   runAllChecks,
   runAllChecksWithProfile,
   gateGitAction,
+  // Backward-compat re-export; canonical source is commitCheckConfig.js
   resolveCommitCheckConfig,
   resolveGroupResults,
   __setDeps,
-  KNOWN_CHECKS,
   isProtectedBranch,
   getCurrentBranch,
 };

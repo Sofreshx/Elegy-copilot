@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { resolveCommitCheckConfig } = require('./commitCheckConfig');
 
 /**
  * Parse job names from a GitHub Actions YAML content (line-based, no external parser).
@@ -264,29 +265,7 @@ function mapCiToLocal(ciWorkflows, commitCheckConfig) {
   };
 }
 
-/**
- * Resolve commit-check config inline (duplicated here to avoid circular dependency
- * with gitCheckRunner.js).
- *
- * @param {string} repoRoot
- * @returns {Object|null}
- */
-function resolveCommitCheckConfig(repoRoot) {
-  const configPaths = [
-    path.join(repoRoot, '.copilot', 'commit-checks.json'),
-    path.join(repoRoot, '.github', 'commit-checks.json'),
-  ];
-  for (const configPath of configPaths) {
-    if (fs.existsSync(configPath)) {
-      try {
-        return JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      } catch {
-        // Invalid JSON — skip
-      }
-    }
-  }
-  return null;
-}
+
 
 /**
  * Convenience function: resolve commit-check config, discover workflows, map to local.

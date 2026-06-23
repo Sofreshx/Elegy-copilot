@@ -1,7 +1,8 @@
 'use strict';
 
 const { sendJson: defaultSendJson } = require('./_helpers');
-const { discoverChecks, runAllChecks, runAllChecksWithProfile, resolveCommitCheckConfig } = require('../lib/gitCheckRunner');
+const { discoverChecks, runAllChecks, runAllChecksWithProfile } = require('../lib/gitCheckRunner');
+const { resolveCommitCheckConfig } = require('../lib/commitCheckConfig');
 const { syncCiState } = require('../lib/ciSync');
 
 function isNonEmptyString(value) {

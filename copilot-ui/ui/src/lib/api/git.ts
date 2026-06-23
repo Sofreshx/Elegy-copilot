@@ -42,6 +42,14 @@ export interface GitPullRequestResponse {
     number: number;
     url: string;
     state: string;
+    baseRefName?: string;
+    headRefName?: string;
+    isDraft?: boolean;
+    statusCheckRollup?: Array<Record<string, unknown>>;
+    reviewDecision?: string | null;
+    mergeable?: string;
+    mergeStateStatus?: string;
+    checksSummary?: { passed: number; failed: number; pending: number };
   } | null;
   error?: string | null;
 }
