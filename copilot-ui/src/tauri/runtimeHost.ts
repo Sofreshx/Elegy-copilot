@@ -170,7 +170,7 @@ async function main(): Promise<void> {
       .catch((error: unknown) => {
         const detail = error instanceof Error ? error.message : String(error);
         const stack = error instanceof Error ? error.stack : undefined;
-        console.error(`${ERROR_PREFIX}${JSON.stringify({ message: detail, stack })}`);
+        console.log(`${ERROR_PREFIX}${JSON.stringify({ message: detail, stack })}`);
       })
       .finally(() => {
         process.exit(0);
@@ -204,7 +204,7 @@ async function main(): Promise<void> {
     await shutdown();
     const detail = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : undefined;
-    console.error(`${ERROR_PREFIX}${JSON.stringify({ message: detail, stack })}`);
+    console.log(`${ERROR_PREFIX}${JSON.stringify({ message: detail, stack })}`);
     process.exit(1);
   }
 }
@@ -212,6 +212,6 @@ async function main(): Promise<void> {
 void main().catch((error: unknown) => {
   const detail = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : undefined;
-  console.error(`${ERROR_PREFIX}${JSON.stringify({ message: detail, stack })}`);
+  console.log(`${ERROR_PREFIX}${JSON.stringify({ message: detail, stack })}`);
   process.exit(1);
 });

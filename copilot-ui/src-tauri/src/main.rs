@@ -1122,8 +1122,17 @@ fn main() {
                 }
             }
             eprintln!("[tauri-runtime] using Node.js backend");
-            let window_url = launch_runtime_host(app.handle(), stderr_capture_for_setup)?;
-            create_main_window(app.handle(), &window_url)?;
+            let window_url = match launch_runtime_host(app.handle(), stderr_capture_for_setup) {
+                Ok(url) => url,
+                Err(e) => {
+                    eprintln!("[tauri-runtime] FATAL: launch_runtime_host failed: {e}");
+                    return Err(e.into());
+                }
+            };
+            if let Err(e) = create_main_window(app.handle(), &window_url) {
+                eprintln!("[tauri-runtime] FATAL: create_main_window failed: {e}");
+                return Err(e.into());
+            }
             Ok(())
         })
         .build(tauri::generate_context!());

@@ -135,7 +135,7 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     'runtime-manifests',
   ];
 
-  assert(Number(manifest.schemaVersion) === 1, `Expected ${manifestPath} schemaVersion=1.`);
+  assert(Number(manifest.schemaVersion) >= 1, `Expected ${manifestPath} schemaVersion >= 1, got ${manifest.schemaVersion}.`);
   assert(manifest.platform === 'windows', `Expected ${manifestPath} platform=windows.`);
   assert(manifest.shell === 'tauri', `Expected ${manifestPath} shell=tauri.`);
   assert(manifest.status === 'windows_release_preview_lane_ready', `Unexpected ${manifestPath} status ${manifest.status || '(missing)'}.`);
@@ -224,6 +224,20 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     requireFile(`desktop pglite payload ${fileName}`, path.join(pgliteSourceDistPath, fileName));
   }
 
+  if (manifest.nativeRuntimePackageRequirements && typeof manifest.nativeRuntimePackageRequirements === 'object') {
+    for (const [packageName, pkgConfig] of Object.entries(manifest.nativeRuntimePackageRequirements)) {
+      assert(pkgConfig && typeof pkgConfig === 'object', `Expected ${manifestPath} nativeRuntimePackageRequirements.${packageName} to be an object.`);
+      assert(Array.isArray(pkgConfig.requiredFiles) && pkgConfig.requiredFiles.length > 0, `Expected ${manifestPath} nativeRuntimePackageRequirements.${packageName}.requiredFiles.`);
+      
+      const packagePath = path.join(sourceNodeModulesRoot, ...packageName.split('/'));
+      requireDirectory(`desktop native runtime package ${packageName}`, packagePath);
+      
+      for (const fileRel of pkgConfig.requiredFiles) {
+        requireFile(`desktop native runtime artifact ${packageName}/${fileRel}`, path.join(packagePath, fileRel));
+      }
+    }
+  }
+
   return {
     manifestPath,
     validatedResourceCount,
@@ -290,6 +304,18 @@ function validatePackagedTauriNodeSidecarLayoutMetadata(options = {}) {
     requireFile(`packaged Tauri sidecar pglite payload ${fileName}`, path.join(packagedPgliteDist, fileName));
   }
 
+  if (manifest.nativeRuntimePackageRequirements && typeof manifest.nativeRuntimePackageRequirements === 'object') {
+    const packagedNodeModulesRoot = path.join(packagedResourcesRoot, manifest.nodeModulePayload.targetRoot);
+    requireDirectory('packaged desktop node_modules root for Tauri sidecar model', packagedNodeModulesRoot);
+    for (const [packageName, pkgConfig] of Object.entries(manifest.nativeRuntimePackageRequirements)) {
+      const packagedPackagePath = path.join(packagedNodeModulesRoot, ...packageName.split('/'));
+      requireDirectory(`packaged desktop native runtime package ${packageName}`, packagedPackagePath);
+      for (const fileRel of pkgConfig.requiredFiles) {
+        requireFile(`packaged desktop native runtime artifact ${packageName}/${fileRel}`, path.join(packagedPackagePath, fileRel));
+      }
+    }
+  }
+
   return {
     packagedManifestPath,
     bundledRollbackPolicyPath,
@@ -327,6 +353,16 @@ function validateStagedTauriNodeSidecarLayoutMetadata(options = {}) {
   requireDirectory('staged Tauri pglite dist directory', stagedPgliteDist);
   for (const fileName of manifest.pglite.requiredFiles) {
     requireFile(`staged Tauri pglite payload ${fileName}`, path.join(stagedPgliteDist, fileName));
+  }
+
+  if (manifest.nativeRuntimePackageRequirements && typeof manifest.nativeRuntimePackageRequirements === 'object') {
+    for (const [packageName, pkgConfig] of Object.entries(manifest.nativeRuntimePackageRequirements)) {
+      const stagedPackagePath = path.join(stagedNodeModulesRoot, ...packageName.split('/'));
+      requireDirectory(`staged desktop native runtime package ${packageName}`, stagedPackagePath);
+      for (const fileRel of pkgConfig.requiredFiles) {
+        requireFile(`staged desktop native runtime artifact ${packageName}/${fileRel}`, path.join(stagedPackagePath, fileRel));
+      }
+    }
   }
 
   return {

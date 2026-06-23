@@ -11,8 +11,61 @@ const os = require('os');
  * @module elegyDb
  */
 
-const Database = require('better-sqlite3');
-const sqliteVec = require('@photostructure/sqlite-vec');
+/**
+ * Produce a classified diagnostics message when a native module fails to load.
+ * Includes: missing package/artifact, resolved package root, current Node version/ABI,
+ * and suggested remediation path.
+ * @param {string} packageName
+ * @param {Error} nativeError
+ * @returns {string} formatted diagnostics
+ */
+function classifyNativeRequireFailure(packageName, nativeError) {
+  const nodeVersion = process.version;
+  const nodeAbi = process.versions.modules;
+  const platform = process.platform + '_' + process.arch;
+  let packageRoot = 'unknown';
+
+  try {
+    packageRoot = require.resolve(packageName + '/package.json', { paths: [__dirname] });
+    packageRoot = require('path').dirname(packageRoot);
+  } catch {
+    // package not found at all
+  }
+
+  const lines = [
+    `[elegy-db:native-dependency] FAILED: native module "${packageName}" could not be loaded.`,
+    `  Node: ${nodeVersion} (ABI ${nodeAbi})`,
+    `  Platform: ${platform}`,
+    `  Package root: ${packageRoot}`,
+    `  Error: ${nativeError.message}`,
+  ];
+
+  if (packageRoot !== 'unknown') {
+    lines.push(`  Remediation: cd copilot-ui && npm rebuild ${packageName} --build-from-source`);
+    lines.push('  Or run: node copilot-ui/scripts/verify-native-deps.js');
+  } else {
+    lines.push('  Remediation: The package is not installed. Run: cd copilot-ui && npm install');
+  }
+
+  return lines.join('\n');
+}
+
+let Database;
+let sqliteVec;
+
+try {
+  Database = require('better-sqlite3');
+} catch (nativeError) {
+  const diagnostics = classifyNativeRequireFailure('better-sqlite3', nativeError);
+  throw new Error(diagnostics);
+}
+
+try {
+  sqliteVec = require('@photostructure/sqlite-vec');
+} catch (nativeError) {
+  const diagnostics = classifyNativeRequireFailure('@photostructure/sqlite-vec', nativeError);
+  throw new Error(diagnostics);
+}
 
 const SCHEMA_VERSION = 2;
 
@@ -336,10 +389,20 @@ function createElegyDb(opts = {}) {
     // Best effort - let better-sqlite3 handle it
   }
 
-  const db = new Database(dbPath, {
-    readonly,
-    fileMustExist: readonly,
-  });
+  let db;
+  try {
+    db = new Database(dbPath, {
+      readonly,
+      fileMustExist: readonly,
+    });
+  } catch (dbError) {
+    const diagnostics = [
+      `[elegy-db] FAILED to open database at ${dbPath}`,
+      `  Node: ${process.version} (ABI ${process.versions.modules})`,
+      `  Error: ${dbError.message}`,
+    ].join('\n');
+    throw new Error(diagnostics);
+  }
 
   // Enable WAL mode for better concurrent read performance
   if (!readonly) {
@@ -348,7 +411,16 @@ function createElegyDb(opts = {}) {
 
   // Load sqlite-vec extension for vector search
   if (!readonly) {
-    sqliteVec.load(db);
+    try {
+      sqliteVec.load(db);
+    } catch (vecError) {
+      const diagnostics = [
+        `[elegy-db] FAILED to load sqlite-vec extension`,
+        `  Node: ${process.version} (ABI ${process.versions.modules})`,
+        `  Error: ${vecError.message}`,
+      ].join('\n');
+      throw new Error(diagnostics);
+    }
   }
 
   // Run migrations

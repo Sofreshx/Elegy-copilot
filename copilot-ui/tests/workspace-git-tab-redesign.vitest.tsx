@@ -2,10 +2,31 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
+vi.mock('../ui/src/stores/gitStore', () => ({
+  gitStore: {
+    commit: vi.fn().mockResolvedValue({ committed: true }),
+    push: vi.fn().mockResolvedValue({ pushed: true }),
+    setUnsafeOverrideReason: vi.fn(),
+    setCommitMessage: vi.fn(),
+    setPullRequestTitle: vi.fn(),
+    setPullRequestBody: vi.fn(),
+    generateCommitMessage: vi.fn(),
+    clearGenerateError: vi.fn(),
+    loadRepoState: vi.fn(),
+    stageAll: vi.fn(),
+    unstageAll: vi.fn(),
+    checkoutBranch: vi.fn(),
+    pull: vi.fn(),
+    createPullRequest: vi.fn(),
+    reset: vi.fn(),
+  },
+}));
+
 vi.mock('../ui/src/lib/api/git', () => ({
   getMergeCandidates: vi.fn(),
   mergeDryRun: vi.fn(),
   mergeLocal: vi.fn(),
+  mergeWorktree: vi.fn(),
   pullGit: vi.fn(),
   checkoutGitBranch: vi.fn(),
   discoverGitChecks: vi.fn(),
@@ -26,6 +47,7 @@ vi.mock('../ui/src/lib/api/executor', () => ({
   listExecutorWorktrees: vi.fn(),
   analyzeWorktreeCleanup: vi.fn(),
   removeWorktree: vi.fn(),
+  removeWorktreeWithBranch: vi.fn(),
   pruneWorktrees: vi.fn(),
 }));
 
@@ -159,6 +181,7 @@ const defaultProps = {
 
 import * as gitApi from '../ui/src/lib/api/git';
 import * as executorApi from '../ui/src/lib/api/executor';
+import { gitStore } from '../ui/src/stores/gitStore';
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
@@ -228,6 +251,7 @@ describe('WorkspaceGitTab', () => {
     });
     vi.mocked(gitApi.pullGit).mockResolvedValue({ pulled: true, output: 'ok' });
     vi.mocked(gitApi.checkoutGitBranch).mockResolvedValue({ checkedOut: true, branch: 'feature' });
+    vi.mocked(gitApi.mergeWorktree).mockResolvedValue({ merged: false, conflicts: false, conflictFiles: [] });
     vi.mocked(executorApi.listExecutorWorktrees).mockResolvedValue(makeWorktreesResponse([]));
     vi.mocked(executorApi.analyzeWorktreeCleanup).mockResolvedValue({
       eligible: false,
@@ -256,6 +280,11 @@ describe('WorkspaceGitTab', () => {
       output: 'pruned',
       diagnostics: ['ok'],
     });
+    vi.mocked(executorApi.removeWorktreeWithBranch).mockResolvedValue({ removed: true, output: '' });
+    vi.mocked(gitStore.commit).mockResolvedValue({ committed: true });
+    vi.mocked(gitStore.push).mockResolvedValue({ pushed: true });
+    vi.mocked(gitStore.setUnsafeOverrideReason).mockImplementation(() => {});
+    vi.mocked(gitStore.clearGenerateError).mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -528,131 +557,92 @@ describe('WorkspaceGitTab', () => {
     expect(screen.getByTestId('workspace-checks-lane-test')).toBeInTheDocument();
   });
 
-  // ─── Test 8: Verify & Commit runs checks and commits on pass ───────────────
+  // ─── Test 8: Commit button calls onCommit ──────────────────────────────────
 
-  it('Verify & Commit runs checks and commits on pass', async () => {
+  it('Commit button calls onCommit', async () => {
     const onCommit = vi.fn();
     const props = {
       ...defaultProps,
       onCommit,
       gitState: { ...defaultProps.gitState, commitMessage: 'feat: test' },
     };
-
     render(<WorkspaceGitTab {...props} />);
-
     await waitFor(() => {
       expect(screen.getByTestId('workspace-git-composer')).toBeInTheDocument();
     });
-
-    const verifyBtn = screen.getByTestId('workspace-verify-commit');
-    expect(verifyBtn).not.toBeDisabled();
-    fireEvent.click(verifyBtn);
-
-    await waitFor(() => {
-      expect(gitApi.runGitChecks).toHaveBeenCalledWith('/test/repo');
-    });
+    const commitBtn = screen.getByTestId('workspace-verify-commit');
+    expect(commitBtn).not.toBeDisabled();
+    fireEvent.click(commitBtn);
     await waitFor(() => {
       expect(onCommit).toHaveBeenCalled();
     });
+    // runGitChecks is NOT called — verification is handled by WorkspaceChecksSection
+    expect(gitApi.runGitChecks).not.toHaveBeenCalled();
   });
 
-  // ─── Test 9: failed checks block commit and render failure details ──────────
+  // ─── Test 9: renders failure details when checkResults prop has failures ──
 
-  it('failed checks block commit and render failure details', async () => {
-    vi.mocked(gitApi.runGitChecks).mockResolvedValue({
+  it('renders failure details when checkResults prop has failures', async () => {
+    const failedCheckResults = {
       repoRoot: '/test/repo',
       checkedAt: new Date().toISOString(),
-      checksAvailable: 2,
-      checksRun: 2,
-      checksPassed: 0,
-      checksFailed: 2,
+      checksAvailable: 2, checksRun: 2, checksPassed: 0, checksFailed: 2,
       allPassed: false,
       results: [
         { checkName: 'lint', status: 'FAIL', passed: false, error: 'lint errors', output: 'failed', commands: [{ command: 'npm run lint', exitCode: 1, success: false, durationMs: 10 }] },
         { checkName: 'test', status: 'FAIL', passed: false, error: 'test failures', output: 'failed', commands: [{ command: 'npm test', exitCode: 1, success: false, durationMs: 10 }] },
       ],
       message: '2 checks failed.',
-      source: 'legacy' as const,
-    });
-
-    const onCommit = vi.fn();
+      source: 'commit-check' as const,
+    };
     const props = {
       ...defaultProps,
-      onCommit,
+      checkResults: failedCheckResults,
+      runningChecks: false,
       gitState: { ...defaultProps.gitState, commitMessage: 'feat: test' },
     };
-
     render(<WorkspaceGitTab {...props} />);
-
     await waitFor(() => {
       expect(screen.getByTestId('workspace-git-composer')).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByTestId('workspace-verify-commit'));
-
     await waitFor(() => {
-      expect(gitApi.runGitChecks).toHaveBeenCalled();
-    });
-
-    expect(onCommit).not.toHaveBeenCalled();
-
-    await waitFor(() => {
-      expect(screen.getByTestId('workspace-force-commit-btn')).toBeInTheDocument();
+      expect(screen.getByTestId('workspace-checks-failure-summary')).toBeInTheDocument();
     });
     expect(screen.getByTestId('workspace-checks-failure-summary')).toHaveTextContent('lint');
     expect(screen.getByTestId('workspace-checks-failure-summary')).toHaveTextContent('test');
+    // Commit button is NOT blocked by check results — verification is decoupled from commit
+    expect(screen.getByTestId('workspace-verify-commit')).not.toBeDisabled();
   });
 
-  // ─── Test 10: force commit requires override reason ─────────────────────────
+  // ─── Test 10: skip-verify commit flow commits and pushes without checks ────
 
-  it('force commit requires override reason', async () => {
-    vi.mocked(gitApi.runGitChecks).mockResolvedValue({
-      repoRoot: '/test/repo',
-      checkedAt: new Date().toISOString(),
-      checksAvailable: 2, checksRun: 2, checksPassed: 0, checksFailed: 2,
-      allPassed: false,
-      results: [{ checkName: 'lint', status: 'FAIL', passed: false, error: 'lint errors', output: 'failed' }],
-      message: '1 check failed.',
-      source: 'legacy' as const,
-    });
-    vi.mocked(gitApi.commitGit).mockResolvedValue({ committed: true, output: 'ok' });
-
+  it('skip-verify commit flow commits and pushes without checks', async () => {
+    vi.mocked(gitStore.commit).mockResolvedValue({ committed: true });
+    vi.mocked(gitStore.push).mockResolvedValue({ pushed: true });
     const props = {
       ...defaultProps,
-      gitState: { ...defaultProps.gitState, commitMessage: 'feat: test' },
+      gitState: { ...defaultProps.gitState, commitMessage: 'feat: test', summary: { ...defaultProps.gitState.summary, changedFiles: 3 } },
     };
-
     render(<WorkspaceGitTab {...props} />);
-
     await waitFor(() => {
       expect(screen.getByTestId('workspace-git-composer')).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByTestId('workspace-verify-commit'));
+    // Click skip-verify button
+    const skipBtn = screen.getByTestId('workspace-skip-verify-commit');
+    expect(skipBtn).toBeInTheDocument();
+    fireEvent.click(skipBtn);
+    // Confirm dialog appears
     await waitFor(() => {
-      expect(gitApi.runGitChecks).toHaveBeenCalled();
+      expect(screen.getByTestId('workspace-skip-verify-confirm')).toBeInTheDocument();
     });
-
+    expect(screen.getByTestId('workspace-skip-verify-confirm')).not.toBeDisabled();
+    // Click confirm
+    fireEvent.click(screen.getByTestId('workspace-skip-verify-confirm'));
     await waitFor(() => {
-      expect(screen.getByTestId('workspace-force-commit-btn')).toBeInTheDocument();
+      expect(gitStore.commit).toHaveBeenCalled();
     });
-
-    fireEvent.click(screen.getByTestId('workspace-force-commit-btn'));
     await waitFor(() => {
-      expect(screen.getByTestId('workspace-force-reason-input')).toBeInTheDocument();
-    });
-
-    expect(screen.getByTestId('workspace-force-commit-confirm')).toBeDisabled();
-
-    fireEvent.change(screen.getByTestId('workspace-force-reason-input'), { target: { value: 'Known good' } });
-    await waitFor(() => {
-      expect(screen.getByTestId('workspace-force-commit-confirm')).not.toBeDisabled();
-    });
-
-    fireEvent.click(screen.getByTestId('workspace-force-commit-confirm'));
-
-    await waitFor(() => {
-      expect(gitApi.commitGit).toHaveBeenCalledWith('/test/repo', 'feat: test', { reason: 'Known good' });
+      expect(gitStore.push).toHaveBeenCalled();
     });
   });
 
@@ -751,63 +741,53 @@ describe('WorkspaceGitTab', () => {
 
   // ─── Test 13: Push is disabled when verification is not current ────────────
 
-  it('Push is disabled when verification is not current', async () => {
+  it('Push is disabled when verification is stale or failed', async () => {
     const props = {
       ...defaultProps,
       verificationState: 'stale' as const,
       gitState: { ...defaultProps.gitState, summary: { ...defaultProps.gitState.summary, changedFiles: 3 } },
     };
-
     render(<WorkspaceGitTab {...props} />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('workspace-push')).toBeDisabled();
-    });
-
-    // Push disabled hint should be shown
-    const hint = screen.getByTestId('workspace-push-hint');
-    expect(hint).toBeInTheDocument();
-    expect(hint).toHaveTextContent('Push disabled');
-  });
-
-  // ─── Test 14: PR section as collapsible secondary action ───────────────────
-
-  it('renders PR section as collapsible secondary action', async () => {
-    render(<WorkspaceGitTab {...defaultProps} />);
-
     await waitFor(() => {
       expect(screen.getByTestId('workspace-git-composer')).toBeInTheDocument();
     });
+    const pushBtn = screen.getByTestId('workspace-push');
+    expect(pushBtn).toBeDisabled();
+    const hint = screen.getByTestId('workspace-push-hint');
+    expect(hint).toBeInTheDocument();
+    expect(hint).toHaveTextContent(/verification is stale/i);
+  });
 
-    // Create PR toggle should be present (hasRemote is true, pullRequest is null)
-    const toggleBtn = screen.getByTestId('workspace-toggle-pr-form');
-    expect(toggleBtn).toBeInTheDocument();
-    expect(toggleBtn).toHaveTextContent('+ Create PR');
+  // ─── Test 16: PR section as collapsible secondary action ───────────────────
 
-    // PR form should NOT be visible initially
-    expect(screen.queryByTestId('workspace-git-pr-create')).not.toBeInTheDocument();
-
-    // Click toggle to show form
-    fireEvent.click(toggleBtn);
-
-    // PR form should now be visible
+  it('renders PR section as collapsible secondary action', async () => {
+    const props = {
+      ...defaultProps,
+      gitState: {
+        ...defaultProps.gitState,
+        summary: { ...defaultProps.gitState.summary, branch: 'feature/test' },
+      },
+    };
+    render(<WorkspaceGitTab {...props} />);
     await waitFor(() => {
-      expect(screen.getByTestId('workspace-git-pr-create')).toBeInTheDocument();
+      expect(screen.getByTestId('workspace-git-composer')).toBeInTheDocument();
     });
-
-    // Form should have title input
+    const toggleBtn = screen.getByTestId('workspace-pr-create-toggle');
+    expect(toggleBtn).toBeInTheDocument();
+    expect(toggleBtn).toHaveTextContent('Create PR');
+    expect(screen.queryByTestId('workspace-pr-create-form')).not.toBeInTheDocument();
+    fireEvent.click(toggleBtn);
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-pr-create-form')).toBeInTheDocument();
+    });
     const prTitleInput = screen.getByPlaceholderText('PR title...');
     expect(prTitleInput).toBeInTheDocument();
-
-    // Form should have body input
     const prBodyInput = screen.getByPlaceholderText('PR body (optional)...');
     expect(prBodyInput).toBeInTheDocument();
-
-    // Create PR button should be present
     expect(screen.getByTestId('workspace-create-pr')).toBeInTheDocument();
   });
 
-  // ─── Test 15: Generate commit message button calls API and fills input ─────
+  // ─── Test 17: Generate commit message button calls API and fills input ─────
 
   it('generates commit message and fills input on success', async () => {
     const onSetCommitMessage = vi.fn();

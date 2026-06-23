@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "platform": "windows",
   "shell": "tauri",
   "status": "windows_release_preview_lane_ready",
@@ -138,6 +138,14 @@
       "initdb.wasm"
     ],
     "mustRemainFilesystemReadable": true
+  },
+  "nativeRuntimePackageRequirements": {
+    "better-sqlite3": {
+      "requiredFiles": ["build/Release/better_sqlite3.node"]
+    },
+    "@photostructure/sqlite-vec": {
+      "requiredFiles": ["dist/win32-x64/vec0.dll"]
+    }
   },
   "packagingNotes": [
     "The first Windows-first Tauri shell bootstrap resolves localhost runtime assets through the Tauri resource/app-path seam.",

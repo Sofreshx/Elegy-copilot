@@ -10,8 +10,6 @@ import type {
   MergeCandidate,
   MergeDryRunResponse,
   GitStashEntry,
-  GitStashListResponse,
-  GitStashOperationResponse,
   GitCheckStateResponse,
 } from '../../lib/api/git';
 import {
@@ -21,8 +19,6 @@ import {
   pullGit,
   checkoutGitBranch,
   mergeWorktree,
-  commitGit,
-  pushGit,
   runGitChecks,
   listStashes,
   createStash,
@@ -907,7 +903,7 @@ export default function WorkspaceGitTab({
   }
 
   // ─── Push disabled state ───────────────────────────────────────────────────
-  const pushDisabled = changeCount === 0 || gitState.syncing;
+  const pushDisabled = changeCount === 0 || gitState.syncing || verificationState === 'stale' || verificationState === 'failed' || verificationState === 'partial';
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
@@ -1681,6 +1677,13 @@ export default function WorkspaceGitTab({
               </button>
             </div>
           ) : null}
+
+          {/* Verification hint when push is disabled due to stale/failed/partial state */}
+          {(verificationState === 'stale' || verificationState === 'failed' || verificationState === 'partial') && (
+            <div data-testid="workspace-push-hint" style={{ color: 'var(--color-error-500)', fontSize: '0.8rem', marginTop: 'var(--space-xs)' }}>
+              Push disabled — {verificationState === 'stale' ? 'verification is stale. Re-run checks.' : verificationState === 'failed' ? 'checks failed. Fix issues and re-run.' : 'CI is pending. Wait for CI to complete.'}
+            </div>
+          )}
 
           {/* ─── Stash area ────────────────────────────────────────────────── */}
           <div className="workspace-git-stash-divider" data-testid="workspace-git-stash-divider" style={{

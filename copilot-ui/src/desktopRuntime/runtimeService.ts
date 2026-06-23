@@ -11,7 +11,7 @@ import { resolveKimakiEntrypoint } from './kimakiRuntimeResolver';
 import type { RuntimeDiagnostics, RuntimeDiagnosticPayload } from './runtimeDiagnostics';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const copilotConfig = require('../../lib/copilotConfig');
+const copilotConfig = require('../../copilotConfig');
 
 const DESKTOP_UI_ACCESS_QUERY_PARAM = 'desktop-ui-token';
 const DESKTOP_SMOKE_LOG_WINDOW_URL_ENV = 'INSTRUCTION_ENGINE_DESKTOP_SMOKE_LOG_WINDOW_URL';
