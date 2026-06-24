@@ -11,6 +11,9 @@ const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}.git`;
 const BINARY_NAME = 'elegy-planning';
 const INSTALL_METADATA_NAME = 'elegy-planning.install.json';
 const ELEGY_ASSETS_METADATA_NAME = 'elegy-assets.install.json';
+let releaseCache = null;
+const RELEASE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 const GITHUB_ELEGY_SKILL_ASSETS = [
   {
     id: 'elegy-planning',
@@ -54,6 +57,24 @@ function isMsvcLinkerAvailable(spawnSyncImpl) {
     return Number(result && result.status) === 0;
   } catch {
     return false;
+  }
+}
+
+function probeBinaryVersion(binaryPath, spawnSyncImpl) {
+  const spawnFn = typeof spawnSyncImpl === 'function' ? spawnSyncImpl : childProcess.spawnSync;
+  try {
+    const result = spawnFn(binaryPath, ['--version'], {
+      windowsHide: true,
+      stdio: 'pipe',
+      shell: false,
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+    const output = (result.stdout || '').trim();
+    const match = output.match(/(\d+\.\d+\.\d+)/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
   }
 }
 
@@ -424,6 +445,7 @@ async function buildElegyPlanningCliFromSource(options = {}) {
     env: options.env,
     spawnSyncImpl: options.spawnSyncImpl || childProcessModule.spawnSync,
   });
+  const binaryVersion = probeBinaryVersion(installedPath, options.spawnSyncImpl || childProcessModule.spawnSync);
   const metadata = {
     source: options.sourceKind || 'github-source',
     sourceRepoRoot: elegyRepoRoot,
@@ -432,6 +454,7 @@ async function buildElegyPlanningCliFromSource(options = {}) {
     installedPath,
     installedAt: new Date().toISOString(),
     binarySha256: hashFileSha256Sync(installedPath),
+    version: binaryVersion || null,
   };
   writeInstallMetadata(elegyHome, metadata);
   logger(`elegy-planning installed to: ${installedPath}`);
@@ -501,6 +524,11 @@ async function fetchLatestReleaseInfo(fetchImpl) {
     throw new Error('Global fetch is unavailable; cannot query GitHub releases.');
   }
 
+  // Return cached result if within TTL
+  if (releaseCache && releaseCache.fetchedAt && (Date.now() - releaseCache.fetchedAt) < RELEASE_CACHE_TTL_MS) {
+    return releaseCache.data;
+  }
+
   const url = buildGitHubReleaseUrl();
   const response = await fetchFn(url, {
     headers: {
@@ -538,7 +566,9 @@ async function fetchLatestReleaseInfo(fetchImpl) {
     );
   }
 
-  return { version: releaseVersion, releaseTag, asset, assets };
+  const result = { version: releaseVersion, releaseTag, asset, assets, published_at: release.published_at };
+  releaseCache = { data: result, fetchedAt: Date.now() };
+  return result;
 }
 
 async function downloadToFile(fetchImpl, url, destinationPath) {
@@ -716,7 +746,8 @@ async function downloadElegyPlanningCli(options = {}) {
     }
   }
 
-  logger(`elegy-planning installed to: ${downloadPath}`);
+  const binaryVersion = probeBinaryVersion(downloadPath);
+  logger(`elegy-planning installed to: ${downloadPath}${binaryVersion ? ` (v${binaryVersion})` : ''}`);
   writeInstallMetadata(elegyHome, {
     source: 'github-release',
     releaseVersion: release.version,
@@ -724,6 +755,7 @@ async function downloadElegyPlanningCli(options = {}) {
     installedPath: downloadPath,
     installedAt: new Date().toISOString(),
     binarySha256: hashFileSha256Sync(downloadPath),
+    version: binaryVersion || null,
   });
   return downloadPath;
 }
@@ -798,7 +830,13 @@ function resolveElegyPlanningCliPath(options = {}) {
   return '';
 }
 
+function clearReleaseCache() {
+  releaseCache = null;
+}
+
 module.exports = {
+  clearReleaseCache,
+  probeBinaryVersion,
   resolveElegyPlanningCliPath,
   downloadElegyPlanningCli,
   installLatestElegyPlanningCli,

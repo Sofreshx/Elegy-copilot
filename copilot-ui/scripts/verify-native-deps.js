@@ -158,13 +158,29 @@ function tryRequirePackage(packageName, nodeModulesRoot) {
  *      health check (covers packages like @photostructure/sqlite-vec whose
  *      main entry is JS but checks for loadability).
  */
+function resolvePackageDir(packageName, nodeModulesRoot) {
+  const parts = packageName.split('/');
+  const candidates = [
+    path.join(nodeModulesRoot, ...parts),
+    path.resolve(nodeModulesRoot, '..', 'node_modules', ...parts),
+    path.resolve(nodeModulesRoot, '..', '..', 'node_modules', ...parts),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 function verifySinglePackage(activeWorkspaceRoot, packageName, pkgConfig, nodeModulesRoot) {
-  const packageDir = path.join(nodeModulesRoot, ...packageName.split('/'));
+  const packageDir = resolvePackageDir(packageName, nodeModulesRoot);
   const requiredFiles = pkgConfig.requiredFiles || [];
 
   // 1. Package directory
-  if (!fs.existsSync(packageDir) || !fs.statSync(packageDir).isDirectory()) {
-    console.error(`[verify:native-deps] missing package directory: ${packageDir}`);
+  if (!packageDir) {
+    const fallback = path.join(nodeModulesRoot, ...packageName.split('/'));
+    console.error(`[verify:native-deps] missing package directory: ${fallback}`);
     return false;
   }
 

@@ -152,7 +152,7 @@ export function runChecks(config, repoRoot, options = {}) {
     const lane = lanes[name];
     if (!lane) die(`Unknown lane: ${name}`, 2);
     if (lane.skippable === false) die(`Lane "${name}" is not skippable`, 2);
-    if (!reason) die(`Lane "${name}" requires a skip reason (use --reason)`, 2);
+    if (!reason && lane.requiresReasonOnSkip !== false) die(`Lane "${name}" requires a skip reason (use --reason)`, 2);
     overrideReasons[name] = reason || '';
   }
 
@@ -390,7 +390,7 @@ Options:
   --lane <name>       Run only a specific named lane
   --group <name>      Run only lanes in a specific group
   --skip <name>       Skip a lane (can be repeated, e.g. --skip lint --skip test)
-  --reason <text>     Reason for skip (applies to preceding --skip)
+  --reason <text>     Reason for skip (required unless lane has requiresReasonOnSkip: false)
   --help, -h          Show this help message
   `);
 }

@@ -10,10 +10,11 @@ const {
   resolveGitHead,
   syncElegySkillAssetsFromGitHub,
   GITHUB_ELEGY_SKILL_ASSETS,
+  clearReleaseCache,
 } = require('../lib/elegyPlanningCliResolver');
 const assetsLib = require('../lib/assets');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
-const { resolvePlanningHealth, resolvePlanningFeatureStatus } = require('../lib/elegyPlanningHealth');
+const { resolvePlanningHealth, resolvePlanningFeatureStatus, resolvePlanningCliVersion } = require('../lib/elegyPlanningHealth');
 
 function parseVersion(value) {
   const normalized = typeof value === 'string' ? value.trim() : '';
@@ -38,8 +39,13 @@ function compareVersions(left, right) {
 
 function resolvePlanningVersion(cliPath, deps) {
   const childProcess = deps ? deps.childProcess : null;
+  return resolvePlanningCliVersion(cliPath, childProcess);
+}
+
+function resolvePlanningSchemaVersion(cliPath, deps) {
+  const childProcess = deps ? deps.childProcess : null;
   const health = resolvePlanningHealth(cliPath, childProcess);
-  return health.version;
+  return health.schemaVersion;
 }
 
 function buildElegySkillAssetsStatus(targetHome, sourceRepoRoot, sourceGitHead) {
@@ -96,26 +102,45 @@ async function buildToolingStatus(ctx, deps, codexHome) {
   });
 
   const planningCurrentVersion = resolvePlanningVersion(cliPath, deps);
+  const planningSchemaVersion = resolvePlanningSchemaVersion(cliPath, deps);
   const planningFeatures = resolvePlanningFeatureStatus(cliPath, deps.childProcess);
   let planningLatestVersion = null;
   let planningLatestError = null;
+  let planningLatestPublishedAt = null;
   try {
     const release = await fetchLatestReleaseInfo(deps.fetchImpl);
     planningLatestVersion = release && release.version ? String(release.version) : null;
+    planningLatestPublishedAt = release && release.published_at ? String(release.published_at) : null;
   } catch (error) {
     planningLatestError = error instanceof Error ? error.message : String(error);
   }
 
+  const installedMetadata = ctx.elegyHomeAbs ? readInstallMetadata(ctx.elegyHomeAbs) : null;
+  const installedVersion = installedMetadata && typeof installedMetadata.version === 'string'
+    ? installedMetadata.version
+    : planningCurrentVersion;
+
+  // Timestamp-based update detection for binary download installs
+  let timestampUpdateAvailable = false;
+  if (planningLatestPublishedAt && installedMetadata && installedMetadata.installedAt) {
+    try {
+      timestampUpdateAvailable = new Date(planningLatestPublishedAt) > new Date(installedMetadata.installedAt);
+    } catch {
+      // ignore parse errors
+    }
+  }
+
+  // Semver comparison (only works if both versions are valid semver)
+  let versionUpdateAvailable = false;
+  if (planningCurrentVersion && planningLatestVersion) {
+    versionUpdateAvailable = compareVersions(planningLatestVersion, planningCurrentVersion) > 0;
+  }
+
   const planningUpdateAvailable = Boolean(
     planningFeatures.complete !== true
-      || (
-        planningCurrentVersion
-      && planningLatestVersion
-      && compareVersions(planningLatestVersion, planningCurrentVersion) > 0
-      ),
+      || versionUpdateAvailable
+      || timestampUpdateAvailable
   );
-
-  const installedMetadata = ctx.elegyHomeAbs ? readInstallMetadata(ctx.elegyHomeAbs) : null;
   const managedSourceRoot = ctx.elegyHomeAbs ? buildManagedSourceDir(ctx.elegyHomeAbs) : '';
   const sourceRepoRoot = typeof installedMetadata?.sourceRepoRoot === 'string'
     ? installedMetadata.sourceRepoRoot
@@ -136,7 +161,7 @@ async function buildToolingStatus(ctx, deps, codexHome) {
         || (sourceGitHead && installedSourceGitHead && sourceGitHead !== installedSourceGitHead)
         || (sourceGitHead && !installedSourceGitHead)
       ),
-  );
+  ) || timestampUpdateAvailable; // Also signal update for binary-download path
 
   const elegySkillsStatus = buildElegySkillAssetsStatus(ctx.opencodeHome, sourceRepoRoot, sourceGitHead);
 
@@ -182,7 +207,8 @@ async function buildToolingStatus(ctx, deps, codexHome) {
     checkedAtMs,
     elegyPlanningCli: {
       cliPath: cliPath || null,
-      currentVersion: planningCurrentVersion || (installedSourceGitHead ? `source:${installedSourceGitHead.slice(0, 12)}` : null),
+      currentVersion: installedVersion || planningCurrentVersion || (installedSourceGitHead ? `source:${installedSourceGitHead.slice(0, 12)}` : null),
+      schemaVersion: planningSchemaVersion,
       latestVersion: planningLatestVersion,
       updateAvailable: planningUpdateAvailable || managedSourceUpdateAvailable,
       canUpdate: Boolean(ctx.elegyHomeAbs),
@@ -248,6 +274,7 @@ function register(deps = {}) {
       path: '/api/tooling-updates/update/elegy-planning',
       handler: async (ctx) => {
         try {
+          clearReleaseCache(); // Invalidate cached release info
           const installResult = await installLatestElegyPlanningCli({
             elegyHome: ctx.elegyHomeAbs,
             runtimeRoot: ctx.engineRoot,

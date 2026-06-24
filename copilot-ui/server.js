@@ -4975,7 +4975,8 @@ async function startServer(options = {}) {
         env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH = installResult.installedPath;
         env.INSTRUCTION_ENGINE_ELEGY_PLANNING_ENABLED = '1';
         delete env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED;
-        logger(`elegy-planning CLI installed to: ${installResult.installedPath}`);
+        const installedVersion = installResult.metadata && installResult.metadata.version;
+        logger(`elegy-planning CLI installed to: ${installResult.installedPath}${installedVersion ? ` (v${installedVersion})` : ''}`);
       } catch (downloadError) {
         logger(`elegy-planning CLI managed install failed: ${downloadError.message}`);
         try {

@@ -162,6 +162,11 @@ async function run() {
       assert.strictEqual(gitCalled, false, 'git clone must NOT be called when MSVC unavailable');
     });
 
+    await test('probeBinaryVersion exports as a function', () => {
+      const { probeBinaryVersion } = require('../lib/elegyPlanningCliResolver');
+      assert.strictEqual(typeof probeBinaryVersion, 'function');
+    });
+
     await test('buildElegyPlanningCliFromSource builds and installs managed binary metadata', async () => {
       const elegyRoot = path.join(tmpRoot, 'source-elegy');
       const elegyHome = path.join(tmpRoot, 'copilot-home');
@@ -190,17 +195,25 @@ async function run() {
           },
         },
         spawnSyncImpl(command, args) {
-          assert.strictEqual(command, 'git');
-          assert.deepStrictEqual(args.slice(0, 3), ['-C', elegyRoot, 'rev-parse']);
-          return { status: 0, stdout: 'abc123\n' };
+          if (command === 'git' && args[0] === '-C') {
+            return { status: 0, stdout: 'abc123\n' };
+          }
+          if (args && Array.isArray(args) && args.includes('--version')) {
+            return { status: 0, stdout: 'elegy-planning 0.1.0\n', stderr: '' };
+          }
+          return { status: 0, stdout: '' };
         },
       });
       assert.ok(fs.existsSync(result.installedPath));
       assert.strictEqual(result.metadata.source, 'github-source');
       assert.strictEqual(result.metadata.sourceGitHead, 'abc123');
+      // version field may be null since probeBinaryVersion runs against a fake binary
+      assert.ok(Object.prototype.hasOwnProperty.call(result.metadata, 'version'));
+      assert.strictEqual(result.metadata.version, '0.1.0', 'version should be extracted from fake binary');
       const metadata = readInstallMetadata(elegyHome);
       assert.strictEqual(metadata.source, 'github-source');
       assert.strictEqual(metadata.sourceGitHead, 'abc123');
+      assert.ok(Object.prototype.hasOwnProperty.call(metadata, 'version'));
     });
     await test('syncElegySkillAssetsFromGitHub installs skills from managed GitHub checkout', async () => {
       const elegyHome = path.join(tmpRoot, 'asset-copilot-home');
