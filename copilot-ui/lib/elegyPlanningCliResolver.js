@@ -41,6 +41,22 @@ function binaryName() {
   return isWindows() ? 'elegy-planning.exe' : 'elegy-planning';
 }
 
+function isMsvcLinkerAvailable(spawnSyncImpl) {
+  if (process.platform !== 'win32') {
+    return true;
+  }
+  const spawn = typeof spawnSyncImpl === 'function' ? spawnSyncImpl : childProcess.spawnSync;
+  try {
+    const result = spawn('where', ['link.exe'], {
+      windowsHide: true,
+      stdio: 'pipe',
+    });
+    return Number(result && result.status) === 0;
+  } catch {
+    return false;
+  }
+}
+
 function isPathLikeCommand(candidate) {
   const normalized = normalizeString(candidate);
   if (!normalized) {
@@ -713,6 +729,19 @@ async function downloadElegyPlanningCli(options = {}) {
 }
 
 async function installLatestElegyPlanningCli(options = {}) {
+  const spawnSyncImpl = options.spawnSyncImpl
+    || (options.childProcess && options.childProcess.spawnSync);
+
+  if (!isMsvcLinkerAvailable(spawnSyncImpl)) {
+    const logger = typeof options.logger === 'function' ? options.logger : () => {};
+    logger('MSVC linker not available, skipping source build and downloading prebuilt binary...');
+    const downloadPath = await downloadElegyPlanningCli(options);
+    return {
+      installedPath: downloadPath,
+      metadata: readInstallMetadata(options.elegyHome),
+    };
+  }
+
   const sourceDir = await syncGitHubElegySource(options);
   return buildElegyPlanningCliFromSource({
     ...options,
@@ -793,4 +822,5 @@ module.exports = {
   binaryName,
   commandExistsOnPath,
   isPathLikeCommand,
+  isMsvcLinkerAvailable,
 };

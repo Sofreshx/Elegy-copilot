@@ -7352,7 +7352,7 @@ textarea:focus-visible,
 .markdown-frontmatter dd {
   margin: 0;
   color: var(--color-ink-700);
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .task-list {

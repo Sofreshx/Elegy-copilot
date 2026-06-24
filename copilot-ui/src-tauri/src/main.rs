@@ -328,7 +328,10 @@ fn repo_root() -> PathBuf {
 fn runtime_root(app: &AppHandle) -> Result<PathBuf, String> {
     if cfg!(debug_assertions) {
         let root = repo_root();
-        eprintln!("[tauri-runtime] debug mode, runtime root: {}", root.display());
+        eprintln!(
+            "[tauri-runtime] debug mode, runtime root: {}",
+            root.display()
+        );
         return Ok(root);
     }
 
@@ -336,15 +339,20 @@ fn runtime_root(app: &AppHandle) -> Result<PathBuf, String> {
         .path()
         .resource_dir()
         .map_err(|error| format!("Unable to resolve Tauri resource directory: {error}"))?;
-    eprintln!("[tauri-runtime] release mode, resource_dir: {}", root.display());
+    eprintln!(
+        "[tauri-runtime] release mode, resource_dir: {}",
+        root.display()
+    );
     Ok(root)
 }
 
 fn bundled_node_path(_app: &AppHandle, root: &Path) -> Result<PathBuf, String> {
     if cfg!(debug_assertions) {
-        return Ok(std::env::var_os("INSTRUCTION_ENGINE_TAURI_DEV_NODE_EXECUTABLE")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("node")));
+        return Ok(
+            std::env::var_os("INSTRUCTION_ENGINE_TAURI_DEV_NODE_EXECUTABLE")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("node")),
+        );
     }
 
     let node_path = root.join("node").join("node.exe");
@@ -392,7 +400,12 @@ fn to_wide_string(s: &str) -> Vec<u16> {
 #[cfg(windows)]
 fn show_error_dialog(title: &str, message: &str) {
     extern "system" {
-        fn MessageBoxW(hWnd: *mut core::ffi::c_void, lpText: *const u16, lpCaption: *const u16, uType: u32) -> i32;
+        fn MessageBoxW(
+            hWnd: *mut core::ffi::c_void,
+            lpText: *const u16,
+            lpCaption: *const u16,
+            uType: u32,
+        ) -> i32;
     }
 
     const MB_ICONERROR: u32 = 0x00000010;
@@ -461,13 +474,11 @@ fn resolve_desktop_update_channel(app: &AppHandle) -> (String, Option<String>, O
             } else if normalized == "stable" || normalized == "prerelease" {
                 (normalized, None, None)
             } else {
+                let blocked_msg = "Updates are blocked because INSTRUCTION_ENGINE_UPDATE_CHANNEL is invalid for the manual-installer Tauri lane: {}.";
                 (
                     default_channel.to_string(),
                     Some("update_channel_invalid".to_string()),
-                    Some(format!(
-                        "Updates are blocked because INSTRUCTION_ENGINE_UPDATE_CHANNEL is invalid for the manual-installer Tauri lane: {}.",
-                        value.trim()
-                    )),
+                    Some(format!(blocked_msg, value.trim())),
                 )
             }
         }
@@ -480,9 +491,8 @@ fn build_desktop_updater_state(app: &AppHandle) -> DesktopUpdaterState {
     let (channel, reason_override, message_override) = resolve_desktop_update_channel(app);
     let supported = reason_override.is_none();
     let status = if supported { "checking" } else { "blocked" };
-    let message = message_override.unwrap_or_else(|| {
-        "Connecting to the desktop updater...".to_string()
-    });
+    let message =
+        message_override.unwrap_or_else(|| "Connecting to the desktop updater...".to_string());
 
     DesktopUpdaterState {
         supported,
@@ -506,8 +516,8 @@ fn build_init_script(app: &AppHandle) -> Result<String, String> {
     let updater_state_json = serde_json::to_string(&build_desktop_updater_state(app))
         .map_err(|error| format!("Unable to serialize Tauri updater bridge state: {error}"))?;
 
-        Ok(
-                r#"
+    Ok(
+        r#"
       (() => {
         const isLoopbackHttpUrl = (value) => {
           try {
@@ -747,7 +757,10 @@ fn focus_main_window(app: &AppHandle) {
 
 fn is_loopback_runtime_url(url: &Url) -> bool {
     url.scheme() == "http"
-        && matches!(url.host_str(), Some("127.0.0.1") | Some("localhost") | Some("::1"))
+        && matches!(
+            url.host_str(),
+            Some("127.0.0.1") | Some("localhost") | Some("::1")
+        )
 }
 
 fn open_external_url(url: &Url) {
@@ -777,7 +790,10 @@ fn create_main_window(app: &AppHandle, window_url: &str) -> Result<(), String> {
         .map_err(|error| format!("Unable to create Tauri window: {error}"))
 }
 
-fn drain_runtime_output(child: &mut Child, stderr_capture: StderrCapture) -> Result<String, String> {
+fn drain_runtime_output(
+    child: &mut Child,
+    stderr_capture: StderrCapture,
+) -> Result<String, String> {
     let stdout = child
         .stdout
         .take()
@@ -813,9 +829,8 @@ fn drain_runtime_output(child: &mut Child, stderr_capture: StderrCapture) -> Res
                 }
                 Err(error) => {
                     if let Some(sender) = ready_sender.take() {
-                        let _ = sender.send(Err(format!(
-                            "Failed to read runtime host stdout: {error}"
-                        )));
+                        let _ = sender
+                            .send(Err(format!("Failed to read runtime host stdout: {error}")));
                     }
                     break;
                 }
@@ -824,7 +839,7 @@ fn drain_runtime_output(child: &mut Child, stderr_capture: StderrCapture) -> Res
 
         if let Some(sender) = ready_sender.take() {
             let _ = sender.send(Err(
-                "Tauri runtime host exited before reporting readiness.".to_string(),
+                "Tauri runtime host exited before reporting readiness.".to_string()
             ));
         }
     });
@@ -845,7 +860,9 @@ fn drain_runtime_output(child: &mut Child, stderr_capture: StderrCapture) -> Res
             Ok(result) => return result,
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 if let Ok(Some(status)) = child.try_wait() {
-                    return Err(format!("Tauri runtime host exited early with status {status}."));
+                    return Err(format!(
+                        "Tauri runtime host exited early with status {status}."
+                    ));
                 }
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
@@ -904,21 +921,17 @@ fn spawn_runtime_watchdog(app: AppHandle, cancel: Arc<AtomicBool>) {
                 return;
             }
 
-            let pid_value = state
-                .pid
-                .lock()
-                .ok()
-                .and_then(|guard| *guard);
-            let window_url_value = state
-                .window_url
-                .lock()
-                .ok()
-                .and_then(|guard| guard.clone());
+            let pid_value = state.pid.lock().ok().and_then(|guard| *guard);
+            let window_url_value = state.window_url.lock().ok().and_then(|guard| guard.clone());
             let last_stderr = state
                 .stderr_capture
                 .lock()
                 .ok()
-                .and_then(|guard| guard.as_ref().map(|cap| cap.lock().ok().map(|lines| lines.clone())))
+                .and_then(|guard| {
+                    guard
+                        .as_ref()
+                        .map(|cap| cap.lock().ok().map(|lines| lines.clone()))
+                })
                 .flatten()
                 .unwrap_or_default();
 
@@ -957,7 +970,10 @@ fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result
     let root = runtime_root(app)?;
     eprintln!("[tauri-runtime] runtime root: {}", root.display());
     let node_executable = bundled_node_path(app, &root)?;
-    eprintln!("[tauri-runtime] node executable: {}", node_executable.display());
+    eprintln!(
+        "[tauri-runtime] node executable: {}",
+        node_executable.display()
+    );
     let runtime_host = runtime_host_path(&root)?;
     eprintln!("[tauri-runtime] runtime host: {}", runtime_host.display());
     let stderr_capture_for_watchdog = Arc::clone(&stderr_capture);
@@ -974,7 +990,10 @@ fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result
             "ELEGY_TAURI_IS_PACKAGED",
             if cfg!(debug_assertions) { "0" } else { "1" },
         )
-        .env("ELEGY_TAURI_NODE_EXECUTABLE", bundled_node_path(app, &root)?)
+        .env(
+            "ELEGY_TAURI_NODE_EXECUTABLE",
+            bundled_node_path(app, &root)?,
+        )
         .env("ELEGY_TAURI_RUNTIME_ROOT", &root)
         .env("ELEGY_TAURI_SERVER_ENTRYPOINT", server_entrypoint)
         .stdin(Stdio::piped())
@@ -1003,11 +1022,13 @@ fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result
     *runtime_state
         .window_url
         .lock()
-        .map_err(|_| "Unable to lock runtime window url state.".to_string())? = Some(parsed.window_url.clone());
+        .map_err(|_| "Unable to lock runtime window url state.".to_string())? =
+        Some(parsed.window_url.clone());
     *runtime_state
         .stderr_capture
         .lock()
-        .map_err(|_| "Unable to lock runtime stderr capture state.".to_string())? = Some(stderr_capture_for_watchdog);
+        .map_err(|_| "Unable to lock runtime stderr capture state.".to_string())? =
+        Some(stderr_capture_for_watchdog);
 
     spawn_runtime_watchdog(app.clone(), runtime_state.cancel.clone());
 
@@ -1155,7 +1176,10 @@ fn main() {
             boot_log!("tauri event loop exited");
         }
         Err(error) => {
-            let stderr_lines = stderr_capture.lock().map(|lines| lines.clone()).unwrap_or_default();
+            let stderr_lines = stderr_capture
+                .lock()
+                .map(|lines| lines.clone())
+                .unwrap_or_default();
             let error_message = format!("{error}");
             let diagnostics = format_boot_diagnostics(&stderr_lines, &error_message);
             boot_log!("tauri build failed");

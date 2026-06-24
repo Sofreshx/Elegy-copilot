@@ -11,6 +11,8 @@ const {
   readElegyAssetsMetadata,
   commandExistsOnPath,
   isPathLikeCommand,
+  isMsvcLinkerAvailable,
+  installLatestElegyPlanningCli,
 } = require('../lib/elegyPlanningCliResolver');
 let passed = 0;
 let failed = 0;
@@ -97,6 +99,69 @@ async function run() {
       });
       assert.strictEqual(resolved, '');
     });
+    await test('isMsvcLinkerAvailable returns false when where link.exe fails on win32', () => {
+      const result = isMsvcLinkerAvailable(() => ({ status: 1 }));
+      if (process.platform === 'win32') {
+        assert.strictEqual(result, false);
+      }
+      // On non-Windows, this always returns true regardless of mock
+    });
+
+    await test('isMsvcLinkerAvailable returns true when where link.exe succeeds on win32', () => {
+      const result = isMsvcLinkerAvailable(() => ({ status: 0 }));
+      // Always true: non-Windows returns true, win32 with linker returns true
+      assert.strictEqual(result, true);
+    });
+
+    await test('isMsvcLinkerAvailable handles spawn throwing gracefully', () => {
+      const result = isMsvcLinkerAvailable(() => { throw new Error('ENOENT'); });
+      if (process.platform === 'win32') {
+        assert.strictEqual(result, false);
+      }
+      // On non-Windows, this always returns true regardless of throw
+    });
+
+    await test('installLatestElegyPlanningCli skips cargo build when MSVC linker is unavailable', async () => {
+      const elegyHome = path.join(tmpRoot, 'skip-cargo-home');
+      let cargoCalled = false;
+      let gitCalled = false;
+
+      const childProcessMock = {
+        execFile(command, args, options, callback) {
+          if (command === 'cargo') {
+            cargoCalled = true;
+            callback(new Error('should not happen'), '', '');
+          } else if (command === 'git') {
+            gitCalled = true;
+            callback(null, '', '');
+          }
+        },
+        spawnSync(command, args) {
+          if (command === 'where' && args && args[0] === 'link.exe') {
+            return { status: 1 };
+          }
+          if (command === 'git') {
+            return { status: 0, stdout: 'abc\n' };
+          }
+          return { status: 1 };
+        },
+      };
+
+      // MSVC unavailable -> will try downloadElegyPlanningCli which needs fetch
+      // Without mock fetch, it will throw, but cargo should NOT have been called
+      try {
+        await installLatestElegyPlanningCli({
+          elegyHome,
+          childProcess: childProcessMock,
+        });
+      } catch (error) {
+        // Expected: downloadElegyPlanningCli fails without fetch mock
+      }
+
+      assert.strictEqual(cargoCalled, false, 'cargo build must NOT be called when MSVC unavailable');
+      assert.strictEqual(gitCalled, false, 'git clone must NOT be called when MSVC unavailable');
+    });
+
     await test('buildElegyPlanningCliFromSource builds and installs managed binary metadata', async () => {
       const elegyRoot = path.join(tmpRoot, 'source-elegy');
       const elegyHome = path.join(tmpRoot, 'copilot-home');

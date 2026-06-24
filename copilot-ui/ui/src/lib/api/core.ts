@@ -104,6 +104,7 @@ import type {
   PlanningTaskBoardResponse,
   PolicyPreflightResponse,
   RuntimeCatalogHealthResponse,
+  SandboxLifecycleAction,
   SdkHealthResponse,
   SdkSendResponse,
   SdkSessionSummary,
@@ -2739,4 +2740,142 @@ export function normalizeGatewayStateResponse(payload: unknown): GatewayStateRes
     ...record,
     ready: asBoolean(record.ready, false),
   };
+}
+
+// --- Sandbox token detection and remediation ---
+
+export const SANDBOX_TOKEN_REMEDIATION_GUIDANCE =
+  'Your sandbox token may be missing or invalid. Please configure your tracker token in Settings → Gateway.';
+
+const SANDBOX_TOKEN_CANONICAL_STATE = 'token_missing';
+const SANDBOX_TOKEN_CANONICAL_CODE = 'MISSING_SANDBOX_TOKEN';
+const LEGACY_MISSING_TOKEN_STATE = 'missing_token';
+const LEGACY_MISSING_TOKEN_CODE = 'tracker_token_missing';
+const LEGACY_MISSING_TOKEN_MESSAGE = 'Tracker token not configured';
+
+const KNOWN_MISSING_TOKEN_TOKENS: ReadonlySet<string> = new Set([
+  SANDBOX_TOKEN_CANONICAL_STATE,
+  LEGACY_MISSING_TOKEN_STATE,
+  SANDBOX_TOKEN_CANONICAL_CODE.toLowerCase(),
+  LEGACY_MISSING_TOKEN_CODE,
+  LEGACY_MISSING_TOKEN_MESSAGE.toLowerCase(),
+]);
+
+function normalizeMissingToken(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function collectIndicatorTokens(payload: unknown, depth: number): string[] {
+  if (depth > 2 || payload == null) return [];
+  if (typeof payload === 'string') {
+    const token = normalizeMissingToken(payload);
+    return token ? [token] : [];
+  }
+  if (typeof payload !== 'object') return [];
+
+  const source = payload as Record<string, unknown>;
+  const fields = ['status', 'state', 'code', 'reason', 'message', 'error'];
+  const out: string[] = [];
+
+  for (const field of fields) {
+    if (!Object.prototype.hasOwnProperty.call(source, field)) continue;
+    const value = source[field];
+    if (typeof value === 'string') {
+      const token = normalizeMissingToken(value);
+      if (token) out.push(token);
+      continue;
+    }
+    if (value && typeof value === 'object') {
+      out.push(...collectIndicatorTokens(value, depth + 1));
+    }
+  }
+
+  return out;
+}
+
+function isKnownMissingTokenIndicator(payload: unknown): boolean {
+  const tokens = collectIndicatorTokens(payload, 0);
+  return tokens.some((token) => KNOWN_MISSING_TOKEN_TOKENS.has(token));
+}
+
+function extractPreferredMessage(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return '';
+
+  const record = payload as Record<string, unknown>;
+
+  const fromMessage = typeof record.message === 'string' ? record.message.trim() : '';
+  if (fromMessage) return fromMessage;
+
+  const fromError = typeof record.error === 'string' ? record.error.trim() : '';
+  if (fromError) return fromError;
+
+  if (record.error && typeof record.error === 'object') {
+    const nested = record.error as Record<string, unknown>;
+    const nestedMessage = typeof nested.message === 'string' ? nested.message.trim() : '';
+    if (nestedMessage) return nestedMessage;
+  }
+
+  return '';
+}
+
+export function toCanonicalSandboxMissingTokenError(payload: unknown): string | null {
+  if (!isKnownMissingTokenIndicator(payload)) return null;
+
+  const message = extractPreferredMessage(payload) || LEGACY_MISSING_TOKEN_MESSAGE;
+  return `${SANDBOX_TOKEN_CANONICAL_CODE}: ${message}`;
+}
+
+export function toCanonicalSandboxMissingTokenErrorFromUnknown(error: unknown): string | null {
+  if (!error) return null;
+
+  if (error instanceof Error) {
+    const message = error.message;
+    if (!message) return null;
+
+    // Check if the error message itself is a known token
+    const token = normalizeMissingToken(message);
+    if (KNOWN_MISSING_TOKEN_TOKENS.has(token)) {
+      return `${SANDBOX_TOKEN_CANONICAL_CODE}: ${message}`;
+    }
+
+    // Try to parse the message as a JSON payload (gateway responses may be serialized)
+    try {
+      const parsed = JSON.parse(message);
+      if (typeof parsed === 'object' && parsed !== null) {
+        return toCanonicalSandboxMissingTokenError(parsed);
+      }
+    } catch {
+      // Not JSON — fall through
+    }
+  }
+
+  // Treat the error as a generic payload
+  return toCanonicalSandboxMissingTokenError(error);
+}
+
+export function toSandboxTokenRemediationMessage(value?: unknown): string {
+  if (value === undefined) return SANDBOX_TOKEN_REMEDIATION_GUIDANCE;
+
+  const fromPayload = extractPreferredMessage(value);
+  if (fromPayload) return fromPayload;
+
+  if (value instanceof Error) {
+    const msg = value.message.trim();
+    if (msg) return msg;
+  }
+
+  return SANDBOX_TOKEN_REMEDIATION_GUIDANCE;
+}
+
+export async function runSandboxLifecycleAction(
+  action: SandboxLifecycleAction,
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  // TODO: Backend route not yet implemented — stub for compilation
+  const response = await apiRequest<Record<string, unknown>>('/api/sandbox/lifecycle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, ...payload }),
+  });
+  return response;
 }
