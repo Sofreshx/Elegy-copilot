@@ -350,6 +350,7 @@ async function resolveGitSummary(childProcessImpl, repoPath) {
     clean: status.clean,
     changedFiles: status.files.length,
     stagedFiles: status.stagedCount || 0,
+    files: status.files,
     additions,
     deletions,
     ahead: status.ahead || 0,
@@ -1611,8 +1612,8 @@ function resolveOpenCodeBin() {
 
 const FALLBACK_OPENCODE_COMMIT_MODELS = [
   'opencode/deepseek-v4-flash-free',
-  'opencode/deepseek-v4-pro-free',
   'opencode-go/deepseek-v4-flash',
+  'deepseek/deepseek-v4-flash',
 ];
 
 function uniqueStrings(values) {
@@ -1854,6 +1855,8 @@ ${diffText}`;
             'run',
             '--model', model,
             '--format', 'json',
+            '--no-replay',
+            '--dangerously-skip-permissions',
             '--dir', repoPath,
             prompt,
           ], execOpts, (error, stdout, stderr) => {

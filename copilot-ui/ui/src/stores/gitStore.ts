@@ -1,6 +1,5 @@
 import { createStore } from '../lib/store';
 import {
-  getGitStatus,
   getGitDiff,
   getGitLog,
   getGitBranches,
@@ -99,14 +98,26 @@ function createGitStore() {
     store.setState((s) => ({ ...s, repoPath, loading: true, error: null }));
 
     try {
-      const [status, log, branches, summary] = await Promise.all([
-        getGitStatus(repoPath),
+      const [summary, log, branches] = await Promise.all([
+        getGitSummary(repoPath),
         getGitLog(repoPath),
         getGitBranches(repoPath),
-        getGitSummary(repoPath),
       ]);
 
       if (nextVersion !== requestVersion) return;
+
+      // Derive status from summary (single source of truth)
+      const status: GitStatusResponse = {
+        branch: summary.branch || undefined as unknown as string,
+        files: summary.files,
+        clean: summary.clean,
+        stagedCount: summary.stagedFiles,
+        unstagedCount: summary.changedFiles - summary.stagedFiles,
+        ahead: summary.ahead,
+        behind: summary.behind,
+        upstream: summary.upstream,
+        remoteName: summary.remoteName,
+      };
 
       store.setState((s) => ({
         ...s,
@@ -118,7 +129,7 @@ function createGitStore() {
         pullRequest: summary.pullRequest
           ? { available: true, tool: 'gh' as const, authenticated: true, pullRequest: summary.pullRequest }
           : null,
-        selectedBranch: status.branch || branches.currentBranch || '',
+        selectedBranch: summary.branch || branches.currentBranch || '',
         loading: false,
       }));
     } catch (err) {

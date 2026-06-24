@@ -51,10 +51,10 @@
       ],
       "notes": "Free Zen model availability can change daily; best-effort curated IDs.",
       "roleModels": {
-        "planning": "opencode/deepseek-v4-pro-free",
+        "planning": "opencode/deepseek-v4-flash-free",
         "implementation": "opencode/deepseek-v4-flash-free",
         "exploration": "opencode/deepseek-v4-flash-free",
-        "review": "opencode/deepseek-v4-pro-free",
+        "review": "opencode/deepseek-v4-flash-free",
         "research": "opencode/deepseek-v4-flash-free"
       }
     },

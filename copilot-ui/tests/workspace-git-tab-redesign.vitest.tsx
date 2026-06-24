@@ -322,10 +322,8 @@ describe('WorkspaceGitTab', () => {
     expect(screen.getByTestId('workspace-summary-branch')).toHaveTextContent('main');
     // Upstream
     expect(screen.getByTestId('workspace-summary-upstream')).toHaveTextContent('origin/main');
-    // Dirty count
-    expect(screen.getByTestId('workspace-summary-clean')).toHaveTextContent('dirty(3)');
-    // Staged count
-    expect(screen.getByTestId('workspace-summary-staged')).toHaveTextContent('1 staged');
+    // Dirty count (now shows staged/unstaged breakdown)
+    expect(screen.getByTestId('workspace-summary-clean')).toHaveTextContent('dirty(1 staged, 2 unstaged)');
     // Ahead/behind markers
     expect(screen.getByTestId('workspace-summary-ahead')).toHaveTextContent('↑2');
     expect(screen.getByTestId('workspace-summary-behind')).toHaveTextContent('↓1');
