@@ -11,6 +11,7 @@ const TABS: { id: WorkspaceLocalTab; label: string; icon: AppIconName }[] = [
   { id: 'docs', label: 'Docs', icon: 'file-text' },
   { id: 'git', label: 'Git', icon: 'git-branch' },
   { id: 'checks', label: 'Checks', icon: 'check' },
+  { id: 'health', label: 'Health', icon: 'warning' },
   { id: 'planning', label: 'Planning', icon: 'diamond' },
   { id: 'execution', label: 'Execution', icon: 'play' },
   { id: 'assets', label: 'Assets', icon: 'assets' },

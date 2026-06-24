@@ -12,7 +12,6 @@ const { parseFrontmatterYaml } = require('./lib/spec-yaml.js');
 // ---------------------------------------------------------------------------
 
 const defaultRepoRoot = path.resolve(__dirname, '..');
-const STALE_THRESHOLD_DAYS = 90;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Scaffold file patterns relative to repo root. */
@@ -23,18 +22,36 @@ const SCAFFOLD_FILES = [
 	'ROUTER.md',
 	'SETUP.md',
 	'SYNC.md',
+	'README.md',
+	'SECURITY.md',
+	'SUPPORT.md',
+	'CODE_OF_CONDUCT.md',
 ];
 
 /** Directories to scan for *.md files. */
 const SCAFFOLD_DIRS = [
 	'context',
 	'patterns',
+	'docs',
 ];
 
 /** Config files. */
 const CONFIG_FILES = [
 	'.opencode/opencode.jsonc',
 ];
+
+/** Directories to scan recursively for all files (not just .md). */
+const RECURSIVE_DIRS = [
+	'.opencode',
+];
+
+/** Default staleness thresholds. Overridable via .elegy/repo-check-config.json. */
+const DEFAULT_STALENESS_CONFIG = {
+	warnDays: 90,
+	errorDays: null,
+	warnCommits: 50,
+	errorCommits: 200,
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -109,7 +126,7 @@ function parseArgs(argv) {
 			args.verbose = true;
 		} else if (flag === '--check' && i + 1 < argv.length) {
 			const value = argv[++i];
-			const validChecks = ['claims', 'frontmatter', 'staleness', 'links', 'scripts', 'all'];
+			const validChecks = ['claims', 'frontmatter', 'staleness', 'links', 'scripts', 'cross-file', 'todo-fixme', 'tool-config-sync', 'all'];
 			if (validChecks.indexOf(value) !== -1) {
 				args.check = value;
 			} else {
@@ -133,7 +150,7 @@ function printUsage() {
 		'  --target <path>    Repo root directory (default: parent of scripts/)',
 		'  --json             Output machine-readable JSON DriftReport to stdout',
 		'  --verbose          Include verbose detail in JSON; show successful claims in human mode',
-		'  --check <name>     Run only a specific check: claims, frontmatter, staleness, links, scripts, all (default)',
+		'  --check <name>     Run only a specific check: claims, frontmatter, staleness, links, scripts, cross-file, todo-fixme, tool-config-sync, all (default)',
 		'  --help             Print this usage message',
 		'',
 	].join('\n'));
@@ -168,13 +185,7 @@ function collectScaffoldFiles(target) {
 		const dir = SCAFFOLD_DIRS[i];
 		const absDir = path.join(target, dir);
 		if (fs.existsSync(absDir) && fs.statSync(absDir).isDirectory()) {
-			const entries = fs.readdirSync(absDir, { withFileTypes: true });
-			for (let j = 0; j < entries.length; j++) {
-				const entry = entries[j];
-				if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
-					files.push(toPosix(path.join(dir, entry.name)));
-				}
-			}
+			collectMarkdownFiles(absDir, dir, files);
 		}
 	}
 
@@ -187,7 +198,86 @@ function collectScaffoldFiles(target) {
 		}
 	}
 
+	// Recursive dirs: scan all files, not just .md
+	for (let i = 0; i < RECURSIVE_DIRS.length; i++) {
+		const dir = RECURSIVE_DIRS[i];
+		const absDir = path.join(target, dir);
+		if (fs.existsSync(absDir) && fs.statSync(absDir).isDirectory()) {
+			collectAllFiles(absDir, dir, files);
+		}
+	}
+
 	return files.sort(function (a, b) { return a.localeCompare(b); });
+}
+
+/**
+ * Recursively collect *.md files from a directory.
+ * Skips node_modules and .git directories.
+ *
+ * @param {string} absDir — absolute path to directory
+ * @param {string} relDir — relative POSIX path prefix
+ * @param {string[]} files — output array (mutated)
+ */
+function collectMarkdownFiles(absDir, relDir, files) {
+	let entries;
+	try {
+		entries = fs.readdirSync(absDir, { withFileTypes: true });
+	} catch (_) {
+		return;
+	}
+
+	for (let i = 0; i < entries.length; i++) {
+		const entry = entries[i];
+
+		// Skip node_modules and .git
+		if (entry.name === 'node_modules' || entry.name === '.git') {
+			continue;
+		}
+
+		const absPath = path.join(absDir, entry.name);
+		const relPath = toPosix(path.join(relDir, entry.name));
+
+		if (entry.isDirectory()) {
+			collectMarkdownFiles(absPath, relPath, files);
+		} else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
+			files.push(relPath);
+		}
+	}
+}
+
+/**
+ * Recursively collect all files (no extension filter) from a directory.
+ * Skips node_modules and .git directories.
+ *
+ * @param {string} absDir — absolute path to directory
+ * @param {string} relDir — relative POSIX path prefix
+ * @param {string[]} files — output array (mutated)
+ */
+function collectAllFiles(absDir, relDir, files) {
+	let entries;
+	try {
+		entries = fs.readdirSync(absDir, { withFileTypes: true });
+	} catch (_) {
+		return;
+	}
+
+	for (let i = 0; i < entries.length; i++) {
+		const entry = entries[i];
+
+		// Skip node_modules and .git
+		if (entry.name === 'node_modules' || entry.name === '.git') {
+			continue;
+		}
+
+		const absPath = path.join(absDir, entry.name);
+		const relPath = toPosix(path.join(relDir, entry.name));
+
+		if (entry.isDirectory()) {
+			collectAllFiles(absPath, relPath, files);
+		} else if (entry.isFile()) {
+			files.push(relPath);
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -311,9 +401,66 @@ function checkFrontmatter(scaffoldFiles, fileFrontmatters, target) {
 // ---------------------------------------------------------------------------
 
 /**
- * Check if scaffold documents are stale based on their `updated` date.
+ * Try to load repo-check config from .elegy/repo-check-config.json.
  *
- * Threshold: 90 days (STALE_THRESHOLD_DAYS).
+ * @param {string} target — repo root
+ * @returns {object} — merged config with defaults
+ */
+function loadStalenessConfig(target) {
+	const configPath = path.join(target, '.elegy', 'repo-check-config.json');
+	if (!fs.existsSync(configPath)) {
+		return DEFAULT_STALENESS_CONFIG;
+	}
+
+	let cfg;
+	try {
+		cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+	} catch (_) {
+		return DEFAULT_STALENESS_CONFIG;
+	}
+
+	const staleness = (cfg && cfg.staleness) ? cfg.staleness : {};
+	return {
+		warnDays: typeof staleness.warnDays === 'number' ? staleness.warnDays : DEFAULT_STALENESS_CONFIG.warnDays,
+		errorDays: typeof staleness.errorDays === 'number' ? staleness.errorDays : DEFAULT_STALENESS_CONFIG.errorDays,
+		warnCommits: typeof staleness.warnCommits === 'number' ? staleness.warnCommits : DEFAULT_STALENESS_CONFIG.warnCommits,
+		errorCommits: typeof staleness.errorCommits === 'number' ? staleness.errorCommits : DEFAULT_STALENESS_CONFIG.errorCommits,
+	};
+}
+
+/**
+ * Get the number of commits since a given ISO date in the repo.
+ * Returns null if git is unavailable or the repo has no commits.
+ *
+ * @param {string} target — repo root
+ * @param {Date} sinceDate
+ * @returns {number|null}
+ */
+function getCommitCountSince(target, sinceDate) {
+	try {
+		const { spawnSync } = require('child_process');
+		const sinceStr = sinceDate.toISOString().split('T')[0];
+		const result = spawnSync('git', ['rev-list', '--count', 'HEAD', '--since=' + sinceStr], {
+			cwd: target,
+			encoding: 'utf8',
+			timeout: 10_000,
+			windowsHide: true,
+		});
+
+		if (result.error || result.status !== 0) {
+			return null;
+		}
+
+		const count = parseInt(result.stdout.trim(), 10);
+		return Number.isNaN(count) ? null : count;
+	} catch (_) {
+		return null;
+	}
+}
+
+/**
+ * Check if scaffold documents are stale based on their `updated` date
+ * and optionally commit count.
  *
  * @param {string[]} scaffoldFiles
  * @param {Object<string, {raw: string, parsed: object}|null>} fileFrontmatters
@@ -321,9 +468,9 @@ function checkFrontmatter(scaffoldFiles, fileFrontmatters, target) {
  * @returns {Array}
  */
 function checkStaleness(scaffoldFiles, fileFrontmatters, target) {
-	/** @type {Array} */
 	const issues = [];
 	const now = new Date();
+	const config = loadStalenessConfig(target);
 
 	for (let i = 0; i < scaffoldFiles.length; i++) {
 		const file = scaffoldFiles[i];
@@ -346,13 +493,36 @@ function checkStaleness(scaffoldFiles, fileFrontmatters, target) {
 		const diffMs = now.getTime() - updatedDate.getTime();
 		const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-		if (diffDays > STALE_THRESHOLD_DAYS) {
+		// Wall-clock staleness
+		let severity = null;
+		let reason = '';
+
+		if (diffDays > config.warnDays) {
+			severity = 'warning';
+			reason = diffDays + ' days ago (> ' + config.warnDays + ' day threshold)';
+		}
+
+		// Commit-based staleness (supplemental)
+		const commitCount = getCommitCountSince(target, updatedDate);
+		if (commitCount !== null) {
+			if (config.errorCommits && commitCount > config.errorCommits) {
+				severity = 'error';
+				reason = diffDays + ' days ago, ' + commitCount + ' commits (> ' + config.errorCommits + ' commit threshold)';
+			} else if (config.warnCommits && commitCount > config.warnCommits) {
+				if (severity !== 'error') {
+					severity = 'warning';
+				}
+				reason = diffDays + ' days ago, ' + commitCount + ' commits (> ' + config.warnCommits + ' commit threshold)';
+			}
+		}
+
+		if (severity) {
 			issues.push(makeStructuralIssue(
 				'stale_doc',
-				'warning',
+				severity,
 				file,
 				1,
-				'Document last updated ' + diffDays + ' days ago (> ' + STALE_THRESHOLD_DAYS + ' day threshold).',
+				'Document last updated ' + reason + '.',
 				'Review and update the document, then bump the `updated` date.'
 			));
 		}
@@ -562,7 +732,7 @@ function buildReport(allIssues, fileCount, claimCount, verbose) {
 	}
 
 	return {
-		score: Math.round(score * 10) / 10,
+		score: Math.round(score),
 		timestamp: new Date().toISOString(),
 		filesChecked: fileCount,
 		claimsExtracted: claimCount,
@@ -735,6 +905,18 @@ function main() {
 	if (args.check === 'all' || args.check === 'scripts') {
 		structuralIssues = structuralIssues.concat(checkScriptCoverage(target, scaffoldFiles, allClaims));
 	}
+	if (args.check === 'all' || args.check === 'cross-file') {
+		const crossFileChecker = require('./lib/checkers/cross-file.js');
+		structuralIssues = structuralIssues.concat(crossFileChecker.checkCrossFile(allClaims));
+	}
+	if (args.check === 'all' || args.check === 'todo-fixme') {
+		const todoFixmeChecker = require('./lib/checkers/todo-fixme.js');
+		structuralIssues = structuralIssues.concat(todoFixmeChecker.checkTodoFixme(scaffoldFiles, target));
+	}
+	if (args.check === 'all' || args.check === 'tool-config-sync') {
+		const toolConfigChecker = require('./lib/checkers/tool-config-sync.js');
+		structuralIssues = structuralIssues.concat(toolConfigChecker.checkToolConfigSync(target));
+	}
 
 	// Phase 5: Build report
 	const allIssues = claimIssues.concat(structuralIssues);
@@ -769,11 +951,15 @@ if (require.main === module) {
 module.exports = {
 	parseArgs: parseArgs,
 	collectScaffoldFiles: collectScaffoldFiles,
+	collectMarkdownFiles: collectMarkdownFiles,
+	collectAllFiles: collectAllFiles,
 	parseFileFrontmatter: parseFileFrontmatter,
 	checkFrontmatter: checkFrontmatter,
 	checkStaleness: checkStaleness,
 	checkScriptCoverage: checkScriptCoverage,
 	checkAllLinks: checkAllLinks,
+	loadStalenessConfig: loadStalenessConfig,
+	getCommitCountSince: getCommitCountSince,
 	buildReport: buildReport,
 	printHumanReport: printHumanReport,
 	main: main,

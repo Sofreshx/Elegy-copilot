@@ -332,19 +332,75 @@ function verifyCommandClaim(claim, repoRoot) {
 // ---------------------------------------------------------------------------
 
 /**
- * Check if a referenced dependency exists in package.json.
+ * Check if a referenced dependency exists in package.json (root or sub-packages).
  * Checks dependencies, devDependencies, peerDependencies, optionalDependencies,
  * and workspaces entries.
+ *
+ * Sub-packages checked: copilot-ui/package.json, contracts/package.json
  *
  * @param {object} claim — claim object with `value` being the dependency name
  * @param {string} repoRoot — absolute path to repo root
  * @returns {object|null} DriftIssue or null if verified
  */
 function verifyDependencyClaim(claim, repoRoot) {
-  // Read package.json
-  var pkg = tryReadJson(path.join(repoRoot, 'package.json'));
+  // Strip version suffix (e.g., react@^18 → react)
+  var depName = stripVersion(claim.value);
 
-  if (!pkg) {
+  // Check dependency across a list of package.json locations
+  var pkgPaths = [
+    path.join(repoRoot, 'package.json'),
+    path.join(repoRoot, 'copilot-ui', 'package.json'),
+    path.join(repoRoot, 'contracts', 'package.json'),
+  ];
+
+  var found = false;
+  var anyPkg = false;
+
+  for (var pi = 0; pi < pkgPaths.length; pi++) {
+    var pkg = tryReadJson(pkgPaths[pi]);
+    if (!pkg) {
+      continue;
+    }
+    anyPkg = true;
+
+    // Check all dependency categories
+    var depCategories = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
+    for (var i = 0; i < depCategories.length; i++) {
+      var cat = pkg[depCategories[i]];
+      if (cat && typeof cat === 'object' && cat[depName]) {
+        found = true;
+        break;
+      }
+    }
+    if (found) break;
+
+    // Check workspaces entries (for monorepo dependencies)
+    if (pkg.workspaces && Array.isArray(pkg.workspaces)) {
+      for (var j = 0; j < pkg.workspaces.length; j++) {
+        var ws = pkg.workspaces[j];
+        if (typeof ws === 'string' && ws === depName) {
+          found = true;
+          break;
+        }
+        // Workspaces often use globs like "packages/*" — check if depName
+        // matches as a simple glob pattern
+        if (typeof ws === 'string' && ws.indexOf('*') !== -1) {
+          var prefix = ws.split('*')[0];
+          if (depName.indexOf(prefix) === 0) {
+            found = true;
+            break;
+          }
+        }
+      }
+    }
+    if (found) break;
+  }
+
+  if (found) {
+    return null;
+  }
+
+  if (!anyPkg) {
     return makeIssue(
       claim,
       'manifest_parse_error',
@@ -352,36 +408,6 @@ function verifyDependencyClaim(claim, repoRoot) {
       'package.json not found or unparseable',
       'Ensure the repo root has a valid package.json file'
     );
-  }
-
-  // Strip version suffix (e.g., react@^18 → react)
-  var depName = stripVersion(claim.value);
-
-  // Check all dependency categories
-  var depCategories = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
-  for (var i = 0; i < depCategories.length; i++) {
-    var cat = pkg[depCategories[i]];
-    if (cat && typeof cat === 'object' && cat[depName]) {
-      return null;
-    }
-  }
-
-  // Check workspaces entries (for monorepo dependencies)
-  if (pkg.workspaces && Array.isArray(pkg.workspaces)) {
-    for (var j = 0; j < pkg.workspaces.length; j++) {
-      var ws = pkg.workspaces[j];
-      if (typeof ws === 'string' && ws === depName) {
-        return null;
-      }
-      // Workspaces often use globs like "packages/*" — check if depName
-      // matches as a simple glob pattern
-      if (typeof ws === 'string' && ws.indexOf('*') !== -1) {
-        var prefix = ws.split('*')[0];
-        if (depName.indexOf(prefix) === 0) {
-          return null;
-        }
-      }
-    }
   }
 
   return makeIssue(

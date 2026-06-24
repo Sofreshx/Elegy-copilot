@@ -298,6 +298,11 @@ function extractPathClaims(lines, filePath, options) {
         continue;
       }
 
+      // Exclude template placeholders (containing < or >)
+      if (value.indexOf('<') !== -1 || value.indexOf('>') !== -1) {
+        continue;
+      }
+
       // Exclude known non-path words
       if (NON_PATH_WORDS.has(value)) {
         continue;
@@ -403,6 +408,11 @@ function extractCommandClaims(lines, filePath, options) {
         continue;
       }
 
+      // Exclude template placeholders (containing < or >)
+      if (value.indexOf('<') !== -1 || value.indexOf('>') !== -1) {
+        continue;
+      }
+
       // Check for CLI prefix + space + argument
       var firstSpace = value.indexOf(' ');
       if (firstSpace === -1) {
@@ -498,6 +508,11 @@ function extractDependencyClaims(lines, filePath, options) {
 
       // Already claimed
       if (claimedValues.has(value)) {
+        continue;
+      }
+
+      // Exclude template placeholders (containing < or >)
+      if (value.indexOf('<') !== -1 || value.indexOf('>') !== -1) {
         continue;
       }
 
