@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elegy-copilot/contracts/elegy/1.0.0/drift-check-result.schema.json",
+  "title": "DriftCheckResult",
+  "description": "Scored drift report for repo context documentation health.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["score", "issues", "fileCount", "claimCount", "verifiedCount", "failedCount", "timestamp"],
+  "properties": {
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Health score 0-100 where 100 means no drift found."
+    },
+    "issues": {
+      "type": "array",
+      "description": "All drift issues found during the check.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "severity", "file", "line", "message"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "missing_path", "stale_command", "missing_dependency", "version_mismatch",
+              "broken_route_edge", "undocumented_script", "config_key_missing", "broken_internal_link",
+              "frontmatter_missing", "frontmatter_invalid", "stale_doc", "pattern_index_drift",
+              "todo_fixme_marker", "cross_file_conflict", "manifest_parse_error", "unknown_claim_type"
+            ],
+            "description": "Machine-readable issue code."
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["error", "warning", "info"],
+            "description": "Severity level."
+          },
+          "claim": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["type", "value", "negated", "source"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["path", "command", "dependency", "version", "route_edge", "script", "config_key", "internal_link"],
+                "description": "Type of the claim."
+              },
+              "value": {
+                "type": "string",
+                "description": "The claimed value."
+              },
+              "negated": {
+                "type": "boolean",
+                "description": "If true, the claim asserts the opposite."
+              },
+              "source": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["file", "line"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "description": "Path relative to repo root."
+                  },
+                  "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-indexed line number."
+                  },
+                  "section": {
+                    "type": ["string", "null"],
+                    "description": "Markdown heading context."
+                  }
+                }
+              }
+            },
+            "description": "The claim that triggered this issue, or null for structural issues."
+          },
+          "file": {
+            "type": "string",
+            "description": "File where the issue was found."
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "1-indexed line number, or 0 for file-level issues."
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable description of the drift issue."
+          },
+          "suggestion": {
+            "type": ["string", "null"],
+            "description": "Suggested fix, or null if no deterministic fix is possible."
+          }
+        }
+      }
+    },
+    "fileCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of scaffold files checked."
+    },
+    "claimCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total claims extracted from all files."
+    },
+    "verifiedCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Claims that verified successfully."
+    },
+    "failedCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Claims that failed verification."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of when the check ran."
+    },
+    "verbose": {
+      "type": "boolean",
+      "description": "Whether verbose output is included."
+    }
+  }
+}
