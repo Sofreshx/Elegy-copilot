@@ -24,6 +24,7 @@ import { resolveLauncherIconPath } from '../../lib/launcherIcons';
 import WorkspaceAssetsTab from './WorkspaceAssetsTab';
 import WorkspaceNotesTab from './WorkspaceNotesTab';
 import WorkspaceChecksTab from './WorkspaceChecksTab';
+import WorkspaceHealthTab from './WorkspaceHealthTab';
 
 export default function WorkspaceView() {
   const state = useStoreValue(repositoriesStore);
@@ -306,6 +307,9 @@ export default function WorkspaceView() {
                 repoPath={selectedRepoPath}
                 repoId={displayRepo?.repoId ?? null}
               />
+            )}
+            {navState.activeWorkspaceLocalTab === 'health' && (
+              <WorkspaceHealthTab repoPath={selectedRepoPath} />
             )}
             {navState.activeWorkspaceLocalTab === 'planning' && (
               <WorkspacePlanningTab

@@ -74,17 +74,20 @@ test('tooling updates status reports planning and elegy skills update availabili
     },
     childProcess: {
       spawnSync(_cmd, args) {
+        if (args && args.includes('capabilities') && args.includes('--json')) {
+          return { stdout: JSON.stringify({ cliVersion: '0.1.0', planningSchemaVersion: '1.0.0', resultSchemaVersion: 'planning-result/v1' }), stderr: '' };
+        }
         if (args && args.includes('health') && args.includes('--json')) {
           return { stdout: JSON.stringify({ status: 'ok', data: { schemaVersion: '1.0.0' } }), stderr: '' };
         }
-        return { stdout: 'elegy-planning 1.0.0', stderr: '' };
+        return { stdout: 'elegy-planning 0.1.0', stderr: '' };
       },
     },
     fetchImpl: async () => ({
       ok: true,
       status: 200,
       async json() {
-        return { tag_name: 'v1.1.0', assets: [] };
+        return { tag_name: 'v1.1.0', assets: [], published_at: new Date(Date.now() + 86400000).toISOString() };
       },
     }),
     assets: {},
@@ -94,7 +97,8 @@ test('tooling updates status reports planning and elegy skills update availabili
     elegyHomeAbs: '/copilot-home',
   });
   assert.equal(result.statusCode, 200);
-  assert.equal(result.body.elegyPlanningCli.currentVersion, '1.0.0');
+  assert.equal(result.body.elegyPlanningCli.currentVersion, '0.1.0');
+  assert.equal(result.body.elegyPlanningCli.schemaVersion, '1.0.0');
   assert.equal(result.body.elegyPlanningCli.latestVersion, '1.1.0');
   assert.equal(result.body.elegyPlanningCli.updateAvailable, true);
   assert.equal(result.body.elegySkillsAssets.source, 'github-source');
@@ -213,6 +217,9 @@ test('tooling updates elegy-planning endpoint installs from managed GitHub sourc
         if (command === 'git') {
           return { status: 0, stdout: 'source-head\n', stderr: '' };
         }
+        if (args && args.includes('capabilities') && args.includes('--json')) {
+          return { stdout: JSON.stringify({ cliVersion: '0.1.0', planningSchemaVersion: '1.0.0', resultSchemaVersion: 'planning-result/v1' }), stderr: '' };
+        }
         if (args && args[0] === '--version') {
           return { status: 0, stdout: 'elegy-planning 0.1.0', stderr: '' };
         }
@@ -255,17 +262,20 @@ test('tooling updates status returns 200 when ctx.env is missing (Win10 route sa
     env: {}, // simulate ctx.env present but empty (was the Win10 crash before the guard)
     childProcess: {
       spawnSync(_cmd, args) {
+        if (args && args.includes('capabilities') && args.includes('--json')) {
+          return { stdout: JSON.stringify({ cliVersion: '0.1.0', planningSchemaVersion: '1.0.0', resultSchemaVersion: 'planning-result/v1' }), stderr: '' };
+        }
         if (args && args.includes('health') && args.includes('--json')) {
           return { stdout: JSON.stringify({ status: 'ok', data: { schemaVersion: '1.0.0' } }), stderr: '' };
         }
-        return { stdout: 'elegy-planning 1.0.0', stderr: '' };
+        return { stdout: 'elegy-planning 0.1.0', stderr: '' };
       },
     },
     fetchImpl: async () => ({
       ok: true,
       status: 200,
       async json() {
-        return { tag_name: 'v1.0.0', assets: [] };
+        return { tag_name: 'v1.0.0', assets: [], published_at: new Date(Date.now() + 86400000).toISOString() };
       },
     }),
     assets: {},

@@ -11,7 +11,7 @@ export const DRIFT_ISSUE_CODES = [
   'missing_path', 'stale_command', 'missing_dependency', 'version_mismatch',
   'broken_route_edge', 'undocumented_script', 'config_key_missing', 'broken_internal_link',
   'frontmatter_missing', 'frontmatter_invalid', 'stale_doc', 'pattern_index_drift',
-  'todo_fixme_marker', 'cross_file_conflict', 'manifest_parse_error', 'unknown_claim_type',
+  'todo_fixme_marker', 'cross_file_conflict', 'tool_config_drift', 'manifest_parse_error', 'unknown_claim_type',
 ] as const;
 export type DriftIssueCode = typeof DRIFT_ISSUE_CODES[number];
 

@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 
 const { register } = require('./git');
+const gitPrCache = require('../lib/gitPrCache');
 
 let passed = 0;
 
@@ -225,6 +226,8 @@ async function run() {
     assert.equal(body.branches[0].name, 'main');
   });
 
+  gitPrCache.bust();
+
   await test('GET /api/git/pull-request degrades cleanly when gh is unavailable', async () => {
     const error = new Error('spawn gh ENOENT');
     error.code = 'ENOENT';
@@ -237,13 +240,16 @@ async function run() {
     assert.equal(body.pullRequest, null);
   });
 
+  gitPrCache.bust();
+
   await test('POST /api/git/pull-request creates a PR and returns metadata', async () => {
     const routes = registerWithMocks({
       body: { repoPath: 'C:/repo', title: 'Ship it' },
       execResponses: [
-        { stdout: '' },
-        { stdout: 'Logged in to github.com as demo\n' },
-        { stdout: '{"number":55,"url":"https://github.com/owner/repo/pull/55","state":"OPEN"}\n' },
+        { stdout: '' },                                          // git branch --show-current (gate)
+        { stdout: '' },                                          // gh pr create
+        { stdout: 'Logged in to github.com as demo\n' },         // gh auth status (cache busted)
+        { stdout: '{"number":55,"url":"https://github.com/owner/repo/pull/55","state":"OPEN"}\n' },  // gh pr view
       ],
     });
     const { res, body } = await invoke(routes, 'POST', '/api/git/pull-request');

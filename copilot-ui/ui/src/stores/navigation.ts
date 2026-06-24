@@ -87,7 +87,7 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
 
 export type WorkspaceCenterMode = 'docs' | 'planning-session' | 'terminal' | 'docs-graph';
 
-export type WorkspaceLocalTab = 'docs' | 'git' | 'planning' | 'execution' | 'assets' | 'notes' | 'checks';
+export type WorkspaceLocalTab = 'docs' | 'git' | 'planning' | 'execution' | 'assets' | 'notes' | 'checks' | 'health';
 
 export interface OpenWorkspace {
   repoPath: string;

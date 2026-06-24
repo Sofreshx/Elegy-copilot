@@ -7,7 +7,7 @@ const CLI_TOOLING_CATALOG = Object.freeze([
   { id: 'codex-cli', title: 'Codex CLI', npmPackage: '@openai/codex', version: 'latest' },
   { id: 'claude-cli', title: 'Claude Code CLI', npmPackage: '@anthropic-ai/claude-code', version: 'latest' },
   { id: 'gemini-cli', title: 'Gemini CLI', npmPackage: 'gemini-cli', version: 'latest' },
-  { id: 'elegy-planning', title: 'Elegy Planning CLI', npmPackage: null, managed: true, versionSource: 'elegy-planning --version', resolverModule: './elegyPlanningCliResolver' },
+  { id: 'elegy-planning', title: 'Elegy Planning CLI', npmPackage: null, managed: true, versionSource: 'elegy-planning capabilities --json', resolverModule: './elegyPlanningCliResolver' },
 ]);
 
 function resolveCliToolingCommand(toolId, options = {}) {
@@ -26,11 +26,12 @@ function detectElegyPlanningCli(childProcess) {
     if (!cliPath) {
       return { installed: false, lastError: 'Not installed. Use managed install from Tooling Updates.' };
     }
-    const result = childProcess.spawnSync(cliPath, ['--version'], { timeout: 10000 });
-    if (result.status === 0 && result.stdout) {
-      return { installed: true, version: String(result.stdout).trim(), path: cliPath };
+    const health = require('./elegyPlanningHealth');
+    const version = health.resolvePlanningCliVersion(cliPath, childProcess);
+    if (version) {
+      return { installed: true, version, path: cliPath };
     }
-    return { installed: true, path: cliPath, lastError: '--version check failed', version: null };
+    return { installed: true, path: cliPath, lastError: 'version probe failed', version: null };
   } catch (err) {
     return { installed: false, lastError: err.message };
   }

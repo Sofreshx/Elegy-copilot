@@ -115,7 +115,7 @@ const {
 const { createRuntimeHealthResolver } = require('./lib/server/runtimeHealth');
 const { createRoadmapWorkflowMemoryBridge } = require('./lib/roadmapWorkflowMemoryBridge');
 const { createRoadmapWorkflowPlanningBridge } = require('./lib/roadmapWorkflowPlanningBridge');
-const { resolveElegyPlanningCliPath, installLatestElegyPlanningCli } = require('./lib/elegyPlanningCliResolver');
+const { resolveElegyPlanningCliPath, installLatestElegyPlanningCli, downloadElegyPlanningCli } = require('./lib/elegyPlanningCliResolver');
 const {
   resolveTrackerUrl,
   resolveTrackerToken,
@@ -4975,9 +4975,30 @@ async function startServer(options = {}) {
         env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH = installResult.installedPath;
         env.INSTRUCTION_ENGINE_ELEGY_PLANNING_ENABLED = '1';
         delete env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED;
-        logger(`elegy-planning CLI installed to: ${installResult.installedPath}`);
+        const installedVersion = installResult.metadata && installResult.metadata.version;
+        logger(`elegy-planning CLI installed to: ${installResult.installedPath}${installedVersion ? ` (v${installedVersion})` : ''}`);
       } catch (downloadError) {
-        logger(`elegy-planning CLI managed install failed or timed out: ${downloadError.message}`);
+        logger(`elegy-planning CLI managed install failed: ${downloadError.message}`);
+        try {
+          logger('Attempting binary download fallback for elegy-planning...');
+          const binaryPath = await Promise.race([
+            downloadElegyPlanningCli({
+              elegyHome,
+              env,
+              logger,
+              fetchImpl: options.fetch,
+            }),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('timed out after 60s during download fallback')), 60_000),
+            ),
+          ]);
+          env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH = binaryPath;
+          env.INSTRUCTION_ENGINE_ELEGY_PLANNING_ENABLED = '1';
+          delete env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED;
+          logger(`elegy-planning CLI downloaded to: ${binaryPath}`);
+        } catch (binaryError) {
+          logger(`elegy-planning CLI binary download fallback also failed: ${binaryError.message}`);
+        }
       }
     }
   }

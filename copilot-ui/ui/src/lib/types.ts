@@ -3941,3 +3941,5 @@ export interface GatewayStateError {
   message?: string;
   statusCode?: number;
 }
+
+export type SandboxLifecycleAction = 'create' | 'start' | 'stop' | 'open-terminal' | 'pr-open';
