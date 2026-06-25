@@ -7,7 +7,7 @@ doc_kind: node
 id: enhancement-target-04-codegraph-v1-symbols-references
 summary: Plan for codegraph V1 — extends the V0 index with symbols, references, calls, and tests for symbol-level impact analysis and dead-export detection.
 tags: [research, enhancement-targets, codegraph, symbols, references, tsserver, rust-analyzer, impact-analysis]
-related: [enhancement-targets-index, enhancement-target-03-codegraph-v0-dependency-boundary-graph, enhancement-target-05-review-agent-evidence-workflow]
+related: [enhancement-targets-index, enhancement-target-03-codegraph-v0-dependency-boundary-graph, enhancement-target-05-review-agent-evidence-workflow, enhancement-target-06-evaluation-protocol-metrics]
 ---
 
 # Theme 04 — Codegraph V1: Symbols & References

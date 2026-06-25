@@ -304,7 +304,7 @@ Respects `docs/specs/code-quality-control-plane-research/spec.md` §Coexistence 
 - **Rule pack distribution:** Portable rule packs could be shared across repos
   via the external-sources subsystem in `copilot-ui/lib/externalSources.js`,
   but this is deferred until the rule format stabilizes.
-- **ADL promotion:** If the rule pack format proves durable, promote an ADR
+- **ADR promotion:** If the rule pack format proves durable, promote an ADR
   documenting `elegy-arch-rules/v1` as the canonical architecture-rule format.
 - **Visualizer:** dependency-cruiser emits DOT/SVG cycle graphs. A dashboard
   cycle visualizer is a low-cost follow-up once findings are displayed.

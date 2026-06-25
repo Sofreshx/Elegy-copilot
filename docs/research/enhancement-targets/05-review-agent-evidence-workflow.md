@@ -7,7 +7,7 @@ doc_kind: node
 id: enhancement-target-05-review-agent-evidence-workflow
 summary: Plan for the review-agent evidence workflow — a shared Evidence schema and ReviewPack contract that make LLM review trustworthy by requiring structured, provenance-tagged citations.
 tags: [research, enhancement-targets, evidence, review, provenance, schema, trust]
-related: [enhancement-targets-index, enhancement-target-01-architecture-rules-as-tests, enhancement-target-03-codegraph-v0-dependency-boundary-graph, enhancement-target-06-evaluation-protocol-metrics]
+related: [enhancement-targets-index, enhancement-target-01-architecture-rules-as-tests, enhancement-target-02-structural-search-codemods, enhancement-target-03-codegraph-v0-dependency-boundary-graph, enhancement-target-04-codegraph-v1-symbols-references, enhancement-target-06-evaluation-protocol-metrics]
 ---
 
 # Theme 05 — Review-Agent Evidence Workflow
