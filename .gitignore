@@ -36,6 +36,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # System & Temp
+*.db
 .DS_Store
 tmpclaude-*
 .playwright-mcp/
