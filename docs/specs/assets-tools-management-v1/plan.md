@@ -30,7 +30,7 @@ const claudeSkillsHome = resolveClaudeSkillsHomeFromEnv(process.env, claudeHome)
 **Change:** Add `claudeHome, claudeSkillsHome` to the context object passed to routes.
 
 ### P0.3 — Add homeKey/skillsHomeKey to GLOBAL_HARNESSES
-**File:** `copilot-ui/lib/harnessCatalog.js:3-10`
+**File:** copilot-ui/lib/harnessCatalog.js:3-10
 **Change:** Each harness entry currently has `{ id, title, home, skillsHome, supportsMcp }`. Add `homeKey` and `skillsHomeKey` to EVERY entry so that `catalog.js` functions `listHarnessRows` (line 832-840) and `detectHarnessInstallPath` (line 842-862) can resolve runtime home paths from ctx. The full updated array:
 
 ```javascript
@@ -251,9 +251,9 @@ installLedgerLib.setAssetHashes(ctx.elegyHomeAbs, harnessId, assetHashes);
 ```
 
 **File:** `copilot-ui/routes/assets.js` (in `handleAssetsInstallSurfaces`, after `deps.installSurfaces(...)` resolves at line 168)
-**Change:** Add similar hash capture — but since `installSurfaces` returns surface-level aggregate results only (not per-asset details), hash capture here may be limited. For v1, primary hash capture happens in `handleHarnessOptIn`. Add a TODO comment for per-asset hash capture when the install surface API is extended.
+**Change:** Add similar hash capture — but since `installSurfaces` returns surface-level aggregate results only (not per-asset details), hash capture here may be limited. For v1, primary hash capture happens in `handleHarnessOptIn`. Add a `TODO` comment for per-asset hash capture when the install surface API is extended.
 
-**Note:** This is a v1 approach. The install surface API (`lib/installSurfaces.js`) returns aggregate counts, not per-asset paths. Full per-asset hash capture may require extending the install surface response in a future iteration. For v1, the ledger hash from `handleHarnessOptIn` is sufficient for the ownership proof used by uninstall (R3a).
+**Note:** This is a v1 approach. The install surface API (`copilot-ui/lib/installSurfaces.js`) returns aggregate counts, not per-asset paths. Full per-asset hash capture may require extending the install surface response in a future iteration. For v1, the ledger hash from `handleHarnessOptIn` is sufficient for the ownership proof used by uninstall (R3a).
 
 ### P2.3 — Backend: POST /api/catalog/harness-assets/uninstall
 **File:** `copilot-ui/routes/catalog.js` (new handler function)
@@ -427,10 +427,10 @@ export async function checkHarnessAssets(body: { harnessId?: string; assetId?: s
 
 ### P5.2 — Frontend tests
 **New Vitest test files:**
-- `copilot-ui/ui/src/views/Catalog/HarnessTab.test.tsx` — A7: harness-filtered asset list grouped by state
-- `copilot-ui/ui/src/views/Catalog/AssetDetailModal.test.tsx` — A13: per-state action visibility, A14: uninstall disabled for unmanaged/conflict
-- `copilot-ui/ui/src/views/Catalog/DiagnosticsTab.test.tsx` — A8: deep check runner results grid
-- `copilot-ui/ui/src/views/Catalog/CatalogShellView.test.tsx` — A6: modal opens on card click, no View button, no Installation tab, A12: no global Sync Harnesses button
+- copilot-ui/ui/src/views/Catalog/HarnessTab.test.tsx — A7: harness-filtered asset list grouped by state
+- copilot-ui/ui/src/views/Catalog/AssetDetailModal.test.tsx — A13: per-state action visibility, A14: uninstall disabled for unmanaged/conflict
+- copilot-ui/ui/src/views/Catalog/DiagnosticsTab.test.tsx — A8: deep check runner results grid
+- copilot-ui/ui/src/views/Catalog/CatalogShellView.test.tsx — A6: modal opens on card click, no View button, no Installation tab, A12: no global Sync Harnesses button
 
 ### P5.3 — Spec validation
 - Run `node scripts/validate-specs.js --strict docs/specs` on full directory
@@ -452,7 +452,7 @@ export async function checkHarnessAssets(body: { harnessId?: string; assetId?: s
 | `copilot-ui/lib/harnessCatalog.js` | P0.3 | Add `homeKey`/`skillsHomeKey` to all GLOBAL_HARNESSES entries |
 | `copilot-ui/lib/installLedger.js` | P0.5 | Add `assetHashes` field + `setAssetHashes`/`getAssetHash` functions |
 | `copilot-ui/routes/catalog.js` | P0.4, P1.2-P1.6, P2.2-P2.4, P4.2 | Mapping helpers + Claude wiring + state derivation + uninstall/check routes + hash storage + ref metadata |
-| `copilot-ui/routes/assets.js` | P1.7 | Pass claudeHome/claudeSkillsHome; add hash capture TODO |
+| `copilot-ui/routes/assets.js` | P1.7 | Pass claudeHome/claudeSkillsHome; add hash capture `TODO` |
 | `copilot-ui/ui/src/lib/types.ts` | P1.1, P2.1 | Add `'claude'` to InstallSurfaceTarget; extend CatalogGlobalHarnessState |
 | `copilot-ui/ui/src/lib/api/catalog.ts` | P1.9 | Update `HarnessOptInPayload.target` union |
 | `copilot-ui/ui/src/tabs/Assets/catalogWorkspaceStore.ts` | P1.8-P1.9, P3.4 | Claude label + optIn type + new store methods (uninstall, check, sync) |

@@ -650,7 +650,7 @@ export default function WorkspaceGitTab({
 
   function handleComposerRunChecks() {
     setFailedCheckResults(null);
-    onRunChecks();
+    onRunChecks?.();
   }
 
   // ─── Force push handler (push gate override) ───────────────────────────────

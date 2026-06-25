@@ -229,8 +229,8 @@ function collectMarkdownFiles(absDir, relDir, files) {
 	for (let i = 0; i < entries.length; i++) {
 		const entry = entries[i];
 
-		// Skip node_modules and .git
-		if (entry.name === 'node_modules' || entry.name === '.git') {
+		// Skip node_modules, .git, and _templates directories
+		if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '_templates') {
 			continue;
 		}
 
@@ -264,8 +264,8 @@ function collectAllFiles(absDir, relDir, files) {
 	for (let i = 0; i < entries.length; i++) {
 		const entry = entries[i];
 
-		// Skip node_modules and .git
-		if (entry.name === 'node_modules' || entry.name === '.git') {
+		// Skip node_modules, .git, and _templates directories
+		if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '_templates') {
 			continue;
 		}
 
@@ -622,6 +622,38 @@ function checkScriptCoverage(target, scaffoldFiles, allClaims) {
  * @param {string} target — repo root
  * @returns {Array}
  */
+/**
+ * Check if a position in a line is inside inline code (backticks).
+ */
+function isInsideInlineCode(line, position) {
+	let inInlineCode = false;
+	for (let i = 0; i < position; i++) {
+		if (line[i] === '`') {
+			inInlineCode = !inInlineCode;
+		}
+	}
+	return inInlineCode;
+}
+
+/**
+ * Compute which lines are inside fenced code blocks.
+ */
+function computeFencedCodeBlockLines(lines) {
+	const excluded = new Array(lines.length).fill(false);
+	let inBlock = false;
+	for (let i = 0; i < lines.length; i++) {
+		if (/^```/.test(lines[i])) {
+			excluded[i] = true;
+			inBlock = !inBlock;
+			continue;
+		}
+		if (inBlock) {
+			excluded[i] = true;
+		}
+	}
+	return excluded;
+}
+
 function checkAllLinks(scaffoldFiles, target) {
 	/** @type {Array} */
 	const issues = [];
@@ -638,9 +670,14 @@ function checkAllLinks(scaffoldFiles, target) {
 		}
 
 		const lines = content.split(/\r?\n/);
+		const fencedExcluded = computeFencedCodeBlockLines(lines);
 		const linkRe = /\[([^\]]*)\]\(((?!https?:\/\/)(?!mailto:)(?!#)[^)]+)\)/g;
 
 		for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+			// Skip lines inside fenced code blocks
+			if (fencedExcluded[lineIdx]) {
+				continue;
+			}
 			const line = lines[lineIdx];
 			let match;
 
@@ -651,9 +688,25 @@ function checkAllLinks(scaffoldFiles, target) {
 					continue;
 				}
 
-				// Resolve relative to the source file's directory
-				const sourceDir = path.dirname(absPath);
-				const resolvedPath = path.resolve(sourceDir, linkTarget);
+				// Skip matches inside inline code (backticks)
+				if (isInsideInlineCode(line, match.index)) {
+					continue;
+				}
+
+				// Resolve link target
+				let resolvedPath;
+				const normalizedTarget = linkTarget.replace(/\\/g, '/');
+				if (normalizedTarget.startsWith('docs/')) {
+					// Path is relative to repo root
+					resolvedPath = path.join(target, normalizedTarget);
+				} else if (normalizedTarget.startsWith('/')) {
+					// Absolute path — resolve relative to docs/ in repo root
+					resolvedPath = path.join(target, 'docs', normalizedTarget.replace(/^\/+/, ''));
+				} else {
+					// Resolve relative to the source file's directory
+					const sourceDir = path.dirname(absPath);
+					resolvedPath = path.resolve(sourceDir, linkTarget);
+				}
 
 				if (!fs.existsSync(resolvedPath)) {
 					issues.push(makeStructuralIssue(

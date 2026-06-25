@@ -59,7 +59,7 @@ Define the authoritative contract for agent routing: lane agent types, delegatio
 
 #### R5 — Agent Instruction Files
 
-- R5.1: Each agent MUST have an instruction file (`.md`) defining its role, capabilities, permissions, and delegation rules.
+- R5.1: Each agent MUST have an instruction file (.md) defining its role, capabilities, permissions, and delegation rules.
 - R5.2: Instruction files MUST NOT duplicate operational policies that belong in governance docs or normative specs.
 - R5.3: Instruction files MUST reference relevant normative specs via file paths.
 - R5.4: OpenCode-specific agent files live at `opencode-assets/agents/`; they follow the OpenCode agent format.
@@ -75,20 +75,20 @@ Define the authoritative contract for agent routing: lane agent types, delegatio
 ## Non-Goals
 
 - Defining specific task execution rules for each agent — those are in agent instruction files.
-- Defining the full orchestrator architecture — that belongs to `orchestrator-architecture-adr.md`.
+- Defining the full orchestrator architecture — that belongs to `docs/system/orchestrator-architecture-adr.md`.
 - Defining how agents interact with tools or MCP servers — that is implementation detail.
 - Defining profile management or installation — that belongs to harness install governance.
 
 ## Acceptance Checks
 
 - The spec itself passes `node scripts/validate-specs.js --strict`
-  → verify: `node scripts/validate-specs.js --strict docs/specs/agent-routing-contract/spec.md`
+  → verify: node scripts/validate-specs.js --strict docs/specs/agent-routing-contract/spec.md
 - All 5 requirements with sub-requirements are present
   → verify: `rg "^#### R[1-5]" docs/specs/agent-routing-contract/spec.md | measure` returns at least 5
 - Forbidden Behavior covers at least 4 prohibitions
   → verify: `rg "^-\s+A (subagent|primary|agent instruction) MUST NOT" docs/specs/agent-routing-contract/spec.md | measure` returns at least 4
 - Orchestration MOC references this spec
-  → verify: `rg "agent-routing-contract" docs/system/mocs/orchestration-and-agents.md` returns at least 1 match
+  → verify: rg "agent-routing-contract" docs/system/mocs/orchestration-and-agents.md returns at least 1 match
 
 ## Implementation Links
 

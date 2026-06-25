@@ -5,6 +5,7 @@ import React from 'react';
 // ─── Pure function tests: provenance ───
 
 import { normalizeProvenance, compareProvenanceGroups } from './provenance';
+import type { CatalogGlobalHarnessState, CatalogGlobalItem } from '../../lib/types';
 
 describe('provenance normalization', () => {
   it('maps engine-assets paths to Copilot core', () => {
@@ -159,7 +160,7 @@ import InventoryTab from './InventoryTab';
 
 // ─── Test data helpers ───
 
-function makeHarnessState(overrides: Record<string, unknown> = {}) {
+function makeHarnessState(overrides: Partial<CatalogGlobalHarnessState> = {}): CatalogGlobalHarnessState {
   return {
     harnessId: 'copilot',
     title: 'Copilot',
@@ -177,7 +178,7 @@ function makeHarnessState(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeItem(overrides: Record<string, unknown> = {}) {
+function makeItem(overrides: Partial<CatalogGlobalItem> = {}): CatalogGlobalItem {
   return {
     itemId: 'test-skill-1',
     itemKey: 'test-skill',
@@ -750,7 +751,7 @@ describe('HarnessTab', () => {
     storeMocks.deactivateExternalSourceInstallable.mockResolvedValue(undefined);
   });
 
-  function makeHarnessStateHS(overrides: Record<string, unknown> = {}) {
+  function makeHarnessStateHS(overrides: Partial<CatalogGlobalHarnessState> = {}): CatalogGlobalHarnessState {
     return {
       harnessId: 'codex',
       title: 'Codex',
@@ -770,7 +771,7 @@ describe('HarnessTab', () => {
     };
   }
 
-  function makeItemHS(overrides: Record<string, unknown> = {}) {
+  function makeItemHS(overrides: Partial<CatalogGlobalItem> = {}): CatalogGlobalItem {
     return {
       itemId: 'test-skill-1',
       itemKey: 'test-skill',

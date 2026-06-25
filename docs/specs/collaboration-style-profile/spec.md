@@ -109,7 +109,7 @@ V1 applies to installed Copilot, Codex, OpenCode, Claude Code, and Antigravity s
 - `copilot-ui/routes/config.js` — API endpoints (add GET/PUT)
 - `copilot-ui/ui/src/views/Settings/CollaborationStyleSettingsView.tsx` — Settings UI
 - `copilot-ui/ui/src/lib/api/config.ts` — API client
-- `scripts/*-install.mjs` — All 5 harness installers (update composition call sites)
+- scripts/*-install.mjs — All 5 harness installers (update composition call sites)
 
 ## Validation Evidence
 

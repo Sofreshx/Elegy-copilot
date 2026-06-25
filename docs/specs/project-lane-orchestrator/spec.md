@@ -17,7 +17,7 @@ Build a Rust-owned durable execution control plane that dispatches isolated codi
 ## Context Evidence
 
 **Architecture & domain boundaries:**
-- `docs/system/architecture-overview.md` — three-layer topology (Tauri → Node → `~/.elegy/`)
+- `docs/system/architecture-overview.md` — three-layer topology (Tauri → Node → ~/.elegy/)
 - `docs/system/domain-authorities-freeze.md` — 7 frozen domain authorities (Domains 1–7). This spec extends to Domains 8–13.
 - `docs/system/orchestrator-architecture-adr.md` — companion ADR: authority matrix, topology, threat model, execution state machine, non-goals
 
@@ -35,15 +35,15 @@ Build a Rust-owned durable execution control plane that dispatches isolated codi
 **Node proxy & UI:**
 - `copilot-ui/server.js` — Node.js HTTP server, primary request router, planning persistence import surface
 - `copilot-ui/ui/src/views/Workspace/WorkspaceExecutionTab.tsx` — existing Execution tab placeholder (21 lines): renders `WorkspaceCommandsCard` + "Terminal — future release" div
-- `copilot-ui/ui/src/views/Workspace/` — workspace views including `WorkspaceGitTab.tsx`, `WorkspacePlanningTab.tsx`, `WorkspaceReviewTab.tsx`, `WorkspaceDocsTab.tsx`, etc.
+- `copilot-ui/ui/src/views/Workspace/` — workspace views including `copilot-ui/ui/src/views/Workspace/WorkspaceGitTab.tsx`, `copilot-ui/ui/src/views/Workspace/WorkspacePlanningTab.tsx`, `copilot-ui/ui/src/views/Workspace/WorkspaceReviewTab.tsx`, `copilot-ui/ui/src/views/Workspace/WorkspaceDocsTab.tsx`, etc.
 
 **Existing state stores:**
-- `~/.elegy/repo-state/<repoId>/worktrees/` — shared worktree registry (file-based, lifecycle recorded in both filesystem and SQLite `hook_events` table)
-- `~/.elegy/planning.db` — planning authority SQLite database (elegy-planning CLI)
-- `~/.elegy/orchestrator/` — execution journal destination (NEW, Rust-owned, not yet created)
+- ~/.elegy/repo-state/<repoId>/worktrees/ — shared worktree registry (file-based, lifecycle recorded in both filesystem and SQLite `hook_events` table)
+- ~/.elegy/planning.db — planning authority SQLite database (elegy-planning CLI)
+- ~/.elegy/orchestrator/ — execution journal destination (NEW, Rust-owned, not yet created)
 
 **Worktree contract:**
-- `docs/lexicon/project-specific.md:241` — worktree lifecycle definition: allocation, activation, completion, interruption, removal. Transitions recorded in shared file registry and `hook_events` table.
+- docs/lexicon/project-specific.md:241 — worktree lifecycle definition: allocation, activation, completion, interruption, removal. Transitions recorded in shared file registry and `hook_events` table.
 
 **Spec governance:**
 - `scripts/validate-specs.js` (867 lines) — spec structural + strict-mode validator
@@ -53,7 +53,7 @@ Build a Rust-owned durable execution control plane that dispatches isolated codi
 ### Allowed Behavior
 
 - Atomic planning leases with compare-and-claim, fencing tokens, heartbeat, and expiry
-- Append-only execution event journal under `~/.elegy/orchestrator/` with guarded state transitions
+- Append-only execution event journal under ~/.elegy/orchestrator/ with guarded state transitions
 - Worktree isolation through existing shared worktree contract with scope violation detection
 - Orchestrator-observed authoritative validation independent of worker claims
 - Single-use approval tokens cryptographically bound to immutable Git state
@@ -84,7 +84,7 @@ The orchestrator MUST claim work points through `elegy-planning`'s lease primiti
 
 ### R2 — Durable execution journal
 
-The Rust orchestrator MUST maintain an append-only execution event journal under `~/.elegy/orchestrator/`.
+The Rust orchestrator MUST maintain an append-only execution event journal under ~/.elegy/orchestrator/.
 
 - State transitions MUST be guarded (illegal transitions fail closed).
 - Replaying the same event history MUST produce byte-equivalent normalized projections.
@@ -144,7 +144,7 @@ All mutating endpoints MUST require idempotency keys and return deterministic st
 
 ### R8 — Existing Execution workspace UI
 
-The existing placeholder (`WorkspaceExecutionTab.tsx`, 21 lines) MUST be replaced with:
+The existing placeholder (`copilot-ui/ui/src/views/Workspace/WorkspaceExecutionTab.tsx`, 21 lines) MUST be replaced with:
 
 - Session creation (select work point, configure adapter)
 - Worker selection (available adapters, capability summary)
@@ -234,7 +234,7 @@ Tests MUST exercise:
   → verify: Worktree isolation tests (ORCH-009), validation gate tests (ORCH-010)
 
 - Spec validation passes.
-  → verify: `node scripts/validate-specs.js --strict docs/specs/project-lane-orchestrator/spec.md`
+  → verify: node scripts/validate-specs.js --strict docs/specs/project-lane-orchestrator/spec.md
 
 - Full UI build succeeds after Execution tab changes.
   → verify: `npm --prefix copilot-ui run ui:build`
@@ -252,7 +252,7 @@ Tests MUST exercise:
 
 ## Validation Evidence
 
-- Spec strict validation: `node scripts/validate-specs.js --strict docs/specs/project-lane-orchestrator/spec.md` pending (fixing headings)
+- Spec strict validation: node scripts/validate-specs.js --strict docs/specs/project-lane-orchestrator/spec.md pending (fixing headings)
 - ADR frontmatter structure validated (9 fields, matches existing ADR convention)
 - Spec frontmatter structure validated (6 fields: spec_id, title, status, type, updated, related)
 - Cross-references to existing canonical docs verified (architecture-overview, domain-authorities-freeze, planning-backlog-roadmap-contract, security-model, runtime-permissions-contracts)

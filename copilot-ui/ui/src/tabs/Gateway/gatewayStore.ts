@@ -244,10 +244,7 @@ function createGatewayStore() {
 
     try {
       const response = await getGatewayConfig();
-      const config = response.config || {};
-      const workspaces = config.workspaces || {};
-      const discord = config.discord || {};
-      const telegram = config.telegram || {};
+      const config = response.config;
 
       store.setState((state) => {
         if (nextVersion !== configRequestVersion) {
@@ -262,13 +259,13 @@ function createGatewayStore() {
           mode: config.mode || 'auto',
           acpHost: config.acp?.host || '127.0.0.1',
           acpPort: String(config.acp?.port || 3000),
-          activeRoot: workspaces.activeRoot || '',
-          allowedRootsText: formatDelimitedList(workspaces.allowedRoots || []),
-          discordGuildId: discord.guildId || '',
-          discordChannelId: discord.channelId || '',
-          discordUsersText: (discord.allowlistedUserIds || []).join(', '),
-          discordPermissionsChannelId: discord.permissionsChannelId || '',
-          telegramUsersText: (telegram.allowlistedUserIds || []).join(', '),
+          activeRoot: config.workspaces?.activeRoot || '',
+          allowedRootsText: formatDelimitedList(config.workspaces?.allowedRoots || []),
+          discordGuildId: config.discord?.guildId || '',
+          discordChannelId: config.discord?.channelId || '',
+          discordUsersText: (config.discord?.allowlistedUserIds || []).join(', '),
+          discordPermissionsChannelId: config.discord?.permissionsChannelId || '',
+          telegramUsersText: (config.telegram?.allowlistedUserIds || []).join(', '),
           statusMessage: 'Gateway config loaded.',
           error: null,
         };

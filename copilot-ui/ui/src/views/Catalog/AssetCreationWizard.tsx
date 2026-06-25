@@ -272,7 +272,7 @@ function ReviewStep({ state }: { state: AssetCreationState }) {
             <Button
               onClick={() => {
                 navigationStore.closeWizard();
-                navigationStore.navigate('catalog');
+                navigationStore.setSettingsSection('catalog');
                 assetCreationStore.reset();
               }}
               testId="asset-wizard-view-catalog"

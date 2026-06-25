@@ -65,7 +65,7 @@ function resultToLane(result: GitCheckResult): DisplayLane {
   };
 }
 
-function stateToLane(name: string, lane: GitCheckStateResponse['lastRun']['lanes'][string]): DisplayLane {
+function stateToLane(name: string, lane: NonNullable<GitCheckStateResponse['lastRun']>['lanes'][string]): DisplayLane {
   return {
     name,
     status: normalizeStatus(lane.status),

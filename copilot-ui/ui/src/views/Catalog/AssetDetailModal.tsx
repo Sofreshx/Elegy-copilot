@@ -52,7 +52,7 @@ function renderHarnessActions({
   onUninstall?: (item: CatalogGlobalItem, state: CatalogGlobalHarnessState) => void;
   mutating?: boolean;
 }): React.ReactNode {
-  const state = hs.state || hs.syncStatus || '';
+  const state: string = hs.state || hs.syncStatus || '';
   const targets = item.actions?.installSurfaceTargets || [];
   const canInstall = targets.length > 0 && (state === 'available' || state === 'not-installed' || state === 'missing');
   const canUpdate = targets.length > 0 && (state === 'installed' || state === 'synced' || state === 'stale');

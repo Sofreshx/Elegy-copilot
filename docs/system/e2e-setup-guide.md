@@ -39,7 +39,7 @@ This is the right fit for CI and repeatable regression gates.
 ## UI Runtime Exploration Skill
 
 For browser-mode UI and Tauri desktop E2E work beyond the two flows above, the
-[ui-runtime-exploration skill](engine-assets/skills/ui-runtime-exploration/SKILL.md)
+[ui-runtime-exploration skill](../../engine-assets/skills/ui-runtime-exploration/SKILL.md)
 provides a 5-lane routing matrix covering:
 
 - **Browser-mode UI** (agent-browser / Playwright) — web-only exploratory coverage

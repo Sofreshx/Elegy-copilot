@@ -35,6 +35,21 @@ npm ci                          # Install all dependencies
 npm run build:contracts         # Build shared contracts
 npm run test:all                # Run all workspace tests
 npm run ci:local                # Full local CI (validators + builds + tests)
+npm run ci:local:full           # CI + Tauri check + docs build
+npm run docs:dev                # Start VitePress dev server
+npm run docs:preview            # Preview built docs
+npm run docs:check:links        # Check for dead markdown links
+npm run validate:guidelines-wiring   # Validate guidelines wiring
+npm run generate:spec-index     # Regenerate spec index table
+npm run ui:check                # Run UI compliance checks
+npm run ui:check:validate       # Validate UI check results
+npm run commit-check:setup      # Bootstrap commit-check in a repo
+npm run commit-check:run        # Run commit-check hooks
+npm run build:rust-backend      # Build Rust Tauri backend
+npm run test:rust-backend       # Run Rust backend tests
+npm run obsidian-docs:preflight # Preflight check for Obsidian docs
+npm run obsidian-docs:init      # Init Obsidian vault config
+npm run obsidian-docs:validate  # Validate Obsidian doc structure
 npm --prefix copilot-ui run desktop:dev   # Start desktop app in dev mode
 node copilot-ui/server.js       # Raw server (API debugging only)
 ```

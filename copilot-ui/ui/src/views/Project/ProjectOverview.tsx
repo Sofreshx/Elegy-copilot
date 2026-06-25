@@ -149,7 +149,7 @@ export default function ProjectOverview() {
           variant="secondary"
           size="sm"
           testId="project-back-btn"
-          onClick={() => navigationStore.navigate('projects')}
+          onClick={() => navigationStore.navigate('repositories')}
         >
           ← Back to Projects
         </Button>

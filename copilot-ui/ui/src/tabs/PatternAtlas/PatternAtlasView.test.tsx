@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import React from 'react';
 
@@ -7,7 +7,8 @@ vi.mock('../../lib/api/patternAtlas', () => ({
   getPatternAtlas: vi.fn(),
 }));
 
-import { getPatternAtlas } from '../../lib/api/patternAtlas';
+import { getPatternAtlas as _getPatternAtlas } from '../../lib/api/patternAtlas';
+const getPatternAtlas = _getPatternAtlas as Mock;
 import { patternAtlasStore } from './patternAtlasStore';
 import PatternAtlasView from './PatternAtlasView';
 

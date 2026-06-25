@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { Button, FormInput, Panel, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
+import type { GatewayStateError } from '../../lib/types';
 import { formatGatewayErrorList, formatGatewayStateSummary, gatewayStore } from './gatewayStore';
 
 function asSegment(value: unknown): Record<string, unknown> | null {
@@ -30,7 +31,7 @@ export default function GatewayView() {
   }, [gatewayState.stateEnvelope]);
 
   const gatewayErrorsText = useMemo(() => {
-    return formatGatewayErrorList(gatewayState.stateEnvelope?.errors);
+    return formatGatewayErrorList(gatewayState.stateEnvelope?.errors as GatewayStateError[] | undefined);
   }, [gatewayState.stateEnvelope]);
 
   const scanRootCount = gatewayState.scanResults?.roots.length || 0;
@@ -304,8 +305,8 @@ export default function GatewayView() {
             ) : (
               <ul className="gateway-scan-list" data-testid="gateway-scan-list">
                 {gatewayState.scanResults?.roots.map((root) => (
-                  <li key={root.scanRoot}>
-                    <p className="gateway-item-title">{root.scanRoot}</p>
+                  <li key={root.root}>
+                    <p className="gateway-item-title">{root.root}</p>
                     <p className="gateway-item-copy">{root.repos.length} repo(s)</p>
                     <p className="gateway-item-copy">{root.repos.map((repo) => repo.name).join(', ') || '(none)'}</p>
                   </li>

@@ -122,9 +122,9 @@ Define the Elegy-copilot research contract for running, configuring, and visuali
 
 - **Deterministic?**: `yes` = reproducible machine output with stable fingerprints; same input always produces same finding. `no` = heuristic or LLM-augmented output that may vary across runs.
 - **Blocks Merge?**: `yes` = hard gate; merge blocked until pass. `no` = advisory; findings reported but do not block. `score` = contributes to composite score; threshold-gated.
-- **Cost Class**: `cheap` = local CLI, &lt;5s typical runtime. `moderate` = local tool, &lt;30s typical runtime. `expensive` = external install required, &gt;30s runtime, requires index build, or heavyweight process. `variable` = runtime depends on repo size or configuration.
+- **Cost Class**: cheap = local CLI, &lt;5s typical runtime. moderate = local tool, &lt;30s typical runtime. expensive = external install required, &gt;30s runtime, requires index build, or heavyweight process. variable = runtime depends on repo size or configuration.
 - **Provenance Class**: `deterministic-tool` = reproducible machine output from a pinned tool version. `heuristic-tool` = tool output with documented false-positive rate; may need human triage. `llm-assisted` = LLM augments deterministic findings but always cites underlying tool evidence. `llm-only` = pure LLM analysis; non-blocking; never treated as a deterministic pass/fail gate.
-- **First-Slice?**: `yes` = included in initial QCP deployment. `defer` = deferred to a future slice with stated reason. Deferral criteria: (a) requires external tool install not yet integrated, (b) requires infrastructure not yet built (e.g., codegraph, UI test harness), (c) benefit unclear without upstream QCP components, (d) heavy runtime cost disproportionate to signal.
+- **First-Slice?**: yes = included in initial QCP deployment. defer = deferred to a future slice with stated reason. Deferral criteria: (a) requires external tool install not yet integrated, (b) requires infrastructure not yet built (e.g., codegraph, UI test harness), (c) benefit unclear without upstream QCP components, (d) heavy runtime cost disproportionate to signal.
 
 ### Coexistence Boundary
 

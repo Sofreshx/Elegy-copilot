@@ -91,13 +91,6 @@ fn runtime_diagnostic_format_timestamp(timestamp_ms: u128) -> String {
     let day = remaining_days + 1;
     format!(
         "{year:04}{month:02}{day:02}-{hours:02}{minutes:02}{seconds:02}-{millis:03}",
-        year = year,
-        month = month,
-        day = day,
-        hours = hours,
-        minutes = minutes,
-        seconds = seconds,
-        millis = millis,
     )
 }
 
@@ -150,13 +143,6 @@ fn time_format(seconds: i64, nanos: u32) -> String {
     let day = remaining_days + 1;
     format!(
         "{year:04}-{month:02}-{day:02}T{hours:02}:{minutes:02}:{seconds:02}.{nanos:09}",
-        year = year,
-        month = month,
-        day = day,
-        hours = hours,
-        minutes = minutes,
-        seconds = seconds,
-        nanos = nanos,
     )
 }
 

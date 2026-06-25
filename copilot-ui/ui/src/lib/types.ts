@@ -3495,6 +3495,7 @@ export interface OpenCodeConfigPayload {
   bigModel?: string;
   reviewModel?: string;
   customPrompts?: CustomPromptMap;
+  shell?: { path?: string; args?: string[] } | null;
 }
 
 export interface OpenCodeConfigResponse {

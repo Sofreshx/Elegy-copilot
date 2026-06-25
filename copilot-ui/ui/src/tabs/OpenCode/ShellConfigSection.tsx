@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, FormInput, Panel, ToggleField } from '../../components';
 import { opencodeStore } from '../../stores/opencodeStore';
-import type { OpenCodeShellConfig, OpenCodeStatusResponse } from '../../lib/types';
+import type { OpenCodeStatusResponse } from '../../lib/types';
 
 interface ShellConfigSectionProps {
   status: OpenCodeStatusResponse;
@@ -20,7 +20,7 @@ const DEFAULT_SHELL_INFO: Record<string, { label: string; description: string }>
 export default function ShellConfigSection({ status }: ShellConfigSectionProps) {
   const config = status.configPreview || {};
 
-  const currentShell = config.shell as OpenCodeShellConfig | undefined;
+  const currentShell = config.shell as { path?: string; args?: string[] } | undefined;
   const autoDetect = !currentShell || (!currentShell.path && !currentShell.args);
 
   const [shellPath, setShellPath] = useState(currentShell?.path || '');
@@ -43,7 +43,7 @@ export default function ShellConfigSection({ status }: ShellConfigSectionProps) 
               ? shellArgs.trim().split(/\s+/)
               : undefined,
           };
-      await opencodeStore.saveShellConfig(shellValue);
+      await opencodeStore.saveConfig({ shell: shellValue });
       setMessage(isAutoDetect ? 'Shell set to auto-detect.' : 'Shell configuration saved.');
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Failed to save shell config.');

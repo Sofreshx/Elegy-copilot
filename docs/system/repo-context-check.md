@@ -62,7 +62,7 @@ Claims are NOT extracted from:
 - HTML comments (`<!-- -->`)
 - External URLs (`https://...`)
 - Template placeholders (values containing `<` or `>`, e.g., `` `docs/specs/<slug>/spec.md` ``)
-- Inline code spans (for TODO/FIXME marker scanning) |
+- Inline code spans (for `TODO`/`FIXME` marker scanning)
 
 ### Phase 3: Verify Claims
 
@@ -87,7 +87,7 @@ Additional checks that don't require claim extraction:
 | Frontmatter validation | Missing or invalid `created`/`updated` dates in scaffold files with frontmatter |
 | Staleness | Documents with `updated` date older than configurable threshold (default 90 days), or >50/200 commits since last update |
 | Cross-file conflict | Same dependency with different versions claimed in different files; same script referenced with different package managers |
-| TODO/FIXME markers | Unresolved `TODO` or `FIXME` markers in scaffold markdown (skips code blocks, HTML comments, inline code spans) |
+| `TODO`/`FIXME` markers | Unresolved `TODO` or `FIXME` markers in scaffold markdown (skips code blocks, HTML comments, inline code spans) |
 | Tool config sync | Drifted doc references between harness instruction files (AGENTS.md, CLAUDE.md, GEMINI.md) |
 | Script coverage | `package.json` scripts not referenced in any scaffold file |
 | Broken links | Internal markdown links whose targets don't exist |
@@ -177,7 +177,7 @@ Add to `package.json`:
 | `frontmatter_invalid` | warning | Frontmatter contains invalid values |
 | `stale_doc` | warning | Document not updated within configured day+commit thresholds |
 | `pattern_index_drift` | warning | patterns/INDEX.md out of sync with patterns/*.md |
-| `todo_fixme_marker` | warning | Unresolved TODO/FIXME marker found in scaffold markdown |
+| `todo_fixme_marker` | warning | Unresolved `TODO`/`FIXME` marker found in scaffold markdown |
 | `cross_file_conflict` | error | Same dependency with conflicting versions across files; same script with different package managers |
 | `tool_config_drift` | warning | Doc references diverged between harness instruction files (or SHA256 mismatch when hash mode enabled) |
 | `manifest_parse_error` | error | Could not parse package.json or Cargo.toml |

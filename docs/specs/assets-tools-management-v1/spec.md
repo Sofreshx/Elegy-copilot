@@ -175,7 +175,7 @@ Response: { ok: boolean, results: Array<{ assetId: string, harnessId: string, st
 
 **R3c — Install/sync (reuse existing):**
 
-Reuse `POST /api/assets/install-surfaces` for install and sync. The route handler in `assets.js` already delegates to `lib/installSurfaces.js` which supports per-target install with force/dryRun options. After install/sync, the workspace store reloads the catalog summary to reflect updated state.
+Reuse `POST /api/assets/install-surfaces` for install and sync. The route handler in `assets.js` already delegates to `copilot-ui/lib/installSurfaces.js` which supports per-target install with force/dryRun options. After install/sync, the workspace store reloads the catalog summary to reflect updated state.
 
 ### R4 — UI overhaul: Assets & Tools tabs and management surface
 

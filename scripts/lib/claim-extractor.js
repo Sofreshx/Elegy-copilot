@@ -63,6 +63,13 @@ const NON_DEP_WORDS = new Set([
   'dir', 'cwd', 'pwd', 'home', 'root', 'user', 'group', 'owner',
   'size', 'count', 'total', 'max', 'min', 'avg', 'sum',
   'yes', 'no', 'ok', 'okay', 'done',
+  // Agent types and roles (not npm packages)
+  'explorer', 'scout', 'research', 'reviewer', 'impl', 'plan',
+  'build', 'quick', 'project', 'session', 'analytics',
+  'dependency', 'missing_dependency', 'stale_command', 'cross_file_conflict',
+  'manifest_parse_error', 'undocumented_script',
+  // Common documentation terms
+  'global', 'repo', 'local', 'remote', 'workspace',
 ]);
 
 /** Lines mentioning these keywords may contain dependency claims. */
@@ -337,6 +344,32 @@ function extractPathClaims(lines, filePath, options) {
 
       // Exclude scoped package names (@scope/name) from path claims
       if (/^@[\w-]+\/[\w.\-@^~]+$/.test(value)) {
+        continue;
+      }
+
+      // Exclude user home directory paths (~/.elegy, ~/.config, etc.)
+      if (value.startsWith('~/')) {
+        continue;
+      }
+
+      // Exclude absolute paths (API endpoints, system paths)
+      if (value.startsWith('/') && !value.startsWith('/docs/')) {
+        continue;
+      }
+
+      // Exclude template placeholders ({repo-name}, {repoId}, etc.)
+      if (/\{[^}]+\}/.test(value)) {
+        continue;
+      }
+
+      // Exclude wildcard paths (docs/system/**, engine-assets/skills/*/SKILL.md)
+      if (value.includes('*')) {
+        continue;
+      }
+
+      // Exclude bare filenames without directory context (SKILL.md, manifest.json, etc.)
+      // These are typically example filenames in documentation, not actual repo files
+      if (!value.includes('/') && FILE_EXT_RE.test(value)) {
         continue;
       }
 
