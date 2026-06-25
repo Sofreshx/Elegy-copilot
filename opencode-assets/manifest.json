@@ -127,6 +127,12 @@
       "destination": "agents/notes-deduplicate.md"
     },
     {
+      "id": "opencode-agent-session-analytics",
+      "type": "agent",
+      "source": "opencode-assets/agents/session-analytics.md",
+      "destination": "agents/session-analytics.md"
+    },
+    {
       "id": "opencode-code-review-skill",
       "type": "skill",
       "source": "opencode-assets/skills/code-review",
