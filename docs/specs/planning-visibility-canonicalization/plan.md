@@ -1,6 +1,6 @@
 # Implementation Plan: planning-visibility-canonicalization
 
-**Spec:** `specs/planning-visibility-canonicalization/spec.md`
+**Spec:** `docs/specs/planning-visibility-canonicalization/spec.md`
 **Date:** 2026-06-04
 **Status:** Draft
 **Lane:** Spec (per AGENTS.md — user-facing behavior change, multi-file surface)
@@ -217,17 +217,13 @@ A pure node script (CommonJS) that:
 
 ## Step 7 — Final validation (15 min)
 
-- [ ] `node scripts/validate-specs.js specs/planning-visibility-canonicalization` exits 0.
-- [ ] `node scripts/validate-planning-metadata.js --db "C:\Users\lolzi\.copilot\elegy-planning.db" --json` reports 0 unscoped, 0 orphaned, 0 inconsistent tags for the consolidation subtree.
-- [ ] `node scripts/repair-consolidation-tags.mjs --db "C:\Users\lolzi\.copilot\elegy-planning.db"` is a no-op (idempotent).
-- [ ] `& "C:\Users\lolzi\.copilot\managed-cli\planning\elegy-planning.exe" --db "C:\Users\lolzi\.copilot\elegy-planning.db" goal show --goal-id GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603 --json` shows 5 roadmaps with the new tags.
-- [ ] `cd copilot-ui && node ../node_modules/typescript/bin/tsc -p ui/tsconfig.json --noEmit` exits 0.
-- [ ] `node copilot-ui/tests/planning-roadmap-inheritance.test.js` exits 0.
-- [ ] `node copilot-ui/tests/planning-session-endpoint.test.js` exits 0.
-- [ ] `node --test copilot-ui/tests/planning-explorer-inheritance.vitest.tsx copilot-ui/tests/planning-explorer-filters.vitest.tsx` exits 0.
-- [ ] `node scripts/codex-install.test.js` and `node scripts/opencode-install.test.js` exit 0.
-- [ ] `node scripts/repair-consolidation-tags.test.js` and `node scripts/validate-planning-metadata.test.js` and `node scripts/roundtrip-validator-strict.test.js` exit 0.
-- [ ] `node copilot-ui/tests/planning-live-roadmaps-repo-filter.test.js` exits 0.
+- Run spec validator
+- Run the validation script against the DB — confirm 0 unscoped, 0 orphaned, 0 inconsistent tags for the consolidation subtree
+- Run the repair script against the DB — confirm it's a no-op (idempotent)
+- Run the goal show command — confirm 5 roadmaps with the new tags
+- Run TypeScript compilation — exit 0
+- Run all new test files — exit 0
+- Run the live roadmaps repo filter test — exit 0
 
 ## Step 8 — Implementation review
 

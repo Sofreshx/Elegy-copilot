@@ -20,16 +20,13 @@ Replace the current `PlanningAuthorityView` tab with a clean, focused explorer v
 
 ## Context Evidence
 
-- `copilot-ui/ui/src/tabs/Planning/PlanningAuthorityView.tsx` — current tab component (~1084 lines). Contains metric grid, Planning Authority status panel, repo-scoped roadmap sidebar, Explorer panel, Transfer tab, and an inline graph view when a roadmap is clicked.
-- `copilot-ui/ui/src/tabs/Planning/PlanningGraphView.tsx` — existing interactive SVG tree graph detail view (~1198 lines). Accepts `roadmapId`, `repoQuery`, `onBack`, `onRefreshNeeded` props. Fetches its own data on mount. Used inline within `PlanningAuthorityView`.
-- `copilot-ui/ui/src/lib/api/planning.ts:537-551` — `listPlanningLiveRoadmaps(query)` fetches roadmaps scoped to a single repo via `repoId`/`repoPath`/`repoLabel` query params. Only truthy params are sent.
-- `copilot-ui/ui/src/lib/types.ts:178-190` — `PlanningLiveRoadmapSummary` has `id`, `goalId`, `title`, `summary`, `status`, `tags`, `createdAt`, `updatedAt`. Does NOT have a `repoId` field — the repo association is only known from the fetch context.
-- `copilot-ui/ui/src/tabs/Assets/catalogWorkspaceStore.ts` — provides `repoInventory.repos[]` (list of tracked repos with `repoId`, `repoPath`, `repoLabel`, all optional/nullable) and `loadWorkspace()`.
-- `copilot-ui/ui/src/tabs/Planning/PlanningAuthorityView.tsx:42-68` — `normalizeCatalogRepoEntry()` normalises raw repo entries. The original function only rejects entries where ALL four fields (repoId, repoPath, repoLabel, sources) are empty. An additional stricter filter (requiring `repoId` OR `repoPath`) MUST be applied after normalisation.
-- `copilot-ui/ui/src/tabs/Planning/PlanningAuthorityView.tsx:391-397` — auto-load pattern: triggers `catalogWorkspaceStore.loadWorkspace()` on mount if `repoInventory` is null.
+- `copilot-ui/ui/src/tabs/Planning/PlanningGraphView.tsx` — existing interactive SVG tree graph detail view. Accepts `roadmapId`, `repoQuery`, `onBack`, `onRefreshNeeded` props. Fetches its own data on mount. Used inline within the authority view.
+- `copilot-ui/ui/src/lib/api/planning.ts` — `listPlanningLiveRoadmaps(query)` fetches roadmaps scoped to a single repo via query params. Only truthy params are sent.
+- `copilot-ui/ui/src/lib/types.ts` — `PlanningLiveRoadmapSummary` has `id`, `goalId`, `title`, `summary`, `status`, `tags`, `createdAt`, `updatedAt`. Does NOT have a `repoId` field — the repo association is only known from the fetch context.
+- `copilot-ui/ui/src/tabs/Assets/catalogWorkspaceStore.ts` — provides `repoInventory.repos[]` (list of tracked repos) and `loadWorkspace()`.
 - `copilot-ui/ui/src/lib/stateDiagnostics.ts` — provides `humanizeToken()` for status display.
-- `copilot-ui/ui/src/stores/navigation.ts` — sidebar item index 4 (`'planning'`) routes to `PlanningAuthorityView`.
-- `copilot-ui/ui/src/App.tsx:83-102` — `renderContent()` switch-case dispatches to tab components. Must be modified to support standalone graph window mode via URL params.
+- `copilot-ui/ui/src/stores/navigation.ts` — sidebar item index 4 routes to the planning tab.
+- `copilot-ui/ui/src/App.tsx` — `renderContent()` switch-case dispatches to tab components. Must be modified to support standalone graph window mode via URL params.
 - `copilot-ui/vite.config.ts` — single-entry-point Vite config. No build changes in scope.
 - `docs/system/spec-driven-development.md` — spec contract reference.
 

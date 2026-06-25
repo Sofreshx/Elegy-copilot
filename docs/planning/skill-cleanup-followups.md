@@ -15,9 +15,9 @@ tags: [planning, skills, audit, follow-up]
 
 | Surface | Action |
 |---------|--------|
-| `guidelines.md` | Deleted (per-repo entrypoint surface fully retired) |
-| `engine-assets/skills/guidelines-authoring/` | Deleted (governed deprecated surface) |
-| `engine-assets/skills/project-guidelines/` | Deleted (governed deprecated surface) |
+| guidelines.md | Deleted (per-repo entrypoint surface fully retired) |
+| engine-assets/skills/guidelines-authoring/ | Deleted (governed deprecated surface) |
+| engine-assets/skills/project-guidelines/ | Deleted (governed deprecated surface) |
 | `catalog-assets/shared-skills/skill-authoring/` | New shared skill (agentskills.io spec) |
 | `catalog-assets/shared-skills/agents-md-authoring/` | New shared skill (AGENTS.md open standard) |
 | `catalog-assets/instructions/agent-session-defaults.md` | Added `## Code Quality Posture` section |
@@ -47,7 +47,7 @@ The `code-review` skill is a purely descriptive compatibility wrapper. It routes
 
 There is no executable Elegy-labeled repo setup skill. The engine's `repo-setup-governance` is read-only (audit/propose only). Need a new skill that:
 
-- Creates `.github/copilot-instructions.md`, `.github/agents/`, `.github/skills/` if missing
+- Creates .github/copilot-instructions.md, .github/agents/, .github/skills/ if missing
 - Runs `commit-check-setup` as a sub-step
 - Sets up canonical doc entrypoint (`docs/system/index.md`)
 - Reports what was created/updated
@@ -71,18 +71,18 @@ The system has three skill discovery mechanisms that overlap:
 
 **Questions to resolve:**
 - Should `elegy-skills-discovery` replace `skill-discovery` entirely when the CLI is available?
-- The vault (`~/.elegy/skills-vault/`) has stale duplicates (e.g., `discovery/` is a copy of `skill-discovery/`). Cleanup?
+- The vault (~/.elegy/skills-vault/) has stale duplicates (e.g., discovery/ is a copy of skill-discovery/). Cleanup?
 - What happens when the `elegy-skills` CLI binary is not installed?
 
 ### 5. `skill-metadata-index.json` staleness
 
-Several skills have metadata in SKILL.md frontmatter that is not propagated to the index. The `generate-skill-metadata-index.mjs` script exists but the index is stale. Need a CI step or pre-commit hook to keep it in sync.
+Several skills have metadata in SKILL.md frontmatter that is not propagated to the index. The scripts/generate-skill-metadata-index.mjs script exists but the index is stale. Need a CI step or pre-commit hook to keep it in sync.
 
 ### 6. Cross-harness `.github/` directory story
 
-`.github/agents/` is Copilot-only (no mirroring). `.github/skills/` is Copilot-native but mirrors to other harnesses via `install-repo-skill-mirrors.mjs`. Need to decide:
+`.github/agents/` is Copilot-only (no mirroring). `.github/skills/` is Copilot-native but mirrors to other harnesses via scripts/install-repo-skill-mirrors.mjs. Need to decide:
 
-- Is `.github/agents/` worth maintaining if only Copilot reads it?
+- Is .github/agents/ worth maintaining if only Copilot reads it?
 - Should the mirror scripts also handle agent mirrors?
 - Document for users which paths to use for each harness.
 
@@ -92,21 +92,21 @@ Several skills have metadata in SKILL.md frontmatter that is not propagated to t
 
 ### 8. Installed skills cleanup
 
-After removing `stack-detector` and `roadmap-planning` from source, the installer auto-pruned them from `~/.config/opencode/skills/`. But `~/.elegy/skills-vault/` may still have stale copies:
+After removing `stack-detector` and `roadmap-planning` from source, the installer auto-pruned them from ~/.config/opencode/skills/. But ~/.elegy/skills-vault/ may still have stale copies:
 
-- `stack-detector/` (should be removed)
-- `roadmap-planning/` (should be removed)
-- `discovery/` (stale duplicate of `skill-discovery/`)
-- Various `always`-loaded skills have vault copies unnecessarily (`core-guardrails`, `project-guidelines`, `roadmap-authoring`)
+- stack-detector/ (should be removed)
+- roadmap-planning/ (should be removed)
+- discovery/ (stale duplicate of skill-discovery/)
+- Various always-loaded skills have vault copies unnecessarily (core-guardrails, project-guidelines, roadmap-authoring)
 
 ### 9. Stale referenced detection — scripts and tests
 
 A comprehensive grep after removal found stale references in production scripts, tests, and docs:
 
 **P0 — breaks tests:** 8 test files assert removed skills exist:
-- `scripts/opencode-install.test.js`, `codex-install.test.js`, `antigravity-install.test.js`, `cli-install.test.js`
-- `scripts/skill-search.test.js`, `generate-skill-metadata-index.test.js`
-- `copilot-ui/routes/planning.test.js`, `sessions.test.js`
+- scripts/opencode-install.test.js, scripts/codex-install.test.js, scripts/antigravity-install.test.js, scripts/cli-install.test.js
+- scripts/skill-search.test.js, scripts/generate-skill-metadata-index.test.js
+- copilot-ui/routes/planning.test.js, copilot-ui/routes/sessions.test.js
 
 **P0 — script breaks:** `scripts/validate-manifest.js` expects stack-detector in all manifests.
 `scripts/validate-first-party-exact-name-reference-audit.js` references the deleted SKILL.md path.
@@ -114,10 +114,10 @@ A comprehensive grep after removal found stale references in production scripts,
 
 **P1 — UI routes reference removed skill:** `copilot-ui/routes/planning.js` includes `roadmap-planning` in `skillsRequired` array. `copilot-ui/routes/sessions.js` conditionally adds it. These will produce broken continuation packages.
 
-**P2 — docs/references still mention removed skills:** `docs/system/opencode-guide.md`, `skills-governance.md`, `search-execute-workflow.md`, `system-upgrade-direction-2026.md`, `lexicon/project-specific.md`, `specs/asset-sync-truthfulness/spec.md`, `research/shipped-skill-quality-audit.md`, `system/instruction-changelog.md`.
+**P2 — docs/references still mention removed skills:** docs/system/opencode-guide.md, docs/system/skills-governance.md, docs/system/search-execute-workflow.md, docs/system/system-upgrade-direction-2026.md, docs/lexicon/project-specific.md, docs/specs/asset-sync-truthfulness/spec.md, docs/research/shipped-skill-quality-audit.md, docs/system/instruction-changelog.md.
 
 All non-code stale references (P2-P3) should be cleaned up when the code references are fixed.
 
 ### 10. `roadmap-planning-lane` naming ambiguity
 
-The lane definition in `shippedAssets.mjs` (id: `roadmap-planning-lane`) bundles `skill-roadmap-authoring` and describes "Repository Backlog & Roadmap Skills." This lane may serve a valid purpose, but its name is misleading now that the `roadmap-planning` skill is gone. Consider renaming to `roadmap-authoring-lane`.
+The lane definition in catalog-assets/shippedAssets.mjs (id: `roadmap-planning-lane`) bundles `skill-roadmap-authoring` and describes "Repository Backlog & Roadmap Skills." This lane may serve a valid purpose, but its name is misleading now that the `roadmap-planning` skill is gone. Consider renaming to `roadmap-authoring-lane`.

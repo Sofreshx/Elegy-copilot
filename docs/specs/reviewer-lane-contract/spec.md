@@ -83,14 +83,14 @@ Define the authoritative contract for the reviewer lane: review checks, verdict 
 
 ## Acceptance Checks
 
-- The spec itself passes `node scripts/validate-specs.js --strict`
-  → verify: `node scripts/validate-specs.js --strict docs/specs/reviewer-lane-contract/spec.md`
+- The spec itself passes spec validation
+  → verify: run spec validator against this file
 - All 6 requirements with sub-requirements are present
-  → verify: `rg "^#### R[1-6]" docs/specs/reviewer-lane-contract/spec.md | measure` returns at least 6
+  → verify: count `#### R[1-6]` headings — at least 6
 - Forbidden Behavior covers at least 3 prohibitions
-  → verify: `rg "^-\s+A reviewer MUST NOT" docs/specs/reviewer-lane-contract/spec.md | measure` returns at least 3
+  → verify: count `MUST NOT` prohibitions — at least 3
 - Reviewer governance doc references this spec
-  → verify: `rg "reviewer-lane-contract" docs/system/reviewer-lane-governance.md` returns at least 1 match
+  → verify: search for `reviewer-lane-contract` in the governance doc
 
 ## Implementation Links
 

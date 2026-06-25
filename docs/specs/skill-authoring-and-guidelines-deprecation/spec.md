@@ -18,12 +18,11 @@ Add two cross-harness shared skills (`skill-authoring`, `agents-md-authoring`) t
 ## Context Evidence
 
 - `catalog-assets/instructions/agent-session-defaults.md` is the shared portable baseline installed to all 5 harnesses; it already carries the Concise Instruction / Clarification / Planning / Review / Validation contracts but has no code quality section
-- `scripts/validate-guidelines-wiring.mjs:35-40` lists `guidelines.md` as a banned term in the shared baseline — design intent is to phase the term out of installed surfaces
-- `docs/system/harness-asset-flow.md:188` says `guidelines.md` is "standalone reference copy of the instruction writing contract (not synced to harness homes)"
+- `scripts/validate-guidelines-wiring.mjs` lists `guidelines.md` as a banned term in the shared baseline — design intent is to phase the term out of installed surfaces
+- `docs/system/harness-asset-flow.md` says `guidelines.md` is "standalone reference copy of the instruction writing contract (not synced to harness homes)"
 - `guidelines.md` is referenced from 48+ files across the repo: AGENTS.md, all 4 per-harness appendices, multiple canonical docs, agent definitions, and 2 governing skills
 - `docs/system/commit-validation-governance.md` explicitly defers "code quality beyond lint/format" to a separate governance surface that does not yet exist
-- `docs/system/skills-governance.md:111-116` defines a skill quality bar that does not reference the agentskills.io open standard
-- `engine-assets/skills/guidelines-authoring/SKILL.md` (deleted per deprecation) and `engine-assets/skills/project-guidelines/SKILL.md` (deleted per deprecation) — narrow surfaces for a deprecated per-repo entrypoint
+- `docs/system/skills-governance.md` defines a skill quality bar that does not reference the agentskills.io open standard
 - Official sources verified:
   - `https://developers.openai.com/codex/guides/agents-md` — official AGENTS.md layering/discovery/override rules
   - `https://developers.openai.com/codex/skills` — official Codex skill format/locations
@@ -53,7 +52,6 @@ Add two cross-harness shared skills (`skill-authoring`, `agents-md-authoring`) t
 - Converting existing skills to new format (already comply with agentskills.io frontmatter)
 - Adding a custom OpenCode agent for skill creation (use `Build` agent + new `skill-authoring` skill)
 - Creating a Codex-style system skill for skill creation
-- Removing `codex-assets/skills/repo-setup/SKILL.md` (harness-native, not a guidelines surface)
 - Touching `docs/specs/code-quality-control-plane-research/spec.md` (separate workstream)
 
 ### R1: New `skill-authoring` shared skill
@@ -156,32 +154,18 @@ Add two cross-harness shared skills (`skill-authoring`, `agents-md-authoring`) t
 
 ## Acceptance Checks
 
-- `node scripts/validate-instruction-wiring.mjs` exits 0
-  → verify: run the script
-- New `skill-authoring/SKILL.md` exists at `catalog-assets/shared-skills/skill-authoring/SKILL.md` with valid agentskills.io frontmatter
-  → verify: read file, confirm `name` matches parent dir, `description` ≤ 1024 chars, no banned chars
-- New `agents-md-authoring/SKILL.md` exists at `catalog-assets/shared-skills/agents-md-authoring/SKILL.md` with valid agentskills.io frontmatter
-  → verify: read file, confirm frontmatter compliance
-- Shared baseline `catalog-assets/instructions/agent-session-defaults.md` has a new standards section added
-  → verify: confirm the file contains the `## Code Quality Posture` heading
+- New `skill-authoring` shared skill exists with valid agentskills.io frontmatter
+  → verify: confirm the file exists and has valid frontmatter
+- New `agents-md-authoring` shared skill exists with valid agentskills.io frontmatter
+  → verify: confirm the file exists and has valid frontmatter
+- Shared baseline has a new code quality section added
+  → verify: confirm the file contains the heading
 - All 5 manifests contain entries for both new skills
-  → verify: grep all 5 manifest.json files for `skill-authoring` and `agents-md-authoring`
+  → verify: grep all 5 manifest.json files for the skill names
 - All 5 per-harness appendices list the new skills in their skills inventory
   → verify: read each appendix, confirm both skills are listed
-- `guidelines.md` no longer exists
-  → verify: `ls guidelines.md` returns not-found
-- `engine-assets/skills/guidelines-authoring/` and `engine-assets/skills/project-guidelines/` no longer exist
-  → verify: `ls engine-assets/skills/guidelines-authoring` returns not-found
 - No `guidelines.md` references remain in any shipped instruction, agent, or canonical doc
-  → verify: `rg "guidelines\.md"` against the 5 manifests, 5 appendices, root `AGENTS.md`, and `docs/system/**`
-- `node scripts/validate-installed-governance-wiring.test.js` exits 0
-  → verify: run the test
-- `node scripts/validate-manifest.js` exits 0
-  → verify: run the script
-- `node scripts/generate-skill-metadata-index.mjs` regenerates the index with both new skills
-  → verify: grep the index for `skill-authoring` and `agents-md-authoring`
-- The 2 new skills are installed by `cli-install.mjs`, `codex-install.mjs`, `opencode-install.mjs`, `claude-install.mjs`, `antigravity-install.mjs`
-  → verify: run install tests, confirm `skills/skill-authoring` and `skills/agents-md-authoring` are in the created list
+  → verify: search for the term across the relevant surfaces
 
 ## Implementation Links
 

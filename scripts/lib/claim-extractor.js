@@ -298,8 +298,9 @@ function extractPathClaims(lines, filePath, options) {
         continue;
       }
 
-      // Exclude template placeholders (containing < or >)
-      if (value.indexOf('<') !== -1 || value.indexOf('>') !== -1) {
+      // Exclude template placeholders (containing <, >, {, or })
+      if (value.indexOf('<') !== -1 || value.indexOf('>') !== -1 ||
+          value.indexOf('{') !== -1 || value.indexOf('}') !== -1) {
         continue;
       }
 
@@ -408,8 +409,9 @@ function extractCommandClaims(lines, filePath, options) {
         continue;
       }
 
-      // Exclude template placeholders (containing < or >)
-      if (value.indexOf('<') !== -1 || value.indexOf('>') !== -1) {
+      // Exclude template placeholders (containing <, >, {, or })
+      if (value.indexOf('<') !== -1 || value.indexOf('>') !== -1 ||
+          value.indexOf('{') !== -1 || value.indexOf('}') !== -1) {
         continue;
       }
 
@@ -511,8 +513,9 @@ function extractDependencyClaims(lines, filePath, options) {
         continue;
       }
 
-      // Exclude template placeholders (containing < or >)
-      if (value.indexOf('<') !== -1 || value.indexOf('>') !== -1) {
+      // Exclude template placeholders (containing <, >, {, or })
+      if (value.indexOf('<') !== -1 || value.indexOf('>') !== -1 ||
+          value.indexOf('{') !== -1 || value.indexOf('}') !== -1) {
         continue;
       }
 

@@ -19,7 +19,7 @@ Replace the retired messaging gateway and sandbox control surfaces with a Kimaki
 - `docs/system/architecture-overview.md`: current desktop, API, and external integration boundaries.
 - `docs/system/desktop-runtime-tauri-migration-contract.md`: packaged Node runtime ownership and sidecar layout.
 - `copilot-ui/src/desktopRuntime/runtimeService.ts`: desktop child-process lifecycle owner.
-- `kimaki@0.17.1`: non-TTY startup emits SSE-framed `install_url`, `authorized`, `ready`, and `error` events.
+- `kimaki@0.17.1`: non-TTY startup emits SSE-framed `install_url` event, `authorized` event, `ready` event, and `error` event.
 
 ## Requirements
 

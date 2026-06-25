@@ -29,6 +29,7 @@ async function handleRepoContextCheck(ctx, deps) {
       encoding: 'utf8',
       timeout: 30_000,
       windowsHide: true,
+      maxBuffer: 10 * 1024 * 1024,
     });
 
     if (result.error) {

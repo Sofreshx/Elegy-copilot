@@ -16,14 +16,14 @@ Enable users to add, edit, and remove custom system prompts per OpenCode agent, 
 
 ## Context Evidence
 
-- `copilot-ui/lib/opencodeConfig.js:158-233` — `readConfig`/`writeConfig` for `opencode.jsonc`, `readState`/`writeState` for `.elegy-opencode-agent-state.json`. The sidecar is the existing mechanism for Elegy-managed agent state. Lines 529-551 (`applyProfile`) show the pattern for writing role-level config to `opencode.jsonc` on profile switch. Lines 553-570 (`setAgentRoleModels`) show the save-then-write pattern.
-- `copilot-ui/routes/opencode.js:1202-1318` — `POST /api/opencode/config` handler. Accepts `profileId`, `roleModels`, `smallModel`/`bigModel`/`reviewModel`. Profile activation invokes `opencode-profile-switch.mjs` then calls `setAgentRoleModels`/`setAgentModels`. This is the injection point for prompt application.
-- `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx:16-26` — `TAB_SECTIONS` array with 8 existing sub-tabs. `SECTION_COMPONENTS` map at line 876. A new `prompts` tab fits into this registry pattern.
-- `copilot-ui/ui/src/lib/types.ts:3644` — `OpenCodeTabSectionId` union type. Must be extended with `'prompts'`.
-- `copilot-ui/ui/src/lib/types.ts:3559-3566` — `OpenCodeConfigPayload` interface. Only carries `profileId`, `profileRoute`, `roleModels`, `smallModel`, `bigModel`, `reviewModel`. No prompt field yet.
-- `copilot-ui/ui/src/stores/opencodeStore.ts:33-69` — `OpenCodeState` interface and initial state. No prompt-related fields yet.
-- `opencode-assets/profiles.json` — 5 profiles with `roleModels` mapping 5 roles to model IDs. Model IDs are the canonical source for available models.
-- OpenCode schema (`https://opencode.ai/config.json`): `AgentConfig.properties.prompt` is a `string`. When set, it replaces the agent's provider prompt. This is the target OpenCode field we write to.
+- `copilot-ui/lib/opencodeConfig.js` — `readConfig`/`writeConfig` for the OpenCode config, `readState`/`writeState` for the agent state sidecar. The sidecar is the existing mechanism for Elegy-managed agent state. `applyProfile` shows the pattern for writing role-level config on profile switch. `setAgentRoleModels` shows the save-then-write pattern.
+- `copilot-ui/routes/opencode.js` — `POST /api/opencode/config` handler. Accepts `profileId`, `roleModels`, `smallModel`/`bigModel`/`reviewModel`. Profile activation invokes the profile switch script then calls `setAgentRoleModels`/`setAgentModels`. This is the injection point for prompt application.
+- `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx` — `TAB_SECTIONS` array with existing sub-tabs. `SECTION_COMPONENTS` map. A new `prompts` tab fits into this registry pattern.
+- `copilot-ui/ui/src/lib/types.ts` — `OpenCodeTabSectionId` union type. Must be extended with `'prompts'`.
+- `copilot-ui/ui/src/lib/types.ts` — `OpenCodeConfigPayload` interface. Only carries profile and model fields. No prompt field yet.
+- `copilot-ui/ui/src/stores/opencodeStore.ts` — `OpenCodeState` interface and initial state. No prompt-related fields yet.
+- `opencode-assets/profiles.json` — profiles with `roleModels` mapping roles to model IDs. Model IDs are the canonical source for available models.
+- OpenCode schema: `AgentConfig.properties.prompt` is a `string`. When set, it replaces the agent's provider prompt. This is the target OpenCode field we write to.
 
 ## Requirements
 
@@ -234,30 +234,30 @@ Where OpenCode's built-in provider prompt content cannot be read from disk (it s
 
 ## Acceptance Checks
 
-- Custom prompt for active model is written to `agent.<name>.prompt` on save.
-  → verify: Set a prompt for `build` → `opencode-go/deepseek-v4-pro` in the UI. Save. Check `opencode.jsonc` that `config.agent.build.prompt` equals the entered text.
-- Manual user edit to `agent.<name>.prompt` is not clobbered by subsequent saves.
-  → verify: Set a prompt via UI. Manually edit `agent.build.prompt` in `opencode.jsonc` to a different value. Save a different prompt via UI. Confirm `agent.build.prompt` in `opencode.jsonc` was NOT overwritten (skipped). Confirm UI shows the agent as "skipped."
-- Clearing a model override removes the prompt from `opencode.jsonc`.
-  → verify: Set a prompt for `build` → `deepseek-v4-pro`. Confirm it writes. Clear the prompt in UI (empty textarea). Save. Confirm `agent.build.prompt` is removed from `opencode.jsonc`.
+- Custom prompt for active model is written on save.
+  → verify: Set a prompt for build agent. Save. Confirm the config file has the prompt text.
+- Manual user edit to prompt is not clobbered by subsequent saves.
+  → verify: Set a prompt via UI. Manually edit the config. Save a different prompt via UI. Confirm the manual edit was NOT overwritten (skipped).
+- Clearing a model override removes the prompt from config.
+  → verify: Set a prompt. Confirm it writes. Clear the prompt in UI (empty textarea). Save. Confirm the prompt is removed from config.
 - Profile switch applies correct model-specific prompt.
-  → verify: Set prompt A for `build` → `opencode-go/deepseek-v4-pro`. Set prompt B for `build` → `opencode-go/deepseek-v4-flash`. With build on `pro`, confirm prompt A is written. Switch profiles so build gets `flash`. Confirm prompt B is written and `_managedPrompts.build.modelId` is `flash`.
+  → verify: Set prompt A for pro model. Set prompt B for flash model. With build on pro, confirm prompt A is written. Switch profiles so build gets flash. Confirm prompt B is written.
 - Available model list includes all profile models and user-configured provider models.
-  → verify: Open Prompts tab. Click "Add model override." Confirm dropdown lists at minimum: `opencode-go/deepseek-v4-pro`, `opencode-go/deepseek-v4-flash`, `opencode/deepseek-v4-pro-free`, `opencode/deepseek-v4-flash-free`, `deepseek-direct/deepseek-v4-pro`, `deepseek-direct/deepseek-v4-flash`.
-- `resetConfig()` clears all managed prompts.
-  → verify: Set prompts for 3 agents. Run reset config from UI. Confirm no `agent.<name>.prompt` fields remain in `opencode.jsonc`. Confirm `customPrompts` and `_managedPrompts` are cleared from the sidecar.
+  → verify: Open Prompts tab. Click "Add model override." Confirm dropdown lists available models.
+- Reset config clears all managed prompts.
+  → verify: Set prompts for 3 agents. Run reset config from UI. Confirm no prompt fields remain in config. Confirm sidecar state is cleared.
 - Prompt status indicator reflects current state.
-  → verify: With no overrides, status dot is gray and shows "Using default system prompt." Set an override for the active model → dot turns green. Set an override for a different model → dot turns yellow with "Override exists for <modelId>."
+  → verify: With no overrides, status dot is gray. Set an override for the active model → dot turns green. Set an override for a different model → dot turns yellow.
 - Effective prompt view shows all available layers with source paths.
-  → verify: Expand "Effective Prompt" for the build agent. Confirm sections appear for: Agent definition (path to `.md` file), AGENTS.md (path), Built-in provider prompt (note about unavailability), Custom override (if set). Confirm each section has a labeled header with the source path.
+  → verify: Expand "Effective Prompt" for the build agent. Confirm sections appear for each layer with labeled headers.
 - Effective prompt view shows manual override when not Elegy-managed.
-  → verify: Manually set `agent.build.prompt` in `opencode.jsonc` to a value not matching `_managedPrompts` hash. Open Prompts tab, expand Effective Prompt for build. Confirm the override is shown as "Manual override (not Elegy-managed)" with the prompt text.
+  → verify: Manually set a prompt in config not matching managed hash. Open Prompts tab, expand Effective Prompt. Confirm shown as "Manual override (not Elegy-managed)."
 - Effective prompt view handles missing source files gracefully.
-  → verify: Temporarily rename `~/.config/opencode/AGENTS.md` to `AGENTS.md.bak`. Open Prompts tab, expand Effective Prompt for build. Confirm the AGENTS.md layer shows "(file not found)" with the expected path instead of crashing or showing an empty block. Restore the file after verification.
+  → verify: Temporarily rename the agents file. Open Prompts tab, expand Effective Prompt. Confirm "(file not found)" is shown. Restore the file.
 - Missing sidecar with pre-existing prompts shows manual override state.
-  → verify: Set `agent.build.prompt` in `opencode.jsonc` to "Hello" manually. Delete `.elegy-opencode-agent-state.json`. Open Prompts tab. Confirm build agent shows "Manual override (not Elegy-managed)" and the edit textarea is empty. Save prompts — confirm a new sidecar is created with `customPrompts` only containing what was explicitly saved (not auto-claiming the manual "Hello").
-- Missing opencode.jsonc disables save and shows warning.
-  → verify: Temporarily rename `opencode.jsonc`. Open Prompts tab. Confirm warning is displayed: "opencode.jsonc not found or unreadable. Custom prompts cannot be applied." Confirm Save button is disabled.
+  → verify: Set a prompt manually. Delete the sidecar. Open Prompts tab. Confirm manual override state and empty edit textarea.
+- Missing config disables save and shows warning.
+  → verify: Temporarily rename the config. Open Prompts tab. Confirm warning displayed and Save button disabled.
 
 ## Implementation Links
 

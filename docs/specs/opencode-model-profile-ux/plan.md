@@ -1,6 +1,6 @@
 # Implementation Plan: OpenCode Model & Profile Switching UX
 
-**Spec:** `specs/opencode-model-profile-ux/spec.md`
+**Spec:** `docs/specs/opencode-model-profile-ux/spec.md`
 **Created:** 2026-06-08
 **Status:** implemented
 
@@ -212,6 +212,6 @@ After each phase:
 - Manual verification per acceptance check in spec.md
 
 After all phases:
-- Run `node scripts/validate-specs.js --strict specs/opencode-model-profile-ux/spec.md`
-- Run `npm run ci:local` for full CI pass
+- Run spec validator against the spec
+- Run full CI pass
 - Manually verify all 6 acceptance checks from spec.md

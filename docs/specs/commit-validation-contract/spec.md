@@ -72,14 +72,14 @@ Define the authoritative contract for pre-commit validation, commit-check toolin
 
 ## Acceptance Checks
 
-- The spec itself passes `node scripts/validate-specs.js --strict`
-  → verify: `node scripts/validate-specs.js --strict docs/specs/commit-validation-contract/spec.md`
+- The spec itself passes spec validation
+  → verify: run spec validator against this file
 - All 4 requirements with sub-requirements are present
-  → verify: `rg "^#### R[1-4]" docs/specs/commit-validation-contract/spec.md | measure` returns at least 4
+  → verify: count `#### R[1-4]` headings — at least 4
 - Forbidden Behavior covers at least 3 prohibitions
-  → verify: `rg "^-\s+A (pre-commit|CI|validator) MUST NOT" docs/specs/commit-validation-contract/spec.md | measure` returns at least 3
+  → verify: count `MUST NOT` prohibitions — at least 3
 - Commit validation governance doc references this spec
-  → verify: `rg "commit-validation-contract" docs/system/commit-validation-governance.md` returns at least 1 match
+  → verify: search for `commit-validation-contract` in the governance doc
 
 ## Implementation Links
 

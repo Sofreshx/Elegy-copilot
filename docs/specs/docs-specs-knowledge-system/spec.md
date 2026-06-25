@@ -26,22 +26,21 @@ Make `docs/` the canonical knowledge root for Elegy Copilot and bootstrapped rep
 
 - `docs/specs/` currently holds 8 active specs at repo root, with a generated `docs/specs/index.md` and `docs/specs/_templates/` directory
 - `docs/system/` holds 60 canonical governance, architecture, workflow, and policy docs
-- `docs/system/spec-driven-development.md:237-263` enforces a "No Collision Rule": specs never write into `docs/`, docs never write into `specs/` — this rule must be removed as part of this migration
-- `docs/system/doc-graph-spec.md:24-26` defines `docs/system/**` as canonical but reserves `docs/*.md` for redirect stubs only — `docs/specs/**` needs to be declared as a governed non-doc-graph spec family
-- `scripts/validate-specs.js:125` hardcodes default `targetPath` to `path.join(process.cwd(), 'specs')`
-- `scripts/validate-specs-precommit.mjs:44` hardcodes grep pattern `/^specs\/[^/]+\/spec\.md$/`
-- `scripts/validate-specs-precommit.mjs:53` hardcodes path `specs` in validator invocation
-- `scripts/generate-spec-index.js:121` hardcodes default path to `specs`
-- `scripts/install-spec-hooks.mjs:27` hardcodes grep pattern `/^specs\/[^/]*\/spec\\.md$/`
-- `scripts/lib/spec-path-heuristics.js:18` includes `'specs'` in `KNOWN_SOURCE_DIRS`
-- `.github/workflows/repo-ci.yml:58` runs `node scripts/validate-specs.js --strict specs`
-- Four harness home files reference `specs/<spec-slug>/spec.md`: `codex-assets/home/AGENTS.md`, `opencode-assets/home/AGENTS.md`, `opencode-assets/agents/spec.md`, `antigravity-assets/home/GEMINI.md`
-- `engine-assets/copilot-instructions.md:116` references `specs/<spec-slug>/spec.md`
-- `catalog-assets/shared-skills/spec-authoring/SKILL.md`, `catalog-assets/shared-skills/spec-dev/SKILL.md`, `catalog-assets/shared-skills/spec-review/SKILL.md` are authoritative skill sources that reference `specs/` paths
+- `docs/system/spec-driven-development.md` enforces a "No Collision Rule": specs never write into `docs/`, docs never write into `specs/` — this rule must be removed as part of this migration
+- `docs/system/doc-graph-spec.md` defines `docs/system/` as canonical but reserves `docs/*.md` for redirect stubs only — `docs/specs/` needs to be declared as a governed non-doc-graph spec family
+- `scripts/validate-specs.js` hardcodes default `targetPath` to the old `specs` directory
+- `scripts/validate-specs-precommit.mjs` hardcodes grep pattern for old `specs/` paths
+- `scripts/generate-spec-index.js` hardcodes default path to old `specs`
+- `scripts/install-spec-hooks.mjs` hardcodes grep pattern for old `specs/` paths
+- `scripts/lib/spec-path-heuristics.js` includes old `specs` in `KNOWN_SOURCE_DIRS`
+- `.github/workflows/repo-ci.yml` runs spec validation against old `specs` path
+- Four harness home files reference old `specs/<spec-slug>/spec.md` paths: `codex-assets/home/AGENTS.md`, `opencode-assets/home/AGENTS.md`, `antigravity-assets/home/GEMINI.md`
+- `engine-assets/copilot-instructions.md` references old `specs/<spec-slug>/spec.md` path
+- `catalog-assets/shared-skills/spec-authoring/SKILL.md`, `catalog-assets/shared-skills/spec-dev/SKILL.md`, `catalog-assets/shared-skills/spec-review/SKILL.md` are authoritative skill sources that reference old `specs/` paths
 - `engine-assets/skills/repo-setup-governance/profile-definitions.json` references `docs/specs/index.md` in the `spec-driven` overlay profile
-- `scripts/validate-repo-setup-profiles.js:27-42` hardcodes expected `docs/specs/index.md` in the spec-driven profile validation
-- `AGENTS.md:25` lists `specs/` in the orientation table
-- `package.json:21` script `validate:specs` delegates to `scripts/validate-specs.js --strict` which defaults to `specs/`
+- `scripts/validate-repo-setup-profiles.js` hardcodes expected `docs/specs/index.md` in the spec-driven profile validation
+- `AGENTS.md` lists `specs/` in the orientation table
+- `package.json` script `validate:specs` delegates to `scripts/validate-specs.js --strict` which defaults to old `specs/`
 
 ## Requirements
 
@@ -149,26 +148,24 @@ Make `docs/` the canonical knowledge root for Elegy Copilot and bootstrapped rep
 
 ## Acceptance Checks
 
-- All 8 existing specs validate under `docs/specs/` with `node scripts/validate-specs.js --strict docs/specs`
-  → verify: `node scripts/validate-specs.js --strict docs/specs` returns exit code 0
-- `docs/specs/index.md` is generated and lists all migrated specs
-  → verify: `node scripts/generate-spec-index.js docs/specs && node -e "process.exit(require('fs').existsSync('docs/specs/index.md')?0:1)"` succeeds
-- Root `specs/` directory contains only a redirect README (or is removed)
-  → verify: `node -e "const fs=require('fs');if(!fs.existsSync('specs')){process.exit(0)};const entries=fs.readdirSync('specs').filter(e=>e!=='README.md');process.exit(entries.length?1:0)"` exits 0
-- Pre-commit hook validates staged specs under `docs/specs/`
-  → verify: Stage a spec change under `docs/specs/`, run `node scripts/validate-specs-precommit.mjs`, confirm hook gates on `docs/specs/` paths
-- CI passes: `node scripts/validate-specs.js --strict docs/specs` in workflow exits with code 0
-  → verify: `.github/workflows/repo-ci.yml` references `docs/specs` and exit code 0 is expected
-- No hardcoded `specs/` path remains in scripts, hooks, or CI
-  → verify: `rg "[\"']specs[\"']" scripts/ .github/workflows/ --type-add 'code:*.{js,mjs,ts,yml,yaml}'` returns zero results for the old hardcoded path (allowing only `docs/specs`) 
-- All four harness home files reference `docs/specs/` not `specs/`
-  → verify: `rg "specs/<" codex-assets/home/ opencode-assets/home/ antigravity-assets/home/GEMINI.md engine-assets/copilot-instructions.md` returns zero matches for old path pattern (opencode-assets/agents/spec.md deleted; path removed from check)
+- All existing specs validate under the new canonical location
+  → verify: run spec validator against the new location
+- The generated spec index lists all migrated specs
+  → verify: generate the index and confirm it exists
+- Root specs directory contains only a redirect README (or is removed)
+  → verify: confirm only redirect remains
+- Pre-commit hook validates staged specs under the new location
+  → verify: stage a spec change, run the pre-commit hook, confirm it gates correctly
+- CI passes with the new path
+  → verify: CI workflow references the new path and exits 0
+- No hardcoded old path remains in scripts, hooks, or CI
+  → verify: search for old hardcoded path — zero results
+- All four harness home files reference the new path
+  → verify: search harness files for old path pattern — zero matches
 - Repo setup profile validates with updated spec paths
-  → verify: `node scripts/generate-repo-setup-profiles.mjs && node scripts/validate-repo-setup-profiles.js` exits 0
-- `npm run ci:local` passes end-to-end
-  → verify: `npm run ci:local` returns exit code 0
-- Catalog shared skills reference `docs/specs/`
-  → verify: `rg "specs/<" catalog-assets/shared-skills/spec-authoring/ catalog-assets/shared-skills/spec-dev/ catalog-assets/shared-skills/spec-review/` returns zero matches for old path pattern
+  → verify: regenerate and validate profiles — exits 0
+- Catalog shared skills reference the new path
+  → verify: search shared skills for old path pattern — zero matches
 
 ## Implementation Links
 

@@ -1,4 +1,5 @@
 ---
+id: verifiable-acceptance-criteria
 spec_id: verifiable-acceptance-criteria
 title: Verifiable Acceptance Criteria
 status: superseded

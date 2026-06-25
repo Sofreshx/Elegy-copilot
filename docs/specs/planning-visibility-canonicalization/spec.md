@@ -48,26 +48,13 @@ work MUST use the `.elegy` paths above.
 
 ## Context Evidence
 
-- `C:\Users\lolzi\.copilot\elegy-planning.db` (verified) contains `GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603` and 5 child roadmaps (`RM-COPILOT-GIT-UI-20260603`, `RM-WORKTREE-MERGE-CONSISTENCY-20260603`, `RM-VALIDATION-RECEIPTS-20260603`, `RM-HOOKS-AGENT-LANE-ENFORCEMENT-20260603`, `RM-CODEX-PLANNING-BOOTSTRAP-20260603`).
-  → verify: `node -e "const db=require('better-sqlite3')('C:/Users/lolzi/.copilot/elegy-planning.db',{readonly:true}); const r=db.prepare(\"SELECT id,title,(SELECT COUNT(*) FROM roadmaps WHERE goal_id=g.id) AS rmcount FROM goals g WHERE id='GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603'\").get(); console.log(r)"`
-- The parent goal carries `repo:elegy` and `repo:elegy-copilot`; the 5 child roadmaps carry feature tags only (e.g. `git-ui`, `pull-requests`) and have no `repo:*` tag.
-  → verify: `node -e "const db=require('better-sqlite3')('C:/Users/lolzi/.copilot/elegy-planning.db',{readonly:true}); for (const id of ['GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603','RM-COPILOT-GIT-UI-20260603','RM-WORKTREE-MERGE-CONSISTENCY-20260603','RM-VALIDATION-RECEIPTS-20260603','RM-HOOKS-AGENT-LANE-ENFORCEMENT-20260603','RM-CODEX-PLANNING-BOOTSTRAP-20260603']) { const row=db.prepare('SELECT id,tags_json FROM '+({GOAL:'goals',RM:'roadmaps'}[id.startsWith('GOAL')?'GOAL':'RM'])+' WHERE id = ?').get(id); console.log(id, row.tags_json) }"`
-- The Copilot DB contains 6 work points and 6 plans, but NONE of them are linked to the consolidation goal or its 5 roadmaps. Validate currently reports `ROADMAP-NO-WORK-POINTS` for each of the 5 child roadmaps.
-  → verify: `& "C:\Users\lolzi\.copilot\managed-cli\planning\elegy-planning.exe" --db "C:\Users\lolzi\.copilot\elegy-planning.db" validate all --json | Select-String -Pattern "ROADMAP-NO-WORK-POINTS" -SimpleMatch`
-- Server-side repo filter `planningEntityMatchesRepoSelection` (`copilot-ui/routes/planning.js:110-152`) checks only the entity's own tags plus worktree parent repo. It does not follow `goalId` for roadmaps, so a child roadmap with no `repo:*` tag fails to match its parent's repo scope.
-  → verify: `rg -n "planningEntityMatchesRepoSelection|filterPlanningLiveRoadmaps" copilot-ui/routes/planning.js | Select-Object -First 10`
-- The CLI ships in `copilot-ui/lib/elegyPlanningCliResolver.js` and the binary lives at `C:\Users\lolzi\.copilot\managed-cli\planning\elegy-planning.exe`. The CLI accepts `--db` and `--correlation-id` but does not respect `INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH` — `session init` writes the sidecar at `~/.elegy/planning-session.json` (or `~/.copilot/elegy-planning.session.json` next to the DB path on some platforms) regardless of any env var.
-  → verify: `Remove-Item "C:\Users\lolzi\.elegy\planning-session.json" -ErrorAction SilentlyContinue; & "C:\Users\lolzi\.copilot\managed-cli\planning\elegy-planning.exe" --db "C:\Users\lolzi\.copilot\elegy-planning.db" session init --json; Get-Content "C:\Users\lolzi\.elegy\planning-session.json"`
-- The CLI exposes `goal create`/`roadmap create` with `--tag <TAGS>` but has NO tag-update subcommand. Existing tags can only be edited by writing directly to the SQLite `tags_json` column and the `tag_index` table.
-  → verify: `& "C:\Users\lolzi\.copilot\managed-cli\planning\elegy-planning.exe" --db "C:\Users\lolzi\.copilot\elegy-planning.db" --help | Select-String -Pattern "tag|update" -SimpleMatch`
-- The Copilot catalog at `C:\Users\lolzi\.copilot\catalog\projections\repo-*.json` enumerates 4 repos: `74af0f7b5cc4` (`elegy-copilot`, `C:\Users\lolzi\Documents\GitHub\elegy-copilot`), `55f0c2816d6a` (`Elegy`, `C:\Users\lolzi\Documents\GitHub\Elegy`), `7e193095cbae` (worktree), and `eb3839fab667` (`SAASTools`).
-  → verify: `Get-ChildItem "C:\Users\lolzi\.copilot\catalog\projections" -Filter "repo-*.json" | ForEach-Object { $j = Get-Content $_.FullName -Raw | ConvertFrom-Json; "$($j.repoContext.repoId) $($j.repoContext.repoLabel) $($j.repoContext.repoPath)" }`
-- The existing `PlanningExplorerView` (`copilot-ui/ui/src/tabs/Planning/PlanningExplorerView.tsx`) already does a multi-repo fetch, a per-repo Promise.allSettled, sort by date, refresh, partial-failure warning, and a global-query fallback for unscoped roadmaps. It is already wired into `App.tsx:94-95` and `StandaloneGraphWindow` is wired into `App.tsx:109-121`.
-  → verify: `rg -n "PlanningExplorerView|StandaloneGraphWindow" copilot-ui/ui/src/App.tsx`
-- The existing `PlanningAuthorityView` (`copilot-ui/ui/src/tabs/Planning/PlanningAuthorityView.tsx`) IS currently routed from `App.tsx:95-96` (case `'planning'` → `<PlanningAuthorityView />`). The plan will switch this routing to `PlanningExplorerView.tsx`. The authority view is kept as historical reference only; no production code references it after the routing change.
-  → verify: `rg -n "PlanningAuthorityView" copilot-ui/ui/src/App.tsx` returns 0 matches after Step 1.
-- A new `GET /api/planning/live/roadmaps` query is necessary that surfaces unscoped/inherited roadmaps explicitly (not just via the global-query fallback), with a deterministic sort and a copy-friendly CLI command for each row.
-  → verify: `rg -n "listPlanningLiveRoadmaps|/api/planning/live/roadmaps" copilot-ui/routes/planning.js copilot-ui/ui/src/lib/api/planning.ts | Select-Object -First 10`
+- The Copilot SQLite DB contains the consolidation goal and 5 child roadmaps. The parent goal carries repo tags; the child roadmaps carry feature tags only and have no repo tags.
+- Server-side repo filter checks only the entity's own tags plus worktree parent repo. It does not follow the goal for roadmaps, so a child roadmap with no repo tag fails to match its parent's repo scope.
+- The CLI ships as a pre-compiled binary. The CLI accepts `--db` and `--correlation-id` but does not respect the planning session path env var — `session init` writes the sidecar at the default location regardless of any env var.
+- The CLI exposes `goal create`/`roadmap create` with `--tag` but has NO tag-update subcommand. Existing tags can only be edited by writing directly to the SQLite `tags_json` column and the `tag_index` table.
+- The existing `PlanningExplorerView` already does a multi-repo fetch, a per-repo `Promise.allSettled`, sort by date, refresh, partial-failure warning, and a global-query fallback for unscoped roadmaps.
+- The existing `PlanningAuthorityView` IS currently routed from `App.tsx` (case `'planning'`). The plan will switch this routing to `PlanningExplorerView.tsx`.
+- A new query is necessary that surfaces unscoped/inherited roadmaps explicitly, with a deterministic sort and a copy-friendly CLI command for each row.
 
 ## Requirements
 
@@ -228,28 +215,28 @@ The existing `roadmapWorkflowPlanningBridge` (`copilot-ui/lib/roadmapWorkflowPla
 
 ## Acceptance Checks
 
-- [ ] Goal `GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603` and all 5 child roadmaps carry the canonical `repo:<id>`, `repo:<label>`, `source:<harness>`, `theme:<token>`, `phase:<token>` tag set after running the repair script, with stable IDs.
-  → verify: `node -e "const j=require('child_process').execSync('node scripts/validate-planning-metadata.js --db \"C:/Users/lolzi/.copilot/elegy-planning.db\" --json',{encoding:'utf8'});const r=JSON.parse(j);const ids=['GOAL-COPILOT-GIT-WORKTREE-VALIDATION-20260603','RM-COPILOT-GIT-UI-20260603','RM-WORKTREE-MERGE-CONSISTENCY-20260603','RM-VALIDATION-RECEIPTS-20260603','RM-HOOKS-AGENT-LANE-ENFORCEMENT-20260603','RM-CODEX-PLANNING-BOOTSTRAP-20260603'];const fail=ids.flatMap(id=>['unscoped','orphaned','inconsistentTags'].flatMap(k=>(r[k]||[]).filter(x=>x.entityId===id)));if(fail.length){console.error('FAIL',fail);process.exit(1)}else{console.log('OK')}"` exits 0.
-- [ ] Server-side roadmap filter matches a child roadmap against its parent goal's repo scope when the child has no `repo:*` tag of its own.
-  → verify: `node copilot-ui/tests/planning-roadmap-inheritance.test.js` exits 0 and includes a test case named `child roadmap inherits parent goal repo scope` that asserts `RM-COPILOT-GIT-UI-20260603` matches `repo:elegy-copilot` even after the roadmap's own `repo:*` tags are stripped in the test fixture.
-- [ ] `GET /api/planning/live/roadmaps?repoId=74af0f7b5cc4` returns the 5 consolidation roadmaps AND any other roadmaps tagged for the same repo.
-  → verify: `node copilot-ui/tests/planning-live-roadmaps-repo-filter.test.js` exits 0; the test starts an in-process server with a mock bridge seeded with the consolidation roadmap set, sends `GET /api/planning/live/roadmaps?repoId=74af0f7b5cc4`, and asserts the response body includes all 5 consolidation roadmaps (does not require a live server, a UI build, or a port allocation).
-- [ ] Planning tab shows the consolidation roadmaps even when no repo is selected, and the active-session status panel is visible above the list.
-  → verify: `node copilot-ui/tests/planning-explorer-inheritance.vitest.tsx` exits 0 and includes a test that the explorer renders 5 roadmap cards in the "All repos" mode and a session status panel whose `data-testid` includes `planning-explorer-session-panel`.
-- [ ] `scripts/validate-planning-metadata.js --strict` exits 1 with a populated `summary` block when the consolidation goal/roadmaps are un-tagged, and exits 0 after the repair script runs.
-  → verify: `node scripts/roundtrip-validator-strict.test.js` (new helper test) copies the live DB to a temp file, removes the consolidation goal/roadmap tags via the same SQL the validator inspects, runs `node scripts/validate-planning-metadata.js --db <temp> --strict` (expects exit 1 and a non-empty `summary.unscoped > 0` or `summary.inconsistentTags > 0`), runs the repair script against the temp file, re-runs the validator (expects exit 0 and `summary.unscoped === 0`). The temp file is deleted on teardown; the live DB is never mutated.
-- [ ] `GET /api/planning/session` returns `{ ready, sidecarPath, exists, sidecar, lastChecked, correlationId, availableAt: [{ path, exists, priority }] }` with `ready` defined per R7.2 (true iff `exists` is true OR the parent dir is writable), and the response shape is stable even when the sidecar file does not yet exist.
-  → verify: `node copilot-ui/tests/planning-session-endpoint.test.js` exits 0 with assertions for both `exists: true` (asserts `ready === true`, `sidecar` is parsed JSON) and `exists: false` (asserts `ready === true` when parent dir is writable, `ready === false` when parent dir is missing; `sidecar === null`).
-- [ ] The Codex and OpenCode install scripts set `INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=~/.elegy/planning-session.json` on Windows.
-  → verify: `node scripts/codex-install.mjs --print-env-only` and `node scripts/opencode-install.mjs --print-env-only` print the override line on Windows.
-- [ ] The Tauri runtime sets `INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH` on the spawned process when `process.platform === 'win32'`.
-  → verify: `rg -n "INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH" copilot-ui/src/desktopRuntime/runtimeService.ts` returns ≥ 1 match.
-- [ ] `node scripts/validate-specs.js` exits 0 with the new spec under `specs/planning-visibility-canonicalization/spec.md`.
-  → verify: `node scripts/validate-specs.js` exits 0 after the spec is committed.
-- [ ] `tsc -p copilot-ui/ui/tsconfig.json --noEmit` exits 0 with the explorer view changes.
-  → verify: `cd copilot-ui && node ../node_modules/typescript/bin/tsc -p ui/tsconfig.json --noEmit` exits 0.
-- [ ] The existing `PlanningAuthorityView` is no longer routed from `App.tsx` and no new code references its export; the file is kept for historical reference only.
-  → verify: `rg -n "PlanningAuthorityView" copilot-ui/ui/src/App.tsx` returns 0 matches; `rg -n "import.*PlanningExplorerView" copilot-ui/ui/src/App.tsx` returns 1 match.
+- Goal and all 5 child roadmaps carry the canonical tag set after running the repair script, with stable IDs.
+  → verify: run the validator and confirm no unscoped, orphaned, or inconsistent tags for the consolidation subtree
+- Server-side roadmap filter matches a child roadmap against its parent goal's repo scope when the child has no repo tag of its own.
+  → verify: run the inheritance test — child roadmap inherits parent goal repo scope
+- The live roadmaps endpoint returns the consolidation roadmaps AND any other roadmaps tagged for the same repo.
+  → verify: run the repo filter test — all 5 consolidation roadmaps returned
+- Planning tab shows the consolidation roadmaps even when no repo is selected, and the active-session status panel is visible above the list.
+  → verify: run the explorer inheritance test — 5 roadmap cards rendered, session panel visible
+- The validation script exits 1 with a populated summary when the consolidation goal/roadmaps are un-tagged, and exits 0 after the repair script runs.
+  → verify: run the roundtrip validator test
+- The session endpoint returns the correct shape with ready defined correctly, and the response shape is stable even when the sidecar file does not yet exist.
+  → verify: run the session endpoint test
+- The install scripts set the planning session path env var on Windows.
+  → verify: confirm the env var is set in the generated output
+- The runtime sets the planning session path env var on the spawned process.
+  → verify: search for the env var in the runtime service file
+- The spec validation exits 0 with the new spec.
+  → verify: run spec validator
+- TypeScript compilation exits 0 with the explorer view changes.
+  → verify: run TypeScript compiler
+- The existing authority view is no longer routed and no new code references its export.
+  → verify: search for the old view reference — 0 matches; search for the new view import — 1 match
 
 ## Implementation Links
 

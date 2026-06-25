@@ -1,4 +1,5 @@
 ---
+id: align-elegy-db-assets
 spec_id: align-elegy-db-assets
 title: Align Elegy Planning DB, Assets, and OpenCode/Codex Status
 status: superseded

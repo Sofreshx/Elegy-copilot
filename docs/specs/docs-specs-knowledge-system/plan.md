@@ -1,7 +1,7 @@
 # Implementation Plan: Docs / Specs Knowledge System Enhancement
 
-**Spec:** `specs/docs-specs-knowledge-system/spec.md`  
-**Date:** 2026-06-08  
+**Spec:** `docs/specs/docs-specs-knowledge-system/spec.md`
+**Date:** 2026-06-08
 **Phases:** 6 ordered phases with validation gates
 
 ---
@@ -84,13 +84,13 @@ Phases A–D are independent and can run concurrently. Phase E requires the tool
 
 ### B4: Update install-spec-hooks.mjs (R4)
 - **File:** `scripts/install-spec-hooks.mjs`
-- Line ~27: Change stage filter regex from `/^specs\/[^/]*\/spec\\.md$/` to `/^docs\/specs\/[^/]*\/spec\\.md$/`
+- Line ~27: Change stage filter regex to match the new `docs/specs/` path pattern
 - The hook installs into `.git/hooks/pre-commit` — existing installed hooks on this machine will need reinstallation
 
 ### B5: Update validate-specs-precommit.mjs (R4)
 - **File:** `scripts/validate-specs-precommit.mjs`
-- Line ~44: Change stage filter from `/^specs\/[^/]+\/spec\.md$/` to `/^docs\/specs\/[^/]+\/spec\.md$/`
-- Line ~53: Change invocation path from `specs` to `docs/specs`
+- Line ~44: Change stage filter to match the new `docs/specs/` path pattern
+- Line ~53: Change invocation path to `docs/specs`
 
 **Validation gate B:** `node scripts/validate-specs.js --help` (confirm default path); `node scripts/generate-spec-index.js --help` (confirm default path)
 
@@ -178,32 +178,17 @@ Phases A–D are independent and can run concurrently. Phase E requires the tool
 **Spec coverage:** R11
 
 ### E1: Move spec directories to docs/specs/
-```bash
-git mv specs/_templates docs/specs/_templates
-git mv specs/agentic-lanes-quality docs/specs/agentic-lanes-quality
-git mv specs/align-elegy-db-assets docs/specs/align-elegy-db-assets
-git mv specs/asset-sync-truthfulness docs/specs/asset-sync-truthfulness
-git mv specs/docs-specs-knowledge-system docs/specs/docs-specs-knowledge-system
-git mv specs/planning-explorer-view docs/specs/planning-explorer-view
-git mv specs/planning-visibility-canonicalization docs/specs/planning-visibility-canonicalization
-git mv specs/spec-system-hardening docs/specs/spec-system-hardening
-git mv specs/verifiable-acceptance-criteria docs/specs/verifiable-acceptance-criteria
-```
+Move all spec directories from the old root `specs/` location to the new canonical `docs/specs/` location.
 
 ### E2: Create redirect README at old location
 - **File:** `specs/README.md`
-- Content: "Specs have moved to `docs/specs/`. See [`docs/specs/index.md`](docs/specs/index.md)."
+- Content: "Specs have moved to `docs/specs/`. See the spec index."
 
 ### E3: Remove old index
-```bash
-git rm specs/index.md
-```
+Remove the old root-level spec index.
 
 ### E4: Regenerate spec index at new location
-```bash
-node scripts/generate-spec-index.js docs/specs
-```
-This creates `docs/specs/index.md` listing all migrated specs.
+Regenerate the spec index at the new canonical location.
 
 **Validation gate E:** 
 - `node scripts/validate-specs.js --strict docs/specs` exits 0 (all migrated specs valid at new location)
@@ -241,39 +226,25 @@ This creates `docs/specs/index.md` listing all migrated specs.
 **Spec coverage:** All acceptance checks
 
 ### G1: Run spec validation
-```bash
-node scripts/validate-specs.js --strict docs/specs
-```
+Run the spec validator against the new location.
 
 ### G2: Run doc-graph validation
-```bash
-node scripts/validate-doc-graph.js
-```
+Run the doc-graph validator.
 
 ### G3: Run setup profile validation
-```bash
-node scripts/generate-repo-setup-profiles.mjs && node scripts/validate-repo-setup-profiles.js
-```
+Regenerate and validate setup profiles.
 
 ### G4: Verify no stale paths remain
-```bash
-rg "[\"']specs[\"']" scripts/ .github/workflows/
-```
+Search for old hardcoded `specs` path references in scripts and CI.
 
 ### G5: Verify harness files updated
-```bash
-rg "specs/<" codex-assets/home/ opencode-assets/home/ antigravity-assets/home/GEMINI.md engine-assets/copilot-instructions.md .github/copilot-instructions.md catalog-assets/shared-skills/spec-*/
-```
+Search harness files for old path patterns.
 
 ### G6: Full CI run
-```bash
-npm run ci:local
-```
+Run the full local CI pipeline.
 
 ### G7: Install spec hooks for this repo
-```bash
-node scripts/install-spec-hooks.mjs
-```
+Install the spec validation pre-commit hooks.
 
 ---
 

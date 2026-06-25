@@ -1,4 +1,5 @@
 ---
+id: asset-sync-truthfulness
 spec_id: asset-sync-truthfulness
 title: Asset Sync Truthfulness — Installed State, Harness Opt-In, Honest Warnings
 status: implemented

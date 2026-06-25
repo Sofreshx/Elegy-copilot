@@ -14,21 +14,19 @@ The OpenCode settings UI in Elegy Copilot offers profile switching (opencode-go 
 
 ## Context Evidence
 
-- `scripts/codex-config-patch.mjs:11-12` — `DEFAULT_PROVIDER_ID = 'opencode-go'` hardcoded. `buildRootKeyLines()` (lines 177-189) writes `model_provider = "opencode-go"` as a root-level key in the config preamble, OUTSIDE the `# BEGIN/END` managed block markers. This means the root-level provider survives `stripManagedBlock()` independently. The managed block only contains TOML tables (`[model_providers.opencode-go]`, etc.), not the root key.
-- `scripts/codex-install.mjs:8` (import) and `scripts/codex-install.mjs:442` (call site) — Imports and calls `patchConfigFile()` during `runInstall()`, writing the hardcoded provider to `~/.codex/config.toml`. No CLI argument or OpenCode profile awareness.
-- `C:\Users\lolzi\.codex\config.toml:4-7` — Actual user config shows `model = "gpt-5.5"`, `model_provider = "opencode-go"`, `review_model = "deepseek-v4-pro"` as root-level keys. The managed block at line 92 defines provider tables. When `OPENCODE_API_KEY` is not set in the environment, Codex fails with "Missing environment variable: OPENCODE_API_KEY".
-- `copilot-ui/lib/codexConfig.js:605-615` — `setMode()` already has `stripIeManagedRootKeys` logic for the DeepSeek bridge case. The `codex-config-patch.mjs` script does not follow this same managed-block pattern for root keys.
-- `scripts/opencode-profile-switch.mjs` — This script is INNOCENT — zero references to Codex, `model_provider`, or `config.toml`. It only edits `~/.config/opencode/agents/*.md` and `opencode.jsonc`. The contamination is purely from `codex-config-patch.mjs` + `codex-install.mjs`.
-- `copilot-ui/routes/opencode.js:20` (import) and `copilot-ui/routes/opencode.js:415` (call site) — Imports `codexConfig` lib but only calls read-only `getPlanningSkillStatus()`. No write operations on Codex config.
-- `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx:220-339` — ProfilesSection: profile cards render but "Activate" only calls `saveConfig({ profileRoute })` which writes to `.elegy-opencode-agent-state.json` (state file) without running the CLI profile switch script. The `saving` prop is destructured in the function signature (line 220) but `SectionProps` (line 456) only has `status` and `selectedLaneId`, so `saving` is always `undefined` when the component is rendered at line 882.
-- `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx:223` — `reviewModel` hardcoded as `useState<string>('DeepSeek V4 Pro High')`, ignoring the actual review model from the active profile.
-- `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx:283-330` — Model Selection panel uses plain `<input type="text">` elements with no autocomplete or selector drawer. Users must manually type model identifiers.
-- `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx:608-758` — PermissionsSection: `<Badge>{value}</Badge>` (line 693). OpenCode config allows permission values as nested objects (e.g., `{ "allow": true }`). The GET endpoint returns raw config, causing React error #31.
-- `copilot-ui/routes/opencode.js:884-915` — `sanitizePermission()` validates as strings only, but GET endpoint (line 1251-1254) returns raw config without sanitization.
-- `copilot-ui/routes/opencode.js:950-983` — POST `/api/opencode/config`: profile changes call `updateStateProfileRoute()` (state file only). Model changes call `setAgentModels()` (writes to `opencode.jsonc`). No integration with `scripts/opencode-profile-switch.mjs`.
-- `copilot-ui/lib/opencodeConfig.js:200-228` — `getActiveProfileRoute()` reads from state file, defaults to `'opencode-go'`. No cross-check against actual agent frontmatter files.
-- `opencode-assets/profiles.json` — Two profiles with `small`, `big`, `review` model strings and `agentRoles` mapping. This is the canonical source for available models and their provider prefixes.
-- User-reported crash (React error #31) with keys like `C:/Users/lolzi/.local/share/opencode/worktree/**` and `git status` — confirming object-valued permissions in the user's config.
+- `scripts/codex-config-patch.mjs` — `DEFAULT_PROVIDER_ID` hardcoded. `buildRootKeyLines()` writes the provider as a root-level key in the config preamble, OUTSIDE the managed block markers. This means the root-level provider survives `stripManagedBlock()` independently.
+- `scripts/codex-install.mjs` — Imports and calls `patchConfigFile()` during `runInstall()`, writing the hardcoded provider to the Codex config. No CLI argument or OpenCode profile awareness.
+- `copilot-ui/lib/codexConfig.js` — `setMode()` already has `stripIeManagedRootKeys` logic for the DeepSeek bridge case. The config patch script does not follow this same managed-block pattern for root keys.
+- `scripts/opencode-profile-switch.mjs` — This script is INNOCENT — zero references to Codex, the provider, or the Codex config. It only edits agent files and the OpenCode config. The contamination is purely from the config patch and install scripts.
+- `copilot-ui/routes/opencode.js` — Imports `codexConfig` lib but only calls read-only `getPlanningSkillStatus()`. No write operations on Codex config.
+- `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx` — ProfilesSection: profile cards render but "Activate" only writes to the state file without running the CLI profile switch script. The `saving` prop is destructured but not wired via `SectionProps`.
+- `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx` — `reviewModel` hardcoded as a useState string, ignoring the actual review model from the active profile.
+- `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx` — Model Selection panel uses plain text inputs with no autocomplete or selector drawer.
+- `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx` — PermissionsSection: Badge component receives raw config values. OpenCode config allows permission values as nested objects, causing React error #31.
+- `copilot-ui/routes/opencode.js` — `sanitizePermission()` validates as strings only, but GET endpoint returns raw config without sanitization.
+- `copilot-ui/routes/opencode.js` — POST config handler: profile changes call state-only update. Model changes call `setAgentModels()`. No integration with the profile switch script.
+- `copilot-ui/lib/opencodeConfig.js` — `getActiveProfileRoute()` reads from state file, defaults to `opencode-go`. No cross-check against actual agent frontmatter files.
+- `opencode-assets/profiles.json` — Two profiles with model strings and `agentRoles` mapping. This is the canonical source for available models and their provider prefixes.
 
 ## Requirements
 
@@ -113,17 +111,17 @@ The OpenCode settings UI in Elegy Copilot offers profile switching (opencode-go 
 ## Acceptance Checks
 
 - Codex config is not affected by OpenCode profile switching.
-  → verify: Manual: Switch OpenCode profile from opencode-go to deepseek-direct via UI → check `~/.codex/config.toml` — `model_provider` root key must remain unchanged (not rewritten to a new provider). Codex chat must continue to work with its existing provider.
+  → verify: Manual: Switch OpenCode profile via UI → check Codex config — root key must remain unchanged.
 - Permissions tab renders without crashing when OpenCode config contains object-valued permission entries.
-  → verify: Manual: Open the OpenCode settings → Permissions tab. Confirm no white screen / crash. Permission rules display correctly as allow/deny/ask badges even when the raw config has `{ "allow": true }` values.
+  → verify: Manual: Open the OpenCode settings → Permissions tab. Confirm no white screen / crash.
 - Activating a profile updates agent frontmatter files with the correct models.
-  → verify: Manual: Switch from opencode-go to deepseek-direct in UI → check `~/.config/opencode/agents/quick.md` frontmatter model field changed from `deepseek/deepseek-v4-flash` to `deepseek-direct/deepseek-v4-flash`. Switch back, confirm reversal.
+  → verify: Manual: Switch profile in UI → check agent file frontmatter model field changed.
 - Model selection panel shows a drawer with model name + provider for each role.
-  → verify: Manual: Open Profiles tab → click model selector → drawer shows available models with format "ModelName (Provider)". Select a model → value populates in the field. Save → model applied to agent files.
+  → verify: Manual: Open Profiles tab → click model selector → drawer shows available models.
 - Save button is disabled when no changes are pending and during save operations.
-  → verify: Manual: Open Profiles → confirm Save models is disabled. Edit a model → button enables. Click Save → button shows "Saving..." and is disabled. After save → button disabled again.
+  → verify: Manual: Open Profiles → confirm Save models is disabled. Edit a model → button enables. Click Save → button shows "Saving..." and is disabled.
 - Active profile badge matches actual agent configuration with mismatch warning when they diverge.
-  → verify: Manual: Open Profiles tab → note which profile shows "Active" badge. Check `~/.config/opencode/agents/standard.md` model field to confirm. If manually edit agent files to mismatch the state file, UI shows yellow banner: "Profile mismatch detected: active profile is [X] but agent files use [Y] models. Click Activate to re-apply."
+  → verify: Manual: Open Profiles tab → note which profile shows "Active" badge. If manually edit agent files to mismatch, UI shows yellow banner.
 
 ## Implementation Links
 

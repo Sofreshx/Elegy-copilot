@@ -76,14 +76,14 @@ Define the authoritative contract for the canonical documentation system: doc fr
 
 ## Acceptance Checks
 
-- The spec itself passes `node scripts/validate-specs.js --strict`
-  → verify: `node scripts/validate-specs.js --strict docs/specs/documentation-structure-contract/spec.md`
+- The spec itself passes spec validation
+  → verify: run spec validator against this file
 - All 5 requirements with sub-requirements are present
-  → verify: `rg "^#### R[1-5]" docs/specs/documentation-structure-contract/spec.md | measure` returns at least 5
+  → verify: count `#### R[1-5]` headings — at least 5
 - Forbidden Behavior covers at least 4 prohibitions
-  → verify: `rg "^-\s+A (doc|redirect|MOC) MUST NOT" docs/specs/documentation-structure-contract/spec.md | measure` returns at least 4
+  → verify: count `MUST NOT` prohibitions — at least 4
 - Doc-graph spec references this spec
-  → verify: `rg "documentation-structure-contract" docs/system/doc-graph-spec.md` returns at least 1 match
+  → verify: search for `documentation-structure-contract` in the doc-graph spec
 
 ## Implementation Links
 

@@ -1,7 +1,7 @@
 # Implementation Plan: Planning Explorer View
 
-**Spec:** `specs/planning-explorer-view/spec.md`  
-**Date:** 2026-06-03  
+**Spec:** `docs/specs/planning-explorer-view/spec.md`
+**Date:** 2026-06-03
 **Status:** Draft
 
 ## Overview
@@ -29,28 +29,13 @@ Run: `cd copilot-ui/ui && npx tsc --noEmit` to confirm no existing type errors b
 
 Extract and export the following pure functions:
 
-1. **`normalizeRepoEntries(repos: unknown[]): RepoChoice[]`**
-   - Delegates to the `normalizeCatalogRepoEntry` logic (copied/adjusted from `PlanningAuthorityView.tsx:50-68`)
-   - Filters nulls, rejects entries missing both `repoId` and `repoPath`
-   - Returns: `{ repoId: string; repoPath: string; repoLabel: string }[]`
+1. **normalizeRepoEntries** — normalises raw repo entries, filters nulls, rejects entries missing both repoId and repoPath
+2. **resolveRepoLabel** — returns repoLabel, fallback to repoId, fallback to repoPath, fallback to "Unknown repo"
+3. **mergeRepoRoadmaps** — iterates results, collecting fulfilled roadmaps augmented with repo source, collects failed repos
+4. **filterBySelectedRepos** — matches roadmaps where compound key is in the selected set
+5. **sortRoadmaps** — sorts descending by date field, null dates sort to end, stable sort
 
-2. **`resolveRepoLabel(repo: { repoLabel?: string | null; repoId?: string | null; repoPath?: string | null }): string`**
-   - Returns `repoLabel`, fallback to `repoId`, fallback to `repoPath`, fallback to `"Unknown repo"`
-
-3. **`mergeRepoRoadmaps(results: PromiseSettledResult<PlanningLiveRoadmapsResponse>[], reposByIndex: RepoChoice[]): { roadmaps: AugmentedRoadmap[]; failedRepos: RepoChoice[] }`**
-   - Iterates results, collecting fulfilled roadmaps augmented with `_repoSource`
-   - Collects indices of failed/rejected results into `failedRepos`
-   - Type: `AugmentedRoadmap = PlanningLiveRoadmapSummary & { _repoSource: RepoChoice }`
-
-4. **`filterBySelectedRepos(roadmaps: AugmentedRoadmap[], selectedRepoIds: Set<string>): AugmentedRoadmap[]`**
-   - Matches roadmaps where `${roadmap._repoSource.repoPath}|${roadmap._repoSource.repoId}` is in the set (compound key to handle empty repoId)
-
-5. **`sortRoadmaps(roadmaps: AugmentedRoadmap[], by: 'created' | 'updated'): AugmentedRoadmap[]`**
-   - Sorts descending by the specified date field (`createdAt` or `updatedAt`)
-   - Null/missing dates sort to end
-   - Stable sort: preserves original order within null/non-null groups
-
-**New test file:** `copilot-ui/tests/planningExplorerContracts.vitest.ts`
+**New test file:** `copilot-ui/tests/planning-explorer-contracts.vitest.ts`
 - Test each pure function independently:
   - `resolveRepoLabel` with all fallback chains
   - `mergeRepoRoadmaps` with mixed fulfilled/rejected results
