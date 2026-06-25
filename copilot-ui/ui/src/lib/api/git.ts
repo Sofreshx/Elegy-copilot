@@ -59,6 +59,7 @@ export interface GitSummaryResponse {
   clean: boolean;
   changedFiles: number;
   stagedFiles: number;
+  files: Array<{ status: string; path: string }>;
   additions: number;
   deletions: number;
   ahead: number;

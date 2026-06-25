@@ -151,6 +151,10 @@ async function run() {
     assert.equal(body.pullRequest.number, 12);
     assert.equal(body.remoteLabel, 'owner/repo');
     assert.equal(body.remoteUrl, 'https://github.com/owner/repo');
+    assert.ok(Array.isArray(body.files), 'should include files array');
+    assert.equal(body.files.length, 1);
+    assert.equal(body.files[0].path, 'src/app.ts');
+    assert.equal(body.files[0].status, ' M');
   });
 
   await test('GET /api/git/summary normalizes HTTPS remote to browser URL', async () => {
@@ -607,6 +611,27 @@ async function run() {
     // Should NOT contain the misleading "generated from working tree" warning
     assert.ok(!body.warnings || !body.warnings.some(w => w.includes('generated from working tree')),
       'should not contain misleading "generated from working tree" warning when stagedOnly=true');
+  });
+
+  await test('POST /api/git/commit-message passes --dangerously-skip-permissions and --no-replay to opencode', async () => {
+    const opencodeCalls = [];
+    const routes = registerWithMocks({
+      body: { repoPath: 'C:/repo' },
+      onExec(command, args) {
+        if (command === 'opencode') opencodeCalls.push(args);
+      },
+      execResponses: [
+        { stdout: 'fix: update readme\n' },
+        { stdout: ' src/app.ts | 2 ++\n' },
+        { stdout: 'diff --git a/src/app.ts b/src/app.ts\n...' },
+        { stdout: '{"content":"feat: with flags"}\n' },
+      ],
+    });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/commit-message');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.ok, true);
+    assert.ok(opencodeCalls[0].includes('--dangerously-skip-permissions'), 'should pass --dangerously-skip-permissions');
+    assert.ok(opencodeCalls[0].includes('--no-replay'), 'should pass --no-replay');
   });
 
   console.log(`\n  ${passed} tests passed\n`);

@@ -379,6 +379,7 @@ export default function WorkspaceGitTab({
   const pullRequest = gitState.pullRequest?.pullRequest ?? null;
   const changeCount = summary?.changedFiles ?? 0;
   const stagedCount = summary?.stagedFiles ?? 0;
+  const unstagedCount = changeCount - stagedCount;
 
   // ─── Section 1: Branch switch popover ──────────────────────────────────────
   const [showBranchPopover, setShowBranchPopover] = useState(false);
@@ -452,6 +453,10 @@ export default function WorkspaceGitTab({
   const [stashes, setStashes] = useState<GitStashEntry[]>([]);
   const [stashesLoading, setStashesLoading] = useState(false);
   const [showStashList, setShowStashList] = useState(false);
+
+  // ─── Diff viewer state ─────────────────────────────────────────────────────
+  const [showDiffViewer, setShowDiffViewer] = useState(false);
+  const [diffLoading, setDiffLoading] = useState(false);
 
   // ─── PR create form collapse ───────────────────────────────────────────────
   const [showPrForm, setShowPrForm] = useState(false);
@@ -661,6 +666,33 @@ export default function WorkspaceGitTab({
       notificationStore.error('Force push failed', { message: err instanceof Error ? err.message : String(err) });
     } finally {
       setForcePushing(false);
+    }
+  }
+
+  // ─── Diff viewer handlers ──────────────────────────────────────────────────
+  async function handleToggleDiffViewer() {
+    if (showDiffViewer) {
+      setShowDiffViewer(false);
+      return;
+    }
+    setShowDiffViewer(true);
+    if (!gitState.diff) {
+      setDiffLoading(true);
+      try {
+        await gitStore.loadDiff();
+      } finally {
+        setDiffLoading(false);
+      }
+    }
+  }
+
+  async function handleDiffViewChange(view: 'unstaged' | 'staged') {
+    gitStore.setDiffView(view);
+    setDiffLoading(true);
+    try {
+      await gitStore.loadDiff();
+    } finally {
+      setDiffLoading(false);
     }
   }
 
@@ -968,21 +1000,19 @@ export default function WorkspaceGitTab({
         ) : null}
 
         {/* Dirty count */}
-        <span
-          className={`workspace-git-summary-clean-badge ${
-            changeCount > 0 ? 'workspace-git-summary-dirty' : 'workspace-git-summary-clean'
-          }`}
-          data-testid="workspace-summary-clean"
-        >
-          {changeCount > 0 ? `dirty(${changeCount})` : 'clean'}
-        </span>
-
-        {/* Staged count */}
-        {stagedCount > 0 ? (
-          <span className="workspace-git-summary-staged" data-testid="workspace-summary-staged">
-            {stagedCount} staged
+        {changeCount > 0 ? (
+          <span className="workspace-git-summary-clean-badge workspace-git-summary-dirty" data-testid="workspace-summary-clean">
+            {stagedCount > 0 && unstagedCount > 0
+              ? `dirty(${stagedCount} staged, ${unstagedCount} unstaged)`
+              : stagedCount > 0
+                ? `dirty(${stagedCount} staged)`
+                : `dirty(${unstagedCount} unstaged)`}
           </span>
-        ) : null}
+        ) : (
+          <span className="workspace-git-summary-clean-badge workspace-git-summary-clean" data-testid="workspace-summary-clean">
+            clean
+          </span>
+        )}
 
         {/* Ahead/Behind */}
         {(summary?.ahead ?? 0) > 0 ? (
@@ -1682,6 +1712,145 @@ export default function WorkspaceGitTab({
           {(verificationState === 'stale' || verificationState === 'failed' || verificationState === 'partial') && (
             <div data-testid="workspace-push-hint" style={{ color: 'var(--color-error-500)', fontSize: '0.8rem', marginTop: 'var(--space-xs)' }}>
               Push disabled — {verificationState === 'stale' ? 'verification is stale. Re-run checks.' : verificationState === 'failed' ? 'checks failed. Fix issues and re-run.' : 'CI is pending. Wait for CI to complete.'}
+            </div>
+          )}
+
+          {/* ─── Diff viewer ──────────────────────────────────────────────── */}
+          {changeCount > 0 && (
+            <div className="workspace-git-diff-section" data-testid="workspace-diff-section" style={{
+              borderTop: '1px solid var(--color-border-200)',
+              margin: 'var(--space-xs) 0',
+              paddingTop: 'var(--space-xs)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-xs)' }}>
+                <button
+                  type="button"
+                  onClick={() => void handleToggleDiffViewer()}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--color-text-200)',
+                    fontSize: '0.7rem',
+                    letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                    padding: 0,
+                    font: 'inherit',
+                  }}
+                  data-testid="workspace-diff-toggle"
+                >
+                  {showDiffViewer ? '▼' : '▶'} Changes ({changeCount} file{changeCount !== 1 ? 's' : ''})
+                </button>
+                {showDiffViewer && (
+                  <div style={{ display: 'flex', gap: '2px' }}>
+                    <button
+                      type="button"
+                      onClick={() => void handleDiffViewChange('unstaged')}
+                      style={{
+                        background: gitState.diffView === 'unstaged' ? 'var(--color-bg-300)' : 'transparent',
+                        border: '1px solid var(--color-border-200)',
+                        cursor: 'pointer',
+                        fontSize: '0.7rem',
+                        padding: '2px 8px',
+                        borderRadius: '3px 0 0 3px',
+                        color: 'var(--color-text-200)',
+                        font: 'inherit',
+                      }}
+                      data-testid="workspace-diff-unstaged-tab"
+                    >
+                      Unstaged ({unstagedCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDiffViewChange('staged')}
+                      style={{
+                        background: gitState.diffView === 'staged' ? 'var(--color-bg-300)' : 'transparent',
+                        border: '1px solid var(--color-border-200)',
+                        cursor: 'pointer',
+                        fontSize: '0.7rem',
+                        padding: '2px 8px',
+                        borderRadius: '0 3px 3px 0',
+                        color: 'var(--color-text-200)',
+                        font: 'inherit',
+                      }}
+                      data-testid="workspace-diff-staged-tab"
+                    >
+                      Staged ({stagedCount})
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {showDiffViewer && (
+                <>
+                  {/* File list */}
+                  {summary?.files && summary.files.length > 0 && (
+                    <div data-testid="workspace-diff-file-list" style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '0.8rem',
+                      marginBottom: 'var(--space-xs)',
+                      maxHeight: '120px',
+                      overflowY: 'auto',
+                    }}>
+                      {summary.files.map((file, i) => {
+                        const statusX = file.status[0] || ' ';
+                        const statusY = file.status[1] || ' ';
+                        const isStaged = statusX !== ' ';
+                        const isUnstaged = statusY !== ' ';
+                        const displayStatus = file.status === '??' ? '??' : file.status.trim();
+                        return (
+                          <div key={`${file.path}-${i}`} style={{
+                            display: 'flex',
+                            gap: 'var(--space-sm)',
+                            padding: '1px 0',
+                            opacity: gitState.diffView === 'staged' ? (isStaged ? 1 : 0.4) : (isUnstaged || file.status === '??' ? 1 : 0.4),
+                          }}>
+                            <span style={{
+                              color: file.status === '??' ? 'var(--color-success-500)' : displayStatus.includes('D') ? 'var(--color-error-500)' : 'var(--color-accent-500)',
+                              minWidth: '2ch',
+                            }}>
+                              {displayStatus}
+                            </span>
+                            <span style={{ color: 'var(--color-text-100)' }}>{file.path}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Diff content */}
+                  {diffLoading ? (
+                    <div style={{ color: 'var(--color-text-300)', fontSize: '0.8rem', padding: 'var(--space-xs)' }} data-testid="workspace-diff-loading">
+                      Loading diff...
+                    </div>
+                  ) : gitState.diff?.diff ? (
+                    <pre
+                      className="workspace-git-diff-content"
+                      data-testid="workspace-diff-content"
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '0.75rem',
+                        lineHeight: 1.5,
+                        maxHeight: '300px',
+                        overflow: 'auto',
+                        background: 'var(--color-bg-100)',
+                        border: '1px solid var(--color-border-200)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: 'var(--space-sm)',
+                        margin: 0,
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-all',
+                      }}
+                    >
+                      {gitState.diff.diff || '(no changes)'}
+                    </pre>
+                  ) : (
+                    <div style={{ color: 'var(--color-text-300)', fontSize: '0.8rem', padding: 'var(--space-xs)' }} data-testid="workspace-diff-empty">
+                      No diff available. Click a tab above to load.
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 
