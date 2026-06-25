@@ -478,7 +478,7 @@ fn resolve_desktop_update_channel(app: &AppHandle) -> (String, Option<String>, O
                 (
                     default_channel.to_string(),
                     Some("update_channel_invalid".to_string()),
-                    Some(format!(blocked_msg, value.trim())),
+                    Some(blocked_msg.replacen("{}", value.trim(), 1)),
                 )
             }
         }
