@@ -27,8 +27,8 @@ spec-authoring skill before implementation.
 | 02 | [Structural search & codemods](02-structural-search-codemods.md) | Elegy plugin + this repo + copilot-ui | Very practical | Days | None |
 | 03 | [Codegraph V0: dependency & boundary graph](03-codegraph-v0-dependency-boundary-graph.md) | Elegy plugin + this repo + copilot-ui | Proven, harder | Weeks | Theme 5a schema (soft) |
 | 04 | [Codegraph V1: symbols & references](04-codegraph-v1-symbols-references.md) | Elegy plugin + this repo | Proven, harder | Weeks | Theme 03 |
-| 05 | [Review-agent evidence workflow](05-review-agent-evidence-workflow.md) | This repo | Foundational | Days (schema) → weeks (workflow) | Themes 01-04 produce evidence |
-| 06 | [Evaluation protocol & metrics](06-evaluation-protocol-metrics.md) | This repo + copilot-ui | Independent | Days (corpus) → weeks (baseline) | Themes 01-05 to evaluate |
+| 05 | [Review-agent evidence workflow](05-review-agent-evidence-workflow.md) | This repo | Foundational | Days (5a schema) → weeks (5b workflow) | 5a: none; 5b: Themes 01-04 produce evidence |
+| 06 | [Evaluation protocol & metrics](06-evaluation-protocol-metrics.md) | This repo + copilot-ui | Independent | Days (6a corpus) → weeks (6b baseline) | 6a: none; 6b: Themes 01-05 to evaluate |
 | 07 | [Security & dataflow backend](07-security-dataflow-backend.md) | Elegy plugin + this repo | Proven in security, heavy | Weeks | Themes 03-04; defer until 01-05 prove value |
 
 ## Dependency graph

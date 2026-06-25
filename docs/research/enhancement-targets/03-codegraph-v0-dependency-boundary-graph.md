@@ -196,7 +196,21 @@ architecture_findings (
   FOREIGN KEY (file_id) REFERENCES files(id)
 )
 
--- Bridge tables to planning/doc graph
+-- Pattern findings (hosted from Theme 02 pattern runs)
+pattern_findings (
+  id            TEXT PRIMARY KEY,
+  run_id        TEXT,
+  rule_id       TEXT,
+  file_id       TEXT,
+  symbol_id     TEXT,          -- NULL in V0 (no symbols yet)
+  message       TEXT,
+  evidence_json TEXT,          -- JSON: conforms to evidence schema (Theme 05)
+  severity      TEXT,
+  FOREIGN KEY (run_id) REFERENCES analysis_runs(id),
+  FOREIGN KEY (file_id) REFERENCES files(id)
+)
+
+---- Bridge tables to planning/doc graph
 doc_links (
   id              TEXT PRIMARY KEY,
   code_entity_id  TEXT,        -- file_id (V0) or symbol_id (V1)
@@ -235,7 +249,7 @@ import the file containing the symbol). Symbol-level resolution is V1.
 {
   "$schema": "elegy-review-pack/v1",
   "run": { "id", "git_sha_base", "git_sha_head", "tool_versions", "status" },
-  "changed_files": [{ "file", "language", "change_kind" }],
+  "changed_symbols": [{ "symbol", "file", "kind", "public", "change_kind" }],
   "impacted": {
     "direct_importers": ["src/cli/commands/planning.ts"],
     "transitive_importers": [...],
@@ -298,7 +312,8 @@ Staleness is surfaced in the review-pack `run` block, not hidden.
 - Implement `diff-impact`: compute changed files from git diff, map to
   importers (file-level), likely tests, docs.
 - Implement `review-pack`: assemble diff-impact + architecture_findings (from
-  Theme 01 rule runs) + review_questions into the JSON contract.
+  Theme 01 rule runs) + pattern_findings (from Theme 02 pattern runs) +
+  review_questions into the JSON contract.
 - Implement `explain-symbol` V0 (file/module-level only).
 - Ship managed binary.
 
