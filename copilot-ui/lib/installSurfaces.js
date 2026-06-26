@@ -2,6 +2,7 @@
 
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { logInfo, logError } = require('./installLog');
 
 const VALID_INSTALL_SURFACE_TARGETS = ['codex', 'antigravity', 'opencode', 'claude', 'all'];
 
@@ -85,29 +86,43 @@ async function installSurfaces(options = {}) {
     throw new Error('engineRoot is required');
   }
 
+  const force = Boolean(options.force);
+  logInfo('install-surfaces', `Starting surface install: target=${target}, force=${force}`);
+
   const summaries = [];
   for (const surface of buildTargetList(target)) {
-    if (surface === 'codex') {
-      summaries.push(await installCodexSurface(options));
-      continue;
-    }
-    if (surface === 'antigravity') {
-      summaries.push(await installAntigravitySurface(options));
-      continue;
-    }
-    if (surface === 'opencode') {
-      summaries.push(await installOpenCodeSurface(options));
-      continue;
-    }
-    if (surface === 'claude') {
-      summaries.push(await installClaudeSurface(options));
+    try {
+      if (surface === 'codex') {
+        summaries.push(await installCodexSurface(options));
+        continue;
+      }
+      if (surface === 'antigravity') {
+        summaries.push(await installAntigravitySurface(options));
+        continue;
+      }
+      if (surface === 'opencode') {
+        summaries.push(await installOpenCodeSurface(options));
+        continue;
+      }
+      if (surface === 'claude') {
+        summaries.push(await installClaudeSurface(options));
+      }
+    } catch (error) {
+      logError('install-surfaces', `Failed to install ${surface}: ${error.message}`);
+      throw error;
     }
   }
+
+  const summaryParts = summaries.map((s) => {
+    const counts = s.counts || {};
+    return `${s.surface || 'unknown'}: ${counts.total || 0} total, ${counts.created || 0} created, ${counts.updated || 0} updated`;
+  });
+  logInfo('install-surfaces', `Surface install completed: ${summaryParts.join('; ')}`);
 
   return {
     target,
     dryRun: Boolean(options.dryRun),
-    force: Boolean(options.force),
+    force,
     surfaces: summaries,
   };
 }

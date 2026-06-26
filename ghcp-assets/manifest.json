@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "elegy-copilot-ghcp",
+    "version": "0.1.0",
+    "sourceCommitSha": "<REPLACE_WITH_GIT_SHA>"
+  },
+  "installDefaults": {
+    "copilotHome": "~/.copilot",
+    "agentsDir": "~/.copilot/agents",
+    "instructionsFile": "~/.copilot/copilot-instructions.md",
+    "description": "GitHub Copilot CLI harness with BYOK model routing, lane agents, and curated skills for the standalone copilot binary."
+  },
+  "governance": {
+    "g05": {
+      "schemaVersion": "1.0.0",
+      "requiredControls": {
+        "early": [
+          {
+            "id": "safetyTokenParity",
+            "owner": "Security Engineering"
+          },
+          {
+            "id": "hookEnforcement",
+            "owner": "Platform Engineering"
+          },
+          {
+            "id": "telemetrySchemaValidation",
+            "owner": "Observability Engineering"
+          }
+        ],
+        "final": [
+          {
+            "id": "evidencePredicates",
+            "owner": "Release Engineering"
+          },
+          {
+            "id": "finalGateWaiverPrecedence",
+            "owner": "Security Engineering"
+          },
+          {
+            "id": "trustedEvidenceBindingRetention",
+            "owner": "Release Engineering"
+          }
+        ]
+      }
+    }
+  },
+  "assets": [
+    {
+      "id": "ghcp-agent-quick",
+      "type": "agent",
+      "source": "ghcp-assets/agents/quick.agent.md",
+      "destination": "agents/quick.agent.md"
+    },
+    {
+      "id": "ghcp-agent-project",
+      "type": "agent",
+      "source": "ghcp-assets/agents/project.agent.md",
+      "destination": "agents/project.agent.md"
+    },
+    {
+      "id": "ghcp-agent-impl",
+      "type": "agent",
+      "source": "ghcp-assets/agents/impl.agent.md",
+      "destination": "agents/impl.agent.md"
+    },
+    {
+      "id": "ghcp-agent-explorer",
+      "type": "agent",
+      "source": "ghcp-assets/agents/explorer.agent.md",
+      "destination": "agents/explorer.agent.md"
+    },
+    {
+      "id": "ghcp-agent-reviewer",
+      "type": "agent",
+      "source": "ghcp-assets/agents/reviewer.agent.md",
+      "destination": "agents/reviewer.agent.md"
+    },
+    {
+      "id": "ghcp-agent-scout",
+      "type": "agent",
+      "source": "ghcp-assets/agents/scout.agent.md",
+      "destination": "agents/scout.agent.md"
+    },
+    {
+      "id": "ghcp-instructions",
+      "type": "instructions",
+      "source": "catalog-assets/instructions/agent-session-defaults.md",
+      "destination": "copilot-instructions.md",
+      "appendix": "ghcp-assets/home/AGENTS-appendix.md"
+    }
+  ],
+  "sourcePatterns": []
+}

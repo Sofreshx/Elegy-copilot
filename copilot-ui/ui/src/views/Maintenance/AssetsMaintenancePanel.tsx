@@ -48,6 +48,7 @@ export default function AssetsMaintenancePanel() {
       >
         <div className="catalog-action-row" style={{ flexWrap: 'wrap', gap: 'var(--space-sm)' }}>
           <Button
+            loading={catalogState.installing}
             disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
             onClick={() => { void catalogWorkspaceStore.installAll(false); }}
             testId="maintenance-install-all"
@@ -56,6 +57,7 @@ export default function AssetsMaintenancePanel() {
             {catalogState.installing ? 'Installing...' : 'Install Everything'}
           </Button>
           <Button
+            loading={catalogState.installing}
             disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
             onClick={() => { void catalogWorkspaceStore.installAll(true); }}
             testId="maintenance-force-install"
@@ -64,6 +66,7 @@ export default function AssetsMaintenancePanel() {
             Force Reinstall All
           </Button>
           <Button
+            loading={catalogState.refreshing}
             disabled={catalogState.loading || catalogState.refreshing}
             onClick={() => { void catalogWorkspaceStore.refreshWorkspace(); }}
             testId="maintenance-refresh-all"

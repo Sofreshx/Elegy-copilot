@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { driftCheckStore, type DriftRepoState } from '../../stores/driftCheckStore';
+import { notificationStore } from '../../stores/notificationStore';
 
 interface WorkspaceHealthTabProps {
   repoPath: string;
@@ -68,10 +69,27 @@ function newestTimestamp(timestamps: Record<string, string | null>): string | nu
   }, null);
 }
 
+function formatIssuesForClipboard(issues: Array<{ code: string; severity: string; file: string; line: number; message: string; suggestion: string | null }>, repoPath: string): string {
+  const header = `Fix the following ${issues.length} drift issues in ${repoPath}:\n\n`;
+  const body = issues.map((issue, i) => {
+    const loc = `${issue.file}${issue.line > 0 ? `:${issue.line}` : ''}`;
+    const sev = `[${issue.severity.toUpperCase()}]`;
+    return [
+      `${i + 1}. ${sev} ${issue.code} — ${loc}`,
+      `   ${issue.message}`,
+      issue.suggestion ? `   💡 ${issue.suggestion}` : '',
+    ].filter(Boolean).join('\n');
+  }).join('\n\n');
+  return header + body;
+}
+
 export default function WorkspaceHealthTab({ repoPath }: WorkspaceHealthTabProps) {
   const state = useStoreValue(driftCheckStore);
   const [fullCheckLoading, setFullCheckLoading] = useState(false);
   const initRef = useRef(false);
+  const [severityFilter, setSeverityFilter] = useState<'all' | 'error' | 'warning' | 'info'>('all');
+  const [copyCount, setCopyCount] = useState<25 | 50 | 100>(50);
+  const [copied, setCopied] = useState(false);
 
   const normalizedRepoPath = repoPath.replace(/\\/g, '/').toLowerCase();
 
@@ -147,6 +165,28 @@ export default function WorkspaceHealthTab({ repoPath }: WorkspaceHealthTabProps
     ? Object.values(repoState.checkStatuses).some((s) => s === 'running')
     : false;
   const isFullCheckDisabled = fullCheckLoading || hasRunningCheck;
+  const filteredIssues = severityFilter === 'all'
+    ? issues
+    : issues.filter(i => i.severity === severityFilter);
+  const visibleIssues = filteredIssues.slice(0, copyCount);
+  const isTruncated = filteredIssues.length > copyCount;
+
+  async function handleCopy() {
+    const toCopy = filteredIssues.slice(0, copyCount);
+    const text = formatIssuesForClipboard(toCopy, repoPath);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      notificationStore.success('Issues copied', {
+        message: `${toCopy.length} issues copied to clipboard.`,
+      });
+    } catch (err) {
+      notificationStore.error('Copy failed', {
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 
   // Determine timestamp display
   const timestampEl = (() => {
@@ -272,15 +312,87 @@ export default function WorkspaceHealthTab({ repoPath }: WorkspaceHealthTabProps
 
       {/* Issues section */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-muted)' }}>
-          Issues ({issues.length})
+        {/* Filter bar + copy controls */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+              Issues ({issues.length})
+            </span>
+            {/* Severity filter chips */}
+            {issues.length > 0 && (
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                {[
+                  { key: 'all' as const, label: 'All' },
+                  { key: 'error' as const, label: 'Errors' },
+                  { key: 'warning' as const, label: 'Warnings' },
+                  { key: 'info' as const, label: 'Info' },
+                ].map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setSeverityFilter(f.key)}
+                    style={{
+                      fontSize: '0.75rem',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border-color)',
+                      backgroundColor: severityFilter === f.key ? 'var(--tone-brand)' : 'transparent',
+                      color: severityFilter === f.key ? '#fff' : 'var(--text-muted)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Copy controls */}
+          {issues.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {/* Count selector */}
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                {[25, 50, 100].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setCopyCount(n as 25 | 50 | 100)}
+                    style={{
+                      fontSize: '0.75rem',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border-color)',
+                      backgroundColor: copyCount === n ? 'var(--tone-brand)' : 'transparent',
+                      color: copyCount === n ? '#fff' : 'var(--text-muted)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <Button onClick={handleCopy} disabled={filteredIssues.length === 0} style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
+                {copied ? '✓ Copied!' : 'Copy to Clipboard'}
+              </Button>
+            </div>
+          )}
         </div>
-        {issues.length === 0 ? (
+
+        {/* Truncation notice */}
+        {isTruncated && (
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+            Showing first {copyCount} of {filteredIssues.length} {severityFilter === 'all' ? '' : severityFilter} issues
+          </div>
+        )}
+
+        {/* Issue cards */}
+        {visibleIssues.length === 0 ? (
           <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--tone-success)' }}>
             ✅ No drift issues found.
           </div>
         ) : (
-          issues.map((issue, idx) => {
+          visibleIssues.map((issue, idx) => {
             const badge = severityBadge(issue.severity);
             return (
               <div

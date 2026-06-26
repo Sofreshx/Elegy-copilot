@@ -61,6 +61,7 @@ import type {
   RuntimeCatalogHealthResponse,
 } from '../../lib/types';
 import { createStore } from '../../lib/store';
+import { notificationStore } from '../../stores/notificationStore';
 
 export interface CatalogWorkspaceFilters {
   text: string;
@@ -926,13 +927,16 @@ function createCatalogWorkspaceStore() {
         refreshing: false,
         installMessage: 'Catalog projection refreshed.',
       }));
+      notificationStore.success('Catalog refreshed');
     } catch (error) {
+      const errorMessage = toErrorMessage(error, 'Unable to refresh catalog projection.');
       store.setState((state) => ({
         ...state,
         refreshing: false,
-        error: toErrorMessage(error, 'Unable to refresh catalog projection.'),
+        error: errorMessage,
         installMessage: 'Catalog refresh failed.',
       }));
+      notificationStore.error('Refresh failed', { message: errorMessage });
       throw error;
     }
   }
@@ -966,22 +970,33 @@ function createCatalogWorkspaceStore() {
         ? `${skippedCount} asset(s) were skipped during install. Check the install surface detail for more information.`
         : null;
       await loadWorkspace();
+      const successMessage = target === 'all'
+        ? `${force ? 'Force reinstall' : 'Install/update'} completed for ${surfaces.length} surface(s).`
+        : `${force ? 'Force reinstall' : 'Install/update'} completed for ${label}.`;
       store.setState((state) => ({
         ...state,
         installing: false,
         installWarning,
         lastInstallResults,
-        installMessage: target === 'all'
-          ? `${force ? 'Force reinstall' : 'Install/update'} completed for ${surfaces.length} surface(s).`
-          : `${force ? 'Force reinstall' : 'Install/update'} completed for ${label}.`,
+        installMessage: successMessage,
       }));
+      const summaryParts = lastInstallResults
+        .filter((r) => r.created > 0 || r.updated > 0)
+        .map((r) => `${r.target}: ${r.created} new, ${r.updated} updated`);
+      notificationStore.success('Install complete', {
+        message: summaryParts.length > 0
+          ? summaryParts.join('; ')
+          : successMessage,
+      });
     } catch (error) {
+      const errorMessage = toErrorMessage(error, 'Unable to install the requested surface.');
       store.setState((state) => ({
         ...state,
         installing: false,
-        error: toErrorMessage(error, 'Unable to install the requested surface.'),
+        error: errorMessage,
         installMessage: `${force ? 'Force reinstall' : 'Install/update'} failed for ${label}.`,
       }));
+      notificationStore.error('Install failed', { message: errorMessage });
       throw error;
     }
   }
@@ -1005,20 +1020,24 @@ function createCatalogWorkspaceStore() {
     try {
       const response = await setHarnessOptIn({ target, optIn });
       await loadWorkspace();
+      const msg = optIn
+        ? `Opted into ${harnessLabel}. ${response.assetCount} manifest asset(s) are now managed.`
+        : `Removed opt-in for ${harnessLabel}.`;
       store.setState((state) => ({
         ...state,
         mutating: false,
-        installMessage: optIn
-          ? `Opted into ${harnessLabel}. ${response.assetCount} manifest asset(s) are now managed.`
-          : `Removed opt-in for ${harnessLabel}.`,
+        installMessage: msg,
       }));
+      notificationStore.success(msg);
     } catch (error) {
+      const errorMessage = toErrorMessage(error, 'Unable to update harness opt-in.');
       store.setState((state) => ({
         ...state,
         mutating: false,
-        error: toErrorMessage(error, 'Unable to update harness opt-in.'),
+        error: errorMessage,
         installMessage: `Failed to ${optIn ? 'opt into' : 'remove opt-in for'} ${harnessLabel}.`,
       }));
+      notificationStore.error('Harness opt-in failed', { message: errorMessage });
       throw error;
     }
   }
@@ -1161,20 +1180,24 @@ function createCatalogWorkspaceStore() {
         }
       }
 
+      const msg = successMessage(response);
       store.setState((state) => ({
         ...state,
         mutating: false,
-        installMessage: successMessage(response),
+        installMessage: msg,
       }));
+      notificationStore.success(msg);
 
       return response;
     } catch (error) {
+      const errorMessage = toErrorMessage(error, 'Catalog action failed.');
       store.setState((state) => ({
         ...state,
         mutating: false,
-        error: toErrorMessage(error, 'Catalog action failed.'),
+        error: errorMessage,
         installMessage: `${startMessage} failed.`,
       }));
+      notificationStore.error('Action failed', { message: errorMessage });
       throw error;
     }
   }
@@ -1232,18 +1255,22 @@ function createCatalogWorkspaceStore() {
     try {
       await installCatalogProvider(payload);
       await loadWorkspace();
+      const msg = `${payload.action === 'update' ? 'Updated' : 'Installed'} provider ${payload.providerId}.`;
       store.setState((state) => ({
         ...state,
         mutating: false,
-        installMessage: `${payload.action === 'update' ? 'Updated' : 'Installed'} provider ${payload.providerId}.`,
+        installMessage: msg,
       }));
+      notificationStore.success(msg);
     } catch (error) {
+      const errorMessage = toErrorMessage(error, 'Provider install failed.');
       store.setState((state) => ({
         ...state,
         mutating: false,
-        error: toErrorMessage(error, 'Provider install failed.'),
+        error: errorMessage,
         installMessage: `${payload.action === 'update' ? 'Provider update' : 'Provider install'} failed.`,
       }));
+      notificationStore.error('Provider install failed', { message: errorMessage });
       throw error;
     }
   }
@@ -1263,19 +1290,23 @@ function createCatalogWorkspaceStore() {
     try {
       const response = await mutate();
       await loadWorkspace();
+      const msg = successMessage(response);
       store.setState((state) => ({
         ...state,
         mutating: false,
-        installMessage: successMessage(response),
+        installMessage: msg,
       }));
+      notificationStore.success(msg);
       return response;
     } catch (error) {
+      const errorMessage = toErrorMessage(error, 'External source action failed.');
       store.setState((state) => ({
         ...state,
         mutating: false,
-        error: toErrorMessage(error, 'External source action failed.'),
+        error: errorMessage,
         installMessage: `${startMessage} failed.`,
       }));
+      notificationStore.error('Action failed', { message: errorMessage });
       throw error;
     }
   }

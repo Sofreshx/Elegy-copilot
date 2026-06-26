@@ -5,7 +5,7 @@ category: system
 status: current
 doc_kind: node
 id: ui-check-adoption
-summary: Per-repo recipe to adopt the governed UI workflow: create .elegy/ui-check.json, validate against schema, add an instruction pointer.
+summary: "Per-repo recipe to adopt the governed UI workflow: create .elegy/ui-check.json, validate against schema, add an instruction pointer."
 tags: [ui, adoption, setup, governance]
 related: [ui-development-governance, skills-governance]
 ---

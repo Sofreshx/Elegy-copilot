@@ -1,0 +1,121 @@
+{
+  "activeProfile": "deepseek-direct",
+  "profiles": {
+    "opencode-go-balanced": {
+      "label": "OpenCode Go Balanced",
+      "description": "Go provider with DeepSeek defaults",
+      "tags": ["go", "deepseek", "balanced"],
+      "provider": {
+        "type": "openai",
+        "baseUrl": "https://opencode.ai/zen/v1",
+        "apiKeyEnv": "OPENCODE_ZEN_API_KEY"
+      },
+      "roleModels": {
+        "planning": "deepseek-v4-pro",
+        "implementation": "deepseek-v4-flash",
+        "exploration": "deepseek-v4-flash",
+        "review": "deepseek-v4-pro",
+        "research": "deepseek-v4-pro"
+      },
+      "small": "deepseek-v4-flash",
+      "big": "deepseek-v4-pro",
+      "review": "deepseek-v4-pro",
+      "smallLabel": "DeepSeek V4 Flash",
+      "bigLabel": "DeepSeek V4 Pro",
+      "reviewLabel": "DeepSeek V4 Pro"
+    },
+    "opencode-go-fast": {
+      "label": "OpenCode Go Fast",
+      "description": "Go provider with cheaper exploration models",
+      "tags": ["go", "deepseek", "fast"],
+      "provider": {
+        "type": "openai",
+        "baseUrl": "https://opencode.ai/zen/v1",
+        "apiKeyEnv": "OPENCODE_ZEN_API_KEY"
+      },
+      "roleModels": {
+        "planning": "deepseek-v4-pro",
+        "implementation": "deepseek-v4-flash",
+        "exploration": "deepseek-v4-flash",
+        "review": "deepseek-v4-pro",
+        "research": "deepseek-v4-flash"
+      },
+      "small": "deepseek-v4-flash",
+      "big": "deepseek-v4-pro",
+      "review": "deepseek-v4-pro"
+    },
+    "opencode-zen-free": {
+      "label": "OpenCode Zen Free",
+      "description": "Zen provider using free-tier models",
+      "tags": ["zen", "free"],
+      "notes": "Free Zen model availability can change daily; best-effort curated IDs.",
+      "provider": {
+        "type": "openai",
+        "baseUrl": "https://opencode.ai/zen/v1",
+        "apiKeyEnv": "OPENCODE_ZEN_API_KEY"
+      },
+      "roleModels": {
+        "planning": "deepseek-v4-flash-free",
+        "implementation": "deepseek-v4-flash-free",
+        "exploration": "deepseek-v4-flash-free",
+        "review": "deepseek-v4-flash-free",
+        "research": "deepseek-v4-flash-free"
+      }
+    },
+    "opencode-zen-mixed": {
+      "label": "OpenCode Zen Mixed",
+      "description": "Zen free models for exploration, stronger models for planning/review",
+      "tags": ["zen", "mixed", "cost-optimized"],
+      "provider": {
+        "type": "openai",
+        "baseUrl": "https://opencode.ai/zen/v1",
+        "apiKeyEnv": "OPENCODE_ZEN_API_KEY"
+      },
+      "roleModels": {
+        "planning": "deepseek-v4-pro",
+        "implementation": "deepseek-v4-flash-free",
+        "exploration": "deepseek-v4-flash-free",
+        "review": "deepseek-v4-pro",
+        "research": "deepseek-v4-flash-free"
+      }
+    },
+    "deepseek-direct": {
+      "label": "Direct DeepSeek",
+      "description": "Direct DeepSeek API (no proxy)",
+      "tags": ["direct", "deepseek", "fallback"],
+      "provider": {
+        "type": "openai",
+        "baseUrl": "https://api.deepseek.com/v1",
+        "apiKeyEnv": "DEEPSEEK_API_KEY"
+      },
+      "roleModels": {
+        "planning": "deepseek-v4-pro",
+        "implementation": "deepseek-v4-flash",
+        "exploration": "deepseek-v4-flash",
+        "review": "deepseek-v4-pro",
+        "research": "deepseek-v4-pro"
+      },
+      "small": "deepseek-v4-flash",
+      "big": "deepseek-v4-pro",
+      "review": "deepseek-v4-pro",
+      "smallLabel": "DeepSeek V4 Flash Max",
+      "bigLabel": "DeepSeek V4 Pro Max",
+      "reviewLabel": "DeepSeek V4 Pro High"
+    }
+  },
+  "roleToAgent": {
+    "planning": ["project"],
+    "implementation": ["impl", "quick"],
+    "exploration": ["explorer"],
+    "review": ["reviewer"],
+    "research": ["scout"]
+  },
+  "agentRoles": {
+    "quick": "small",
+    "project": "big",
+    "impl": "small",
+    "reviewer": "review",
+    "explorer": "small",
+    "scout": "big"
+  }
+}

@@ -322,6 +322,7 @@ export default function CatalogShellView() {
           </div>
           <div className="assets-tools-header-actions">
             <Button
+              loading={summaryLoading && !!summary}
               disabled={catalogState.refreshing || (summaryLoading && !summary)}
               onClick={() => void handleRefresh()}
               testId="assets-tools-refresh"
@@ -330,6 +331,7 @@ export default function CatalogShellView() {
               {summaryLoading && !summary ? 'Loading...' : summaryLoading ? 'Refreshing…' : 'Refresh'}
             </Button>
             <Button
+              loading={catalogState.installing}
               disabled={catalogState.installing || catalogState.refreshing || (summaryLoading && !summary)}
               onClick={() => { void catalogWorkspaceStore.installAll(false); }}
               testId="assets-tools-install-all"
@@ -338,6 +340,7 @@ export default function CatalogShellView() {
               {catalogState.installing ? 'Installing...' : 'Install All'}
             </Button>
             <Button
+              loading={catalogState.installing}
               disabled={catalogState.installing || catalogState.refreshing || (summaryLoading && !summary)}
               onClick={() => { void catalogWorkspaceStore.installAll(true); }}
               testId="assets-tools-force-install"

@@ -116,6 +116,7 @@ const { createRuntimeHealthResolver } = require('./lib/server/runtimeHealth');
 const { createRoadmapWorkflowMemoryBridge } = require('./lib/roadmapWorkflowMemoryBridge');
 const { createRoadmapWorkflowPlanningBridge } = require('./lib/roadmapWorkflowPlanningBridge');
 const { resolveElegyPlanningCliPath, installLatestElegyPlanningCli, downloadElegyPlanningCli } = require('./lib/elegyPlanningCliResolver');
+const { cleanupOldLogs, startPeriodicCleanup } = require('./lib/installLog');
 const {
   resolveTrackerUrl,
   resolveTrackerToken,
@@ -5249,6 +5250,14 @@ async function startServer(options = {}) {
           console.error('[WARN] Binding to non-loopback address without HTTPS. Auth token is transmitted in cleartext.');
           console.error('[WARN] Use a reverse proxy with TLS termination for production use.');
         }
+      }
+
+      // Clean up old install logs on startup
+      try {
+        cleanupOldLogs();
+        startPeriodicCleanup();
+      } catch {
+        // best-effort
       }
 
       void desktopUpdaterController.checkForUpdates().catch((error) => {

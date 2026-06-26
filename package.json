@@ -34,7 +34,12 @@
     "commit-check:run": "node scripts/commit-check-run.mjs",
     "commit-check": "node scripts/commit-check-run.mjs",
     "build:rust-backend": "cargo build --manifest-path copilot-ui/src-tauri/Cargo.toml",
-    "test:rust-backend": "cargo test --manifest-path copilot-ui/src-tauri/Cargo.toml"
+    "test:rust-backend": "cargo test --manifest-path copilot-ui/src-tauri/Cargo.toml",
+    "install:ghcp": "node scripts/ghcp-install.mjs",
+    "install:ghcp:dry": "node scripts/ghcp-install.mjs --dry-run",
+    "ghcp:profile:switch": "node scripts/ghcp-profile-switch.mjs",
+    "ghcp:profile:list": "node scripts/ghcp-profile-switch.mjs --list",
+    "ghcp:profile:current": "node scripts/ghcp-profile-switch.mjs --current"
   },
   "dependencies": {
     "@playwright/test": "^1.59.1"

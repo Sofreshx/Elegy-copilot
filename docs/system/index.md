@@ -7,7 +7,7 @@ doc_kind: index
 id: system-docs-index
 summary: Short entrypoint map for the current canonical docs.
 tags: [documentation, index]
-related: [catalog-control-plane, copilot-ui-guide, opencode-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, collaboration-profile-adr, commit-check-setup, windows-shell-optimization, ui-development-governance, ui-check-adoption]
+related: [catalog-control-plane, copilot-ui-guide, opencode-guide, ghcp-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, collaboration-profile-adr, commit-check-setup, windows-shell-optimization, ui-development-governance, ui-check-adoption]
 ---
 
 # Docs Index
@@ -26,6 +26,7 @@ Use docs in this order:
 - [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md)
 - [[architecture-overview]] [docs/system/architecture-overview.md](docs/system/architecture-overview.md)
 - [[opencode-guide]] [docs/system/opencode-guide.md](docs/system/opencode-guide.md)
+- [[ghcp-guide]] [docs/system/ghcp-guide.md](docs/system/ghcp-guide.md)
 - [[repo-skill-sync-governance]] [docs/system/repo-skill-sync-governance.md](docs/system/repo-skill-sync-governance.md)
 - [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
 - [[progressive-constraint-narrowing]] [docs/system/progressive-constraint-narrowing.md](docs/system/progressive-constraint-narrowing.md)

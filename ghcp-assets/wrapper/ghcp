@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+# ghcp — thin wrapper for GitHub Copilot CLI with BYOK model routing
+# Usage: ghcp <lane> [args...] | ghcp profile <list|current|switch <id>>
+#
+# Lanes: quick, project, impl, explorer, reviewer, scout
+
+set -euo pipefail
+
+# Resolve profiles.json location:
+# 1. GHCP_ASSETS env var (explicit path to ghcp-assets/ dir)
+# 2. Relative to the script's own location (when run from repo)
+# 3. Fallback to ~/.config/ghcp/profiles.json (installed location)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -n "${GHCP_ASSETS:-}" ]; then
+  PROFILES_FILE="${GHCP_ASSETS}/profiles.json"
+elif [ -f "${SCRIPT_DIR}/../profiles.json" ]; then
+  PROFILES_FILE="${SCRIPT_DIR}/../profiles.json"
+else
+  PROFILES_FILE="${HOME}/.config/ghcp/profiles.json"
+fi
+
+GHCP_HOME="${GHCP_HOME:-${HOME}/.copilot}"
+
+# --- helpers ---
+
+die() { echo "ghcp: error: $*" >&2; exit 1; }
+
+require_json() {
+  command -v node >/dev/null 2>&1 || die "node is required but not found"
+  command -v copilot >/dev/null 2>&1 || die "copilot is not installed — brew install copilot-cli or npm i -g @github/copilot"
+}
+
+read_active_profile() {
+  node -e "
+    const fs = require('fs');
+    const p = JSON.parse(fs.readFileSync('${PROFILES_FILE}', 'utf8'));
+    console.log(p.activeProfile || 'deepseek-direct');
+  "
+}
+
+read_profile_field() {
+  local profile_id="$1" field="$2"
+  node -e "
+    const fs = require('fs');
+    const p = JSON.parse(fs.readFileSync('${PROFILES_FILE}', 'utf8'));
+    const prof = p.profiles['${profile_id}'];
+    if (!prof) { process.exit(1); }
+    if ('${field}' === 'provider.type')     { console.log(prof.provider?.type || 'openai'); process.exit(0); }
+    if ('${field}' === 'provider.baseUrl')  { console.log(prof.provider?.baseUrl || ''); process.exit(0); }
+    if ('${field}' === 'provider.apiKeyEnv'){ console.log(prof.provider?.apiKeyEnv || ''); process.exit(0); }
+    console.log(prof['${field}'] || '');
+  "
+}
+
+resolve_model_for_lane() {
+  local profile_id="$1" lane="$2"
+  node -e "
+    const fs = require('fs');
+    const p = JSON.parse(fs.readFileSync('${PROFILES_FILE}', 'utf8'));
+    const prof = p.profiles['${profile_id}'];
+    if (!prof) process.exit(1);
+    const roles = prof.roleModels || {};
+    const rolesMap = { quick: 'implementation', project: 'planning', impl: 'implementation', explorer: 'exploration', reviewer: 'review', scout: 'research' };
+    const role = rolesMap['${lane}'] || 'implementation';
+    console.log(roles[role] || prof.small || prof.big || '');
+  "
+}
+
+set_provider_env() {
+  local profile_id="$1"
+  local ptype base_url api_key_env
+  ptype="$(read_profile_field "$profile_id" "provider.type")"
+  base_url="$(read_profile_field "$profile_id" "provider.baseUrl")"
+  api_key_env="$(read_profile_field "$profile_id" "provider.apiKeyEnv")"
+
+  export COPILOT_PROVIDER_TYPE="${ptype:-openai}"
+  if [ -n "$base_url" ]; then
+    export COPILOT_PROVIDER_BASE_URL="$base_url"
+  fi
+  if [ -n "$api_key_env" ] && [ -n "${!api_key_env:-}" ]; then
+    export COPILOT_PROVIDER_API_KEY="${!api_key_env}"
+  fi
+}
+
+set_model_env() {
+  local profile_id="$1" lane="$2"
+  local model
+  model="$(resolve_model_for_lane "$profile_id" "$lane")"
+  if [ -n "$model" ]; then
+    export COPILOT_MODEL="$model"
+  fi
+}
+
+# --- profile commands ---
+
+cmd_profile() {
+  local sub="${1:-help}"
+  shift 2>/dev/null || true
+  case "$sub" in
+    list|ls)
+      node -e "
+        const fs = require('fs');
+        const p = JSON.parse(fs.readFileSync('${PROFILES_FILE}', 'utf8'));
+        const active = p.activeProfile || 'deepseek-direct';
+        for (const [id, prof] of Object.entries(p.profiles || {})) {
+          const marker = id === active ? ' (active)' : '';
+          console.log('  ' + id + marker + ' — ' + (prof.label || id));
+          console.log('    ' + (prof.description || ''));
+        }
+      "
+      ;;
+    current)
+      node -e "
+        const fs = require('fs');
+        const p = JSON.parse(fs.readFileSync('${PROFILES_FILE}', 'utf8'));
+        const id = p.activeProfile || 'deepseek-direct';
+        const prof = p.profiles[id];
+        console.log('Active profile: ' + id);
+        if (prof) {
+          console.log('  Provider: ' + (prof.provider?.type || 'openai') + ' → ' + (prof.provider?.baseUrl || 'default'));
+          console.log('  Model: ' + (prof.roleModels?.implementation || prof.small || 'unknown'));
+        }
+      "
+      ;;
+    switch)
+      local target="${1:-}"
+      [ -z "$target" ] && die "usage: ghcp profile switch <profile-id>"
+      node -e "
+        const fs = require('fs');
+        const p = JSON.parse(fs.readFileSync('${PROFILES_FILE}', 'utf8'));
+        if (!p.profiles['${target}']) {
+          console.error('Profile not found: ${target}');
+          process.exit(1);
+        }
+        p.activeProfile = '${target}';
+        fs.writeFileSync('${PROFILES_FILE}', JSON.stringify(p, null, 2) + '\n');
+        console.log('Switched to profile: ${target}');
+      "
+      ;;
+    help|*)
+      cat <<'EOF'
+Usage: ghcp profile <command>
+
+Commands:
+  list           List all available profiles
+  current        Show the active profile
+  switch <id>    Switch to a profile
+EOF
+      ;;
+  esac
+}
+
+# --- lane mapping ---
+
+LANES="quick project impl explorer reviewer scout"
+
+is_lane() { echo " $LANES " | grep -q " $1 "; }
+
+show_usage() {
+  cat <<'EOF'
+Usage: ghcp <command> [args...]
+
+Lanes:
+  ghcp quick <prompt>       Small model — 1-2 file tweaks
+  ghcp project <prompt>     Big model — roadmap orchestration
+  ghcp impl <prompt>        Implementation subagent
+  ghcp explorer <prompt>    Exploration subagent
+  ghcp reviewer <prompt>    Review subagent
+  ghcp scout <prompt>       External research subagent
+
+Profile:
+  ghcp profile list         List available profiles
+  ghcp profile current      Show active profile
+  ghcp profile switch <id>  Switch profile
+
+Environment:
+  GHCP_HOME                 Override config directory (default: ~/.copilot)
+  GHCP_ASSETS               Override path to profiles.json parent
+EOF
+}
+
+# --- main ---
+
+require_json
+
+if [ $# -eq 0 ]; then
+  show_usage
+  exit 0
+fi
+
+cmd="$1"
+shift
+
+if [ "$cmd" = "profile" ]; then
+  cmd_profile "$@"
+  exit 0
+fi
+
+if is_lane "$cmd"; then
+  profile="$(read_active_profile)"
+  set_provider_env "$profile"
+  set_model_env "$profile" "$cmd"
+  exec copilot --agent "$cmd" "$@"
+fi
+
+# Unknown command — pass through to copilot
+exec copilot "$cmd" "$@"

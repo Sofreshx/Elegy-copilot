@@ -5,7 +5,7 @@ category: system
 status: current
 doc_kind: node
 id: ui-development-governance
-summary: Governed stack-neutral UI workflow: spec → inventory → implement → evidence → visual review → patch → regression proof.
+summary: "Governed stack-neutral UI workflow: spec → inventory → implement → evidence → visual review → patch → regression proof."
 tags: [ui, governance, workflow, skills]
 related: [skills-governance, copilot-ui-guide, reviewer-lane-governance, spec-driven-development]
 ---

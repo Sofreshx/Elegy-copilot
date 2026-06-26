@@ -260,54 +260,6 @@
       ]
     },
     {
-      "sourceId": "elegy-planning",
-      "title": "Elegy Planning",
-      "description": "Durable planning authority CLI for goals, roadmaps, plans, todos, issues, review points, and cross-session SQLite state.",
-      "url": "https://github.com/Sofreshx/Elegy",
-      "sourceType": "github-repo",
-      "owner": "Sofreshx",
-      "repo": "Elegy",
-      "defaultRef": "main",
-      "includeSkills": false,
-      "includeMcp": false,
-      "setupHints": [
-        "elegy-planning is a pre-built Rust binary downloaded from GitHub releases.",
-        "The CLI manages a SQLite database at ~/.elegy/elegy-planning.db by default.",
-        "Run elegy-planning session init to establish correlation context before mutations."
-      ],
-      "installables": [
-        {
-          "installableId": "cli:elegy-planning",
-          "kind": "cli-tool",
-          "name": "elegy-planning",
-          "title": "Elegy Planning CLI",
-          "description": "Durable planning CLI for goals, roadmaps, plans, todos, issues, review points, and cross-session SQLite state.",
-          "targetSupport": [
-            "host"
-          ],
-          "verifyCommand": "elegy-planning --version",
-          "runtimeChecks": [
-            "elegy-planning binary is callable from the host runtime.",
-            "elegy-planning --version reports a valid version.",
-            "elegy-planning health succeeds and returns a healthy database."
-          ],
-          "setupHints": [
-            "Use elegy-planning session init at the start of each work session.",
-            "Run elegy-planning validate all before marking work as complete.",
-            "Search before creating entities to avoid duplicates."
-          ],
-          "metadata": {
-            "installer": "github-release",
-            "binaryName": "elegy-planning",
-            "owner": "Sofreshx",
-            "repo": "Elegy",
-            "verifyCommand": "elegy-planning --version",
-            "healthCommand": "elegy-planning health --json"
-          }
-        }
-      ]
-    },
-    {
       "sourceId": "cortexkit-aft",
       "title": "AFT",
       "description": "Agent Framework Tools — tool replacements and aft_ tools for OpenCode.",

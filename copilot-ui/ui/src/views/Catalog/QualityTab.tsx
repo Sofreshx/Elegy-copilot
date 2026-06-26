@@ -43,6 +43,7 @@ export default function QualityTab() {
 
   // Filter out expected cross-harness duplicate-name warnings
   // (engine-assets and opencode-assets having same-named skills is by design)
+  // Also filter out cross-harness purpose-overlap and overlapping-triggers
   const displaySkills = skillsWithIssues.map((skill) => {
     const filteredDiagnostics = skill.diagnostics.filter((d) => {
       if (d.kind === 'duplicate-name') {
@@ -59,6 +60,16 @@ export default function QualityTab() {
           });
           // If all peers are in different roots, this is a cross-harness copy - expected
           if (allDifferentRoot) return false;
+        }
+      }
+      if (d.kind === 'purpose-overlap' || d.kind === 'overlapping-triggers') {
+        // Filter out cross-harness purpose-overlap/overlapping-triggers
+        const peerId = (d.detail as any)?.peerSkillId;
+        if (peerId) {
+          const peerSkill = skills.find((s) => s.skillId === peerId);
+          if (peerSkill && peerSkill.sourceRoot !== skill.sourceRoot) {
+            return false;
+          }
         }
       }
       return true;
@@ -136,7 +147,7 @@ export default function QualityTab() {
         <div className="assets-tools-metric-card catalog-stat-card">
           <div>
             <p className="assets-tools-metric-label catalog-stat-label">Overlaps</p>
-            <p className="assets-tools-metric-value catalog-stat-value">{overlapClusters.length}</p>
+            <p className="assets-tools-metric-value catalog-stat-value">{displayOverlapClusters.length}</p>
           </div>
         </div>
       </div>

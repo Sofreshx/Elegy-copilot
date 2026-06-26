@@ -167,7 +167,7 @@ async function run() {
       assert.strictEqual(typeof probeBinaryVersion, 'function');
     });
 
-    await test('buildElegyPlanningCliFromSource builds and installs managed binary metadata', async () => {
+    await test('buildElegyPlanningCliFromSource builds and installs managed binary metadata (legacy layout)', async () => {
       const elegyRoot = path.join(tmpRoot, 'source-elegy');
       const elegyHome = path.join(tmpRoot, 'copilot-home');
       const rustRoot = path.join(elegyRoot, 'rust');
@@ -215,6 +215,47 @@ async function run() {
       assert.strictEqual(metadata.sourceGitHead, 'abc123');
       assert.ok(Object.prototype.hasOwnProperty.call(metadata, 'version'));
     });
+    await test('buildElegyPlanningCliFromSource builds with new layout (Cargo.toml at repo root)', async () => {
+      const elegyRoot = path.join(tmpRoot, 'source-elegy-new');
+      const elegyHome = path.join(tmpRoot, 'copilot-home-new');
+      const pluginDir = path.join(elegyRoot, 'plugins', 'planning');
+      fs.mkdirSync(pluginDir, { recursive: true });
+      fs.writeFileSync(path.join(elegyRoot, 'Cargo.toml'), '[workspace]\nmembers = ["plugins/planning"]', 'utf8');
+      fs.writeFileSync(path.join(pluginDir, 'Cargo.toml'), '[package]\nname = "elegy-planning"', 'utf8');
+      const builtBinary = path.join(
+        elegyRoot,
+        'target',
+        'release',
+        process.platform === 'win32' ? 'elegy-planning.exe' : 'elegy-planning',
+      );
+      const result = await buildElegyPlanningCliFromSource({
+        elegyHome,
+        elegyRepoPath: elegyRoot,
+        childProcess: {
+          execFile(command, args, options, callback) {
+            assert.strictEqual(command, 'cargo');
+            assert.deepStrictEqual(args, ['build', '-p', 'elegy-planning', '--bin', 'elegy-planning', '--release']);
+            assert.strictEqual(options.cwd, elegyRoot, 'cwd should be repo root for new layout');
+            fs.mkdirSync(path.dirname(builtBinary), { recursive: true });
+            fs.writeFileSync(builtBinary, 'binary', 'utf8');
+            callback(null, '', '');
+          },
+        },
+        spawnSyncImpl(command, args) {
+          if (command === 'git' && args[0] === '-C') {
+            return { status: 0, stdout: 'def456\n' };
+          }
+          if (args && Array.isArray(args) && args.includes('--version')) {
+            return { status: 0, stdout: 'elegy-planning 0.2.0\n', stderr: '' };
+          }
+          return { status: 0, stdout: '' };
+        },
+      });
+      assert.ok(fs.existsSync(result.installedPath));
+      assert.strictEqual(result.metadata.source, 'github-source');
+      assert.strictEqual(result.metadata.sourceGitHead, 'def456');
+      assert.strictEqual(result.metadata.version, '0.2.0');
+    });
     await test('syncElegySkillAssetsFromGitHub installs skills from managed GitHub checkout', async () => {
       const elegyHome = path.join(tmpRoot, 'asset-copilot-home');
       const targetHome = path.join(tmpRoot, 'asset-target-home');
@@ -227,9 +268,10 @@ async function run() {
             assert.strictEqual(command, 'git');
             assert.strictEqual(args[0], 'clone');
             const destination = args[args.length - 1];
-            fs.mkdirSync(path.join(destination, 'rust', 'crates', 'elegy-planning'), { recursive: true });
-            fs.writeFileSync(path.join(destination, 'rust', 'Cargo.toml'), '[workspace]', 'utf8');
-            fs.writeFileSync(path.join(destination, 'rust', 'crates', 'elegy-planning', 'Cargo.toml'), '[package]', 'utf8');
+            // New layout: Cargo.toml at repo root, crate at plugins/planning/
+            fs.mkdirSync(path.join(destination, 'plugins', 'planning'), { recursive: true });
+            fs.writeFileSync(path.join(destination, 'Cargo.toml'), '[workspace]\nmembers = ["plugins/planning"]', 'utf8');
+            fs.writeFileSync(path.join(destination, 'plugins', 'planning', 'Cargo.toml'), '[package]\nname = "elegy-planning"', 'utf8');
             for (const rel of [
               path.join('src', 'Elegy-planning', 'skills', 'elegy-planning'),
               path.join('src', 'Elegy-skills', 'skills', 'elegy-skills'),

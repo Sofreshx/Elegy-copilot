@@ -67,7 +67,7 @@ When the current workspace is Elegy Copilot / Elegy Copilot:
 
 - `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into `~/.elegy`.
 - `catalog-assets/shared-skills/` ships cross-harness shared skills.
-- `opencode-assets/`, `codex-assets/`, `antigravity-assets/`, and `claude-assets/` ship thinner native home baselines for their harnesses.
+- `opencode-assets/`, `codex-assets/`, `antigravity-assets/`, `claude-assets/`, and `ghcp-assets/` ship thinner native home baselines for their harnesses.
 - `copilot-ui/` is the local dashboard and catalog control plane; the packaged Windows desktop app is the normal end-user runtime.
 - `contracts/`, `local-tracker/`, `scripts/`, and `docs/system/**` hold shared contracts, gateway/runtime support, installers/validators, and canonical policy.
 - Start repo-rule work at `docs/system/index.md`, then the nearest MOC, then the smallest canonical node.

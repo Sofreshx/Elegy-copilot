@@ -4,6 +4,7 @@ const childProcess = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { logInfo, logWarn, logError } = require('./installLog');
 
 const GITHUB_REPO = 'Sofreshx/Elegy';
 const GITHUB_RELEASE_TAG = 'main-snapshot';
@@ -184,8 +185,28 @@ function isElegyRustWorkspace(candidate) {
     return false;
   }
 
-  return fs.existsSync(path.join(normalized, 'rust', 'Cargo.toml'))
-    && fs.existsSync(path.join(normalized, 'rust', 'crates', 'elegy-planning', 'Cargo.toml'));
+  // New layout (post-restructuring): Cargo.toml at repo root, crate at plugins/planning/
+  if (fs.existsSync(path.join(normalized, 'Cargo.toml'))
+    && fs.existsSync(path.join(normalized, 'plugins', 'planning', 'Cargo.toml'))) {
+    return true;
+  }
+
+  // Legacy layout: rust/Cargo.toml + rust/crates/elegy-planning/Cargo.toml
+  if (fs.existsSync(path.join(normalized, 'rust', 'Cargo.toml'))
+    && fs.existsSync(path.join(normalized, 'rust', 'crates', 'elegy-planning', 'Cargo.toml'))) {
+    return true;
+  }
+
+  return false;
+}
+
+function isElegyRustWorkspaceNewLayout(candidate) {
+  const normalized = normalizeString(candidate);
+  if (!normalized) {
+    return false;
+  }
+  return fs.existsSync(path.join(normalized, 'Cargo.toml'))
+    && fs.existsSync(path.join(normalized, 'plugins', 'planning', 'Cargo.toml'));
 }
 
 async function syncGitHubElegySource(options = {}) {
@@ -225,16 +246,19 @@ async function syncGitHubElegySource(options = {}) {
   });
 
   if (fs.existsSync(path.join(sourceDir, '.git'))) {
+    logInfo('elegy-source', `Refreshing Elegy source from GitHub: ${sourceDir}`);
     logger(`Refreshing Elegy source from GitHub: ${sourceDir}`);
     await runGit(['fetch', '--depth', '1', 'origin', 'main'], sourceDir);
     await runGit(['checkout', '--force', 'FETCH_HEAD'], sourceDir);
   } else {
     safeRmSync(sourceDir);
+    logInfo('elegy-source', `Cloning Elegy source from GitHub: ${GITHUB_REPO_URL}`);
     logger(`Cloning Elegy source from GitHub: ${GITHUB_REPO_URL}`);
     await runGit(['clone', '--depth', '1', '--branch', 'main', GITHUB_REPO_URL, sourceDir], path.dirname(sourceDir));
   }
 
   if (!isElegyRustWorkspace(sourceDir)) {
+    logError('elegy-source', `GitHub Elegy checkout is missing the elegy-planning Rust workspace: ${sourceDir}`);
     throw new Error(`GitHub Elegy checkout is missing the elegy-planning Rust workspace: ${sourceDir}`);
   }
 
@@ -243,7 +267,15 @@ async function syncGitHubElegySource(options = {}) {
 
 function resolveSourceBinaryPath(elegyRepoRoot, release = true) {
   const profile = release ? 'release' : 'debug';
-  return path.join(elegyRepoRoot, 'rust', 'target', profile, binaryName());
+  const binary = binaryName();
+
+  // New layout: target/ at repo root
+  if (isElegyRustWorkspaceNewLayout(elegyRepoRoot)) {
+    return path.join(elegyRepoRoot, 'target', profile, binary);
+  }
+
+  // Legacy layout: rust/target/ under rust/ subdirectory
+  return path.join(elegyRepoRoot, 'rust', 'target', profile, binary);
 }
 
 function readJsonFile(filePath) {
@@ -406,20 +438,21 @@ async function buildElegyPlanningCliFromSource(options = {}) {
     : childProcess.execFile;
   const logger = typeof options.logger === 'function' ? options.logger : () => {};
   const release = options.release !== false;
-  const rustRoot = path.join(elegyRepoRoot, 'rust');
+  const isNewLayout = isElegyRustWorkspaceNewLayout(elegyRepoRoot);
+  const cargoCwd = isNewLayout ? elegyRepoRoot : path.join(elegyRepoRoot, 'rust');
   const args = ['build', '-p', 'elegy-planning', '--bin', 'elegy-planning'];
   if (release) {
     args.push('--release');
   }
 
-  logger(`Building elegy-planning from source: ${elegyRepoRoot}`);
+  logger(`Building elegy-planning from source: ${elegyRepoRoot} (layout: ${isNewLayout ? 'new' : 'legacy'})`);
 
   await new Promise((resolve, reject) => {
     execFile(
       'cargo',
       args,
       {
-        cwd: rustRoot,
+        cwd: cargoCwd,
         env: options.env,
         windowsHide: true,
         timeout: options.timeoutMs || 300_000,
@@ -437,6 +470,7 @@ async function buildElegyPlanningCliFromSource(options = {}) {
 
   const sourceBinary = resolveSourceBinaryPath(elegyRepoRoot, release);
   if (!fs.existsSync(sourceBinary)) {
+    logError('elegy-build', `cargo build completed but binary was not found at ${sourceBinary}.`);
     throw new Error(`cargo build completed but binary was not found at ${sourceBinary}.`);
   }
 
@@ -457,6 +491,7 @@ async function buildElegyPlanningCliFromSource(options = {}) {
     version: binaryVersion || null,
   };
   writeInstallMetadata(elegyHome, metadata);
+  logInfo('elegy-build', `elegy-planning installed to: ${installedPath}`, { version: binaryVersion, gitHead: sourceGitHead });
   logger(`elegy-planning installed to: ${installedPath}`);
 
   return {
@@ -680,8 +715,10 @@ async function downloadElegyPlanningCli(options = {}) {
   const fetchImpl = options.fetchImpl;
   const logger = typeof options.logger === 'function' ? options.logger : () => {};
 
+  logInfo('elegy-download', 'Querying GitHub for latest elegy-planning release...');
   logger('Querying GitHub for latest elegy-planning release...');
   const release = await fetchLatestReleaseInfo(fetchImpl);
+  logInfo('elegy-download', `Found release ${release.releaseTag}`, { version: release.version });
   logger(`Found release ${release.releaseTag}`);
 
   const downloadPath = buildDownloadPath(elegyHome);
@@ -747,6 +784,7 @@ async function downloadElegyPlanningCli(options = {}) {
   }
 
   const binaryVersion = probeBinaryVersion(downloadPath);
+  logInfo('elegy-download', `elegy-planning installed to: ${downloadPath}`, { version: binaryVersion, source: 'github-release' });
   logger(`elegy-planning installed to: ${downloadPath}${binaryVersion ? ` (v${binaryVersion})` : ''}`);
   writeInstallMetadata(elegyHome, {
     source: 'github-release',
@@ -766,6 +804,7 @@ async function installLatestElegyPlanningCli(options = {}) {
 
   if (!isMsvcLinkerAvailable(spawnSyncImpl)) {
     const logger = typeof options.logger === 'function' ? options.logger : () => {};
+    logInfo('elegy-install', 'MSVC linker not available, downloading prebuilt binary...');
     logger('MSVC linker not available, skipping source build and downloading prebuilt binary...');
     const downloadPath = await downloadElegyPlanningCli(options);
     return {
@@ -774,6 +813,7 @@ async function installLatestElegyPlanningCli(options = {}) {
     };
   }
 
+  logInfo('elegy-install', 'Building elegy-planning from source...');
   const sourceDir = await syncGitHubElegySource(options);
   return buildElegyPlanningCliFromSource({
     ...options,

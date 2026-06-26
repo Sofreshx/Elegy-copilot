@@ -228,6 +228,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('notes-reexamine'),
       route('notes-research'),
       route('notes-deduplicate'),
+      route('opencode-agent-session-analytics'),
       route('opencode-code-review-skill'),
       route('opencode-commit-check-setup-skill', { sourceAssetId: 'skill-commit-check-setup' }),
       route('opencode-elegy-obsidian-skill', { sourceAssetId: 'skill-elegy-obsidian' }),

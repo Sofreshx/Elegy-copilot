@@ -27,6 +27,12 @@ const OPENCODE_REQUIRED_ASSETS = [
 	{ id: 'opencode-skill-discovery-skill', type: 'skill' },
 ];
 
+const GHCP_REQUIRED_ASSETS = [
+	{ id: 'ghcp-instructions', type: 'instructions' },
+	{ id: 'ghcp-agent-quick', type: 'agent' },
+	{ id: 'ghcp-agent-project', type: 'agent' },
+];
+
 const manifestFiles = [
 	{ path: '.cli/manifest.json', enforceSourceExists: true, requiredAssets: DEFAULT_REQUIRED_ASSETS },
 	{ path: 'engine-assets/manifest.json', enforceSourceExists: true, requiredAssets: DEFAULT_REQUIRED_ASSETS },
@@ -36,6 +42,7 @@ const manifestFiles = [
 		...ANTIGRAVITY_REQUIRED_ASSETS,
 		{ id: 'antigravity-skill-discovery-skill', type: 'skill' },
 	] },
+	{ path: 'ghcp-assets/manifest.json', enforceSourceExists: true, requiredAssets: GHCP_REQUIRED_ASSETS },
 ];
 
 const REQUIRED_G05_CONTROLS = {
