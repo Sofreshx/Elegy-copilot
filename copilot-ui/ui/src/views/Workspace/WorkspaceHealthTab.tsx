@@ -1,10 +1,22 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '../../components';
-import { getRepoContextCheck, type DriftCheckResponse } from '../../lib/api/repoContext';
+import { useStoreValue } from '../../lib/store';
+import { driftCheckStore, type DriftRepoState } from '../../stores/driftCheckStore';
 
 interface WorkspaceHealthTabProps {
   repoPath: string;
 }
+
+const CHECKS: { id: string; label: string }[] = [
+  { id: 'claims', label: 'Claims' },
+  { id: 'frontmatter', label: 'Frontmatter' },
+  { id: 'staleness', label: 'Staleness' },
+  { id: 'links', label: 'Links' },
+  { id: 'scripts', label: 'Scripts' },
+  { id: 'cross-file', label: 'Cross-file' },
+  { id: 'todo-fixme', label: 'Todo/Fixme' },
+  { id: 'tool-config-sync', label: 'Tool Config' },
+];
 
 function scoreColor(score: number): string {
   if (score >= 90) return 'var(--tone-success)';
@@ -21,68 +33,136 @@ function severityBadge(severity: string): { bg: string; label: string } {
   }
 }
 
-export default function WorkspaceHealthTab({ repoPath }: WorkspaceHealthTabProps) {
-  const [data, setData] = useState<DriftCheckResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(iso).toLocaleDateString();
+}
 
-  const runCheck = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await getRepoContextCheck(repoPath);
-      setData(result);
-      if (!result.ok && result.error) {
-        setError(result.error);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [repoPath]);
+function checkStatusIcon(status: string): string {
+  switch (status) {
+    case 'done': return '✓';
+    case 'running': return '⟳';
+    case 'error': return '✗';
+    default: return '○';
+  }
+}
+
+function checkStatusLabel(status: string, timestamp: string | null): string {
+  if (status === 'running') return 'running...';
+  if (status === 'error') return 'failed';
+  if (status === 'done' && timestamp) return `done ${timeAgo(timestamp)}`;
+  return 'idle';
+}
+
+function newestTimestamp(timestamps: Record<string, string | null>): string | null {
+  return Object.values(timestamps).reduce<string | null>((latest, ts) => {
+    if (!ts) return latest;
+    if (!latest) return ts;
+    return ts > latest ? ts : latest;
+  }, null);
+}
+
+export default function WorkspaceHealthTab({ repoPath }: WorkspaceHealthTabProps) {
+  const state = useStoreValue(driftCheckStore);
+  const [fullCheckLoading, setFullCheckLoading] = useState(false);
+  const initRef = useRef(false);
+
+  const normalizedRepoPath = repoPath.replace(/\\/g, '/').toLowerCase();
 
   useEffect(() => {
-    runCheck();
-  }, [runCheck]);
+    if (initRef.current) return;
+    initRef.current = true;
+    driftCheckStore.initRepo(repoPath);
+  }, [repoPath]);
 
-  if (loading) {
-    return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        Running drift check...
-      </div>
-    );
-  }
+  const repoState: DriftRepoState | undefined = state.byRepo[normalizedRepoPath];
+  const report = repoState?.report ?? null;
 
-  if (error) {
-    return (
-      <div style={{ padding: '2rem' }}>
-        <div style={{ color: 'var(--tone-danger)', marginBottom: '1rem' }}>
-          Failed to run drift check: {error}
-        </div>
-        <Button onClick={runCheck}>Retry</Button>
-      </div>
-    );
-  }
-
-  const report = data?.report;
+  // Empty state — no report cached or fetched yet
   if (!report) {
     return (
-      <div style={{ padding: '2rem', color: 'var(--text-muted)' }}>
-        No drift check data available.
-        <div style={{ marginTop: '1rem' }}>
-          <Button onClick={runCheck}>Run Check</Button>
+      <div style={{ padding: '2rem' }}>
+        <div style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
+          No drift check data yet.
+        </div>
+        <Button
+          onClick={async () => {
+            setFullCheckLoading(true);
+            try {
+              await driftCheckStore.runFull(repoPath);
+            } finally {
+              setFullCheckLoading(false);
+            }
+          }}
+          disabled={fullCheckLoading}
+        >
+          {fullCheckLoading ? 'Checking...' : 'Run Full Check'}
+        </Button>
+
+        {/* Check list (status indicators) */}
+        <div style={{ marginTop: '1.5rem' }}>
+          <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-muted)' }}>
+            Checks
+          </div>
+          {CHECKS.map((check) => {
+            const status = repoState?.checkStatuses[check.id] ?? 'idle';
+            const timestamp = repoState?.checkTimestamps[check.id] ?? null;
+            return (
+              <div
+                key={check.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.4rem 0',
+                  fontSize: '0.85rem',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                <span style={{ width: '1.2rem', textAlign: 'center' }}>
+                  {checkStatusIcon(status)}
+                </span>
+                <span>{check.label}</span>
+                <span style={{ marginLeft: 'auto', fontSize: '0.8rem' }}>
+                  {checkStatusLabel(status, timestamp)}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
   }
 
+  // Data state — has report
   const issues = report.issues || [];
   const counts = report.severityCounts || { error: 0, warning: 0, info: 0 };
+  const hasRunningCheck = repoState?.checkStatuses
+    ? Object.values(repoState.checkStatuses).some((s) => s === 'running')
+    : false;
+  const isFullCheckDisabled = fullCheckLoading || hasRunningCheck;
+
+  // Determine timestamp display
+  const timestampEl = (() => {
+    if (repoState?.lastFullRunAt) {
+      return `Last full check: ${timeAgo(repoState.lastFullRunAt)}`;
+    }
+    const newest = repoState?.checkTimestamps ? newestTimestamp(repoState.checkTimestamps) : null;
+    if (newest) {
+      return `Last check: ${timeAgo(newest)} (partial)`;
+    }
+    return null;
+  })();
 
   return (
     <div style={{ padding: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Header: Score + Re-check */}
+      {/* Top row: Score + Run Full Check */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem' }}>
           <span style={{ fontSize: '3rem', fontWeight: 700, color: scoreColor(report.score), lineHeight: 1 }}>
@@ -90,8 +170,18 @@ export default function WorkspaceHealthTab({ repoPath }: WorkspaceHealthTabProps
           </span>
           <span style={{ fontSize: '1.2rem', color: 'var(--text-muted)' }}>/ 100</span>
         </div>
-        <Button onClick={runCheck} disabled={loading}>
-          {loading ? 'Checking...' : 'Re-check'}
+        <Button
+          onClick={async () => {
+            setFullCheckLoading(true);
+            try {
+              await driftCheckStore.runFull(repoPath);
+            } finally {
+              setFullCheckLoading(false);
+            }
+          }}
+          disabled={isFullCheckDisabled}
+        >
+          {fullCheckLoading ? 'Checking...' : 'Run Full Check'}
         </Button>
       </div>
 
@@ -106,12 +196,85 @@ export default function WorkspaceHealthTab({ repoPath }: WorkspaceHealthTabProps
       </div>
 
       {/* Timestamp */}
-      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-        Last checked: {new Date(report.timestamp).toLocaleString()}
+      {timestampEl && (
+        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+          {timestampEl}
+        </div>
+      )}
+
+      {/* Check list section */}
+      <div style={{ marginBottom: '1rem' }}>
+        <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-muted)' }}>
+          Checks
+        </div>
+        {CHECKS.map((check) => {
+          const status = repoState?.checkStatuses[check.id] ?? 'idle';
+          const timestamp = repoState?.checkTimestamps[check.id] ?? null;
+          const isRunning = status === 'running';
+          return (
+            <div
+              key={check.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.4rem 0.5rem',
+                fontSize: '0.85rem',
+                borderBottom: '1px solid var(--border-color)',
+              }}
+            >
+              <span style={{ width: '1.2rem', textAlign: 'center' }}>
+                {checkStatusIcon(status)}
+              </span>
+              <span style={{ fontWeight: 500 }}>{check.label}</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                {checkStatusLabel(status, timestamp)}
+              </span>
+              <span style={{ marginLeft: 'auto' }}>
+                {status === 'done' && (
+                  <Button
+                    onClick={async () => {
+                      await driftCheckStore.runSingle(repoPath, check.id);
+                    }}
+                    disabled={isRunning}
+                    style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+                  >
+                    Re-run
+                  </Button>
+                )}
+                {status === 'idle' && (
+                  <Button
+                    onClick={async () => {
+                      await driftCheckStore.runSingle(repoPath, check.id);
+                    }}
+                    disabled={isRunning}
+                    style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+                  >
+                    Run
+                  </Button>
+                )}
+                {status === 'error' && (
+                  <Button
+                    onClick={async () => {
+                      await driftCheckStore.runSingle(repoPath, check.id);
+                    }}
+                    disabled={isRunning}
+                    style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+                  >
+                    Retry
+                  </Button>
+                )}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Issue list */}
+      {/* Issues section */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-muted)' }}>
+          Issues ({issues.length})
+        </div>
         {issues.length === 0 ? (
           <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--tone-success)' }}>
             ✅ No drift issues found.

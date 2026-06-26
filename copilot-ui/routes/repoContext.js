@@ -11,6 +11,7 @@ function getElegyDocsCheckScript() {
 
 async function handleRepoContextCheck(ctx, deps) {
   const repoPath = ctx.u.searchParams.get('repo');
+  const check = ctx.u.searchParams.get('check') || 'all';
   if (!repoPath) {
     deps.sendJson(ctx.res, 400, { ok: false, error: 'Missing ?repo=<path> query parameter.' });
     return;
@@ -25,7 +26,11 @@ async function handleRepoContextCheck(ctx, deps) {
   }
 
   try {
-    const result = spawnSync('node', [scriptPath, '--json', '--target', repoPath], {
+    const args = [scriptPath, '--json', '--target', repoPath];
+    if (check !== 'all') {
+      args.push('--check', check);
+    }
+    const result = spawnSync('node', args, {
       encoding: 'utf8',
       timeout: 30_000,
       windowsHide: true,

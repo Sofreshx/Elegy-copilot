@@ -31,10 +31,12 @@ export interface DriftCheckResponse {
 
 export function getRepoContextCheck(
   repoPath: string,
+  check?: string,
   baseUrl?: string,
 ): Promise<DriftCheckResponse> {
+  const checkParam = check ? `&check=${encodeURIComponent(check)}` : '';
   return apiRequest<DriftCheckResponse>(
-    `/api/repo-context/check?repo=${encodeURIComponent(repoPath)}`,
+    `/api/repo-context/check?repo=${encodeURIComponent(repoPath)}${checkParam}`,
     { baseUrl },
   );
 }
