@@ -272,6 +272,146 @@ Test strict mode passes with valid paths.
   }
 });
 
+test('optional check metadata passes when values are valid', () => {
+  const specBody = `---
+spec_id: test-check-metadata-pass
+title: Test Check Metadata Pass
+status: draft
+type: feature
+updated: 2026-06-27
+---
+
+# Test Check Metadata Pass
+
+## Intent
+
+Validate optional acceptance-check metadata.
+
+## Context Evidence
+
+- \`scripts/validate-specs.js\`: this file exists
+
+## Requirements
+
+### Allowed Behavior
+
+- Accept valid optional check metadata.
+
+### Forbidden Behavior
+
+- Reject valid metadata.
+
+## Non-Goals
+
+- None.
+
+## Acceptance Checks
+
+- Runnable proof exists.
+  → verify: node scripts/validate-specs.js
+  → check: determinism=deterministic-runnable phase=pre-implementation gate=advisory
+- Manual exception remains explicit.
+  → verify: Manual: run the app and confirm the banner renders.
+  → check: determinism=manual phase=review gate=required-evidence
+
+## Implementation Links
+
+- \`scripts/validate-specs.js\`
+
+## Validation Evidence
+
+- Pending.
+
+## Drift Notes
+
+- None.
+`;
+
+  const { root } = createTempFixture(specBody, {
+    'index.md': '| Spec | Status | Type | Updated | Intent |\n|------|--------|------|---------|--------|\n| [Test Check Metadata Pass](temp-test-spec/spec.md) | draft | feature | 2026-06-27 | Validate optional acceptance-check metadata |\n',
+  });
+  try {
+    const result = runValidator(['--strict', root]);
+    assert.strictEqual(result.status, 0, `expected success, stderr: ${result.stderr}`);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('optional check metadata fails on invalid values or incompatible gate', () => {
+  const specBody = `---
+spec_id: test-check-metadata-fail
+title: Test Check Metadata Fail
+status: draft
+type: feature
+updated: 2026-06-27
+---
+
+# Test Check Metadata Fail
+
+## Intent
+
+Reject invalid optional acceptance-check metadata.
+
+## Context Evidence
+
+- \`scripts/validate-specs.js\`: this file exists
+
+## Requirements
+
+### Allowed Behavior
+
+- Accept valid metadata only.
+
+### Forbidden Behavior
+
+- Accept malformed metadata.
+
+## Non-Goals
+
+- None.
+
+## Acceptance Checks
+
+- Manual proof must not be blocking.
+  → verify: Manual: run the app and confirm the dialog opens.
+  → check: determinism=manual phase=review gate=blocking
+- Metadata must use known values.
+  → verify: node scripts/validate-specs.js
+  → check: determinism=unknown phase=deploy gate=advisory
+
+## Implementation Links
+
+- \`scripts/validate-specs.js\`
+
+## Validation Evidence
+
+- Pending.
+
+## Drift Notes
+
+- None.
+`;
+
+  const { root } = createTempFixture(specBody, {
+    'index.md': '| Spec | Status | Type | Updated | Intent |\n|------|--------|------|---------|--------|\n| [Test Check Metadata Fail](temp-test-spec/spec.md) | draft | feature | 2026-06-27 | Reject invalid optional acceptance-check metadata |\n',
+  });
+  try {
+    const result = runValidator(['--strict', root]);
+    assert.notStrictEqual(result.status, 0, 'expected validator to fail');
+    assert.match(result.stderr, /gate 'blocking' is not allowed for determinism 'manual'/i);
+    assert.match(result.stderr, /invalid determinism 'unknown'/i);
+    assert.match(result.stderr, /invalid phase 'deploy'/i);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('--strict single-file mode skips cross-spec integrity checks', () => {
+  const result = runValidator(['--strict', 'docs/specs/spec-driven-development-contract/spec.md']);
+  assert.strictEqual(result.status, 0, `expected success, stderr: ${result.stderr}`);
+});
+
 test('abandoned status passes validation', () => {
   const specBody = `---
 spec_id: test-abandoned

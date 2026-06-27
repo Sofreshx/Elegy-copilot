@@ -60,7 +60,7 @@ Do not use `spec-as-source` for general product code or broad implementation not
 ## Next-Step Routing
 
 - If `spec-first`, produce the smallest clarification artifact needed, then continue with normal planning.
-- If `spec-anchored`, use `spec-authoring`, then `spec-review`, then normal planning and implementation.
+- If `spec-anchored`, use `spec-authoring`, then `spec-review`, then normal planning and implementation. Prefer defining deterministic proof alongside the spec when the behavior is amenable to a test, fixture, contract check, or smoke script.
 - If `spec-as-source`, use `spec-authoring`, define projection boundaries, then plan generation and validation.
 - If the work introduces a key architectural, workflow-authority, trust-boundary, or long-lived contract decision, pair the spec flow with ADR creation or ADR review instead of leaving that rationale only inside the spec. See normative spec R13.
 

@@ -3,7 +3,7 @@ spec_id: spec-driven-development-contract
 title: Spec-Driven Development Contract
 status: draft
 type: contract
-updated: 2026-06-22
+updated: 2026-06-27
 supersedes:
   - verifiable-acceptance-criteria
 ---
@@ -17,6 +17,7 @@ Define the authoritative, verifiable contract for durable repo specs under `docs
 ## Context Evidence
 
 - `docs/system/spec-driven-development.md` (331 lines) — currently the canonical doc describing the spec contract, lifecycle, and operating model. This spec will become the normative authority; the doc will thin down to operational instructions.
+- `docs/system/check-taxonomy-governance.md` — canonical class/determinism/gate-strength vocabulary for checks. This spec uses that vocabulary for optional acceptance-check metadata and deterministic-first posture.
 - `catalog-assets/shared-skills/spec-authoring/SKILL.md` (190 lines) — inline "shared contract" defining required frontmatter, headings, and accepted values. This skill will reference this spec instead of duplicating the contract.
 - `catalog-assets/shared-skills/spec-review/SKILL.md` (52 lines) — 16 review checks; check #1 says "Verify the spec uses the shared contract and required headings" but the contract is not defined in a spec artifact.
 - `catalog-assets/shared-skills/spec-dev/SKILL.md` (78 lines) — routing rules for spec-first, spec-anchored, spec-as-source; references `docs/specs/` as default location without citing a normative contract.
@@ -72,6 +73,13 @@ Define the authoritative, verifiable contract for durable repo specs under `docs
 - R4.1: Every spec MUST have at least 2 acceptance checks in the `## Acceptance Checks` section.
 - R4.2: Each acceptance check bullet MUST be immediately followed by a `→ verify:` line (indented 2 spaces, non-empty content) that specifies a concrete verification method: a test command, script path, or manual steps.
 - R4.3: Acceptance checks MUST NOT contain vague language — the system MUST reject tokens matching `AC_VAGUE_TOKEN_RE` (defined in `scripts/lib/ac-vague-tokens.js`).
+- R4.4: When automation is feasible, a spec SHOULD prefer a deterministic proof artifact over leaving the check permanently manual.
+- R4.5: A spec MAY add an optional `→ check:` line immediately after `→ verify:` using the machine-readable format `determinism=<value> phase=<value> gate=<value>`.
+- R4.6: Allowed `determinism` values are `deterministic-runnable`, `deterministic-generated`, `manual`, and `review-evidence`.
+- R4.7: Allowed `phase` values are `authoring`, `pre-implementation`, `validation`, `commit`, `ci`, and `review`.
+- R4.8: Allowed `gate` values are `blocking`, `score`, `advisory`, and `required-evidence`.
+- R4.9: If `determinism=manual` or `determinism=review-evidence`, the gate value MUST NOT be `blocking` or `score`.
+- R4.10: If a spec leaves an important check manual because automation is not yet practical, that limitation SHOULD be made explicit in the acceptance check text, `Validation Evidence`, or `Drift Notes`.
 
 #### R5 — Allowed/Forbidden Behavior Subsections
 
@@ -175,6 +183,7 @@ Define the authoritative, verifiable contract for durable repo specs under `docs
 - Defining spec index format — the index is a generated catalog, not part of the spec contract.
 - Changing the file-based spec model to a database model.
 - Merging specs and elegy-planning — they remain separate working models.
+- Reclassifying existing commit-check lanes — that belongs to `docs/system/commit-validation-governance.md`.
 
 ## Acceptance Checks
 

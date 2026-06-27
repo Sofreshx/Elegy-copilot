@@ -24,6 +24,8 @@ The authoritative spec contract is defined at `docs/specs/spec-driven-developmen
 - Use exact file paths, commands, docs, tests, or runtime evidence in `Context Evidence` when available.
 - Keep `Intent` specific and non-empty.
 - Write at least two `Acceptance Checks`, each with a concrete verification method using the `→ verify:` marker (indented 2 spaces, immediately following the bullet, non-empty content). See normative spec R4.
+- When automation is feasible, prefer a deterministic repo-tracked proof artifact (test, fixture, contract check, smoke script, or generated proof artifact) over leaving the check permanently manual.
+- If you want machine-readable classification, add the optional `→ check:` line using `determinism=<value> phase=<value> gate=<value>`. See normative spec R4.5-R4.9.
 - Keep `Non-Goals` explicit near likely scope-creep edges.
 - Use `Implementation Links` for code, docs, plans, PRs, or tickets that materially connect to the spec.
 - When `status: implemented`, `Validation Evidence` must contain real evidence, not a placeholder.
@@ -39,8 +41,9 @@ Before creating `docs/specs/<spec-slug>/spec.md`, the authoring session must est
 2. **Allowed Behavior**: what the system should do under the spec's requirements. See normative spec R5.
 3. **Forbidden Behavior**: what the system must not do — boundary conditions, error states, and excluded paths. See normative spec R5.
 4. **Verifiable acceptance checks**: at least two checks with concrete `→ verify:` lines. See normative spec R4.
+5. **Deterministic-first posture**: when a check could exist as a stable repo artifact before or alongside implementation, prefer that path over a permanent manual-only check.
 
-Do not create a durable spec without all four gates passed. If evidence is insufficient, pause and gather more before authoring.
+Do not create a durable spec without these gates passed. If evidence is insufficient, pause and gather more before authoring.
 
 ### Spec Link Conventions
 
@@ -63,6 +66,8 @@ Before handing a spec to `spec-review`, confirm:
 - [ ] Allowed Behavior and Forbidden Behavior subsections are present and concrete (normative spec R5).
 - [ ] Non-Goals cover likely scope-creep edges.
 - [ ] Each Acceptance Check has a `→ verify:` line with a concrete command or manual step (normative spec R4).
+- [ ] When automation is feasible, the Acceptance Checks prefer deterministic proof over permanent manual-only steps.
+- [ ] If optional `→ check:` metadata is present, it uses valid `determinism`, `phase`, and `gate` values.
 - [ ] Implementation Links list every file, test, or plan that the spec will touch.
 - [ ] Validation Evidence is populated (required for `implemented` status per normative spec R9).
 - [ ] Drift Notes captures any deviation or follow-up, or says "None."

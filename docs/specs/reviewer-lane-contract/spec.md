@@ -3,7 +3,7 @@ spec_id: reviewer-lane-contract
 title: Reviewer Lane Contract
 status: draft
 type: contract
-updated: 2026-06-20
+updated: 2026-06-27
 ---
 
 # Reviewer Lane Contract
@@ -37,7 +37,7 @@ Define the authoritative contract for the reviewer lane: review checks, verdict 
 
 - R2.1: Every review MUST check: correctness (matches intent), scope (within stated bounds), drift (no instruction/content drift), and evidence (validation artifacts present).
 - R2.2: Additional domain-specific checks depend on review type:
-  - **Spec review**: 16 checks per spec-review skill (conformance to normative spec contract, intent match, evidence strength, acceptance checks, cross-spec integrity, ADR promotion).
+  - **Spec review**: 18 checks per spec-review skill (conformance to normative spec contract, intent match, evidence strength, acceptance checks, deterministic-proof posture, cross-spec integrity, ADR promotion).
   - **Implementation review**: code quality, spec-fit, regression risk, validation sufficiency.
   - **Plan review**: feasibility, dependency ordering, risk coverage, effort estimation.
   - **Security review**: secrets in git, auth bypass, dependency confusion, path traversal, cookie security, IDOR.

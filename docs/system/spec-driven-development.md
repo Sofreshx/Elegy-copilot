@@ -1,13 +1,13 @@
 ---
 created: 2026-05-21
-updated: 2026-06-22
+updated: 2026-06-27
 category: system
 status: current
 doc_kind: node
 id: spec-driven-development
 summary: Canonical contract for spec-driven development, durable repo specs under docs/specs/, and the shared spec authoring and review skills.
 tags: [specs, planning, validation, skills, elegy-planning, handoff]
-related: [workflow-planning-contract, validation-governance]
+related: [workflow-planning-contract, validation-governance, check-taxonomy-governance]
 ---
 
 # Spec-Driven Development
@@ -38,6 +38,20 @@ Specs describe intent. Docs describe state. ADRs record decisions.
 | ADR | Decision state | What architectural decision was made | "Why this way?" |
 
 Drift measures divergence between spec intent and implementation state.
+
+## Check Authorship Posture
+
+Specs are where durable **authoring** and **pre-implementation proof** checks should be defined when
+the work benefits from a stable contract before implementation.
+
+- Prefer a deterministic proof artifact when the intended behavior can be expressed as a focused
+  test, fixture, contract check, or smoke script.
+- Keep manual checks explicit. They are allowed when automation is not yet practical, but they are
+  not the preferred steady state.
+- Do not use specs to duplicate the narrow `commit-check` gate. Specs define intent and candidate
+  proof; commit validation decides whether a proof belongs in the "safe to commit" path.
+- Use `docs/system/check-taxonomy-governance.md` for the check class, determinism class, and gate
+  strength vocabulary.
 
 ## Repo Setup Integration
 
@@ -234,7 +248,7 @@ planner abstraction.
 ## Workflow
 
 1. Use the `spec-dev` skill to choose `spec-first`, `spec-anchored`, or `spec-as-source`.
-2. Use `spec-authoring` to create or refine the durable spec when the work is spec-anchored or spec-as-source. The authoring gate must pass (context evidence, allowed/forbidden behavior, verifiable acceptance checks).
+2. Use `spec-authoring` to create or refine the durable spec when the work is spec-anchored or spec-as-source. The authoring gate must pass (context evidence, allowed/forbidden behavior, verifiable acceptance checks, and deterministic proof posture when automation is feasible).
 3. Use `spec-review` before implementation planning when the spec should drive later work.
 4. Use `spec-planning-bridge` to link the approved spec to an `elegy-planning` roadmap or plan via `exact:primary:docs/specs/<spec-slug>/spec.md` file-scope selector.
 5. Move into the project lane after the handoff is complete.

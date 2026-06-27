@@ -1,13 +1,13 @@
 ---
 created: 2026-02-23
-updated: 2026-06-22
+updated: 2026-06-27
 category: system
 status: current
 doc_kind: index
 id: system-docs-index
 summary: Short entrypoint map for the current canonical docs.
 tags: [documentation, index]
-related: [catalog-control-plane, copilot-ui-guide, opencode-guide, ghcp-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, collaboration-profile-adr, commit-check-setup, windows-shell-optimization, ui-development-governance, ui-check-adoption]
+related: [catalog-control-plane, copilot-ui-guide, opencode-guide, ghcp-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, collaboration-profile-adr, commit-check-setup, check-taxonomy-governance, windows-shell-optimization, ui-development-governance, ui-check-adoption]
 ---
 
 # Docs Index
@@ -33,6 +33,7 @@ Use docs in this order:
 - [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md)
 - [[spec-driven-development]] [docs/system/spec-driven-development.md](docs/system/spec-driven-development.md)
 - [[commit-validation-governance]] [docs/system/commit-validation-governance.md](docs/system/commit-validation-governance.md)
+- [[check-taxonomy-governance]] [docs/system/check-taxonomy-governance.md](docs/system/check-taxonomy-governance.md)
 - [[commit-check-setup]] [docs/system/commit-check-setup.md](docs/system/commit-check-setup.md)
 - [[concise-instruction-governance]] [docs/system/concise-instruction-governance.md](docs/system/concise-instruction-governance.md)
 - [[harness-asset-flow]] [docs/system/harness-asset-flow.md](docs/system/harness-asset-flow.md)

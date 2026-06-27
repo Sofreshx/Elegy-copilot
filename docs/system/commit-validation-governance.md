@@ -1,13 +1,13 @@
 ---
 created: 2026-06-04
-updated: 2026-06-04
+updated: 2026-06-27
 category: system
 status: current
 doc_kind: node
 id: commit-validation-governance
 summary: "Canonical authority for commit-validation setup: discovery, configuration, umbrella run, and deterministic scoring across TypeScript and Rust workspaces."
 tags: [validation, testing, governance, commit, pre-commit, quality]
-related: [testing-quality-governance, validation-governance, repo-setup-governance, testing-and-e2e]
+related: [testing-quality-governance, validation-governance, repo-setup-governance, testing-and-e2e, check-taxonomy-governance]
 ---
 
 # Commit Validation Governance
@@ -15,6 +15,9 @@ related: [testing-quality-governance, validation-governance, repo-setup-governan
 ## Purpose
 
 Define the canonical contract for commit-validation tooling: a set of three CLI scripts (`commit-check-discover`, `commit-check-setup`, `commit-check-run`) and a shipped skill that audits/proposes commit-validation setup for target repos. The goal is a single umbrella command per repo that proves the repo is safe to commit, without running heavy integration or E2E suites.
+
+This doc owns the narrow **commit / merge gate** portion of the check taxonomy. See
+`docs/system/check-taxonomy-governance.md` for the broader class/determinism/gate-strength model.
 
 ## What It Covers
 
@@ -121,6 +124,16 @@ Missing or disabled lanes are excluded from both numerator and denominator.
 - Setting up pre-commit git hooks (deferred to future slice)
 - Code quality beyond lint/format (separate governance surface)
 - Language support beyond TypeScript/Node.js and Rust (extensible via plugin config)
+- Replacing spec-authored pre-implementation proof, broader validation routing, or reviewer evidence
+  with commit-check lanes
+
+## Boundary
+
+- `commit-check` should contain only fast, deterministic, low-friction checks that answer "safe to
+  commit?".
+- Spec-authored or generated proof artifacts may later feed commit-check, but only after they prove
+  stable and non-disruptive as advisory or optional lanes first.
+- Manual checks and review-only evidence do not belong in the narrow commit gate by default.
 
 ## Skill Mapping
 

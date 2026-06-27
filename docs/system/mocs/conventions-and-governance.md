@@ -1,13 +1,13 @@
 ---
 created: 2026-03-18
-updated: 2026-06-09
+updated: 2026-06-27
 category: system
 status: current
 doc_kind: moc
 id: moc-conventions-and-governance
 summary: Map of content for canonical conventions, governance routing, and follow-up handoff entrypoints.
 tags: [governance, conventions, routing]
-related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, follow-up-discovery-governance, concise-instruction-governance, harness-asset-flow]
+related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, follow-up-discovery-governance, concise-instruction-governance, harness-asset-flow, check-taxonomy-governance]
 ---
 
 # MOC — Conventions & Governance
@@ -39,6 +39,8 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
   [[harness-asset-flow]] [docs/system/harness-asset-flow.md](docs/system/harness-asset-flow.md)
 - Planning-ready follow-up when convention gaps become next tasks:
   [[follow-up-discovery-governance]] [docs/system/follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
+- Check classes, determinism, and gate-strength ownership:
+  [[check-taxonomy-governance]] [docs/system/check-taxonomy-governance.md](docs/system/check-taxonomy-governance.md)
 - Specific change review versus governance authoring:
   [[reviewer-lane-governance]] [docs/system/reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)
 - Canonical graph/frontmatter/link contract:
@@ -55,7 +57,9 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
    hard to find, hard to route, or split across too many entrypoints.
 4. Route confirmed next steps to `docs/system/follow-up-discovery-governance.md` when convention or
    audit findings should become planning-ready tasks later.
-5. Use `docs/system/reviewer-lane-governance.md` instead when the task is review of a concrete
+5. Add `docs/system/check-taxonomy-governance.md` when the main question is what kind of check should
+   exist, where it belongs, or how authoritative it should be.
+6. Use `docs/system/reviewer-lane-governance.md` instead when the task is review of a concrete
    change rather than governance authoring.
 
 ## Quick routing
@@ -66,6 +70,7 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
 - "Make the rules easier to discover" -> `docs/system/documentation-structure-governance.md`
 - "Write or enforce concise instruction standards" -> `docs/system/concise-instruction-governance.md`
 - "Turn convention gaps into follow-up tasks" -> `docs/system/follow-up-discovery-governance.md`
+- "Decide what kind of check should exist and how strong it should be" -> `docs/system/check-taxonomy-governance.md`
 - "Review this implementation for correctness" -> `docs/system/reviewer-lane-governance.md`
 
 ## Depends on

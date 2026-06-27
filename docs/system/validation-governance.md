@@ -1,13 +1,13 @@
 ---
 created: 2026-04-03
-updated: 2026-04-15
+updated: 2026-06-27
 category: system
 status: current
 doc_kind: node
 id: validation-governance
 summary: Canonical validation-governance rules for mandatory unit, integration, and E2E coverage; browser-tooling split; and closure confidence handling.
 tags: [validation, testing, e2e, governance]
-related: [testing-and-e2e, testing-quality-governance, e2e-setup-guide, planpack-spec, session-state-artifacts, orchestration-and-agents]
+related: [testing-and-e2e, testing-quality-governance, e2e-setup-guide, planpack-spec, session-state-artifacts, orchestration-and-agents, check-taxonomy-governance]
 ---
 
 # Validation Governance
@@ -29,6 +29,9 @@ Test-quality expectations for any validation artifact are governed by
    validation layer insufficient.
 5. Missing mandatory validation must remain explicit. It lowers closure confidence and may block a
    confident `done` outcome.
+6. Check class, determinism class, and gate strength are defined by
+   `docs/system/check-taxonomy-governance.md`; this doc applies that taxonomy to runtime validation
+   layer selection.
 
 ## Default Selection Posture
 
@@ -40,6 +43,17 @@ Default validation should be the smallest useful proof:
   requires the broader layer, or prior evidence is missing/inconclusive.
 - When a broader layer is not required, report it as not required rather than as an unrun gap.
 - If a mandatory broader layer is skipped, keep that gap explicit and lower closure confidence.
+
+## Check Taxonomy Boundary
+
+- Validation lanes primarily own **change validation** checks: unit, integration, E2E, browser, and
+  explicit manual coverage when automation is not yet practical.
+- Validation lanes may consume **pre-implementation proof** artifacts such as focused tests or smoke
+  scripts created from a spec, but they do not own the authoring contract for those artifacts.
+- Validation lanes must not treat reviewer-only evidence as a substitute for deterministic proof when
+  a deterministic proof is feasible.
+- Commit/merge gating strength remains the responsibility of
+  `docs/system/commit-validation-governance.md`, not this doc.
 
 ## Decision Matrix
 
@@ -139,6 +153,10 @@ Existing evidence and limitation fields remain valid and should continue to be u
 - `meta.closureSummary.validationEvidence`
 - `meta.closureSummary.limitations`
 - `meta.closureSummary.whereToVerify`
+
+When the proof source is a spec-authored or pre-implementation artifact, the evidence summary should
+still name the runtime validation layer that consumed it, for example `unit`, `integration`,
+`browser`, or `manual`.
 
 For agent-driven E2E results, the validation output must also capture:
 

@@ -99,6 +99,26 @@ function parseSkipPaths(meta) {
 
 const VALID_STATUS = new Set(['draft', 'approved', 'implemented', 'superseded', 'abandoned']);
 const VALID_TYPES = new Set(['feature', 'workflow', 'contract', 'skill', 'agent', 'migration']);
+const VALID_CHECK_DETERMINISM = new Set([
+  'deterministic-runnable',
+  'deterministic-generated',
+  'manual',
+  'review-evidence',
+]);
+const VALID_CHECK_PHASES = new Set([
+  'authoring',
+  'pre-implementation',
+  'validation',
+  'commit',
+  'ci',
+  'review',
+]);
+const VALID_CHECK_GATES = new Set([
+  'blocking',
+  'score',
+  'advisory',
+  'required-evidence',
+]);
 const REQUIRED_FRONTMATTER_KEYS = ['spec_id', 'title', 'status', 'type', 'updated'];
 const OPTIONAL_DATE_KEYS = ['created', 'approved_at', 'implemented_at', 'superseded_at', 'abandoned_at'];
 const REQUIRED_HEADINGS = [
@@ -186,6 +206,7 @@ function parseAcceptanceChecksWithVerify(sectionText) {
         bulletLineNumber: index + 1,
         bulletText: bulletMatch[1].trim(),
         verifyLines: [],
+        checkMetadataLines: [],
       };
       continue;
     }
@@ -196,6 +217,15 @@ function parseAcceptanceChecksWithVerify(sectionText) {
         currentCheck.verifyLines.push({
           lineNumber: index + 1,
           content: verifyMatch[1].trim(),
+        });
+        continue;
+      }
+
+      const checkMatch = line.match(/^\s+→\s*check:\s*(.*)/i);
+      if (checkMatch) {
+        currentCheck.checkMetadataLines.push({
+          lineNumber: index + 1,
+          content: checkMatch[1].trim(),
         });
         continue;
       }
@@ -219,6 +249,70 @@ function parseAcceptanceChecksWithVerify(sectionText) {
   }
 
   return checks;
+}
+
+function parseCheckMetadata(content) {
+  const normalized = String(content || '').replace(/^`|`$/g, '').trim();
+  if (!normalized) {
+    return { errors: ['empty check metadata'], metadata: null };
+  }
+
+  const metadata = {};
+  const errors = [];
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+
+  for (const token of tokens) {
+    const [rawKey, ...rest] = token.split('=');
+    const key = String(rawKey || '').trim();
+    const value = rest.join('=').trim();
+
+    if (!key || !value) {
+      errors.push(`invalid token '${token}'`);
+      continue;
+    }
+
+    if (!['determinism', 'phase', 'gate'].includes(key)) {
+      errors.push(`unknown key '${key}'`);
+      continue;
+    }
+
+    if (metadata[key]) {
+      errors.push(`duplicate key '${key}'`);
+      continue;
+    }
+
+    metadata[key] = value;
+  }
+
+  for (const requiredKey of ['determinism', 'phase', 'gate']) {
+    if (!metadata[requiredKey]) {
+      errors.push(`missing key '${requiredKey}'`);
+    }
+  }
+
+  if (metadata.determinism && !VALID_CHECK_DETERMINISM.has(metadata.determinism)) {
+    errors.push(`invalid determinism '${metadata.determinism}'`);
+  }
+  if (metadata.phase && !VALID_CHECK_PHASES.has(metadata.phase)) {
+    errors.push(`invalid phase '${metadata.phase}'`);
+  }
+  if (metadata.gate && !VALID_CHECK_GATES.has(metadata.gate)) {
+    errors.push(`invalid gate '${metadata.gate}'`);
+  }
+
+  if (
+    (metadata.determinism === 'manual' || metadata.determinism === 'review-evidence') &&
+    (metadata.gate === 'blocking' || metadata.gate === 'score')
+  ) {
+    errors.push(
+      `gate '${metadata.gate}' is not allowed for determinism '${metadata.determinism}'`
+    );
+  }
+
+  return {
+    errors,
+    metadata: errors.length === 0 ? metadata : null,
+  };
 }
 
 function hasMeaningfulContent(sectionText) {
@@ -260,6 +354,15 @@ function validateAcceptanceChecksQuality(sectionText) {
       errors.push(
         `Acceptance check at line ${check.bulletLineNumber} contains vague language: '${vagueMatch[1]}'`
       );
+    }
+
+    for (const metadataLine of check.checkMetadataLines) {
+      const parsed = parseCheckMetadata(metadataLine.content);
+      for (const parseError of parsed.errors) {
+        errors.push(
+          `Acceptance check metadata at line ${metadataLine.lineNumber} is invalid: ${parseError}`
+        );
+      }
     }
   }
 
@@ -799,7 +902,7 @@ function validateSpecsRoot(options = {}) {
 
   // Build spec_id map for cross-spec checks (R4)
   let specIdMap = null;
-  if (options && options.strict && specFiles.length > 0) {
+  if (options && options.strict && specFiles.length > 0 && !fs.statSync(targetPath).isFile()) {
     specIdMap = buildSpecIdMap(specFiles);
 
     // R2.2 — Unique spec_id check (strict mode, cross-spec)
@@ -907,6 +1010,7 @@ module.exports = {
   parseArgs,
   parseFrontmatterYaml,
   validateAcceptanceChecksQuality,
+  parseCheckMetadata,
   checkLiveness,
   looksLikeFilePath,
   validateSpecFile,
