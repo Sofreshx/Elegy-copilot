@@ -73,10 +73,10 @@ Every lane agent prompt must include:
 - Keep the existing spec-first workflow gates intact.
 
 ### R5 — Tighten `project` Lane
-- Remove references to Elegy CLI commands that are not documented in `elegy-planning/SKILL.md`.
+- Remove references to Elegy CLI commands that are not documented in `catalog-assets/shared-skills/elegy-planning/SKILL.md`.
 - Replace or remove: `goal current`, `lease list`, `work-point list`, `evidence add` with documented equivalents or remove them.
-- Use only documented commands: `goal create/show/list`, `roadmap create/show/list/add-work-point`, `plan create/show/list/revise`, `todo create/list`, `issue record/list`, `review-point record`, `scope create/show/list`, `search`, `validate all`, `health`, `project render`, `session init/use/show`.
-- If `lease`, `work-point`, or `evidence` surfaced need to be first-class CLI surfaces, update `elegy-planning/SKILL.md` first, then reference them.
+- Use only documented commands: `goal create/show/list`, `roadmap create/show/list/add-work-point`, `plan create/show/list/revise`, `todo create/list`, `issue record/list`, `review-point record`, `scope create/show/list`, `search`, `validate all`, `health`, `project render`, `session init/use/show` (see `catalog-assets/shared-skills/elegy-planning/SKILL.md`).
+- If `lease`, `work-point`, or `evidence` surfaced need to be first-class CLI surfaces, update `catalog-assets/shared-skills/elegy-planning/SKILL.md` first, then reference them.
 
 ### R6 — Model Routing Single-Source
 - Model/profile mapping must derive from `opencode-assets/profiles.json` as the single source of truth.
@@ -91,7 +91,7 @@ Add the following validation checks:
 - **Lane doc reference validator**: `docs/system/opencode-guide.md` and other docs must not reference `lane-*` skills; must reference only shipped agents and shipped skills.
 - **Lane prompt section validator**: every lane agent prompt file must contain required sections (clarification policy, refusal/boundary, required gates, skill preloads where applicable).
 - **Profile role coverage validator**: every key in `profiles.json` → `agentRoles` must have a corresponding file in `opencode-assets/agents/`.
-- **Elegy command reference validator**: `opencode-assets/agents/project.md` must only contain Elegy CLI commands documented in `elegy-planning/SKILL.md`.
+- **Elegy command reference validator**: `opencode-assets/agents/project.md` must only contain Elegy CLI commands documented in `catalog-assets/shared-skills/elegy-planning/SKILL.md`.
 - All new validators must be runnable via `node scripts/<validator-name>.js` and return exit code 0 on pass, 1 on failure.
 
 ### R8 — Targeted Tests

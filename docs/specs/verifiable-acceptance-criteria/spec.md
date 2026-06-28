@@ -113,7 +113,7 @@ The `→ verify:` marker is the canonical way to attach a verification method to
 - `scripts/validate-specs.js`
 - `scripts/validate-planpack.js`
 - `docs/system/spec-driven-development.md`
-- `opencode-assets/agents/spec.md` — deleted during lane restructuring; R8 work was absorbed into skills
+- opencode-assets/agents/spec.md (removed — spec-agent was superseded) — deleted during lane restructuring; R8 work was absorbed into skills
 - `opencode-assets/agents/reviewer.md`
 - `opencode-assets/agents/project.md`
 

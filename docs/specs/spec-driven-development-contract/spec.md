@@ -230,4 +230,4 @@ Define the authoritative, verifiable contract for durable repo specs under `docs
 
 - This spec intentionally supersedes `verifiable-acceptance-criteria` — that spec's `→ verify:` marker contract (R1) is absorbed here as R4, and its vague-language detection (R2) is absorbed as R4.3. The remaining requirements of that spec (plan-pack validator changes, spec-review checklist) are covered by this spec's broader contract or delegated to operational docs.
 - R13 (ADR Promotion) references `docs/adr/` but existing ADRs live in `docs/system/` with `-adr.md` suffix — this spec uses the current convention. If ADR location changes, update R13.1.
-- File-scope selector grammar (R10) is defined here normatively for the first time — previously only in `spec-planning-bridge/SKILL.md`.
+- File-scope selector grammar (R10) is defined here normatively for the first time — previously only in `catalog-assets/shared-skills/spec-planning-bridge/SKILL.md`.

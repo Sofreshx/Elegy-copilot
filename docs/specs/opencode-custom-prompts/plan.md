@@ -78,8 +78,8 @@ updated: 2026-06-10
 | 5.5 | Unit test: `resolveActiveModel` against all 9 agents in `ALL_LANE_AGENT_KEYS` with both roleModels-aware and legacy profiles. | 1.4 |
 | 5.6 | Integration test: corrupt sidecar JSON, trigger profile switch, confirm API returns structured error (not silent partial config). | 1.6 |
 | 5.7 | Run `node scripts/validate-specs.js --strict docs/specs/opencode-custom-prompts/spec.md` — must pass. | All |
-| 5.8 | Run `npm --prefix copilot-ui run lint` — no regressions. | All |
-| 5.9 | TypeScript compilation: `npm --prefix copilot-ui run build` or `tsc --noEmit` — no errors. | All |
+| 5.8 | Run `npm --prefix copilot-ui run lint:css` — no regressions. | All |
+| 5.9 | TypeScript compilation: `npm --prefix copilot-ui run ui:build` or `tsc --noEmit` — no errors. | All |
 
 ## Risk Assessment
 
@@ -107,6 +107,6 @@ The hash-based ownership model (`_managedPrompts` with SHA-256 content hashing) 
 2. Unit test `resolveActiveModel` (step 5.5)
 3. Integration test corrupt sidecar (step 5.6)
 4. Walk through each spec acceptance check, capture evidence
-5. Run `npm --prefix copilot-ui run lint`
+5. Run `npm --prefix copilot-ui run lint:css`
 6. Run `npm run test:all` (or `npm run ci:local`)
 7. Update `Validation Evidence` in spec.md with results

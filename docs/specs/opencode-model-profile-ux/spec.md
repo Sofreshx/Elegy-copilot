@@ -140,7 +140,7 @@ The OpenCode settings UI in Elegy Copilot offers profile switching (opencode-go 
 
 - `node scripts/validate-specs.js --strict docs/specs/` — No errors for `opencode-model-profile-ux` spec. All remaining errors are pre-existing in other specs.
 - `node scripts/codex-config-patch.test.js` — 12/12 tests pass, including new `--provider-id` test.
-- `npm run test:vitest` — 265/270 tests pass; 5 pre-existing failures unrelated to these changes. `opencode-api.vitest.ts` passes all 17 tests including new child_process mock tests.
+- `npm --prefix copilot-ui run test:vitest` — 265/270 tests pass; 5 pre-existing failures unrelated to these changes. `opencode-api.vitest.ts` passes all 17 tests including new child_process mock tests.
 - `npx tsc -p copilot-ui/ui/tsconfig.json --noEmit` — 0 new TypeScript errors introduced.
 - `node -c copilot-ui/routes/opencode.js` — Syntax OK.
 - `node -c scripts/codex-config-patch.mjs` — Syntax OK.

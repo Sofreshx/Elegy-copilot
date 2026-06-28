@@ -145,23 +145,23 @@ test('extractClaims tracks markdown section context', () => {
   }
 });
 
-test('extractClaims deduplicates across claim types via shared claimedValues set', () => {
-  // `node test.js` has extension .js → claimed as path first.
-  // Then skipped by command extractor via the shared claimedValues set.
-  const root = createFixture({
-    'test.md': 'Run `node test.js` to execute tests.\n',
-  });
-  try {
-    const content = fs.readFileSync(path.join(root, 'test.md'), 'utf8');
-    const claims = extractClaims(content, 'test.md');
-    const pathClaims = claims.filter(c => c.type === 'path');
-    const commandClaims = claims.filter(c => c.type === 'command');
-    assert.equal(pathClaims.length, 1);
-    assert.equal(pathClaims[0].value, 'node test.js');
-    assert.equal(commandClaims.length, 0);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
+test('extractClaims classifies CLI-prefix values as commands not paths', () => {
+	// `node test.js` starts with a known CLI prefix → classified as command,
+	// not path (avoids false positives in the path verifier).
+	const root = createFixture({
+		'test.md': 'Run `node test.js` to execute tests.\n',
+	});
+	try {
+		const content = fs.readFileSync(path.join(root, 'test.md'), 'utf8');
+		const claims = extractClaims(content, 'test.md');
+		const pathClaims = claims.filter(c => c.type === 'path');
+		const commandClaims = claims.filter(c => c.type === 'command');
+		assert.equal(pathClaims.length, 0);
+		assert.equal(commandClaims.length, 1);
+		assert.equal(commandClaims[0].value, 'node test.js');
+	} finally {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
 });
 
 // ---------------------------------------------------------------------------

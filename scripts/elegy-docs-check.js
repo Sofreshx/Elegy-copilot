@@ -402,30 +402,54 @@ function checkFrontmatter(scaffoldFiles, fileFrontmatters, target) {
 
 /**
  * Try to load repo-check config from .elegy/repo-check-config.json.
+ * Returns both staleness config and exclusion config merged with defaults.
  *
  * @param {string} target — repo root
- * @returns {object} — merged config with defaults
+ * @returns {{ staleness: object, excludeClaimDirs: string[] }}
  */
-function loadStalenessConfig(target) {
+function loadRepoCheckConfig(target) {
 	const configPath = path.join(target, '.elegy', 'repo-check-config.json');
+	const staleness = { ...DEFAULT_STALENESS_CONFIG };
+	const excludeClaimDirs = [];
+
 	if (!fs.existsSync(configPath)) {
-		return DEFAULT_STALENESS_CONFIG;
+		return { staleness, excludeClaimDirs };
 	}
 
 	let cfg;
 	try {
 		cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 	} catch (_) {
-		return DEFAULT_STALENESS_CONFIG;
+		return { staleness, excludeClaimDirs };
 	}
 
-	const staleness = (cfg && cfg.staleness) ? cfg.staleness : {};
-	return {
-		warnDays: typeof staleness.warnDays === 'number' ? staleness.warnDays : DEFAULT_STALENESS_CONFIG.warnDays,
-		errorDays: typeof staleness.errorDays === 'number' ? staleness.errorDays : DEFAULT_STALENESS_CONFIG.errorDays,
-		warnCommits: typeof staleness.warnCommits === 'number' ? staleness.warnCommits : DEFAULT_STALENESS_CONFIG.warnCommits,
-		errorCommits: typeof staleness.errorCommits === 'number' ? staleness.errorCommits : DEFAULT_STALENESS_CONFIG.errorCommits,
-	};
+	// Parse staleness section
+	if (cfg && cfg.staleness) {
+		if (typeof cfg.staleness.warnDays === 'number') staleness.warnDays = cfg.staleness.warnDays;
+		if (typeof cfg.staleness.errorDays === 'number') staleness.errorDays = cfg.staleness.errorDays;
+		if (typeof cfg.staleness.warnCommits === 'number') staleness.warnCommits = cfg.staleness.warnCommits;
+		if (typeof cfg.staleness.errorCommits === 'number') staleness.errorCommits = cfg.staleness.errorCommits;
+	}
+
+	// Parse exclusion section
+	if (cfg && Array.isArray(cfg.excludeClaimDirs)) {
+		for (let i = 0; i < cfg.excludeClaimDirs.length; i++) {
+			excludeClaimDirs.push(toPosix(cfg.excludeClaimDirs[i]));
+		}
+	}
+
+	return { staleness, excludeClaimDirs };
+}
+
+/**
+ * Backward-compatible wrapper returning only the staleness config.
+ * Delegates to loadRepoCheckConfig.
+ *
+ * @param {string} target — repo root
+ * @returns {object} — merged staleness config with defaults
+ */
+function loadStalenessConfig(target) {
+	return loadRepoCheckConfig(target).staleness;
 }
 
 /**
@@ -910,12 +934,27 @@ function main() {
 	// Phase 1: Collect scaffold files
 	const scaffoldFiles = collectScaffoldFiles(target);
 
-	// Phase 2: Extract claims from all scaffold files
+	// Load config for exclusion setup
+	const config = loadRepoCheckConfig(target);
+
+	// Filter files for claims extraction (excluded dirs still get structural checks)
+	const claimFiles = scaffoldFiles.filter(function (f) {
+		for (let di = 0; di < config.excludeClaimDirs.length; di++) {
+			if (f.startsWith(config.excludeClaimDirs[di])) {
+				return false;
+			}
+		}
+		return true;
+	});
+
+	// Phase 2: Extract claims from claimFiles (not all scaffold files)
+	// Excluded dirs (e.g. docs/research/) skip claims extraction to avoid
+	// false positives from forward-looking references to planned files.
 	const extractor = require('./lib/claim-extractor.js');
 	/** @type {Array} */
 	const allClaims = [];
-	for (let i = 0; i < scaffoldFiles.length; i++) {
-		const file = scaffoldFiles[i];
+	for (let i = 0; i < claimFiles.length; i++) {
+		const file = claimFiles[i];
 		const absPath = path.join(target, file);
 		let content;
 		try {
@@ -1011,6 +1050,7 @@ module.exports = {
 	checkStaleness: checkStaleness,
 	checkScriptCoverage: checkScriptCoverage,
 	checkAllLinks: checkAllLinks,
+	loadRepoCheckConfig: loadRepoCheckConfig,
 	loadStalenessConfig: loadStalenessConfig,
 	getCommitCountSince: getCommitCountSince,
 	buildReport: buildReport,

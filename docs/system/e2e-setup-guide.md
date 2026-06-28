@@ -65,7 +65,7 @@ Typical triggers include:
 - risky UI/API behavior changes that only a browser can confirm end to end
 - new or still-untested user-facing surfaces
 
-See [[validation-governance]] [docs/system/validation-governance.md](docs/system/validation-governance.md)
+See [[validation-governance]] [validation-governance.md](validation-governance.md)
 for the canonical mandatory-validation decision matrix.
 
 ### Not supported by default: Playwright MCP
@@ -98,7 +98,7 @@ These rules match the repo’s hook-enforced policies and are required for relia
 - Always use explicit timeouts when running commands through agent tooling.
 - Prefer `domcontentloaded` + explicit waits for apps with long-lived connections (SignalR/SSE); avoid “network idle” semantics.
 
-See: `docs/agent-hooks.md` and `.github/TROUBLESHOOTING-TEST-HANGS.md`.
+See: the agent hooks documentation (previously at docs/agent-hooks.md, now incorporated into system docs).
 
 ## Optional: Legacy Playwright helper scripts in this repo
 

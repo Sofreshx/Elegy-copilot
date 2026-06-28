@@ -36,7 +36,7 @@ This doc owns the narrow **commit / merge gate** portion of the check taxonomy. 
 Read-only scan of a workspace root. Defaults to `cwd()` if no path is given. Detects:
 
 - **TypeScript/Node.js**: `package.json` scripts, test frameworks (vitest/jest), lint tools (eslint), formatters (prettier), typecheck (tsc), coverage config
-- **Rust**: `Cargo.toml` workspace members, `cargo test`, `cargo clippy`, `cargo fmt`, `cargo check`, coverage tools (`cargo llvm-cov`, `cargo tarpaulin`)
+- **Rust**: `Cargo.toml` workspace members, cargo test, cargo clippy, cargo fmt, cargo check, coverage tools (cargo llvm-cov, cargo tarpaulin)
 - **Existing config**: whether `.copilot/commit-checks.json` already exists
 
 Output: JSON to stdout with schema version, lane detection results, and commands.

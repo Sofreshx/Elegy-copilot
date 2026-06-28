@@ -208,7 +208,7 @@ R0 (Codex isolation) ───── independent ──────┤
 
 After each phase:
 - Run `npm run test:all` to ensure no regressions
-- Run `npm --prefix copilot-ui run typecheck` (or equivalent) to ensure TypeScript compiles
+- Run `npm run ci:local` to ensure TypeScript compiles and all validators pass
 - Manual verification per acceptance check in spec.md
 
 After all phases:

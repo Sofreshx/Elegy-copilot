@@ -27,6 +27,7 @@ const { parseFrontmatterYaml } = require('./spec-yaml');
 const CLI_PREFIXES = new Set([
   'npm', 'npx', 'node', 'yarn', 'pnpm', 'cargo', 'rustc',
   'python', 'pip', 'go', 'make', 'docker', 'kubectl', 'git', 'elegy',
+  'rg', 'grep', 'find', 'awk', 'sed',
 ]);
 
 /** Words never classified as paths. */
@@ -68,8 +69,39 @@ const NON_DEP_WORDS = new Set([
   'build', 'quick', 'project', 'session', 'analytics',
   'dependency', 'missing_dependency', 'stale_command', 'cross_file_conflict',
   'manifest_parse_error', 'undocumented_script',
-  // Common documentation terms
-  'global', 'repo', 'local', 'remote', 'workspace',
+	// Common documentation and spec terms
+	'global', 'repo', 'local', 'remote', 'workspace',
+	'standard', 'spec', 'claude', 'state',
+	'available', 'installed', 'stale', 'unmanaged', 'supported',
+	'claude-code', 'engine-assets', 'model_provider',
+	'not-installed', 'supported-but-inactive',
+	// Terms commonly mistaken as dependencies
+	'validate', 'cycle', 'confidence',
+	'review-pack', 'evidence', 'tool_versions',
+	// Agent/subagent names
+	'impl-pro',
+	// Rule engine references
+	'forbidden-import', 'forbidden-edge',
+	'elegy-planning', 'elegy-arch-rules',
+	// Dot notation table references (split parts)
+	'analysis_runs',
+	// Known generic terms in dependency descriptions
+	'stable', 'beta', 'alpha', 'latest',
+	'record', 'list', 'show', 'search', 'find',
+	'blocked', 'blocking', 'depends', 'dependency',
+	// English words in dep contexts
+	'saving', 'authorized', 'ready',
+	// Node.js built-in module names
+	'child_process',
+	// JSON/config field names
+	'install_url',
+	// Skill names that look like npm packages
+	'skill-authoring', 'guidelines-authoring', 'project-guidelines',
+	'agents-md-authoring',
+	// Script/tool names mistaken as dependencies
+	'commit-check',
+	// Non-package concept names
+	'review_model',
 ]);
 
 /** Lines mentioning these keywords may contain dependency claims. */
@@ -373,6 +405,123 @@ function extractPathClaims(lines, filePath, options) {
         continue;
       }
 
+      // --- Heuristic exclusions for common false-positive patterns ---
+
+      // Skip command-like strings (CLI prefix + space + arg) — these are
+      // commands, not file paths (e.g. `node scripts/foo.js`, `npm run test`)
+      var firstSpace = value.indexOf(' ');
+      if (firstSpace !== -1) {
+        var prefix = value.slice(0, firstSpace);
+        if (CLI_PREFIXES.has(prefix)) continue;
+      }
+
+      // Skip external repo references (Org/Repo — no extension, first segment
+      // capitalized, like `Sofreshx/Elegy`) and ACP protocol methods (two
+      // all-lowercase segments like `session/new`, `session/prompt`).
+      if (!hasExtension && hasSeparator && noSpaces) {
+        var pathSegments = value.split('/');
+
+        // ACP protocol methods: two all-lowercase segments, no dots
+        if (pathSegments.length === 2 &&
+          /^[a-z]+$/.test(pathSegments[0]) &&
+          /^[a-z]+$/.test(pathSegments[1])) {
+          continue;
+        }
+
+        // GitHub-style repo refs: first segment starts uppercase
+        if (/^[A-Z]/.test(pathSegments[0]) &&
+          pathSegments[0].indexOf('.') === -1) {
+          continue;
+        }
+
+        // Schema version references: last segment is `v` + digits
+        // (e.g. `elegy-arch-rules/v1`, `elegy-evidence/v1`)
+        if (pathSegments.length >= 2 &&
+          /^v\d+$/.test(pathSegments[pathSegments.length - 1])) {
+          continue;
+        }
+
+        // Model identifier references (e.g. `opencode-go/deepseek-v4-pro`):
+        // two segments, lowercase/numbers/hyphens only, no file extension
+        if (pathSegments.length === 2 &&
+          /^[a-z][a-z0-9-]*$/.test(pathSegments[0]) &&
+          /^[a-z][a-z0-9-]*$/.test(pathSegments[1])) {
+          continue;
+        }
+      }
+
+      // Skip paths containing node_modules — these exist only at runtime
+      if (value.indexOf('node_modules') !== -1) {
+        continue;
+      }
+
+      // Skip Frontend/ prefixed paths — these are from the Holon project
+      // (external codebase), not this repo.
+      if (value.startsWith('Frontend/')) {
+        continue;
+      }
+
+      // Skip bare directory references (ending with /) — these are typically
+      // conceptual paths in planning/prose docs, not real fs paths
+      if (value.charAt(value.length - 1) === '/') {
+        continue;
+      }
+
+      // Skip regex anchor patterns (starting with ^) — these are regex
+      // expressions in docs, not file paths (e.g. `^docs/specs/`)
+      if (value.charAt(0) === '^') {
+        continue;
+      }
+
+      // Skip shell shebang patterns (starting with #!) — these are
+      // interpreter directives, not file paths (e.g. `#!/bin/sh`)
+      if (value.startsWith('#!')) {
+        continue;
+      }
+
+      // Skip environment variable assignment patterns (containing =).
+      // e.g. `INSTRUCTION_ENGINE_ELEGY_PLANNING_SESSION_PATH=~/path`
+      if (value.indexOf('=') !== -1 && !hasExtension) {
+        continue;
+      }
+
+      // Skip require() call patterns in code snippets — the value contains
+      // `require('...')` and is syntactic code, not a file path
+      if (value.indexOf("require('") !== -1) {
+        continue;
+      }
+
+      // Skip line-number-suffixed paths (e.g. `file.ts:123`, `file.js:45-67`,
+      // `routes/catalog.js:1113`). These are code references with line anchors,
+      // not real filesystem paths. Stripped at verification time; skip extraction
+      // to avoid confusing output.
+      if (/\.\w+:\d+(-\d+)?$/.test(value)) {
+        continue;
+      }
+
+      // Skip values wrapped in single or double quotes
+      // (e.g. `'claude-assets/manifest.json'` in markdown tables).
+      // Real file paths are never quoted in backtick content.
+      if (value.length >= 2 &&
+        ((value.charAt(0) === "'" && value.charAt(value.length - 1) === "'") ||
+         (value.charAt(0) === '"' && value.charAt(value.length - 1) === '"'))) {
+        continue;
+      }
+
+      // Skip test mock call patterns — values starting with a function name
+      // followed by a parenthesized argument (e.g. `vi.mock('../ui/src/lib/api/git')`,
+      // `discoverChecks('/fake/repo')`). These are code references, not file paths.
+      if (/^[a-zA-Z_$][\w.]*\(.*\)$/.test(value) && !hasExtension && hasSeparator) {
+        continue;
+      }
+
+      // Skip relative import paths starting with `../` — these are Node.js
+      // require/import references from spec/test files, not real filesystem
+      // paths relative to the repo root (e.g. `../../lib/api/git`).
+      if (value.startsWith('../') || value.startsWith('./')) {
+        continue;
+      }
+
       var negated = isNegated(line, matchIndex, matchEnd);
 
       claims.push({
@@ -572,14 +721,40 @@ function extractDependencyClaims(lines, filePath, options) {
         continue;
       }
 
-      // Exclude paths that have file extensions (even if we somehow missed them)
-      if (FILE_EXT_RE.test(value) && !isScopeDep) {
-        continue;
-      }
+		// Exclude paths that have file extensions (even if we somehow missed them)
+		if (FILE_EXT_RE.test(value) && !isScopeDep) {
+			continue;
+		}
 
-      var negated = isNegated(line, matchIndex, matchEnd);
+		// Skip values with uppercase letters — real npm packages are always
+		// lowercase. This catches camelCase variable names, PascalCase types,
+		// and UPPER_CASE constants.
+		if (!isScopeDep && /[A-Z]/.test(value)) {
+			continue;
+		}
 
-      claims.push({
+		// --- Heuristic exclusions for common false-positive dependency patterns ---
+
+		// Skip kebab-case values with 3+ hyphens and no version suffix.
+		// These are rule IDs like `cli-no-db-direct`, not npm packages.
+		if (!isScopeDep && value.indexOf('-') !== -1 && value.indexOf('@') === -1) {
+			var hyphenCount = 0;
+			for (var ci = 0; ci < value.length; ci++) {
+				if (value[ci] === '-') hyphenCount++;
+			}
+			if (hyphenCount >= 3) continue;
+		}
+
+		// Skip dot-separated references that aren't scoped packages.
+		// These are table.column refs like `analysis_runs.tool_versions`
+		// or dotted property paths like `evidence.source.tool`.
+		if (!isScopeDep && value.indexOf('.') !== -1 && value.indexOf('@') === -1) {
+			continue;
+		}
+
+		var negated = isNegated(line, matchIndex, matchEnd);
+
+		claims.push({
         type: 'dependency',
         value: value,
         negated: negated,

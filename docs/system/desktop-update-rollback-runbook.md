@@ -17,7 +17,7 @@ related: [runtime-permissions-contracts, security-model, desktop-runtime-tauri-m
 This runbook applies to the packaged desktop update surface for Elegy Copilot across the
 Windows-first Tauri lane.
 The raw Node.js server mode described in [[copilot-ui-guide]]
-[docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md) remains a developer fallback, not
+[copilot-ui-guide.md](copilot-ui-guide.md) remains a developer fallback, not
 the end-user delivery path.
 
 For packaged delivery, app-managed Copilot CLI ensure/install/update behavior is part of the intended
@@ -88,7 +88,7 @@ Migration posture:
   the bridge, and keep the rest of the desktop/server/UI runtime available.
 - In the current bounded slice, approved desktop remediation is limited to a bundled CLI payload or a
   seeded managed install under `~/.copilot/managed-cli/<channel>/`; on Windows that managed install may be
-  seeded or refreshed from the packaged `@github/copilot-win32-x64` dependency when present, and desktop PATH and `cliUrl`
+  seeded or refreshed from the packaged @github/copilot-win32-x64 dependency when present, and desktop PATH and `cliUrl`
   fallbacks are intentionally blocked.
 - Release/package smoke for the current channel-contract-only slice should therefore observe the
   machine-readable blocked state (`managed_cli_missing`) until a matching bundled or seeded payload exists.

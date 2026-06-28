@@ -84,7 +84,7 @@ Sources:
 - No new dependencies unless justified
 ```
 
-**Repo-Level Instructions (`.github/copilot-instructions.md`):**
+**Repo-Level Instructions (create .github/copilot-instructions.md per repo):**
 - Customize build/test commands per repo
 - Add project-specific validation steps
 - Define team coding standards
@@ -367,7 +367,7 @@ playwright test --headed=false
 
 **Step 1: Add test commands to repo instructions**
 
-`.github/copilot-instructions.md`:
+.github/copilot-instructions.md (create if not present):
 ```markdown
 ## Validation Commands
 - Unit tests: `npm run test:unit`
@@ -422,7 +422,7 @@ playwright test --headed=false
 
 **Example setup script (illustrative only):**
 
-This repo does not ship `scripts/start-e2e-env.sh` / `scripts/stop-e2e-env.sh` because E2E environment setup is project-specific.
+This repo does not ship start-e2e-env.sh or stop-e2e-env.sh scripts because E2E environment setup is project-specific.
 For browser automation defaults and routing, see [e2e-setup-guide.md](./e2e-setup-guide.md).
 
 ```bash
@@ -740,7 +740,7 @@ Optional: configure LSP for richer code intelligence (see below).
 **Goal:** Prepare one repo for team use
 
 1. Run `copilot init` in repo
-2. Customize `.github/copilot-instructions.md`:
+2. Customize .github/copilot-instructions.md (create if not present):
    - Add test commands
    - Add validation steps
    - Add safety rules
@@ -891,7 +891,7 @@ This is custom plumbing, not a first-party feature.
 - User-level agent overriding repo-level
 
 **Solutions:**
-1. Check agent file exists: `.github/agents/name.agent.md`
+1. Check the agent file exists at .github/agents/name.agent.md
 2. Verify YAML frontmatter is correct
 3. Check user-level agents: `~/.elegy/agents/`
 4. Restart CLI to reload agent definitions

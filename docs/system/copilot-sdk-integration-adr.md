@@ -17,7 +17,7 @@ elegy-copilot harness meta-cleanup. elegy-copilot is now a meta-harness that ins
 and assets across many harnesses; it does not operate a Copilot SDK bridge or manage the
 Copilot CLI lifecycle.
 
-The `@github/copilot-sdk` dependency and the `copilot-bridge/` ESM bridge have been removed.
+The @github/copilot-sdk dependency and the copilot-bridge ESM bridge have been removed.
 
 ## Context
 
@@ -49,14 +49,13 @@ Adopt a backend-only bridge layer at `copilot-ui/lib/copilot-bridge/` with an ES
 
 Implementation decisions:
 
-- Keep `@github/copilot-sdk` explicitly pinned in `copilot-ui/package.json` for each app release
-  (the initial bridge implementation used `0.1.9`).
+- The @github/copilot-sdk was planned for explicit pinning (never shipped in a release).
 - Add `"engines": { "node": ">=18" }` to `copilot-ui/package.json`.
-- Create `copilot-ui/lib/copilot-bridge/package.json` with `"type": "module"` and `"private": true`.
-- Create `copilot-ui/lib/copilot-bridge/index.mjs` with a stub `createBridgeClient` that imports `CopilotClient` from `@github/copilot-sdk`.
-- Validate CommonJS interop with `copilot-ui/lib/copilot-bridge/bridge.interop.test.cjs` using `await import("./index.mjs")`.
-- Document auth policy in `docs/research/copilot-sdk-auth-strategy.md` using exact `CopilotClientOptions` fields.
-- Define additive SDK artifact layout and `sdk-bridge.json` schema in `docs/research/copilot-sdk-artifact-layout.md`.
+- Planned copilot-ui/lib/copilot-bridge/package.json with type: module (removed before shipping).
+- Planned copilot-ui/lib/copilot-bridge/index.mjs with createBridgeClient stub (removed before shipping).
+- Planned copilot-ui/lib/copilot-bridge/bridge.interop.test.cjs for CJS interop (not created).
+- Planned docs/research/copilot-sdk-auth-strategy.md for auth policy (not created).
+- Planned docs/research/copilot-sdk-artifact-layout.md for SDK artifact layout (not created).
 - Keep any auto-triggered workflow runner local to the desktop/backend environment; packaged n8n is the
   favored MVP direction, but remains validation-dependent and additive to the SDK bridge rather than a
   replacement for it.
@@ -77,7 +76,7 @@ Positive outcomes:
 - Locks the intended release-channel pairing so packaged stable apps do not silently mix with prerelease
   SDK/CLI lanes, and vice versa.
 - Makes missing or unapproved desktop CLI state operator-visible through health/status surfaces instead of
-  assuming a global `copilot` install is acceptable.
+  assuming a global copilot CLI install is acceptable.
 - Keeps local workflow automation compatible with the local-only orchestration boundary.
 
 Tradeoffs and risks:

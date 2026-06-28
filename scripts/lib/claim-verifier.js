@@ -155,13 +155,45 @@ function makeIssue(claim, code, severity, message, suggestion) {
  * @returns {object|null} DriftIssue or null if verified
  */
 function verifyPathClaim(claim, repoRoot) {
-  var resolvedPath = path.resolve(repoRoot, claim.value);
+	// Defensive: skip values that look like CLI commands (CLI prefix + space + arg).
+	// The extractor should filter these, but be safe against edge cases.
+	var firstSpace = claim.value.indexOf(' ');
+	if (firstSpace !== -1) {
+		var possiblePrefix = claim.value.slice(0, firstSpace);
+		// Check against known CLI prefixes (copied from claim-extractor.js constant)
+		if (/^(npm|npx|node|yarn|pnpm|cargo|rustc|python|pip|go|make|docker|kubectl|git|elegy)$/.test(possiblePrefix)) {
+			return null;
+		}
+	}
 
-  if (fs.existsSync(resolvedPath)) {
-    return null;
-  }
+	// Strip trailing line-number suffix (e.g. `file.ts:123`, `file.js:45-67`).
+	// These are code references with line anchors, not filesystem paths.
+	var checkValue = claim.value.replace(/(\.\w+):\d+(-\d+)?$/g, '$1');
 
-  return makeIssue(
+	var resolvedPath = path.resolve(repoRoot, checkValue);
+	if (checkValue !== claim.value) {
+		// Try the stripped path first
+		if (fs.existsSync(resolvedPath)) {
+			return null;
+		}
+		// Also try the original path (some tools use :line as a naming convention)
+		resolvedPath = path.resolve(repoRoot, claim.value);
+	}
+
+	if (fs.existsSync(resolvedPath)) {
+		return null;
+	}
+
+	// Monorepo convention: try prepending `copilot-ui/` for paths that
+	// reference the UI sub-project (common in spec docs where paths are
+	// documented as relative to `copilot-ui/` rather than repo root).
+	var copilotValue = 'copilot-ui/' + checkValue;
+	var copilotPath = path.resolve(repoRoot, copilotValue);
+	if (fs.existsSync(copilotPath)) {
+		return null;
+	}
+
+	return makeIssue(
     claim,
     'missing_path',
     'error',
@@ -212,41 +244,71 @@ function verifyCommandClaim(claim, repoRoot) {
   // Read package.json for commands that need it
   var pkg = tryReadJson(path.join(repoRoot, 'package.json'));
 
-  // npm run <script>
-  if (base === 'npm' && parts[1] === 'run') {
-    if (!pkg) {
-      return makeIssue(
-        claim,
-        'manifest_parse_error',
-        'warning',
-        'package.json not found or unparseable',
-        'Ensure the repo root has a valid package.json file'
-      );
-    }
-
-    // Extract the script name (skip -- flags and extra args)
-    var script = null;
-    for (var j = 2; j < parts.length; j++) {
-      if (!parts[j].startsWith('--')) {
-        script = parts[j];
-        break;
-      }
-    }
-    if (!script) {
-      script = parts[2] || '';
-    }
-
-    if (pkg.scripts && typeof pkg.scripts === 'object' && pkg.scripts[script]) {
+  // npm run <script>  —  also handles `npm --prefix <dir> run <script>`
+  if (base === 'npm') {
+    // Skip commands targeting a different project (e.g., Frontend/ paths for Holon).
+    // When --prefix points to a non-existent or external-project directory, the
+    // command is not verifiable in this repo.
+    if (parts[1] === '--prefix' && parts[2] && (
+      parts[2].indexOf('Frontend/') !== -1 ||
+      parts[2].indexOf('Holon') !== -1)) {
       return null;
     }
 
-    return makeIssue(
-      claim,
-      'stale_command',
-      'warning',
-      'Command `' + value + '` not found in package.json scripts',
-      'Check if the script name was changed or removed from package.json'
-    );
+    // Handle `npm --prefix <dir> run <script>` pattern
+    var scriptIndex = -1;
+    var pkgDir = repoRoot;
+    if (parts[1] === '--prefix' && parts.length >= 4) {
+      // Resolve the prefix directory
+      pkgDir = path.resolve(repoRoot, parts[2]);
+      // Find the 'run' keyword after --prefix
+      for (var pi = 3; pi < parts.length; pi++) {
+        if (parts[pi] === 'run') {
+          scriptIndex = pi + 1;
+          break;
+        }
+      }
+    } else if (parts[1] === 'run') {
+      scriptIndex = 2;
+    }
+
+    if (scriptIndex !== -1) {
+      // Read the relevant package.json
+      var targetPkg = (pkgDir === repoRoot) ? pkg : tryReadJson(path.join(pkgDir, 'package.json'));
+      if (!targetPkg) {
+        return makeIssue(
+          claim,
+          'manifest_parse_error',
+          'warning',
+          'package.json not found or unparseable at ' + pkgDir,
+          'Ensure the target directory has a valid package.json file'
+        );
+      }
+
+      // Extract the script name (skip -- flags and extra args)
+      var script = null;
+      for (var j = scriptIndex; j < parts.length; j++) {
+        if (!parts[j].startsWith('--')) {
+          script = parts[j];
+          break;
+        }
+      }
+      if (!script) {
+        script = parts[scriptIndex] || '';
+      }
+
+      if (targetPkg.scripts && typeof targetPkg.scripts === 'object' && targetPkg.scripts[script]) {
+        return null;
+      }
+
+      return makeIssue(
+        claim,
+        'stale_command',
+        'warning',
+        'Command `' + value + '` not found in package.json scripts',
+        'Check if the script name was changed or removed from package.json'
+      );
+    }
   }
 
   // yarn <script>
@@ -343,15 +405,22 @@ function verifyCommandClaim(claim, repoRoot) {
  * @returns {object|null} DriftIssue or null if verified
  */
 function verifyDependencyClaim(claim, repoRoot) {
-  // Strip version suffix (e.g., react@^18 → react)
-  var depName = stripVersion(claim.value);
+	// Strip version suffix (e.g., react@^18 → react)
+	var depName = stripVersion(claim.value);
 
-  // Check dependency across a list of package.json locations
-  var pkgPaths = [
-    path.join(repoRoot, 'package.json'),
-    path.join(repoRoot, 'copilot-ui', 'package.json'),
-    path.join(repoRoot, 'contracts', 'package.json'),
-  ];
+	// Defensive: skip dot-separated values that aren't scoped packages
+	// (table.column refs like analysis_runs.tool_versions, dotted paths).
+	// The extractor should catch these, but be safe.
+	if (depName.indexOf('.') !== -1 && depName.indexOf('@') !== 0) {
+		return null;
+	}
+
+	// Check dependency across a list of package.json locations
+	var pkgPaths = [
+		path.join(repoRoot, 'package.json'),
+		path.join(repoRoot, 'copilot-ui', 'package.json'),
+		path.join(repoRoot, 'contracts', 'package.json'),
+	];
 
   var found = false;
   var anyPkg = false;

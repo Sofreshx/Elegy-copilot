@@ -37,7 +37,7 @@ an incidental code change.
 | Enablement persistence | Repo registry overlay | `~/.elegy/repo-state/<repoId>/registry.json` | legacy imported settings are compatibility input only |
 | Session authority | ACP/runtime session state | runtime-backed session reconciliation, with runtime winning when present | filesystem artifacts remain durable projections and archive/offline fallback |
 | Provider catalog source | Shipped provider catalog data | `engine-assets/providers.json` | `contracts/src/providerCatalog.ts` remains schema/helpers plus a synced mirror until generation lands |
-| Task authority | Repo-state task store | `~/.elegy/repo-state/<repoId>/tasks/` and `tasks.archive/` | task-board UI/workflow surfaces are projections; repo-local `.instructions/tasks` remains migration-only input |
+| Task authority | Repo-state task store | `~/.elegy/repo-state/<repoId>/tasks/` and `tasks.archive/` | task-board UI/workflow surfaces are projections; repo-local GitHub CLI .instructions/tasks convention remains migration-only input |
 
 ## Decision details
 
@@ -250,7 +250,7 @@ The canonical durable task store is repo-state task storage under:
 ~/.elegy/repo-state/<repoId>/tasks.archive/
 ```
 
-Tasks are repo-scoped durable state, not a repo-local `.instructions/tasks` source of truth.
+Tasks are repo-scoped durable state, not a repo-local GitHub CLI .instructions/tasks convention source of truth.
 
 **Migration posture**
 
@@ -264,9 +264,9 @@ are frozen as legacy import/watch compatibility only.
 
 This means:
 
-- no new long-term task features should depend on `.instructions/tasks`
+- no new long-term task features should depend on GitHub CLI .instructions/tasks convention
 - no replacement editor integration should reintroduce repo-local task authority
-- `local-tracker` legacy `.instructions/tasks` watching, if temporarily enabled, is a bounded
+- `local-tracker` legacy GitHub CLI .instructions/tasks convention watching, if temporarily enabled, is a bounded
   compatibility shim rather than the contract to preserve
 
 The visible task board in `copilot-ui` is therefore a projection/control surface over repo-state task
@@ -280,7 +280,7 @@ The following constraints are now frozen:
 
 1. **Do not add new writers to legacy surfaces.**
     - no new durable writes to enablement settings
-   - no new durable task writes to `.instructions/tasks`
+   - no new durable task writes to GitHub CLI .instructions/tasks convention
    - no new package-local state roots that compete with `~/.elegy`
 
 2. **Prefer adaptation over shared authority.**
@@ -308,7 +308,7 @@ The following constraints are now frozen:
   editor mutation flows, which is why this document freezes those domains under current runtime
   authorities instead of preserving extension-specific behavior.
 - `local-tracker/src/watchers.ts` now targets canonical repo-state task paths and keeps repo-local
-  `.instructions/tasks` watching behind an explicit legacy compatibility switch.
+  GitHub CLI .instructions/tasks convention watching behind an explicit legacy compatibility switch.
 - `copilot-ui/routes/lifecycle.js` and `copilot-ui/lib/server/runtimeHealth.js` already centralize
   backend runtime/control-plane health behind `GET /api/health`.
 - `copilot-ui/routes/kimaki.js` projects Kimaki process, project, session, and log state through

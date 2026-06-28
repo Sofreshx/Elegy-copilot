@@ -26,10 +26,10 @@ codebase with existing Playwright lanes.
 | Tailwind config | `Frontend/HolonClient/tailwind.config.ts` | ✅ 123 lines, semantic CSS var tokens |
 | CSS tokens | `Frontend/HolonClient/src/index.css` | ✅ 571 lines, 4 palette modes, 15 animations |
 | Icons (Lucide) | `Frontend/HolonClient/node_modules/lucide-react` | ✅ Installed |
-| Clean UI spec | `docs/specs/holon-client-clean-ui-direction/spec.md` | ✅ Exists |
-| Visual modernization spec | `docs/specs/holon-ui-visual-modernization/spec.md` | ✅ Exists |
-| Checks guide | `docs/system/guides/checks-and-validation.md` | ✅ Exists |
-| Real-desktop guide | `docs/system/guides/holon-desktop-real-desktop-validation.md` | ✅ Exists |
+| Clean UI spec (Holon) | docs/specs/holon-client-clean-ui-direction/spec.md | ✅ Exists |
+| Visual modernization spec (Holon) | docs/specs/holon-ui-visual-modernization/spec.md | ✅ Exists |
+| Checks guide (Holon) | docs/system/guides/checks-and-validation.md | ✅ Exists |
+| Real-desktop guide (Holon) | docs/system/guides/holon-desktop-real-desktop-validation.md | ✅ Exists |
 | HolonDesktop | `Frontend/HolonDesktop/` | ✅ Tauri project with src-tauri/ |
 | AGENTS.md | `Frontend/HolonClient/AGENTS.md` | ✅ 30 lines, UI governance pointer added |
 

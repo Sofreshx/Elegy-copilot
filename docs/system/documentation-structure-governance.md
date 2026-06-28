@@ -159,7 +159,7 @@ Documentation structure should keep "why" discoverable without creating competin
 - if the same rationale would otherwise need to be copied into many comments or scattered docs, create
   or update the smallest relevant canonical node and let local surfaces point back to it
 - when the repeated material is really a standing architectural tradeoff, prefer ADR promotion under
-  [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md) rather than
+  [[adr-governance]] [adr-governance.md](adr-governance.md) rather than
   multiplying summary copies
 - when issue logs or comments expose a repeated rationale pattern that should guide future work, route
   promotion through conventions or documentation governance instead of treating the lower-authority

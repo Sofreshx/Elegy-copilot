@@ -24,10 +24,10 @@ Establish `docs/specs/spec-driven-development-contract/spec.md` as the single no
 - [ ] Bump `updated` date
 
 ### Phase 4 — Thin Spec Skills
-- [ ] Refactor `spec-authoring/SKILL.md` — remove inline contract (lines 19-53), replace with reference
-- [ ] Refactor `spec-review/SKILL.md` — update check #1 to reference normative spec
-- [ ] Refactor `spec-dev/SKILL.md` — minor reference update
-- [ ] Refactor `spec-planning-bridge/SKILL.md` — reference R10 for file-scope grammar
+- [ ] Refactor `catalog-assets/shared-skills/spec-authoring/SKILL.md` — remove inline contract (lines 19-53), replace with reference
+- [ ] Refactor `catalog-assets/shared-skills/spec-review/SKILL.md` — update check #1 to reference normative spec
+- [ ] Refactor `catalog-assets/shared-skills/spec-dev/SKILL.md` — minor reference update
+- [ ] Refactor `catalog-assets/shared-skills/spec-planning-bridge/SKILL.md` — reference R10 for file-scope grammar
 
 ### Phase 5 — Skill Consistency Normalization
 - [ ] Add `spec_contract` frontmatter field to all 4 spec skills
@@ -37,7 +37,7 @@ Establish `docs/specs/spec-driven-development-contract/spec.md` as the single no
 ### Phase 6 — Promote Stale Drafts
 - [ ] Promote `verifiable-acceptance-criteria` → `superseded` (superseded_by this spec)
 - [ ] Promote `spec-system-hardening` → `approved`
-- [ ] Resolve drift in `verifiable-acceptance-criteria/spec.md`
+- [ ] Resolve drift in `docs/specs/verifiable-acceptance-criteria/spec.md`
 
 ### Phase 7 — Normative Specs for Load-Bearing Pieces
 - [ ] Create `docs/specs/skill-governance-contract/spec.md`

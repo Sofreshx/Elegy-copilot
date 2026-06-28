@@ -53,7 +53,7 @@ current session, regardless of which normalized category originally exposed the 
 
 ## Intake from Calibrated Questioning
 
-Challenged assumptions, evidence gaps, and blocking unknowns inherit from [docs/system/calibrated-questioning-and-depth-governance.md](docs/system/calibrated-questioning-and-depth-governance.md) and route here instead of creating a separate discovery surface.
+Challenged assumptions, evidence gaps, and blocking unknowns inherit from [calibrated-questioning-and-depth-governance.md](calibrated-questioning-and-depth-governance.md) and route here instead of creating a separate discovery surface.
 
 - challenged assumptions or missing evidence that block the active slice -> `immediate_next_tasks`
 - missing authority or other blocking unknowns for the current step -> `gaps`

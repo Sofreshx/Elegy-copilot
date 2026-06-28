@@ -155,7 +155,7 @@ No change to `runGitChecks` or the Checks tab. They remain explicit actions that
 
 ### Phase C tests
 - `copilot-ui/routes/git.test.js`: commit with a failing-check repo still returns `{ committed: true }` and does **not** invoke the gate. Push to a protected branch with failing checks returns 422 and `overrideBlocked:true`; push to a feature branch with failing checks returns 422 `requiresOverride:true`; push with `unsafeOverride.reason` on a feature branch succeeds.
-- `copilot-ui/lib/gitCheckRunner.test.js`: update any commit-gate expectations.
+- `copilot-ui/routes/git.test.js`: add gitCheckRunner commit-gate tests alongside existing gate tests (`gateGitAction` expectations).
 - UI: `WorkspaceGitTab` smoke — Commit button commits without running checks; Force Push appears only after a gated push failure on a non-protected branch.
 
 ---

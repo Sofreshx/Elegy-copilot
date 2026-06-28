@@ -118,7 +118,7 @@ Three existing specs need updating. They fall into two categories:
 
 #### Step 10a: Simple migration — add `→ verify:` lines (2 specs)
 
-**Files:** `specs/planning-explorer-view/spec.md`, `specs/agentic-lanes-quality/spec.md`
+**Files:** `docs/specs/planning-explorer-view/spec.md`, `docs/specs/agentic-lanes-quality/spec.md`
 
 These specs already have compliant structure (valid status/type, all required headings, proper `## Acceptance Checks` section). For each:
 - Read the existing acceptance check bullets
@@ -131,7 +131,7 @@ These specs already have compliant structure (valid status/type, all required he
 
 #### Step 10b: Structural fix — `align-elegy-db-assets` (1 spec)
 
-**File:** `specs/align-elegy-db-assets/spec.md`
+**File:** `docs/specs/align-elegy-db-assets/spec.md`
 
 This spec has multiple pre-existing compliance issues that must be fixed BEFORE adding `→ verify:` lines. Issues found:
 - `status: proposed` → must be `draft`, `approved`, `implemented`, or `superseded` (VALID_STATUS). Change to `status: draft`.
@@ -155,15 +155,15 @@ Capture the exact error output. This serves as a pre-migration baseline. After a
 
 ### Step 11: Final validation — run spec's own acceptance checks
 
-After Steps 1-10 are complete, verify each acceptance check from `specs/verifiable-acceptance-criteria/spec.md`. If `rg` (ripgrep) is not available on this Windows environment, use PowerShell equivalents (`Select-String` with the same patterns).
+After Steps 1-10 are complete, verify each acceptance check from `docs/specs/verifiable-acceptance-criteria/spec.md`. If `rg` (ripgrep) is not available on this Windows environment, use PowerShell equivalents (`Select-String` with the same patterns).
 
 11a. Structural compliance:
 - [ ] `node scripts/validate-specs.js specs/` exits 0 (all specs pass, including migrated ones)
 
 11b. Validator enforcement (manual tests with temp specs):
-- [ ] Create a temp spec at `specs/__test-missing-verify/spec.md` with a bullet lacking `→ verify:`. Run `node scripts/validate-specs.js specs/__test-missing-verify/spec.md`. Confirm exit code 1 with message about "missing verification method."
-- [ ] Create a temp spec at `specs/__test-vague-ac/spec.md` with "should be good" and "proper handling" in acceptance check bullets. Run `node scripts/validate-specs.js specs/__test-vague-ac/spec.md`. Confirm exit code 1 with messages flagging vague tokens.
-- [ ] After tests pass, delete both `specs/__test-missing-verify/` and `specs/__test-vague-ac/` directories.
+- [ ] Create a temp spec at `docs/specs/__test-missing-verify/spec.md` with a bullet lacking `→ verify:`. Run `node scripts/validate-specs.js specs/__test-missing-verify/spec.md`. Confirm exit code 1 with message about "missing verification method."
+- [ ] Create a temp spec at `docs/specs/__test-vague-ac/spec.md` with "should be good" and "proper handling" in acceptance check bullets. Run `node scripts/validate-specs.js specs/__test-vague-ac/spec.md`. Confirm exit code 1 with messages flagging vague tokens.
+- [ ] After tests pass, delete both `docs/specs/__test-missing-verify/` and `docs/specs/__test-vague-ac/` directories.
 
 11c. Plan-pack validator:
 - [ ] Verify `scripts/validate-planpack.js` line 309 reads `acEnforcement: 'fail'` (not `'warn'`).

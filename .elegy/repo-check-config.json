@@ -1,0 +1,15 @@
+{
+  "staleness": {
+    "warnDays": 90,
+    "warnCommits": 50,
+    "errorCommits": 200
+  },
+  "excludeClaimDirs": [
+    "docs/research/enhancement-targets/",
+    "docs/research/orchestrator/",
+    "docs/specs/docs-specs-knowledge-system/",
+    "docs/specs/spec-system-hardening/",
+    "docs/specs/planning-explorer-view/",
+    "docs/specs/planning-visibility-canonicalization/"
+  ]
+}

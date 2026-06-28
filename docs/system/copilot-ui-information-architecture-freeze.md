@@ -30,7 +30,7 @@ replacing from scratch.
 - Diagnostics now exposes `Elegy Copilot Runtime`, `Planning Database`, `Gateway`,
   `Tracker`, and `LSP` operator surfaces from the active runtime hub.
 - `SessionsWorkspaceView` remains a narrower legacy/runtime workspace component rather than the
-  active shell destination (`copilot-ui/ui/src/tabs/Sessions/SessionsWorkspaceView.tsx`).
+  active shell destination (formerly at `copilot-ui/ui/src/tabs/Sessions/SessionsWorkspaceView.tsx`, since removed).
 - `CatalogView` already groups discovery surfaces under one top-level area and delegates to
   `AssetsView` and `SkillsPreviewView`
   (`copilot-ui/ui/src/tabs/Catalog/CatalogView.tsx`).

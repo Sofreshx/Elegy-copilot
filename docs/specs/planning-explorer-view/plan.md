@@ -21,7 +21,7 @@ Before any code changes, verify the following are true:
 Run: `cd copilot-ui/ui && npx tsc --noEmit` to confirm no existing type errors before starting.
 
 **Tauri-specific verification:**
-- Verify Tauri `window.open()` / `window.close()` behavior: launch the Tauri dev instance (`npm run tauri:dev` from copilot-ui), open a test URL via `window.open(url)`, confirm a new window opens independently, and confirm `window.close()` closes it. Verify `window.location.origin` resolves correctly in both dev and production Tauri builds.
+- Verify Tauri `window.open()` / `window.close()` behavior: launch the Tauri dev instance (`npm run desktop:dev` from copilot-ui), open a test URL via `window.open(url)`, confirm a new window opens independently, and confirm `window.close()` closes it. Verify `window.location.origin` resolves correctly in both dev and production Tauri builds.
 
 ### Step 1 — Extract pure functions (spec R6) (30 min)
 

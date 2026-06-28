@@ -43,7 +43,7 @@ Bootstrap runs: `node scripts/commit-check-setup.mjs <root> --force`
 Update runs: `node scripts/commit-check-setup.mjs <root>` (merge mode)
 
 Before overwrite in bootstrap mode:
-- If `.copilot/commit-checks.json` exists, copy to `.copilot/commit-checks.json.bak`
+- If `.copilot/commit-checks.json` exists, copy to the generated .copilot/commit-checks.json.bak backup (created during setup)
 
 Config output: `.copilot/commit-checks.json` per the schema in `commit-validation-governance.md`. The generated config now includes `profiles`, `groups`, lane-level `blocking`, and lane-level `requiresReasonOnSkip` fields.
 

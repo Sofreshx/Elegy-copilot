@@ -100,7 +100,7 @@ Phase 6: Record in elegy-planning (15 min)
   - Also checks `path.join(repoRoot, '.github', 'commit-checks.json')` as fallback
   - Returns `{ exists: boolean, path: string | null, config: object | null }`
   - Reads and parses the JSON config if it exists; returns `null` if missing or invalid JSON
-- The path resolution extends the resolution logic from `scripts/commit-check-run.mjs`'s `resolveConfig` by also checking `.github/commit-checks.json` as a fallback.
+- The path resolution extends the resolution logic from `scripts/commit-check-run.mjs`'s `resolveConfig` by also checking the generated .github/commit-checks.json config as a fallback.
 
 **5. Modify `discoverChecks` to prefer canonical config** (10 min)
 - At the start of `discoverChecks(repoRoot)`, call `resolveCommitCheckConfig(repoRoot)`
@@ -151,7 +151,7 @@ Phase 6: Record in elegy-planning (15 min)
   ```
 - In `handleChecksRun` (line 59): the `runAllChecks` response already includes `source` and `checkedAt` from the refactored function. No extra wiring needed.
 
-**8. Add `copilot-ui/tests/git-check-runner.test.ts`** (10 min)
+**8. Add the planned copilot-ui/tests/git-check-runner.test.ts (not yet created)** (10 min)
 - New test file using Vitest (`import { describe, it, expect, vi } from 'vitest'`)
 - Test 1: "prefers canonical config over legacy KNOWN_CHECKS"
   - Mock `fs.existsSync` to return `true` for `.copilot/commit-checks.json`
@@ -1381,7 +1381,7 @@ Phase 0: Verification
 |------|-------------|-------|
 | `copilot-ui/lib/gitCheckRunner.js` | Modified | 1 |
 | `copilot-ui/routes/checks.js` | Modified | 1 |
-| `copilot-ui/tests/git-check-runner.test.ts` | **NEW** | 1 |
+| the planned copilot-ui/tests/git-check-runner.test.ts (not yet created) | **NEW** | 1 |
 | `copilot-ui/routes/git.js` | Modified | 2a |
 | `copilot-ui/routes/git.test.js` | Modified | 2a |
 | `copilot-ui/ui/src/lib/api/git.ts` | Modified | 2b |
