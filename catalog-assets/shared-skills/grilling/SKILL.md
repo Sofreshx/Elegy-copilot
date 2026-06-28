@@ -1,6 +1,6 @@
 ---
 name: grilling
-description: "Interview the user relentlessly about a plan or design. Use when the user wants to stress-test a plan before building, mentions 'grill', 'grill me', 'interview me', or wants to walk through every branch of a design decision tree. Also reachable from other skills that need a structured questioning loop."
+description: "Interview the user relentlessly about a plan or design. Use when the user wants to stress-test a plan before building, mentions 'grill', 'grill me', 'interview me', or wants to resolve implementation-blocking decisions in a design. Also reachable from other skills that need a structured questioning loop."
 license: Apache-2.0
 metadata: {"source":"https://github.com/mattpocock/skills","adapted":true,"originalName":"grilling"}
 ---

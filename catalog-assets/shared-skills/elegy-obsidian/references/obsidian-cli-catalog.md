@@ -1,6 +1,6 @@
 # Obsidian CLI Command Catalog
 
-## Core Commands (official `obsidian` CLI v1.12+)
+## Core Commands (official `obsidian` CLI v1.12.7+)
 
 ```text
 obsidian version
