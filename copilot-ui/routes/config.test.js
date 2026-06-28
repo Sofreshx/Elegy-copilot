@@ -2,15 +2,26 @@
 const { describe, it, mock } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const configModule = require('./config');
+const { buildProfileContent, composeInstructions } = require('../lib/compose-instructions.cjs');
 const { register } = configModule;
 function makeMocks(overrides = {}) {
   const sent = [];
   const sendJson = (res, code, obj) => sent.push({ code, obj });
+  const sendText = (res, code, text) => sent.push({ code, text, mode: 'text' });
   const readJsonBody = async () => overrides.body || {};
   const copilotConfig = {
     getRemoteSessions: overrides.getRemoteSessions || (() => false),
     setRemoteSessions: overrides.setRemoteSessions || (() => {}),
+    getCollaborationProfile: overrides.getCollaborationProfile || (() => ({
+      version: 1,
+      enabled: true,
+      presetId: 'constructive-coworker',
+      customInstructions: '',
+    })),
+    setCollaborationProfile: overrides.setCollaborationProfile || (() => ({ saved: true })),
   };
   const codexConfig = {
     getStatus: overrides.getCodexStatus || (() => ({
@@ -57,6 +68,7 @@ function makeMocks(overrides = {}) {
   };
   return {
     sendJson,
+    sendText,
     readJsonBody,
     copilotConfig,
     codexConfig,
@@ -68,7 +80,7 @@ function makeMocks(overrides = {}) {
 describe('config routes', () => {
   it('register returns expected route count', () => {
     const routes = register();
-    assert.equal(routes.length, 15);
+    assert.equal(routes.length, 17);
     assert.equal(routes[0].method, 'GET');
     assert.equal(routes[0].path, '/api/config/remote-sessions');
     assert.equal(routes[1].method, 'PUT');
@@ -77,18 +89,72 @@ describe('config routes', () => {
     assert.equal(routes[2].path, '/api/config/collaboration-profile');
     assert.equal(routes[3].method, 'PUT');
     assert.equal(routes[3].path, '/api/config/collaboration-profile');
-    assert.equal(routes[4].path, '/api/config/codex-provider');
-    assert.equal(routes[5].path, '/api/config/codex-provider');
-    assert.equal(routes[6].path, '/api/config/codex-provider/reset');
-    assert.equal(routes[7].path, '/api/config/codex-provider/factory-reset');
-    assert.equal(routes[7].method, 'POST');
-    assert.equal(routes[8].path, '/api/config/codex-provider/deepseek');
-    assert.equal(routes[9].path, '/api/config/codex-provider/deepseek');
-    assert.equal(routes[10].path, '/api/config/codex-provider/deepseek/start');
-    assert.equal(routes[11].path, '/api/config/codex-provider/deepseek/stop');
-    assert.equal(routes[12].path, '/api/config/codex-provider/deepseek/status');
-    assert.equal(routes[13].path, '/api/config/codex-provider/deepseek/bootstrap');
-    assert.equal(routes[14].path, '/api/config/codex-provider/deepseek/bootstrap');
+    assert.equal(routes[4].path, '/api/config/collaboration-profile/instructions');
+    assert.equal(routes[5].path, '/api/config/collaboration-profile/instructions/view');
+    assert.equal(routes[6].path, '/api/config/codex-provider');
+    assert.equal(routes[7].path, '/api/config/codex-provider');
+    assert.equal(routes[8].path, '/api/config/codex-provider/reset');
+    assert.equal(routes[9].path, '/api/config/codex-provider/factory-reset');
+    assert.equal(routes[9].method, 'POST');
+    assert.equal(routes[10].path, '/api/config/codex-provider/deepseek');
+    assert.equal(routes[11].path, '/api/config/codex-provider/deepseek');
+    assert.equal(routes[12].path, '/api/config/codex-provider/deepseek/start');
+    assert.equal(routes[13].path, '/api/config/codex-provider/deepseek/stop');
+    assert.equal(routes[14].path, '/api/config/codex-provider/deepseek/status');
+    assert.equal(routes[15].path, '/api/config/codex-provider/deepseek/bootstrap');
+    assert.equal(routes[16].path, '/api/config/codex-provider/deepseek/bootstrap');
+  });
+  it('GET instruction inspector returns harness summaries', async () => {
+    const mocks = makeMocks();
+    const routes = register(mocks);
+    await routes[4].handler({ res: {} });
+    assert.equal(mocks.sent[0].code, 200);
+    assert.ok(Array.isArray(mocks.sent[0].obj.targets));
+    assert.ok(mocks.sent[0].obj.targets.length >= 5);
+    assert.ok(mocks.sent[0].obj.budgets.baseline.maxBytes > 0);
+  });
+  it('GET instruction layer view returns text', async () => {
+    const mocks = makeMocks();
+    const routes = register(mocks);
+    await routes[5].handler({
+      res: {},
+      u: new URL('http://localhost/api/config/collaboration-profile/instructions/view?target=codex&layer=baseline'),
+    });
+    assert.equal(mocks.sent[0].code, 200);
+    assert.equal(mocks.sent[0].mode, 'text');
+    assert.ok(String(mocks.sent[0].text || '').includes('# Agent Session Defaults'));
+  });
+  it('GET instruction inspector ignores CRLF-only drift for installed files', async () => {
+    const mocks = makeMocks();
+    const routes = register(mocks);
+    const codexPath = path.join(os.homedir(), '.codex', 'AGENTS.md');
+    const originalExistsSync = fs.existsSync;
+    const originalReadFileSync = fs.readFileSync;
+
+    mock.method(fs, 'existsSync', (candidatePath) => {
+      if (candidatePath === codexPath) {
+        return true;
+      }
+      return originalExistsSync.call(fs, candidatePath);
+    });
+    mock.method(fs, 'readFileSync', (candidatePath, ...args) => {
+      if (candidatePath === codexPath) {
+        const baselinePath = path.resolve(process.cwd(), 'catalog-assets', 'instructions', 'agent-session-defaults.md');
+        const appendixPath = path.resolve(process.cwd(), 'codex-assets', 'home', 'AGENTS-appendix.md');
+        const profileContent = buildProfileContent({
+          enabled: true,
+          presetId: 'constructive-coworker',
+          customInstructions: '',
+        });
+        return composeInstructions(baselinePath, appendixPath, profileContent).replace(/\n/g, '\r\n');
+      }
+      return originalReadFileSync.call(fs, candidatePath, ...args);
+    });
+
+    await routes[4].handler({ res: {} });
+
+    const codexTarget = mocks.sent[0].obj.targets.find((target) => target.id === 'codex');
+    assert.equal(codexTarget.drift, false);
   });
   it('GET returns current remote preference', () => {
     const mocks = makeMocks({ getRemoteSessions: () => true });
@@ -144,7 +210,7 @@ describe('config routes', () => {
     }));
     try {
       const routes = register(mocks);
-      await routes[5].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      await routes[7].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
       assert.equal(savedMode, 'deepseek-bridge');
       assert.equal(mocks.sent[0].code, 200);
     } finally {
@@ -187,7 +253,7 @@ describe('config routes', () => {
       },
     });
     const routes = register(mocks);
-    await routes[6].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+    await routes[8].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
     assert.equal(hardResetCalled, true);
     assert.equal(mocks.sent[0].code, 200);
     assert.equal(mocks.sent[0].obj.action, 'hard-reset');
@@ -196,7 +262,7 @@ describe('config routes', () => {
     it('GET deepseek returns config status', () => {
       const mocks = makeMocks();
       const routes = register(mocks);
-      routes[8].handler({ codexHome: '/tmp/codex', res: {} });
+      routes[10].handler({ codexHome: '/tmp/codex', res: {} });
       assert.equal(mocks.sent[0].code, 200);
       assert.equal(mocks.sent[0].obj.bridgeUrl, 'http://127.0.0.1:38440/v1');
       assert.equal(mocks.sent[0].obj.keyConfigured, false);
@@ -204,15 +270,16 @@ describe('config routes', () => {
     });
     it('PUT deepseek saves settings', async () => {
       let savedSettings;
+      const tempConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepseek-config-'));
       const mocks = makeMocks({
-        body: { bridgePath: '/path/to/bridge', bridgeConfigPath: '/path/to/config.yml', apiKey: 'sk-test-123', keyConfigured: true },
+        body: { bridgePath: '/path/to/bridge', bridgeConfigPath: path.join(tempConfigDir, 'config.yml'), apiKey: 'sk-test-123', keyConfigured: true },
         saveDeepseekSettings: (_home, settings) => {
           savedSettings = settings;
           return { bridgePath: '/path/to/bridge', keyConfigured: true };
         },
       });
       const routes = register(mocks);
-      await routes[9].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      await routes[11].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
       assert.equal(mocks.sent[0].code, 200);
       assert.equal(savedSettings.bridgePath, '/path/to/bridge');
       assert.equal(savedSettings.keyConfigured, true);
@@ -225,7 +292,7 @@ describe('config routes', () => {
         },
       });
       const routes = register(mocks);
-      await routes[9].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      await routes[11].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
       assert.equal(mocks.sent[0].code, 200);
       assert.equal(mocks.sent[0].obj.keyConfigured, true);
       assert.ok(!mocks.sent[0].obj.apiKey);
@@ -234,13 +301,13 @@ describe('config routes', () => {
     it('POST deepseek start returns bridgeRunning', async () => {
       const mocks = makeMocks();
       const routes = register(mocks);
-      await routes[10].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      await routes[12].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
       assert.equal(mocks.sent[0].code, 400);
     });
     it('POST deepseek stop returns bridgeRunning false', async () => {
       const mocks = makeMocks();
       const routes = register(mocks);
-      await routes[11].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      await routes[13].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
       assert.equal(mocks.sent[0].code, 200);
       assert.equal(mocks.sent[0].obj.bridgeRunning, false);
     });
@@ -261,7 +328,7 @@ describe('config routes', () => {
         }),
       });
       const routes = register(mocks);
-      routes[13].handler({ codexHome: '/tmp/codex', res: {} });
+      routes[15].handler({ codexHome: '/tmp/codex', res: {} });
       assert.equal(mocks.sent[0].code, 200);
       assert.equal(mocks.sent[0].obj.gitAvailable, true);
       assert.equal(mocks.sent[0].obj.goAvailable, false);
@@ -302,7 +369,7 @@ describe('config routes', () => {
         }),
       });
       const routes = register(mocks);
-      await routes[14].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      await routes[16].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
       assert.equal(mocks.sent[0].code, 200);
       assert.equal(mocks.sent[0].obj.success, true);
       assert.equal(mocks.sent[0].obj.status.installed, true);
@@ -343,7 +410,7 @@ describe('config routes', () => {
         }),
       });
       const routes = register(mocks);
-      await routes[14].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      await routes[16].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
       assert.equal(mocks.sent[0].code, 200);
       assert.equal(mocks.sent[0].obj.success, false);
       assert.ok(mocks.sent[0].obj.error.includes('git is not available'));
@@ -384,7 +451,7 @@ describe('config routes', () => {
         }),
       });
       const routes = register(mocks);
-      await routes[14].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+      await routes[16].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
       assert.equal(mocks.sent[0].code, 200);
       assert.equal(mocks.sent[0].obj.success, true);
       assert.equal(mocks.sent[0].obj.status.configPath, '/root/config.yaml');
@@ -412,7 +479,7 @@ describe('config routes', () => {
       // which will fail because we mocked fetch.
       // We just need to verify it doesn't crash and probeError is null.
       try {
-        await routes[12].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+        await routes[14].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
       } finally {
         mock.reset();
       }

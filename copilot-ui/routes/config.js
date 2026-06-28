@@ -5,12 +5,12 @@ const yaml = require('js-yaml');
 const copilotConfigDefault = require('../lib/copilotConfig');
 const codexConfigDefault = require('../lib/codexConfig');
 const moonBridgeBootstrapDefault = require('../lib/moonBridgeBootstrap');
-const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const { sendJson: defaultSendJson, sendText: defaultSendText, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
-const { composeInstructions, buildProfileContent, loadPresetContent } = require('../lib/compose-instructions.cjs');
+const { composeInstructions, buildProfileContent } = require('../lib/compose-instructions.cjs');
 
 const DEFAULT_CODEX_PROVIDER_PREFLIGHT_TIMEOUT_MS = 1500;
 const DEEPSEEK_BRIDGE_READINESS_TIMEOUT_MS = 15000;
@@ -68,6 +68,7 @@ function bridgeModelsUrl(bridgeUrl) {
 function register(deps = {}) {
   const resolvedDeps = {
     sendJson: deps.sendJson || defaultSendJson,
+    sendText: deps.sendText || defaultSendText,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     copilotConfig: deps.copilotConfig || copilotConfigDefault,
     codexConfig: deps.codexConfig || codexConfigDefault,
@@ -94,6 +95,16 @@ function register(deps = {}) {
       method: 'PUT',
       path: '/api/config/collaboration-profile',
       handler: (ctx) => handleSaveCollaborationProfile(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/config/collaboration-profile/instructions',
+      handler: (ctx) => handleGetCollaborationInstructions(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/config/collaboration-profile/instructions/view',
+      handler: (ctx) => handleViewCollaborationInstructionLayer(ctx, resolvedDeps),
     },
     {
       method: 'GET',
@@ -215,9 +226,134 @@ const PRESETS = [
 
 const MANAGED_BLOCK_START = '<!-- elegy-copilot:begin antigravity -->';
 const MANAGED_BLOCK_END = '<!-- elegy-copilot:end antigravity -->';
+const INSTRUCTION_BUDGETS_PATH = path.join(REPO_ROOT, 'catalog-assets', 'instructions', 'budgets.json');
 
 function shaText(text) {
   return crypto.createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+function countLines(text) {
+  return String(text).split(/\r?\n/).length;
+}
+
+function readInstructionBudgets() {
+  return JSON.parse(fs.readFileSync(INSTRUCTION_BUDGETS_PATH, 'utf8'));
+}
+
+function readTextIfExists(absPath) {
+  if (!fs.existsSync(absPath)) {
+    return null;
+  }
+  return fs.readFileSync(absPath, 'utf8');
+}
+
+function normalizeInstructionText(text) {
+  if (typeof text !== 'string') {
+    return null;
+  }
+  return text.replace(/\r\n/g, '\n').trim();
+}
+
+function extractManagedBlock(text) {
+  if (typeof text !== 'string' || !text.includes(MANAGED_BLOCK_START) || !text.includes(MANAGED_BLOCK_END)) {
+    return null;
+  }
+
+  const start = text.indexOf(MANAGED_BLOCK_START);
+  const end = text.indexOf(MANAGED_BLOCK_END);
+  if (start < 0 || end < start) {
+    return null;
+  }
+
+  return text.slice(start, end + MANAGED_BLOCK_END.length).trim();
+}
+
+function buildLayerMetrics(name, text, budget) {
+  const available = typeof text === 'string';
+  const safeText = available ? text : '';
+  return {
+    name,
+    available,
+    bytes: available ? Buffer.byteLength(safeText, 'utf8') : 0,
+    lines: available ? countLines(safeText) : 0,
+    sha256: available ? shaText(safeText) : null,
+    overBudget: Boolean(
+      available &&
+      budget &&
+      (Buffer.byteLength(safeText, 'utf8') > Number(budget.maxBytes || 0) ||
+        countLines(safeText) > Number(budget.maxLines || 0))
+    ),
+  };
+}
+
+function getTargetPaths(target) {
+  return {
+    baselinePath: path.resolve(REPO_ROOT, target.baseline),
+    appendixPath: path.resolve(REPO_ROOT, target.appendix),
+    installedPath: path.join(target.homeDir, target.instructionFile),
+  };
+}
+
+function getTargetInstructionState(target, profile, budgets) {
+  const { baselinePath, appendixPath, installedPath } = getTargetPaths(target);
+  const baselineText = fs.readFileSync(baselinePath, 'utf8');
+  const appendixText = fs.readFileSync(appendixPath, 'utf8');
+  const presetText = (PRESETS.find((preset) => preset.id === profile.presetId)?.content || '').trim();
+  const profileContent = profile.enabled ? buildProfileContent(profile) : '';
+  const composedText = composeInstructions(baselinePath, appendixPath, profileContent);
+  const installedText = readTextIfExists(installedPath);
+  const managedBlockText = target.managedBlock ? extractManagedBlock(installedText) : null;
+  const comparisonText = target.managedBlock ? managedBlockText : installedText;
+  const normalizedComparisonText = normalizeInstructionText(comparisonText);
+  const normalizedComposedText = normalizeInstructionText(composedText);
+  const drift = typeof normalizedComparisonText === 'string'
+    ? shaText(normalizedComparisonText) !== shaText(normalizedComposedText || '')
+    : installedText != null;
+
+  return {
+    id: target.id,
+    instructionFile: target.instructionFile,
+    path: installedPath,
+    installed: typeof installedText === 'string',
+    managedBlock: target.managedBlock,
+    drift,
+    layers: {
+      baseline: buildLayerMetrics('baseline', baselineText, budgets.layers?.baseline),
+      preset: buildLayerMetrics('preset', presetText, budgets.layers?.preset),
+      appendix: buildLayerMetrics('appendix', appendixText, budgets.layers?.appendix?.[target.id]),
+      composed: buildLayerMetrics('composed', composedText, budgets.layers?.composed?.[target.id]),
+      installed: buildLayerMetrics('installed', installedText, null),
+    },
+    texts: {
+      baseline: baselineText,
+      preset: presetText,
+      appendix: appendixText,
+      composed: composedText,
+      installed: installedText,
+      'managed-block': managedBlockText,
+    },
+  };
+}
+
+function getInstructionLayerView(targetId, layerId, profile) {
+  const budgets = readInstructionBudgets();
+  const target = HARNESS_TARGETS.find((candidate) => candidate.id === targetId);
+  if (!target) {
+    throw Object.assign(new Error(`Unknown instruction target: ${targetId}`), { statusCode: 404 });
+  }
+
+  const state = getTargetInstructionState(target, profile, budgets);
+  const normalizedLayer = String(layerId || '').trim();
+  if (!Object.prototype.hasOwnProperty.call(state.texts, normalizedLayer)) {
+    throw Object.assign(new Error(`Unknown instruction layer: ${normalizedLayer}`), { statusCode: 400 });
+  }
+
+  const text = state.texts[normalizedLayer];
+  if (typeof text !== 'string') {
+    throw Object.assign(new Error(`Instruction layer unavailable: ${normalizedLayer}`), { statusCode: 404 });
+  }
+
+  return text;
 }
 
 function applyManagedBlock(target, composedContent) {
@@ -337,6 +473,54 @@ async function handleGetCollaborationProfile(ctx, deps) {
     deps.sendJson(ctx.res, 200, { profile, presets, targets });
   } catch (err) {
     deps.sendJson(ctx.res, 500, { error: err.message });
+  }
+}
+
+async function handleGetCollaborationInstructions(ctx, deps) {
+  try {
+    const profile = deps.copilotConfig.getCollaborationProfile();
+    const budgets = readInstructionBudgets();
+    const targets = HARNESS_TARGETS.map((target) => {
+      const state = getTargetInstructionState(target, profile, budgets);
+      return {
+        id: state.id,
+        instructionFile: state.instructionFile,
+        path: state.path,
+        installed: state.installed,
+        managedBlock: state.managedBlock,
+        drift: state.drift,
+        layers: state.layers,
+      };
+    });
+    deps.sendJson(ctx.res, 200, {
+      budgets: budgets.layers,
+      targets,
+    });
+  } catch (err) {
+    deps.sendJson(ctx.res, err.statusCode || 500, { error: err.message });
+  }
+}
+
+async function handleViewCollaborationInstructionLayer(ctx, deps) {
+  try {
+    const targetId = ctx.u.searchParams.get('target');
+    const layerId = ctx.u.searchParams.get('layer');
+    if (!targetId || !layerId) {
+      deps.sendJson(ctx.res, 400, { error: 'Missing ?target= or ?layer=' });
+      return;
+    }
+
+    const profile = deps.copilotConfig.getCollaborationProfile();
+    const text = getInstructionLayerView(targetId, layerId, profile);
+    if (typeof deps.sendText === 'function') {
+      deps.sendText(ctx.res, 200, text, 'text/plain; charset=utf-8');
+      return;
+    }
+    ctx.res.statusCode = 200;
+    ctx.res.setHeader?.('Content-Type', 'text/plain; charset=utf-8');
+    ctx.res.end(text);
+  } catch (err) {
+    deps.sendJson(ctx.res, err.statusCode || 500, { error: err.message });
   }
 }
 

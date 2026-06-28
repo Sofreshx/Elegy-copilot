@@ -34,7 +34,7 @@ experience, but all changes must flow through normal Git workflows
 (commit, review, push).
 
 **Contrast with the Obsidian planning surface:** The
-[[obsidian-synced-notes-contract]] [docs/system/obsidian-synced-notes-contract.md](docs/system/obsidian-synced-notes-contract.md)
+[[obsidian-synced-notes-contract]] [obsidian-synced-notes-contract.md](obsidian-synced-notes-contract.md)
 defines an external, non-authoritative Obsidian surface for **planning
 operations** (backlog seeding, mirror feeds). This contract covers a
 different scope: using Obsidian to **view and edit canonical repo
@@ -106,7 +106,7 @@ node scripts/obsidian-docs-init.js /path/to/repo --with-config --vault-scope=doc
 ```
 
 Adds `.gitignore` rules for Obsidian workspace state and optionally
-writes safe `.obsidian/app.json` defaults (relative links, Markdown
+writes safe .obsidian/app.json defaults (relative links, Markdown
 links, `./assets` attachment path). When `docs/` exists, defaults to
 creating `.obsidian/` inside `docs/`; override with `--vault-scope=root`.
 
@@ -134,15 +134,15 @@ should be committed:
 ```
 
 Do NOT gitignore these shared files:
-- `.obsidian/app.json`
-- `.obsidian/appearance.json`
-- `.obsidian/core-plugins.json`
-- `.obsidian/community-plugins.json`
+- .obsidian/app.json
+- .obsidian/appearance.json
+- .obsidian/core-plugins.json
+- .obsidian/community-plugins.json
 
 ## Frontmatter Compatibility
 
 Repo docs must follow the [[doc-graph-spec]]
-[docs/system/doc-graph-spec.md](docs/system/doc-graph-spec.md) frontmatter
+[doc-graph-spec.md](doc-graph-spec.md) frontmatter
 contract. Obsidian's YAML Properties are compatible with this contract
 because Obsidian silently ignores unknown YAML keys.
 
@@ -188,10 +188,10 @@ Rules:
 - → verify: `node scripts/obsidian-docs-preflight.js` runs against this
   repo and reports status correctly
 - → verify: `node scripts/obsidian-docs-init.js --with-config` creates
-  `.gitignore` entries and safe `.obsidian/app.json`
+  `.gitignore` entries and safe .obsidian/app.json
 - → verify: `node scripts/validate-doc-graph.js` passes after any doc edit
-- → verify: `.obsidian/workspace.json` is gitignored but
-  `.obsidian/app.json` is tracked
+- → verify: .obsidian/workspace.json is gitignored but
+  .obsidian/app.json is tracked
 
 ## Implementation Links
 

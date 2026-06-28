@@ -24,27 +24,27 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
 - End-to-end first-slice overview for repo-rule bootstrap, compliance, project audit, follow-up
   routing, and smart-comment posture:
   [[rules-compliance-audit-handoff-workflow]]
-  [docs/system/rules-compliance-audit-handoff-workflow.md](docs/system/rules-compliance-audit-handoff-workflow.md)
+  [../rules-compliance-audit-handoff-workflow.md](../rules-compliance-audit-handoff-workflow.md)
 - Convention policy, rule precedence, and governance output shape:
-  [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
+  [[project-conventions-governance]] [../project-conventions-governance.md](../project-conventions-governance.md)
 - Placement matrix for self-documenting code, smart comments, doc comments, ADRs, and thin
   instruction surfaces:
   [[self-documenting-code-and-rationale-placement]]
-  [docs/system/self-documenting-code-and-rationale-placement.md](docs/system/self-documenting-code-and-rationale-placement.md)
+  [../self-documenting-code-and-rationale-placement.md](../self-documenting-code-and-rationale-placement.md)
 - Documentation entrypoints, information architecture, and discoverability:
-  [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
+  [[documentation-structure-governance]] [../documentation-structure-governance.md](../documentation-structure-governance.md)
 - Concise instruction standards, writing rules, and empty language bans:
-  [[concise-instruction-governance]] [docs/system/concise-instruction-governance.md](docs/system/concise-instruction-governance.md)
+  [[concise-instruction-governance]] [../concise-instruction-governance.md](../concise-instruction-governance.md)
 - Harness asset flow, install architecture, and per-repo deployment model:
-  [[harness-asset-flow]] [docs/system/harness-asset-flow.md](docs/system/harness-asset-flow.md)
+  [[harness-asset-flow]] [../harness-asset-flow.md](../harness-asset-flow.md)
 - Planning-ready follow-up when convention gaps become next tasks:
-  [[follow-up-discovery-governance]] [docs/system/follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
+  [[follow-up-discovery-governance]] [../follow-up-discovery-governance.md](../follow-up-discovery-governance.md)
 - Check classes, determinism, and gate-strength ownership:
-  [[check-taxonomy-governance]] [docs/system/check-taxonomy-governance.md](docs/system/check-taxonomy-governance.md)
+  [[check-taxonomy-governance]] [../check-taxonomy-governance.md](../check-taxonomy-governance.md)
 - Specific change review versus governance authoring:
-  [[reviewer-lane-governance]] [docs/system/reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)
+  [[reviewer-lane-governance]] [../reviewer-lane-governance.md](../reviewer-lane-governance.md)
 - Canonical graph/frontmatter/link contract:
-  [[doc-graph-spec]] [docs/system/doc-graph-spec.md](docs/system/doc-graph-spec.md)
+  [[doc-graph-spec]] [../doc-graph-spec.md](../doc-graph-spec.md)
 
 ## Recommended workflow
 
@@ -75,5 +75,5 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
 
 ## Depends on
 
-- Contract: [[doc-graph-spec]] [docs/system/doc-graph-spec.md](docs/system/doc-graph-spec.md)
-- System docs entrypoint: [[system-docs-index]] [docs/system/index.md](docs/system/index.md)
+- Contract: [[doc-graph-spec]] [../doc-graph-spec.md](../doc-graph-spec.md)
+- System docs entrypoint: [[system-docs-index]] [../index.md](../index.md)

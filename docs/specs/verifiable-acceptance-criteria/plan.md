@@ -161,8 +161,8 @@ After Steps 1-10 are complete, verify each acceptance check from `docs/specs/ver
 - [ ] `node scripts/validate-specs.js specs/` exits 0 (all specs pass, including migrated ones)
 
 11b. Validator enforcement (manual tests with temp specs):
-- [ ] Create a temp spec at `docs/specs/__test-missing-verify/spec.md` with a bullet lacking `→ verify:`. Run `node scripts/validate-specs.js specs/__test-missing-verify/spec.md`. Confirm exit code 1 with message about "missing verification method."
-- [ ] Create a temp spec at `docs/specs/__test-vague-ac/spec.md` with "should be good" and "proper handling" in acceptance check bullets. Run `node scripts/validate-specs.js specs/__test-vague-ac/spec.md`. Confirm exit code 1 with messages flagging vague tokens.
+- [ ] Create a temp spec at docs/specs/__test-missing-verify/spec.md (temp test file, created and then deleted during validation) with a bullet lacking `→ verify:`. Run `node scripts/validate-specs.js specs/__test-missing-verify/spec.md`. Confirm exit code 1 with message about "missing verification method."
+- [ ] Create a temp spec at docs/specs/__test-vague-ac/spec.md (temp test file, created and then deleted during validation) with "should be good" and "proper handling" in acceptance check bullets. Run `node scripts/validate-specs.js specs/__test-vague-ac/spec.md`. Confirm exit code 1 with messages flagging vague tokens.
 - [ ] After tests pass, delete both `docs/specs/__test-missing-verify/` and `docs/specs/__test-vague-ac/` directories.
 
 11c. Plan-pack validator:

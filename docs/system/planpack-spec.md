@@ -27,7 +27,7 @@ In canonical persisted session state, `plan.md` contains two top-level markdown 
 2. `# Plan-Pack Progress Tracker`
 
 This document specifies the Plan Pack portion. The Progress Tracker portion is defined by [[session-state-artifacts]]
-[docs/system/session-state-artifacts.md](docs/system/session-state-artifacts.md). Separate
+[session-state-artifacts.md](session-state-artifacts.md). Separate
 `x-PLANPACK-PROGRESS-<SESSION_ID>.md` files are legacy compatibility artifacts only and are not the canonical
 persisted layout for fresh plans.
 
@@ -71,7 +71,7 @@ The H1 heading. `<Title>` is a short human-readable label for the plan (e.g., `P
 - **Success Criteria** — Bullet list of 2+ measurable outcomes that define "done."
 
 High-level goal completion states are governed by [[goal-contract-governance]]
-[docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md), using
+[goal-contract-governance.md](goal-contract-governance.md), using
 `complete`, `partial`, and `not-complete`.
 
 Canonical `High-Level Goals` bullet syntax:
@@ -107,7 +107,7 @@ Rules:
 
 Aliased in the template as `Decisions (with rationale)`. Bullet list of architectural or scoping decisions, each followed by a brief rationale. Decisions are immutable once the plan is approved.
 
-Key architectural, trust-boundary, workflow-authority, or long-lived contract decisions that future work will rely on should be checked against [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md) instead of staying only inside the plan pack.
+Key architectural, trust-boundary, workflow-authority, or long-lived contract decisions that future work will rely on should be checked against [[adr-governance]] [adr-governance.md](adr-governance.md) instead of staying only inside the plan pack.
 
 ### `## Dropped / Deferred`
 
@@ -162,7 +162,7 @@ Contains all individual work unit specifications as H3 subsections. See **Work U
 Operational notes for the runner:
 - The plan pack is **read-only** during execution. Progress is tracked in the appended `# Plan-Pack Progress Tracker`
   document within the same `plan.md` artifact (see [[session-state-artifacts]]
-  [docs/system/session-state-artifacts.md](docs/system/session-state-artifacts.md)).
+  [session-state-artifacts.md](session-state-artifacts.md)).
 - Each work unit is executed via `@impl` or another orchestrator-selected implementation lane.
 
 ### `## Risks / Rollback`
@@ -181,7 +181,7 @@ Default validation strategy applied after each group completes:
   required, using the appropriate runtime/tooling for that repo.
 - Durable scripted browser suites use Playwright CLI/test runner.
 
-See [[validation-governance]] [docs/system/validation-governance.md](docs/system/validation-governance.md)
+See [[validation-governance]] [validation-governance.md](validation-governance.md)
 for the canonical decision matrix.
 
 ---
@@ -270,7 +270,7 @@ If a WU is marked `Parallel Safe = yes`, its `#### Expected Files` subsection mu
 
 The Plan Pack itself is **read-only** after approval. Execution progress is tracked in a separate
 `# Plan-Pack Progress Tracker` document appended to the same session `plan.md` file. See
-[[session-state-artifacts]] [docs/system/session-state-artifacts.md](docs/system/session-state-artifacts.md)
+[[session-state-artifacts]] [session-state-artifacts.md](session-state-artifacts.md)
 for the full Progress Tracker format, including:
 
 - Work Unit Groups Overview table

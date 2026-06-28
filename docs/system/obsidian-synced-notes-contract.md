@@ -49,12 +49,12 @@ documentation (`docs/system/**`, `docs/research/**`, `docs/specs/**`). That
 workflow — opening a repo folder directly as an Obsidian vault with the
 repo retaining full authority — is covered by the
 [[repo-backed-obsidian-docs]]
-[docs/system/repo-backed-obsidian-docs.md](docs/system/repo-backed-obsidian-docs.md)
+[repo-backed-obsidian-docs.md](repo-backed-obsidian-docs.md)
 contract.
 
 The distinction:
 - **Docs vault** ([[repo-backed-obsidian-docs]]
-  [docs/system/repo-backed-obsidian-docs.md](docs/system/repo-backed-obsidian-docs.md)):
+  [repo-backed-obsidian-docs.md](repo-backed-obsidian-docs.md)):
   Obsidian is a local editor/viewer over canonical repo docs. Git is the
   authority.
 - **Planning mirror** (this contract): Obsidian hosts external,
@@ -177,7 +177,7 @@ lease files.
 Deterministic planning mirror notes live under the selected repo's resolved Obsidian note folder in a
 tool-managed subdirectory:
 
-- `_elegy-copilot/planning-mirrors/bullets.md`
+- _elegy-copilot/planning-mirrors/bullets.md
 - `_elegy-copilot/planning-mirrors/roadmaps/<roadmap-slug>.md`
 
 Those note paths are deterministic, repo-scoped, and remain external/non-canonical.

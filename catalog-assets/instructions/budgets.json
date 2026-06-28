@@ -1,0 +1,65 @@
+{
+  "layers": {
+    "baseline": {
+      "maxBytes": 5000,
+      "maxLines": 170
+    },
+    "preset": {
+      "maxBytes": 600,
+      "maxLines": 20
+    },
+    "appendix": {
+      "copilot": {
+        "maxBytes": 6000,
+        "maxLines": 140
+      },
+      "codex": {
+        "maxBytes": 2000,
+        "maxLines": 55
+      },
+      "opencode": {
+        "maxBytes": 4000,
+        "maxLines": 100
+      },
+      "claude-code": {
+        "maxBytes": 1750,
+        "maxLines": 50
+      },
+      "antigravity": {
+        "maxBytes": 1500,
+        "maxLines": 45
+      }
+    },
+    "composed": {
+      "copilot": {
+        "maxBytes": 11500,
+        "maxLines": 320
+      },
+      "codex": {
+        "maxBytes": 7500,
+        "maxLines": 230
+      },
+      "opencode": {
+        "maxBytes": 9500,
+        "maxLines": 280
+      },
+      "claude-code": {
+        "maxBytes": 7000,
+        "maxLines": 210
+      },
+      "antigravity": {
+        "maxBytes": 6500,
+        "maxLines": 210
+      }
+    }
+  },
+  "bannedAppendixPatterns": [
+    "For the Elegy Copilot repo itself",
+    "When the current workspace is Elegy Copilot / Elegy Copilot",
+    "current identity and delivery model are:",
+    "docs-practice",
+    "Start repo-rule work at `docs/system/index.md`",
+    "ships thinner native home baselines",
+    "current repo contract in `docs/system/spec-driven-development.md`"
+  ]
+}

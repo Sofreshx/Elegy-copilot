@@ -18,7 +18,7 @@ Define the canonical contract for deterministic repo scaffold documentation drif
 
 ## Authority
 
-This doc sits under [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md) as a validation surface. It implements the Doc Freshness Sync Rule from that governance doc via automated claim verification.
+This doc sits under [[documentation-structure-governance]] [documentation-structure-governance.md](documentation-structure-governance.md) as a validation surface. It implements the Doc Freshness Sync Rule from that governance doc via automated claim verification.
 
 ## Architecture
 
@@ -52,10 +52,10 @@ Each scaffold markdown file is parsed for structured claims:
 | Claim type | Extraction pattern | Example |
 |---|---|---|
 | `path` | Backtick-quoted strings with file extensions or directory separators | `` `src/auth.ts` `` |
-| `command` | Backtick-quoted CLI invocations with known prefixes | `` `npm run test` `` |
+| command (claim type) | Backtick-quoted CLI invocations with known prefixes | `` `npm run test` `` |
 | `dependency` | Backtick-quoted package names | `` `react` ``, `` `@scope/pkg` `` |
 | `route_edge` | Frontmatter `related:` field entries | `related: [doc-id-1]` |
-| `internal_link` | Markdown links to local files | `[text](path/to/file.md)` |
+| `internal_link` | Markdown links to local files | [text](path/to/file.md) (example format) |
 
 Claims are NOT extracted from:
 - Fenced code blocks (```` ``` ````)
@@ -71,7 +71,7 @@ Each extracted claim is verified against the actual repo state:
 | Claim type | Verification |
 |---|---|
 | `path` | `fs.existsSync(resolvedPath)` |
-| `command` | Check `package.json.scripts` for `npm run <script>` and `yarn <script>`; check `Cargo.toml` for `cargo` commands |
+| command (claim type) | Check `package.json.scripts` for `npm run <script>` and `yarn <script>`; check `Cargo.toml` for `cargo` commands |
 | `dependency` | Check `package.json` (root, `copilot-ui/`, `contracts/`) for dependencies, devDependencies, peerDependencies |
 | `route_edge` | Check if any doc in `docs/` has matching frontmatter `id` |
 | `internal_link` | Resolve relative to source file, check `fs.existsSync` |
@@ -201,8 +201,8 @@ Add to `package.json`:
 | Exact-byte-content tool config sync | Extend `checkToolConfigSync` with a mode that compares SHA256 of instruction files meant to be identical copies (e.g., installed agent configs vs shipped templates). Currently supported via `{ useHash: true }` opt-in; future enhancements would add target-specific hash comparison pairs. | [mex checkToolConfigSync](https://github.com/mex-memory/mex) |
 | `elegy sync`-style remediation | Generate targeted AI fix prompts per stale file, similar to MEX's `mex sync` flow. Currently users copy the report from the Health tab to compose fix prompts manually. | [mex sync](https://github.com/mex-memory/mex#commands) |
 | Post-commit hook / watch mode | Continuous monitoring via git hooks or polling. MEX provides `mex watch` for persistent-agent workspaces and `mex heartbeat` for lightweight health checks. | [mex watch](https://github.com/mex-memory/mex#commands) |
-| Pattern index sync | Detect when `patterns/INDEX.md` is out of sync with actual pattern files. The `pattern_index_drift` code is reserved but no checker is implemented yet. Low priority — our repo has no `patterns/INDEX.md` convention. | [mex checkIndexSync](https://github.com/mex-memory/mex) |
-| Rust command verification | Extend `verifyCommandClaim` to validate `cargo` subcommands against Cargo.toml dependencies (e.g., `cargo install`, `cargo build` target verification). | — |
+| Pattern index sync | Detect when patterns/INDEX.md (external tool convention) is out of sync with actual pattern files. The `pattern_index_drift` code is reserved but no checker is implemented yet. Low priority — our repo has no patterns/INDEX.md (external tool convention) convention. | [mex checkIndexSync](https://github.com/mex-memory/mex) |
+| Rust command verification | Extend `verifyCommandClaim` to validate `cargo` subcommands against Cargo.toml dependencies (e.g., cargo install (example command for Rust projects), cargo build (example command for Rust projects) target verification). | — |
 
 ## Design Principles
 
@@ -225,11 +225,11 @@ Add to `package.json`:
 
 ## Canonical References
 
-- [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
-- [[commit-check-setup]] [docs/system/commit-check-setup.md](docs/system/commit-check-setup.md)
-- [[doc-graph-spec]] [docs/system/doc-graph-spec.md](docs/system/doc-graph-spec.md)
-- [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
-- [[repo-setup-governance]] [docs/system/repo-setup-governance.md](docs/system/repo-setup-governance.md)
+- [[documentation-structure-governance]] [documentation-structure-governance.md](documentation-structure-governance.md)
+- [[commit-check-setup]] [commit-check-setup.md](commit-check-setup.md)
+- [[doc-graph-spec]] [doc-graph-spec.md](doc-graph-spec.md)
+- [[project-conventions-governance]] [project-conventions-governance.md](project-conventions-governance.md)
+- [[repo-setup-governance]] [repo-setup-governance.md](repo-setup-governance.md)
 - `contracts/src/repoContext.ts`
 - `contracts/elegy/repo-context/drift-check-result.schema.json`
 - `scripts/elegy-docs-check.js`

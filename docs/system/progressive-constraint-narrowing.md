@@ -63,7 +63,7 @@ When candidate constraints conflict, resolve them in this order:
 2. canonical docs in `docs/system/**`
 3. nearest applicable approved repo-local operating guidance such as a per-harness
    instruction file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`,
-   `.github/copilot-instructions.md`)
+   .github/copilot-instructions.md)
 4. other maintained repo docs
 5. repeated implementation patterns with strong evidence
 6. exploratory notes, prompts, or summaries
@@ -91,7 +91,7 @@ If the current output format does not have dedicated fields, the author should s
 
 When narrowing reveals a durable architectural or workflow-authority constraint that future work will need, do not keep restating it in harness instructions, plan notes, or handoff prose.
 
-Promote it to the owning canonical node or to [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md).
+Promote it to the owning canonical node or to [[adr-governance]] [adr-governance.md](adr-governance.md).
 
 ## Anti-patterns
 

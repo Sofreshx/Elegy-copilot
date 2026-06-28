@@ -60,7 +60,7 @@ Provider defaults live with the desktop Catalog/source integration.
 
 ### Firebase
 
-- Default: official Firebase CLI MCP server via `npx firebase-tools@latest mcp`.
+- Default: official Firebase CLI MCP server via npx firebase-tools@latest mcp (fetched from npm at runtime).
 - Use `--dir` to pin the project folder and `--only` to limit features.
 - Auth is handled by Firebase CLI credentials or ADC.
 
@@ -148,7 +148,7 @@ discovery or targeted updates.
 - Copilot coding agents can only use MCP tools (no unattended external browsing
   or OAuth flows). See GitHub docs: https://docs.github.com/en/copilot/concepts/agents/coding-agent/mcp-and-coding-agent
 - Browser E2E automation in this repo is CLI-first (`@test-runner` for agent-driven validation and Playwright CLI/test runner for durable scripted suites), not MCP-first.
-  See: [docs/system/e2e-setup-guide.md](docs/system/e2e-setup-guide.md).
+  See: [e2e-setup-guide.md](e2e-setup-guide.md).
 - Remote OAuth flows are not reliably automatable for remote agents. Prefer
   CI PATs or pre-authorized non-interactive tokens for CI or remote use.
 
@@ -179,7 +179,7 @@ infrastructure changes; use manual, conservative review for production-impacting
 operations.
 
 For choosing between an agent and a skill when using MCP, see
-[docs/system/agents-vs-skills.md](docs/system/agents-vs-skills.md).
+[agents-vs-skills.md](agents-vs-skills.md).
 
 Examples:
 

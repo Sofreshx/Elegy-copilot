@@ -79,7 +79,7 @@ When convention sources conflict, resolve them in this order:
 1. explicit user instruction for the current task
 2. canonical system docs in `docs/system/**`
 3. the nearest applicable per-harness instruction file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`,
-   or `.github/copilot-instructions.md`) for the repo or project being changed
+   or .github/copilot-instructions.md) for the repo or project being changed
 4. other maintained docs in `docs/**` and approved repo-level operating docs such as `README.md`,
    treated as important design and operating context but not peer authority with `docs/system/**`
 5. stable implementation patterns with repeated evidence in the repo
@@ -99,7 +99,7 @@ before or alongside code or asset changes.
 
 For the elegy-copilot first pass, repository rules are authoritative when they are captured in
 canonical docs under `docs/system/**`, with per-harness instruction files (`AGENTS.md`, `CLAUDE.md`,
-`GEMINI.md`, `.github/copilot-instructions.md`) acting as lighter-weight repo/project entrypoints
+`GEMINI.md`, .github/copilot-instructions.md) acting as lighter-weight repo/project entrypoints
 that cannot outrank those canonical docs.
 
 - `docs/system/index.md` and `docs/system/mocs/conventions-and-governance.md` are the canonical
@@ -112,7 +112,7 @@ that cannot outrank those canonical docs.
   plus the nearest applicable per-harness instruction file before editing, and write-capable leaves
   must perform that bootstrap independently instead of relying only on orchestrator briefs, plan
   packs, prompts, or summaries
-- repo-local overlays such as `.github/copilot-instructions.md`, `.github/agents/**`, and
+- repo-local overlays such as .github/copilot-instructions.md, `.github/agents/**`, and
   `.github/skills/**` may improve discovery or routing, but they are not peer authority with
   `docs/system/**` unless a canonical doc explicitly promotes them
 - agent prompts, chat history, and repeated implementation patterns are secondary evidence only; they
@@ -128,7 +128,7 @@ Secondary instruction surfaces should help readers reach the right canonical rul
 
 | Surface | Keep | Avoid |
 |---|---|---|
-| `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` / `.github/copilot-instructions.md` | repo-local notes, precedence reminder, canonical breadcrumb | restating full governance policy |
+| `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` / .github/copilot-instructions.md | repo-local notes, precedence reminder, canonical breadcrumb | restating full governance policy |
 | `README.md` | install/use overview, canonical-doc breadcrumb | becoming the repo-rules authority |
 | tool instruction entrypoints (`AGENTS.md`, Copilot instructions) | workflow routing, local command hints, canonical references | duplicated convention policy that can drift |
 
@@ -157,7 +157,7 @@ actually used.
 Rationale should live at the highest-authority surface that needs to stay durable and discoverable.
 
 Use [[self-documenting-code-and-rationale-placement]]
-[docs/system/self-documenting-code-and-rationale-placement.md](docs/system/self-documenting-code-and-rationale-placement.md)
+[self-documenting-code-and-rationale-placement.md](self-documenting-code-and-rationale-placement.md)
 as the operational matrix for choosing between self-documenting code, smart comments, doc comments,
 research design notes, canonical docs, ADRs, and thin instruction surfaces.
 

@@ -110,7 +110,7 @@ The worktree plugin provides isolated git workspaces for feature work. It regist
 
 Worktrees are created under `~/.local/share/opencode/worktree/<project>/<branch>`.
 
-To customize file sync between worktrees, create `.opencode/worktree.json` in your project root:
+To customize file sync between worktrees, create .opencode/worktree.json in your project root:
 ```json
 { "syncFiles": [".env", ".env.local", "config/local.json"] }
 ```
