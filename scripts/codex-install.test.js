@@ -62,10 +62,12 @@ async function main() {
       assert.strictEqual(firstSummary.generatedRoles, 0, 'Codex install should not generate engine role wrappers');
 
       const configToml = fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8');
+      const profileToml = fs.readFileSync(path.join(codexHome, 'instruction_engine_plan_review.config.toml'), 'utf8');
       assert.ok(configToml.includes('review_model = "deepseek-v4-pro"'));
-      assert.ok(configToml.includes('[profiles.instruction_engine_plan_review]'));
-      assert.ok(configToml.includes('model = "mimo-v2-pro"'));
-      assert.ok(configToml.includes('model_provider = "opencode-go"'));
+      assert.ok(!configToml.includes('[profiles.instruction_engine_plan_review]'));
+      assert.ok(profileToml.includes('model = "mimo-v2-pro"'));
+      assert.ok(profileToml.includes('model_provider = "opencode-go"'));
+      assert.ok(profileToml.includes('plan_mode_reasoning_effort = "xhigh"'));
 
       const secondSummary = installer.runInstall({
         codexHome,
@@ -92,6 +94,27 @@ async function main() {
       assert.ok(!fs.existsSync(codexHome));
       assert.ok(!fs.existsSync(skillsHome));
       assert.ok(summary.counts.wouldCreate > 0 || summary.counts.wouldUpdate > 0);
+    });
+  });
+
+  await test('installer omits managed OpenCode provider defaults when external providers are disabled', async () => {
+    withTempDir((root) => {
+      const codexHome = path.join(root, '.codex');
+      const skillsHome = path.join(codexHome, 'skills');
+
+      installer.runInstall({
+        force: true,
+        codexHome,
+        skillsHome,
+        enableExternalProviders: false,
+      });
+
+      const configToml = fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8');
+      const profileToml = fs.readFileSync(path.join(codexHome, 'instruction_engine_plan_review.config.toml'), 'utf8');
+      assert.ok(!configToml.includes('[model_providers.'), configToml);
+      assert.ok(!profileToml.includes('model_provider = "opencode-go"'), profileToml);
+      assert.ok(!profileToml.includes('model = "mimo-v2-pro"'), profileToml);
+      assert.ok(profileToml.includes('plan_mode_reasoning_effort = "xhigh"'), profileToml);
     });
   });
 

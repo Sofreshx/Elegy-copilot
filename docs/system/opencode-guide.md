@@ -1,6 +1,6 @@
 ---
 created: 2026-05-11
-updated: 2026-06-16
+updated: 2026-06-27
 category: system
 status: current
 doc_kind: node
@@ -128,4 +128,7 @@ The plugin also injects `OPENCODE_WORKTREE_PATH`, `OPENCODE_WORKTREE_ROOT`, and 
 - Re-run `scripts/opencode-install.* --force` if shared skills are missing.
 - Check `opencode.jsonc` if built-in model overrides are not applying.
 - Restart OpenCode after changing `opencode.json`.
-- Worktree plugin loads automatically via `opencode.json` plugin config.
+- Plugin entries are written automatically into `opencode.jsonc`, but successful runtime loading still
+  depends on the host OpenCode runtime providing `@opencode-ai/plugin`.
+- The installer now performs lightweight readiness imports for shipped plugins and reports warnings
+  when the runtime dependency surface is incomplete.

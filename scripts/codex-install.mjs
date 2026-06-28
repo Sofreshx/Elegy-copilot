@@ -5,13 +5,19 @@ import os from 'os';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
-import { DEFAULT_PROFILE_NAME, DEFAULT_REVIEW_MODEL, patchConfigFile } from './codex-config-patch.mjs';
+import {
+  DEFAULT_PROFILE_NAME,
+  DEFAULT_REVIEW_MODEL,
+  patchConfigFile,
+  writeProfileConfigFile,
+} from './codex-config-patch.mjs';
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
 import {
   dirHash,
   ensureDir,
   getUserHome,
   normalizeRel,
+  shaText,
   shaFile,
   syncDirectory,
   syncFile,
@@ -66,6 +72,7 @@ function buildCounts(results) {
         counts.created += 1;
         break;
       case 'updated':
+      case 'patched':
         counts.updated += 1;
         break;
       case 'skipped':
@@ -84,6 +91,7 @@ function buildCounts(results) {
         counts.wouldCreate += 1;
         break;
       case 'would_update':
+      case 'would_patch':
         counts.wouldUpdate += 1;
         break;
       case 'would_prune':
@@ -256,6 +264,7 @@ function buildManagedInventory(assetResults) {
     instructions: {},
     agents: {},
     skills: {},
+    configFiles: {},
   };
 
   for (const result of Array.isArray(assetResults) ? assetResults : []) {
@@ -276,6 +285,9 @@ function buildManagedInventory(assetResults) {
       }
       continue;
     }
+    if (result.type === 'config') {
+      inventory.configFiles[path.basename(destination)] = String(result.sourceHash || '');
+    }
   }
 
   return inventory;
@@ -294,6 +306,7 @@ function readManagedInventory(inventoryPath) {
       instructions: toStringMap(parsed.instructions),
       agents: toStringMap(parsed.agents),
       skills: toStringMap(parsed.skills),
+      configFiles: toStringMap(parsed.configFiles),
     };
   } catch {
     return buildManagedInventory([]);
@@ -620,24 +633,6 @@ export function runInstall(args = {}) {
     });
   }
 
-  const previousInventory = readManagedInventory(inventoryPath);
-  const desiredInventory = buildManagedInventory(assetResults);
-
-  const pruneResults = [
-    ...pruneManagedEntries(path.join(codexHome, 'agents'), previousInventory.agents, desiredInventory.agents, 'agent', shaFile, args),
-    ...pruneManagedEntries(skillsHome, previousInventory.skills, desiredInventory.skills, 'skill', dirHash, args),
-  ];
-
-  // For instructions tracked in inventory (e.g. AGENTS.md), prune from codexHome root.
-  // Only handle flat file entries that live directly in codexHome.
-  const instructionsRoot = codexHome;
-  pruneResults.push(...pruneManagedEntries(instructionsRoot, previousInventory.instructions, desiredInventory.instructions, 'instructions', shaFile, args));
-
-  const inventoryResult = syncText(`${JSON.stringify(desiredInventory, null, 2)}\n`, inventoryPath, {
-    dryRun: args.dryRun,
-    force: true,
-  });
-
   const configPath = path.join(codexHome, 'config.toml');
   const configResult = patchConfigFile(configPath, {
     dryRun: args.dryRun,
@@ -647,9 +642,19 @@ export function runInstall(args = {}) {
     providerId: args.providerId || undefined,
     modelId: args.modelId || undefined,
   });
+  const profileResult = writeProfileConfigFile(configPath, {
+    dryRun: args.dryRun,
+    profileName: args.profileName,
+    enableExternalProviders: args.enableExternalProviders,
+    providerId: args.providerId || undefined,
+    modelId: args.modelId || undefined,
+  });
   const configAction = args.dryRun
     ? (configResult.changed ? 'would_patch' : 'skipped')
     : (configResult.changed ? 'patched' : 'skipped');
+  const profileAction = args.dryRun
+    ? (profileResult.changed ? 'would_patch' : 'skipped')
+    : (profileResult.changed ? 'patched' : 'skipped');
   if (args.dryRun) {
     if (configResult.changed) {
       console.log(`[DRY-RUN] PATCH ${configPath}`);
@@ -661,6 +666,51 @@ export function runInstall(args = {}) {
   } else {
     console.log(`[SKIP]   ${configPath} (up-to-date)`);
   }
+  if (args.dryRun) {
+    if (profileResult.changed) {
+      console.log(`[DRY-RUN] PATCH ${profileResult.path}`);
+    } else {
+      console.log(`[SKIP]   ${profileResult.path} (up-to-date)`);
+    }
+  } else if (profileResult.changed) {
+    console.log(`[CONFIG] ${profileResult.path}`);
+  } else {
+    console.log(`[SKIP]   ${profileResult.path} (up-to-date)`);
+  }
+
+  const configInventoryResults = [
+    {
+      id: 'codex-managed-config',
+      type: 'config',
+      destination: 'config.toml',
+      sourceHash: configResult.content ? shaText(configResult.content) : '',
+    },
+    {
+      id: 'codex-managed-profile',
+      type: 'config',
+      destination: path.basename(profileResult.path),
+      sourceHash: profileResult.content ? shaText(profileResult.content) : '',
+    },
+  ];
+
+  const previousInventory = readManagedInventory(inventoryPath);
+  const desiredInventory = buildManagedInventory([...assetResults, ...configInventoryResults]);
+
+  const pruneResults = [
+    ...pruneManagedEntries(path.join(codexHome, 'agents'), previousInventory.agents, desiredInventory.agents, 'agent', shaFile, args),
+    ...pruneManagedEntries(skillsHome, previousInventory.skills, desiredInventory.skills, 'skill', dirHash, args),
+  ];
+
+  // For instructions tracked in inventory (e.g. AGENTS.md), prune from codexHome root.
+  // Only handle flat file entries that live directly in codexHome.
+  const instructionsRoot = codexHome;
+  pruneResults.push(...pruneManagedEntries(instructionsRoot, previousInventory.instructions, desiredInventory.instructions, 'instructions', shaFile, args));
+  pruneResults.push(...pruneManagedEntries(instructionsRoot, previousInventory.configFiles, desiredInventory.configFiles, 'config', shaFile, args));
+
+  const inventoryResult = syncText(`${JSON.stringify(desiredInventory, null, 2)}\n`, inventoryPath, {
+    dryRun: args.dryRun,
+    force: true,
+  });
 
   const repoSetup = repoSetupRoot
     ? runRepoSetupProfileBootstrap({
@@ -685,7 +735,13 @@ export function runInstall(args = {}) {
       inventoryPath,
       configPath,
     },
-    counts: buildCounts([...assetResults, ...pruneResults, inventoryResult]),
+    counts: buildCounts([
+      ...assetResults,
+      ...pruneResults,
+      inventoryResult,
+      { action: configAction },
+      { action: profileAction },
+    ]),
     assets: assetResults,
     generatedRoles: assetResults.filter((asset) => asset.generated === true).length,
     cleanup: {
@@ -696,6 +752,9 @@ export function runInstall(args = {}) {
       action: configAction,
       changed: Boolean(configResult.changed),
       path: configPath,
+      profileAction,
+      profileChanged: Boolean(profileResult.changed),
+      profilePath: profileResult.path,
     },
     repoSetup,
   };

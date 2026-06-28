@@ -1,6 +1,6 @@
 ---
 created: 2026-06-09
-updated: 2026-06-22
+updated: 2026-06-27
 category: system
 status: current
 doc_kind: node
@@ -136,6 +136,13 @@ Each harness gets:
 - **Agents** (where applicable) — harness-specific agent files
 - **Plugins** (OpenCode only) — worktree plugin
 
+Codex also gets two managed configuration surfaces:
+- root `config.toml` defaults for install-safe shared settings such as `review_model`
+- a separate named profile overlay file (`<profile>.config.toml`) for the managed review/planning profile
+
+Installer writes now use temp-sibling replace semantics for file and directory updates so managed
+refreshes do not rely on delete-then-copy for normal overwrite paths.
+
 The instruction writing contract (Authority, Concise Instruction, Clarification, Planning, Review, Validation, Core Workflow) is maintained in a single shared baseline at `catalog-assets/instructions/agent-session-defaults.md`. At install time, each harness installer composes the shared baseline with a harness-specific appendix to produce the installed instruction file.
 
 ### Tier 2: Per-Repo Discovery (repo-setup-profile-bootstrap)
@@ -187,4 +194,5 @@ The instruction writing contract lives in a single shared portable baseline at `
 - `docs/system/concise-instruction-governance.md` — canonical authority for concise instruction standards
 - `docs/system/repo-setup-governance.md` — per-repo overlay and bootstrap governance
 - `scripts/install-surface-utils.mjs` — shared sync primitives (SHA-256, copy, mkdir)
+- `scripts/codex-config-patch.mjs` — Codex root-config patching plus named profile overlay generation
 - `docs/system/collaboration-profile-adr.md` — collaboration profile architecture and composition decision

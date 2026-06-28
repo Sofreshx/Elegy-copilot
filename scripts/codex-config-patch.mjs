@@ -4,13 +4,13 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getBestShell } from './shell-detect.mjs';
+import { writeTextAtomically } from './install-surface-utils.mjs';
 
 export const DEFAULT_REVIEW_MODEL = 'deepseek-v4-pro';
 export const DEFAULT_PROFILE_NAME = 'instruction_engine_plan_review';
-export const MANAGED_BLOCK_START = '# BEGIN elegy-copilot managed codex defaults';
-export const MANAGED_BLOCK_END = '# END elegy-copilot managed codex defaults';
-export const DEFAULT_PROVIDER_ID = 'opencode-go'; // fallback for managed block profiles, not root-level default
+export const DEFAULT_PROVIDER_ID = 'opencode-go'; // default managed profile provider
 export const DEFAULT_MODEL = 'mimo-v2-pro';
+export const PROFILE_CONFIG_SUFFIX = '.config.toml';
 
 export const EXTERNAL_PROVIDERS = [
   {
@@ -161,11 +161,10 @@ function ensureTrailingNewline(text) {
 
 export function stripManagedBlock(text) {
   const normalized = normalizeText(text);
-  const pattern = new RegExp(
-    `\\n?${escapeRegExp(MANAGED_BLOCK_START)}[\\s\\S]*?${escapeRegExp(MANAGED_BLOCK_END)}\\n?`,
-    'g',
-  );
-  return normalized.replace(pattern, '\n').replace(/\n{3,}/g, '\n\n').trimEnd();
+  return normalized
+    .replace(/\n?# BEGIN elegy-copilot managed codex defaults[\s\S]*?# END elegy-copilot managed codex defaults\n?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trimEnd();
 }
 
 function escapeRegExp(value) {
@@ -193,12 +192,21 @@ function hasTopLevelKey(text, key) {
   return new RegExp(`^\\s*${escapeRegExp(key)}\\s*=`, 'm').test(text);
 }
 
-function hasProfile(text, profileName) {
-  return new RegExp(`^\\s*\\[profiles\\.${escapeRegExp(profileName)}\\]\\s*$`, 'm').test(text);
-}
-
 function hasProviderTable(text, providerId) {
   return new RegExp(`^\\s*\\[model_providers\\.${escapeRegExp(providerId)}\\]\\s*$`, 'm').test(text);
+}
+
+function stripTable(text, tableHeaderPattern) {
+  const normalized = normalizeText(text);
+  const pattern = new RegExp(
+    `(?:^|\\n)\\s*\\[${tableHeaderPattern}\\]\\s*\\n[\\s\\S]*?(?=\\n\\s*\\[[^\\]]+\\]\\s*\\n|$)`,
+    'g',
+  );
+  return normalized.replace(pattern, '\n').replace(/\n{3,}/g, '\n\n').trimEnd();
+}
+
+function stripLegacyProfileTable(text, profileName) {
+  return stripTable(text, `profiles\\.${escapeRegExp(profileName)}`);
 }
 
 function buildProviderTable(provider) {
@@ -213,7 +221,6 @@ function buildProviderTable(provider) {
   return lines.join('\n');
 }
 
-// Build only the root-level keys that need to go BEFORE any TOML tables
 function buildRootKeyLines({ needsModel, needsProvider, needsReviewModel, reviewModel, modelId, providerId }) {
   const lines = [];
   if (needsModel) {
@@ -228,36 +235,37 @@ function buildRootKeyLines({ needsModel, needsProvider, needsReviewModel, review
   return lines;
 }
 
-// Build only the TOML tables portion of the managed block (no root keys)
-function buildManagedBlock({ needsProfile, profileName, enableExternalProviders, existingProviders }) {
-  const lines = [MANAGED_BLOCK_START];
-
-  if (needsProfile) {
-    lines.push(`[profiles.${profileName}]`);
-    lines.push(`model_provider = "${DEFAULT_PROVIDER_ID}"`);
-    lines.push(`model = "${DEFAULT_MODEL}"`);
-    lines.push('personality = "pragmatic"');
-    lines.push('model_reasoning_effort = "max"');
-    lines.push('plan_mode_reasoning_effort = "xhigh"');
-    lines.push('');
+function buildProfileConfig(options = {}) {
+  const enableExternalProviders = options.enableExternalProviders !== false;
+  const providerId = options.providerId || (enableExternalProviders ? DEFAULT_PROVIDER_ID : '');
+  const modelId = options.modelId || (providerId ? DEFAULT_MODEL : '');
+  const lines = [];
+  if (providerId) {
+    lines.push(`model_provider = "${providerId}"`);
   }
-
-  if (enableExternalProviders) {
-    for (const provider of EXTERNAL_PROVIDERS) {
-      if (existingProviders.has(provider.id)) {
-        continue;
-      }
-      lines.push(buildProviderTable(provider));
-      lines.push('');
-    }
+  if (modelId) {
+    lines.push(`model = "${modelId}"`);
   }
+  lines.push(
+    'personality = "pragmatic"',
+    'model_reasoning_effort = "max"',
+    'plan_mode_reasoning_effort = "xhigh"',
+  );
+  return ensureTrailingNewline(lines.join('\n'));
+}
 
-  // Remove trailing blank line before END marker
-  if (lines.length > 1 && lines[lines.length - 1] === '') {
-    lines.pop();
+function buildMissingProviderTables({ enableExternalProviders, existingProviders }) {
+  if (!enableExternalProviders) {
+    return [];
   }
-  lines.push(MANAGED_BLOCK_END);
-  return lines.join('\n');
+  return EXTERNAL_PROVIDERS
+    .filter((provider) => !existingProviders.has(provider.id))
+    .map((provider) => buildProviderTable(provider));
+}
+
+export function resolveProfileConfigPath(configPath, profileName = DEFAULT_PROFILE_NAME) {
+  const resolvedConfigPath = path.resolve(configPath);
+  return path.join(path.dirname(resolvedConfigPath), `${profileName}${PROFILE_CONFIG_SUFFIX}`);
 }
 
 export function patchCodexConfig(originalText, options = {}) {
@@ -266,14 +274,13 @@ export function patchCodexConfig(originalText, options = {}) {
   const enableExternalProviders = options.enableExternalProviders !== false;
   const providerId = options.providerId;
   const modelId = options.modelId;
-  const stripped = stripManagedBlock(originalText);
+  const stripped = stripLegacyProfileTable(stripManagedBlock(originalText), profileName);
   // Only check the preamble (before first table header) for root keys.
   // Keys inside [profiles.*] or [model_providers.*] sections are NOT root-level defaults.
   const rootPreambleText = splitRootPreamble(stripped).preambleLines.join('\n');
   const needsModel = !hasTopLevelKey(rootPreambleText, 'model');
   const needsProvider = !!providerId && !hasTopLevelKey(rootPreambleText, 'model_provider');
   const needsReviewModel = !hasTopLevelKey(rootPreambleText, 'review_model');
-  const needsProfile = !hasProfile(stripped, profileName);
 
   const existingProviders = new Set();
   if (enableExternalProviders) {
@@ -284,27 +291,18 @@ export function patchCodexConfig(originalText, options = {}) {
     }
   }
 
-  const needsProviders = enableExternalProviders && existingProviders.size < EXTERNAL_PROVIDERS.length;
-
-  if (!needsModel && !needsProvider && !needsReviewModel && !needsProfile && !needsProviders) {
-    return ensureTrailingNewline(stripped || '');
-  }
-
-  // Build root-level keys to insert BEFORE the first TOML table
-  const rootKeyLines = buildRootKeyLines({ needsModel, needsProvider, needsReviewModel, reviewModel, modelId, providerId });
-
-  // Build the managed block containing only TOML tables (no root keys)
-  const block = buildManagedBlock({
-    needsProfile,
-    profileName,
+  const missingProviderTables = buildMissingProviderTables({
     enableExternalProviders,
     existingProviders,
   });
+  const needsProviders = missingProviderTables.length > 0;
 
-  // Split the stripped text into preamble (before first table) and body (tables)
+  if (!needsModel && !needsProvider && !needsReviewModel && !needsProviders && stripped === normalizeText(originalText).trimEnd()) {
+    return ensureTrailingNewline(stripped || '');
+  }
+
+  const rootKeyLines = buildRootKeyLines({ needsModel, needsProvider, needsReviewModel, reviewModel, modelId, providerId });
   const { preambleLines, bodyText } = splitRootPreamble(stripped);
-
-  // Insert root keys into the preamble
   const rootKeysNeeded = rootKeyLines.length > 0;
   let nextPreambleLines = [...preambleLines];
 
@@ -324,16 +322,14 @@ export function patchCodexConfig(originalText, options = {}) {
       return true;
     });
 
-    // Add root keys at the end of preamble
     nextPreambleLines = nextPreambleLines.concat(rootKeyLines);
   }
 
-  // Reassemble: preamble + body + managed block tables
   const preambleText = nextPreambleLines.join('\n').trimEnd();
   const sections = [];
   if (preambleText) sections.push(preambleText);
   if (bodyText) sections.push(bodyText);
-  if (block) sections.push(block);
+  sections.push(...missingProviderTables);
 
   if (sections.length === 0) {
     return '';
@@ -348,11 +344,28 @@ export function patchConfigFile(configPath, options = {}) {
   const changed = normalizeText(existing) !== normalizeText(patched);
 
   if (!options.dryRun && changed) {
-    fs.mkdirSync(path.dirname(configPath), { recursive: true });
-    fs.writeFileSync(configPath, patched, 'utf8');
+    writeTextAtomically(patched, configPath);
   }
 
   return { changed, content: patched };
+}
+
+export function writeProfileConfigFile(configPath, options = {}) {
+  const profileName = options.profileName || DEFAULT_PROFILE_NAME;
+  const profilePath = resolveProfileConfigPath(configPath, profileName);
+  const existing = fs.existsSync(profilePath) ? fs.readFileSync(profilePath, 'utf8') : '';
+  const patched = buildProfileConfig(options);
+  const changed = normalizeText(existing) !== normalizeText(patched);
+
+  if (!options.dryRun && changed) {
+    writeTextAtomically(patched, profilePath);
+  }
+
+  return {
+    changed,
+    content: patched,
+    path: profilePath,
+  };
 }
 
 const isMainModule = process.argv[1]
@@ -381,6 +394,12 @@ if (isMainModule) {
         providerId: args.providerId || undefined,
         modelId: args.modelId || undefined,
       });
+      const profileResult = writeProfileConfigFile(args.config, {
+        dryRun: args.dryRun,
+        profileName: args.profileName,
+        providerId: args.providerId || undefined,
+        modelId: args.modelId || undefined,
+      });
 
       // Apply [windows] shell section if not already present
       let finalContent = result.content;
@@ -392,14 +411,23 @@ if (isMainModule) {
 
       if (args.dryRun) {
         process.stdout.write(finalContent);
-      } else if (result.changed || shellChanged) {
+      } else if (result.changed || shellChanged || profileResult.changed) {
         if (shellChanged && !args.dryRun) {
-          fs.mkdirSync(path.dirname(args.config), { recursive: true });
-          fs.writeFileSync(args.config, finalContent, 'utf8');
+          writeTextAtomically(finalContent, args.config);
         }
-        console.log(`[CONFIG] ${args.config}`);
+        if (result.changed || shellChanged) {
+          console.log(`[CONFIG] ${args.config}`);
+        } else {
+          console.log(`[SKIP]   ${args.config} (up-to-date)`);
+        }
+        if (profileResult.changed) {
+          console.log(`[CONFIG] ${profileResult.path}`);
+        } else {
+          console.log(`[SKIP]   ${profileResult.path} (up-to-date)`);
+        }
       } else {
         console.log(`[SKIP]   ${args.config} (up-to-date)`);
+        console.log(`[SKIP]   ${profileResult.path} (up-to-date)`);
       }
     } catch (error) {
       console.error(error.message || String(error));

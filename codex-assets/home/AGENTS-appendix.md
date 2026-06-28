@@ -46,8 +46,7 @@ Primary skills available:
 Before starting planning work, check whether `elegy-planning` is available on PATH.
 If the binary is found, prefer it for durable planning state (goals, roadmaps, plans).
 The shared planning database is located at the path in the
-`INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH` environment variable (defaults to
-`~/.elegy/planning.db`).
+`INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH` environment variable.
 
 To initialize a Codex-side planning session:
 ```

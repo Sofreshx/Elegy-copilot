@@ -39,16 +39,18 @@ async function main() {
 
     const result = patcher.patchConfigFile(configPath);
     assert.strictEqual(result.changed, true);
+    const profileResult = patcher.writeProfileConfigFile(configPath);
 
     const patched = fs.readFileSync(configPath, 'utf8');
     assert.ok(patched.includes('personality = "friendly"'));
     assert.ok(patched.includes('review_model = "deepseek-v4-pro"'));
-    assert.ok(patched.includes('[profiles.instruction_engine_plan_review]'));
-    assert.ok(patched.includes('plan_mode_reasoning_effort = "xhigh"'));
+    assert.ok(!patched.includes('[profiles.instruction_engine_plan_review]'));
+    assert.ok(fs.existsSync(profileResult.path));
+    assert.ok(fs.readFileSync(profileResult.path, 'utf8').includes('plan_mode_reasoning_effort = "xhigh"'));
   });
   });
 
-  await test('patcher preserves an existing review_model and existing managed-profile name', async () => {
+  await test('patcher preserves an existing review_model and strips the legacy managed profile table', async () => {
   withTempDir((root) => {
     const configPath = path.join(root, 'config.toml');
     fs.writeFileSync(
@@ -88,8 +90,7 @@ async function main() {
     const reviewMatches = patched.match(/review_model\s*=/g) || [];
     const profileMatches = patched.match(/\[profiles\.instruction_engine_plan_review\]/g) || [];
     assert.strictEqual(reviewMatches.length, 1, patched);
-    assert.strictEqual(profileMatches.length, 1, patched);
-    assert.ok(!patched.includes('# BEGIN elegy-copilot managed codex defaults'), patched);
+    assert.strictEqual(profileMatches.length, 0, patched);
   });
   });
 
@@ -107,7 +108,7 @@ async function main() {
     const twice = fs.readFileSync(configPath, 'utf8');
 
     assert.strictEqual(twice, once);
-    assert.ok(twice.includes('# BEGIN elegy-copilot managed codex defaults'));
+    assert.ok(!twice.includes('# BEGIN elegy-copilot managed codex defaults'));
   });
   });
 
@@ -155,6 +156,20 @@ async function main() {
   });
   });
 
+  await test('managed profile overlay falls back cleanly when external providers are disabled', async () => {
+  withTempDir((root) => {
+    const configPath = path.join(root, 'config.toml');
+    const result = patcher.writeProfileConfigFile(configPath, { enableExternalProviders: false });
+    assert.strictEqual(result.changed, true);
+
+    const profileText = fs.readFileSync(result.path, 'utf8');
+    assert.ok(!profileText.includes('model_provider = "opencode-go"'), profileText);
+    assert.ok(!profileText.includes('model = "mimo-v2-pro"'), profileText);
+    assert.ok(profileText.includes('model_reasoning_effort = "max"'), profileText);
+    assert.ok(profileText.includes('plan_mode_reasoning_effort = "xhigh"'), profileText);
+  });
+  });
+
   await test('patcher does not duplicate existing providers when all present', async () => {
   withTempDir((root) => {
     const configPath = path.join(root, 'config.toml');
@@ -192,7 +207,6 @@ async function main() {
     const firstTableIndex = Math.min(
       patched.indexOf('[windows]'),
       patched.indexOf('[projects.'),
-      patched.indexOf('[profiles.'),
       patched.indexOf('[model_providers.'),
     );
 
@@ -269,15 +283,11 @@ async function main() {
     assert.ok(patched.includes('review_model = "deepseek-v4-pro"'));
 
     // Verify the managed block END marker exists
-    assert.ok(patched.includes('# END elegy-copilot managed codex defaults'), patched);
-
-    // Verify no duplicate managed blocks
-    const beginCount = (patched.match(/# BEGIN elegy-copilot managed codex defaults/g) || []).length;
-    assert.strictEqual(beginCount, 1);
+    assert.ok(!patched.includes('# END elegy-copilot managed codex defaults'), patched);
   });
   });
 
-  await test('patcher migrates existing elegy-copilot block to correct positions', async () => {
+  await test('patcher migrates existing elegy-copilot block to root keys plus a separate profile file', async () => {
   withTempDir((root) => {
     const configPath = path.join(root, 'config.toml');
     // Simulate a config with the old-style managed block (root keys inside the managed block)
@@ -300,16 +310,15 @@ async function main() {
     fs.writeFileSync(configPath, configText, 'utf8');
 
     const result = patcher.patchConfigFile(configPath, { providerId: 'opencode-go' });
+    const profileResult = patcher.writeProfileConfigFile(configPath);
     const patched = fs.readFileSync(configPath, 'utf8');
 
-    // After migration, the old style should be gone (managed block only contains tables now)
-    const beginMarkers = (patched.match(/# BEGIN elegy-copilot managed codex defaults/g) || []);
-    assert.strictEqual(beginMarkers.length, 1, 'exactly one managed block');
+    assert.ok(!patched.includes('# BEGIN elegy-copilot managed codex defaults'));
+    assert.ok(!patched.includes('[profiles.instruction_engine_plan_review]'));
 
     // Root keys must be before first table header
     const firstTableIdx = Math.min(
       patched.indexOf('[windows]'),
-      patched.indexOf('[profiles.'),
       patched.indexOf('[model_providers.'),
     );
     const providerIdx = patched.indexOf('model_provider = "');
@@ -319,12 +328,26 @@ async function main() {
     assert.ok(patched.includes('[windows]'), patched);
     assert.ok(patched.includes('shell = "pwsh"'), patched);
     assert.ok(patched.includes('approval_policy = "on-request"'), patched);
+    assert.ok(fs.readFileSync(profileResult.path, 'utf8').includes('model_reasoning_effort = "max"'));
   });
   });
 
   await test('writes root-level model_provider when --provider-id is provided', async () => {
     const result = patcher.patchCodexConfig('', { providerId: 'opencode-go' });
     assert.ok(result.includes('model_provider = "opencode-go"'), result);
+  });
+
+  await test('writes a separate profile config file for the managed Codex review profile', async () => {
+  withTempDir((root) => {
+    const configPath = path.join(root, 'config.toml');
+    const result = patcher.writeProfileConfigFile(configPath);
+    assert.strictEqual(result.changed, true);
+    assert.ok(result.path.endsWith('instruction_engine_plan_review.config.toml'));
+    const profileText = fs.readFileSync(result.path, 'utf8');
+    assert.ok(profileText.includes('model_provider = "opencode-go"'));
+    assert.ok(profileText.includes('plan_mode_reasoning_effort = "xhigh"'));
+    assert.ok(!profileText.includes('[profiles.'));
+  });
   });
 
   console.log(`\n${passed} tests passed`);

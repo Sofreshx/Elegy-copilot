@@ -58,6 +58,97 @@ export function ensureDir(targetPath, dryRun, log = console.log) {
   return { action: 'created_dir', path: targetPath };
 }
 
+function createTempSibling(targetPath, suffix = 'tmp') {
+  return path.join(
+    path.dirname(targetPath),
+    `.${path.basename(targetPath)}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.${suffix}`,
+  );
+}
+
+function removePathSafe(targetPath) {
+  try {
+    if (!fs.existsSync(targetPath)) {
+      return;
+    }
+    const stat = fs.statSync(targetPath);
+    if (stat.isDirectory()) {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+      return;
+    }
+    fs.rmSync(targetPath, { force: true });
+  } catch {
+    // Best-effort cleanup for temp/backup paths.
+  }
+}
+
+function replacePathAtomically(tempPath, targetPath) {
+  const backupPath = fs.existsSync(targetPath) ? createTempSibling(targetPath, 'bak') : '';
+
+  try {
+    if (backupPath) {
+      fs.renameSync(targetPath, backupPath);
+    }
+    fs.renameSync(tempPath, targetPath);
+    removePathSafe(backupPath);
+  } catch (error) {
+    try {
+      if (!fs.existsSync(targetPath) && backupPath && fs.existsSync(backupPath)) {
+        fs.renameSync(backupPath, targetPath);
+      }
+    } catch {
+      // Ignore rollback failures and rethrow the original error.
+    }
+    removePathSafe(tempPath);
+    throw error;
+  }
+}
+
+function copyDirectoryContents(sourcePath, destinationPath) {
+  fs.mkdirSync(destinationPath, { recursive: true });
+  const entries = fs.readdirSync(sourcePath, { withFileTypes: true });
+  for (const entry of entries) {
+    const sourceEntryPath = path.join(sourcePath, entry.name);
+    const destinationEntryPath = path.join(destinationPath, entry.name);
+    if (entry.isDirectory()) {
+      copyDirectoryContents(sourceEntryPath, destinationEntryPath);
+      continue;
+    }
+    if (entry.isFile()) {
+      fs.mkdirSync(path.dirname(destinationEntryPath), { recursive: true });
+      fs.copyFileSync(sourceEntryPath, destinationEntryPath);
+    }
+  }
+}
+
+function copyFileAtomically(sourcePath, destinationPath) {
+  const tempPath = createTempSibling(destinationPath);
+  fs.copyFileSync(sourcePath, tempPath);
+  replacePathAtomically(tempPath, destinationPath);
+}
+
+function copyTextAtomically(content, destinationPath) {
+  const tempPath = createTempSibling(destinationPath);
+  fs.writeFileSync(tempPath, content, 'utf8');
+  replacePathAtomically(tempPath, destinationPath);
+}
+
+export function writeTextAtomically(content, destinationPath) {
+  fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+  copyTextAtomically(content, destinationPath);
+}
+
+function copyDirectoryAtomically(sourcePath, destinationPath) {
+  const tempPath = createTempSibling(destinationPath, 'tmpdir');
+  fs.mkdirSync(tempPath, { recursive: true });
+  try {
+    copyDirectoryContents(sourcePath, tempPath);
+    replacePathAtomically(tempPath, destinationPath);
+  } catch (error) {
+    removePathSafe(tempPath);
+    throw error;
+  }
+}
+
 function buildSyncResult(action, targetPath, metadata = {}) {
   return {
     action,
@@ -120,7 +211,7 @@ export function syncFile(src, dst, options = {}) {
 
   const action = options.dryRun ? 'would_update' : 'updated';
   if (!options.dryRun) {
-    fs.copyFileSync(src, dst);
+    copyFileAtomically(src, dst);
   }
   logSyncAction(action, dst, log);
   return buildSyncResult(action, dst, {
@@ -156,8 +247,7 @@ export function syncDirectory(src, dst, options = {}) {
 
   const action = options.dryRun ? 'would_update' : 'updated';
   if (!options.dryRun) {
-    fs.rmSync(dst, { recursive: true, force: true });
-    fs.cpSync(src, dst, { recursive: true });
+    copyDirectoryAtomically(src, dst);
   }
   logSyncAction(action, dst, log);
   return buildSyncResult(action, dst, {
@@ -194,7 +284,7 @@ export function syncText(content, dst, options = {}) {
 
   const action = options.dryRun ? 'would_update' : 'updated';
   if (!options.dryRun) {
-    fs.writeFileSync(dst, content, 'utf8');
+    copyTextAtomically(content, dst);
   }
   logSyncAction(action, dst, log);
   return buildSyncResult(action, dst, {
