@@ -1,6 +1,7 @@
 ---
 name: spec-planning-bridge
-description: "Combines spec-dev, spec-authoring, spec-review, and elegy-planning without merging their authority. Use after spec review to hand an approved spec to a planning lane. Triggers on: spec handoff, spec to planning, bridge spec to plan, link spec to roadmap, spec planning bridge. User-invoked; do not auto-load."
+description: "Bridge an approved spec to a durable planning lane (roadmap, plan, work points) without merging spec and planning authority domains. Use after spec review to hand an approved spec to elegy-planning. Triggers on: spec handoff, spec to planning, bridge spec to plan, link spec to roadmap, spec planning bridge. User-invoked; do not auto-load."
+license: Apache-2.0
 spec_contract: docs/specs/spec-driven-development-contract/spec.md
 metadata: {"tags":["specs","planning","handoff","bridge","elegy-planning"]}
 disable-model-invocation: true

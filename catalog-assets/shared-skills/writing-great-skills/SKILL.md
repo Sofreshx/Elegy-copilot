@@ -1,6 +1,6 @@
 ---
 name: writing-great-skills
-description: "Reference for writing and editing skills well — the vocabulary and principles that make a skill predictable. Use when designing or refining agent skills, diagnosing skill failure modes, or evaluating skill quality."
+description: "Design predictable agent skills using vocabulary, information hierarchy, leading words, and pruning principles. Use when designing or refining agent skills, diagnosing skill failure modes, or evaluating skill quality."
 disable-model-invocation: true
 license: Apache-2.0
 metadata: {"source":"https://github.com/mattpocock/skills","adapted":true,"originalName":"writing-great-skills","notes":"GLOSSARY.md ref removed, terms inlined"}

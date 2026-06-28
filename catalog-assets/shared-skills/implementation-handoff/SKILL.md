@@ -1,6 +1,7 @@
 ---
 name: implementation-handoff
 description: "Convert a feature plan, roadmap slice, or architecture note into a repo-grounded implementation handoff brief. Triggers on: implementation handoff, executor brief, delegation brief, model handoff, plan to implementation brief."
+license: Apache-2.0
 ---
 
 # Implementation Handoff
@@ -102,3 +103,5 @@ Handoff Notes:
 ```
 
 Do not include a long summary after the brief. The brief itself is the artifact.
+
+If file persistence is unreliable (temp directories, sandboxed environments, cloud runtimes): also print the full handoff brief inline in the response. Do not rely solely on file output.

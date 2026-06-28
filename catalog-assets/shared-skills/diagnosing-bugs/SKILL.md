@@ -61,6 +61,11 @@ Phase 1 is done when the loop is **tight** and **red-capable**: you can name **o
 
 If you catch yourself reading code to build a theory before this command exists, **stop — jumping straight to a hypothesis is the exact failure this skill prevents.** No red-capable command, no Phase 2.
 
+Exceptions — skip Phase 1 loop when:
+- Trivial failures: obvious syntax errors, missing imports, misconfigured paths (fix directly)
+- Production-only bugs: the bug only reproduces in a deployed environment you cannot loop against (proceed with log analysis, skip the red-green loop)
+- External dependency bugs: the failure originates in a third-party service you cannot control (document the dependency boundary, skip the loop)
+
 ## Phase 2 — Reproduce + minimise
 
 Run the loop. Watch it go red — the bug appears.

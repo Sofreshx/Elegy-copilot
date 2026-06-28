@@ -1,6 +1,7 @@
 ﻿---
 name: elegy-skills-discovery
-description: "CLI-based governed skill discovery via Elegy. Use to search, resolve, describe, and validate skills from the governed v2 skill catalog with progressive disclosure."
+description: "Search, resolve, describe, and validate skills from the governed v2 skill catalog via the elegy-skills CLI. Use when you need governed skill discovery, to find the right skill for a task, or when another skill needs registry lookup. This is the canonical discovery skill. The legacy `elegy-skills` name refers to the same capability; use `elegy-skills-discovery` going forward."
+license: Apache-2.0
 metadata: {"aliasKeys":["skill-discovery","elegy-skills","skills"],"stacks":["orchestration"],"tags":["catalog","discovery","routing","skills","elegy"]}
 ---
 

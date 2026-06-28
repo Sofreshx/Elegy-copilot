@@ -1,6 +1,7 @@
 ---
 name: docs-practice
 description: "Documentation and spec structure standards. Use to audit, fix, or create READMEs, canonical docs, specs, and ADRs. Triggers on: fix README, audit docs, documentation structure, spec format, ADR format, docs practice, readme structure."
+license: Apache-2.0
 metadata: {"tags":["documentation","readme","specs","adr","governance"]}
 ---
 

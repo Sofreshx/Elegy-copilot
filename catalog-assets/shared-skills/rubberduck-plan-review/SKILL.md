@@ -1,6 +1,7 @@
 ﻿---
 name: rubberduck-plan-review
 description: "Adversarial Rubberduck plan review. Use before implementing complex plans, migrations, refactors, repo setup changes, or architectural decisions; also use when the user asks to rubberduck, critique, challenge, stress-test, or review a plan."
+license: Apache-2.0
 ---
 
 # Rubberduck Plan Review

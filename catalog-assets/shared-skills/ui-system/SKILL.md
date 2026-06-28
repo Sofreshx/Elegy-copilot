@@ -1,6 +1,7 @@
 ---
 name: ui-system
 description: "Build UI from the existing codebase. Inventory components, primitives, icons, tokens, and stories before creating new UI; reuse local patterns first, treat Figma and Storybook MCP data as context (not authority), and pick the narrowest available validation. Triggers on: ui, component, frontend, view, screen, panel, dialog, form, button, icon, style, styling, design system, storybook, figma, styling consistency, design-system reuse."
+license: Apache-2.0
 ---
 
 # UI System

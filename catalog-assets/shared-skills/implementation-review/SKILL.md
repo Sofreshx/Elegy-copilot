@@ -1,6 +1,7 @@
 ﻿---
 name: implementation-review
 description: "Implementation review for code, docs, skills, agents, and configuration changes. Use after edits when checking correctness, scope, regressions, and validation sufficiency before handoff."
+license: Apache-2.0
 ---
 
 # Implementation Review
@@ -15,6 +16,7 @@ description: "Implementation review for code, docs, skills, agents, and configur
 ## Review Steps
 
 1. Compare the diff against the user request and plan.
+   - If no diff is available (reviewing a spec, plan, or work from another session without a diff): change verdict to blocked and request a diff, or proceed with lower confidence noting the limitation.
 2. Check for behavioral regressions, data loss, security issues, broken contracts, stale docs, and accidental broadening.
 3. Check tests and validation evidence. Passing tests are evidence, not proof.
 4. Look for user changes in the worktree and confirm the implementation did not overwrite or revert them.

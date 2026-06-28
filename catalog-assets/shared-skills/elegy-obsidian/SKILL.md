@@ -1,6 +1,7 @@
 ---
 name: elegy-obsidian
-description: "Foundation skill for read/write/search operations against a local Obsidian vault via the official Obsidian Desktop CLI (v1.12.7+). Non-authoritative convenience layer; durable planning state continues to flow through elegy-planning and SQLite. Triggers on: obsidian, vault, notes, daily, tag, search, task, non-authoritative-mirror, elegy. User-invoked; do not auto-load."
+description: "Read, write, and search a local Obsidian vault via the official Obsidian Desktop CLI (v1.12.7+). Non-authoritative convenience layer; durable planning state continues to flow through elegy-planning and SQLite. User-invoked; do not auto-load."
+license: Apache-2.0
 metadata: {"aliasKeys":["obsidian","obsidian-cli","elegy-obsidian"],"stacks":["vault","notes"],"tags":["obsidian","vault","notes","search","tasks","tags","elegy","non-authoritative-mirror"]}
 disable-model-invocation: true
 ---

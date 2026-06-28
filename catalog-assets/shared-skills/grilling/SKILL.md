@@ -7,7 +7,7 @@ metadata: {"source":"https://github.com/mattpocock/skills","adapted":true,"origi
 
 # Grilling
 
-A relentless one-question-at-a-time interview that walks the design tree until every branch is resolved.
+A relentless one-question-at-a-time interview that walks the design tree until every implementation-blocking decision is resolved.
 
 ## Precondition
 
@@ -15,7 +15,7 @@ Before grilling about a codebase-specific topic, read the repo's canonical docs 
 
 ## Process
 
-Interview the user relentlessly about every aspect of the plan or design until reaching a shared understanding. Walk down each branch of the design tree, resolving dependencies between decisions one-by-one. For each question, provide your recommended answer.
+Interview the user relentlessly about every implementation-blocking aspect of the plan or design until reaching a shared understanding. Walk down each branch of the design tree, resolving dependencies between decisions one-by-one. For each question, provide your recommended answer.
 
 Ask the questions **one at a time**, waiting for feedback on each question before continuing. Asking multiple questions at once is bewildering.
 

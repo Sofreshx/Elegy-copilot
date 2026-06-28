@@ -1,6 +1,7 @@
 ﻿---
 name: spec-dev
 description: "Entrypoint/router for spec-driven development. Decide whether the task should use spec-first clarification, a durable repo spec under docs/specs/, or spec-as-source declarative authoring. Triggers on: spec-driven development, write a spec, refine a spec, spec-first, spec-anchored, spec-as-source, specs folder."
+license: Apache-2.0
 spec_contract: docs/specs/spec-driven-development-contract/spec.md
 metadata: {"tags":["specs","planning","requirements","validation"]}
 ---

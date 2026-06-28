@@ -1,6 +1,7 @@
 ﻿---
 name: spec-authoring
 description: "Create or refine a durable repo spec under docs/specs/<spec-slug>/spec.md using the shared contract. Use when work should be spec-anchored or spec-as-source and needs a concrete spec artifact before implementation planning. Triggers on: author a spec, create a spec, refine spec.md, specs template, specs folder, durable repo spec."
+license: Apache-2.0
 spec_contract: docs/specs/spec-driven-development-contract/spec.md
 metadata: {"tags":["specs","authoring","requirements","contracts"]}
 ---
@@ -71,7 +72,7 @@ Before handing a spec to `spec-review`, confirm:
 - [ ] Implementation Links list every file, test, or plan that the spec will touch.
 - [ ] Validation Evidence is populated (required for `implemented` status per normative spec R9).
 - [ ] Drift Notes captures any deviation or follow-up, or says "None."
-- [ ] Pre-commit hook (removed June 2026): If cleaning up, `node scripts/install-spec-hooks.mjs` can remove any remaining hook files.
+
 - [ ] Run `node scripts/validate-specs.js docs/specs/<slug>/spec.md` and fix all errors.
 - [ ] Run `node scripts/validate-specs.js --strict <spec-path>` and verify: no index drift warnings, no cross-spec errors, no stale-draft warnings (unless intentional with `freshness: ignore`), and a `plan.md` exists if the spec has 5+ requirements (normative spec R8).
 - [ ] If the spec has 5+ requirements or 2+ phases, create a sibling `plan.md`.

@@ -54,7 +54,7 @@ Then:
 - Confirm with user which behaviors to test (prioritize)
 - Identify opportunities for deep modules (small interface, deep implementation) — use the `codebase-design` skill for the vocabulary and testability checks
 - List the behaviors to test (not implementation steps)
-- Get user approval on the plan
+- Get user approval on the plan (skip if interactive session — proceed with stated assumptions; also skip if the test suite already has a failing test matching the task)
 
 Ask: "What should the public interface look like? Which behaviors are most important to test?"
 

@@ -1,6 +1,7 @@
 ---
 name: ui-visual-review
 description: "Review rendered UI evidence (screenshots, browser output, component renders) without editing code. Report hierarchy, layout, component, UX, accessibility, and aesthetic defects. Triggers on: visual review, UI review, design review, screenshot review, visual check, UI audit, look and feel, visual defects."
+license: Apache-2.0
 ---
 
 # UI Visual Review

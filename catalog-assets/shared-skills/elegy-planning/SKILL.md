@@ -1,6 +1,7 @@
 ﻿---
 name: elegy-planning
 description: Use when an agent needs to create, inspect, update, validate, or export durable planning state — goals, roadmaps, plans, work points, todos, issues, review points, insights, and project runs — through the dedicated elegy-planning CLI over SQLite. User-invoked; do not auto-load.
+license: Apache-2.0
 disable-model-invocation: true
 ---
 

@@ -1,6 +1,7 @@
 ---
 name: repo-backed-obsidian-docs
 description: "Teaches agents to document projects through Obsidian while keeping canonical Markdown source in the project repo. Repo docs are authoritative; Obsidian is a local viewer/editor only. Triggers on: obsidian docs, repo docs, doc vault, obsidian vault, documentation vault."
+license: Apache-2.0
 metadata: {"aliasKeys":["obsidian-docs","repo-docs","doc-vault"],"stacks":["docs","obsidian"],"tags":["obsidian","docs","documentation","repo","vault","canonical","authority"]}
 ---
 

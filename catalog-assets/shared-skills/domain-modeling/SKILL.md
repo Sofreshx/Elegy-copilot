@@ -97,7 +97,7 @@ ADR format (in `docs/system/adr/NNNN-slug.md`):
 {1-3 sentences: what's the context, what did we decide, and why.}
 ```
 
-An ADR can be a single paragraph. The value is in recording *that* a decision was made and *why* — not in filling out sections. Number sequentially by scanning the directory for the highest existing number.
+ADRs should follow the `docs-practice` skill's format: Context, Decision, Consequences sections at minimum. The value is in recording *that* a decision was made and *why*. Number sequentially by scanning the directory for the highest existing number.
 
 ## References
 

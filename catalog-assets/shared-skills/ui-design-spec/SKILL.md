@@ -1,6 +1,7 @@
 ---
 name: ui-design-spec
 description: "Convert prompts, screenshots, generated concepts, or Figma context into a structured repo-grounded UI specification. Triggers on: ui spec, design spec, UI specification, screen design, component spec, Figma to spec, screenshot to spec, UI requirements."
+license: Apache-2.0
 ---
 
 # UI Design Spec

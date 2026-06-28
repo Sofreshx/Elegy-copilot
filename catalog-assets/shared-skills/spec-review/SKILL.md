@@ -1,6 +1,7 @@
 ﻿---
 name: spec-review
 description: "Adversarial review for a durable repo spec before implementation planning. Use after spec authoring to find ambiguity, missing evidence, weak acceptance checks, or source-of-truth drift. Triggers on: review a spec, spec review, critique spec.md, spec readiness, requirements gaps."
+license: Apache-2.0
 spec_contract: docs/specs/spec-driven-development-contract/spec.md
 metadata: {"tags":["specs","review","requirements","planning"]}
 ---
