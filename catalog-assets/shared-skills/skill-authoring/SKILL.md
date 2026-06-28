@@ -1,8 +1,8 @@
 ---
 name: skill-authoring
-description: "Create or refine portable Agent Skills (SKILL.md) that work across Codex, Claude Code, OpenCode, Cursor, and 30+ tools. Use when designing a new skill, fixing a skill that triggers at the wrong time, or packaging instructions as a reusable workflow. Triggers on: create skill, write SKILL.md, refine skill, skill frontmatter, skill description, agent skill."
+description: "Create or refine portable Agent Skills (SKILL.md) that work across Codex, Claude Code, OpenCode, Cursor, and compatible tools. Use when designing a new skill, fixing a skill that triggers at the wrong time, or packaging instructions as a reusable workflow. Triggers on: create skill, write SKILL.md, refine skill, skill frontmatter, skill description, agent skill."
 license: Apache-2.0
-metadata: {"author":"elegy-copilot","source":"https://agentskills.io/specification","version":"1.0","aliasKeys":["create skill","write SKILL.md","refine skill","skill frontmatter","skill description","agent skill"]}
+metadata: {"author":"elegy-copilot","source":"https://agentskills.io/specification","version":"1.1","aliasKeys":["create skill","write SKILL.md","refine skill","skill frontmatter","skill description","agent skill"]}
 ---
 
 # Skill Authoring
@@ -10,8 +10,9 @@ metadata: {"author":"elegy-copilot","source":"https://agentskills.io/specificati
 ## Purpose
 
 Create portable Agent Skills that follow the open standard at
-[agentskills.io](https://agentskills.io/specification) and load correctly in Codex,
-Claude Code, OpenCode, Cursor, and any other skills-compatible agent.
+[agentskills.io](https://agentskills.io/specification) and load correctly in
+Agent Skills-compatible runtimes (Codex, Claude Code, OpenCode, Cursor, and others);
+verify harness-specific extensions before deployment.
 
 A skill packages instructions, scripts, and resources so an agent can perform a
 specific task reliably. Skills use **progressive disclosure**: agents load only
@@ -67,8 +68,8 @@ description: One-sentence summary of what the skill does and when to use it.
 | `description` | Yes | 1-1024 chars, must describe what the skill does AND when to use it, front-load trigger keywords |
 | `license` | No | License name or reference to bundled license file |
 | `compatibility` | No | Max 500 chars. Use only if the skill needs specific tools, packages, or network access |
-| `metadata` | No | Arbitrary string map for additional context (must be a same-line JSON object) |
-| `allowed-tools` | No | Space-separated pre-approved tools (experimental) |
+| `metadata` | No | Arbitrary string map for additional context (use plain YAML mapping; keep values as simple strings unless the target harness explicitly supports richer values) |
+| `allowed-tools` | No | Space-separated pre-approved tools (experimental); verify target harness support before relying on this field |
 
 ### Body Content
 

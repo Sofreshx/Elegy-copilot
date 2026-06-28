@@ -1,7 +1,7 @@
 {
   "id": "elegy-obsidian",
   "name": "elegy-obsidian",
-  "description": "Foundation skill for read/write/search operations against a local Obsidian vault via the official Obsidian Desktop CLI (v1.12+). Non-authoritative convenience layer; durable planning state continues to flow through elegy-planning and SQLite.",
+  "description": "Foundation skill for read/write/search operations against a local Obsidian vault via the official Obsidian Desktop CLI (v1.12.7+). Non-authoritative convenience layer; durable planning state continues to flow through elegy-planning and SQLite.",
   "triggers": [
     {
       "pattern": "obsidian",
@@ -43,7 +43,7 @@
   "constraints": [
     {
       "constraintId": "external-binary-dependency",
-      "description": "Requires the official `obsidian` CLI shipped with Obsidian Desktop 1.12+. The skill does not ship a binary and does not replace the CLI.",
+      "description": "Requires the official `obsidian` CLI shipped with Obsidian Desktop 1.12.7+. The skill does not ship a binary and does not replace the CLI.",
       "required": true
     },
     {

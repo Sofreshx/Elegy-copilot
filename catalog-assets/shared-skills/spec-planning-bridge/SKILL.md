@@ -1,9 +1,12 @@
 ---
 name: spec-planning-bridge
-description: "Combines spec-dev, spec-authoring, spec-review, and elegy-planning without merging their authority. Use after spec review to hand an approved spec to a planning lane. Triggers on: spec handoff, spec to planning, bridge spec to plan, link spec to roadmap, spec planning bridge."
+description: "Combines spec-dev, spec-authoring, spec-review, and elegy-planning without merging their authority. Use after spec review to hand an approved spec to a planning lane. Triggers on: spec handoff, spec to planning, bridge spec to plan, link spec to roadmap, spec planning bridge. User-invoked; do not auto-load."
 spec_contract: docs/specs/spec-driven-development-contract/spec.md
 metadata: {"tags":["specs","planning","handoff","bridge","elegy-planning"]}
+disable-model-invocation: true
 ---
+
+> **Invocation posture**: user-invoked only. This skill bridges specs to durable planning state and writes planning records. It must not be auto-invoked by the model.
 
 # Spec-Planning Bridge
 

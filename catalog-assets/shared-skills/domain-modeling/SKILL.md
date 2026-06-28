@@ -101,7 +101,7 @@ An ADR can be a single paragraph. The value is in recording *that* a decision wa
 
 ## References
 
-- Canonical doc chain: `docs/system/index.md`
+- Canonical docs: follow the harness instructions' repo discovery chain
 - ADR directory: `docs/system/adr/`
 - MOC index: `docs/system/mocs/`
 - Companion skills: `grilling` (interview loop), `improve-codebase-architecture` (architecture review uses domain terms)

@@ -46,7 +46,7 @@ RIGHT (vertical):
 
 ### 1. Planning
 
-Before writing any code, read the project's canonical doc chain starting at `docs/system/index.md` so that test names and interface vocabulary match the project's domain language. Check `docs/system/adr/` for architectural decisions in the area you're touching.
+Before writing any code, read the repo's canonical docs so that test names and interface vocabulary match the project's domain language. Check ADRs for architectural decisions in the area you're touching.
 
 Then:
 
@@ -111,7 +111,7 @@ After all tests pass, look for refactoring opportunities:
 
 ## References
 
-- Canonical docs: `docs/system/index.md`
+- Canonical docs: follow the harness instructions' repo discovery chain
 - Architectural decisions: `docs/system/adr/`
 - Companion skills: `codebase-design` (interface/testability vocabulary), `diagnosing-bugs` (for bug fixes — diagnose first, then TDD the fix), `improve-codebase-architecture` (for identifying deep-module opportunities)
 

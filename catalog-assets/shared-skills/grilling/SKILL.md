@@ -11,7 +11,7 @@ A relentless one-question-at-a-time interview that walks the design tree until e
 
 ## Precondition
 
-Before grilling about a codebase-specific topic, read the project's canonical doc chain starting at `docs/system/index.md` so questions use the project's domain vocabulary. Check `docs/system/adr/` for architectural decisions in the area.
+Before grilling about a codebase-specific topic, read the repo's canonical docs so questions use the project's domain vocabulary. Check ADRs for architectural decisions in the area.
 
 ## Process
 
@@ -27,7 +27,7 @@ Every branch of the design tree has been walked. No unanswered questions remain 
 
 ## References
 
-- Canonical docs: `docs/system/index.md`
+- Canonical docs: follow the harness instructions' repo discovery chain
 - Architectural decisions: `docs/system/adr/`
 - Companion skills: `domain-modeling` (update docs inline during grilling), `rubberduck-plan-review` (adversarial review after grilling)
 

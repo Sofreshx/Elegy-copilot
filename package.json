@@ -19,6 +19,7 @@
     "docs:preview": "vitepress preview docs",
     "docs:check:links": "node scripts/check-docs-dead-links.mjs",
     "validate:guidelines-wiring": "node scripts/validate-guidelines-wiring.mjs",
+    "validate:skills": "node scripts/validate-skills.mjs",
     "obsidian-docs:preflight": "node scripts/obsidian-docs-preflight.js",
     "obsidian-docs:init": "node scripts/obsidian-docs-init.js --with-config",
     "obsidian-docs:validate": "node scripts/obsidian-docs-validate.js",

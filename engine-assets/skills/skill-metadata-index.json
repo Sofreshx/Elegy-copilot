@@ -138,6 +138,92 @@
       }
     },
     {
+      "skill": "elegy-obsidian",
+      "name": "elegy-obsidian",
+      "description": "Foundation skill for read/write/search operations against a local Obsidian vault via the official Obsidian Desktop CLI (v1.12.7+). Non-authoritative convenience layer; durable planning state continues to flow through elegy-planning and SQLite. User-invoked; do not auto-load. Triggers on: obsidian, vault, notes, daily, tag, search, task, non-authoritative-mirror, elegy.",
+      "triggersOn": [
+        "daily",
+        "elegy",
+        "non-authoritative-mirror",
+        "notes",
+        "obsidian",
+        "search",
+        "tag",
+        "task",
+        "vault"
+      ],
+      "tags": [
+        "elegy",
+        "notes",
+        "obsidian",
+        "search",
+        "tags",
+        "tasks",
+        "vault"
+      ],
+      "manifest": {
+        "id": "skill-elegy-obsidian",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "elegy-planning",
+      "name": "elegy-planning",
+      "description": "Use when an agent needs to create, inspect, update, validate, or export durable planning state — goals, roadmaps, plans, work points, todos, issues, review points, insights, and project runs — through the dedicated elegy-planning CLI over SQLite. User-invoked; do not auto-load.",
+      "triggersOn": [
+        "elegy-planning",
+        "goal",
+        "planning",
+        "roadmap",
+        "work point"
+      ],
+      "tags": [
+        "elegy",
+        "goals",
+        "planning",
+        "roadmaps",
+        "sqlite",
+        "todos",
+        "work-points"
+      ],
+      "manifest": {
+        "id": "skill-elegy-planning",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "elegy-skills-discovery",
+      "name": "elegy-skills-discovery",
+      "description": "CLI-based governed skill discovery via Elegy. Use to search, resolve, describe, and validate skills from the governed v2 skill catalog with progressive disclosure.",
+      "triggersOn": [
+        "catalog",
+        "discovery",
+        "elegy",
+        "elegy-skills",
+        "skill-discovery",
+        "skills"
+      ],
+      "aliasKeys": [
+        "elegy-skills",
+        "skill-discovery",
+        "skills"
+      ],
+      "stacks": [
+        "orchestration"
+      ],
+      "tags": [
+        "catalog",
+        "discovery",
+        "elegy",
+        "routing",
+        "skills"
+      ],
+      "manifest": {
+        "id": "skill-elegy-skills-discovery",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "implementation-handoff",
       "name": "implementation-handoff",
       "description": "Convert a feature plan, roadmap slice, or architecture note into a repo-grounded implementation handoff brief. Triggers on: implementation handoff, executor brief, delegation brief, model handoff, plan to implementation brief.",

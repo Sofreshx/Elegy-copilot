@@ -9,7 +9,7 @@ metadata: {"source":"https://github.com/mattpocock/skills","adapted":true,"origi
 
 A discipline for hard bugs. Skip phases only when explicitly justified.
 
-Before diagnosing, read the project's canonical doc chain starting at `docs/system/index.md` for domain context, and check `docs/system/adr/` for architectural decisions in the area you're touching.
+Before diagnosing, read the repo's canonical docs for domain context and check ADRs for architectural decisions in the area.
 
 ## Phase 1 — Build a feedback loop
 
@@ -137,7 +137,7 @@ Required before declaring done:
 
 ## References
 
-- Canonical docs: `docs/system/index.md`
+- Canonical docs: follow the harness instructions' repo discovery chain
 - Architectural decisions: `docs/system/adr/`
 - Companion skills: `tdd` (for test-driven fix approach), `improve-codebase-architecture` (for architectural prevention), `codebase-design` (for seam/testability vocabulary)
 

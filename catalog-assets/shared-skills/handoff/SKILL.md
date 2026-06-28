@@ -16,7 +16,7 @@ Compact the current conversation into a handoff document so a fresh agent can co
 1. Summarise the current state of work — what was accomplished, what decisions were made, what's next.
 2. Reference existing artifacts by path or URL rather than duplicating their content:
    - Specs: `docs/specs/<spec-slug>/spec.md`
-   - ADRs: `docs/system/adr/NNNN-slug.md`
+   - ADRs (see repo discovery chain)
    - Planning state: references to `elegy-planning` entities (goals, roadmaps, plans)
    - Issues, commits, diffs, PRDs
 3. Include a **Suggested skills** section listing which skills the next agent should invoke and in what order.

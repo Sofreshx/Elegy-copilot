@@ -19,7 +19,7 @@ This command is *informed* by the project's domain model and built on a shared d
 
 ### 1. Explore
 
-Read the project's canonical doc chain (`docs/system/index.md`) and any ADRs in the area you're touching first.
+Read the repo's canonical docs and any ADRs in the area you're touching first.
 
 Then walk the codebase. Don't follow rigid heuristics — explore organically and note where you experience friction:
 
@@ -33,9 +33,17 @@ Apply the **deletion test** to anything you suspect is shallow: would deleting i
 
 ### 2. Present candidates as an HTML report
 
-Write a self-contained HTML file to the OS temp directory so nothing lands in the repo. Resolve the temp dir from `$TMPDIR`, falling back to `/tmp` (or `%TEMP%` on Windows), and write to `<tmpdir>/architecture-review-<timestamp>.html` so each run gets a fresh file. Open it for the user — `xdg-open <path>` on Linux, `open <path>` on macOS, `start <path>` on Windows — and tell them the absolute path.
+Write a self-contained HTML file to the OS temp directory so nothing lands in the repo. Resolve the temp dir from `$TMPDIR`, falling back to `/tmp` (or `%TEMP%` on Windows), and write to `<tmpdir>/architecture-review-<timestamp>.html` so each run gets a fresh file. Open it for the user — `xdg-open <path>` on Linux, `open <path>` on macOS, `start <path>` on Windows — and tell them the absolute path (skip in headless/CI environments).
 
 The report uses **Tailwind via CDN** for layout and styling, and **Mermaid via CDN** for diagrams where a graph/flow/sequence reliably communicates the structure. See [HTML-REPORT.md](HTML-REPORT.md) for the full HTML scaffold, diagram patterns, and styling guidance.
+
+#### Fallback: Markdown report
+
+If the environment is headless (no browser), offline (CDN unreachable), or CI/sandbox (no display):
+- Write a Markdown report instead at `<tmpdir>/architecture-review-<timestamp>.md`
+- Use plain text diagrams instead of Mermaid (ASCII art or structured bullet lists)
+- Skip the `open` command — print the file path to the console
+- Structure the Markdown report with the same candidate cards using Markdown headings, code blocks, and tables
 
 For each candidate, render a card with:
 
@@ -67,7 +75,7 @@ Side effects happen inline as decisions crystallize — run the `domain-modeling
 
 ## References
 
-- Canonical docs: `docs/system/index.md`
+- Canonical docs: follow the harness instructions' repo discovery chain
 - Architectural decisions: `docs/system/adr/`
 - HTML report scaffold: [HTML-REPORT.md](HTML-REPORT.md)
 - Companion skills: `codebase-design` (architecture vocabulary), `grilling` (interview loop), `domain-modeling` (update docs inline)

@@ -15,13 +15,11 @@ index by default, detail on demand.
 ## Prerequisite
 
 The `elegy-skills` binary (or `elegy skills ...` umbrella command) must be available on PATH.
-If not installed, this skill cannot function -- inform the user that Elegy CLI is required.
+If not installed, this skill cannot function -- inform the user that Elegy CLI is required. Offer to download it, but do not download without explicit approval.
 
 ## Installation
 
-### Automatic Installation (Recommended)
-The `elegy-skills` CLI is automatically downloaded and managed by the copilot-ui system.
-When first needed, it will be downloaded from GitHub releases at:
+The `elegy-skills` CLI can be downloaded from GitHub releases. **Requires explicit user approval before downloading.** Do not download silently. Release URL:
 `https://github.com/Sofreshx/Elegy/releases`
 
 ### Manual Installation

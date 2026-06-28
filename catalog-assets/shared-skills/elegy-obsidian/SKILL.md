@@ -1,15 +1,18 @@
 ---
 name: elegy-obsidian
-description: "Foundation skill for read/write/search operations against a local Obsidian vault via the official Obsidian Desktop CLI (v1.12+). Non-authoritative convenience layer; durable planning state continues to flow through elegy-planning and SQLite. Triggers on: obsidian, vault, notes, daily, tag, search, task, non-authoritative-mirror, elegy."
+description: "Foundation skill for read/write/search operations against a local Obsidian vault via the official Obsidian Desktop CLI (v1.12.7+). Non-authoritative convenience layer; durable planning state continues to flow through elegy-planning and SQLite. Triggers on: obsidian, vault, notes, daily, tag, search, task, non-authoritative-mirror, elegy. User-invoked; do not auto-load."
 metadata: {"aliasKeys":["obsidian","obsidian-cli","elegy-obsidian"],"stacks":["vault","notes"],"tags":["obsidian","vault","notes","search","tasks","tags","elegy","non-authoritative-mirror"]}
+disable-model-invocation: true
 ---
+
+> **Invocation posture**: user-invoked only. This skill wraps the Obsidian CLI and can mutate vault content (create, append, patch, move, delete, task toggle). It must not be auto-invoked by the model.
 
 # Elegy Obsidian
 
 ## Purpose
 
 `elegy-obsidian` is a thin convenience layer that wraps the official
-`obsidian` CLI shipped with Obsidian Desktop 1.12+. It is a foundation
+`obsidian` CLI shipped with Obsidian Desktop 1.12.7+. It is a foundation
 surface only; it deliberately does **not** mirror, attach, resolve, or
 list Obsidian vault state into the Elegy planning authority. That work
 belongs to a future `elegy-planning obsidian ...` Rust subcommand set.
@@ -30,7 +33,8 @@ Obsidian is treated as a **non-authoritative** mirror:
 ## Prerequisite
 
 The official `obsidian` binary must be available on PATH. It is shipped
-with Obsidian Desktop 1.12+; the CLI is not enabled by default.
+with Obsidian Desktop 1.12.7+; the CLI is not enabled by default.
+ The Obsidian Desktop app must also be running for the CLI to function — commands fail if the app is not open.
 
 If the `obsidian` CLI is not installed, this skill cannot function --
 inform the user and offer to install Obsidian Desktop or enable the
@@ -41,7 +45,7 @@ CLI in Obsidian Settings -> General -> "Open and close" or
 
 ### Enable the official `obsidian` CLI
 
-1. Install Obsidian Desktop 1.12 or later from
+1. Install Obsidian Desktop 1.12.7 or later from
    <https://obsidian.md/download>.
 2. In Obsidian, open **Settings -> General** and enable
    **Command line interface** (also exposed under
@@ -63,52 +67,18 @@ archive (`elegy-obsidian-wrapper-*.zip`) contains only governance
 fixtures, the skill content, and the `delegatesTo.externalExecutable`
 declaration; it does not contain an `obsidian` binary.
 
-## Core Commands (official `obsidian` CLI v1.12+)
+## Core Commands
 
-```text
-obsidian version
-obsidian vault=<name> [command] [key=value ...]
-obsidian help
-obsidian read file=<path>
-obsidian create file=<path> content=<text>
-obsidian append file=<path> content=<text>
-obsidian patch file=<path> [<key>=<value> ...]
-obsidian move from=<path> to=<path>
-obsidian delete file=<path>
-obsidian search query=<text> [path=<prefix>] [limit=<n>]
-obsidian daily [date=YYYY-MM-DD]
-obsidian daily:read [date=YYYY-MM-DD]
-obsidian daily:append content=<text>
-obsidian random [vault=<name>]
-obsidian tags [vault=<name>]
-obsidian tag notes=<tag> [vault=<name>]
-obsidian tasks [status=open|done|all] [vault=<name>]
-obsidian task toggle file=<path> line=<n> [vault=<name>]
-obsidian command <name> [key=value ...]
-```
+Full command reference: [`references/obsidian-cli-catalog.md`](references/obsidian-cli-catalog.md).
 
-All read commands print text to stdout. Side-effecting commands
-(`create`, `append`, `patch`, `move`, `delete`, `daily:append`,
-`task toggle`) return a short confirmation line. The
-`obsidian-result/v1` envelope is intentionally permissive on `data`
-shape because the official CLI returns text by default.
+Key commands: `read`, `search`, `daily`, `daily:read`, `tags`, `tasks` (read-only).
+Side-effecting commands (`create`, `append`, `patch`, `move`, `delete`, `daily:append`, `task toggle`, `command`) require explicit user approval.
 
-## Capability Catalog (17)
+Note: the `obsidian-result/v1` envelope below is this SKILL's own output convention, NOT a format the Obsidian CLI returns natively.
 
-The governed capability catalog lives in the Elegy repo. The consumer
-mirror documents the high-level shape; the canonical capability set,
-side-effect classification, and argument schemas must be read from the
-upstream fixtures.
+## Capability Catalog
 
-| Group | Capabilities |
-|---|---|
-| Introspection | `vault-list`, `version` |
-| Files | `file-read`, `file-create`, `file-append`, `file-patch`, `file-move`, `file-delete` |
-| Search | `search` |
-| Daily note | `daily-read`, `daily-append`, `random-note` |
-| Tags | `tag-list`, `tag-notes` |
-| Tasks | `task-list`, `task-toggle` |
-| Escape hatch | `command` (raw `obsidian <subcommand>` pass-through) |
+Full catalog (17 capabilities across 7 groups): [`references/obsidian-cli-catalog.md`](references/obsidian-cli-catalog.md).
 
 ## Quick Reference
 
@@ -123,9 +93,9 @@ upstream fixtures.
 | List open tasks | `obsidian tasks status=open` |
 | Toggle a task | `obsidian task toggle file=notes/daily.md line=12` |
 
-## Result Envelope
+## Result Envelope (Skill Convention)
 
-Every skill invocation must return an `obsidian-result/v1` envelope:
+This skill wraps every raw `obsidian` CLI invocation into an `obsidian-result/v1` envelope:
 
 ```jsonc
 {
@@ -154,7 +124,7 @@ foundation skill.
   schemas.
 - Do not write vault content into paths that would shadow Elegy
   planning authority (`.elegy/backlogs/`, `roadmaps/`, ADR/spec
-  locations, `docs/system/**` governance nodes).
+  locations, governance nodes per the repo discovery chain).
 - Use `obsidian-result/v1` envelopes for every invocation. If the CLI
   exits non-zero, set `status` to the most specific terminal state
   (`missing-vault`, `permission-denied`, `error`) and put the

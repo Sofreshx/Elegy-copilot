@@ -9,7 +9,7 @@ metadata: {"source":"https://github.com/mattpocock/skills","adapted":true,"origi
 
 Design **deep modules**: a lot of behaviour behind a small interface, placed at a clean seam, testable through that interface. Use this language and these principles wherever code is being designed or restructured. The aim is leverage for callers, locality for maintainers, and testability for everyone.
 
-Before using this skill, read the project's canonical doc chain starting at `docs/system/index.md` for domain vocabulary and `docs/system/adr/` for architectural decisions in the area.
+Before using this skill, read the repo's canonical docs and ADRs for domain vocabulary and architectural decisions in the area.
 
 ## Glossary
 
@@ -114,7 +114,7 @@ Good interfaces make testing natural:
 
 ## References
 
-- Canonical doc chain: `docs/system/index.md` → `docs/system/mocs/conventions-and-governance.md`
+- Canonical docs: follow the harness instructions' repo discovery chain
 - Architectural decisions: `docs/system/adr/`
 - Companion skill: `improve-codebase-architecture` (surfaces deepening opportunities as HTML report)
 - TDD companion: `tdd` (applies the interface-as-test-surface principle)

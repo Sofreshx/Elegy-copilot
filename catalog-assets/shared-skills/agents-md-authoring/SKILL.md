@@ -2,7 +2,7 @@
 name: agents-md-authoring
 description: "Create or refine per-harness instruction files (AGENTS.md, CLAUDE.md, GEMINI.md, copilot-instructions.md) that follow the open AGENTS.md standard. Use when adding a new instruction file, layering repo-specific overrides, or auditing which instruction files an agent will load. Triggers on: create AGENTS.md, write CLAUDE.md, instruction file, override, AGENTS.override.md, repo instructions."
 license: Apache-2.0
-metadata: {"author":"elegy-copilot","source":"https://developers.openai.com/codex/guides/agents-md","version":"1.0","aliasKeys":["create AGENTS.md","write CLAUDE.md","instruction file","override","AGENTS.override.md","repo instructions"]}
+metadata: {"author":"elegy-copilot","source":"https://developers.openai.com/codex/guides/agents-md","version":"1.1","aliasKeys":["create AGENTS.md","write CLAUDE.md","instruction file","override","AGENTS.override.md","repo instructions"]}
 ---
 
 # AGENTS.md Authoring
@@ -35,7 +35,7 @@ Do not create an instruction file when:
 - The repo has no stable conventions yet
 - The instructions only apply to one ad-hoc task
 - The content is already covered by the harness's global instructions
-- A canonical doc under `docs/system/**` (or repo equivalent) is the right
+- A canonical doc (see harness instructions' repo discovery chain) is the right
   place for the policy
 
 ## Discovery Precedence
@@ -59,11 +59,16 @@ nested directories when the cap is hit.
 
 Equivalent per-harness behavior:
 
-- **Claude Code** reads `CLAUDE.md` and `CLAUDE.override.md` in the same
-  layered order
+- **Claude Code** reads `CLAUDE.md` (from each directory in the tree walk) and `CLAUDE.local.md`
+  (personal project-specific preferences; add to `.gitignore`). Both load from each directory as
+  Claude walks up the tree from cwd, concatenated root-to-cwd. Unlike Codex where
+  `AGENTS.override.md` replaces `AGENTS.md` at each level, `CLAUDE.local.md` is appended
+  after `CLAUDE.md` at each directory level. Claude Code also supports importing `AGENTS.md`
+  via the `@AGENTS.md` directive placed at the top of `CLAUDE.md`.
 - **Antigravity** reads `GEMINI.md` with the same precedence
-- **GitHub Copilot** reads `.github/copilot-instructions.md` (single file,
-  not layered)
+- **GitHub Copilot** reads `.github/copilot-instructions.md` (single file, not layered),
+  path-specific `.github/instructions/**/*.instructions.md` files, and `AGENTS.md` in
+  some surfaces.
 - **OpenCode** reads `AGENTS.md` from the same layered sources
 
 ## Authoring Rules

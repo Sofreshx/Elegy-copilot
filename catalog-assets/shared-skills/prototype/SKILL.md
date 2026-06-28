@@ -150,7 +150,7 @@ Clicking updates the URL search param. Keyboard `←` `→` also cycle (but not 
 
 ## References
 
-- Canonical docs: `docs/system/index.md` (domain vocabulary for prototype naming)
+- Canonical docs: follow the harness instructions' repo discovery chain (use repo domain vocabulary for prototype naming)
 - Architectural decisions: `docs/system/adr/` (capture prototype answers here)
 - Companion skill: `improve-codebase-architecture` (for deeper architecture questions)
 
