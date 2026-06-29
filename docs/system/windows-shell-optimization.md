@@ -144,7 +144,7 @@ The launcher selects the terminal in this order:
 
 ## Windows Native Tool Resolution (gh, node, npm)
 
-WSL bash (`/init`) does not auto-append `.exe` during PATH lookup. The `binfmt_misc` WSL interop only fires at `exec()` time after the shell has found a matching file. Since bash searches PATH for exact filenames, `gh` is not found — the file on disk is named `gh.exe`.
+WSL bash (`/init`) does not auto-append `.exe` during PATH lookup. The `binfmt_misc` WSL interop only fires at `exec()` time after the shell has found a matching file. Since bash searches PATH for exact filenames, gh (GitHub CLI, not an npm package) is not found — the file on disk is named `gh.exe`.
 
 **Symptoms:**
 - `which gh` returns "not found"
@@ -152,7 +152,7 @@ WSL bash (`/init`) does not auto-append `.exe` during PATH lookup. The `binfmt_m
 - `gh.exe --version` works
 - Affects all Windows-native CLI tools installed via `.exe` (node, npm, docker, etc.)
 
-**Root cause:** Bash command resolution is exact filename. WSL's `binfmt_misc` PE handler (configured via `WSLInterop` at `/proc/sys/fs/binfmt_misc/WSLInterop`) only activates at `exec()`, which never happens because the shell can't find a file named `gh`.
+**Root cause:** Bash command resolution is exact filename. WSL's `binfmt_misc` PE handler (configured via `WSLInterop` at `/proc/sys/fs/binfmt_misc/WSLInterop`) only activates at `exec()`, which never happens because the shell can't find a file named gh (GitHub CLI, not an npm package).
 
 **Fix: Switch to Git Bash.** Git Bash (MSYS2) natively resolves `.exe` through its PATH handling — `which gh` returns `/c/Program Files/GitHub CLI/gh` and `gh --version` works.
 
@@ -198,7 +198,7 @@ wsl --set-default Ubuntu
 | Coreutils aliases break POSIX commands | `ls`, `find`, `grep` overridden by Microsoft Coreutils | Document override aliases in shell profile; prefer WSL/Git Bash |
 | `where bash.exe` finds Cygwin bash | Cygwin on PATH before Git | Use `OPENCODE_GIT_BASH_PATH` to pin the correct bash |
 | WSL2 not installing (no virtualization) | Hyper-V / VT-x disabled in BIOS | Use Git Bash fallback instead |
-| `gh`, `node`, `npm` not found in WSL | WSL bash doesn't resolve `.exe` in PATH | Switch to Git Bash (`"shell": "C:\\Program Files\\Git\\bin\\bash.exe"`), or install tools inside WSL |
+| gh (GitHub CLI, not an npm package), `node`, `npm` not found in WSL | WSL bash doesn't resolve `.exe` in PATH | Switch to Git Bash (`"shell": "C:\\Program Files\\Git\\bin\\bash.exe"`), or install tools inside WSL |
 
 ## Manual Override
 

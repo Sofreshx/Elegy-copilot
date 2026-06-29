@@ -26,7 +26,7 @@ This contract is intentionally additive to the existing search telemetry and aud
 
 - Search telemetry already persists `asset.search.query`, `asset.search.result`, `asset.search.selected`, and `asset.search.miss` in the shared bounded telemetry file (`copilot-ui/lib/skillSearchService.js`).
 - Audit events are appended through `appendCatalogAuditEvent()` and sanitized by `createCatalogAuditEvent()` in `copilot-ui/lib/catalogAuditAnalytics.js`.
-- The confirmed explicit runtime write seam is `tool.user_requested -> _runToolHooks()` in `copilot-ui/lib/copilot-bridge/index.mjs`.
+- The confirmed explicit runtime write seam is `tool.user_requested -> _runToolHooks()` in copilot-ui/lib/copilot-bridge/index.mjs (historical path, file since removed).
 - Asset/repo/session analytics already merge audit events, bounded search telemetry, and session-derived proxy usage in `buildAssetAuditAnalytics()` inside `copilot-ui/lib/catalogAuditAnalytics.js`.
 
 ## Final decision
@@ -368,7 +368,7 @@ usage: {
 
 ## Runtime bridge integration
 
-### `copilot-ui/lib/copilot-bridge/index.mjs`
+### copilot-ui/lib/copilot-bridge/index.mjs (historical path, file since removed)
 
 Add a dedicated optional hook for runtime tool observations:
 
@@ -401,7 +401,7 @@ Wire the bridge with a new telemetry observer created at startup:
 
 Create:
 
-- `copilot-ui/lib/assetInvocationTelemetry.js`
+- copilot-ui/lib/assetInvocationTelemetry.js (historical path, file since removed)
 
 Responsibilities:
 
@@ -502,7 +502,7 @@ Add coverage that:
 
 Create:
 
-- `copilot-ui/lib/catalogAuditAnalytics.test.js`
+- copilot-ui/lib/catalogAuditAnalytics.test.js (historical path, file since removed)
 
 Add coverage for:
 

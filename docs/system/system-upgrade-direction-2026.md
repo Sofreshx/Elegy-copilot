@@ -37,10 +37,10 @@ This is the canonical system plan. Research inputs remain in `docs/research/**` 
 | Memory model | Strong file-based session state | Weak indexing/compaction conventions |
 
 Primary baseline sources:
-- `docs/research/progressive-disclosure-audit.md`
-- `docs/research/skill-discovery-search-execute-audit.md`
-- `docs/research/github-copilot-atlas-analysis.md`
-- `docs/research/markdownlm-mcp-memory-analysis.md`
+- docs/research/progressive-disclosure-audit.md (research file, may have been removed)
+- docs/research/skill-discovery-search-execute-audit.md (research file, may have been removed)
+- docs/research/github-copilot-atlas-analysis.md (research file, may have been removed)
+- docs/research/markdownlm-mcp-memory-analysis.md (research file, may have been removed)
 
 ## Target Architecture
 
@@ -122,7 +122,7 @@ Research shows the docs graph is structurally solid, but weakly discoverable by 
 
 | WU | Deliverable | Primary Files | Acceptance Checks |
 |---|---|---|---|
-| WS1-WU-01 | Doc-discovery protocol added to canonical instructions and mirror | `engine-assets/copilot-instructions.md`, `.github/copilot-instructions.md` | `node scripts/validate-doc-graph.js` plus mirrored-section parity checks pass |
+| WS1-WU-01 | Doc-discovery protocol added to canonical instructions and mirror | `engine-assets/copilot-instructions.md`, .github/copilot-instructions.md (conventional GitHub file, not committed in all repos) | `node scripts/validate-doc-graph.js` plus mirrored-section parity checks pass |
 | WS1-WU-02 | Thin MOCs enriched with routing guidance (`when to read`, `see also`, `depends on`) | `docs/system/mocs/*.md` | Doc graph passes and MOC links resolve cleanly |
 | WS1-WU-03 | Research-to-canonical promotion checklist published | `docs/system/research-promotion-checklist.md`, `docs/system/index.md` | Checklist linked from index and MOCs; graph validator passes |
 | WS1-WU-04 | Skill-to-doc cross-link standard established | `engine-assets/skills/*/SKILL.md` (starting with high-impact skills) | Spot-audit confirms `Related docs` section in target skills |
@@ -183,7 +183,7 @@ flowchart TD
 | WU | Deliverable | Primary Files | Acceptance Checks |
 |---|---|---|---|
 | WS2-WU-01 | Resolver-order contract (stack -> keyword -> metadata -> semantic fallback) | `engine-assets/skills/skill-discovery/SKILL.md` | Deterministic resolver documented and reviewed |
-| WS2-WU-02 | Stack detection rule expansion for uncovered skills | `engine-assets/skills/stack-detector/SKILL.md` | New rules present for targeted gaps (for example `openai`, `Microsoft.Agents*`) |
+| WS2-WU-02 | Stack detection rule expansion for uncovered skills | engine-assets/skills/stack-detector/SKILL.md (planned deliverable, file not yet created) | New rules present for targeted gaps (for example `openai`, `Microsoft.Agents*`) |
 | WS2-WU-03 | Skill-map parity validator implemented | `scripts/validate-skill-discovery-map.js` (new), `scripts/package.json` | Validator runs in CI and fails on unmapped vault skills |
 | WS2-WU-04 | Skill metadata index generation contract | `scripts/generate-skill-metadata-index.mjs` (new), `engine-assets/skills/**/SKILL.md` | Generated index is deterministic and consumed by discovery flow |
 | WS2-WU-05 | Discovery telemetry schema and ingestion points | shared catalog search telemetry and `docs/system/` telemetry node | Ambiguity/miss reason events appear in sampled telemetry |
@@ -239,9 +239,9 @@ sequenceDiagram
 | WU | Deliverable | Primary Files | Acceptance Checks |
 |---|---|---|---|
 | WS3-WU-01 | Shared explorer/reviewer output schemas formalized | `engine-assets/agents/code-explorer.agent.md`, `engine-assets/agents/code-reviewer.agent.md`, `docs/system/reviewer-lane-governance.md` | Schema examples and required fields enforced in prompts/docs |
-| WS3-WU-02 | Context-budget and fan-out rules standardized in planner/orchestrator agents | `engine-assets/agents/o-planner.agent.md`, `engine-assets/agents/impl.agent.md`, `engine-assets/agents/orchestrator.agent.md` | Budget/fan-out rules present and consistent |
-| WS3-WU-03 | Handoff contract metadata standardized | `engine-assets/agents/o-reframer.agent.md`, `engine-assets/agents/o-planner.agent.md`, `engine-assets/agents/impl.agent.md` | Planner-to-executor outputs include deterministic required fields |
-| WS3-WU-04 | Orchestration contract validator implemented | `scripts/validate-orchestration-contracts.js` (new) | Validator fails on schema drift and missing required sections |
+| WS3-WU-02 | Context-budget and fan-out rules standardized in planner/orchestrator agents | engine-assets/agents/o-planner.agent.md (planned deliverable, file not yet created), `engine-assets/agents/impl.agent.md`, engine-assets/agents/orchestrator.agent.md (planned deliverable, file not yet created) | Budget/fan-out rules present and consistent |
+| WS3-WU-03 | Handoff contract metadata standardized | engine-assets/agents/o-reframer.agent.md (planned deliverable, file not yet created), engine-assets/agents/o-planner.agent.md (planned deliverable, file not yet created), `engine-assets/agents/impl.agent.md` | Planner-to-executor outputs include deterministic required fields |
+| WS3-WU-04 | Orchestration contract validator implemented | scripts/validate-orchestration-contracts.js (planned deliverable, file not yet created) (new) | Validator fails on schema drift and missing required sections |
 
 ## WS4: File-First Memory 2.0 with Optional MCP Checkpoints
 
@@ -291,8 +291,8 @@ flowchart LR
 |---|---|---|---|
 | WS4-WU-01 | Session-state index convention formalized | `docs/system/session-state-artifacts.md` | Contract update merged with examples and migration notes |
 | WS4-WU-02 | Proposition compaction/archive policy formalized | `docs/system/session-state-artifacts.md`, session-state templates | Compaction rules and archive trigger thresholds documented |
-| WS4-WU-03 | Local memory indexing helper implemented | `scripts/session-memory-index.mjs` (new) | Tool generates deterministic `_index.md` output |
-| WS4-WU-04 | Memory convention validator implemented | `scripts/validate-session-memory-conventions.js` (new) | Validator catches missing index/compaction markers |
+| WS4-WU-03 | Local memory indexing helper implemented | scripts/session-memory-index.mjs (planned deliverable, file not yet created) (new) | Tool generates deterministic `_index.md` output |
+| WS4-WU-04 | Memory convention validator implemented | scripts/validate-session-memory-conventions.js (planned deliverable, file not yet created) (new) | Validator catches missing index/compaction markers |
 | WS4-WU-05 | Optional remote checkpoint policy integrated as gated path | `engine-assets/copilot-instructions.md`, `docs/system/mcp-workflow.md` | Default path remains local; checkpoint usage requires explicit risk gates |
 
 ## WS5: Governance, Validation, and Drift Control
@@ -323,10 +323,10 @@ Most proposed upgrades fail without enforcement and observable outcomes.
 
 | WU | Deliverable | Primary Files | Acceptance Checks |
 |---|---|---|---|
-| WS5-WU-01 | Upgrade scorecard artifact and schema | `docs/system/system-upgrade-scorecard.md` (new) | Baseline and periodic measurements recorded in a consistent format |
+| WS5-WU-01 | Upgrade scorecard artifact and schema | docs/system/system-upgrade-scorecard.md (planned deliverable, file not yet created) (new) | Baseline and periodic measurements recorded in a consistent format |
 | WS5-WU-02 | Validation pipeline wiring for new validators | `scripts/package.json`, CI task config, `README.md` command docs | New validators execute in standard validation workflow |
 | WS5-WU-03 | Changelog/governance policy enforcement note | `docs/system/instruction-changelog.md`, `docs/system/doc-graph-spec.md` | Behavioral changes consistently include changelog + graph wiring |
-| WS5-WU-04 | Quarterly governance review checklist | `docs/system/governance-review-checklist.md` (new) | Review checklist used at release cadence |
+| WS5-WU-04 | Quarterly governance review checklist | docs/system/governance-review-checklist.md (planned deliverable, file not yet created) (new) | Review checklist used at release cadence |
 
 ## Prioritized 90-Day Execution Plan
 
@@ -435,8 +435,8 @@ Release gate bundle (target state):
 
 ## Related Canonical Docs
 
-- [[orchestration-and-agents]] [docs/system/mocs/orchestration-and-agents.md](docs/system/mocs/orchestration-and-agents.md)
-- [[moc-skills-governance]] [docs/system/mocs/skills-governance.md](docs/system/mocs/skills-governance.md)
-- [[session-state]] [docs/system/mocs/session-state.md](docs/system/mocs/session-state.md)
-- [[instruction-changelog]] [docs/system/instruction-changelog.md](docs/system/instruction-changelog.md)
-- [[doc-graph-spec]] [docs/system/doc-graph-spec.md](docs/system/doc-graph-spec.md)
+- [[orchestration-and-agents]] [mocs/orchestration-and-agents.md](mocs/orchestration-and-agents.md)
+- [[moc-skills-governance]] [mocs/skills-governance.md](mocs/skills-governance.md)
+- [[session-state]] [mocs/session-state.md](mocs/session-state.md)
+- [[instruction-changelog]] [instruction-changelog.md](instruction-changelog.md)
+- [[doc-graph-spec]] [doc-graph-spec.md](doc-graph-spec.md)

@@ -141,4 +141,4 @@ Primary drift checks:
 contracts (tsc) -> local-tracker (tsc) -> copilot-ui (no build for server.js)
 ```
 
-The root `package.json` provides `npm run build:contracts` to build the contracts package. npm workspace dependency ordering ensures `contracts` builds first when using `npm run build --workspaces`.
+The root `package.json` provides `npm run build:contracts` to build the contracts package. npm workspace dependency ordering ensures `contracts` builds first when using npm run build:contracts.

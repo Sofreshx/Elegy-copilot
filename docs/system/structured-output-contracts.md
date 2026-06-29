@@ -56,7 +56,7 @@ The following blocks are defined in the shipped subagent prompts:
 
 | Block | Agent | Structured-Output Contract |
 |---|---|---|
-| `QUICK_LANE_RESULT` | `quick` | `docs/system/structured-output-contracts.md#canonical-block-registry` |
+| `QUICK_LANE_RESULT` | `quick` | docs/system/structured-output-contracts.md#canonical-block-registry |
 | `PROJECT_LANE_RESULT` | `project` | Same |
 | `IMPL_RESULT` | `impl` | Same |
 | `EXPLORE_RESULT` | `explorer` | Same |

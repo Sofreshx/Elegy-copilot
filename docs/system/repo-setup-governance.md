@@ -92,13 +92,13 @@ For Slice A, a correctly configured target repo has this normative minimum setup
 ### Required
 
 - `README.md`
-- `.github/copilot-instructions.md`
+- .github/copilot-instructions.md (conventional GitHub file, not committed)
 - `.github/agents/`
 - `.github/skills/`
 - one canonical documentation entrypoint path from this approved set:
   - `docs/system/index.md`
-  - `docs/index.md`
-  - `documentation/index.md`
+  - docs/index.md (conventional doc entrypoint, not yet created)
+  - documentation/index.md (conventional doc entrypoint, not yet created)
 
 ### Recommended
 
@@ -160,7 +160,7 @@ the canonical `docs/specs/` contract.
 
 Installer-mediated `spec-driven` bootstrap may create or refresh these repo-local assets:
 
-- `.github/copilot-instructions.md` managed spec-driven block
+- .github/copilot-instructions.md (conventional GitHub file, not committed) managed spec-driven block
 - repo `AGENTS.md` or repo `GEMINI.md` managed spec-driven block depending on the selected harness
 - `.github/agents/`
 - `.github/skills/`

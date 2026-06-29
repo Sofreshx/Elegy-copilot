@@ -64,7 +64,7 @@ If the user does not specify a narrow lane, use `@code-reviewer`.
 
 ## Adversarial Review Posture
 
-Reviewer falsification posture and depth limits inherit from [docs/system/calibrated-questioning-and-depth-governance.md](docs/system/calibrated-questioning-and-depth-governance.md); this doc keeps reviewer responsibilities, routing, and output contracts.
+Reviewer falsification posture and depth limits inherit from [calibrated-questioning-and-depth-governance.md](calibrated-questioning-and-depth-governance.md); this doc keeps reviewer responsibilities, routing, and output contracts.
 
 - try to falsify the current success claim with evidence-backed challenge before accepting it
 - keep depth inside reviewer responsibilities and the shared hard no-activate limits

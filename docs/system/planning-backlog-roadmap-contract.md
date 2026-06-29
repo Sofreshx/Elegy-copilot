@@ -148,4 +148,4 @@ Existing code, mirrors, or notes that still read those files are compatibility r
 - [workflow-planning-contract.md](workflow-planning-contract.md)
 - [[goal-contract-governance]] [goal-contract-governance.md](goal-contract-governance.md)
 - copilot-ui/routes/_retiredPlanningAuthority.js (historical path, file since removed)
-- [copilot-ui/lib/roadmapWorkflowPlanningBridge.js](copilot-ui/lib/roadmapWorkflowPlanningBridge.js)
+- [copilot-ui/lib/roadmapWorkflowPlanningBridge.js](/copilot-ui/lib/roadmapWorkflowPlanningBridge.js)

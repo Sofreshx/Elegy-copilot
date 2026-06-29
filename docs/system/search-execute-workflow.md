@@ -133,7 +133,7 @@ defined above.
 - keep hard constraints visible, keep shaping context only when it materially affects the current
   step, and keep unresolved branches out of `constraints`
 - if repeated constraint text is standing in for a durable architectural or workflow decision, route
-  that promotion through [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md) or the owning canonical node instead of repeating it in more prompts and skills
+  that promotion through [[adr-governance]] [adr-governance.md](adr-governance.md) or the owning canonical node instead of repeating it in more prompts and skills
 
 ### Missing bootstrap detection
 
@@ -183,7 +183,7 @@ Use existing lanes to catch skipped canonical guidance:
 
 ## Calibrated Questioning and Depth
 
-The shared policy for calibrated questioning, depth calibration, and explicit deep/grill overlays lives in [docs/system/calibrated-questioning-and-depth-governance.md](docs/system/calibrated-questioning-and-depth-governance.md). This doc keeps staged routing, canonical bootstrap, and planning-surface mechanics.
+The shared policy for calibrated questioning, depth calibration, and explicit deep/grill overlays lives in [calibrated-questioning-and-depth-governance.md](calibrated-questioning-and-depth-governance.md). This doc keeps staged routing, canonical bootstrap, and planning-surface mechanics.
 
 - use the shared node for the evidence-bound questioning ladder and overlay-activation limits
 - do not treat `balanced-default`, complexity labels, or generic ambiguity as permission to auto-select a deeper overlay
@@ -192,7 +192,7 @@ The shared policy for calibrated questioning, depth calibration, and explicit de
 ## Planning-Surface Routing Posture
 
 Before broad capability search, the orchestrator should classify planning-oriented requests with the
-normalized route-selection fields from [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md):
+normalized route-selection fields from [planning-backlog-roadmap-contract.md](planning-backlog-roadmap-contract.md):
 
 - `planning_surface`
 - `session_horizon`
@@ -328,7 +328,7 @@ If no confident match exists, surface the best candidate plus the ambiguity; do 
 
 ### Compatibility and default-handled exclusions
 
-The approved routing posture in `balanced-default` mode is to avoid auto-selecting skills classified in [docs/system/skills-governance.md](docs/system/skills-governance.md) as either deprecated compatibility surfaces or default-handled surfaces.
+The approved routing posture in `balanced-default` mode is to avoid auto-selecting skills classified in [skills-governance.md](skills-governance.md) as either deprecated compatibility surfaces or default-handled surfaces.
 
 - Deprecated skills load only when the user/caller explicitly names them or when compatibility with older prompts/docs requires that exact surface.
 - Default-handled skills load only on explicit request or compatibility need; otherwise the work should proceed through direct/base-model handling without auto-selecting the skill.

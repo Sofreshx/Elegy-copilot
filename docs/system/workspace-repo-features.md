@@ -250,19 +250,19 @@ New dedicated "Review" tab in the workspace area for launching automated code re
 ### Frontend (copilot-ui/ui/src/)
 | File | Status | Purpose |
 |------|--------|---------|
-| `lib/api/elegyDb.ts` | NEW | API client for elegy-db endpoints |
-| `lib/api/repoAssets.ts` | NEW | API client for repo assets |
-| `lib/api/index.ts` | MODIFIED | Export new API modules |
-| `lib/api/repoDocs.ts` | MODIFIED | Added tree API types + function |
-| `lib/types.ts` | MODIFIED | Added tree, asset, enriched worktree, code review types |
-| `stores/navigation.ts` | MODIFIED | Added 'assets' and 'review' tabs |
-| `views/Workspace/WorkspaceDocsCenter.tsx` | MODIFIED | Tree view with folders |
-| `views/Workspace/WorkspaceAssetsTab.tsx` | NEW | Repo assets tab component |
-| `views/Workspace/WorkspaceReviewTab.tsx` | NEW | Code review tab component |
-| `views/Workspace/WorkspaceLocalTabs.tsx` | MODIFIED | Added Assets and Review tabs |
-| `views/Workspace/WorkspaceView.tsx` | MODIFIED | Route new tabs |
-| `views/Workspace/WorkspaceWorktreesCard.tsx` | MODIFIED | Enriched worktree data + review button |
-| `views/Catalog/CatalogShellView.tsx` | MODIFIED | Removed repo assets button |
+| lib/api/elegyDb.ts | NEW | API client for elegy-db endpoints |
+| lib/api/repoAssets.ts | NEW | API client for repo assets |
+| lib/api/index.ts | MODIFIED | Export new API modules |
+| lib/api/repoDocs.ts | MODIFIED | Added tree API types + function |
+| lib/types.ts | MODIFIED | Added tree, asset, enriched worktree, code review types |
+| stores/navigation.ts | MODIFIED | Added 'assets' and 'review' tabs |
+| views/Workspace/WorkspaceDocsCenter.tsx | MODIFIED | Tree view with folders |
+| views/Workspace/WorkspaceAssetsTab.tsx | NEW | Repo assets tab component |
+| views/Workspace/WorkspaceReviewTab.tsx | NEW | Code review tab component |
+| views/Workspace/WorkspaceLocalTabs.tsx | MODIFIED | Added Assets and Review tabs |
+| views/Workspace/WorkspaceView.tsx | MODIFIED | Route new tabs |
+| views/Workspace/WorkspaceWorktreesCard.tsx | MODIFIED | Enriched worktree data + review button |
+| views/Catalog/CatalogShellView.tsx | MODIFIED | Removed repo assets button |
 | `app.css` | MODIFIED | Tree, asset card, review tab styles |
 
 ---

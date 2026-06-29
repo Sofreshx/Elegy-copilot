@@ -54,7 +54,7 @@ Doc comments are for consumers who need contract information at the point of use
 Promote rationale once the explanation stops being local and starts guiding future work across files, workflows, or teams.
 
 - Put exploratory design reasoning and unratified alternatives in `docs/research/**`.
-- Promote durable workflow or rule guidance into [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md) or the smallest sibling canonical node that owns the rule family.
+- Promote durable workflow or rule guidance into [[project-conventions-governance]] [project-conventions-governance.md](project-conventions-governance.md) or the smallest sibling canonical node that owns the rule family.
 - Use an ADR in `docs/system/**` when the decision is architectural and future readers need the chosen option plus the durable tradeoff record.
 - If the same rationale would otherwise be copied into multiple comments or tool instructions, the doc graph is the right home.
 

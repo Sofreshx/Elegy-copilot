@@ -194,8 +194,8 @@ WS4 closure is complete only when freeze evidence and tracker alignment semantic
 ## Permissions Contract
 
 ### Contract source
-- `copilot-ui/lib/permissionsContracts.js`
-- `copilot-ui/lib/permissionLocationsResolver.js`
+- copilot-ui/lib/permissionsContracts.js (historical path, file since removed)
+- copilot-ui/lib/permissionLocationsResolver.js (historical path, file since removed)
 
 ### Location model
 

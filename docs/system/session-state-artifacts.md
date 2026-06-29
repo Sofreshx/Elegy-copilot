@@ -103,7 +103,7 @@ These APIs are deterministic and operate on the existing planning record state i
 
 These record-scoped research and diagram artifacts are legacy compatibility surfaces for planning
 records. The live Planning workflow now uses workflow-artifact sync into `elegy-planning` instead;
-see [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md).
+see [[planning-backlog-roadmap-contract]] [planning-backlog-roadmap-contract.md](planning-backlog-roadmap-contract.md).
 
 Deprecated compatibility status:
 
@@ -138,7 +138,7 @@ claiming to be the durable repo backlog or roadmap authority. In chat-first runs
 intent framing may remain only in chat or host/runtime state.
 
 High-level goal intent and completion semantics for planning/review workflows are governed by
-[[goal-contract-governance]] [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md).
+[[goal-contract-governance]] [goal-contract-governance.md](goal-contract-governance.md).
 
 ### Execution Overlay Artifact (`execution-state.json`)
 
@@ -271,7 +271,7 @@ may also include explicit linkage markers such as:
 
 These markers are optional for generic plan packs, but they are required when the session is expected to
 participate in automatic downstream planning reconciliation. The canonical linkage and authority semantics
-are defined in [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md).
+are defined in [[planning-backlog-roadmap-contract]] [planning-backlog-roadmap-contract.md](planning-backlog-roadmap-contract.md).
 
 ### Unresolved Goal Carryover Boundary
 
@@ -1136,7 +1136,7 @@ For versioned planpacks where `trustedEvidenceBindingRetention` is marked `passe
   - Release Tag
   - Channel
   - Producer Identity
-  - Attestation Status (`true/yes/passed/attested` only)
+  - Attestation Status (true/yes/passed/attested only)
   - Evidence Timestamp (ISO-8601)
 2. Missing fields, attestation=false, or malformed timestamp fail deterministically.
 3. Replay/staleness protection:
@@ -1321,7 +1321,7 @@ Deterministic retrieval/error semantics:
   - suggestions: `planning_suggestion_not_found`
   - recaps: `planning_recap_not_found`
 - scope/ownership denial returns `403` with `error.code=scope_visibility_denied`
-- persistence authority/dependency gate failures remain fail-closed with existing deterministic gate envelopes (`planning_durability_dependency_gate_blocked` / `planning_durability_route_gate_blocked`)
+- persistence authority/dependency gate failures remain fail-closed with existing deterministic gate envelopes (planning_durability_dependency_gate_blocked / planning_durability_route_gate_blocked)
 
 Durability + restart safety expectations:
 

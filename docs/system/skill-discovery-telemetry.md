@@ -107,11 +107,11 @@ Operational expectations:
 The catalog telemetry and analytics model depends on local projection/runtime files under
 `~/.copilot/catalog/`:
 
-- `projections/global.json`
+- projections/global.json (runtime-generated file under ~/.elegy/)
 - `projections/repo-<repoId>.json`
 - `repo-inventory.json`
 - `search-telemetry.json`
-- `audit/events.jsonl`
+- audit/events.jsonl (runtime-generated file under ~/.elegy/)
 
 Runtime verification surface:
 

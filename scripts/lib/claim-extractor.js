@@ -98,10 +98,17 @@ const NON_DEP_WORDS = new Set([
 	// Skill names that look like npm packages
 	'skill-authoring', 'guidelines-authoring', 'project-guidelines',
 	'agents-md-authoring',
+	'repo-setup', 'skill-discovery', 'stack-detector',
+	'rubberduck-plan-review', 'implementation-handoff', 'implementation-review',
+	'planning-tools', 'spec-dev', 'spec-authoring', 'spec-review',
 	// Script/tool names mistaken as dependencies
 	'commit-check',
+	'gh',
 	// Non-package concept names
 	'review_model',
+	// Durability gate envelope identifiers
+	'planning_durability_dependency_gate_blocked',
+	'planning_durability_route_gate_blocked',
 ]);
 
 /** Lines mentioning these keywords may contain dependency claims. */
