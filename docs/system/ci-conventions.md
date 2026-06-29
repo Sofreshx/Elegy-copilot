@@ -1,6 +1,6 @@
 ---
 created: 2026-06-04
-updated: 2026-06-04
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -87,8 +87,8 @@ correct view components, but they cannot detect stale imports in other files.
 ## Local validation before push
 
 Run `npm run ci:local` to mirror the `Repo CI / build` job on Linux without
-Tauri.  This runs all validators, the UI build, the local-tracker build, and
-the three inline test files:
+Tauri. This runs manifest/doc validators, dead-link checking, the UI build,
+the local-tracker build, and the three inline test files:
 
 ```powershell
 npm run ci:local
@@ -105,5 +105,5 @@ gates when run manually.
 
 ## Related
 
-- [Doc graph spec](doc-graph-spec.md) — validation contract for `validate-doc-graph.js`
-- System docs: [index](index.md)
+- [Doc graph spec](docs/system/doc-graph-spec.md) — validation contract for `validate-doc-graph.js`
+- System docs: [index](docs/system/index.md)

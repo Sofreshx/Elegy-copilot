@@ -1,6 +1,6 @@
 ---
 created: 2026-05-17
-updated: 2026-06-28
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -18,7 +18,7 @@ Define the reusable documentation authoring contract for durable docs. This gove
 revise documentation once the correct documentation location and entrypoint have been chosen.
 
 Use [[documentation-structure-governance]]
-[documentation-structure-governance.md](documentation-structure-governance.md)
+[documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
 when the main problem is information architecture, entrypoints, or discoverability. Use this node
 when the main problem is page quality, progressive disclosure, diagrams, agent readability, and
 drift-resistant content.
@@ -71,7 +71,7 @@ Agent-facing docs should:
 - prefer short canonical pages over broad composite pages
 - include machine-friendly cues such as status, scope, source ownership, validation command, and
   read-next links
-- keep durable architectural tradeoffs in ADRs only when they meet [[adr-governance]] [adr-governance.md](adr-governance.md); otherwise keep them in the smallest owning node
+- keep durable architectural tradeoffs in ADRs only when they meet [[adr-governance]] [adr-governance.md](docs/system/adr-governance.md); otherwise keep them in the smallest owning node
 
 ## Drift Resistance
 
@@ -84,7 +84,7 @@ Docs should be biased toward durable claims:
 
 When implementation evidence conflicts with canonical docs, follow the contradiction-handling rules
 in [[documentation-structure-governance]]
-[documentation-structure-governance.md](documentation-structure-governance.md)
+[documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
 before rewriting the docs around an unverified assumption.
 
 ## Changelog And Version Notes
@@ -107,7 +107,7 @@ check:
 - generated agent-readable indexes such as `llms.txt`
 
 If no validator exists, perform a manual structure check against [[doc-graph-spec]]
-[doc-graph-spec.md](doc-graph-spec.md) and report the validation gap.
+[doc-graph-spec.md](docs/system/doc-graph-spec.md) and report the validation gap.
 
 ## Output Contract
 

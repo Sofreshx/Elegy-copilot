@@ -1,6 +1,6 @@
 ---
 created: 2026-02-25
-updated: 2026-02-27
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -141,6 +141,7 @@ WS6 validation follows this ordered ladder:
 1. Narrow static guards
   - `node scripts/validate-manifest.js`
   - `node scripts/validate-doc-graph.js`
+  - `node scripts/check-docs-dead-links.mjs`
 
 2. Remote runtime + checksum guards
   - `node --test copilot-ui/routes/kimaki.test.js`

@@ -1,6 +1,6 @@
 ---
 created: 2026-04-09
-updated: 2026-06-24
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -27,16 +27,16 @@ atomic nodes that already own each rule family.
 ## Authority posture
 
 - Repo-rule authority stays in [[project-conventions-governance]]
-  [project-conventions-governance.md](project-conventions-governance.md).
+  [project-conventions-governance.md](docs/system/project-conventions-governance.md).
 - Entrypoint and discoverability rules stay in [[documentation-structure-governance]]
-  [documentation-structure-governance.md](documentation-structure-governance.md).
+  [documentation-structure-governance.md](docs/system/documentation-structure-governance.md).
 - Bootstrap, contradiction handling, and observable rule reliance stay in [[search-execute-workflow]]
-  [search-execute-workflow.md](search-execute-workflow.md).
+  [search-execute-workflow.md](docs/system/search-execute-workflow.md).
 - Project-audit lane composition and normalized finding categories stay in
   [[reviewer-lane-governance]]
-  [reviewer-lane-governance.md](reviewer-lane-governance.md).
+  [reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md).
 - Planning-ready follow-up routing stays in [[follow-up-discovery-governance]]
-  [follow-up-discovery-governance.md](follow-up-discovery-governance.md).
+  [follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md).
 
 This node is an overview and routing surface only. It does **not** create a competing authority
 layer. If this page and an atomic node disagree, the atomic canonical node wins.
@@ -44,9 +44,9 @@ layer. If this page and an atomic node disagree, the atomic canonical node wins.
 ## First-slice workflow
 
 1. **Bootstrap canonical repo rules first.**
-    - Start from [[system-docs-index]] [index.md](index.md) and
+    - Start from [[system-docs-index]] [index.md](docs/system/index.md) and
       [[moc-conventions-and-governance]]
-      [mocs/conventions-and-governance.md](mocs/conventions-and-governance.md),
+      [mocs/conventions-and-governance.md](docs/system/mocs/conventions-and-governance.md),
       then load the smallest relevant canonical node for the active task. When the task spans this
       end-to-end workflow, this overview is the correct compact bootstrap before expanding only to
       the owning atomic node that the current step needs.
@@ -59,23 +59,23 @@ layer. If this page and an atomic node disagree, the atomic canonical node wins.
      active write-capable step.
 3. **Run project audit as a composed family.**
    - Use the specialist lanes defined in [[reviewer-lane-governance]]
-     [reviewer-lane-governance.md](reviewer-lane-governance.md) as an
+     [reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md) as an
      additive audit overlay rather than a replacement reviewer.
    - Reduce each accepted finding to exactly one normalized category: `defect`, `rule_drift`,
      `authority_gap`, `research_thread`, or `improvement`.
 4. **Hand off accepted findings through existing canonical follow-up surfaces.**
     - Route normalized findings through [[follow-up-discovery-governance]]
-      [follow-up-discovery-governance.md](follow-up-discovery-governance.md)
+      [follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
       so backlog carryover and the approved specialized `~/.copilot/backlogs/{repo-name}/issues/*` routes stay explicit.
     - V1 stays on the approved backlog plus the approved specialized `~/.copilot/backlogs/{repo-name}/issues/*` surfaces; it does
       **not** add a dedicated issue ledger.
 5. **Capture "why" at the right authority surface.**
    - Use [[self-documenting-code-and-rationale-placement]]
-     [self-documenting-code-and-rationale-placement.md](self-documenting-code-and-rationale-placement.md)
+     [self-documenting-code-and-rationale-placement.md](docs/system/self-documenting-code-and-rationale-placement.md)
      as the placement matrix for self-documenting code, smart comments, doc comments, research
      design notes, canonical docs, ADRs, and thin instruction surfaces.
    - Put enduring workflow, architectural, and policy rationale in [[project-conventions-governance]]
-     [project-conventions-governance.md](project-conventions-governance.md)
+     [project-conventions-governance.md](docs/system/project-conventions-governance.md)
      or the smallest relevant canonical node.
    - Put planning-worthy ideas, deferred findings, and recurring friction in the approved
      `~/.copilot/backlogs/{repo-name}/issues/*` or backlog surfaces.
@@ -109,8 +109,8 @@ authority or persistence surfaces.
 
 ## Expand next
 
-- [[project-conventions-governance]] [project-conventions-governance.md](project-conventions-governance.md)
-- [[self-documenting-code-and-rationale-placement]] [self-documenting-code-and-rationale-placement.md](self-documenting-code-and-rationale-placement.md)
-- [[search-execute-workflow]] [search-execute-workflow.md](search-execute-workflow.md)
-- [[reviewer-lane-governance]] [reviewer-lane-governance.md](reviewer-lane-governance.md)
-- [[follow-up-discovery-governance]] [follow-up-discovery-governance.md](follow-up-discovery-governance.md)
+- [[project-conventions-governance]] [project-conventions-governance.md](docs/system/project-conventions-governance.md)
+- [[self-documenting-code-and-rationale-placement]] [self-documenting-code-and-rationale-placement.md](docs/system/self-documenting-code-and-rationale-placement.md)
+- [[search-execute-workflow]] [search-execute-workflow.md](docs/system/search-execute-workflow.md)
+- [[reviewer-lane-governance]] [reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)
+- [[follow-up-discovery-governance]] [follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)

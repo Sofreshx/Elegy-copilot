@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-18
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -157,7 +157,7 @@ actually used.
 Rationale should live at the highest-authority surface that needs to stay durable and discoverable.
 
 Use [[self-documenting-code-and-rationale-placement]]
-[self-documenting-code-and-rationale-placement.md](self-documenting-code-and-rationale-placement.md)
+[self-documenting-code-and-rationale-placement.md](docs/system/self-documenting-code-and-rationale-placement.md)
 as the operational matrix for choosing between self-documenting code, smart comments, doc comments,
 research design notes, canonical docs, ADRs, and thin instruction surfaces.
 

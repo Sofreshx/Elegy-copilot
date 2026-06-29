@@ -54,6 +54,9 @@ jobs:
       - name: Validate docs graph
         run: node scripts/validate-doc-graph.js
 
+      - name: Check docs dead links
+        run: node scripts/check-docs-dead-links.mjs
+
       - name: Validate guidelines wiring
         run: node scripts/validate-guidelines-wiring.mjs
 

@@ -1,6 +1,6 @@
 ---
 created: 2026-03-01
-updated: 2026-03-01
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -435,8 +435,8 @@ Release gate bundle (target state):
 
 ## Related Canonical Docs
 
-- [[orchestration-and-agents]] [mocs/orchestration-and-agents.md](mocs/orchestration-and-agents.md)
-- [[moc-skills-governance]] [mocs/skills-governance.md](mocs/skills-governance.md)
-- [[session-state]] [mocs/session-state.md](mocs/session-state.md)
-- [[instruction-changelog]] [instruction-changelog.md](instruction-changelog.md)
-- [[doc-graph-spec]] [doc-graph-spec.md](doc-graph-spec.md)
+- [[orchestration-and-agents]] [mocs/orchestration-and-agents.md](docs/system/mocs/orchestration-and-agents.md)
+- [[moc-skills-governance]] [mocs/skills-governance.md](docs/system/mocs/skills-governance.md)
+- [[session-state]] [mocs/session-state.md](docs/system/mocs/session-state.md)
+- [[instruction-changelog]] [instruction-changelog.md](docs/system/instruction-changelog.md)
+- [[doc-graph-spec]] [doc-graph-spec.md](docs/system/doc-graph-spec.md)

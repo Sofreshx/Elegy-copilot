@@ -1,6 +1,6 @@
 ---
 created: 2026-02-25
-updated: 2026-05-21
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: moc
@@ -22,17 +22,17 @@ related: [system-docs-index, orchestration-and-agents]
 
 This MOC provides a navigational hub for software design knowledge used in agent prompting and code generation.
 
-- Core glossary and pattern reference: [[software-design-concepts-glossary]] [../software-design-concepts-glossary.md](../software-design-concepts-glossary.md)
+- Core glossary and pattern reference: [[software-design-concepts-glossary]] [../software-design-concepts-glossary.md](docs/system/software-design-concepts-glossary.md)
 - Architecture simplicity constraints: `docs/system/agent-architecture-simplicity.md`
-- Spec-driven design contract and operating model: [[spec-driven-development]] [../spec-driven-development.md](../spec-driven-development.md)
+- Spec-driven design contract and operating model: [[spec-driven-development]] [../spec-driven-development.md](docs/system/spec-driven-development.md)
 
 ## See also
 
-- Orchestration & Agents: [[orchestration-and-agents]] [../mocs/orchestration-and-agents.md](../mocs/orchestration-and-agents.md)
-- System upgrade direction: [[system-upgrade-direction-2026]] [../system-upgrade-direction-2026.md](../system-upgrade-direction-2026.md)
+- Orchestration & Agents: [[orchestration-and-agents]] [../mocs/orchestration-and-agents.md](docs/system/mocs/orchestration-and-agents.md)
+- System upgrade direction: [[system-upgrade-direction-2026]] [../system-upgrade-direction-2026.md](docs/system/system-upgrade-direction-2026.md)
 - Skills governance map: `docs/system/mocs/skills-governance.md`
 
 ## Depends on
 
-- Contract: [[doc-graph-spec]] [../doc-graph-spec.md](../doc-graph-spec.md)
+- Contract: [[doc-graph-spec]] [../doc-graph-spec.md](docs/system/doc-graph-spec.md)
 - System docs entrypoint: `docs/system/index.md`

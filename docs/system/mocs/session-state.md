@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-16
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: moc
@@ -26,7 +26,7 @@ related: [system-docs-index]
 ## See also
 
 - Orchestrator user guide: `docs/system/mocs/orchestration-and-agents.md`
-- System upgrade direction: [[system-upgrade-direction-2026]] [../system-upgrade-direction-2026.md](../system-upgrade-direction-2026.md)
+- System upgrade direction: [[system-upgrade-direction-2026]] [../system-upgrade-direction-2026.md](docs/system/system-upgrade-direction-2026.md)
 
 ## Depends on
 

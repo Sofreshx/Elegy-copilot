@@ -1,6 +1,6 @@
 ---
 created: 2026-04-27
-updated: 2026-06-28
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -34,7 +34,7 @@ This ladder is the default for planning and review. Complexity alone is not a re
 
 When a question resolves to a standing durable architectural or workflow-authority rule, do not keep
 that rule trapped inside the current plan or prompt. Narrow the active constraint set for the current
-step and promote the durable decision through the owning canonical doc or [[adr-governance]] [adr-governance.md](adr-governance.md) when needed.
+step and promote the durable decision through the owning canonical doc or [[adr-governance]] [adr-governance.md](docs/system/adr-governance.md) when needed.
 
 ## Route-First Depth Calibration
 

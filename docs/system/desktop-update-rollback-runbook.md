@@ -1,6 +1,6 @@
 ---
 created: 2026-02-25
-updated: 2026-06-28
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -17,7 +17,7 @@ related: [runtime-permissions-contracts, security-model, desktop-runtime-tauri-m
 This runbook applies to the packaged desktop update surface for Elegy Copilot across the
 Windows-first Tauri lane.
 The raw Node.js server mode described in [[copilot-ui-guide]]
-[copilot-ui-guide.md](copilot-ui-guide.md) remains a developer fallback, not
+[copilot-ui-guide.md](docs/system/copilot-ui-guide.md) remains a developer fallback, not
 the end-user delivery path.
 
 For packaged delivery, app-managed Copilot CLI ensure/install/update behavior is part of the intended

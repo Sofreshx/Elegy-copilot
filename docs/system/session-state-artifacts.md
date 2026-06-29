@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-22
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -103,7 +103,7 @@ These APIs are deterministic and operate on the existing planning record state i
 
 These record-scoped research and diagram artifacts are legacy compatibility surfaces for planning
 records. The live Planning workflow now uses workflow-artifact sync into `elegy-planning` instead;
-see [[planning-backlog-roadmap-contract]] [planning-backlog-roadmap-contract.md](planning-backlog-roadmap-contract.md).
+see [[planning-backlog-roadmap-contract]] [planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md).
 
 Deprecated compatibility status:
 
@@ -138,7 +138,7 @@ claiming to be the durable repo backlog or roadmap authority. In chat-first runs
 intent framing may remain only in chat or host/runtime state.
 
 High-level goal intent and completion semantics for planning/review workflows are governed by
-[[goal-contract-governance]] [goal-contract-governance.md](goal-contract-governance.md).
+[[goal-contract-governance]] [goal-contract-governance.md](docs/system/goal-contract-governance.md).
 
 ### Execution Overlay Artifact (`execution-state.json`)
 
@@ -271,7 +271,7 @@ may also include explicit linkage markers such as:
 
 These markers are optional for generic plan packs, but they are required when the session is expected to
 participate in automatic downstream planning reconciliation. The canonical linkage and authority semantics
-are defined in [[planning-backlog-roadmap-contract]] [planning-backlog-roadmap-contract.md](planning-backlog-roadmap-contract.md).
+are defined in [[planning-backlog-roadmap-contract]] [planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md).
 
 ### Unresolved Goal Carryover Boundary
 

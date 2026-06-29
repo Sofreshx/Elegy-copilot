@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-19
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: moc
@@ -34,17 +34,17 @@ related: [system-docs-index]
 - Runner lane design: `docs/system/runner-lane-design.md`
 - Model capability profiles: `docs/system/model-capability-profile.md`
 - Channel capability matrix: `docs/system/channel-capability-matrix.md`
-- Repository backlog, roadmap, and plan-pack boundaries: [[planning-backlog-roadmap-contract]] [../planning-backlog-roadmap-contract.md](../planning-backlog-roadmap-contract.md)
-- Governance lanes: [[project-conventions-governance]] [../project-conventions-governance.md](../project-conventions-governance.md)
-- Documentation/structure governance: [[documentation-structure-governance]] [../documentation-structure-governance.md](../documentation-structure-governance.md)
-- Repo setup governance: [[repo-setup-governance]] [../repo-setup-governance.md](../repo-setup-governance.md)
-- Reviewer contract: [[reviewer-lane-governance]] [../reviewer-lane-governance.md](../reviewer-lane-governance.md)
-- Follow-up and research governance: [[follow-up-discovery-governance]] [../follow-up-discovery-governance.md](../follow-up-discovery-governance.md)
-- High-level goal contract and unresolved-goal carryover: [[goal-contract-governance]] [../goal-contract-governance.md](../goal-contract-governance.md)
-- System upgrade direction: [[system-upgrade-direction-2026]] [../system-upgrade-direction-2026.md](../system-upgrade-direction-2026.md)
-- Software design concepts: [[moc-software-design-concepts]] [../mocs/software-design-concepts.md](../mocs/software-design-concepts.md)
-- Windows shell optimization for agents: [[windows-shell-optimization]] [../windows-shell-optimization.md](../windows-shell-optimization.md)
+- Repository backlog, roadmap, and plan-pack boundaries: [[planning-backlog-roadmap-contract]] [../planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md)
+- Governance lanes: [[project-conventions-governance]] [../project-conventions-governance.md](docs/system/project-conventions-governance.md)
+- Documentation/structure governance: [[documentation-structure-governance]] [../documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
+- Repo setup governance: [[repo-setup-governance]] [../repo-setup-governance.md](docs/system/repo-setup-governance.md)
+- Reviewer contract: [[reviewer-lane-governance]] [../reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)
+- Follow-up and research governance: [[follow-up-discovery-governance]] [../follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
+- High-level goal contract and unresolved-goal carryover: [[goal-contract-governance]] [../goal-contract-governance.md](docs/system/goal-contract-governance.md)
+- System upgrade direction: [[system-upgrade-direction-2026]] [../system-upgrade-direction-2026.md](docs/system/system-upgrade-direction-2026.md)
+- Software design concepts: [[moc-software-design-concepts]] [../mocs/software-design-concepts.md](docs/system/mocs/software-design-concepts.md)
+- Windows shell optimization for agents: [[windows-shell-optimization]] [../windows-shell-optimization.md](docs/system/windows-shell-optimization.md)
 
 ## Depends on
 
-- Contract: [[doc-graph-spec]] [../doc-graph-spec.md](../doc-graph-spec.md)
+- Contract: [[doc-graph-spec]] [../doc-graph-spec.md](docs/system/doc-graph-spec.md)

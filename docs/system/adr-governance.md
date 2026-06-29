@@ -1,6 +1,6 @@
 ---
 created: 2026-05-25
-updated: 2026-06-28
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -102,8 +102,8 @@ enough to justify an ADR.
 
 ## Relationship to other surfaces
 
-- Use [[self-documenting-code-and-rationale-placement]] [self-documenting-code-and-rationale-placement.md](self-documenting-code-and-rationale-placement.md) to choose between code comments, docs, and ADRs.
-- Use [[progressive-constraint-narrowing]] [progressive-constraint-narrowing.md](progressive-constraint-narrowing.md) when a repeated constraint should be promoted out of prompts or plans into a durable source of truth.
+- Use [[self-documenting-code-and-rationale-placement]] [self-documenting-code-and-rationale-placement.md](docs/system/self-documenting-code-and-rationale-placement.md) to choose between code comments, docs, and ADRs.
+- Use [[progressive-constraint-narrowing]] [progressive-constraint-narrowing.md](docs/system/progressive-constraint-narrowing.md) when a repeated constraint should be promoted out of prompts or plans into a durable source of truth.
 - Keep exploratory or unratified analysis in `docs/research/**` until the decision is stable enough to promote.
 
 ## Minimal template

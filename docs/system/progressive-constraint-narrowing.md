@@ -1,6 +1,6 @@
 ---
 created: 2026-05-25
-updated: 2026-06-18
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -91,7 +91,7 @@ If the current output format does not have dedicated fields, the author should s
 
 When narrowing reveals a durable architectural or workflow-authority constraint that future work will need, do not keep restating it in harness instructions, plan notes, or handoff prose.
 
-Promote it to the owning canonical node or to [[adr-governance]] [adr-governance.md](adr-governance.md).
+Promote it to the owning canonical node or to [[adr-governance]] [adr-governance.md](docs/system/adr-governance.md).
 
 ## Anti-patterns
 

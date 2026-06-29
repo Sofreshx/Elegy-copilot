@@ -1,6 +1,6 @@
 ---
 created: 2026-06-21
-updated: 2026-06-22
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -102,13 +102,13 @@ visual judgment out of the implementation lane.
 
 ## Adoption
 
-See [[ui-check-adoption]] [ui-check-adoption.md](ui-check-adoption.md) for the per-repo setup recipe.
+See [[ui-check-adoption]] [ui-check-adoption.md](docs/system/ui-check-adoption.md) for the per-repo setup recipe.
 Use `node scripts/ui-check.mjs --validate-only` to validate configuration,
 and `node scripts/ui-check.mjs --target <id>` to run a specific target.
 
 ## Related
 
-- [[ui-check-adoption]] [ui-check-adoption.md](ui-check-adoption.md)
-- [[skills-governance]] [skills-governance.md](skills-governance.md)
-- [[copilot-ui-guide]] [copilot-ui-guide.md](copilot-ui-guide.md)
-- [[spec-driven-development]] [spec-driven-development.md](spec-driven-development.md)
+- [[ui-check-adoption]] [ui-check-adoption.md](docs/system/ui-check-adoption.md)
+- [[skills-governance]] [skills-governance.md](docs/system/skills-governance.md)
+- [[copilot-ui-guide]] [copilot-ui-guide.md](docs/system/copilot-ui-guide.md)
+- [[spec-driven-development]] [spec-driven-development.md](docs/system/spec-driven-development.md)

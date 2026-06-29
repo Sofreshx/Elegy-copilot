@@ -1,6 +1,6 @@
 ---
 created: 2026-06-04
-updated: 2026-06-04
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -34,7 +34,7 @@ experience, but all changes must flow through normal Git workflows
 (commit, review, push).
 
 **Contrast with the Obsidian planning surface:** The
-[[obsidian-synced-notes-contract]] [obsidian-synced-notes-contract.md](obsidian-synced-notes-contract.md)
+[[obsidian-synced-notes-contract]] [obsidian-synced-notes-contract.md](docs/system/obsidian-synced-notes-contract.md)
 defines an external, non-authoritative Obsidian surface for **planning
 operations** (backlog seeding, mirror feeds). This contract covers a
 different scope: using Obsidian to **view and edit canonical repo
@@ -142,7 +142,7 @@ Do NOT gitignore these shared files:
 ## Frontmatter Compatibility
 
 Repo docs must follow the [[doc-graph-spec]]
-[doc-graph-spec.md](doc-graph-spec.md) frontmatter
+[doc-graph-spec.md](docs/system/doc-graph-spec.md) frontmatter
 contract. Obsidian's YAML Properties are compatible with this contract
 because Obsidian silently ignores unknown YAML keys.
 

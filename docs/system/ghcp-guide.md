@@ -1,9 +1,9 @@
 ---
 created: 2026-06-26
-updated: 2026-06-26
+updated: 2026-06-29
 category: system
 status: current
-doc_kind: guide
+doc_kind: node
 id: ghcp-guide
 summary: Guide for the GitHub Copilot CLI (ghcp) harness — BYOK model routing, lane agents, and wrapper script.
 tags: [ghcp, copilot-cli, harness, guide]
