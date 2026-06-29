@@ -23,7 +23,6 @@
     "desktop:preview": "npm run package:tauri:win:preview",
     "desktop:preview:stage": "npm run package:tauri:win:preview:stage",
     "clean:tauri-release": "node scripts/clean-tauri-release.js",
-    "prepare:local-file-deps": "npm install --no-save --install-links=true --no-package-lock --ignore-scripts --workspaces=false",
     "prepare:tauri:win-bundle": "node scripts/prepare-tauri-windows-bundle.js",
     "refresh:tauri:win-release-metadata": "node scripts/refresh-tauri-windows-release-metadata.js",
     "stage:tauri:win-release-artifacts": "node scripts/stage-tauri-windows-release-artifacts.js",
@@ -35,7 +34,7 @@
     "tauri:check:linux": "npm run build:tauri-runtime-host",
     "tauri:build:win": "npm exec -- tauri build --bundles nsis",
     "tauri:dev:windows": "npm run ui:build && npm run build:local-tracker:desktop && npm run build:tauri-runtime-host && npm run verify:native-deps && npm run prepare:tauri:win-bundle && node scripts/run-tauri-dev-windows.js",
-    "package:tauri:win:preview": "npm run prepare:local-file-deps && npm run verify:native-deps && npm run clean:tauri-release && npm run ui:build && npm run build:local-tracker:desktop && npm run build:tauri-runtime-host && npm run validate:tauri-node-sidecar-layout && npm run prepare:tauri:win-bundle && npm run tauri:build:win && npm run refresh:tauri:win-release-metadata && npm run validate:tauri:win-release-artifacts",
+    "package:tauri:win:preview": "npm run verify:native-deps && npm run clean:tauri-release && npm run ui:build && npm run build:local-tracker:desktop && npm run build:tauri-runtime-host && npm run validate:tauri-node-sidecar-layout && npm run prepare:tauri:win-bundle && npm run tauri:build:win && npm run refresh:tauri:win-release-metadata && npm run validate:tauri:win-release-artifacts",
     "package:tauri:win:preview:stage": "npm run package:tauri:win:preview && npm run stage:tauri:win-release-artifacts",
     "ui:build": "vite build --config vite.config.ts",
     "lint:css": "stylelint \"ui/src/**/*.css\" --config ui/.stylelintrc.json"
