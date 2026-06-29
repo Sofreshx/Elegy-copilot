@@ -194,6 +194,7 @@ jobs:
         run: npm --prefix copilot-ui run desktop:preview:stage
 
       - name: Prune stale desktop preview release assets
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
