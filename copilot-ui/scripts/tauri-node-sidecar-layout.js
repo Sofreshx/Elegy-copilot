@@ -228,6 +228,10 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     for (const [packageName, pkgConfig] of Object.entries(manifest.nativeRuntimePackageRequirements)) {
       assert(pkgConfig && typeof pkgConfig === 'object', `Expected ${manifestPath} nativeRuntimePackageRequirements.${packageName} to be an object.`);
       assert(Array.isArray(pkgConfig.requiredFiles) && pkgConfig.requiredFiles.length > 0, `Expected ${manifestPath} nativeRuntimePackageRequirements.${packageName}.requiredFiles.`);
+      assert(
+        (manifest.nodeModulePayload.requiredRuntimePackages || []).includes(packageName),
+        `Expected ${manifestPath} nodeModulePayload.requiredRuntimePackages to include native runtime package ${packageName}.`,
+      );
       
       const packagePath = path.join(sourceNodeModulesRoot, ...packageName.split('/'));
       requireDirectory(`desktop native runtime package ${packageName}`, packagePath);

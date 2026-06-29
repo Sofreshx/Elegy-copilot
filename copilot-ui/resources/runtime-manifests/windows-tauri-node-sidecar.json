@@ -121,6 +121,7 @@
     "requiredRuntimePackages": [
       "@electric-sql/pglite",
       "@elegy-copilot/contracts",
+      "@photostructure/sqlite-vec",
       "better-sqlite3",
       "eventsource-parser",
       "kimaki",
