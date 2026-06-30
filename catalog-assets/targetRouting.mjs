@@ -59,10 +59,13 @@ const ENGINE_ASSET_ROUTES = [
   route('skill-ui-system'),
   route('skill-ui-design-spec'),
   route('skill-ui-visual-review'),
+  route('skill-sweeper-cleanup'),
   route('skill-commit-check-setup'),
   route('skill-commit-validation-governance'),
   route('skill-skill-authoring'),
   route('skill-agents-md-authoring'),
+  route('skill-tdd'),
+  route('skill-brainstorming'),
 ];
 
 export const COMPATIBILITY_MANIFESTS = [
@@ -178,6 +181,7 @@ export const COMPATIBILITY_MANIFESTS = [
     assetRoutes: [
       route('codex-global-instructions', { destination: 'AGENTS.md' }),
       route('codex-reviewer-agent'),
+      route('codex-sweeper-agent'),
       route('codex-repo-setup-skill'),
       route('codex-skill-discovery-skill', { sourceAssetId: 'skill-discovery' }),
       route('codex-rubberduck-plan-review-skill', { sourceAssetId: 'skill-rubberduck-plan-review' }),
@@ -190,11 +194,13 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning' }),
       route('codex-repo-backed-obsidian-docs-skill', { sourceAssetId: 'skill-repo-backed-obsidian-docs' }),
       route('codex-ui-system-skill', { sourceAssetId: 'skill-ui-system' }),
-      route('codex-ui-design-spec-skill', { sourceAssetId: 'skill-ui-design-spec' }),
+      route('codex-ui-runtime-exploration-skill', { sourceAssetId: 'skill-ui-runtime-exploration' }),
       route('codex-ui-visual-review-skill', { sourceAssetId: 'skill-ui-visual-review' }),
+      route('codex-sweeper-cleanup-skill', { sourceAssetId: 'skill-sweeper-cleanup' }),
       route('codex-commit-check-setup-skill', { sourceAssetId: 'skill-commit-check-setup' }),
-      route('codex-skill-authoring-skill', { sourceAssetId: 'skill-skill-authoring' }),
       route('codex-agents-md-authoring-skill', { sourceAssetId: 'skill-agents-md-authoring' }),
+      route('codex-tdd-skill', { sourceAssetId: 'skill-tdd' }),
+      route('codex-brainstorming-skill', { sourceAssetId: 'skill-brainstorming' }),
     ],
   },
   {
@@ -224,6 +230,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-agent-runner'),
       route('opencode-agent-runner-flash'),
       route('opencode-agent-scout'),
+      route('opencode-agent-sweeper'),
       route('notes-enhance'),
       route('notes-reexamine'),
       route('notes-research'),
@@ -256,12 +263,15 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-ui-system-skill', { sourceAssetId: 'skill-ui-system' }),
       route('opencode-ui-design-spec-skill', { sourceAssetId: 'skill-ui-design-spec' }),
       route('opencode-ui-visual-review-skill', { sourceAssetId: 'skill-ui-visual-review' }),
+      route('opencode-sweeper-cleanup-skill', { sourceAssetId: 'skill-sweeper-cleanup' }),
       route('opencode-worktree-plugin', { destination: 'plugins/worktree.js' }),
       route('opencode-worktree-skill'),
       route('opencode-project-workflow-skill'),
       route('opencode-runner-workflow-skill'),
       route('opencode-skill-authoring-skill', { sourceAssetId: 'skill-skill-authoring' }),
       route('opencode-agents-md-authoring-skill', { sourceAssetId: 'skill-agents-md-authoring' }),
+      route('opencode-tdd-skill', { sourceAssetId: 'skill-tdd' }),
+      route('opencode-brainstorming-skill', { sourceAssetId: 'skill-brainstorming' }),
     ],
   },
   {
@@ -340,6 +350,14 @@ export const COMPATIBILITY_MANIFESTS = [
       route('antigravity-ui-visual-review-skill', {
         sourceAssetId: 'skill-ui-visual-review',
         destination: 'antigravity/skills/ui-visual-review',
+      }),
+      route('antigravity-tdd-skill', {
+        sourceAssetId: 'skill-tdd',
+        destination: 'antigravity/skills/tdd',
+      }),
+      route('antigravity-brainstorming-skill', {
+        sourceAssetId: 'skill-brainstorming',
+        destination: 'antigravity/skills/brainstorming',
       }),
     ],
   },

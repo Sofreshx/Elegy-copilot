@@ -150,6 +150,20 @@
       "source": "catalog-assets/shared-skills/ui-visual-review",
       "destination": "antigravity/skills/ui-visual-review",
       "loadMode": "on-demand"
+    },
+    {
+      "id": "antigravity-tdd-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/tdd",
+      "destination": "antigravity/skills/tdd",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "antigravity-brainstorming-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/brainstorming",
+      "destination": "antigravity/skills/brainstorming",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": []

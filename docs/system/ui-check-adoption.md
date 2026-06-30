@@ -1,6 +1,6 @@
 ---
 created: 2026-06-21
-updated: 2026-06-22
+updated: 2026-06-30
 category: system
 status: current
 doc_kind: node
@@ -19,7 +19,7 @@ Recipe for any repo to adopt the governed UI workflow. Three steps + validation.
 ## Prerequisites
 
 - Repo has UI components, tokens, and at least one validation lane (browser or desktop).
-- The three UI skills are installed: `ui-system`, `ui-design-spec`, `ui-visual-review`.
+- The implementation and review lanes are available: `ui-system`, `ui-visual-review`, and the appropriate runtime lane for the repo (`ui-runtime-exploration` when browser/Tauri routing matters).
 
 ## Steps
 

@@ -21,9 +21,21 @@ Common routes:
 
 - `elegy-planning` for durable planning state when available
 - `skill-discovery` when the right shared skill is still ambiguous
+- `ui-system` for repo-grounded UI implementation and reuse
+- `ui-runtime-exploration` for browser/Tauri runtime routing
+- `ui-visual-review` for read-only UI evidence review
 - `rubberduck-plan-review` before complex plan execution
 - `implementation-review` before handoff when self-review is needed
-- `skill-authoring` and `agents-md-authoring` for shared skill or instruction work
+- `sweeper-cleanup` for dead code, unused dependency, stale asset, and unshipping work
+- `agents-md-authoring` for shared instruction work
+
+## Codex lanes
+
+| Lane | Surface | Use |
+|---|---|---|
+| planning | `elegy-planning` skill | Durable goals, roadmaps, plans, and multi-session work |
+| review | `reviewer` subagent | Read-heavy plan, diff, and evidence review |
+| sweeper | `sweeper` subagent + `sweeper-cleanup` skill | Evidence-backed removal of dead code, stale assets, and unused dependencies |
 
 ## Planning Availability
 

@@ -69,6 +69,12 @@
       "destination": "agents/reviewer.toml"
     },
     {
+      "id": "codex-sweeper-agent",
+      "type": "agent",
+      "source": "codex-assets/agents/sweeper.toml",
+      "destination": "agents/sweeper.toml"
+    },
+    {
       "id": "codex-repo-setup-skill",
       "type": "skill",
       "source": "codex-assets/skills/repo-setup",
@@ -152,10 +158,10 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "codex-ui-design-spec-skill",
+      "id": "codex-ui-runtime-exploration-skill",
       "type": "skill",
-      "source": "catalog-assets/shared-skills/ui-design-spec",
-      "destination": "skills/ui-design-spec",
+      "source": "engine-assets/skills/ui-runtime-exploration",
+      "destination": "skills/ui-runtime-exploration",
       "loadMode": "on-demand"
     },
     {
@@ -166,6 +172,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "codex-sweeper-cleanup-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/sweeper-cleanup",
+      "destination": "skills/sweeper-cleanup",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "codex-commit-check-setup-skill",
       "type": "skill",
       "source": "engine-assets/skills/commit-check-setup",
@@ -173,17 +186,24 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "codex-skill-authoring-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/skill-authoring",
-      "destination": "skills/skill-authoring",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "codex-agents-md-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/agents-md-authoring",
       "destination": "skills/agents-md-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "codex-tdd-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/tdd",
+      "destination": "skills/tdd",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "codex-brainstorming-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/brainstorming",
+      "destination": "skills/brainstorming",
       "loadMode": "on-demand"
     }
   ],

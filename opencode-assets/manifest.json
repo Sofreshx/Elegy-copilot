@@ -103,6 +103,12 @@
       "destination": "agents/scout.md"
     },
     {
+      "id": "opencode-agent-sweeper",
+      "type": "agent",
+      "source": "opencode-assets/agents/sweeper.md",
+      "destination": "agents/sweeper.md"
+    },
+    {
       "id": "notes-enhance",
       "type": "agent",
       "source": "opencode-assets/agents/notes-enhance.md",
@@ -312,6 +318,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "opencode-sweeper-cleanup-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/sweeper-cleanup",
+      "destination": "skills/sweeper-cleanup",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "opencode-worktree-plugin",
       "type": "plugin",
       "source": "opencode-assets/plugins/worktree.js",
@@ -347,6 +360,20 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/agents-md-authoring",
       "destination": "skills/agents-md-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "opencode-tdd-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/tdd",
+      "destination": "skills/tdd",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "opencode-brainstorming-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/brainstorming",
+      "destination": "skills/brainstorming",
       "loadMode": "on-demand"
     }
   ],

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-18
+updated: 2026-06-30
 category: system
 status: current
 doc_kind: node
@@ -34,10 +34,14 @@ Installed harness surfaces and shared skills must therefore stay thin and consis
 ## Codex operating model
 
 Codex should stay leaner than the legacy Copilot fleet:
-- Global Codex install: `AGENTS.md`, one read-only `reviewer` agent, `repo-setup`, `skill-discovery`, `stack-detector`, `rubberduck-plan-review`, `implementation-handoff`, `implementation-review`, `planning-tools`, `spec-dev`, `spec-authoring`, and `spec-review`.
+- Global Codex install: `AGENTS.md`, read-only `reviewer` agent, write-capable `sweeper` cleanup agent, `repo-setup`, `skill-discovery`, `elegy-planning`, `rubberduck-plan-review`, `implementation-handoff`, `implementation-review`, `spec-dev`, `spec-authoring`, `spec-review`, `ui-system`, `ui-runtime-exploration`, `ui-visual-review`, `commit-check-setup`, `agents-md-authoring`, and `sweeper-cleanup`.
+- Codex keeps the narrow UI execution stack only: `ui-system` for implementation, `ui-runtime-exploration` for browser/Tauri runtime routing, and `ui-visual-review` for read-only evidence review. `ui-design-spec` remains a shared skill, but it is not part of the default Codex install because it adds spec-authoring overhead to the common implementation lane.
 - Codex uses a stricter `implementation-handoff` variant for explicit delegation. It deepens shallow
   plans and requires `rubberduck-plan-review` for complex or incomplete source plans before
-  producing a downstream executor brief. Other harnesses retain the shared handoff contract.
+  producing a downstream executor brief. Other harnesses retain the shared handoff contract. This
+  is an approved duplicate-name exception: both skills keep the `implementation-handoff` name to
+  preserve the shared invocation surface, and the exception must stay explicit in skill metadata
+  and shipped-skill diagnostics.
 - Repo-specific hazards: repo-local `AGENTS.md` overlays and repo-local skills.
 - Legacy engine/Copilot orchestration agents are not bulk-installed into Codex.
 - Cross-model reviewer agents are not part of the Codex install surface.
@@ -46,12 +50,19 @@ Codex should stay leaner than the legacy Copilot fleet:
 
 OpenCode should stay native-first rather than mirroring the Copilot fleet:
 - Primary OpenCode workflow uses the built-in agents: `Build`, `Plan`, `General`, `Explore`, and `Scout`.
-- elegy-copilot adds the lane agent surface (`quick`, `project`) as OpenCode-native primary agents with supporting subagents (`impl`, `reviewer`, `explorer`, `scout`). Lane agents are workflow-enforcing agents, not Copilot fleet duplicates — they use OpenCode's native agent infrastructure and delegate to subagents for execution.
-- elegy-copilot adds the missing reusable skill surface: skill-discovery (skill name, not an npm package), rubberduck-plan-review (skill name, not an npm package), planning-tools (skill name, not an npm package), `project-workflow`, implementation-review (skill name, not an npm package), implementation-handoff (skill name, not an npm package), spec-dev (skill name, not an npm package), spec-authoring (skill name, not an npm package), spec-review (skill name, not an npm package), `security`, `project-conventions-governance`, and stack-detector (skill name, not an npm package).
+- elegy-copilot adds the lane agent surface (`quick`, `project`) as OpenCode-native primary agents with supporting subagents (`impl`, `reviewer`, `explorer`, `scout`, `sweeper`). Lane agents are workflow-enforcing agents, not Copilot fleet duplicates — they use OpenCode's native agent infrastructure and delegate to subagents for execution.
+- elegy-copilot adds the missing reusable skill surface: skill-discovery (skill name, not an npm package), rubberduck-plan-review (skill name, not an npm package), planning-tools (skill name, not an npm package), project-workflow, implementation-review (skill name, not an npm package), implementation-handoff (skill name, not an npm package), spec-dev (skill name, not an npm package), spec-authoring (skill name, not an npm package), spec-review (skill name, not an npm package), security, project-conventions-governance, and sweeper-cleanup.
 - `code-review` remains a compatibility surface during the transition, but it is not the recommended primary OpenCode routing path.
 - Do not bulk-install Copilot orchestration agents, plan-pack/session-state authoring lanes, or other Copilot-only workflow surfaces into OpenCode.
 - Do not create a parallel custom OpenCode agent fleet for code exploration or web research when the built-in `Explore` and `Scout` agents already cover that role. (The lane subagents `impl`, `reviewer`, and `explorer` serve specific lane workflow phases and do not constitute a parallel fleet.)
 - The current custom `code-explorer` style aliases are transition-only compatibility surfaces and should not grow into a parallel OpenCode agent fleet.
+
+## Sweeper cleanup lane
+
+Use [[sweeper-cleanup-lane]] [sweeper-cleanup-lane.md](docs/system/sweeper-cleanup-lane.md)
+for dead-code, stale-asset, unused-dependency, and unshipping workflows.
+The lane ships as a shared skill plus Codex/OpenCode agents; deletion must
+remain evidence-backed and validated.
 
 ## Spec-driven development skill posture
 
@@ -63,7 +74,7 @@ OpenCode should stay native-first rather than mirroring the Copilot fleet:
 
 ## Planning-critical shared install set
 
-- rubberduck-plan-review (skill name, not an npm package), planning-tools (skill name, not an npm package), `project-workflow`, implementation-handoff (skill name, not an npm package), implementation-review (skill name, not an npm package), spec-dev (skill name, not an npm package), spec-authoring (skill name, not an npm package), spec-review (skill name, not an npm package), `skill-authoring`, and `agents-md-authoring` ship across Copilot, Codex, OpenCode, and Antigravity.
+- rubberduck-plan-review (skill name, not an npm package), planning-tools (skill name, not an npm package), project-workflow, implementation-handoff (skill name, not an npm package), implementation-review (skill name, not an npm package), spec-dev (skill name, not an npm package), spec-authoring (skill name, not an npm package), spec-review (skill name, not an npm package), sweeper-cleanup, skill-authoring, and agents-md-authoring ship only where each harness manifest routes them. `skill-authoring` is intentionally omitted from Codex — Codex provides its own native skill-creation guidance.
 - Copilot keeps those shared planning/review/spec skills vault-first by default, except where a target harness has no separate vault path.
 - Copilot-side `roadmap-authoring` stays always installed because planning and continuation flows depend on it.
 
