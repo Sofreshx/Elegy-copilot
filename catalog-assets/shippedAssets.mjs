@@ -69,13 +69,17 @@ export const SHIPPED_ASSETS = [
   skill('skill-ui-system', 'catalog-assets/shared-skills/ui-system', { loadMode: 'on-demand' }),
   skill('skill-ui-design-spec', 'catalog-assets/shared-skills/ui-design-spec', { loadMode: 'on-demand' }),
   skill('skill-ui-visual-review', 'catalog-assets/shared-skills/ui-visual-review', { loadMode: 'on-demand' }),
+  skill('skill-sweeper-cleanup', 'catalog-assets/shared-skills/sweeper-cleanup', { loadMode: 'on-demand' }),
   skill('skill-skill-authoring', 'catalog-assets/shared-skills/skill-authoring', { loadMode: 'on-demand' }),
   skill('skill-agents-md-authoring', 'catalog-assets/shared-skills/agents-md-authoring', { loadMode: 'on-demand' }),
+  skill('skill-tdd', 'catalog-assets/shared-skills/tdd', { loadMode: 'on-demand' }),
+  skill('skill-brainstorming', 'catalog-assets/shared-skills/brainstorming', { loadMode: 'on-demand' }),
 
   instructions('codex-global-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {
     appendix: 'codex-assets/home/AGENTS-appendix.md',
   }),
   agent('codex-reviewer-agent', 'codex-assets/agents/reviewer.toml'),
+  agent('codex-sweeper-agent', 'codex-assets/agents/sweeper.toml'),
   skill('codex-repo-setup-skill', 'codex-assets/skills/repo-setup'),
   skill('codex-implementation-handoff-skill', 'codex-assets/skills/implementation-handoff', {
     loadMode: 'on-demand',
@@ -102,6 +106,7 @@ export const SHIPPED_ASSETS = [
   agent('opencode-agent-reviewer', 'opencode-assets/agents/reviewer.md'),
   agent('opencode-agent-explorer', 'opencode-assets/agents/explorer.md'),
   agent('opencode-agent-scout', 'opencode-assets/agents/scout.md'),
+  agent('opencode-agent-sweeper', 'opencode-assets/agents/sweeper.md'),
   agent('notes-enhance', 'opencode-assets/agents/notes-enhance.md'),
   agent('notes-reexamine', 'opencode-assets/agents/notes-reexamine.md'),
   agent('notes-research', 'opencode-assets/agents/notes-research.md'),

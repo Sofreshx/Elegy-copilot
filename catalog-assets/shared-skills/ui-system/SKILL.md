@@ -24,13 +24,13 @@ Use this skill when the request is any of:
 - Styling consistency, token use, theme work
 - Design-system reuse questions ("should I make a new component or use X?")
 - Implementing UI that was informed by Figma, Storybook, or another design source
-- Frontend visual review of a change
 
 ## Do Not Use
 
 - Backend, CLI, schema, or pure data work with no UI surface
 - One-line copy or text fixes that do not change the UI surface
 - Replacing this skill with raw MCP fetches; local code is the authority, MCP is context
+- Read-only UI judgment of rendered evidence; use `ui-visual-review`
 
 ## Target Contract
 

@@ -30,7 +30,7 @@ brief → structured UI spec → local inventory → implementation
 | Spec | `ui-design-spec` | Structured spec: target, viewports, states, task, inventory, acceptance criteria |
 | Inventory | `ui-system` | Existing component, token, icon, and layout-pattern citations |
 | Implementation | `ui-system` + implementation lane | Code changes with evidence references |
-| Evidence | Runtime lane (browser, desktop, or component) | Screenshots, console output, network logs |
+| Evidence | Runtime lane (`ui-runtime-exploration` when runtime routing is unclear) | Screenshots, console output, network logs |
 | Visual review | `ui-visual-review` | Defect report: hierarchy, layout, component, UX, a11y, aesthetic |
 | Regression proof | Repo-owned validation commands | Pass/fail on declared validation lane |
 
@@ -85,10 +85,12 @@ The contract never claims accessibility compliance from a DOM snapshot alone.
 |-------|------|-----------|
 | `ui-system` | Inventory-first implementation: reuse, tokens, icons, patterns | on-demand |
 | `ui-design-spec` | Convert prompts/screenshots/Figma context into structured repo-grounded spec | on-demand |
+| `ui-runtime-exploration` | Route browser/Tauri UI work to the correct runtime lane before evidence collection | on-demand |
 | `ui-visual-review` | Review rendered evidence; report defects without editing code | on-demand |
 
 `ui-design-spec` and `ui-visual-review` are separate from `ui-system` to keep spec-authoring and
-visual judgment out of the implementation lane.
+visual judgment out of the implementation lane. `ui-runtime-exploration` stays separate because
+runtime/tool routing is a different boundary from both implementation and review.
 
 ## Authority
 
@@ -102,13 +104,13 @@ visual judgment out of the implementation lane.
 
 ## Adoption
 
-See [[ui-check-adoption]] [ui-check-adoption.md](docs/system/ui-check-adoption.md) for the per-repo setup recipe.
+See [[ui-check-adoption]] [ui-check-adoption.md](ui-check-adoption.md) for the per-repo setup recipe.
 Use `node scripts/ui-check.mjs --validate-only` to validate configuration,
 and `node scripts/ui-check.mjs --target <id>` to run a specific target.
 
 ## Related
 
-- [[ui-check-adoption]] [ui-check-adoption.md](docs/system/ui-check-adoption.md)
-- [[skills-governance]] [skills-governance.md](docs/system/skills-governance.md)
-- [[copilot-ui-guide]] [copilot-ui-guide.md](docs/system/copilot-ui-guide.md)
-- [[spec-driven-development]] [spec-driven-development.md](docs/system/spec-driven-development.md)
+- [[ui-check-adoption]] [ui-check-adoption.md](ui-check-adoption.md)
+- [[skills-governance]] [skills-governance.md](skills-governance.md)
+- [[copilot-ui-guide]] [copilot-ui-guide.md](copilot-ui-guide.md)
+- [[spec-driven-development]] [spec-driven-development.md](spec-driven-development.md)

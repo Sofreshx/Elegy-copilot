@@ -529,6 +529,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "skill-sweeper-cleanup",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/sweeper-cleanup",
+      "destination": "skills/sweeper-cleanup",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "skill-commit-check-setup",
       "type": "skill",
       "source": "engine-assets/skills/commit-check-setup",
@@ -554,6 +561,20 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/agents-md-authoring",
       "destination": "skills/agents-md-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-tdd",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/tdd",
+      "destination": "skills/tdd",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-brainstorming",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/brainstorming",
+      "destination": "skills/brainstorming",
       "loadMode": "on-demand"
     }
   ],
