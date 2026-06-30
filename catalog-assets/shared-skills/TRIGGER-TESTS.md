@@ -205,10 +205,24 @@
 - "Build this feature using TDD — red-green-refactor"
 - "Write the tests first for the checkout flow"
 - "Implement the search endpoint test-first"
+- "Use red-green-refactor for this bug fix"
+- "Write a failing test before implementing"
 ### Should Not Trigger
 - "Add a migration script for the database"
 - "Review the code style guide"
 - "What's the font size in the design system?"
+
+## brainstorming
+### Should Trigger
+- "Let's brainstorm the design for the payment system"
+- "I need to spec out the new search feature"
+- "Explore different approaches for the auth migration"
+- "Think through the architecture before we start coding"
+- "Propose 2-3 approaches for the notification service"
+### Should Not Trigger
+- "Fix the null reference error in the login flow"
+- "Run npm install"
+- "What's the server uptime?"
 
 ## ui-design-spec
 ### Should Trigger

@@ -3,7 +3,7 @@ spec_id: assets-tools-management-v1
 title: Assets & Tools Management V1
 status: draft
 type: feature
-updated: 2026-06-11
+updated: 2026-06-30
 related:
   - asset-sync-truthfulness
 ---

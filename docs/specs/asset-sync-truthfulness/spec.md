@@ -4,7 +4,7 @@ spec_id: asset-sync-truthfulness
 title: Asset Sync Truthfulness — Installed State, Harness Opt-In, Honest Warnings
 status: implemented
 type: contract
-updated: 2026-06-04
+updated: 2026-06-30
 related:
   - align-elegy-db-assets
   - verifiable-acceptance-criteria

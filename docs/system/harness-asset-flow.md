@@ -1,6 +1,6 @@
 ---
 created: 2026-06-09
-updated: 2026-06-27
+updated: 2026-06-30
 category: system
 status: current
 doc_kind: node
@@ -173,9 +173,9 @@ Per-repo files are created by the **repo owner** (human or CI), not by the insta
 | **Home** | `~/.elegy` | `~/.config/opencode` | `~/.codex` | `~/.gemini` | `~/.claude` |
 | **Instructions** | `copilot-instructions.md` | `AGENTS.md` | `AGENTS.md` | `GEMINI.md` | `CLAUDE.md` |
 | **Contract** | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix |
-| **Agents** | 6 | 7 | 1 | 0 | 0 |
-| **Skills** | 22+ | 18 | 12 | 9 | 6+ |
-| **Plugins** | 0 | 2 | 0 | 0 | 0 |
+| **Agents** | 6 | 15 | 2 | 0 | 0 |
+| **Skills** | 24 | 29 | 17 | 13 | 6+ |
+| **Plugins** | 0 | 4 | 0 | 0 | 0 |
 | **Managed block** | No | No | No | Yes | No |
 | **Profile injection** | Yes | Yes | Yes | Yes | Yes |
 | **Install script** | `cli-install.mjs` | `opencode-install.mjs` | `codex-install.mjs` | `antigravity-install.mjs` | `claude-install.mjs` |

@@ -3,7 +3,7 @@ spec_id: spec-system-hardening
 title: Spec-Driven Development System Hardening
 status: superseded
 type: workflow
-updated: 2026-06-22
+updated: 2026-06-30
 approved_at: 2026-06-20
 liveness_skip_paths:
   - opencode-assets/agents/spec.md

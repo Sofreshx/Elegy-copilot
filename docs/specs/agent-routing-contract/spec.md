@@ -3,7 +3,7 @@ spec_id: agent-routing-contract
 title: Agent Routing Contract
 status: draft
 type: contract
-updated: 2026-06-20
+updated: 2026-06-30
 ---
 
 # Agent Routing Contract

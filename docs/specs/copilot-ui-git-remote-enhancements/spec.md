@@ -3,7 +3,7 @@ spec_id: copilot-ui-git-remote-enhancements
 title: Copilot UI Git + Remote performance, gating, PR UX, and toggle enhancements
 status: draft
 type: feature
-updated: 2026-06-22
+updated: 2026-06-30
 ---
 
 # Copilot UI Git + Remote enhancements

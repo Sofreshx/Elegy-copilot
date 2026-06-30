@@ -170,6 +170,37 @@ test('two skills with same name produce duplicate-name diagnostics', () => {
   });
 });
 
+test('approved duplicate-name group suppresses duplicate-name diagnostics', () => {
+  withTempRepoFixture({
+    'catalog-assets/shared-skills/dupe/SKILL.md': [
+      '---',
+      'name: implementation-handoff',
+      'description: "Shared implementation handoff variant."',
+      'metadata: {"allowedDuplicateNameGroup":"implementation-handoff","variant":"shared"}',
+      '---',
+      '# Shared Dupe',
+    ].join('\n'),
+    'codex-assets/skills/dupe/SKILL.md': [
+      '---',
+      'name: implementation-handoff',
+      'description: "Codex implementation handoff variant."',
+      'metadata: {"allowedDuplicateNameGroup":"implementation-handoff","variant":"codex"}',
+      '---',
+      '# Codex Dupe',
+    ].join('\n'),
+  }, (tempRoot) => {
+    const { report, status } = runAnalyzer(tempRoot);
+    assert.strictEqual(status, 0);
+    assert.strictEqual(report.summary.totalSkills, 2);
+
+    const skillsWithDuplicateName = report.skills.filter(s =>
+      s.diagnostics.some(d => d.kind === 'duplicate-name')
+    );
+    assert.strictEqual(skillsWithDuplicateName.length, 0);
+    assert.strictEqual(report.summary.duplicateNames, 0);
+  });
+});
+
 test('two skills with overlapping triggers produce overlapping-triggers diagnostics', () => {
   withTempRepoFixture({
     'engine-assets/skills/detector/SKILL.md': [

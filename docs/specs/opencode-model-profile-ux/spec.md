@@ -3,7 +3,7 @@ spec_id: opencode-model-profile-ux
 title: OpenCode Model & Profile Switching UX
 status: implemented
 type: feature
-updated: 2026-06-08
+updated: 2026-06-30
 ---
 
 # OpenCode Model & Profile Switching UX

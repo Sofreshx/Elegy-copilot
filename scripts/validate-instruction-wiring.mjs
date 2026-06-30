@@ -284,6 +284,11 @@ function checkManifestSkillEntries(repoRoot) {
 
     for (const skill of SHARED_SKILLS) {
       const id = `manifest-skill-${prefix}-${skill.id}`;
+      // skill-authoring is not installed to Codex — Codex has its own built-in
+      if (manifestRel.startsWith('codex') && skill.id === 'skill-authoring') {
+        results.push({ id, status: 'ok', detail: `${manifestRel}: intentionally omits ${skill.id} (Codex has native equivalent)` });
+        continue;
+      }
       const found = skills.find(s => (s.source || '').endsWith(`/shared-skills/${skill.id}`) || s.destination === `skills/${skill.id}`);
       if (found) {
         results.push({ id, status: 'ok', detail: `${manifestRel}: installs ${skill.id}` });
@@ -328,6 +333,11 @@ function checkAppendixSkillMentions(repoRoot) {
 
     for (const skill of SHARED_SKILLS) {
       const checkId = `appendix-skill-${id}-${skill.id}`;
+      // skill-authoring not listed in codex appendix — Codex has its own built-in
+      if (rel.startsWith('codex') && skill.id === 'skill-authoring') {
+        results.push({ id: checkId, status: 'ok', detail: `${rel}: intentionally omits ${skill.id} (Codex has native equivalent)` });
+        continue;
+      }
       if (content.includes(`\`${skill.id}\``)) {
         results.push({ id: checkId, status: 'ok', detail: `${rel}: lists ${skill.id}` });
       } else {

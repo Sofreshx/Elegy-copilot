@@ -13,7 +13,7 @@ Run the installer for the tool you use; re-running the same command refreshes th
 | OpenCode install/refresh | pwsh -File scripts/opencode-install.ps1 | bash scripts/opencode-install.sh |
 | Antigravity install/refresh | pwsh -File scripts/antigravity-install.ps1 | bash scripts/antigravity-install.sh |
 | Claude Code install/refresh | pwsh -File scripts/claude-install.ps1 | bash scripts/claude-install.sh |
-| Refresh everything | `pwsh -File scripts/install-all.ps1` | `bash scripts/install-all.sh` |
+| Refresh everything | `scripts/install-all.ps1` | `scripts/install-all.sh` |
 
 Add `--force` to overwrite managed targets that diverged, or `--dry-run` to preview changes without writing. See [Harness Asset Flow](docs/system/harness-asset-flow.md) for the full install model.
 

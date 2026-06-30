@@ -4,7 +4,7 @@ spec_id: verifiable-acceptance-criteria
 title: Verifiable Acceptance Criteria
 status: superseded
 type: contract
-updated: 2026-06-20
+updated: 2026-06-30
 superseded_by: spec-driven-development-contract
 liveness_skip_paths:
   - opencode-assets/agents/spec.md

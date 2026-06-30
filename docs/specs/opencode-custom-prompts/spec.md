@@ -3,7 +3,7 @@ spec_id: opencode-custom-prompts
 title: OpenCode Custom System Prompts
 status: implemented
 type: feature
-updated: 2026-06-10
+updated: 2026-06-30
 liveness_skip_paths:
   - copilot-ui/ui/src/lib/api/opencode.ts
 ---

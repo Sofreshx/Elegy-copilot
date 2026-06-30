@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-22
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -10,6 +10,13 @@ tags: [changelog]
 ---
 
 # Instruction Changelog
+
+## 2026-06-29 - Current-state-only durable docs rule
+
+- Added a `## Current-State Only` section to `docs/system/documentation-authoring-governance.md` so current canonical docs describe present state while change narrative routes to changelogs, release notes, migration guides, or explicitly historical docs.
+- Tightened `docs/system/documentation-structure-governance.md` pruning guidance to rewrite owning sections instead of preserving "previously X, now Y", "updated to...", or "now supports..." commentary.
+- Extended `docs/system/reviewer-lane-governance.md` so temporal change framing in current canonical docs is reviewed as `rule_drift`.
+- Added matching concise-writing and review reminders in `docs/system/concise-instruction-governance.md` and `catalog-assets/instructions/agent-session-defaults.md`.
 
 ## 2026-06-22 - Collaboration profile with Constructive Coworker preset
 

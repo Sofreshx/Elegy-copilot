@@ -41,9 +41,9 @@
 - **New**: References and Boundaries sections.
 
 ### 5. tdd
-- **Changes**: CONTEXT.md → `docs/system/` + `docs/system/adr/`. Sub-doc references (tests.md, mocking.md, refactoring.md) preserved as future-work pointers.
-- **Preserved**: Philosophy (behavior-vs-implementation tests). Anti-pattern (horizontal slicing). Vertical slice workflow. Tracer bullet pattern. Checklist per cycle.
-- **New**: References and Boundaries sections. Bug-fix routing note (diagnosing-bugs first, then TDD).
+- **Changes**: Replaced adapted content with original Matt Pocock version. Updated frontmatter with `disable-model-invocation: true`. Removed companion cross-references to `codebase-design` and `diagnosing-bugs` (original version is self-contained).
+- **Preserved**: Core TDD cycle (red-green-refactor). Iron Law. Vertical slice discipline.
+- **New**: The Iron Law section. Rationalization debunks. Common rationalizations table. Red Flags list. Bug fix example. When Stuck table. Verification checklist. Final Rule.
 
 ### 6. writing-great-skills
 - **Changes**: Removed GLOSSARY.md reference. Added skill-authoring cross-reference.

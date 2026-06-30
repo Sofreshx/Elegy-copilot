@@ -1,6 +1,6 @@
 ---
 created: 2026-06-03
-updated: 2026-06-12
+updated: 2026-06-30
 category: lexicon
 status: current
 doc_kind: node

@@ -9,5 +9,5 @@ redirect_to: docs/system/mocs/orchestration-and-agents.md
 
 This historical stub is retained for compatibility with older links.
 
-- Current orchestration guidance: [docs/system/mocs/orchestration-and-agents.md](docs/system/mocs/orchestration-and-agents.md)
-- Current plan-pack guidance: [docs/system/planpack-spec.md](docs/system/planpack-spec.md)
+- Current orchestration guidance: [docs/system/mocs/orchestration-and-agents.md](system/mocs/orchestration-and-agents.md)
+- Current plan-pack guidance: [docs/system/planpack-spec.md](system/planpack-spec.md)

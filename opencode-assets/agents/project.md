@@ -11,6 +11,7 @@ permission:
     impl: allow
     explorer: allow
     reviewer: allow
+    sweeper: allow
   skill: allow
   question: allow
   edit: deny
@@ -54,6 +55,9 @@ You coordinate three subagents:
 - **reviewer** — Read-only review gate. Mandatory at these points:
    implementation review and evidence review. Also use for optional
    plan review (user-gated) and architectural decisions spanning work points.
+- **sweeper** — Write-capable cleanup for dead code, stale managed assets, and
+  unused dependencies. Use only for bounded cleanup work with candidate evidence
+  and a validation path.
 
 ## Session State Management
 At the start of EVERY session, you must determine where you are:

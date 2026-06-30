@@ -133,7 +133,7 @@ defined above.
 - keep hard constraints visible, keep shaping context only when it materially affects the current
   step, and keep unresolved branches out of `constraints`
 - if repeated constraint text is standing in for a durable architectural or workflow decision, route
-  that promotion through [[adr-governance]] [adr-governance.md](docs/system/adr-governance.md) or the owning canonical node instead of repeating it in more prompts and skills
+  that promotion through [[adr-governance]] [adr-governance.md](adr-governance.md) or the owning canonical node instead of repeating it in more prompts and skills
 
 ### Missing bootstrap detection
 
@@ -165,9 +165,9 @@ Use existing lanes to catch skipped canonical guidance:
 - `code-reviewer` is the primary review surface for request/spec-fit checks on docs-backed
   write-capable work, plus cited canonical references, docs/code alignment, skipped convention
   guidance, and high-confidence defects or regressions caused by ignored canonical guidance
-- `docs/system/project-conventions-governance.md`, the always-loaded `project-guidelines` skill,
-  and `guidelines-authoring` own missing-authority-path and missing-entrypoint follow-up when the real
-  problem is the governance surface itself
+- `docs/system/project-conventions-governance.md` and
+  `docs/system/documentation-structure-governance.md` own missing-authority-path and
+  missing-entrypoint follow-up when the real problem is the governance surface itself
 - doc and contract validators remain the narrow validation layer for touched governance assets
 
 ### Mixed enforcement posture

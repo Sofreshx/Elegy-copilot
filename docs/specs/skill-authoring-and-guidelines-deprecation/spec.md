@@ -3,7 +3,7 @@ spec_id: skill-authoring-and-guidelines-deprecation
 title: Skill Authoring Skills + guidelines.md Deprecation
 status: draft
 type: feature
-updated: 2026-06-18
+updated: 2026-06-30
 liveness_skip_paths:
   - engine-assets/skills/guidelines-authoring/**
   - engine-assets/skills/project-guidelines/**

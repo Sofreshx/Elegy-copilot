@@ -3,7 +3,7 @@ spec_id: commit-validation-contract
 title: Commit Validation Contract
 status: draft
 type: contract
-updated: 2026-06-20
+updated: 2026-06-30
 ---
 
 # Commit Validation Contract

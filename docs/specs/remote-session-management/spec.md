@@ -3,7 +3,7 @@ spec_id: remote-session-management
 title: Kimaki Remote Session Management
 status: implemented
 type: migration
-updated: 2026-06-19
+updated: 2026-06-30
 approved_at: 2026-06-18
 implemented_at: 2026-06-19
 ---

@@ -5,7 +5,7 @@ title: Align Elegy Planning DB, Assets, and OpenCode/Codex Status
 status: superseded
 superseded_by: planning-visibility-canonicalization
 type: workflow
-updated: 2026-06-03
+updated: 2026-06-30
 liveness_skip_paths:
   - "~/.copilot/*"
   - "~/.elegy/*"

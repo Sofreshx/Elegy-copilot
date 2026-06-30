@@ -1,6 +1,6 @@
 ---
 created: 2026-06-08
-updated: 2026-06-22
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -63,6 +63,7 @@ Write to transfer decisions, not to sound complete. Prefer exact terms, diagrams
 - Delete restatement.
 - Delete throat-clearing.
 - Delete empty emphasis.
+- Write current canonical docs that describe live state in present state. Do not frame them as change narrative.
 
 ### Section Question Requirement
 
@@ -141,7 +142,7 @@ Use plan-first for non-trivial work. A plan is ready only when another implement
 
 Before handoff, run the narrowest relevant check:
 
-- `node scripts/validate-guidelines-wiring.mjs` — validates shared baseline exists, appendix files are present per harness, compose integrity (no missing sections), and no banned terms in the baseline
+- `node scripts/validate-instruction-wiring.mjs` — validates shared baseline exists, appendix files are present per harness, compose integrity (no missing sections), and no banned terms in the baseline
 - Manual review: check for empty language, vague abstractions, duplicated policy
 
 ## Output Contract

@@ -159,7 +159,7 @@ Documentation structure should keep "why" discoverable without creating competin
 - if the same rationale would otherwise need to be copied into many comments or scattered docs, create
   or update the smallest relevant canonical node and let local surfaces point back to it
 - when the repeated material is really a standing architectural tradeoff, prefer ADR promotion under
-  [[adr-governance]] [adr-governance.md](docs/system/adr-governance.md) rather than
+  [[adr-governance]] [adr-governance.md](adr-governance.md) rather than
   multiplying summary copies
 - when issue logs or comments expose a repeated rationale pattern that should guide future work, route
   promotion through conventions or documentation governance instead of treating the lower-authority
@@ -249,6 +249,10 @@ Docs and specs must be concise, map-like, and scoped to their stated purpose. Av
 When editing existing docs or specs:
 - Delete obsolete, duplicated, inaccurate, or compatibility-only prose instead of preserving it by default.
 - Replace stale detail with links to the current authority.
+- Replace change-narrative prose with current-state description. Do not preserve "previously X, now
+  Y" framing when rewriting a current-state canonical section.
+- Rewrite the owning section when behavior changes. Do not append "updated to..." or "now
+  supports..." commentary to explain the edit.
 - Keep redirects only when needed for inbound path compatibility.
 
 ## Doc Freshness Sync Rule

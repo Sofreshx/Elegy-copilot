@@ -105,5 +105,5 @@ gates when run manually.
 
 ## Related
 
-- [Doc graph spec](docs/system/doc-graph-spec.md) — validation contract for `validate-doc-graph.js`
-- System docs: [index](docs/system/index.md)
+- [Doc graph spec](doc-graph-spec.md) — validation contract for `validate-doc-graph.js`
+- System docs: [index](index.md)
