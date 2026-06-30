@@ -49,12 +49,12 @@ documentation (`docs/system/**`, `docs/research/**`, `docs/specs/**`). That
 workflow — opening a repo folder directly as an Obsidian vault with the
 repo retaining full authority — is covered by the
 [[repo-backed-obsidian-docs]]
-[repo-backed-obsidian-docs.md](docs/system/repo-backed-obsidian-docs.md)
+[repo-backed-obsidian-docs.md](repo-backed-obsidian-docs.md)
 contract.
 
 The distinction:
 - **Docs vault** ([[repo-backed-obsidian-docs]]
-  [repo-backed-obsidian-docs.md](docs/system/repo-backed-obsidian-docs.md)):
+  [repo-backed-obsidian-docs.md](repo-backed-obsidian-docs.md)):
   Obsidian is a local editor/viewer over canonical repo docs. Git is the
   authority.
 - **Planning mirror** (this contract): Obsidian hosts external,

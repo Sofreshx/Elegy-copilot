@@ -37,6 +37,9 @@ npm run test:rust-backend
 npm --prefix copilot-ui run desktop:dev
 ```
 
+Additional npm scripts: `npm run postinstall`, `npm run contracts:validate:session-state-sample`, `npm run docs:dev`, `npm run docs:preview`, `npm run docs:check:links`, `npm run validate:guidelines-wiring`, `npm run validate:instruction-wiring`, `npm run validate:instruction-budgets`, `npm run obsidian-docs:preflight`, `npm run obsidian-docs:init`, `npm run obsidian-docs:validate`, `npm run generate:spec-index`, `npm run ci:local:full`, `npm run ui:check`, `npm run ui:check:validate`, `npm run commit-check:discover`, `npm run commit-check:setup`, `npm run commit-check:run`, `npm run build:rust-backend`, `npm run test:rust-backend`, `npm run install:ghcp`, `npm run install:ghcp:dry`, `npm run ghcp:profile:switch`, `npm run ghcp:profile:list`, `npm run ghcp:profile:current`.
+
+
 ## Canonical Pointers
 
 - Instruction writing and thin entrypoints: `docs/system/concise-instruction-governance.md`

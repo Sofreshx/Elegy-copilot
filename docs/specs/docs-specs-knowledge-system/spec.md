@@ -3,7 +3,7 @@ spec_id: docs-specs-knowledge-system
 title: Docs / Specs Knowledge System Enhancement
 status: implemented
 type: migration
-updated: 2026-06-08
+updated: 2026-06-30
 liveness_skip_paths:
   - specs/docs-specs-knowledge-system/plan.md
   - docs/system/**

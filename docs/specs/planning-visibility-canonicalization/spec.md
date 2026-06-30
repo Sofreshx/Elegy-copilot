@@ -3,7 +3,7 @@ spec_id: planning-visibility-canonicalization
 title: Make Elegy Planning Visible, Canonical, and Explorable
 status: draft
 type: feature
-updated: 2026-06-04
+updated: 2026-06-30
 supersedes: [align-elegy-db-assets, planning-explorer-view]
 liveness_skip_paths:
   - "C:\\Users\\*\\"

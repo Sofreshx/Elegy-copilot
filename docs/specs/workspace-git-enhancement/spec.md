@@ -3,7 +3,7 @@ spec_id: workspace-git-enhancement
 title: Workspace Git Page Enhancement
 status: implemented
 type: feature
-updated: 2026-06-17
+updated: 2026-06-30
 ---
 
 # Workspace Git Page Enhancement

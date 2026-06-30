@@ -148,7 +148,7 @@ Canon for the active Windows Tauri preview/release lane must record:
 Checkpoint rules:
 
 - No private signing keys may be committed to the repo or stored on CI runners.
-- Signing custody remains external through the managed signing service / HSM / KMS posture already frozen in [[security-model]] [security-model.md](docs/system/security-model.md).
+- Signing custody remains external through the managed signing service / HSM / KMS posture already frozen in [[security-model]] [security-model.md](security-model.md).
 - The current implemented checkpoint seam is a Windows-first NSIS packaging lane that emits manual-installer release metadata with fail-closed channel pairing; it performs automatic matching-channel release checks but does **not** claim live in-app updater/feed parity yet.
 - The active Tauri shell may expose GitHub-release-backed updater status and manual-installer download state through a shell bridge, but that bridge must require explicit user action for installer download/apply and must not imply seamless transport/feed support until a later cut enables it.
 - Public GitHub semver tags such as `1.2.3` and `1.2.3-rc.1` remain preview/evaluation releases and should stay marked as prerelease, while stable desktop downloads come from promoted non-prerelease `desktop-v*` releases.

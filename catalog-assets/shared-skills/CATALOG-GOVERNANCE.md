@@ -29,6 +29,12 @@ is repo-specific, check for its existence and provide a fallback.
 Skill `name` fields must be unique across the catalog. The validator checks this.
 Name must match the parent directory.
 
+Exception: an approved harness-specialized variant may reuse the same `name` only when:
+- the duplicate is intentional and documented in canonical governance,
+- each participating skill declares `metadata.allowedDuplicateNameGroup: "<skill-name>"`,
+- the duplicate exists to preserve a shared invocation surface while narrowing behavior per harness,
+- shipped-skill diagnostics explicitly suppress that approved duplicate instead of reporting it as drift.
+
 ## 7. No repeated global doctrine across skills
 Do not re-embed baseline instructions (repo discovery, canonical doc chains) in
 individual skills. Reference the harness instructions instead.
@@ -52,6 +58,8 @@ canonical set.
 
 Run `npm run validate:skills` to check rules 1, 4, 6, and 7 automatically.
 Manual review is required for rules 2, 3, 5, 8, 9, and 10.
+Run `node scripts/analyze-shipped-skill-quality.mjs --no-write-md` to verify shipped cross-harness
+surfaces and approved duplicate-name exceptions.
 
 ## Lifecycle States
 

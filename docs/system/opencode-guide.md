@@ -1,13 +1,13 @@
 ---
 created: 2026-05-11
-updated: 2026-06-27
+updated: 2026-06-30
 category: system
 status: current
 doc_kind: node
 id: opencode-guide
 summary: Current native-first operating model for OpenCode.
 tags: [opencode, agents, skills, worktree]
-related: [catalog-control-plane, skills-governance, search-execute-workflow]
+related: [catalog-control-plane, skills-governance, search-execute-workflow, sweeper-cleanup-lane]
 ---
 
 # OpenCode Guide
@@ -33,7 +33,7 @@ bash scripts/opencode-install.sh
 ## Operating Model
 
 - Built-in agents stay primary: `Build`, `Plan`, `Explore`, `Scout`, `General`.
-- Primary skills: `skill-discovery`, `rubberduck-plan-review`, `planning-tools`, `project-workflow`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, `stack-detector`, `worktree`, `elegy-obsidian`.
+- Primary skills: `skill-discovery`, `rubberduck-plan-review`, `planning-tools`, `project-workflow`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, `sweeper-cleanup`, `worktree`, `elegy-obsidian`.
 - Planning, review, and spec skills are installed by default under `~/.config/opencode/skills/`; load them with the skill tool only when they materially improve the current step.
 - Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`.
 - Shared installed planning and review behavior now narrows constraints to the minimum active set and treats ADRs as key-decision records rather than default documentation for every non-trivial change.
@@ -62,9 +62,13 @@ review, and research. Invoke via the Task tool or `@mention` from any primary ag
 | `reviewer` | Read-only | Review gate — code, spec, plan, and evidence review |
 | `explorer` | Read-only | Codebase discovery — patterns, traces, dependencies |
 | `scout` | Read-only (restricted bash) | External docs and dependency research |
+| `sweeper` | Write-capable | Evidence-backed cleanup — dead code, stale assets, unused dependencies |
 
-Support subagents are leaf-only. `impl`, `explorer`, `reviewer`, `scout`, and managed note subagents
+Support subagents are leaf-only. `impl`, `explorer`, `reviewer`, `scout`, `sweeper`, and managed note subagents
 must deny Task delegation. Validate with `node scripts/validate-opencode-agent-topology.js`.
+
+Sweeper usage and deletion gates live in
+[[sweeper-cleanup-lane]] [sweeper-cleanup-lane.md](docs/system/sweeper-cleanup-lane.md).
 
 ### Provider Profiles
 
@@ -73,7 +77,7 @@ Profiles configure model routing across five task roles. Each profile maps model
 | Role | Description | Agents |
 |---|---|---|
 | `planning` | Planning, spec authoring, roadmap work | `plan`, `project` |
-| `implementation` | Code edits, file writes, commands | `build`, `impl`, `quick` |
+| `implementation` | Code edits, file writes, commands | `build`, `impl`, `quick`, `sweeper` |
 | `exploration` | Read-only code discovery | `explore`, `explorer` |
 | `review` | Review gates (spec, plan, code) | `reviewer` |
 | `research` | External docs and dependencies | `scout` |

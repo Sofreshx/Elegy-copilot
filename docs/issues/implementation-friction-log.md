@@ -1,6 +1,6 @@
 ---
 created: 2026-02-27
-updated: 2026-06-15
+updated: 2026-06-30
 category: system
 status: archived
 doc_kind: node

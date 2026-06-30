@@ -3,7 +3,7 @@ spec_id: skill-governance-contract
 title: Skill Governance Contract
 status: draft
 type: contract
-updated: 2026-06-20
+updated: 2026-06-30
 ---
 
 # Skill Governance Contract

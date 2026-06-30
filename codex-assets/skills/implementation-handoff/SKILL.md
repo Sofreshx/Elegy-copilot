@@ -1,6 +1,7 @@
 ---
 name: implementation-handoff
 description: "Deepen plans into decision-complete implementation briefs for another harness, model, executor, or session. Use when delegating implementation, preparing a model handoff, or when a downstream executor should not need to redesign or re-plan the work."
+metadata: {"allowedDuplicateNameGroup":"implementation-handoff","variant":"codex"}
 ---
 
 # Implementation Handoff

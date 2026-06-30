@@ -20,7 +20,7 @@ tags: [security]
 These decisions are locked for the desktop-distributed `elegy-copilot` runtime. The current
 desktop path is a Windows-first Tauri shell with a bundled Node sidecar, as defined in
 [[desktop-runtime-tauri-migration-contract]]
-[desktop-runtime-tauri-migration-contract.md](docs/system/desktop-runtime-tauri-migration-contract.md).
+[desktop-runtime-tauri-migration-contract.md](desktop-runtime-tauri-migration-contract.md).
 
 | Topic | Decision | Owner |
 |---|---|---|

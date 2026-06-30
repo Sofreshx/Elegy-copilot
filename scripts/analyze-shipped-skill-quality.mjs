@@ -144,6 +144,14 @@ function parseMetadata(metadataStr) {
   }
 }
 
+function getAllowedDuplicateNameGroup(metadata) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return null;
+  }
+  const value = metadata.allowedDuplicateNameGroup;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
 /**
  * Extract triggers from a skill's frontmatter and description.
  * - From `triggers` field (YAML list or comma-separated string)
@@ -293,6 +301,7 @@ function analyze(repoRoot) {
       const descLength = description ? description.length : 0;
       const aliases = [];
       const metadata = parseMetadata(frontmatter.metadata);
+      const allowedDuplicateNameGroup = getAllowedDuplicateNameGroup(metadata);
       if (metadata.aliasKeys && Array.isArray(metadata.aliasKeys)) {
         aliases.push(...metadata.aliasKeys);
       }
@@ -337,6 +346,7 @@ function analyze(repoRoot) {
         description,
         descriptionLength: descLength,
         aliases: uniqueAliases,
+        allowedDuplicateNameGroup,
         triggers,
         diagnostics,
       });
@@ -358,6 +368,14 @@ function analyze(repoRoot) {
   const duplicateNameIssues = [];
   for (const [name, skillIds] of nameMap.entries()) {
     if (skillIds.length > 1) {
+      const duplicateSkills = skillIds
+        .map((skillId) => skills.find((skill) => skill.skillId === skillId))
+        .filter(Boolean);
+      const isApprovedDuplicate = duplicateSkills.length === skillIds.length
+        && duplicateSkills.every((skill) => skill.allowedDuplicateNameGroup === name);
+      if (isApprovedDuplicate) {
+        continue;
+      }
       duplicateNameIssues.push({ name, skillIds: [...skillIds].sort() });
     }
   }
@@ -590,6 +608,18 @@ function analyze(repoRoot) {
  */
 function generateMarkdownAudit(report) {
   const lines = [];
+
+  lines.push('---');
+  lines.push('created: 2026-06-18');
+  lines.push(`updated: ${report.generatedAt.slice(0, 10)}`);
+  lines.push('category: research');
+  lines.push('status: current');
+  lines.push('doc_kind: node');
+  lines.push('id: shipped-skill-quality-audit');
+  lines.push('summary: Audit of all shipped skills for quality, metadata, and trigger overlap issues.');
+  lines.push('tags: [skills, audit, quality]');
+  lines.push('---');
+  lines.push('');
 
   // Title
   lines.push('# Shipped Skill Quality Audit');

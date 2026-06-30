@@ -18,7 +18,7 @@ Define the canonical contract for deterministic repo scaffold documentation drif
 
 ## Authority
 
-This doc sits under [[documentation-structure-governance]] [documentation-structure-governance.md](docs/system/documentation-structure-governance.md) as a validation surface. It implements the Doc Freshness Sync Rule from that governance doc via automated claim verification.
+This doc sits under [[documentation-structure-governance]] [documentation-structure-governance.md](documentation-structure-governance.md) as a validation surface. It implements the Doc Freshness Sync Rule from that governance doc via automated claim verification.
 
 ## Architecture
 
@@ -55,7 +55,7 @@ Each scaffold markdown file is parsed for structured claims:
 | command (claim type) | Backtick-quoted CLI invocations with known prefixes | `` `npm run test` `` |
 | `dependency` | Backtick-quoted package names | `` `react` ``, `` `@scope/pkg` `` |
 | `route_edge` | Frontmatter `related:` field entries | `related: [doc-id-1]` |
-| `internal_link` | Markdown links to local files | ``[label](docs/system/index.md)`` |
+| `internal_link` | Markdown links to local files | ``[label](index.md)`` |
 
 Claims are NOT extracted from:
 - Fenced code blocks (```` ``` ````)
@@ -225,11 +225,11 @@ Add to `package.json`:
 
 ## Canonical References
 
-- [[documentation-structure-governance]] [documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
-- [[commit-check-setup]] [commit-check-setup.md](docs/system/commit-check-setup.md)
-- [[doc-graph-spec]] [doc-graph-spec.md](docs/system/doc-graph-spec.md)
-- [[project-conventions-governance]] [project-conventions-governance.md](docs/system/project-conventions-governance.md)
-- [[repo-setup-governance]] [repo-setup-governance.md](docs/system/repo-setup-governance.md)
+- [[documentation-structure-governance]] [documentation-structure-governance.md](documentation-structure-governance.md)
+- [[commit-check-setup]] [commit-check-setup.md](commit-check-setup.md)
+- [[doc-graph-spec]] [doc-graph-spec.md](doc-graph-spec.md)
+- [[project-conventions-governance]] [project-conventions-governance.md](project-conventions-governance.md)
+- [[repo-setup-governance]] [repo-setup-governance.md](repo-setup-governance.md)
 - `contracts/src/repoContext.ts`
 - `contracts/elegy/repo-context/drift-check-result.schema.json`
 - `scripts/elegy-docs-check.js`

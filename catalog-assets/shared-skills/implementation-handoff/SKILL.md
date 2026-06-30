@@ -2,6 +2,7 @@
 name: implementation-handoff
 description: "Convert a feature plan, roadmap slice, or architecture note into a repo-grounded implementation handoff brief. Triggers on: implementation handoff, executor brief, delegation brief, model handoff, plan to implementation brief."
 license: Apache-2.0
+metadata: {"allowedDuplicateNameGroup":"implementation-handoff","variant":"shared"}
 ---
 
 # Implementation Handoff

@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-06-22
+updated: 2026-06-29
 category: system
 status: current
 doc_kind: node
@@ -38,7 +38,7 @@ The approved reviewer model is intentionally small:
 Each accepted reviewer finding should reduce to exactly one category:
 
 - `defect`: a confirmed or strongly supported correctness, security, runtime, or high-signal quality problem
-- `rule_drift`: code, docs, naming, structure, or required-citation drift against a canonical rule or stable repo convention
+- `rule_drift`: code, docs, naming, structure, or required-citation drift against a canonical rule or stable repo convention; this includes current canonical docs that use temporal change narrative such as "now supports", "previously X, now Y", or "as of v2.0" instead of present-state description
 - `authority_gap`: a missing, contradictory, or hard-to-discover canonical rule or entrypoint
 - `research_thread`: a real concern or opportunity that needs comparative analysis before implementation can be planned responsibly
 - `improvement`: a non-blocking maintainability or quality suggestion
@@ -76,7 +76,7 @@ Reviewer lanes should apply that shared questioning/depth policy and reuse the d
 `docs/system/search-execute-workflow.md` instead of inventing a separate enforcement hierarchy.
 
 - `@code-reviewer` is the primary review surface for skipped convention guidance, stale or missing canonical references, docs/code alignment drift, and high-confidence bugs or regressions caused by ignored canonical guidance
-- missing authority-path or entrypoint problems should route to `docs/system/project-conventions-governance.md`, the always-loaded `project-guidelines` skill, and `guidelines-authoring` when the governance surface itself needs to change
+- missing authority-path or entrypoint problems should route to `docs/system/project-conventions-governance.md` and `docs/system/documentation-structure-governance.md` when the governance surface itself needs to change
 - missing rationale or smart comments may still be review findings when they materially affect future maintainability, but they are not contradiction-style hard stops on their own
 
 ## Output Contract

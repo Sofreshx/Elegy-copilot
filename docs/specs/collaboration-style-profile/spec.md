@@ -3,7 +3,7 @@ spec_id: collaboration-style-profile
 title: Collaboration Style and Personal Instructions
 status: draft
 type: feature
-updated: 2026-06-22
+updated: 2026-06-30
 ---
 
 # Collaboration Style and Personal Instructions

@@ -7,4 +7,4 @@ doc_kind: redirect
 redirect_to: docs/system/opencode-guide.md
 ---
 
-Redirect: see [docs/system/opencode-guide.md](docs/system/opencode-guide.md).
+Redirect: see [docs/system/opencode-guide.md](system/opencode-guide.md).

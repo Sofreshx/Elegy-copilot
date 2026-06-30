@@ -3,7 +3,7 @@ spec_id: agentic-lanes-quality
 title: OpenCode Agentic Lanes Quality Evaluation and Hardening
 status: abandoned
 type: workflow
-updated: 2026-06-03
+updated: 2026-06-30
 ---
 
 # OpenCode Agentic Lanes Quality Evaluation and Hardening

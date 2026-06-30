@@ -3,7 +3,7 @@ spec_id: documentation-structure-contract
 title: Documentation Structure Contract
 status: draft
 type: contract
-updated: 2026-06-20
+updated: 2026-06-30
 ---
 
 # Documentation Structure Contract

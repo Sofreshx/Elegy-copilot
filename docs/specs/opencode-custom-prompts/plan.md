@@ -3,7 +3,7 @@ plan_id: opencode-custom-prompts
 spec_id: opencode-custom-prompts
 title: OpenCode Custom Prompts — Implementation Plan
 status: implemented
-updated: 2026-06-10
+updated: 2026-06-30
 ---
 
 # Implementation Plan: OpenCode Custom Prompts

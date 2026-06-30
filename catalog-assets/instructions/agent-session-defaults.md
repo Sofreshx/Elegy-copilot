@@ -127,6 +127,7 @@ Heuristics:
 Review must flag:
 
 - unclear authority
+- change_narrative: current canonical doc uses temporal change framing instead of present-state description
 - duplicated policy
 - assumptions treated as facts
 - missing clarification before implementation

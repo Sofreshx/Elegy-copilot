@@ -3,7 +3,7 @@ spec_id: project-lane-orchestrator
 title: Harness-Agnostic Durable Execution Orchestrator
 status: draft
 type: feature
-updated: 2026-06-18
+updated: 2026-06-30
 related:
   - orchestrator-architecture-adr
 ---

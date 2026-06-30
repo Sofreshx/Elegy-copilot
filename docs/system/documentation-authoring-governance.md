@@ -18,7 +18,7 @@ Define the reusable documentation authoring contract for durable docs. This gove
 revise documentation once the correct documentation location and entrypoint have been chosen.
 
 Use [[documentation-structure-governance]]
-[documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
+[documentation-structure-governance.md](documentation-structure-governance.md)
 when the main problem is information architecture, entrypoints, or discoverability. Use this node
 when the main problem is page quality, progressive disclosure, diagrams, agent readability, and
 drift-resistant content.
@@ -71,7 +71,7 @@ Agent-facing docs should:
 - prefer short canonical pages over broad composite pages
 - include machine-friendly cues such as status, scope, source ownership, validation command, and
   read-next links
-- keep durable architectural tradeoffs in ADRs only when they meet [[adr-governance]] [adr-governance.md](docs/system/adr-governance.md); otherwise keep them in the smallest owning node
+- keep durable architectural tradeoffs in ADRs only when they meet [[adr-governance]] [adr-governance.md](adr-governance.md); otherwise keep them in the smallest owning node
 
 ## Drift Resistance
 
@@ -84,8 +84,38 @@ Docs should be biased toward durable claims:
 
 When implementation evidence conflicts with canonical docs, follow the contradiction-handling rules
 in [[documentation-structure-governance]]
-[documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
+[documentation-structure-governance.md](documentation-structure-governance.md)
 before rewriting the docs around an unverified assumption.
+
+## Current-State Only
+
+Current canonical docs that describe live contracts, governance, or reference state must describe
+present state. Change narrative belongs in changelogs, release notes, migration guides, or
+explicitly historical docs.
+
+Banned patterns in current-state canonical docs:
+
+- "Now supports X" -> write "Supports X"
+- "Previously Y, now X" -> write "Uses X"
+- "As of v2.0" -> state the contract directly; version-qualify only at compatibility boundaries
+- "This was added in..." -> move the change narrative to the appropriate changelog or migration surface
+
+Doc update contract:
+
+- Rewrite the owning section to describe current state.
+- Do not append "what changed" commentary to a current-state reference or governance section.
+- When the change is behaviorally meaningful, update the appropriate companion surface such as
+  `docs/system/instruction-changelog.md`, a release note, a migration guide, or a known-issues
+  entry.
+
+Exceptions:
+
+- ADRs are historical decision records and may describe temporal context.
+- Migration guides describe transition paths and should stay separate from current-state reference
+  docs.
+- Changelog entries are the home for change narrative.
+- Explicitly historical or freeze docs may retain historical context, but any live contract section
+  inside them must still describe present state.
 
 ## Changelog And Version Notes
 
@@ -107,7 +137,7 @@ check:
 - generated agent-readable indexes such as `llms.txt`
 
 If no validator exists, perform a manual structure check against [[doc-graph-spec]]
-[doc-graph-spec.md](docs/system/doc-graph-spec.md) and report the validation gap.
+[doc-graph-spec.md](doc-graph-spec.md) and report the validation gap.
 
 ## Output Contract
 
