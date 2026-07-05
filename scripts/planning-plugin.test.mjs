@@ -123,6 +123,31 @@ await test('roadmap add-work-point uses --work-point-id not --id', () => {
   assert.ok(content.includes('--work-point-id'), 'buildRoadmapAddWorkPointArgs should use --work-point-id');
 });
 
+await test('plan create passes current required parent and scope flags', () => {
+  const content = fs.readFileSync(pluginPath, 'utf8');
+  assert.ok(content.includes('"--goal-id", args.goalId'));
+  assert.ok(content.includes('"--plan-scope", args.planScope'));
+  assert.ok(content.includes('"--summary", args.summary'));
+});
+
+await test('next-runnable requires a roadmap ID', () => {
+  const content = fs.readFileSync(pluginPath, 'utf8');
+  assert.ok(content.includes('["next-runnable", "--roadmap-id", args.roadmapId]'));
+});
+
+await test('issue record uses current related-entity and summary flags', () => {
+  const content = fs.readFileSync(pluginPath, 'utf8');
+  assert.ok(content.includes('"--related-entity-type", args.entityType'));
+  assert.ok(content.includes('"--related-entity-id", args.entityId'));
+  assert.ok(content.includes('"--summary", args.summary'));
+});
+
+await test('insight record uses current parent flags', () => {
+  const content = fs.readFileSync(pluginPath, 'utf8');
+  assert.ok(content.includes('"--parent-type", args.entityType'));
+  assert.ok(content.includes('"--parent-id", args.entityId'));
+});
+
 await test('project-run claim uses correct CLI flags', () => {
   const content = fs.readFileSync(pluginPath, 'utf8');
   assert.ok(content.includes('--goal-id'), 'project-run claim should pass --goal-id');

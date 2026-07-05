@@ -25,6 +25,26 @@ Define the canonical contract for test quality across validation lanes.
 5. When product behavior legitimately changes, update tests to match the new contract, but preserve the original hard-case intent or explain the new boundary explicitly.
 6. Shallow green-only coverage is not sufficient when the changed behavior has meaningful failure modes or edge conditions.
 
+## Behavioral Falsification Check
+
+Testing and debugging should challenge the behavior before accepting green output.
+
+Use a bounded falsification check when testing or debugging non-trivial behavior:
+
+```text
+Feature/module:
+Intended behavior:
+Likely breakpoints:
+- edge input:
+- invalid state:
+- ordering/timing:
+- dependency failure:
+Proof:
+- command, test, or observed evidence:
+```
+
+Keep the check proportional. Do not add long thought-process notes to routine validations; capture only the cases that could change confidence in the result.
+
 ## What Counts As Weakening
 
 Treat these as confidence-reducing changes unless replacement coverage clearly restores the lost intent:
@@ -67,6 +87,7 @@ When a change touches tests, reviewers and implementers should ask:
 - did any meaningful failure or edge-case coverage disappear?
 - was any assertion relaxed, and if so, what replaced that confidence?
 - does the updated suite reflect the real product contract rather than only producing green results?
+- what realistic input, state, timing, or dependency failure could still break the changed behavior?
 
 ## References
 

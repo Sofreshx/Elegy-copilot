@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Badge, Button, Panel } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { codexProviderStore, type CodexProviderState } from '../../stores/codexProviderStore';
+import type { CodexSubagentRecord, CodexSubagentSettings, CodexSubagentUsageResponse } from '../../lib/api/codexConfig';
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -15,12 +16,325 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
+const textareaStyle: React.CSSProperties = {
+  ...inputStyle,
+  minHeight: 120,
+  resize: 'vertical',
+};
+
+function splitInstructions(content: string): string {
+  const match = String(content || '').match(/developer_instructions\s*=\s*"""([\s\S]*?)"""/);
+  return match ? match[1].trim() : '';
+}
+
+function CapabilityList({ title, values }: { title: string; values: string[] }) {
+  return (
+    <div style={{ minWidth: 160 }}>
+      <strong style={{ fontSize: 12 }}>{title}</strong>
+      {values.length > 0 ? (
+        <ul style={{ margin: '4px 0 0 18px', padding: 0, fontSize: 12 }}>
+          {values.map((value) => <li key={value}>{value}</li>)}
+        </ul>
+      ) : (
+        <p className="settings-row-description" style={{ margin: '4px 0 0' }}>None observed.</p>
+      )}
+    </div>
+  );
+}
+
+function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSubagentRecord; saving: boolean; readOnly?: boolean }) {
+  const [model, setModel] = useState(agent.model || '');
+  const [effort, setEffort] = useState(agent.modelReasoningEffort || 'medium');
+  const [sandbox, setSandbox] = useState(agent.sandboxMode || 'read-only');
+  const [routingMode, setRoutingMode] = useState(agent.routingMode || 'manual');
+  const [allowSpark, setAllowSpark] = useState(agent.allowSpark);
+  const [instructions, setInstructions] = useState(splitInstructions(agent.content));
+
+  useEffect(() => {
+    setModel(agent.model || '');
+    setEffort(agent.modelReasoningEffort || 'medium');
+    setSandbox(agent.sandboxMode || 'read-only');
+    setRoutingMode(agent.routingMode || 'manual');
+    setAllowSpark(agent.allowSpark);
+    setInstructions(splitInstructions(agent.content));
+  }, [agent]);
+
+  const statusTone = agent.missing ? 'danger' : agent.drift ? 'brand' : agent.managed ? 'success' : 'neutral';
+  const statusLabel = agent.missing ? 'Missing' : agent.drift ? 'Local override' : agent.managed ? 'Managed' : 'Unmanaged';
+  const fieldsDisabled = saving || readOnly;
+
+  return (
+    <div className="settings-row" data-testid={`codex-subagent-${agent.name}`} style={{ alignItems: 'flex-start' }}>
+      <div className="settings-row-label" style={{ gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <strong>{agent.name}</strong>
+          <Badge tone={statusTone}>{statusLabel}</Badge>
+          {agent.fastModel ? <Badge tone="brand">Fast lane: {agent.fastModel}</Badge> : null}
+        </div>
+        <span className="settings-row-description">{agent.description}</span>
+        <span className="settings-row-description">{agent.toolScopeNote}</span>
+        {agent.parseError ? (
+          <span className="settings-row-error">TOML parse error: {agent.parseError}</span>
+        ) : null}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginTop: 8 }}>
+          <label>
+            <span className="settings-row-description">Model</span>
+            <input value={model} onChange={(event) => setModel(event.target.value)} style={inputStyle} disabled={fieldsDisabled} readOnly={readOnly} />
+          </label>
+          <label>
+            <span className="settings-row-description">Reasoning</span>
+            <select value={effort} onChange={(event) => setEffort(event.target.value)} style={inputStyle} disabled={fieldsDisabled}>
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+          </label>
+          <label>
+            <span className="settings-row-description">Sandbox</span>
+            <select value={sandbox} onChange={(event) => setSandbox(event.target.value)} style={inputStyle} disabled={fieldsDisabled}>
+              <option value="read-only">read-only</option>
+              <option value="workspace-write">workspace-write</option>
+            </select>
+          </label>
+          <label>
+            <span className="settings-row-description">Routing</span>
+            <select value={routingMode} onChange={(event) => setRoutingMode(event.target.value)} style={inputStyle} disabled={fieldsDisabled}>
+              <option value="manual">manual</option>
+              <option value="suggested">suggested</option>
+              <option value="governed-automatic">governed automatic</option>
+              <option value="off">off</option>
+            </select>
+          </label>
+        </div>
+        {agent.fastModel ? (
+          <label className="settings-row-description" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+            <input type="checkbox" checked={allowSpark} onChange={(event) => setAllowSpark(event.target.checked)} disabled={fieldsDisabled} />
+            Allow Spark fast lane when available
+          </label>
+        ) : null}
+        <label style={{ marginTop: 8 }}>
+          <span className="settings-row-description">Developer instructions</span>
+          <textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} style={textareaStyle} disabled={fieldsDisabled} readOnly={readOnly} />
+        </label>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
+          <CapabilityList title="Enforced" values={agent.capabilities.enforced} />
+          <CapabilityList title="Configured" values={agent.capabilities.configured} />
+          <CapabilityList title="Inherited" values={agent.capabilities.inherited} />
+          <CapabilityList title="Observed" values={agent.capabilities.observed} />
+        </div>
+        <details style={{ marginTop: 8 }}>
+          <summary className="settings-row-description">Raw TOML preview</summary>
+          <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', fontSize: 11 }}>{agent.content}</pre>
+        </details>
+      </div>
+      <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end' }}>
+        {!readOnly ? (
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={saving}
+            testId={`codex-subagent-save-${agent.name}`}
+            onClick={() => codexProviderStore.saveSubagent(agent.name, {
+              model,
+              model_reasoning_effort: effort,
+              sandbox_mode: sandbox,
+              developer_instructions: instructions,
+              routingMode,
+              allowSpark,
+            })}
+          >
+            Save
+          </Button>
+        ) : null}
+        {agent.managed && !readOnly ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={saving}
+            testId={`codex-subagent-reset-${agent.name}`}
+            onClick={() => codexProviderStore.resetSubagent(agent.name)}
+          >
+            {agent.missing ? 'Install' : 'Reset'}
+          </Button>
+        ) : null}
+        {!readOnly ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={saving || agent.scope === 'project'}
+            testId={`codex-subagent-uninstall-${agent.name}`}
+            onClick={() => codexProviderStore.uninstallSubagent(agent.name, agent.drift)}
+          >
+            Uninstall
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CodexSubagentsSection({ state }: { state: CodexProviderState }) {
+  const data = state.subagents;
+  const settings = data?.settings;
+  const nativeConfig = data?.nativeConfig;
+  const updateSetting = (patch: Partial<CodexSubagentSettings>) => {
+    void codexProviderStore.saveSubagentSettings(patch);
+  };
+
+  return (
+    <>
+      <Panel title="Subagent Routing" subtitle="Control when Codex should delegate work" testId="codex-subagent-routing">
+        {!settings ? (
+          <p className="state-message">Loading subagent settings…</p>
+        ) : (
+          <>
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <strong>Routing mode</strong>
+                <span className="settings-row-description">
+                  Default is manual. Governed automatic allows only policy-approved read-only delegation.
+                </span>
+              </div>
+              <div className="settings-row-action">
+                <select
+                  value={settings.routingMode}
+                  disabled={state.subagentSaving}
+                  onChange={(event) => updateSetting({ routingMode: event.target.value })}
+                  style={inputStyle}
+                  data-testid="codex-subagent-routing-mode"
+                >
+                  <option value="manual">Manual only</option>
+                  <option value="suggested">Suggested</option>
+                  <option value="governed-automatic">Governed automatic</option>
+                  <option value="off">Off</option>
+                </select>
+              </div>
+            </div>
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <strong>Concurrency</strong>
+                <span className="settings-row-description">Keep fan-out low to avoid token and MCP startup waste.</span>
+                {nativeConfig ? (
+                  <span className="settings-row-description">
+                    Native config: {nativeConfig.matchesSettings ? 'synced' : 'not synced'} · {nativeConfig.path}
+                  </span>
+                ) : null}
+                {nativeConfig?.parseError ? (
+                  <span className="settings-row-error">Config parse error: {nativeConfig.parseError}</span>
+                ) : null}
+              </div>
+              <div className="settings-row-action" style={{ gap: 8 }}>
+                <input
+                  type="number"
+                  min={1}
+                  max={8}
+                  value={settings.maxThreads}
+                  onChange={(event) => updateSetting({ maxThreads: Number(event.target.value) })}
+                  style={{ ...inputStyle, width: 90 }}
+                  aria-label="Max subagent threads"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  max={2}
+                  value={settings.maxDepth}
+                  onChange={(event) => updateSetting({ maxDepth: Number(event.target.value) })}
+                  style={{ ...inputStyle, width: 90 }}
+                  aria-label="Max subagent depth"
+                />
+              </div>
+            </div>
+          </>
+        )}
+      </Panel>
+
+      <Panel title="Managed Subagents" subtitle="Global ~/.codex/agents definitions managed by Elegy Copilot" testId="codex-subagents-managed">
+        {state.subagentsLoading && !data ? <p className="state-message">Loading Codex subagents…</p> : null}
+        {data && data.agents.length === 0 ? <p className="state-message">No global Codex subagents found.</p> : null}
+        {data?.agents.map((agent) => (
+          <CodexSubagentCard key={agent.name} agent={agent} saving={state.subagentSaving} />
+        ))}
+      </Panel>
+
+      <Panel title="Project Subagents" subtitle="Read-only discovery of .codex/agents in the active project" testId="codex-subagents-project">
+        {data && data.projectAgents.length === 0 ? (
+          <p className="state-message">No project-scoped Codex subagents discovered for the active workspace.</p>
+        ) : null}
+        {data?.projectAgents.map((agent) => (
+          <CodexSubagentCard key={`${agent.scope}-${agent.name}`} agent={agent} saving={state.subagentSaving} readOnly />
+        ))}
+      </Panel>
+    </>
+  );
+}
+
+function CodexSubagentUsageSection({ usage }: { usage: CodexSubagentUsageResponse | null }) {
+  return (
+    <Panel title="Subagent Usage" subtitle="Derived local metadata from Codex state and rollout logs" testId="codex-subagent-usage">
+      {!usage ? (
+        <p className="state-message">No Codex subagent usage loaded.</p>
+      ) : (
+        <>
+          <div className="settings-row">
+            <div className="settings-row-label">
+              <strong>Coverage</strong>
+              <span className="settings-row-description">{usage.coverage} · {usage.source.path}</span>
+            </div>
+            <div className="settings-row-action">
+              <Badge tone={usage.coverage === 'codex-state-plus-rollouts' ? 'success' : 'neutral'}>
+                {usage.summary.runs} runs
+              </Badge>
+            </div>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row-label">
+              <strong>Totals</strong>
+              <span className="settings-row-description">
+                {usage.summary.tokens.toLocaleString()} tokens · {usage.summary.toolEvents} tool calls · {usage.summary.errors} errors
+              </span>
+            </div>
+          </div>
+          {usage.byAgent.map((agent) => (
+            <div className="settings-row" key={agent.name}>
+              <div className="settings-row-label">
+                <strong>{agent.name}</strong>
+                <span className="settings-row-description">
+                  {agent.count} runs · {agent.tokens.toLocaleString()} tokens · {agent.toolEvents} tool calls · {agent.errors} errors
+                </span>
+              </div>
+            </div>
+          ))}
+          {usage.runs.slice(0, 20).map((run) => (
+            <div className="settings-row" key={run.threadId}>
+              <div className="settings-row-label">
+                <strong>{run.agent}</strong>
+                <span className="settings-row-description">
+                  {run.model || 'unknown model'} · {run.tokens.totalTokens.toLocaleString()} tokens · {run.toolEvents} tools
+                </span>
+                {run.flags.length > 0 ? (
+                  <span className="settings-row-description">Flags: {run.flags.join(', ')}</span>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </Panel>
+  );
+}
+
 export default function CodexProviderPanel() {
   const state: CodexProviderState = useStoreValue(codexProviderStore);
 
   useEffect(() => {
     void codexProviderStore.load();
   }, []);
+
+  useEffect(() => {
+    if (state.activeSection === 'subagents' || state.activeSection === 'usage') {
+      void codexProviderStore.loadSubagents();
+    }
+  }, [state.activeSection]);
 
   const status = state.status;
   const activeMode = status?.activeMode || 'native';
@@ -68,6 +382,34 @@ export default function CodexProviderPanel() {
 
   return (
     <div className="settings-section">
+      <div className="workspace-nav" role="tablist" aria-label="Codex settings sections" style={{ marginBottom: 12 }}>
+        {[
+          { id: 'overview', label: 'Overview' },
+          { id: 'subagents', label: 'Subagents' },
+          { id: 'usage', label: 'Subagent Usage' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            role="tab"
+            className={`opencode-tab${state.activeSection === tab.id ? ' opencode-tab-active' : ''}`}
+            data-testid={`codex-tab-${tab.id}`}
+            onClick={() => codexProviderStore.setActiveSection(tab.id as CodexProviderState['activeSection'])}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {state.activeSection === 'subagents' ? (
+        <CodexSubagentsSection state={state} />
+      ) : null}
+
+      {state.activeSection === 'usage' ? (
+        <CodexSubagentUsageSection usage={state.subagentUsage} />
+      ) : null}
+
+      {state.activeSection === 'overview' ? (
+        <>
       {/* ── Codex Configuration ── */}
       <Panel
         title="Codex Configuration"
@@ -603,6 +945,8 @@ export default function CodexProviderPanel() {
           </div>
         </div>
       </Panel>
+        </>
+      ) : null}
     </div>
   );
 }

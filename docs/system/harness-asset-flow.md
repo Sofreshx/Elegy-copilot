@@ -7,7 +7,7 @@ doc_kind: node
 id: harness-asset-flow
 summary: How central assets from Elegy Copilot are set up, synchronized to harness homes, and discovered in per-repo contexts. Includes architecture diagram and per-harness comparison.
 tags: [architecture, install, harness, assets, sync]
-related: [catalog-control-plane, copilot-ui-guide, opencode-guide, repo-setup-governance, concise-instruction-governance]
+related: [catalog-control-plane, copilot-ui-guide, opencode-guide, ghcp-guide, repo-setup-governance, concise-instruction-governance]
 ---
 
 # Harness Asset Flow
@@ -28,6 +28,7 @@ Central assets live in the elegy-copilot repo under these directories:
 | `codex-assets/` | Codex-specific instructions, agents, skills |
 | `antigravity-assets/` | Antigravity-specific instructions and skills |
 | `claude-assets/` | Claude Code-specific instructions and skills |
+| `ghcp-assets/` | GitHub Copilot CLI instructions, lane agents, profiles, and wrapper |
 
 ## Architecture Diagram
 
@@ -40,6 +41,7 @@ graph TB
         CXA["codex-assets/<br/>Codex instructions, agents"]
         ARA["antigravity-assets/<br/>Antigravity instructions, skills"]
         CLA["claude-assets/<br/>Claude instructions, skills"]
+        GHCPA["ghcp-assets/<br/>GitHub Copilot CLI instructions, agents, profiles"]
     end
 
     subgraph "Install Scripts"
@@ -48,6 +50,7 @@ graph TB
         CXI["codex-install.mjs"]
         ARI["antigravity-install.mjs"]
         CLI2["claude-install.mjs"]
+        GHCI["ghcp-install.mjs"]
         IA["install-all.sh / .ps1"]
     end
 
@@ -57,6 +60,7 @@ graph TB
         CXH["~/.codex/<br/>AGENTS.md<br/>agents/<br/>skills/"]
         ARH["~/.gemini/<br/>GEMINI.md<br/>antigravity/skills/"]
         CLH["~/.claude/<br/>CLAUDE.md<br/>skills/"]
+        GHCPH["~/.copilot/<br/>copilot-instructions.md<br/>agents/"]
     end
 
     subgraph "Per-Repo Deployment"
@@ -76,6 +80,7 @@ graph TB
     CXI --> CXH
     ARI --> ARH
     CLI2 --> CLH
+    GHCI --> GHCPH
 
     EA --> CI
     EA --> OI
@@ -93,6 +98,7 @@ graph TB
     CXA --> CXI
     ARA --> ARI
     CLA --> CLI2
+    GHCPA --> GHCI
 
     OI --> RSB
     CXI --> RSB
@@ -119,7 +125,8 @@ elegy-copilot repo
   ├── opencode-assets/    ──┤
   ├── codex-assets/       ──┤
   ├── antigravity-assets/ ──┤
-  ├── claude-assets/      ──┘
+  ├── claude-assets/      ──┤
+  ├── ghcp-assets/        ──┘
   │
   └── install scripts
         │
@@ -127,7 +134,8 @@ elegy-copilot repo
         ├── opencode-install.mjs  ──→ ~/.config/opencode/
         ├── codex-install.mjs     ──→ ~/.codex/
         ├── antigravity-install.mjs ──→ ~/.gemini/
-        └── claude-install.mjs    ──→ ~/.claude/
+        ├── claude-install.mjs    ──→ ~/.claude/
+        └── ghcp-install.mjs      ──→ ~/.copilot/
 ```
 
 Each harness gets:
@@ -135,6 +143,9 @@ Each harness gets:
 - **Skills** — shared skills from `engine-assets/` and `catalog-assets/`
 - **Agents** (where applicable) — harness-specific agent files
 - **Plugins** (OpenCode only) — worktree plugin
+
+GHCP gets lane agents plus wrapper/profile assets rather than a shared skill install surface.
+GHCP uses its dedicated installer and is not part of `install-all.sh` / `install-all.ps1`.
 
 Codex also gets two managed configuration surfaces:
 - root `config.toml` defaults for install-safe shared settings such as `review_model`
@@ -168,17 +179,17 @@ Per-repo files are created by the **repo owner** (human or CI), not by the insta
 
 ## Harness Comparison
 
-| Dimension | Copilot | OpenCode | Codex | Antigravity | Claude |
-|-----------|---------|----------|-------|-------------|--------|
-| **Home** | `~/.elegy` | `~/.config/opencode` | `~/.codex` | `~/.gemini` | `~/.claude` |
-| **Instructions** | `copilot-instructions.md` | `AGENTS.md` | `AGENTS.md` | `GEMINI.md` | `CLAUDE.md` |
-| **Contract** | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix |
-| **Agents** | 6 | 15 | 2 | 0 | 0 |
-| **Skills** | 24 | 29 | 17 | 13 | 6+ |
-| **Plugins** | 0 | 4 | 0 | 0 | 0 |
-| **Managed block** | No | No | No | Yes | No |
-| **Profile injection** | Yes | Yes | Yes | Yes | Yes |
-| **Install script** | `cli-install.mjs` | `opencode-install.mjs` | `codex-install.mjs` | `antigravity-install.mjs` | `claude-install.mjs` |
+| Dimension | Copilot | OpenCode | Codex | Antigravity | Claude | GHCP |
+|-----------|---------|----------|-------|-------------|--------|------|
+| **Home** | `~/.elegy` | `~/.config/opencode` | `~/.codex` | `~/.gemini` | `~/.claude` | `~/.copilot` |
+| **Instructions** | `copilot-instructions.md` | `AGENTS.md` | `AGENTS.md` | `GEMINI.md` | `CLAUDE.md` | `copilot-instructions.md` |
+| **Contract** | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+appendix |
+| **Agents** | 6 | 15 | 2 | 0 | 0 | 6 |
+| **Skills** | 26 | 31 | 19 | 15 | 10 | 0 |
+| **Plugins** | 0 | 4 | 0 | 0 | 0 | 0 |
+| **Managed block** | No | No | No | Yes | No | No |
+| **Profile injection** | Yes | Yes | Yes | Yes | Yes | No |
+| **Install script** | `cli-install.mjs` | `opencode-install.mjs` | `codex-install.mjs` | `antigravity-install.mjs` | `claude-install.mjs` | `ghcp-install.mjs` |
 
 ## Instruction Writing Contract
 
@@ -186,7 +197,7 @@ The instruction writing contract lives in a single shared portable baseline at `
 
 ## Validation
 
-- `node scripts/validate-guidelines-wiring.mjs` — checks shared baseline exists at `catalog-assets/instructions/agent-session-defaults.md`, manifests reference correct paths, appendix files exist for each harness, and no banned terms appear in the baseline
+- `node scripts/validate-instruction-wiring.mjs` — checks shared baseline exists at `catalog-assets/instructions/agent-session-defaults.md`, manifests reference correct paths, appendix files exist for each harness, and no banned terms appear in the baseline
 - `node scripts/validate-installed-governance-wiring.test.js` — validates installed governance wiring across harnesses
 
 ## References

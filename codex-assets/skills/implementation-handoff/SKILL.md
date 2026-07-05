@@ -131,6 +131,7 @@ Tests And Validation:
 - <test cases to add or update>
 - <commands to run>
 - <acceptance evidence>
+- <edge/state/timing/dependency case the validation must cover>
 
 Compatibility And Safety:
 - <migration, rollback, permission, data-safety, or compatibility rule; or none>
@@ -142,7 +143,7 @@ Stop Conditions:
 - <condition requiring clarification instead of guessing>
 
 Handoff Notes:
-- <remaining non-blocking context or none>
+- <remaining non-blocking context, biggest missing context, least-confident point, or none>
 ```
 
 Do not append an alternate plan or long summary. The brief is the handoff artifact.

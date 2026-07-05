@@ -1,5 +1,5 @@
 import { tool } from "@opencode-ai/plugin/tool";
-import { execFile } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -11,16 +11,52 @@ import { randomUUID } from "node:crypto";
 function resolvePlanningBinary() {
   const isWin = process.platform === "win32";
   const binaryName = isWin ? "elegy-planning.exe" : "elegy-planning";
+  const elegyHome = process.env.ELEGY_HOME
+    || join(process.env.HOME || process.env.USERPROFILE || "~", ".elegy");
+  const dbPath = process.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH
+    || join(elegyHome, "planning.db");
+
+  const normalizeCandidate = (candidate) => {
+    if (!candidate) return candidate;
+    if (isWin) {
+      const match = candidate.match(/^\/mnt\/([a-z])\/(.*)$/i);
+      return match ? `${match[1].toUpperCase()}:\\${match[2].replaceAll("/", "\\")}` : candidate;
+    }
+    const match = candidate.match(/^([a-z]):[\\/](.*)$/i);
+    return match ? `/mnt/${match[1].toLowerCase()}/${match[2].replaceAll("\\", "/")}` : candidate;
+  };
+
+  const compatibleExistingPath = (candidate) => {
+    const normalized = normalizeCandidate(candidate);
+    const resolved = existsSync(normalized)
+      ? normalized
+      : (existsSync(normalized + ".exe") ? normalized + ".exe" : null);
+    if (!resolved) return null;
+    const dbFsPath = normalizeCandidate(dbPath);
+    if (!existsSync(dbFsPath)) return resolved;
+    const probeDbPath = !isWin && resolved.toLowerCase().endsWith(".exe") ? dbPath : dbFsPath;
+    const probe = spawnSync(resolved, ["--json", "--db", probeDbPath, "health"], {
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 10000,
+    });
+    if (probe.status !== 0) return null;
+    try {
+      const payload = JSON.parse(probe.stdout || "");
+      return payload.status === "ok" ? resolved : null;
+    } catch {
+      return null;
+    }
+  };
 
   // 1. Explicit env var
   const explicit = process.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH;
-  if (explicit && (existsSync(explicit) || existsSync(explicit + ".exe"))) {
-    return explicit;
+  const compatibleExplicit = compatibleExistingPath(explicit);
+  if (compatibleExplicit) {
+    return compatibleExplicit;
   }
 
   // 2. ELEGY_HOME managed CLI
-  const elegyHome = process.env.ELEGY_HOME
-    || join(process.env.HOME || process.env.USERPROFILE || "~", ".elegy");
   const managedCandidates = [
     join(elegyHome, "managed-cli", "planning", "bin", binaryName),
     join(elegyHome, "managed-cli", "planning", binaryName),
@@ -28,7 +64,8 @@ function resolvePlanningBinary() {
     join(elegyHome, "elegy-planning", binaryName),
   ];
   for (const candidate of managedCandidates) {
-    if (existsSync(candidate)) return candidate;
+    const compatibleCandidate = compatibleExistingPath(candidate);
+    if (compatibleCandidate) return compatibleCandidate;
   }
 
   // 3. PATH fallback (bare command name)
@@ -135,8 +172,14 @@ function buildRoadmapAddWorkPointArgs(args) {
 }
 
 function buildPlanCreateArgs(args) {
-  const a = ["--id", args.id, "--roadmap-id", args.roadmapId, "--title", args.title];
-  if (args.summary) a.push("--summary", args.summary);
+  const a = [
+    "--id", args.id,
+    "--goal-id", args.goalId,
+    "--roadmap-id", args.roadmapId,
+    "--title", args.title,
+    "--summary", args.summary,
+    "--plan-scope", args.planScope,
+  ];
   if (args.effortTier) a.push("--effort-tier", args.effortTier);
   if (args.routingHint) a.push("--routing-hint", args.routingHint);
   if (args.fileScope) { for (const v of args.fileScope) a.push("--file-scope", v); }
@@ -144,8 +187,13 @@ function buildPlanCreateArgs(args) {
 }
 
 function buildIssueRecordArgs(args) {
-  const a = ["--entity-type", args.entityType, "--entity-id", args.entityId, "--title", args.title];
-  if (args.description) a.push("--description", args.description);
+  const a = [
+    "--related-entity-type", args.entityType,
+    "--related-entity-id", args.entityId,
+    "--title", args.title,
+    "--summary", args.summary,
+  ];
+  if (args.severity) a.push("--severity", args.severity);
   if (args.tag) { for (const v of args.tag) a.push("--tag", v); }
   return a;
 }
@@ -180,10 +228,13 @@ function buildTodoCreateArgs(args) {
 }
 
 function buildInsightRecordArgs(args) {
-  const a = ["--insight-type", args.insightType];
-  if (args.entityType) a.push("--entity-type", args.entityType);
-  if (args.entityId) a.push("--entity-id", args.entityId);
-  if (args.content) a.push("--content", args.content);
+  const a = [
+    "--title", args.title,
+    "--content", args.content,
+    "--insight-type", args.insightType,
+    "--parent-type", args.entityType,
+    "--parent-id", args.entityId,
+  ];
   if (args.tag) { for (const v of args.tag) a.push("--tag", v); }
   return a;
 }
@@ -319,16 +370,12 @@ export const PlanningPlugin = async ({ project, directory }) => {
       planning_work_point_next_runnable: tool({
         description: "List runnable work points ordered by effort and readiness. Use to find the next work point to plan.",
         args: {
-          limit: tool.schema.string().optional().describe("Maximum number of work points to return"),
-          includeBlocked: tool.schema.boolean().optional().describe("If true, include work points with unvalidated upstream dependencies"),
+          roadmapId: tool.schema.string().describe("Roadmap ID whose runnable work points should be listed"),
           scope: scopeArg(),
         },
         async execute(args, ctx) {
           ctx.metadata({ title: "Finding next runnable work points" });
-          const a = [];
-          if (args.limit) a.push("--limit", args.limit);
-          if (args.includeBlocked) a.push("--include-blocked");
-          return runPlanningCommand("work-point", ["next-runnable", ...a], { scope: resolveScope(args) });
+          return runPlanningCommand("work-point", ["next-runnable", "--roadmap-id", args.roadmapId], { scope: resolveScope(args) });
         },
       }),
 
@@ -440,9 +487,11 @@ export const PlanningPlugin = async ({ project, directory }) => {
         description: "Create a plan under a roadmap for a specific work point.",
         args: {
           id: tool.schema.string().describe("Plan slug ID"),
+          goalId: tool.schema.string().describe("Parent goal ID"),
           roadmapId: tool.schema.string().describe("Parent roadmap ID"),
           title: tool.schema.string().describe("Plan title"),
-          summary: tool.schema.string().optional().describe("Plan summary"),
+          summary: tool.schema.string().describe("Plan summary"),
+          planScope: tool.schema.string().describe("Explicit implementation scope"),
           effortTier: tool.schema.string().optional().describe("Effort tier: 'fast', 'balanced', or 'deep'"),
           routingHint: tool.schema.string().optional().describe("Routing hint for the plan"),
           fileScope: tool.schema.array(tool.schema.string()).optional().describe("File scope selectors (format: <type>:<intent>:<selector>)"),
@@ -519,10 +568,11 @@ export const PlanningPlugin = async ({ project, directory }) => {
       planning_insight_record: tool({
         description: "Record an insight linked to a planning entity.",
         args: {
-          insightType: tool.schema.string().describe("Type of insight (e.g. 'observation', 'decision', 'risk')"),
-          entityType: tool.schema.string().optional().describe("Entity type the insight is about"),
-          entityId: tool.schema.string().optional().describe("Entity ID the insight is about"),
-          content: tool.schema.string().optional().describe("Insight content"),
+          title: tool.schema.string().describe("Insight title"),
+          insightType: tool.schema.string().describe("Insight type: design-decision, edge-case, optimization, constraint, assumption, risk, or context"),
+          entityType: tool.schema.string().describe("Parent entity type"),
+          entityId: tool.schema.string().describe("Parent entity ID"),
+          content: tool.schema.string().describe("Insight content"),
           tag: tool.schema.array(tool.schema.string()).optional().describe("Tags"),
           scope: scopeArg(),
         },
@@ -689,7 +739,8 @@ export const PlanningPlugin = async ({ project, directory }) => {
           entityType: tool.schema.string().describe("Entity type the issue is about"),
           entityId: tool.schema.string().describe("Entity ID the issue is about"),
           title: tool.schema.string().describe("Issue title"),
-          description: tool.schema.string().optional().describe("Issue description"),
+          summary: tool.schema.string().describe("Issue summary"),
+          severity: tool.schema.string().optional().describe("Severity: low, medium, high, or critical"),
           tag: tool.schema.array(tool.schema.string()).optional().describe("Tags"),
           scope: scopeArg(),
         },

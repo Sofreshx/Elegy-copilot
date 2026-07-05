@@ -27,6 +27,25 @@
       }
     },
     {
+      "skill": "brainstorming",
+      "name": "brainstorming",
+      "description": "Collaborative design dialogue that turns ideas into specs through structured exploration. Use when a feature, system, or architecture needs design before implementation — explore context, clarify requirements, propose approaches, and write a spec. Triggers on: brainstorm, design doc, explore ideas, propose approach, think through, spec out, design exploration, explore approaches.",
+      "triggersOn": [
+        "brainstorm",
+        "design doc",
+        "design exploration",
+        "explore approaches",
+        "explore ideas",
+        "propose approach",
+        "spec out",
+        "think through"
+      ],
+      "manifest": {
+        "id": "skill-brainstorming",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "commit-check-setup",
       "name": "commit-check-setup",
       "description": "Full bootstrap or update of commit-check setup for a target repo. Copies commit-check scripts, generates .copilot/commit-checks.json config, adds npm script, and smoke tests. Triggers on: commit check setup, setup commit checks, bootstrap commit checks, configure pre-commit checks, update commit checks, init commit checks.",
@@ -134,92 +153,6 @@
       ],
       "manifest": {
         "id": "skill-documentation-structure-governance",
-        "loadMode": "on-demand"
-      }
-    },
-    {
-      "skill": "elegy-obsidian",
-      "name": "elegy-obsidian",
-      "description": "Foundation skill for read/write/search operations against a local Obsidian vault via the official Obsidian Desktop CLI (v1.12.7+). Non-authoritative convenience layer; durable planning state continues to flow through elegy-planning and SQLite. User-invoked; do not auto-load. Triggers on: obsidian, vault, notes, daily, tag, search, task, non-authoritative-mirror, elegy.",
-      "triggersOn": [
-        "daily",
-        "elegy",
-        "non-authoritative-mirror",
-        "notes",
-        "obsidian",
-        "search",
-        "tag",
-        "task",
-        "vault"
-      ],
-      "tags": [
-        "elegy",
-        "notes",
-        "obsidian",
-        "search",
-        "tags",
-        "tasks",
-        "vault"
-      ],
-      "manifest": {
-        "id": "skill-elegy-obsidian",
-        "loadMode": "on-demand"
-      }
-    },
-    {
-      "skill": "elegy-planning",
-      "name": "elegy-planning",
-      "description": "Use when an agent needs to create, inspect, update, validate, or export durable planning state — goals, roadmaps, plans, work points, todos, issues, review points, insights, and project runs — through the dedicated elegy-planning CLI over SQLite. User-invoked; do not auto-load.",
-      "triggersOn": [
-        "elegy-planning",
-        "goal",
-        "planning",
-        "roadmap",
-        "work point"
-      ],
-      "tags": [
-        "elegy",
-        "goals",
-        "planning",
-        "roadmaps",
-        "sqlite",
-        "todos",
-        "work-points"
-      ],
-      "manifest": {
-        "id": "skill-elegy-planning",
-        "loadMode": "on-demand"
-      }
-    },
-    {
-      "skill": "elegy-skills-discovery",
-      "name": "elegy-skills-discovery",
-      "description": "CLI-based governed skill discovery via Elegy. Use to search, resolve, describe, and validate skills from the governed v2 skill catalog with progressive disclosure.",
-      "triggersOn": [
-        "catalog",
-        "discovery",
-        "elegy",
-        "elegy-skills",
-        "skill-discovery",
-        "skills"
-      ],
-      "aliasKeys": [
-        "elegy-skills",
-        "skill-discovery",
-        "skills"
-      ],
-      "stacks": [
-        "orchestration"
-      ],
-      "tags": [
-        "catalog",
-        "discovery",
-        "elegy",
-        "routing",
-        "skills"
-      ],
-      "manifest": {
-        "id": "skill-elegy-skills-discovery",
         "loadMode": "on-demand"
       }
     },
@@ -335,7 +268,7 @@
     {
       "skill": "skill-authoring",
       "name": "skill-authoring",
-      "description": "Create or refine portable Agent Skills (SKILL.md) that work across Codex, Claude Code, OpenCode, Cursor, and 30+ tools. Use when designing a new skill, fixing a skill that triggers at the wrong time, or packaging instructions as a reusable workflow. Triggers on: create skill, write SKILL.md, refine skill, skill frontmatter, skill description, agent skill.",
+      "description": "Create or refine portable Agent Skills (SKILL.md) that work across Codex, Claude Code, OpenCode, Cursor, and compatible tools. Use when designing a new skill, fixing a skill that triggers at the wrong time, or packaging instructions as a reusable workflow. Triggers on: create skill, write SKILL.md, refine skill, skill frontmatter, skill description, agent skill.",
       "triggersOn": [
         "agent skill",
         "create skill",
@@ -417,7 +350,7 @@
     {
       "skill": "spec-planning-bridge",
       "name": "spec-planning-bridge",
-      "description": "Combines spec-dev, spec-authoring, spec-review, and elegy-planning without merging their authority. Use after spec review to hand an approved spec to a planning lane. Triggers on: spec handoff, spec to planning, bridge spec to plan, link spec to roadmap, spec planning bridge.",
+      "description": "Bridge an approved spec to a durable planning lane (roadmap, plan, work points) without merging spec and planning authority domains. Use after spec review to hand an approved spec to elegy-planning. Triggers on: spec handoff, spec to planning, bridge spec to plan, link spec to roadmap, spec planning bridge. User-invoked; do not auto-load.",
       "triggersOn": [
         "bridge spec to plan",
         "link spec to roadmap",
@@ -450,6 +383,45 @@
       ],
       "manifest": {
         "id": "skill-spec-review",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "sweeper-cleanup",
+      "name": "sweeper-cleanup",
+      "description": "Find and remove dead-weight code, unused features, stale managed assets, obsolete dependencies, and cleanup candidates. Use when the user mentions sweeper work, dead code, pruning, unshipping, unused assets, or cutting dead weight.",
+      "triggersOn": [],
+      "aliasKeys": [
+        "cleanup candidates",
+        "dead code",
+        "dead weight",
+        "prune assets",
+        "sweeper",
+        "unship",
+        "unused code",
+        "unused dependency"
+      ],
+      "manifest": {
+        "id": "skill-sweeper-cleanup",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "tdd",
+      "name": "tdd",
+      "description": "Test-driven development with red-green-refactor loop. Use when implementing new features, fixing bugs, refactoring, or changing behavior — always write the failing test first. Triggers on: TDD, test-driven, red-green-refactor, test first, write tests first, failing test, test before code, red-green.",
+      "triggersOn": [
+        "failing test",
+        "red-green",
+        "red-green-refactor",
+        "tdd",
+        "test before code",
+        "test first",
+        "test-driven",
+        "write tests first"
+      ],
+      "manifest": {
+        "id": "skill-tdd",
         "loadMode": "on-demand"
       }
     },

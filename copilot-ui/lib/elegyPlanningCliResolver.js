@@ -79,6 +79,37 @@ function probeBinaryVersion(binaryPath, spawnSyncImpl) {
   }
 }
 
+function probePlanningBinaryHealth(binaryPath, dbPath, spawnSyncImpl) {
+  const spawnFn = typeof spawnSyncImpl === 'function' ? spawnSyncImpl : childProcess.spawnSync;
+  const args = ['--json'];
+  if (normalizeString(dbPath)) {
+    args.push('--db', dbPath);
+  }
+  args.push('health');
+  try {
+    const result = spawnFn(binaryPath, args, {
+      windowsHide: true,
+      stdio: 'pipe',
+      shell: false,
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+    if (Number(result && result.status) !== 0) {
+      return null;
+    }
+    const payload = JSON.parse(String(result.stdout || ''));
+    if (payload.status !== 'ok' || !payload.data || !payload.data.schemaVersion) {
+      return null;
+    }
+    return {
+      schemaVersion: String(payload.data.schemaVersion),
+      dbPath: normalizeString(payload.data.dbPath),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function isPathLikeCommand(candidate) {
   const normalized = normalizeString(candidate);
   if (!normalized) {
@@ -480,6 +511,12 @@ async function buildElegyPlanningCliFromSource(options = {}) {
     spawnSyncImpl: options.spawnSyncImpl || childProcessModule.spawnSync,
   });
   const binaryVersion = probeBinaryVersion(installedPath, options.spawnSyncImpl || childProcessModule.spawnSync);
+  const dbPath = path.join(elegyHome, 'planning.db');
+  const health = probePlanningBinaryHealth(
+    installedPath,
+    fs.existsSync(dbPath) ? dbPath : '',
+    options.spawnSyncImpl || childProcessModule.spawnSync,
+  );
   const metadata = {
     source: options.sourceKind || 'github-source',
     sourceRepoRoot: elegyRepoRoot,
@@ -489,6 +526,7 @@ async function buildElegyPlanningCliFromSource(options = {}) {
     installedAt: new Date().toISOString(),
     binarySha256: hashFileSha256Sync(installedPath),
     version: binaryVersion || null,
+    schemaVersion: health ? health.schemaVersion : null,
   };
   writeInstallMetadata(elegyHome, metadata);
   logInfo('elegy-build', `elegy-planning installed to: ${installedPath}`, { version: binaryVersion, gitHead: sourceGitHead });
@@ -829,41 +867,54 @@ function resolveElegyPlanningCliPath(options = {}) {
   const elegyHome = normalizeString(options.elegyHome);
   const defaultCommand = normalizeString(options.defaultCommand) || 'elegy-planning';
   const existsSyncFn = typeof options.existsSync === 'function' ? options.existsSync : fs.existsSync;
+  const dbPath = normalizeString(options.dbPath)
+    || (elegyHome ? path.join(elegyHome, 'planning.db') : '');
   const commandLookupOptions = {
     env: options.env,
     platform: options.platform,
     spawnSyncImpl: options.spawnSyncImpl,
   };
+  const isCompatible = (candidate) => {
+    if (!dbPath || !existsSyncFn(dbPath)) {
+      return true;
+    }
+    return probePlanningBinaryHealth(candidate, dbPath, options.spawnSyncImpl) !== null;
+  };
 
   if (explicitCliPath) {
     try {
-      if (existsSyncFn(explicitCliPath)) {
+      if (existsSyncFn(explicitCliPath) && isCompatible(explicitCliPath)) {
         return explicitCliPath;
       }
     } catch {
       // continue
     }
 
-    if (commandExistsOnPath(explicitCliPath, commandLookupOptions)) {
+    if (commandExistsOnPath(explicitCliPath, commandLookupOptions) && isCompatible(explicitCliPath)) {
       return explicitCliPath;
     }
   }
 
-  const found = findExistingBinary(runtimeRoot, elegyHome, existsSyncFn);
-  if (found) {
-    return found;
+  for (const candidate of candidatePaths(runtimeRoot, elegyHome)) {
+    try {
+      if (existsSyncFn(candidate) && isCompatible(candidate)) {
+        return candidate;
+      }
+    } catch {
+      // continue
+    }
   }
 
   const downloadedPath = buildDownloadPath(elegyHome);
   try {
-    if (existsSyncFn(downloadedPath)) {
+    if (existsSyncFn(downloadedPath) && isCompatible(downloadedPath)) {
       return downloadedPath;
     }
   } catch {
     // continue
   }
 
-  if (commandExistsOnPath(defaultCommand, commandLookupOptions)) {
+  if (commandExistsOnPath(defaultCommand, commandLookupOptions) && isCompatible(defaultCommand)) {
     return defaultCommand;
   }
 
@@ -877,6 +928,7 @@ function clearReleaseCache() {
 module.exports = {
   clearReleaseCache,
   probeBinaryVersion,
+  probePlanningBinaryHealth,
   resolveElegyPlanningCliPath,
   downloadElegyPlanningCli,
   installLatestElegyPlanningCli,

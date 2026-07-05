@@ -73,6 +73,7 @@ function main() {
     { id: 'opencode', appendix: 'opencode-assets/home/AGENTS-appendix.md' },
     { id: 'claude-code', appendix: 'claude-assets/home/CLAUDE-appendix.md' },
     { id: 'antigravity', appendix: 'antigravity-assets/home/GEMINI-appendix.md' },
+    { id: 'ghcp', appendix: 'ghcp-assets/home/AGENTS-appendix.md' },
   ];
 
   const defaultProfile = {

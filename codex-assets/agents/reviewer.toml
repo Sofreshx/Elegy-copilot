@@ -1,7 +1,14 @@
 name = "reviewer"
 description = "Read-heavy reviewer for plans and diffs. Use it before implementation on complex plans and after edits for correctness checks."
-model_reasoning_effort = "max"
+model = "gpt-5.5"
+model_reasoning_effort = "high"
 sandbox_mode = "read-only"
+nickname_candidates = ["Atlas", "Delta", "Echo"]
+
+[elegy]
+managed = true
+routing_mode = "manual"
+tool_scope_note = "Read-only sandbox is enforced. MCP servers may still be inherited from the parent Codex session until Codex supports per-agent MCP exclusion."
 
 developer_instructions = """
 You are a review-only agent. Do not make edits or run write-capable commands unless the user explicitly changes your role.

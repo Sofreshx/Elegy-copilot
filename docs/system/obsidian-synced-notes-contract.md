@@ -17,6 +17,10 @@ related: [planning-backlog-roadmap-contract, copilot-ui-guide, session-state-art
 Define the local configuration, API shape, authority boundary, and repo-context expectations for
 Obsidian-backed planning notes surfaced inside `copilot-ui`.
 
+> **Note:** This contract governs the **planning surface** (external, non-canonical notes).
+> For the **primary vault-backed Notes tab** (replacing SQLite), see
+> [[obsidian-vault-notes](../specs/obsidian-vault-notes/spec.md)].
+
 ## Authority boundary
 
 Obsidian notes are an **external, non-canonical** planning surface.

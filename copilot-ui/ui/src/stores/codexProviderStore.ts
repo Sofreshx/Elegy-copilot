@@ -1,4 +1,5 @@
 import { createStore } from '../lib/store';
+import { navigationStore } from './navigation';
 import {
   checkDeepseekBridge,
   getCodexProviderStatus,
@@ -15,7 +16,16 @@ import {
   reinstallCodexSurface,
   getCodexPlanningStatus,
   installCodexPlanningSkill,
+  getCodexSubagents,
+  saveCodexSubagentSettings,
+  updateCodexSubagent,
+  resetCodexSubagent,
+  uninstallCodexSubagent,
+  getCodexSubagentUsage,
   type DeepseekSettingsPayload,
+  type CodexSubagentsResponse,
+  type CodexSubagentUsageResponse,
+  type CodexSubagentSettings,
 } from '../lib/api/codexConfig';
 import type { CodexProviderDeepseekStatus, CodexProviderStatusResponse, CodexPlanningStatusResponse, MoonBridgeBootstrapStatus } from '../lib/types';
 
@@ -31,6 +41,11 @@ export interface CodexProviderState {
   cliStatus: { installed: boolean; version: string | null; installCommand: string; lastError: string | null } | null;
   planningStatus: CodexPlanningStatusResponse | null;
   installingPlanning: boolean;
+  subagents: CodexSubagentsResponse | null;
+  subagentUsage: CodexSubagentUsageResponse | null;
+  activeSection: 'overview' | 'subagents' | 'usage';
+  subagentsLoading: boolean;
+  subagentSaving: boolean;
   error: string | null;
   message: string | null;
 }
@@ -47,6 +62,11 @@ const INITIAL_STATE: CodexProviderState = {
   cliStatus: null,
   planningStatus: null,
   installingPlanning: false,
+  subagents: null,
+  subagentUsage: null,
+  activeSection: 'overview',
+  subagentsLoading: false,
+  subagentSaving: false,
   error: null,
   message: null,
 };
@@ -76,6 +96,95 @@ function createCodexProviderStore() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load Codex provider status';
       store.setState((state) => ({ ...state, loading: false, error: message }));
+    }
+  }
+
+  function setActiveSection(activeSection: CodexProviderState['activeSection']): void {
+    store.setState((state) => ({ ...state, activeSection }));
+  }
+
+  async function loadSubagents(): Promise<void> {
+    store.setState((state) => ({ ...state, subagentsLoading: true, error: null }));
+    try {
+      const [subagents, subagentUsage] = await Promise.all([
+        getCodexSubagents({ repoPath: navigationStore.getState().activeWorkspaceId }),
+        getCodexSubagentUsage().catch(() => null),
+      ]);
+      store.setState((state) => ({
+        ...state,
+        subagents,
+        subagentUsage,
+        subagentsLoading: false,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load Codex subagents';
+      store.setState((state) => ({ ...state, subagentsLoading: false, error: message }));
+    }
+  }
+
+  async function saveSubagentSettings(settings: Partial<CodexSubagentSettings>): Promise<void> {
+    store.setState((state) => ({ ...state, subagentSaving: true, error: null, message: null }));
+    try {
+      const result = await saveCodexSubagentSettings(settings);
+      store.setState((state) => ({
+        ...state,
+        subagents: state.subagents
+          ? { ...state.subagents, settings: result.settings, nativeConfig: result.nativeConfig }
+          : state.subagents,
+        subagentSaving: false,
+        message: 'Codex subagent settings saved.',
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save Codex subagent settings';
+      store.setState((state) => ({ ...state, subagentSaving: false, error: message }));
+    }
+  }
+
+  async function saveSubagent(name: string, updates: Record<string, unknown>): Promise<void> {
+    store.setState((state) => ({ ...state, subagentSaving: true, error: null, message: null }));
+    try {
+      const subagents = await updateCodexSubagent(name, updates);
+      store.setState((state) => ({
+        ...state,
+        subagents,
+        subagentSaving: false,
+        message: `Codex subagent ${name} saved.`,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : `Failed to save Codex subagent ${name}`;
+      store.setState((state) => ({ ...state, subagentSaving: false, error: message }));
+    }
+  }
+
+  async function resetSubagent(name: string): Promise<void> {
+    store.setState((state) => ({ ...state, subagentSaving: true, error: null, message: null }));
+    try {
+      const subagents = await resetCodexSubagent(name);
+      store.setState((state) => ({
+        ...state,
+        subagents,
+        subagentSaving: false,
+        message: `Codex subagent ${name} reset to managed default.`,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : `Failed to reset Codex subagent ${name}`;
+      store.setState((state) => ({ ...state, subagentSaving: false, error: message }));
+    }
+  }
+
+  async function uninstallSubagent(name: string, force = false): Promise<void> {
+    store.setState((state) => ({ ...state, subagentSaving: true, error: null, message: null }));
+    try {
+      const subagents = await uninstallCodexSubagent(name, force);
+      store.setState((state) => ({
+        ...state,
+        subagents,
+        subagentSaving: false,
+        message: `Codex subagent ${name} uninstalled.`,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : `Failed to uninstall Codex subagent ${name}`;
+      store.setState((state) => ({ ...state, subagentSaving: false, error: message }));
     }
   }
 
@@ -349,6 +458,12 @@ function createCodexProviderStore() {
     subscribe: store.subscribe,
     setState: store.setState,
     load,
+    setActiveSection,
+    loadSubagents,
+    saveSubagentSettings,
+    saveSubagent,
+    resetSubagent,
+    uninstallSubagent,
     setMode,
     reset,
     factoryReset,

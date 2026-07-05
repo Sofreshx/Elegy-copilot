@@ -115,16 +115,22 @@ Create a plan under a roadmap for a specific work point.
 
 **Parameters:**
 - `id` (required): Plan slug ID
+- `goalId` (required): Parent goal ID
 - `roadmapId` (required): Parent roadmap ID
 - `title` (required): Plan title
+- `summary` (required): Plan summary
+- `planScope` (required): Explicit implementation scope
 - `effortTier` (optional): `fast`, `balanced`, or `deep`
 - `routingHint` (optional): Routing hint for the plan
 
 ```
 planning_plan_create(
   id: "oauth-provider-plan",
+  goalId: "auth-migration-v1",
   roadmapId: "auth-roadmap",
   title: "Plan for OAuth2 provider integration",
+  summary: "Implement and validate the provider adapter.",
+  planScope: "OAuth2 provider integration",
   effortTier: "balanced"
 )
 ```
@@ -182,13 +188,15 @@ Record a reasoning insight attached to any planning entity.
 
 **Parameters:**
 - `insightType` (required): Type of insight (e.g. `design-decision`, `constraint`, `risk`)
-- `entityType` (optional): Entity type the insight is about
-- `entityId` (optional): Entity ID the insight is about
-- `content` (optional): Insight content/description
+- `title` (required): Insight title
+- `entityType` (required): Parent entity type
+- `entityId` (required): Parent entity ID
+- `content` (required): Insight content
 - `tag` (optional): Array of tags
 
 ```
 planning_insight_record(
+  title: "Use PKCE for mobile clients",
   insightType: "design-decision",
   entityType: "plan",
   entityId: "oauth-provider-plan",

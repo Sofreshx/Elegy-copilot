@@ -177,3 +177,177 @@ export async function setNoteSetting(key: string, value: unknown): Promise<{ key
 export async function deleteNoteSetting(key: string): Promise<{ deleted: boolean; key: string }> {
   return apiRequest<{ deleted: boolean; key: string }>(`/api/notes/settings/delete?key=${encodeURIComponent(key)}`, { method: 'DELETE' });
 }
+
+// ── Vault types ──
+
+export interface VaultStatus {
+  ok: boolean;
+  vaultPath: string;
+  vaultExists: boolean;
+  fileCount: number;
+  configured: boolean;
+  gitEnabled: boolean;
+  gdriveEnabled: boolean;
+  gdriveFolderName: string;
+  error?: string;
+}
+
+export interface GitStatus {
+  ok: boolean;
+  isClean?: boolean;
+  changes?: { status: string; file: string }[];
+  raw?: string;
+  error?: string;
+}
+
+export interface GitDiff {
+  ok: boolean;
+  diff: string;
+  error?: string;
+}
+
+export interface GitCommitResult {
+  ok: boolean;
+  committed?: boolean;
+  message: string;
+  output?: string;
+  error?: string;
+}
+
+export interface GitLogEntry {
+  hash: string;
+  date: string;
+  author: string;
+  subject: string;
+}
+
+export interface GitLogResult {
+  ok: boolean;
+  entries: GitLogEntry[];
+  error?: string;
+}
+
+export interface DriveSyncResult {
+  ok: boolean;
+  uploaded?: number;
+  downloaded?: number;
+  skipped?: number;
+  conflicts?: number;
+  conflictedFiles?: { file: string; conflictPath: string }[];
+  failed?: number;
+  failedFiles?: { file: string; error: string }[];
+  message?: string;
+  error?: string;
+}
+
+export interface DriveSyncStatus {
+  ok: boolean;
+  configured: boolean;
+  vaultPath: string | null;
+  vaultExists: boolean;
+  gdriveEnabled: boolean;
+  gdriveFolderName: string;
+  rcloneInstalled: boolean;
+  rclonePath: string | null;
+  rcloneConfigured: boolean;
+  authenticated: boolean;
+  authenticatedEmail: string | null;
+  driveFolderExists: boolean;
+  lastSync?: { tokenExpiresAt?: string };
+}
+
+// ── Vault API functions ──
+
+export async function getVaultStatus(): Promise<VaultStatus> {
+  return apiRequest<VaultStatus>('/api/notes/vault/status');
+}
+
+export async function getGitStatus(): Promise<GitStatus> {
+  return apiRequest<GitStatus>('/api/notes/git/status');
+}
+
+export async function getGitDiff(file?: string): Promise<GitDiff> {
+  const params = file ? `?file=${encodeURIComponent(file)}` : '';
+  return apiRequest<GitDiff>(`/api/notes/git/diff${params}`);
+}
+
+export async function gitCommit(message?: string): Promise<GitCommitResult> {
+  return apiRequest<GitCommitResult>('/api/notes/git/commit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  });
+}
+
+export async function getGitLog(max?: number): Promise<GitLogResult> {
+  const params = max ? `?max=${max}` : '';
+  return apiRequest<GitLogResult>(`/api/notes/git/log${params}`);
+}
+
+export async function gitInit(): Promise<{ ok: boolean; message?: string; error?: string }> {
+  return apiRequest<{ ok: boolean; message?: string; error?: string }>('/api/notes/git/init', {
+    method: 'POST',
+  });
+}
+
+export async function driveSyncPush(): Promise<DriveSyncResult> {
+  return apiRequest<DriveSyncResult>('/api/notes/drive/push', {
+    method: 'POST',
+  });
+}
+
+export async function driveSyncPull(): Promise<DriveSyncResult> {
+  return apiRequest<DriveSyncResult>('/api/notes/drive/pull', {
+    method: 'POST',
+  });
+}
+
+export async function getDriveSyncStatus(): Promise<DriveSyncStatus> {
+  return apiRequest<DriveSyncStatus>('/api/notes/drive/status');
+}
+
+export async function driveAuth(): Promise<{
+  ok: boolean;
+  pending?: boolean;
+  userCode?: string;
+  verificationUrl?: string;
+  message?: string;
+  error?: string;
+}> {
+  return apiRequest<{
+    ok: boolean;
+    pending?: boolean;
+    userCode?: string;
+    verificationUrl?: string;
+    message?: string;
+    error?: string;
+  }>('/api/notes/drive/auth', {
+    method: 'POST',
+  });
+}
+
+export async function checkDriveAuth(): Promise<{
+  ok: boolean;
+  completed?: boolean;
+  pending?: boolean;
+  slowDown?: boolean;
+  expired?: boolean;
+  message?: string;
+  error?: string;
+}> {
+  return apiRequest<{
+    ok: boolean;
+    completed?: boolean;
+    pending?: boolean;
+    slowDown?: boolean;
+    expired?: boolean;
+    message?: string;
+    error?: string;
+  }>('/api/notes/drive/auth/status');
+}
+
+export async function cancelDriveAuth(): Promise<{ ok: boolean; message?: string }> {
+  return apiRequest<{ ok: boolean; message?: string }>('/api/notes/drive/auth/cancel', {
+    method: 'POST',
+  });
+}

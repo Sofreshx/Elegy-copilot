@@ -19,10 +19,12 @@ license: Apache-2.0
    - If no diff is available (reviewing a spec, plan, or work from another session without a diff): change verdict to blocked and request a diff, or proceed with lower confidence noting the limitation.
 2. Check for behavioral regressions, data loss, security issues, broken contracts, stale docs, and accidental broadening.
 3. Check tests and validation evidence. Passing tests are evidence, not proof.
-4. Look for user changes in the worktree and confirm the implementation did not overwrite or revert them.
-5. Verify new instructions or skills are concise, scoped, and not duplicating what the runtime can already handle directly.
-6. Check ADR posture: missing ADR coverage for a key architectural or workflow-authority decision is a real finding, while ADRs for purely local choices are also drift.
-7. Decide whether the work can be handed off or needs revision.
+4. For non-trivial behavior, ask what edge input, invalid state, ordering/timing, or dependency
+   failure could break the change despite green output.
+5. Look for user changes in the worktree and confirm the implementation did not overwrite or revert them.
+6. Verify new instructions or skills are concise, scoped, and not duplicating what the runtime can already handle directly.
+7. Check ADR posture: missing ADR coverage for a key architectural or workflow-authority decision is a real finding, while ADRs for purely local choices are also drift.
+8. Decide whether the work can be handed off or needs revision.
 
 ## Output Contract
 
@@ -40,6 +42,9 @@ IMPLEMENTATION_REVIEW
 - validation:
   - evidence: <what was validated and how>
   - gap: <what was not validated and why>
+- uncertainty:
+  - missing_context: <biggest thing that may be missing or none>
+  - least_confident: <least confident point or none>
 - handoff_notes:
   - <remaining risk, follow-up items, or none>
 ```

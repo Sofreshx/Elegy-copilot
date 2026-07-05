@@ -108,12 +108,10 @@ planning_plan_show(planId: "implement-oauth")
 List runnable work points ordered by effort and readiness. Use to find the next work point to plan.
 
 **Parameters:**
-- `limit` (optional): Maximum number of work points to return
-- `includeBlocked` (optional): If true, include work points with unvalidated upstream dependencies
+- `roadmapId` (required): Roadmap whose runnable work points should be listed
 
 ```
-planning_work_point_next_runnable()
-planning_work_point_next_runnable(limit: "5", includeBlocked: false)
+planning_work_point_next_runnable(roadmapId: "auth-roadmap")
 ```
 
 #### planning_tags_list

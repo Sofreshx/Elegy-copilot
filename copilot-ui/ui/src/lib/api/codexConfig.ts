@@ -170,3 +170,142 @@ export async function installCodexPlanningSkill(force = false, baseUrl?: string)
     body: JSON.stringify({ force }),
   });
 }
+
+export interface CodexSubagentSettings {
+  routingMode: string;
+  maxThreads: number;
+  maxDepth: number;
+  jobMaxRuntimeSeconds: number;
+  telemetryRetentionDays: number;
+  settingsPath?: string;
+}
+
+export interface CodexSubagentNativeConfig {
+  path: string;
+  changed: boolean;
+  parseError: string | null;
+  values: {
+    maxThreads: number | null;
+    maxDepth: number | null;
+    jobMaxRuntimeSeconds: number | null;
+  } | null;
+  matchesSettings: boolean | null;
+}
+
+export interface CodexSubagentRecord {
+  name: string;
+  description: string;
+  model: string | null;
+  modelReasoningEffort: string | null;
+  sandboxMode: string | null;
+  routingMode: string;
+  fastModel: string | null;
+  allowSpark: boolean;
+  toolScopeNote: string;
+  managed: boolean;
+  scope: string;
+  missing: boolean;
+  drift: boolean;
+  parseError: string | null;
+  sourcePath: string | null;
+  installedPath: string | null;
+  content: string;
+  capabilities: {
+    enforced: string[];
+    configured: string[];
+    inherited: string[];
+    observed: string[];
+  };
+}
+
+export interface CodexSubagentsResponse {
+  codexHome: string;
+  agentsDir: string;
+  inventoryPath: string;
+  settings: CodexSubagentSettings;
+  nativeConfig: CodexSubagentNativeConfig;
+  agents: CodexSubagentRecord[];
+  projectAgents: CodexSubagentRecord[];
+  capabilityLegend: Record<string, string>;
+}
+
+export interface CodexSubagentUsageRun {
+  threadId: string;
+  parentThreadId: string;
+  agent: string;
+  model: string | null;
+  toolEvents: number;
+  errors: number;
+  completed: boolean;
+  flags: string[];
+  updatedAt: string | null;
+  tokens: {
+    totalTokens: number;
+    inputTokens: number;
+    cachedInputTokens: number;
+    outputTokens: number;
+    reasoningOutputTokens: number;
+  };
+}
+
+export interface CodexSubagentUsageResponse {
+  generatedAt: string;
+  coverage: string;
+  source: { kind: string; path: string };
+  summary: {
+    runs: number;
+    tokens: number;
+    toolEvents: number;
+    errors: number;
+  };
+  byAgent: Array<{
+    name: string;
+    count: number;
+    tokens: number;
+    toolEvents: number;
+    errors: number;
+  }>;
+  runs: CodexSubagentUsageRun[];
+}
+
+export function getCodexSubagents(options: { repoPath?: string | null } = {}, baseUrl?: string): Promise<CodexSubagentsResponse> {
+  const query = options.repoPath ? `?repoPath=${encodeURIComponent(options.repoPath)}` : '';
+  return apiRequest(`/api/codex/subagents${query}`, { baseUrl });
+}
+
+export function saveCodexSubagentSettings(settings: Partial<CodexSubagentSettings>, baseUrl?: string): Promise<{ ok: boolean; settings: CodexSubagentSettings; nativeConfig: CodexSubagentNativeConfig }> {
+  return apiRequest('/api/codex/subagents/settings', {
+    baseUrl,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+}
+
+export function updateCodexSubagent(name: string, updates: Record<string, unknown>, baseUrl?: string): Promise<CodexSubagentsResponse> {
+  return apiRequest(`/api/codex/subagents/${encodeURIComponent(name)}`, {
+    baseUrl,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+}
+
+export function resetCodexSubagent(name: string, baseUrl?: string): Promise<CodexSubagentsResponse> {
+  return apiRequest(`/api/codex/subagents/${encodeURIComponent(name)}/reset`, {
+    baseUrl,
+    method: 'POST',
+  });
+}
+
+export function uninstallCodexSubagent(name: string, force = false, baseUrl?: string): Promise<CodexSubagentsResponse> {
+  const query = force ? '?force=true' : '';
+  return apiRequest(`/api/codex/subagents/${encodeURIComponent(name)}${query}`, {
+    baseUrl,
+    method: 'DELETE',
+  });
+}
+
+export function getCodexSubagentUsage(baseUrl?: string): Promise<CodexSubagentUsageResponse> {
+  return apiRequest('/api/codex/subagents/usage', { baseUrl });
+}

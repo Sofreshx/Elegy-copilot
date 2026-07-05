@@ -86,6 +86,7 @@ Edge Cases:
 Tests And Validation:
 - <specific tests to add or update>
 - <commands to run, from repo docs or nearest package config>
+- <edge/state/timing/dependency case the validation must cover>
 
 Hard Constraints:
 - <must-not-violate rule or none>
@@ -100,7 +101,7 @@ Stop Conditions:
 - <when the executor should pause instead of guessing>
 
 Handoff Notes:
-- <assumptions, risks, or none>
+- <assumptions, risks, biggest missing context, least-confident point, or none>
 ```
 
 Do not include a long summary after the brief. The brief itself is the artifact.

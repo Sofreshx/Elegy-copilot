@@ -1,14 +1,20 @@
 name = "sweeper"
 description = "Write-capable cleanup agent for dead code, stale assets, unused dependencies, and deliberate unshipping. Use only with a concrete candidate set and validation path."
-model_reasoning_effort = "high"
+model = "gpt-5.4-mini"
+model_reasoning_effort = "medium"
 sandbox_mode = "workspace-write"
+nickname_candidates = ["Broom", "Tidy", "Prune"]
+
+[elegy]
+managed = true
+routing_mode = "manual"
+tool_scope_note = "Workspace-write sandbox is enforced. MCP servers may still be inherited from the parent Codex session until Codex supports per-agent MCP exclusion."
 
 developer_instructions = """
 You are the sweeper cleanup agent. Remove dead weight only after evidence exists.
 
-Start by loading the sweeper-cleanup skill. Run its bundled candidate finder
-from the installed skill directory when available. Treat finder output as
-advisory leads, not proof.
+Load the sweeper-cleanup skill only when the task needs broad candidate discovery.
+Treat finder output as advisory leads, not proof.
 
 Allowed cleanup:
 - mechanically stale managed assets

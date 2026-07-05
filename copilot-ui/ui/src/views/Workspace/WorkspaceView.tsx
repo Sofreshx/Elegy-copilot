@@ -5,8 +5,7 @@ import { notificationStore } from '../../stores/notificationStore';
 import { navigationStore } from '../../stores/navigation';
 import { repositoriesStore } from '../Repositories/repositoriesStore';
 import { gitStore } from '../../stores/gitStore';
-import { runGitChecks } from '../../lib/api/git';
-import type { GitCheckResults } from '../../lib/api/git';
+import { checksStore } from '../../stores/checksStore';
 import { getWorkspaceLaunchers, launchWorkspace } from '../../lib/api/workspace';
 import type { WorkspaceLauncher } from '../../lib/api/workspace';
 import RepoSelectorPanel from '../Repositories/RepoSelectorPanel';
@@ -30,10 +29,9 @@ export default function WorkspaceView() {
   const state = useStoreValue(repositoriesStore);
   const gitState = useStoreValue(gitStore);
   const navState = useStoreValue(navigationStore);
+  const checksState = useStoreValue(checksStore.store);
   const [showRepoSelector, setShowRepoSelector] = useState(false);
   const [verificationState, setVerificationState] = useState<VerificationState>('missing');
-  const [checkResults, setCheckResults] = useState<GitCheckResults | null>(null);
-  const [runningChecks, setRunningChecks] = useState(false);
   const [launchers, setLaunchers] = useState<WorkspaceLauncher[]>([]);
   const [launching, setLaunching] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -117,6 +115,7 @@ export default function WorkspaceView() {
 
   const updateVerification = useCallback(() => {
     const hasRun = lastCheckRef.current !== null;
+    const checkResults = checksState.checkResults;
     const result = computeVerificationState({
       hasCheckRun: hasRun,
       checkPassed: hasRun ? (checkResults?.allPassed ?? false) : false,
@@ -128,28 +127,15 @@ export default function WorkspaceView() {
       ciStatus: 'unavailable',
     });
     setVerificationState(result);
-  }, [checkResults, gitState.summary]);
+  }, [checksState.checkResults, gitState.summary]);
 
   useEffect(() => {
     updateVerification();
   }, [updateVerification]);
 
-  async function handleRunChecks() {
+  function handleRunChecks() {
     if (!selectedRepoPath) return;
-    setRunningChecks(true);
-    try {
-      const results = await runGitChecks(selectedRepoPath);
-      setCheckResults(results);
-      lastCheckRef.current = {
-        branch: gitState.summary?.branch ?? null,
-        head: null,
-        changeCount: gitState.summary?.changedFiles ?? 0,
-      };
-    } catch (err) {
-      notificationStore.error('Check run failed', { message: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setRunningChecks(false);
-    }
+    void checksStore.startRun(selectedRepoPath, 'commit', 'commit', []);
   }
 
   function handleOpenPR() {
@@ -288,8 +274,8 @@ export default function WorkspaceView() {
                 repoId={displayRepo?.repoId ?? null}
                 gitState={gitState}
                 verificationState={verificationState}
-                checkResults={checkResults}
-                runningChecks={runningChecks}
+                checkResults={checksState.checkResults}
+                runningChecks={checksState.runningChecks}
                 onRunChecks={handleRunChecks}
                 onCommit={handleCommit}
                 onPush={handlePush}

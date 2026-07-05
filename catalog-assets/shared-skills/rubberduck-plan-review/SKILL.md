@@ -26,7 +26,9 @@ Stress-test a plan before edits begin. Preserve momentum, but make weak assumpti
 5. Check whether the plan narrowed candidate constraints to the minimum hard set needed for the active slice instead of forwarding a noisy rule dump.
 6. Check whether any key architectural, trust-boundary, workflow-authority, or long-lived contract decision should be captured in an ADR rather than only in the plan.
 7. Challenge whether any proposed new abstraction, agent, skill, script, dependency, or doc surface is actually needed.
-8. Decide whether the plan is ready, needs a small edit, or needs user clarification before implementation.
+8. For non-trivial behavior, ask which edge input, invalid state, ordering/timing, or dependency
+   failure would most likely invalidate the plan's success claim.
+9. Decide whether the plan is ready, needs a small edit, or needs user clarification before implementation.
 
 ## Output Contract
 
@@ -39,6 +41,9 @@ RUBBERDUCK_PLAN_REVIEW
   - <what is sound>
 - risks:
   - <high-signal risk or none>
+- uncertainty:
+  - missing_context: <biggest thing that may be missing or none>
+  - least_confident: <least confident point or none>
 - plan_edits:
   - <specific edit or none>
 - adr_follow_up:

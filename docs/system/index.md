@@ -37,6 +37,7 @@ Use docs in this order:
 - [[commit-check-setup]] [commit-check-setup.md](commit-check-setup.md)
 - [[concise-instruction-governance]] [concise-instruction-governance.md](concise-instruction-governance.md)
 - [[harness-asset-flow]] [harness-asset-flow.md](harness-asset-flow.md)
+- [[codex-subagent-control-plane]] [codex-subagent-control-plane.md](codex-subagent-control-plane.md)
 - [[sweeper-cleanup-lane]] [sweeper-cleanup-lane.md](docs/system/sweeper-cleanup-lane.md)
 - [[collaboration-profile-adr]] [collaboration-profile-adr.md](collaboration-profile-adr.md)
 - [[orchestrator-pilot-rollout]] [orchestrator-pilot-rollout.md](orchestrator-pilot-rollout.md)
