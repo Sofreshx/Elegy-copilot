@@ -132,6 +132,17 @@ Do not assume unclear parts will work out during implementation.
 
 Use plan-first for non-trivial work. A plan is ready only when another implementer can execute it without making product or architecture decisions.
 
+## Outcome-Oriented Instructions
+
+Instructions should name the result, contract, acceptance evidence, and stop conditions before step-by-step guidance.
+
+Use narrow procedural detail only when it prevents a known failure mode, protects a boundary, or helps a weaker executor avoid an unsafe guess. Prefer:
+
+- intended behavior over internal narration
+- acceptance checks over broad success claims
+- failure behavior over generic robustness language
+- stop conditions over permission to improvise through ambiguity
+
 ## External Practices
 
 - [Google Developer Documentation Style Guide](https://developers.google.com/style/highlights) — clear, precise language and active voice.

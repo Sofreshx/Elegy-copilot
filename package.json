@@ -50,7 +50,14 @@
   "devDependencies": {
     "better-sqlite3": "^12.10.0",
     "mermaid": "^11.12.3",
+    "undici": "^6.27.0",
     "vitepress": "^1.6.4",
+    "vitest": "^3.2.6",
     "vscode-jsonrpc": "^8.2.0"
+  },
+  "overrides": {
+    "esbuild": "^0.25.0",
+    "undici": "$undici",
+    "vite": "^6.4.3"
   }
 }

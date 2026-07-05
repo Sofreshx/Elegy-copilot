@@ -4,7 +4,7 @@
  *
  * Validates the shared baseline (catalog-assets/instructions/agent-session-defaults.md),
  * the new skill-authoring and agents-md-authoring shared skills, manifest wiring
- * across all 5 harnesses, and the appendix files.
+ * across target harnesses, and the appendix files.
  *
  * The legacy `guidelines.md` surface is fully deprecated; the validator also
  * asserts that no shipped instruction, appendix, or agent file references it.
@@ -50,6 +50,7 @@ const MANIFESTS = [
   'claude-assets/manifest.json',
   'antigravity-assets/manifest.json',
   'engine-assets/manifest.json',
+  'ghcp-assets/manifest.json',
 ];
 
 const APPENDICES = [
@@ -58,6 +59,7 @@ const APPENDICES = [
   'claude-assets/home/CLAUDE-appendix.md',
   'antigravity-assets/home/GEMINI-appendix.md',
   'engine-assets/copilot-instructions-appendix.md',
+  'ghcp-assets/home/AGENTS-appendix.md',
 ];
 
 const SHARED_SKILLS = [
@@ -284,6 +286,11 @@ function checkManifestSkillEntries(repoRoot) {
 
     for (const skill of SHARED_SKILLS) {
       const id = `manifest-skill-${prefix}-${skill.id}`;
+      // ghcp ships lane agents and instructions only; no shared skill install surface.
+      if (manifestRel.startsWith('ghcp')) {
+        results.push({ id, status: 'ok', detail: `${manifestRel}: intentionally omits ${skill.id} (ghcp has no skill install surface)` });
+        continue;
+      }
       // skill-authoring is not installed to Codex — Codex has its own built-in
       if (manifestRel.startsWith('codex') && skill.id === 'skill-authoring') {
         results.push({ id, status: 'ok', detail: `${manifestRel}: intentionally omits ${skill.id} (Codex has native equivalent)` });
@@ -333,6 +340,11 @@ function checkAppendixSkillMentions(repoRoot) {
 
     for (const skill of SHARED_SKILLS) {
       const checkId = `appendix-skill-${id}-${skill.id}`;
+      // ghcp ships lane agents and instructions only; no shared skill inventory.
+      if (rel.startsWith('ghcp')) {
+        results.push({ id: checkId, status: 'ok', detail: `${rel}: intentionally omits ${skill.id} (ghcp has no skill install surface)` });
+        continue;
+      }
       // skill-authoring not listed in codex appendix — Codex has its own built-in
       if (rel.startsWith('codex') && skill.id === 'skill-authoring') {
         results.push({ id: checkId, status: 'ok', detail: `${rel}: intentionally omits ${skill.id} (Codex has native equivalent)` });

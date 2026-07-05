@@ -63,6 +63,12 @@
       "appendix": "codex-assets/home/AGENTS-appendix.md"
     },
     {
+      "id": "codex-explorer-agent",
+      "type": "agent",
+      "source": "codex-assets/agents/explorer.toml",
+      "destination": "agents/explorer.toml"
+    },
+    {
       "id": "codex-reviewer-agent",
       "type": "agent",
       "source": "codex-assets/agents/reviewer.toml",

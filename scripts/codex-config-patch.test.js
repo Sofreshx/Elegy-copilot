@@ -337,6 +337,43 @@ async function main() {
     assert.ok(result.includes('model_provider = "opencode-go"'), result);
   });
 
+  await test('patcher adds native Codex agents limits', async () => {
+    const result = patcher.patchCodexConfig('', { enableExternalProviders: false });
+    assert.ok(result.includes('[agents]'), result);
+    assert.ok(result.includes('max_threads = 3'), result);
+    assert.ok(result.includes('max_depth = 1'), result);
+    assert.ok(result.includes('job_max_runtime_seconds = 1800'), result);
+  });
+
+  await test('patcher updates existing agents table without touching agent role tables', async () => {
+    const text = [
+      'model = "gpt-5.5"',
+      '',
+      '[agents]',
+      'max_threads = 8',
+      'max_depth = 2',
+      'job_max_runtime_seconds = 60',
+      'unknown = "preserved"',
+      '',
+      '[agents.explorer]',
+      'model = "gpt-5.4-mini"',
+    ].join('\n');
+    const result = patcher.patchCodexConfig(text, {
+      enableExternalProviders: false,
+      maxThreads: 2,
+      maxDepth: 0,
+      jobMaxRuntimeSeconds: 900,
+    });
+    assert.ok(result.includes('[agents]\nmax_threads = 2\nmax_depth = 0\njob_max_runtime_seconds = 900\nunknown = "preserved"'), result);
+    assert.ok(result.includes('[agents.explorer]\nmodel = "gpt-5.4-mini"'), result);
+  });
+
+  await test('patcher is idempotent after native agents limits are present', async () => {
+    const first = patcher.patchCodexConfig('', { enableExternalProviders: false });
+    const second = patcher.patchCodexConfig(first, { enableExternalProviders: false });
+    assert.strictEqual(second, first);
+  });
+
   await test('writes a separate profile config file for the managed Codex review profile', async () => {
   withTempDir((root) => {
     const configPath = path.join(root, 'config.toml');

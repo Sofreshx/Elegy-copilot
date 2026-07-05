@@ -138,7 +138,13 @@ Required before declaring done:
 - Throwaway prototypes deleted (or moved to a clearly-marked debug location)
 - The hypothesis that turned out correct is stated in the commit / PR message — so the next debugger learns
 
-**Then ask: what would have prevented this bug?** If the answer involves architectural change (no good test seam, tangled callers, hidden coupling) hand off to the `improve-codebase-architecture` skill with the specifics. Make the recommendation **after** the fix is in, not before — you have more information now than when you started.
+Then ask:
+
+- What would have prevented this bug?
+- What is the biggest thing I may still be missing?
+- What am I least confident about right now?
+
+If the prevention answer involves architectural change (no good test seam, tangled callers, hidden coupling), hand off to the `improve-codebase-architecture` skill with the specifics. Make the recommendation after the fix is in, not before — you have more information now than when you started.
 
 ## References
 

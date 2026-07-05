@@ -36,6 +36,17 @@ Responsibilities include:
 - applying unresolved-goal carryover rules from `docs/system/goal-contract-governance.md`
 - prioritizing blockers, active-goal gaps, and missing validation ahead of speculative polish
 
+## Calibrated Closure Check
+
+For non-trivial planning, implementation, review, handoff, or debugging sessions, closure should make residual uncertainty visible.
+
+Use two questions before final handoff:
+
+- What is the biggest thing I may be missing about the current situation?
+- What am I least confident about right now?
+
+Report answers only when they materially affect confidence, follow-up, validation, or user decision-making. For tiny command-answer tasks, factual lookups, or no-op reviews, omit the check.
+
 ## Normalized Finding Intake
 
 Accepted reviewer or governance findings should be reduced to exactly one category before follow-up routing:
@@ -96,6 +107,9 @@ FOLLOW_UP_DISCOVERY
   - ~/.elegy/backlogs/{repo-name}/backlogs/<session-slug>.md | NONE
 - gaps:
   - <missing docs/tests/validation/work>
+- uncertainty:
+  - missing_context: <biggest thing that may be missing or NONE>
+  - least_confident: <least confident point or NONE>
 - immediate_next_tasks:
   - <actionable next step>
 - defer_or_backlog:

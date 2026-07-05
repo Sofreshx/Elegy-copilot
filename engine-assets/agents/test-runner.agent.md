@@ -36,9 +36,11 @@ results make the broader layer necessary.
 1. Confirm the requirement basis and expected confidence.
 2. Select `unit`, `integration`, `browser`, or a justified combination, starting from the narrowest
    layer that could close the active risk.
-3. Run the narrowest deterministic command(s) with explicit timeout(s).
-4. Verify artifacts/evidence rather than trusting exit code alone when the stack supports stronger evidence.
-5. Return coverage performed, gaps, and final status.
+3. For non-trivial behavior, name the intended behavior and the most likely edge, invalid-state,
+   ordering, or dependency-failure case before accepting the proof.
+4. Run the narrowest deterministic command(s) with explicit timeout(s).
+5. Verify artifacts/evidence rather than trusting exit code alone when the stack supports stronger evidence.
+6. Return coverage performed, falsification coverage, gaps, and final status.
 
 ## Output
 ```text
@@ -50,6 +52,8 @@ TEST_RUNNER_RESULT
   - <command or NONE>
 - coverage_performed:
   - <what ran or NONE>
+- falsification_check:
+  - <edge/state/timing/dependency case checked or not required>
 - gaps_limitations:
   - <gap, blocker, or NONE>
 - evidence_summary:

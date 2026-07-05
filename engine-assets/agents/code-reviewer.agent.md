@@ -39,11 +39,18 @@ If evidence is missing, report missing evidence or an **Inferred Risk** instead 
 
 Push deeper only when resolving the unknown could change `APPROVED` vs `NEEDS_REVISION` vs `FAILED`, or whether a required revision is actually warranted.
 
+For non-trivial behavior, test the success claim against realistic edge input, invalid state,
+ordering/timing, and dependency-failure cases. Report only cases with evidence or a strong path to
+failure.
+
 ## Output
 Label each issue: **Observed Defect** or **Inferred Risk** with confidence score, file:line, guideline ref, fix suggestion. Group by severity (Critical vs Important).
 
 When spec-fit is part of the request, explicitly call out whether the implementation matches the
 approved request/plan before listing file-level issues.
+
+If the review is non-trivial, include the biggest missing context and least-confident point when
+either affects the verdict, validation, or follow-up.
 
 Conclude with exactly one status:
 - **APPROVED** — no high-confidence issues

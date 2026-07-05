@@ -13,6 +13,15 @@ const bannedPatterns = [
   { label: 'Elegy home path: ~/.elegy', pattern: /~\/\.elegy/i },
 ];
 
+const requiredAgentFields = ['name', 'description', 'developer_instructions'];
+const allowedReasoningEfforts = new Set(['low', 'medium', 'high']);
+
+function parseTomlScalar(content, key) {
+  const match = content.match(new RegExp(`^${key}\\s*=\\s*([^\\r\\n]+)`, 'm'));
+  if (!match) return null;
+  return match[1].trim().replace(/^["']|["']$/g, '');
+}
+
 function listFiles(rootDir) {
   const files = [];
 
@@ -48,6 +57,25 @@ function runAudit(options = {}) {
         findings.push({
           relativePath,
           label: banned.label,
+        });
+      }
+    }
+
+    if (relativePath.startsWith('agents/') && relativePath.endsWith('.toml')) {
+      for (const field of requiredAgentFields) {
+        if (!new RegExp(`^${field}\\s*=`, 'm').test(content)) {
+          findings.push({
+            relativePath,
+            label: `Codex agent missing required field: ${field}`,
+          });
+        }
+      }
+
+      const effort = parseTomlScalar(content, 'model_reasoning_effort');
+      if (effort && !allowedReasoningEfforts.has(effort)) {
+        findings.push({
+          relativePath,
+          label: `Unsupported Codex reasoning effort: ${effort}`,
         });
       }
     }

@@ -44,7 +44,9 @@ async function main() {
         skillsHome,
       });
       assert.ok(fs.existsSync(path.join(codexHome, 'AGENTS.md')));
+      assert.ok(fs.existsSync(path.join(codexHome, 'agents', 'explorer.toml')));
       assert.ok(fs.existsSync(path.join(codexHome, 'agents', 'reviewer.toml')));
+      assert.ok(fs.existsSync(path.join(codexHome, 'agents', 'sweeper.toml')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'repo-setup', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'skill-discovery', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-review', 'SKILL.md')));
@@ -60,10 +62,17 @@ async function main() {
       assert.ok(!fs.existsSync(path.join(codexHome, 'agents', 'code-reviewer.toml')));
       assert.ok(!fs.existsSync(path.join(skillsHome, 'core-guardrails', 'SKILL.md')));
       assert.strictEqual(firstSummary.generatedRoles, 0, 'Codex install should not generate engine role wrappers');
+      const explorerAgent = fs.readFileSync(path.join(codexHome, 'agents', 'explorer.toml'), 'utf8');
+      assert.ok(explorerAgent.includes('model = "gpt-5.4-mini"'));
+      assert.ok(explorerAgent.includes('fast_model = "gpt-5.3-codex-spark"'));
 
       const configToml = fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8');
       const profileToml = fs.readFileSync(path.join(codexHome, 'instruction_engine_plan_review.config.toml'), 'utf8');
       assert.ok(configToml.includes('review_model = "deepseek-v4-pro"'));
+      assert.ok(configToml.includes('[agents]'));
+      assert.ok(configToml.includes('max_threads = 3'));
+      assert.ok(configToml.includes('max_depth = 1'));
+      assert.ok(configToml.includes('job_max_runtime_seconds = 1800'));
       assert.ok(!configToml.includes('[profiles.instruction_engine_plan_review]'));
       assert.ok(profileToml.includes('model = "mimo-v2-pro"'));
       assert.ok(profileToml.includes('model_provider = "opencode-go"'));

@@ -1,58 +1,54 @@
-# Codex Session Defaults — Harness Appendix
+# Codex Session Defaults
 
-Composed at install time with the shared baseline.
+Composed with the shared baseline at install time.
 
 ## Authority
 
-| Priority | Source |
-|---|---|
-| 1 | Explicit user instruction |
-| 2 | Repo-local canonical docs |
-| 3 | `README.md` and maintained docs |
-| 4 | Repeated implementation patterns |
-
-If sources conflict, follow the highest authority and report the conflict.
+Order: user instruction → repo canonical docs → README/maintained docs →
+implementation patterns. Report conflicts.
 
 ## Skills
 
-Load shared skills only when they materially change the result.
+Load shared skills only when they materially change the result:
 
-Common routes:
+- `skill-discovery` for ambiguous capability routing.
+- `ui-system`, `ui-runtime-exploration`, `ui-visual-review` for UI work.
+- `sweeper-cleanup` for bounded cleanup.
+- `agents-md-authoring` for instruction files.
+- `elegy-planning`, `spec-*`, `rubberduck-plan-review`,
+  `implementation-review`, and `implementation-handoff` are opt-in durable
+  workflow tools. Recommend when useful; do not load as routine ceremony.
 
-- `elegy-planning` for durable planning state when available
-- `skill-discovery` when the right shared skill is still ambiguous
-- `ui-system` for repo-grounded UI implementation and reuse
-- `ui-runtime-exploration` for browser/Tauri runtime routing
-- `ui-visual-review` for read-only UI evidence review
-- `rubberduck-plan-review` before complex plan execution
-- `implementation-review` before handoff when self-review is needed
-- `sweeper-cleanup` for dead code, unused dependency, stale asset, and unshipping work
-- `agents-md-authoring` for shared instruction work
+## Subagents
 
-## Codex lanes
+Default: manual. Use subagents when the user asks, or when governed automatic
+read-only delegation is explicitly enabled.
 
-| Lane | Surface | Use |
-|---|---|---|
-| planning | `elegy-planning` skill | Durable goals, roadmaps, plans, and multi-session work |
-| review | `reviewer` subagent | Read-heavy plan, diff, and evidence review |
-| sweeper | `sweeper` subagent + `sweeper-cleanup` skill | Evidence-backed removal of dead code, stale assets, and unused dependencies |
+| Agent | Use |
+|---|---|
+| `explorer` | Read-only repo mapping that would create about five or more noisy tool calls. |
+| `reviewer` | Read-heavy independent review. |
+| `sweeper` | Bounded cleanup with evidence. |
 
-## Planning Availability
+Delegation gates:
 
-Before planning work, check whether `elegy-planning` is on PATH.
+- State scope, boundaries, allowed actions, output shape, and stop condition.
+- Prefer one child agent.
+- Prefer read-only agents before write-capable agents.
+- Keep architecture, requirements, integration, and final judgment in the main thread.
+- Treat per-agent MCP limits as configured intent, not hard isolation.
 
-If it is available, prefer it for durable planning state. If not, fall back to
-repo-local planning surfaces.
+## Planning and specs
+
+Default to the smallest useful plan in the current thread. Use durable planning
+or specs only when requested, multi-session, or needed for verifiable acceptance.
 
 ## Repo docs breadcrumb
 
-For repo-specific policy, start at the repo's canonical docs entrypoint, then
-open the nearest routing node, then the smallest owning node.
+Repo policy: canonical docs entrypoint → nearest routing node → smallest owner.
 
 ## Boundaries
 
-- Keep this global file workflow-specific, not repo-specific.
-- Put build commands, test commands, and local conventions in repo-local
-  `AGENTS.md` only when a repo actually needs them.
-- Keep the global Codex surface thin; point to canonical docs instead of
-  carrying repo policy here.
+- Keep global Codex guidance thin and workflow-specific.
+- Put repo commands and conventions in repo-local `AGENTS.md`.
+- Point to canonical docs instead of copying policy.

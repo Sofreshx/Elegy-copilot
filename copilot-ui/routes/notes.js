@@ -1,23 +1,29 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const cp = require('child_process');
-const crypto = require('crypto');
+const vaultBackend = require('../lib/vaultBackend');
+const vaultGit = require('../lib/vaultGit');
+const vaultDriveSync = require('../lib/vaultDriveSync');
+const vaultConfig = require('../lib/vaultConfig');
 
-const { createElegyDb } = require('../lib/elegyDb');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function parseTags(tags) {
+  if (Array.isArray(tags)) return tags;
+  if (isNonEmptyString(tags)) {
+    try { return JSON.parse(tags); } catch { return [tags]; }
+  }
+  return [];
+}
+
 // ── List notes ──
 function handleNotesList(ctx, deps) {
   const { res, u } = ctx;
   const { sendJson } = deps;
-  
+
   const theme = u.searchParams.get('theme') || undefined;
   const tag = u.searchParams.get('tag') || undefined;
   const archived = u.searchParams.get('archived');
@@ -26,13 +32,13 @@ function handleNotesList(ctx, deps) {
   const order = u.searchParams.get('order') || 'updated_at DESC';
 
   try {
-    const db = createElegyDb();
     const filter = { limit, offset, order };
     if (theme) filter.theme = theme;
     if (tag) filter.tag = tag;
-    if (archived !== null && archived !== undefined) filter.archived = archived === 'true' || archived === '1';
-    const notes = db.listNotes(filter);
-    db.close();
+    if (archived !== null && archived !== undefined) {
+      filter.archived = archived === 'true' || archived === '1';
+    }
+    const notes = vaultBackend.listNotes(filter);
     sendJson(res, 200, { notes, count: notes.length });
   } catch (err) {
     sendJson(res, 500, { error: String(err.message || err) });
@@ -43,7 +49,7 @@ function handleNotesList(ctx, deps) {
 function handleNotesGet(ctx, deps) {
   const { res, u } = ctx;
   const { sendJson } = deps;
-  
+
   const id = u.searchParams.get('id');
   if (!isNonEmptyString(id)) {
     sendJson(res, 400, { error: 'id query parameter is required' });
@@ -51,14 +57,12 @@ function handleNotesGet(ctx, deps) {
   }
 
   try {
-    const db = createElegyDb();
-    const note = db.getNote(id.trim());
-    const blocks = note ? db.listBlocksByNote(id.trim()) : [];
-    db.close();
+    const note = vaultBackend.getNote(id.trim());
     if (!note) {
       sendJson(res, 404, { error: 'Note not found' });
       return;
     }
+    const blocks = vaultBackend.listBlocksByNote(note.id);
     sendJson(res, 200, { ...note, blocks });
   } catch (err) {
     sendJson(res, 500, { error: String(err.message || err) });
@@ -82,18 +86,15 @@ async function handleNotesCreate(ctx, deps) {
     return;
   }
 
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const tags_json = Array.isArray(tags) ? JSON.stringify(tags) : '[]';
-
   try {
-    const db = createElegyDb();
-    const note = db.createNote({
-      id, title: title || '', content, theme: theme || null,
-      tags_json, created_at: now, updated_at: now,
-      archived: 0, repo_path: repo_path || null, session_id: session_id || null,
+    const note = vaultBackend.createNote({
+      title: title || '',
+      content,
+      theme: theme || null,
+      tags: parseTags(tags),
+      repo_path: repo_path || null,
+      session_id: session_id || null,
     });
-    db.close();
     if (!note) {
       sendJson(res, 500, { error: 'Failed to create note' });
       return;
@@ -125,28 +126,23 @@ async function handleNotesUpdate(ctx, deps) {
     return;
   }
 
-  const now = new Date().toISOString();
-  const tags_json = Array.isArray(tags) ? JSON.stringify(tags) : undefined;
-
   try {
-    const db = createElegyDb();
-    const existing = db.getNote(id.trim());
+    const existing = vaultBackend.getNote(id.trim());
     if (!existing) {
-      db.close();
       sendJson(res, 404, { error: 'Note not found' });
       return;
     }
 
-    const updated = db.updateNote({
-      id: id.trim(), title: title !== undefined ? title : existing.title,
-      content, theme: theme !== undefined ? theme : existing.theme,
-      tags_json: tags_json !== undefined ? tags_json : existing.tags_json,
-      updated_at: now,
-      archived: archived !== undefined ? (archived ? 1 : 0) : existing.archived,
+    const updated = vaultBackend.updateNote({
+      id: id.trim(),
+      title: title !== undefined ? title : existing.title,
+      content,
+      theme: theme !== undefined ? theme : existing.theme,
+      tags: tags !== undefined ? parseTags(tags) : vaultBackend.parseTagsJson(existing.tags_json),
+      archived: archived !== undefined ? archived : Boolean(existing.archived),
       repo_path: repo_path !== undefined ? repo_path : existing.repo_path,
       session_id: session_id !== undefined ? session_id : existing.session_id,
     });
-    db.close();
     sendJson(res, 200, updated);
   } catch (err) {
     sendJson(res, 500, { error: String(err.message || err) });
@@ -157,7 +153,7 @@ async function handleNotesUpdate(ctx, deps) {
 function handleNotesDelete(ctx, deps) {
   const { res, u } = ctx;
   const { sendJson } = deps;
-  
+
   const id = u.searchParams.get('id');
   if (!isNonEmptyString(id)) {
     sendJson(res, 400, { error: 'id query parameter is required' });
@@ -165,9 +161,7 @@ function handleNotesDelete(ctx, deps) {
   }
 
   try {
-    const db = createElegyDb();
-    const deleted = db.deleteNote(id.trim());
-    db.close();
+    const deleted = vaultBackend.deleteNote(id.trim());
     if (!deleted) {
       sendJson(res, 404, { error: 'Note not found' });
       return;
@@ -178,11 +172,11 @@ function handleNotesDelete(ctx, deps) {
   }
 }
 
-// ── Search notes (FTS5) ──
+// ── Search notes ──
 function handleNotesSearch(ctx, deps) {
   const { res, u } = ctx;
   const { sendJson } = deps;
-  
+
   const query = u.searchParams.get('q');
   if (!isNonEmptyString(query)) {
     sendJson(res, 400, { error: 'q query parameter is required' });
@@ -192,9 +186,7 @@ function handleNotesSearch(ctx, deps) {
   const limit = parseInt(u.searchParams.get('limit') || '20', 10);
 
   try {
-    const db = createElegyDb();
-    const results = db.searchNotes(query.trim(), { limit });
-    db.close();
+    const results = vaultBackend.searchNotes(query.trim(), { limit });
     sendJson(res, 200, { results, query: query.trim(), count: results.length });
   } catch (err) {
     sendJson(res, 500, { error: String(err.message || err) });
@@ -212,31 +204,27 @@ async function handleNotesExport(ctx, deps) {
     return;
   }
 
-  const format = (body && body.format) || 'json'; // 'json' or 'markdown'
+  const format = (body && body.format) || 'json';
 
   try {
-    const db = createElegyDb();
-    const notes = db.listNotes({ limit: 10000, order: 'updated_at DESC' });
-    
+    const notes = vaultBackend.listNotes({ limit: 10000, order: 'updated_at DESC' });
+
     if (format === 'json') {
-      // JSON dump — lossless, includes blocks
       const exportData = {
         version: 1,
         exportedAt: new Date().toISOString(),
-        notes: notes.map(n => {
-          const blocks = db.listBlocksByNote(n.id);
-          return { ...n, blocks };
-        }),
+        notes: notes.map((n) => ({
+          ...n,
+          blocks: vaultBackend.listBlocksByNote(n.id),
+        })),
       };
-      db.close();
       sendJson(res, 200, exportData);
       return;
     }
 
     if (format === 'markdown') {
-      // Markdown bundle — one item per note with front-matter
-      const files = notes.map(n => {
-        const blocks = db.listBlocksByNote(n.id);
+      const config = vaultBackend.getConfig();
+      const files = notes.map((n) => {
         let frontMatter = '---\n';
         frontMatter += `id: ${n.id}\n`;
         frontMatter += `title: ${n.title || 'Untitled'}\n`;
@@ -246,21 +234,19 @@ async function handleNotesExport(ctx, deps) {
         frontMatter += `updated_at: ${n.updated_at}\n`;
         frontMatter += `archived: ${n.archived}\n`;
         frontMatter += '---\n\n';
-        
+
         let md = frontMatter + n.content + '\n';
-        // Append blocks
+        const blocks = vaultBackend.listBlocksByNote(n.id);
         for (const block of blocks) {
           md += '\n--- block:' + block.block_kind + ' ---\n';
           md += block.body + '\n';
         }
         return { filename: `${n.id}.md`, content: md };
       });
-      db.close();
       sendJson(res, 200, { format: 'markdown', files, count: files.length });
       return;
     }
 
-    db.close();
     sendJson(res, 400, { error: 'Unsupported format. Use "json" or "markdown".' });
   } catch (err) {
     sendJson(res, 500, { error: String(err.message || err) });
@@ -290,7 +276,6 @@ async function handleNotesImport(ctx, deps) {
   }
 
   try {
-    const db = createElegyDb();
     let imported = 0;
     let updated = 0;
     const errors = [];
@@ -301,54 +286,35 @@ async function handleNotesImport(ctx, deps) {
         continue;
       }
 
-      const existing = db.getNote(note.id);
+      const existing = vaultBackend.getNote(note.id);
       const now = new Date().toISOString();
-      const noteData = {
-        id: note.id,
-        title: note.title || '',
-        content: note.content,
-        theme: note.theme || null,
-        tags_json: note.tags_json || '[]',
-        updated_at: note.updated_at || now,
-        archived: note.archived ? 1 : 0,
-        repo_path: note.repo_path || null,
-        session_id: note.session_id || null,
-      };
 
       if (existing) {
-        db.updateNote(noteData);
+        vaultBackend.updateNote({
+          id: note.id,
+          title: note.title || '',
+          content: note.content,
+          theme: note.theme || null,
+          tags: parseTags(note.tags || note.tags_json),
+          archived: note.archived ? 1 : 0,
+          repo_path: note.repo_path || null,
+          session_id: note.session_id || null,
+        });
         updated++;
       } else {
-        noteData.created_at = note.created_at || now;
-        db.createNote(noteData);
+        vaultBackend.createNote({
+          id: note.id,
+          title: note.title || '',
+          content: note.content,
+          theme: note.theme || null,
+          tags: parseTags(note.tags || note.tags_json),
+          repo_path: note.repo_path || null,
+          session_id: note.session_id || null,
+        });
         imported++;
-      }
-
-      // Import blocks if present
-      if (Array.isArray(note.blocks)) {
-        // Remove existing blocks for this note
-        const existingBlocks = db.listBlocksByNote(note.id);
-        for (const eb of existingBlocks) {
-          db.deleteBlock(eb.id);
-        }
-        for (const block of note.blocks) {
-          if (block.id && block.body) {
-            db.createBlock({
-              id: block.id,
-              note_id: note.id,
-              block_kind: block.block_kind || 'text',
-              position: block.position || 0,
-              body: block.body,
-              source_run_id: block.source_run_id || null,
-              created_at: block.created_at || now,
-              updated_at: block.updated_at || now,
-            });
-          }
-        }
       }
     }
 
-    db.close();
     sendJson(res, 200, {
       imported,
       updated,
@@ -365,9 +331,7 @@ function handleNotesSettingsList(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
   try {
-    const db = createElegyDb();
-    const settings = db.listNoteSettings();
-    db.close();
+    const settings = vaultBackend.listSettings();
     sendJson(res, 200, { settings });
   } catch (err) {
     sendJson(res, 500, { error: String(err.message || err) });
@@ -384,9 +348,7 @@ function handleNotesSettingsGet(ctx, deps) {
     return;
   }
   try {
-    const db = createElegyDb();
-    const value = db.getNoteSetting(key.trim());
-    db.close();
+    const value = vaultBackend.getSetting(key.trim());
     sendJson(res, 200, { key: key.trim(), value });
   } catch (err) {
     sendJson(res, 500, { error: String(err.message || err) });
@@ -408,10 +370,8 @@ async function handleNotesSettingsSet(ctx, deps) {
     return;
   }
   try {
-    const db = createElegyDb();
-    db.setNoteSetting(key.trim(), value);
-    db.close();
-    sendJson(res, 200, { key: key.trim(), value });
+    const ok = vaultBackend.setSetting(key.trim(), value);
+    sendJson(res, 200, { key: key.trim(), value, ok });
   } catch (err) {
     sendJson(res, 500, { error: String(err.message || err) });
   }
@@ -427,247 +387,191 @@ function handleNotesSettingsDelete(ctx, deps) {
     return;
   }
   try {
-    const db = createElegyDb();
-    const deleted = db.deleteNoteSetting(key.trim());
-    db.close();
+    const deleted = vaultBackend.deleteSetting(key.trim());
     sendJson(res, 200, { deleted, key: key.trim() });
   } catch (err) {
     sendJson(res, 500, { error: String(err.message || err) });
   }
 }
 
-// ── Git Sync Push ──
-async function handleNotesSyncPush(ctx, deps) {
+// ── Vault status ──
+function handleVaultStatus(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
 
   try {
-    const db = createElegyDb();
-    const gitConfigRaw = db.getNoteSetting('git_sync_config');
-    db.close();
+    const config = vaultBackend.getConfig();
+    const vaultPath = config.vaultPath || '';
+    const vaultExists = Boolean(vaultPath && require('fs').existsSync(vaultPath));
 
-    if (!gitConfigRaw) {
-      sendJson(res, 400, { error: 'Git sync not configured. Configure in Settings > Notes.' });
-      return;
-    }
-
-    const config = typeof gitConfigRaw === 'string' ? JSON.parse(gitConfigRaw) : gitConfigRaw;
-    if (!config.enabled || !config.repoUrl) {
-      sendJson(res, 400, { error: 'Git sync not enabled or missing repo URL.' });
-      return;
-    }
-
-    const vaultPath = config.localClonePath || path.join(os.homedir(), '.elegy', 'notes-vault');
-    if (!fs.existsSync(vaultPath)) {
-      fs.mkdirSync(vaultPath, { recursive: true });
-    }
-
-    // Export notes as markdown files
-    const db2 = createElegyDb();
-    const notes = db2.listNotes({ limit: 10000, order: 'updated_at DESC' });
-    db2.close();
-
-    const results = [];
-    for (const note of notes) {
-      const fileName = `${note.id}.md`;
-      const filePath = path.join(vaultPath, fileName);
-
-      // Build front-matter
-      let md = '---\n';
-      md += `id: ${note.id}\n`;
-      md += `title: ${note.title || 'Untitled'}\n`;
-      if (note.theme) md += `theme: ${note.theme}\n`;
-      md += `tags: ${note.tags_json}\n`;
-      md += `created_at: ${note.created_at}\n`;
-      md += `updated_at: ${note.updated_at}\n`;
-      md += `archived: ${note.archived}\n`;
-      md += '---\n\n';
-      md += note.content + '\n';
-
-      fs.writeFileSync(filePath, md, 'utf8');
-      results.push({ id: note.id, file: fileName, updated: note.updated_at });
-    }
-
-    // Git operations
-    const git = (args) => cp.execSync(`git ${args}`, { cwd: vaultPath, encoding: 'utf8', timeout: 30000 }).trim();
-
-    // Init if needed
-    if (!fs.existsSync(path.join(vaultPath, '.git'))) {
-      cp.execSync(`git init`, { cwd: vaultPath });
-      cp.execSync(`git remote add origin ${config.repoUrl}`, { cwd: vaultPath });
-    }
-
-    // Set author
-    if (config.commitAuthor) {
-      try { cp.execSync(`git config user.name "${config.commitAuthor.split('<')[0].trim()}"`, { cwd: vaultPath }); } catch {}
-      const emailMatch = config.commitAuthor.match(/<([^>]+)>/);
-      if (emailMatch) try { cp.execSync(`git config user.email "${emailMatch[1]}"`, { cwd: vaultPath }); } catch {}
-    }
-
-    git('add -A');
-    try { git(`commit -m "notes: sync ${new Date().toISOString()}"`); } catch { /* no changes */ }
-    git(`push origin ${config.branch || 'main'}`);
-
-    sendJson(res, 200, { pushed: true, files: results.length, branch: config.branch || 'main' });
-  } catch (err) {
-    sendJson(res, 500, { error: String(err.message || err) });
-  }
-}
-
-// ── Git Sync Pull ──
-async function handleNotesSyncPull(ctx, deps) {
-  const { res } = ctx;
-  const { sendJson } = deps;
-
-  try {
-    const db = createElegyDb();
-    const gitConfigRaw = db.getNoteSetting('git_sync_config');
-    db.close();
-
-    if (!gitConfigRaw) {
-      sendJson(res, 400, { error: 'Git sync not configured.' });
-      return;
-    }
-
-    const config = typeof gitConfigRaw === 'string' ? JSON.parse(gitConfigRaw) : gitConfigRaw;
-    if (!config.enabled || !config.repoUrl) {
-      sendJson(res, 400, { error: 'Git sync not enabled or missing repo URL.' });
-      return;
-    }
-
-    const vaultPath = config.localClonePath || path.join(os.homedir(), '.elegy', 'notes-vault');
-    const git = (args) => cp.execSync(`git ${args}`, { cwd: vaultPath, encoding: 'utf8', timeout: 30000, stdio: 'pipe' }).trim();
-
-    // Clone if not exists
-    if (!fs.existsSync(path.join(vaultPath, '.git'))) {
-      fs.mkdirSync(vaultPath, { recursive: true });
-      git(`clone ${config.repoUrl} .`);
-      git(`checkout ${config.branch || 'main'}`);
-    }
-
-    // Pull
-    git('fetch origin');
-    
-    let pullResult;
-    try {
-      pullResult = git(`merge origin/${config.branch || 'main'}`);
-    } catch (mergeErr) {
-      // Check for conflicts
-      const conflictFiles = git('diff --name-only --diff-filter=U');
-      
-      if (conflictFiles) {
-        const db2 = createElegyDb();
-        const conflicted = [];
-        const now = new Date().toISOString();
-
-        for (const file of conflictFiles.split('\n').filter(Boolean)) {
-          const filePath = path.join(vaultPath, file);
-          if (!fs.existsSync(filePath)) continue;
-
-          const raw = fs.readFileSync(filePath, 'utf8');
-          const parts = raw.split(/^=======\s*$/m);
-          
-          // Extract note id from filename
-          const noteId = file.replace(/\.md$/, '');
-          const existingNote = db2.getNote(noteId);
-
-          if (existingNote && parts.length >= 2) {
-            // Create conflict block with remote version
-            const remoteContent = parts[1] ? parts[1].replace(/^>>>>>>>.*$/gm, '').trim() : raw;
-            
-            const blockId = crypto.randomUUID();
-            db2.createBlock({
-              id: blockId,
-              note_id: noteId,
-              block_kind: 'conflict',
-              position: (db2.listBlocksByNote(noteId).length + 1),
-              body: `Remote version:\n\n${remoteContent}`,
-              source_run_id: null,
-              created_at: now,
-              updated_at: now,
-            });
-
-            // Tag the note
-            let tags = [];
-            try { tags = JSON.parse(existingNote.tags_json); } catch {}
-            if (!tags.includes('conflict:needs-review')) {
-              tags.push('conflict:needs-review');
-            }
-
-            db2.updateNote({
-              id: noteId,
-              title: existingNote.title,
-              content: parts[0] ? parts[0].replace(/^<<<<<<<.*$/gm, '').trim() : existingNote.content,
-              theme: existingNote.theme,
-              tags_json: JSON.stringify(tags),
-              updated_at: now,
-              archived: existingNote.archived,
-              repo_path: existingNote.repo_path,
-              session_id: existingNote.session_id,
-            });
-
-            conflicted.push({ id: noteId, title: existingNote.title });
-          }
-
-          // Resolve conflict: accept ours
-          try { git(`checkout --ours ${file}`); } catch {}
-        }
-
-        db2.close();
-        git('add -A');
-        try { git('commit -m "notes: resolve conflicts (ours)"'); } catch {}
-
-        sendJson(res, 200, {
-          pulled: true,
-          conflicts: conflicted.length,
-          conflictedNotes: conflicted.length > 0 ? conflicted : undefined,
-          message: conflicted.length > 0 ? `${conflicted.length} note(s) had conflicts. Remote versions saved as conflict blocks. Review notes tagged "conflict:needs-review".` : 'No conflicts.',
-        });
-        return;
-      }
-
-      throw mergeErr;
-    }
-
-    sendJson(res, 200, { pulled: true, message: 'Pull complete, no conflicts.' });
-  } catch (err) {
-    sendJson(res, 500, { error: String(err.message || err) });
-  }
-}
-
-// ── Git Sync Status ──
-function handleNotesSyncStatus(ctx, deps) {
-  const { res } = ctx;
-  const { sendJson } = deps;
-
-  try {
-    const db = createElegyDb();
-    const gitConfigRaw = db.getNoteSetting('git_sync_config');
-    db.close();
-
-    if (!gitConfigRaw) {
-      sendJson(res, 200, { configured: false });
-      return;
-    }
-
-    const config = typeof gitConfigRaw === 'string' ? JSON.parse(gitConfigRaw) : gitConfigRaw;
-    const vaultPath = config.localClonePath || path.join(os.homedir(), '.elegy', 'notes-vault');
-
-    let status = { configured: true, enabled: config.enabled, repoUrl: config.repoUrl, branch: config.branch || 'main', vaultExists: false };
-
-    if (fs.existsSync(path.join(vaultPath, '.git'))) {
-      status.vaultExists = true;
+    let fileCount = 0;
+    if (vaultExists) {
       try {
-        const git = (args) => cp.execSync(`git ${args}`, { cwd: vaultPath, encoding: 'utf8', timeout: 10000, stdio: 'pipe' }).trim();
-        status.currentBranch = git('branch --show-current');
-        status.lastCommit = git('log -1 --format=%s');
-        status.lastCommitDate = git('log -1 --format=%ci');
+        fileCount = vaultBackend.listNotes({ limit: 100000 }).length;
       } catch {}
     }
 
-    sendJson(res, 200, status);
+    sendJson(res, 200, {
+      ok: true,
+      vaultPath,
+      vaultExists,
+      fileCount,
+      configured: Boolean(vaultPath),
+      gitEnabled: config.git?.enabled || false,
+      gdriveEnabled: config.gdrive?.enabled || false,
+      gdriveFolderName: config.gdrive?.remoteFolderName || 'Dev-Vault-Backup',
+    });
   } catch (err) {
-    sendJson(res, 500, { error: String(err.message || err) });
+    sendJson(res, 200, {
+      ok: false,
+      error: String(err.message || err),
+      configured: false,
+    });
+  }
+}
+
+// ── Git status ──
+function handleGitStatus(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  try {
+    const result = vaultGit.status();
+    sendJson(res, 200, result);
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err) });
+  }
+}
+
+// ── Git diff ──
+function handleGitDiff(ctx, deps) {
+  const { res, u } = ctx;
+  const { sendJson } = deps;
+  const file = u.searchParams.get('file') || undefined;
+  try {
+    const result = vaultGit.diff(file);
+    sendJson(res, 200, result);
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err) });
+  }
+}
+
+// ── Git commit ──
+async function handleGitCommit(ctx, deps) {
+  const { res, req } = ctx;
+  const { sendJson, readJsonBody } = deps;
+  let body;
+  try { body = await readJsonBody(req); } catch (e) {
+    sendJson(res, 400, { error: 'Invalid request body' });
+    return;
+  }
+  const message = body && body.message ? String(body.message).trim() : '';
+  try {
+    const result = vaultGit.commit(message);
+    sendJson(res, 200, result);
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err) });
+  }
+}
+
+// ── Git log ──
+function handleGitLog(ctx, deps) {
+  const { res, u } = ctx;
+  const { sendJson } = deps;
+  const maxCount = parseInt(u.searchParams.get('max') || '20', 10);
+  try {
+    const result = vaultGit.log(maxCount);
+    sendJson(res, 200, result);
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err) });
+  }
+}
+
+// ── Git init ──
+function handleGitInit(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  try {
+    const config = vaultBackend.getConfig();
+    if (!config.vaultPath) {
+      sendJson(res, 400, { ok: false, error: 'Vault path not configured' });
+      return;
+    }
+    const result = vaultGit.initGit(config.vaultPath);
+    sendJson(res, 200, result);
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err) });
+  }
+}
+
+// ── Drive sync push ──
+async function handleDriveSyncPush(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  try {
+    const result = await vaultDriveSync.push();
+    sendJson(res, 200, result);
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err) });
+  }
+}
+
+// ── Drive sync pull ──
+async function handleDriveSyncPull(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  try {
+    const result = await vaultDriveSync.pull();
+    sendJson(res, 200, result);
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err) });
+  }
+}
+
+// ── Drive sync status ──
+async function handleDriveSyncStatus(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  try {
+    const result = await vaultDriveSync.syncStatus();
+    sendJson(res, 200, result);
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err) });
+  }
+}
+
+// ── Drive authenticate ──
+async function handleDriveAuth(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  try {
+    const result = await vaultDriveSync.authenticate();
+    sendJson(res, 200, result);
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err) });
+  }
+}
+
+// ── Drive check auth status ──
+async function handleDriveCheckAuth(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  try {
+    const result = await vaultDriveSync.checkAuth();
+    sendJson(res, 200, result);
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err) });
+  }
+}
+
+// ── Drive cancel auth ──
+async function handleDriveCancelAuth(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  try {
+    const result = await vaultDriveSync.cancelAuth();
+    sendJson(res, 200, result);
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err) });
   }
 }
 
@@ -678,21 +582,44 @@ function register(context = {}) {
   const deps = { sendJson, readJsonBody };
 
   return [
-    { method: 'GET',  path: '/api/notes/list',   handler: (ctx) => handleNotesList(ctx, deps) },
-    { method: 'GET',  path: '/api/notes/get',    handler: (ctx) => handleNotesGet(ctx, deps) },
-    { method: 'POST', path: '/api/notes/create', handler: (ctx) => handleNotesCreate(ctx, deps) },
-    { method: 'POST', path: '/api/notes/update', handler: (ctx) => handleNotesUpdate(ctx, deps) },
-    { method: 'DELETE', path: '/api/notes/delete', handler: (ctx) => handleNotesDelete(ctx, deps) },
-    { method: 'GET',  path: '/api/notes/search', handler: (ctx) => handleNotesSearch(ctx, deps) },
-    { method: 'POST', path: '/api/notes/export', handler: (ctx) => handleNotesExport(ctx, deps) },
-    { method: 'POST', path: '/api/notes/import', handler: (ctx) => handleNotesImport(ctx, deps) },
-    { method: 'GET',  path: '/api/notes/settings', handler: (ctx) => handleNotesSettingsList(ctx, deps) },
-    { method: 'GET',  path: '/api/notes/settings/get', handler: (ctx) => handleNotesSettingsGet(ctx, deps) },
-    { method: 'POST', path: '/api/notes/settings/set', handler: (ctx) => handleNotesSettingsSet(ctx, deps) },
+    // Original notes CRUD (now vault-backed)
+    { method: 'GET',    path: '/api/notes/list',      handler: (ctx) => handleNotesList(ctx, deps) },
+    { method: 'GET',    path: '/api/notes/get',       handler: (ctx) => handleNotesGet(ctx, deps) },
+    { method: 'POST',   path: '/api/notes/create',    handler: (ctx) => handleNotesCreate(ctx, deps) },
+    { method: 'POST',   path: '/api/notes/update',    handler: (ctx) => handleNotesUpdate(ctx, deps) },
+    { method: 'DELETE', path: '/api/notes/delete',    handler: (ctx) => handleNotesDelete(ctx, deps) },
+    { method: 'GET',    path: '/api/notes/search',    handler: (ctx) => handleNotesSearch(ctx, deps) },
+    { method: 'POST',   path: '/api/notes/export',    handler: (ctx) => handleNotesExport(ctx, deps) },
+    { method: 'POST',   path: '/api/notes/import',    handler: (ctx) => handleNotesImport(ctx, deps) },
+
+    // Settings
+    { method: 'GET',    path: '/api/notes/settings',     handler: (ctx) => handleNotesSettingsList(ctx, deps) },
+    { method: 'GET',    path: '/api/notes/settings/get',  handler: (ctx) => handleNotesSettingsGet(ctx, deps) },
+    { method: 'POST',   path: '/api/notes/settings/set',  handler: (ctx) => handleNotesSettingsSet(ctx, deps) },
     { method: 'DELETE', path: '/api/notes/settings/delete', handler: (ctx) => handleNotesSettingsDelete(ctx, deps) },
-    { method: 'POST', path: '/api/notes/sync/push',   handler: (ctx) => handleNotesSyncPush(ctx, deps) },
-    { method: 'POST', path: '/api/notes/sync/pull',   handler: (ctx) => handleNotesSyncPull(ctx, deps) },
-    { method: 'GET',  path: '/api/notes/sync/status', handler: (ctx) => handleNotesSyncStatus(ctx, deps) },
+
+    // Vault status
+    { method: 'GET',    path: '/api/notes/vault/status', handler: (ctx) => handleVaultStatus(ctx, deps) },
+
+    // Git operations
+    { method: 'GET',    path: '/api/notes/git/status', handler: (ctx) => handleGitStatus(ctx, deps) },
+    { method: 'GET',    path: '/api/notes/git/diff',   handler: (ctx) => handleGitDiff(ctx, deps) },
+    { method: 'POST',   path: '/api/notes/git/commit', handler: (ctx) => handleGitCommit(ctx, deps) },
+    { method: 'GET',    path: '/api/notes/git/log',    handler: (ctx) => handleGitLog(ctx, deps) },
+    { method: 'POST',   path: '/api/notes/git/init',   handler: (ctx) => handleGitInit(ctx, deps) },
+
+    // Drive sync operations
+    { method: 'POST',   path: '/api/notes/drive/push',        handler: (ctx) => handleDriveSyncPush(ctx, deps) },
+    { method: 'POST',   path: '/api/notes/drive/pull',        handler: (ctx) => handleDriveSyncPull(ctx, deps) },
+    { method: 'GET',    path: '/api/notes/drive/status',      handler: (ctx) => handleDriveSyncStatus(ctx, deps) },
+    { method: 'POST',   path: '/api/notes/drive/auth',        handler: (ctx) => handleDriveAuth(ctx, deps) },
+    { method: 'GET',    path: '/api/notes/drive/auth/status', handler: (ctx) => handleDriveCheckAuth(ctx, deps) },
+    { method: 'POST',   path: '/api/notes/drive/auth/cancel', handler: (ctx) => handleDriveCancelAuth(ctx, deps) },
+
+    // Legacy sync routes (repurposed for vault)
+    { method: 'POST',   path: '/api/notes/sync/push',   handler: (ctx) => handleDriveSyncPush(ctx, deps) },
+    { method: 'POST',   path: '/api/notes/sync/pull',   handler: (ctx) => handleDriveSyncPull(ctx, deps) },
+    { method: 'GET',    path: '/api/notes/sync/status', handler: (ctx) => handleDriveSyncStatus(ctx, deps) },
   ];
 }
 

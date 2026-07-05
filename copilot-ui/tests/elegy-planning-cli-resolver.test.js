@@ -13,6 +13,8 @@ const {
   isPathLikeCommand,
   isMsvcLinkerAvailable,
   installLatestElegyPlanningCli,
+  probePlanningBinaryHealth,
+  binaryName,
 } = require('../lib/elegyPlanningCliResolver');
 let passed = 0;
 let failed = 0;
@@ -62,6 +64,40 @@ async function run() {
         elegyHome,
       });
       assert.strictEqual(resolved, explicitPath);
+    });
+    await test('resolveElegyPlanningCliPath skips a schema-incompatible explicit binary', () => {
+      const runtimeRoot = path.join(tmpRoot, 'compatible-runtime');
+      const elegyHome = path.join(tmpRoot, 'compatible-home');
+      const dbPath = path.join(elegyHome, 'planning.db');
+      const explicitPath = path.join(tmpRoot, 'stale', binaryName());
+      const managedPath = path.join(elegyHome, 'managed-cli', 'planning', binaryName());
+      fs.mkdirSync(path.dirname(explicitPath), { recursive: true });
+      fs.mkdirSync(path.dirname(managedPath), { recursive: true });
+      fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+      fs.writeFileSync(explicitPath, 'stale', 'utf8');
+      fs.writeFileSync(managedPath, 'current', 'utf8');
+      fs.writeFileSync(dbPath, 'db', 'utf8');
+
+      const resolved = resolveElegyPlanningCliPath({
+        cliPath: explicitPath,
+        runtimeRoot,
+        elegyHome,
+        dbPath,
+        spawnSyncImpl(command) {
+          if (command === explicitPath) {
+            return { status: 1, stdout: '', stderr: 'unsupported planning schema version' };
+          }
+          if (command === managedPath) {
+            return {
+              status: 0,
+              stdout: JSON.stringify({ status: 'ok', data: { schemaVersion: '11', dbPath } }),
+              stderr: '',
+            };
+          }
+          return { status: 1, stdout: '', stderr: '' };
+        },
+      });
+      assert.strictEqual(resolved, managedPath);
     });
     await test('resolveElegyPlanningCliPath accepts explicit command name available on PATH', () => {
       const resolved = resolveElegyPlanningCliPath({
@@ -165,6 +201,16 @@ async function run() {
     await test('probeBinaryVersion exports as a function', () => {
       const { probeBinaryVersion } = require('../lib/elegyPlanningCliResolver');
       assert.strictEqual(typeof probeBinaryVersion, 'function');
+    });
+    await test('probePlanningBinaryHealth reads the CLI schema contract', () => {
+      const health = probePlanningBinaryHealth('elegy-planning', 'planning.db', () => ({
+        status: 0,
+        stdout: JSON.stringify({
+          status: 'ok',
+          data: { schemaVersion: '11', dbPath: 'planning.db' },
+        }),
+      }));
+      assert.deepStrictEqual(health, { schemaVersion: '11', dbPath: 'planning.db' });
     });
 
     await test('buildElegyPlanningCliFromSource builds and installs managed binary metadata (legacy layout)', async () => {

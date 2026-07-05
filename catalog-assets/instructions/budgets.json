@@ -28,6 +28,10 @@
       "antigravity": {
         "maxBytes": 1500,
         "maxLines": 45
+      },
+      "ghcp": {
+        "maxBytes": 2500,
+        "maxLines": 65
       }
     },
     "composed": {
@@ -50,6 +54,10 @@
       "antigravity": {
         "maxBytes": 6500,
         "maxLines": 210
+      },
+      "ghcp": {
+        "maxBytes": 8000,
+        "maxLines": 235
       }
     }
   },

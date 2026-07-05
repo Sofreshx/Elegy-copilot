@@ -2,6 +2,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import toml from 'toml';
 import { fileURLToPath } from 'url';
 import { getBestShell } from './shell-detect.mjs';
 import { writeTextAtomically } from './install-surface-utils.mjs';
@@ -11,6 +12,11 @@ export const DEFAULT_PROFILE_NAME = 'instruction_engine_plan_review';
 export const DEFAULT_PROVIDER_ID = 'opencode-go'; // default managed profile provider
 export const DEFAULT_MODEL = 'mimo-v2-pro';
 export const PROFILE_CONFIG_SUFFIX = '.config.toml';
+export const DEFAULT_AGENT_CONFIG = {
+  maxThreads: 3,
+  maxDepth: 1,
+  jobMaxRuntimeSeconds: 1800,
+};
 
 export const EXTERNAL_PROVIDERS = [
   {
@@ -159,6 +165,25 @@ function ensureTrailingNewline(text) {
   return text.endsWith('\n') ? text : `${text}\n`;
 }
 
+function asBoundedInteger(value, fallback, min, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(parsed)));
+}
+
+export function normalizeAgentConfig(options = {}) {
+  return {
+    maxThreads: asBoundedInteger(options.maxThreads, DEFAULT_AGENT_CONFIG.maxThreads, 1, 8),
+    maxDepth: asBoundedInteger(options.maxDepth, DEFAULT_AGENT_CONFIG.maxDepth, 0, 2),
+    jobMaxRuntimeSeconds: asBoundedInteger(
+      options.jobMaxRuntimeSeconds,
+      DEFAULT_AGENT_CONFIG.jobMaxRuntimeSeconds,
+      60,
+      86400,
+    ),
+  };
+}
+
 export function stripManagedBlock(text) {
   const normalized = normalizeText(text);
   return normalized
@@ -173,6 +198,10 @@ function escapeRegExp(value) {
 
 function isTableHeaderLine(line) {
   return /^\s*\[\[?[^\]]+\]?\]\s*(?:#.*)?$/.test(String(line || '').trim());
+}
+
+function isAgentsTableHeader(line) {
+  return /^\s*\[agents\]\s*(?:#.*)?$/.test(String(line || '').trim());
 }
 
 function splitRootPreamble(text) {
@@ -207,6 +236,17 @@ function stripTable(text, tableHeaderPattern) {
 
 function stripLegacyProfileTable(text, profileName) {
   return stripTable(text, `profiles\\.${escapeRegExp(profileName)}`);
+}
+
+function validateToml(text, context = 'after Codex config patch') {
+  const normalized = normalizeText(text).trim();
+  if (!normalized) return;
+  try {
+    toml.parse(normalized);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Codex config TOML validation failed ${context}: ${detail}`);
+  }
 }
 
 function buildProviderTable(provider) {
@@ -263,6 +303,63 @@ function buildMissingProviderTables({ enableExternalProviders, existingProviders
     .map((provider) => buildProviderTable(provider));
 }
 
+function upsertKeyLine(lines, key, line) {
+  const pattern = new RegExp(`^\\s*${escapeRegExp(key)}\\s*=`);
+  const index = lines.findIndex((candidate) => pattern.test(String(candidate || '')));
+  if (index >= 0) {
+    const next = [...lines];
+    next[index] = line;
+    return next;
+  }
+  return [...lines, line];
+}
+
+function upsertAgentConfigLines(sectionLines, values) {
+  let nextLines = [...sectionLines];
+  nextLines = upsertKeyLine(nextLines, 'max_threads', `max_threads = ${values.maxThreads}`);
+  nextLines = upsertKeyLine(nextLines, 'max_depth', `max_depth = ${values.maxDepth}`);
+  nextLines = upsertKeyLine(nextLines, 'job_max_runtime_seconds', `job_max_runtime_seconds = ${values.jobMaxRuntimeSeconds}`);
+  return nextLines;
+}
+
+export function patchAgentsConfig(originalText, options = {}) {
+  const values = normalizeAgentConfig(options);
+  const normalized = normalizeText(originalText).trimEnd();
+  const lines = normalized ? normalized.split('\n') : [];
+  const headerIndex = lines.findIndex((line) => isAgentsTableHeader(line));
+
+  if (headerIndex === -1) {
+    const agentSection = [
+      '[agents]',
+      `max_threads = ${values.maxThreads}`,
+      `max_depth = ${values.maxDepth}`,
+      `job_max_runtime_seconds = ${values.jobMaxRuntimeSeconds}`,
+    ].join('\n');
+    const patched = ensureTrailingNewline([normalized, agentSection].filter((section) => section.trim()).join('\n\n'));
+    validateToml(patched);
+    return patched;
+  }
+
+  let nextHeaderIndex = lines.length;
+  for (let index = headerIndex + 1; index < lines.length; index += 1) {
+    if (isTableHeaderLine(lines[index])) {
+      nextHeaderIndex = index;
+      break;
+    }
+  }
+
+  const before = lines.slice(0, headerIndex + 1);
+  const section = lines.slice(headerIndex + 1, nextHeaderIndex);
+  const after = lines.slice(nextHeaderIndex);
+  const patched = ensureTrailingNewline([
+    ...before,
+    ...upsertAgentConfigLines(section, values),
+    ...after,
+  ].join('\n').trimEnd());
+  validateToml(patched);
+  return patched;
+}
+
 export function resolveProfileConfigPath(configPath, profileName = DEFAULT_PROFILE_NAME) {
   const resolvedConfigPath = path.resolve(configPath);
   return path.join(path.dirname(resolvedConfigPath), `${profileName}${PROFILE_CONFIG_SUFFIX}`);
@@ -298,7 +395,8 @@ export function patchCodexConfig(originalText, options = {}) {
   const needsProviders = missingProviderTables.length > 0;
 
   if (!needsModel && !needsProvider && !needsReviewModel && !needsProviders && stripped === normalizeText(originalText).trimEnd()) {
-    return ensureTrailingNewline(stripped || '');
+    const stable = ensureTrailingNewline(stripped || '');
+    return options.manageAgents === false ? stable : patchAgentsConfig(stable, options);
   }
 
   const rootKeyLines = buildRootKeyLines({ needsModel, needsProvider, needsReviewModel, reviewModel, modelId, providerId });
@@ -335,7 +433,8 @@ export function patchCodexConfig(originalText, options = {}) {
     return '';
   }
 
-  return ensureTrailingNewline(sections.join('\n\n'));
+  const patched = ensureTrailingNewline(sections.join('\n\n'));
+  return options.manageAgents === false ? patched : patchAgentsConfig(patched, options);
 }
 
 export function patchConfigFile(configPath, options = {}) {

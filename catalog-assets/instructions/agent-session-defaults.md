@@ -1,9 +1,6 @@
 # Agent Session Defaults
 
-Portable global instruction baseline. Installed to each harness home and
-composed with a harness-specific appendix at install time.
-
-Keep this file repo-agnostic. Put harness-specific content in the appendix.
+Portable global instruction baseline. Keep this repo-agnostic; harness-specific content belongs in the appendix.
 
 ## Repo Discovery
 
@@ -79,8 +76,10 @@ Before non-trivial implementation:
 6. Choose the smallest workable path.
 7. Define validation.
 
-A plan is ready only when another implementer can execute it without making
-product or architecture decisions.
+A plan is ready only when another implementer can execute it without making product or architecture decisions.
+
+Default to intended behavior, acceptance evidence, and stop conditions over narrow hand-holding.
+For non-trivial planning, implementation, review, handoff, or debugging closure, surface the biggest missing context and least-confident point when they affect follow-up or validation. Omit this for tiny command-answer tasks and no-op reviews.
 
 ## Documentation Shape
 
@@ -102,17 +101,18 @@ long-lived contract decisions.
 
 ## Code Quality Posture
 
-Hard rules:
+Merge blockers:
 
-- Remove dead code before merge.
-- Keep nesting shallow; use guard clauses and early returns.
-- If understanding a change requires more than three files, refactor first.
-- Delete code instead of commenting it out.
+- Do not leave dead code introduced by the current change.
+- Do not comment out code as a substitute for deletion.
+- Do not add clever abstractions without a stated need.
 
 Heuristics:
 
 - Prefer the simplest solution that works.
 - Keep functions focused.
+- Keep nesting shallow; use guard clauses and early returns when they improve clarity.
+- If a diff is hard to understand, split or refactor before expanding it.
 - Add complexity only for a stated requirement.
 
 ## Collaboration Contract

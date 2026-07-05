@@ -1,13 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '../../components';
 import { notificationStore } from '../../stores/notificationStore';
-import {
-  discoverGitChecks,
-  getGitCheckState,
-  getGitCiSync,
-  runGitChecksWithProfile,
-} from '../../lib/api/git';
-import type { GitCheckResults, GitCheckStateResponse, GitChecksDiscoverResponse, GitCiSyncResponse } from '../../lib/api/git';
+import { useStoreValue } from '../../lib/store';
+import { checksStore } from '../../stores/checksStore';
+import type { RunSession } from '../../stores/checksStore';
+import type { GitCheckResults, GitChecksDiscoverResponse } from '../../lib/api/git';
 
 interface WorkspaceChecksTabProps {
   repoPath: string;
@@ -175,21 +172,6 @@ interface LaneInfo {
   name: string;
   cost?: string;
   opensWindow?: boolean;
-}
-
-type RunOutcome = 'running' | 'pass' | 'fail' | 'error';
-
-interface RunSession {
-  id: string;
-  repoPath: string;
-  profile: string;
-  label: string;
-  startedAt: string;
-  endedAt: string | null;
-  targetLanes: string[];
-  outcome: RunOutcome;
-  error: string | null;
-  results: GitCheckResults | null;
 }
 
 type LaneStatusKind = 'pass' | 'fail' | 'skip' | 'running' | 'not-run' | 'unknown';
@@ -372,63 +354,20 @@ function buildRunHandoff(session: RunSession | null): string {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecksTabProps) {
-  const [checkResults, setCheckResults] = useState<GitCheckResults | null>(null);
-  const [runningChecks, setRunningChecks] = useState(false);
-  const [checkState, setCheckState] = useState<GitCheckStateResponse | null>(null);
-  const [discoveredChecks, setDiscoveredChecks] = useState<GitChecksDiscoverResponse | null>(null);
-  const [ciSync, setCiSync] = useState<GitCiSyncResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const storeState = useStoreValue(checksStore.store);
   const [activeProfile, setActiveProfile] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState<'release' | 'everything' | null>(null);
   const [showLogConsole, setShowLogConsole] = useState(false);
   const [logFilter, setLogFilter] = useState('');
   const [expandedLane, setExpandedLane] = useState<string | null>(null);
   const [confirmHeavyLanes, setConfirmHeavyLanes] = useState<LaneInfo[]>([]);
-  const [runSession, setRunSession] = useState<RunSession | null>(null);
+
+  const { runSession, runningChecks, checkResults, checkState, ciSync, discoveredChecks, loading } = storeState;
 
   // ─── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!repoPath) return;
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const [stateResult, ciSyncResult, discoveryResult] = await Promise.all([
-          getGitCheckState(repoPath),
-          getGitCiSync(repoPath),
-          discoverGitChecks(repoPath),
-        ]);
-        if (!cancelled) {
-          setCheckState(stateResult);
-          setCiSync(ciSyncResult);
-          setDiscoveredChecks(discoveryResult);
-          if (stateResult.lastRun?.overallPass !== undefined) {
-            setCheckResults({
-              repoRoot: stateResult.repoPath,
-              source: 'commit-check',
-              checkedAt: stateResult.lastRun?.timestamp || '',
-              checksAvailable: Object.keys(stateResult.lastRun?.lanes ?? {}).length,
-              checksRun: Object.keys(stateResult.lastRun?.lanes ?? {}).length,
-              checksPassed: 0,
-              checksFailed: 0,
-              allPassed: stateResult.lastRun?.overallPass ?? false,
-              results: [],
-              message: stateResult.lastRun?.overallPass ? 'All checks passed' : 'Some checks failed',
-            } satisfies GitCheckResults);
-          }
-        }
-      } catch (err) {
-        if (!cancelled) {
-          notificationStore.error('Failed to load check state', {
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
-    return () => { cancelled = true; };
+    void checksStore.load(repoPath);
   }, [repoPath]);
 
   // ─── Derived data ──────────────────────────────────────────────────────────
@@ -502,80 +441,14 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   const groupEntries = Array.from(groupedLanes.entries());
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
-  async function handleRunProfile(profile: string) {
+  function handleRunProfile(profile: string) {
     const targetLanes = resolveTargetLaneNames(baseDisplayLanes, profile);
-    const startedAt = new Date().toISOString();
-    const sessionBase: RunSession = {
-      id: `${startedAt}-${profile}`,
-      repoPath,
-      profile,
-      label: getProfileLabel(profile),
-      startedAt,
-      endedAt: null,
-      targetLanes,
-      outcome: 'running',
-      error: null,
-      results: null,
-    };
-    setRunSession(sessionBase);
-    setCheckResults(null);
-    setRunningChecks(true);
     setShowLogConsole(true);
-    try {
-      const results = await runGitChecksWithProfile(repoPath, {
-        profile: profile === 'all' ? undefined : profile,
-      });
-      setCheckResults(results);
-      setRunSession({
-        ...sessionBase,
-        endedAt: new Date().toISOString(),
-        outcome: results.allPassed ? 'pass' : 'fail',
-        results,
-      });
-
-      const [newState, newCiSync, newDiscovery] = await Promise.all([
-        getGitCheckState(repoPath),
-        getGitCiSync(repoPath),
-        discoverGitChecks(repoPath),
-      ]);
-      setCheckState(newState);
-      setCiSync(newCiSync);
-      setDiscoveredChecks(newDiscovery);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setRunSession({
-        ...sessionBase,
-        endedAt: new Date().toISOString(),
-        outcome: 'error',
-        error: message,
-        results: null,
-      });
-      notificationStore.error('Checks failed', {
-        message,
-      });
-    } finally {
-      setRunningChecks(false);
-    }
+    void checksStore.startRun(repoPath, profile, getProfileLabel(profile), targetLanes);
   }
 
-  const handleRefresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [newState, newCiSync, newDiscovery] = await Promise.all([
-        getGitCheckState(repoPath),
-        getGitCiSync(repoPath),
-        discoverGitChecks(repoPath),
-      ]);
-      setCheckState(newState);
-      setCiSync(newCiSync);
-      setDiscoveredChecks(newDiscovery);
-    } catch (err) {
-      notificationStore.error('Refresh failed', {
-        message: err instanceof Error ? err.message : String(err),
-      });
-    } finally {
-      setLoading(false);
-    }
+  const handleRefresh = useCallback(() => {
+    void checksStore.refresh(repoPath);
   }, [repoPath]);
 
   function handleProfileClick(profile: string) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { listNoteSettings, setNoteSetting, getNoteSetting, deleteNoteSetting } from '../../lib/api/notes';
+import { listNoteSettings, setNoteSetting, getVaultStatus, getDriveSyncStatus, driveAuth, type VaultStatus, type DriveSyncStatus } from '../../lib/api/notes';
 
 export default function NotesSettingsView() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -7,6 +7,16 @@ export default function NotesSettingsView() {
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  // Vault state
+  const [vaultStatus, setVaultStatus] = useState<VaultStatus | null>(null);
+  const [driveStatus, setDriveStatus] = useState<DriveSyncStatus | null>(null);
+
+  // Git sync fields
+  const [gitEnabled, setGitEnabled] = useState(false);
+  const [gitRepoUrl, setGitRepoUrl] = useState('');
+  const [gitBranch, setGitBranch] = useState('main');
+  const [gitAuthor, setGitAuthor] = useState('');
 
   // Model options for dropdowns
   const modelOptions = [
@@ -16,13 +26,6 @@ export default function NotesSettingsView() {
     { id: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
     { id: 'opencode/gpt-5.1-codex', label: 'GPT-5.1 Codex' },
   ];
-
-  // Git sync fields
-  const [gitEnabled, setGitEnabled] = useState(false);
-  const [gitRepoUrl, setGitRepoUrl] = useState('');
-  const [gitBranch, setGitBranch] = useState('main');
-  const [gitAuthor, setGitAuthor] = useState('');
-  const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -37,7 +40,7 @@ export default function NotesSettingsView() {
         try { map[s.key] = typeof s.value === 'string' ? s.value : JSON.stringify(s.value); } catch { map[s.key] = String(s.value); }
       }
       setSettings(map);
-      
+
       // Load git config
       try {
         const gc = JSON.parse(map['git_sync_config'] || '{}');
@@ -46,6 +49,14 @@ export default function NotesSettingsView() {
         setGitBranch(gc.branch || 'main');
         setGitAuthor(gc.commitAuthor || '');
       } catch {}
+
+      // Load vault status
+      const vs = await getVaultStatus();
+      setVaultStatus(vs);
+
+      // Load drive status
+      const ds = await getDriveSyncStatus();
+      setDriveStatus(ds);
     } catch { /* silent */ }
     finally { setLoading(false); }
   }
@@ -92,6 +103,59 @@ export default function NotesSettingsView() {
       {message && <div style={{ color: 'var(--color-brand-400)', fontSize: '0.8rem' }}>{message}</div>}
 
       <div className="panel-content" style={{ gap: 'var(--space-lg)' }}>
+        {/* Vault Status */}
+        <section>
+          <h4 className="workspace-notes-section-title">Obsidian Vault</h4>
+          {vaultStatus ? (
+            <div style={{ fontSize: '0.8rem' }}>
+              <ul style={{ margin: '4px 0', paddingLeft: '16px' }}>
+                <li>Path: {vaultStatus.vaultPath || <em>Not configured</em>}</li>
+                <li>Status: {vaultStatus.configured && vaultStatus.vaultExists ? '✓ Available' : vaultStatus.configured ? '✗ Path not found' : '✗ Not configured'}</li>
+                <li>Notes: {vaultStatus.fileCount}</li>
+                <li>Git: {vaultStatus.gitEnabled ? 'Enabled' : 'Disabled'}</li>
+                <li>Drive sync: {vaultStatus.gdriveEnabled ? 'Enabled' : 'Disabled'}</li>
+              </ul>
+              <p style={{ fontSize: '0.7rem', color: 'var(--color-ink-500)' }}>
+                Configure vault path via <code>IE_OBSIDIAN_VAULT_PATH</code> env var or{' '}
+                <code>~/.elegy/obsidian-vault.json</code>
+              </p>
+            </div>
+          ) : (
+            <p style={{ fontSize: '0.8rem', color: 'var(--color-ink-500)' }}>Vault not configured.</p>
+          )}
+        </section>
+
+        {/* Google Drive Sync (via rclone) */}
+        <section>
+          <h4 className="workspace-notes-section-title">Google Drive Sync (via rclone)</h4>
+          {driveStatus ? (
+            <div style={{ fontSize: '0.8rem' }}>
+              <ul style={{ margin: '4px 0', paddingLeft: '16px' }}>
+                <li>Status: {driveStatus.configured ? 'Configured' : 'Not configured'}</li>
+                <li>rclone: {driveStatus.rcloneInstalled ? `✓ ${driveStatus.rclonePath}` : '✗ Not installed'}</li>
+                <li>Remote configured: {driveStatus.rcloneConfigured ? '✓' : '✗'}</li>
+                <li>Google Drive folder: {driveStatus.driveFolderExists ? '✓ Found' : 'Not yet created'}</li>
+                {driveStatus.authenticatedEmail && <li>Account: {driveStatus.authenticatedEmail}</li>}
+              </ul>
+              <div style={{ marginTop: '8px', padding: '8px', background: 'var(--bg-surface)', borderRadius: '4px', fontSize: '0.7rem' }}>
+                <strong>One-time setup (5 minutes):</strong>
+                <ol style={{ margin: '4px 0', paddingLeft: '16px' }}>
+                  <li>Install rclone: open a terminal and run <code>winget install rclone</code> (Windows) or <code>brew install rclone</code> (Mac)</li>
+                  <li>Run <code>rclone config</code> in your terminal</li>
+                  <li>Select <strong>n</strong> (new remote)</li>
+                  <li>Name: <strong>DevVault</strong></li>
+                  <li>Storage: select <strong>drive</strong> (Google Drive)</li>
+                  <li>Follow the browser auth — it opens automatically</li>
+                  <li>Accept defaults for remaining prompts</li>
+                  <li>Done! Then use Push/Pull from the Notes tab.</li>
+                </ol>
+              </div>
+            </div>
+          ) : (
+            <p style={{ fontSize: '0.8rem', color: 'var(--color-ink-500)' }}>Drive sync not configured. Enable gdrive.enabled in obsidian-vault.json.</p>
+          )}
+        </section>
+
         {/* Default Models */}
         <section>
           <h4 className="workspace-notes-section-title">Default Models</h4>
@@ -141,7 +205,7 @@ export default function NotesSettingsView() {
 
         {/* Git Backup / Sync */}
         <section>
-          <h4 className="workspace-notes-section-title">Git Backup & Sync</h4>
+          <h4 className="workspace-notes-section-title">Git Versioning (Vault)</h4>
           <div style={{ display: 'grid', gap: 'var(--space-sm)' }}>
             <div className="workspace-notes-popover-field">
               <label className="workspace-notes-popover-checkbox">
@@ -151,28 +215,19 @@ export default function NotesSettingsView() {
                   onChange={e => setGitEnabled(e.target.checked)}
                   data-testid="notes-setting-git-enabled"
                 />
-                Enable git sync
+                Enable git versioning (manual commits in vault)
               </label>
             </div>
 
             {gitEnabled && (
               <>
                 <div className="workspace-notes-editor-field">
-                  <label className="workspace-notes-editor-label">Repository URL</label>
-                  <input className="workspace-notes-editor-input" type="text" value={gitRepoUrl} onChange={e => setGitRepoUrl(e.target.value)} placeholder="git@github.com:user/notes-vault.git" data-testid="notes-setting-git-url" />
-                </div>
-                <div className="workspace-notes-editor-field">
-                  <label className="workspace-notes-editor-label">Branch</label>
-                  <input className="workspace-notes-editor-input" type="text" value={gitBranch} onChange={e => setGitBranch(e.target.value)} placeholder="main" data-testid="notes-setting-git-branch" />
-                </div>
-                <div className="workspace-notes-editor-field">
-                  <label className="workspace-notes-editor-label">Commit Author (name &lt;email&gt;)</label>
-                  <input className="workspace-notes-editor-input" type="text" value={gitAuthor} onChange={e => setGitAuthor(e.target.value)} placeholder="Elegy Copilot <noreply@example.com>" data-testid="notes-setting-git-author" />
+                  <label className="workspace-notes-editor-label">Author Name</label>
+                  <input className="workspace-notes-editor-input" type="text" value={gitAuthor} onChange={e => setGitAuthor(e.target.value)} placeholder="Your Name" data-testid="notes-setting-git-author" />
                 </div>
                 <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
                   <button className="button button-primary button-sm" onClick={() => void saveGitConfig()} data-testid="notes-setting-git-save">Save Git Config</button>
                 </div>
-                {syncStatus && <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-400)' }}>{syncStatus}</p>}
               </>
             )}
           </div>

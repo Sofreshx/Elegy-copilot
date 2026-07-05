@@ -5,6 +5,12 @@ const path = require('path');
 const os = require('os');
 const opencodeLogReader = require('./opencodeLogReader');
 const opencodeConfig = require('./opencodeConfig');
+let BetterSqlite3 = null;
+try {
+  BetterSqlite3 = require('better-sqlite3');
+} catch {
+  BetterSqlite3 = null;
+}
 
 const DEFAULT_EVENT_LIMIT = 200;
 const MAX_EVENT_LIMIT = 500;
@@ -97,6 +103,270 @@ function readCodexSessionCount(codexHome, options = {}) {
     return { count: sessions.length, sessions: sessions.slice(0, 20) };
   } catch {
     return { count: 0, sessions: [] };
+  }
+}
+
+function readJsonLines(filePath, options = {}) {
+  const fsImpl = options.fs || fs;
+  try {
+    if (!filePath || !fsImpl.existsSync(filePath)) return [];
+    return fsImpl.readFileSync(filePath, 'utf8')
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function getAny(obj, keys) {
+  for (const key of keys) {
+    if (obj && Object.prototype.hasOwnProperty.call(obj, key)) return obj[key];
+  }
+  return undefined;
+}
+
+function extractRolloutPayload(event) {
+  if (!event || typeof event !== 'object') return {};
+  const payload = event.payload || event.msg || event.event || event.item || event;
+  return payload && typeof payload === 'object' ? payload : {};
+}
+
+function extractRolloutType(event) {
+  return String(getAny(event, ['type', 'event_type', 'name']) || getAny(extractRolloutPayload(event), ['type', 'event_type', 'name']) || '');
+}
+
+function extractTokenUsage(payload) {
+  const usage = payload.last_token_usage || payload.total_token_usage || payload.usage || payload.token_usage || null;
+  if (!usage || typeof usage !== 'object') return null;
+  return {
+    inputTokens: asNumber(usage.input_tokens ?? usage.inputTokens, 0),
+    cachedInputTokens: asNumber(usage.cached_input_tokens ?? usage.cachedInputTokens, 0),
+    outputTokens: asNumber(usage.output_tokens ?? usage.outputTokens, 0),
+    reasoningOutputTokens: asNumber(usage.reasoning_output_tokens ?? usage.reasoningOutputTokens, 0),
+    totalTokens: asNumber(usage.total_tokens ?? usage.totalTokens, 0),
+  };
+}
+
+function summarizeRollout(rolloutPath, options = {}) {
+  const tools = new Map();
+  let toolEvents = 0;
+  let errors = 0;
+  let completed = false;
+  let tokens = {
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    outputTokens: 0,
+    reasoningOutputTokens: 0,
+    totalTokens: 0,
+  };
+
+  for (const event of readJsonLines(rolloutPath, options)) {
+    const type = extractRolloutType(event);
+    const payload = extractRolloutPayload(event);
+    if (type === 'token_count' || payload.last_token_usage || payload.total_token_usage) {
+      const usage = extractTokenUsage(payload);
+      if (usage) tokens = usage;
+    }
+    if (type === 'function_call' || type === 'tool_call') {
+      toolEvents += 1;
+      increment(tools, String(payload.name || payload.tool_name || payload.toolName || 'unknown'));
+    }
+    if (type === 'function_call_output' && /error|failed|denied/i.test(JSON.stringify(payload).slice(0, 500))) {
+      errors += 1;
+    }
+    if (type === 'task_complete' || type === 'completed') completed = true;
+  }
+
+  return {
+    tokens,
+    toolEvents,
+    errors,
+    completed,
+    topTools: toCountList(tools, 20),
+  };
+}
+
+function openReadonlySqlite(dbPath) {
+  if (!BetterSqlite3) return null;
+  try {
+    if (!fs.existsSync(dbPath)) return null;
+    return new BetterSqlite3(dbPath, { readonly: true, fileMustExist: true });
+  } catch {
+    return null;
+  }
+}
+
+function hasTable(db, tableName) {
+  try {
+    const row = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName);
+    return Boolean(row);
+  } catch {
+    return false;
+  }
+}
+
+function getTableColumns(db, tableName) {
+  try {
+    return new Set(db.prepare(`PRAGMA table_info(${tableName})`).all().map((row) => row.name));
+  } catch {
+    return new Set();
+  }
+}
+
+function buildCodexSubagentUsage(options = {}) {
+  const codexHome = options.codexHome || path.join(os.homedir(), '.codex');
+  const limit = clampLimit(options.limit);
+  const statePath = options.statePath || path.join(codexHome, 'state_5.sqlite');
+  const db = openReadonlySqlite(statePath);
+  if (!db) {
+    return {
+      generatedAt: new Date().toISOString(),
+      source: { kind: 'codex-state', path: statePath },
+      coverage: 'no-readable-state',
+      runs: [],
+      byAgent: [],
+      summary: {
+        runs: 0,
+        tokens: 0,
+        toolEvents: 0,
+        errors: 0,
+      },
+    };
+  }
+
+  try {
+    if (!hasTable(db, 'threads') || !hasTable(db, 'thread_spawn_edges')) {
+      return {
+        generatedAt: new Date().toISOString(),
+        source: { kind: 'codex-state', path: statePath },
+        coverage: 'unsupported-state-schema',
+        runs: [],
+        byAgent: [],
+        summary: { runs: 0, tokens: 0, toolEvents: 0, errors: 0 },
+      };
+    }
+
+    const columns = getTableColumns(db, 'threads');
+    const selectColumns = [
+      'id',
+      columns.has('agent_role') ? 'agent_role' : 'NULL AS agent_role',
+      columns.has('agent_nickname') ? 'agent_nickname' : 'NULL AS agent_nickname',
+      columns.has('model') ? 'model' : 'NULL AS model',
+      columns.has('reasoning_effort') ? 'reasoning_effort' : 'NULL AS reasoning_effort',
+      columns.has('sandbox_mode') ? 'sandbox_mode' : 'NULL AS sandbox_mode',
+      columns.has('rollout_path') ? 'rollout_path' : 'NULL AS rollout_path',
+      columns.has('tokens_used') ? 'tokens_used' : 'NULL AS tokens_used',
+      columns.has('created_at') ? 'created_at' : 'NULL AS created_at',
+      columns.has('updated_at') ? 'updated_at' : 'NULL AS updated_at',
+    ].join(', ');
+    const rows = db.prepare(`
+      SELECT e.parent_thread_id, e.child_thread_id, e.status AS edge_status, ${selectColumns}
+      FROM thread_spawn_edges e
+      JOIN threads t ON t.id = e.child_thread_id
+      ORDER BY COALESCE(t.updated_at, t.created_at, '') DESC
+      LIMIT ?
+    `).all(limit);
+
+    const byAgentMap = new Map();
+    const runs = rows.map((row) => {
+      const rollout = summarizeRollout(row.rollout_path, options);
+      const totalTokens = rollout.tokens.totalTokens || asNumber(row.tokens_used, 0);
+      const agentName = row.agent_role || 'unknown';
+      const run = {
+        parentThreadId: row.parent_thread_id,
+        threadId: row.child_thread_id,
+        status: row.edge_status || null,
+        agent: agentName,
+        nickname: row.agent_nickname || null,
+        model: row.model || null,
+        reasoningEffort: row.reasoning_effort || null,
+        sandboxMode: row.sandbox_mode || null,
+        rolloutPath: row.rollout_path || null,
+        createdAt: row.created_at || null,
+        updatedAt: row.updated_at || null,
+        tokens: {
+          ...rollout.tokens,
+          totalTokens,
+        },
+        toolEvents: rollout.toolEvents,
+        topTools: rollout.topTools,
+        errors: rollout.errors,
+        completed: rollout.completed,
+        flags: [],
+      };
+      if (run.toolEvents > 0 && run.toolEvents < 5) run.flags.push('low-tool-count');
+      if (run.errors > 0) run.flags.push('tool-errors');
+      if (!run.completed && run.status !== 'closed') run.flags.push('possibly-stale');
+
+      const aggregate = byAgentMap.get(agentName) || {
+        name: agentName,
+        count: 0,
+        tokens: 0,
+        toolEvents: 0,
+        errors: 0,
+        models: new Map(),
+        tools: new Map(),
+        topTools: [],
+      };
+      aggregate.count += 1;
+      aggregate.tokens += totalTokens;
+      aggregate.toolEvents += run.toolEvents;
+      aggregate.errors += run.errors;
+      increment(aggregate.models, run.model || 'unknown');
+      for (const tool of run.topTools) {
+        aggregate.tools.set(tool.name, (aggregate.tools.get(tool.name) || 0) + tool.count);
+      }
+      byAgentMap.set(agentName, aggregate);
+      return run;
+    });
+
+    const byAgent = Array.from(byAgentMap.values()).map((row) => ({
+      name: row.name,
+      count: row.count,
+      tokens: row.tokens,
+      toolEvents: row.toolEvents,
+      errors: row.errors,
+      topModels: toCountList(row.models),
+      topTools: toCountList(row.tools),
+    })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+    return {
+      generatedAt: new Date().toISOString(),
+      source: { kind: 'codex-state', path: statePath },
+      coverage: 'codex-state-plus-rollouts',
+      runs,
+      byAgent,
+      summary: {
+        runs: runs.length,
+        tokens: runs.reduce((sum, run) => sum + run.tokens.totalTokens, 0),
+        toolEvents: runs.reduce((sum, run) => sum + run.toolEvents, 0),
+        errors: runs.reduce((sum, run) => sum + run.errors, 0),
+      },
+    };
+  } catch (error) {
+    return {
+      generatedAt: new Date().toISOString(),
+      source: { kind: 'codex-state', path: statePath },
+      coverage: 'state-read-error',
+      error: error.message,
+      runs: [],
+      byAgent: [],
+      summary: { runs: 0, tokens: 0, toolEvents: 0, errors: 0 },
+    };
+  } finally {
+    try {
+      db.close();
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -285,8 +555,15 @@ function buildOpenCodeTelemetry(options = {}) {
 function buildCodexTelemetry(options = {}) {
   const codexHome = options.codexHome || path.join(os.homedir(), '.codex');
   const sessions = readCodexSessionCount(codexHome, options);
-  const logsPath = path.join(codexHome, 'logs_2.sqlite');
+  const logsPath = path.join(codexHome, 'state_5.sqlite');
   const logStat = safeStat(logsPath, options.fs || fs);
+  const subagents = buildCodexSubagentUsage({ ...options, codexHome, limit: options.limit || DEFAULT_EVENT_LIMIT });
+  const subagentTools = new Map();
+  for (const agent of subagents.byAgent || []) {
+    for (const tool of agent.topTools || []) {
+      subagentTools.set(tool.name, (subagentTools.get(tool.name) || 0) + tool.count);
+    }
+  }
   return {
     id: 'codex',
     label: 'Codex',
@@ -295,7 +572,7 @@ function buildCodexTelemetry(options = {}) {
       path: path.join(codexHome, 'session_index.jsonl'),
       logsPath,
     },
-    coverage: logStat && logStat.isFile() ? 'session-index-plus-unparsed-sqlite' : 'session-index-only',
+    coverage: logStat && logStat.isFile() ? subagents.coverage : 'session-index-only',
     sample: {
       limit: clampLimit(options.limit),
       logFiles: logStat && logStat.isFile() ? 1 : 0,
@@ -305,25 +582,35 @@ function buildCodexTelemetry(options = {}) {
     summary: {
       requests: null,
       sampledRequests: null,
-      errors: 0,
-      toolEvents: 0,
+      errors: subagents.summary.errors,
+      toolEvents: subagents.summary.toolEvents,
       sessions: sessions.count,
     },
     providerUsage: {
       providers: [],
       topModels: [],
-      topAgents: [],
+      topAgents: subagents.byAgent.map((agent) => ({ name: agent.name, count: agent.count })),
     },
-    topTools: [],
+    topTools: toCountList(subagentTools),
     errorsByType: [],
     recentErrors: [],
-    recentEvents: sessions.sessions.map((session) => ({
+    recentEvents: [
+      ...subagents.runs.map((run) => ({
+        timestamp: run.updatedAt || run.createdAt || '',
+        type: 'subagent',
+        source: 'state_5.sqlite',
+        label: run.agent,
+        message: `${run.model || 'unknown'} · ${run.tokens.totalTokens} tokens · ${run.toolEvents} tools`,
+      })),
+      ...sessions.sessions.map((session) => ({
       timestamp: session.updatedAt || '',
       type: 'session',
       source: 'session_index.jsonl',
       label: session.name || session.id,
       message: session.id,
-    })),
+      })),
+    ].slice(0, clampLimit(options.limit)),
+    subagents,
   };
 }
 
@@ -341,6 +628,7 @@ module.exports = {
   buildHarnessTelemetry,
   buildOpenCodeTelemetry,
   buildCodexTelemetry,
+  buildCodexSubagentUsage,
   extractToolName,
   normalizeErrorType,
   _testing: {
