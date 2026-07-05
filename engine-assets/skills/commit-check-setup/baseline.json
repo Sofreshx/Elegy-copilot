@@ -5,12 +5,13 @@
   "mode": "executable",
   "requiredScripts": [
     "scripts/commit-check-discover.mjs",
+    "scripts/commit-check-defaults.mjs",
     "scripts/commit-check-setup.mjs",
     "scripts/commit-check-run.mjs"
   ],
   "requiredConfig": ".copilot/commit-checks.json",
   "optionalNpmScript": "commit-check",
-  "configSchemaVersion": 1,
+  "configSchemaVersion": 3,
   "authority": {
     "canonicalDocKey": "commit-validation-governance",
     "setupSubNodeKey": "commit-check-setup",

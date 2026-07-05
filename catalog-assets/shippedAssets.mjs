@@ -78,6 +78,7 @@ export const SHIPPED_ASSETS = [
   instructions('codex-global-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {
     appendix: 'codex-assets/home/AGENTS-appendix.md',
   }),
+  agent('codex-explorer-agent', 'codex-assets/agents/explorer.toml'),
   agent('codex-reviewer-agent', 'codex-assets/agents/reviewer.toml'),
   agent('codex-sweeper-agent', 'codex-assets/agents/sweeper.toml'),
   skill('codex-repo-setup-skill', 'codex-assets/skills/repo-setup'),

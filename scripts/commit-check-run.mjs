@@ -3,8 +3,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import {
+  COMMIT_CHECK_CONFIG_SCHEMA_VERSION,
+  DEFAULT_COMMIT_CHECK_CONFIG,
+  normalizeCommitCheckConfig,
+  validateCommitCheckConfig,
+} from './commit-check-defaults.mjs';
 
-const SCHEMA_VERSION = 3;
 const DEFAULT_CONFIG_NAME = '.copilot/commit-checks.json';
 
 function die(message, code = 1) {
@@ -31,34 +36,23 @@ function resolveConfig(configPath, repoRoot = process.cwd()) {
     }
     const cfg = readJson(configPath);
     if (!cfg) die(`Invalid config file: ${configPath}`);
-    return cfg;
+    return normalizeCommitCheckConfig(cfg);
   }
 
   const cwdDefault = path.join(repoRoot, DEFAULT_CONFIG_NAME);
   if (exists(cwdDefault)) {
     const cfg = readJson(cwdDefault);
-    if (cfg) return cfg;
+    if (cfg) return normalizeCommitCheckConfig(cfg);
   }
 
   const explicit = path.join(repoRoot, '.copilot', 'commit-checks.json');
   if (exists(explicit)) {
     const cfg = readJson(explicit);
-    if (cfg) return cfg;
+    if (cfg) return normalizeCommitCheckConfig(cfg);
   }
 
   die(`No commit-checks.json found. Run commit-check-setup.mjs first, or pass --config <path>`);
 }
-
-const SHIPPED_DEFAULTS = {
-  threshold: 70,
-  weights: {
-    test: 0.40,
-    coverage: 0.30,
-    lint: 0.15,
-    format: 0.15,
-  },
-  gates: ['typecheck'],
-};
 
 function runCommand(command, cwd, timeoutMs = 120000) {
   const result = spawnSync(command, [], {
@@ -136,10 +130,17 @@ function parseLaneSummary(name, result) {
 }
 
 export function runChecks(config, repoRoot, options = {}) {
-  const { profile, selectedLanes, selectedGroup, skipLanes = new Map() } = options;
-  const threshold = config.threshold ?? SHIPPED_DEFAULTS.threshold;
-  const weights = config.weights ?? SHIPPED_DEFAULTS.weights;
-  const gates = config.gates ?? SHIPPED_DEFAULTS.gates;
+  config = normalizeCommitCheckConfig(config);
+  const validation = validateCommitCheckConfig(config);
+  if (!validation.valid) {
+    die(`Invalid commit-check config: ${validation.errors.join('; ')}`, 2);
+  }
+
+  const { selectedLanes, selectedGroup, skipLanes = new Map(), runAll = false } = options;
+  const profile = options.profile || DEFAULT_COMMIT_CHECK_CONFIG.defaultProfile;
+  const threshold = config.threshold ?? DEFAULT_COMMIT_CHECK_CONFIG.threshold;
+  const weights = config.weights ?? DEFAULT_COMMIT_CHECK_CONFIG.weights;
+  const gates = config.gates ?? DEFAULT_COMMIT_CHECK_CONFIG.gates;
   const lanes = config.lanes ?? {};
   const groups = config.groups ?? {};
 
@@ -157,7 +158,7 @@ export function runChecks(config, repoRoot, options = {}) {
   }
 
   // Apply profile filter
-  if (profile) {
+  if (profile && !runAll) {
     laneNames = laneNames.filter(name => {
       const lane = lanes[name];
       return lane.defaultProfiles && lane.defaultProfiles.includes(profile);
@@ -206,8 +207,7 @@ export function runChecks(config, repoRoot, options = {}) {
     const lane = lanes[name];
     const commands = lane.commands || [];
     const isGate = gates.includes(name);
-    // Lane is blocking unless explicitly set to false (backward compatible with v1 configs)
-    const isBlocking = lane.blocking !== false;
+    const isBlocking = lane.blocking !== false || isGate;
 
     logs.push({
       timestamp: new Date().toISOString(),
@@ -294,10 +294,16 @@ export function runChecks(config, repoRoot, options = {}) {
       })),
       details,
       group: lane.group ?? null,
-      blocking: lane.blocking ?? true,
+      blocking: isBlocking,
       ciWorkflow: lane.ciWorkflow ?? null,
       ciJob: lane.ciJob ?? null,
       ciRequired: lane.ciRequired ?? false,
+      required: lane.required !== false,
+      skippable: lane.skippable === true,
+      requiresReasonOnSkip: lane.requiresReasonOnSkip !== false,
+      cost: lane.cost || 'fast',
+      opensWindow: lane.opensWindow === true,
+      defaultProfiles: Array.isArray(lane.defaultProfiles) ? lane.defaultProfiles : [],
       ...(name === 'coverage' && Object.keys(coverageMetrics).length > 0 ? { coverage: coverageMetrics } : {}),
     };
 
@@ -310,7 +316,7 @@ export function runChecks(config, repoRoot, options = {}) {
       durationMs: laneResults.reduce((sum, r) => sum + (r.durationMs || 0), 0),
     });
 
-    if (lane.required !== false && !lanePassed) {
+    if (isBlocking && !lanePassed) {
       requiredFailures.push(name);
     }
   }
@@ -333,7 +339,8 @@ export function runChecks(config, repoRoot, options = {}) {
 
   const compositeScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : null;
   const passesThreshold = compositeScore != null && compositeScore >= threshold;
-  const overallPass = passesThreshold && !anyGateFailed;
+  const blockingFailures = requiredFailures;
+  const overallPass = blockingFailures.length === 0 && !anyGateFailed;
 
   const groupResults = {};
   for (const [name, result] of Object.entries(results)) {
@@ -356,13 +363,15 @@ export function runChecks(config, repoRoot, options = {}) {
     overrideReasons,
     logs,
     events: logs,
-    schemaVersion: SCHEMA_VERSION,
+    schemaVersion: COMMIT_CHECK_CONFIG_SCHEMA_VERSION,
     timestamp: new Date().toISOString(),
     repoRoot,
     threshold,
     compositeScore,
+    passesThreshold,
     overallPass,
     anyGateFailed,
+    blockingFailures,
     groups,
     groupResults,
     scoreBreakdown,
@@ -387,6 +396,7 @@ Options:
   --repo <path>       Repo root directory (default: cwd)
   --json              Output results as JSON
   --profile <name>    Select profile (e.g. commit, ci-local, release)
+  --all               Run every enabled lane instead of the default commit profile
   --lane <name>       Run only a specific named lane
   --group <name>      Run only lanes in a specific group
   --skip <name>       Skip a lane (can be repeated, e.g. --skip lint --skip test)
@@ -403,6 +413,7 @@ function main() {
   let profile = null;
   let selectedLanes = null;
   let selectedGroup = null;
+  let runAll = false;
   const skipLanes = new Map();
   let pendingReason = null;
 
@@ -416,6 +427,8 @@ function main() {
       repoRoot = path.resolve(args[++i]);
     } else if (args[i] === '--json') {
       jsonOutput = true;
+    } else if (args[i] === '--all') {
+      runAll = true;
     } else if (args[i] === '--profile' && i + 1 < args.length) {
       profile = args[++i];
     } else if (args[i] === '--lane' && i + 1 < args.length) {
@@ -444,6 +457,7 @@ function main() {
     selectedLanes,
     selectedGroup,
     skipLanes,
+    runAll,
   });
 
   if (jsonOutput) {

@@ -6,18 +6,18 @@ license: Apache-2.0
 metadata: {"source":"https://github.com/mattpocock/skills","adapted":true,"originalName":"writing-great-skills","notes":"GLOSSARY.md ref removed, terms inlined"}
 ---
 
-A skill exists to wrangle determinism out of a stochastic system. **Predictability** — the agent taking the same *process* every run, not producing the same output — is the root virtue; every lever below serves it.
+A skill should make the agent choose the same process for the same kind of task. Every rule below supports that goal.
 
 ## Invocation
 
-Two choices, trading different costs:
+Use one invocation mode:
 
-- A **model-invoked** skill keeps a **description**, so the agent can fire it autonomously *and* other skills can reach it (you can still type its name too). It contributes to **context load** — the description sits in the window every turn. Mechanics: omit `disable-model-invocation`, and write a model-facing description with rich trigger phrasing ("Use when the user wants…, mentions…").
-- A **user-invoked** skill strips the description from the agent's reach: only you, typing its name, can invoke it — and no other skill can. Zero context load, but it spends **cognitive load**: *you* are the index that must remember it exists. Mechanics: set `disable-model-invocation: true`; the `description` becomes human-facing — a one-line summary, trigger lists stripped.
+- A **model-invoked** skill keeps a **description**, so the agent can load it automatically and other skills can route to it. Mechanics: omit `disable-model-invocation`, and write a model-facing description with clear trigger phrasing.
+- A **user-invoked** skill is loaded only when the user names it. Mechanics: set `disable-model-invocation: true`; keep the `description` human-facing and short.
 
 Pick model-invocation only when the agent must reach the skill on its own, or another skill must. If it only ever fires by hand, make it user-invoked and pay no context load.
 
-When user-invoked skills multiply past what you can remember, that piled-up cognitive load is cured by a **router skill**: one user-invoked skill that names the others and when to reach for each.
+When user-invoked skills become hard to remember, add a **router skill**: one user-invoked skill that names the others and when to use each.
 
 ## Writing the description
 
@@ -58,18 +58,18 @@ Check every line for **relevance**: does it still bear on what the skill does?
 
 Then hunt **no-ops** sentence by sentence, not just line by line: run the no-op test on each sentence in isolation, and when one fails, delete the whole sentence rather than trim words from it. Be aggressive — most prose that fails should go, not be rewritten.
 
-## Leading words
+## Stable terms
 
-A **leading word** is a compact concept already living in the model's pretraining that the agent thinks with while running the skill (e.g. *lesson*, *fog of war*, *tracer bullets*). Repeated throughout the text (though not necessarily — a strong leading word might only be needed once), it accumulates a distributed definition and anchors a whole region of behaviour in the fewest tokens, by recruiting priors the model already holds.
+A **stable term** is a short named concept used consistently across a skill, prompt, and related docs.
 
-It serves predictability twice. In the body it anchors *execution*: the agent reaches for the same behaviour every time the word appears. In the description it anchors *invocation*: when the same word lives in your prompts, docs, and code, the agent links that shared language to the skill and fires it more reliably.
+It helps in two places. In the body, it names the behavior the agent should repeat. In the description, it gives routing language that can match user prompts and related docs.
 
-Hunt for opportunities to refactor skills to use leading words. A triad spelled out at three sites (**duplication**), a description spending a sentence to gesture at one idea — each is a passage begging to **collapse** into a single token. Examples include:
+Look for repeated phrases that should become one stable term. Examples:
 
-- "fast, deterministic, low-overhead" → *tight* — one quality restated across a phase — into a single pretrained word (a *tight* loop).
+- "fast, deterministic, low-overhead" -> *tight* — one named quality reused across a phase.
 - "a loop you believe in" → *red* — converts a fuzzy gate into a binary observable state (the loop goes *red* on the bug, or it doesn't).
 
-You win twice over: fewer tokens, *and* a sharper hook for the agent to hang its thinking on. Assume every skill is carrying restatements that leading words retire — go find them.
+Use stable terms only when they remove repeated wording or make a decision point clearer.
 
 ## Failure modes
 

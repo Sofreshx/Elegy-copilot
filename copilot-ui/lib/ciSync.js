@@ -210,7 +210,7 @@ function discoverCiWorkflows(repoRoot) {
  *
  * @param {{ workflows: Array }} ciWorkflows - result from discoverCiWorkflows
  * @param {Object|null} commitCheckConfig - parsed commit-checks.json
- * @returns {{ mappings: Array<{workflowFile: string, jobName: string, required: boolean, localLane: string|null, status: string}>, summary: {totalCiJobs: number, mapped: number, gaps: number, readiness: string} }}
+ * @returns {{ mappings: Array<{workflowFile: string, jobName: string, required: boolean, localLane: string|null, status: string}>, summary: {totalCiJobs: number, mapped: number, remoteOnly: number, gaps: number, readiness: string} }}
  */
 function mapCiToLocal(ciWorkflows, commitCheckConfig) {
   // Collect real (non-gate) jobs from PR-relevant workflows
@@ -232,6 +232,14 @@ function mapCiToLocal(ciWorkflows, commitCheckConfig) {
   }
 
   const lanes = (commitCheckConfig && commitCheckConfig.lanes) ? commitCheckConfig.lanes : {};
+  const remoteOnlyJobs = new Map();
+  for (const entry of Array.isArray(commitCheckConfig?.ciRemoteOnly) ? commitCheckConfig.ciRemoteOnly : []) {
+    const workflowFile = String(entry?.workflow || entry?.workflowFile || '').trim();
+    const jobName = String(entry?.job || entry?.jobName || '').trim();
+    if (workflowFile && jobName) {
+      remoteOnlyJobs.set(`${workflowFile}/${jobName}`, entry);
+    }
+  }
 
   const mappings = prRelevantJobs.map((ciJob) => {
     // Find ALL matching lanes by ciWorkflow + ciJob (multiple lanes can map to one CI job)
@@ -241,18 +249,21 @@ function mapCiToLocal(ciWorkflows, commitCheckConfig) {
         matchingLanes.push(laneName);
       }
     }
+    const remoteOnly = remoteOnlyJobs.get(`${ciJob.workflowFile}/${ciJob.jobName}`);
 
     return {
       workflowFile: ciJob.workflowFile,
       jobName: ciJob.jobName,
       required: ciJob.required,
       localLanes: matchingLanes,
-      status: matchingLanes.length > 0 ? 'mapped' : 'ci-gap',
+      status: matchingLanes.length > 0 ? 'mapped' : remoteOnly ? 'remote-only' : 'ci-gap',
+      remoteOnlyReason: remoteOnly?.reason || null,
     };
   });
 
   const totalCiJobs = mappings.length;
   const mapped = mappings.filter((m) => m.status === 'mapped').length;
+  const remoteOnly = mappings.filter((m) => m.status === 'remote-only').length;
   const gaps = mappings.filter((m) => m.status === 'ci-gap').length;
 
   let readiness = 'no-ci';
@@ -261,7 +272,7 @@ function mapCiToLocal(ciWorkflows, commitCheckConfig) {
 
   return {
     mappings,
-    summary: { totalCiJobs, mapped, gaps, readiness },
+    summary: { totalCiJobs, mapped, remoteOnly, gaps, readiness },
   };
 }
 

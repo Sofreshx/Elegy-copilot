@@ -1,13 +1,18 @@
 {
   "schemaVersion": 1,
+  "configSchemaVersion": 3,
   "defaults": {
     "threshold": 70,
     "weights": {
-      "test": 0.40,
-      "coverage": 0.30,
-      "lint": 0.15,
-      "format": 0.15
+      "test": 0.30,
+      "lint": 0.20,
+      "format": 0.10,
+      "stylelint": 0.05,
+      "typecheck": 0.25,
+      "build-contracts": 0.05,
+      "build-ui": 0.05
     },
-    "gates": ["typecheck"]
+    "gates": [],
+    "defaultProfile": "commit"
   }
 }

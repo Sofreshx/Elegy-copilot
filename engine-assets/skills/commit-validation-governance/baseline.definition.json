@@ -6,19 +6,27 @@
   "authority": {
     "canonicalDocPath": "docs/system/commit-validation-governance.md",
     "definitionPath": "engine-assets/skills/commit-validation-governance/baseline.definition.json",
-    "projectionPath": "engine-assets/skills/commit-validation-governance/baseline.json"
+    "projectionPath": "engine-assets/skills/commit-validation-governance/baseline.json",
+    "configSchemaPath": "engine-assets/skills/commit-validation-governance/config.schema.json"
   },
+  "configSchemaVersion": 3,
+  "defaultProfile": "commit",
+  "passFailAuthority": "selected blocking lanes",
+  "scoreRole": "diagnostic",
   "normativeLaneSet": {
     "required": ["test", "lint", "format", "typecheck"],
     "recommended": ["coverage"]
   },
   "defaultWeights": {
-    "test": 0.40,
-    "coverage": 0.30,
-    "lint": 0.15,
-    "format": 0.15
+    "test": 0.30,
+    "lint": 0.20,
+    "format": 0.10,
+    "stylelint": 0.05,
+    "typecheck": 0.25,
+    "build-contracts": 0.05,
+    "build-ui": 0.05
   },
-  "defaultGates": ["typecheck"],
+  "defaultGates": [],
   "defaultThreshold": 70,
   "detectableLanguages": ["typescript", "rust"],
   "detectionRules": {

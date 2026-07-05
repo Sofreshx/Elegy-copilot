@@ -180,6 +180,7 @@ export const COMPATIBILITY_MANIFESTS = [
     governance: SHARED_G05_GOVERNANCE,
     assetRoutes: [
       route('codex-global-instructions', { destination: 'AGENTS.md' }),
+      route('codex-explorer-agent'),
       route('codex-reviewer-agent'),
       route('codex-sweeper-agent'),
       route('codex-repo-setup-skill'),

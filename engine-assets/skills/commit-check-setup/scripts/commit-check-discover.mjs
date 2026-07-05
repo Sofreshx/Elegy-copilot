@@ -3,8 +3,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-
-const SCHEMA_VERSION = 1;
+import {
+  COMMIT_CHECK_CONFIG_SCHEMA_VERSION,
+  COMMIT_CHECK_DISCOVERY_SCHEMA_VERSION,
+} from './commit-check-defaults.mjs';
 
 function die(message, code = 1) {
   console.error(message);
@@ -433,7 +435,7 @@ function detectExistingConfig(repoRoot) {
   const configPath = path.join(repoRoot, '.copilot', 'commit-checks.json');
   if (exists(configPath)) {
     const config = readJson(configPath);
-    if (config && Number(config.schemaVersion) >= SCHEMA_VERSION) {
+    if (config && Number(config.schemaVersion) === COMMIT_CHECK_CONFIG_SCHEMA_VERSION) {
       return { exists: true, valid: true, path: configPath, config };
     }
     return { exists: true, valid: false, path: configPath, config: null };
@@ -473,7 +475,8 @@ export function discover(repoRoot) {
   if (rustLanes.found) languages.push('rust');
 
   return {
-    schemaVersion: SCHEMA_VERSION,
+    schemaVersion: COMMIT_CHECK_DISCOVERY_SCHEMA_VERSION,
+    configSchemaVersion: COMMIT_CHECK_CONFIG_SCHEMA_VERSION,
     repoRoot,
     languages,
     environment: env.probes,

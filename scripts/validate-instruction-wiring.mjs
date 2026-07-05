@@ -21,6 +21,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { analyzeInstructionQuality } from './validate-instruction-quality.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -361,6 +362,24 @@ function checkAppendixSkillMentions(repoRoot) {
   return results;
 }
 
+/** Check shipped instruction-like assets for vague, bloated, or pseudo-theory prompt content. */
+function checkInstructionQuality(repoRoot) {
+  const result = analyzeInstructionQuality(repoRoot);
+  if (result.diagnostics.length === 0) {
+    return [{
+      id: 'instruction-quality',
+      status: 'ok',
+      detail: `Scanned ${result.assets.length} instruction assets`,
+    }];
+  }
+
+  return result.diagnostics.map((diagnostic, index) => ({
+    id: `instruction-quality-${index + 1}-${diagnostic.id}`,
+    status: 'violation',
+    detail: `${diagnostic.file}${diagnostic.line ? `:${diagnostic.line}` : ''}: ${diagnostic.detail}`,
+  }));
+}
+
 function main() {
   const useJson = process.argv.includes('--json');
   const repoRoot = findRepoRoot(__dirname);
@@ -382,6 +401,7 @@ function main() {
     ...checkManifestSkillEntries(repoRoot),
     ...checkNoLegacyGuidelinesRefs(repoRoot),
     ...checkAppendixSkillMentions(repoRoot),
+    ...checkInstructionQuality(repoRoot),
   ];
 
   const hasFail = checks.some(c => c.status !== 'ok');

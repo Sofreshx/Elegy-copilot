@@ -24,7 +24,12 @@ function runCanonicalChecks(repoRoot, config, options) {
     const args = ['--json', '--repo', repoRoot];
     if (options) {
       if (options.profile) args.push('--profile', options.profile);
-      if (options.selectedLanes) args.push('--lane', options.selectedLanes);
+      if (options.runAll) args.push('--all');
+      if (options.selectedLanes) {
+        for (const lane of normalizeSelectedLanes(options.selectedLanes) || []) {
+          args.push('--lane', lane);
+        }
+      }
       if (options.selectedGroup) args.push('--group', options.selectedGroup);
       if (options.skipLanes && options.skipLanes.size > 0) {
         for (const [lane, reason] of options.skipLanes) {
@@ -98,10 +103,9 @@ function runCanonicalChecks(repoRoot, config, options) {
         };
       });
 
-      const failed = parsed.overallPass === false
-        ? results.filter((r) => !r.passed).length
-        : 0;
+      const failed = results.filter((r) => !r.passed).length;
       const passed = results.length - failed;
+      const overallPass = parsed.overallPass !== false;
 
       resolve({
         repoRoot,
@@ -114,7 +118,10 @@ function runCanonicalChecks(repoRoot, config, options) {
         checksRun: results.length,
         checksPassed: passed,
         checksFailed: failed,
-        allPassed: parsed.overallPass !== false,
+        allPassed: overallPass,
+        gatePassed: overallPass,
+        passesThreshold: parsed.passesThreshold === true,
+        blockingFailures: parsed.blockingFailures || parsed.requiredFailures || [],
         groups: parsed.groups || {},
         groupResults: parsed.groupResults || {},
         profile: parsed.profile || (options ? options.profile : null) || null,
@@ -124,8 +131,10 @@ function runCanonicalChecks(repoRoot, config, options) {
         logs: parsed.logs || [],
         errorOutput: parsed.errorOutput || null,
         results,
-        message: failed === 0
+        message: overallPass && failed === 0
           ? `All ${passed} lanes passed (score: ${parsed.compositeScore ?? 'N/A'}).`
+          : overallPass
+            ? `Blocking lanes passed; ${failed} advisory lane(s) failed.`
           : `${failed} of ${results.length} lanes failed.`,
       });
     });
@@ -141,11 +150,12 @@ function normalizeSelectedLanes(selectedLanes) {
 function resolveCanonicalRunTimeout(config, options = {}) {
   const lanes = config?.lanes && typeof config.lanes === 'object' ? config.lanes : {};
   let laneNames = Object.keys(lanes).filter((name) => lanes[name]?.enabled !== false);
+  const profile = options.runAll ? null : (options.profile || 'commit');
 
-  if (options.profile) {
+  if (profile) {
     laneNames = laneNames.filter((name) => {
       const profiles = lanes[name]?.defaultProfiles;
-      return Array.isArray(profiles) && profiles.includes(options.profile);
+      return Array.isArray(profiles) && profiles.includes(profile);
     });
   }
 
@@ -441,6 +451,7 @@ async function gateGitAction(repoRoot, action, unsafeOverride, profile, branchNa
         groupResults: freshness.lastRun.groupResults || {},
         profile: freshness.lastRun.profile || null,
         requiredFailures: freshness.lastRun.requiredFailures || [],
+        blockingFailures: freshness.lastRun.blockingFailures || freshness.lastRun.requiredFailures || [],
         skippedLanes: freshness.lastRun.skippedLanes || {},
         overrideReasons: freshness.lastRun.overrideReasons || {},
         logs: freshness.lastRun.logs || [],

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "configSchemaVersion": 3,
+  "requiredTopLevel": ["schemaVersion", "lanes"],
+  "laneContract": {
+    "commands": "array",
+    "blocking": "boolean",
+    "required": "boolean",
+    "skippable": "boolean",
+    "requiresReasonOnSkip": "boolean",
+    "defaultProfiles": "array",
+    "cost": "fast|medium|heavy",
+    "opensWindow": "boolean"
+  },
+  "passFailAuthority": "selected blocking lanes",
+  "scoreRole": "diagnostic"
+}

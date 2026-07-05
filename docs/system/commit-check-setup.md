@@ -18,7 +18,7 @@ Define the contract for the executable `commit-check-setup` skill that bootstrap
 
 ## Authority
 
-This doc is a sub-node under `commit-validation-governance`. The 3-script contract, config format, and scoring algorithm are defined there — this doc covers only the setup/update workflow.
+This doc is a sub-node under `commit-validation-governance`. The repo-local script contract, config format, and pass/fail algorithm are defined there — this doc covers only the setup/update workflow.
 
 ## Modes
 
@@ -29,7 +29,7 @@ This doc is a sub-node under `commit-validation-governance`. The 3-script contra
 
 ## Script Source and Copy Contract
 
-Source scripts are bundled inside the skill directory at `scripts/commit-check-{discover,setup,run}.mjs`.
+Source scripts are bundled inside the skill directory at `scripts/commit-check-{defaults,discover,setup,run}.mjs`.
 
 Copy rules:
 - Byte-for-byte copy from skill's bundled `scripts/` dir, no modification during transfer
@@ -66,7 +66,7 @@ Expected: exit 0 with valid JSON containing `overallPass` field. Report `composi
 
 ## Acceptance Checks
 
-- [ ] All three scripts exist in target after bootstrap
+- [ ] All four scripts exist in target after bootstrap
 - [ ] `.copilot/commit-checks.json` is valid JSON, `schemaVersion: 3`
 - [ ] `commit-check-run.mjs --json` exits 0 after bootstrap
 - [ ] Update merges new lanes without overwriting user customizations

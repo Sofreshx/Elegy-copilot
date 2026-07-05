@@ -21,6 +21,7 @@ Evaluate a target repo's commit-validation setup and propose the smallest missin
 - authoritative machine-readable baseline source: `engine-assets/skills/commit-validation-governance/baseline.definition.json`
 - runtime projection: `engine-assets/skills/commit-validation-governance/baseline.json`
 - default weights: `engine-assets/skills/commit-validation-governance/default-weights.json`
+- config schema summary: `engine-assets/skills/commit-validation-governance/config.schema.json`
 
 ## Modes
 
@@ -30,7 +31,7 @@ Evaluate a target repo's commit-validation setup and propose the smallest missin
 2. Run `node scripts/commit-check-discover.mjs <root>` to scan the repo.
 3. Compare observed lanes against `baseline.json` normative set.
 4. Classify findings as `found`, `missing`, `partial`, or `unknown`.
-5. Report what the composite score would be if the configured lanes ran now (estimated).
+5. Report blocking-lane readiness and the diagnostic composite score if the configured lanes ran now (estimated).
 6. Stop at findings.
 
 ### Propose

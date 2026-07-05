@@ -16,8 +16,13 @@
     "build-contracts": 0.05,
     "build-ui": 0.05
   },
-  "gates": [
-    "typecheck"
+  "gates": [],
+  "ciRemoteOnly": [
+    {
+      "workflow": "repo-ci.yml",
+      "job": "desktop-tauri-preview",
+      "reason": "Windows Tauri desktop preview is a required GitHub Actions job and is not part of the default local commit or ci-local profile."
+    }
   ],
   "profiles": {
     "commit": {

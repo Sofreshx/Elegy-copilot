@@ -14,24 +14,33 @@ related: [testing-quality-governance, validation-governance, repo-setup-governan
 
 ## Purpose
 
-Define the canonical contract for commit-validation tooling: a set of three CLI scripts (`commit-check-discover`, `commit-check-setup`, `commit-check-run`) and a shipped skill that audits/proposes commit-validation setup for target repos. The goal is a single umbrella command per repo that proves the repo is safe to commit, without running heavy integration or E2E suites.
+Define the canonical contract for commit-validation tooling: self-contained repo-local CLI scripts (`commit-check-discover`, `commit-check-setup`, `commit-check-run`, and shared defaults) plus shipped governance/setup skills. The goal is a single umbrella command per repo that proves the selected local gate is safe to commit, without running heavy integration or E2E suites by default.
 
 This doc owns the narrow **commit / merge gate** portion of the check taxonomy. See
 `docs/system/check-taxonomy-governance.md` for the broader class/determinism/gate-strength model.
 
 ## What It Covers
 
-| Lane | Purpose | Default weight | Scoring |
+| Lane | Purpose | Default weight | Gate |
 |------|---------|----------------|---------|
-| `test` | Unit tests pass | 0.40 | 100 if exit 0, else 0 |
-| `coverage` | Test coverage thresholds | 0.30 | `lines*0.5 + branches*0.3 + functions*0.2`, capped 0–100 |
-| `lint` | Static analysis passes | 0.15 | 100 if exit 0, else 0 |
-| `format` | Code formatting check | 0.15 | 100 if exit 0, else 0 |
-| `typecheck` | Type-check gates | 0.00 (gate) | Not scored; FAIL forces overall failure |
+| `test` | Unit tests pass | 0.30 | Blocking in `commit` / `ci-local` when configured |
+| `lint` | Static analysis passes | 0.20 | Blocking in `commit` / `ci-local` when configured |
+| `format` | Code formatting check | 0.10 | Blocking in `commit` / `ci-local` when configured |
+| `typecheck` | Type-check gates | 0.25 | Blocking in `commit` / `ci-local` when configured |
+| `coverage` | Test coverage thresholds | optional | Advisory by default |
 
-## Three-Script Contract
+## Repo-Local Script Contract
 
-### 1. `scripts/commit-check-discover.mjs [repo-root]`
+### 1. `scripts/commit-check-defaults.mjs`
+
+Shared runtime defaults and config validation for the repo-local scripts. Owns:
+
+- config schema version: `3`
+- discovery schema version: `1`
+- default profile: `commit`
+- default profiles, groups, weights, lane metadata, and lane normalization
+
+### 2. `scripts/commit-check-discover.mjs [repo-root]`
 
 Read-only scan of a workspace root. Defaults to `cwd()` if no path is given. Detects:
 
@@ -39,9 +48,9 @@ Read-only scan of a workspace root. Defaults to `cwd()` if no path is given. Det
 - **Rust**: `Cargo.toml` workspace members, cargo test, cargo clippy, cargo fmt, cargo check, coverage tools (cargo llvm-cov, cargo tarpaulin)
 - **Existing config**: whether `.copilot/commit-checks.json` already exists
 
-Output: JSON to stdout with schema version, lane detection results, and commands.
+Output: JSON to stdout with discovery `schemaVersion`, `configSchemaVersion`, lane detection results, and commands.
 
-### 2. `scripts/commit-check-setup.mjs [repo-root] [--force] [--no-script]`
+### 3. `scripts/commit-check-setup.mjs [repo-root] [--force] [--no-script]`
 
 Generates or merges `.copilot/commit-checks.json`. Reads discovery output, writes a deterministic config with detected commands and shipped default weights.
 
@@ -49,14 +58,14 @@ Optional `--force` overwrites an existing config instead of merging. Optional `-
 
 If a root `package.json` exists and the name `commit-check` is free in its `scripts` field, the script adds `"commit-check": "node scripts/commit-check-run.mjs"`.
 
-### 3. `scripts/commit-check-run.mjs [repo-root] [--config path] [--repo path] [--json]`
+### 4. `scripts/commit-check-run.mjs [repo-root] [--config path] [--repo path] [--json]`
 
 Reads `.copilot/commit-checks.json` (or `--config` override), runs all enabled lanes, computes composite score, and exits:
 
-- exit 0 if score >= threshold and no hard gates failed
+- exit 0 if every selected blocking lane passes
 - exit 1 otherwise
 
-With `--json`, outputs full result JSON to stdout. The `<repo-root>` positional arg and `--repo` are equivalent; both default to `cwd()`.
+With `--json`, outputs full result JSON to stdout. The `<repo-root>` positional arg and `--repo` are equivalent; both default to `cwd()`. Without `--profile`, the runner uses the `commit` profile. Use `--all` to run every enabled lane.
 
 ## Scoring Algorithm
 
@@ -77,12 +86,15 @@ Missing or disabled lanes are excluded from both numerator and denominator.
 | `coverage` | `linePct*0.5 + branchPct*0.3 + functionPct*0.2`, clamped to [0, 100] |
 | `lint` | 100 if exit code 0, 0 otherwise |
 | `format` | 100 if exit code 0, 0 otherwise |
-| `typecheck` | Informational gate; not scored. If exit code != 0, overall result is FAIL regardless of composite. |
+| `typecheck` | 100 if exit 0, 0 otherwise; blocks only when selected and `blocking: true` |
 
-### Threshold and gates
+### Pass/fail and score
 
-- Default threshold: 70 (configurable in `commit-checks.json`)
-- Hard gates: `typecheck` by default. Gate lanes exit the run immediately on failure with overall FAIL, bypassing the score check.
+- Pass/fail authority: selected lanes with `blocking: true`
+- Default selected profile: `commit`
+- Score role: diagnostic/reporting evidence
+- Default threshold: 70, retained for `passesThreshold` reporting
+- Legacy `gates` is retained for compatibility and should be empty in new configs
 
 ## Baseline Config Format
 
@@ -90,22 +102,35 @@ Missing or disabled lanes are excluded from both numerator and denominator.
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "configVersion": 1,
   "threshold": 70,
   "weights": {
-    "test": 0.40,
-    "coverage": 0.30,
-    "lint": 0.15,
-    "format": 0.15
+    "test": 0.30,
+    "lint": 0.20,
+    "format": 0.10,
+    "typecheck": 0.25
   },
-  "gates": ["typecheck"],
+  "gates": [],
+  "profiles": {
+    "commit": { "label": "Commit", "cost": "fast", "opensWindow": false },
+    "ci-local": { "label": "CI Local", "cost": "medium", "opensWindow": false }
+  },
   "lanes": {
-    "test": { "enabled": true, "commands": ["npm run test:unit"] },
-    "coverage": { "enabled": true, "commands": ["npm run test:coverage"] },
-    "lint": { "enabled": true, "commands": ["npx eslint ."] },
-    "format": { "enabled": true, "commands": ["npx prettier --check ."] },
-    "typecheck": { "enabled": true, "commands": ["npx tsc --noEmit"] }
+    "test": {
+      "enabled": true,
+      "blocking": true,
+      "required": true,
+      "defaultProfiles": ["commit", "ci-local"],
+      "commands": ["npm run test:unit"]
+    },
+    "typecheck": {
+      "enabled": true,
+      "blocking": true,
+      "required": true,
+      "defaultProfiles": ["commit", "ci-local"],
+      "commands": ["npx tsc --noEmit"]
+    }
   }
 }
 ```
@@ -113,7 +138,7 @@ Missing or disabled lanes are excluded from both numerator and denominator.
 ## Determinism Guarantees
 
 - Same repo files → same discovery output
-- Same config + same lane exit codes → same composite score
+- Same config + same lane exit codes → same selected lane statuses and composite score
 - Tie-breaking: lexical sort of lane keys before summing weights
 - Missing coverage tool → coverage score = 0 with a WARN status
 - Missing coverage metric (e.g., no branch data) → that sub-metric is treated as 0
@@ -161,7 +186,7 @@ The shipped skill (`commit-validation-governance`) performs two modes:
   → verify: run setup, then run `commit-check-run.mjs --config .copilot/commit-checks.json --json`, confirm exit 0 and valid score JSON
 - [ ] Scoring algorithm is deterministic: same config + same lane results → same composite score
   → verify: run the runner twice with a fixed mock config, confirm identical output
-- [ ] Gate lanes force hard failure regardless of composite score
-  → verify: inject a failing typecheck command in config, confirm overall FAIL with score ≥ threshold
+- [ ] Blocking lanes force failure regardless of composite score
+  → verify: inject a failing blocking command in config, confirm overall FAIL with score ≥ threshold
 - [ ] Missing lane is excluded from scoring (not scored as 0)
   → verify: disable all lanes but one, confirm composite equals that lane's score alone

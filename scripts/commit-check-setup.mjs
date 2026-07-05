@@ -2,20 +2,16 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  COMMIT_CHECK_CONFIG_SCHEMA_VERSION,
+  cloneDefaults,
+  defaultLaneMetadata,
+  normalizeCommitCheckConfig,
+  validateCommitCheckConfig,
+} from './commit-check-defaults.mjs';
 
 const CONFIG_DIR = '.copilot';
 const CONFIG_FILE = 'commit-checks.json';
-const SCHEMA_VERSION = 3;
-
-const SHIPPED_DEFAULTS = {
-  threshold: 70,
-  weights: {
-    test: 0.40,
-    lint: 0.15,
-    format: 0.15,
-  },
-  gates: ['typecheck'],
-};
 
 function die(message, code = 1) {
   console.error(message);
@@ -42,10 +38,12 @@ async function readDiscovery(repoRoot) {
 function buildConfig(discoveryResult) {
   const lanes = {};
   const foundLanes = discoveryResult.lanes;
+  const defaults = cloneDefaults();
 
-  for (const [name, lane] of Object.entries(SHIPPED_DEFAULTS.weights)) {
+  for (const name of Object.keys(defaults.weights)) {
     if (foundLanes[name]?.found) {
       lanes[name] = {
+        ...defaultLaneMetadata(name),
         enabled: true,
         commands: foundLanes[name].commands,
       };
@@ -54,6 +52,7 @@ function buildConfig(discoveryResult) {
 
   if (foundLanes.typecheck?.found) {
     lanes.typecheck = {
+      ...defaultLaneMetadata('typecheck'),
       enabled: true,
       commands: foundLanes.typecheck.commands,
     };
@@ -62,6 +61,7 @@ function buildConfig(discoveryResult) {
   for (const [name, lane] of Object.entries(foundLanes)) {
     if (!lanes[name] && lane.found) {
       lanes[name] = {
+        ...defaultLaneMetadata(name),
         enabled: true,
         commands: lane.commands,
       };
@@ -69,25 +69,15 @@ function buildConfig(discoveryResult) {
   }
 
   return {
-    schemaVersion: SCHEMA_VERSION,
+    schemaVersion: COMMIT_CHECK_CONFIG_SCHEMA_VERSION,
     configVersion: 1,
     generated: new Date().toISOString(),
     repoLanguages: discoveryResult.languages || [],
-    threshold: SHIPPED_DEFAULTS.threshold,
-    weights: { ...SHIPPED_DEFAULTS.weights },
-    gates: [...SHIPPED_DEFAULTS.gates],
-    profiles: {
-      commit: { label: "Commit", description: "Fast mandatory local checks before commit", cost: "fast", opensWindow: false },
-      "ci-local": { label: "CI Local", description: "Full local CI parity check", cost: "medium", opensWindow: false },
-      "desktop-preview": { label: "Desktop Preview", description: "Packaged runtime/build validation", cost: "medium", opensWindow: false },
-      release: { label: "Release", description: "Release/native smoke validation", cost: "heavy", opensWindow: true }
-    },
-    groups: {
-      commit: { description: "Pre-commit checks \u2014 must pass before committing" },
-      push: { description: "Pre-push checks \u2014 must pass before pushing" },
-      ci: { description: "CI-equivalent checks \u2014 mirrors GitHub required workflows" },
-      release: { description: "Full release blockers \u2014 heavy checks reserved for CI/release" }
-    },
+    threshold: defaults.threshold,
+    weights: defaults.weights,
+    gates: defaults.gates,
+    profiles: defaults.profiles,
+    groups: defaults.groups,
     lanes,
   };
 }
@@ -95,7 +85,8 @@ function buildConfig(discoveryResult) {
 function mergeConfig(existing, discoveryResult) {
   const merged = { ...existing };
 
-  merged.schemaVersion = SCHEMA_VERSION;
+  const defaults = cloneDefaults();
+  merged.schemaVersion = COMMIT_CHECK_CONFIG_SCHEMA_VERSION;
   merged.configVersion = (existing.configVersion || 0) + 1;
   merged.generated = new Date().toISOString();
   merged.repoLanguages = [...new Set([
@@ -103,40 +94,21 @@ function mergeConfig(existing, discoveryResult) {
     ...(discoveryResult.languages || []),
   ])];
 
-  if (!merged.threshold) merged.threshold = SHIPPED_DEFAULTS.threshold;
-  if (!merged.weights) merged.weights = { ...SHIPPED_DEFAULTS.weights };
-  if (!merged.gates) merged.gates = [...SHIPPED_DEFAULTS.gates];
+  if (!merged.threshold) merged.threshold = defaults.threshold;
+  if (!merged.weights) merged.weights = { ...defaults.weights };
+  else merged.weights = { ...defaults.weights, ...merged.weights };
+  if (!merged.gates) merged.gates = [...defaults.gates];
   if (!merged.lanes) merged.lanes = {};
 
-  // Profiles: preserve existing, add missing defaults
-  if (!merged.profiles) merged.profiles = {};
-  const DEFAULT_PROFILES = {
-    commit: { label: "Commit", description: "Fast mandatory local checks before commit", cost: "fast", opensWindow: false },
-    "ci-local": { label: "CI Local", description: "Full local CI parity check", cost: "medium", opensWindow: false },
-    "desktop-preview": { label: "Desktop Preview", description: "Packaged runtime/build validation", cost: "medium", opensWindow: false },
-    release: { label: "Release", description: "Release/native smoke validation", cost: "heavy", opensWindow: true }
-  };
-  for (const [key, val] of Object.entries(DEFAULT_PROFILES)) {
-    if (!merged.profiles[key]) merged.profiles[key] = val;
-  }
-
-  // Groups: preserve existing, add missing defaults
-  if (!merged.groups) merged.groups = {};
-  const DEFAULT_GROUPS = {
-    commit: { description: "Pre-commit checks \u2014 must pass before committing" },
-    push: { description: "Pre-push checks \u2014 must pass before pushing" },
-    ci: { description: "CI-equivalent checks \u2014 mirrors GitHub required workflows" },
-    release: { description: "Full release blockers \u2014 heavy checks reserved for CI/release" }
-  };
-  for (const [key, val] of Object.entries(DEFAULT_GROUPS)) {
-    if (!merged.groups[key]) merged.groups[key] = val;
-  }
+  merged.profiles = { ...defaults.profiles, ...(merged.profiles || {}) };
+  merged.groups = { ...defaults.groups, ...(merged.groups || {}) };
 
   const foundLanes = discoveryResult.lanes;
   for (const [name, lane] of Object.entries(foundLanes)) {
     if (lane.found) {
       if (!merged.lanes[name]) {
         merged.lanes[name] = {
+          ...defaultLaneMetadata(name),
           enabled: true,
           commands: lane.commands,
         };
@@ -153,16 +125,14 @@ function mergeConfig(existing, discoveryResult) {
     }
   }
 
-  // Preserve lane metadata defaults (user custom fields are not overwritten)
-  for (const lane of Object.values(merged.lanes)) {
-    if (lane.required === undefined) lane.required = true;
-    if (lane.skippable === undefined) lane.skippable = false;
-    if (lane.cost === undefined) lane.cost = 'fast';
-    if (lane.opensWindow === undefined) lane.opensWindow = false;
-    // defaultProfiles is intentionally left for user to configure
+  for (const [name, lane] of Object.entries(merged.lanes)) {
+    merged.lanes[name] = {
+      ...defaultLaneMetadata(name),
+      ...lane,
+    };
   }
 
-  return merged;
+  return normalizeCommitCheckConfig(merged);
 }
 
 function addPackageJsonScript(repoRoot, config) {
@@ -215,6 +185,12 @@ export async function setup(repoRoot, options = {}) {
       console.log('[setup] Force overwriting existing config');
     }
     config = buildConfig(discoveryResult);
+  }
+
+  config = normalizeCommitCheckConfig(config);
+  const validation = validateCommitCheckConfig(config);
+  if (!validation.valid) {
+    throw new Error(`Generated config is invalid: ${validation.errors.join('; ')}`);
   }
 
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf8');

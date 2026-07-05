@@ -20,6 +20,7 @@
     "docs:check:links": "node scripts/check-docs-dead-links.mjs",
     "validate:guidelines-wiring": "node scripts/validate-guidelines-wiring.mjs",
     "validate:instruction-wiring": "node scripts/validate-instruction-wiring.mjs",
+    "validate:instruction-quality": "node scripts/validate-instruction-quality.mjs",
     "validate:instruction-budgets": "node scripts/validate-instruction-budgets.mjs",
     "validate:skills": "node scripts/validate-skills.mjs",
     "obsidian-docs:preflight": "node scripts/obsidian-docs-preflight.js",

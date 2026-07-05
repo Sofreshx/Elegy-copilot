@@ -43,7 +43,7 @@ Turn an already plausible plan into an executor-ready brief. Optimize for reduci
 - Include acceptance checks that are observable by tests, builds, smoke commands, or inspection.
 - Include rollback, migration, compatibility, permission, or data-safety notes when relevant.
 - Avoid line-by-line pseudocode unless it is copied from an existing local pattern.
-- Avoid broad instructions such as "make robust", "clean up", or "handle errors" unless paired with concrete cases.
+- Pair broad repair categories with concrete cases, failure modes, and acceptance checks.
 
 ## Model Calibration
 

@@ -10,7 +10,7 @@ tags: [setup, validation, commit, quality, bootstrap]
 
 Bootstrap or update a target repo's commit-validation infrastructure so the Elegy Copilot UI can gate git actions on mandatory checks. This skill mutates the target repo — unlike governance skills which are read-only.
 
-The three bundled scripts (`commit-check-{discover,setup,run}.mjs`) are the authoritative copies. The same scripts exist at the elegy-copilot repo root (`scripts/`) for self-validation of this repo; the skill copies from its own bundled copies, not from the repo root.
+The bundled scripts (`commit-check-{defaults,discover,setup,run}.mjs`) are the authoritative copies. The same scripts exist at the elegy-copilot repo root (`scripts/`) for self-validation of this repo; the skill copies from its own bundled copies, not from the repo root.
 
 ## Required Inputs
 
@@ -24,7 +24,7 @@ Canonical metadata (elegy-copilot repo paths — not resolvable in target repos)
 - canonical doc authority: `docs/system/commit-validation-governance.md`
 - setup sub-node: `docs/system/commit-check-setup.md`
 - baseline: `engine-assets/skills/commit-check-setup/baseline.json`
-- bundled scripts: `scripts/commit-check-{discover,setup,run}.mjs` (inside this skill directory)
+- bundled scripts: `scripts/commit-check-{defaults,discover,setup,run}.mjs` (inside this skill directory)
 
 ## Modes
 
@@ -33,8 +33,8 @@ Canonical metadata (elegy-copilot repo paths — not resolvable in target repos)
 Full setup for a repo that has no commit-check infrastructure.
 
 1. Confirm target workspace root exists and is a git repo.
-2. Check for existing scripts at `<root>/scripts/commit-check-{discover,setup,run}.mjs`.
-3. If any script is missing, copy all three from this skill's bundled `scripts/` directory into the target repo's `scripts/` directory.
+2. Check for existing scripts at `<root>/scripts/commit-check-{defaults,discover,setup,run}.mjs`.
+3. If any script is missing, copy all four from this skill's bundled `scripts/` directory into the target repo's `scripts/` directory.
 4. If `.copilot/commit-checks.json` exists, back up to `.copilot/commit-checks.json.bak`.
 5. Run `node scripts/commit-check-setup.mjs <root> --force` to generate config.
 6. Run `node scripts/commit-check-run.mjs --json --repo <root>` as smoke test.
@@ -45,7 +45,7 @@ Full setup for a repo that has no commit-check infrastructure.
 Refresh an existing setup — re-discover lanes, merge new lanes into config.
 
 1. Confirm target workspace root exists.
-2. Verify all three scripts exist in `<root>/scripts/`. If missing, tell user to run bootstrap first.
+2. Verify all four scripts exist in `<root>/scripts/`. If missing, tell user to run bootstrap first.
 3. Run `node scripts/commit-check-discover.mjs <root>` to scan current state.
 4. Run `node scripts/commit-check-setup.mjs <root>` (merge mode, no `--force`).
 5. Run smoke test.
@@ -89,8 +89,8 @@ If a section has no items, write `- none`.
 
 ## Acceptance Checks
 
-- [ ] All three commit-check scripts exist in target repo after bootstrap
-- [ ] `.copilot/commit-checks.json` is valid JSON with `schemaVersion: 1`
+- [ ] All four commit-check scripts exist in target repo after bootstrap
+- [ ] `.copilot/commit-checks.json` is valid JSON with `schemaVersion: 3`
 - [ ] `commit-check-run.mjs --json` exits 0 after bootstrap
 - [ ] Update mode merges new lanes without overwriting user customizations
 
