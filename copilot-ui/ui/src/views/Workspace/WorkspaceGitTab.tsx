@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button, StatusBadge } from '../../components';
 import { notificationStore } from '../../stores/notificationStore';
+import { useStoreValue } from '../../lib/store';
 import type { CatalogRepoInventoryEntry } from '../../lib/types';
 import type { GitState } from '../../stores/gitStore';
 import { gitStore } from '../../stores/gitStore';
+import { checksStore } from '../../stores/checksStore';
+import { deriveWorkspaceOperationSnapshot } from '../../stores/workspaceOperationStore';
 import type {
   GitCheckResults,
   GitBranchEntry,
@@ -34,6 +37,7 @@ import { getEnrichedWorktrees } from '../../lib/api/elegyDb';
 import type { VerificationState } from '../Repositories/verification';
 import WorkspaceCommitGraph from './WorkspaceCommitGraph';
 import WorkspaceChecksSection from './WorkspaceChecksSection';
+import WorkspaceOperationBanner from './WorkspaceOperationBanner';
 
 // ─── Inline worktree display helpers (from WorkspaceWorktreesCard) ──────────
 
@@ -373,6 +377,7 @@ export default function WorkspaceGitTab({
   onRefreshGitState,
   onGenerateCommitMessage,
 }: WorkspaceGitTabProps) {
+  const checksState = useStoreValue(checksStore.store);
   const summary = gitState.summary;
   const branch = summary?.branch ?? null;
   const hasRemote = summary?.hasRemote ?? false;
@@ -936,10 +941,34 @@ export default function WorkspaceGitTab({
 
   // ─── Push disabled state ───────────────────────────────────────────────────
   const pushDisabled = changeCount === 0 || gitState.syncing || verificationState === 'stale' || verificationState === 'failed' || verificationState === 'partial';
+  const operationSnapshot = deriveWorkspaceOperationSnapshot({
+    repoPath,
+    gitState,
+    checksState,
+  });
+
+  function handleOperationPrimaryAction() {
+    const actionId = operationSnapshot.nextAction?.id;
+    if (actionId === 'checks.run') {
+      onRunChecks?.();
+      return;
+    }
+    if (actionId === 'git.pull') {
+      void handlePull();
+      return;
+    }
+    if (actionId === 'git.push') {
+      onPush();
+    }
+  }
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="workspace-git-tab" data-testid="workspace-git-tab">
+      <WorkspaceOperationBanner
+        snapshot={operationSnapshot}
+        onPrimaryAction={handleOperationPrimaryAction}
+      />
 
       {/* ================================================================ */}
       {/* SECTION 1 — Slim Status Strip                                    */}

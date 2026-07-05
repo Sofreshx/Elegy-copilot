@@ -301,6 +301,7 @@ describe('WorkspaceGitTab', () => {
       expect(screen.getByTestId('workspace-git-tab')).toBeInTheDocument();
     });
 
+    expect(screen.getByTestId('workspace-operation-banner')).toBeInTheDocument();
     // workspace-launch-trigger moved to WorkspaceView — should NOT be present
     expect(screen.queryByTestId('workspace-launch-trigger')).not.toBeInTheDocument();
     // workspace-switch-repo moved to WorkspaceView — should NOT be present

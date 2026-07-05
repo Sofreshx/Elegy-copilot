@@ -32,6 +32,37 @@ const DESKTOP_UI_QUERY = `desktop-ui-token=${DESKTOP_UI_TOKEN}`;
 const SERVER_START_TIMEOUT_MS = 120000;
 const PAGE_READY_TIMEOUT_MS = 30000;
 const HEALTH_POLL_INTERVAL_MS = 2000;
+const WORKSPACE_TABS_STORAGE_KEY = 'elegy-copilot-workspace-tabs';
+const ACTIVE_WORKSPACE_STORAGE_KEY = 'elegy-copilot-active-workspace';
+const WORKSPACE_TAB_TARGETS = {
+  'workspace-git': {
+    routeId: 'workspace-git-default',
+    tabId: 'git',
+    tabSelector: '[data-testid="workspace-local-tab-git"]',
+    surfaceSelectors: [
+      '[data-testid="workspace-git-tab"]',
+      '[data-testid="workspace-operation-banner"]',
+    ],
+  },
+  'workspace-checks': {
+    routeId: 'workspace-checks-default',
+    tabId: 'checks',
+    tabSelector: '[data-testid="workspace-local-tab-checks"]',
+    surfaceSelectors: [
+      '[data-testid="workspace-checks-tab"]',
+      '[data-testid="workspace-operation-banner"]',
+    ],
+  },
+  'workspace-notes': {
+    routeId: 'workspace-notes-default',
+    tabId: 'notes',
+    tabSelector: '[data-testid="workspace-local-tab-notes"]',
+    surfaceSelectors: [
+      '[data-testid="notes-tab"]',
+      '[data-testid="workspace-operation-banner"]',
+    ],
+  },
+};
 
 // ---------------------------------------------------------------------------
 // HELPERS
@@ -51,6 +82,85 @@ const _require = createRequire(import.meta.url);
  */
 function resolveEngineRoot() {
   return path.resolve(__dirname, '..');
+}
+
+/**
+ * Resolve the repository opened for workspace evidence.
+ * UI_CHECK_REPO_PATH can point at any real repo; the engine root is the
+ * deterministic fallback for local and CI runs.
+ *
+ * @param {string} engineRoot
+ * @returns {string}
+ */
+function resolveWorkspaceEvidenceRepoPath(engineRoot = resolveEngineRoot()) {
+  const configuredPath = process.env.UI_CHECK_REPO_PATH;
+  if (configuredPath && configuredPath.trim()) {
+    return path.resolve(configuredPath.trim());
+  }
+  return path.resolve(engineRoot);
+}
+
+/**
+ * Build the localStorage payload that makes the workspace floating card
+ * expose one deterministic opened repository.
+ *
+ * @param {string} repoPath
+ * @param {number} openedAt
+ * @returns {{ tabs: Array<{ repoPath: string, repoLabel: string, openedAt: number }>, activeWorkspaceId: string }}
+ */
+function buildWorkspaceStorageSeed(repoPath, openedAt = Date.now()) {
+  const resolvedRepoPath = path.resolve(repoPath);
+  const repoLabel = path.basename(resolvedRepoPath) || resolvedRepoPath;
+  return {
+    tabs: [
+      {
+        repoPath: resolvedRepoPath,
+        repoLabel,
+        openedAt,
+      },
+    ],
+    activeWorkspaceId: resolvedRepoPath,
+  };
+}
+
+/**
+ * Return the tab routing contract for real opened-workspace targets.
+ *
+ * @param {string} targetId
+ * @returns {{ routeId: string, tabId: string, tabSelector: string, surfaceSelectors: string[] }}
+ */
+function getWorkspaceTabTarget(targetId) {
+  const target = WORKSPACE_TAB_TARGETS[targetId];
+  if (!target) {
+    throw new Error(`Unknown workspace tab target: "${targetId}". Supported: ${Object.keys(WORKSPACE_TAB_TARGETS).join(', ')}`);
+  }
+  return target;
+}
+
+function isWorkspaceTabTarget(targetId) {
+  return Object.hasOwn(WORKSPACE_TAB_TARGETS, targetId);
+}
+
+/**
+ * Seed localStorage before the app boots so the floating workspace card can
+ * open the real workspace without relying on repository inventory timing.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string} repoPath
+ * @returns {Promise<ReturnType<typeof buildWorkspaceStorageSeed>>}
+ */
+async function seedWorkspaceLocalStorage(page, repoPath) {
+  const seed = buildWorkspaceStorageSeed(repoPath);
+  await page.addInitScript(({ tabsKey, activeKey, tabs, activeWorkspaceId }) => {
+    window.localStorage.setItem(tabsKey, JSON.stringify(tabs));
+    window.localStorage.setItem(activeKey, activeWorkspaceId);
+  }, {
+    tabsKey: WORKSPACE_TABS_STORAGE_KEY,
+    activeKey: ACTIVE_WORKSPACE_STORAGE_KEY,
+    tabs: seed.tabs,
+    activeWorkspaceId: seed.activeWorkspaceId,
+  });
+  return seed;
 }
 
 /**
@@ -190,24 +300,33 @@ async function setupBrowser() {
  * View mapping:
  *   settings       → sidebar-item-settings, then app-layout
  *   catalog        → sidebar-item-settings, then settings-section-catalog
- *   workspace      → repositories view (workspace requires an open repo)
+ *   workspace      → seeded opened workspace docs tab
+ *   workspace-git  → seeded opened workspace Git tab
+ *   workspace-checks → seeded opened workspace Checks tab
+ *   workspace-notes → seeded opened workspace Notes tab
  *   repositories   → sidebar-item-repositories
  *   remote         → sidebar-item-remote
  *   lexicon        → sidebar-item-lexicon
  *
  * @param {import('@playwright/test').Page} page
- * @param {string}   viewId  - One of: settings, catalog, workspace, repositories, remote, lexicon
+ * @param {string}   viewId  - One of: settings, catalog, workspace, workspace-git, workspace-checks, workspace-notes, repositories, remote, lexicon
  * @returns {Promise<void>}
  */
 async function navigateToView(page, viewId) {
-  const validViews = new Set(['settings', 'catalog', 'workspace', 'repositories', 'remote', 'lexicon']);
+  const validViews = new Set(['settings', 'catalog', 'workspace', 'workspace-git', 'workspace-checks', 'workspace-notes', 'repositories', 'remote', 'lexicon']);
   if (!validViews.has(viewId)) {
     throw new Error(`Unknown viewId: "${viewId}". Valid: ${[...validViews].join(', ')}`);
   }
 
+  let workspaceSeed = null;
+  if (viewId === 'workspace' || isWorkspaceTabTarget(viewId)) {
+    const repoPath = resolveWorkspaceEvidenceRepoPath();
+    workspaceSeed = await seedWorkspaceLocalStorage(page, repoPath);
+  }
+
   // Start at the base URL with the desktop-ui-token
   await page.goto(`${BASE_URL}/?${DESKTOP_UI_QUERY}`, {
-    waitUntil: 'networkidle',
+    waitUntil: 'domcontentloaded',
     timeout: PAGE_READY_TIMEOUT_MS,
   });
 
@@ -232,13 +351,27 @@ async function navigateToView(page, viewId) {
     // Then click the Assets & Tools section within settings
     await page.click('[data-testid="settings-section-catalog"]');
     await page.waitForTimeout(500); // Allow content transition
-  } else if (viewId === 'workspace') {
-    // Workspace requires an open repo — navigate to repositories instead
-    // and document the limitation in the runtime report
-    await page.click('[data-testid="sidebar-item-repositories"]');
-    await page.waitForSelector('[data-testid="app-layout"]', {
+  } else if (viewId === 'workspace' || isWorkspaceTabTarget(viewId)) {
+    if (!workspaceSeed) {
+      throw new Error(`Workspace navigation for "${viewId}" did not receive a workspace seed.`);
+    }
+    await page.waitForSelector('[data-testid="workspace-floating-card"]', {
       timeout: PAGE_READY_TIMEOUT_MS,
     });
+    await page.locator('[data-testid="workspace-floating-card"] .workspace-floating-card-btn').first().click();
+    await page.waitForSelector('[data-testid="workspace-view"]', {
+      timeout: PAGE_READY_TIMEOUT_MS,
+    });
+
+    if (isWorkspaceTabTarget(viewId)) {
+      const tabTarget = getWorkspaceTabTarget(viewId);
+      await page.click(tabTarget.tabSelector);
+      for (const selector of tabTarget.surfaceSelectors) {
+        await page.waitForSelector(selector, {
+          timeout: PAGE_READY_TIMEOUT_MS,
+        });
+      }
+    }
   } else {
     // repositories, remote, lexicon
     await page.click(`[data-testid="sidebar-item-${viewId}"]`);
@@ -329,7 +462,8 @@ function generateRuntimeReport(targetId, surfaceResults, evidenceDir) {
  * Target mapping:
  *   settings   → settings view, default state
  *   catalog    → settings → Assets & Tools, default state
- *   workspace  → repositories view (documents workspace limitation)
+ *   workspace  → seeded opened workspace
+ *   workspace-git/checks/notes → seeded opened workspace local tabs
  *
  * @param {string} targetId    - Target identifier
  * @param {object} browserHandle - Object with { page, consoleErrors, pageErrors, networkFailures }
@@ -370,12 +504,26 @@ async function runTarget(targetId, browserHandle, evidenceDir) {
       networkFailures: [...networkFailures],
     });
   } else if (targetId === 'workspace') {
-    // Workspace requires an open repo — navigate to repos as a proxy
     await navigateToView(page, 'workspace');
     const screenshot = await captureState(page, 'desktop', 'default', evidenceDir, `workspace-default`);
 
     surfaceResults.push({
       routeId: 'workspace-default',
+      viewport: 'desktop',
+      state: 'default',
+      status: 'pass',
+      screenshot,
+      consoleErrors: [...consoleErrors],
+      pageErrors: [...pageErrors],
+      networkFailures: [...networkFailures],
+    });
+  } else if (targetId === 'workspace-git' || targetId === 'workspace-checks' || targetId === 'workspace-notes') {
+    await navigateToView(page, targetId);
+    const routeId = getWorkspaceTabTarget(targetId).routeId;
+    const screenshot = await captureState(page, 'desktop', 'default', evidenceDir, routeId);
+
+    surfaceResults.push({
+      routeId,
       viewport: 'desktop',
       state: 'default',
       status: 'pass',
@@ -399,7 +547,7 @@ async function runTarget(targetId, browserHandle, evidenceDir) {
       networkFailures: [...networkFailures],
     });
   } else {
-    throw new Error(`Unknown targetId: "${targetId}". Supported: settings, catalog, workspace, repositories, remote, lexicon`);
+    throw new Error(`Unknown targetId: "${targetId}". Supported: settings, catalog, workspace, workspace-git, workspace-checks, workspace-notes, repositories, remote, lexicon`);
   }
 
   return surfaceResults;
@@ -548,6 +696,11 @@ export {
   captureState,
   generateRuntimeReport,
   runTarget,
+  resolveEngineRoot,
+  resolveWorkspaceEvidenceRepoPath,
+  buildWorkspaceStorageSeed,
+  getWorkspaceTabTarget,
+  isWorkspaceTabTarget,
   main,
 };
 

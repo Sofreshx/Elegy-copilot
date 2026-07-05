@@ -236,6 +236,8 @@ export interface DriveSyncResult {
   conflictedFiles?: { file: string; conflictPath: string }[];
   failed?: number;
   failedFiles?: { file: string; error: string }[];
+  needsSetup?: boolean;
+  needsAuth?: boolean;
   message?: string;
   error?: string;
 }
@@ -311,6 +313,8 @@ export async function driveAuth(): Promise<{
   pending?: boolean;
   userCode?: string;
   verificationUrl?: string;
+  needsSetup?: boolean;
+  setupInstructions?: string;
   message?: string;
   error?: string;
 }> {
@@ -319,6 +323,8 @@ export async function driveAuth(): Promise<{
     pending?: boolean;
     userCode?: string;
     verificationUrl?: string;
+    needsSetup?: boolean;
+    setupInstructions?: string;
     message?: string;
     error?: string;
   }>('/api/notes/drive/auth', {

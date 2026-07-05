@@ -86,6 +86,7 @@ describe('WorkspaceChecksTab run status', () => {
     await waitFor(() => {
       expect(screen.getByTestId('workspace-checks-profile-commit')).toBeInTheDocument();
     });
+    expect(screen.getByTestId('workspace-operation-banner')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('workspace-checks-profile-commit'));
 

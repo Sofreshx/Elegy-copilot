@@ -11811,6 +11811,284 @@ textarea:focus-visible,
   overflow-wrap: break-word;
 }
 
+/* Git tab visual refinements: keep the existing operation surface, tighten hierarchy. */
+.workspace-operation-banner {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-surface-1) 92%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  gap: var(--space-md);
+  justify-content: space-between;
+  min-width: 0;
+  padding: var(--space-sm) var(--space-md);
+}
+
+.workspace-operation-banner-ready {
+  border-color: color-mix(in srgb, var(--color-success-500) 26%, var(--color-border));
+}
+
+.workspace-operation-banner-attention {
+  border-color: color-mix(in srgb, var(--color-warning-500) 32%, var(--color-border));
+}
+
+.workspace-operation-banner-blocked {
+  border-color: color-mix(in srgb, var(--color-danger-500) 34%, var(--color-border));
+}
+
+.workspace-operation-banner-running {
+  border-color: color-mix(in srgb, var(--color-brand-400) 40%, var(--color-border));
+}
+
+.workspace-operation-main,
+.workspace-operation-meta {
+  align-items: center;
+  display: flex;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.workspace-operation-main {
+  flex: 1;
+}
+
+.workspace-operation-status,
+.workspace-operation-chip {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-300);
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  text-transform: uppercase;
+}
+
+.workspace-operation-banner-ready .workspace-operation-status {
+  background: var(--color-success-50);
+  border-color: var(--color-success-500);
+  color: var(--color-success-500);
+}
+
+.workspace-operation-banner-attention .workspace-operation-status {
+  background: var(--color-warning-50);
+  border-color: var(--color-warning-200);
+  color: var(--color-warning-600);
+}
+
+.workspace-operation-banner-blocked .workspace-operation-status {
+  background: var(--color-danger-50);
+  border-color: var(--color-danger-200);
+  color: var(--color-danger-500);
+}
+
+.workspace-operation-banner-running .workspace-operation-status {
+  background: rgba(120, 184, 176, 0.12);
+  border-color: var(--color-brand-400);
+  color: var(--color-brand-400);
+}
+
+.workspace-operation-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.workspace-operation-title {
+  color: var(--color-ink-200);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.workspace-operation-detail {
+  color: var(--color-ink-400);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-operation-repo {
+  color: var(--color-ink-400);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .workspace-operation-banner,
+  .workspace-operation-main,
+  .workspace-operation-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workspace-operation-detail {
+    white-space: normal;
+  }
+}
+
+.workspace-git-tab {
+  display: grid;
+  gap: var(--space-md);
+  margin: 0 auto;
+  max-width: 1280px;
+  padding: var(--space-md);
+}
+
+.workspace-git-summary {
+  background: color-mix(in srgb, var(--color-surface-1) 92%, transparent);
+  border-color: var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.workspace-git-summary-path {
+  color: var(--color-ink-400);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-git-branches-area,
+.workspace-git-worktrees-area,
+.workspace-git-actions-area {
+  background: color-mix(in srgb, var(--color-surface-1) 90%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--space-md);
+}
+
+.workspace-git-branches-area {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.workspace-git-section-title {
+  color: var(--color-ink-200);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.workspace-git-segmented-tabs {
+  background: var(--color-surface-0);
+  border-color: var(--color-border);
+  border-radius: var(--radius-md);
+  width: 100%;
+}
+
+.workspace-git-segmented-tab {
+  justify-content: center;
+  min-height: 34px;
+  min-width: 76px;
+}
+
+.workspace-git-segmented-tab-active {
+  background: var(--color-brand-500);
+  color: var(--color-surface-0);
+}
+
+.workspace-git-table {
+  table-layout: fixed;
+}
+
+.workspace-git-table-header th {
+  background: var(--color-surface-0);
+  border-bottom-color: var(--color-border);
+  color: var(--color-ink-400);
+}
+
+.workspace-git-table-row td {
+  border-bottom-color: var(--color-border);
+  height: 42px;
+}
+
+.workspace-git-table-row:last-child td {
+  border-bottom: 0;
+}
+
+.workspace-git-table-cell {
+  color: var(--color-ink-300);
+}
+
+.workspace-git-branch-name {
+  color: var(--color-ink-200);
+  font-family: var(--font-mono);
+}
+
+.workspace-git-composer {
+  background: color-mix(in srgb, var(--color-surface-0) 96%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.18);
+  padding: var(--space-md);
+}
+
+.workspace-git-composer-inner {
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.workspace-git-composer-input {
+  max-width: none;
+}
+
+.workspace-git-stash-divider {
+  border-top-color: var(--color-border) !important;
+}
+
+.workspace-git-stash-area,
+.workspace-git-pr-panel,
+.workspace-git-checks-section-wrapper {
+  background: color-mix(in srgb, var(--color-surface-1) 86%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+}
+
+.workspace-git-stash-list {
+  display: grid;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+.workspace-git-stash-entry {
+  align-items: center;
+  background: var(--color-surface-0);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.workspace-commit-log {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.workspace-commit-entry {
+  background: var(--color-surface-0);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: 84px minmax(0, 1fr);
+  padding: var(--space-xs) var(--space-sm);
+  width: 100%;
+}
+
 
 
 /* ── Workspace Checks Section ── */
@@ -13433,6 +13711,300 @@ textarea:focus-visible,
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.workspace-notes-transfer {
+  gap: var(--space-md);
+  padding: var(--space-md);
+  overflow: auto;
+}
+
+.workspace-notes-transfer-header {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--space-md);
+  justify-content: space-between;
+}
+
+.workspace-notes-transfer-subtitle {
+  color: var(--color-ink-400);
+  font-size: 0.85rem;
+  margin: var(--space-2xs) 0 0;
+}
+
+.workspace-notes-transfer-actions,
+.workspace-notes-button-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.workspace-notes-message {
+  background: color-mix(in srgb, var(--color-brand-400) 10%, var(--color-surface-1));
+  border: 1px solid color-mix(in srgb, var(--color-brand-400) 35%, var(--color-border));
+  border-radius: var(--radius-md);
+  color: var(--color-ink-200);
+  font-size: 0.82rem;
+  padding: var(--space-sm) var(--space-md);
+}
+
+.workspace-notes-transfer-grid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.workspace-notes-transfer-panel {
+  background: color-mix(in srgb, var(--color-surface-1) 92%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+  padding: var(--space-md);
+}
+
+.workspace-notes-panel-header {
+  align-items: center;
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: space-between;
+}
+
+.workspace-notes-panel-kicker {
+  color: var(--color-ink-200);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.workspace-notes-panel-copy {
+  color: var(--color-ink-400);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.workspace-notes-status-pill {
+  align-items: center;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-400);
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.workspace-notes-status-ok {
+  background: color-mix(in srgb, var(--color-success-500) 14%, var(--color-surface-2));
+  border-color: color-mix(in srgb, var(--color-success-500) 35%, var(--color-border));
+  color: var(--color-success-500);
+}
+
+.workspace-notes-status-warn {
+  background: color-mix(in srgb, var(--color-warning-500) 14%, var(--color-surface-2));
+  border-color: color-mix(in srgb, var(--color-warning-500) 35%, var(--color-border));
+  color: var(--color-warning-600);
+}
+
+.workspace-notes-facts {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+}
+
+.workspace-notes-facts div {
+  display: grid;
+  gap: var(--space-xs);
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
+.workspace-notes-facts dt {
+  color: var(--color-ink-500);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.workspace-notes-facts dd {
+  color: var(--color-ink-300);
+  font-size: 0.78rem;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-notes-hidden-input {
+  display: none;
+}
+
+.workspace-notes-checklist {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.workspace-notes-checklist li {
+  color: var(--color-ink-400);
+  font-size: 0.78rem;
+}
+
+.workspace-notes-drive-step {
+  background: var(--color-surface-0);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: 3px;
+  padding: var(--space-sm);
+}
+
+.workspace-notes-drive-step span {
+  color: var(--color-ink-200);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.workspace-notes-drive-step p {
+  color: var(--color-ink-400);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.workspace-notes-drive-step code {
+  color: var(--color-brand-400);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+}
+
+.workspace-notes-account {
+  color: var(--color-ink-400);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-notes-auth-box,
+.workspace-notes-setup {
+  background: var(--color-surface-0);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-300);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  margin: 0;
+  padding: var(--space-sm);
+}
+
+.workspace-notes-setup {
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.workspace-notes-git-layout {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+}
+
+.workspace-notes-git-changes {
+  background: var(--color-surface-0);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  max-height: 180px;
+  min-height: 76px;
+  overflow: auto;
+  padding: var(--space-sm);
+}
+
+.workspace-notes-change-row,
+.workspace-notes-log-row {
+  align-items: baseline;
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: 58px minmax(0, 1fr);
+  min-width: 0;
+}
+
+.workspace-notes-change-row {
+  color: var(--color-ink-300);
+  font-size: 0.78rem;
+  padding: 2px 0;
+}
+
+.workspace-notes-change-row span {
+  color: var(--color-brand-400);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.workspace-notes-change-row code,
+.workspace-notes-log-row code {
+  color: var(--color-ink-300);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-notes-git-actions {
+  align-content: start;
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.workspace-notes-log {
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: 2px;
+  padding-top: var(--space-sm);
+}
+
+.workspace-notes-log-row {
+  grid-template-columns: 76px 92px minmax(0, 1fr);
+  color: var(--color-ink-400);
+  font-size: 0.74rem;
+}
+
+.workspace-notes-log-row span:last-child {
+  color: var(--color-ink-300);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-notes-local-tools {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 520px;
+  overflow: hidden;
+}
+
+@media (max-width: 1180px) {
+  .workspace-notes-transfer-grid,
+  .workspace-notes-git-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-notes-transfer-header {
+    flex-direction: column;
+  }
 }
 
 /* ── Reader ── */

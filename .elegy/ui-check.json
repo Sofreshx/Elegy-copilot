@@ -93,16 +93,94 @@
           "viewports": ["desktop"],
           "states": ["default"],
           "excludedStates": [
-            { "state": "loading", "reason": "Workspace view is a static proxy through repositories — loading happens in repo registration flow." },
+            { "state": "loading", "reason": "Workspace view is opened from a seeded real repository; loading happens in repo registration flow." },
             { "state": "empty", "reason": "Empty is covered by the repositories view when no repos are registered." },
             { "state": "error", "reason": "Workspace errors surface through the repositories error handling." },
             { "state": "disabled", "reason": "Workspace has no disabled mode." },
             { "state": "focus", "reason": "Focus state is a CSS concern covered by component-level testing." }
           ],
-          "description": "Workspace view: reached via repositories view when a repository is open. Pilot captures repositories as workspace proxy."
+          "description": "Workspace view: reached by seeding and opening a real repository workspace in the browser evidence runner."
         }
       ],
       "evidenceRoot": "./evidence/ui/workspace",
+      "runtimeReport": "runtime-report.json"
+    },
+    "workspace-git": {
+      "lane": "browser",
+      "workingDirectory": "./",
+      "validationCommands": [
+        { "id": "build", "command": "npm --prefix copilot-ui run ui:build", "description": "Build the copilot-ui renderer" },
+        { "id": "evidence", "command": "node scripts/ui-check-copilot-ui.mjs", "timeout": 180000 }
+      ],
+      "routes": [
+        {
+          "id": "workspace-git-default",
+          "path": "navigation:workspace:git",
+          "viewports": ["desktop"],
+          "states": ["default"],
+          "excludedStates": [
+            { "state": "loading", "reason": "Git loading is covered by component tests; browser evidence targets the populated repo workspace." },
+            { "state": "empty", "reason": "Git tab requires an opened repository; empty repository routing is covered by repositories view." },
+            { "state": "error", "reason": "Git API failures surface inline in component tests and are not yet scriptable in the browser evidence runner." },
+            { "state": "disabled", "reason": "Disabled Git actions are covered by render tests for commit and push gating." },
+            { "state": "focus", "reason": "Focus state is covered by shared button/input CSS and component-level checks." }
+          ],
+          "description": "Real opened-repository Workspace Git tab with operation banner, branch state, worktrees, checks summary, and commit/push controls."
+        }
+      ],
+      "evidenceRoot": "./evidence/ui/workspace-git",
+      "runtimeReport": "runtime-report.json"
+    },
+    "workspace-checks": {
+      "lane": "browser",
+      "workingDirectory": "./",
+      "validationCommands": [
+        { "id": "build", "command": "npm --prefix copilot-ui run ui:build", "description": "Build the copilot-ui renderer" },
+        { "id": "evidence", "command": "node scripts/ui-check-copilot-ui.mjs", "timeout": 180000 }
+      ],
+      "routes": [
+        {
+          "id": "workspace-checks-default",
+          "path": "navigation:workspace:checks",
+          "viewports": ["desktop"],
+          "states": ["default"],
+          "excludedStates": [
+            { "state": "loading", "reason": "Checks loading is covered by component tests; the browser runner captures the real opened-repository tab surface." },
+            { "state": "empty", "reason": "No-lane checks state is covered by component tests and requires repo fixture control not available in the browser runner." },
+            { "state": "error", "reason": "Check API failure states are currently unit-tested and not yet scriptable in the browser evidence runner." },
+            { "state": "disabled", "reason": "Disabled run controls are covered by render tests during an active check run." },
+            { "state": "focus", "reason": "Focus state is covered by shared button/input CSS and component-level checks." }
+          ],
+          "description": "Real opened-repository Workspace Checks tab with operation banner, profile controls, lane matrix, logs, and run history."
+        }
+      ],
+      "evidenceRoot": "./evidence/ui/workspace-checks",
+      "runtimeReport": "runtime-report.json"
+    },
+    "workspace-notes": {
+      "lane": "browser",
+      "workingDirectory": "./",
+      "validationCommands": [
+        { "id": "build", "command": "npm --prefix copilot-ui run ui:build", "description": "Build the copilot-ui renderer" },
+        { "id": "evidence", "command": "node scripts/ui-check-copilot-ui.mjs", "timeout": 180000 }
+      ],
+      "routes": [
+        {
+          "id": "workspace-notes-default",
+          "path": "navigation:workspace:notes",
+          "viewports": ["desktop"],
+          "states": ["default"],
+          "excludedStates": [
+            { "state": "loading", "reason": "Notes loading is component-tested; browser evidence targets the transfer console once status APIs resolve." },
+            { "state": "empty", "reason": "Notes transfer console remains actionable even when the vault has no notes." },
+            { "state": "error", "reason": "Notes Drive setup and import/export failures are covered by render tests and inline messages." },
+            { "state": "disabled", "reason": "Disabled Drive push/pull states are covered by render tests for missing rclone configuration." },
+            { "state": "focus", "reason": "Focus state is covered by shared button/input CSS and component-level checks." }
+          ],
+          "description": "Real opened-repository Workspace Notes tab with operation banner, vault transfer controls, Drive setup, and vault Git snapshot."
+        }
+      ],
+      "evidenceRoot": "./evidence/ui/workspace-notes",
       "runtimeReport": "runtime-report.json"
     },
     "pattern-atlas": {

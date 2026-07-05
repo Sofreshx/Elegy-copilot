@@ -27,7 +27,7 @@ export default function GitHubAuthBanner({ repoPath }: GitHubAuthBannerProps) {
   if (state.githubAuthChecking) {
     return (
       <div className="github-auth-banner github-auth-banner-checking" data-testid="github-auth-checking">
-        Checking GitHub authentication\u2026
+        Checking GitHub authentication...
       </div>
     );
   }
@@ -35,7 +35,7 @@ export default function GitHubAuthBanner({ repoPath }: GitHubAuthBannerProps) {
   return (
     <div className="github-auth-banner github-auth-banner-unauthenticated" data-testid="github-auth-unauthenticated">
       <span>
-        \u26A0\uFE0F GitHub CLI not authenticated. Push, pull, and PR creation require authentication.
+        GitHub CLI not authenticated. Push, pull, and PR creation require authentication.
       </span>
       <Button variant="secondary" size="sm" testId="github-auth-login" onClick={handleLogin}>
         Connect GitHub

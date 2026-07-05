@@ -4,7 +4,9 @@ import { notificationStore } from '../../stores/notificationStore';
 import { useStoreValue } from '../../lib/store';
 import { checksStore } from '../../stores/checksStore';
 import type { RunSession } from '../../stores/checksStore';
+import { deriveWorkspaceOperationSnapshot } from '../../stores/workspaceOperationStore';
 import type { GitCheckResults, GitChecksDiscoverResponse } from '../../lib/api/git';
+import WorkspaceOperationBanner from './WorkspaceOperationBanner';
 
 interface WorkspaceChecksTabProps {
   repoPath: string;
@@ -13,24 +15,24 @@ interface WorkspaceChecksTabProps {
 
 // ─── Profile button config ──────────────────────────────────────────────────
 const PROFILE_BUTTONS = [
-  { id: 'commit', label: '▶ Run Commit', profile: 'commit' },
-  { id: 'ci-local', label: '▶ Run CI', profile: 'ci-local' },
-  { id: 'desktop-preview', label: '▶ Run Desktop', profile: 'desktop-preview' },
-  { id: 'release', label: '▶ Run Release', profile: 'release' },
+  { id: 'commit', label: 'Run Commit', profile: 'commit' },
+  { id: 'ci-local', label: 'Run CI', profile: 'ci-local' },
+  { id: 'desktop-preview', label: 'Run Desktop', profile: 'desktop-preview' },
+  { id: 'release', label: 'Run Release', profile: 'release' },
 ] as const;
 
 // ─── Theme constants ────────────────────────────────────────────────────────
-const DARK_BG = '#1a1d23';
-const DARK_BG_2 = '#22262e';
-const DARK_BG_3 = '#2a2d35';
-const TEXT_PRIMARY = '#e8eaed';
-const TEXT_SECONDARY = '#c8ccd4';
-const TEXT_MUTED = '#9aa0a6';
-const BORDER = '#333840';
-const SUCCESS = '#4caf50';
-const FAILURE = '#ef5350';
-const WARNING = '#ff9800';
-const INFO = '#2196f3';
+const DARK_BG = 'var(--color-surface-0)';
+const DARK_BG_2 = 'var(--color-surface-1)';
+const DARK_BG_3 = 'var(--color-surface-2)';
+const TEXT_PRIMARY = 'var(--color-ink-200)';
+const TEXT_SECONDARY = 'var(--color-ink-300)';
+const TEXT_MUTED = 'var(--color-ink-400)';
+const BORDER = 'var(--color-border)';
+const SUCCESS = 'var(--color-success-500)';
+const FAILURE = 'var(--color-danger-500)';
+const WARNING = 'var(--color-warning-600)';
+const INFO = 'var(--color-brand-400)';
 
 // ─── Style objects ──────────────────────────────────────────────────────────
 const s = {
@@ -226,17 +228,17 @@ function getLaneStatusView(status: string | undefined): {
   const kind = normalizeLaneStatus(status);
   switch (kind) {
     case 'pass':
-      return { kind, icon: '✓', label: 'PASS', color: SUCCESS, background: 'rgba(76, 175, 80, 0.12)', borderColor: 'rgba(76, 175, 80, 0.45)' };
+      return { kind, icon: 'ok', label: 'PASS', color: SUCCESS, background: 'var(--color-success-50)', borderColor: 'var(--color-success-500)' };
     case 'fail':
-      return { kind, icon: '✕', label: 'FAIL', color: FAILURE, background: 'rgba(239, 83, 80, 0.12)', borderColor: 'rgba(239, 83, 80, 0.45)' };
+      return { kind, icon: 'x', label: 'FAIL', color: FAILURE, background: 'var(--color-danger-50)', borderColor: 'var(--color-danger-500)' };
     case 'skip':
-      return { kind, icon: '-', label: 'SKIP', color: TEXT_MUTED, background: 'rgba(154, 160, 166, 0.10)', borderColor: 'rgba(154, 160, 166, 0.35)' };
+      return { kind, icon: '-', label: 'SKIP', color: TEXT_MUTED, background: 'var(--color-surface-2)', borderColor: BORDER };
     case 'running':
-      return { kind, icon: '…', label: 'RUNNING', color: INFO, background: 'rgba(33, 150, 243, 0.12)', borderColor: 'rgba(33, 150, 243, 0.45)' };
+      return { kind, icon: 'run', label: 'RUNNING', color: INFO, background: 'rgba(120, 184, 176, 0.12)', borderColor: 'var(--color-brand-400)' };
     case 'not-run':
-      return { kind, icon: '○', label: 'NOT RUN', color: TEXT_MUTED, background: 'rgba(154, 160, 166, 0.08)', borderColor: 'rgba(154, 160, 166, 0.25)' };
+      return { kind, icon: '-', label: 'NOT RUN', color: TEXT_MUTED, background: 'var(--color-surface-1)', borderColor: BORDER };
     default:
-      return { kind, icon: '?', label: 'UNKNOWN', color: WARNING, background: 'rgba(255, 152, 0, 0.12)', borderColor: 'rgba(255, 152, 0, 0.45)' };
+      return { kind, icon: '?', label: 'UNKNOWN', color: WARNING, background: 'var(--color-warning-50)', borderColor: 'var(--color-warning-200)' };
   }
 }
 
@@ -363,6 +365,10 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   const [confirmHeavyLanes, setConfirmHeavyLanes] = useState<LaneInfo[]>([]);
 
   const { runSession, runningChecks, checkResults, checkState, ciSync, discoveredChecks, loading } = storeState;
+  const operationSnapshot = deriveWorkspaceOperationSnapshot({
+    repoPath,
+    checksState: storeState,
+  });
 
   // ─── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -487,6 +493,12 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
     setConfirmHeavyLanes([]);
   }
 
+  function handleOperationPrimaryAction() {
+    if (operationSnapshot.nextAction?.id === 'checks.run') {
+      handleProfileClick('ci-local');
+    }
+  }
+
   // ─── Render: Top Strip ─────────────────────────────────────────────────────
   function renderTopStrip() {
     const isRunning = runSession?.outcome === 'running';
@@ -526,9 +538,6 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
               <span style={{ color: INFO }}>RUNNING</span>
             ) : lastRun ? (
               <>
-                <span style={{ color: overallPass ? SUCCESS : FAILURE, marginRight: 4 }}>
-                  {overallPass ? '✅' : '❌'}
-                </span>
                 {overallPass ? 'PASS' : 'FAIL'}
                 {compositeScore !== null && compositeScore !== undefined && (
                   <span style={{ color: TEXT_MUTED, marginLeft: 4 }}>
@@ -617,7 +626,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
           onClick={handleRunEverything}
           testId="workspace-checks-run-everything"
         >
-          ▶ Run Everything
+          Run Everything
         </Button>
 
         <Button
@@ -627,7 +636,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
           onClick={handleRefresh}
           testId="workspace-checks-refresh"
         >
-          🔄 Refresh
+          Refresh
         </Button>
       </div>
     );
@@ -645,7 +654,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
             Run {profileLabel} checks?
           </h3>
           <p style={{ color: WARNING, fontSize: '12px', marginBottom: 12 }}>
-            ⚠ This profile contains lanes that are{' '}
+            This profile contains lanes that are{' '}
             <strong>heavy</strong> or <strong>open windows</strong>:
           </p>
           <ul style={{ margin: '0 0 16px', paddingLeft: 20, color: TEXT_SECONDARY, fontSize: '12px' }}>
@@ -747,7 +756,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
           </span>
 
           <span style={{ color: TEXT_MUTED, fontSize: '10px' }}>
-            {isExpanded ? '▲' : '▼'}
+            {isExpanded ? 'Collapse' : 'Expand'}
           </span>
         </button>
 
@@ -807,7 +816,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
                     }}
                   >
                     <span style={{ color: cmd.success ? SUCCESS : FAILURE }}>
-                      {cmd.success ? '✓' : '✗'}
+                      {cmd.success ? 'ok' : 'fail'}
                     </span>
                     <code style={{ flex: 1, color: TEXT_SECONDARY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {cmd.command}
@@ -849,11 +858,11 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
           </span>
           {laneNames.length > 0 && (
             <span style={{ display: 'inline-flex', gap: 6, marginLeft: 10, flexWrap: 'wrap', verticalAlign: 'middle' }}>
-              {laneStatusCounts.pass > 0 && <span style={{ ...s.badge('rgba(76, 175, 80, 0.22)'), color: SUCCESS }}>✓ {laneStatusCounts.pass}</span>}
-              {laneStatusCounts.fail > 0 && <span style={{ ...s.badge('rgba(239, 83, 80, 0.22)'), color: FAILURE }}>✕ {laneStatusCounts.fail}</span>}
-              {laneStatusCounts.running > 0 && <span style={{ ...s.badge('rgba(33, 150, 243, 0.22)'), color: INFO }}>… {laneStatusCounts.running}</span>}
+              {laneStatusCounts.pass > 0 && <span style={{ ...s.badge('var(--color-success-50)'), color: SUCCESS }}>PASS {laneStatusCounts.pass}</span>}
+              {laneStatusCounts.fail > 0 && <span style={{ ...s.badge('var(--color-danger-50)'), color: FAILURE }}>FAIL {laneStatusCounts.fail}</span>}
+              {laneStatusCounts.running > 0 && <span style={{ ...s.badge('rgba(120, 184, 176, 0.12)'), color: INFO }}>RUN {laneStatusCounts.running}</span>}
               {laneStatusCounts.skip > 0 && <span style={{ ...s.badge('rgba(154, 160, 166, 0.18)'), color: TEXT_MUTED }}>- {laneStatusCounts.skip}</span>}
-              {laneStatusCounts['not-run'] > 0 && <span style={{ ...s.badge('rgba(154, 160, 166, 0.14)'), color: TEXT_MUTED }}>○ {laneStatusCounts['not-run']}</span>}
+              {laneStatusCounts['not-run'] > 0 && <span style={{ ...s.badge('var(--color-surface-2)'), color: TEXT_MUTED }}>NOT RUN {laneStatusCounts['not-run']}</span>}
               {laneStatusCounts.unknown > 0 && <span style={{ ...s.badge('rgba(255, 152, 0, 0.20)'), color: WARNING }}>? {laneStatusCounts.unknown}</span>}
             </span>
           )}
@@ -1099,6 +1108,10 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   // ─── Render: Main ──────────────────────────────────────────────────────────
   return (
     <div style={s.container} className="workspace-checks-tab" data-testid="workspace-checks-tab">
+      <WorkspaceOperationBanner
+        snapshot={operationSnapshot}
+        onPrimaryAction={handleOperationPrimaryAction}
+      />
       {renderTopStrip()}
       {renderProfileBar()}
       {renderConfirmDialog()}
@@ -1113,7 +1126,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
           onClick={() => setShowLogConsole(!showLogConsole)}
           testId="workspace-checks-log-toggle"
         >
-          {showLogConsole ? '▼ Hide Logs' : '▶ Show Logs'}
+          {showLogConsole ? 'Hide Logs' : 'Show Logs'}
         </Button>
       </div>
 
