@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Badge, Button, Panel } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { codexProviderStore, type CodexProviderState } from '../../stores/codexProviderStore';
-import type { CodexSubagentRecord, CodexSubagentSettings, CodexSubagentUsageResponse } from '../../lib/api/codexConfig';
+import type { CodexSubagentRecord, CodexSubagentSettings, CodexSubagentUsageResponse, OpenCodeWorkerConfig } from '../../lib/api/codexConfig';
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -323,6 +323,179 @@ function CodexSubagentUsageSection({ usage }: { usage: CodexSubagentUsageRespons
   );
 }
 
+const WORKER_ROLES = ['exploration', 'research', 'review', 'validation'];
+
+function OpenCodeWorkersSection({ state }: { state: CodexProviderState }) {
+  const data = state.opencodeWorkers;
+  const usage = state.opencodeWorkersUsage;
+  const config = data?.config;
+  const updateConfig = (patch: Partial<OpenCodeWorkerConfig>) => {
+    void codexProviderStore.saveOpenCodeWorkers(patch);
+  };
+
+  return (
+    <>
+      <Panel title="OpenCode Workers" subtitle="CLI-first read-only worker plugin for Codex" testId="codex-opencode-workers">
+        {!data || !config ? (
+          <p className="state-message">Loading OpenCode Workers…</p>
+        ) : (
+          <>
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <strong>Status</strong>
+                <span className="settings-row-description">Config: <code>{data.configPath}</code></span>
+                <span className="settings-row-description">Journal: <code>{data.journalPath}</code></span>
+              </div>
+              <div className="settings-row-action" style={{ gap: 8 }}>
+                <Badge tone={data.installed ? 'success' : 'neutral'}>{data.installed ? 'Installed' : 'Not installed'}</Badge>
+                <Badge tone={config.enabled ? 'success' : 'neutral'}>{config.enabled ? 'Enabled' : 'Disabled'}</Badge>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={state.subagentSaving}
+                  testId="codex-opencode-workers-install"
+                  onClick={() => codexProviderStore.installOpenCodeWorkersPlugin()}
+                >
+                  Install
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={state.subagentSaving}
+                  testId="codex-opencode-workers-remove"
+                  onClick={() => codexProviderStore.removeOpenCodeWorkersPlugin()}
+                >
+                  Remove
+                </Button>
+                <Button
+                  variant={config.enabled ? 'danger' : 'primary'}
+                  size="sm"
+                  disabled={state.subagentSaving}
+                  testId="codex-opencode-workers-toggle"
+                  onClick={() => updateConfig({ enabled: !config.enabled })}
+                >
+                  {config.enabled ? 'Disable' : 'Enable'}
+                </Button>
+              </div>
+            </div>
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <strong>Default profile</strong>
+                <span className="settings-row-description">Codex should omit model arguments for routine worker jobs.</span>
+              </div>
+              <div className="settings-row-action">
+                <select
+                  value={config.defaultModelProfile}
+                  disabled={state.subagentSaving}
+                  onChange={(event) => updateConfig({ defaultModelProfile: event.target.value })}
+                  style={inputStyle}
+                  data-testid="codex-opencode-workers-default-profile"
+                >
+                  {data.profiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>{profile.label || profile.id}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <strong>Paid/direct models</strong>
+                <span className="settings-row-description">Direct DeepSeek and other credit-backed routes require explicit opt-in.</span>
+              </div>
+              <div className="settings-row-action">
+                <label className="settings-row-description" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={config.allowPaidModels}
+                    disabled={state.subagentSaving}
+                    onChange={(event) => updateConfig({ allowPaidModels: event.target.checked })}
+                  />
+                  Allow paid/direct profiles
+                </label>
+              </div>
+            </div>
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <strong>Timeout</strong>
+                <span className="settings-row-description">Worker process timeout in seconds.</span>
+              </div>
+              <div className="settings-row-action">
+                <input
+                  type="number"
+                  min={60}
+                  value={config.timeoutSeconds}
+                  onChange={(event) => updateConfig({ timeoutSeconds: Number(event.target.value) })}
+                  style={{ ...inputStyle, width: 120 }}
+                  data-testid="codex-opencode-workers-timeout"
+                />
+              </div>
+            </div>
+          </>
+        )}
+      </Panel>
+
+      <Panel title="Role Profiles" subtitle="Optional per-role profile overrides" testId="codex-opencode-worker-role-profiles">
+        {!config || !data ? (
+          <p className="state-message">No profile data loaded.</p>
+        ) : (
+          WORKER_ROLES.map((role) => (
+            <div className="settings-row" key={role}>
+              <div className="settings-row-label">
+                <strong>{role}</strong>
+                <span className="settings-row-description">{config.roleProfiles[role] || config.defaultModelProfile}</span>
+              </div>
+              <div className="settings-row-action">
+                <select
+                  value={config.roleProfiles[role] || ''}
+                  disabled={state.subagentSaving}
+                  onChange={(event) => {
+                    const next = { ...config.roleProfiles };
+                    if (event.target.value) next[role] = event.target.value;
+                    else delete next[role];
+                    updateConfig({ roleProfiles: next });
+                  }}
+                  style={inputStyle}
+                  data-testid={`codex-opencode-workers-role-${role}`}
+                >
+                  <option value="">Use default</option>
+                  {data.profiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>{profile.label || profile.id}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ))
+        )}
+      </Panel>
+
+      <Panel title="Worker Usage" subtitle="Journal-derived usage, policy, and cost evidence" testId="codex-opencode-worker-usage">
+        {!usage ? (
+          <p className="state-message">No worker usage loaded.</p>
+        ) : (
+          <>
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <strong>Totals</strong>
+                <span className="settings-row-description">
+                  {usage.summary.runs} runs · {usage.summary.tokens.toLocaleString()} tokens · ${usage.summary.cost.toFixed(2)} cost · {usage.summary.policyViolations} policy violations
+                </span>
+              </div>
+            </div>
+            {usage.byModel.slice(0, 8).map((model) => (
+              <div className="settings-row" key={model.name}>
+                <div className="settings-row-label">
+                  <strong>{model.name}</strong>
+                  <span className="settings-row-description">{model.count} runs</span>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </Panel>
+    </>
+  );
+}
+
 export default function CodexProviderPanel() {
   const state: CodexProviderState = useStoreValue(codexProviderStore);
 
@@ -333,6 +506,9 @@ export default function CodexProviderPanel() {
   useEffect(() => {
     if (state.activeSection === 'subagents' || state.activeSection === 'usage') {
       void codexProviderStore.loadSubagents();
+    }
+    if (state.activeSection === 'workers') {
+      void codexProviderStore.loadOpenCodeWorkers();
     }
   }, [state.activeSection]);
 
@@ -386,6 +562,7 @@ export default function CodexProviderPanel() {
         {[
           { id: 'overview', label: 'Overview' },
           { id: 'subagents', label: 'Subagents' },
+          { id: 'workers', label: 'OpenCode Workers' },
           { id: 'usage', label: 'Subagent Usage' },
         ].map((tab) => (
           <button
@@ -406,6 +583,10 @@ export default function CodexProviderPanel() {
 
       {state.activeSection === 'usage' ? (
         <CodexSubagentUsageSection usage={state.subagentUsage} />
+      ) : null}
+
+      {state.activeSection === 'workers' ? (
+        <OpenCodeWorkersSection state={state} />
       ) : null}
 
       {state.activeSection === 'overview' ? (

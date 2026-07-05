@@ -17,7 +17,12 @@ import {
   getCodexPlanningStatus,
   installCodexPlanningSkill,
   getCodexSubagents,
+  getOpenCodeWorkersStatus,
+  getOpenCodeWorkersUsage,
+  installOpenCodeWorkers,
+  removeOpenCodeWorkers,
   saveCodexSubagentSettings,
+  saveOpenCodeWorkersConfig,
   updateCodexSubagent,
   resetCodexSubagent,
   uninstallCodexSubagent,
@@ -26,6 +31,9 @@ import {
   type CodexSubagentsResponse,
   type CodexSubagentUsageResponse,
   type CodexSubagentSettings,
+  type OpenCodeWorkerConfig,
+  type OpenCodeWorkersStatusResponse,
+  type OpenCodeWorkersUsageResponse,
 } from '../lib/api/codexConfig';
 import type { CodexProviderDeepseekStatus, CodexProviderStatusResponse, CodexPlanningStatusResponse, MoonBridgeBootstrapStatus } from '../lib/types';
 
@@ -43,7 +51,9 @@ export interface CodexProviderState {
   installingPlanning: boolean;
   subagents: CodexSubagentsResponse | null;
   subagentUsage: CodexSubagentUsageResponse | null;
-  activeSection: 'overview' | 'subagents' | 'usage';
+  opencodeWorkers: OpenCodeWorkersStatusResponse | null;
+  opencodeWorkersUsage: OpenCodeWorkersUsageResponse | null;
+  activeSection: 'overview' | 'subagents' | 'workers' | 'usage';
   subagentsLoading: boolean;
   subagentSaving: boolean;
   error: string | null;
@@ -64,6 +74,8 @@ const INITIAL_STATE: CodexProviderState = {
   installingPlanning: false,
   subagents: null,
   subagentUsage: null,
+  opencodeWorkers: null,
+  opencodeWorkersUsage: null,
   activeSection: 'overview',
   subagentsLoading: false,
   subagentSaving: false,
@@ -119,6 +131,75 @@ function createCodexProviderStore() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load Codex subagents';
       store.setState((state) => ({ ...state, subagentsLoading: false, error: message }));
+    }
+  }
+
+  async function loadOpenCodeWorkers(): Promise<void> {
+    store.setState((state) => ({ ...state, subagentsLoading: true, error: null }));
+    try {
+      const [opencodeWorkers, opencodeWorkersUsage] = await Promise.all([
+        getOpenCodeWorkersStatus(),
+        getOpenCodeWorkersUsage().catch(() => null),
+      ]);
+      store.setState((state) => ({
+        ...state,
+        opencodeWorkers,
+        opencodeWorkersUsage,
+        subagentsLoading: false,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load OpenCode Workers';
+      store.setState((state) => ({ ...state, subagentsLoading: false, error: message }));
+    }
+  }
+
+  async function saveOpenCodeWorkers(settings: Partial<OpenCodeWorkerConfig>): Promise<void> {
+    store.setState((state) => ({ ...state, subagentSaving: true, error: null, message: null }));
+    try {
+      const opencodeWorkers = await saveOpenCodeWorkersConfig(settings);
+      const opencodeWorkersUsage = await getOpenCodeWorkersUsage().catch(() => null);
+      store.setState((state) => ({
+        ...state,
+        opencodeWorkers,
+        opencodeWorkersUsage,
+        subagentSaving: false,
+        message: 'OpenCode Workers settings saved.',
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save OpenCode Workers settings';
+      store.setState((state) => ({ ...state, subagentSaving: false, error: message }));
+    }
+  }
+
+  async function installOpenCodeWorkersPlugin(): Promise<void> {
+    store.setState((state) => ({ ...state, subagentSaving: true, error: null, message: null }));
+    try {
+      const result = await installOpenCodeWorkers();
+      store.setState((state) => ({
+        ...state,
+        opencodeWorkers: result.status,
+        subagentSaving: false,
+        message: result.ok ? 'OpenCode Workers marketplace export complete.' : 'OpenCode Workers install failed.',
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to install OpenCode Workers';
+      store.setState((state) => ({ ...state, subagentSaving: false, error: message }));
+    }
+  }
+
+  async function removeOpenCodeWorkersPlugin(): Promise<void> {
+    store.setState((state) => ({ ...state, subagentSaving: true, error: null, message: null }));
+    try {
+      const result = await removeOpenCodeWorkers();
+      store.setState((state) => ({
+        ...state,
+        opencodeWorkers: result.status,
+        subagentSaving: false,
+        message: 'OpenCode Workers removed from managed Codex plugin locations.',
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to remove OpenCode Workers';
+      store.setState((state) => ({ ...state, subagentSaving: false, error: message }));
     }
   }
 
@@ -460,6 +541,10 @@ function createCodexProviderStore() {
     load,
     setActiveSection,
     loadSubagents,
+    loadOpenCodeWorkers,
+    saveOpenCodeWorkers,
+    installOpenCodeWorkersPlugin,
+    removeOpenCodeWorkersPlugin,
     saveSubagentSettings,
     saveSubagent,
     resetSubagent,
