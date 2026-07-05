@@ -3,6 +3,7 @@
 const toolCliInstallers = require('../lib/toolCliInstallers');
 const codexSubagentsDefault = require('../lib/codexSubagents');
 const telemetryServiceDefault = require('../lib/telemetryService');
+const opencodeWorkersDefault = require('../lib/opencodeWorkers');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 const path = require('path');
 const os = require('os');
@@ -14,8 +15,10 @@ function register(deps = {}) {
     toolCliInstallers: deps.toolCliInstallers || toolCliInstallers,
     codexSubagents: deps.codexSubagents || codexSubagentsDefault,
     telemetryService: deps.telemetryService || telemetryServiceDefault,
+    opencodeWorkers: deps.opencodeWorkers || opencodeWorkersDefault,
     fs: deps.fs || require('fs'),
     path: deps.path || path,
+    env: deps.env || process.env,
   };
 
   return [
@@ -169,6 +172,111 @@ function register(deps = {}) {
           const result = resolvedDeps.telemetryService.buildCodexSubagentUsage({
             codexHome,
             limit,
+          });
+          resolvedDeps.sendJson(ctx.res, 200, result);
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'GET',
+      path: '/api/codex/opencode-workers',
+      handler: async (ctx) => {
+        try {
+          const result = resolvedDeps.opencodeWorkers.getStatus({
+            engineRoot: ctx.engineRoot,
+            env: resolvedDeps.env,
+          });
+          resolvedDeps.sendJson(ctx.res, 200, result);
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'PUT',
+      path: '/api/codex/opencode-workers/config',
+      handler: async (ctx) => {
+        try {
+          const body = await resolvedDeps.readJsonBody(ctx.req);
+          const result = resolvedDeps.opencodeWorkers.saveConfig(body?.config || {}, {
+            engineRoot: ctx.engineRoot,
+            env: resolvedDeps.env,
+          });
+          resolvedDeps.sendJson(ctx.res, 200, result);
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'GET',
+      path: '/api/codex/opencode-workers/jobs',
+      handler: async (ctx) => {
+        try {
+          const result = resolvedDeps.opencodeWorkers.listJobs({
+            engineRoot: ctx.engineRoot,
+            env: resolvedDeps.env,
+          });
+          resolvedDeps.sendJson(ctx.res, 200, result);
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/codex/opencode-workers/install',
+      handler: async (ctx) => {
+        try {
+          const result = resolvedDeps.opencodeWorkers.installPlugin({
+            engineRoot: ctx.engineRoot,
+            codexHome: ctx.codexHome,
+            env: resolvedDeps.env,
+          });
+          resolvedDeps.sendJson(ctx.res, result.ok ? 200 : 500, result);
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/codex/opencode-workers/remove',
+      handler: async (ctx) => {
+        try {
+          const result = resolvedDeps.opencodeWorkers.removePlugin({
+            engineRoot: ctx.engineRoot,
+            codexHome: ctx.codexHome,
+            env: resolvedDeps.env,
+          });
+          resolvedDeps.sendJson(ctx.res, 200, result);
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'GET',
+      path: '/api/codex/opencode-workers/usage',
+      handler: async (ctx) => {
+        try {
+          const result = resolvedDeps.opencodeWorkers.buildUsage({
+            engineRoot: ctx.engineRoot,
+            env: resolvedDeps.env,
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {

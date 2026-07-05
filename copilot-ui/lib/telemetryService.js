@@ -5,6 +5,7 @@ const path = require('path');
 const os = require('os');
 const opencodeLogReader = require('./opencodeLogReader');
 const opencodeConfig = require('./opencodeConfig');
+const opencodeWorkers = require('./opencodeWorkers');
 let BetterSqlite3 = null;
 try {
   BetterSqlite3 = require('better-sqlite3');
@@ -558,6 +559,7 @@ function buildCodexTelemetry(options = {}) {
   const logsPath = path.join(codexHome, 'state_5.sqlite');
   const logStat = safeStat(logsPath, options.fs || fs);
   const subagents = buildCodexSubagentUsage({ ...options, codexHome, limit: options.limit || DEFAULT_EVENT_LIMIT });
+  const workers = opencodeWorkers.buildUsage(options);
   const subagentTools = new Map();
   for (const agent of subagents.byAgent || []) {
     for (const tool of agent.topTools || []) {
@@ -582,9 +584,12 @@ function buildCodexTelemetry(options = {}) {
     summary: {
       requests: null,
       sampledRequests: null,
-      errors: subagents.summary.errors,
+      errors: subagents.summary.errors + workers.summary.failed + workers.summary.policyViolations,
       toolEvents: subagents.summary.toolEvents,
       sessions: sessions.count,
+      workerRuns: workers.summary.runs,
+      workerTokens: workers.summary.tokens,
+      workerCost: workers.summary.cost,
     },
     providerUsage: {
       providers: [],
@@ -609,8 +614,16 @@ function buildCodexTelemetry(options = {}) {
       label: session.name || session.id,
       message: session.id,
       })),
+      ...workers.recentJobs.map((job) => ({
+        timestamp: job.completedAt || job.startedAt || '',
+        type: 'opencode-worker',
+        source: workers.source.path,
+        label: job.role || job.id,
+        message: `${job.state || 'unknown'} · ${job.model || 'unknown'}`,
+      })),
     ].slice(0, clampLimit(options.limit)),
     subagents,
+    opencodeWorkers: workers,
   };
 }
 

@@ -309,3 +309,82 @@ export function uninstallCodexSubagent(name: string, force = false, baseUrl?: st
 export function getCodexSubagentUsage(baseUrl?: string): Promise<CodexSubagentUsageResponse> {
   return apiRequest('/api/codex/subagents/usage', { baseUrl });
 }
+
+export interface OpenCodeWorkerConfig {
+  enabled: boolean;
+  defaultModelProfile: string;
+  roleProfiles: Record<string, string>;
+  allowPaidModels: boolean;
+  profilesPath: string | null;
+  journalPath: string | null;
+  timeoutSeconds: number;
+}
+
+export interface OpenCodeWorkerProfile {
+  id: string;
+  label: string;
+  description: string;
+  tags: string[];
+  roleModels: Record<string, string>;
+}
+
+export interface OpenCodeWorkersStatusResponse {
+  installed: boolean;
+  enabled: boolean;
+  configPath: string;
+  journalPath: string;
+  profileCatalogPath: string;
+  config: OpenCodeWorkerConfig;
+  profiles: OpenCodeWorkerProfile[];
+}
+
+export interface OpenCodeWorkersUsageResponse {
+  generatedAt: string;
+  source: { kind: string; path: string };
+  summary: {
+    runs: number;
+    completed: number;
+    failed: number;
+    policyViolations: number;
+    permissionDenials: number;
+    tokens: number;
+    cost: number;
+  };
+  byModel: Array<{ name: string; count: number }>;
+  byRole: Array<{ name: string; count: number }>;
+  recentJobs: Array<Record<string, unknown>>;
+}
+
+export function getOpenCodeWorkersStatus(baseUrl?: string): Promise<OpenCodeWorkersStatusResponse> {
+  return apiRequest('/api/codex/opencode-workers', { baseUrl });
+}
+
+export function saveOpenCodeWorkersConfig(
+  config: Partial<OpenCodeWorkerConfig>,
+  baseUrl?: string,
+): Promise<OpenCodeWorkersStatusResponse> {
+  return apiRequest('/api/codex/opencode-workers/config', {
+    baseUrl,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ config }),
+  });
+}
+
+export function getOpenCodeWorkersUsage(baseUrl?: string): Promise<OpenCodeWorkersUsageResponse> {
+  return apiRequest('/api/codex/opencode-workers/usage', { baseUrl });
+}
+
+export function installOpenCodeWorkers(baseUrl?: string): Promise<{ ok: boolean; status: OpenCodeWorkersStatusResponse; result?: unknown }> {
+  return apiRequest('/api/codex/opencode-workers/install', {
+    baseUrl,
+    method: 'POST',
+  });
+}
+
+export function removeOpenCodeWorkers(baseUrl?: string): Promise<{ ok: boolean; status: OpenCodeWorkersStatusResponse; removed?: string[] }> {
+  return apiRequest('/api/codex/opencode-workers/remove', {
+    baseUrl,
+    method: 'POST',
+  });
+}
