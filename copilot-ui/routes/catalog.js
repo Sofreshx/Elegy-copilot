@@ -3372,6 +3372,93 @@ function handleCatalogRepoRefresh(ctx, deps) {
     ));
 }
 
+function handleLocalRepoReaderList(ctx, deps) {
+  try {
+    const access = deps.localRepoReaderAccess.listAccess({
+      elegyHome: ctx.elegyHomeAbs,
+    });
+    deps.sendJson(ctx.res, 200, {
+      kind: 'catalog.local_repo_reader.list',
+      deterministic: true,
+      access,
+    });
+  } catch (error) {
+    sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'catalog.local_repo_reader.list',
+      String(error.message || error),
+    );
+  }
+}
+
+function handleLocalRepoReaderEnable(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then((body) => {
+      const request = normalizeRepoInventoryBody(body);
+      const alias = normalizeString(body?.alias);
+      const inventory = listRepoInventory(ctx, deps, {
+        explicitRepoPaths: request.repoPath ? [request.repoPath] : [],
+      });
+      const repo = deps.repoInventory.resolveRepoEntry(inventory, {
+        repoId: request.repoId,
+        repoPath: request.repoPath,
+      });
+      if (!repo || !repo.repoPath) {
+        throw Object.assign(new Error('Unknown repo selection for Local Repo Reader'), { statusCode: 404 });
+      }
+      const result = deps.localRepoReaderAccess.enableRepo({
+        elegyHome: ctx.elegyHomeAbs,
+        repoId: repo.repoId,
+        repoPath: repo.repoPath,
+        repoLabel: repo.repoLabel,
+        alias: alias || repo.repoLabel || repo.repoId,
+      });
+      deps.sendJson(ctx.res, 200, {
+        kind: 'catalog.local_repo_reader.enable',
+        deterministic: true,
+        enabled: true,
+        repo: result.repo,
+        access: result.access,
+      });
+    })
+    .catch((error) => sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'catalog.local_repo_reader.enable',
+      String(error.message || error),
+    ));
+}
+
+function handleLocalRepoReaderDisable(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then((body) => {
+      const request = normalizeRepoInventoryBody(body);
+      const result = deps.localRepoReaderAccess.disableRepo({
+        elegyHome: ctx.elegyHomeAbs,
+        repoId: request.repoId,
+        repoPath: request.repoPath,
+        alias: normalizeString(body?.alias),
+      });
+      deps.sendJson(ctx.res, 200, {
+        kind: 'catalog.local_repo_reader.disable',
+        deterministic: true,
+        disabled: true,
+        removed: result.removed,
+        access: result.access,
+      });
+    })
+    .catch((error) => sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'catalog.local_repo_reader.disable',
+      String(error.message || error),
+    ));
+}
+
 function sendJsonError(res, sendJson, statusCode, kind, error) {
   sendJson(res, statusCode, {
     kind,
@@ -3926,6 +4013,7 @@ function register(deps = {}) {
     fetch: deps.fetch || globalThis.fetch,
     repoInventory: deps.repoInventory || repoInventoryLib,
     repoDiscovery: deps.repoDiscovery || repoDiscoveryLib,
+    localRepoReaderAccess: deps.localRepoReaderAccess || require('../lib/localRepoReaderAccess'),
     sendJson: deps.sendJson || defaultSendJson,
     sendText: deps.sendText || defaultSendText,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
@@ -3964,6 +4052,21 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/repos/refresh',
       handler: (ctx) => handleCatalogRepoRefresh(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/catalog/local-repo-reader',
+      handler: (ctx) => handleLocalRepoReaderList(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/local-repo-reader/enable',
+      handler: (ctx) => handleLocalRepoReaderEnable(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/local-repo-reader/disable',
+      handler: (ctx) => handleLocalRepoReaderDisable(ctx, resolvedDeps),
     },
     {
       method: 'GET',

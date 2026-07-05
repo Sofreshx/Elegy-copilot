@@ -59,6 +59,13 @@ export default function RepositoriesView() {
   const openWorkspacePaths = useMemo(() => {
     return new Set(navState.openWorkspaces.map((w) => w.repoPath));
   }, [navState.openWorkspaces]);
+  const localRepoReaderRoots = useMemo(() => {
+    return new Set(
+      (state.localRepoReaderAccess?.repos || [])
+        .filter((repo) => repo.enabled)
+        .map((repo) => String(repo.root || '').replace(/\//g, '\\').toLowerCase())
+    );
+  }, [state.localRepoReaderAccess?.repos]);
 
   const repoCount = filtered.length;
 
@@ -128,6 +135,9 @@ export default function RepositoriesView() {
             {filtered.map((repo, idx) => {
               const repoPath = (repo.repoPath || '').trim();
               const isOpen = openWorkspacePaths.has(repoPath);
+              const readerEnabled = repoPath
+                ? localRepoReaderRoots.has(repoPath.replace(/\//g, '\\').toLowerCase())
+                : false;
               const stableKey = repo.repoId || repo.repoPath || `repo-${idx}`;
               return (
                 <li
@@ -147,6 +157,14 @@ export default function RepositoriesView() {
                   </div>
                   {repoPath ? (
                     <div className="repos-launcher-row-actions">
+                      <button
+                        className={`button button-sm ${readerEnabled ? 'button-primary' : ''}`}
+                        disabled={state.localRepoReaderMutating}
+                        onClick={() => void repositoriesStore.setLocalRepoReaderEnabled(repo, !readerEnabled)}
+                        data-testid={`repos-local-reader-${repoPath}`}
+                      >
+                        {readerEnabled ? 'Reader On' : 'Reader Off'}
+                      </button>
                       <IconButton
                         icon="external-link"
                         size={18}

@@ -609,6 +609,38 @@ async function run() {
       assert.equal(unregisterResponse.body.removed, true);
       assert.equal(unregisterResponse.body.repo.repoPath, manualRepoPath);
     });
+    await test('local repo reader routes export an explicit read-only repo allowlist', async () => {
+      const enableResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/local-repo-reader/enable', {
+        repoPath,
+        alias: 'Engine Repo',
+      });
+      assert.equal(enableResponse.res.statusCode, 200);
+      assert.equal(enableResponse.body.kind, 'catalog.local_repo_reader.enable');
+      assert.equal(enableResponse.body.enabled, true);
+      assert.equal(enableResponse.body.repo.alias, 'engine-repo');
+      assert.equal(enableResponse.body.repo.root, repoPath);
+      assert.equal(enableResponse.body.access.repos.length, 1);
+
+      const accessPath = path.join(elegyHomeAbs, 'catalog', 'local-repo-reader', 'access.json');
+      assert.ok(fs.existsSync(accessPath), 'expected local repo reader access file to exist');
+      const access = JSON.parse(fs.readFileSync(accessPath, 'utf8'));
+      assert.equal(access.schemaVersion, 1);
+      assert.equal(access.repos[0].alias, 'engine-repo');
+      assert.equal(access.repos[0].enabled, true);
+
+      const listResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/local-repo-reader');
+      assert.equal(listResponse.res.statusCode, 200);
+      assert.equal(listResponse.body.kind, 'catalog.local_repo_reader.list');
+      assert.equal(listResponse.body.access.repos[0].root, repoPath);
+
+      const disableResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/local-repo-reader/disable', {
+        alias: 'engine-repo',
+      });
+      assert.equal(disableResponse.res.statusCode, 200);
+      assert.equal(disableResponse.body.kind, 'catalog.local_repo_reader.disable');
+      assert.equal(disableResponse.body.disabled, true);
+      assert.deepEqual(disableResponse.body.access.repos, []);
+    });
     await test('repo inventory routes persist custom scan roots and surface discovered repos without selecting them', async () => {
       const customScanRoot = path.join(tmpRoot, 'scanned-roots');
       const discoveredRepoPath = path.join(customScanRoot, 'catalog-app');

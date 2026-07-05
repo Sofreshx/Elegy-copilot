@@ -2455,6 +2455,36 @@ export interface CatalogRepoScanRootsMutationResponse extends CatalogReposListRe
   updated?: boolean;
 }
 
+export interface LocalRepoReaderAccessRepo {
+  repoId: string;
+  alias: string;
+  root: string;
+  label: string;
+  enabled: boolean;
+}
+
+export interface LocalRepoReaderAccessState {
+  schemaVersion?: number;
+  updatedAt?: string | null;
+  storage?: CatalogRepoInventoryStorage;
+  repos: LocalRepoReaderAccessRepo[];
+  [key: string]: unknown;
+}
+
+export interface LocalRepoReaderAccessResponse {
+  kind?: string;
+  deterministic?: boolean;
+  access: LocalRepoReaderAccessState;
+  [key: string]: unknown;
+}
+
+export interface LocalRepoReaderMutationResponse extends LocalRepoReaderAccessResponse {
+  enabled?: boolean;
+  disabled?: boolean;
+  repo?: LocalRepoReaderAccessRepo;
+  removed?: LocalRepoReaderAccessRepo[];
+}
+
 export interface PolicyPreflightResponse {
   ok: boolean;
   status: string;
