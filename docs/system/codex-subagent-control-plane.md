@@ -1,6 +1,6 @@
 ---
 created: 2026-07-04
-updated: 2026-07-04
+updated: 2026-07-06
 category: system
 status: current
 doc_kind: node
@@ -52,10 +52,27 @@ Routing modes:
 |---|---|---|---|---|
 | `explorer` | `gpt-5.4-mini` | `low` | `read-only` | Noisy repo mapping |
 | `reviewer` | `gpt-5.5` | `high` | `read-only` | Independent review |
+| `test-runner` | `gpt-5.4-mini` | `medium` | `workspace-write` | Bounded validation output |
 | `sweeper` | `gpt-5.4-mini` | `medium` | `workspace-write` | Bounded cleanup |
 
 `explorer` also records `gpt-5.3-codex-spark` as an optional fast lane when
 the user has Codex Pro access and the task is shallow read-only exploration.
+
+Do not add a general Codex implementation subagent by default. Subagents exist
+to protect the orchestrator from noisy tool traces or to provide independent
+judgment. Main-thread implementation remains the default until telemetry shows a
+dedicated implementation agent is worth the extra token and coordination cost.
+
+`explorer` is one configurable agent, not a family of explorer agents. Use the
+prompt mode instead:
+
+| Mode | Use |
+|---|---|
+| `pattern-discovery` | Find existing conventions or similar code |
+| `trace` | Follow an execution path |
+| `dependency-map` | Map dependencies and reverse dependencies |
+| `search` | Find references to a symbol or pattern |
+| `architecture` | Map module boundaries and data flow |
 
 ## Capability truth labels
 
@@ -77,7 +94,7 @@ Path: Codex Settings.
 Tabs:
 
 - Overview: provider, CLI, planning setup.
-- Subagents: routing settings, managed global agents, project agent discovery.
+- Subagents: status summary, routing settings, managed global agents, project agent discovery.
 - Subagent Usage: local derived run metadata.
 
 Editable fields:
@@ -90,6 +107,18 @@ Editable fields:
 - developer instructions
 
 Local overrides are preserved until the user resets a managed agent.
+
+The Subagents tab must make background delegation visible at a glance:
+
+- managed, installed, missing, drifted, invalid, disabled, and usable counts
+- native `[agents]` sync state
+- routing mode and fan-out limits
+- per-agent status, routing, model, effort, sandbox, and recent usage
+- install/reset/save actions for managed agents
+- project-scoped agents displayed read-only and separate from managed global agents
+
+Heavy details stay behind expansion: developer instructions, capability truth
+labels, raw TOML, source path, installed path, and tool-scope notes.
 
 The Subagents tab writes routing metadata to
 `~/.codex/.elegy-copilot-codex-subagents.json` and native Codex fan-out limits

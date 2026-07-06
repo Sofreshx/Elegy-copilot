@@ -15,6 +15,8 @@ const apiMocks = vi.hoisted(() => ({
   checkDeepseekBridge: vi.fn(),
   getBootstrapStatus: vi.fn(),
   bootstrapMoonBridge: vi.fn(),
+  getCodexSubagents: vi.fn(),
+  getCodexSubagentUsage: vi.fn(),
   getRemotePreference: vi.fn(),
   setRemotePreference: vi.fn(),
 }));
@@ -33,6 +35,8 @@ vi.mock('../ui/src/lib/api/codexConfig', async () => {
     checkDeepseekBridge: apiMocks.checkDeepseekBridge,
     getBootstrapStatus: apiMocks.getBootstrapStatus,
     bootstrapMoonBridge: apiMocks.bootstrapMoonBridge,
+    getCodexSubagents: apiMocks.getCodexSubagents,
+    getCodexSubagentUsage: apiMocks.getCodexSubagentUsage,
   };
 });
 
@@ -169,6 +173,103 @@ describe('SettingsView', () => {
         lastError: null,
       },
     });
+    apiMocks.getCodexSubagents.mockResolvedValue({
+      codexHome: 'C:/Users/demo/.codex',
+      agentsDir: 'C:/Users/demo/.codex/agents',
+      inventoryPath: 'C:/Users/demo/.codex/.elegy-copilot-codex-managed.json',
+      settings: {
+        routingMode: 'manual',
+        maxThreads: 3,
+        maxDepth: 1,
+        jobMaxRuntimeSeconds: 1800,
+        telemetryRetentionDays: 90,
+        settingsPath: 'C:/Users/demo/.codex/.elegy-copilot-codex-subagents.json',
+      },
+      nativeConfig: {
+        path: 'C:/Users/demo/.codex/config.toml',
+        changed: false,
+        parseError: null,
+        values: { maxThreads: 3, maxDepth: 1, jobMaxRuntimeSeconds: 1800 },
+        matchesSettings: true,
+      },
+      summary: {
+        managed: 4,
+        installed: 3,
+        missing: 1,
+        drifted: 1,
+        invalid: 0,
+        usable: 3,
+        disabled: 0,
+        project: 0,
+        routingMode: 'manual',
+        maxThreads: 3,
+        maxDepth: 1,
+        nativeConfigSynced: true,
+      },
+      agents: [
+        {
+          name: 'explorer',
+          description: 'Read-only exploration agent.',
+          model: 'gpt-5.4-mini',
+          modelReasoningEffort: 'low',
+          sandboxMode: 'read-only',
+          routingMode: 'manual',
+          fastModel: 'gpt-5.3-codex-spark',
+          allowSpark: true,
+          toolScopeNote: 'Read-only sandbox is enforced.',
+          managed: true,
+          scope: 'global',
+          missing: false,
+          drift: false,
+          operationalStatus: 'ready',
+          usable: true,
+          parseError: null,
+          sourcePath: 'repo/codex-assets/agents/explorer.toml',
+          installedPath: 'C:/Users/demo/.codex/agents/explorer.toml',
+          content: 'developer_instructions = """explore"""',
+          capabilities: { enforced: ['sandbox:read-only'], configured: ['model:gpt-5.4-mini'], inherited: [], observed: [] },
+          usageSummary: { runs: 2, tokens: 1200, toolEvents: 8, errors: 0 },
+        },
+        {
+          name: 'test-runner',
+          description: 'Command-only validation agent.',
+          model: 'gpt-5.4-mini',
+          modelReasoningEffort: 'medium',
+          sandboxMode: 'workspace-write',
+          routingMode: 'manual',
+          fastModel: null,
+          allowSpark: false,
+          toolScopeNote: 'Validation commands only.',
+          managed: true,
+          scope: 'global',
+          missing: true,
+          drift: false,
+          operationalStatus: 'missing',
+          usable: false,
+          parseError: null,
+          sourcePath: 'repo/codex-assets/agents/test-runner.toml',
+          installedPath: null,
+          content: 'developer_instructions = """test"""',
+          capabilities: { enforced: ['sandbox:workspace-write'], configured: ['model:gpt-5.4-mini'], inherited: [], observed: [] },
+          usageSummary: { runs: 0, tokens: 0, toolEvents: 0, errors: 0 },
+        },
+      ],
+      projectAgents: [],
+      capabilityLegend: {
+        enforced: 'Codex/app setting prevents access.',
+        configured: 'Agent TOML requests this behavior.',
+        inherited: 'Parent Codex session may still provide this capability.',
+        observed: 'Local telemetry saw this agent use it.',
+      },
+    });
+    apiMocks.getCodexSubagentUsage.mockResolvedValue({
+      generatedAt: '2026-07-06T00:00:00.000Z',
+      coverage: 'codex-state-plus-rollouts',
+      source: { kind: 'codex-state', path: 'C:/Users/demo/.codex/state_5.sqlite' },
+      summary: { runs: 2, tokens: 1200, toolEvents: 8, errors: 0 },
+      byAgent: [{ name: 'explorer', count: 2, tokens: 1200, toolEvents: 8, errors: 0 }],
+      runs: [],
+    });
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
@@ -217,6 +318,34 @@ describe('SettingsView', () => {
     expect(screen.getByTestId('deepseek-start-bridge')).toBeInTheDocument();
     expect(screen.getByTestId('deepseek-stop-bridge')).toBeInTheDocument();
     expect(screen.getByTestId('deepseek-check-status')).toBeInTheDocument();
+  });
+
+  it('renders Codex subagent status summary and compact managed rows', async () => {
+    navigationStore.setSettingsSection('codex');
+    const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
+
+    await act(async () => {
+      render(<SettingsView />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('codex-provider-mode-badge')).toHaveTextContent('Native Codex');
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Subagents' }));
+
+    await waitFor(() => {
+      expect(apiMocks.getCodexSubagents).toHaveBeenCalled();
+      expect(screen.getByTestId('codex-subagents-summary')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('3/4')).toBeInTheDocument();
+    expect(screen.getByText('3 installed · 1 missing')).toBeInTheDocument();
+    expect(screen.getByTestId('codex-subagent-explorer')).toHaveTextContent('Ready');
+    expect(screen.getByTestId('codex-subagent-explorer')).toHaveTextContent('gpt-5.4-mini');
+    expect(screen.getByTestId('codex-subagent-explorer')).toHaveTextContent('2 runs · 8 tools');
+    expect(screen.getByTestId('codex-subagent-test-runner')).toHaveTextContent('Missing');
+    expect(screen.getByTestId('codex-subagent-reset-test-runner')).toHaveTextContent('Install');
   });
 
   it('enables hard restore when a backup exists', async () => {

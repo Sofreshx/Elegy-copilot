@@ -182,6 +182,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-global-instructions', { destination: 'AGENTS.md' }),
       route('codex-explorer-agent'),
       route('codex-reviewer-agent'),
+      route('codex-test-runner-agent'),
       route('codex-sweeper-agent'),
       route('codex-repo-setup-skill'),
       route('codex-skill-discovery-skill', { sourceAssetId: 'skill-discovery' }),

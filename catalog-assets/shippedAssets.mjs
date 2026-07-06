@@ -80,6 +80,7 @@ export const SHIPPED_ASSETS = [
   }),
   agent('codex-explorer-agent', 'codex-assets/agents/explorer.toml'),
   agent('codex-reviewer-agent', 'codex-assets/agents/reviewer.toml'),
+  agent('codex-test-runner-agent', 'codex-assets/agents/test-runner.toml'),
   agent('codex-sweeper-agent', 'codex-assets/agents/sweeper.toml'),
   skill('codex-repo-setup-skill', 'codex-assets/skills/repo-setup'),
   skill('codex-implementation-handoff-skill', 'codex-assets/skills/implementation-handoff', {

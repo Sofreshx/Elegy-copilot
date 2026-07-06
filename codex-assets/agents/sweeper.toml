@@ -36,5 +36,6 @@ Workflow:
 6. Run focused validation.
 7. Inspect git diff for unrelated changes.
 
+Output contract:
 Return SWEEPER_RESULT with candidates, removals, validation, and residual risks.
 """

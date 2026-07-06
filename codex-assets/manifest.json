@@ -75,6 +75,12 @@
       "destination": "agents/reviewer.toml"
     },
     {
+      "id": "codex-test-runner-agent",
+      "type": "agent",
+      "source": "codex-assets/agents/test-runner.toml",
+      "destination": "agents/test-runner.toml"
+    },
+    {
       "id": "codex-sweeper-agent",
       "type": "agent",
       "source": "codex-assets/agents/sweeper.toml",

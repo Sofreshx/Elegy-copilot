@@ -298,6 +298,25 @@ function buildCapabilitySummary(parsed, usageByAgent) {
   return { enforced, configured, inherited, observed };
 }
 
+function buildUsageSummary(name, usageByAgent) {
+  const usage = usageByAgent.get(String(name || '')) || null;
+  return {
+    runs: Number(usage?.count || 0),
+    tokens: Number(usage?.tokens || 0),
+    toolEvents: Number(usage?.toolEvents || 0),
+    errors: Number(usage?.errors || 0),
+  };
+}
+
+function normalizeOperationalStatus({ managed, missing, drift, parseError, routingMode }) {
+  if (parseError) return 'invalid';
+  if (missing) return 'missing';
+  if (String(routingMode || '').toLowerCase() === 'off') return 'disabled';
+  if (drift) return 'overridden';
+  if (managed) return 'ready';
+  return 'unmanaged';
+}
+
 function normalizeAgentRecord(installed, source, usageByAgent) {
   const parsed = installed?.parsed || source?.parsed || {};
   const name = String(parsed.name || source?.name || installed?.name || '');
@@ -307,6 +326,9 @@ function normalizeAgentRecord(installed, source, usageByAgent) {
   const drift = Boolean(sourceHash && installedHash && sourceHash !== installedHash);
   const missing = Boolean(source && !installed);
   const parseError = parsed._parseError || null;
+  const routingMode = parsed.elegy?.routing_mode || 'manual';
+  const operationalStatus = normalizeOperationalStatus({ managed, missing, drift, parseError, routingMode });
+  const usageSummary = buildUsageSummary(name, usageByAgent);
 
   return {
     name,
@@ -315,7 +337,7 @@ function normalizeAgentRecord(installed, source, usageByAgent) {
     modelReasoningEffort: parsed.model_reasoning_effort || null,
     sandboxMode: parsed.sandbox_mode || null,
     nicknameCandidates: Array.isArray(parsed.nickname_candidates) ? parsed.nickname_candidates : [],
-    routingMode: parsed.elegy?.routing_mode || 'manual',
+    routingMode,
     fastModel: parsed.elegy?.fast_model || null,
     allowSpark: parsed.elegy?.allow_spark === true,
     toolScopeNote: parsed.elegy?.tool_scope_note || 'MCP inheritance depends on the parent Codex session.',
@@ -323,6 +345,8 @@ function normalizeAgentRecord(installed, source, usageByAgent) {
     scope: installed?.scope || (source ? 'global' : 'unknown'),
     missing,
     drift,
+    operationalStatus,
+    usable: operationalStatus === 'ready' || operationalStatus === 'overridden',
     parseError,
     sourcePath: source?.sourcePath || null,
     installedPath: installed?.path || null,
@@ -330,6 +354,26 @@ function normalizeAgentRecord(installed, source, usageByAgent) {
     installedHash,
     content: installed?.content || source?.sourceText || '',
     capabilities: buildCapabilitySummary(parsed, usageByAgent),
+    usageSummary,
+  };
+}
+
+function summarizeAgents(agents, projectAgents, settings, nativeConfig) {
+  const rows = Array.isArray(agents) ? agents : [];
+  const projectRows = Array.isArray(projectAgents) ? projectAgents : [];
+  return {
+    managed: rows.filter((agent) => agent.managed).length,
+    installed: rows.filter((agent) => agent.managed && !agent.missing).length,
+    missing: rows.filter((agent) => agent.missing).length,
+    drifted: rows.filter((agent) => agent.drift).length,
+    invalid: rows.filter((agent) => agent.parseError).length,
+    usable: rows.filter((agent) => agent.usable).length,
+    disabled: rows.filter((agent) => agent.operationalStatus === 'disabled').length,
+    project: projectRows.length,
+    routingMode: settings?.routingMode || DEFAULT_SETTINGS.routingMode,
+    maxThreads: settings?.maxThreads ?? DEFAULT_SETTINGS.maxThreads,
+    maxDepth: settings?.maxDepth ?? DEFAULT_SETTINGS.maxDepth,
+    nativeConfigSynced: nativeConfig?.matchesSettings === true,
   };
 }
 
@@ -387,12 +431,16 @@ function listCodexSubagents(options = {}) {
       .map((agent) => normalizeAgentRecord(agent, null, usageByAgent)));
   }
 
+  const settings = getSettings(codexHome);
+  const nativeConfig = getNativeAgentsConfig(codexHome, settings);
+
   return {
     codexHome,
     agentsDir,
     inventoryPath: path.join(codexHome, MANAGED_INVENTORY_FILE),
-    settings: getSettings(codexHome),
-    nativeConfig: getNativeAgentsConfig(codexHome, getSettings(codexHome)),
+    settings,
+    nativeConfig,
+    summary: summarizeAgents(agents, projectAgents, settings, nativeConfig),
     agents,
     projectAgents,
     capabilityLegend: {

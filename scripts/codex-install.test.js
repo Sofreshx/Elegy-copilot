@@ -46,6 +46,7 @@ async function main() {
       assert.ok(fs.existsSync(path.join(codexHome, 'AGENTS.md')));
       assert.ok(fs.existsSync(path.join(codexHome, 'agents', 'explorer.toml')));
       assert.ok(fs.existsSync(path.join(codexHome, 'agents', 'reviewer.toml')));
+      assert.ok(fs.existsSync(path.join(codexHome, 'agents', 'test-runner.toml')));
       assert.ok(fs.existsSync(path.join(codexHome, 'agents', 'sweeper.toml')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'repo-setup', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'skill-discovery', 'SKILL.md')));

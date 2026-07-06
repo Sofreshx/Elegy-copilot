@@ -206,6 +206,8 @@ export interface CodexSubagentRecord {
   scope: string;
   missing: boolean;
   drift: boolean;
+  operationalStatus: string;
+  usable: boolean;
   parseError: string | null;
   sourcePath: string | null;
   installedPath: string | null;
@@ -216,6 +218,12 @@ export interface CodexSubagentRecord {
     inherited: string[];
     observed: string[];
   };
+  usageSummary: {
+    runs: number;
+    tokens: number;
+    toolEvents: number;
+    errors: number;
+  };
 }
 
 export interface CodexSubagentsResponse {
@@ -224,6 +232,20 @@ export interface CodexSubagentsResponse {
   inventoryPath: string;
   settings: CodexSubagentSettings;
   nativeConfig: CodexSubagentNativeConfig;
+  summary: {
+    managed: number;
+    installed: number;
+    missing: number;
+    drifted: number;
+    invalid: number;
+    usable: number;
+    disabled: number;
+    project: number;
+    routingMode: string;
+    maxThreads: number;
+    maxDepth: number;
+    nativeConfigSynced: boolean;
+  };
   agents: CodexSubagentRecord[];
   projectAgents: CodexSubagentRecord[];
   capabilityLegend: Record<string, string>;

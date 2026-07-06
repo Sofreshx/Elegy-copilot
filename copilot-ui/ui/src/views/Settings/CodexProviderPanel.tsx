@@ -42,6 +42,34 @@ function CapabilityList({ title, values }: { title: string; values: string[] }) 
   );
 }
 
+function formatCount(value: number | null | undefined): string {
+  return Number(value || 0).toLocaleString();
+}
+
+function subagentStatusTone(agent: CodexSubagentRecord): 'neutral' | 'brand' | 'accent' | 'success' | 'danger' {
+  if (agent.parseError || agent.missing) return 'danger';
+  if (agent.operationalStatus === 'disabled') return 'neutral';
+  if (agent.drift) return 'brand';
+  if (agent.usable) return 'success';
+  return 'neutral';
+}
+
+function subagentStatusLabel(agent: CodexSubagentRecord): string {
+  if (agent.parseError) return 'Invalid';
+  if (agent.missing) return 'Missing';
+  if (agent.operationalStatus === 'disabled') return 'Off';
+  if (agent.drift) return 'Local override';
+  if (agent.usable) return 'Ready';
+  return agent.managed ? 'Managed' : 'Unmanaged';
+}
+
+function routingTone(routingMode: string): 'neutral' | 'brand' | 'accent' | 'success' | 'danger' {
+  if (routingMode === 'off') return 'neutral';
+  if (routingMode === 'governed-automatic') return 'brand';
+  if (routingMode === 'suggested') return 'accent';
+  return 'success';
+}
+
 function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSubagentRecord; saving: boolean; readOnly?: boolean }) {
   const [model, setModel] = useState(agent.model || '');
   const [effort, setEffort] = useState(agent.modelReasoningEffort || 'medium');
@@ -59,72 +87,110 @@ function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSu
     setInstructions(splitInstructions(agent.content));
   }, [agent]);
 
-  const statusTone = agent.missing ? 'danger' : agent.drift ? 'brand' : agent.managed ? 'success' : 'neutral';
-  const statusLabel = agent.missing ? 'Missing' : agent.drift ? 'Local override' : agent.managed ? 'Managed' : 'Unmanaged';
   const fieldsDisabled = saving || readOnly;
+  const saveDisabled = fieldsDisabled || Boolean(agent.parseError);
+  const usage = agent.usageSummary || { runs: 0, tokens: 0, toolEvents: 0, errors: 0 };
+  const pathLabel = agent.installedPath || agent.sourcePath || 'No path available';
 
   return (
-    <div className="settings-row" data-testid={`codex-subagent-${agent.name}`} style={{ alignItems: 'flex-start' }}>
-      <div className="settings-row-label" style={{ gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <strong>{agent.name}</strong>
-          <Badge tone={statusTone}>{statusLabel}</Badge>
-          {agent.fastModel ? <Badge tone="brand">Fast lane: {agent.fastModel}</Badge> : null}
+    <div className="settings-row" data-testid={`codex-subagent-${agent.name}`} style={{ alignItems: 'flex-start', gap: 16 }}>
+      <div className="settings-row-label" style={{ gap: 10, minWidth: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, alignItems: 'center' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <strong>{agent.name}</strong>
+              <Badge tone={subagentStatusTone(agent)}>{subagentStatusLabel(agent)}</Badge>
+              {readOnly ? <Badge tone="neutral">Project</Badge> : null}
+            </div>
+            <span className="settings-row-description">{agent.description}</span>
+          </div>
+          <div>
+            <span className="settings-row-description">Routing</span>
+            <div><Badge tone={routingTone(agent.routingMode)}>{agent.routingMode}</Badge></div>
+          </div>
+          <div>
+            <span className="settings-row-description">Model</span>
+            <div style={{ fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-word' }}>{agent.model || 'unset'}</div>
+          </div>
+          <div>
+            <span className="settings-row-description">Sandbox</span>
+            <div><Badge tone={agent.sandboxMode === 'read-only' ? 'success' : 'accent'}>{agent.sandboxMode || 'unset'}</Badge></div>
+          </div>
+          <div>
+            <span className="settings-row-description">Usage</span>
+            <div style={{ fontSize: 12 }}>
+              {formatCount(usage.runs)} runs · {formatCount(usage.toolEvents)} tools
+            </div>
+          </div>
         </div>
-        <span className="settings-row-description">{agent.description}</span>
-        <span className="settings-row-description">{agent.toolScopeNote}</span>
         {agent.parseError ? (
           <span className="settings-row-error">TOML parse error: {agent.parseError}</span>
         ) : null}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginTop: 8 }}>
-          <label>
-            <span className="settings-row-description">Model</span>
-            <input value={model} onChange={(event) => setModel(event.target.value)} style={inputStyle} disabled={fieldsDisabled} readOnly={readOnly} />
+        <details style={{ marginTop: 2 }}>
+          <summary className="settings-row-description">Details and controls</summary>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginTop: 10 }}>
+            <label>
+              <span className="settings-row-description">Model</span>
+              <input value={model} onChange={(event) => setModel(event.target.value)} style={inputStyle} disabled={fieldsDisabled} readOnly={readOnly} />
+            </label>
+            <label>
+              <span className="settings-row-description">Reasoning</span>
+              <select value={effort} onChange={(event) => setEffort(event.target.value)} style={inputStyle} disabled={fieldsDisabled}>
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+              </select>
+            </label>
+            <label>
+              <span className="settings-row-description">Sandbox</span>
+              <select value={sandbox} onChange={(event) => setSandbox(event.target.value)} style={inputStyle} disabled={fieldsDisabled}>
+                <option value="read-only">read-only</option>
+                <option value="workspace-write">workspace-write</option>
+              </select>
+            </label>
+            <label>
+              <span className="settings-row-description">Routing</span>
+              <select value={routingMode} onChange={(event) => setRoutingMode(event.target.value)} style={inputStyle} disabled={fieldsDisabled}>
+                <option value="manual">manual</option>
+                <option value="suggested">suggested</option>
+                <option value="governed-automatic">governed automatic</option>
+                <option value="off">off</option>
+              </select>
+            </label>
+          </div>
+          {agent.fastModel ? (
+            <label className="settings-row-description" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+              <input type="checkbox" checked={allowSpark} onChange={(event) => setAllowSpark(event.target.checked)} disabled={fieldsDisabled} />
+              Allow Spark fast lane when available ({agent.fastModel})
+            </label>
+          ) : null}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginTop: 10 }}>
+            <div>
+              <span className="settings-row-description">Recent usage</span>
+              <p className="settings-row-description" style={{ margin: 0 }}>
+                {formatCount(usage.runs)} runs · {formatCount(usage.tokens)} tokens · {formatCount(usage.toolEvents)} tools · {formatCount(usage.errors)} errors
+              </p>
+            </div>
+            <div>
+              <span className="settings-row-description">Path</span>
+              <p className="settings-row-description" style={{ margin: 0, wordBreak: 'break-all' }}>{pathLabel}</p>
+            </div>
+          </div>
+          <p className="settings-row-description" style={{ marginTop: 8 }}>{agent.toolScopeNote}</p>
+          <label style={{ marginTop: 8 }}>
+            <span className="settings-row-description">Developer instructions</span>
+            <textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} style={textareaStyle} disabled={fieldsDisabled} readOnly={readOnly} />
           </label>
-          <label>
-            <span className="settings-row-description">Reasoning</span>
-            <select value={effort} onChange={(event) => setEffort(event.target.value)} style={inputStyle} disabled={fieldsDisabled}>
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-            </select>
-          </label>
-          <label>
-            <span className="settings-row-description">Sandbox</span>
-            <select value={sandbox} onChange={(event) => setSandbox(event.target.value)} style={inputStyle} disabled={fieldsDisabled}>
-              <option value="read-only">read-only</option>
-              <option value="workspace-write">workspace-write</option>
-            </select>
-          </label>
-          <label>
-            <span className="settings-row-description">Routing</span>
-            <select value={routingMode} onChange={(event) => setRoutingMode(event.target.value)} style={inputStyle} disabled={fieldsDisabled}>
-              <option value="manual">manual</option>
-              <option value="suggested">suggested</option>
-              <option value="governed-automatic">governed automatic</option>
-              <option value="off">off</option>
-            </select>
-          </label>
-        </div>
-        {agent.fastModel ? (
-          <label className="settings-row-description" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-            <input type="checkbox" checked={allowSpark} onChange={(event) => setAllowSpark(event.target.checked)} disabled={fieldsDisabled} />
-            Allow Spark fast lane when available
-          </label>
-        ) : null}
-        <label style={{ marginTop: 8 }}>
-          <span className="settings-row-description">Developer instructions</span>
-          <textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} style={textareaStyle} disabled={fieldsDisabled} readOnly={readOnly} />
-        </label>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
-          <CapabilityList title="Enforced" values={agent.capabilities.enforced} />
-          <CapabilityList title="Configured" values={agent.capabilities.configured} />
-          <CapabilityList title="Inherited" values={agent.capabilities.inherited} />
-          <CapabilityList title="Observed" values={agent.capabilities.observed} />
-        </div>
-        <details style={{ marginTop: 8 }}>
-          <summary className="settings-row-description">Raw TOML preview</summary>
-          <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', fontSize: 11 }}>{agent.content}</pre>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
+            <CapabilityList title="Enforced" values={agent.capabilities.enforced} />
+            <CapabilityList title="Configured" values={agent.capabilities.configured} />
+            <CapabilityList title="Inherited" values={agent.capabilities.inherited} />
+            <CapabilityList title="Observed" values={agent.capabilities.observed} />
+          </div>
+          <details style={{ marginTop: 8 }}>
+            <summary className="settings-row-description">Raw TOML preview</summary>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', fontSize: 11 }}>{agent.content}</pre>
+          </details>
         </details>
       </div>
       <div className="settings-row-action" style={{ flexDirection: 'column', alignItems: 'flex-end' }}>
@@ -132,7 +198,7 @@ function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSu
           <Button
             variant="primary"
             size="sm"
-            disabled={saving}
+            disabled={saveDisabled}
             testId={`codex-subagent-save-${agent.name}`}
             onClick={() => codexProviderStore.saveSubagent(agent.name, {
               model,
@@ -154,7 +220,7 @@ function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSu
             testId={`codex-subagent-reset-${agent.name}`}
             onClick={() => codexProviderStore.resetSubagent(agent.name)}
           >
-            {agent.missing ? 'Install' : 'Reset'}
+            {agent.missing ? 'Install' : 'Reset to managed'}
           </Button>
         ) : null}
         {!readOnly ? (
@@ -173,6 +239,56 @@ function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSu
   );
 }
 
+function CodexSubagentSummary({ data, usage }: { data: NonNullable<CodexProviderState['subagents']>; usage: CodexSubagentUsageResponse | null }) {
+  const summary = data.summary;
+  const nativeTone = summary.nativeConfigSynced ? 'success' : 'danger';
+  const usageLabel = usage ? `${formatCount(usage.summary.runs)} runs` : 'No usage loaded';
+
+  return (
+    <Panel title="Subagent Status" subtitle="Current managed Codex agent state" testId="codex-subagents-summary">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+        <div>
+          <span className="settings-row-description">Usable</span>
+          <div><Badge tone={summary.usable === summary.managed && summary.missing === 0 ? 'success' : 'accent'}>{summary.usable}/{summary.managed}</Badge></div>
+        </div>
+        <div>
+          <span className="settings-row-description">Installed</span>
+          <div><Badge tone={summary.missing === 0 ? 'success' : 'danger'}>{summary.installed} installed · {summary.missing} missing</Badge></div>
+        </div>
+        <div>
+          <span className="settings-row-description">Overrides</span>
+          <div><Badge tone={summary.drifted > 0 ? 'brand' : 'success'}>{summary.drifted} local</Badge></div>
+        </div>
+        <div>
+          <span className="settings-row-description">Routing</span>
+          <div><Badge tone={routingTone(summary.routingMode)}>{summary.routingMode}</Badge></div>
+        </div>
+        <div>
+          <span className="settings-row-description">Fan-out</span>
+          <div><Badge tone="neutral">{summary.maxThreads} threads · depth {summary.maxDepth}</Badge></div>
+        </div>
+        <div>
+          <span className="settings-row-description">Native config</span>
+          <div><Badge tone={nativeTone}>{summary.nativeConfigSynced ? 'Synced' : 'Not synced'}</Badge></div>
+        </div>
+        <div>
+          <span className="settings-row-description">Usage</span>
+          <div><Badge tone={usage ? 'brand' : 'neutral'}>{usageLabel}</Badge></div>
+        </div>
+        <div>
+          <span className="settings-row-description">Project agents</span>
+          <div><Badge tone={summary.project > 0 ? 'accent' : 'neutral'}>{summary.project}</Badge></div>
+        </div>
+      </div>
+      {summary.invalid > 0 || summary.disabled > 0 ? (
+        <p className="settings-row-description" style={{ margin: '10px 0 0' }}>
+          {summary.invalid} invalid · {summary.disabled} disabled. Invalid agents are not saved until reset or corrected.
+        </p>
+      ) : null}
+    </Panel>
+  );
+}
+
 function CodexSubagentsSection({ state }: { state: CodexProviderState }) {
   const data = state.subagents;
   const settings = data?.settings;
@@ -183,6 +299,8 @@ function CodexSubagentsSection({ state }: { state: CodexProviderState }) {
 
   return (
     <>
+      {data ? <CodexSubagentSummary data={data} usage={state.subagentUsage} /> : null}
+
       <Panel title="Subagent Routing" subtitle="Control when Codex should delegate work" testId="codex-subagent-routing">
         {!settings ? (
           <p className="state-message">Loading subagent settings…</p>

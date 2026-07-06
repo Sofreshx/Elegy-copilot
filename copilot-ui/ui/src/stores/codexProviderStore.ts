@@ -210,7 +210,18 @@ function createCodexProviderStore() {
       store.setState((state) => ({
         ...state,
         subagents: state.subagents
-          ? { ...state.subagents, settings: result.settings, nativeConfig: result.nativeConfig }
+          ? {
+            ...state.subagents,
+            settings: result.settings,
+            nativeConfig: result.nativeConfig,
+            summary: {
+              ...state.subagents.summary,
+              routingMode: result.settings.routingMode,
+              maxThreads: result.settings.maxThreads,
+              maxDepth: result.settings.maxDepth,
+              nativeConfigSynced: result.nativeConfig.matchesSettings === true,
+            },
+          }
           : state.subagents,
         subagentSaving: false,
         message: 'Codex subagent settings saved.',

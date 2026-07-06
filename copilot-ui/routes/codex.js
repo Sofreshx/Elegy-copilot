@@ -112,9 +112,14 @@ function register(deps = {}) {
         try {
           const body = await resolvedDeps.readJsonBody(ctx.req);
           const codexHome = ctx.codexHome || path.join(os.homedir(), '.codex');
+          const usage = resolvedDeps.telemetryService.buildCodexSubagentUsage({
+            codexHome,
+            limit: 200,
+          });
           const result = resolvedDeps.codexSubagents.updateCodexSubagent(decodeURIComponent(ctx.match[1]), body || {}, {
             codexHome,
             engineRoot: ctx.engineRoot,
+            usageByAgent: usage.byAgent,
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {
@@ -130,9 +135,14 @@ function register(deps = {}) {
       handler: async (ctx) => {
         try {
           const codexHome = ctx.codexHome || path.join(os.homedir(), '.codex');
+          const usage = resolvedDeps.telemetryService.buildCodexSubagentUsage({
+            codexHome,
+            limit: 200,
+          });
           const result = resolvedDeps.codexSubagents.resetCodexSubagent(decodeURIComponent(ctx.match[1]), {
             codexHome,
             engineRoot: ctx.engineRoot,
+            usageByAgent: usage.byAgent,
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {
@@ -149,10 +159,15 @@ function register(deps = {}) {
         try {
           const codexHome = ctx.codexHome || path.join(os.homedir(), '.codex');
           const force = ctx.u.searchParams.get('force') === 'true';
+          const usage = resolvedDeps.telemetryService.buildCodexSubagentUsage({
+            codexHome,
+            limit: 200,
+          });
           const result = resolvedDeps.codexSubagents.uninstallCodexSubagent(decodeURIComponent(ctx.match[1]), {
             codexHome,
             engineRoot: ctx.engineRoot,
             force,
+            usageByAgent: usage.byAgent,
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {

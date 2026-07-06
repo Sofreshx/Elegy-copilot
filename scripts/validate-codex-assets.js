@@ -13,7 +13,7 @@ const bannedPatterns = [
   { label: 'Elegy home path: ~/.elegy', pattern: /~\/\.elegy/i },
 ];
 
-const requiredAgentFields = ['name', 'description', 'developer_instructions'];
+const requiredAgentFields = ['name', 'description', 'model', 'model_reasoning_effort', 'sandbox_mode', 'developer_instructions'];
 const allowedReasoningEfforts = new Set(['low', 'medium', 'high']);
 
 function parseTomlScalar(content, key) {
@@ -76,6 +76,13 @@ function runAudit(options = {}) {
         findings.push({
           relativePath,
           label: `Unsupported Codex reasoning effort: ${effort}`,
+        });
+      }
+
+      if (!/Output contract:/i.test(content)) {
+        findings.push({
+          relativePath,
+          label: 'Codex agent missing Output contract marker',
         });
       }
     }

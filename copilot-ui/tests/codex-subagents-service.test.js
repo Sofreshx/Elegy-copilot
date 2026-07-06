@@ -15,11 +15,20 @@ test('Codex subagent service lists managed agents and preserves Spark as optiona
   });
 
   const explorer = result.agents.find((agent) => agent.name === 'explorer');
+  const testRunner = result.agents.find((agent) => agent.name === 'test-runner');
   assert.ok(explorer);
   assert.equal(explorer.model, 'gpt-5.4-mini');
   assert.equal(explorer.fastModel, 'gpt-5.3-codex-spark');
   assert.equal(explorer.allowSpark, true);
   assert.equal(explorer.missing, true);
+  assert.ok(testRunner);
+  assert.equal(testRunner.model, 'gpt-5.4-mini');
+  assert.equal(testRunner.modelReasoningEffort, 'medium');
+  assert.equal(testRunner.sandboxMode, 'workspace-write');
+  assert.equal(testRunner.missing, true);
+  assert.equal(result.summary.managed, 4);
+  assert.equal(result.summary.missing, 4);
+  assert.equal(result.summary.usable, 0);
 });
 
 test('Codex subagent service updates and resets a managed agent safely', () => {
@@ -80,4 +89,34 @@ test('Codex subagent settings do not persist when native config patching fails',
   }), /Codex config TOML validation failed/);
 
   assert.equal(fs.existsSync(path.join(tmp, '.elegy-copilot-codex-subagents.json')), false);
+});
+
+test('Codex subagent service reports summary and per-agent usage for the UI', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-codex-subagents-'));
+  const engineRoot = path.resolve(__dirname, '..', '..');
+
+  codexSubagents.resetCodexSubagent('explorer', { codexHome: tmp, engineRoot });
+  codexSubagents.resetCodexSubagent('reviewer', { codexHome: tmp, engineRoot });
+
+  const result = codexSubagents.listCodexSubagents({
+    codexHome: tmp,
+    engineRoot,
+    usageByAgent: [
+      { name: 'explorer', count: 2, tokens: 1200, toolEvents: 9, errors: 0 },
+      { name: 'reviewer', count: 1, tokens: 800, toolEvents: 2, errors: 1 },
+    ],
+  });
+
+  const explorer = result.agents.find((agent) => agent.name === 'explorer');
+  const reviewer = result.agents.find((agent) => agent.name === 'reviewer');
+
+  assert.equal(result.summary.managed, 4);
+  assert.equal(result.summary.installed, 2);
+  assert.equal(result.summary.missing, 2);
+  assert.equal(result.summary.usable, 2);
+  assert.equal(result.summary.nativeConfigSynced, false);
+  assert.equal(explorer.operationalStatus, 'ready');
+  assert.equal(explorer.usable, true);
+  assert.deepEqual(explorer.usageSummary, { runs: 2, tokens: 1200, toolEvents: 9, errors: 0 });
+  assert.deepEqual(reviewer.usageSummary, { runs: 1, tokens: 800, toolEvents: 2, errors: 1 });
 });
