@@ -10,6 +10,7 @@ describe('WorkspaceLocalTabs', () => {
     const gitTab = screen.getByTestId('workspace-local-tab-git');
     const planningTab = screen.getByTestId('workspace-local-tab-planning');
     const executionTab = screen.getByTestId('workspace-local-tab-execution');
+    expect(screen.queryByTestId('workspace-local-tab-notes')).toBeNull();
     expect(docsTab).toBeDefined();
     expect(gitTab).toBeDefined();
     expect(planningTab).toBeDefined();

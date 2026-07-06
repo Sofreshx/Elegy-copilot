@@ -21,7 +21,6 @@ import AppIcon from '../../components/AppIcon';
 import BrandIcon from '../../components/BrandIcon';
 import { resolveLauncherIconPath } from '../../lib/launcherIcons';
 import WorkspaceAssetsTab from './WorkspaceAssetsTab';
-import WorkspaceNotesTab from './WorkspaceNotesTab';
 import WorkspaceChecksTab from './WorkspaceChecksTab';
 import WorkspaceHealthTab from './WorkspaceHealthTab';
 
@@ -313,9 +312,6 @@ export default function WorkspaceView() {
             )}
             {navState.activeWorkspaceLocalTab === 'assets' && (
               <WorkspaceAssetsTab repoPath={selectedRepoPath} />
-            )}
-            {navState.activeWorkspaceLocalTab === 'notes' && (
-              <WorkspaceNotesTab repoPath={selectedRepoPath} />
             )}
             </PageContainer>
           </div>

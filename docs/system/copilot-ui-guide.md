@@ -35,9 +35,10 @@ node copilot-ui/server.js
 | Item | View |
 |------|------|
 | Repositories | Browse and open registered repositories |
+| Notes | Global notes, vault Git snapshots, import/export, and Google Drive sync |
 | Lexicon | Searchable vocabulary reference |
 | Remote | Kimaki onboarding, projects, Discord sessions, prompts, and logs |
-| Workspace | Appears when a repository is opened; shows docs, git (stash management, force commit, worktree checks/merge), planning, and execution tabs |
+| Workspace | Appears when a repository is opened; shows docs, git (stash management, force commit, worktree checks/merge), checks, health, planning, execution, and assets tabs |
 | Settings (bottom) | App configuration (via settings gear icon) |
 
 ### Settings sub-sections

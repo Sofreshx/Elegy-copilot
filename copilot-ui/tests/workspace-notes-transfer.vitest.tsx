@@ -80,7 +80,8 @@ describe('WorkspaceNotesTab transfer console', () => {
     expect(screen.getByTestId('notes-export-json')).toBeInTheDocument();
     expect(screen.getByTestId('notes-import-trigger')).toBeInTheDocument();
     expect(screen.getByTestId('notes-drive-setup')).toBeInTheDocument();
-    expect(screen.getByTestId('workspace-operation-banner')).toBeInTheDocument();
+    expect(screen.queryByTestId('workspace-operation-banner')).not.toBeInTheDocument();
+    expect(screen.queryByText('Install rclone before Google Drive sync can run.')).not.toBeInTheDocument();
     expect(screen.getByTestId('notes-drive-next-step')).toHaveTextContent('Configure DevVault remote');
     expect(screen.getByTestId('notes-git-panel')).toHaveTextContent('1 change');
     expect(screen.queryByTestId('notes-local-tools')).not.toBeInTheDocument();

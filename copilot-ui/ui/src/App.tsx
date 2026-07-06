@@ -1,5 +1,6 @@
 import { Suspense, useCallback, useEffect, lazy } from 'react';
 import AppLayout from './components/AppLayout';
+import { PageContainer } from './components';
 import Sidebar from './components/Sidebar';
 import ToastContainer from './components/ToastContainer';
 import { useStoreValue } from './lib/store';
@@ -23,6 +24,7 @@ const WorkspaceView = lazy(() => import('./views/Workspace/WorkspaceView'));
 const RepositoriesView = lazy(() => import('./views/Repositories/RepositoriesView'));
 const RemoteView = lazy(() => import('./tabs/Remote/RemoteView'));
 const McpView = lazy(() => import('./tabs/Mcp/McpView'));
+const WorkspaceNotesTab = lazy(() => import('./views/Workspace/WorkspaceNotesTab'));
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
   const desktopUpdaterState = useStoreValue(desktopUpdaterStore);
@@ -95,6 +97,12 @@ export default function App() {
         return <PatternAtlasView />;
       case 'repositories':
         return <RepositoriesView />;
+      case 'notes':
+        return (
+          <PageContainer>
+            <WorkspaceNotesTab />
+          </PageContainer>
+        );
       case 'settings':
         return <SettingsView />;
       default:

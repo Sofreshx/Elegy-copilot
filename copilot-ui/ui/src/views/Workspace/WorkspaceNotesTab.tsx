@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../../components';
-import { deriveWorkspaceOperationSnapshot } from '../../stores/workspaceOperationStore';
 import WorkspaceNotesReader from './Notes/Reader';
 import WorkspaceNotesEditor from './Notes/Editor';
 import WorkspaceNotesRaw from './Notes/Raw';
-import WorkspaceOperationBanner from './WorkspaceOperationBanner';
 import {
   exportNotes,
   importNotes,
@@ -32,7 +30,7 @@ type NotesViewMode = 'read' | 'write' | 'raw';
 type BusyAction = 'export-json' | 'export-markdown' | 'import' | 'push' | 'pull' | 'auth' | 'commit' | 'init' | null;
 
 interface WorkspaceNotesTabProps {
-  repoPath: string;
+  repoPath?: string | null;
 }
 
 function downloadText(filename: string, mimeType: string, content: string) {
@@ -319,34 +317,10 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
   const hasGitChanges = Boolean(gitStatus?.ok && gitStatus.changes && gitStatus.changes.length > 0);
   const syncBusy = busyAction === 'push' || busyAction === 'pull';
   const driveSetupStep = getDriveSetupStep(driveSync);
-  const operationSnapshot = deriveWorkspaceOperationSnapshot({
-    repoPath,
-    notesState: {
-      vaultStatus,
-      gitStatus,
-      driveSync,
-      busyAction,
-    },
-  });
-
-  function handleOperationPrimaryAction() {
-    const actionId = operationSnapshot.nextAction?.id;
-    if (actionId === 'notes.drive.push') {
-      if (driveSetupStep.action === 'verify') {
-        void handleDriveAuth();
-      } else {
-        void handleDrivePush();
-      }
-    }
-  }
+  const notesContextPath = repoPath || '';
 
   return (
     <div className="workspace-notes-tab workspace-notes-transfer" data-testid="notes-tab">
-      <WorkspaceOperationBanner
-        snapshot={operationSnapshot}
-        onPrimaryAction={handleOperationPrimaryAction}
-      />
-
       <div className="workspace-notes-transfer-header">
         <div>
           <h3 className="workspace-notes-title">Notes Transfer</h3>
@@ -598,7 +572,7 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
           <div className="workspace-notes-body" role="tabpanel">
             {viewMode === 'read' && (
               <WorkspaceNotesReader
-                repoPath={repoPath}
+                repoPath={notesContextPath}
                 activeNoteId={activeNoteId}
                 onNoteSelect={handleNoteSelect}
                 onEditNote={handleEditNote}
@@ -606,14 +580,14 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
             )}
             {viewMode === 'write' && (
               <WorkspaceNotesEditor
-                repoPath={repoPath}
+                repoPath={notesContextPath}
                 noteId={activeNoteId}
                 onSaved={(id) => { setActiveNoteId(id); setViewMode('read'); }}
                 onCancel={() => setViewMode('read')}
               />
             )}
             {viewMode === 'raw' && (
-              <WorkspaceNotesRaw repoPath={repoPath} noteId={activeNoteId} />
+              <WorkspaceNotesRaw repoPath={notesContextPath} noteId={activeNoteId} />
             )}
           </div>
         </section>
