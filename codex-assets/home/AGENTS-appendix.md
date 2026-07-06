@@ -1,51 +1,49 @@
 # Codex Session Defaults
 
-Composed with the shared baseline at install time.
+Composed after the shared baseline at install time.
 
 ## Authority
 
-Order: user instruction → repo canonical docs → README/maintained docs →
+Order: user instruction -> repo canonical docs -> README/maintained docs ->
 implementation patterns. Report conflicts.
 
 ## Skills
 
 Load shared skills only when they materially change the result:
 
-- `skill-discovery` for ambiguous capability routing.
-- `ui-system`, `ui-runtime-exploration`, `ui-visual-review` for UI work.
-- `sweeper-cleanup` for bounded cleanup.
-- `agents-md-authoring` for instruction files.
-- `elegy-planning`, `spec-*`, `rubberduck-plan-review`,
-  `implementation-review`, and `implementation-handoff` are opt-in durable
-  workflow tools. Recommend when useful; do not load as routine ceremony.
+| Skill | Use |
+|---|---|
+| `skill-discovery` | Ambiguous capability routing |
+| `agents-md-authoring` | Instruction files and AGENTS.md layering |
+| `ui-system`, `ui-runtime-exploration`, `ui-visual-review` | UI work |
+| `sweeper-cleanup` | Bounded cleanup |
+| `elegy-planning`, `spec-*`, `rubberduck-plan-review`, `implementation-review`, `implementation-handoff` | Opt-in durable workflow |
+
+Recommend durable workflow skills when useful. Do not load them as routine
+ceremony.
 
 ## Subagents
 
-Default: manual. Use subagents when the user asks, or when governed automatic
+Default: manual. Use subagents only when the user asks or governed automatic
 read-only delegation is explicitly enabled.
 
-| Agent | Use |
-|---|---|
-| `explorer` | Read-only repo mapping that would create about five or more noisy tool calls. |
-| `reviewer` | Read-heavy independent review. |
-| `sweeper` | Bounded cleanup with evidence. |
-
-Delegation gates:
+Delegation contract:
 
 - State scope, boundaries, allowed actions, output shape, and stop condition.
-- Prefer one child agent.
-- Prefer read-only agents before write-capable agents.
-- Keep architecture, requirements, integration, and final judgment in the main thread.
-- Treat per-agent MCP limits as configured intent, not hard isolation.
+- Prefer one read-only child agent before write-capable delegation.
+- Keep architecture, requirements, integration, and final judgment in the main
+  thread.
 
-## Planning and specs
+## Planning and Specs
 
 Default to the smallest useful plan in the current thread. Use durable planning
-or specs only when requested, multi-session, or needed for verifiable acceptance.
+or specs only when requested, multi-session, or needed for verifiable
+acceptance.
 
-## Repo docs breadcrumb
+## Repo Docs Breadcrumb
 
-Repo policy: canonical docs entrypoint → nearest routing node → smallest owner.
+Repo policy: canonical docs entrypoint -> nearest routing node -> smallest
+owner.
 
 ## Boundaries
 

@@ -49,7 +49,29 @@ describe('commit-check-setup protocol', () => {
     assert.equal(onDisk.schemaVersion, 3);
     assert.equal(validation.valid, true, validation.errors.join('; '));
     assert.equal(onDisk.lanes.test.blocking, true);
-    assert.deepEqual(onDisk.lanes.test.defaultProfiles, ['commit', 'ci-local']);
+    assert.deepEqual(onDisk.lanes.test.defaultProfiles, ['commit']);
     assert.equal(onDisk.lanes.typecheck.blocking, true);
+  });
+
+  it('generates a docs-pages lane when docs build validation exists', async () => {
+    const root = makeTempRepo();
+    fs.mkdirSync(path.join(root, 'scripts'));
+    fs.mkdirSync(path.join(root, 'docs'));
+    const pkgPath = path.join(root, 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    pkg.scripts['docs:build'] = 'vitepress build docs';
+    fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+    fs.writeFileSync(path.join(root, 'scripts', 'validate-doc-graph.js'), 'console.log("ok");\n');
+
+    const { configPath } = await setup(root, { force: true, noScript: true });
+    const onDisk = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+
+    assert.deepEqual(onDisk.lanes['docs-pages'].commands, [
+      'node scripts/validate-doc-graph.js',
+      'npm run docs:build',
+    ]);
+    assert.deepEqual(onDisk.lanes['docs-pages'].defaultProfiles, ['ci-local']);
+    assert.equal(onDisk.lanes['docs-pages'].ciWorkflow, 'docs-pages.yml');
+    assert.equal(onDisk.lanes['docs-pages'].ciJob, 'build');
   });
 });

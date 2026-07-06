@@ -133,6 +133,14 @@ async function run() {
     assert.ok(Array.isArray(body.syncResult.mappings));
   });
 
+  await test('GET /api/git/checks/ci-sync accepts explicit scope', async () => {
+    const routes = registerWithMocks();
+    const testRepo = path.resolve(__dirname, '..', '..');
+    const { res, body } = await invoke(routes, 'GET', `/api/git/checks/ci-sync?repoPath=${encodeURIComponent(testRepo)}&scope=pr`);
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.syncResult.summary.scope, 'pr');
+  });
+
   console.log(`\n  ${passed} tests passed\n`);
 }
 

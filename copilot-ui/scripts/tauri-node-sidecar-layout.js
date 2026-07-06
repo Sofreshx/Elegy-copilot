@@ -96,6 +96,29 @@ function resolveWorkspaceDependencyRoot(activeWorkspaceRoot, relativePath, requi
   return workspaceCandidate;
 }
 
+function normalizeNativeRequiredFiles(packageName, requiredFiles) {
+  return (requiredFiles || []).map((entry) => {
+    if (typeof entry === 'string') {
+      return {
+        packageName,
+        path: entry,
+      };
+    }
+
+    if (entry && typeof entry === 'object') {
+      return {
+        packageName: entry.packageName || packageName,
+        path: entry.path,
+      };
+    }
+
+    return {
+      packageName,
+      path: '',
+    };
+  });
+}
+
 function validateDirectoryFilter(label, sourceRoot, filters) {
   const sourceFiles = collectFiles(sourceRoot);
   assert(sourceFiles.length > 0, `${label} is empty: ${sourceRoot}`);
@@ -236,8 +259,21 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
       const packagePath = path.join(sourceNodeModulesRoot, ...packageName.split('/'));
       requireDirectory(`desktop native runtime package ${packageName}`, packagePath);
       
-      for (const fileRel of pkgConfig.requiredFiles) {
-        requireFile(`desktop native runtime artifact ${packageName}/${fileRel}`, path.join(packagePath, fileRel));
+      for (const fileRequirement of normalizeNativeRequiredFiles(packageName, pkgConfig.requiredFiles)) {
+        assert(
+          typeof fileRequirement.packageName === 'string' && fileRequirement.packageName.trim(),
+          `Expected ${manifestPath} nativeRuntimePackageRequirements.${packageName}.requiredFiles packageName.`,
+        );
+        assert(
+          typeof fileRequirement.path === 'string' && fileRequirement.path.trim(),
+          `Expected ${manifestPath} nativeRuntimePackageRequirements.${packageName}.requiredFiles path.`,
+        );
+        const filePackagePath = path.join(sourceNodeModulesRoot, ...fileRequirement.packageName.split('/'));
+        requireDirectory(`desktop native runtime artifact package ${fileRequirement.packageName}`, filePackagePath);
+        requireFile(
+          `desktop native runtime artifact ${fileRequirement.packageName}/${fileRequirement.path}`,
+          path.join(filePackagePath, fileRequirement.path),
+        );
       }
     }
   }
@@ -314,8 +350,13 @@ function validatePackagedTauriNodeSidecarLayoutMetadata(options = {}) {
     for (const [packageName, pkgConfig] of Object.entries(manifest.nativeRuntimePackageRequirements)) {
       const packagedPackagePath = path.join(packagedNodeModulesRoot, ...packageName.split('/'));
       requireDirectory(`packaged desktop native runtime package ${packageName}`, packagedPackagePath);
-      for (const fileRel of pkgConfig.requiredFiles) {
-        requireFile(`packaged desktop native runtime artifact ${packageName}/${fileRel}`, path.join(packagedPackagePath, fileRel));
+      for (const fileRequirement of normalizeNativeRequiredFiles(packageName, pkgConfig.requiredFiles)) {
+        const packagedArtifactPackagePath = path.join(packagedNodeModulesRoot, ...fileRequirement.packageName.split('/'));
+        requireDirectory(`packaged desktop native runtime artifact package ${fileRequirement.packageName}`, packagedArtifactPackagePath);
+        requireFile(
+          `packaged desktop native runtime artifact ${fileRequirement.packageName}/${fileRequirement.path}`,
+          path.join(packagedArtifactPackagePath, fileRequirement.path),
+        );
       }
     }
   }
@@ -363,8 +404,13 @@ function validateStagedTauriNodeSidecarLayoutMetadata(options = {}) {
     for (const [packageName, pkgConfig] of Object.entries(manifest.nativeRuntimePackageRequirements)) {
       const stagedPackagePath = path.join(stagedNodeModulesRoot, ...packageName.split('/'));
       requireDirectory(`staged desktop native runtime package ${packageName}`, stagedPackagePath);
-      for (const fileRel of pkgConfig.requiredFiles) {
-        requireFile(`staged desktop native runtime artifact ${packageName}/${fileRel}`, path.join(stagedPackagePath, fileRel));
+      for (const fileRequirement of normalizeNativeRequiredFiles(packageName, pkgConfig.requiredFiles)) {
+        const stagedArtifactPackagePath = path.join(stagedNodeModulesRoot, ...fileRequirement.packageName.split('/'));
+        requireDirectory(`staged desktop native runtime artifact package ${fileRequirement.packageName}`, stagedArtifactPackagePath);
+        requireFile(
+          `staged desktop native runtime artifact ${fileRequirement.packageName}/${fileRequirement.path}`,
+          path.join(stagedArtifactPackagePath, fileRequirement.path),
+        );
       }
     }
   }

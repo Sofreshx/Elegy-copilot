@@ -126,9 +126,12 @@ function runPackaging(args, options = {}) {
     : args;
   let result;
   try {
+    const shell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
     result = childProcess.spawnSync(command, fullArgs, {
       cwd: elegyRoot,
       encoding: 'utf8',
+      env: { ...process.env, ...(options.env || {}) },
+      shell,
       timeout: 120_000,
       windowsHide: true,
     });

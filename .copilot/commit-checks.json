@@ -8,13 +8,14 @@
   ],
   "threshold": 70,
   "weights": {
-    "test": 0.30,
-    "lint": 0.20,
-    "format": 0.10,
+    "test": 0.3,
+    "lint": 0.2,
+    "format": 0.1,
     "stylelint": 0.05,
     "typecheck": 0.25,
     "build-contracts": 0.05,
-    "build-ui": 0.05
+    "build-ui": 0.05,
+    "docs-pages": 0.05
   },
   "gates": [],
   "ciRemoteOnly": [
@@ -51,10 +52,18 @@
     }
   },
   "groups": {
-    "commit": { "description": "Pre-commit checks \u2014 must pass before committing" },
-    "push": { "description": "Pre-push checks \u2014 must pass before pushing" },
-    "ci": { "description": "CI-equivalent checks \u2014 mirrors GitHub required workflows" },
-    "release": { "description": "Full release blockers \u2014 heavy checks reserved for CI/release" }
+    "commit": {
+      "description": "Pre-commit checks — must pass before committing"
+    },
+    "push": {
+      "description": "Pre-push checks — must pass before pushing"
+    },
+    "ci": {
+      "description": "CI-equivalent checks — mirrors GitHub required workflows"
+    },
+    "release": {
+      "description": "Full release blockers — heavy checks reserved for CI/release"
+    }
   },
   "lanes": {
     "test": {
@@ -62,7 +71,9 @@
       "required": true,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": ["commit", "ci-local"],
+      "defaultProfiles": [
+        "commit"
+      ],
       "cost": "medium",
       "opensWindow": false,
       "group": "push",
@@ -83,7 +94,9 @@
       "required": true,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": ["commit", "ci-local"],
+      "defaultProfiles": [
+        "commit"
+      ],
       "cost": "fast",
       "opensWindow": false,
       "group": "commit",
@@ -103,7 +116,9 @@
       "required": true,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": ["commit", "ci-local"],
+      "defaultProfiles": [
+        "commit"
+      ],
       "cost": "fast",
       "opensWindow": false,
       "group": "commit",
@@ -123,7 +138,9 @@
       "required": true,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": ["commit", "ci-local"],
+      "defaultProfiles": [
+        "commit"
+      ],
       "cost": "fast",
       "opensWindow": false,
       "group": "commit",
@@ -137,6 +154,7 @@
       "commands": [
         "npx tsc -p \"contracts/tsconfig.json\" --noEmit",
         "npx tsc -p \"copilot-ui/ui/tsconfig.json\" --noEmit",
+        "npx tsc -p \"local-repo-mcp/tsconfig.json\" --noEmit",
         "npx tsc -p \"local-tracker/tsconfig.json\" --noEmit",
         "npx tsc -p \"local-tracker/tsconfig.build.json\" --noEmit",
         "cargo check --manifest-path copilot-ui/src-tauri/Cargo.toml"
@@ -147,13 +165,15 @@
       "required": true,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": ["ci-local"],
+      "defaultProfiles": [
+        "ci-local"
+      ],
       "cost": "medium",
       "opensWindow": false,
       "group": "ci",
-      "description": "Full local CI-equivalent: validates specs, docs, manifests, builds UI, runs all tests",
+      "description": "Full local CI-equivalent: mirrors Repo CI build job",
       "cwd": ".",
-      "timeoutMs": 300000,
+      "timeoutMs": 600000,
       "blocking": true,
       "ciWorkflow": "repo-ci.yml",
       "ciJob": "build",
@@ -172,7 +192,7 @@
       "required": false,
       "skippable": true,
       "requiresReasonOnSkip": true,
-      "defaultProfiles": ["ci-local"],
+      "defaultProfiles": [],
       "cost": "fast",
       "opensWindow": false,
       "ciWorkflow": "",
@@ -192,7 +212,9 @@
       "required": true,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": ["commit", "ci-local"],
+      "defaultProfiles": [
+        "commit"
+      ],
       "cost": "fast",
       "opensWindow": false,
       "ciWorkflow": "repo-ci.yml",
@@ -212,7 +234,7 @@
       "required": true,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": ["ci-local"],
+      "defaultProfiles": [],
       "cost": "medium",
       "opensWindow": false,
       "ciWorkflow": "repo-ci.yml",
@@ -220,6 +242,29 @@
       "ciRequired": true,
       "commands": [
         "npm --prefix copilot-ui run ui:build"
+      ]
+    },
+    "docs-pages": {
+      "enabled": true,
+      "group": "ci",
+      "description": "Build Docs Pages site",
+      "cwd": ".",
+      "timeoutMs": 120000,
+      "blocking": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": [
+        "ci-local"
+      ],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": "docs-pages.yml",
+      "ciJob": "build",
+      "ciRequired": true,
+      "commands": [
+        "node scripts/validate-doc-graph.js",
+        "npm run docs:build"
       ]
     },
     "build-tracker": {
@@ -232,7 +277,7 @@
       "required": false,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": ["ci-local"],
+      "defaultProfiles": [],
       "cost": "fast",
       "opensWindow": false,
       "ciWorkflow": "",
@@ -252,7 +297,9 @@
       "required": false,
       "skippable": true,
       "requiresReasonOnSkip": true,
-      "defaultProfiles": ["desktop-preview"],
+      "defaultProfiles": [
+        "desktop-preview"
+      ],
       "cost": "medium",
       "opensWindow": false,
       "ciWorkflow": "",
@@ -272,7 +319,9 @@
       "required": false,
       "skippable": true,
       "requiresReasonOnSkip": true,
-      "defaultProfiles": ["release"],
+      "defaultProfiles": [
+        "release"
+      ],
       "cost": "heavy",
       "opensWindow": true,
       "ciWorkflow": "",

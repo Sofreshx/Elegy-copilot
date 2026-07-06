@@ -188,6 +188,7 @@ function register(deps = {}) {
         try {
           const result = resolvedDeps.opencodeWorkers.getStatus({
             engineRoot: ctx.engineRoot,
+            codexHome: ctx.codexHome,
             env: resolvedDeps.env,
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
@@ -206,6 +207,7 @@ function register(deps = {}) {
           const body = await resolvedDeps.readJsonBody(ctx.req);
           const result = resolvedDeps.opencodeWorkers.saveConfig(body?.config || {}, {
             engineRoot: ctx.engineRoot,
+            codexHome: ctx.codexHome,
             env: resolvedDeps.env,
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
@@ -223,6 +225,7 @@ function register(deps = {}) {
         try {
           const result = resolvedDeps.opencodeWorkers.listJobs({
             engineRoot: ctx.engineRoot,
+            codexHome: ctx.codexHome,
             env: resolvedDeps.env,
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
@@ -276,6 +279,7 @@ function register(deps = {}) {
         try {
           const result = resolvedDeps.opencodeWorkers.buildUsage({
             engineRoot: ctx.engineRoot,
+            codexHome: ctx.codexHome,
             env: resolvedDeps.env,
           });
           resolvedDeps.sendJson(ctx.res, 200, result);

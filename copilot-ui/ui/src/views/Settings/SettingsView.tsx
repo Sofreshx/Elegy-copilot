@@ -157,7 +157,7 @@ function SettingsAppSection({ appInfo, infoLoading }: { appInfo: AppInfo; infoLo
 
       <Panel title="Keyboard Shortcuts" subtitle="Navigation and actions" testId="settings-shortcuts">
         <dl className="settings-shortcuts-list">
-          <dt><kbd>Ctrl+1</kbd> – <kbd>Ctrl+3</kbd></dt>
+          <dt><kbd>Ctrl+1</kbd> – <kbd>Ctrl+5</kbd></dt>
           <dd>Switch sidebar sections</dd>
           <dt><kbd>Escape</kbd></dt>
           <dd>Back from detail view</dd>

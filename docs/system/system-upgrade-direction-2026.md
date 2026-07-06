@@ -435,8 +435,8 @@ Release gate bundle (target state):
 
 ## Related Canonical Docs
 
-- [[orchestration-and-agents]] [mocs/orchestration-and-agents.md](mocs/orchestration-and-agents.md)
-- [[moc-skills-governance]] [mocs/skills-governance.md](mocs/skills-governance.md)
-- [[session-state]] [mocs/session-state.md](mocs/session-state.md)
-- [[instruction-changelog]] [instruction-changelog.md](instruction-changelog.md)
-- [[doc-graph-spec]] [doc-graph-spec.md](doc-graph-spec.md)
+- [[orchestration-and-agents]] [mocs/orchestration-and-agents.md](mocs/orchestration-and-agents.md) [orchestration-and-agents](docs/system/mocs/orchestration-and-agents.md)
+- [[moc-skills-governance]] [mocs/skills-governance.md](mocs/skills-governance.md) [moc-skills-governance](docs/system/mocs/skills-governance.md)
+- [[session-state]] [mocs/session-state.md](mocs/session-state.md) [session-state](docs/system/mocs/session-state.md)
+- [[instruction-changelog]] [instruction-changelog.md](instruction-changelog.md) [instruction-changelog](docs/system/instruction-changelog.md)
+- [[doc-graph-spec]] [doc-graph-spec.md](doc-graph-spec.md) [doc-graph-spec](docs/system/doc-graph-spec.md)

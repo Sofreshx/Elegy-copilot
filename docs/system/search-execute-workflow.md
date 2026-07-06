@@ -133,7 +133,7 @@ defined above.
 - keep hard constraints visible, keep shaping context only when it materially affects the current
   step, and keep unresolved branches out of `constraints`
 - if repeated constraint text is standing in for a durable architectural or workflow decision, route
-  that promotion through [[adr-governance]] [adr-governance.md](adr-governance.md) or the owning canonical node instead of repeating it in more prompts and skills
+  that promotion through [[adr-governance]] [adr-governance.md](adr-governance.md) or the owning canonical node instead of repeating it in more prompts and skills [adr-governance](docs/system/adr-governance.md)
 
 ### Missing bootstrap detection
 

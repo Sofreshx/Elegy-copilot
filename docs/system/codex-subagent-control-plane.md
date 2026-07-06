@@ -3,7 +3,7 @@ created: 2026-07-04
 updated: 2026-07-04
 category: system
 status: current
-doc_kind: reference
+doc_kind: node
 id: codex-subagent-control-plane
 summary: Managed Codex subagent definitions, routing policy, UI controls, and usage telemetry.
 tags: [codex, agents, telemetry, control-plane]

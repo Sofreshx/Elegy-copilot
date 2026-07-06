@@ -173,9 +173,32 @@ function resolvePackageDir(packageName, nodeModulesRoot) {
   return null;
 }
 
+function normalizeRequiredFiles(packageName, requiredFiles) {
+  return (requiredFiles || []).map((entry) => {
+    if (typeof entry === 'string') {
+      return {
+        packageName,
+        path: entry,
+      };
+    }
+
+    if (entry && typeof entry === 'object') {
+      return {
+        packageName: entry.packageName || packageName,
+        path: entry.path,
+      };
+    }
+
+    return {
+      packageName,
+      path: '',
+    };
+  });
+}
+
 function verifySinglePackage(activeWorkspaceRoot, packageName, pkgConfig, nodeModulesRoot) {
   const packageDir = resolvePackageDir(packageName, nodeModulesRoot);
-  const requiredFiles = pkgConfig.requiredFiles || [];
+  const requiredFiles = normalizeRequiredFiles(packageName, pkgConfig.requiredFiles);
 
   // 1. Package directory
   if (!packageDir) {
@@ -185,17 +208,29 @@ function verifySinglePackage(activeWorkspaceRoot, packageName, pkgConfig, nodeMo
   }
 
   // 2. Required files
-  for (const fileRel of requiredFiles) {
-    const filePath = path.join(packageDir, fileRel);
+  for (const fileRequirement of requiredFiles) {
+    const filePackageDir = fileRequirement.packageName === packageName
+      ? packageDir
+      : resolvePackageDir(fileRequirement.packageName, nodeModulesRoot);
+    if (!filePackageDir) {
+      const fallback = path.join(nodeModulesRoot, ...fileRequirement.packageName.split('/'));
+      console.error(`[verify:native-deps] missing artifact package directory for ${packageName}: ${fallback}`);
+      return false;
+    }
+
+    const filePath = path.join(filePackageDir, fileRequirement.path);
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-      console.error(`[verify:native-deps] missing required file for ${packageName}: ${fileRel}`);
+      console.error(
+        `[verify:native-deps] missing required file for ${packageName}: `
+        + `${fileRequirement.packageName}/${fileRequirement.path}`,
+      );
       return false;
     }
   }
 
   // 3. require() check — always try, but only treat as blocking failure
   //    when the package contains .node bindings (truly native Node addons).
-  const hasNodeBinding = requiredFiles.some((f) => f.endsWith('.node'));
+  const hasNodeBinding = requiredFiles.some((f) => f.path.endsWith('.node'));
   const requireOk = tryRequirePackage(packageName, nodeModulesRoot);
 
   if (hasNodeBinding && !requireOk) {

@@ -45,7 +45,7 @@ Update runs: `node scripts/commit-check-setup.mjs <root>` (merge mode)
 Before overwrite in bootstrap mode:
 - If `.copilot/commit-checks.json` exists, copy to the generated .copilot/commit-checks.json.bak backup (created during setup)
 
-Config output: `.copilot/commit-checks.json` per the schema in `commit-validation-governance.md`. The generated config now includes `profiles`, `groups`, lane-level `blocking`, and lane-level `requiresReasonOnSkip` fields.
+Config output: `.copilot/commit-checks.json` per the schema in `commit-validation-governance.md`. The generated config includes `profiles`, `groups`, lane-level `blocking`, lane-level `requiresReasonOnSkip`, and a `docs-pages` lane when docs build validation is discoverable.
 
 ## Smoke Test Contract
 
@@ -69,6 +69,7 @@ Expected: exit 0 with valid JSON containing `overallPass` field. Report `composi
 - [ ] All four scripts exist in target after bootstrap
 - [ ] `.copilot/commit-checks.json` is valid JSON, `schemaVersion: 3`
 - [ ] `commit-check-run.mjs --json` exits 0 after bootstrap
+- [ ] Repos with `docs:build` and `scripts/validate-doc-graph.js` get a `docs-pages` lane in `ci-local`
 - [ ] Update merges new lanes without overwriting user customizations
 - [ ] Backup file created when overwriting existing config
 

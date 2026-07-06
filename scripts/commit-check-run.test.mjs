@@ -2,6 +2,10 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import {
+  normalizeCommitCheckConfig,
+  validateCommitCheckConfig,
+} from './commit-check-defaults.mjs';
 import { runChecks } from './commit-check-run.mjs';
 
 const repoRoot = process.cwd();
@@ -101,5 +105,22 @@ describe('commit-check-run protocol', () => {
     }, repoRoot, { runAll: true });
 
     assert.deepEqual(Object.keys(result.lanes), ['ciOnly', 'commitOnly']);
+  });
+
+  it('rejects malformed lane commands instead of normalizing them to a skip', () => {
+    const validation = validateCommitCheckConfig(normalizeCommitCheckConfig({
+      schemaVersion: 3,
+      lanes: {
+        malformed: {
+          enabled: true,
+          blocking: true,
+          defaultProfiles: ['commit'],
+          commands: 'node -e "process.exit(1)"',
+        },
+      },
+    }));
+
+    assert.equal(validation.valid, false);
+    assert.match(validation.errors.join('\n'), /lane "malformed" commands must be an array/);
   });
 });

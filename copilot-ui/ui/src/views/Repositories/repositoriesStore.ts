@@ -4,14 +4,8 @@ import type {
   CatalogRepoInventoryWorkspaceScan,
   CatalogReposListResponse,
   CatalogRepoScanRootsMutationResponse,
-  LocalRepoReaderAccessState,
 } from '../../lib/types';
 import { apiRequest } from '../../lib/api/core';
-import {
-  disableLocalRepoReaderRepo,
-  enableLocalRepoReaderRepo,
-  getLocalRepoReaderAccess,
-} from '../../lib/api/catalog';
 
 export interface RepositoriesState {
   repos: CatalogRepoInventoryEntry[];
@@ -22,8 +16,6 @@ export interface RepositoriesState {
   searchQuery: string;
   githubAuthenticated: boolean;
   githubAuthChecking: boolean;
-  localRepoReaderAccess: LocalRepoReaderAccessState | null;
-  localRepoReaderMutating: boolean;
 }
 
 const INITIAL_STATE: RepositoriesState = {
@@ -35,8 +27,6 @@ const INITIAL_STATE: RepositoriesState = {
   searchQuery: '',
   githubAuthenticated: false,
   githubAuthChecking: false,
-  localRepoReaderAccess: null,
-  localRepoReaderMutating: false,
 };
 
 function createRepositoriesStore() {
@@ -53,26 +43,10 @@ function createRepositoriesStore() {
         workspaceScan: data.workspaceScan || null,
         loading: false,
       }));
-      void loadLocalRepoReaderAccess();
     } catch (err) {
       store.setState((s) => ({
         ...s,
         loading: false,
-        error: err instanceof Error ? err.message : String(err),
-      }));
-    }
-  }
-
-  async function loadLocalRepoReaderAccess(): Promise<void> {
-    try {
-      const data = await getLocalRepoReaderAccess();
-      store.setState((s) => ({
-        ...s,
-        localRepoReaderAccess: data.access || null,
-      }));
-    } catch (err) {
-      store.setState((s) => ({
-        ...s,
         error: err instanceof Error ? err.message : String(err),
       }));
     }
@@ -185,34 +159,6 @@ function createRepositoriesStore() {
     }
   }
 
-  async function setLocalRepoReaderEnabled(repo: CatalogRepoInventoryEntry, enabled: boolean): Promise<void> {
-    const repoPath = String(repo.repoPath || '').trim();
-    const repoId = typeof repo.repoId === 'string' ? repo.repoId : undefined;
-    if (!repoPath && !repoId) return;
-    store.setState((s) => ({ ...s, localRepoReaderMutating: true, error: null }));
-    try {
-      const payload = {
-        repoPath: repoPath || undefined,
-        repoId,
-        alias: String(repo.repoLabel || repo.repoId || '').trim() || undefined,
-      };
-      const data = enabled
-        ? await enableLocalRepoReaderRepo(payload)
-        : await disableLocalRepoReaderRepo(payload);
-      store.setState((s) => ({
-        ...s,
-        localRepoReaderAccess: data.access || s.localRepoReaderAccess,
-        localRepoReaderMutating: false,
-      }));
-    } catch (err) {
-      store.setState((s) => ({
-        ...s,
-        localRepoReaderMutating: false,
-        error: err instanceof Error ? err.message : String(err),
-      }));
-    }
-  }
-
   function setSearchQuery(searchQuery: string): void {
     store.setState((s) => ({ ...s, searchQuery }));
   }
@@ -229,11 +175,9 @@ function createRepositoriesStore() {
     getState: store.getState,
     subscribe: store.subscribe,
     loadInventory,
-    loadLocalRepoReaderAccess,
     selectRepo,
     saveScanRoots,
     registerRepo,
-    setLocalRepoReaderEnabled,
     checkGitHubAuth,
     loginGitHub,
     setSearchQuery,

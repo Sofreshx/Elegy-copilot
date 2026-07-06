@@ -11,6 +11,7 @@ export const DEFAULT_COMMIT_CHECK_CONFIG = Object.freeze({
     typecheck: 0.25,
     'build-contracts': 0.05,
     'build-ui': 0.05,
+    'docs-pages': 0.05,
   }),
   gates: Object.freeze([]),
   defaultProfile: 'commit',
@@ -57,7 +58,7 @@ const DEFAULT_LANE_METADATA = Object.freeze({
     required: true,
     skippable: false,
     requiresReasonOnSkip: false,
-    defaultProfiles: Object.freeze(['commit', 'ci-local']),
+    defaultProfiles: Object.freeze(['commit']),
     cost: 'medium',
     opensWindow: false,
   }),
@@ -69,7 +70,7 @@ const DEFAULT_LANE_METADATA = Object.freeze({
     required: true,
     skippable: false,
     requiresReasonOnSkip: false,
-    defaultProfiles: Object.freeze(['commit', 'ci-local']),
+    defaultProfiles: Object.freeze(['commit']),
     cost: 'fast',
     opensWindow: false,
   }),
@@ -81,7 +82,7 @@ const DEFAULT_LANE_METADATA = Object.freeze({
     required: true,
     skippable: false,
     requiresReasonOnSkip: false,
-    defaultProfiles: Object.freeze(['commit', 'ci-local']),
+    defaultProfiles: Object.freeze(['commit']),
     cost: 'fast',
     opensWindow: false,
   }),
@@ -93,7 +94,7 @@ const DEFAULT_LANE_METADATA = Object.freeze({
     required: true,
     skippable: false,
     requiresReasonOnSkip: false,
-    defaultProfiles: Object.freeze(['commit', 'ci-local']),
+    defaultProfiles: Object.freeze(['commit']),
     cost: 'fast',
     opensWindow: false,
   }),
@@ -108,6 +109,21 @@ const DEFAULT_LANE_METADATA = Object.freeze({
     defaultProfiles: Object.freeze(['ci-local']),
     cost: 'medium',
     opensWindow: false,
+  }),
+  'docs-pages': Object.freeze({
+    group: 'ci',
+    description: 'Build Docs Pages site',
+    timeoutMs: 120000,
+    blocking: true,
+    required: true,
+    skippable: false,
+    requiresReasonOnSkip: false,
+    defaultProfiles: Object.freeze(['ci-local']),
+    cost: 'medium',
+    opensWindow: false,
+    ciWorkflow: 'docs-pages.yml',
+    ciJob: 'build',
+    ciRequired: true,
   }),
 });
 
@@ -142,18 +158,9 @@ export function normalizeLane(name, lane = {}) {
     ...defaults,
     ...lane,
     enabled: lane.enabled !== false,
-    commands: Array.isArray(lane.commands) ? lane.commands : [],
+    commands: Object.prototype.hasOwnProperty.call(lane, 'commands') ? lane.commands : [],
   };
 
-  if (!Array.isArray(normalized.defaultProfiles)) {
-    normalized.defaultProfiles = defaults.defaultProfiles;
-  }
-  if (normalized.blocking === false) {
-    normalized.required = false;
-  }
-  if (normalized.required === true) {
-    normalized.blocking = true;
-  }
   if (normalized.skippable === false) {
     normalized.requiresReasonOnSkip = false;
   }

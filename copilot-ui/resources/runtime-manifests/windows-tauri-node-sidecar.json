@@ -121,6 +121,7 @@
     "requiredRuntimePackages": [
       "@electric-sql/pglite",
       "@elegy-copilot/contracts",
+      "@napi-rs/keyring",
       "@photostructure/sqlite-vec",
       "better-sqlite3",
       "eventsource-parser",
@@ -143,6 +144,14 @@
   "nativeRuntimePackageRequirements": {
     "better-sqlite3": {
       "requiredFiles": ["build/Release/better_sqlite3.node"]
+    },
+    "@napi-rs/keyring": {
+      "requiredFiles": [
+        {
+          "packageName": "@napi-rs/keyring-win32-x64-msvc",
+          "path": "keyring.win32-x64-msvc.node"
+        }
+      ]
     },
     "@photostructure/sqlite-vec": {
       "requiredFiles": ["dist/win32-x64/vec0.dll"]

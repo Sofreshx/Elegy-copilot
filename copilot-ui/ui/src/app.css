@@ -14767,6 +14767,80 @@ textarea:focus-visible,
   gap: var(--space-md);
 }
 
+/* ------------------------------------------------------------------ */
+/*  MCP Dashboard                                                      */
+/* ------------------------------------------------------------------ */
+
+.mcp-view {
+  min-height: 0;
+}
+
+.mcp-status-grid,
+.mcp-provider-grid {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.mcp-status-grid {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.mcp-provider-grid {
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+}
+
+.mcp-provider-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.mcp-provider-card h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.mcp-provider-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: var(--space-xs);
+}
+
+.mcp-provider-meta span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--color-ink-700);
+  font-size: 0.82rem;
+}
+
+.mcp-provider-meta strong {
+  color: var(--color-ink-500);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.mcp-provider-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+}
+
+.mcp-provider-url {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  word-break: break-all;
+}
+
+.mcp-config-modal {
+  width: min(94vw, 980px);
+}
+
 /* ================================================================== */
 /*  Harness Tab (Codex / OpenCode / Claude asset views)               */
 /* ================================================================== */

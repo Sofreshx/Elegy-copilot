@@ -91,7 +91,7 @@ If the current output format does not have dedicated fields, the author should s
 
 When narrowing reveals a durable architectural or workflow-authority constraint that future work will need, do not keep restating it in harness instructions, plan notes, or handoff prose.
 
-Promote it to the owning canonical node or to [[adr-governance]] [adr-governance.md](adr-governance.md).
+Promote it to the owning canonical node or to [[adr-governance]] [adr-governance.md](adr-governance.md). [adr-governance](docs/system/adr-governance.md)
 
 ## Anti-patterns
 

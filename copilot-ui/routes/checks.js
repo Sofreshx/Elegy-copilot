@@ -108,7 +108,7 @@ function handleChecksRun(ctx, deps) {
 }
 
 function handleCiSync(ctx, deps) {
-  const { res } = ctx;
+  const { res, u } = ctx;
   const { sendJson } = deps;
   const repoPath = resolveRepoPath(ctx);
 
@@ -118,7 +118,8 @@ function handleCiSync(ctx, deps) {
   }
 
   try {
-    const result = syncCiState(repoPath);
+    const scope = u.searchParams.get('scope') || undefined;
+    const result = syncCiState(repoPath, { scope });
     sendJson(res, 200, result);
   } catch (error) {
     sendJson(res, 500, { error: String(error.message || error) });

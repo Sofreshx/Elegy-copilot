@@ -302,6 +302,17 @@ function detectTypeScriptLanes(repoRoot) {
     lanes.typecheck = { found: true, commands, tool: 'tsc' };
   }
 
+  if (scripts['docs:build'] && exists(path.join(repoRoot, 'scripts', 'validate-doc-graph.js'))) {
+    lanes['docs-pages'] = {
+      found: true,
+      commands: [
+        'node scripts/validate-doc-graph.js',
+        'npm run docs:build',
+      ],
+      tool: 'vitepress',
+    };
+  }
+
   return { lanes, found: Object.keys(lanes).length > 0 };
 }
 

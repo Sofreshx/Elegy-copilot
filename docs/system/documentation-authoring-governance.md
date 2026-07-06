@@ -17,7 +17,7 @@ related: [doc-graph-spec, documentation-structure-governance, self-documenting-c
 Define the reusable documentation authoring contract for durable docs. This governs how to write or
 revise documentation once the correct documentation location and entrypoint have been chosen.
 
-Use [[documentation-structure-governance]]
+Use [[documentation-structure-governance]] [documentation-structure-governance](docs/system/documentation-structure-governance.md)
 [documentation-structure-governance.md](documentation-structure-governance.md)
 when the main problem is information architecture, entrypoints, or discoverability. Use this node
 when the main problem is page quality, progressive disclosure, diagrams, agent readability, and
@@ -71,7 +71,7 @@ Agent-facing docs should:
 - prefer short canonical pages over broad composite pages
 - include machine-friendly cues such as status, scope, source ownership, validation command, and
   read-next links
-- keep durable architectural tradeoffs in ADRs only when they meet [[adr-governance]] [adr-governance.md](adr-governance.md); otherwise keep them in the smallest owning node
+- keep durable architectural tradeoffs in ADRs only when they meet [[adr-governance]] [adr-governance.md](adr-governance.md); otherwise keep them in the smallest owning node [adr-governance](docs/system/adr-governance.md)
 
 ## Drift Resistance
 
@@ -83,7 +83,7 @@ Docs should be biased toward durable claims:
   generated API detail unless generated from source.
 
 When implementation evidence conflicts with canonical docs, follow the contradiction-handling rules
-in [[documentation-structure-governance]]
+in [[documentation-structure-governance]] [documentation-structure-governance](docs/system/documentation-structure-governance.md)
 [documentation-structure-governance.md](documentation-structure-governance.md)
 before rewriting the docs around an unverified assumption.
 
@@ -136,7 +136,7 @@ check:
 - diagram rendering or docs-site builds
 - generated agent-readable indexes such as `llms.txt`
 
-If no validator exists, perform a manual structure check against [[doc-graph-spec]]
+If no validator exists, perform a manual structure check against [[doc-graph-spec]] [doc-graph-spec](docs/system/doc-graph-spec.md)
 [doc-graph-spec.md](doc-graph-spec.md) and report the validation gap.
 
 ## Output Contract

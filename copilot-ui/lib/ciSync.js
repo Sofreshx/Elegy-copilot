@@ -131,6 +131,68 @@ function detectTriggers(content) {
   return triggers;
 }
 
+function parseYamlListBlock(content, key) {
+  const lines = content.split('\n');
+  const values = [];
+  let inKey = false;
+
+  for (const line of lines) {
+    if (!inKey) {
+      if (new RegExp(`^\\s+${key}:\\s*$`).test(line)) {
+        inKey = true;
+      }
+      continue;
+    }
+
+    if (/^\s{4,}- /.test(line)) {
+      const value = line.replace(/^\s*-\s*/, '').trim().replace(/^['"]|['"]$/g, '');
+      if (value) values.push(value);
+      continue;
+    }
+
+    if (line.trim() !== '' && !/^\s{4,}/.test(line)) {
+      break;
+    }
+  }
+
+  return values;
+}
+
+function hasPushToMain(content) {
+  if (!/^\s+push:/m.test(content)) return false;
+
+  const lines = content.split('\n');
+  const pushLines = [];
+  let inPush = false;
+  for (const line of lines) {
+    if (!inPush) {
+      if (/^\s+push:\s*$/.test(line)) {
+        inPush = true;
+      }
+      continue;
+    }
+
+    if (/^  [a-zA-Z_][a-zA-Z0-9_-]*:\s*$/.test(line)) {
+      break;
+    }
+    pushLines.push(line);
+  }
+
+  const pushBlock = pushLines.join('\n');
+  const branchNames = parseYamlListBlock(pushBlock, 'branches');
+  const tagNames = parseYamlListBlock(pushBlock, 'tags');
+
+  if (tagNames.length > 0) {
+    return false;
+  }
+
+  if (branchNames.length > 0) {
+    return branchNames.includes('main') || branchNames.includes('*') || branchNames.includes('**');
+  }
+
+  return true;
+}
+
 /**
  * Extract workflow name from YAML content.
  *
@@ -144,16 +206,16 @@ function extractWorkflowName(content) {
 
 /**
  * Discover CI workflows from .github/workflows directory.
- * Scans all .yml/.yaml files, parses name, triggers, PR-relevance, and jobs.
+ * Scans all .yml/.yaml files, parses name, triggers, PR/main-push relevance, and jobs.
  *
  * Job required status:
- * - Only meaningful for PR-relevant workflows
+ * - Meaningful for PR-relevant and main-push-relevant workflows
  * - If a `required-checks` gate job exists, jobs in its `needs` list are required
- * - If no gate job exists, all jobs in a PR-relevant workflow are required
- * - Non-PR-relevant workflow jobs are never required
+ * - If no gate job exists, all jobs in a relevant workflow are required
+ * - Non-relevant workflow jobs are never required
  *
  * @param {string} repoRoot
- * @returns {{ workflows: Array<{name: string, fileName: string, triggers: string[], isPrRelevant: boolean, jobs: Array<{name: string, required: boolean}>}>, unknown: Array<{fileName: string, error: string}> }}
+ * @returns {{ workflows: Array<{name: string, fileName: string, triggers: string[], isPrRelevant: boolean, isMainPushRelevant: boolean, jobs: Array<{name: string, required: boolean}>}>, unknown: Array<{fileName: string, error: string}> }}
  */
 function discoverCiWorkflows(repoRoot) {
   const workflowsDir = path.join(repoRoot, '.github', 'workflows');
@@ -183,6 +245,7 @@ function discoverCiWorkflows(repoRoot) {
     const name = extractWorkflowName(content);
     const triggers = detectTriggers(content);
     const isPrRelevant = triggers.includes('pull_request');
+    const isMainPushRelevant = hasPushToMain(content);
 
     // Parse jobs with needs metadata
     const richJobs = parseJobsWithNeeds(content);
@@ -195,37 +258,45 @@ function discoverCiWorkflows(repoRoot) {
     // Build job list with required status
     const jobs = richJobs.map((j) => ({
       name: j.name,
-      required: isPrRelevant && (hasGate ? gateNeeds.includes(j.name) : true),
+      required: (isPrRelevant || isMainPushRelevant) && (hasGate ? gateNeeds.includes(j.name) : true),
     }));
 
-    result.workflows.push({ name, fileName, triggers, isPrRelevant, jobs });
+    result.workflows.push({ name, fileName, triggers, isPrRelevant, isMainPushRelevant, jobs });
   }
 
   return result;
 }
 
+function normalizeScope(options) {
+  const scope = typeof options?.scope === 'string' ? options.scope : 'main-push';
+  return scope === 'pr' ? 'pr' : 'main-push';
+}
+
 /**
- * Map CI workflow jobs (from PR-relevant workflows) to local commit-check lanes.
+ * Map scoped CI workflow jobs to local commit-check lanes.
  * A lane matches if lane.ciWorkflow === workflow.fileName && lane.ciJob === job.name.
  *
  * @param {{ workflows: Array }} ciWorkflows - result from discoverCiWorkflows
  * @param {Object|null} commitCheckConfig - parsed commit-checks.json
- * @returns {{ mappings: Array<{workflowFile: string, jobName: string, required: boolean, localLane: string|null, status: string}>, summary: {totalCiJobs: number, mapped: number, remoteOnly: number, gaps: number, readiness: string} }}
+ * @param {{scope?: 'main-push'|'pr'}} options
+ * @returns {{ mappings: Array<{workflowFile: string, jobName: string, required: boolean, localLane: string|null, status: string}>, summary: {totalCiJobs: number, mapped: number, remoteOnly: number, gaps: number, readiness: string, scope: string} }}
  */
-function mapCiToLocal(ciWorkflows, commitCheckConfig) {
-  // Collect real (non-gate) jobs from PR-relevant workflows
+function mapCiToLocal(ciWorkflows, commitCheckConfig, options = {}) {
+  const scope = normalizeScope(options);
+  // Collect real (non-gate) jobs from scoped workflows
   // Gate jobs (required-checks, etc.) enforce other jobs — they don't need local equivalents
   const GATE_JOB_PATTERNS = [/^required-checks?$/i, /^gate$/i, /^enforce$/i];
   function isGateJob(jobName) {
     return GATE_JOB_PATTERNS.some((p) => p.test(jobName));
   }
 
-  const prRelevantJobs = [];
+  const scopedJobs = [];
   for (const wf of ciWorkflows.workflows) {
-    if (wf.isPrRelevant) {
+    const inScope = scope === 'pr' ? wf.isPrRelevant : wf.isMainPushRelevant;
+    if (inScope) {
       for (const job of wf.jobs) {
         if (!isGateJob(job.name)) {
-          prRelevantJobs.push({ workflowFile: wf.fileName, jobName: job.name, required: job.required });
+          scopedJobs.push({ workflowFile: wf.fileName, jobName: job.name, required: job.required });
         }
       }
     }
@@ -241,7 +312,7 @@ function mapCiToLocal(ciWorkflows, commitCheckConfig) {
     }
   }
 
-  const mappings = prRelevantJobs.map((ciJob) => {
+  const mappings = scopedJobs.map((ciJob) => {
     // Find ALL matching lanes by ciWorkflow + ciJob (multiple lanes can map to one CI job)
     const matchingLanes = [];
     for (const [laneName, laneConfig] of Object.entries(lanes)) {
@@ -272,7 +343,7 @@ function mapCiToLocal(ciWorkflows, commitCheckConfig) {
 
   return {
     mappings,
-    summary: { totalCiJobs, mapped, remoteOnly, gaps, readiness },
+    summary: { totalCiJobs, mapped, remoteOnly, gaps, readiness, scope },
   };
 }
 
@@ -282,12 +353,13 @@ function mapCiToLocal(ciWorkflows, commitCheckConfig) {
  * Convenience function: resolve commit-check config, discover workflows, map to local.
  *
  * @param {string} repoRoot
+ * @param {{scope?: 'main-push'|'pr'}} options
  * @returns {{ repoRoot: string, config: ({laneCount: number, gateCount: number}|null), ciWorkflows: Object, syncResult: Object }}
  */
-function syncCiState(repoRoot) {
+function syncCiState(repoRoot, options = {}) {
   const config = resolveCommitCheckConfig(repoRoot);
   const ciWorkflows = discoverCiWorkflows(repoRoot);
-  const syncResult = mapCiToLocal(ciWorkflows, config);
+  const syncResult = mapCiToLocal(ciWorkflows, config, options);
 
   return {
     repoRoot,

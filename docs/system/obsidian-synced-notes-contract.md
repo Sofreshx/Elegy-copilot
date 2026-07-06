@@ -19,7 +19,7 @@ Obsidian-backed planning notes surfaced inside `copilot-ui`.
 
 > **Note:** This contract governs the **planning surface** (external, non-canonical notes).
 > For the **primary vault-backed Notes tab** (replacing SQLite), see
-> [[obsidian-vault-notes](../specs/obsidian-vault-notes/spec.md)].
+> `docs/specs/obsidian-vault-notes/spec.md`.
 
 ## Authority boundary
 
@@ -52,12 +52,12 @@ It does NOT govern using Obsidian as a viewer/editor over canonical repo
 documentation (`docs/system/**`, `docs/research/**`, `docs/specs/**`). That
 workflow — opening a repo folder directly as an Obsidian vault with the
 repo retaining full authority — is covered by the
-[[repo-backed-obsidian-docs]]
+[[repo-backed-obsidian-docs]] [repo-backed-obsidian-docs](docs/system/repo-backed-obsidian-docs.md)
 [repo-backed-obsidian-docs.md](repo-backed-obsidian-docs.md)
 contract.
 
 The distinction:
-- **Docs vault** ([[repo-backed-obsidian-docs]]
+- **Docs vault** ([[repo-backed-obsidian-docs]] [repo-backed-obsidian-docs](docs/system/repo-backed-obsidian-docs.md)
   [repo-backed-obsidian-docs.md](repo-backed-obsidian-docs.md)):
   Obsidian is a local editor/viewer over canonical repo docs. Git is the
   authority.

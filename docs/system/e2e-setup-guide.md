@@ -65,7 +65,7 @@ Typical triggers include:
 - risky UI/API behavior changes that only a browser can confirm end to end
 - new or still-untested user-facing surfaces
 
-See [[validation-governance]] [validation-governance.md](validation-governance.md)
+See [[validation-governance]] [validation-governance.md](validation-governance.md) [validation-governance](docs/system/validation-governance.md)
 for the canonical mandatory-validation decision matrix.
 
 ### Not supported by default: Playwright MCP

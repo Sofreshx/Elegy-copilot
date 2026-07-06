@@ -43,6 +43,20 @@ test('cli launch helpers expose the sdk bridge flag contract', () => {
   assert.match(cliUiSh, /COPILOT_SDK_BRIDGE='1'/);
 });
 
+test('Windows Tauri native manifest points keyring to its platform artifact package', () => {
+  const manifest = JSON.parse(readRepoFile('resources/runtime-manifests/windows-tauri-node-sidecar.json'));
+  const requiredRuntimePackages = manifest.nodeModulePayload.requiredRuntimePackages || [];
+  const keyringRequirement = manifest.nativeRuntimePackageRequirements['@napi-rs/keyring'];
+
+  assert(requiredRuntimePackages.includes('@napi-rs/keyring'));
+  assert.deepStrictEqual(keyringRequirement.requiredFiles, [
+    {
+      packageName: '@napi-rs/keyring-win32-x64-msvc',
+      path: 'keyring.win32-x64-msvc.node',
+    },
+  ]);
+});
+
 process.on('exit', () => {
   console.log(`runtime-startup-contract.test.js: ${passed} passed`);
 });

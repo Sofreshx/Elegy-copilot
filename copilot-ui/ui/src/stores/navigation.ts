@@ -12,6 +12,7 @@ export type CatalogSectionId = (typeof CATALOG_SECTION_IDS)[number];
 export const SIDEBAR_IDS = [
   'workspace',
   'remote',
+  'mcp',
   'pattern-atlas',
   'repositories',
   'settings',
@@ -118,6 +119,7 @@ export type SidebarNavItem = {
 export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
   { id: 'repositories', label: 'Repositories', icon: 'repo', description: 'Browse and open registered repositories' },
   { id: 'remote', label: 'Remote', icon: 'hexagon', description: 'Manage Discord-driven remote sessions via Kimaki' },
+  { id: 'mcp', label: 'MCP', icon: 'mcp', description: 'Expose selected local MCP servers to web chatbots' },
   { id: 'pattern-atlas', label: 'Pattern Atlas', icon: 'layout', description: 'Visual catalog of UI patterns, styles, components, and system architecture patterns' },
   { id: 'settings', label: 'Settings', icon: 'settings', description: 'App configuration and preferences' },
 ];

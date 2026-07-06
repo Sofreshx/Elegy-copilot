@@ -22,6 +22,7 @@ const AddProjectWizard = lazy(() => import('./views/Project/AddProjectWizard'));
 const WorkspaceView = lazy(() => import('./views/Workspace/WorkspaceView'));
 const RepositoriesView = lazy(() => import('./views/Repositories/RepositoriesView'));
 const RemoteView = lazy(() => import('./tabs/Remote/RemoteView'));
+const McpView = lazy(() => import('./tabs/Mcp/McpView'));
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
   const desktopUpdaterState = useStoreValue(desktopUpdaterStore);
@@ -88,6 +89,8 @@ export default function App() {
           : <RepositoriesView />;
       case 'remote':
         return <RemoteView />;
+      case 'mcp':
+        return <McpView />;
       case 'pattern-atlas':
         return <PatternAtlasView />;
       case 'repositories':

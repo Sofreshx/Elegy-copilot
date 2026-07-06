@@ -86,15 +86,16 @@ correct view components, but they cannot detect stale imports in other files.
 
 ## Local validation before push
 
-Run `npm run ci:local` to mirror the `Repo CI / build` job on Linux without
-Tauri. This runs manifest/doc validators, dead-link checking, the UI build,
-the local-tracker build, and the three inline test files:
+Run `npm run ci:local` to mirror the `Repo CI / build` job locally. This runs
+manifest/doc validators, dead-link checking, the UI build, the local-tracker
+build, the Linux Tauri preflight, sidecar layout validation, and the inline
+smoke/contract test files:
 
 ```powershell
 npm run ci:local
 ```
 
-On machines with the Rust toolchain, add the Tauri preflight and docs build:
+Run the full local superset before validating Docs Pages in the same command:
 
 ```powershell
 npm run ci:local:full

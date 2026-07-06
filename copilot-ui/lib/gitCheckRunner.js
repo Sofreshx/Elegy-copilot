@@ -478,7 +478,7 @@ async function gateGitAction(repoRoot, action, unsafeOverride, profile, branchNa
 
       // CI gap detection still runs on cached results
       try {
-        const syncResult = syncCiState(repoRoot);
+        const syncResult = syncCiState(repoRoot, { scope: ciScopeForAction(action) });
         if (syncResult.syncResult.summary.readiness === 'ci-gap') {
           return {
             allowed: false,
@@ -527,7 +527,7 @@ async function gateGitAction(repoRoot, action, unsafeOverride, profile, branchNa
     
     // CI gap check for protected push
     try {
-      const syncResult = syncCiState(repoRoot);
+      const syncResult = syncCiState(repoRoot, { scope: 'main-push' });
       if (syncResult.syncResult.summary.readiness === 'ci-gap') {
         return {
           allowed: false,
@@ -569,7 +569,7 @@ async function gateGitAction(repoRoot, action, unsafeOverride, profile, branchNa
   if (checkResults.allPassed) {
     // CI gap detection: check if all PR-relevant CI jobs have local lane mappings
     try {
-      const syncResult = syncCiState(repoRoot);
+        const syncResult = syncCiState(repoRoot, { scope: ciScopeForAction(action) });
       if (syncResult.syncResult.summary.readiness === 'ci-gap') {
         return {
           allowed: false,
@@ -588,7 +588,7 @@ async function gateGitAction(repoRoot, action, unsafeOverride, profile, branchNa
     // For PR creation, never allow CI gaps
     if (action === 'pull-request') {
       try {
-        const prSyncResult = syncCiState(repoRoot);
+        const prSyncResult = syncCiState(repoRoot, { scope: 'pr' });
         if (prSyncResult.syncResult.summary.readiness === 'ci-gap') {
           return {
             allowed: false,
@@ -715,6 +715,10 @@ function getCurrentBranch(repoRoot) {
   } catch {
     return null;
   }
+}
+
+function ciScopeForAction(action) {
+  return action === 'pull-request' ? 'pr' : 'main-push';
 }
 
 module.exports = {

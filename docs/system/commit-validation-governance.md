@@ -23,10 +23,12 @@ This doc owns the narrow **commit / merge gate** portion of the check taxonomy. 
 
 | Lane | Purpose | Default weight | Gate |
 |------|---------|----------------|---------|
-| `test` | Unit tests pass | 0.30 | Blocking in `commit` / `ci-local` when configured |
-| `lint` | Static analysis passes | 0.20 | Blocking in `commit` / `ci-local` when configured |
-| `format` | Code formatting check | 0.10 | Blocking in `commit` / `ci-local` when configured |
-| `typecheck` | Type-check gates | 0.25 | Blocking in `commit` / `ci-local` when configured |
+| `test` | Unit tests pass | 0.30 | Blocking in `commit` when configured |
+| `lint` | Static analysis passes | 0.20 | Blocking in `commit` when configured |
+| `format` | Code formatting check | 0.10 | Blocking in `commit` when configured |
+| `typecheck` | Type-check gates | 0.25 | Blocking in `commit` when configured |
+| `ci-local` | Local mirror of push-to-main CI | optional | Blocking in `ci-local` |
+| `docs-pages` | Docs Pages local mirror | 0.05 | Blocking in `ci-local` when configured |
 | `coverage` | Test coverage thresholds | optional | Advisory by default |
 
 ## Repo-Local Script Contract
@@ -44,7 +46,7 @@ Shared runtime defaults and config validation for the repo-local scripts. Owns:
 
 Read-only scan of a workspace root. Defaults to `cwd()` if no path is given. Detects:
 
-- **TypeScript/Node.js**: `package.json` scripts, test frameworks (vitest/jest), lint tools (eslint), formatters (prettier), typecheck (tsc), coverage config
+- **TypeScript/Node.js**: `package.json` scripts, test frameworks (vitest/jest), lint tools (eslint), formatters (prettier), typecheck (tsc), coverage config, Docs Pages when `docs:build` and `scripts/validate-doc-graph.js` exist
 - **Rust**: `Cargo.toml` workspace members, cargo test, cargo clippy, cargo fmt, cargo check, coverage tools (cargo llvm-cov, cargo tarpaulin)
 - **Existing config**: whether `.copilot/commit-checks.json` already exists
 
@@ -121,15 +123,24 @@ Missing or disabled lanes are excluded from both numerator and denominator.
       "enabled": true,
       "blocking": true,
       "required": true,
-      "defaultProfiles": ["commit", "ci-local"],
+      "defaultProfiles": ["commit"],
       "commands": ["npm run test:unit"]
     },
     "typecheck": {
       "enabled": true,
       "blocking": true,
       "required": true,
-      "defaultProfiles": ["commit", "ci-local"],
+      "defaultProfiles": ["commit"],
       "commands": ["npx tsc --noEmit"]
+    },
+    "docs-pages": {
+      "enabled": true,
+      "blocking": true,
+      "required": true,
+      "defaultProfiles": ["ci-local"],
+      "ciWorkflow": "docs-pages.yml",
+      "ciJob": "build",
+      "commands": ["node scripts/validate-doc-graph.js", "npm run docs:build"]
     }
   }
 }
@@ -154,8 +165,10 @@ Missing or disabled lanes are excluded from both numerator and denominator.
 
 ## Boundary
 
-- `commit-check` should contain only fast, deterministic, low-friction checks that answer "safe to
-  commit?".
+- `commit-check --profile commit` should contain only fast, deterministic, low-friction checks that
+  answer "safe to commit?".
+- `commit-check --profile ci-local` should mirror deterministic push-to-main CI jobs and use explicit
+  remote-only markers for jobs that cannot run locally.
 - Spec-authored or generated proof artifacts may later feed commit-check, but only after they prove
   stable and non-disruptive as advisory or optional lanes first.
 - Manual checks and review-only evidence do not belong in the narrow commit gate by default.
@@ -180,8 +193,8 @@ The shipped skill (`commit-validation-governance`) performs two modes:
 
 ## Acceptance Checks
 
-- [ ] `commit-check-discover.mjs` accurately detects TypeScript and Rust lanes in this repo
-  → verify: run against elegy-copilot root, confirm test/coverage/lint/format/typecheck lanes are detected for both JS and Rust workspaces
+- [ ] `commit-check-discover.mjs` accurately detects TypeScript, Rust, and Docs Pages lanes in this repo
+  → verify: run against elegy-copilot root, confirm test/coverage/lint/format/typecheck lanes are detected for JS/Rust and `docs-pages` is detected when docs validation exists
 - [ ] `commit-check-setup.mjs` generates a valid `.copilot/commit-checks.json` that the runner can consume
   → verify: run setup, then run `commit-check-run.mjs --config .copilot/commit-checks.json --json`, confirm exit 0 and valid score JSON
 - [ ] Scoring algorithm is deterministic: same config + same lane results → same composite score
