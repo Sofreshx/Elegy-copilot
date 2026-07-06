@@ -311,6 +311,44 @@ describe('opencode go workspaces routes', () => {
     expect(active[0].workspaceId).toBe('wrk_b');
   });
 
+  it('POST /api/opencode/go-workspaces/:id/activate decodes detected ids', async () => {
+    const authDir = path.join(xdgData, 'opencode');
+    fs.mkdirSync(authDir, { recursive: true });
+    fs.writeFileSync(path.join(authDir, 'auth.json'), JSON.stringify({
+      'opencode-go': { key: 'native-secret', type: 'api' },
+    }));
+    const sendJson = vi.fn();
+    const routes = register({
+      sendJson,
+      readJsonBody: async () => ({}),
+      assets: makeAssetsStub(),
+      opencodeConfig: makeOpenCodeConfigStub(opencodeHome),
+      opencodeLogReader: { readRequestLogs: () => ({ requests: [], total: 0, logFiles: 0 }), DEFAULT_LIMIT: 100 },
+      opencodeGoWorkspaces: workspaceStore,
+      env: { XDG_DATA_HOME: xdgData },
+      childProcess: { spawnSync: () => ({ status: 0, stdout: '1.0.0', stderr: '' }) },
+    });
+    const route = findRoute(routes, 'POST', (s) => s.includes('activate'));
+    const encodedId = encodeURIComponent('detected:native:opencode-go');
+    const ctx = {
+      opencodeHome,
+      elegyHomeAbs: '',
+      engineRoot: '',
+      env: { XDG_DATA_HOME: xdgData },
+      req: { method: 'POST' },
+      res: { writeHead: vi.fn(), end: vi.fn() },
+      u: { pathname: `/api/opencode/go-workspaces/${encodedId}/activate` },
+      match: [`/api/opencode/go-workspaces/${encodedId}/activate`, encodedId],
+    };
+    await route!.handler(ctx);
+
+    const call = sendJson.mock.calls[0];
+    expect(call[1]).toBe(200);
+    expect(call[2].activeId).toBe('detected:native:opencode-go');
+    expect(call[2].appliedToNativeAuth).toBe(true);
+    expect(JSON.stringify(call[2]).includes('native-secret')).toBe(false);
+  });
+
   it('POST /api/opencode/go-workspaces/deactivate clears activeId and sets selectionMode to none', async () => {
     await workspaceStore.registerWorkspace(opencodeHome, { label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a', activate: true });
     const sendJson = vi.fn();

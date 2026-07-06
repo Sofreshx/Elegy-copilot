@@ -105,6 +105,32 @@ function mockIssuerOnly() {
   api.getCatalogRepos.mockResolvedValue({ repos: [] });
 }
 
+function mockMissingCloudflared() {
+  const issuerOnlyConfig = {
+    ...config,
+    publicBaseUrl: '',
+    authAudience: '',
+    cloudflareTunnelName: '',
+  };
+  api.getLocalRepoMcpStatus.mockResolvedValue({
+    config: issuerOnlyConfig,
+    server: { running: false, pid: null, url: 'http://127.0.0.1:3333/mcp' },
+    tunnel: { running: false, pid: null, mode: 'none', publicUrl: '' },
+    securityState: 'Stopped',
+    connectorUrl: '',
+    prerequisites: {
+      cloudflared: { available: false, path: 'cloudflared' },
+      oauth: { issuerConfigured: true, audienceEffective: '' },
+      chatGptAccessReady: false,
+    },
+  });
+  api.getLocalRepoMcpConfig.mockResolvedValue({
+    config: issuerOnlyConfig,
+    access: { repos: [] },
+  });
+  api.getCatalogRepos.mockResolvedValue({ repos: [] });
+}
+
 describe('McpView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -134,7 +160,7 @@ describe('McpView', () => {
     });
 
     expect(screen.getByText('Local Repo Reader')).toBeInTheDocument();
-    expect(screen.getByText('https://mcp.example.com/mcp')).toBeInTheDocument();
+    expect(screen.getAllByText('https://mcp.example.com/mcp').length).toBeGreaterThan(0);
     expect(screen.getByTestId('mcp-readable-root-count')).toHaveTextContent('1 enabled');
   });
 
@@ -162,7 +188,9 @@ describe('McpView', () => {
     });
 
     expect(screen.getByTestId('mcp-start')).not.toBeDisabled();
+    expect(screen.getByTestId('mcp-start')).toHaveTextContent('Start Local Only');
     expect(screen.getByTestId('mcp-quick-tunnel-start')).toBeDisabled();
+    expect(screen.getByTestId('mcp-chatgpt-auth-issuer')).toBeInTheDocument();
     expect(screen.getByText('Start local MCP, then start ChatGPT access to generate a connector URL.')).toBeInTheDocument();
   });
 
@@ -178,6 +206,43 @@ describe('McpView', () => {
     expect(screen.getByTestId('mcp-quick-tunnel-start')).not.toBeDisabled();
   });
 
+  it('saves issuer before starting ChatGPT access from the provider card', async () => {
+    mockMissingOAuth();
+    api.saveLocalRepoMcpConfig.mockResolvedValue({ config, access: { repos: [] } });
+    api.startLocalRepoMcpQuickTunnel.mockResolvedValue({});
+
+    render(<McpView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mcp-chatgpt-auth-issuer-control')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByTestId('mcp-chatgpt-auth-issuer-control'), {
+      target: { value: 'https://issuer.example.com/' },
+    });
+    fireEvent.click(screen.getByTestId('mcp-quick-tunnel-start'));
+
+    await waitFor(() => {
+      expect(api.saveLocalRepoMcpConfig).toHaveBeenCalledWith(expect.objectContaining({
+        authIssuer: 'https://issuer.example.com/',
+      }));
+      expect(api.startLocalRepoMcpQuickTunnel).toHaveBeenCalled();
+    });
+  });
+
+  it('blocks ChatGPT access when cloudflared is missing', async () => {
+    mockMissingCloudflared();
+
+    render(<McpView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mcp-cloudflared-blocker')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('mcp-cloudflared-blocker')).toHaveTextContent('cloudflared was not found');
+    expect(screen.getByTestId('mcp-quick-tunnel-start')).toBeDisabled();
+  });
+
   it('renders generated quick tunnel connector URL', async () => {
     mockReady({
       connectorUrl: 'https://sample.trycloudflare.com/mcp',
@@ -189,10 +254,11 @@ describe('McpView', () => {
     render(<McpView />);
 
     await waitFor(() => {
-      expect(screen.getByText('https://sample.trycloudflare.com/mcp')).toBeInTheDocument();
+      expect(screen.getAllByText('https://sample.trycloudflare.com/mcp').length).toBeGreaterThan(0);
     });
 
     expect(screen.getByTestId('mcp-provider-copy-url')).toBeInTheDocument();
+    expect(screen.getByTestId('mcp-chatgpt-copy-url')).toBeInTheDocument();
   });
 
   it('opens and closes the provider configuration modal', async () => {

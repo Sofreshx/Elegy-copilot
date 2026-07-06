@@ -66,12 +66,21 @@ export interface ExportPayload {
   version: number;
   exportedAt: string;
   notes: Note[];
+  fileName?: string;
+  exportDir?: string;
+  exportPath?: string;
+  importCompatibility?: string;
 }
 
 export interface ExportMdResponse {
   format: 'markdown';
+  exportedAt?: string;
   files: { filename: string; content: string }[];
   count: number;
+  fileName?: string;
+  exportDir?: string;
+  exportPath?: string;
+  importCompatibility?: string;
 }
 
 export interface ImportPayload {
@@ -251,6 +260,9 @@ export interface DriveSyncStatus {
   gdriveFolderName: string;
   rcloneInstalled: boolean;
   rclonePath: string | null;
+  managedRclonePath?: string | null;
+  canInstallRclone?: boolean;
+  rcloneRemoteName?: string;
   rcloneConfigured: boolean;
   authenticated: boolean;
   authenticatedEmail: string | null;
@@ -306,6 +318,26 @@ export async function driveSyncPull(): Promise<DriveSyncResult> {
 
 export async function getDriveSyncStatus(): Promise<DriveSyncStatus> {
   return apiRequest<DriveSyncStatus>('/api/notes/drive/status');
+}
+
+export async function installRclone(): Promise<{
+  ok: boolean;
+  installed?: boolean;
+  rclonePath?: string;
+  message?: string;
+  error?: string;
+  status?: DriveSyncStatus;
+}> {
+  return apiRequest<{
+    ok: boolean;
+    installed?: boolean;
+    rclonePath?: string;
+    message?: string;
+    error?: string;
+    status?: DriveSyncStatus;
+  }>('/api/notes/drive/install-rclone', {
+    method: 'POST',
+  });
 }
 
 export async function driveAuth(): Promise<{

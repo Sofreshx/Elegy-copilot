@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elegy.dev/schemas/check-run-result.schema.json",
+  "title": "Elegy Check Run Result",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "timestamp", "repoRoot", "overallPass", "lanes"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string" },
+    "timestamp": { "type": "string" },
+    "repoRoot": { "type": "string" },
+    "profile": { "type": ["string", "null"] },
+    "configHash": { "type": "string" },
+    "overallPass": { "type": "boolean" },
+    "checksRun": { "type": "integer" },
+    "checksPassed": { "type": "integer" },
+    "checksFailed": { "type": "integer" },
+    "blockingFailures": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "lanes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status", "exitCode", "durationMs", "details", "commands"],
+        "properties": {
+          "status": { "enum": ["PASS", "FAIL"] },
+          "exitCode": { "type": "integer" },
+          "durationMs": { "type": "integer" },
+          "details": { "type": "string" },
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["command", "exitCode", "success", "timedOut", "durationMs"],
+              "properties": {
+                "command": { "type": "string" },
+                "exitCode": { "type": "integer" },
+                "success": { "type": "boolean" },
+                "timedOut": { "type": "boolean" },
+                "durationMs": { "type": "integer" },
+                "stdout": { "type": "string" },
+                "stderr": { "type": "string" },
+                "stdoutBytes": { "type": "integer" },
+                "stderrBytes": { "type": "integer" },
+                "truncated": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ import type {
   OpenCodeLaneNode,
   OpenCodePermissions,
   OpenCodeProfile,
+  OpenCodeGoWorkspace,
   OpenCodeRequestLogEntry,
   OpenCodeStatusResponse,
   OpenCodeTabSectionId,
@@ -484,15 +485,17 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
   const [apiKey, setApiKey] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
+  const [importingId, setImportingId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     opencodeStore.loadGoWorkspaces();
+    opencodeStore.loadWorkspacePool();
   }, []);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!label.trim() || !wsId.trim() || !apiKey.trim()) {
-      setFormError('All fields are required.');
+    if (!label.trim() || !apiKey.trim()) {
+      setFormError('Label and API key are required.');
       return;
     }
     setSubmitting(true);
@@ -500,7 +503,7 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
     try {
       await opencodeStore.createGoWorkspace({
         label: label.trim(),
-        workspaceId: wsId.trim(),
+        workspaceId: wsId.trim() || undefined,
         apiKey: apiKey.trim(),
         activate: true,
       });
@@ -516,6 +519,25 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
 
   const handleActivate = (id: string) => opencodeStore.activateGoWorkspaceAction(id);
   const handleValidate = (id: string) => opencodeStore.validateGoWorkspaceAction(id);
+  const handleImportDetected = async (workspace: OpenCodeGoWorkspace) => {
+    const fallbackLabel = workspace.workspaceIdKnown && workspace.workspaceId
+      ? workspace.workspaceId
+      : 'Native OpenCode Go';
+    setImportingId(workspace.id);
+    setFormError(null);
+    try {
+      await opencodeStore.importDetectedGoWorkspace({
+        label: workspace.label || fallbackLabel,
+        workspaceId: workspace.workspaceId || undefined,
+        sourceId: workspace.id,
+        activate: true,
+      });
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setImportingId(null);
+    }
+  };
   const handleDelete = (id: string, label: string) => {
     if (window.confirm(`Delete workspace "${label}"?`)) {
       opencodeStore.deleteGoWorkspaceAction(id);
@@ -538,6 +560,8 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
     ...(goWorkspaces?.detected || []).map((w) => ({ ...w, _type: 'detected' as const })),
     ...(goWorkspaces?.registered || []).map((w) => ({ ...w, _type: 'registered' as const })),
   ];
+  const detectedWorkspaces = allWorkspaces.filter((w) => w._type === 'detected');
+  const registeredWorkspaces = allWorkspaces.filter((w) => w._type === 'registered');
 
   const selectionMode = goWorkspaces?.selectionMode || 'auto';
   const activeId = goWorkspaces?.activeId;
@@ -548,23 +572,28 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
   const activeWorkspace = activeId
     ? allWorkspaces.find((w) => w.id === activeId) || null
     : null;
-
-  // Selection mode badge tone
-  const modeBadgeTone: 'neutral' | 'success' | 'danger' =
-    selectionMode === 'explicit' ? 'success' :
-    selectionMode === 'none' ? 'danger' : 'neutral';
-  const modeLabel =
-    selectionMode === 'explicit' ? 'Explicit' :
-    selectionMode === 'none' ? 'Deactivated' : 'Auto';
+  const modeBadgeTone: 'neutral' | 'success' | 'danger' = selectionMode === 'explicit'
+    ? 'success'
+    : selectionMode === 'none'
+      ? 'danger'
+      : 'neutral';
+  const modeLabel = selectionMode === 'explicit'
+    ? 'Explicit'
+    : selectionMode === 'none'
+      ? 'Deactivated'
+      : 'Auto';
+  const nativeApplied = Boolean(goWorkspaces?.appliedToNativeAuth);
+  const nativeAuthPath = goWorkspaces?.nativeAuthPath || 'Not detected';
+  const currentWorkspaceId = activeWorkspace?.workspaceIdKnown && activeWorkspace.workspaceId
+    ? activeWorkspace.workspaceId
+    : 'Unknown';
 
   return (
     <div className="opencode-section opencode-go-workspaces">
       {error && <div className="opencode-error">{error}</div>}
 
-      {/* === CURRENT WORKSPACE PANEL === */}
       <Panel title="Current Workspace" subtitle="Select which workspace OpenCode Go uses" testId="opencode-current-workspace">
         <div className="go-workspace-current-panel">
-          {/* Selector */}
           <div className="go-workspace-selector-row">
             <select
               className="go-workspace-selector"
@@ -579,44 +608,51 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
             >
               <option value="__none__">No active workspace</option>
               <option value="__auto__">Auto (detect credentials)</option>
-              {allWorkspaces
-                .filter((w) => w._type === 'detected')
-                .map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.label} (detected)
-                  </option>
-                ))}
-              {allWorkspaces
-                .filter((w) => w._type === 'registered')
-                .map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.label} {w.workspaceId ? `(${w.workspaceId})` : ''}
-                  </option>
-                ))}
+              {detectedWorkspaces.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.label} (detected)
+                </option>
+              ))}
+              {registeredWorkspaces.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.label} {w.workspaceId ? `(${w.workspaceId})` : ''}
+                </option>
+              ))}
             </select>
-
-            {activeWorkspace && (
-              <Badge tone="success" testId="go-workspace-active-badge">Active</Badge>
-            )}
             <Badge tone={modeBadgeTone} testId="go-workspace-mode-badge">{modeLabel}</Badge>
           </div>
 
-          {/* Status info */}
-          {activeWorkspace && (
-            <div className="go-workspace-current-info">
-              <span className="go-workspace-current-label">{activeWorkspace.label}</span>
-              <span className="go-workspace-current-source">
-                via {activeWorkspace.keySource || 'keychain'}
-              </span>
-              {activeWorkspace.lastValidatedStatus && (
-                <span className={`go-workspace-validation go-workspace-validation-${activeWorkspace.lastValidatedStatus}`}>
-                  {activeWorkspace.lastValidatedStatus === 'ok' ? '✓ Valid' : activeWorkspace.lastValidatedStatus}
-                </span>
-              )}
+          <div className="go-workspace-status-grid">
+            <div className="go-workspace-status-row">
+              <span>Active in Elegy</span>
+              <strong>{activeWorkspace ? activeWorkspace.label : 'None'}</strong>
+            </div>
+            <div className="go-workspace-status-row">
+              <span>Workspace ID</span>
+              <strong>{currentWorkspaceId}</strong>
+            </div>
+            <div className="go-workspace-status-row">
+              <span>Credential source</span>
+              <strong>{activeWorkspace?.keySource || 'None'}</strong>
+            </div>
+            <div className="go-workspace-status-row">
+              <span>Applied to native OpenCode</span>
+              <Badge tone={nativeApplied ? 'success' : 'danger'} testId="go-workspace-native-applied">
+                {nativeApplied ? 'Applied' : 'Not applied'}
+              </Badge>
+            </div>
+            <div className="go-workspace-status-row go-workspace-status-row-wide">
+              <span>Native auth file</span>
+              <code>{nativeAuthPath}</code>
+            </div>
+          </div>
+
+          {activeWorkspace?.lastValidatedStatus && (
+            <div className={`go-workspace-validation go-workspace-validation-${activeWorkspace.lastValidatedStatus}`}>
+              {activeWorkspace.lastValidatedStatus === 'ok' ? 'Valid' : activeWorkspace.lastValidatedStatus}
             </div>
           )}
 
-          {/* Links row */}
           <div className="go-workspace-current-links">
             {(isNoneActive || (isAutoMode && !activeId)) && (
               <a
@@ -655,7 +691,6 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
         </div>
       </Panel>
 
-      {/* === REGISTRATION FORM (keep existing) === */}
       <form className="go-workspaces-register" onSubmit={handleRegister}>
         <h4>Register New Workspace</h4>
         {formError && <div className="opencode-error">{formError}</div>}
@@ -682,18 +717,17 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
             disabled={submitting || loading}
           />
           <button type="submit" disabled={submitting || loading}>
-            {submitting ? 'Registering…' : 'Register'}
+            {submitting ? 'Registering...' : 'Register'}
           </button>
         </div>
       </form>
 
-      {/* === WORKSPACE POOL (keep existing) === */}
-      <div className="go-workspaces-pool" style={{ marginTop: 'var(--space-md)', padding: 'var(--space-sm)', border: '1px solid var(--color-border-100)', borderRadius: 'var(--radius-sm)' }}>
+      <div className="go-workspaces-pool">
         <h4>Workspace Pool</h4>
-        <p className="catalog-inline-note" style={{ marginBottom: 'var(--space-xs)' }}>
+        <p className="catalog-inline-note">
           Manage multiple workspaces as a priority-ordered pool. The active workspace is used by default; pool members can be quickly accessed.
         </p>
-        <label className="planning-checkbox" style={{ marginBottom: 'var(--space-sm)' }}>
+        <label className="planning-checkbox go-workspaces-pool-toggle">
           <input
             type="checkbox"
             checked={state.workspacePool?.enabled || false}
@@ -702,15 +736,15 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
           />
           Enable workspace pool
         </label>
-        {(state.workspacePool?.enabled) && allWorkspaces.filter(w => w._type === 'registered').length > 0 && (
-          <div style={{ marginTop: 'var(--space-xs)' }}>
+        {(state.workspacePool?.enabled) && registeredWorkspaces.length > 0 && (
+          <div className="go-workspaces-pool-members">
             <p className="catalog-inline-note">
               Pool members ({state.workspacePool?.workspaceIds?.length || 0} selected):
             </p>
-            {allWorkspaces.filter(w => w._type === 'registered').map((w) => {
+            {registeredWorkspaces.map((w) => {
               const isInPool = (state.workspacePool?.workspaceIds || []).includes(w.id);
               return (
-                <label key={w.id} className="planning-checkbox" style={{ display: 'block', marginBottom: '2px' }}>
+                <label key={w.id} className="planning-checkbox go-workspaces-pool-member">
                   <input
                     type="checkbox"
                     checked={isInPool}
@@ -729,7 +763,6 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
             })}
             <button
               className="button button-sm button-ghost"
-              style={{ marginTop: 'var(--space-xs)' }}
               onClick={() => opencodeStore.validateWorkspacePool()}
               disabled={loading || state.workspacePoolLoading}
             >
@@ -739,10 +772,8 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
         )}
       </div>
 
-      {/* === LOADING === */}
-      {loading && !goWorkspaces && <div className="opencode-loading">Loading workspaces…</div>}
+      {loading && !goWorkspaces && <div className="opencode-loading">Loading workspaces...</div>}
 
-      {/* === WORKSPACE LIST (keep existing, but updated for known-workspace links) === */}
       {allWorkspaces.length > 0 && (
         <div className="go-workspaces-list">
           <h4>Workspaces</h4>
@@ -754,27 +785,30 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
             return (
               <div
                 key={workspace.id}
-                className={`go-workspace-card ${isActive ? 'go-workspace-card-active' : ''}`}
+                className={`go-workspace-card ${isActive ? 'go-workspace-card-active' : ''} ${isDetected ? 'go-workspace-card-detected' : ''}`}
               >
                 <div className="go-workspace-card-header">
                   <span className="go-workspace-label">{workspace.label}</span>
                   {isActive && <span className="go-workspace-badge go-workspace-badge-active">Active</span>}
                   {isDetected && <span className="go-workspace-badge go-workspace-badge-detected">Detected</span>}
+                  {workspace.appliedToNativeAuth && <span className="go-workspace-badge go-workspace-badge-native">Native</span>}
                 </div>
                 <div className="go-workspace-card-details">
-                  <span className="go-workspace-workspaceId">{workspace.workspaceId}</span>
+                  <span className="go-workspace-workspaceId">{workspace.workspaceId || 'Unknown workspace id'}</span>
                   <span className="go-workspace-source">via {workspace.keySource || 'keychain'}</span>
+                  <span className={`go-workspace-validation ${workspace.workspaceIdKnown ? 'go-workspace-validation-ok' : 'go-workspace-validation-warning'}`}>
+                    {workspace.workspaceIdKnown ? 'Workspace id known' : 'Workspace id unknown'}
+                  </span>
                   {workspace.lastValidatedStatus && (
                     <span className={`go-workspace-validation go-workspace-validation-${workspace.lastValidatedStatus}`}>
-                      {workspace.lastValidatedStatus === 'ok' ? '✓ Valid' : workspace.lastValidatedStatus}
+                      {workspace.lastValidatedStatus === 'ok' ? 'Valid' : workspace.lastValidatedStatus}
                     </span>
                   )}
                   {workspace.lastValidatedAt && (
-                    <span className="go-workspace-validated-at" style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                    <span className="go-workspace-validated-at">
                       Last checked: {new Date(workspace.lastValidatedAt).toLocaleDateString()}
                     </span>
                   )}
-                  {/* NEW: Open in OpenCode link in card details */}
                   {workspace.workspaceIdKnown && workspace.consoleUrl && (
                     <a
                       href={workspace.consoleUrl}
@@ -783,29 +817,42 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
                       className="go-workspace-open-link"
                       data-testid={`go-workspace-open-${workspace.id}`}
                     >
-                      Open in OpenCode ↗
+                      Open in OpenCode
                     </a>
                   )}
                 </div>
-                {isRegistered && (
-                  <div className="go-workspace-card-actions">
-                    {!isActive && (
-                      <button onClick={() => handleActivate(workspace.id)} disabled={loading}>
-                        Activate
-                      </button>
-                    )}
-                    <button onClick={() => handleValidate(workspace.id)} disabled={loading}>
+                <div className="go-workspace-card-actions">
+                  {isRegistered && !isActive && (
+                    <Button variant="secondary" size="sm" onClick={() => handleActivate(workspace.id)} disabled={loading}>
+                      Activate
+                    </Button>
+                  )}
+                  {isRegistered && (
+                    <Button variant="ghost" size="sm" onClick={() => handleValidate(workspace.id)} disabled={loading}>
                       Validate
-                    </button>
-                    <button
-                      className="go-workspace-delete-btn"
+                    </Button>
+                  )}
+                  {isDetected && workspace.id === 'detected:native:opencode-go' && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void handleImportDetected(workspace)}
+                      disabled={loading || importingId === workspace.id}
+                    >
+                      {importingId === workspace.id ? 'Importing...' : 'Import native'}
+                    </Button>
+                  )}
+                  {isRegistered && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleDelete(workspace.id, workspace.label)}
                       disabled={loading}
                     >
                       Delete
-                    </button>
-                  </div>
-                )}
+                    </Button>
+                  )}
+                </div>
               </div>
             );
           })}

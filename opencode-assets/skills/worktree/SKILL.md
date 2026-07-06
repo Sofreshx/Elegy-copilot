@@ -82,7 +82,9 @@ The tool will:
 All changes in the worktree are isolated from your main checkout. The worktree shares the same git history but has its own working directory.
 
 **Git workflow in the worktree:**
-- Make small, targeted commits: inspect diff, stage intended files only, propose commit message, wait for approval
+- Make small, targeted commits: inspect diff and stage intended files only.
+  Follow the active session's git checkpoint policy for whether an approved
+  goal/planning run may auto-commit or a non-goal run must ask first.
 - Never auto-push, auto-merge, or delete branches without explicit user approval
 
 ### 3. Clean Up

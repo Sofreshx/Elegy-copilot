@@ -93,7 +93,9 @@ status per finding in `IMPL_RESULT.warnings`. Track retry count per task.
 - Reuse across tasks, clean up at session end.
 
 ## Git
-- Commit, merge, push, branch delete → explicit user approval.
+- Commit, merge, push, branch delete -> explicit user approval unless this
+  runner session is explicitly operating under an approved goal or durable
+  planning run; that exception covers atomic commit checkpoints only.
 - Stage only intended files. No `git add -A`.
 
 ## Autonomous Continuation
@@ -118,5 +120,7 @@ RUNNER_RESULT
 
 ## Safety
 - Never skip implementation review and evidence review gates.
-- Never auto-commit, auto-merge, or auto-push.
+- Never auto-merge or auto-push.
+- Never auto-commit unless explicitly operating under an approved goal or
+  durable planning run with a validated atomic checkpoint.
 - Report current task status if interrupted.

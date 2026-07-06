@@ -26,8 +26,11 @@ The project lane may continue without re-confirmation for:
 The user's prior authorization of the goal, roadmap, and plan is the permission
 to keep going within these bounds.
 
-**Explicit approval required before ANY durable git mutation:**
-- `git commit` — propose the commit with a diff summary; wait for user approval
+**Git checkpoint policy:**
+- `git commit` — auto-commit validated atomic work-unit checkpoints inside the
+  approved goal/roadmap/plan scope
+- non-goal or out-of-scope commits — propose the commit with a diff summary and
+  wait for user approval
 - `git merge` — propose the merge; wait for approval
 - `git branch -d` — confirm with user before deleting
 - `git push` — never push without explicit user request
@@ -119,8 +122,11 @@ questionnaire.
 
 ## Phase 3: Complete
 
-1. **Commit:** Ask `impl` for a diff summary. Stage intended files only and
-   wait for explicit user approval before running `git commit`.
+1. **Commit checkpoint:** Ask `impl` for a diff summary. Stage intended
+   session-owned files only. If validation passed and the diff is atomic inside
+   the approved goal/roadmap/plan scope, run `git commit` and record the SHA as
+   project-run evidence. If the diff is mixed, validation failed, or scope is
+   unclear, pause with the diff summary instead of committing.
 2. **Merge back:** Propose merging the topic branch into the user's active
    branch. Present the merge summary and wait for explicit user approval.
 3. **Update plan:**

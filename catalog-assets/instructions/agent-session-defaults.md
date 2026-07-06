@@ -99,6 +99,14 @@ code, and unnecessary complexity.
 Run the narrowest relevant check after changes. For instruction or
 documentation surfaces, validate relevant links and references.
 
+## Git Checkpoint Rule
+
+Keep work commit-sized. In goal or durable planning sessions, auto-commit
+validated atomic work units when the approved goal or plan authorizes the
+scope. In non-goal sessions, pause at natural boundaries, summarize the diff,
+and offer an atomic commit. Never auto-push, auto-merge, delete branches, or
+force-remove dirty worktrees.
+
 ## Core Workflow
 
 | Step | Rule |

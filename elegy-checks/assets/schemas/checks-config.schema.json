@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elegy.dev/schemas/checks-config.schema.json",
+  "title": "Elegy Checks Config",
+  "type": "object",
+  "required": ["schemaVersion", "checks"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "configVersion": { "type": "integer", "minimum": 1 },
+    "generated": { "type": "string" },
+    "defaultProfile": { "type": "string" },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string" },
+          "description": { "type": "string" },
+          "cost": { "type": "string" },
+          "opensWindow": { "type": "boolean" }
+        }
+      }
+    },
+    "groups": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "ciRemoteOnly": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["workflow", "job", "reason"],
+        "properties": {
+          "workflow": { "type": "string" },
+          "job": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["commands"],
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "group": { "type": ["string", "null"] },
+          "description": { "type": "string" },
+          "cwd": { "type": "string" },
+          "timeoutMs": { "type": "integer", "minimum": 1 },
+          "blocking": { "type": "boolean" },
+          "required": { "type": "boolean" },
+          "skippable": { "type": "boolean" },
+          "requiresReasonOnSkip": { "type": "boolean" },
+          "defaultProfiles": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "cost": { "type": "string" },
+          "opensWindow": { "type": "boolean" },
+          "ciWorkflow": { "type": ["string", "null"] },
+          "ciJob": { "type": ["string", "null"] },
+          "ciRequired": { "type": "boolean" },
+          "commands": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

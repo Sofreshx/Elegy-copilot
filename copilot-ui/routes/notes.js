@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
 const vaultBackend = require('../lib/vaultBackend');
 const vaultGit = require('../lib/vaultGit');
 const vaultDriveSync = require('../lib/vaultDriveSync');
@@ -17,6 +20,27 @@ function parseTags(tags) {
     try { return JSON.parse(tags); } catch { return [tags]; }
   }
   return [];
+}
+
+function getElegyHome(ctx) {
+  return ctx.elegyHomeAbs || vaultConfig.resolveElegyHome();
+}
+
+function getDriveOptions(ctx) {
+  return { elegyHome: getElegyHome(ctx) };
+}
+
+function makeExportFileName(format, date = new Date()) {
+  const stamp = date.toISOString().replace(/[:.]/g, '-');
+  return `elegy-notes-${stamp}.${format === 'markdown' ? 'md' : 'json'}`;
+}
+
+function writeNotesExport(ctx, fileName, content) {
+  const exportDir = path.join(getElegyHome(ctx), 'notes-exports');
+  fs.mkdirSync(exportDir, { recursive: true });
+  const exportPath = path.join(exportDir, fileName);
+  fs.writeFileSync(exportPath, content, 'utf8');
+  return { exportDir, exportPath };
 }
 
 // ── List notes ──
@@ -218,7 +242,15 @@ async function handleNotesExport(ctx, deps) {
           blocks: vaultBackend.listBlocksByNote(n.id),
         })),
       };
-      sendJson(res, 200, exportData);
+      const fileName = makeExportFileName('json', new Date(exportData.exportedAt));
+      const { exportDir, exportPath } = writeNotesExport(ctx, fileName, JSON.stringify(exportData, null, 2));
+      sendJson(res, 200, {
+        ...exportData,
+        fileName,
+        exportDir,
+        exportPath,
+        importCompatibility: 'Import this JSON through Elegy Copilot Notes on another Obsidian-backed vault.',
+      });
       return;
     }
 
@@ -243,7 +275,22 @@ async function handleNotesExport(ctx, deps) {
         }
         return { filename: `${n.id}.md`, content: md };
       });
-      sendJson(res, 200, { format: 'markdown', files, count: files.length });
+      const exportedAt = new Date().toISOString();
+      const combined = files
+        .map((file) => `<!-- ${file.filename} -->\n\n${file.content.trim()}\n`)
+        .join('\n---\n\n');
+      const fileName = makeExportFileName('markdown', new Date(exportedAt));
+      const { exportDir, exportPath } = writeNotesExport(ctx, fileName, combined);
+      sendJson(res, 200, {
+        format: 'markdown',
+        exportedAt,
+        files,
+        count: files.length,
+        fileName,
+        exportDir,
+        exportPath,
+        importCompatibility: 'Markdown exports are plain Obsidian-readable notes for inspection or manual vault copy.',
+      });
       return;
     }
 
@@ -508,7 +555,7 @@ async function handleDriveSyncPush(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
   try {
-    const result = await vaultDriveSync.push();
+    const result = await vaultDriveSync.push(getDriveOptions(ctx));
     sendJson(res, 200, result);
   } catch (err) {
     sendJson(res, 500, { ok: false, error: String(err.message || err) });
@@ -520,7 +567,7 @@ async function handleDriveSyncPull(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
   try {
-    const result = await vaultDriveSync.pull();
+    const result = await vaultDriveSync.pull(getDriveOptions(ctx));
     sendJson(res, 200, result);
   } catch (err) {
     sendJson(res, 500, { ok: false, error: String(err.message || err) });
@@ -532,7 +579,7 @@ async function handleDriveSyncStatus(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
   try {
-    const result = await vaultDriveSync.syncStatus();
+    const result = await vaultDriveSync.syncStatus(getDriveOptions(ctx));
     sendJson(res, 200, result);
   } catch (err) {
     sendJson(res, 500, { ok: false, error: String(err.message || err) });
@@ -544,7 +591,7 @@ async function handleDriveAuth(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
   try {
-    const result = await vaultDriveSync.authenticate();
+    const result = await vaultDriveSync.authenticate(getDriveOptions(ctx));
     sendJson(res, 200, result);
   } catch (err) {
     sendJson(res, 500, { ok: false, error: String(err.message || err) });
@@ -556,7 +603,7 @@ async function handleDriveCheckAuth(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
   try {
-    const result = await vaultDriveSync.checkAuth();
+    const result = await vaultDriveSync.checkAuth(getDriveOptions(ctx));
     sendJson(res, 200, result);
   } catch (err) {
     sendJson(res, 500, { ok: false, error: String(err.message || err) });
@@ -570,6 +617,20 @@ async function handleDriveCancelAuth(ctx, deps) {
   try {
     const result = await vaultDriveSync.cancelAuth();
     sendJson(res, 200, result);
+  } catch (err) {
+    sendJson(res, 500, { ok: false, error: String(err.message || err) });
+  }
+}
+
+// ── Drive managed rclone install ──
+async function handleDriveInstallRclone(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  try {
+    const options = getDriveOptions(ctx);
+    const result = await vaultDriveSync.installRclone(options);
+    const status = await vaultDriveSync.syncStatus(options);
+    sendJson(res, 200, { ...result, status });
   } catch (err) {
     sendJson(res, 500, { ok: false, error: String(err.message || err) });
   }
@@ -612,6 +673,7 @@ function register(context = {}) {
     { method: 'POST',   path: '/api/notes/drive/push',        handler: (ctx) => handleDriveSyncPush(ctx, deps) },
     { method: 'POST',   path: '/api/notes/drive/pull',        handler: (ctx) => handleDriveSyncPull(ctx, deps) },
     { method: 'GET',    path: '/api/notes/drive/status',      handler: (ctx) => handleDriveSyncStatus(ctx, deps) },
+    { method: 'POST',   path: '/api/notes/drive/install-rclone', handler: (ctx) => handleDriveInstallRclone(ctx, deps) },
     { method: 'POST',   path: '/api/notes/drive/auth',        handler: (ctx) => handleDriveAuth(ctx, deps) },
     { method: 'GET',    path: '/api/notes/drive/auth/status', handler: (ctx) => handleDriveCheckAuth(ctx, deps) },
     { method: 'POST',   path: '/api/notes/drive/auth/cancel', handler: (ctx) => handleDriveCancelAuth(ctx, deps) },

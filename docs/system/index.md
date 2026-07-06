@@ -1,13 +1,13 @@
 ---
 created: 2026-02-23
-updated: 2026-06-30
+updated: 2026-07-06
 category: system
 status: current
 doc_kind: index
 id: system-docs-index
 summary: Short entrypoint map for the current canonical docs.
 tags: [documentation, index]
-related: [catalog-control-plane, copilot-ui-guide, opencode-guide, ghcp-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, sweeper-cleanup-lane, collaboration-profile-adr, commit-check-setup, check-taxonomy-governance, windows-shell-optimization, ui-development-governance, ui-check-adoption]
+related: [catalog-control-plane, copilot-ui-guide, opencode-guide, ghcp-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, sweeper-cleanup-lane, collaboration-profile-adr, commit-check-setup, check-taxonomy-governance, git-checkpoint-governance, windows-shell-optimization, ui-development-governance, ui-check-adoption]
 ---
 
 # Docs Index
@@ -33,6 +33,7 @@ Use docs in this order:
 - [[adr-governance]] [adr-governance.md](adr-governance.md) [adr-governance](docs/system/adr-governance.md)
 - [[spec-driven-development]] [spec-driven-development.md](spec-driven-development.md) [spec-driven-development](docs/system/spec-driven-development.md)
 - [[commit-validation-governance]] [commit-validation-governance.md](commit-validation-governance.md) [commit-validation-governance](docs/system/commit-validation-governance.md)
+- [[git-checkpoint-governance]] [git-checkpoint-governance.md](git-checkpoint-governance.md) [git-checkpoint-governance](docs/system/git-checkpoint-governance.md)
 - [[check-taxonomy-governance]] [check-taxonomy-governance.md](check-taxonomy-governance.md) [check-taxonomy-governance](docs/system/check-taxonomy-governance.md)
 - [[commit-check-setup]] [commit-check-setup.md](commit-check-setup.md) [commit-check-setup](docs/system/commit-check-setup.md)
 - [[concise-instruction-governance]] [concise-instruction-governance.md](concise-instruction-governance.md) [concise-instruction-governance](docs/system/concise-instruction-governance.md)

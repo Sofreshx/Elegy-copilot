@@ -1,13 +1,13 @@
 ---
 created: 2026-03-18
-updated: 2026-06-29
+updated: 2026-07-06
 category: system
 status: current
 doc_kind: moc
 id: moc-conventions-and-governance
 summary: Map of content for canonical conventions, governance routing, and follow-up handoff entrypoints.
 tags: [governance, conventions, routing]
-related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, follow-up-discovery-governance, concise-instruction-governance, harness-asset-flow, check-taxonomy-governance]
+related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, follow-up-discovery-governance, concise-instruction-governance, harness-asset-flow, check-taxonomy-governance, git-checkpoint-governance]
 ---
 
 # MOC — Conventions & Governance
@@ -41,6 +41,8 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
   [[follow-up-discovery-governance]] [../follow-up-discovery-governance.md](../follow-up-discovery-governance.md) [follow-up-discovery-governance](docs/system/follow-up-discovery-governance.md)
 - Check classes, determinism, and gate-strength ownership:
   [[check-taxonomy-governance]] [../check-taxonomy-governance.md](../check-taxonomy-governance.md) [check-taxonomy-governance](docs/system/check-taxonomy-governance.md)
+- Atomic commit checkpoints for goal, planning, and non-goal agent sessions:
+  [[git-checkpoint-governance]] [../git-checkpoint-governance.md](../git-checkpoint-governance.md) [git-checkpoint-governance](docs/system/git-checkpoint-governance.md)
 - Specific change review versus governance authoring:
   [[reviewer-lane-governance]] [../reviewer-lane-governance.md](../reviewer-lane-governance.md) [reviewer-lane-governance](docs/system/reviewer-lane-governance.md)
 - Canonical graph/frontmatter/link contract:
@@ -59,7 +61,9 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
    audit findings should become planning-ready tasks later.
 5. Add `docs/system/check-taxonomy-governance.md` when the main question is what kind of check should
    exist, where it belongs, or how authoritative it should be.
-6. Use `docs/system/reviewer-lane-governance.md` instead when the task is review of a concrete
+6. Add `docs/system/git-checkpoint-governance.md` when the convention question is how agent sessions
+   should commit bounded work without accumulating a large dirty tree.
+7. Use `docs/system/reviewer-lane-governance.md` instead when the task is review of a concrete
    change rather than governance authoring.
 
 ## Quick routing
@@ -71,6 +75,7 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
 - "Write or enforce concise instruction standards" -> `docs/system/concise-instruction-governance.md`
 - "Turn convention gaps into follow-up tasks" -> `docs/system/follow-up-discovery-governance.md`
 - "Decide what kind of check should exist and how strong it should be" -> `docs/system/check-taxonomy-governance.md`
+- "Define when agents should commit work during goals or plans" -> `docs/system/git-checkpoint-governance.md`
 - "Review this implementation for correctness" -> `docs/system/reviewer-lane-governance.md`
 
 ## Depends on

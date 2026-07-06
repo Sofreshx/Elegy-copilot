@@ -3,7 +3,8 @@
 let fs = require('fs');
 const path = require('path');
 let { execFile } = require('child_process');
-const { syncCiState } = require('./ciSync');
+const ciSync = require('./ciSync');
+const elegyChecks = require('./elegyChecksRunner');
 const { resolveCommitCheckConfig } = require('./commitCheckConfig');
 
 
@@ -150,7 +151,7 @@ function normalizeSelectedLanes(selectedLanes) {
 function resolveCanonicalRunTimeout(config, options = {}) {
   const lanes = config?.lanes && typeof config.lanes === 'object' ? config.lanes : {};
   let laneNames = Object.keys(lanes).filter((name) => lanes[name]?.enabled !== false);
-  const profile = options.runAll ? null : (options.profile || 'commit');
+  const profile = options.runAll || !options.profile ? null : options.profile;
 
   if (profile) {
     laneNames = laneNames.filter((name) => {
@@ -192,6 +193,11 @@ const RUN_TIMEOUT_MS = 30000;
  * Discover available checks for a repo root by checking file existence.
  */
 function discoverChecks(repoRoot) {
+  const elegyDiscovered = elegyChecks.discoverChecks(repoRoot);
+  if (elegyDiscovered) {
+    return elegyDiscovered;
+  }
+
   // Prefer canonical config
   const config = resolveCommitCheckConfig(repoRoot);
   if (config && config.lanes) {
@@ -361,6 +367,9 @@ async function runAllChecksLegacy(repoRoot) {
  * Run all checks — prefer canonical config, fall back to legacy.
  */
 async function runAllChecks(repoRoot) {
+  const elegyResult = await elegyChecks.runAllChecks(repoRoot);
+  if (elegyResult) return elegyResult;
+
   const config = resolveCommitCheckConfig(repoRoot);
   if (config) {
     return runCanonicalChecks(repoRoot, config);
@@ -373,6 +382,9 @@ async function runAllChecks(repoRoot) {
  * Routes through canonical checks with the provided profile options.
  */
 async function runAllChecksWithProfile(repoRoot, options) {
+  const elegyResult = await elegyChecks.runAllChecksWithProfile(repoRoot, options);
+  if (elegyResult) return elegyResult;
+
   const config = resolveCommitCheckConfig(repoRoot);
   if (config) {
     return runCanonicalChecks(repoRoot, config, options);
@@ -721,6 +733,10 @@ function ciScopeForAction(action) {
   return action === 'pull-request' ? 'pr' : 'main-push';
 }
 
+function syncCiState(repoRoot, options = {}) {
+  return elegyChecks.syncCiState(repoRoot, options) || ciSync.syncCiState(repoRoot, options);
+}
+
 module.exports = {
   discoverChecks,
   runCheck,
@@ -730,6 +746,7 @@ module.exports = {
   // Backward-compat re-export; canonical source is commitCheckConfig.js
   resolveCommitCheckConfig,
   resolveGroupResults,
+  syncCiState,
   __setDeps,
   isProtectedBranch,
   getCurrentBranch,

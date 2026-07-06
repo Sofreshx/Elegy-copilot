@@ -89,7 +89,9 @@ status per finding in `IMPL_RESULT.warnings`. Track retry count per task.
 Default: current workspace. Worktree only on explicit request.
 
 ## Git
-Durable mutations → explicit user approval. No `git add -A`.
+Durable mutations -> explicit user approval unless this runner session is
+explicitly operating under an approved goal or durable planning run; that
+exception covers atomic commit checkpoints only. No `git add -A`.
 
 ## Autonomous Continuation
 Continue through tasks without re-confirmation, including review-driven

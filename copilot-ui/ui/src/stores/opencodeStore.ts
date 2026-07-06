@@ -456,6 +456,21 @@ function createOpenCodeStore() {
     }
   }
 
+  async function importDetectedGoWorkspace(payload: OpenCodeGoWorkspaceCreatePayload): Promise<void> {
+    store.setState((state) => ({ ...state, goWorkspacesLoading: true, goWorkspacesError: null }));
+    try {
+      const response = await registerGoWorkspace(payload);
+      store.setState((state) => ({ ...state, goWorkspaces: response, goWorkspacesLoading: false }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        goWorkspacesLoading: false,
+        goWorkspacesError: toErrorMessage(error),
+      }));
+      throw error;
+    }
+  }
+
   async function activateGoWorkspaceAction(id: string): Promise<void> {
     store.setState((state) => ({ ...state, goWorkspacesLoading: true, goWorkspacesError: null }));
     try {
@@ -598,6 +613,7 @@ function createOpenCodeStore() {
     resetState,
     loadGoWorkspaces,
     createGoWorkspace,
+    importDetectedGoWorkspace,
     activateGoWorkspaceAction,
     validateGoWorkspaceAction,
     deleteGoWorkspaceAction,

@@ -44,6 +44,13 @@ function makeContext(config = {}) {
   return { root, engineRoot, elegyHomeAbs };
 }
 
+function makeCloudflared(ctx) {
+  const extension = process.platform === 'win32' ? '.exe' : '';
+  const executablePath = path.join(ctx.root, `cloudflared${extension}`);
+  fs.writeFileSync(executablePath, '', 'utf8');
+  return executablePath;
+}
+
 function loadManager(spawnCalls, onSpawn = null) {
   delete require.cache[managerPath];
   childProcess.spawn = (...args) => {
@@ -53,6 +60,27 @@ function loadManager(spawnCalls, onSpawn = null) {
     return child;
   };
   return require('./localRepoMcpManager');
+}
+
+async function withMissingCloudflaredEnv(fn) {
+  const original = {
+    PATH: process.env.PATH,
+    ProgramFiles: process.env.ProgramFiles,
+    ProgramFilesX86: process.env['ProgramFiles(x86)'],
+  };
+  process.env.PATH = '';
+  process.env.ProgramFiles = path.join(os.tmpdir(), 'missing-program-files');
+  process.env['ProgramFiles(x86)'] = path.join(os.tmpdir(), 'missing-program-files-x86');
+  try {
+    return await fn();
+  } finally {
+    if (original.PATH == null) delete process.env.PATH;
+    else process.env.PATH = original.PATH;
+    if (original.ProgramFiles == null) delete process.env.ProgramFiles;
+    else process.env.ProgramFiles = original.ProgramFiles;
+    if (original.ProgramFilesX86 == null) delete process.env['ProgramFiles(x86)'];
+    else process.env['ProgramFiles(x86)'] = original.ProgramFilesX86;
+  }
 }
 
 test.afterEach(() => {
@@ -73,6 +101,19 @@ test('startServer starts local-only with blank OAuth config', () => {
   assert.equal(spawnCalls[0].args[2].env.LOCAL_REPO_MCP_AUTH_MODE, 'disabled');
 });
 
+test('status reports missing cloudflared prerequisite', async () => withMissingCloudflaredEnv(async () => {
+  const ctx = makeContext();
+  const spawnCalls = [];
+  const manager = loadManager(spawnCalls);
+
+  const status = manager.getStatus(ctx);
+
+  assert.equal(status.prerequisites.cloudflared.available, false);
+  assert.equal(status.prerequisites.cloudflared.path, 'cloudflared');
+  assert.equal(status.prerequisites.oauth.issuerConfigured, false);
+  assert.equal(status.prerequisites.chatGptAccessReady, false);
+}));
+
 test('startQuickTunnel rejects missing OAuth config', async () => {
   const ctx = makeContext();
   const spawnCalls = [];
@@ -85,9 +126,25 @@ test('startQuickTunnel rejects missing OAuth config', async () => {
   assert.equal(spawnCalls.length, 0);
 });
 
-test('startQuickTunnel parses generated URL and starts OAuth MCP server', async () => {
+test('startQuickTunnel rejects missing cloudflared before spawning', async () => withMissingCloudflaredEnv(async () => {
   const ctx = makeContext({
-    authIssuer: 'https://tenant.auth0.com/',
+    authIssuer: 'https://tenant.example.com/',
+  });
+  const spawnCalls = [];
+  const manager = loadManager(spawnCalls);
+
+  await assert.rejects(
+    () => manager.startQuickTunnel(ctx),
+    /cloudflared is required before exposing Local Repo Reader to ChatGPT\./,
+  );
+  assert.equal(spawnCalls.length, 0);
+}));
+
+test('startQuickTunnel parses generated URL and starts OAuth MCP server', async () => {
+  const ctx = makeContext();
+  writeConfig(ctx.elegyHomeAbs, {
+    authIssuer: 'https://tenant.example.com/',
+    cloudflaredPath: makeCloudflared(ctx),
   });
   const spawnCalls = [];
   const manager = loadManager(spawnCalls, (_args, child, index) => {
@@ -112,11 +169,13 @@ test('startQuickTunnel parses generated URL and starts OAuth MCP server', async 
 });
 
 test('startTunnel keeps named tunnel status behavior', () => {
-  const ctx = makeContext({
+  const ctx = makeContext();
+  writeConfig(ctx.elegyHomeAbs, {
     publicBaseUrl: 'https://mcp.example.com',
-    authIssuer: 'https://tenant.auth0.com/',
+    authIssuer: 'https://tenant.example.com/',
     authAudience: 'https://mcp.example.com',
     cloudflareTunnelName: 'local-mcp',
+    cloudflaredPath: makeCloudflared(ctx),
   });
   const spawnCalls = [];
   const manager = loadManager(spawnCalls);

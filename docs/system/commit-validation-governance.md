@@ -1,13 +1,13 @@
 ---
 created: 2026-06-04
-updated: 2026-06-28
+updated: 2026-07-06
 category: system
 status: current
 doc_kind: node
 id: commit-validation-governance
 summary: "Canonical authority for commit-validation setup: discovery, configuration, umbrella run, and deterministic scoring across TypeScript and Rust workspaces."
 tags: [validation, testing, governance, commit, pre-commit, quality]
-related: [testing-quality-governance, validation-governance, repo-setup-governance, testing-and-e2e, check-taxonomy-governance]
+related: [testing-quality-governance, validation-governance, repo-setup-governance, testing-and-e2e, check-taxonomy-governance, git-checkpoint-governance]
 ---
 
 # Commit Validation Governance
@@ -18,6 +18,8 @@ Define the canonical contract for commit-validation tooling: self-contained repo
 
 This doc owns the narrow **commit / merge gate** portion of the check taxonomy. See
 `docs/system/check-taxonomy-governance.md` for the broader class/determinism/gate-strength model.
+Use `docs/system/git-checkpoint-governance.md` for when agent sessions should create, offer, or
+defer atomic commits.
 
 ## What It Covers
 

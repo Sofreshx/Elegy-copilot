@@ -7,6 +7,7 @@ const crypto = require('crypto');
 
 const KEYRING_SERVICE_NAME = 'elegy-copilot.elegy-copilot.opencode-go';
 const STORE_FILENAME = '.elegy-opencode-go-workspaces.json';
+const LOCAL_KEYS_FILENAME = '.elegy-opencode-go-workspace-keys.json';
 const NATIVE_AUTH_FILENAME = 'auth.json';
 const NATIVE_OPENCODE_GO_PROVIDER = 'opencode-go';
 const OPENCODE_GO_API_KEY_ENV = 'OPENCODE_GO_API_KEY';
@@ -16,6 +17,7 @@ const VALIDATION_TIMEOUT_MS = 8000;
 
 const KEY_SOURCES = Object.freeze({
   KEYCHAIN: 'keychain',
+  LOCAL_FILE: 'local-file',
   ENV: 'env',
   NATIVE_AUTH: 'opencode-auth',
   MISSING: 'missing',
@@ -33,6 +35,10 @@ function resolveOpenCodeHome(opencodeHome) {
 
 function resolveStorePath(opencodeHome) {
   return path.join(resolveOpenCodeHome(opencodeHome), STORE_FILENAME);
+}
+
+function resolveLocalKeysPath(opencodeHome) {
+  return path.join(resolveOpenCodeHome(opencodeHome), LOCAL_KEYS_FILENAME);
 }
 
 function resolveNativeAuthPath(env = process.env) {
@@ -64,6 +70,11 @@ function writeJsonAtomic(filePath, value) {
   const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   try {
     fs.writeFileSync(tempPath, JSON.stringify(value, null, 2) + '\n', 'utf8');
+    try {
+      fs.chmodSync(tempPath, 0o600);
+    } catch {
+      // Windows and some filesystems may not honor POSIX file modes.
+    }
     fs.renameSync(tempPath, filePath);
   } catch (error) {
     try {
@@ -189,6 +200,27 @@ function readStore(opencodeHome) {
   };
 }
 
+function readLocalKeyStore(opencodeHome) {
+  const raw = readJsonFile(resolveLocalKeysPath(opencodeHome));
+  if (!raw || typeof raw !== 'object' || !raw.keys || typeof raw.keys !== 'object') {
+    return { version: 1, keys: {} };
+  }
+  const keys = {};
+  for (const [account, value] of Object.entries(raw.keys)) {
+    if (typeof account === 'string' && typeof value === 'string' && value.trim()) {
+      keys[account] = value.trim();
+    }
+  }
+  return { version: 1, keys };
+}
+
+function writeLocalKeyStore(opencodeHome, keyStore) {
+  writeJsonAtomic(resolveLocalKeysPath(opencodeHome), {
+    version: 1,
+    keys: keyStore && typeof keyStore.keys === 'object' ? keyStore.keys : {},
+  });
+}
+
 function writeStore(opencodeHome, state) {
   const activeId = state.activeId && (
     state.profiles.some((p) => p.id === state.activeId) || isDetectedId(state.activeId)
@@ -238,7 +270,69 @@ function detectNativeAuth(opencodeHome, env = process.env, nativeAuthPath = null
   };
 }
 
-function buildRedactedProfile(profile, source) {
+function readNativeAuthFile(env = process.env, nativeAuthPath = null) {
+  const authPath = nativeAuthPath || resolveNativeAuthPath(env);
+  const raw = readJsonFile(authPath);
+  return {
+    authPath,
+    data: raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {},
+  };
+}
+
+function writeNativeOpenCodeGoAuth(env = process.env, nativeAuthPath = null, apiKey, workspaceId = null) {
+  const { authPath, data } = readNativeAuthFile(env, nativeAuthPath);
+  const existing = data[NATIVE_OPENCODE_GO_PROVIDER];
+  const nextEntry = existing && typeof existing === 'object' && !Array.isArray(existing)
+    ? { ...existing }
+    : {};
+  nextEntry.type = typeof nextEntry.type === 'string' ? nextEntry.type : 'api';
+  nextEntry.key = apiKey;
+  if (isValidWorkspaceId(workspaceId)) {
+    nextEntry.workspaceId = workspaceId;
+  }
+  data[NATIVE_OPENCODE_GO_PROVIDER] = nextEntry;
+  writeJsonAtomic(authPath, data);
+  return { authPath };
+}
+
+function extractWorkspaceIdFromText(value) {
+  if (typeof value !== 'string' || !value) return null;
+  const match = value.match(/(?:\/workspace\/|workspace[/=: ]+|workspaceId["':=\s]+|workspace_id["':=\s]+)(wrk_[A-Za-z0-9_-]+)/i)
+    || value.match(/\b(wrk_[A-Za-z0-9_-]+)\b/);
+  return match && isValidWorkspaceId(match[1]) ? match[1] : null;
+}
+
+function extractWorkspaceIdFromUnknown(value, seen = new Set()) {
+  if (typeof value === 'string') return extractWorkspaceIdFromText(value);
+  if (!value || typeof value !== 'object' || seen.has(value)) return null;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = extractWorkspaceIdFromUnknown(item, seen);
+      if (found) return found;
+    }
+    return null;
+  }
+  for (const [key, item] of Object.entries(value)) {
+    if (/workspace/i.test(key)) {
+      const direct = extractWorkspaceIdFromUnknown(item, seen);
+      if (direct) return direct;
+    }
+  }
+  for (const item of Object.values(value)) {
+    const found = extractWorkspaceIdFromUnknown(item, seen);
+    if (found) return found;
+  }
+  return null;
+}
+
+function buildRedactedProfile(profile, source, nativeState = null, storedValue = null) {
+  const appliedToNativeAuth = Boolean(
+    storedValue
+      && nativeState
+      && nativeState.key
+      && nativeState.key === storedValue,
+  );
   return {
     id: profile.id,
     label: profile.label,
@@ -246,7 +340,10 @@ function buildRedactedProfile(profile, source) {
     workspaceIdKnown: profile.workspaceIdKnown,
     consoleUrl: profile.consoleUrl,
     keyRef: profile.keyRef,
-    keyPresent: source === 'keychain' || source === 'env' || source === 'opencode-auth',
+    keyPresent: source === KEY_SOURCES.KEYCHAIN
+      || source === KEY_SOURCES.LOCAL_FILE
+      || source === KEY_SOURCES.ENV
+      || source === KEY_SOURCES.NATIVE_AUTH,
     keySource: source,
     active: profile.active,
     createdAt: profile.createdAt,
@@ -254,11 +351,13 @@ function buildRedactedProfile(profile, source) {
     lastValidatedAt: profile.lastValidatedAt,
     lastValidatedStatus: profile.lastValidatedStatus,
     lastValidatedMessage: profile.lastValidatedMessage,
+    canApplyNative: source === KEY_SOURCES.KEYCHAIN || source === KEY_SOURCES.LOCAL_FILE,
+    appliedToNativeAuth,
     origin: 'registered',
   };
 }
 
-function buildImportedProfile({ id, label, workspaceId, source }) {
+function buildImportedProfile({ id, label, workspaceId, source, appliedToNativeAuth = false }) {
   const now = nowIso();
   const profile = {
     id,
@@ -280,6 +379,8 @@ function buildImportedProfile({ id, label, workspaceId, source }) {
     ...profile,
     keyPresent: source === KEY_SOURCES.ENV || source === KEY_SOURCES.NATIVE_AUTH,
     keySource: source,
+    canApplyNative: source === KEY_SOURCES.NATIVE_AUTH,
+    appliedToNativeAuth,
     origin: 'detected',
   };
 }
@@ -324,12 +425,54 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     }
   }
 
+  function readLocalKeyValue(opencodeHome, account) {
+    const keyStore = readLocalKeyStore(opencodeHome);
+    const value = keyStore.keys[account];
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  function writeLocalKeyValue(opencodeHome, account, value) {
+    const keyStore = readLocalKeyStore(opencodeHome);
+    keyStore.keys[account] = value;
+    writeLocalKeyStore(opencodeHome, keyStore);
+  }
+
+  function deleteLocalKeyValue(opencodeHome, account) {
+    const keyStore = readLocalKeyStore(opencodeHome);
+    if (!Object.prototype.hasOwnProperty.call(keyStore.keys, account)) return false;
+    delete keyStore.keys[account];
+    writeLocalKeyStore(opencodeHome, keyStore);
+    return true;
+  }
+
+  async function readStoredApiKey(opencodeHome, account) {
+    const keychainValue = await readKeychainValue(account);
+    if (keychainValue) {
+      return { value: keychainValue, source: KEY_SOURCES.KEYCHAIN };
+    }
+    const localValue = readLocalKeyValue(opencodeHome, account);
+    if (localValue) {
+      return { value: localValue, source: KEY_SOURCES.LOCAL_FILE };
+    }
+    return { value: null, source: KEY_SOURCES.MISSING };
+  }
+
   async function writeKeychainValue(account, value) {
     const keyring = await resolveKeyring();
     if (!keyring) {
       throw new Error('OS keychain is unavailable in this runtime; cannot store OpenCode Go API key.');
     }
     await keyring.setPassword(KEYRING_SERVICE_NAME, account, value);
+  }
+
+  async function writeStoredApiKey(opencodeHome, account, value) {
+    try {
+      await writeKeychainValue(account, value);
+      return KEY_SOURCES.KEYCHAIN;
+    } catch {
+      writeLocalKeyValue(opencodeHome, account, value);
+      return KEY_SOURCES.LOCAL_FILE;
+    }
   }
 
   async function deleteKeychainValue(account) {
@@ -340,6 +483,12 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     } catch {
       return false;
     }
+  }
+
+  async function deleteStoredApiKey(opencodeHome, account) {
+    const keychainDeleted = await deleteKeychainValue(account);
+    const localDeleted = deleteLocalKeyValue(opencodeHome, account);
+    return keychainDeleted || localDeleted;
   }
 
   function buildDetectedProfiles(opencodeHome) {
@@ -361,6 +510,7 @@ function createOpenCodeGoWorkspaces(deps = {}) {
         label: 'OpenCode native Go',
         workspaceId: nativeState.workspaceId,
         source: KEY_SOURCES.NATIVE_AUTH,
+        appliedToNativeAuth: true,
       }));
     }
     return detected;
@@ -368,18 +518,27 @@ function createOpenCodeGoWorkspaces(deps = {}) {
 
   async function listWorkspaces(opencodeHome) {
     const state = readStore(opencodeHome);
+    const nativeState = detectNativeAuth(opencodeHome, env, deps.nativeAuthPath);
     const detected = buildDetectedProfiles(opencodeHome);
     const detectedIds = new Set(detected.map((p) => p.id));
 
     const registered = await Promise.all(state.profiles.map(async (profile) => {
-      const stored = await readKeychainValue(profile.keyRef);
+      const stored = await readStoredApiKey(opencodeHome, profile.keyRef);
       return buildRedactedProfile(
         profile,
-        stored ? KEY_SOURCES.KEYCHAIN : KEY_SOURCES.MISSING,
+        stored.source,
+        nativeState,
+        stored.value,
       );
     }));
 
     const activeId = effectiveActiveId(state, [...detectedIds], state.selectionMode);
+    const activeRegistered = registered.find((p) => p.id === activeId);
+    const activeDetected = detected.find((p) => p.id === activeId);
+    const appliedToNativeAuth = Boolean(
+      (activeRegistered && activeRegistered.appliedToNativeAuth)
+        || (activeDetected && activeDetected.id === 'detected:native:opencode-go' && nativeState.present),
+    );
 
     const orderedRegistered = registered.slice().sort((a, b) => {
       if (a.active && !b.active) return -1;
@@ -393,6 +552,8 @@ function createOpenCodeGoWorkspaces(deps = {}) {
       detectedActiveId: activeId,
       serviceName: KEYRING_SERVICE_NAME,
       storePath: resolveStorePath(opencodeHome),
+      nativeAuthPath: nativeState.authPath,
+      appliedToNativeAuth,
       registered: orderedRegistered,
       detected: orderedDetected,
       selectionMode: state.selectionMode,
@@ -404,9 +565,11 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     const label = normalizeLabel(payload.label, null);
     const workspaceId = normalizeWorkspaceId(payload.workspaceId);
     const requestedId = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : null;
+    const sourceId = typeof payload.sourceId === 'string' && payload.sourceId.trim() ? payload.sourceId.trim() : null;
     const apiKey = typeof payload.apiKey === 'string' && payload.apiKey.trim()
       ? payload.apiKey.trim()
       : null;
+    let resolvedApiKey = apiKey;
     const activate = payload.activate !== false;
     const now = nowProvider();
 
@@ -414,7 +577,14 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     if (workspaceId && !isValidWorkspaceId(workspaceId)) {
       throw new Error('workspaceId must match the wrk_... format.');
     }
-    if (!apiKey) {
+    if (!resolvedApiKey && sourceId === 'detected:native:opencode-go') {
+      const nativeState = detectNativeAuth(opencodeHome, env, deps.nativeAuthPath);
+      resolvedApiKey = nativeState.key;
+    } else if (!resolvedApiKey && sourceId === 'detected:env:opencode-go') {
+      const envValue = env[OPENCODE_GO_API_KEY_ENV];
+      resolvedApiKey = typeof envValue === 'string' && envValue.trim() ? envValue.trim() : null;
+    }
+    if (!resolvedApiKey) {
       throw new Error('apiKey is required to register a workspace.');
     }
 
@@ -438,9 +608,12 @@ function createOpenCodeGoWorkspaces(deps = {}) {
       updatedAt: now,
     };
 
-    await writeKeychainValue(profile.keyRef, apiKey);
+    await writeStoredApiKey(opencodeHome, profile.keyRef, resolvedApiKey);
     const nextProfiles = state.profiles.filter((p) => p.id !== id).concat(profile);
     const nextActiveId = activate ? id : state.activeId;
+    if (activate) {
+      writeNativeOpenCodeGoAuth(env, deps.nativeAuthPath, resolvedApiKey, workspaceId);
+    }
     writeStore(opencodeHome, {
       activeId: nextActiveId,
       profiles: nextProfiles,
@@ -480,7 +653,7 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     };
     const nextProfiles = state.profiles.map((p) => (p.id === id ? next : p));
     if (apiKey) {
-      await writeKeychainValue(next.keyRef, apiKey);
+      await writeStoredApiKey(opencodeHome, next.keyRef, apiKey);
     }
     writeStore(opencodeHome, { activeId: state.activeId, profiles: nextProfiles, poolEnabled: state.poolEnabled, poolWorkspaceIds: state.poolWorkspaceIds, selectionMode: state.selectionMode });
     return await listWorkspaces(opencodeHome);
@@ -494,8 +667,12 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     if (!detectedMatch && !registeredMatch) {
       throw new Error(`Unknown workspace id: ${id}`);
     }
-    if (registeredMatch && !(await readKeychainValue(registeredMatch.keyRef))) {
-      throw new Error(`Cannot activate ${id}: no API key in keychain.`);
+    if (registeredMatch) {
+      const stored = await readStoredApiKey(opencodeHome, registeredMatch.keyRef);
+      if (!stored.value) {
+        throw new Error(`Cannot activate ${id}: no API key is stored.`);
+      }
+      writeNativeOpenCodeGoAuth(env, deps.nativeAuthPath, stored.value, registeredMatch.workspaceId);
     }
     writeStore(opencodeHome, { activeId: id, profiles: state.profiles, poolEnabled: state.poolEnabled, poolWorkspaceIds: state.poolWorkspaceIds, selectionMode: SELECTION_MODES.EXPLICIT });
     return await listWorkspaces(opencodeHome);
@@ -517,7 +694,7 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     const state = readStore(opencodeHome);
     const profile = state.profiles.find((p) => p.id === id);
     if (!profile) throw new Error(`Unknown workspace profile: ${id}`);
-    await deleteKeychainValue(profile.keyRef);
+    await deleteStoredApiKey(opencodeHome, profile.keyRef);
     const nextProfiles = state.profiles.filter((p) => p.id !== id);
     const nextActiveId = state.activeId === id ? null : state.activeId;
     const isActive = state.activeId === id;
@@ -545,7 +722,7 @@ function createOpenCodeGoWorkspaces(deps = {}) {
 
     let apiKey = null;
     if (registeredMatch) {
-      apiKey = await readKeychainValue(registeredMatch.keyRef);
+      apiKey = (await readStoredApiKey(opencodeHome, registeredMatch.keyRef)).value;
     } else if (detectedMatch) {
       const envState = detectEnvApiKey(env);
       const nativeState = detectNativeAuth(opencodeHome, env, deps.nativeAuthPath);
@@ -582,12 +759,36 @@ function createOpenCodeGoWorkspaces(deps = {}) {
         }),
         signal: controller.signal,
       });
+      let responseText = '';
+      if (response && typeof response.text === 'function') {
+        try {
+          responseText = await response.text();
+        } catch {
+          responseText = '';
+        }
+      }
+      let responseJson = null;
+      if (responseText) {
+        try {
+          responseJson = JSON.parse(responseText);
+        } catch {
+          responseJson = null;
+        }
+      } else if (response && typeof response.json === 'function') {
+        try {
+          responseJson = await response.json();
+        } catch {
+          responseJson = null;
+        }
+      }
+      const discoveredWorkspaceId = extractWorkspaceIdFromText(responseText)
+        || extractWorkspaceIdFromUnknown(responseJson);
       if (response.status === 401 || response.status === 403) {
-        result = { status: 'unauthorized', message: `OpenCode Go rejected the key (HTTP ${response.status}).` };
+        result = { status: 'unauthorized', message: `OpenCode Go rejected the key (HTTP ${response.status}).`, workspaceId: discoveredWorkspaceId };
       } else if (response.status >= 200 && response.status < 300) {
-        result = { status: 'ok', message: `Validated against OpenCode Go (HTTP ${response.status}).` };
+        result = { status: 'ok', message: `Validated against OpenCode Go (HTTP ${response.status}).`, workspaceId: discoveredWorkspaceId };
       } else {
-        result = { status: 'error', message: `OpenCode Go responded with HTTP ${response.status}.` };
+        result = { status: 'error', message: `OpenCode Go responded with HTTP ${response.status}.`, workspaceId: discoveredWorkspaceId };
       }
     } catch (error) {
       result = { status: 'error', message: error instanceof Error ? error.message : String(error) };
@@ -609,6 +810,9 @@ function createOpenCodeGoWorkspaces(deps = {}) {
       profile.id === id
         ? {
           ...profile,
+          workspaceId: isValidWorkspaceId(result.workspaceId) ? result.workspaceId : profile.workspaceId,
+          workspaceIdKnown: isValidWorkspaceId(result.workspaceId) ? true : profile.workspaceIdKnown,
+          consoleUrl: isValidWorkspaceId(result.workspaceId) ? buildConsoleUrl(result.workspaceId) : profile.consoleUrl,
           lastValidatedAt: now,
           lastValidatedStatus: result.status,
           lastValidatedMessage: result.message,
@@ -630,12 +834,12 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     if (state.activeId) {
       const profile = state.profiles.find((p) => p.id === state.activeId);
       if (profile) {
-        const key = await readKeychainValue(profile.keyRef);
-        if (key) {
+        const stored = await readStoredApiKey(opencodeHome, profile.keyRef);
+        if (stored.value) {
           return {
-            value: key,
-            source: KEY_SOURCES.KEYCHAIN,
-            profile: buildRedactedProfile(profile, KEY_SOURCES.KEYCHAIN),
+            value: stored.value,
+            source: stored.source,
+            profile: buildRedactedProfile(profile, stored.source),
           };
         }
         if (mode === SELECTION_MODES.EXPLICIT) {
@@ -784,6 +988,9 @@ function createOpenCodeGoWorkspaces(deps = {}) {
       writeKeychainValue,
       deleteKeychainValue,
       buildDetectedProfiles,
+      readNativeAuthFile,
+      writeNativeOpenCodeGoAuth,
+      extractWorkspaceIdFromText,
     },
   };
 }
@@ -805,4 +1012,5 @@ module.exports = {
   buildConsoleUrl,
   redactApiKey,
   normalizeStoredProfile,
+  extractWorkspaceIdFromText,
 };

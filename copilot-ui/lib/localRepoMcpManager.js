@@ -109,7 +109,39 @@ function resolveCloudflared(config) {
     path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'cloudflared', 'cloudflared.exe'),
     path.join(process.env.ProgramFiles || 'C:\\Program Files', 'cloudflared', 'cloudflared.exe'),
   ];
-  return candidates.find((candidate) => candidate === 'cloudflared' || fs.existsSync(candidate)) || 'cloudflared';
+  return candidates.find((candidate) => fs.existsSync(candidate) || findExecutableOnPath(candidate)) || null;
+}
+
+function findExecutableOnPath(command) {
+  if (!command || path.basename(command) !== command) return false;
+  const pathEntries = String(process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  const extensions = process.platform === 'win32'
+    ? String(process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean)
+    : [''];
+  return pathEntries.some((entry) => {
+    const base = path.join(entry, command);
+    if (fs.existsSync(base)) return true;
+    return extensions.some((extension) => fs.existsSync(`${base}${extension}`));
+  });
+}
+
+function getCloudflaredStatus(config) {
+  const resolvedPath = resolveCloudflared(config);
+  return {
+    available: Boolean(resolvedPath),
+    path: resolvedPath || config.cloudflaredPath || 'cloudflared',
+  };
+}
+
+function requireCloudflared(config) {
+  const cloudflared = getCloudflaredStatus(config);
+  if (!cloudflared.available) {
+    throw Object.assign(
+      new Error('cloudflared is required before exposing Local Repo Reader to ChatGPT. Install cloudflared on PATH or set an absolute cloudflared path in Advanced Stable Tunnel.'),
+      { statusCode: 400 },
+    );
+  }
+  return cloudflared.path;
 }
 
 function connectorUrlFromBase(baseUrl) {
@@ -153,6 +185,8 @@ function getStatus(options = {}) {
   const serverRunning = isRunning(mcpProcess);
   const tunnelRunning = isRunning(tunnelProcess);
   const connectorUrl = connectorUrlFromBase(getEffectivePublicBaseUrl(config));
+  const audienceEffective = getEffectiveAuthAudience(config);
+  const securityState = computeSecurityState(config, serverRunning, tunnelRunning);
   return {
     config,
     configPath: resolveConfigPath(options.elegyHome || options.elegyHomeAbs),
@@ -168,7 +202,15 @@ function getStatus(options = {}) {
       mode: tunnelRunning ? tunnelMode : 'none',
       publicUrl: tunnelRunning ? connectorUrl : '',
     },
-    securityState: computeSecurityState(config, serverRunning, tunnelRunning),
+    securityState,
+    prerequisites: {
+      cloudflared: getCloudflaredStatus(config),
+      oauth: {
+        issuerConfigured: Boolean(config.authIssuer),
+        audienceEffective,
+      },
+      chatGptAccessReady: securityState === 'OAuth protected',
+    },
   };
 }
 
@@ -257,12 +299,13 @@ function waitForQuickTunnelUrl(child) {
 async function startQuickTunnel(options = {}) {
   const config = loadConfig(options);
   validateExposureOAuthConfig(config);
+  const cloudflaredPath = requireCloudflared(config);
   if (isRunning(tunnelProcess) && tunnelMode === 'quick' && quickTunnelBaseUrl) return getStatus(options);
   if (isRunning(tunnelProcess)) await stopTunnel(options);
 
   tunnelMode = 'quick';
   quickTunnelBaseUrl = '';
-  tunnelProcess = spawn(resolveCloudflared(config), ['tunnel', '--url', `http://127.0.0.1:${config.port}`], {
+  tunnelProcess = spawn(cloudflaredPath, ['tunnel', '--url', `http://127.0.0.1:${config.port}`], {
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -286,6 +329,7 @@ async function startQuickTunnel(options = {}) {
 function startTunnel(options = {}) {
   const config = loadConfig(options);
   validateOAuthConfig(config);
+  const cloudflaredPath = requireCloudflared(config);
   if (!config.cloudflareTunnelName) {
     throw Object.assign(new Error('cloudflareTunnelName is required for named tunnel mode'), { statusCode: 400 });
   }
@@ -293,7 +337,7 @@ function startTunnel(options = {}) {
   const args = config.cloudflareConfigPath
     ? ['tunnel', '--config', config.cloudflareConfigPath, 'run', config.cloudflareTunnelName]
     : ['tunnel', 'run', config.cloudflareTunnelName];
-  tunnelProcess = spawn(resolveCloudflared(config), args, {
+  tunnelProcess = spawn(cloudflaredPath, args, {
     windowsHide: true,
     stdio: 'ignore',
   });

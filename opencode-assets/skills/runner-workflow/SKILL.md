@@ -20,8 +20,10 @@ Continue without re-confirmation for:
 
 The user's prior authorization of the plan is permission to keep going.
 
-**Explicit approval required before ANY durable git mutation:**
-- `git commit` — propose diff summary; wait for approval
+**Git checkpoint policy:**
+- `git commit` — propose diff summary and wait for approval unless this runner
+  session is explicitly operating under an approved goal or durable planning
+  run
 - `git merge` — propose merge; wait for approval
 - `git push` — never push without explicit request
 - `worktree_delete` with pending changes — ask user
@@ -102,7 +104,9 @@ For each task in dependency order:
    - Verify all tasks have code review verdicts.
    - Verify validation covers stated expectations.
 3. Present diff summary. Stage intended files.
-4. Commit only with explicit user approval.
+4. Commit only with explicit user approval, unless this runner session is
+   explicitly operating under an approved goal or durable planning run and the
+   diff is a validated atomic checkpoint.
 5. Clean up worktree if one was created.
 6. If more tasks remain, advance without confirmation.
 

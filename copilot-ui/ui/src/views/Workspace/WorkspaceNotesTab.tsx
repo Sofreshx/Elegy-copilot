@@ -14,6 +14,7 @@ import {
   driveSyncPush,
   driveSyncPull,
   getDriveSyncStatus,
+  installRclone,
   driveAuth,
   checkDriveAuth,
   cancelDriveAuth,
@@ -27,7 +28,7 @@ import {
 } from '../../lib/api/notes';
 
 type NotesViewMode = 'read' | 'write' | 'raw';
-type BusyAction = 'export-json' | 'export-markdown' | 'import' | 'push' | 'pull' | 'auth' | 'commit' | 'init' | null;
+type BusyAction = 'export-json' | 'export-markdown' | 'import' | 'push' | 'pull' | 'auth' | 'install-rclone' | 'commit' | 'init' | null;
 
 interface WorkspaceNotesTabProps {
   repoPath?: string | null;
@@ -54,7 +55,7 @@ function formatSyncResult(prefix: string, result: { ok: boolean; message?: strin
   return result.ok ? `${prefix} complete.` : `${prefix} failed.`;
 }
 
-function getDriveSetupStep(driveSync: DriveSyncStatus | null): { label: string; detail: string; command?: string; action?: 'verify' | 'push' } {
+function getDriveSetupStep(driveSync: DriveSyncStatus | null): { label: string; detail: string; command?: string; action?: 'install' | 'verify' | 'push' } {
   if (!driveSync) {
     return {
       label: 'Check Drive status',
@@ -63,16 +64,21 @@ function getDriveSetupStep(driveSync: DriveSyncStatus | null): { label: string; 
   }
   if (!driveSync.rcloneInstalled) {
     return {
-      label: 'Install rclone',
-      detail: 'Google Drive sync uses rclone locally.',
-      command: 'winget install rclone',
+      label: 'Install managed rclone',
+      detail: driveSync.canInstallRclone
+        ? 'Elegy will install rclone into its managed tools directory.'
+        : 'Set IE_RCLONE_PATH to an existing rclone binary on this platform.',
+      action: driveSync.canInstallRclone ? 'install' : undefined,
     };
   }
   if (!driveSync.rcloneConfigured) {
+    const command = driveSync.rclonePath && driveSync.rclonePath !== 'rclone'
+      ? `"${driveSync.rclonePath}" config`
+      : 'rclone config';
     return {
       label: 'Configure DevVault remote',
-      detail: `Create an rclone Drive remote named ${driveSync.gdriveFolderName || 'DevVault'}.`,
-      command: 'rclone config',
+      detail: `Create an rclone Drive remote named ${driveSync.rcloneRemoteName || 'DevVault'}.`,
+      command,
     };
   }
   if (!driveSync.authenticated) {
@@ -109,6 +115,7 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [setupInstructions, setSetupInstructions] = useState<string | null>(null);
+  const [lastExport, setLastExport] = useState<{ format: 'JSON' | 'Markdown'; path: string; count: number; compatibility?: string } | null>(null);
   const [authPending, setAuthPending] = useState(false);
   const [authUserCode, setAuthUserCode] = useState<string | null>(null);
   const [authVerificationUrl, setAuthVerificationUrl] = useState<string | null>(null);
@@ -148,18 +155,40 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
     setBusyAction(format === 'json' ? 'export-json' : 'export-markdown');
     try {
       const result = await exportNotes(format);
-      const stamp = new Date().toISOString().slice(0, 10);
       if (format === 'json') {
         const payload = result as ExportPayload;
-        downloadText(`elegy-notes-${stamp}.json`, 'application/json', JSON.stringify(payload, null, 2));
-        showMessage(`Exported ${payload.notes.length} note(s) as JSON.`);
+        const exportPath = payload.exportPath;
+        if (exportPath) {
+          setLastExport({
+            format: 'JSON',
+            path: exportPath,
+            count: payload.notes.length,
+            compatibility: payload.importCompatibility,
+          });
+          showMessage(`Exported ${payload.notes.length} note(s) to ${exportPath}.`, 9000);
+        } else {
+          const stamp = new Date().toISOString().slice(0, 10);
+          downloadText(`elegy-notes-${stamp}.json`, 'application/json', JSON.stringify(payload, null, 2));
+          showMessage(`Exported ${payload.notes.length} note(s) as JSON.`);
+        }
       } else {
         const payload = result as ExportMdResponse;
-        const combined = payload.files
-          .map((file) => `<!-- ${file.filename} -->\n\n${file.content.trim()}\n`)
-          .join('\n---\n\n');
-        downloadText(`elegy-notes-${stamp}.md`, 'text/markdown', combined);
-        showMessage(`Exported ${payload.count} note(s) as Markdown.`);
+        if (payload.exportPath) {
+          setLastExport({
+            format: 'Markdown',
+            path: payload.exportPath,
+            count: payload.count,
+            compatibility: payload.importCompatibility,
+          });
+          showMessage(`Exported ${payload.count} note(s) to ${payload.exportPath}.`, 9000);
+        } else {
+          const stamp = new Date().toISOString().slice(0, 10);
+          const combined = payload.files
+            .map((file) => `<!-- ${file.filename} -->\n\n${file.content.trim()}\n`)
+            .join('\n---\n\n');
+          downloadText(`elegy-notes-${stamp}.md`, 'text/markdown', combined);
+          showMessage(`Exported ${payload.count} note(s) as Markdown.`);
+        }
       }
     } catch (err) {
       showMessage(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -233,7 +262,38 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
     }
   }, [showMessage]);
 
+  const handleInstallRclone = useCallback(async () => {
+    setBusyAction('install-rclone');
+    setSetupInstructions(null);
+    try {
+      const result = await installRclone();
+      if (result.status) {
+        setDriveSync(result.status);
+      } else {
+        await getDriveSyncStatus().then(setDriveSync);
+      }
+      if (result.ok) {
+        showMessage(result.message || 'Managed rclone is ready.', 9000);
+      } else {
+        const error = result.error || 'Managed rclone install failed.';
+        setSetupInstructions(error);
+        showMessage(error, 9000);
+      }
+    } finally {
+      setBusyAction(null);
+    }
+  }, [showMessage]);
+
   const handleDriveAuth = useCallback(async () => {
+    const currentSetupStep = getDriveSetupStep(driveSync);
+    if (currentSetupStep.action === 'install') {
+      await handleInstallRclone();
+      return;
+    }
+    if (currentSetupStep.action === 'push') {
+      await handleDrivePush();
+      return;
+    }
     setBusyAction('auth');
     setSetupInstructions(null);
     try {
@@ -284,7 +344,7 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
     } finally {
       setBusyAction(null);
     }
-  }, [showMessage]);
+  }, [driveSync, handleDrivePush, handleInstallRclone, showMessage]);
 
   const handleCancelAuth = useCallback(async () => {
     await cancelDriveAuth();
@@ -386,7 +446,7 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
             <span className="workspace-notes-status-pill">portable</span>
           </div>
           <p className="workspace-notes-panel-copy">
-            JSON keeps the full note model. Markdown is for inspection and handoff.
+            JSON imports into another Elegy Notes setup backed by an Obsidian vault. Markdown is plain vault-readable text.
           </p>
           <div className="workspace-notes-button-row">
             <Button
@@ -425,6 +485,13 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
               data-testid="notes-import-file"
             />
           </div>
+          {lastExport ? (
+            <div className="workspace-notes-export-result" data-testid="notes-export-result">
+              <span>{lastExport.format} export saved</span>
+              <code title={lastExport.path}>{lastExport.path}</code>
+              <p>{lastExport.count} note(s). {lastExport.compatibility}</p>
+            </div>
+          ) : null}
         </section>
 
         <section className="workspace-notes-transfer-panel" data-testid="notes-drive-panel">
@@ -455,8 +522,14 @@ export default function WorkspaceNotesTab({ repoPath }: WorkspaceNotesTabProps) 
             <Button variant="secondary" size="sm" onClick={handleDrivePull} disabled={syncBusy || !driveReady} testId="notes-drive-pull">
               Pull from Drive
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleDriveAuth} disabled={busyAction === 'auth' || authPending} testId="notes-drive-setup">
-              {authPending ? 'Auth pending' : 'Setup / verify'}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDriveAuth}
+              disabled={busyAction === 'auth' || busyAction === 'install-rclone' || authPending}
+              testId="notes-drive-setup"
+            >
+              {busyAction === 'install-rclone' ? 'Installing' : authPending ? 'Auth pending' : driveSetupStep.action === 'install' ? 'Install rclone' : 'Setup / verify'}
             </Button>
           </div>
           {authPending && authUserCode && authVerificationUrl ? (

@@ -1136,12 +1136,20 @@ function asPathParams(ctx) {
 }
 
 function getPathParam(ctx, name) {
+  const decodePathParam = (value) => {
+    if (typeof value !== 'string') return null;
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  };
   if (ctx && ctx.params && typeof ctx.params === 'object' && ctx.params[name]) {
-    return ctx.params[name];
+    return decodePathParam(ctx.params[name]);
   }
   const params = asPathParams(ctx);
   if (name === 'id' && typeof params[1] === 'string') {
-    return params[1];
+    return decodePathParam(params[1]);
   }
   return null;
 }

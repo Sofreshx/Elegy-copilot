@@ -75,6 +75,7 @@ describe('opencodeGoWorkspaces', () => {
     it('exposes keyring service name and source constants', () => {
       assert.equal(typeof KEYRING_SERVICE_NAME, 'string');
       assert.equal(KEY_SOURCES.KEYCHAIN, 'keychain');
+      assert.equal(KEY_SOURCES.LOCAL_FILE, 'local-file');
       assert.equal(KEY_SOURCES.ENV, 'env');
       assert.equal(KEY_SOURCES.NATIVE_AUTH, 'opencode-auth');
       assert.equal(KEY_SOURCES.MISSING, 'missing');
@@ -266,6 +267,29 @@ describe('opencodeGoWorkspaces', () => {
         /wrk_/,
       );
     });
+
+    it('falls back to local key storage when OS keychain is unavailable', async () => {
+      const store = createOpenCodeGoWorkspaces({
+        keyringLoader: async () => null,
+        env: { XDG_DATA_HOME: path.join(tmpDir, 'xdg-empty') },
+      });
+
+      const result = await store.registerWorkspace(opencodeHome, {
+        label: 'Portable',
+        workspaceId: 'wrk_portable',
+        apiKey: 'portable-secret-key',
+      });
+
+      assert.equal(result.activeId, 'wrk_portable');
+      assert.equal(result.registered.length, 1);
+      assert.equal(result.registered[0].keyPresent, true);
+      assert.equal(result.registered[0].keySource, 'local-file');
+      assert.equal(JSON.stringify(result).includes('portable-secret-key'), false);
+
+      const resolved = await store.resolveActiveApiKey(opencodeHome);
+      assert.equal(resolved.value, 'portable-secret-key');
+      assert.equal(resolved.source, 'local-file');
+    });
   });
 
   describe('updateWorkspace', () => {
@@ -319,6 +343,68 @@ describe('opencodeGoWorkspaces', () => {
       assert.equal(result.activeId, 'wrk_b');
     });
 
+    it('writes active registered key to native auth and preserves other providers', async () => {
+      const nativeAuthPath = path.join(tmpDir, 'xdg-native', 'opencode', 'auth.json');
+      fs.mkdirSync(path.dirname(nativeAuthPath), { recursive: true });
+      fs.writeFileSync(nativeAuthPath, JSON.stringify({
+        'opencode-go': { key: 'old-native-key', type: 'api', extra: 'preserved' },
+        deepseek: { key: 'deepseek-key', type: 'api' },
+      }));
+      const { store } = createOpenCodeGoWorkspacesFactory({ nativeAuthPath });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a', activate: false,
+      });
+      const result = await store.activateWorkspace(opencodeHome, 'wrk_a');
+      const native = JSON.parse(fs.readFileSync(nativeAuthPath, 'utf8'));
+      assert.equal(native['opencode-go'].key, 'k-a');
+      assert.equal(native['opencode-go'].type, 'api');
+      assert.equal(native['opencode-go'].extra, 'preserved');
+      assert.equal(native['opencode-go'].workspaceId, 'wrk_a');
+      assert.equal(native.deepseek.key, 'deepseek-key');
+      assert.equal(result.appliedToNativeAuth, true);
+      assert.equal(result.registered[0].appliedToNativeAuth, true);
+    });
+
+    it('does not overwrite native auth when explicit profile key is missing', async () => {
+      const nativeAuthPath = path.join(tmpDir, 'xdg-native-missing', 'opencode', 'auth.json');
+      fs.mkdirSync(path.dirname(nativeAuthPath), { recursive: true });
+      fs.writeFileSync(nativeAuthPath, JSON.stringify({
+        'opencode-go': { key: 'old-native-key', type: 'api' },
+      }));
+      const { store, keyring } = createOpenCodeGoWorkspacesFactory({ nativeAuthPath });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a', activate: false,
+      });
+      await keyring.module.deletePassword(KEYRING_SERVICE_NAME, 'keychain:wrk_a');
+      await assert.rejects(
+        () => store.activateWorkspace(opencodeHome, 'wrk_a'),
+        /no API key is stored/,
+      );
+      const native = JSON.parse(fs.readFileSync(nativeAuthPath, 'utf8'));
+      assert.equal(native['opencode-go'].key, 'old-native-key');
+    });
+
+    it('imports detected native auth into a registered workspace without exposing the key', async () => {
+      const nativeAuthPath = path.join(tmpDir, 'xdg-import', 'opencode', 'auth.json');
+      fs.mkdirSync(path.dirname(nativeAuthPath), { recursive: true });
+      fs.writeFileSync(nativeAuthPath, JSON.stringify({
+        'opencode-go': { key: 'native-secret-key', type: 'api' },
+      }));
+      const { store, keyring } = createOpenCodeGoWorkspacesFactory({ nativeAuthPath });
+      const result = await store.registerWorkspace(opencodeHome, {
+        label: 'Imported',
+        workspaceId: 'wrk_imported',
+        sourceId: 'detected:native:opencode-go',
+        activate: true,
+      });
+      assert.equal(result.activeId, 'wrk_imported');
+      assert.equal(result.registered[0].label, 'Imported');
+      assert.equal(result.registered[0].appliedToNativeAuth, true);
+      assert.equal(JSON.stringify(result).includes('native-secret-key'), false);
+      const stored = await keyring.module.getPassword(KEYRING_SERVICE_NAME, 'keychain:wrk_imported');
+      assert.equal(stored, 'native-secret-key');
+    });
+
     it('rejects activation of a profile without a stored key', async () => {
       const { store, keyring } = createOpenCodeGoWorkspacesFactory();
       await store.registerWorkspace(opencodeHome, {
@@ -328,7 +414,7 @@ describe('opencodeGoWorkspaces', () => {
       await keyring.module.deletePassword(KEYRING_SERVICE_NAME, 'keychain:wrk_a');
       await assert.rejects(
         () => store.activateWorkspace(opencodeHome, 'wrk_a'),
-        /no API key in keychain/,
+        /no API key is stored/,
       );
     });
 
@@ -420,6 +506,27 @@ describe('opencodeGoWorkspaces', () => {
       const result = await store.validateWorkspace(opencodeHome, 'wrk_a');
       assert.equal(result.status, 'missing-key');
       assert.equal(called, false);
+    });
+
+    it('backfills workspaceId from validation response text', async () => {
+      const fetchImpl = async () => ({
+        status: 402,
+        text: async () => 'Insufficient balance. Manage billing: https://opencode.ai/workspace/wrk_discovered/go/billing',
+      });
+      const { store } = createOpenCodeGoWorkspacesFactory({ fetchImpl });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'Unknown', apiKey: 'k-a',
+      });
+      const before = await store.listWorkspaces(opencodeHome);
+      const id = before.registered[0].id;
+      assert.equal(before.registered[0].workspaceIdKnown, false);
+      const result = await store.validateWorkspace(opencodeHome, id);
+      assert.equal(result.workspaceId, 'wrk_discovered');
+      const after = await store.listWorkspaces(opencodeHome);
+      const profile = after.registered.find((p) => p.id === id);
+      assert.equal(profile.workspaceId, 'wrk_discovered');
+      assert.equal(profile.workspaceIdKnown, true);
+      assert.equal(profile.consoleUrl, 'https://opencode.ai/workspace/wrk_discovered/go');
     });
   });
 
@@ -627,8 +734,9 @@ describe('opencodeGoWorkspaces', () => {
       });
       await store.deactivateWorkspace(opencodeHome);
       const result = await store.listWorkspaces(opencodeHome);
-      assert.equal(result.detected.length, 1);
-      assert.equal(result.detected[0].keySource, 'env');
+      assert.equal(result.detected.length, 2);
+      assert.ok(result.detected.some((workspace) => workspace.keySource === 'env'));
+      assert.ok(result.detected.some((workspace) => workspace.keySource === 'opencode-auth'));
       assert.equal(result.activeId, null);
       assert.equal(result.selectionMode, SELECTION_MODES.NONE);
     });
@@ -761,7 +869,7 @@ describe('opencodeGoWorkspaces', () => {
       assert.equal(result.value, 'native-key');
     });
 
-    it('falls back through chain when selectionMode is auto (default)', async () => {
+    it('falls back through native auth written by the active profile when selectionMode is auto', async () => {
       const { store, keyring } = createOpenCodeGoWorkspacesFactory({
         env: { OPENCODE_GO_API_KEY: 'env-key' },
       });
@@ -774,8 +882,8 @@ describe('opencodeGoWorkspaces', () => {
       raw.selectionMode = SELECTION_MODES.AUTO;
       fs.writeFileSync(storePath, JSON.stringify(raw));
       const result = await store.resolveActiveApiKey(opencodeHome);
-      assert.equal(result.value, 'env-key');
-      assert.equal(result.source, KEY_SOURCES.ENV);
+      assert.equal(result.value, 'k-a');
+      assert.equal(result.source, KEY_SOURCES.NATIVE_AUTH);
     });
 
     it('returns MISSING when explicit mode with detected id but source is absent', async () => {

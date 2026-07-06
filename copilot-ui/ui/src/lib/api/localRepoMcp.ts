@@ -29,6 +29,17 @@ export interface LocalRepoMcpStatusResponse {
   server: LocalRepoMcpProcessStatus;
   tunnel: LocalRepoMcpProcessStatus;
   securityState: 'Stopped' | 'Local only' | 'OAuth protected' | 'Misconfigured' | string;
+  prerequisites?: {
+    cloudflared: {
+      available: boolean;
+      path: string;
+    };
+    oauth: {
+      issuerConfigured: boolean;
+      audienceEffective: string;
+    };
+    chatGptAccessReady: boolean;
+  };
   probe?: {
     ok: boolean;
     status?: number;

@@ -31,6 +31,9 @@ instead of ending work with a plain-text question.
 
 - `/plan` must produce goals, assumptions, scope, phased steps, risks,
   validation, and rollback.
+- `/goal` and durable planning runs may auto-commit validated atomic work-unit
+  checkpoints inside the approved goal or plan. Non-goal runs should offer a
+  commit instead of creating one automatically.
 - Use the host's native plan-review flow when available.
 - `/fleet` should split work into independent streams with narrow validation at
   each merge point.

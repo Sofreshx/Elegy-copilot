@@ -13371,6 +13371,10 @@ textarea:focus-visible,
   background: var(--panel-bg-active, #1e1e2e);
 }
 
+.go-workspace-card-detected {
+  background: var(--color-surface-1, var(--panel-bg, #1e1e2e));
+}
+
 .go-workspace-card-header {
   display: flex;
   align-items: center;
@@ -13403,6 +13407,11 @@ textarea:focus-visible,
   color: #1e1e2e;
 }
 
+.go-workspace-badge-native {
+  background: var(--success-color, #a6e3a1);
+  color: #1e1e2e;
+}
+
 .go-workspace-card-details {
   display: flex;
   align-items: center;
@@ -13426,6 +13435,10 @@ textarea:focus-visible,
 
 .go-workspace-validation-ok {
   color: var(--success-color, #a6e3a1);
+}
+
+.go-workspace-validation-warning {
+  color: var(--warning-color, #f9e2af);
 }
 
 .go-workspace-validation-error,
@@ -13462,6 +13475,36 @@ textarea:focus-visible,
 .go-workspace-delete-btn {
   color: var(--error-color, #f38ba8) !important;
   border-color: var(--error-color, #f38ba8) !important;
+}
+
+.go-workspace-validated-at {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.go-workspaces-pool {
+  margin-top: var(--space-md);
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border-100);
+  border-radius: var(--radius-sm);
+}
+
+.go-workspaces-pool .catalog-inline-note {
+  margin-bottom: var(--space-xs);
+}
+
+.go-workspaces-pool-toggle {
+  margin-bottom: var(--space-sm);
+}
+
+.go-workspaces-pool-members {
+  display: grid;
+  gap: var(--space-2xs);
+  margin-top: var(--space-xs);
+}
+
+.go-workspaces-pool-member {
+  display: block;
 }
 
 /* ── Workspace Git Cleanup ── */
@@ -13715,8 +13758,10 @@ textarea:focus-visible,
 
 .workspace-notes-transfer {
   gap: var(--space-md);
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
   padding: var(--space-md);
-  overflow: auto;
 }
 
 .workspace-notes-transfer-header {
@@ -13783,6 +13828,38 @@ textarea:focus-visible,
   color: var(--color-ink-400);
   font-size: 0.8rem;
   line-height: 1.5;
+  margin: 0;
+}
+
+.workspace-notes-export-result {
+  background: var(--color-surface-0);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: 4px;
+  padding: var(--space-sm);
+}
+
+.workspace-notes-export-result span {
+  color: var(--color-ink-200);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.workspace-notes-export-result code {
+  color: var(--color-brand-400);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-notes-export-result p {
+  color: var(--color-ink-400);
+  font-size: 0.72rem;
+  line-height: 1.4;
   margin: 0;
 }
 
@@ -14837,6 +14914,33 @@ textarea:focus-visible,
   word-break: break-all;
 }
 
+.mcp-chatgpt-setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+}
+
+.mcp-chatgpt-setup-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.mcp-chatgpt-setup h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.mcp-chatgpt-blocker {
+  margin: 0;
+}
+
 .mcp-config-modal {
   width: min(94vw, 980px);
 }
@@ -15397,6 +15501,39 @@ textarea:focus-visible,
   opacity: 0.7;
 }
 
+.go-workspace-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm, 12px);
+}
+
+.go-workspace-status-row {
+  display: grid;
+  gap: var(--space-2xs, 4px);
+  min-width: 0;
+  padding: var(--space-sm, 12px);
+  border: 1px solid var(--border-color, #313244);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--input-bg, #11111b);
+}
+
+.go-workspace-status-row-wide {
+  grid-column: 1 / -1;
+}
+
+.go-workspace-status-row span {
+  color: var(--text-secondary, #a6adc8);
+  font-size: 12px;
+}
+
+.go-workspace-status-row strong,
+.go-workspace-status-row code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-primary, #cdd6f4);
+  font-size: 13px;
+}
+
 .go-workspace-current-links {
   display: flex;
   align-items: center;
@@ -15413,6 +15550,12 @@ textarea:focus-visible,
 
 .go-workspace-open-link:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .go-workspace-status-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Usage Credit Summary ── */

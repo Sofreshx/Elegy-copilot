@@ -24,6 +24,7 @@ vi.mock('../ui/src/lib/api/notes', () => ({
   driveSyncPush: vi.fn(),
   driveSyncPull: vi.fn(),
   getDriveSyncStatus: vi.fn(),
+  installRclone: vi.fn(),
   driveAuth: vi.fn(),
   checkDriveAuth: vi.fn(),
   cancelDriveAuth: vi.fn(),
@@ -110,5 +111,85 @@ describe('WorkspaceNotesTab transfer console', () => {
     await waitFor(() => {
       expect(screen.getByTestId('notes-drive-setup-instructions')).toHaveTextContent('Install rclone');
     });
+  });
+
+  it('shows the saved export path after JSON export', async () => {
+    vi.mocked(notesApi.exportNotes).mockResolvedValue({
+      version: 1,
+      exportedAt: '2026-07-06T10:00:00.000Z',
+      notes: [],
+      fileName: 'elegy-notes-2026-07-06T10-00-00-000Z.json',
+      exportDir: 'C:/Users/test/.elegy/notes-exports',
+      exportPath: 'C:/Users/test/.elegy/notes-exports/elegy-notes-2026-07-06T10-00-00-000Z.json',
+      importCompatibility: 'Import this JSON through Elegy Copilot Notes on another Obsidian-backed vault.',
+    });
+
+    render(<WorkspaceNotesTab repoPath="/test/repo" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('notes-export-json')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('notes-export-json'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('notes-export-result')).toHaveTextContent('JSON export saved');
+    });
+    expect(screen.getByTestId('notes-export-result')).toHaveTextContent('C:/Users/test/.elegy/notes-exports/elegy-notes-2026-07-06T10-00-00-000Z.json');
+    expect(screen.getByTestId('notes-export-result')).toHaveTextContent('another Obsidian-backed vault');
+  });
+
+  it('installs managed rclone from Drive setup when rclone is missing', async () => {
+    vi.mocked(notesApi.getDriveSyncStatus).mockResolvedValue({
+      ok: true,
+      configured: true,
+      vaultPath: 'C:/Users/test/DevVault',
+      vaultExists: true,
+      gdriveEnabled: true,
+      gdriveFolderName: 'DevVault',
+      rcloneInstalled: false,
+      rclonePath: null,
+      managedRclonePath: null,
+      canInstallRclone: true,
+      rcloneConfigured: false,
+      authenticated: false,
+      authenticatedEmail: null,
+      driveFolderExists: false,
+    });
+    vi.mocked(notesApi.installRclone).mockResolvedValue({
+      ok: true,
+      installed: true,
+      rclonePath: 'C:/Users/test/.elegy/managed-tools/rclone/rclone.exe',
+      message: 'Installed managed rclone.',
+      status: {
+        ok: true,
+        configured: true,
+        vaultPath: 'C:/Users/test/DevVault',
+        vaultExists: true,
+        gdriveEnabled: true,
+        gdriveFolderName: 'DevVault',
+        rcloneInstalled: true,
+        rclonePath: 'C:/Users/test/.elegy/managed-tools/rclone/rclone.exe',
+        managedRclonePath: 'C:/Users/test/.elegy/managed-tools/rclone/rclone.exe',
+        canInstallRclone: true,
+        rcloneConfigured: false,
+        authenticated: false,
+        authenticatedEmail: null,
+        driveFolderExists: false,
+      },
+    });
+
+    render(<WorkspaceNotesTab repoPath="/test/repo" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('notes-drive-next-step')).toHaveTextContent('Install managed rclone');
+    });
+
+    fireEvent.click(screen.getByTestId('notes-drive-setup'));
+
+    await waitFor(() => {
+      expect(notesApi.installRclone).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByText('rclone not found. Install rclone first.')).not.toBeInTheDocument();
   });
 });

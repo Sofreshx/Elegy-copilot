@@ -1,9 +1,9 @@
 'use strict';
 
 const { sendJson: defaultSendJson } = require('./_helpers');
-const { discoverChecks, runAllChecks, runAllChecksWithProfile } = require('../lib/gitCheckRunner');
+const { discoverChecks, runAllChecks, runAllChecksWithProfile, syncCiState: syncCheckCiState } = require('../lib/gitCheckRunner');
 const { resolveCommitCheckConfig } = require('../lib/commitCheckConfig');
-const { syncCiState } = require('../lib/ciSync');
+const elegyChecks = require('../lib/elegyChecksRunner');
 
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -92,7 +92,7 @@ function handleChecksRun(ctx, deps) {
         const repoId = deriveRepoId(repoPath);
         const config = resolveCommitCheckConfig(repoPath);
         let ciSyncResult = null;
-        try { ciSyncResult = syncCiState(repoPath); } catch {}
+        try { ciSyncResult = syncCheckCiState(repoPath); } catch {}
         writeCheckState(repoId, repoPath, results, config, ciSyncResult);
       } catch (err) {
         // Persistence failure is non-blocking — log but don't fail the request
@@ -119,7 +119,7 @@ function handleCiSync(ctx, deps) {
 
   try {
     const scope = u.searchParams.get('scope') || undefined;
-    const result = syncCiState(repoPath, { scope });
+    const result = syncCheckCiState(repoPath, { scope });
     sendJson(res, 200, result);
   } catch (error) {
     sendJson(res, 500, { error: String(error.message || error) });
@@ -137,6 +137,15 @@ function handleCheckState(ctx, deps) {
   }
 
   try {
+    const elegyState = elegyChecks.getState(repoPath);
+    if (elegyState) {
+      sendJson(res, 200, {
+        ...elegyState,
+        profile: (elegyState.lastRun && elegyState.lastRun.profile) || null,
+      });
+      return;
+    }
+
     const { getCheckState, deriveRepoId } = require('../lib/checkState');
     const repoId = deriveRepoId(repoPath);
     const config = resolveCommitCheckConfig(repoPath);

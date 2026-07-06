@@ -110,8 +110,10 @@ PROJECT_LANE_RESULT
   plugin.
 
 ## Git Workflow
-- Durable git mutations require explicit user approval: commit, merge, push,
-  branch deletion, and protected-branch promotion.
+- Auto-commit validated atomic work-unit checkpoints inside the approved
+  goal/roadmap/plan scope.
+- Durable git mutations outside that scope require explicit user approval:
+  commit, merge, push, branch deletion, and protected-branch promotion.
 - Stage only intended files; never use bulk `git add -A` for commits.
 - **Cleanup flow is explicit:** Clean worktree removal is allowed at session
   end. Dirty worktree deletion is blocked unless the user explicitly approves
@@ -121,10 +123,9 @@ PROJECT_LANE_RESULT
 - Never claim a work point that has incomplete dependencies — check roadmap
   before planning
 - Never skip validation gates — implementation review, evidence review, validate all
-- Never auto-commit, auto-merge, or auto-push. ALL durable git mutations
-  require explicit user approval before execution. Promoting through protected
-  branches (e.g., roro → dev → main) is human-gated — only do it when the
-  user explicitly asks.
+- Never auto-merge or auto-push. Promoting through protected branches (e.g.,
+  roro → dev → main) is human-gated — only do it when the user explicitly asks.
+- Never auto-commit mixed, unvalidated, out-of-scope, or cleanup-only diffs.
 - If interrupted, mark plan status as blocked via
   `planning_plan_update_status(planId, status: "blocked")` and release the
   project-run lease via `planning_project_run_release(runId)`

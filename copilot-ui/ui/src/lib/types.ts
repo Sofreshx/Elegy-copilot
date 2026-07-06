@@ -3551,11 +3551,13 @@ export interface OpenCodeToolingInstallPayload {
 export interface OpenCodeGoWorkspace {
   id: string;
   label: string;
-  workspaceId: string;
+  workspaceId: string | null;
   workspaceIdKnown: boolean;
   consoleUrl: string | null;
   keySource: string;
   keyPresent: boolean;
+  canApplyNative: boolean;
+  appliedToNativeAuth: boolean;
   active: boolean;
   origin: string;
   lastValidatedAt: string | null;
@@ -3568,12 +3570,15 @@ export interface OpenCodeGoWorkspacesResponse {
   registered: OpenCodeGoWorkspace[];
   activeId: string | null;
   selectionMode: 'auto' | 'explicit' | 'none';
+  nativeAuthPath?: string;
+  appliedToNativeAuth?: boolean;
 }
 
 export interface OpenCodeGoWorkspaceCreatePayload {
   label: string;
-  workspaceId: string;
-  apiKey: string;
+  workspaceId?: string;
+  apiKey?: string;
+  sourceId?: string;
   activate?: boolean;
 }
 

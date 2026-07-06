@@ -1,13 +1,13 @@
 ---
 created: 2026-03-15
-updated: 2026-06-30
+updated: 2026-07-06
 category: system
 status: current
 doc_kind: node
 id: goal-contract-governance
 summary: Canonical high-level goal contract for planning and review workflows, including completion states, carryover persistence, and authority boundaries.
 tags: [goals, planning, review, governance]
-related: [planpack-spec, session-state-artifacts, reviewer-lane-governance, follow-up-discovery-governance, planning-backlog-roadmap-contract]
+related: [planpack-spec, session-state-artifacts, reviewer-lane-governance, follow-up-discovery-governance, planning-backlog-roadmap-contract, git-checkpoint-governance]
 ---
 
 # Goal Contract Governance
@@ -68,6 +68,17 @@ Carryover persistence/removal is routed separately from the closure judgment:
 3. If a compatibility workflow still needs a carryover file target, `session_backlog_path` should prefer `~/.elegy/backlogs/{repo-name}/backlogs/<session-slug>.md`. `docs/backlog.md` is a deprecated legacy compatibility target only.
 4. The workflow routes unresolved-goal sync and any compatibility carryover-file persistence through an explicit docs-writing lane.
 5. No workflow should let reviewer or validation lanes write `~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md` or legacy backlog docs directly.
+
+### Git Checkpoint Boundary
+
+Goal and durable planning sessions use `docs/system/git-checkpoint-governance.md` for atomic commit
+checkpoints.
+
+- Approved goals, roadmaps, and plans authorize automatic atomic commits only inside their bounded
+  work scope.
+- Commit checkpoints do not change goal completion states or carryover rules.
+- Push, merge, branch deletion, protected-branch promotion, and dirty worktree force removal remain
+  outside goal-session auto-commit authority.
 
 ### Unresolved Goal Persistence Contract
 
@@ -143,3 +154,4 @@ session execution artifacts.
 - `docs/system/reviewer-lane-governance.md`
 - `docs/system/follow-up-discovery-governance.md`
 - `docs/system/planning-backlog-roadmap-contract.md`
+- `docs/system/git-checkpoint-governance.md`

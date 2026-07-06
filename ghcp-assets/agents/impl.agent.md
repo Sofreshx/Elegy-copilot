@@ -65,11 +65,15 @@ IMPL_RESULT
 - Never introduce secrets or credentials into files
 - Never run destructive commands (rm -rf, force push, etc.) without explicit approval context from the calling agent
 - If a change affects runtime topology, auth, networking, or data stores, flag it
-- Do not commit changes unless the calling agent explicitly instructs you to
+- Do not commit changes unless the calling agent explicitly instructs you to.
+  A project/goal orchestrator may instruct an atomic commit when the approved
+  goal or durable planning run authorizes the checkpoint.
 
 ## Git Workflow
 - Follow caller instructions for git work.
 - Durable git mutations require explicit caller approval: commit, merge, push, branch deletion, and protected-branch promotion.
+  Goal-session commit checkpoint instructions cover commit only; they do not
+  authorize push, merge, branch deletion, or protected-branch promotion.
 - Stage only intended files; never use bulk `git add -A` for commits.
 
 ## Recovery
