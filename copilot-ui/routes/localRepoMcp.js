@@ -144,6 +144,17 @@ function register(deps = {}) {
     },
     {
       method: 'POST',
+      path: '/api/local-repo-mcp/tunnel/quick/start',
+      handler: async (ctx) => {
+        try {
+          resolvedDeps.sendJson(ctx.res, 200, await resolvedDeps.manager.startQuickTunnel(ctx));
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
+    {
+      method: 'POST',
       path: '/api/local-repo-mcp/tunnel/stop',
       handler: async (ctx) => {
         try {

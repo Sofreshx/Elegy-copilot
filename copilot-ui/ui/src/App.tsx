@@ -99,9 +99,13 @@ export default function App() {
         return <RepositoriesView />;
       case 'notes':
         return (
-          <PageContainer>
-            <WorkspaceNotesTab />
-          </PageContainer>
+          <div className="view-shell notes-view" data-testid="notes-view">
+            <div className="view-scroll notes-scroll" data-testid="notes-scroll">
+              <PageContainer>
+                <WorkspaceNotesTab />
+              </PageContainer>
+            </div>
+          </div>
         );
       case 'settings':
         return <SettingsView />;

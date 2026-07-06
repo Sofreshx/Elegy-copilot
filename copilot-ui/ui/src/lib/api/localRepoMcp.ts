@@ -17,6 +17,7 @@ export interface LocalRepoMcpConfig {
 export interface LocalRepoMcpProcessStatus {
   running: boolean;
   pid: number | null;
+  mode?: 'none' | 'quick' | 'named' | string;
   url?: string;
   publicUrl?: string;
 }
@@ -24,6 +25,7 @@ export interface LocalRepoMcpProcessStatus {
 export interface LocalRepoMcpStatusResponse {
   config: LocalRepoMcpConfig;
   configPath?: string;
+  connectorUrl?: string;
   server: LocalRepoMcpProcessStatus;
   tunnel: LocalRepoMcpProcessStatus;
   securityState: 'Stopped' | 'Local only' | 'OAuth protected' | 'Misconfigured' | string;
@@ -81,6 +83,10 @@ export function stopLocalRepoMcp(): Promise<LocalRepoMcpStatusResponse> {
 
 export function startLocalRepoMcpTunnel(): Promise<LocalRepoMcpStatusResponse> {
   return apiRequest<LocalRepoMcpStatusResponse>('/api/local-repo-mcp/tunnel/start', { method: 'POST' });
+}
+
+export function startLocalRepoMcpQuickTunnel(): Promise<LocalRepoMcpStatusResponse> {
+  return apiRequest<LocalRepoMcpStatusResponse>('/api/local-repo-mcp/tunnel/quick/start', { method: 'POST' });
 }
 
 export function stopLocalRepoMcpTunnel(): Promise<LocalRepoMcpStatusResponse> {

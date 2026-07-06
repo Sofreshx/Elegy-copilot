@@ -10,6 +10,8 @@ const DEFAULT_PORT = 3333;
 
 let mcpProcess = null;
 let tunnelProcess = null;
+let tunnelMode = 'none';
+let quickTunnelBaseUrl = '';
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -110,9 +112,26 @@ function resolveCloudflared(config) {
   return candidates.find((candidate) => candidate === 'cloudflared' || fs.existsSync(candidate)) || 'cloudflared';
 }
 
+function connectorUrlFromBase(baseUrl) {
+  const normalized = normalizeString(baseUrl).replace(/\/+$/, '');
+  return normalized ? `${normalized}/mcp` : '';
+}
+
+function hasOAuthConfig(config) {
+  return Boolean(config.authIssuer && getEffectiveAuthAudience(config));
+}
+
+function getEffectivePublicBaseUrl(config) {
+  return quickTunnelBaseUrl || config.publicBaseUrl;
+}
+
+function getEffectiveAuthAudience(config) {
+  return config.authAudience || getEffectivePublicBaseUrl(config);
+}
+
 function computeSecurityState(config, serverRunning, tunnelRunning) {
   if (!serverRunning && !tunnelRunning) return 'Stopped';
-  if (!config.publicBaseUrl || !config.authIssuer || !config.authAudience) return 'Misconfigured';
+  if (tunnelRunning && (!getEffectivePublicBaseUrl(config) || !hasOAuthConfig(config))) return 'Misconfigured';
   if (serverRunning && tunnelRunning) return 'OAuth protected';
   return 'Local only';
 }
@@ -123,13 +142,21 @@ function validateOAuthConfig(config) {
   if (!config.authAudience) throw Object.assign(new Error('authAudience is required'), { statusCode: 400 });
 }
 
+function validateExposureOAuthConfig(config) {
+  if (!config.authIssuer) {
+    throw Object.assign(new Error('OAuth issuer is required before exposing Local Repo Reader to ChatGPT.'), { statusCode: 400 });
+  }
+}
+
 function getStatus(options = {}) {
   const config = loadConfig(options);
   const serverRunning = isRunning(mcpProcess);
   const tunnelRunning = isRunning(tunnelProcess);
+  const connectorUrl = connectorUrlFromBase(getEffectivePublicBaseUrl(config));
   return {
     config,
     configPath: resolveConfigPath(options.elegyHome || options.elegyHomeAbs),
+    connectorUrl,
     server: {
       running: serverRunning,
       pid: serverRunning ? mcpProcess.pid : null,
@@ -138,7 +165,8 @@ function getStatus(options = {}) {
     tunnel: {
       running: tunnelRunning,
       pid: tunnelRunning ? tunnelProcess.pid : null,
-      publicUrl: config.publicBaseUrl ? `${config.publicBaseUrl}/mcp` : '',
+      mode: tunnelRunning ? tunnelMode : 'none',
+      publicUrl: tunnelRunning ? connectorUrl : '',
     },
     securityState: computeSecurityState(config, serverRunning, tunnelRunning),
   };
@@ -146,13 +174,15 @@ function getStatus(options = {}) {
 
 function startServer(options = {}) {
   const config = loadConfig(options);
-  validateOAuthConfig(config);
   if (isRunning(mcpProcess)) return getStatus(options);
   const packageRoot = resolveMcpPackageRoot(options.engineRoot || process.cwd());
   const entry = path.join(packageRoot, 'dist', 'server.js');
   if (!fs.existsSync(entry)) {
     throw Object.assign(new Error('local-repo-mcp is not built. Run npm --prefix local-repo-mcp run build.'), { statusCode: 400 });
   }
+  const effectivePublicBaseUrl = getEffectivePublicBaseUrl(config);
+  const effectiveAuthAudience = getEffectiveAuthAudience(config);
+  const authEnabled = Boolean(effectivePublicBaseUrl && hasOAuthConfig(config));
   mcpProcess = spawn(process.execPath, [entry], {
     cwd: packageRoot,
     windowsHide: true,
@@ -160,9 +190,10 @@ function startServer(options = {}) {
     env: {
       ...process.env,
       LOCAL_REPO_MCP_PORT: String(config.port),
-      LOCAL_REPO_MCP_PUBLIC_BASE_URL: config.publicBaseUrl,
+      LOCAL_REPO_MCP_PUBLIC_BASE_URL: effectivePublicBaseUrl,
       LOCAL_REPO_MCP_AUTH_ISSUER: config.authIssuer,
-      LOCAL_REPO_MCP_AUTH_AUDIENCE: config.authAudience,
+      LOCAL_REPO_MCP_AUTH_AUDIENCE: effectiveAuthAudience,
+      LOCAL_REPO_MCP_AUTH_MODE: authEnabled ? 'oauth' : 'disabled',
       LOCAL_REPO_MCP_REQUIRED_SCOPES: config.requiredScopes.join(' '),
       ELEGY_HOME: resolveElegyHome(options.elegyHome || options.elegyHomeAbs),
     },
@@ -192,6 +223,66 @@ async function stopServer(options = {}) {
   return getStatus(options);
 }
 
+function waitForQuickTunnelUrl(child) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let output = '';
+    const timer = setTimeout(() => {
+      finish(new Error('Timed out waiting for cloudflared quick tunnel URL.'));
+    }, 30000);
+
+    function finish(error, url) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(url);
+    }
+
+    function onData(chunk) {
+      output += chunk.toString();
+      const match = output.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
+      if (match) finish(null, match[0].replace(/\/+$/, ''));
+    }
+
+    child.stdout?.on('data', onData);
+    child.stderr?.on('data', onData);
+    child.once('error', (error) => finish(error));
+    child.once('exit', (code, signal) => {
+      if (!settled) finish(new Error(`cloudflared quick tunnel exited before publishing a URL (${signal || code}).`));
+    });
+  });
+}
+
+async function startQuickTunnel(options = {}) {
+  const config = loadConfig(options);
+  validateExposureOAuthConfig(config);
+  if (isRunning(tunnelProcess) && tunnelMode === 'quick' && quickTunnelBaseUrl) return getStatus(options);
+  if (isRunning(tunnelProcess)) await stopTunnel(options);
+
+  tunnelMode = 'quick';
+  quickTunnelBaseUrl = '';
+  tunnelProcess = spawn(resolveCloudflared(config), ['tunnel', '--url', `http://127.0.0.1:${config.port}`], {
+    windowsHide: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  tunnelProcess.once('exit', () => {
+    tunnelProcess = null;
+    tunnelMode = 'none';
+    quickTunnelBaseUrl = '';
+  });
+
+  try {
+    quickTunnelBaseUrl = await waitForQuickTunnelUrl(tunnelProcess);
+  } catch (error) {
+    await stopTunnel(options);
+    throw Object.assign(error, { statusCode: error.statusCode || 500 });
+  }
+
+  if (isRunning(mcpProcess)) await stopServer(options);
+  return startServer(options);
+}
+
 function startTunnel(options = {}) {
   const config = loadConfig(options);
   validateOAuthConfig(config);
@@ -206,13 +297,20 @@ function startTunnel(options = {}) {
     windowsHide: true,
     stdio: 'ignore',
   });
-  tunnelProcess.once('exit', () => { tunnelProcess = null; });
+  tunnelMode = 'named';
+  quickTunnelBaseUrl = '';
+  tunnelProcess.once('exit', () => {
+    tunnelProcess = null;
+    tunnelMode = 'none';
+  });
   return getStatus(options);
 }
 
 async function stopTunnel(options = {}) {
   await stopChild(tunnelProcess);
   tunnelProcess = null;
+  tunnelMode = 'none';
+  quickTunnelBaseUrl = '';
   return getStatus(options);
 }
 
@@ -238,6 +336,7 @@ module.exports = {
   startServer,
   stopServer,
   startTunnel,
+  startQuickTunnel,
   stopTunnel,
   probe,
 };

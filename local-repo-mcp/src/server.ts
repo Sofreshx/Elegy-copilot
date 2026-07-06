@@ -41,14 +41,20 @@ function registerTool(
   config: { description: string; inputSchema: Record<string, z.ZodTypeAny> },
   handler: (args: ToolArgs) => Promise<ReturnType<typeof asText>>,
 ): void {
+  const toolConfig = oauth.enabled
+    ? {
+      ...config,
+      _meta: {
+        securitySchemes: [{
+          type: 'oauth2',
+          scopes: oauth.requiredScopes,
+        }],
+      },
+    }
+    : config;
+
   server.registerTool(name, {
-    ...config,
-    _meta: {
-      securitySchemes: [{
-        type: 'oauth2',
-        scopes: oauth.requiredScopes,
-      }],
-    },
+    ...toolConfig,
   } as never, handler as never);
 }
 

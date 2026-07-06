@@ -48,8 +48,9 @@ function makeDeps(body) {
   };
   const status = () => ({
     config: state.config,
+    connectorUrl: state.tunnelStarted ? 'https://mcp.example.com/mcp' : '',
     server: { running: state.started, pid: state.started ? 1 : null, url: 'http://127.0.0.1:3333/mcp' },
-    tunnel: { running: state.tunnelStarted, pid: state.tunnelStarted ? 2 : null, publicUrl: 'https://mcp.example.com/mcp' },
+    tunnel: { running: state.tunnelStarted, pid: state.tunnelStarted ? 2 : null, mode: state.tunnelStarted ? 'quick' : 'none', publicUrl: state.tunnelStarted ? 'https://mcp.example.com/mcp' : '' },
     securityState: state.started && state.tunnelStarted ? 'OAuth protected' : 'Stopped',
   });
   return {
@@ -61,6 +62,7 @@ function makeDeps(body) {
       startServer: () => { state.started = true; return status(); },
       stopServer: async () => { state.started = false; return status(); },
       startTunnel: () => { state.tunnelStarted = true; return status(); },
+      startQuickTunnel: async () => { state.started = true; state.tunnelStarted = true; return status(); },
       stopTunnel: async () => { state.tunnelStarted = false; return status(); },
       probe: async () => ({ ...status(), probe: { ok: true } }),
     },
@@ -93,6 +95,7 @@ test('register exposes local repo MCP routes', () => {
   assert.ok(routes.some((route) => route.method === 'GET' && route.path === '/api/local-repo-mcp/status'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/roots/add'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/start'));
+  assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/quick/start'));
 });
 
 test('start and stop are idempotent through manager state', async () => {
@@ -118,4 +121,25 @@ test('roots/add rejects unregistered repos', async () => {
   const routes = register(deps);
   const result = await invoke(routes, 'POST', '/api/local-repo-mcp/roots/add');
   assert.equal(result.statusCode, 404);
+});
+
+test('quick tunnel route starts ChatGPT access', async () => {
+  const routes = register(makeDeps());
+  const result = await invoke(routes, 'POST', '/api/local-repo-mcp/tunnel/quick/start');
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.server.running, true);
+  assert.equal(result.body.tunnel.running, true);
+  assert.equal(result.body.tunnel.mode, 'quick');
+  assert.equal(result.body.connectorUrl, 'https://mcp.example.com/mcp');
+});
+
+test('quick tunnel route propagates OAuth config errors', async () => {
+  const deps = makeDeps();
+  deps.manager.startQuickTunnel = async () => {
+    throw Object.assign(new Error('OAuth issuer is required before exposing Local Repo Reader to ChatGPT.'), { statusCode: 400 });
+  };
+  const routes = register(deps);
+  const result = await invoke(routes, 'POST', '/api/local-repo-mcp/tunnel/quick/start');
+  assert.equal(result.statusCode, 400);
+  assert.equal(result.body.error, 'OAuth issuer is required before exposing Local Repo Reader to ChatGPT.');
 });
