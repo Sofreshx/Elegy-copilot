@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "configVersion": 1,
+  "schemaVersion": 2,
+  "configVersion": 3,
   "generated": "2026-07-06T16:06:19.757182600+00:00",
   "defaultProfile": "commit",
   "profiles": {
@@ -71,7 +71,14 @@
       "ciRequired": true,
       "commands": [
         "npm run build:contracts"
-      ]
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": null,
+      "tags": [],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
     },
     "build-tracker": {
       "enabled": true,
@@ -91,7 +98,14 @@
       "ciRequired": false,
       "commands": [
         "npm --prefix local-tracker run build"
-      ]
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": null,
+      "tags": [],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
     },
     "build-ui": {
       "enabled": true,
@@ -111,7 +125,14 @@
       "ciRequired": true,
       "commands": [
         "npm --prefix copilot-ui run ui:build"
-      ]
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": null,
+      "tags": [],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
     },
     "ci-local": {
       "enabled": true,
@@ -133,7 +154,14 @@
       "ciRequired": true,
       "commands": [
         "npm run ci:local"
-      ]
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": null,
+      "tags": [],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
     },
     "desktop-preview": {
       "enabled": true,
@@ -155,7 +183,14 @@
       "ciRequired": false,
       "commands": [
         "npm --prefix copilot-ui run desktop:prod-sim"
-      ]
+      ],
+      "gateStrength": "advisory",
+      "determinism": "deterministic-runnable",
+      "sourcePack": null,
+      "tags": [],
+      "severity": "warning",
+      "promotionState": "advisory",
+      "owner": null
     },
     "docs-pages": {
       "enabled": true,
@@ -178,7 +213,14 @@
       "commands": [
         "node scripts/validate-doc-graph.js",
         "npm run docs:build"
-      ]
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": null,
+      "tags": [],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
     },
     "format": {
       "enabled": true,
@@ -200,7 +242,14 @@
       "ciRequired": false,
       "commands": [
         "cargo fmt --manifest-path copilot-ui/src-tauri/Cargo.toml -- --check"
-      ]
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": null,
+      "tags": [],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
     },
     "lint": {
       "enabled": true,
@@ -222,7 +271,14 @@
       "ciRequired": false,
       "commands": [
         "cargo clippy --manifest-path copilot-ui/src-tauri/Cargo.toml -- -D warnings"
-      ]
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": null,
+      "tags": [],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
     },
     "release-smoke": {
       "enabled": true,
@@ -244,7 +300,14 @@
       "ciRequired": false,
       "commands": [
         "npm --prefix copilot-ui run desktop:smoke:native"
-      ]
+      ],
+      "gateStrength": "advisory",
+      "determinism": "deterministic-runnable",
+      "sourcePack": null,
+      "tags": [],
+      "severity": "warning",
+      "promotionState": "advisory",
+      "owner": null
     },
     "stylelint": {
       "enabled": true,
@@ -264,7 +327,14 @@
       "ciRequired": false,
       "commands": [
         "npx stylelint \"copilot-ui/ui/src/**/*.css\" \"copilot-ui/ui/src/**/*.scss\""
-      ]
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": null,
+      "tags": [],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
     },
     "test": {
       "enabled": true,
@@ -287,7 +357,14 @@
       "commands": [
         "npx vitest run",
         "cargo test --manifest-path copilot-ui/src-tauri/Cargo.toml"
-      ]
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": null,
+      "tags": [],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
     },
     "typecheck": {
       "enabled": true,
@@ -314,7 +391,14 @@
         "npx tsc -p \"local-tracker/tsconfig.json\" --noEmit",
         "npx tsc -p \"local-tracker/tsconfig.build.json\" --noEmit",
         "cargo check --manifest-path copilot-ui/src-tauri/Cargo.toml"
-      ]
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": null,
+      "tags": [],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
     }
   }
 }

@@ -4,6 +4,8 @@ use std::path::PathBuf;
 
 mod ci;
 mod config;
+mod doctor;
+mod packs;
 mod runner;
 mod store;
 
@@ -24,6 +26,12 @@ enum Commands {
         import_copilot: bool,
     },
     Validate {
+        #[arg(long)]
+        repo: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    Migrate {
         #[arg(long)]
         repo: PathBuf,
         #[arg(long)]
@@ -69,6 +77,10 @@ enum Commands {
         #[arg(long)]
         check: Option<String>,
         #[arg(long)]
+        limit: Option<i64>,
+        #[arg(long)]
+        offset: Option<i64>,
+        #[arg(long)]
         json: bool,
     },
     CiMap {
@@ -82,6 +94,55 @@ enum Commands {
     Stats {
         #[arg(long)]
         repo: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    History {
+        #[arg(long)]
+        repo: PathBuf,
+        #[arg(long)]
+        limit: Option<i64>,
+        #[arg(long)]
+        offset: Option<i64>,
+        #[arg(long)]
+        json: bool,
+    },
+    Doctor {
+        #[arg(long)]
+        repo: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    Audit {
+        #[arg(long)]
+        repo: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    Apply {
+        #[arg(long)]
+        repo: PathBuf,
+        #[arg(long)]
+        proposal: Option<String>,
+        #[arg(long)]
+        all: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    Packs {
+        #[command(subcommand)]
+        command: PacksCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum PacksCommands {
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    Show {
+        pack: String,
         #[arg(long)]
         json: bool,
     },
@@ -112,6 +173,10 @@ fn run() -> Result<()> {
         }
         Commands::Validate { repo, .. } => {
             let result = config::validate_repo(&repo)?;
+            print_json(&result)
+        }
+        Commands::Migrate { repo, .. } => {
+            let result = config::migrate_repo(&repo)?;
             print_json(&result)
         }
         Commands::Discover { repo, .. } => {
@@ -148,9 +213,11 @@ fn run() -> Result<()> {
             repo,
             run_id,
             check,
+            limit,
+            offset,
             ..
         } => {
-            let result = store::read_logs(&repo, &run_id, check.as_deref())?;
+            let result = store::read_logs(&repo, &run_id, check.as_deref(), limit, offset)?;
             print_json(&result)
         }
         Commands::CiMap { repo, scope, .. } => {
@@ -166,6 +233,42 @@ fn run() -> Result<()> {
             let result = store::read_stats(&repo)?;
             print_json(&result)
         }
+        Commands::History {
+            repo,
+            limit,
+            offset,
+            ..
+        } => {
+            let result = store::read_history(&repo, limit, offset)?;
+            print_json(&result)
+        }
+        Commands::Doctor { repo, .. } => {
+            let result = doctor::diagnose(&repo)?;
+            print_json(&result)
+        }
+        Commands::Audit { repo, .. } => {
+            let result = packs::audit_repo(&repo)?;
+            print_json(&result)
+        }
+        Commands::Apply {
+            repo,
+            proposal,
+            all,
+            ..
+        } => {
+            let result = packs::apply_repo(&repo, proposal.as_deref(), all)?;
+            print_json(&result)
+        }
+        Commands::Packs { command } => match command {
+            PacksCommands::List { .. } => {
+                let result = packs::list_packs();
+                print_json(&result)
+            }
+            PacksCommands::Show { pack, .. } => {
+                let result = packs::show_pack(&pack)?;
+                print_json(&result)
+            }
+        },
     }
 }
 

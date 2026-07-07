@@ -80,6 +80,36 @@ async function run() {
     assert.equal(result.results[0].error, 'failed');
   });
 
+  await test('transforms advisory warnings without failing the gate', () => {
+    const result = elegyChecks.transformRunResult('/repo', {
+      runId: 'run-2',
+      timestamp: '2026-07-06T00:00:00Z',
+      overallPass: true,
+      blockingFailures: [],
+      lanes: {
+        readme: {
+          status: 'WARN',
+          exitCode: 1,
+          durationMs: 12,
+          details: 'README missing',
+          blocking: false,
+          gateStrength: 'advisory',
+          commands: [{ command: 'node check.js', exitCode: 1 }],
+        },
+      },
+    });
+    assert.equal(result.allPassed, true);
+    assert.equal(result.checksFailed, 1);
+    assert.equal(result.results[0].status, 'WARN');
+  });
+
+  await test('reads bundled check packs through the CLI', () => {
+    const repo = path.resolve(__dirname, '..', '..');
+    const result = elegyChecks.packsList(repo);
+    assert.ok(Array.isArray(result.packs));
+    assert.ok(result.packs.some((pack) => pack.id === 'core'));
+  });
+
   await test('syncCiState maps local checks to workflow jobs', () => {
     const repo = makeRepo();
     fs.mkdirSync(path.join(repo, '.github', 'workflows'), { recursive: true });

@@ -10,6 +10,7 @@ const childProcess = require('node:child_process');
 
 const managerPath = require.resolve('./localRepoMcpManager');
 const originalSpawn = childProcess.spawn;
+const originalFetch = global.fetch;
 
 function makeChild() {
   const child = new EventEmitter();
@@ -62,6 +63,14 @@ function loadManager(spawnCalls, onSpawn = null) {
   return require('./localRepoMcpManager');
 }
 
+function mockFetchOk() {
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ pending: [] }),
+  });
+}
+
 async function withMissingCloudflaredEnv(fn) {
   const original = {
     PATH: process.env.PATH,
@@ -85,6 +94,7 @@ async function withMissingCloudflaredEnv(fn) {
 
 test.afterEach(() => {
   childProcess.spawn = originalSpawn;
+  global.fetch = originalFetch;
   delete require.cache[managerPath];
 });
 
@@ -117,6 +127,7 @@ test('status reports missing cloudflared prerequisite', async () => withMissingC
 test('startQuickTunnel with blank OAuth config generates built-in OAuth settings', async () => {
   const ctx = makeContext();
   const spawnCalls = [];
+  mockFetchOk();
   const manager = loadManager(spawnCalls, (_args, child, index) => {
     if (index === 0) {
       process.nextTick(() => {
@@ -156,6 +167,7 @@ test('startQuickTunnel parses generated URL and starts OAuth MCP server', async 
     cloudflaredPath: makeCloudflared(ctx),
   });
   const spawnCalls = [];
+  mockFetchOk();
   const manager = loadManager(spawnCalls, (_args, child, index) => {
     if (index === 0) {
       process.nextTick(() => {
@@ -177,6 +189,96 @@ test('startQuickTunnel parses generated URL and starts OAuth MCP server', async 
   assert.equal(status.securityState, 'OAuth protected');
 });
 
+test('status marks tunnel without MCP server as misconfigured', async () => {
+  const ctx = makeContext();
+  writeConfig(ctx.elegyHomeAbs, { cloudflaredPath: makeCloudflared(ctx) });
+  const spawnCalls = [];
+  mockFetchOk();
+  const manager = loadManager(spawnCalls, (_args, child, index) => {
+    if (index === 0) {
+      process.nextTick(() => {
+        child.stderr.emit('data', Buffer.from('https://sample.trycloudflare.com'));
+      });
+    }
+  });
+
+  await manager.startQuickTunnel(ctx);
+  spawnCalls[1].child.exitCode = 1;
+  spawnCalls[1].child.emit('exit', 1, null);
+
+  const status = manager.getStatus(ctx);
+
+  assert.equal(status.tunnel.running, true);
+  assert.equal(status.server.running, false);
+  assert.equal(status.securityState, 'Misconfigured');
+  assert.equal(status.prerequisites.chatGptAccessReady, false);
+});
+
+test('startQuickTunnel restarts stale quick tunnel when MCP server stopped', async () => {
+  const ctx = makeContext();
+  writeConfig(ctx.elegyHomeAbs, { cloudflaredPath: makeCloudflared(ctx) });
+  const spawnCalls = [];
+  mockFetchOk();
+  const manager = loadManager(spawnCalls, (_args, child, index) => {
+    if (index === 0 || index === 2) {
+      process.nextTick(() => {
+        child.stderr.emit('data', Buffer.from(`https://sample-${index}.trycloudflare.com`));
+      });
+    }
+  });
+
+  await manager.startQuickTunnel(ctx);
+  spawnCalls[1].child.exitCode = 1;
+  spawnCalls[1].child.emit('exit', 1, null);
+  const status = await manager.startQuickTunnel(ctx);
+
+  assert.equal(spawnCalls.length, 4);
+  assert.equal(spawnCalls[0].child.killed, true);
+  assert.equal(status.securityState, 'OAuth protected');
+  assert.equal(status.connectorUrl, 'https://sample-2.trycloudflare.com/mcp');
+});
+
+test('startQuickTunnel stops quick tunnel when MCP readiness fails', async () => {
+  const ctx = makeContext();
+  writeConfig(ctx.elegyHomeAbs, { cloudflaredPath: makeCloudflared(ctx) });
+  const spawnCalls = [];
+  global.fetch = async () => {
+    throw new Error('connection refused');
+  };
+  const manager = loadManager(spawnCalls, (_args, child, index) => {
+    if (index === 0) {
+      process.nextTick(() => {
+        child.stderr.emit('data', Buffer.from('https://sample.trycloudflare.com'));
+      });
+    }
+  });
+
+  await assert.rejects(
+    () => manager.startQuickTunnel({ ...ctx, timeoutMs: 10 }),
+    /Timed out waiting for Local Repo MCP to become ready/,
+  );
+
+  assert.equal(spawnCalls.length, 2);
+  assert.equal(spawnCalls[0].child.killed, true);
+  assert.equal(spawnCalls[1].child.killed, true);
+  assert.equal(manager.getStatus(ctx).tunnel.running, false);
+});
+
+test('getPendingAuthorizations returns empty state on fetch failure', async () => {
+  const ctx = makeContext();
+  const spawnCalls = [];
+  global.fetch = async () => {
+    throw new Error('connection refused');
+  };
+  const manager = loadManager(spawnCalls);
+  manager.startServer(ctx);
+
+  const status = await manager.getPendingAuthorizations(ctx);
+
+  assert.deepEqual(status.pending, []);
+  assert.match(status.pendingError, /connection refused/);
+});
+
 test('startTunnel keeps named tunnel status behavior', () => {
   const ctx = makeContext();
   writeConfig(ctx.elegyHomeAbs, {
@@ -195,5 +297,5 @@ test('startTunnel keeps named tunnel status behavior', () => {
   assert.equal(status.tunnel.mode, 'named');
   assert.equal(status.tunnel.publicUrl, 'https://mcp.example.com/mcp');
   assert.equal(status.connectorUrl, 'https://mcp.example.com/mcp');
-  assert.equal(status.securityState, 'Local only');
+  assert.equal(status.securityState, 'Misconfigured');
 });

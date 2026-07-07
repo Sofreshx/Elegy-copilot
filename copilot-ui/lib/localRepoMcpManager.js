@@ -13,7 +13,10 @@ let mcpProcess = null;
 let tunnelProcess = null;
 let tunnelMode = 'none';
 let quickTunnelBaseUrl = '';
+let mcpLastExit = null;
+let mcpOutput = { stdout: '', stderr: '' };
 const approvalSecret = crypto.randomBytes(32).toString('base64url');
+const MCP_OUTPUT_LIMIT = 4000;
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -102,6 +105,14 @@ function isRunning(child) {
   return Boolean(child && child.exitCode == null && child.signalCode == null && !child.killed);
 }
 
+function appendOutput(kind, chunk) {
+  const text = chunk.toString();
+  mcpOutput = {
+    ...mcpOutput,
+    [kind]: `${mcpOutput[kind] || ''}${text}`.slice(-MCP_OUTPUT_LIMIT),
+  };
+}
+
 function resolveMcpPackageRoot(engineRoot) {
   return path.join(path.resolve(engineRoot), 'local-repo-mcp');
 }
@@ -174,6 +185,7 @@ function getEffectiveAuthIssuer(config) {
 
 function computeSecurityState(config, serverRunning, tunnelRunning) {
   if (!serverRunning && !tunnelRunning) return 'Stopped';
+  if (tunnelRunning && !serverRunning) return 'Misconfigured';
   if (tunnelRunning && (!getEffectivePublicBaseUrl(config) || !hasOAuthConfig(config))) return 'Misconfigured';
   if (serverRunning && tunnelRunning) return 'OAuth protected';
   return 'Local only';
@@ -203,6 +215,8 @@ function getStatus(options = {}) {
       running: serverRunning,
       pid: serverRunning ? mcpProcess.pid : null,
       url: `http://127.0.0.1:${config.port}/mcp`,
+      lastExit: mcpLastExit,
+      output: mcpOutput,
     },
     tunnel: {
       running: tunnelRunning,
@@ -236,10 +250,12 @@ function startServer(options = {}) {
   const effectiveAuthAudience = getEffectiveAuthAudience(config);
   const effectiveAuthIssuer = getEffectiveAuthIssuer(config);
   const authEnabled = Boolean(effectivePublicBaseUrl && hasOAuthConfig(config));
+  mcpLastExit = null;
+  mcpOutput = { stdout: '', stderr: '' };
   mcpProcess = spawn(process.execPath, [entry], {
     cwd: packageRoot,
     windowsHide: true,
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
       LOCAL_REPO_MCP_PORT: String(config.port),
@@ -253,8 +269,48 @@ function startServer(options = {}) {
       ELEGY_HOME: resolveElegyHome(options.elegyHome || options.elegyHomeAbs),
     },
   });
-  mcpProcess.once('exit', () => { mcpProcess = null; });
+  mcpProcess.stdout?.on('data', (chunk) => appendOutput('stdout', chunk));
+  mcpProcess.stderr?.on('data', (chunk) => appendOutput('stderr', chunk));
+  mcpProcess.once('error', (error) => {
+    mcpLastExit = { error: error.message, at: new Date().toISOString(), stdout: mcpOutput.stdout, stderr: mcpOutput.stderr };
+  });
+  mcpProcess.once('exit', (code, signal) => {
+    mcpLastExit = { code, signal, at: new Date().toISOString(), stdout: mcpOutput.stdout, stderr: mcpOutput.stderr };
+    mcpProcess = null;
+  });
   return getStatus(options);
+}
+
+async function waitForMcpReady(options = {}) {
+  const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 8000;
+  const startedAt = Date.now();
+  let lastError = null;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const status = getStatus(options);
+    if (!status.server.running) {
+      const detail = mcpLastExit?.stderr || mcpLastExit?.error || mcpLastExit?.code;
+      throw Object.assign(
+        new Error(`Local Repo MCP exited before becoming ready${detail ? `: ${detail}` : '.'}`),
+        { statusCode: 500 },
+      );
+    }
+
+    try {
+      const response = await fetch(status.server.url.replace(/\/mcp$/, '/.well-known/oauth-protected-resource'));
+      if (response.ok) return getStatus(options);
+      lastError = new Error(`readiness probe returned ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+
+  throw Object.assign(
+    new Error(`Timed out waiting for Local Repo MCP to become ready${lastError instanceof Error ? `: ${lastError.message}` : '.'}`),
+    { statusCode: 500 },
+  );
 }
 
 async function stopChild(child) {
@@ -312,7 +368,8 @@ function waitForQuickTunnelUrl(child) {
 async function startQuickTunnel(options = {}) {
   const config = loadConfig(options);
   const cloudflaredPath = requireCloudflared(config);
-  if (isRunning(tunnelProcess) && tunnelMode === 'quick' && quickTunnelBaseUrl) return getStatus(options);
+  const currentStatus = getStatus(options);
+  if (currentStatus.securityState === 'OAuth protected') return currentStatus;
   if (isRunning(tunnelProcess)) await stopTunnel(options);
 
   tunnelMode = 'quick';
@@ -346,7 +403,14 @@ async function startQuickTunnel(options = {}) {
   });
 
   if (isRunning(mcpProcess)) await stopServer(options);
-  return startServer(options);
+  startServer(options);
+  try {
+    return await waitForMcpReady(options);
+  } catch (error) {
+    await stopServer(options);
+    await stopTunnel(options);
+    throw Object.assign(error, { statusCode: error.statusCode || 500 });
+  }
 }
 
 function startTunnel(options = {}) {
@@ -396,15 +460,19 @@ async function probe(options = {}) {
 
 async function getPendingAuthorizations(options = {}) {
   const status = getStatus(options);
-  if (!status.server.running) return { ...status, pending: [] };
-  const response = await fetch(status.server.url.replace(/\/mcp$/, '/oauth/pending'), {
-    headers: { 'x-local-repo-mcp-approval-secret': approvalSecret },
-  });
-  if (!response.ok) {
-    throw Object.assign(new Error(`Unable to read pending OAuth authorizations (${response.status}).`), { statusCode: response.status });
+  if (!status.server.running) return { ...status, pending: [], pendingError: 'Local Repo MCP is not running.' };
+  try {
+    const response = await fetch(status.server.url.replace(/\/mcp$/, '/oauth/pending'), {
+      headers: { 'x-local-repo-mcp-approval-secret': approvalSecret },
+    });
+    if (!response.ok) {
+      return { ...status, pending: [], pendingError: `Unable to read pending OAuth authorizations (${response.status}).` };
+    }
+    const payload = await response.json();
+    return { ...status, pending: Array.isArray(payload.pending) ? payload.pending : [] };
+  } catch (error) {
+    return { ...status, pending: [], pendingError: error instanceof Error ? error.message : String(error) };
   }
-  const payload = await response.json();
-  return { ...status, pending: Array.isArray(payload.pending) ? payload.pending : [] };
 }
 
 async function approveAuthorization(options = {}) {

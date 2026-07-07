@@ -187,6 +187,25 @@ describe('McpView', () => {
     });
   });
 
+  it('disables duplicate ChatGPT access when OAuth protected', async () => {
+    mockReady({
+      server: { running: true, pid: 1, url: 'http://127.0.0.1:3333/mcp' },
+      tunnel: { running: true, pid: 2, publicUrl: 'https://mcp.example.com/mcp' },
+      securityState: 'OAuth protected',
+      prerequisites: {
+        cloudflared: { available: true, path: 'cloudflared' },
+        oauth: { provider: 'builtin', issuerConfigured: true, audienceEffective: 'https://mcp.example.com' },
+        chatGptAccessReady: true,
+      },
+    });
+
+    render(<McpView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mcp-quick-tunnel-start')).toBeDisabled();
+    });
+  });
+
   it('allows local start before OAuth is configured', async () => {
     mockMissingOAuth();
 
@@ -231,6 +250,46 @@ describe('McpView', () => {
       expect(api.saveLocalRepoMcpConfig).not.toHaveBeenCalled();
       expect(api.startLocalRepoMcpQuickTunnel).toHaveBeenCalled();
     });
+  });
+
+  it('renders provider card when pending approval polling fails', async () => {
+    mockMissingOAuth();
+    api.getLocalRepoMcpPendingAuthorizations.mockRejectedValue(new Error('pending route failed'));
+
+    render(<McpView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mcp-provider-local-repo-reader')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId('mcp-error')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mcp-quick-tunnel-start')).not.toBeDisabled();
+    await waitFor(() => {
+      expect(screen.getByTestId('mcp-pending-warning')).toHaveTextContent('pending route failed');
+    });
+  });
+
+  it('allows ChatGPT access restart when quick tunnel is stale', async () => {
+    mockReady({
+      connectorUrl: 'https://sample.trycloudflare.com/mcp',
+      server: { running: false, pid: null, url: 'http://127.0.0.1:3333/mcp' },
+      tunnel: { running: true, pid: 2, mode: 'quick', publicUrl: 'https://sample.trycloudflare.com/mcp' },
+      securityState: 'Misconfigured',
+      prerequisites: {
+        cloudflared: { available: true, path: 'cloudflared' },
+        oauth: { provider: 'builtin', issuerConfigured: true, audienceEffective: 'https://sample.trycloudflare.com' },
+        chatGptAccessReady: false,
+      },
+    });
+
+    render(<McpView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mcp-stale-tunnel-warning')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('mcp-exposure-status')).toHaveTextContent('Misconfigured');
+    expect(screen.getByTestId('mcp-quick-tunnel-start')).not.toBeDisabled();
   });
 
   it('renders and approves pending local OAuth authorizations', async () => {

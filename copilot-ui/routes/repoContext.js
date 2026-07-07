@@ -2,7 +2,8 @@
 
 const { spawnSync } = require('node:child_process');
 const path = require('path');
-const { sendJson: defaultSendJson } = require('./_helpers');
+const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const { createDocsRepairService } = require('../lib/docsRepairService');
 
 function getElegyDocsCheckScript() {
   // Resolve relative to this repo's scripts/ directory
@@ -61,10 +62,64 @@ async function handleRepoContextCheck(ctx, deps) {
   }
 }
 
+async function handleListRepairs(ctx, deps) {
+  const repoPath = (ctx.u.searchParams.get('repoPath') || ctx.u.searchParams.get('repo') || '').trim();
+  const repoId = (ctx.u.searchParams.get('repoId') || '').trim() || null;
+  if (!repoPath) {
+    deps.sendJson(ctx.res, 400, { ok: false, error: 'Missing ?repoPath=<path> query parameter.' });
+    return;
+  }
+  try {
+    deps.sendJson(ctx.res, 200, deps.docsRepairService.getStatus(repoPath, repoId));
+  } catch (error) {
+    deps.sendJson(ctx.res, error.statusCode || 500, {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function handleCreateRepair(ctx, deps) {
+  try {
+    const body = await deps.readJsonBody(ctx.req);
+    const result = await deps.docsRepairService.startRepair(body || {});
+    deps.sendJson(ctx.res, 202, result);
+  } catch (error) {
+    deps.sendJson(ctx.res, error.statusCode || 500, {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function handleGetRepair(ctx, deps) {
+  const runId = decodeURIComponent(ctx.match[1] || '').trim();
+  const repoPath = (ctx.u.searchParams.get('repoPath') || ctx.u.searchParams.get('repo') || '').trim() || null;
+  const repoId = (ctx.u.searchParams.get('repoId') || '').trim() || null;
+  try {
+    const run = deps.docsRepairService.getRun(runId, repoPath, repoId);
+    if (!run) {
+      deps.sendJson(ctx.res, 404, { ok: false, error: 'Docs repair run not found.' });
+      return;
+    }
+    deps.sendJson(ctx.res, 200, { run });
+  } catch (error) {
+    deps.sendJson(ctx.res, error.statusCode || 500, {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 function register(deps = {}) {
   const resolvedDeps = {
     sendJson: deps.sendJson || defaultSendJson,
+    readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     fs: deps.fs || require('node:fs'),
+    docsRepairService: deps.docsRepairService || createDocsRepairService({
+      elegyHome: deps.elegyHome,
+      engineRoot: deps.engineRoot,
+    }),
   };
 
   return [
@@ -73,7 +128,22 @@ function register(deps = {}) {
       path: '/api/repo-context/check',
       handler: (ctx) => handleRepoContextCheck(ctx, resolvedDeps),
     },
+    {
+      method: 'GET',
+      path: '/api/repo-context/repairs',
+      handler: (ctx) => handleListRepairs(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/repo-context/repairs',
+      handler: (ctx) => handleCreateRepair(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: /^\/api\/repo-context\/repairs\/([^/]+)$/,
+      handler: (ctx) => handleGetRepair(ctx, resolvedDeps),
+    },
   ];
 }
 
-module.exports = { register };
+module.exports = { register, handleListRepairs, handleCreateRepair, handleGetRepair };

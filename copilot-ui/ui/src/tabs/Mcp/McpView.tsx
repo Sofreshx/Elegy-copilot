@@ -84,24 +84,36 @@ export default function McpView() {
   const [loading, setLoading] = useState(true);
   const [mutating, setMutating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingError, setPendingError] = useState<string | null>(null);
   const [configuringProviderId, setConfiguringProviderId] = useState<string | null>(null);
   const [pendingAuthorizations, setPendingAuthorizations] = useState<LocalRepoMcpPendingAuthorization[]>([]);
+
+  async function loadPendingAuthorizations() {
+    try {
+      const pendingResult = await getLocalRepoMcpPendingAuthorizations();
+      const pendingStoppedNormally = pendingResult.pendingError && !pendingResult.server.running && !pendingResult.tunnel.running;
+      setPendingAuthorizations(pendingResult.pending || []);
+      setPendingError(pendingStoppedNormally ? null : pendingResult.pendingError || null);
+    } catch (err) {
+      setPendingAuthorizations([]);
+      setPendingError(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   async function load() {
     setError(null);
     try {
-      const [statusResult, configResult, reposResult, pendingResult] = await Promise.all([
+      const [statusResult, configResult, reposResult] = await Promise.all([
         getLocalRepoMcpStatus(),
         getLocalRepoMcpConfig(),
         getCatalogRepos(),
-        getLocalRepoMcpPendingAuthorizations(),
       ]);
       const nextConfig = { ...EMPTY_CONFIG, ...configResult.config };
       setStatus(statusResult);
       setConfig(nextConfig);
       setAccess(configResult.access);
       setRepos(reposResult.repos.filter((repo) => repo.repoPath));
-      setPendingAuthorizations(pendingResult.pending || []);
+      void loadPendingAuthorizations();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -136,7 +148,9 @@ export default function McpView() {
   const cloudflaredPath = status?.prerequisites?.cloudflared.path || config.cloudflaredPath || 'cloudflared';
   const effectiveIssuer = status?.prerequisites?.oauth.issuerEffective || config.authIssuer || (localRepoConnectorUrl ? baseUrlFromConnectorUrl(localRepoConnectorUrl) : '');
   const effectiveAudience = status?.prerequisites?.oauth.audienceEffective || config.authAudience || (localRepoConnectorUrl ? baseUrlFromConnectorUrl(localRepoConnectorUrl) : '');
-  const startChatGptDisabled = mutating || status?.tunnel.running || !cloudflaredAvailable;
+  const staleTunnel = Boolean(status?.tunnel.running && !status?.server.running);
+  const chatGptAccessReady = status?.prerequisites?.chatGptAccessReady || status?.securityState === 'OAuth protected';
+  const startChatGptDisabled = mutating || !cloudflaredAvailable || chatGptAccessReady;
 
   async function startChatGptAccess() {
     await startLocalRepoMcpQuickTunnel();
@@ -238,6 +252,16 @@ export default function McpView() {
                         cloudflared was not found at {cloudflaredPath}. Install cloudflared on PATH or set an absolute path in Advanced Stable Tunnel.
                       </p>
                     )}
+                    {staleTunnel ? (
+                      <p className="opencode-error mcp-chatgpt-blocker" data-testid="mcp-stale-tunnel-warning">
+                        ChatGPT tunnel is running but Local Repo MCP is stopped. Start ChatGPT Access again to restart the local server and tunnel.
+                      </p>
+                    ) : null}
+                    {pendingError ? (
+                      <p className="catalog-inline-note" data-testid="mcp-pending-warning">
+                        Pending approval check unavailable: {pendingError}
+                      </p>
+                    ) : null}
                     <div className="mcp-provider-meta">
                       <span><strong>ChatGPT MCP endpoint</strong>{localRepoConnectorUrl || 'generated after Start ChatGPT Access'}</span>
                       <span><strong>OAuth issuer</strong>{effectiveIssuer || 'generated from connector URL'}</span>

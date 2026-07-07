@@ -21,6 +21,11 @@ export interface LocalRepoMcpProcessStatus {
   mode?: 'none' | 'quick' | 'named' | string;
   url?: string;
   publicUrl?: string;
+  lastExit?: unknown;
+  output?: {
+    stdout?: string;
+    stderr?: string;
+  };
 }
 
 export interface LocalRepoMcpStatusResponse {
@@ -44,6 +49,7 @@ export interface LocalRepoMcpStatusResponse {
     chatGptAccessReady: boolean;
   };
   pending?: LocalRepoMcpPendingAuthorization[];
+  pendingError?: string;
   probe?: {
     ok: boolean;
     status?: number;

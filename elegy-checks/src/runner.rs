@@ -48,6 +48,13 @@ pub struct LaneResult {
     pub ci_workflow: Option<String>,
     pub ci_job: Option<String>,
     pub ci_required: bool,
+    pub gate_strength: String,
+    pub determinism: String,
+    pub source_pack: Option<String>,
+    pub tags: Vec<String>,
+    pub severity: String,
+    pub promotion_state: String,
+    pub owner: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -99,7 +106,7 @@ pub fn run_checks(
             status: None,
         });
         let lane = run_one_check(&repo, &name, check)?;
-        if lane.blocking && lane.status == "FAIL" {
+        if lane.gate_strength == "blocking" && lane.status == "FAIL" {
             blocking_failures.push(name.clone());
         }
         logs.push(RunEvent {
@@ -182,7 +189,14 @@ fn run_one_check(repo: &Path, name: &str, check: &CheckConfig) -> Result<LaneRes
         }
     }
 
-    let status = if passed { "PASS" } else { "FAIL" }.to_string();
+    let status = if passed {
+        "PASS"
+    } else if check.gate_strength == "advisory" {
+        "WARN"
+    } else {
+        "FAIL"
+    }
+    .to_string();
     let details = command_results
         .iter()
         .find(|result| !result.success)
@@ -211,6 +225,13 @@ fn run_one_check(repo: &Path, name: &str, check: &CheckConfig) -> Result<LaneRes
         ci_workflow: check.ci_workflow.clone().filter(|value| !value.is_empty()),
         ci_job: check.ci_job.clone().filter(|value| !value.is_empty()),
         ci_required: check.ci_required,
+        gate_strength: check.gate_strength.clone(),
+        determinism: check.determinism.clone(),
+        source_pack: check.source_pack.clone(),
+        tags: check.tags.clone(),
+        severity: check.severity.clone(),
+        promotion_state: check.promotion_state.clone(),
+        owner: check.owner.clone(),
     })
 }
 

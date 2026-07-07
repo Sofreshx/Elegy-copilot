@@ -3,10 +3,24 @@ import { Button } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { driftCheckStore, type DriftRepoState } from '../../stores/driftCheckStore';
 import { notificationStore } from '../../stores/notificationStore';
+import {
+  listDocsRepairRuns,
+  startDocsRepairRun,
+  type DocsRepairRun,
+  type DocsRepairStatusResponse,
+} from '../../lib/api/repoContext';
 
 interface WorkspaceHealthTabProps {
   repoPath: string;
+  repoId?: string | null;
 }
+
+const ELIGIBLE_REPAIR_CODES = new Set([
+  'broken_internal_link',
+  'frontmatter_invalid',
+  'missing_dependency',
+  'tool_config_drift',
+]);
 
 const CHECKS: { id: string; label: string }[] = [
   { id: 'claims', label: 'Claims' },
@@ -83,13 +97,44 @@ function formatIssuesForClipboard(issues: Array<{ code: string; severity: string
   return header + body;
 }
 
-export default function WorkspaceHealthTab({ repoPath }: WorkspaceHealthTabProps) {
+function getIssueKey(issue: { code: string; file: string; line: number; message: string }): string {
+  return [issue.code, issue.file.replace(/\\/g, '/'), issue.line || 0, issue.message].join('|');
+}
+
+function isRepairEligible(issue: { code: string; file: string; line: number }): boolean {
+  return ELIGIBLE_REPAIR_CODES.has(issue.code) && /\.(md|mdx)$/i.test(issue.file.replace(/\\/g, '/')) && issue.line > 0;
+}
+
+function formatRunTime(run: DocsRepairRun): string {
+  const start = Date.parse(run.startedAt || run.createdAt || '');
+  const end = Date.parse(run.finishedAt || run.updatedAt || '');
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return '';
+  const seconds = Math.max(1, Math.round((end - start) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.round(seconds / 60)}m`;
+}
+
+function runStatusColor(status: DocsRepairRun['status']): string {
+  switch (status) {
+    case 'succeeded': return 'var(--tone-success)';
+    case 'failed': return 'var(--tone-danger)';
+    case 'running': return 'var(--tone-brand)';
+    case 'queued': return 'var(--tone-warning)';
+    default: return 'var(--text-muted)';
+  }
+}
+
+export default function WorkspaceHealthTab({ repoPath, repoId = null }: WorkspaceHealthTabProps) {
   const state = useStoreValue(driftCheckStore);
   const [fullCheckLoading, setFullCheckLoading] = useState(false);
   const initRef = useRef(false);
   const [severityFilter, setSeverityFilter] = useState<'all' | 'error' | 'warning' | 'info'>('all');
   const [copyCount, setCopyCount] = useState<25 | 50 | 100>(50);
   const [copied, setCopied] = useState(false);
+  const [repairBatchSize, setRepairBatchSize] = useState<20 | 50>(50);
+  const [repairStarting, setRepairStarting] = useState(false);
+  const [repairStatus, setRepairStatus] = useState<DocsRepairStatusResponse | null>(null);
+  const [repairError, setRepairError] = useState<string | null>(null);
 
   const normalizedRepoPath = repoPath.replace(/\\/g, '/').toLowerCase();
 
@@ -98,6 +143,29 @@ export default function WorkspaceHealthTab({ repoPath }: WorkspaceHealthTabProps
     initRef.current = true;
     driftCheckStore.initRepo(repoPath);
   }, [repoPath]);
+
+  async function loadRepairRuns() {
+    try {
+      const status = await listDocsRepairRuns(repoPath, repoId);
+      setRepairStatus(status);
+      setRepairError(null);
+    } catch (err) {
+      setRepairError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  useEffect(() => {
+    if (!repoPath) return;
+    void loadRepairRuns();
+  }, [repoPath, repoId]);
+
+  useEffect(() => {
+    if (!repoPath || !repairStatus?.runs.some((run) => run.status === 'queued' || run.status === 'running')) return;
+    const timer = window.setInterval(() => {
+      void loadRepairRuns();
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [repoPath, repoId, repairStatus?.runs]);
 
   const repoState: DriftRepoState | undefined = state.byRepo[normalizedRepoPath];
   const report = repoState?.report ?? null;
@@ -170,6 +238,51 @@ export default function WorkspaceHealthTab({ repoPath }: WorkspaceHealthTabProps
     : issues.filter(i => i.severity === severityFilter);
   const visibleIssues = filteredIssues.slice(0, copyCount);
   const isTruncated = filteredIssues.length > copyCount;
+  const eligibleFilteredIssues = filteredIssues.filter(isRepairEligible);
+  const ineligibleFilteredCount = filteredIssues.length - eligibleFilteredIssues.length;
+  const activeRepairCount = repairStatus?.activeCount ?? 0;
+  const repairLimit = repairStatus?.concurrencyLimit ?? 3;
+  const isRepairLimitReached = activeRepairCount >= repairLimit;
+  const isOpenCodeUnavailable = repairStatus?.openCodeAvailable === false;
+  const repairDisabledReason = (() => {
+    if (eligibleFilteredIssues.length === 0) return 'No eligible issues match the current filter.';
+    if (isOpenCodeUnavailable) return 'OpenCode CLI is not available.';
+    if (isRepairLimitReached) return 'Repair concurrency limit reached.';
+    return null;
+  })();
+  const canStartRepair = !repairStarting && !repairDisabledReason;
+
+  async function handleStartRepair() {
+    setRepairStarting(true);
+    setRepairError(null);
+    try {
+      const response = await startDocsRepairRun({
+        repoPath,
+        repoId,
+        batchSize: repairBatchSize,
+        filters: { severity: severityFilter },
+        issues: issues.map((issue) => ({
+          code: issue.code,
+          severity: issue.severity,
+          file: issue.file,
+          line: issue.line,
+          message: issue.message,
+          suggestion: issue.suggestion,
+          key: getIssueKey(issue),
+        })),
+      });
+      setRepairStatus(response.status);
+      notificationStore.success('Docs repair queued', {
+        message: `${response.run.issueSummary.total} issues queued for OpenCode repair.`,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setRepairError(message);
+      notificationStore.error('Docs repair failed to start', { message });
+    } finally {
+      setRepairStarting(false);
+    }
+  }
 
   async function handleCopy() {
     const toCopy = filteredIssues.slice(0, copyCount);
@@ -385,6 +498,146 @@ export default function WorkspaceHealthTab({ repoPath }: WorkspaceHealthTabProps
             Showing first {copyCount} of {filteredIssues.length} {severityFilter === 'all' ? '' : severityFilter} issues
           </div>
         )}
+
+        {issues.length > 0 && (
+          <div
+            data-testid="workspace-health-repair-controls"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              flexWrap: 'wrap',
+              padding: '0.65rem 0',
+              marginBottom: '0.75rem',
+              borderTop: '1px solid var(--border-color)',
+              borderBottom: '1px solid var(--border-color)',
+            }}
+          >
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+              OpenCode repair
+            </span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              {eligibleFilteredIssues.length} eligible · {ineligibleFilteredCount} skipped · {activeRepairCount}/{repairLimit} active
+            </span>
+            <div style={{ display: 'flex', gap: '0.25rem' }} aria-label="Repair batch size">
+              {[20, 50].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  data-testid={`workspace-health-repair-batch-${n}`}
+                  onClick={() => setRepairBatchSize(n as 20 | 50)}
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border-color)',
+                    backgroundColor: repairBatchSize === n ? 'var(--tone-brand)' : 'transparent',
+                    color: repairBatchSize === n ? '#fff' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <Button
+              onClick={handleStartRepair}
+              disabled={!canStartRepair}
+              loading={repairStarting}
+              loadingLabel="Starting..."
+              testId="workspace-health-start-repair"
+              title={repairDisabledReason ?? undefined}
+              style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+            >
+              Start OpenCode Repair
+            </Button>
+            {repairDisabledReason && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {repairDisabledReason}
+              </span>
+            )}
+          </div>
+        )}
+
+        {repairError && (
+          <div
+            data-testid="workspace-health-repair-error"
+            style={{ fontSize: '0.8rem', color: 'var(--tone-danger)', marginBottom: '0.75rem' }}
+          >
+            {repairError}
+          </div>
+        )}
+
+        {repairStatus?.runs.length ? (
+          <div
+            data-testid="workspace-health-repair-runs"
+            style={{
+              marginBottom: '0.75rem',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              backgroundColor: 'var(--bg-surface)',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ padding: '0.6rem 0.75rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+              Repair Runs
+            </div>
+            {repairStatus.runs.slice(0, 8).map((run) => (
+              <div
+                key={run.id}
+                data-testid={`workspace-health-repair-run-${run.id}`}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(110px, 0.7fr) minmax(160px, 1.1fr) minmax(180px, 1fr) auto',
+                  gap: '0.75rem',
+                  alignItems: 'center',
+                  padding: '0.55rem 0.75rem',
+                  borderTop: '1px solid var(--border-color)',
+                  fontSize: '0.78rem',
+                }}
+              >
+                <div>
+                  <div style={{ color: runStatusColor(run.status), fontWeight: 700, textTransform: 'uppercase' }}>
+                    {run.status}
+                  </div>
+                  <div style={{ color: 'var(--text-muted)' }}>
+                    {run.batchSize} issues · {formatRunTime(run) || timeAgo(run.updatedAt)}
+                  </div>
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {run.modelProfile}
+                  </div>
+                  <code style={{ color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {run.branch || run.id}
+                  </code>
+                </div>
+                <div style={{ minWidth: 0, color: 'var(--text-muted)' }}>
+                  <div>
+                    {Object.entries(run.issueSummary.byCode || {}).map(([code, count]) => `${code}: ${count}`).join(' · ') || 'No issue summary'}
+                  </div>
+                  <code style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {run.worktreePath || 'worktree pending'}
+                  </code>
+                </div>
+                <div style={{ textAlign: 'right', color: 'var(--text-muted)' }}>
+                  {run.validation ? (
+                    <div>
+                      fixed {run.validation.fixedCount}/{run.validation.selectedCount}
+                    </div>
+                  ) : (
+                    <div>validation pending</div>
+                  )}
+                  {run.prUrl && (
+                    <a href={run.prUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--tone-brand)' }}>
+                      Draft PR
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         {/* Issue cards */}
         {visibleIssues.length === 0 ? (

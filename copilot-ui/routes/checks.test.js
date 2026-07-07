@@ -75,9 +75,9 @@ function registerWithMocks({ body = {} } = {}) {
 async function run() {
   console.log('\nChecks Route Tests\n');
 
-  await test('register returns 4 route descriptors', async () => {
+  await test('register returns check route descriptors', async () => {
     const routes = registerWithMocks();
-    assert.equal(routes.length, 4);
+    assert.equal(routes.length, 11);
   });
 
   await test('GET /api/git/checks/discover requires repoPath', async () => {
@@ -139,6 +139,49 @@ async function run() {
     const { res, body } = await invoke(routes, 'GET', `/api/git/checks/ci-sync?repoPath=${encodeURIComponent(testRepo)}&scope=pr`);
     assert.equal(res.statusCode, 200);
     assert.equal(body.syncResult.summary.scope, 'pr');
+  });
+
+  await test('GET /api/git/checks/audit returns check proposals', async () => {
+    const routes = registerWithMocks();
+    const testRepo = path.resolve(__dirname, '..', '..');
+    const { res, body } = await invoke(routes, 'GET', `/api/git/checks/audit?repoPath=${encodeURIComponent(testRepo)}`);
+    assert.equal(res.statusCode, 200);
+    assert.ok(Array.isArray(body.proposals));
+    assert.ok(body.summary);
+  });
+
+  await test('GET /api/git/checks/history returns paged run history', async () => {
+    const routes = registerWithMocks();
+    const testRepo = path.resolve(__dirname, '..', '..');
+    const { res, body } = await invoke(routes, 'GET', `/api/git/checks/history?repoPath=${encodeURIComponent(testRepo)}&limit=1`);
+    assert.equal(res.statusCode, 200);
+    assert.ok(Array.isArray(body.runs));
+    assert.equal(body.limit, 1);
+  });
+
+  await test('GET /api/git/checks/doctor returns diagnostic envelope', async () => {
+    const routes = registerWithMocks();
+    const testRepo = path.resolve(__dirname, '..', '..');
+    const { res, body } = await invoke(routes, 'GET', `/api/git/checks/doctor?repoPath=${encodeURIComponent(testRepo)}`);
+    assert.equal(res.statusCode, 200);
+    assert.ok(body.config);
+    assert.equal(typeof body.overall, 'string');
+  });
+
+  await test('GET /api/git/checks/packs returns bundled packs', async () => {
+    const routes = registerWithMocks();
+    const testRepo = path.resolve(__dirname, '..', '..');
+    const { res, body } = await invoke(routes, 'GET', `/api/git/checks/packs?repoPath=${encodeURIComponent(testRepo)}`);
+    assert.equal(res.statusCode, 200);
+    assert.ok(Array.isArray(body.packs));
+    assert.ok(body.packs.some((pack) => pack.id === 'rust'));
+  });
+
+  await test('POST /api/git/checks/apply requires repoPath', async () => {
+    const routes = registerWithMocks({ body: {} });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/checks/apply');
+    assert.equal(res.statusCode, 400);
+    assert.match(body.error, /repoPath/i);
   });
 
   console.log(`\n  ${passed} tests passed\n`);

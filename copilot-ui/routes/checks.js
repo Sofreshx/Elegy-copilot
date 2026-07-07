@@ -166,6 +166,119 @@ function handleCheckState(ctx, deps) {
   }
 }
 
+function sendElegyResult(res, sendJson, result, unavailableMessage) {
+  if (!result) {
+    sendJson(res, 404, { error: unavailableMessage });
+    return;
+  }
+  if (result.error) {
+    sendJson(res, 500, result);
+    return;
+  }
+  sendJson(res, 200, result);
+}
+
+function handleChecksAudit(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const repoPath = resolveRepoPath(ctx);
+  if (!repoPath) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+  const result = elegyChecks.audit(repoPath);
+  sendElegyResult(res, sendJson, result, 'elegy-checks is not available for this repo');
+}
+
+function handleChecksDoctor(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const repoPath = resolveRepoPath(ctx);
+  if (!repoPath) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+  const result = elegyChecks.doctor(repoPath);
+  sendElegyResult(res, sendJson, result, 'elegy-checks is not available for this repo');
+}
+
+function handleChecksHistory(ctx, deps) {
+  const { res, u } = ctx;
+  const { sendJson } = deps;
+  const repoPath = resolveRepoPath(ctx);
+  if (!repoPath) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+  const result = elegyChecks.history(repoPath, {
+    limit: u.searchParams.get('limit'),
+    offset: u.searchParams.get('offset'),
+  });
+  sendElegyResult(res, sendJson, result, 'elegy-checks is not available for this repo');
+}
+
+function handleChecksLogs(ctx, deps) {
+  const { res, u } = ctx;
+  const { sendJson } = deps;
+  const repoPath = resolveRepoPath(ctx);
+  const runId = u.searchParams.get('runId') || u.searchParams.get('run-id');
+  if (!repoPath) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+  if (!isNonEmptyString(runId)) {
+    sendJson(res, 400, { error: 'runId query parameter is required' });
+    return;
+  }
+  const result = elegyChecks.logs(repoPath, {
+    runId,
+    check: u.searchParams.get('check') || undefined,
+    limit: u.searchParams.get('limit'),
+    offset: u.searchParams.get('offset'),
+  });
+  sendElegyResult(res, sendJson, result, 'elegy-checks is not available for this repo');
+}
+
+function handlePacksList(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const repoPath = resolveRepoPath(ctx) || process.cwd();
+  const result = elegyChecks.packsList(repoPath);
+  sendElegyResult(res, sendJson, result, 'elegy-checks binary is not available');
+}
+
+function handleChecksApply(ctx, deps) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+  return Promise.resolve()
+    .then(() => readJsonBody(req))
+    .then((body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const repoPath = isNonEmptyString(payload.repoPath) ? payload.repoPath.trim() : '';
+      if (!repoPath) {
+        throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+      }
+      const result = elegyChecks.applyRecommendations(repoPath, {
+        proposal: payload.proposal || undefined,
+        all: payload.all === true,
+      });
+      sendElegyResult(res, sendJson, result, 'elegy-checks is not available for this repo');
+    })
+    .catch((error) => {
+      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      sendJson(res, statusCode, { error: String(error.message || error) });
+    });
+}
+
+function handlePackShow(ctx, deps) {
+  const { res, match } = ctx;
+  const { sendJson } = deps;
+  const packId = match && match[1] ? decodeURIComponent(match[1]) : '';
+  const repoPath = resolveRepoPath(ctx) || process.cwd();
+  const result = elegyChecks.packShow(repoPath, packId);
+  sendElegyResult(res, sendJson, result, 'elegy-checks binary is not available');
+}
+
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const readJsonBody = context.readJsonBody || require('./_helpers').readJsonBody;
@@ -176,6 +289,13 @@ function register(context = {}) {
     { method: 'POST', path: '/api/git/checks/run', handler: (ctx) => handleChecksRun(ctx, deps) },
     { method: 'GET', path: '/api/git/checks/state', handler: (ctx) => handleCheckState(ctx, deps) },
     { method: 'GET', path: '/api/git/checks/ci-sync', handler: (ctx) => handleCiSync(ctx, deps) },
+    { method: 'GET', path: '/api/git/checks/audit', handler: (ctx) => handleChecksAudit(ctx, deps) },
+    { method: 'GET', path: '/api/git/checks/doctor', handler: (ctx) => handleChecksDoctor(ctx, deps) },
+    { method: 'GET', path: '/api/git/checks/history', handler: (ctx) => handleChecksHistory(ctx, deps) },
+    { method: 'GET', path: '/api/git/checks/logs', handler: (ctx) => handleChecksLogs(ctx, deps) },
+    { method: 'POST', path: '/api/git/checks/apply', handler: (ctx) => handleChecksApply(ctx, deps) },
+    { method: 'GET', path: '/api/git/checks/packs', handler: (ctx) => handlePacksList(ctx, deps) },
+    { method: 'GET', path: /^\/api\/git\/checks\/packs\/([^/]+)$/, handler: (ctx) => handlePackShow(ctx, deps) },
   ];
 }
 

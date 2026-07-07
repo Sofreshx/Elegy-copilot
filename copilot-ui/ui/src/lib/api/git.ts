@@ -162,7 +162,7 @@ export interface GitCheckResult {
 
 export interface GitCheckResults {
   repoRoot: string;
-  source: 'commit-check' | 'legacy' | 'none';
+  source: 'commit-check' | 'legacy' | 'elegy-checks' | 'none';
   checkedAt: string;
   threshold?: number;
   compositeScore?: number | null;
@@ -287,7 +287,7 @@ export interface GitChecksDiscoverResponse {
     name: string;
     path: string;
     description: string;
-    source: 'commit-check' | 'legacy' | 'none';
+    source: 'commit-check' | 'legacy' | 'elegy-checks' | 'none';
     group?: string | null;
     blocking?: boolean;
     ciWorkflow?: string | null;
@@ -402,6 +402,88 @@ export async function getGitCheckState(repoPath: string, baseUrl?: string): Prom
 export async function getGitCiSync(repoPath: string, baseUrl?: string): Promise<GitCiSyncResponse> {
   const url = `/api/git/checks/ci-sync?repoPath=${encodeURIComponent(repoPath)}`;
   return apiRequest<GitCiSyncResponse>(url, { baseUrl });
+}
+
+export interface ElegyChecksAuditResponse {
+  repoRoot: string;
+  detectedStacks: string[];
+  proposals: Array<{
+    id: string;
+    pack: string;
+    checkId: string;
+    status: 'missing' | 'configured';
+    gateStrength: 'blocking' | 'advisory' | 'required-evidence' | 'score';
+    severity: string;
+    reason: string;
+    commands: string[];
+    tags: string[];
+  }>;
+  summary: {
+    proposalCount: number;
+    missing: number;
+    configured: number;
+    advisory: number;
+    blocking: number;
+  };
+}
+
+export interface ElegyChecksHistoryResponse {
+  repoId: string;
+  limit: number;
+  offset: number;
+  nextOffset: number | null;
+  runs: Array<{
+    runId: string;
+    timestamp: string;
+    profile: string | null;
+    overallPass: boolean;
+    checksRun: number;
+    checksPassed: number;
+    checksFailed: number;
+    configHash: string;
+  }>;
+}
+
+export interface ElegyChecksLogsResponse {
+  repoId: string;
+  runId: string;
+  limit: number;
+  offset: number;
+  nextOffset: number | null;
+  entries: any[];
+}
+
+export interface ElegyChecksPacksResponse {
+  packs: Array<{ id: string; version: string; description: string; checks: any[] }>;
+}
+
+export async function auditElegyChecks(repoPath: string, baseUrl?: string): Promise<ElegyChecksAuditResponse> {
+  const url = `/api/git/checks/audit?repoPath=${encodeURIComponent(repoPath)}`;
+  return apiRequest<ElegyChecksAuditResponse>(url, { baseUrl });
+}
+
+export async function getElegyChecksHistory(repoPath: string, limit = 25, offset = 0, baseUrl?: string): Promise<ElegyChecksHistoryResponse> {
+  const url = `/api/git/checks/history?repoPath=${encodeURIComponent(repoPath)}&limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`;
+  return apiRequest<ElegyChecksHistoryResponse>(url, { baseUrl });
+}
+
+export async function getElegyChecksLogs(repoPath: string, runId: string, limit = 100, offset = 0, baseUrl?: string): Promise<ElegyChecksLogsResponse> {
+  const url = `/api/git/checks/logs?repoPath=${encodeURIComponent(repoPath)}&runId=${encodeURIComponent(runId)}&limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`;
+  return apiRequest<ElegyChecksLogsResponse>(url, { baseUrl });
+}
+
+export async function listElegyCheckPacks(repoPath: string, baseUrl?: string): Promise<ElegyChecksPacksResponse> {
+  const url = `/api/git/checks/packs?repoPath=${encodeURIComponent(repoPath)}`;
+  return apiRequest<ElegyChecksPacksResponse>(url, { baseUrl });
+}
+
+export async function applyElegyCheckRecommendation(repoPath: string, proposal: string, baseUrl?: string): Promise<any> {
+  return apiRequest<any>('/api/git/checks/apply', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, proposal }),
+  });
 }
 
 // ─── Merge candidate and dry-run APIs ──────────────────────────────────────

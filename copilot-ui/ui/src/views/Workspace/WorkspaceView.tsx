@@ -294,7 +294,7 @@ export default function WorkspaceView() {
               />
             )}
             {navState.activeWorkspaceLocalTab === 'health' && (
-              <WorkspaceHealthTab repoPath={selectedRepoPath} />
+              <WorkspaceHealthTab repoPath={selectedRepoPath} repoId={displayRepo?.repoId ?? null} />
             )}
             {navState.activeWorkspaceLocalTab === 'planning' && (
               <WorkspacePlanningTab

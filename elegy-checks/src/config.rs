@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub const CONFIG_SCHEMA_VERSION: u32 = 1;
+pub const CONFIG_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -94,6 +94,20 @@ pub struct CheckConfig {
     pub ci_required: bool,
     #[serde(default)]
     pub commands: Vec<String>,
+    #[serde(default = "default_gate_strength")]
+    pub gate_strength: String,
+    #[serde(default = "default_determinism")]
+    pub determinism: String,
+    #[serde(default)]
+    pub source_pack: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default = "default_severity")]
+    pub severity: String,
+    #[serde(default = "default_promotion_state")]
+    pub promotion_state: String,
+    #[serde(default)]
+    pub owner: Option<String>,
 }
 
 impl Default for CheckConfig {
@@ -115,6 +129,13 @@ impl Default for CheckConfig {
             ci_job: None,
             ci_required: false,
             commands: Vec::new(),
+            gate_strength: default_gate_strength(),
+            determinism: default_determinism(),
+            source_pack: None,
+            tags: Vec::new(),
+            severity: default_severity(),
+            promotion_state: default_promotion_state(),
+            owner: None,
         }
     }
 }
@@ -135,6 +156,8 @@ pub struct ValidationResult {
     pub repo_root: String,
     pub config_path: String,
     pub valid: bool,
+    pub schema_version: u32,
+    pub migration_required: bool,
     pub errors: Vec<String>,
     pub check_count: usize,
 }
@@ -167,6 +190,13 @@ pub struct DiscoveredCheck {
     pub default_profiles: Vec<String>,
     pub cost: String,
     pub opens_window: bool,
+    pub gate_strength: String,
+    pub determinism: String,
+    pub source_pack: Option<String>,
+    pub tags: Vec<String>,
+    pub severity: String,
+    pub promotion_state: String,
+    pub owner: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -176,6 +206,17 @@ pub struct RegisterResult {
     pub config_path: String,
     pub check: String,
     pub profile: String,
+    pub updated: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MigrateResult {
+    pub repo_root: String,
+    pub config_path: String,
+    pub previous_schema_version: u32,
+    pub schema_version: u32,
+    pub check_count: usize,
     pub updated: bool,
 }
 
@@ -225,12 +266,15 @@ pub fn init_repo(repo: &Path, import_copilot: bool) -> Result<InitResult> {
 pub fn validate_repo(repo: &Path) -> Result<ValidationResult> {
     let repo = normalize_repo(repo)?;
     let config_path = config_path(&repo);
+    let raw_schema_version = read_schema_version(&config_path).unwrap_or(CONFIG_SCHEMA_VERSION);
     let config = load_config(&repo)?;
     let errors = validate_config(&config);
     Ok(ValidationResult {
         repo_root: repo.display().to_string(),
         config_path: config_path.display().to_string(),
         valid: errors.is_empty(),
+        schema_version: config.schema_version,
+        migration_required: raw_schema_version < CONFIG_SCHEMA_VERSION,
         errors,
         check_count: config.checks.len(),
     })
@@ -260,6 +304,13 @@ pub fn discover(repo: &Path, config: &ChecksConfig) -> DiscoverResult {
             default_profiles: check.default_profiles.clone(),
             cost: check.cost.clone(),
             opens_window: check.opens_window,
+            gate_strength: check.gate_strength.clone(),
+            determinism: check.determinism.clone(),
+            source_pack: check.source_pack.clone(),
+            tags: check.tags.clone(),
+            severity: check.severity.clone(),
+            promotion_state: check.promotion_state.clone(),
+            owner: check.owner.clone(),
         })
         .collect::<Vec<_>>();
 
@@ -310,8 +361,15 @@ pub fn register_check(
     if entry.description.is_empty() {
         entry.description = format!("{check_id} check");
     }
+    entry.gate_strength = if entry.blocking {
+        "blocking".to_string()
+    } else {
+        "advisory".to_string()
+    };
+    entry.determinism = "deterministic-runnable".to_string();
 
     config.config_version += 1;
+    config.schema_version = CONFIG_SCHEMA_VERSION;
     write_config(&repo, &config)?;
 
     Ok(RegisterResult {
@@ -323,13 +381,37 @@ pub fn register_check(
     })
 }
 
+pub fn migrate_repo(repo: &Path) -> Result<MigrateResult> {
+    let repo = normalize_repo(repo)?;
+    let path = config_path(&repo);
+    let previous_schema_version = read_schema_version(&path).unwrap_or(0);
+    let raw_needs_normalization = raw_needs_metadata_normalization(&path).unwrap_or(false);
+    let mut config = load_config(&repo)?;
+    let updated = previous_schema_version != CONFIG_SCHEMA_VERSION || raw_needs_normalization;
+    migrate_config_in_memory(&mut config);
+    config.schema_version = CONFIG_SCHEMA_VERSION;
+    if updated {
+        config.config_version += 1;
+        write_config(&repo, &config)?;
+    }
+    Ok(MigrateResult {
+        repo_root: repo.display().to_string(),
+        config_path: path.display().to_string(),
+        previous_schema_version,
+        schema_version: config.schema_version,
+        check_count: config.checks.len(),
+        updated,
+    })
+}
+
 pub fn load_config(repo: &Path) -> Result<ChecksConfig> {
     let repo = normalize_repo(repo)?;
     let path = config_path(&repo);
     let raw =
         fs::read_to_string(&path).with_context(|| format!("Unable to read {}", path.display()))?;
-    let config: ChecksConfig = serde_json::from_str(&raw)
+    let mut config: ChecksConfig = serde_json::from_str(&raw)
         .with_context(|| format!("Invalid JSON in {}", path.display()))?;
+    migrate_config_in_memory(&mut config);
     let errors = validate_config(&config);
     if !errors.is_empty() {
         return Err(anyhow!("Invalid checks config: {}", errors.join("; ")));
@@ -364,6 +446,15 @@ pub fn config_path(repo: &Path) -> PathBuf {
 
 fn copilot_config_path(repo: &Path) -> PathBuf {
     repo.join(".copilot").join("commit-checks.json")
+}
+
+fn read_schema_version(path: &Path) -> Result<u32> {
+    let raw = fs::read_to_string(path)?;
+    let value: serde_json::Value = serde_json::from_str(&raw)?;
+    Ok(value
+        .get("schemaVersion")
+        .and_then(|value| value.as_u64())
+        .unwrap_or(0) as u32)
 }
 
 fn import_copilot_config(repo: &Path) -> Result<ChecksConfig> {
@@ -416,8 +507,8 @@ fn default_config() -> ChecksConfig {
 
 fn validate_config(config: &ChecksConfig) -> Vec<String> {
     let mut errors = Vec::new();
-    if config.schema_version != CONFIG_SCHEMA_VERSION {
-        errors.push(format!("schemaVersion must be {CONFIG_SCHEMA_VERSION}"));
+    if config.schema_version == 0 || config.schema_version > CONFIG_SCHEMA_VERSION {
+        errors.push(format!("schemaVersion must be 1..={CONFIG_SCHEMA_VERSION}"));
     }
     for (name, check) in &config.checks {
         if validate_id(name).is_err() {
@@ -434,8 +525,79 @@ fn validate_config(config: &ChecksConfig) -> Vec<String> {
                 "check {name} cannot be required when blocking is false"
             ));
         }
+        if !matches!(
+            check.gate_strength.as_str(),
+            "blocking" | "advisory" | "required-evidence" | "score"
+        ) {
+            errors.push(format!("check {name} has invalid gateStrength"));
+        }
+        if !matches!(
+            check.determinism.as_str(),
+            "deterministic-runnable" | "deterministic-generated" | "manual" | "review-evidence"
+        ) {
+            errors.push(format!("check {name} has invalid determinism"));
+        }
     }
     errors
+}
+
+pub fn migrate_config_in_memory(config: &mut ChecksConfig) {
+    if config.schema_version == 0 {
+        config.schema_version = 1;
+    }
+    if config.schema_version < CONFIG_SCHEMA_VERSION {
+        config.schema_version = CONFIG_SCHEMA_VERSION;
+    }
+    for check in config.checks.values_mut() {
+        if !check.blocking && check.gate_strength == "blocking" {
+            check.gate_strength = "advisory".to_string();
+        }
+        if check.gate_strength.is_empty() {
+            check.gate_strength = if check.blocking {
+                "blocking".to_string()
+            } else {
+                "advisory".to_string()
+            };
+        }
+        if check.determinism.is_empty() {
+            check.determinism = "deterministic-runnable".to_string();
+        }
+        if !check.blocking && check.severity == "error" {
+            check.severity = "warning".to_string();
+        }
+        if check.severity.is_empty() {
+            check.severity = if check.gate_strength == "blocking" {
+                "error".to_string()
+            } else {
+                "warning".to_string()
+            };
+        }
+        if !check.blocking && check.promotion_state == "enforced" {
+            check.promotion_state = "advisory".to_string();
+        }
+        if check.promotion_state.is_empty() {
+            check.promotion_state = if check.gate_strength == "blocking" {
+                "enforced".to_string()
+            } else {
+                "advisory".to_string()
+            };
+        }
+    }
+}
+
+fn needs_metadata_normalization(config: &ChecksConfig) -> bool {
+    config.checks.values().any(|check| {
+        !check.blocking
+            && (check.gate_strength == "blocking"
+                || check.severity == "error"
+                || check.promotion_state == "enforced")
+    })
+}
+
+fn raw_needs_metadata_normalization(path: &Path) -> Result<bool> {
+    let raw = fs::read_to_string(path)?;
+    let config: ChecksConfig = serde_json::from_str(&raw)?;
+    Ok(needs_metadata_normalization(&config))
 }
 
 fn validate_id(value: &str) -> Result<()> {
@@ -470,6 +632,22 @@ fn default_timeout_ms() -> u64 {
 
 fn default_cost() -> String {
     "medium".to_string()
+}
+
+fn default_gate_strength() -> String {
+    "blocking".to_string()
+}
+
+fn default_determinism() -> String {
+    "deterministic-runnable".to_string()
+}
+
+fn default_severity() -> String {
+    "error".to_string()
+}
+
+fn default_promotion_state() -> String {
+    "enforced".to_string()
 }
 
 #[cfg(test)]

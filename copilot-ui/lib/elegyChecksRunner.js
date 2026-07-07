@@ -239,6 +239,71 @@ function getState(repoRoot) {
   }
 }
 
+function runJsonSync(repoRoot, args, options = {}) {
+  const binary = resolveBinary(repoRoot || process.cwd());
+  if (!binary) return null;
+  try {
+    const output = execFileSync(binary, args, {
+      cwd: repoRoot || process.cwd(),
+      encoding: 'utf8',
+      timeout: options.timeout || 30000,
+      maxBuffer: options.maxBuffer || 1024 * 1024 * 4,
+      windowsHide: true,
+    });
+    return JSON.parse(output);
+  } catch (error) {
+    return {
+      error: String(error.message || error),
+      stderr: error.stderr ? String(error.stderr) : '',
+      stdout: error.stdout ? String(error.stdout) : '',
+    };
+  }
+}
+
+function audit(repoRoot) {
+  if (!readConfig(repoRoot)) return null;
+  return runJsonSync(repoRoot, ['audit', '--repo', repoRoot, '--json'], { timeout: 60000 });
+}
+
+function doctor(repoRoot) {
+  if (!readConfig(repoRoot)) return null;
+  return runJsonSync(repoRoot, ['doctor', '--repo', repoRoot, '--json'], { timeout: 60000 });
+}
+
+function history(repoRoot, options = {}) {
+  if (!readConfig(repoRoot)) return null;
+  const args = ['history', '--repo', repoRoot, '--json'];
+  if (Number.isFinite(Number(options.limit))) args.push('--limit', String(Number(options.limit)));
+  if (Number.isFinite(Number(options.offset))) args.push('--offset', String(Number(options.offset)));
+  return runJsonSync(repoRoot, args, { timeout: 30000 });
+}
+
+function logs(repoRoot, options = {}) {
+  if (!readConfig(repoRoot) || !options.runId) return null;
+  const args = ['logs', '--repo', repoRoot, '--run-id', String(options.runId), '--json'];
+  if (options.check) args.push('--check', String(options.check));
+  if (Number.isFinite(Number(options.limit))) args.push('--limit', String(Number(options.limit)));
+  if (Number.isFinite(Number(options.offset))) args.push('--offset', String(Number(options.offset)));
+  return runJsonSync(repoRoot, args, { timeout: 30000, maxBuffer: 1024 * 1024 * 8 });
+}
+
+function applyRecommendations(repoRoot, options = {}) {
+  if (!readConfig(repoRoot)) return null;
+  const args = ['apply', '--repo', repoRoot, '--json'];
+  if (options.all) args.push('--all');
+  if (options.proposal) args.push('--proposal', String(options.proposal));
+  return runJsonSync(repoRoot, args, { timeout: 60000 });
+}
+
+function packsList(repoRoot) {
+  return runJsonSync(repoRoot || process.cwd(), ['packs', 'list', '--json'], { timeout: 30000 });
+}
+
+function packShow(repoRoot, packId) {
+  if (!packId) return null;
+  return runJsonSync(repoRoot || process.cwd(), ['packs', 'show', String(packId), '--json'], { timeout: 30000 });
+}
+
 function normalizeSelectedLanes(selectedLanes) {
   if (!selectedLanes) return null;
   if (Array.isArray(selectedLanes)) return selectedLanes;
@@ -269,10 +334,17 @@ function __setDeps(deps = {}) {
 }
 
 module.exports = {
+  applyRecommendations,
+  audit,
   canRun,
   configPath,
   discoverChecks,
+  doctor,
   getState,
+  history,
+  logs,
+  packShow,
+  packsList,
   readConfig,
   resolveBinary,
   runAllChecks,

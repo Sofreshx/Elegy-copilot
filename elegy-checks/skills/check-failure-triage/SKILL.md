@@ -12,7 +12,7 @@ Use SQLite-backed run evidence through the CLI.
 
 1. Run `elegy-checks state --repo <root> --json`.
 2. Identify the latest failed `runId`.
-3. Run `elegy-checks logs --repo <root> --run-id <runId> --json`.
+3. Run `elegy-checks logs --repo <root> --run-id <runId> --limit 100 --json`.
 4. Inspect the failing check command, exit code, stdout, stderr, timeout, and truncation markers.
 5. Summarize the smallest likely fix and the exact rerun command.
 
@@ -20,4 +20,5 @@ Use SQLite-backed run evidence through the CLI.
 
 - Do not fetch remote GitHub Actions logs in v1.
 - Treat truncated logs as partial evidence.
+- Use `--offset` to page long logs instead of assuming the first page is complete.
 - Keep failure summaries tied to command output, not guesses.

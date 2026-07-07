@@ -44,6 +44,9 @@ pub struct Freshness {
 pub struct LogsResult {
     pub repo_id: String,
     pub run_id: String,
+    pub limit: i64,
+    pub offset: i64,
+    pub next_offset: Option<i64>,
     pub entries: Vec<LogEntry>,
 }
 
@@ -75,6 +78,16 @@ pub struct StatsResult {
     pub recent_failing_checks: Vec<String>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryResult {
+    pub repo_id: String,
+    pub limit: i64,
+    pub offset: i64,
+    pub next_offset: Option<i64>,
+    pub runs: Vec<RunSummary>,
+}
+
 pub fn write_run(repo: &Path, result: &RunResult) -> Result<()> {
     let db_path = state_path(repo)?;
     if let Some(parent) = db_path.parent() {
@@ -83,7 +96,7 @@ pub fn write_run(repo: &Path, result: &RunResult) -> Result<()> {
     let conn = Connection::open(db_path)?;
     migrate(&conn)?;
     conn.execute(
-        "insert into runs (run_id, repo_path, profile, started_at, ended_at, config_hash, overall_pass, checks_run, checks_passed, checks_failed)
+            "insert into runs (run_id, repo_path, profile, started_at, ended_at, config_hash, overall_pass, checks_run, checks_passed, checks_failed)
          values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             result.run_id,
@@ -200,37 +213,107 @@ pub fn read_state(repo: &Path) -> Result<StateResult> {
     })
 }
 
-pub fn read_logs(repo: &Path, run_id: &str, check: Option<&str>) -> Result<LogsResult> {
+pub fn read_logs(
+    repo: &Path,
+    run_id: &str,
+    check: Option<&str>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<LogsResult> {
     let repo = config::normalize_repo(repo)?;
     let repo_id = repo_id(&repo)?;
     let conn = Connection::open(state_path(&repo)?)?;
     migrate(&conn)?;
+    let limit = limit.unwrap_or(100).clamp(1, 500);
+    let offset = offset.unwrap_or(0).max(0);
 
     let mut entries = Vec::new();
     if let Some(check) = check {
         let mut stmt = conn.prepare(
             "select check_id, command_index, command, exit_code, success, timed_out, duration_ms, stdout, stderr, stdout_bytes, stderr_bytes, truncated
-             from command_results where run_id = ?1 and check_id = ?2 order by command_index",
+             from command_results where run_id = ?1 and check_id = ?2 order by command_index limit ?3 offset ?4",
         )?;
-        let rows = stmt.query_map(params![run_id, check], log_entry_from_row)?;
+        let rows = stmt.query_map(
+            params![run_id, check, limit + 1, offset],
+            log_entry_from_row,
+        )?;
         for row in rows {
             entries.push(row?);
         }
     } else {
         let mut stmt = conn.prepare(
             "select check_id, command_index, command, exit_code, success, timed_out, duration_ms, stdout, stderr, stdout_bytes, stderr_bytes, truncated
-             from command_results where run_id = ?1 order by check_id, command_index",
+             from command_results where run_id = ?1 order by check_id, command_index limit ?2 offset ?3",
         )?;
-        let rows = stmt.query_map(params![run_id], log_entry_from_row)?;
+        let rows = stmt.query_map(params![run_id, limit + 1, offset], log_entry_from_row)?;
         for row in rows {
             entries.push(row?);
         }
     }
+    let next_offset = if entries.len() as i64 > limit {
+        entries.truncate(limit as usize);
+        Some(offset + limit)
+    } else {
+        None
+    };
 
     Ok(LogsResult {
         repo_id,
         run_id: run_id.to_string(),
+        limit,
+        offset,
+        next_offset,
         entries,
+    })
+}
+
+pub fn read_history(repo: &Path, limit: Option<i64>, offset: Option<i64>) -> Result<HistoryResult> {
+    let repo = config::normalize_repo(repo)?;
+    let repo_id = repo_id(&repo)?;
+    let db_path = state_path(&repo)?;
+    let limit = limit.unwrap_or(25).clamp(1, 200);
+    let offset = offset.unwrap_or(0).max(0);
+    if !db_path.exists() {
+        return Ok(HistoryResult {
+            repo_id,
+            limit,
+            offset,
+            next_offset: None,
+            runs: Vec::new(),
+        });
+    }
+    let conn = Connection::open(db_path)?;
+    migrate(&conn)?;
+    let mut stmt = conn.prepare(
+        "select run_id, started_at, profile, overall_pass, checks_run, checks_passed, checks_failed, config_hash
+         from runs order by started_at desc limit ?1 offset ?2",
+    )?;
+    let mut runs = stmt
+        .query_map(params![limit + 1, offset], |row| {
+            Ok(RunSummary {
+                run_id: row.get(0)?,
+                timestamp: row.get(1)?,
+                profile: row.get(2)?,
+                overall_pass: int_to_bool(row.get::<_, i64>(3)?),
+                checks_run: row.get(4)?,
+                checks_passed: row.get(5)?,
+                checks_failed: row.get(6)?,
+                config_hash: row.get(7)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let next_offset = if runs.len() as i64 > limit {
+        runs.truncate(limit as usize);
+        Some(offset + limit)
+    } else {
+        None
+    };
+    Ok(HistoryResult {
+        repo_id,
+        limit,
+        offset,
+        next_offset,
+        runs,
     })
 }
 
@@ -338,7 +421,7 @@ fn log_entry_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LogEntry> {
     })
 }
 
-fn state_path(repo: &Path) -> Result<PathBuf> {
+pub fn state_path(repo: &Path) -> Result<PathBuf> {
     let repo_id = repo_id(repo)?;
     Ok(elegy_home()?
         .join("repo-state")
@@ -347,7 +430,7 @@ fn state_path(repo: &Path) -> Result<PathBuf> {
         .join("checks.sqlite"))
 }
 
-fn repo_id(repo: &Path) -> Result<String> {
+pub fn repo_id(repo: &Path) -> Result<String> {
     let canonical = repo.canonicalize()?;
     let mut hasher = Sha256::new();
     hasher.update(canonical.to_string_lossy().as_bytes());
