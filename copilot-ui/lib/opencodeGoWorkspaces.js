@@ -326,7 +326,7 @@ function extractWorkspaceIdFromUnknown(value, seen = new Set()) {
   return null;
 }
 
-function buildRedactedProfile(profile, source, nativeState = null, storedValue = null) {
+function buildRedactedProfile(profile, source, nativeState = null, storedValue = null, active = false) {
   const appliedToNativeAuth = Boolean(
     storedValue
       && nativeState
@@ -345,7 +345,7 @@ function buildRedactedProfile(profile, source, nativeState = null, storedValue =
       || source === KEY_SOURCES.ENV
       || source === KEY_SOURCES.NATIVE_AUTH,
     keySource: source,
-    active: profile.active,
+    active: Boolean(active),
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
     lastValidatedAt: profile.lastValidatedAt,
@@ -357,7 +357,7 @@ function buildRedactedProfile(profile, source, nativeState = null, storedValue =
   };
 }
 
-function buildImportedProfile({ id, label, workspaceId, source, appliedToNativeAuth = false }) {
+function buildImportedProfile({ id, label, workspaceId, source, appliedToNativeAuth = false, active = false }) {
   const now = nowIso();
   const profile = {
     id,
@@ -368,7 +368,7 @@ function buildImportedProfile({ id, label, workspaceId, source, appliedToNativeA
     keyRef: source === KEY_SOURCES.ENV
       ? `env:${OPENCODE_GO_API_KEY_ENV}`
       : `native-auth:${NATIVE_OPENCODE_GO_PROVIDER}`,
-    active: false,
+    active: Boolean(active),
     createdAt: now,
     updatedAt: now,
     lastValidatedAt: null,
@@ -385,7 +385,7 @@ function buildImportedProfile({ id, label, workspaceId, source, appliedToNativeA
   };
 }
 
-function effectiveActiveId(state, detectedIds, selectionMode = SELECTION_MODES.AUTO) {
+function effectiveActiveId(state, detectedIds, selectionMode = SELECTION_MODES.AUTO, options = {}) {
   if (selectionMode === SELECTION_MODES.NONE) return null;
   if (selectionMode === SELECTION_MODES.EXPLICIT) {
     if (state.activeId && (state.profiles.some((p) => p.id === state.activeId) || (isDetectedId(state.activeId) && detectedIds.includes(state.activeId)))) {
@@ -393,10 +393,18 @@ function effectiveActiveId(state, detectedIds, selectionMode = SELECTION_MODES.A
     }
     return null;
   }
-  if (state.activeId && state.profiles.some((p) => p.id === state.activeId)) {
-    return state.activeId;
+  const nativeState = options.nativeState || null;
+  const profileKeys = Array.isArray(options.profileKeys) ? options.profileKeys : [];
+  if (nativeState && nativeState.key) {
+    const nativeMatch = profileKeys.find((entry) => entry && entry.value === nativeState.key);
+    if (nativeMatch && nativeMatch.id) {
+      return nativeMatch.id;
+    }
+    if (detectedIds.includes('detected:native:opencode-go')) {
+      return 'detected:native:opencode-go';
+    }
   }
-  if (detectedIds.length === 1) return detectedIds[0];
+  if (detectedIds.includes('detected:env:opencode-go')) return 'detected:env:opencode-go';
   return null;
 }
 
@@ -522,19 +530,31 @@ function createOpenCodeGoWorkspaces(deps = {}) {
     const detected = buildDetectedProfiles(opencodeHome);
     const detectedIds = new Set(detected.map((p) => p.id));
 
-    const registered = await Promise.all(state.profiles.map(async (profile) => {
+    const registeredCandidates = await Promise.all(state.profiles.map(async (profile) => {
       const stored = await readStoredApiKey(opencodeHome, profile.keyRef);
-      return buildRedactedProfile(
-        profile,
-        stored.source,
-        nativeState,
-        stored.value,
-      );
+      return { profile, stored };
     }));
 
-    const activeId = effectiveActiveId(state, [...detectedIds], state.selectionMode);
+    const activeId = effectiveActiveId(state, [...detectedIds], state.selectionMode, {
+      nativeState,
+      profileKeys: registeredCandidates.map(({ profile, stored }) => ({
+        id: profile.id,
+        value: stored.value,
+      })),
+    });
+    const registered = registeredCandidates.map(({ profile, stored }) => buildRedactedProfile(
+      profile,
+      stored.source,
+      nativeState,
+      stored.value,
+      profile.id === activeId,
+    ));
+    const detectedWithActive = detected.map((profile) => ({
+      ...profile,
+      active: profile.id === activeId,
+    }));
     const activeRegistered = registered.find((p) => p.id === activeId);
-    const activeDetected = detected.find((p) => p.id === activeId);
+    const activeDetected = detectedWithActive.find((p) => p.id === activeId);
     const appliedToNativeAuth = Boolean(
       (activeRegistered && activeRegistered.appliedToNativeAuth)
         || (activeDetected && activeDetected.id === 'detected:native:opencode-go' && nativeState.present),
@@ -545,7 +565,7 @@ function createOpenCodeGoWorkspaces(deps = {}) {
       if (!a.active && b.active) return 1;
       return a.label.localeCompare(b.label);
     });
-    const orderedDetected = detected.slice().sort((a, b) => a.label.localeCompare(b.label));
+    const orderedDetected = detectedWithActive.slice().sort((a, b) => a.label.localeCompare(b.label));
 
     return {
       activeId,
@@ -686,7 +706,7 @@ function createOpenCodeGoWorkspaces(deps = {}) {
 
   async function setAutoMode(opencodeHome) {
     const state = readStore(opencodeHome);
-    writeStore(opencodeHome, { activeId: state.activeId, profiles: state.profiles, poolEnabled: state.poolEnabled, poolWorkspaceIds: state.poolWorkspaceIds, selectionMode: SELECTION_MODES.AUTO });
+    writeStore(opencodeHome, { activeId: null, profiles: state.profiles, poolEnabled: state.poolEnabled, poolWorkspaceIds: state.poolWorkspaceIds, selectionMode: SELECTION_MODES.AUTO });
     return await listWorkspaces(opencodeHome);
   }
 
@@ -831,7 +851,7 @@ function createOpenCodeGoWorkspaces(deps = {}) {
       return { value: undefined, source: KEY_SOURCES.MISSING, profile: null };
     }
 
-    if (state.activeId) {
+    if (mode === SELECTION_MODES.EXPLICIT && state.activeId) {
       const profile = state.profiles.find((p) => p.id === state.activeId);
       if (profile) {
         const stored = await readStoredApiKey(opencodeHome, profile.keyRef);
@@ -839,12 +859,10 @@ function createOpenCodeGoWorkspaces(deps = {}) {
           return {
             value: stored.value,
             source: stored.source,
-            profile: buildRedactedProfile(profile, stored.source),
+            profile: buildRedactedProfile(profile, stored.source, null, stored.value, true),
           };
         }
-        if (mode === SELECTION_MODES.EXPLICIT) {
-          return { value: undefined, source: KEY_SOURCES.MISSING, profile: null };
-        }
+        return { value: undefined, source: KEY_SOURCES.MISSING, profile: null };
       }
     }
 

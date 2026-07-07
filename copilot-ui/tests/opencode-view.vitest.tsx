@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OpenCodeStatusResponse } from '../ui/src/lib/types';
 import { opencodeStore } from '../ui/src/stores/opencodeStore';
 
@@ -103,6 +103,10 @@ const mockStatus: OpenCodeStatusResponse = {
 describe('OpenCodeView', () => {
   beforeEach(() => {
     opencodeStore.resetState();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('renders the OpenCode workspace view', async () => {
@@ -276,5 +280,115 @@ describe('OpenCodeView', () => {
     expect(screen.getByTestId('opencode-refreshing')).toHaveTextContent('Refreshing…');
     // Content should still be visible
     expect(screen.getByTestId('opencode-overview')).toBeInTheDocument();
+  });
+
+  it('shows detected native auth as runtime active when native wins auto mode', async () => {
+    vi.spyOn(opencodeStore, 'loadGoWorkspaces').mockResolvedValue(undefined);
+    vi.spyOn(opencodeStore, 'loadWorkspacePool').mockResolvedValue(undefined);
+    opencodeStore.setState((s) => ({
+      ...s,
+      status: mockStatus,
+      loading: false,
+      goWorkspaces: {
+        activeId: 'detected:native:opencode-go',
+        selectionMode: 'auto',
+        nativeAuthPath: '/home/user/.local/share/opencode/auth.json',
+        appliedToNativeAuth: true,
+        detected: [{
+          id: 'detected:native:opencode-go',
+          label: 'OpenCode native Go',
+          workspaceId: null,
+          workspaceIdKnown: false,
+          consoleUrl: null,
+          keySource: 'opencode-auth',
+          keyPresent: true,
+          canApplyNative: true,
+          appliedToNativeAuth: true,
+          active: true,
+          origin: 'detected',
+          lastValidatedAt: null,
+          lastValidatedStatus: null,
+          lastValidatedMessage: null,
+        }],
+        registered: [{
+          id: 'wrk_secondary',
+          label: 'secondary',
+          workspaceId: 'wrk_secondary',
+          workspaceIdKnown: true,
+          consoleUrl: 'https://opencode.ai/workspace/wrk_secondary/go',
+          keySource: 'local-file',
+          keyPresent: true,
+          canApplyNative: true,
+          appliedToNativeAuth: false,
+          active: false,
+          origin: 'registered',
+          lastValidatedAt: null,
+          lastValidatedStatus: null,
+          lastValidatedMessage: null,
+        }],
+      },
+    }));
+    const { default: OpenCodeView } = await import('../ui/src/tabs/OpenCode/OpenCodeView');
+    render(<OpenCodeView />);
+
+    fireEvent.click(screen.getByTestId('opencode-tab-go-workspaces'));
+
+    expect(screen.getByText('Runtime active')).toBeInTheDocument();
+    expect(screen.getAllByText('OpenCode native Go').length).toBeGreaterThan(0);
+    expect(screen.getByText('Unknown')).toBeInTheDocument();
+    expect(screen.getByTestId('go-workspace-native-applied')).toHaveTextContent('Applied');
+    const secondaryCard = screen.getByText('secondary').closest('.go-workspace-card');
+    expect(secondaryCard).not.toBeNull();
+    expect(within(secondaryCard as HTMLElement).queryByText('Active')).not.toBeInTheDocument();
+  });
+
+  it('imports detected native auth with a supplied workspace id', async () => {
+    vi.spyOn(opencodeStore, 'loadGoWorkspaces').mockResolvedValue(undefined);
+    vi.spyOn(opencodeStore, 'loadWorkspacePool').mockResolvedValue(undefined);
+    const importSpy = vi.spyOn(opencodeStore, 'importDetectedGoWorkspace').mockResolvedValue(undefined);
+    opencodeStore.setState((s) => ({
+      ...s,
+      status: mockStatus,
+      loading: false,
+      goWorkspaces: {
+        activeId: 'detected:native:opencode-go',
+        selectionMode: 'auto',
+        nativeAuthPath: '/home/user/.local/share/opencode/auth.json',
+        appliedToNativeAuth: true,
+        detected: [{
+          id: 'detected:native:opencode-go',
+          label: 'OpenCode native Go',
+          workspaceId: null,
+          workspaceIdKnown: false,
+          consoleUrl: null,
+          keySource: 'opencode-auth',
+          keyPresent: true,
+          canApplyNative: true,
+          appliedToNativeAuth: true,
+          active: true,
+          origin: 'detected',
+          lastValidatedAt: null,
+          lastValidatedStatus: null,
+          lastValidatedMessage: null,
+        }],
+        registered: [],
+      },
+    }));
+    const { default: OpenCodeView } = await import('../ui/src/tabs/OpenCode/OpenCodeView');
+    render(<OpenCodeView />);
+
+    fireEvent.click(screen.getByTestId('opencode-tab-go-workspaces'));
+    fireEvent.change(screen.getByTestId('go-workspace-native-import-label'), { target: { value: 'Primary' } });
+    fireEvent.change(screen.getByTestId('go-workspace-native-import-workspace-id'), { target: { value: 'wrk_primary' } });
+    fireEvent.click(screen.getByText('Import native'));
+
+    await waitFor(() => {
+      expect(importSpy).toHaveBeenCalledWith({
+        label: 'Primary',
+        workspaceId: 'wrk_primary',
+        sourceId: 'detected:native:opencode-go',
+        activate: true,
+      });
+    });
   });
 });

@@ -205,6 +205,57 @@ describe('opencodeGoWorkspaces', () => {
       const result = await store.listWorkspaces(opencodeHome);
       assert.equal(result.activeId, 'detected:env:opencode-go');
     });
+
+    it('auto mode uses native auth instead of a stale registered active id when keys differ', async () => {
+      const nativeAuthPath = path.join(tmpDir, 'xdg-native-stale', 'opencode', 'auth.json');
+      fs.mkdirSync(path.dirname(nativeAuthPath), { recursive: true });
+      const { store } = createOpenCodeGoWorkspacesFactory({ nativeAuthPath });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'Secondary',
+        workspaceId: 'wrk_secondary',
+        apiKey: 'registered-key',
+        activate: true,
+      });
+      fs.writeFileSync(nativeAuthPath, JSON.stringify({
+        'opencode-go': { key: 'native-key', type: 'api' },
+      }));
+      const storePath = resolveStorePath(opencodeHome);
+      const raw = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+      raw.selectionMode = SELECTION_MODES.AUTO;
+      raw.activeId = 'wrk_secondary';
+      raw.profiles[0].active = true;
+      fs.writeFileSync(storePath, JSON.stringify(raw));
+
+      const result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.activeId, 'detected:native:opencode-go');
+      assert.equal(result.appliedToNativeAuth, true);
+      assert.equal(result.detected.find((p) => p.id === 'detected:native:opencode-go').active, true);
+      assert.equal(result.registered.find((p) => p.id === 'wrk_secondary').active, false);
+      assert.equal(result.registered.find((p) => p.id === 'wrk_secondary').appliedToNativeAuth, false);
+    });
+
+    it('auto mode maps native auth back to a registered profile when the key matches', async () => {
+      const nativeAuthPath = path.join(tmpDir, 'xdg-native-match', 'opencode', 'auth.json');
+      const { store } = createOpenCodeGoWorkspacesFactory({ nativeAuthPath });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'Primary',
+        workspaceId: 'wrk_primary',
+        apiKey: 'registered-key',
+        activate: true,
+      });
+      const storePath = resolveStorePath(opencodeHome);
+      const raw = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+      raw.selectionMode = SELECTION_MODES.AUTO;
+      raw.activeId = 'wrk_stale';
+      raw.profiles[0].active = false;
+      fs.writeFileSync(storePath, JSON.stringify(raw));
+
+      const result = await store.listWorkspaces(opencodeHome);
+      assert.equal(result.activeId, 'wrk_primary');
+      assert.equal(result.registered.find((p) => p.id === 'wrk_primary').active, true);
+      assert.equal(result.registered.find((p) => p.id === 'wrk_primary').appliedToNativeAuth, true);
+      assert.equal(result.detected.find((p) => p.id === 'detected:native:opencode-go').active, false);
+    });
   });
 
   describe('registerWorkspace', () => {
@@ -341,6 +392,27 @@ describe('opencodeGoWorkspaces', () => {
       assert.equal(active.length, 1);
       assert.equal(active[0].workspaceId, 'wrk_b');
       assert.equal(result.activeId, 'wrk_b');
+    });
+
+    it('explicit activation writes native auth and returns the activated profile as active', async () => {
+      const nativeAuthPath = path.join(tmpDir, 'xdg-explicit-activation', 'opencode', 'auth.json');
+      const { store } = createOpenCodeGoWorkspacesFactory({ nativeAuthPath });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'A', workspaceId: 'wrk_a', apiKey: 'k-a', activate: true,
+      });
+      await store.registerWorkspace(opencodeHome, {
+        label: 'B', workspaceId: 'wrk_b', apiKey: 'k-b', activate: false,
+      });
+
+      const result = await store.activateWorkspace(opencodeHome, 'wrk_b');
+      const native = JSON.parse(fs.readFileSync(nativeAuthPath, 'utf8'));
+      assert.equal(native['opencode-go'].key, 'k-b');
+      assert.equal(native['opencode-go'].workspaceId, 'wrk_b');
+      assert.equal(result.selectionMode, SELECTION_MODES.EXPLICIT);
+      assert.equal(result.activeId, 'wrk_b');
+      assert.equal(result.registered.find((p) => p.id === 'wrk_a').active, false);
+      assert.equal(result.registered.find((p) => p.id === 'wrk_b').active, true);
+      assert.equal(result.registered.find((p) => p.id === 'wrk_b').appliedToNativeAuth, true);
     });
 
     it('writes active registered key to native auth and preserves other providers', async () => {

@@ -5,33 +5,29 @@ rules in the appendix and repo-only rules in repo instructions.
 
 ## Repo Discovery
 
-Before acting in a repo:
+The active harness loads global and project instruction files before the
+session starts. Treat loaded instructions as active unless a deeper scoped file
+or user instruction overrides them.
 
-1. Read the nearest harness instruction file in the repo root or `.github/`.
-2. Apply deeper instruction files as tighter scope.
+For manual discovery:
+
+1. Read the repo instruction entrypoint when present.
+2. Apply deeper scoped instruction files for the active tree.
 3. Fall back to `README.md`, maintained docs, and the nearest docs index.
 4. Prefer repo-local validators.
 
 ## Concise Instruction Contract
 
-Write to transfer decisions.
-
-| Use | Avoid |
-|---|---|
-| Named terms | Reworded repeats |
-| Tables/checklists | Long comparison prose |
-| Diagrams | Narrative tours |
-| Links to authority | Copied policy |
-
-Rules:
+Write instructions as decisions and contracts, not prose prompts.
 
 - Start with the point.
-- Use active voice and exact vocabulary.
+- Use exact vocabulary.
 - Define a term once, then reuse it.
-- Replace vague prose with structure.
-- Delete ceremony, restatement, and empty emphasis.
-- Keep only sections that state purpose, contract, use, failure, verification,
-  or the next link.
+- Prefer tables, checklists, diagrams, examples, and authority links over long
+  explanation.
+- Delete ceremony, repeated policy, vague abstractions, and empty emphasis.
+- Keep only sections with a purpose, contract, use case, failure mode,
+  verification rule, or next link.
 
 ## Clarification Contract
 

@@ -486,6 +486,8 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
   const [submitting, setSubmitting] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
   const [importingId, setImportingId] = React.useState<string | null>(null);
+  const [nativeImportLabel, setNativeImportLabel] = React.useState('Native OpenCode Go');
+  const [nativeImportWorkspaceId, setNativeImportWorkspaceId] = React.useState('');
 
   React.useEffect(() => {
     opencodeStore.loadGoWorkspaces();
@@ -519,19 +521,30 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
 
   const handleActivate = (id: string) => opencodeStore.activateGoWorkspaceAction(id);
   const handleValidate = (id: string) => opencodeStore.validateGoWorkspaceAction(id);
-  const handleImportDetected = async (workspace: OpenCodeGoWorkspace) => {
-    const fallbackLabel = workspace.workspaceIdKnown && workspace.workspaceId
-      ? workspace.workspaceId
+  const handleImportDetected = async (
+    workspace: OpenCodeGoWorkspace,
+    overrides: { label?: string; workspaceId?: string } = {},
+  ) => {
+    const overrideWorkspaceId = overrides.workspaceId?.trim() || null;
+    const fallbackLabel = overrideWorkspaceId
+      || (workspace.workspaceIdKnown && workspace.workspaceId)
+      ? (overrideWorkspaceId || workspace.workspaceId || 'Native OpenCode Go')
       : 'Native OpenCode Go';
+    const nextLabel = overrides.label?.trim() || workspace.label || fallbackLabel;
+    const nextWorkspaceId = overrideWorkspaceId || workspace.workspaceId || undefined;
     setImportingId(workspace.id);
     setFormError(null);
     try {
       await opencodeStore.importDetectedGoWorkspace({
-        label: workspace.label || fallbackLabel,
-        workspaceId: workspace.workspaceId || undefined,
+        label: nextLabel,
+        workspaceId: nextWorkspaceId,
         sourceId: workspace.id,
         activate: true,
       });
+      if (workspace.id === 'detected:native:opencode-go') {
+        setNativeImportLabel('Native OpenCode Go');
+        setNativeImportWorkspaceId('');
+      }
     } catch (err) {
       setFormError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -624,7 +637,7 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
 
           <div className="go-workspace-status-grid">
             <div className="go-workspace-status-row">
-              <span>Active in Elegy</span>
+              <span>Runtime active</span>
               <strong>{activeWorkspace ? activeWorkspace.label : 'None'}</strong>
             </div>
             <div className="go-workspace-status-row">
@@ -833,14 +846,39 @@ function GoWorkspacesSection(_props: SectionProps): React.ReactElement {
                     </Button>
                   )}
                   {isDetected && workspace.id === 'detected:native:opencode-go' && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => void handleImportDetected(workspace)}
-                      disabled={loading || importingId === workspace.id}
-                    >
-                      {importingId === workspace.id ? 'Importing...' : 'Import native'}
-                    </Button>
+                    <>
+                      {!workspace.workspaceIdKnown && (
+                        <div className="go-workspaces-form-row" data-testid="go-workspace-native-import-fields">
+                          <input
+                            type="text"
+                            placeholder="Label"
+                            value={nativeImportLabel}
+                            onChange={(e) => setNativeImportLabel(e.target.value)}
+                            disabled={loading || importingId === workspace.id}
+                            data-testid="go-workspace-native-import-label"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Workspace ID"
+                            value={nativeImportWorkspaceId}
+                            onChange={(e) => setNativeImportWorkspaceId(e.target.value)}
+                            disabled={loading || importingId === workspace.id}
+                            data-testid="go-workspace-native-import-workspace-id"
+                          />
+                        </div>
+                      )}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => void handleImportDetected(workspace, {
+                          label: workspace.workspaceIdKnown ? workspace.label : nativeImportLabel,
+                          workspaceId: workspace.workspaceIdKnown ? (workspace.workspaceId || undefined) : nativeImportWorkspaceId,
+                        })}
+                        disabled={loading || importingId === workspace.id || (!workspace.workspaceIdKnown && !nativeImportWorkspaceId.trim())}
+                      >
+                        {importingId === workspace.id ? 'Importing...' : 'Import native'}
+                      </Button>
+                    </>
                   )}
                   {isRegistered && (
                     <Button

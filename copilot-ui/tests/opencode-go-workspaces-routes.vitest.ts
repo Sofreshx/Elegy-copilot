@@ -429,6 +429,57 @@ describe('opencode go workspaces routes', () => {
     expect(JSON.stringify(body).includes('key-test')).toBe(false);
   });
 
+  it('GET /api/opencode/go-workspaces reports native auth active when stored active profile is stale in auto mode', async () => {
+    await workspaceStore.registerWorkspace(opencodeHome, {
+      label: 'Secondary',
+      workspaceId: 'wrk_secondary',
+      apiKey: 'registered-key',
+      activate: true,
+    });
+    const authPath = path.join(xdgData, 'opencode', 'auth.json');
+    fs.writeFileSync(authPath, JSON.stringify({
+      'opencode-go': { key: 'native-key', type: 'api' },
+    }));
+    const storePath = path.join(opencodeHome, '.elegy-opencode-go-workspaces.json');
+    const raw = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+    raw.selectionMode = 'auto';
+    raw.activeId = 'wrk_secondary';
+    raw.profiles[0].active = true;
+    fs.writeFileSync(storePath, JSON.stringify(raw));
+
+    const sendJson = vi.fn();
+    const routes = register({
+      sendJson,
+      readJsonBody: async () => ({}),
+      assets: makeAssetsStub(),
+      opencodeConfig: makeOpenCodeConfigStub(opencodeHome),
+      opencodeLogReader: { readRequestLogs: () => ({ requests: [], total: 0, logFiles: 0 }), DEFAULT_LIMIT: 100 },
+      opencodeGoWorkspaces: workspaceStore,
+      env: { XDG_DATA_HOME: xdgData },
+      childProcess: { spawnSync: () => ({ status: 0, stdout: '1.0.0', stderr: '' }) },
+    });
+    const route = findRoute(routes, 'GET', (s) => s === '/^\\/api\\/opencode\\/go-workspaces\\/?$/');
+    const ctx = {
+      opencodeHome,
+      elegyHomeAbs: '',
+      engineRoot: '',
+      env: { XDG_DATA_HOME: xdgData },
+      req: { method: 'GET' },
+      res: { writeHead: vi.fn(), end: vi.fn() },
+      u: { pathname: '/api/opencode/go-workspaces' },
+    };
+
+    await route!.handler(ctx);
+
+    const body = sendJson.mock.calls[0][2];
+    expect(body.activeId).toBe('detected:native:opencode-go');
+    expect(body.appliedToNativeAuth).toBe(true);
+    expect(body.detected.find((p: { id: string }) => p.id === 'detected:native:opencode-go').active).toBe(true);
+    expect(body.registered.find((p: { id: string }) => p.id === 'wrk_secondary').active).toBe(false);
+    expect(JSON.stringify(body).includes('native-key')).toBe(false);
+    expect(JSON.stringify(body).includes('registered-key')).toBe(false);
+  });
+
   it('POST /api/opencode/go-workspaces/deactivate returns selectionMode none in response', async () => {
     await workspaceStore.registerWorkspace(opencodeHome, { label: 'B', workspaceId: 'wrk_b', apiKey: 'k-b', activate: true });
     const sendJson = vi.fn();

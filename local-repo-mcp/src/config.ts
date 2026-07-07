@@ -10,10 +10,12 @@ export type RepoRoot = {
 
 export type OAuthConfig = {
   enabled: boolean;
+  provider: 'builtin' | 'external' | 'disabled';
   issuer: string;
   audience: string;
   requiredScopes: string[];
   publicBaseUrl: string;
+  stateDir: string;
 };
 
 export const PORT = Number.parseInt(process.env.LOCAL_REPO_MCP_PORT || '3333', 10);
@@ -37,6 +39,12 @@ export function resolveAccessPath(): string {
   return process.env.LOCAL_REPO_MCP_ACCESS_FILE
     ? path.resolve(expandHome(process.env.LOCAL_REPO_MCP_ACCESS_FILE))
     : path.join(resolveElegyHome(), 'catalog', 'local-repo-reader', 'access.json');
+}
+
+export function resolveOAuthStateDir(): string {
+  return process.env.LOCAL_REPO_MCP_OAUTH_STATE_DIR
+    ? path.resolve(expandHome(process.env.LOCAL_REPO_MCP_OAUTH_STATE_DIR))
+    : path.join(resolveElegyHome(), 'local-repo-mcp', 'oauth');
 }
 
 export function getRepoRoots(): RepoRoot[] {
@@ -80,16 +88,25 @@ function normalizeRoot(root: RepoRoot): RepoRoot {
 
 export function getOAuthConfig(): OAuthConfig {
   const authMode = (process.env.LOCAL_REPO_MCP_AUTH_MODE || 'oauth').trim().toLowerCase();
+  const requestedProvider = (process.env.LOCAL_REPO_MCP_AUTH_PROVIDER || 'external').trim().toLowerCase();
+  const provider = authMode === 'disabled'
+    ? 'disabled'
+    : requestedProvider === 'builtin'
+      ? 'builtin'
+      : 'external';
   const requiredScopes = (process.env.LOCAL_REPO_MCP_REQUIRED_SCOPES || 'repo:read')
     .split(/[,\s]+/)
     .map((scope) => scope.trim())
     .filter(Boolean);
+  const publicBaseUrl = (process.env.LOCAL_REPO_MCP_PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
 
   return {
-    enabled: authMode !== 'disabled',
-    issuer: (process.env.LOCAL_REPO_MCP_AUTH_ISSUER || '').trim(),
-    audience: (process.env.LOCAL_REPO_MCP_AUTH_AUDIENCE || '').trim(),
+    enabled: provider !== 'disabled',
+    provider,
+    issuer: (process.env.LOCAL_REPO_MCP_AUTH_ISSUER || publicBaseUrl).trim().replace(/\/+$/, ''),
+    audience: (process.env.LOCAL_REPO_MCP_AUTH_AUDIENCE || publicBaseUrl).trim().replace(/\/+$/, ''),
     requiredScopes,
-    publicBaseUrl: (process.env.LOCAL_REPO_MCP_PUBLIC_BASE_URL || '').trim().replace(/\/+$/, ''),
+    publicBaseUrl,
+    stateDir: resolveOAuthStateDir(),
   };
 }
