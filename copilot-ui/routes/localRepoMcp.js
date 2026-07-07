@@ -134,9 +134,9 @@ function register(deps = {}) {
     {
       method: 'POST',
       path: '/api/local-repo-mcp/tunnel/start',
-      handler: (ctx) => {
+      handler: async (ctx) => {
         try {
-          resolvedDeps.sendJson(ctx.res, 200, resolvedDeps.manager.startTunnel(ctx));
+          resolvedDeps.sendJson(ctx.res, 200, await resolvedDeps.manager.startTunnel(ctx));
         } catch (error) {
           sendError(ctx.res, resolvedDeps.sendJson, error);
         }

@@ -1,7 +1,7 @@
 {
   "name": "@elegy-copilot/local-repo-mcp",
   "version": "0.1.0",
-  "description": "OAuth-protected read-only local repo MCP server for ChatGPT Web.",
+  "description": "Read-only local repo MCP server for ChatGPT Web and local clients.",
   "license": "MIT",
   "type": "module",
   "main": "dist/server.js",

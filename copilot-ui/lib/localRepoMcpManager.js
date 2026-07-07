@@ -13,9 +13,9 @@ let mcpProcess = null;
 let tunnelProcess = null;
 let tunnelMode = 'none';
 let quickTunnelBaseUrl = '';
+let quickTunnelAccessToken = '';
 let mcpLastExit = null;
 let mcpOutput = { stdout: '', stderr: '' };
-const approvalSecret = crypto.randomBytes(32).toString('base64url');
 const MCP_OUTPUT_LIMIT = 4000;
 
 function normalizeString(value) {
@@ -36,6 +36,10 @@ function resolveElegyHome(inputPath) {
 
 function resolveConfigPath(elegyHome) {
   return path.join(resolveElegyHome(elegyHome), 'local-repo-mcp', 'config.json');
+}
+
+function resolveApprovalSecretPath(elegyHome) {
+  return path.join(resolveElegyHome(elegyHome), 'local-repo-mcp', 'approval-secret');
 }
 
 function readJsonIfExists(filePath) {
@@ -101,6 +105,25 @@ function saveConfig(options = {}) {
   return config;
 }
 
+function getApprovalSecret(options = {}) {
+  const secretPath = resolveApprovalSecretPath(options.elegyHome || options.elegyHomeAbs);
+  const existing = normalizeString(readTextIfExists(secretPath));
+  if (existing) return existing;
+  const secret = crypto.randomBytes(32).toString('base64url');
+  fs.mkdirSync(path.dirname(secretPath), { recursive: true });
+  fs.writeFileSync(secretPath, `${secret}\n`, 'utf8');
+  return secret;
+}
+
+function readTextIfExists(filePath) {
+  try {
+    if (!fs.statSync(filePath).isFile()) return '';
+    return fs.readFileSync(filePath, 'utf8');
+  } catch {
+    return '';
+  }
+}
+
 function isRunning(child) {
   return Boolean(child && child.exitCode == null && child.signalCode == null && !child.killed);
 }
@@ -159,9 +182,10 @@ function requireCloudflared(config) {
   return cloudflared.path;
 }
 
-function connectorUrlFromBase(baseUrl) {
+function connectorUrlFromBase(baseUrl, accessToken = '') {
   const normalized = normalizeString(baseUrl).replace(/\/+$/, '');
-  return normalized ? `${normalized}/mcp` : '';
+  if (!normalized) return '';
+  return accessToken ? `${normalized}/mcp/${accessToken}` : `${normalized}/mcp`;
 }
 
 function hasOAuthConfig(config) {
@@ -183,9 +207,14 @@ function getEffectiveAuthIssuer(config) {
     : config.authIssuer;
 }
 
+function getQuickConnectorUrl() {
+  return connectorUrlFromBase(quickTunnelBaseUrl, quickTunnelAccessToken);
+}
+
 function computeSecurityState(config, serverRunning, tunnelRunning) {
   if (!serverRunning && !tunnelRunning) return 'Stopped';
   if (tunnelRunning && !serverRunning) return 'Misconfigured';
+  if (serverRunning && tunnelRunning && tunnelMode === 'quick' && quickTunnelBaseUrl && quickTunnelAccessToken) return 'ChatGPT ready';
   if (tunnelRunning && (!getEffectivePublicBaseUrl(config) || !hasOAuthConfig(config))) return 'Misconfigured';
   if (serverRunning && tunnelRunning) return 'OAuth protected';
   return 'Local only';
@@ -203,10 +232,13 @@ function getStatus(options = {}) {
   const config = loadConfig(options);
   const serverRunning = isRunning(mcpProcess);
   const tunnelRunning = isRunning(tunnelProcess);
-  const connectorUrl = connectorUrlFromBase(getEffectivePublicBaseUrl(config));
+  const quickConnectorUrl = tunnelRunning && tunnelMode === 'quick' ? getQuickConnectorUrl() : '';
+  const connectorUrl = quickConnectorUrl || connectorUrlFromBase(getEffectivePublicBaseUrl(config));
   const audienceEffective = getEffectiveAuthAudience(config);
   const issuerEffective = getEffectiveAuthIssuer(config);
   const securityState = computeSecurityState(config, serverRunning, tunnelRunning);
+  const chatGptReady = Boolean(serverRunning && tunnelRunning && tunnelMode === 'quick' && quickConnectorUrl);
+  const cloudflared = getCloudflaredStatus(config);
   return {
     config,
     configPath: resolveConfigPath(options.elegyHome || options.elegyHomeAbs),
@@ -225,15 +257,23 @@ function getStatus(options = {}) {
       publicUrl: tunnelRunning ? connectorUrl : '',
     },
     securityState,
+    chatGptAccess: {
+      mode: 'quick-cloudflare',
+      ready: chatGptReady,
+      url: chatGptReady ? quickConnectorUrl : '',
+      auth: 'none',
+      urlStable: false,
+      blocker: cloudflared.available ? '' : 'cloudflared is required before exposing Local Repo Reader to ChatGPT.',
+    },
     prerequisites: {
-      cloudflared: getCloudflaredStatus(config),
+      cloudflared,
       oauth: {
         provider: config.authProvider,
         issuerConfigured: Boolean(issuerEffective),
         issuerEffective,
         audienceEffective,
       },
-      chatGptAccessReady: securityState === 'OAuth protected',
+      chatGptAccessReady: chatGptReady,
     },
   };
 }
@@ -249,7 +289,8 @@ function startServer(options = {}) {
   const effectivePublicBaseUrl = getEffectivePublicBaseUrl(config);
   const effectiveAuthAudience = getEffectiveAuthAudience(config);
   const effectiveAuthIssuer = getEffectiveAuthIssuer(config);
-  const authEnabled = Boolean(effectivePublicBaseUrl && hasOAuthConfig(config));
+  const quickTunnelNoAuth = isRunning(tunnelProcess) && tunnelMode === 'quick' && quickTunnelAccessToken;
+  const authEnabled = Boolean(!quickTunnelNoAuth && isRunning(tunnelProcess) && effectivePublicBaseUrl && hasOAuthConfig(config));
   mcpLastExit = null;
   mcpOutput = { stdout: '', stderr: '' };
   mcpProcess = spawn(process.execPath, [entry], {
@@ -265,7 +306,8 @@ function startServer(options = {}) {
       LOCAL_REPO_MCP_AUTH_AUDIENCE: effectiveAuthAudience,
       LOCAL_REPO_MCP_AUTH_MODE: authEnabled ? 'oauth' : 'disabled',
       LOCAL_REPO_MCP_REQUIRED_SCOPES: config.requiredScopes.join(' '),
-      LOCAL_REPO_MCP_APPROVAL_SECRET: approvalSecret,
+      LOCAL_REPO_MCP_PUBLIC_ACCESS_TOKEN: quickTunnelNoAuth ? quickTunnelAccessToken : '',
+      LOCAL_REPO_MCP_APPROVAL_SECRET: getApprovalSecret(options),
       ELEGY_HOME: resolveElegyHome(options.elegyHome || options.elegyHomeAbs),
     },
   });
@@ -369,11 +411,19 @@ async function startQuickTunnel(options = {}) {
   const config = loadConfig(options);
   const cloudflaredPath = requireCloudflared(config);
   const currentStatus = getStatus(options);
-  if (currentStatus.securityState === 'OAuth protected') return currentStatus;
+  if (
+    currentStatus.server.running
+    && currentStatus.tunnel.running
+    && currentStatus.tunnel.mode === 'quick'
+    && currentStatus.chatGptAccess?.ready
+  ) {
+    return currentStatus;
+  }
   if (isRunning(tunnelProcess)) await stopTunnel(options);
 
   tunnelMode = 'quick';
   quickTunnelBaseUrl = '';
+  quickTunnelAccessToken = crypto.randomBytes(24).toString('base64url');
   tunnelProcess = spawn(cloudflaredPath, ['tunnel', '--url', `http://127.0.0.1:${config.port}`], {
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -382,6 +432,7 @@ async function startQuickTunnel(options = {}) {
     tunnelProcess = null;
     tunnelMode = 'none';
     quickTunnelBaseUrl = '';
+    quickTunnelAccessToken = '';
   });
 
   try {
@@ -390,17 +441,6 @@ async function startQuickTunnel(options = {}) {
     await stopTunnel(options);
     throw Object.assign(error, { statusCode: error.statusCode || 500 });
   }
-
-  saveConfig({
-    ...options,
-    config: {
-      ...config,
-      authProvider: 'builtin',
-      publicBaseUrl: quickTunnelBaseUrl,
-      authIssuer: quickTunnelBaseUrl,
-      authAudience: quickTunnelBaseUrl,
-    },
-  });
 
   if (isRunning(mcpProcess)) await stopServer(options);
   startServer(options);
@@ -413,14 +453,29 @@ async function startQuickTunnel(options = {}) {
   }
 }
 
-function startTunnel(options = {}) {
+async function startTunnel(options = {}) {
   const config = loadConfig(options);
   validateOAuthConfig(config);
   const cloudflaredPath = requireCloudflared(config);
   if (!config.cloudflareTunnelName) {
     throw Object.assign(new Error('cloudflareTunnelName is required for named tunnel mode'), { statusCode: 400 });
   }
-  if (isRunning(tunnelProcess)) return getStatus(options);
+  const stableBaseUrl = config.publicBaseUrl.replace(/\/+$/, '');
+  const stableConfig = {
+    ...config,
+    authProvider: config.authProvider || 'builtin',
+    publicBaseUrl: stableBaseUrl,
+    authIssuer: config.authProvider === 'external' ? config.authIssuer : stableBaseUrl,
+    authAudience: config.authProvider === 'external' ? config.authAudience : stableBaseUrl,
+  };
+  saveConfig({ ...options, config: stableConfig });
+  const currentStatus = getStatus(options);
+  if (currentStatus.securityState === 'OAuth protected' && currentStatus.tunnel.mode === 'named') {
+    await stopServer(options);
+    startServer(options);
+    return waitForMcpReady(options);
+  }
+  if (isRunning(tunnelProcess)) await stopTunnel(options);
   const args = config.cloudflareConfigPath
     ? ['tunnel', '--config', config.cloudflareConfigPath, 'run', config.cloudflareTunnelName]
     : ['tunnel', 'run', config.cloudflareTunnelName];
@@ -430,11 +485,20 @@ function startTunnel(options = {}) {
   });
   tunnelMode = 'named';
   quickTunnelBaseUrl = '';
+  quickTunnelAccessToken = '';
   tunnelProcess.once('exit', () => {
     tunnelProcess = null;
     tunnelMode = 'none';
   });
-  return getStatus(options);
+  if (isRunning(mcpProcess)) await stopServer(options);
+  startServer(options);
+  try {
+    return await waitForMcpReady(options);
+  } catch (error) {
+    await stopServer(options);
+    await stopTunnel(options);
+    throw Object.assign(error, { statusCode: error.statusCode || 500 });
+  }
 }
 
 async function stopTunnel(options = {}) {
@@ -442,6 +506,7 @@ async function stopTunnel(options = {}) {
   tunnelProcess = null;
   tunnelMode = 'none';
   quickTunnelBaseUrl = '';
+  quickTunnelAccessToken = '';
   return getStatus(options);
 }
 
@@ -461,12 +526,16 @@ async function probe(options = {}) {
 async function getPendingAuthorizations(options = {}) {
   const status = getStatus(options);
   if (!status.server.running) return { ...status, pending: [], pendingError: 'Local Repo MCP is not running.' };
+  if (status.securityState !== 'OAuth protected' || status.config.authProvider !== 'builtin') {
+    return { ...status, pending: [] };
+  }
   try {
     const response = await fetch(status.server.url.replace(/\/mcp$/, '/oauth/pending'), {
-      headers: { 'x-local-repo-mcp-approval-secret': approvalSecret },
+      headers: { 'x-local-repo-mcp-approval-secret': getApprovalSecret(options) },
     });
     if (!response.ok) {
-      return { ...status, pending: [], pendingError: `Unable to read pending OAuth authorizations (${response.status}).` };
+      const pendingErrorCode = response.status === 403 ? 'approval_secret_mismatch' : 'pending_request_failed';
+      return { ...status, pending: [], pendingErrorCode, pendingError: `Unable to read pending OAuth authorizations (${response.status}).` };
     }
     const payload = await response.json();
     return { ...status, pending: Array.isArray(payload.pending) ? payload.pending : [] };
@@ -484,7 +553,7 @@ async function approveAuthorization(options = {}) {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-local-repo-mcp-approval-secret': approvalSecret,
+      'x-local-repo-mcp-approval-secret': getApprovalSecret(options),
     },
     body: JSON.stringify({ id: options.id }),
   });

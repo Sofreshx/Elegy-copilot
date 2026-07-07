@@ -15,6 +15,7 @@ export type OAuthConfig = {
   audience: string;
   requiredScopes: string[];
   publicBaseUrl: string;
+  publicAccessToken: string;
   stateDir: string;
 };
 
@@ -107,6 +108,7 @@ export function getOAuthConfig(): OAuthConfig {
     audience: (process.env.LOCAL_REPO_MCP_AUTH_AUDIENCE || publicBaseUrl).trim().replace(/\/+$/, ''),
     requiredScopes,
     publicBaseUrl,
+    publicAccessToken: (process.env.LOCAL_REPO_MCP_PUBLIC_ACCESS_TOKEN || '').trim(),
     stateDir: resolveOAuthStateDir(),
   };
 }

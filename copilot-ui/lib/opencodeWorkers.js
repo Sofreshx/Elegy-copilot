@@ -9,6 +9,8 @@ const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
   defaultModelProfile: 'opencode-zen-free',
   roleProfiles: {},
+  rolePolicies: {},
+  writeEnabled: false,
   allowPaidModels: false,
   profilesPath: null,
   journalPath: null,
@@ -35,22 +37,77 @@ function resolveJournalPath(options = {}, config = null) {
     options.env?.ELEGY_OPENCODE_WORKERS_JOURNAL
       || process.env.ELEGY_OPENCODE_WORKERS_JOURNAL
       || config?.journalPath
+      || (options.repoPath ? path.join(options.repoPath, '.opencode-workers', 'jobs.jsonl') : '')
       || path.join(os.homedir(), '.elegy', 'opencode-workers', 'jobs.jsonl'),
   );
 }
 
-function normalizeConfig(input = {}) {
-  const roleProfiles = input.roleProfiles && typeof input.roleProfiles === 'object' && !Array.isArray(input.roleProfiles)
-    ? Object.fromEntries(Object.entries(input.roleProfiles)
-      .filter(([role, profile]) => String(role || '').trim() && String(profile || '').trim())
-      .map(([role, profile]) => [String(role).trim(), String(profile).trim()]))
-    : {};
+function isPaidProfile(profile = {}) {
+  const tags = Array.isArray(profile.tags) ? profile.tags.map((tag) => String(tag).toLowerCase()) : [];
+  const roleModels = Object.values(profile.roleModels || {}).map((model) => String(model).toLowerCase());
+  return tags.includes('direct') || tags.includes('paid') || tags.includes('mixed') || roleModels.some((model) => !model.includes('-free'));
+}
+
+function isAllowedProfile(profileId, profileCatalog = {}, allowPaidModels = false) {
+  const id = String(profileId || '').trim();
+  if (!id) return false;
+  const profile = profileCatalog.profiles?.[id];
+  if (!profile) return false;
+  return allowPaidModels || !isPaidProfile(profile);
+}
+
+function normalizeRoleProfiles(input = {}, profileCatalog = {}, allowPaidModels = false) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+  return Object.fromEntries(Object.entries(input)
+    .filter(([role, profile]) => String(role || '').trim() && isAllowedProfile(profile, profileCatalog, allowPaidModels))
+    .map(([role, profile]) => [String(role).trim(), String(profile).trim()]));
+}
+
+function normalizeRolePolicies(input = {}, legacyRoleProfiles = {}, profileCatalog = {}, allowPaidModels = false, writeEnabled = false) {
+  const next = {};
+  for (const [role, profile] of Object.entries(legacyRoleProfiles)) {
+    next[role] = { profile, writeEnabled: false };
+  }
+  if (input && typeof input === 'object' && !Array.isArray(input)) {
+    for (const [rawRole, rawPolicy] of Object.entries(input)) {
+      const role = String(rawRole || '').trim();
+      if (!role || !rawPolicy || typeof rawPolicy !== 'object' || Array.isArray(rawPolicy)) continue;
+      const profile = isAllowedProfile(rawPolicy.profile, profileCatalog, allowPaidModels)
+        ? String(rawPolicy.profile).trim()
+        : next[role]?.profile;
+      next[role] = {
+        ...(next[role] || {}),
+        ...(profile ? { profile } : {}),
+        writeEnabled: writeEnabled && rawPolicy.writeEnabled === true,
+      };
+    }
+  }
+  return Object.fromEntries(Object.entries(next)
+    .filter(([role, policy]) => role && (policy.profile || policy.writeEnabled))
+    .map(([role, policy]) => [role, {
+      ...(policy.profile ? { profile: policy.profile } : {}),
+      writeEnabled: writeEnabled && policy.writeEnabled === true,
+    }]));
+}
+
+function normalizeConfig(input = {}, profileCatalog = { profiles: {} }) {
   const timeoutSeconds = Number(input.timeoutSeconds);
+  const allowPaidModels = typeof input.allowPaidModels === 'boolean' ? input.allowPaidModels : DEFAULT_CONFIG.allowPaidModels;
+  const writeEnabled = input.writeEnabled === true;
+  const defaultModelProfile = isAllowedProfile(input.defaultModelProfile, profileCatalog, allowPaidModels)
+    ? String(input.defaultModelProfile).trim()
+    : DEFAULT_CONFIG.defaultModelProfile;
+  const roleProfiles = normalizeRoleProfiles(input.roleProfiles, profileCatalog, allowPaidModels);
+  const rolePolicies = normalizeRolePolicies(input.rolePolicies, roleProfiles, profileCatalog, allowPaidModels, writeEnabled);
   return {
     enabled: typeof input.enabled === 'boolean' ? input.enabled : DEFAULT_CONFIG.enabled,
-    defaultModelProfile: String(input.defaultModelProfile || DEFAULT_CONFIG.defaultModelProfile).trim() || DEFAULT_CONFIG.defaultModelProfile,
-    roleProfiles,
-    allowPaidModels: typeof input.allowPaidModels === 'boolean' ? input.allowPaidModels : DEFAULT_CONFIG.allowPaidModels,
+    defaultModelProfile,
+    roleProfiles: Object.fromEntries(Object.entries(rolePolicies)
+      .filter(([, policy]) => policy.profile)
+      .map(([role, policy]) => [role, policy.profile])),
+    rolePolicies,
+    writeEnabled,
+    allowPaidModels,
     profilesPath: typeof input.profilesPath === 'string' && input.profilesPath.trim() ? input.profilesPath.trim() : null,
     journalPath: typeof input.journalPath === 'string' && input.journalPath.trim() ? input.journalPath.trim() : null,
     timeoutSeconds: Number.isFinite(timeoutSeconds) && timeoutSeconds > 0
@@ -68,26 +125,84 @@ function readJson(filePath, fallback) {
   }
 }
 
+function readProfileCatalog(options = {}, rawConfig = {}) {
+  const profileCatalogPath = rawConfig.profilesPath
+    || path.join(path.resolve(options.engineRoot || process.cwd()), 'opencode-assets', 'profiles.json');
+  return {
+    profileCatalogPath,
+    profileCatalog: readJson(profileCatalogPath, { profiles: {} }),
+  };
+}
+
+function collectRoles(profileCatalog = {}) {
+  const roles = new Set(['exploration', 'research', 'review', 'validation', 'implementation']);
+  for (const profile of Object.values(profileCatalog.profiles || {})) {
+    Object.keys(profile.roleModels || {}).forEach((role) => roles.add(role));
+  }
+  return Array.from(roles).sort();
+}
+
+function buildRoleModelMatrix(profileCatalog = {}) {
+  const matrix = {};
+  for (const role of collectRoles(profileCatalog)) {
+    matrix[role] = {};
+    for (const [profileId, profile] of Object.entries(profileCatalog.profiles || {})) {
+      matrix[role][profileId] = profile.roleModels?.[role] || null;
+    }
+  }
+  return matrix;
+}
+
+function buildEffectiveRoleProfiles(config, profileCatalog = {}) {
+  const effective = {};
+  for (const role of collectRoles(profileCatalog)) {
+    effective[role] = config.rolePolicies[role]?.profile || config.defaultModelProfile;
+  }
+  return effective;
+}
+
+function buildEffectiveRolePolicies(config, profileCatalog = {}) {
+  const policies = {};
+  for (const role of collectRoles(profileCatalog)) {
+    const profile = config.rolePolicies[role]?.profile || config.defaultModelProfile;
+    const roleWriteEnabled = config.writeEnabled && config.rolePolicies[role]?.writeEnabled === true;
+    policies[role] = {
+      profile,
+      writeEnabled: roleWriteEnabled,
+      mode: roleWriteEnabled ? 'read-write' : 'read-only',
+    };
+  }
+  return policies;
+}
+
 function getStatus(options = {}) {
   const configPath = resolveConfigPath(options);
-  const config = normalizeConfig(readJson(configPath, DEFAULT_CONFIG));
+  const rawConfig = readJson(configPath, DEFAULT_CONFIG);
+  const { profileCatalogPath, profileCatalog } = readProfileCatalog(options, rawConfig);
+  const config = normalizeConfig(rawConfig, profileCatalog);
   const journalPath = resolveJournalPath(options, config);
-  const profileCatalogPath = config.profilesPath
-    || path.join(path.resolve(options.engineRoot || process.cwd()), 'opencode-assets', 'profiles.json');
-  const profileCatalog = readJson(profileCatalogPath, { profiles: {} });
+  const effectiveRoleProfiles = buildEffectiveRoleProfiles(config, profileCatalog);
+  const effectiveRolePolicies = buildEffectiveRolePolicies(config, profileCatalog);
+  const roleModelMatrix = buildRoleModelMatrix(profileCatalog);
   return {
     installed: detectInstalled(options),
     enabled: config.enabled,
     configPath,
     journalPath,
+    journalScope: options.repoPath ? 'cwd' : 'global',
     profileCatalogPath,
     config,
+    roles: collectRoles(profileCatalog),
+    effectiveRoleProfiles,
+    effectiveRolePolicies,
+    roleModelMatrix,
     profiles: Object.entries(profileCatalog.profiles || {}).map(([id, profile]) => ({
       id,
       label: profile.label || id,
       description: profile.description || '',
       tags: Array.isArray(profile.tags) ? profile.tags : [],
       roleModels: profile.roleModels || {},
+      paid: isPaidProfile(profile),
     })),
   };
 }
@@ -244,8 +359,10 @@ function removePlugin(options = {}) {
 
 function saveConfig(configPatch = {}, options = {}) {
   const configPath = resolveConfigPath(options);
-  const current = normalizeConfig(readJson(configPath, DEFAULT_CONFIG));
-  const next = normalizeConfig({ ...current, ...configPatch });
+  const rawCurrent = readJson(configPath, DEFAULT_CONFIG);
+  const { profileCatalog } = readProfileCatalog(options, { ...rawCurrent, ...configPatch });
+  const current = normalizeConfig(rawCurrent, profileCatalog);
+  const next = normalizeConfig({ ...current, ...configPatch }, profileCatalog);
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
   fs.writeFileSync(configPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
   return getStatus(options);
@@ -290,8 +407,13 @@ function buildUsage(options = {}) {
     permissionDenials: 0,
     tokens: 0,
     cost: 0,
+    permissionRequests: 0,
+    writeAttempts: 0,
+    changedFiles: 0,
+    dirtyGitStates: 0,
   };
   const jobs = [];
+  const permissionEvidence = [];
   for (const record of readJournal(options)) {
     const result = record.result || null;
     if (!result?.job) continue;
@@ -301,7 +423,30 @@ function buildUsage(options = {}) {
     if (job.state === 'completed') summary.completed += 1;
     if (job.state === 'failed') summary.failed += 1;
     if (job.state === 'policy_violation') summary.policyViolations += 1;
-    summary.permissionDenials += Array.isArray(result.permissionRequests) ? result.permissionRequests.length : 0;
+    const permissionRequests = Array.isArray(result.permissionRequests) ? result.permissionRequests : [];
+    const permissionRequestCount = Number(result.permissionRequestCount ?? permissionRequests.length ?? 0);
+    summary.permissionRequests += Number.isFinite(permissionRequestCount) ? permissionRequestCount : 0;
+    summary.permissionDenials += permissionRequests.filter((request) => {
+      const decision = String(request?.decision || request?.status || '').toLowerCase();
+      return decision === 'denied' || decision === 'rejected';
+    }).length;
+    if (permissionRequests.length > 0 || permissionRequestCount > 0) {
+      permissionEvidence.push({
+        jobId: job.id || null,
+        role: job.role || 'unknown',
+        permissionRequestCount: Number.isFinite(permissionRequestCount) ? permissionRequestCount : permissionRequests.length,
+        permissionRequests,
+      });
+    }
+    const writeEvidence = result.writeEvidence || result.evidence?.write || {};
+    const changedFiles = Array.isArray(writeEvidence.changedFiles)
+      ? writeEvidence.changedFiles
+      : Array.isArray(result.changedFiles)
+        ? result.changedFiles
+        : [];
+    if (job.mode === 'read-write' || writeEvidence.attempted === true || changedFiles.length > 0) summary.writeAttempts += 1;
+    summary.changedFiles += changedFiles.length;
+    if (writeEvidence.gitDirty === true || result.gitDirty === true || result.evidence?.git?.dirty === true) summary.dirtyGitStates += 1;
     byModel.set(job.model || 'unknown', (byModel.get(job.model || 'unknown') || 0) + 1);
     byRole.set(job.role || 'unknown', (byRole.get(job.role || 'unknown') || 0) + 1);
     const usage = result.evidence?.usage || {};
@@ -311,9 +456,11 @@ function buildUsage(options = {}) {
   return {
     generatedAt: new Date().toISOString(),
     source: { kind: 'opencode-workers-journal', path: status.journalPath },
+    journalScope: status.journalScope,
     summary,
     byModel: countRows(byModel),
     byRole: countRows(byRole),
+    permissionEvidence: permissionEvidence.slice(-20).reverse(),
     recentJobs: jobs.slice(-20).reverse(),
   };
 }

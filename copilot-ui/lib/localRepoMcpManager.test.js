@@ -111,6 +111,25 @@ test('startServer starts local-only with blank OAuth config', () => {
   assert.equal(spawnCalls[0].args[2].env.LOCAL_REPO_MCP_AUTH_MODE, 'disabled');
 });
 
+test('startServer disables OAuth when stale tunnel config exists without a running tunnel', () => {
+  const ctx = makeContext();
+  writeConfig(ctx.elegyHomeAbs, {
+    publicBaseUrl: 'https://old.trycloudflare.com',
+    authIssuer: 'https://old.trycloudflare.com',
+    authAudience: 'https://old.trycloudflare.com',
+  });
+  const spawnCalls = [];
+  const manager = loadManager(spawnCalls);
+
+  const status = manager.startServer(ctx);
+
+  assert.equal(status.server.running, true);
+  assert.equal(status.securityState, 'Local only');
+  assert.equal(spawnCalls.length, 1);
+  assert.equal(spawnCalls[0].args[2].env.LOCAL_REPO_MCP_PUBLIC_BASE_URL, 'https://old.trycloudflare.com');
+  assert.equal(spawnCalls[0].args[2].env.LOCAL_REPO_MCP_AUTH_MODE, 'disabled');
+});
+
 test('status reports missing cloudflared prerequisite', async () => withMissingCloudflaredEnv(async () => {
   const ctx = makeContext();
   const spawnCalls = [];
@@ -124,8 +143,9 @@ test('status reports missing cloudflared prerequisite', async () => withMissingC
   assert.equal(status.prerequisites.chatGptAccessReady, false);
 }));
 
-test('startQuickTunnel with blank OAuth config generates built-in OAuth settings', async () => {
+test('startQuickTunnel with blank OAuth config generates tokenized no-auth ChatGPT URL', async () => {
   const ctx = makeContext();
+  writeConfig(ctx.elegyHomeAbs, { cloudflaredPath: makeCloudflared(ctx) });
   const spawnCalls = [];
   mockFetchOk();
   const manager = loadManager(spawnCalls, (_args, child, index) => {
@@ -139,11 +159,36 @@ test('startQuickTunnel with blank OAuth config generates built-in OAuth settings
   const status = await manager.startQuickTunnel(ctx);
 
   assert.equal(spawnCalls.length, 2);
-  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_PROVIDER, 'builtin');
-  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_ISSUER, 'https://sample.trycloudflare.com');
-  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_AUDIENCE, 'https://sample.trycloudflare.com');
-  assert.equal(status.securityState, 'OAuth protected');
-  assert.equal(status.prerequisites.oauth.provider, 'builtin');
+  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_MODE, 'disabled');
+  assert.match(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_PUBLIC_ACCESS_TOKEN, /^[A-Za-z0-9_-]+$/);
+  assert.equal(status.securityState, 'ChatGPT ready');
+  assert.equal(status.chatGptAccess.ready, true);
+  assert.match(status.chatGptAccess.url, /^https:\/\/sample\.trycloudflare\.com\/mcp\/[A-Za-z0-9_-]+$/);
+  assert.equal(status.chatGptAccess.auth, 'none');
+  assert.equal(status.chatGptAccess.urlStable, false);
+});
+
+test('startQuickTunnel restarts ready MCP server without replacing tunnel URL', async () => {
+  const ctx = makeContext();
+  writeConfig(ctx.elegyHomeAbs, { cloudflaredPath: makeCloudflared(ctx) });
+  const spawnCalls = [];
+  mockFetchOk();
+  const manager = loadManager(spawnCalls, (_args, child, index) => {
+    if (index === 0) {
+      process.nextTick(() => {
+        child.stderr.emit('data', Buffer.from('https://sample.trycloudflare.com'));
+      });
+    }
+  });
+
+  await manager.startQuickTunnel(ctx);
+  const status = await manager.startQuickTunnel(ctx);
+
+  assert.equal(spawnCalls.length, 2);
+  assert.equal(spawnCalls[0].child.killed, false);
+  assert.equal(status.connectorUrl, manager.getStatus(ctx).chatGptAccess.url);
+  assert.match(status.connectorUrl, /^https:\/\/sample\.trycloudflare\.com\/mcp\/[A-Za-z0-9_-]+$/);
+  assert.equal(status.securityState, 'ChatGPT ready');
 });
 
 test('startQuickTunnel rejects missing cloudflared before spawning', async () => withMissingCloudflaredEnv(async () => {
@@ -160,7 +205,7 @@ test('startQuickTunnel rejects missing cloudflared before spawning', async () =>
   assert.equal(spawnCalls.length, 0);
 }));
 
-test('startQuickTunnel parses generated URL and starts OAuth MCP server', async () => {
+test('startQuickTunnel parses generated URL and starts no-auth MCP server', async () => {
   const ctx = makeContext();
   writeConfig(ctx.elegyHomeAbs, {
     authIssuer: 'https://tenant.example.com/',
@@ -181,12 +226,12 @@ test('startQuickTunnel parses generated URL and starts OAuth MCP server', async 
   assert.equal(spawnCalls.length, 2);
   assert.equal(spawnCalls[0].args[1].join(' '), 'tunnel --url http://127.0.0.1:3333');
   assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_PUBLIC_BASE_URL, 'https://sample.trycloudflare.com');
-  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_AUDIENCE, 'https://sample.trycloudflare.com');
-  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_MODE, 'oauth');
+  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_MODE, 'disabled');
+  assert.match(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_PUBLIC_ACCESS_TOKEN, /^[A-Za-z0-9_-]+$/);
   assert.equal(status.tunnel.mode, 'quick');
-  assert.equal(status.tunnel.publicUrl, 'https://sample.trycloudflare.com/mcp');
-  assert.equal(status.connectorUrl, 'https://sample.trycloudflare.com/mcp');
-  assert.equal(status.securityState, 'OAuth protected');
+  assert.match(status.tunnel.publicUrl, /^https:\/\/sample\.trycloudflare\.com\/mcp\/[A-Za-z0-9_-]+$/);
+  assert.equal(status.connectorUrl, status.chatGptAccess.url);
+  assert.equal(status.securityState, 'ChatGPT ready');
 });
 
 test('status marks tunnel without MCP server as misconfigured', async () => {
@@ -234,8 +279,8 @@ test('startQuickTunnel restarts stale quick tunnel when MCP server stopped', asy
 
   assert.equal(spawnCalls.length, 4);
   assert.equal(spawnCalls[0].child.killed, true);
-  assert.equal(status.securityState, 'OAuth protected');
-  assert.equal(status.connectorUrl, 'https://sample-2.trycloudflare.com/mcp');
+  assert.equal(status.securityState, 'ChatGPT ready');
+  assert.match(status.connectorUrl, /^https:\/\/sample-2\.trycloudflare\.com\/mcp\/[A-Za-z0-9_-]+$/);
 });
 
 test('startQuickTunnel stops quick tunnel when MCP readiness fails', async () => {
@@ -264,11 +309,11 @@ test('startQuickTunnel stops quick tunnel when MCP readiness fails', async () =>
   assert.equal(manager.getStatus(ctx).tunnel.running, false);
 });
 
-test('getPendingAuthorizations returns empty state on fetch failure', async () => {
+test('getPendingAuthorizations skips OAuth polling for no-auth sessions', async () => {
   const ctx = makeContext();
   const spawnCalls = [];
   global.fetch = async () => {
-    throw new Error('connection refused');
+    throw new Error('should not be called');
   };
   const manager = loadManager(spawnCalls);
   manager.startServer(ctx);
@@ -276,26 +321,32 @@ test('getPendingAuthorizations returns empty state on fetch failure', async () =
   const status = await manager.getPendingAuthorizations(ctx);
 
   assert.deepEqual(status.pending, []);
-  assert.match(status.pendingError, /connection refused/);
+  assert.equal(status.pendingError, undefined);
 });
 
-test('startTunnel keeps named tunnel status behavior', () => {
+test('startTunnel starts named tunnel and OAuth MCP server with stable URL', async () => {
   const ctx = makeContext();
+  mockFetchOk();
   writeConfig(ctx.elegyHomeAbs, {
     publicBaseUrl: 'https://mcp.example.com',
-    authIssuer: 'https://tenant.example.com/',
-    authAudience: 'https://mcp.example.com',
+    authIssuer: 'https://old-quick.trycloudflare.com',
+    authAudience: 'https://old-quick.trycloudflare.com',
     cloudflareTunnelName: 'local-mcp',
     cloudflaredPath: makeCloudflared(ctx),
   });
   const spawnCalls = [];
   const manager = loadManager(spawnCalls);
 
-  const status = manager.startTunnel(ctx);
+  const status = await manager.startTunnel(ctx);
 
+  assert.equal(spawnCalls.length, 2);
+  assert.deepEqual(spawnCalls[0].args[1], ['tunnel', 'run', 'local-mcp']);
+  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_PUBLIC_BASE_URL, 'https://mcp.example.com');
+  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_ISSUER, 'https://mcp.example.com');
+  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_AUDIENCE, 'https://mcp.example.com');
   assert.equal(status.tunnel.running, true);
   assert.equal(status.tunnel.mode, 'named');
   assert.equal(status.tunnel.publicUrl, 'https://mcp.example.com/mcp');
   assert.equal(status.connectorUrl, 'https://mcp.example.com/mcp');
-  assert.equal(status.securityState, 'Misconfigured');
+  assert.equal(status.securityState, 'OAuth protected');
 });

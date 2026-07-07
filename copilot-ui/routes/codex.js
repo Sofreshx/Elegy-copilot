@@ -205,6 +205,7 @@ function register(deps = {}) {
             engineRoot: ctx.engineRoot,
             codexHome: ctx.codexHome,
             env: resolvedDeps.env,
+            repoPath: ctx.u.searchParams.get('repoPath') || '',
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {
@@ -224,6 +225,7 @@ function register(deps = {}) {
             engineRoot: ctx.engineRoot,
             codexHome: ctx.codexHome,
             env: resolvedDeps.env,
+            repoPath: body?.repoPath || '',
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {
@@ -242,6 +244,7 @@ function register(deps = {}) {
             engineRoot: ctx.engineRoot,
             codexHome: ctx.codexHome,
             env: resolvedDeps.env,
+            repoPath: ctx.u.searchParams.get('repoPath') || '',
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {
@@ -296,6 +299,7 @@ function register(deps = {}) {
             engineRoot: ctx.engineRoot,
             codexHome: ctx.codexHome,
             env: resolvedDeps.env,
+            repoPath: ctx.u.searchParams.get('repoPath') || '',
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {

@@ -16,6 +16,7 @@ import {
   listPendingAuthorizations,
   verifyLocalJwt,
 } from '../localOAuth.js';
+import { isMcpPathAllowed } from '../publicAccess.js';
 
 const config: OAuthConfig = {
   enabled: true,
@@ -24,6 +25,7 @@ const config: OAuthConfig = {
   audience: 'https://mcp.example.com',
   requiredScopes: ['repo:read'],
   publicBaseUrl: 'https://mcp.example.com',
+  publicAccessToken: '',
   stateDir: path.join(os.tmpdir(), 'local-repo-mcp-auth-test'),
 };
 
@@ -36,6 +38,7 @@ function builtinConfig(): OAuthConfig {
     audience: 'https://sample.trycloudflare.com',
     requiredScopes: ['repo:read'],
     publicBaseUrl: 'https://sample.trycloudflare.com',
+    publicAccessToken: '',
     stateDir,
   };
 }
@@ -73,12 +76,24 @@ test('protected resource metadata exposes auth server and scope', () => {
   assert.deepEqual(metadata.scopes_supported, ['repo:read']);
 });
 
+test('public access token allows local /mcp and matching public token path', () => {
+  assert.equal(isMcpPathAllowed('/mcp', { ...config, publicAccessToken: 'secret-token' }), true);
+  assert.equal(isMcpPathAllowed('/mcp/secret-token', { ...config, publicAccessToken: 'secret-token' }), true);
+});
+
+test('public access token rejects invalid tokenized MCP path', () => {
+  assert.equal(isMcpPathAllowed('/mcp/wrong-token', { ...config, publicAccessToken: 'secret-token' }), false);
+  assert.equal(isMcpPathAllowed('/mcp/secret-token', { ...config, publicAccessToken: '' }), false);
+  assert.equal(isMcpPathAllowed('/other', { ...config, publicAccessToken: 'secret-token' }), false);
+});
+
 test('built-in OAuth metadata exposes local issuer endpoints', () => {
   const localConfig = builtinConfig();
   const metadata = buildAuthorizationServerMetadata(localConfig);
   assert.equal(metadata.issuer, localConfig.issuer);
   assert.equal(metadata.authorization_endpoint, `${localConfig.issuer}/oauth/authorize`);
   assert.equal(metadata.token_endpoint, `${localConfig.issuer}/oauth/token`);
+  assert.equal(metadata.client_id_metadata_document_supported, true);
   assert.deepEqual(metadata.scopes_supported, ['repo:read']);
 });
 

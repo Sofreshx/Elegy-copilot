@@ -35,6 +35,14 @@ export interface LocalRepoMcpStatusResponse {
   server: LocalRepoMcpProcessStatus;
   tunnel: LocalRepoMcpProcessStatus;
   securityState: 'Stopped' | 'Local only' | 'OAuth protected' | 'Misconfigured' | string;
+  chatGptAccess?: {
+    mode: 'quick-cloudflare' | string;
+    ready: boolean;
+    url: string;
+    auth: 'none' | 'oauth' | string;
+    urlStable: boolean;
+    blocker?: string;
+  };
   prerequisites?: {
     cloudflared: {
       available: boolean;
@@ -49,6 +57,7 @@ export interface LocalRepoMcpStatusResponse {
     chatGptAccessReady: boolean;
   };
   pending?: LocalRepoMcpPendingAuthorization[];
+  pendingErrorCode?: 'approval_secret_mismatch' | 'pending_request_failed' | string;
   pendingError?: string;
   probe?: {
     ok: boolean;

@@ -336,6 +336,8 @@ export interface OpenCodeWorkerConfig {
   enabled: boolean;
   defaultModelProfile: string;
   roleProfiles: Record<string, string>;
+  rolePolicies: Record<string, { profile?: string; writeEnabled: boolean }>;
+  writeEnabled: boolean;
   allowPaidModels: boolean;
   profilesPath: string | null;
   journalPath: string | null;
@@ -348,6 +350,7 @@ export interface OpenCodeWorkerProfile {
   description: string;
   tags: string[];
   roleModels: Record<string, string>;
+  paid: boolean;
 }
 
 export interface OpenCodeWorkersStatusResponse {
@@ -356,7 +359,12 @@ export interface OpenCodeWorkersStatusResponse {
   configPath: string;
   journalPath: string;
   profileCatalogPath: string;
+  journalScope: string;
   config: OpenCodeWorkerConfig;
+  roles: string[];
+  effectiveRoleProfiles: Record<string, string>;
+  effectiveRolePolicies: Record<string, { profile: string; writeEnabled: boolean; mode: string }>;
+  roleModelMatrix: Record<string, Record<string, string | null>>;
   profiles: OpenCodeWorkerProfile[];
 }
 
@@ -369,32 +377,41 @@ export interface OpenCodeWorkersUsageResponse {
     failed: number;
     policyViolations: number;
     permissionDenials: number;
+    permissionRequests: number;
+    writeAttempts: number;
+    changedFiles: number;
+    dirtyGitStates: number;
     tokens: number;
     cost: number;
   };
   byModel: Array<{ name: string; count: number }>;
   byRole: Array<{ name: string; count: number }>;
+  journalScope: string;
+  permissionEvidence: Array<Record<string, unknown>>;
   recentJobs: Array<Record<string, unknown>>;
 }
 
-export function getOpenCodeWorkersStatus(baseUrl?: string): Promise<OpenCodeWorkersStatusResponse> {
-  return apiRequest('/api/codex/opencode-workers', { baseUrl });
+export function getOpenCodeWorkersStatus(options: { repoPath?: string | null } = {}, baseUrl?: string): Promise<OpenCodeWorkersStatusResponse> {
+  const query = options.repoPath ? `?repoPath=${encodeURIComponent(options.repoPath)}` : '';
+  return apiRequest(`/api/codex/opencode-workers${query}`, { baseUrl });
 }
 
 export function saveOpenCodeWorkersConfig(
   config: Partial<OpenCodeWorkerConfig>,
+  options: { repoPath?: string | null } = {},
   baseUrl?: string,
 ): Promise<OpenCodeWorkersStatusResponse> {
   return apiRequest('/api/codex/opencode-workers/config', {
     baseUrl,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ config }),
+    body: JSON.stringify({ config, repoPath: options.repoPath || '' }),
   });
 }
 
-export function getOpenCodeWorkersUsage(baseUrl?: string): Promise<OpenCodeWorkersUsageResponse> {
-  return apiRequest('/api/codex/opencode-workers/usage', { baseUrl });
+export function getOpenCodeWorkersUsage(options: { repoPath?: string | null } = {}, baseUrl?: string): Promise<OpenCodeWorkersUsageResponse> {
+  const query = options.repoPath ? `?repoPath=${encodeURIComponent(options.repoPath)}` : '';
+  return apiRequest(`/api/codex/opencode-workers/usage${query}`, { baseUrl });
 }
 
 export function installOpenCodeWorkers(baseUrl?: string): Promise<{ ok: boolean; status: OpenCodeWorkersStatusResponse; result?: unknown }> {

@@ -8,7 +8,7 @@ const test = require('node:test');
 
 const { register } = require('./codex');
 
-function makeRoutes(temp, body = {}) {
+function makeRoutes(temp, body = {}, envPatch = {}) {
   const sent = [];
   return {
     sent,
@@ -19,6 +19,7 @@ function makeRoutes(temp, body = {}) {
       env: {
         ELEGY_OPENCODE_WORKERS_CONFIG: path.join(temp, 'config.json'),
         ELEGY_OPENCODE_WORKERS_JOURNAL: path.join(temp, 'jobs.jsonl'),
+        ...envPatch,
       },
     }),
   };
@@ -35,12 +36,19 @@ test('OpenCode Workers routes expose config defaults and persist updates', async
   assert.equal(initial.sent[0].code, 200);
   assert.equal(initial.sent[0].obj.config.defaultModelProfile, 'opencode-zen-free');
   assert.equal(initial.sent[0].obj.config.allowPaidModels, false);
+  assert.equal(initial.sent[0].obj.config.writeEnabled, false);
+  assert.ok(initial.sent[0].obj.roles.includes('implementation'));
+  assert.equal(initial.sent[0].obj.effectiveRolePolicies.implementation.mode, 'read-only');
 
   const updated = makeRoutes(temp, {
     config: {
       defaultModelProfile: 'deepseek-direct',
       allowPaidModels: true,
-      roleProfiles: { review: 'opencode-zen-mixed' },
+      writeEnabled: true,
+      rolePolicies: {
+        implementation: { profile: 'deepseek-direct', writeEnabled: true },
+        review: { profile: 'opencode-zen-mixed', writeEnabled: false },
+      },
       timeoutSeconds: 120,
     },
   });
@@ -51,6 +59,33 @@ test('OpenCode Workers routes expose config defaults and persist updates', async
   assert.equal(updated.sent[0].code, 200);
   assert.equal(updated.sent[0].obj.config.defaultModelProfile, 'deepseek-direct');
   assert.equal(updated.sent[0].obj.config.roleProfiles.review, 'opencode-zen-mixed');
+  assert.equal(updated.sent[0].obj.config.rolePolicies.implementation.writeEnabled, true);
+  assert.equal(updated.sent[0].obj.effectiveRolePolicies.implementation.mode, 'read-write');
+  assert.equal(updated.sent[0].obj.roleModelMatrix.implementation['deepseek-direct'], 'deepseek/deepseek-v4-flash');
+});
+
+test('OpenCode Workers reject paid/direct profiles unless opted in', async () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ocw-paid-'));
+  const routes = makeRoutes(temp, {
+    config: {
+      defaultModelProfile: 'deepseek-direct',
+      allowPaidModels: false,
+      rolePolicies: {
+        implementation: { profile: 'deepseek-direct', writeEnabled: true },
+      },
+      writeEnabled: true,
+    },
+  });
+
+  await routes.routes.find((route) => route.path === '/api/codex/opencode-workers/config').handler({
+    req: {},
+    res: {},
+  });
+
+  assert.equal(routes.sent[0].code, 200);
+  assert.equal(routes.sent[0].obj.config.defaultModelProfile, 'opencode-zen-free');
+  assert.equal(routes.sent[0].obj.config.rolePolicies.implementation?.profile, undefined);
+  assert.equal(routes.sent[0].obj.config.rolePolicies.implementation?.writeEnabled, true);
 });
 
 test('OpenCode Workers usage summarizes journal records', async () => {
@@ -71,6 +106,8 @@ test('OpenCode Workers usage summarizes journal records', async () => {
       result: {
         job: { id: 'ocw_2', state: 'policy_violation', role: 'research', model: 'deepseek/deepseek-v4-pro' },
         permissionRequests: [{ decision: 'denied' }],
+        permissionRequestCount: 2,
+        writeEvidence: { attempted: true, changedFiles: ['src/file.ts'], gitDirty: true },
         evidence: { usage: { used: 3, cost: { amount: 2, currency: 'USD' } } },
       },
     },
@@ -86,7 +123,41 @@ test('OpenCode Workers usage summarizes journal records', async () => {
   assert.equal(sent[0].obj.summary.policyViolations, 1);
   assert.equal(sent[0].obj.summary.tokens, 12);
   assert.equal(sent[0].obj.summary.cost, 2);
+  assert.equal(sent[0].obj.summary.permissionRequests, 2);
+  assert.equal(sent[0].obj.summary.permissionDenials, 1);
+  assert.equal(sent[0].obj.summary.writeAttempts, 1);
+  assert.equal(sent[0].obj.summary.changedFiles, 1);
+  assert.equal(sent[0].obj.summary.dirtyGitStates, 1);
+  assert.equal(sent[0].obj.permissionEvidence.length, 1);
   assert.equal(sent[0].obj.byRole[0].name, 'research');
+});
+
+test('OpenCode Workers usage prefers cwd-scoped journal when repoPath is supplied', async () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ocw-cwd-'));
+  const repo = path.join(temp, 'repo');
+  const journalDir = path.join(repo, '.opencode-workers');
+  fs.mkdirSync(journalDir, { recursive: true });
+  fs.writeFileSync(path.join(journalDir, 'jobs.jsonl'), `${JSON.stringify({
+    entry: {
+      type: 'result',
+      result: {
+        job: { id: 'ocw_repo', state: 'completed', role: 'exploration', model: 'opencode/deepseek-v4-flash-free' },
+        permissionRequestCount: 0,
+        evidence: { usage: { used: 4, cost: { amount: 0, currency: 'USD' } } },
+      },
+    },
+  })}\n`);
+
+  const { routes, sent } = makeRoutes(temp, {}, { ELEGY_OPENCODE_WORKERS_JOURNAL: '' });
+  await routes.find((route) => route.path === '/api/codex/opencode-workers/usage').handler({
+    res: {},
+    u: new URL(`http://localhost/api/codex/opencode-workers/usage?repoPath=${encodeURIComponent(repo)}`),
+  });
+
+  assert.equal(sent[0].code, 200);
+  assert.equal(sent[0].obj.journalScope, 'cwd');
+  assert.equal(sent[0].obj.summary.runs, 1);
+  assert.equal(sent[0].obj.source.path, path.resolve(repo, '.opencode-workers', 'jobs.jsonl'));
 });
 
 test('OpenCode Workers install uses targeted Codex export and validates projection', () => {

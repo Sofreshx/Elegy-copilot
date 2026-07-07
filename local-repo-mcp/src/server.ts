@@ -15,6 +15,7 @@ import {
   getPublicJwks,
   listPendingAuthorizations,
 } from './localOAuth.js';
+import { isMcpPathAllowed } from './publicAccess.js';
 import { findRoot, gitLog, gitStatus, listTree, readFile, searchText, toPublicRoot } from './repoAccess.js';
 
 type ToolArgs = Record<string, unknown>;
@@ -298,6 +299,11 @@ const httpServer = http.createServer(async (req, res) => {
 
   if (!req.url?.startsWith('/mcp')) {
     sendJson(res, 404, { error: 'not_found' });
+    return;
+  }
+
+  if (!isMcpPathAllowed(requestUrl.pathname, oauth)) {
+    sendJson(res, 403, { error: 'forbidden', message: 'Invalid Local Repo Reader access token.' });
     return;
   }
 

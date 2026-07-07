@@ -2,22 +2,18 @@ import { MouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'rea
 import { Button, CopyButton, FormInput, PageContainer, Panel, StatusBadge, Toolbar } from '../../components';
 import {
   addLocalRepoMcpRoot,
-  approveLocalRepoMcpAuthorization,
   getCatalogRepos,
   getLocalRepoMcpConfig,
   getLocalRepoMcpPendingAuthorizations,
   getLocalRepoMcpStatus,
-  probeLocalRepoMcp,
   registerCatalogRepo,
   removeLocalRepoMcpRoot,
   saveLocalRepoMcpConfig,
   startLocalRepoMcp,
   startLocalRepoMcpQuickTunnel,
-  startLocalRepoMcpTunnel,
   stopLocalRepoMcp,
   stopLocalRepoMcpTunnel,
   type LocalRepoMcpConfig,
-  type LocalRepoMcpPendingAuthorization,
   type LocalRepoMcpStatusResponse,
 } from '../../lib/api';
 import type { CatalogRepoInventoryEntry, LocalRepoReaderAccessState } from '../../lib/types';
@@ -46,29 +42,13 @@ interface McpProviderDescriptor {
   configureComponent: ReactNode;
 }
 
-function connectorUrl(config: LocalRepoMcpConfig): string {
-  return config.publicBaseUrl ? `${config.publicBaseUrl.replace(/\/+$/, '')}/mcp` : '';
-}
-
-function baseUrlFromConnectorUrl(url: string): string {
-  return url.replace(/\/mcp\/?$/, '').replace(/\/+$/, '');
-}
-
-function hasOAuthConfig(config: LocalRepoMcpConfig, liveConnectorUrl = ''): boolean {
-  return Boolean(config.authIssuer && (config.authAudience || config.publicBaseUrl || liveConnectorUrl));
-}
-
-function hasNamedTunnelConfig(config: LocalRepoMcpConfig): boolean {
-  return Boolean(config.publicBaseUrl && hasOAuthConfig(config) && config.cloudflareTunnelName);
-}
-
-function providerUrlMessage(serverRunning: boolean, issuerConfigured: boolean, authProvider = 'builtin'): string {
-  if (!serverRunning) return 'Start local MCP, then start ChatGPT access to generate a connector URL.';
-  if (!issuerConfigured && authProvider === 'external') return 'Add OAuth issuer before exposing Local Repo Reader to ChatGPT.';
-  return 'Start ChatGPT access to generate a connector URL.';
+function providerUrlMessage(serverRunning: boolean): string {
+  if (!serverRunning) return 'Start ChatGPT Access to generate a private HTTPS MCP URL.';
+  return 'Local MCP endpoint is ready.';
 }
 
 function statusTone(status: string): 'neutral' | 'brand' | 'accent' | 'success' | 'danger' {
+  if (status === 'ChatGPT ready') return 'success';
   if (status === 'OAuth protected') return 'success';
   if (status === 'Local only') return 'accent';
   if (status === 'Misconfigured' || status === 'Error') return 'danger';
@@ -85,18 +65,18 @@ export default function McpView() {
   const [mutating, setMutating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingError, setPendingError] = useState<string | null>(null);
+  const [pendingErrorCode, setPendingErrorCode] = useState<string | null>(null);
   const [configuringProviderId, setConfiguringProviderId] = useState<string | null>(null);
-  const [pendingAuthorizations, setPendingAuthorizations] = useState<LocalRepoMcpPendingAuthorization[]>([]);
 
   async function loadPendingAuthorizations() {
     try {
       const pendingResult = await getLocalRepoMcpPendingAuthorizations();
       const pendingStoppedNormally = pendingResult.pendingError && !pendingResult.server.running && !pendingResult.tunnel.running;
-      setPendingAuthorizations(pendingResult.pending || []);
       setPendingError(pendingStoppedNormally ? null : pendingResult.pendingError || null);
+      setPendingErrorCode(pendingStoppedNormally ? null : pendingResult.pendingErrorCode || null);
     } catch (err) {
-      setPendingAuthorizations([]);
       setPendingError(err instanceof Error ? err.message : String(err));
+      setPendingErrorCode(null);
     }
   }
 
@@ -125,6 +105,14 @@ export default function McpView() {
     void load();
   }, []);
 
+  useEffect(() => {
+    if (!status?.server.running || (config.authProvider || 'builtin') !== 'builtin') return undefined;
+    const timer = window.setInterval(() => {
+      void loadPendingAuthorizations();
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [status?.server.running, config.authProvider]);
+
   async function mutate(action: () => Promise<unknown>) {
     setMutating(true);
     setError(null);
@@ -139,18 +127,18 @@ export default function McpView() {
   }
 
   const enabledRootCount = access?.repos?.length || 0;
-  const localRepoConnectorUrl = status?.connectorUrl || status?.tunnel.publicUrl || connectorUrl(config);
+  const localMcpEndpoint = status?.server.url || `http://127.0.0.1:${config.port}/mcp`;
+  const chatGptUrl = status?.chatGptAccess?.url || '';
+  const chatGptReady = Boolean(status?.chatGptAccess?.ready && chatGptUrl);
+  const cloudflaredMissing = Boolean(status?.prerequisites?.cloudflared && !status.prerequisites.cloudflared.available);
   const securityState = error ? 'Error' : status?.securityState || 'Stopped';
-  const authProvider = config.authProvider || 'builtin';
-  const issuerConfigured = authProvider === 'builtin' ? Boolean(localRepoConnectorUrl) : Boolean(config.authIssuer);
-  const namedTunnelConfigured = hasNamedTunnelConfig(config);
-  const cloudflaredAvailable = status?.prerequisites?.cloudflared.available ?? true;
-  const cloudflaredPath = status?.prerequisites?.cloudflared.path || config.cloudflaredPath || 'cloudflared';
-  const effectiveIssuer = status?.prerequisites?.oauth.issuerEffective || config.authIssuer || (localRepoConnectorUrl ? baseUrlFromConnectorUrl(localRepoConnectorUrl) : '');
-  const effectiveAudience = status?.prerequisites?.oauth.audienceEffective || config.authAudience || (localRepoConnectorUrl ? baseUrlFromConnectorUrl(localRepoConnectorUrl) : '');
-  const staleTunnel = Boolean(status?.tunnel.running && !status?.server.running);
-  const chatGptAccessReady = status?.prerequisites?.chatGptAccessReady || status?.securityState === 'OAuth protected';
-  const startChatGptDisabled = mutating || !cloudflaredAvailable || chatGptAccessReady;
+  const startLocalDisabled = mutating || Boolean(status?.server.running);
+  const startChatGptDisabled = mutating || chatGptReady || cloudflaredMissing;
+  const pendingApprovalSecretMismatch = Boolean(pendingError && pendingErrorCode === 'approval_secret_mismatch');
+
+  async function startLocalAccess() {
+    await startLocalRepoMcp();
+  }
 
   async function startChatGptAccess() {
     await startLocalRepoMcpQuickTunnel();
@@ -162,11 +150,11 @@ export default function McpView() {
     description: 'Read-only MCP for selected local repositories and folders.',
     kind: 'Folder/File Read',
     status: securityState,
-    connectorUrl: localRepoConnectorUrl,
+    connectorUrl: chatGptUrl || (status?.server.running ? localMcpEndpoint : ''),
     capabilities: ['repo_roots', 'repo_tree', 'repo_read_file', 'repo_search', 'repo_git_status', 'repo_git_log'],
     actions: null,
     configureComponent: null,
-  }), [localRepoConnectorUrl, securityState]);
+  }), [chatGptUrl, localMcpEndpoint, securityState, status?.server.running]);
 
   const configuredModalOpen = configuringProviderId === provider.id;
 
@@ -180,7 +168,7 @@ export default function McpView() {
         <PageContainer>
           {error ? <p className="opencode-error" data-testid="mcp-error">{error}</p> : null}
 
-          <Panel title="Web Chatbot Access" subtitle="Current local MCP exposure state" testId="mcp-overall-status">
+          <Panel title="Local MCP Access" subtitle="Current local repository reader state" testId="mcp-overall-status">
             <div className="mcp-status-grid">
               <div className="opencode-readiness-card">
                 <span className="opencode-readiness-label">Exposure</span>
@@ -196,7 +184,7 @@ export default function McpView() {
               </div>
               <div className="opencode-readiness-card">
                 <span className="opencode-readiness-label">Connector URL</span>
-                <StatusBadge status={localRepoConnectorUrl ? 'ready' : 'missing'} testId="mcp-connector-status" />
+                <StatusBadge status={chatGptReady ? 'ready' : 'missing'} testId="mcp-connector-status" />
               </div>
             </div>
           </Panel>
@@ -218,8 +206,8 @@ export default function McpView() {
                   <div className="mcp-provider-meta">
                     <span><strong>Kind</strong>{provider.kind}</span>
                     <span><strong>Server</strong>{status?.server.running ? 'running' : 'stopped'}</span>
-                    <span><strong>Tunnel</strong>{status?.tunnel.running ? 'running' : 'stopped'}</span>
-                    <span><strong>Auth</strong>{issuerConfigured ? 'issuer set' : 'missing'}</span>
+                    <span><strong>Tunnel</strong>{status?.tunnel.running ? status.tunnel.mode || 'running' : 'stopped'}</span>
+                    <span><strong>Auth</strong>{chatGptReady ? 'none' : 'local only'}</span>
                     <span><strong>Roots</strong>{enabledRootCount}</span>
                     <span><strong>Probe</strong>{status?.probe ? (status.probe.ok ? 'ok' : `failed ${status.probe.status || ''}`) : 'not run'}</span>
                   </div>
@@ -231,66 +219,49 @@ export default function McpView() {
                   </div>
 
                   <div className="catalog-inline-note mcp-provider-url">
-                    {provider.connectorUrl || providerUrlMessage(Boolean(status?.server.running), issuerConfigured, authProvider)}
-                    {provider.connectorUrl ? <CopyButton text={provider.connectorUrl} testId="mcp-provider-copy-url" /> : null}
+                    {chatGptReady ? chatGptUrl : providerUrlMessage(Boolean(status?.server.running))}
+                    {chatGptReady ? <CopyButton text={chatGptUrl} testId="mcp-provider-copy-url" /> : null}
                   </div>
 
                   <div className="mcp-chatgpt-setup" data-testid="mcp-chatgpt-setup">
                     <div className="mcp-chatgpt-setup-header">
                       <div>
-                        <h4>ChatGPT Access Setup</h4>
-                        <p className="assets-tools-item-description">Start a local OAuth-protected quick HTTPS tunnel for ChatGPT.</p>
+                        <h4>ChatGPT Access</h4>
+                        <p className="assets-tools-item-description">Start Local Repo Reader and create a private temporary HTTPS URL for ChatGPT.</p>
                       </div>
                       <StatusBadge
-                        status={status?.prerequisites?.chatGptAccessReady ? 'ready' : cloudflaredAvailable ? 'setup needed' : 'blocked'}
-                        tone={status?.prerequisites?.chatGptAccessReady ? 'success' : cloudflaredAvailable ? 'accent' : 'danger'}
+                        status={chatGptReady ? 'ready for ChatGPT' : cloudflaredMissing ? 'cloudflared missing' : mutating ? 'starting' : 'ready to start'}
+                        tone={chatGptReady ? 'success' : cloudflaredMissing ? 'danger' : 'accent'}
                         testId="mcp-chatgpt-readiness"
                       />
                     </div>
-                    {cloudflaredAvailable ? null : (
-                      <p className="opencode-error mcp-chatgpt-blocker" data-testid="mcp-cloudflared-blocker">
-                        cloudflared was not found at {cloudflaredPath}. Install cloudflared on PATH or set an absolute path in Advanced Stable Tunnel.
-                      </p>
-                    )}
-                    {staleTunnel ? (
-                      <p className="opencode-error mcp-chatgpt-blocker" data-testid="mcp-stale-tunnel-warning">
-                        ChatGPT tunnel is running but Local Repo MCP is stopped. Start ChatGPT Access again to restart the local server and tunnel.
-                      </p>
-                    ) : null}
                     {pendingError ? (
                       <p className="catalog-inline-note" data-testid="mcp-pending-warning">
-                        Pending approval check unavailable: {pendingError}
+                        {pendingApprovalSecretMismatch
+                          ? 'Approval channel is out of sync from a previous tunneled session. Restart the local server before using local MCP clients.'
+                          : `Pending approval check unavailable: ${pendingError}`}
+                      </p>
+                    ) : null}
+                    {cloudflaredMissing ? (
+                      <p className="catalog-inline-note" data-testid="mcp-cloudflared-blocker">
+                        cloudflared is required for ChatGPT access. Install it on PATH or set the path in Advanced Config.
                       </p>
                     ) : null}
                     <div className="mcp-provider-meta">
-                      <span><strong>ChatGPT MCP endpoint</strong>{localRepoConnectorUrl || 'generated after Start ChatGPT Access'}</span>
-                      <span><strong>OAuth issuer</strong>{effectiveIssuer || 'generated from connector URL'}</span>
-                      <span><strong>OAuth audience</strong>{effectiveAudience || 'generated from connector URL'}</span>
-                      <span><strong>Required scope</strong>{config.requiredScopes.join(' ')}</span>
+                      <span><strong>Access mode</strong>temporary Cloudflare quick tunnel</span>
+                      <span><strong>ChatGPT setting</strong>paste this URL as the Server URL</span>
+                      <span><strong>Authentication</strong>None</span>
+                      <span><strong>URL stability</strong>{chatGptReady ? 'temporary; changes after restart' : 'generated after start'}</span>
                     </div>
-                    {pendingAuthorizations.length > 0 ? (
-                      <div className="mcp-provider-meta" data-testid="mcp-pending-authorizations">
-                        {pendingAuthorizations.map((pending) => (
-                          <span key={pending.id}>
-                            <strong>Pending approval {pending.userCode}</strong>
-                            <Button
-                              size="sm"
-                              disabled={mutating}
-                              onClick={() => void mutate(() => approveLocalRepoMcpAuthorization(pending.id))}
-                              testId={`mcp-approve-authorization-${pending.id}`}
-                            >
-                              Approve
-                            </Button>
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                    {localRepoConnectorUrl ? (
+                    {chatGptReady ? (
                       <div className="catalog-inline-note mcp-provider-url">
-                        {localRepoConnectorUrl}
-                        <CopyButton text={localRepoConnectorUrl} testId="mcp-chatgpt-copy-url" />
+                        {chatGptUrl}
+                        <CopyButton text={chatGptUrl} testId="mcp-chatgpt-copy-url" />
                       </div>
                     ) : null}
+                    <p className="catalog-inline-note" data-testid="mcp-temporary-url-note">
+                      This quick tunnel URL is temporary. If you stop or restart access, create or reconnect the ChatGPT app with the new URL.
+                    </p>
                     <div className="opencode-model-actions">
                       <Button
                         size="sm"
@@ -302,16 +273,22 @@ export default function McpView() {
                       >
                         Start ChatGPT Access
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={mutating || (!status?.server.running && !status?.tunnel.running)}
+                        onClick={() => void mutate(async () => { await stopLocalRepoMcpTunnel(); await stopLocalRepoMcp(); })}
+                        testId="mcp-chatgpt-stop"
+                      >
+                        Stop
+                      </Button>
                       <Button size="sm" variant="secondary" disabled={mutating} onClick={() => setConfiguringProviderId(provider.id)} testId="mcp-chatgpt-configure-advanced">Advanced Config</Button>
                     </div>
                   </div>
 
                   <div className="opencode-model-actions">
-                    <Button size="sm" variant="secondary" disabled={mutating || status?.server.running} onClick={() => void mutate(startLocalRepoMcp)} testId="mcp-start">Start Local Only</Button>
-                    <Button size="sm" variant="secondary" disabled={mutating || !status?.server.running} onClick={() => void mutate(stopLocalRepoMcp)} testId="mcp-stop">Stop</Button>
-                    <Button size="sm" variant="secondary" disabled={mutating || !namedTunnelConfigured || status?.tunnel.running} onClick={() => void mutate(startLocalRepoMcpTunnel)} testId="mcp-tunnel-start">Start Named Tunnel</Button>
-                    <Button size="sm" variant="secondary" disabled={mutating || !status?.tunnel.running} onClick={() => void mutate(stopLocalRepoMcpTunnel)} testId="mcp-tunnel-stop">Stop Tunnel</Button>
-                    <Button size="sm" variant="ghost" disabled={mutating || !status?.server.running} onClick={() => void mutate(probeLocalRepoMcp)} testId="mcp-probe">Probe</Button>
+                    <Button size="sm" variant="secondary" disabled={startLocalDisabled} onClick={() => void mutate(startLocalAccess)} testId="mcp-start-local-only">Start Local Only</Button>
+                    <Button size="sm" variant="secondary" disabled={mutating || !status?.server.running} onClick={() => void mutate(stopLocalRepoMcp)} testId="mcp-stop">Stop Local</Button>
                     <Button size="sm" variant="secondary" disabled={mutating} onClick={() => setConfiguringProviderId(provider.id)} testId="mcp-configure">Configure</Button>
                   </div>
                 </article>
@@ -360,13 +337,9 @@ function LocalRepoReaderConfigModal({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const [draftConfig, setDraftConfig] = useState<LocalRepoMcpConfig>(config);
   const [repoPathInput, setRepoPathInput] = useState('');
   const [repoLabelInput, setRepoLabelInput] = useState('');
-
-  useEffect(() => {
-    setDraftConfig(config);
-  }, [config]);
+  const [cloudflaredPathInput, setCloudflaredPathInput] = useState(config.cloudflaredPath || '');
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -401,19 +374,15 @@ function LocalRepoReaderConfigModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  useEffect(() => {
+    setCloudflaredPathInput(config.cloudflaredPath || '');
+  }, [config.cloudflaredPath]);
+
   const enabledPaths = useMemo(
     () => new Set((access?.repos || []).map((repo) => repo.root.toLowerCase())),
     [access],
   );
-  const liveConnectorUrl = status?.connectorUrl || status?.tunnel.publicUrl || '';
-  const stableConnectorUrl = connectorUrl(draftConfig);
-  const effectiveConnectorUrl = liveConnectorUrl || stableConnectorUrl;
-  const effectiveBaseUrl = effectiveConnectorUrl ? baseUrlFromConnectorUrl(effectiveConnectorUrl) : draftConfig.publicBaseUrl;
-  const effectiveAudience = draftConfig.authAudience || effectiveBaseUrl;
-
-  function updateConfig<K extends keyof LocalRepoMcpConfig>(key: K, value: LocalRepoMcpConfig[K]) {
-    setDraftConfig((current) => ({ ...current, [key]: value }));
-  }
+  const localEndpoint = status?.server.url || `http://127.0.0.1:${config.port}/mcp`;
 
   async function registerAndEnableRepo(repo: CatalogRepoInventoryEntry) {
     const registeredRepo = repo.registered
@@ -446,6 +415,10 @@ function LocalRepoReaderConfigModal({
     setRepoLabelInput('');
   }
 
+  async function saveCloudflaredPath() {
+    await saveLocalRepoMcpConfig({ cloudflaredPath: cloudflaredPathInput.trim() });
+  }
+
   function handleBackdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) onClose();
   }
@@ -465,7 +438,7 @@ function LocalRepoReaderConfigModal({
             <h2 id="mcp-config-modal-title" style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700 }}>
               Local Repo Reader
             </h2>
-            <p className="assets-tools-item-description">Auth, tunnel, and readable repository configuration</p>
+            <p className="assets-tools-item-description">Local endpoint and readable repository configuration</p>
           </div>
           <button
             ref={closeRef}
@@ -482,48 +455,28 @@ function LocalRepoReaderConfigModal({
         <div className="asset-detail-modal-body">
           {loading ? <p className="opencode-loading">Loading Local Repo Reader configuration...</p> : null}
 
-          <Panel title="ChatGPT Access" subtitle="OAuth issuer and generated connector values" testId="mcp-config-auth">
+          <Panel title="ChatGPT Access" subtitle="Advanced connection values" testId="mcp-config-auth">
             <p className="catalog-inline-note">
-              Elegy generates a local OAuth issuer from the ChatGPT access tunnel and uses it as the audience unless an advanced override is saved.
+              The default ChatGPT flow uses a temporary Cloudflare quick tunnel and no OAuth. Set a cloudflared path only if it is not available on PATH.
             </p>
+            <div className="assets-tools-add-panel-form" style={{ marginTop: 12 }}>
+              <FormInput label="cloudflared Path" testId="mcp-config-cloudflared-path" value={cloudflaredPathInput} onValueChange={setCloudflaredPathInput} placeholder="Optional absolute path to cloudflared.exe" />
+            </div>
             <div className="opencode-model-actions" style={{ marginTop: 12 }}>
-              <Button size="sm" disabled={mutating} onClick={() => void onMutate(() => saveLocalRepoMcpConfig(draftConfig))} testId="mcp-config-save">Save Config</Button>
-              {effectiveConnectorUrl ? (
+              <Button size="sm" disabled={mutating} onClick={() => void onMutate(saveCloudflaredPath)} testId="mcp-config-save-cloudflared-path">Save Path</Button>
+            </div>
+            <div className="opencode-model-actions" style={{ marginTop: 12 }}>
+              {localEndpoint ? (
                 <span className="catalog-inline-note">
-                  {effectiveConnectorUrl}
-                  <CopyButton text={effectiveConnectorUrl} testId="mcp-config-copy-url" />
+                  {localEndpoint}
+                  <CopyButton text={localEndpoint} testId="mcp-config-copy-url" />
                 </span>
               ) : null}
             </div>
             <div className="mcp-provider-meta" style={{ marginTop: 16 }}>
-              <span><strong>ChatGPT MCP endpoint</strong>{effectiveConnectorUrl || 'generated after Start ChatGPT Access'}</span>
-              <span><strong>OAuth issuer</strong>{draftConfig.authIssuer || effectiveAudience || 'generated from connector URL'}</span>
-              <span><strong>OAuth audience</strong>{effectiveAudience || 'generated from connector URL'}</span>
-              <span><strong>Required scope</strong>{draftConfig.requiredScopes.join(' ')}</span>
-            </div>
-          </Panel>
-
-          <Panel title="Advanced Stable Tunnel" subtitle="Optional named tunnel and audience override" testId="mcp-config-advanced">
-            <p className="catalog-inline-note">
-              Use these fields only when you already have a stable HTTPS hostname routed to http://127.0.0.1:{draftConfig.port}.
-            </p>
-            <div className="assets-tools-add-panel-form">
-              <FormInput label="Auth Provider" testId="mcp-config-auth-provider" value={draftConfig.authProvider || 'builtin'} onValueChange={(value) => updateConfig('authProvider', value)} placeholder="builtin or external" />
-              <FormInput label="External OAuth Issuer" testId="mcp-config-auth-issuer" value={draftConfig.authIssuer} onValueChange={(value) => updateConfig('authIssuer', value)} placeholder="Only for external OAuth providers" />
-              <FormInput label="Public Base URL" testId="mcp-config-public-url" value={draftConfig.publicBaseUrl} onValueChange={(value) => updateConfig('publicBaseUrl', value)} placeholder="https://mcp.example.com" />
-              <FormInput label="OAuth Audience Override" testId="mcp-config-auth-audience" value={draftConfig.authAudience} onValueChange={(value) => updateConfig('authAudience', value)} placeholder="Defaults to connector base URL" />
-              <FormInput label="Cloudflare Tunnel Name" testId="mcp-config-tunnel-name" value={draftConfig.cloudflareTunnelName} onValueChange={(value) => updateConfig('cloudflareTunnelName', value)} placeholder="local-repo-mcp" />
-              <FormInput label="Cloudflare Config Path" testId="mcp-config-cloudflare-config-path" value={draftConfig.cloudflareConfigPath} onValueChange={(value) => updateConfig('cloudflareConfigPath', value)} placeholder="Optional config.yml path" />
-              <FormInput label="cloudflared Path" testId="mcp-config-cloudflared-path" value={draftConfig.cloudflaredPath} onValueChange={(value) => updateConfig('cloudflaredPath', value)} placeholder="Optional absolute path" />
-            </div>
-            <div className="opencode-model-actions" style={{ marginTop: 12 }}>
-              <Button size="sm" disabled={mutating} onClick={() => void onMutate(() => saveLocalRepoMcpConfig(draftConfig))} testId="mcp-config-save-advanced">Save Advanced</Button>
-              {stableConnectorUrl ? (
-                <span className="catalog-inline-note">
-                  {stableConnectorUrl}
-                  <CopyButton text={stableConnectorUrl} testId="mcp-config-copy-stable-url" />
-                </span>
-              ) : null}
+              <span><strong>Local MCP endpoint</strong>{localEndpoint}</span>
+              <span><strong>Authentication</strong>None in the default ChatGPT flow</span>
+              <span><strong>Stable URL</strong>requires advanced external tunnel setup</span>
             </div>
           </Panel>
 

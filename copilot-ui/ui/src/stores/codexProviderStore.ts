@@ -137,9 +137,10 @@ function createCodexProviderStore() {
   async function loadOpenCodeWorkers(): Promise<void> {
     store.setState((state) => ({ ...state, subagentsLoading: true, error: null }));
     try {
+      const repoPath = navigationStore.getState().activeWorkspaceId;
       const [opencodeWorkers, opencodeWorkersUsage] = await Promise.all([
-        getOpenCodeWorkersStatus(),
-        getOpenCodeWorkersUsage().catch(() => null),
+        getOpenCodeWorkersStatus({ repoPath }),
+        getOpenCodeWorkersUsage({ repoPath }).catch(() => null),
       ]);
       store.setState((state) => ({
         ...state,
@@ -156,8 +157,9 @@ function createCodexProviderStore() {
   async function saveOpenCodeWorkers(settings: Partial<OpenCodeWorkerConfig>): Promise<void> {
     store.setState((state) => ({ ...state, subagentSaving: true, error: null, message: null }));
     try {
-      const opencodeWorkers = await saveOpenCodeWorkersConfig(settings);
-      const opencodeWorkersUsage = await getOpenCodeWorkersUsage().catch(() => null);
+      const repoPath = navigationStore.getState().activeWorkspaceId;
+      const opencodeWorkers = await saveOpenCodeWorkersConfig(settings, { repoPath });
+      const opencodeWorkersUsage = await getOpenCodeWorkersUsage({ repoPath }).catch(() => null);
       store.setState((state) => ({
         ...state,
         opencodeWorkers,

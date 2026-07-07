@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Badge, Button, Panel } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { codexProviderStore, type CodexProviderState } from '../../stores/codexProviderStore';
-import type { CodexSubagentRecord, CodexSubagentSettings, CodexSubagentUsageResponse, OpenCodeWorkerConfig } from '../../lib/api/codexConfig';
+import type { CodexSubagentRecord, CodexSubagentSettings, CodexSubagentUsageResponse, OpenCodeWorkerConfig, OpenCodeWorkerProfile } from '../../lib/api/codexConfig';
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -441,7 +441,27 @@ function CodexSubagentUsageSection({ usage }: { usage: CodexSubagentUsageRespons
   );
 }
 
-const WORKER_ROLES = ['exploration', 'research', 'review', 'validation'];
+const WORKER_ROLE_ORDER = ['exploration', 'implementation', 'research', 'review', 'validation'];
+
+function sortWorkerRoles(roles: string[]): string[] {
+  return [...roles].sort((a, b) => {
+    const aIndex = WORKER_ROLE_ORDER.indexOf(a);
+    const bIndex = WORKER_ROLE_ORDER.indexOf(b);
+    if (aIndex !== -1 || bIndex !== -1) {
+      return (aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex);
+    }
+    return a.localeCompare(b);
+  });
+}
+
+function formatWorkerRole(role: string): string {
+  return role.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+}
+
+function workerProfileLabel(profile: OpenCodeWorkerProfile, allowPaidModels: boolean): string {
+  const suffix = profile.paid && !allowPaidModels ? ' (requires opt-in)' : profile.paid ? ' (paid/direct)' : '';
+  return `${profile.label || profile.id}${suffix}`;
+}
 
 function OpenCodeWorkersSection({ state }: { state: CodexProviderState }) {
   const data = state.opencodeWorkers;
@@ -450,10 +470,11 @@ function OpenCodeWorkersSection({ state }: { state: CodexProviderState }) {
   const updateConfig = (patch: Partial<OpenCodeWorkerConfig>) => {
     void codexProviderStore.saveOpenCodeWorkers(patch);
   };
+  const roles = data ? sortWorkerRoles(data.roles || Object.keys(data.roleModelMatrix || {})) : [];
 
   return (
     <>
-      <Panel title="OpenCode Workers" subtitle="CLI-first read-only worker plugin for Codex" testId="codex-opencode-workers">
+      <Panel title="OpenCode Workers" subtitle="CLI-first supervised worker plugin for Codex" testId="codex-opencode-workers">
         {!data || !config ? (
           <p className="state-message">Loading OpenCode Workers…</p>
         ) : (
@@ -462,11 +483,12 @@ function OpenCodeWorkersSection({ state }: { state: CodexProviderState }) {
               <div className="settings-row-label">
                 <strong>Status</strong>
                 <span className="settings-row-description">Config: <code>{data.configPath}</code></span>
-                <span className="settings-row-description">Journal: <code>{data.journalPath}</code></span>
+                <span className="settings-row-description">Journal ({data.journalScope}): <code>{data.journalPath}</code></span>
               </div>
               <div className="settings-row-action" style={{ gap: 8 }}>
                 <Badge tone={data.installed ? 'success' : 'neutral'}>{data.installed ? 'Installed' : 'Not installed'}</Badge>
                 <Badge tone={config.enabled ? 'success' : 'neutral'}>{config.enabled ? 'Enabled' : 'Disabled'}</Badge>
+                <Badge tone={config.writeEnabled ? 'danger' : 'success'}>{config.writeEnabled ? 'Write capable' : 'Read-only default'}</Badge>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -510,9 +532,31 @@ function OpenCodeWorkersSection({ state }: { state: CodexProviderState }) {
                   data-testid="codex-opencode-workers-default-profile"
                 >
                   {data.profiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>{profile.label || profile.id}</option>
+                    <option key={profile.id} value={profile.id} disabled={profile.paid && !config.allowPaidModels}>
+                      {workerProfileLabel(profile, config.allowPaidModels)}
+                    </option>
                   ))}
                 </select>
+              </div>
+            </div>
+            <div className="settings-row">
+              <div className="settings-row-label">
+                <strong>Write-capable workers</strong>
+                <span className="settings-row-description">
+                  Disabled by default. Codex keeps final review and acceptance authority when write workers are allowed.
+                </span>
+              </div>
+              <div className="settings-row-action">
+                <label className="settings-row-description" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={config.writeEnabled}
+                    disabled={state.subagentSaving}
+                    onChange={(event) => updateConfig({ writeEnabled: event.target.checked })}
+                    data-testid="codex-opencode-workers-write-enabled"
+                  />
+                  Allow write-capable workers
+                </label>
               </div>
             </div>
             <div className="settings-row">
@@ -556,33 +600,72 @@ function OpenCodeWorkersSection({ state }: { state: CodexProviderState }) {
         {!config || !data ? (
           <p className="state-message">No profile data loaded.</p>
         ) : (
-          WORKER_ROLES.map((role) => (
+          roles.map((role) => {
+            const policy = config.rolePolicies[role] || { writeEnabled: false };
+            const selectedProfile = policy.profile || config.roleProfiles[role] || '';
+            const effectiveProfile = data.effectiveRoleProfiles[role] || config.defaultModelProfile;
+            const effectiveModel = data.roleModelMatrix[role]?.[effectiveProfile] || 'model unset';
+            const effectiveWrite = data.effectiveRolePolicies[role]?.writeEnabled === true;
+            return (
             <div className="settings-row" key={role}>
               <div className="settings-row-label">
-                <strong>{role}</strong>
-                <span className="settings-row-description">{config.roleProfiles[role] || config.defaultModelProfile}</span>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <strong>{formatWorkerRole(role)}</strong>
+                  <Badge tone={effectiveWrite ? 'danger' : 'success'}>{effectiveWrite ? 'Read/write' : 'Read-only'}</Badge>
+                  {role === 'implementation' ? <Badge tone="brand">Implementation</Badge> : null}
+                </div>
+                <span className="settings-row-description">{effectiveProfile} · {effectiveModel}</span>
+                {role === 'implementation' ? (
+                  <span className="settings-row-description">Implementation worker writes require both global and role write toggles.</span>
+                ) : null}
               </div>
-              <div className="settings-row-action">
+              <div className="settings-row-action" style={{ gap: 8, flexWrap: 'wrap' }}>
                 <select
-                  value={config.roleProfiles[role] || ''}
+                  value={selectedProfile}
                   disabled={state.subagentSaving}
                   onChange={(event) => {
-                    const next = { ...config.roleProfiles };
-                    if (event.target.value) next[role] = event.target.value;
-                    else delete next[role];
-                    updateConfig({ roleProfiles: next });
+                    const next = { ...config.rolePolicies };
+                    if (event.target.value) {
+                      next[role] = { ...(next[role] || { writeEnabled: false }), profile: event.target.value };
+                    } else if (next[role]) {
+                      next[role] = { ...next[role] };
+                      delete next[role].profile;
+                    }
+                    updateConfig({ rolePolicies: next });
                   }}
                   style={inputStyle}
                   data-testid={`codex-opencode-workers-role-${role}`}
                 >
                   <option value="">Use default</option>
                   {data.profiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>{profile.label || profile.id}</option>
+                    <option key={profile.id} value={profile.id} disabled={profile.paid && !config.allowPaidModels}>
+                      {workerProfileLabel(profile, config.allowPaidModels)}
+                    </option>
                   ))}
                 </select>
+                <label className="settings-row-description" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={policy.writeEnabled === true}
+                    disabled={state.subagentSaving || !config.writeEnabled}
+                    onChange={(event) => {
+                      const next = {
+                        ...config.rolePolicies,
+                        [role]: {
+                          ...(config.rolePolicies[role] || {}),
+                          writeEnabled: event.target.checked,
+                        },
+                      };
+                      updateConfig({ rolePolicies: next });
+                    }}
+                    data-testid={`codex-opencode-workers-role-${role}-write`}
+                  />
+                  Write
+                </label>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </Panel>
 
@@ -597,8 +680,22 @@ function OpenCodeWorkersSection({ state }: { state: CodexProviderState }) {
                 <span className="settings-row-description">
                   {usage.summary.runs} runs · {usage.summary.tokens.toLocaleString()} tokens · ${usage.summary.cost.toFixed(2)} cost · {usage.summary.policyViolations} policy violations
                 </span>
+                <span className="settings-row-description">
+                  {usage.summary.permissionRequests} permission requests · {usage.summary.permissionDenials} denied · {usage.summary.writeAttempts} write attempts · {usage.summary.changedFiles} changed files
+                </span>
+                <span className="settings-row-description">Journal ({usage.journalScope}): <code>{usage.source.path}</code></span>
               </div>
             </div>
+            {usage.permissionEvidence.slice(0, 5).map((entry, index) => (
+              <div className="settings-row" key={`${entry.jobId || 'permission'}-${index}`}>
+                <div className="settings-row-label">
+                  <strong>Permission evidence</strong>
+                  <span className="settings-row-description">
+                    {String(entry.role || 'unknown')} · {String(entry.permissionRequestCount || 0)} request(s)
+                  </span>
+                </div>
+              </div>
+            ))}
             {usage.byModel.slice(0, 8).map((model) => (
               <div className="settings-row" key={model.name}>
                 <div className="settings-row-label">
