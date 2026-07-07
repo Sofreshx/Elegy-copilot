@@ -69,6 +69,8 @@ export const SHIPPED_ASSETS = [
   skill('skill-ui-system', 'catalog-assets/shared-skills/ui-system', { loadMode: 'on-demand' }),
   skill('skill-ui-design-spec', 'catalog-assets/shared-skills/ui-design-spec', { loadMode: 'on-demand' }),
   skill('skill-ui-visual-review', 'catalog-assets/shared-skills/ui-visual-review', { loadMode: 'on-demand' }),
+  skill('vendor-impeccable-codex-skill', 'vendor-assets/impeccable/codex/impeccable', { loadMode: 'on-demand' }),
+  skill('vendor-impeccable-opencode-skill', 'vendor-assets/impeccable/opencode/impeccable', { loadMode: 'on-demand' }),
   skill('skill-sweeper-cleanup', 'catalog-assets/shared-skills/sweeper-cleanup', { loadMode: 'on-demand' }),
   skill('skill-skill-authoring', 'catalog-assets/shared-skills/skill-authoring', { loadMode: 'on-demand' }),
   skill('skill-agents-md-authoring', 'catalog-assets/shared-skills/agents-md-authoring', { loadMode: 'on-demand' }),

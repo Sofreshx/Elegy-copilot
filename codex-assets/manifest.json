@@ -184,6 +184,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "codex-impeccable-skill",
+      "type": "skill",
+      "source": "vendor-assets/impeccable/codex/impeccable",
+      "destination": "skills/impeccable",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "codex-sweeper-cleanup-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/sweeper-cleanup",

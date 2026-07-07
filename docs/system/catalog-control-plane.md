@@ -25,6 +25,7 @@ related: [copilot-ui-guide, repo-skill-sync-governance, domain-authorities-freez
 - Repo-local skills are canonical in `<repo>/.github/skills/**`.
 - Generated repo-local mirrors live in `<repo>/.agents/skills/**`, `<repo>/.opencode/skills/**`, and `<repo>/.gemini/skills/**`.
 - External-source state lives under `~/.elegy/catalog/external-sources/`.
+- Vendor-managed shipped assets live under `vendor-assets/` and are installed only through harness manifests.
 - Global shipped assets are still split by harness. There is no single universal global skill root yet.
 
 ## Status UI
@@ -43,6 +44,13 @@ related: [copilot-ui-guide, repo-skill-sync-governance, domain-authorities-freez
 - Current skill targets: `codex`, `opencode`, `antigravity`.
 - Current MCP targets: `codex`, `opencode`, `antigravity-cli` (legacy alias: `gemini-cli`).
 - The older `providers` subsystem still exists, but it is separate from external sources.
+
+## Vendor Assets
+
+- Impeccable is the only approved redistributed UI vendor skill.
+- Impeccable is pinned in `vendor-assets/impeccable/vendor.json` and preserved under `Apache-2.0`.
+- Refresh Impeccable with `node scripts/sync-impeccable-vendor.mjs`, then run `node scripts/validate-vendor-assets.mjs`.
+- ui.sh/TypeUI resources must not be vendored into this repository unless their license changes or separate written redistribution permission exists.
 
 ## Useful APIs
 

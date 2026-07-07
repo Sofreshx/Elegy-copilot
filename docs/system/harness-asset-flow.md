@@ -24,6 +24,7 @@ Central assets live in the elegy-copilot repo under these directories:
 |-----------|---------|
 | `engine-assets/` | Core agents, skills, prompts, and instructions for Copilot |
 | `catalog-assets/shared-skills/` | Shared skills referenced by multiple harness manifests |
+| `vendor-assets/` | License-approved vendor skills copied from pinned upstream refs |
 | `opencode-assets/` | OpenCode-specific instructions, agents, skills, plugins |
 | `codex-assets/` | Codex-specific instructions, agents, skills |
 | `antigravity-assets/` | Antigravity-specific instructions and skills |
@@ -140,7 +141,7 @@ elegy-copilot repo
 
 Each harness gets:
 - **Instructions file** (`AGENTS.md`, `GEMINI.md`, `CLAUDE.md`, or `copilot-instructions.md`)
-- **Skills** — shared skills from `engine-assets/` and `catalog-assets/`
+- **Skills** — shared skills from `engine-assets/`, `catalog-assets/`, and approved `vendor-assets/`
 - **Agents** (where applicable) — harness-specific agent files
 - **Plugins** (OpenCode only) — worktree plugin
 
@@ -155,6 +156,10 @@ Installer writes now use temp-sibling replace semantics for file and directory u
 refreshes do not rely on delete-then-copy for normal overwrite paths.
 
 The instruction writing contract (Authority, Concise Instruction, Clarification, Planning, Review, Validation, Core Workflow) is maintained in a single shared baseline at `catalog-assets/instructions/agent-session-defaults.md`. At install time, each harness installer composes the shared baseline with a harness-specific appendix to produce the installed instruction file.
+
+Vendor assets are shipped only when a pinned source, compatible license, and validation script exist.
+Impeccable is currently the only approved vendored UI skill; ui.sh/TypeUI is intentionally excluded
+because its EULA does not allow redistributing standalone skill resources.
 
 ### Tier 2: Per-Repo Discovery (repo-setup-profile-bootstrap)
 

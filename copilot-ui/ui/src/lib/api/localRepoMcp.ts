@@ -3,6 +3,7 @@ import { apiRequest } from './core';
 
 export interface LocalRepoMcpConfig {
   schemaVersion?: number;
+  authProvider?: 'builtin' | 'external' | string;
   port: number;
   publicBaseUrl: string;
   authIssuer: string;
@@ -35,16 +36,29 @@ export interface LocalRepoMcpStatusResponse {
       path: string;
     };
     oauth: {
+      provider?: 'builtin' | 'external' | string;
       issuerConfigured: boolean;
+      issuerEffective?: string;
       audienceEffective: string;
     };
     chatGptAccessReady: boolean;
   };
+  pending?: LocalRepoMcpPendingAuthorization[];
   probe?: {
     ok: boolean;
     status?: number;
     metadata?: unknown;
   };
+}
+
+export interface LocalRepoMcpPendingAuthorization {
+  id: string;
+  userCode: string;
+  clientId: string;
+  scope: string;
+  resource: string;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export interface LocalRepoMcpConfigResponse {
@@ -106,4 +120,16 @@ export function stopLocalRepoMcpTunnel(): Promise<LocalRepoMcpStatusResponse> {
 
 export function probeLocalRepoMcp(): Promise<LocalRepoMcpStatusResponse> {
   return apiRequest<LocalRepoMcpStatusResponse>('/api/local-repo-mcp/probe', { method: 'POST' });
+}
+
+export function getLocalRepoMcpPendingAuthorizations(): Promise<LocalRepoMcpStatusResponse> {
+  return apiRequest<LocalRepoMcpStatusResponse>('/api/local-repo-mcp/oauth/pending');
+}
+
+export function approveLocalRepoMcpAuthorization(id: string): Promise<LocalRepoMcpStatusResponse> {
+  return apiRequest<LocalRepoMcpStatusResponse>('/api/local-repo-mcp/oauth/approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  });
 }

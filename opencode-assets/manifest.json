@@ -318,6 +318,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "opencode-impeccable-skill",
+      "type": "skill",
+      "source": "vendor-assets/impeccable/opencode/impeccable",
+      "destination": "skills/impeccable",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "opencode-sweeper-cleanup-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/sweeper-cleanup",

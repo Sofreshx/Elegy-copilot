@@ -37,6 +37,10 @@ const ASSET_SCAN_ROOTS = [
   'ghcp-assets',
 ];
 
+const THIRD_PARTY_VENDOR_ROOTS = [
+  'vendor-assets/',
+];
+
 const TEXT_EXTENSIONS = new Set(['.md', '.toml', '.yaml', '.yml', '.json']);
 const SCANNED_ASSET_TYPES = new Set(['instructions', 'agent', 'prompt', 'skill']);
 
@@ -206,6 +210,7 @@ function collectInstructionAssets(repoRoot) {
     const resolved = path.resolve(absPath);
     if (!fs.existsSync(resolved) || !isTextAsset(resolved)) return;
     const rel = normalizeRel(path.relative(repoRoot, resolved));
+    if (THIRD_PARTY_VENDOR_ROOTS.some((root) => rel.startsWith(root))) return;
     const current = byPath.get(resolved);
     const record = {
       path: resolved,

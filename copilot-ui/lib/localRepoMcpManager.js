@@ -3,6 +3,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const { spawn } = require('child_process');
 
 const CONFIG_SCHEMA_VERSION = 1;
@@ -12,6 +13,7 @@ let mcpProcess = null;
 let tunnelProcess = null;
 let tunnelMode = 'none';
 let quickTunnelBaseUrl = '';
+const approvalSecret = crypto.randomBytes(32).toString('base64url');
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -53,6 +55,7 @@ function createDefaultConfig() {
   return {
     schemaVersion: CONFIG_SCHEMA_VERSION,
     port: DEFAULT_PORT,
+    authProvider: 'builtin',
     publicBaseUrl: '',
     authIssuer: '',
     authAudience: '',
@@ -72,6 +75,7 @@ function normalizeConfig(raw) {
   return {
     ...defaults,
     port: Number.isInteger(raw?.port) && raw.port > 0 ? raw.port : defaults.port,
+    authProvider: normalizeString(raw?.authProvider) === 'external' ? 'external' : 'builtin',
     publicBaseUrl: normalizeString(raw?.publicBaseUrl).replace(/\/+$/, ''),
     authIssuer: normalizeString(raw?.authIssuer),
     authAudience: normalizeString(raw?.authAudience),
@@ -150,6 +154,7 @@ function connectorUrlFromBase(baseUrl) {
 }
 
 function hasOAuthConfig(config) {
+  if (config.authProvider === 'builtin') return Boolean(getEffectivePublicBaseUrl(config));
   return Boolean(config.authIssuer && getEffectiveAuthAudience(config));
 }
 
@@ -161,6 +166,12 @@ function getEffectiveAuthAudience(config) {
   return config.authAudience || getEffectivePublicBaseUrl(config);
 }
 
+function getEffectiveAuthIssuer(config) {
+  return config.authProvider === 'builtin'
+    ? getEffectivePublicBaseUrl(config)
+    : config.authIssuer;
+}
+
 function computeSecurityState(config, serverRunning, tunnelRunning) {
   if (!serverRunning && !tunnelRunning) return 'Stopped';
   if (tunnelRunning && (!getEffectivePublicBaseUrl(config) || !hasOAuthConfig(config))) return 'Misconfigured';
@@ -170,13 +181,9 @@ function computeSecurityState(config, serverRunning, tunnelRunning) {
 
 function validateOAuthConfig(config) {
   if (!config.publicBaseUrl) throw Object.assign(new Error('publicBaseUrl is required'), { statusCode: 400 });
-  if (!config.authIssuer) throw Object.assign(new Error('authIssuer is required'), { statusCode: 400 });
-  if (!config.authAudience) throw Object.assign(new Error('authAudience is required'), { statusCode: 400 });
-}
-
-function validateExposureOAuthConfig(config) {
-  if (!config.authIssuer) {
-    throw Object.assign(new Error('OAuth issuer is required before exposing Local Repo Reader to ChatGPT.'), { statusCode: 400 });
+  if (config.authProvider === 'external') {
+    if (!config.authIssuer) throw Object.assign(new Error('authIssuer is required'), { statusCode: 400 });
+    if (!config.authAudience) throw Object.assign(new Error('authAudience is required'), { statusCode: 400 });
   }
 }
 
@@ -186,6 +193,7 @@ function getStatus(options = {}) {
   const tunnelRunning = isRunning(tunnelProcess);
   const connectorUrl = connectorUrlFromBase(getEffectivePublicBaseUrl(config));
   const audienceEffective = getEffectiveAuthAudience(config);
+  const issuerEffective = getEffectiveAuthIssuer(config);
   const securityState = computeSecurityState(config, serverRunning, tunnelRunning);
   return {
     config,
@@ -206,7 +214,9 @@ function getStatus(options = {}) {
     prerequisites: {
       cloudflared: getCloudflaredStatus(config),
       oauth: {
-        issuerConfigured: Boolean(config.authIssuer),
+        provider: config.authProvider,
+        issuerConfigured: Boolean(issuerEffective),
+        issuerEffective,
         audienceEffective,
       },
       chatGptAccessReady: securityState === 'OAuth protected',
@@ -224,6 +234,7 @@ function startServer(options = {}) {
   }
   const effectivePublicBaseUrl = getEffectivePublicBaseUrl(config);
   const effectiveAuthAudience = getEffectiveAuthAudience(config);
+  const effectiveAuthIssuer = getEffectiveAuthIssuer(config);
   const authEnabled = Boolean(effectivePublicBaseUrl && hasOAuthConfig(config));
   mcpProcess = spawn(process.execPath, [entry], {
     cwd: packageRoot,
@@ -233,10 +244,12 @@ function startServer(options = {}) {
       ...process.env,
       LOCAL_REPO_MCP_PORT: String(config.port),
       LOCAL_REPO_MCP_PUBLIC_BASE_URL: effectivePublicBaseUrl,
-      LOCAL_REPO_MCP_AUTH_ISSUER: config.authIssuer,
+      LOCAL_REPO_MCP_AUTH_PROVIDER: config.authProvider,
+      LOCAL_REPO_MCP_AUTH_ISSUER: effectiveAuthIssuer,
       LOCAL_REPO_MCP_AUTH_AUDIENCE: effectiveAuthAudience,
       LOCAL_REPO_MCP_AUTH_MODE: authEnabled ? 'oauth' : 'disabled',
       LOCAL_REPO_MCP_REQUIRED_SCOPES: config.requiredScopes.join(' '),
+      LOCAL_REPO_MCP_APPROVAL_SECRET: approvalSecret,
       ELEGY_HOME: resolveElegyHome(options.elegyHome || options.elegyHomeAbs),
     },
   });
@@ -298,7 +311,6 @@ function waitForQuickTunnelUrl(child) {
 
 async function startQuickTunnel(options = {}) {
   const config = loadConfig(options);
-  validateExposureOAuthConfig(config);
   const cloudflaredPath = requireCloudflared(config);
   if (isRunning(tunnelProcess) && tunnelMode === 'quick' && quickTunnelBaseUrl) return getStatus(options);
   if (isRunning(tunnelProcess)) await stopTunnel(options);
@@ -321,6 +333,17 @@ async function startQuickTunnel(options = {}) {
     await stopTunnel(options);
     throw Object.assign(error, { statusCode: error.statusCode || 500 });
   }
+
+  saveConfig({
+    ...options,
+    config: {
+      ...config,
+      authProvider: 'builtin',
+      publicBaseUrl: quickTunnelBaseUrl,
+      authIssuer: quickTunnelBaseUrl,
+      authAudience: quickTunnelBaseUrl,
+    },
+  });
 
   if (isRunning(mcpProcess)) await stopServer(options);
   return startServer(options);
@@ -371,6 +394,39 @@ async function probe(options = {}) {
   };
 }
 
+async function getPendingAuthorizations(options = {}) {
+  const status = getStatus(options);
+  if (!status.server.running) return { ...status, pending: [] };
+  const response = await fetch(status.server.url.replace(/\/mcp$/, '/oauth/pending'), {
+    headers: { 'x-local-repo-mcp-approval-secret': approvalSecret },
+  });
+  if (!response.ok) {
+    throw Object.assign(new Error(`Unable to read pending OAuth authorizations (${response.status}).`), { statusCode: response.status });
+  }
+  const payload = await response.json();
+  return { ...status, pending: Array.isArray(payload.pending) ? payload.pending : [] };
+}
+
+async function approveAuthorization(options = {}) {
+  const status = getStatus(options);
+  if (!status.server.running) {
+    throw Object.assign(new Error('Local Repo MCP must be running before approving ChatGPT access.'), { statusCode: 400 });
+  }
+  const response = await fetch(status.server.url.replace(/\/mcp$/, '/oauth/approve'), {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-local-repo-mcp-approval-secret': approvalSecret,
+    },
+    body: JSON.stringify({ id: options.id }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw Object.assign(new Error(payload.message || payload.error || `Unable to approve authorization (${response.status}).`), { statusCode: response.status });
+  }
+  return { ...status, approval: payload };
+}
+
 module.exports = {
   CONFIG_SCHEMA_VERSION,
   createDefaultConfig,
@@ -383,4 +439,6 @@ module.exports = {
   startQuickTunnel,
   stopTunnel,
   probe,
+  getPendingAuthorizations,
+  approveAuthorization,
 };

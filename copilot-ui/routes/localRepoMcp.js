@@ -175,6 +175,29 @@ function register(deps = {}) {
         }
       },
     },
+    {
+      method: 'GET',
+      path: '/api/local-repo-mcp/oauth/pending',
+      handler: async (ctx) => {
+        try {
+          resolvedDeps.sendJson(ctx.res, 200, await resolvedDeps.manager.getPendingAuthorizations(ctx));
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/local-repo-mcp/oauth/approve',
+      handler: async (ctx) => {
+        try {
+          const body = await resolvedDeps.readJsonBody(ctx.req);
+          resolvedDeps.sendJson(ctx.res, 200, await resolvedDeps.manager.approveAuthorization({ ...ctx, id: body?.id }));
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
   ];
 }
 

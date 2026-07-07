@@ -1,6 +1,7 @@
 import type http from 'node:http';
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 import type { OAuthConfig } from './config.js';
+import { verifyLocalJwt } from './localOAuth.js';
 
 export class AuthError extends Error {
   readonly statusCode = 401;
@@ -28,6 +29,7 @@ export function buildWwwAuthenticate(config: OAuthConfig): string {
   const parts = ['Bearer'];
   if (config.publicBaseUrl || config.audience) {
     parts.push(`resource="${config.publicBaseUrl || config.audience}"`);
+    parts.push(`resource_metadata="${config.publicBaseUrl || config.audience}/.well-known/oauth-protected-resource"`);
   }
   if (config.requiredScopes.length > 0) {
     parts.push(`scope="${config.requiredScopes.join(' ')}"`);
@@ -47,6 +49,9 @@ export function extractBearerToken(req: http.IncomingMessage): string {
 
 export function validateAuthConfig(config: OAuthConfig): void {
   if (!config.enabled) return;
+  if (config.provider === 'builtin' && !config.publicBaseUrl) {
+    throw new AuthError('auth_misconfigured', 'LOCAL_REPO_MCP_PUBLIC_BASE_URL is required for built-in OAuth.');
+  }
   if (!config.issuer) throw new AuthError('auth_misconfigured', 'LOCAL_REPO_MCP_AUTH_ISSUER is required.');
   if (!config.audience) throw new AuthError('auth_misconfigured', 'LOCAL_REPO_MCP_AUTH_AUDIENCE is required.');
 }
@@ -73,11 +78,17 @@ export async function verifyRequest(req: http.IncomingMessage, config: OAuthConf
   if (!config.enabled) return;
   validateAuthConfig(config);
   const token = extractBearerToken(req);
+  const { payload } = config.provider === 'builtin'
+    ? await verifyLocalJwt(token, config)
+    : await verifyExternalJwt(token, config);
+  validateJwtClaims(payload, config);
+}
+
+async function verifyExternalJwt(token: string, config: OAuthConfig) {
   const issuerUrl = new URL(config.issuer);
   const jwks = createRemoteJWKSet(new URL('.well-known/jwks.json', issuerUrl));
-  const { payload } = await jwtVerify(token, jwks, {
+  return jwtVerify(token, jwks, {
     issuer: config.issuer,
     audience: config.audience,
   });
-  validateJwtClaims(payload, config);
 }

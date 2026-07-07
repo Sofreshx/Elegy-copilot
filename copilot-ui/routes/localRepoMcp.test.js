@@ -65,6 +65,8 @@ function makeDeps(body) {
       startQuickTunnel: async () => { state.started = true; state.tunnelStarted = true; return status(); },
       stopTunnel: async () => { state.tunnelStarted = false; return status(); },
       probe: async () => ({ ...status(), probe: { ok: true } }),
+      getPendingAuthorizations: async () => ({ ...status(), pending: [{ id: 'auth-1', userCode: '123456' }] }),
+      approveAuthorization: async (_ctx) => ({ ...status(), approval: { status: 'approved' } }),
     },
     access: {
       listAccess: () => state.access,
@@ -96,6 +98,8 @@ test('register exposes local repo MCP routes', () => {
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/roots/add'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/start'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/quick/start'));
+  assert.ok(routes.some((route) => route.method === 'GET' && route.path === '/api/local-repo-mcp/oauth/pending'));
+  assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/oauth/approve'));
 });
 
 test('start and stop are idempotent through manager state', async () => {
@@ -142,4 +146,15 @@ test('quick tunnel route propagates OAuth config errors', async () => {
   const result = await invoke(routes, 'POST', '/api/local-repo-mcp/tunnel/quick/start');
   assert.equal(result.statusCode, 400);
   assert.equal(result.body.error, 'OAuth issuer is required before exposing Local Repo Reader to ChatGPT.');
+});
+
+test('OAuth pending and approval routes proxy manager state', async () => {
+  const routes = register(makeDeps({ id: 'auth-1' }));
+  const pending = await invoke(routes, 'GET', '/api/local-repo-mcp/oauth/pending');
+  assert.equal(pending.statusCode, 200);
+  assert.equal(pending.body.pending[0].userCode, '123456');
+
+  const approval = await invoke(routes, 'POST', '/api/local-repo-mcp/oauth/approve');
+  assert.equal(approval.statusCode, 200);
+  assert.equal(approval.body.approval.status, 'approved');
 });

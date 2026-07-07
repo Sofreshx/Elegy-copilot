@@ -114,16 +114,25 @@ test('status reports missing cloudflared prerequisite', async () => withMissingC
   assert.equal(status.prerequisites.chatGptAccessReady, false);
 }));
 
-test('startQuickTunnel rejects missing OAuth config', async () => {
+test('startQuickTunnel with blank OAuth config generates built-in OAuth settings', async () => {
   const ctx = makeContext();
   const spawnCalls = [];
-  const manager = loadManager(spawnCalls);
+  const manager = loadManager(spawnCalls, (_args, child, index) => {
+    if (index === 0) {
+      process.nextTick(() => {
+        child.stderr.emit('data', Buffer.from('Your quick Tunnel has been created! https://sample.trycloudflare.com'));
+      });
+    }
+  });
 
-  await assert.rejects(
-    () => manager.startQuickTunnel(ctx),
-    /OAuth issuer is required before exposing Local Repo Reader to ChatGPT\./,
-  );
-  assert.equal(spawnCalls.length, 0);
+  const status = await manager.startQuickTunnel(ctx);
+
+  assert.equal(spawnCalls.length, 2);
+  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_PROVIDER, 'builtin');
+  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_ISSUER, 'https://sample.trycloudflare.com');
+  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_AUDIENCE, 'https://sample.trycloudflare.com');
+  assert.equal(status.securityState, 'OAuth protected');
+  assert.equal(status.prerequisites.oauth.provider, 'builtin');
 });
 
 test('startQuickTunnel rejects missing cloudflared before spawning', async () => withMissingCloudflaredEnv(async () => {

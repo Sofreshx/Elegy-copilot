@@ -4,8 +4,10 @@ import McpView from './McpView';
 
 const api = vi.hoisted(() => ({
   addLocalRepoMcpRoot: vi.fn(),
+  approveLocalRepoMcpAuthorization: vi.fn(),
   getCatalogRepos: vi.fn(),
   getLocalRepoMcpConfig: vi.fn(),
+  getLocalRepoMcpPendingAuthorizations: vi.fn(),
   getLocalRepoMcpStatus: vi.fn(),
   probeLocalRepoMcp: vi.fn(),
   registerCatalogRepo: vi.fn(),
@@ -22,8 +24,9 @@ vi.mock('../../lib/api', () => api);
 
 const config = {
   port: 3333,
+  authProvider: 'builtin',
   publicBaseUrl: 'https://mcp.example.com',
-  authIssuer: 'https://tenant.auth0.com/',
+  authIssuer: 'https://mcp.example.com',
   authAudience: 'https://mcp.example.com',
   requiredScopes: ['repo:read'],
   cloudflareTunnelName: 'local-repo-mcp',
@@ -60,11 +63,13 @@ function mockReady(overrides: Record<string, unknown> = {}) {
       registered: true,
     }],
   });
+  api.getLocalRepoMcpPendingAuthorizations.mockResolvedValue({ pending: [] });
 }
 
 function mockMissingOAuth() {
   const missingConfig = {
     ...config,
+    authProvider: 'builtin',
     publicBaseUrl: '',
     authIssuer: '',
     authAudience: '',
@@ -82,6 +87,7 @@ function mockMissingOAuth() {
     access: { repos: [] },
   });
   api.getCatalogRepos.mockResolvedValue({ repos: [] });
+  api.getLocalRepoMcpPendingAuthorizations.mockResolvedValue({ pending: [] });
 }
 
 function mockIssuerOnly() {
@@ -103,6 +109,7 @@ function mockIssuerOnly() {
     access: { repos: [] },
   });
   api.getCatalogRepos.mockResolvedValue({ repos: [] });
+  api.getLocalRepoMcpPendingAuthorizations.mockResolvedValue({ pending: [] });
 }
 
 function mockMissingCloudflared() {
@@ -129,6 +136,7 @@ function mockMissingCloudflared() {
     access: { repos: [] },
   });
   api.getCatalogRepos.mockResolvedValue({ repos: [] });
+  api.getLocalRepoMcpPendingAuthorizations.mockResolvedValue({ pending: [] });
 }
 
 describe('McpView', () => {
@@ -145,6 +153,7 @@ describe('McpView', () => {
     api.getLocalRepoMcpStatus.mockReturnValue(new Promise<never>(() => {}));
     api.getLocalRepoMcpConfig.mockReturnValue(new Promise<never>(() => {}));
     api.getCatalogRepos.mockReturnValue(new Promise<never>(() => {}));
+    api.getLocalRepoMcpPendingAuthorizations.mockReturnValue(new Promise<never>(() => {}));
 
     render(<McpView />);
 
@@ -189,13 +198,12 @@ describe('McpView', () => {
 
     expect(screen.getByTestId('mcp-start')).not.toBeDisabled();
     expect(screen.getByTestId('mcp-start')).toHaveTextContent('Start Local Only');
-    expect(screen.getByTestId('mcp-quick-tunnel-start')).toBeDisabled();
-    expect(screen.getByTestId('mcp-chatgpt-auth-issuer')).toBeInTheDocument();
+    expect(screen.getByTestId('mcp-quick-tunnel-start')).not.toBeDisabled();
     expect(screen.getByText('Start local MCP, then start ChatGPT access to generate a connector URL.')).toBeInTheDocument();
   });
 
-  it('allows ChatGPT access with issuer-only OAuth setup', async () => {
-    mockIssuerOnly();
+  it('allows ChatGPT access from blank built-in OAuth setup', async () => {
+    mockMissingOAuth();
 
     render(<McpView />);
 
@@ -206,7 +214,7 @@ describe('McpView', () => {
     expect(screen.getByTestId('mcp-quick-tunnel-start')).not.toBeDisabled();
   });
 
-  it('saves issuer before starting ChatGPT access from the provider card', async () => {
+  it('starts ChatGPT access without saving an external issuer from the provider card', async () => {
     mockMissingOAuth();
     api.saveLocalRepoMcpConfig.mockResolvedValue({ config, access: { repos: [] } });
     api.startLocalRepoMcpQuickTunnel.mockResolvedValue({});
@@ -214,19 +222,47 @@ describe('McpView', () => {
     render(<McpView />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('mcp-chatgpt-auth-issuer-control')).toBeInTheDocument();
+      expect(screen.getByTestId('mcp-quick-tunnel-start')).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByTestId('mcp-chatgpt-auth-issuer-control'), {
-      target: { value: 'https://issuer.example.com/' },
-    });
     fireEvent.click(screen.getByTestId('mcp-quick-tunnel-start'));
 
     await waitFor(() => {
-      expect(api.saveLocalRepoMcpConfig).toHaveBeenCalledWith(expect.objectContaining({
-        authIssuer: 'https://issuer.example.com/',
-      }));
+      expect(api.saveLocalRepoMcpConfig).not.toHaveBeenCalled();
       expect(api.startLocalRepoMcpQuickTunnel).toHaveBeenCalled();
+    });
+  });
+
+  it('renders and approves pending local OAuth authorizations', async () => {
+    mockReady({
+      connectorUrl: 'https://sample.trycloudflare.com/mcp',
+      server: { running: true, pid: 1, url: 'http://127.0.0.1:3333/mcp' },
+      tunnel: { running: true, pid: 2, mode: 'quick', publicUrl: 'https://sample.trycloudflare.com/mcp' },
+      securityState: 'OAuth protected',
+    });
+    api.getLocalRepoMcpPendingAuthorizations.mockResolvedValue({
+      pending: [{
+        id: 'auth-1',
+        userCode: '123456',
+        clientId: 'chatgpt',
+        scope: 'repo:read',
+        resource: 'https://sample.trycloudflare.com',
+        createdAt: '2026-07-07T00:00:00.000Z',
+        expiresAt: '2026-07-07T00:10:00.000Z',
+      }],
+    });
+    api.approveLocalRepoMcpAuthorization.mockResolvedValue({});
+
+    render(<McpView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mcp-pending-authorizations')).toHaveTextContent('123456');
+    });
+
+    fireEvent.click(screen.getByTestId('mcp-approve-authorization-auth-1'));
+
+    await waitFor(() => {
+      expect(api.approveLocalRepoMcpAuthorization).toHaveBeenCalledWith('auth-1');
     });
   });
 
