@@ -23,11 +23,16 @@ function resolveBinary(repoRoot) {
     return process.env.ELEGY_CHECKS_BIN.trim();
   }
   const exe = process.platform === 'win32' ? 'elegy-checks.exe' : 'elegy-checks';
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+  const elegyBin = homeDir ? path.join(homeDir, '.elegy', 'bin') : '';
   const candidates = [
+    // Installed via marketplace installer (standard location)
+    elegyBin ? path.join(elegyBin, exe) : null,
+    // In-tree source (transition period, active development)
     path.join(repoRoot, 'elegy-checks', 'target', 'debug', exe),
     path.join(repoRoot, 'elegy-checks', 'target', 'release', exe),
     path.join(path.dirname(repoRoot), 'elegy-checks', 'target', 'debug', exe),
-  ];
+  ].filter(Boolean);
   return candidates.find((candidate) => fs.existsSync(candidate)) || null;
 }
 
