@@ -196,6 +196,45 @@ Run the validation smoke tests above inside Git Bash. All should pass.
 
 Git Bash has a known env injection bug on some OpenCode versions. Commands may fail with `$env:` errors. If this occurs, set OpenCode to use `pwsh` as fallback (see Manual Override).
 
+## Windows Executables from WSL
+
+Windows app-execution aliases (e.g., `Obsidian.com`, `winget.exe`)
+are on the Windows PATH but **not** the WSL PATH. When an agent
+running in WSL bash needs a Windows-only binary, it must resolve the
+full Windows path.
+
+### Resolution pattern
+
+1. Try the bare command first (e.g., `obsidian version`).
+2. If `command not found`, resolve via Windows:
+   ```bash
+   cmd.exe /c "where <command>"
+   ```
+3. Convert the returned Windows path to a WSL path:
+   `C:\Users\...\foo.exe` → `/mnt/c/Users/.../foo.exe`
+4. Use the full WSL path for all subsequent invocations.
+
+### Known binaries
+
+| Command | Windows path | WSL path |
+|---|---|---|
+| `obsidian` (Obsidian CLI v1.12.7+) | `C:\Users\<user>\AppData\Local\Programs\Obsidian\Obsidian.com` | `/mnt/c/Users/<user>/AppData/Local/Programs/Obsidian/Obsidian.com` |
+| `winget` | `C:\Users\<user>\AppData\Local\Microsoft\WindowsApps\winget.exe` | `/mnt/c/Users/<user>/AppData/Local/Microsoft/WindowsApps/winget.exe` |
+
+### Adding to PATH (alternative)
+
+To make Windows app-execution aliases visible in WSL, add the
+Windows Apps directory to the WSL PATH:
+
+```bash
+# In ~/.bashrc or ~/.profile
+export PATH="$PATH:/mnt/c/Users/<user>/AppData/Local/Microsoft/WindowsApps"
+```
+
+This is a user-local decision. The per-skill binary resolution
+approach (using `cmd.exe /c "where"`) is preferred because it
+doesn't require shell configuration changes.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |

@@ -7,10 +7,13 @@ doc_kind: node
 id: obsidian-synced-notes-contract
 summary: Contract for the external/non-canonical Obsidian planning note surface exposed through copilot-ui.
 tags: [planning, obsidian, notes, contracts]
-related: [planning-backlog-roadmap-contract, copilot-ui-guide, session-state-artifacts]
+related: [planning-backlog-roadmap-contract, copilot-ui-guide, session-state-artifacts, obsidian-lanes]
 ---
 
 # Obsidian Synced Notes Contract
+
+> **Routing**: this contract governs the **planning-mirror lane** only.
+> For the full Obsidian lane map, see [obsidian-lanes](obsidian-lanes.md).
 
 ## Purpose
 

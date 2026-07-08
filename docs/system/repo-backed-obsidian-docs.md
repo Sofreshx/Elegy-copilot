@@ -7,10 +7,13 @@ doc_kind: node
 id: repo-backed-obsidian-docs
 summary: Contract for using Obsidian as a local viewer/editor over canonical repo docs, with the repo remaining the source of truth.
 tags: [obsidian, documentation, vault, repo, canonical]
-related: [doc-graph-spec, obsidian-synced-notes-contract, documentation-authoring-governance, documentation-structure-governance]
+related: [doc-graph-spec, obsidian-synced-notes-contract, documentation-authoring-governance, documentation-structure-governance, obsidian-lanes]
 ---
 
 # Repo-Backed Obsidian Documentation
+
+> **Routing**: this contract governs the **repo-backed docs vault** lane only.
+> For the full Obsidian lane map, see [obsidian-lanes](obsidian-lanes.md).
 
 ## Intent
 

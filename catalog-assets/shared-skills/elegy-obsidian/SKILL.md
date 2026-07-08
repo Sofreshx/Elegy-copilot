@@ -2,6 +2,7 @@
 name: elegy-obsidian
 description: "Read, write, and search a local Obsidian vault via the official Obsidian Desktop CLI (v1.12.7+). Non-authoritative convenience layer; durable planning state continues to flow through elegy-planning and SQLite. User-invoked; do not auto-load."
 license: Apache-2.0
+version: "2.1"
 metadata: {"aliasKeys":["obsidian","obsidian-cli","elegy-obsidian"],"stacks":["vault","notes"],"tags":["obsidian","vault","notes","search","tasks","tags","elegy","non-authoritative-mirror"]}
 disable-model-invocation: true
 ---
@@ -10,13 +11,16 @@ disable-model-invocation: true
 
 # Elegy Obsidian
 
+> **Canonical source**: Elegy repo `skills/elegy-obsidian/SKILL.md`.
+> This is the consumer-side mirror in `instruction-engine`.
+
 ## Purpose
 
-`elegy-obsidian` is a thin convenience layer that wraps the official
-`obsidian` CLI shipped with Obsidian Desktop 1.12.7+. It is a foundation
-surface only; it deliberately does **not** mirror, attach, resolve, or
-list Obsidian vault state into the Elegy planning authority. That work
-belongs to a future `elegy-planning obsidian ...` Rust subcommand set.
+`elegy-obsidian` is a convenience layer over the official `obsidian` CLI
+shipped with Obsidian Desktop 1.12.7+. It is a foundation surface only;
+it deliberately does **not** mirror, attach, resolve, or list Obsidian
+vault state into the Elegy planning authority. That work belongs to a
+future `elegy-planning obsidian ...` Rust subcommand set.
 
 Obsidian is treated as a **non-authoritative** mirror:
 
@@ -33,14 +37,107 @@ Obsidian is treated as a **non-authoritative** mirror:
 
 ## Prerequisite
 
-The official `obsidian` binary must be available on PATH. It is shipped
-with Obsidian Desktop 1.12.7+; the CLI is not enabled by default.
- The Obsidian Desktop app must also be running for the CLI to function — commands fail if the app is not open.
+The official `obsidian` binary must be available. It is shipped with
+Obsidian Desktop 1.12.7+; the CLI is not enabled by default. The
+Obsidian Desktop app must also be running for the CLI to function —
+commands fail if the app is not open.
 
-If the `obsidian` CLI is not installed, this skill cannot function --
-inform the user and offer to install Obsidian Desktop or enable the
-CLI in Obsidian Settings -> General -> "Open and close" or
-"Command line interface" (depending on platform build).
+If the `obsidian` CLI is not installed or not reachable, this skill
+cannot function — inform the user and offer to install Obsidian
+Desktop or enable the CLI in Obsidian Settings -> General ->
+"Command line interface".
+
+## Binary Resolution
+
+The `obsidian` binary must be reachable from the current shell. Use
+this resolution order:
+
+1. **Check PATH**: run `obsidian version`. If it resolves, use `obsidian`
+   directly for all commands.
+2. **WSL / non-PATH fallback**: on Windows Subsystem for Linux, the
+   `obsidian` app-execution alias is on the Windows PATH but not the
+   WSL PATH. Resolve via:
+   ```bash
+   cmd.exe /c "where obsidian"
+   ```
+   This returns the full Windows path (e.g.,
+   `C:\Users\<user>\AppData\Local\Programs\Obsidian\Obsidian.com`).
+   Convert to a WSL path (`/mnt/c/Users/<user>/AppData/Local/Programs/Obsidian/Obsidian.com`)
+   and use it for all subsequent invocations.
+3. **Known install root**: if `where` fails, check
+   `C:\Users\<user>\AppData\Local\Programs\Obsidian\Obsidian.com`
+   (the default Obsidian Desktop 1.12.7+ install location on Windows).
+
+Once resolved, use the full binary path for every `obsidian` call in
+the session. Do not re-resolve unless the first attempt fails.
+
+If none of the above resolve, the CLI is not installed or not enabled.
+Guide the user to install Obsidian Desktop 1.12.7+ and enable the CLI
+under Settings -> General -> Command line interface.
+
+## Vault Context
+
+Before invoking any vault command, load the vault context:
+
+1. **Read config**: `~/.elegy/obsidian-vault.json` contains
+   `vaultPath` (the vault root). Derive the vault name from the
+   folder basename (e.g., `C:/Users/lolzi/Documents/Dev` → vault
+   name `Dev`).
+2. **Fallback**: if config is absent, run `obsidian vault list` to
+   discover registered vaults. Use the first (or prompt the user
+   to choose if multiple).
+3. **Pin vault name**: pass `vault=<name>` on every subsequent
+   `obsidian` call. The active-vault default is platform-specific
+   and unreliable when multiple vaults are registered.
+
+### Vault layout conventions
+
+Obsidian vaults use theme-based subdirectories. The standard layout
+(for a vault named `Dev`):
+
+```text
+Dev/
+  Projects/       ← project notes (theme: Projects)
+  Research/       ← research notes (theme: Research)
+  Tasks/          ← task lists (theme: Tasks)
+  Resources/      ← resource/link collections (theme: Resources)
+  Index.md        ← navigation hub (links to all sections)
+```
+
+Frontmatter conventions (per the vault-notes spec):
+
+```yaml
+---
+id: my-note-slug        # derived from filename (My-Note.md → my-note)
+title: My Note          # human-readable title
+theme: Projects         # derived from parent directory name
+tags: [tag1, tag2]      # YAML array
+created: ISO-timestamp
+updated: ISO-timestamp
+archived: false
+---
+```
+
+These are conventions, not enforced. The `theme` field corresponds to
+the parent directory name. `Index.md` at the vault root is the
+navigation hub — read it first to orient within the vault.
+
+## Orient-Once Protocol
+
+At the start of each session (or when the user asks to interact with
+the vault), run this 3-command bootstrap:
+
+1. `obsidian version` — confirm CLI is reachable, note version.
+2. `obsidian vault list` — confirm vault name and path (or read from
+   `~/.elegy/obsidian-vault.json`).
+3. `obsidian read file=Index.md vault=<name>` — load the navigation
+   hub to understand the vault's structure and current state.
+
+After this orient pass, the session has the binary path, vault name,
+and vault layout pinned. No further re-discovery is needed.
+
+**Orient is complete when all three commands succeed** — the binary
+path, vault name, and vault layout are pinned for the session.
 
 ## Installation
 
@@ -63,10 +160,7 @@ CLI in Obsidian Settings -> General -> "Open and close" or
 ### No `elegy-obsidian` binary
 
 This skill does **not** ship an executable. It is a routing and
-convention layer over the official `obsidian` CLI. The Elegy wrapper
-archive (`elegy-obsidian-wrapper-*.zip`) contains only governance
-fixtures, the skill content, and the `delegatesTo.externalExecutable`
-declaration; it does not contain an `obsidian` binary.
+convention layer over the official `obsidian` CLI.
 
 ## Core Commands
 
@@ -75,46 +169,18 @@ Full command reference: [`references/obsidian-cli-catalog.md`](references/obsidi
 Key commands: `read`, `search`, `daily`, `daily:read`, `tags`, `tasks` (read-only).
 Side-effecting commands (`create`, `append`, `patch`, `move`, `delete`, `daily:append`, `task toggle`, `command`) require explicit user approval.
 
-Note: the `obsidian-result/v1` envelope below is this SKILL's own output convention, NOT a format the Obsidian CLI returns natively.
-
-## Capability Catalog
-
-Full catalog (17 capabilities across 7 groups): [`references/obsidian-cli-catalog.md`](references/obsidian-cli-catalog.md).
-
 ## Quick Reference
 
 | Task | Command |
 |---|---|
-| List vaults | `obsidian vault list` (or just `obsidian` with no args on some builds) |
-| Read a note | `obsidian read file=notes/foo.md` |
-| Append to a note | `obsidian append file=notes/foo.md content="New line"` |
-| Search the vault | `obsidian search query="planning" limit=20` |
-| Read today's daily note | `obsidian daily:read` |
-| Append to today's daily note | `obsidian daily:append content="- [ ] triage obsidian queue"` |
-| List open tasks | `obsidian tasks status=open` |
-| Toggle a task | `obsidian task toggle file=notes/daily.md line=12` |
-
-## Result Envelope (Skill Convention)
-
-This skill wraps every raw `obsidian` CLI invocation into an `obsidian-result/v1` envelope:
-
-```jsonc
-{
-  "schemaVersion": "obsidian-result/v1",
-  "command": "obsidian read file=notes/foo.md",
-  "status": "ok" | "error" | "timeout" | "missing-vault" | "permission-denied",
-  "vault": "<vault name or null>",
-  "data": "<opaque passthrough of `obsidian` stdout or null on error>",
-  "rawOutput": "<full stdout/stderr for debugging>",
-  "error": { "message": "...", "exitCode": <int|null> } | null
-}
-```
-
-The `data` field is intentionally opaque: the official `obsidian` CLI
-returns text by default and the skill does not parse it. Future
-`elegy-planning obsidian ...` subcommands may introduce a stricter
-parse/resolve shape, but that is **not** the responsibility of this
-foundation skill.
+| List vaults | `obsidian vault list` |
+| Read a note | `obsidian read file=notes/foo.md vault=Dev` |
+| Append to a note | `obsidian append file=notes/foo.md content="New line" vault=Dev` |
+| Search the vault | `obsidian search query="planning" limit=20 vault=Dev` |
+| Read today's daily note | `obsidian daily:read vault=Dev` |
+| Append to today's daily note | `obsidian daily:append content="- [ ] triage obsidian queue" vault=Dev` |
+| List open tasks | `obsidian tasks status=open vault=Dev` |
+| Toggle a task | `obsidian task toggle file=notes/daily.md line=12 vault=Dev` |
 
 ## Rules
 
@@ -126,30 +192,40 @@ foundation skill.
 - Do not write vault content into paths that would shadow Elegy
   planning authority (`.elegy/backlogs/`, `roadmaps/`, ADR/spec
   locations, governance nodes per the repo discovery chain).
-- Use `obsidian-result/v1` envelopes for every invocation. If the CLI
-  exits non-zero, set `status` to the most specific terminal state
-  (`missing-vault`, `permission-denied`, `error`) and put the
-  diagnostics in `error.message`.
-- Respect the three mandatory constraints encoded in
-  `skill-definition-v2.elegy-obsidian.json`:
+- Respect the three mandatory constraints:
   `external-binary-dependency`, `non-authoritative-vault`,
   `no-projection-of-authority`.
+- Use the resolved binary path consistently across the session; do
+  not re-resolve unless an invocation fails.
+
+### Rollback notes
+
+- File mutations (`create`, `append`, `patch`, `move`, `delete`) are
+  not reversible through the CLI. Recommend backing up before
+  deletes/moves.
+- `delete` is irreversible — the file is removed from the vault.
+- `move` can be reversed by moving back, but wiki-link rewrites
+  applied by Obsidian during the move may not fully reverse.
+- `task toggle` is reversible by toggling again.
+- `daily:append` can be undone by editing the daily note in Obsidian.
 
 ## Authority Chain
 
-- Upstream governed definition (canonical):
-  Elegy repo `contracts/fixtures/skill-definition-v2.elegy-obsidian.json`
-- Upstream discovery projection (canonical):
-  Elegy repo `contracts/fixtures/skill-discovery-index.elegy-obsidian.json`
-- Upstream result envelope:
-  Elegy repo `contracts/schemas/obsidian-result.schema.json`
-- Consumer-side governed definition (mirror):
-  `contracts/elegy/fixtures/skill-definition-v2.elegy-obsidian.json`
-- Consumer-side discovery projection (mirror):
-  `contracts/elegy/fixtures/skill-discovery-index.elegy-obsidian.json`
-- Wrapper archive declaration:
-  Elegy repo `src/Elegy-obsidian/wrapper-entrypoint.json`
-  (`delegatesTo.externalExecutable`, no binary in archive)
+> This is the **consumer-side mirror**. Canonical source:
+> Elegy repo `skills/elegy-obsidian/SKILL.md`.
+
+| Artifact | Location | Role |
+|---|---|---|
+| **SKILL.md** (canonical) | Elegy repo `skills/elegy-obsidian/SKILL.md` | Governed source of truth |
+| **Consumer definition** | `contracts/elegy/fixtures/skill-definition-v2.elegy-obsidian.json` | Consumer-side governed definition |
+| **Consumer discovery** | `contracts/elegy/fixtures/skill-discovery-index.elegy-obsidian.json` | Consumer-side discovery projection |
+| **CLI catalog** | `catalog-assets/shared-skills/elegy-obsidian/references/obsidian-cli-catalog.md` | Full command/capability reference |
+| **Routing node** | `docs/system/obsidian-lanes.md` | Maps Obsidian needs to integration lanes |
+
+The consumer-side fixtures in `contracts/elegy/fixtures/` are mirrors
+of the canonical definition. The Elegy repo's `elegy-skills` registry
+discovers the skill from `skills/elegy-obsidian/SKILL.md` and
+`.elegy-plugin/plugin.json` (no separate fixtures tree).
 
 ## Future Work (not in foundation)
 
