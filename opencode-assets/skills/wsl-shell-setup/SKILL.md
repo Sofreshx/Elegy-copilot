@@ -211,15 +211,19 @@ full Windows path.
    cmd.exe /c "where <command>"
    ```
 3. Convert the returned Windows path to a WSL path:
-   `C:\Users\...\foo.exe` → `/mnt/c/Users/.../foo.exe`
+   `X:\path\to\foo.exe` → `/mnt/x/path/to/foo.exe`
 4. Use the full WSL path for all subsequent invocations.
 
 ### Known binaries
 
-| Command | Windows path | WSL path |
-|---|---|---|
-| `obsidian` (Obsidian CLI v1.12.7+) | `C:\Users\<user>\AppData\Local\Programs\Obsidian\Obsidian.com` | `/mnt/c/Users/<user>/AppData/Local/Programs/Obsidian/Obsidian.com` |
-| `winget` | `C:\Users\<user>\AppData\Local\Microsoft\WindowsApps\winget.exe` | `/mnt/c/Users/<user>/AppData/Local/Microsoft/WindowsApps/winget.exe` |
+| Command | Resolution |
+|---|---|
+| `obsidian` (Obsidian CLI v1.12.7+) | `cmd.exe /c "where obsidian"` returns the Windows path; convert to `/mnt/c/...` for WSL |
+| `winget` | `cmd.exe /c "where winget"` returns the Windows path; convert to `/mnt/c/...` for WSL |
+
+The resolved path depends on the user's install location. Use
+`cmd.exe /c "where <command>"` to discover it dynamically rather
+than hardcoding.
 
 ### Adding to PATH (alternative)
 
@@ -228,7 +232,7 @@ Windows Apps directory to the WSL PATH:
 
 ```bash
 # In ~/.bashrc or ~/.profile
-export PATH="$PATH:/mnt/c/Users/<user>/AppData/Local/Microsoft/WindowsApps"
+export PATH="$PATH:/mnt/x/Users/<user>/AppData/Local/Microsoft/WindowsApps"
 ```
 
 This is a user-local decision. The per-skill binary resolution
