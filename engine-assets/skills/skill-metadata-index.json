@@ -157,6 +157,35 @@
       }
     },
     {
+      "skill": "github-workflow",
+      "name": "github-workflow",
+      "description": "Reliable GitHub operations via gh CLI. Use when creating PRs, monitoring CI, managing issues, or performing any GitHub operation. Ensures auth is valid before operations, prevents interactive prompt hangs, and provides proper gh command patterns. Triggers on: github, pull request, pr create, pr merge, ci status, github actions, gh cli, gh auth, create pr, merge pr, github workflow.",
+      "triggersOn": [
+        "ci status",
+        "create pr",
+        "gh auth",
+        "gh cli",
+        "github",
+        "github actions",
+        "github workflow",
+        "merge pr",
+        "pr create",
+        "pr merge",
+        "pull request"
+      ],
+      "tags": [
+        "ci",
+        "github",
+        "gh",
+        "pull-request",
+        "workflow"
+      ],
+      "manifest": {
+        "id": "opencode-github-workflow-skill",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "implementation-handoff",
       "name": "implementation-handoff",
       "description": "Convert a feature plan, roadmap slice, or architecture note into a repo-grounded implementation handoff brief. Triggers on: implementation handoff, executor brief, delegation brief, model handoff, plan to implementation brief.",

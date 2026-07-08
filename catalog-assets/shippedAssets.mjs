@@ -93,6 +93,7 @@ export const SHIPPED_ASSETS = [
     appendix: 'opencode-assets/home/AGENTS-appendix.md',
   }),
   skill('opencode-code-review-skill', 'opencode-assets/skills/code-review'),
+  skill('opencode-github-workflow-skill', 'opencode-assets/skills/github-workflow', { loadMode: 'on-demand' }),
   skill('opencode-project-conventions-governance-skill', 'engine-assets/skills/project-conventions-governance'),
   skill('opencode-security-skill', 'engine-assets/skills/security'),
   skill('opencode-worktree-skill', 'opencode-assets/skills/worktree'),

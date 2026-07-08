@@ -145,6 +145,13 @@
       "destination": "skills/code-review"
     },
     {
+      "id": "opencode-github-workflow-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/github-workflow",
+      "destination": "skills/github-workflow",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "opencode-commit-check-setup-skill",
       "type": "skill",
       "source": "engine-assets/skills/commit-check-setup",
