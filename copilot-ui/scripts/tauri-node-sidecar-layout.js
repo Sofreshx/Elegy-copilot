@@ -247,7 +247,8 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     requireFile(`desktop pglite payload ${fileName}`, path.join(pgliteSourceDistPath, fileName));
   }
 
-  if (manifest.nativeRuntimePackageRequirements && typeof manifest.nativeRuntimePackageRequirements === 'object') {
+  const nativeRuntimeChecks = process.platform === 'win32' ? 'verified' : 'skipped_non_windows';
+  if (nativeRuntimeChecks === 'verified' && manifest.nativeRuntimePackageRequirements && typeof manifest.nativeRuntimePackageRequirements === 'object') {
     for (const [packageName, pkgConfig] of Object.entries(manifest.nativeRuntimePackageRequirements)) {
       assert(pkgConfig && typeof pkgConfig === 'object', `Expected ${manifestPath} nativeRuntimePackageRequirements.${packageName} to be an object.`);
       assert(Array.isArray(pkgConfig.requiredFiles) && pkgConfig.requiredFiles.length > 0, `Expected ${manifestPath} nativeRuntimePackageRequirements.${packageName}.requiredFiles.`);
@@ -281,6 +282,7 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
   return {
     manifestPath,
     validatedResourceCount,
+    nativeRuntimeChecks,
     nodeRuntimeRelativePath: manifest.nodeRuntime.relativePath,
     serverEntrypoint: manifest.entrypoints.server,
     pgliteTargetDist: manifest.pglite.targetDist,

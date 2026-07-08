@@ -10,7 +10,7 @@ try {
     `[tauri-sidecar-layout] validated ${layout.validatedResourceCount} resource copy rule(s); `
     + `node=${layout.nodeRuntimeRelativePath}; server=${layout.serverEntrypoint}; `
     + `pglite=${layout.pgliteTargetDist}; status=${layout.status}; packaging=${layout.packaging}; `
-    + `updateMode=${layout.updateMode}; bundleTarget=${bundle.bundleTarget}.`,
+    + `updateMode=${layout.updateMode}; nativeChecks=${layout.nativeRuntimeChecks}; bundleTarget=${bundle.bundleTarget}.`,
   );
 } catch (error) {
   const detail = error instanceof Error ? error.message : String(error);

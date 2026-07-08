@@ -43,7 +43,7 @@ jobs:
       prerelease: ${{ steps.meta.outputs.prerelease }}
     steps:
       - name: Checkout repository metadata
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -157,7 +157,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ needs.resolve-preview.outputs.ref }}
           fetch-depth: 0
@@ -167,7 +167,7 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22.x'
           cache: npm

@@ -17,16 +17,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-      - name: CI lockfile preflight
-        run: node scripts/validate-ci-lockfiles.js
-
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22.x'
           cache: npm
@@ -35,6 +32,9 @@ jobs:
             copilot-ui/package-lock.json
             local-tracker/package-lock.json
             scripts/package-lock.json
+
+      - name: CI lockfile preflight
+        run: node scripts/validate-ci-lockfiles.js
 
       - name: Install dependencies
         run: npm ci

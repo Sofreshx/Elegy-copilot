@@ -14,35 +14,32 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
+            scripts/package-lock.json
 
       - name: CI lockfile preflight
         run: node scripts/validate-ci-lockfiles.js
 
-      - name: Install scripts dependencies
+      - name: Install workspace dependencies
         run: npm ci
-        working-directory: scripts
 
       - name: Run ledger core tests
         run: node --test test-ledger-core.test.js
         working-directory: scripts
 
-      - name: Install local-tracker dependencies
-        run: npm ci
-        working-directory: local-tracker
-
       - name: Run local-tracker tests (force)
         run: npm test -- --force
         working-directory: local-tracker
-
-      - name: Install copilot-ui dependencies
-        run: npm ci
-        working-directory: copilot-ui
 
       - name: Run copilot-ui tests (force)
         run: npm test -- --force
