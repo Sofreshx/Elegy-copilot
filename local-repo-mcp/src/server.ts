@@ -227,6 +227,10 @@ const httpServer = http.createServer(async (req, res) => {
   const requestUrl = new URL(req.url || '/', oauth.publicBaseUrl || `http://127.0.0.1:${PORT}`);
 
   if (requestUrl.pathname === '/.well-known/oauth-protected-resource') {
+    if (!oauth.enabled) {
+      sendJson(res, 404, { error: 'not_found' });
+      return;
+    }
     sendJson(res, 200, buildProtectedResourceMetadata(oauth));
     return;
   }
@@ -311,7 +315,8 @@ const httpServer = http.createServer(async (req, res) => {
     await verifyRequest(req, oauth);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    sendJson(res, 401, { error: 'unauthorized', message }, { 'WWW-Authenticate': buildWwwAuthenticate(oauth) });
+    const headers: Record<string, string> | undefined = oauth.enabled ? { 'WWW-Authenticate': buildWwwAuthenticate(oauth) } : undefined;
+    sendJson(res, 401, { error: 'unauthorized', message }, headers);
     return;
   }
 
@@ -327,7 +332,8 @@ const httpServer = http.createServer(async (req, res) => {
     await transport.handleRequest(req, res);
   } catch (error) {
     if (error instanceof AuthError) {
-      sendJson(res, error.statusCode, { error: error.code, message: error.message }, { 'WWW-Authenticate': buildWwwAuthenticate(oauth) });
+      const headers: Record<string, string> | undefined = oauth.enabled ? { 'WWW-Authenticate': buildWwwAuthenticate(oauth) } : undefined;
+      sendJson(res, error.statusCode, { error: error.code, message: error.message }, headers);
       return;
     }
     if (!res.headersSent) sendJson(res, 500, { error: 'mcp_error', message: error instanceof Error ? error.message : String(error) });

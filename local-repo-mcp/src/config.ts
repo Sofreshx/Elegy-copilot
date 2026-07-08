@@ -88,7 +88,7 @@ function normalizeRoot(root: RepoRoot): RepoRoot {
 }
 
 export function getOAuthConfig(): OAuthConfig {
-  const authMode = (process.env.LOCAL_REPO_MCP_AUTH_MODE || 'oauth').trim().toLowerCase();
+  const authMode = (process.env.LOCAL_REPO_MCP_AUTH_MODE || 'disabled').trim().toLowerCase();
   const requestedProvider = (process.env.LOCAL_REPO_MCP_AUTH_PROVIDER || 'external').trim().toLowerCase();
   const provider = authMode === 'disabled'
     ? 'disabled'

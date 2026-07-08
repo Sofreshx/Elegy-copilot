@@ -36,12 +36,13 @@ const config = {
 function mockReady(overrides: Record<string, unknown> = {}) {
   const serverRunning = Boolean((overrides.server as { running?: boolean } | undefined)?.running);
   const tunnelRunning = Boolean((overrides.tunnel as { running?: boolean } | undefined)?.running);
-  const chatGptUrl = tunnelRunning ? 'https://sample.trycloudflare.com/mcp/private-token' : '';
+  const chatGptUrl = tunnelRunning ? 'https://sample.trycloudflare.com/mcp' : '';
   const status = {
     config,
     server: { running: false, pid: null, url: 'http://127.0.0.1:3333/mcp' },
     tunnel: { running: false, pid: null, publicUrl: 'https://mcp.example.com/mcp' },
     securityState: 'Stopped',
+    probe: null,
     chatGptAccess: {
       mode: 'quick-cloudflare',
       ready: serverRunning && tunnelRunning,
@@ -203,24 +204,27 @@ describe('McpView', () => {
     });
 
     expect(screen.getByText('Local Repo Reader')).toBeInTheDocument();
-    expect(screen.getByText('Start ChatGPT Access to generate a private HTTPS MCP URL.')).toBeInTheDocument();
+    expect(screen.getByText('Start to generate a ChatGPT Server URL.')).toBeInTheDocument();
     expect(screen.getByText('This quick tunnel URL is temporary. If you stop or restart access, create or reconnect the ChatGPT app with the new URL.')).toBeInTheDocument();
     expect(screen.getByTestId('mcp-readable-root-count')).toHaveTextContent('1 enabled');
+    expect(screen.queryByTestId('mcp-start-local-only')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mcp-stop')).not.toBeInTheDocument();
   });
 
   it('shows ChatGPT-ready state when the quick tunnel is running', async () => {
     mockReady({
       server: { running: true, pid: 1, url: 'http://127.0.0.1:3333/mcp' },
-      tunnel: { running: true, pid: 2, mode: 'quick', publicUrl: 'https://sample.trycloudflare.com/mcp/private-token' },
+      tunnel: { running: true, pid: 2, mode: 'quick', publicUrl: 'https://sample.trycloudflare.com/mcp' },
       securityState: 'ChatGPT ready',
       chatGptAccess: {
         mode: 'quick-cloudflare',
         ready: true,
-        url: 'https://sample.trycloudflare.com/mcp/private-token',
+        url: 'https://sample.trycloudflare.com/mcp',
         auth: 'none',
         urlStable: false,
         blocker: '',
       },
+      probe: { ok: true, status: 200, code: 'ok', message: 'MCP tools/list succeeded.' },
     });
 
     render(<McpView />);
@@ -230,9 +234,9 @@ describe('McpView', () => {
     });
 
     expect(screen.getByTestId('mcp-chatgpt-readiness')).toHaveTextContent('ready for ChatGPT');
-    expect(screen.getAllByText('https://sample.trycloudflare.com/mcp/private-token').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('https://sample.trycloudflare.com/mcp').length).toBeGreaterThan(0);
     expect(screen.getByText('None')).toBeInTheDocument();
-    expect(screen.getByTestId('mcp-quick-tunnel-start')).toHaveTextContent('Start ChatGPT Access');
+    expect(screen.getByTestId('mcp-quick-tunnel-start')).toHaveTextContent('Start');
     expect(screen.getByTestId('mcp-quick-tunnel-start')).toBeDisabled();
     expect(screen.getByTestId('mcp-provider-copy-url')).toBeInTheDocument();
     expect(screen.getByTestId('mcp-chatgpt-copy-url')).toBeInTheDocument();
@@ -248,7 +252,7 @@ describe('McpView', () => {
       expect(screen.getByTestId('mcp-quick-tunnel-start')).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId('mcp-quick-tunnel-start')).toHaveTextContent('Start ChatGPT Access');
+    expect(screen.getByTestId('mcp-quick-tunnel-start')).toHaveTextContent('Start');
     expect(screen.getByTestId('mcp-quick-tunnel-start')).not.toBeDisabled();
     expect(screen.queryByTestId('mcp-temporary-tunnel-start')).not.toBeInTheDocument();
     expect(screen.getByTestId('mcp-chatgpt-readiness')).toHaveTextContent('ready to start');
@@ -261,7 +265,7 @@ describe('McpView', () => {
     });
   });
 
-  it('renders provider card when pending approval polling fails', async () => {
+  it('does not show pending OAuth polling failures during no-auth setup', async () => {
     mockMissingOAuth();
     api.getLocalRepoMcpPendingAuthorizations.mockRejectedValue(new Error('pending route failed'));
 
@@ -273,16 +277,15 @@ describe('McpView', () => {
 
     expect(screen.queryByTestId('mcp-error')).not.toBeInTheDocument();
     expect(screen.getByTestId('mcp-quick-tunnel-start')).not.toBeDisabled();
-    await waitFor(() => {
-      expect(screen.getByTestId('mcp-pending-warning')).toHaveTextContent('pending route failed');
-    });
+    expect(screen.queryByTestId('mcp-pending-warning')).not.toBeInTheDocument();
+    expect(api.getLocalRepoMcpPendingAuthorizations).not.toHaveBeenCalled();
   });
 
   it('shows restart guidance when pending approval secret is out of sync', async () => {
     mockReady({
       server: { running: true, pid: 1, url: 'http://127.0.0.1:3333/mcp' },
-      tunnel: { running: false, pid: null, mode: 'none', publicUrl: '' },
-      securityState: 'Local only',
+      tunnel: { running: true, pid: 2, mode: 'named', publicUrl: 'https://mcp.example.com/mcp' },
+      securityState: 'OAuth protected',
     });
     api.getLocalRepoMcpPendingAuthorizations.mockResolvedValue({
       pending: [],
@@ -315,26 +318,82 @@ describe('McpView', () => {
   it('renders generated ChatGPT connector URL', async () => {
     mockReady({
       server: { running: true, pid: 1, url: 'http://127.0.0.1:3333/mcp' },
-      tunnel: { running: true, pid: 2, mode: 'quick', publicUrl: 'https://sample.trycloudflare.com/mcp/private-token' },
+      tunnel: { running: true, pid: 2, mode: 'quick', publicUrl: 'https://sample.trycloudflare.com/mcp' },
       securityState: 'ChatGPT ready',
       chatGptAccess: {
         mode: 'quick-cloudflare',
         ready: true,
-        url: 'https://sample.trycloudflare.com/mcp/private-token',
+        url: 'https://sample.trycloudflare.com/mcp',
         auth: 'none',
         urlStable: false,
         blocker: '',
       },
+      probe: { ok: true, status: 200, code: 'ok', message: 'MCP tools/list succeeded.' },
     });
 
     render(<McpView />);
 
     await waitFor(() => {
-      expect(screen.getAllByText('https://sample.trycloudflare.com/mcp/private-token').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('https://sample.trycloudflare.com/mcp').length).toBeGreaterThan(0);
     });
 
     expect(screen.getByTestId('mcp-provider-copy-url')).toBeInTheDocument();
     expect(screen.getByTestId('mcp-chatgpt-copy-url')).toBeInTheDocument();
+  });
+
+  it('shows probe failures instead of marking ChatGPT ready', async () => {
+    mockReady({
+      server: { running: true, pid: 1, url: 'http://127.0.0.1:3333/mcp' },
+      tunnel: { running: true, pid: 2, mode: 'quick', publicUrl: 'https://sample.trycloudflare.com/mcp' },
+      securityState: 'Misconfigured',
+      chatGptAccess: {
+        mode: 'quick-cloudflare',
+        ready: false,
+        url: '',
+        auth: 'none',
+        urlStable: false,
+        blocker: '',
+      },
+      probe: { ok: false, status: 401, code: 'oauth_challenge', message: 'MCP endpoint requires OAuth or bearer auth.' },
+    });
+
+    render(<McpView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mcp-provider-status')).toHaveTextContent('Misconfigured');
+    });
+
+    expect(screen.getByTestId('mcp-chatgpt-readiness')).toHaveTextContent('ready to start');
+    expect(screen.getByTestId('mcp-probe-warning')).toHaveTextContent('OAuth or bearer auth');
+    expect(screen.getByText(/failed 401/)).toBeInTheDocument();
+  });
+
+  it('shows stale server cleanup notices', async () => {
+    mockReady({
+      server: {
+        running: true,
+        pid: 1,
+        url: 'http://127.0.0.1:3333/mcp',
+        notice: 'Stopped stale Local Repo MCP process(es): 9999',
+      },
+      tunnel: { running: true, pid: 2, mode: 'quick', publicUrl: 'https://sample.trycloudflare.com/mcp' },
+      securityState: 'ChatGPT ready',
+      chatGptAccess: {
+        mode: 'quick-cloudflare',
+        ready: true,
+        url: 'https://sample.trycloudflare.com/mcp',
+        auth: 'none',
+        urlStable: false,
+        blocker: '',
+      },
+      probe: { ok: true, status: 200, code: 'ok', message: 'MCP tools/list succeeded.' },
+    });
+
+    render(<McpView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mcp-server-notice')).toHaveTextContent('Stopped stale Local Repo MCP process');
+    });
   });
 
   it('opens and closes the provider configuration modal', async () => {
@@ -391,7 +450,7 @@ describe('McpView', () => {
     const primaryConfig = within(screen.getByTestId('mcp-config-auth'));
     expect(primaryConfig.getAllByText('http://127.0.0.1:3333/mcp').length).toBeGreaterThan(0);
     expect(primaryConfig.getByText('None in the default ChatGPT flow')).toBeInTheDocument();
-    expect(primaryConfig.getByText('requires advanced external tunnel setup')).toBeInTheDocument();
+    expect(primaryConfig.getByText('requires external tunnel setup')).toBeInTheDocument();
     expect(screen.queryByTestId('mcp-config-advanced')).not.toBeInTheDocument();
   });
 });

@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
-const { spawn } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 
 const CONFIG_SCHEMA_VERSION = 1;
 const DEFAULT_PORT = 3333;
@@ -13,8 +13,9 @@ let mcpProcess = null;
 let tunnelProcess = null;
 let tunnelMode = 'none';
 let quickTunnelBaseUrl = '';
-let quickTunnelAccessToken = '';
 let mcpLastExit = null;
+let mcpLastProbe = null;
+let mcpLastNotice = '';
 let mcpOutput = { stdout: '', stderr: '' };
 const MCP_OUTPUT_LIMIT = 4000;
 
@@ -182,10 +183,10 @@ function requireCloudflared(config) {
   return cloudflared.path;
 }
 
-function connectorUrlFromBase(baseUrl, accessToken = '') {
+function connectorUrlFromBase(baseUrl) {
   const normalized = normalizeString(baseUrl).replace(/\/+$/, '');
   if (!normalized) return '';
-  return accessToken ? `${normalized}/mcp/${accessToken}` : `${normalized}/mcp`;
+  return `${normalized}/mcp`;
 }
 
 function hasOAuthConfig(config) {
@@ -208,13 +209,15 @@ function getEffectiveAuthIssuer(config) {
 }
 
 function getQuickConnectorUrl() {
-  return connectorUrlFromBase(quickTunnelBaseUrl, quickTunnelAccessToken);
+  return connectorUrlFromBase(quickTunnelBaseUrl);
 }
 
 function computeSecurityState(config, serverRunning, tunnelRunning) {
   if (!serverRunning && !tunnelRunning) return 'Stopped';
   if (tunnelRunning && !serverRunning) return 'Misconfigured';
-  if (serverRunning && tunnelRunning && tunnelMode === 'quick' && quickTunnelBaseUrl && quickTunnelAccessToken) return 'ChatGPT ready';
+  if (serverRunning && tunnelRunning && tunnelMode === 'quick' && quickTunnelBaseUrl) {
+    return mcpLastProbe?.ok ? 'ChatGPT ready' : 'Misconfigured';
+  }
   if (tunnelRunning && (!getEffectivePublicBaseUrl(config) || !hasOAuthConfig(config))) return 'Misconfigured';
   if (serverRunning && tunnelRunning) return 'OAuth protected';
   return 'Local only';
@@ -228,6 +231,139 @@ function validateOAuthConfig(config) {
   }
 }
 
+function buildMcpProbeBody(id, method) {
+  return JSON.stringify({
+    jsonrpc: '2.0',
+    id,
+    method,
+    params: method === 'initialize'
+      ? {
+        protocolVersion: '2025-06-18',
+        capabilities: {},
+        clientInfo: { name: 'elegy-local-repo-mcp-probe', version: '0.1.0' },
+      }
+      : {},
+  });
+}
+
+function parseMcpJson(text) {
+  const dataLine = String(text || '').split(/\r?\n/).find((line) => line.startsWith('data:'));
+  const raw = dataLine ? dataLine.slice('data:'.length).trim() : text;
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function hasOAuthChallenge(response) {
+  return Boolean(response.headers?.get?.('www-authenticate'));
+}
+
+async function postMcpProbe(url, id, method) {
+  return fetch(url, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    },
+    body: buildMcpProbeBody(id, method),
+  });
+}
+
+async function probeMcpEndpoint(url) {
+  try {
+    const initialize = await postMcpProbe(url, 1, 'initialize');
+    const initializeText = await initialize.text().catch(() => '');
+    if (initialize.status === 401 || hasOAuthChallenge(initialize)) {
+      return { ok: false, status: initialize.status, code: 'oauth_challenge', message: 'MCP endpoint requires OAuth or bearer auth.' };
+    }
+    if (!initialize.ok) {
+      return { ok: false, status: initialize.status, code: 'initialize_failed', message: `MCP initialize returned ${initialize.status}.`, body: initializeText.slice(0, 500) };
+    }
+
+    const tools = await postMcpProbe(url, 2, 'tools/list');
+    const toolsText = await tools.text().catch(() => '');
+    if (tools.status === 401 || hasOAuthChallenge(tools)) {
+      return { ok: false, status: tools.status, code: 'oauth_challenge', message: 'MCP tools/list requires OAuth or bearer auth.' };
+    }
+    if (!tools.ok) {
+      return { ok: false, status: tools.status, code: 'tools_list_failed', message: `MCP tools/list returned ${tools.status}.`, body: toolsText.slice(0, 500) };
+    }
+
+    const payload = parseMcpJson(toolsText);
+    const toolNames = Array.isArray(payload?.result?.tools)
+      ? payload.result.tools.map((tool) => normalizeString(tool?.name)).filter(Boolean)
+      : [];
+    if (toolNames.length === 0) {
+      return { ok: false, status: tools.status, code: 'no_tools', message: 'MCP tools/list returned no tools.', body: toolsText.slice(0, 500) };
+    }
+    return { ok: true, status: tools.status, code: 'ok', message: 'MCP tools/list succeeded.', tools: toolNames };
+  } catch (error) {
+    return { ok: false, status: null, code: 'probe_error', message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+async function probeOAuthMetadata(baseUrl) {
+  const normalized = normalizeString(baseUrl).replace(/\/+$/, '');
+  if (!normalized) return { ok: false, status: null, oauth: false };
+  try {
+    const response = await fetch(`${normalized}/.well-known/oauth-protected-resource`);
+    const text = await response.text().catch(() => '');
+    let payload = null;
+    try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
+    const authorizationServers = Array.isArray(payload?.authorization_servers)
+      ? payload.authorization_servers.filter(Boolean)
+      : [];
+    return {
+      ok: response.ok,
+      status: response.status,
+      oauth: response.ok && authorizationServers.length > 0,
+      authorizationServers,
+    };
+  } catch (error) {
+    return { ok: false, status: null, oauth: false, message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+function escapePowerShellSingleQuoted(value) {
+  return String(value || '').replace(/'/g, "''");
+}
+
+function stopUntrackedLocalRepoMcpProcesses(config, options = {}) {
+  if (process.platform !== 'win32') return [];
+  const port = Number.isInteger(config?.port) && config.port > 0 ? config.port : DEFAULT_PORT;
+  const packageRoot = resolveMcpPackageRoot(options.engineRoot || process.cwd());
+  const entry = path.join(packageRoot, 'dist', 'server.js');
+  const escapedEntry = escapePowerShellSingleQuoted(entry);
+  const script = [
+    `$port = ${port}`,
+    `$entry = '${escapedEntry}'`,
+    '$listeners = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue',
+    '$listeners | ForEach-Object {',
+    '  $owner = $_.OwningProcess',
+    '  if (-not $owner -or $owner -eq $PID) { return }',
+    '  $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $owner" -ErrorAction SilentlyContinue',
+    '  if (-not $proc) { return }',
+    "  $cmd = [string]$proc.CommandLine",
+    "  $isNode = [string]$proc.Name -match '^node(\\.exe)?$'",
+    "  $ownsThisEntry = $entry -and $cmd.IndexOf($entry, [StringComparison]::OrdinalIgnoreCase) -ge 0",
+    "  $looksLikeLocalRepoMcp = $cmd -match 'local-repo-mcp[\\\\/]dist[\\\\/]server\\.js'",
+    '  if ($isNode -and ($ownsThisEntry -or $looksLikeLocalRepoMcp)) {',
+    '    try { Stop-Process -Id $owner -Force -ErrorAction Stop; [string]$owner } catch {}',
+    '  }',
+    '}',
+  ].join('\n');
+  try {
+    return execFileSync('powershell.exe', ['-NoProfile', '-Command', script], { encoding: 'utf8', windowsHide: true })
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 function getStatus(options = {}) {
   const config = loadConfig(options);
   const serverRunning = isRunning(mcpProcess);
@@ -237,7 +373,7 @@ function getStatus(options = {}) {
   const audienceEffective = getEffectiveAuthAudience(config);
   const issuerEffective = getEffectiveAuthIssuer(config);
   const securityState = computeSecurityState(config, serverRunning, tunnelRunning);
-  const chatGptReady = Boolean(serverRunning && tunnelRunning && tunnelMode === 'quick' && quickConnectorUrl);
+  const chatGptReady = Boolean(serverRunning && tunnelRunning && tunnelMode === 'quick' && quickConnectorUrl && mcpLastProbe?.ok);
   const cloudflared = getCloudflaredStatus(config);
   return {
     config,
@@ -248,6 +384,7 @@ function getStatus(options = {}) {
       pid: serverRunning ? mcpProcess.pid : null,
       url: `http://127.0.0.1:${config.port}/mcp`,
       lastExit: mcpLastExit,
+      notice: mcpLastNotice,
       output: mcpOutput,
     },
     tunnel: {
@@ -256,6 +393,7 @@ function getStatus(options = {}) {
       mode: tunnelRunning ? tunnelMode : 'none',
       publicUrl: tunnelRunning ? connectorUrl : '',
     },
+    probe: mcpLastProbe,
     securityState,
     chatGptAccess: {
       mode: 'quick-cloudflare',
@@ -289,9 +427,12 @@ function startServer(options = {}) {
   const effectivePublicBaseUrl = getEffectivePublicBaseUrl(config);
   const effectiveAuthAudience = getEffectiveAuthAudience(config);
   const effectiveAuthIssuer = getEffectiveAuthIssuer(config);
-  const quickTunnelNoAuth = isRunning(tunnelProcess) && tunnelMode === 'quick' && quickTunnelAccessToken;
-  const authEnabled = Boolean(!quickTunnelNoAuth && isRunning(tunnelProcess) && effectivePublicBaseUrl && hasOAuthConfig(config));
+  const explicitAuthMode = normalizeString(options.authMode).toLowerCase();
+  const authEnabled = explicitAuthMode === 'oauth'
+    ? Boolean(isRunning(tunnelProcess) && effectivePublicBaseUrl && hasOAuthConfig(config))
+    : false;
   mcpLastExit = null;
+  mcpLastProbe = null;
   mcpOutput = { stdout: '', stderr: '' };
   mcpProcess = spawn(process.execPath, [entry], {
     cwd: packageRoot,
@@ -306,7 +447,7 @@ function startServer(options = {}) {
       LOCAL_REPO_MCP_AUTH_AUDIENCE: effectiveAuthAudience,
       LOCAL_REPO_MCP_AUTH_MODE: authEnabled ? 'oauth' : 'disabled',
       LOCAL_REPO_MCP_REQUIRED_SCOPES: config.requiredScopes.join(' '),
-      LOCAL_REPO_MCP_PUBLIC_ACCESS_TOKEN: quickTunnelNoAuth ? quickTunnelAccessToken : '',
+      LOCAL_REPO_MCP_PUBLIC_ACCESS_TOKEN: '',
       LOCAL_REPO_MCP_APPROVAL_SECRET: getApprovalSecret(options),
       ELEGY_HOME: resolveElegyHome(options.elegyHome || options.elegyHomeAbs),
     },
@@ -324,7 +465,7 @@ function startServer(options = {}) {
 }
 
 async function waitForMcpReady(options = {}) {
-  const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 8000;
+  const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : (tunnelMode === 'quick' ? 30000 : 8000);
   const startedAt = Date.now();
   let lastError = null;
 
@@ -338,15 +479,41 @@ async function waitForMcpReady(options = {}) {
       );
     }
 
-    try {
-      const response = await fetch(status.server.url.replace(/\/mcp$/, '/.well-known/oauth-protected-resource'));
-      if (response.ok) return getStatus(options);
-      lastError = new Error(`readiness probe returned ${response.status}`);
-    } catch (error) {
-      lastError = error;
+    if (tunnelMode === 'quick') {
+      const localProbe = await probeMcpEndpoint(status.server.url);
+      mcpLastProbe = { ...localProbe, target: status.server.url, checkedAt: new Date().toISOString() };
+      if (!localProbe.ok) {
+        lastError = new Error(localProbe.message || `MCP probe returned ${localProbe.status}`);
+      } else {
+        const localMetadata = await probeOAuthMetadata(status.server.url.replace(/\/mcp$/, ''));
+        if (localMetadata.oauth) {
+          mcpLastProbe = {
+            ok: false,
+            status: localMetadata.status,
+            code: 'oauth_metadata',
+            message: 'No-auth quick tunnel is still advertising OAuth protected-resource metadata.',
+            target: status.server.url,
+            checkedAt: new Date().toISOString(),
+          };
+          lastError = new Error(mcpLastProbe.message);
+        } else {
+          return getStatus(options);
+        }
+      }
+    } else {
+      try {
+        const response = await fetch(status.server.url.replace(/\/mcp$/, '/.well-known/oauth-protected-resource'));
+        if (response.ok) {
+          mcpLastProbe = { ok: true, status: response.status, code: 'oauth_metadata', message: 'OAuth metadata endpoint is reachable.', target: status.server.url, checkedAt: new Date().toISOString() };
+          return getStatus(options);
+        }
+        lastError = new Error(`readiness probe returned ${response.status}`);
+      } catch (error) {
+        lastError = error;
+      }
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, tunnelMode === 'quick' ? 500 : 150));
   }
 
   throw Object.assign(
@@ -410,6 +577,11 @@ function waitForQuickTunnelUrl(child) {
 async function startQuickTunnel(options = {}) {
   const config = loadConfig(options);
   const cloudflaredPath = requireCloudflared(config);
+  mcpLastNotice = '';
+  const stoppedPids = isRunning(mcpProcess) ? [] : stopUntrackedLocalRepoMcpProcesses(config, options);
+  if (stoppedPids.length > 0) {
+    mcpLastNotice = `Stopped stale Local Repo MCP process(es): ${stoppedPids.join(', ')}`;
+  }
   const currentStatus = getStatus(options);
   if (
     currentStatus.server.running
@@ -423,7 +595,16 @@ async function startQuickTunnel(options = {}) {
 
   tunnelMode = 'quick';
   quickTunnelBaseUrl = '';
-  quickTunnelAccessToken = crypto.randomBytes(24).toString('base64url');
+  if (isRunning(mcpProcess)) await stopServer(options);
+  startServer({ ...options, authMode: 'disabled' });
+  try {
+    await waitForMcpReady(options);
+  } catch (error) {
+    await stopServer(options);
+    tunnelMode = 'none';
+    throw Object.assign(error, { statusCode: error.statusCode || 500 });
+  }
+
   tunnelProcess = spawn(cloudflaredPath, ['tunnel', '--url', `http://127.0.0.1:${config.port}`], {
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -432,25 +613,25 @@ async function startQuickTunnel(options = {}) {
     tunnelProcess = null;
     tunnelMode = 'none';
     quickTunnelBaseUrl = '';
-    quickTunnelAccessToken = '';
+    mcpLastProbe = null;
   });
 
   try {
     quickTunnelBaseUrl = await waitForQuickTunnelUrl(tunnelProcess);
   } catch (error) {
-    await stopTunnel(options);
-    throw Object.assign(error, { statusCode: error.statusCode || 500 });
-  }
-
-  if (isRunning(mcpProcess)) await stopServer(options);
-  startServer(options);
-  try {
-    return await waitForMcpReady(options);
-  } catch (error) {
     await stopServer(options);
     await stopTunnel(options);
     throw Object.assign(error, { statusCode: error.statusCode || 500 });
   }
+
+  const publicProbe = await probeMcpEndpoint(getQuickConnectorUrl());
+  if (!publicProbe.ok) {
+    const publicMessage = publicProbe.message || `MCP probe returned ${publicProbe.status || publicProbe.code || 'unknown status'}`;
+    mcpLastNotice = [mcpLastNotice, `Public ChatGPT URL probe failed for ${getQuickConnectorUrl()}: ${publicMessage}`]
+      .filter(Boolean)
+      .join(' ');
+  }
+  return getStatus(options);
 }
 
 async function startTunnel(options = {}) {
@@ -485,13 +666,13 @@ async function startTunnel(options = {}) {
   });
   tunnelMode = 'named';
   quickTunnelBaseUrl = '';
-  quickTunnelAccessToken = '';
+  mcpLastProbe = null;
   tunnelProcess.once('exit', () => {
     tunnelProcess = null;
     tunnelMode = 'none';
   });
   if (isRunning(mcpProcess)) await stopServer(options);
-  startServer(options);
+  startServer({ ...options, authMode: 'oauth' });
   try {
     return await waitForMcpReady(options);
   } catch (error) {
@@ -506,20 +687,17 @@ async function stopTunnel(options = {}) {
   tunnelProcess = null;
   tunnelMode = 'none';
   quickTunnelBaseUrl = '';
-  quickTunnelAccessToken = '';
+  mcpLastProbe = null;
   return getStatus(options);
 }
 
 async function probe(options = {}) {
   const status = getStatus(options);
-  const response = await fetch(status.server.url.replace(/\/mcp$/, '/.well-known/oauth-protected-resource'));
+  const probeResult = await probeMcpEndpoint(status.server.url);
+  mcpLastProbe = { ...probeResult, target: status.server.url, checkedAt: new Date().toISOString() };
   return {
-    ...status,
-    probe: {
-      ok: response.ok,
-      status: response.status,
-      metadata: response.ok ? await response.json() : null,
-    },
+    ...getStatus(options),
+    probe: mcpLastProbe,
   };
 }
 

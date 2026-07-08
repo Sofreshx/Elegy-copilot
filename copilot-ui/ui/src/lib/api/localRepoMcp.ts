@@ -22,6 +22,7 @@ export interface LocalRepoMcpProcessStatus {
   url?: string;
   publicUrl?: string;
   lastExit?: unknown;
+  notice?: string;
   output?: {
     stdout?: string;
     stderr?: string;
@@ -61,7 +62,11 @@ export interface LocalRepoMcpStatusResponse {
   pendingError?: string;
   probe?: {
     ok: boolean;
-    status?: number;
+    status?: number | null;
+    code?: string;
+    message?: string;
+    target?: string;
+    tools?: string[];
     metadata?: unknown;
   };
 }
