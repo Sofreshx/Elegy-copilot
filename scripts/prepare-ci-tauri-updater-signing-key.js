@@ -15,19 +15,22 @@ function assert(condition, message) {
 }
 
 function runTauriSigner(password) {
-  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const result = spawnSync(
-    npmCommand,
-    ['--prefix', 'copilot-ui', 'exec', '--', 'tauri', 'signer', 'generate', '--', '--ci', '-p', password],
-    {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  );
+  const command =
+    process.platform === 'win32'
+      ? process.env.ComSpec || 'cmd.exe'
+      : 'npm';
+  const args =
+    process.platform === 'win32'
+      ? ['/d', '/s', '/c', `npm --prefix copilot-ui exec -- tauri signer generate --ci -p ${password}`]
+      : ['--prefix', 'copilot-ui', 'exec', '--', 'tauri', 'signer', 'generate', '--', '--ci', '-p', password];
+  const result = spawnSync(command, args, {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 
   if (result.error) {
-    throw result.error;
+    throw new Error(`Unable to spawn Tauri signer command: ${result.error.code || result.error.message}`);
   }
 
   assert(result.status === 0, `Unable to generate CI Tauri updater signing key: ${result.stderr || result.stdout}`);
