@@ -34,8 +34,8 @@ function renderWindowsInstallationGuide({ version, channel, installerName }) {
     '',
     '- Tauri is the only supported desktop shell.',
     '- Stable builds install from the stable channel; prerelease builds install from the prerelease channel.',
-    '- This release lane uses a manual Windows installer, not an in-app auto-update feed.',
-    '- The desktop app automatically checks matching-channel GitHub releases, but installer download and apply still require explicit user action.',
+    '- This release lane uses the signed Tauri updater for in-app updates.',
+    '- The desktop app checks the matching-channel update feed and applies signed updates in app.',
     '- Managed CLI remediation may seed or refresh the approved Windows CLI into `~/.elegy/managed-cli/<channel>/` from the packaged `@github/copilot-win32-x64` dependency when the managed copy is missing or outdated.',
     '',
     '## User steps',
@@ -48,7 +48,6 @@ function renderWindowsInstallationGuide({ version, channel, installerName }) {
     '',
     '## Non-goals in this slice',
     '',
-    '- No claim that an in-app updater feed is enabled in this slice.',
     '- No claim that cross-channel installs are supported.',
     '- No claim that the installer can bypass the standard Windows installation flow.',
     '',
@@ -73,6 +72,32 @@ function resolveNsisInstallerPath(bundleRoot) {
   return path.join(searchRoot, installers[0]);
 }
 
+function resolveInstallerSignaturePath(installerPath) {
+  const signaturePath = `${installerPath}.sig`;
+  assert(fs.existsSync(signaturePath), `Missing Tauri updater signature for installer: ${signaturePath}`);
+  const signature = fs.readFileSync(signaturePath, 'utf8').trim();
+  assert(signature, `Tauri updater signature is empty: ${signaturePath}`);
+  return signaturePath;
+}
+
+function encodeReleaseAssetName(fileName) {
+  return encodeURIComponent(fileName).replace(/%20/g, '%20');
+}
+
+function resolveDownloadBaseUrl(options, packageJson, channel) {
+  const explicit = String(options.downloadBaseUrl || '').trim();
+  if (explicit) {
+    return explicit.replace(/\/+$/, '');
+  }
+
+  const publishRepository = String(packageJson.desktopRelease?.publishRepository || '').trim();
+  assert(publishRepository, 'Missing desktopRelease.publishRepository for updater feed download URL generation.');
+  const tag = channel === 'stable'
+    ? `desktop-v${String(packageJson.version || '').trim()}`
+    : String(packageJson.version || '').trim();
+  return `https://github.com/${publishRepository}/releases/download/${tag}`;
+}
+
 function refreshTauriWindowsReleaseMetadata(options = {}) {
   const activeWorkspaceRoot = path.resolve(options.workspaceRoot || workspaceRoot);
   const packageJson = JSON.parse(fs.readFileSync(path.join(activeWorkspaceRoot, 'package.json'), 'utf8'));
@@ -85,16 +110,26 @@ function refreshTauriWindowsReleaseMetadata(options = {}) {
 
   const bundleRoot = path.resolve(options.bundleRoot || path.join(activeWorkspaceRoot, 'src-tauri', 'target', 'release', 'bundle'));
   const installerPath = resolveNsisInstallerPath(bundleRoot);
+  const installerSignaturePath = resolveInstallerSignaturePath(installerPath);
   const installerName = path.basename(installerPath);
+  const signatureName = `${installerName}.sig`;
   const installerStat = fs.statSync(installerPath);
   const releaseRoot = path.resolve(options.releaseRoot || path.join(activeWorkspaceRoot, 'release', 'tauri', 'windows'));
   const releaseManifestPath = path.join(releaseRoot, 'release-manifest.json');
   const installerOutputPath = path.join(releaseRoot, installerName);
+  const signatureOutputPath = path.join(releaseRoot, signatureName);
   const installationGuidancePath = path.join(releaseRoot, installationGuidanceFileName);
   const { manifest } = loadTauriNodeSidecarLayout({ workspaceRoot: activeWorkspaceRoot });
+  const updaterFeedFileName = `${channelResolution.contract.channel}-latest.json`;
+  const updaterFeedPath = path.join(releaseRoot, updaterFeedFileName);
 
   fs.mkdirSync(releaseRoot, { recursive: true });
   fs.copyFileSync(installerPath, installerOutputPath);
+  fs.copyFileSync(installerSignaturePath, signatureOutputPath);
+  const updaterSignature = fs.readFileSync(signatureOutputPath, 'utf8').trim();
+  const downloadBaseUrl = resolveDownloadBaseUrl(options, packageJson, channelResolution.contract.channel);
+  const publishedAt = String(options.publishedAt || process.env.GITHUB_RELEASE_PUBLISHED_AT || new Date().toISOString()).trim();
+  const installerUrl = `${downloadBaseUrl}/${encodeReleaseAssetName(installerName)}`;
 
   const releaseManifest = {
     schemaVersion: 1,
@@ -110,21 +145,31 @@ function refreshTauriWindowsReleaseMetadata(options = {}) {
       sha256: toSha256(installerOutputPath),
     },
     updateLane: {
-      mode: manifest.releaseLane.updateMode,
+      mode: 'tauri_signed_updater',
       autoCheckEnabled: true,
-      autoUpdateEnabled: manifest.releaseLane.autoUpdateEnabled,
-      downloadRequiresUserAction: true,
-      applyRequiresUserAction: true,
-      releaseSource: 'github_release_manifest',
+      autoUpdateEnabled: true,
+      releaseSource: 'tauri_static_json',
       failClosedChannelPolicy: manifest.releaseLane.failClosedChannelPolicy,
       installationGuidanceRelativePath: installationGuidanceFileName,
-      inPlaceUpgradeSupported: false,
-      updaterBridgeStatus: 'bridge_available_github_release_manual_installer',
+      updaterFeedRelativePath: updaterFeedFileName,
+      updaterSignatureRelativePath: signatureName,
+      updaterBridgeStatus: 'tauri_signed_updater',
     },
     runtime: {
       manifestRelativePath: 'runtime-manifests/windows-tauri-node-sidecar.json',
       nodeRuntimeRelativePath: manifest.nodeRuntime.relativePath,
       nodeModulesRelativePath: manifest.nodeModulePayload.targetRoot,
+    },
+  };
+
+  const updaterFeed = {
+    version: releaseManifest.version,
+    pub_date: publishedAt,
+    platforms: {
+      'windows-x86_64': {
+        url: installerUrl,
+        signature: updaterSignature,
+      },
     },
   };
 
@@ -138,12 +183,15 @@ function refreshTauriWindowsReleaseMetadata(options = {}) {
     'utf8',
   );
   fs.writeFileSync(releaseManifestPath, `${JSON.stringify(releaseManifest, null, 2)}\n`, 'utf8');
+  fs.writeFileSync(updaterFeedPath, `${JSON.stringify(updaterFeed, null, 2)}\n`, 'utf8');
 
   return {
     releaseRoot,
     releaseManifestPath,
     installerPath: installerOutputPath,
     installerName,
+    updaterSignaturePath: signatureOutputPath,
+    updaterFeedPath,
     installationGuidancePath,
     channel: channelResolution.contract.channel,
   };

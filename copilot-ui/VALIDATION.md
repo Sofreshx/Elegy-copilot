@@ -37,8 +37,9 @@ $env:COPILOT_SDK_ROOT = 'C:\src\copilot-sdk'; node copilot-ui\tests\e2e\sdk-smok
 ## Primary desktop packaging path
 
 Run `npm run desktop:check` from `copilot-ui` for the narrow shell/build validation path, and
-`npm run desktop:preview:stage` when you need the packaged Windows manual-installer lane.
+`npm run desktop:preview:stage` when you need the packaged Windows signed-updater lane.
 Run `npm run desktop:smoke:native` for the bounded first-pass native Tauri install/launch/uninstall smoke lane.
+Run `npm run desktop:smoke:upgrade` on a configured Windows host when you have old/new signed installers and a feed URL for upgrade validation.
 
 ## Desktop runtime source-test runner
 
@@ -64,14 +65,15 @@ This command:
 
 - rebuilds the Tauri-facing runtime payload and stages the bundled Node sidecar layout under `src-tauri/gen/resources`
 - builds the Windows NSIS installer through the Tauri CLI
-- emits `release/tauri/windows/release-manifest.json` as the explicit manual-installer update/release seam
+- emits Tauri updater artifacts and signature metadata
+- emits `release/tauri/windows/release-manifest.json` as supplemental release metadata
+- emits `release/tauri/windows/<channel>-latest.json` as the signed updater feed authority
 - emits `release/tauri/windows/windows-installation-guide.md` so staged release artifacts carry the current installation guidance
-- emits bridge-backed release metadata that records automatic matching-channel checks with explicit user download/apply for the current manual-installer slice
+- emits bridge-backed release metadata that records automatic matching-channel signed update checks
 - validates that stable/prerelease channel pairing, fail-closed channel policy, and packaged runtime layout remain intact
-- stages the installer, release manifest, and installation guidance into `release-artifacts/windows-tauri`
+- stages the installer, signature, updater feed, release manifest, and installation guidance into `release-artifacts/windows-tauri`
 
-This validation is intentionally limited to the current manual-installer preview lane. It does not claim
-Tauri in-app updater/feed parity. The desktop bridge now performs real GitHub-release-backed checks and manual-installer handoff, but it still does not claim seamless in-place transport.
+This validation proves the signed updater artifact contract. It does not replace the native Windows smoke lanes for real installer, launch, uninstall, and upgrade behavior.
 
 ## Native desktop smoke lane
 
@@ -80,19 +82,28 @@ automation slice that exists today.
 
 This command:
 
-- runs the existing packaged Windows preview/manual-installer lane (`desktop:preview:stage`)
+- runs the packaged Windows signed-updater lane (`desktop:preview:stage`)
 - silently installs the staged NSIS installer into `copilot-ui/.tmp/tauri-native-desktop-smoke/install`
 - validates the installed Tauri resource layout against `resources/runtime-manifests/windows-tauri-node-sidecar.json`
 - launches the installed desktop app with an isolated repo-local home/state root and a fixed loopback server port
-- verifies `/api/health`, the native `Elegy Copilot` window, and first-pass Tauri single-instance reuse
+- verifies `/api/health`, that the running runtime root matches the installed resources root, the native `Elegy Copilot` window, and first-pass Tauri single-instance reuse
 - silently runs the generated uninstaller and confirms the installed app payload is removed
 
 Still manual after this slice:
 
 - interactive installer UI/UAC/prompt copy review
 - signed-installer trust and external release-publish validation
-- upgrade/migration behavior over an already-installed Tauri build
 - Windows shell integrations such as shortcuts, Start menu entries, and registry-visible uninstall metadata
+
+## Native desktop upgrade lane
+
+Run `npm run desktop:smoke:upgrade` from `copilot-ui` on a Windows desktop host configured with:
+
+- `INSTRUCTION_ENGINE_UPGRADE_FROM_INSTALLER`: old signed installer path
+- `INSTRUCTION_ENGINE_UPGRADE_TO_INSTALLER`: new signed installer path matching the staged updater artifact
+- `INSTRUCTION_ENGINE_UPGRADE_FEED_URL`: stable/prerelease `latest.json` feed URL for the new signed artifact
+
+This lane is reserved for install old build, launch, apply update from Settings -> Maintenance, relaunch, verify new version, and confirm isolated `~/.elegy` state preservation.
 
 ## Endpoint 1: GET /api/sessions/:id/structured-state
 
@@ -611,7 +622,7 @@ Expected gate result:
   - `desktop-v1.2.3` => draft stable release (`prerelease: false`)
   - `desktop-v1.2.3-rc.1` => draft prerelease (`prerelease: true`)
 3. Confirm stable promotion preflight.
-  - For `desktop-v1.2.3`, the matching semver tag `1.2.3` must resolve to the same commit and its preview release must already be published as `prerelease: true` with `release-manifest.json`, a `.exe` installer, and `windows-installation-guide.md`.
+  - For `desktop-v1.2.3`, the matching semver tag `1.2.3` must resolve to the same commit and its preview release must already be published as `prerelease: true` with `release-manifest.json`, `<channel>-latest.json`, a `.exe.sig`, a `.exe` installer, and `windows-installation-guide.md`.
   - Expected: missing preview tag, mismatched commit, draft preview release, non-prerelease preview release, or missing assets all fail closed before build/publish.
 
 ## G-03 — Reconciliation Invariants Checkpoint (G-03-WU-05)

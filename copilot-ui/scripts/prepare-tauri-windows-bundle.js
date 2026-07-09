@@ -226,7 +226,7 @@ function prepareTauriWindowsBundle(options = {}) {
   validateTauriBundleConfig({ workspaceRoot: activeWorkspaceRoot });
 
   const { manifest } = loadTauriNodeSidecarLayout({ workspaceRoot: activeWorkspaceRoot });
-  assert(manifest.releaseLane && manifest.releaseLane.updateMode === 'manual_installer', 'Expected Tauri release lane to remain manual-installer in this slice.');
+  assert(manifest.releaseLane && manifest.releaseLane.updateMode === 'tauri_signed_updater', 'Expected Tauri release lane to use the signed Tauri updater.');
 
   logger(`[tauri-win-bundle] preparing ${manifest.resourceCopies.length} resource copy group(s) under ${stagedResourcesRoot}`);
   ensureCleanDir(stagedResourcesRoot);

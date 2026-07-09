@@ -1,9 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::{
-    ffi::OsString,
     io::{BufRead, BufReader, Write},
-    os::windows::ffi::OsStrExt,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
@@ -14,8 +12,12 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+#[cfg(windows)]
+use std::{ffi::OsString, os::windows::ffi::OsStrExt};
+
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_updater::{Update, UpdaterExt};
 use url::Url;
 
 const MAIN_WINDOW_LABEL: &str = "main";
@@ -89,9 +91,7 @@ fn runtime_diagnostic_format_timestamp(timestamp_ms: u128) -> String {
         month += 1;
     }
     let day = remaining_days + 1;
-    format!(
-        "{year:04}{month:02}{day:02}-{hours:02}{minutes:02}{seconds:02}-{millis:03}",
-    )
+    format!("{year:04}{month:02}{day:02}-{hours:02}{minutes:02}{seconds:02}-{millis:03}",)
 }
 
 fn runtime_diagnostic_filename(event: &str, timestamp_ms: u128) -> PathBuf {
@@ -141,9 +141,7 @@ fn time_format(seconds: i64, nanos: u32) -> String {
         month += 1;
     }
     let day = remaining_days + 1;
-    format!(
-        "{year:04}-{month:02}-{day:02}T{hours:02}:{minutes:02}:{seconds:02}.{nanos:09}",
-    )
+    format!("{year:04}-{month:02}-{day:02}T{hours:02}:{minutes:02}:{seconds:02}.{nanos:09}",)
 }
 
 fn runtime_diagnostic_json_field_escape(value: &str) -> String {
@@ -275,7 +273,7 @@ struct RuntimeReadyPayload {
     window_url: String,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 struct DesktopUpdaterState {
     supported: bool,
     status: String,
@@ -302,6 +300,12 @@ struct DesktopUpdaterState {
     can_restart_to_update: bool,
 }
 
+#[derive(Default)]
+struct DesktopUpdaterBridgeState {
+    state: Mutex<Option<DesktopUpdaterState>>,
+    pending_update: Mutex<Option<Update>>,
+}
+
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -321,15 +325,135 @@ fn runtime_root(app: &AppHandle) -> Result<PathBuf, String> {
         return Ok(root);
     }
 
-    let root = app
+    let resource_dir = app
         .path()
         .resource_dir()
         .map_err(|error| format!("Unable to resolve Tauri resource directory: {error}"))?;
+    let mut candidates = vec![resource_dir.clone()];
+    if let Some(parent) = resource_dir.parent() {
+        candidates.push(parent.to_path_buf());
+    }
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.to_path_buf());
+        }
+    }
+    let root = resolve_runtime_root_from_candidates(candidates)?;
     eprintln!(
         "[tauri-runtime] release mode, resource_dir: {}",
         root.display()
     );
     Ok(root)
+}
+
+fn runtime_root_required_paths(root: &Path) -> (PathBuf, PathBuf) {
+    (
+        root.join("runtime-manifests")
+            .join("windows-tauri-node-sidecar.json"),
+        root.join("node").join("node.exe"),
+    )
+}
+
+fn runtime_root_is_complete(root: &Path) -> bool {
+    let (manifest_path, node_path) = runtime_root_required_paths(root);
+    manifest_path.exists() && node_path.exists()
+}
+
+fn runtime_root_candidate_variants(candidate: &Path) -> Vec<PathBuf> {
+    let mut variants = vec![candidate.to_path_buf(), candidate.join("resources")];
+    variants.dedup();
+    variants
+}
+
+fn resolve_runtime_root_from_candidates(candidates: Vec<PathBuf>) -> Result<PathBuf, String> {
+    let mut attempted: Vec<PathBuf> = Vec::new();
+    for candidate in candidates {
+        for root in runtime_root_candidate_variants(&candidate) {
+            if attempted.iter().any(|existing| existing == &root) {
+                continue;
+            }
+            if runtime_root_is_complete(&root) {
+                return Ok(root);
+            }
+            attempted.push(root);
+        }
+    }
+
+    let attempted_details = attempted
+        .iter()
+        .map(|root| {
+            let (manifest_path, node_path) = runtime_root_required_paths(root);
+            format!(
+                "{} (requires runtime-manifests/windows-tauri-node-sidecar.json at {}, node/node.exe at {})",
+                root.display(),
+                manifest_path.display(),
+                node_path.display()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("; ");
+
+    Err(format!(
+        "Unable to resolve packaged Tauri runtime resources. Attempted: {attempted_details}"
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unique_temp_dir(label: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "elegy-copilot-{label}-{}-{}",
+            std::process::id(),
+            runtime_diagnostic_timestamp_ms()
+        ));
+        std::fs::create_dir_all(&root).expect("create temp root");
+        root
+    }
+
+    fn write_runtime_layout(root: &Path) {
+        std::fs::create_dir_all(root.join("runtime-manifests")).expect("create manifests");
+        std::fs::create_dir_all(root.join("node")).expect("create node");
+        std::fs::write(
+            root.join("runtime-manifests")
+                .join("windows-tauri-node-sidecar.json"),
+            "{}",
+        )
+        .expect("write manifest");
+        std::fs::write(root.join("node").join("node.exe"), "").expect("write node");
+    }
+
+    #[test]
+    fn runtime_root_resolver_accepts_nested_resources_layout() {
+        let temp = unique_temp_dir("nested-resource-root");
+        let install_root = temp.join("install");
+        let resources_root = install_root.join("resources");
+        write_runtime_layout(&resources_root);
+
+        let resolved = resolve_runtime_root_from_candidates(vec![install_root.clone()])
+            .expect("nested resources root should resolve");
+
+        assert_eq!(resolved, resources_root);
+        let _ = std::fs::remove_dir_all(temp);
+    }
+
+    #[test]
+    fn runtime_root_resolver_reports_attempted_paths() {
+        let temp = unique_temp_dir("missing-resource-root");
+        let install_root = temp.join("install");
+        std::fs::create_dir_all(&install_root).expect("create install root");
+
+        let error = resolve_runtime_root_from_candidates(vec![install_root.clone()])
+            .expect_err("missing resources should fail closed");
+        let message = error.to_string();
+
+        assert!(message.contains(&install_root.display().to_string()));
+        assert!(message.contains(&install_root.join("resources").display().to_string()));
+        assert!(message.contains("node/node.exe"));
+        assert!(message.contains("runtime-manifests/windows-tauri-node-sidecar.json"));
+        let _ = std::fs::remove_dir_all(temp);
+    }
 }
 
 fn bundled_node_path(_app: &AppHandle, root: &Path) -> Result<PathBuf, String> {
@@ -376,6 +500,303 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+fn finalize_desktop_updater_state(mut state: DesktopUpdaterState) -> DesktopUpdaterState {
+    state.can_check_for_updates =
+        state.supported && state.status != "checking" && state.status != "downloading";
+    state.can_download = state.supported && state.status == "available";
+    state.can_restart_to_update = false;
+    state
+}
+
+fn set_desktop_updater_state(
+    store: &DesktopUpdaterBridgeState,
+    patch: DesktopUpdaterState,
+) -> DesktopUpdaterState {
+    let next = finalize_desktop_updater_state(patch);
+    if let Ok(mut guard) = store.state.lock() {
+        guard.replace(next.clone());
+    }
+    next
+}
+
+fn desktop_updater_current_state(
+    app: &AppHandle,
+    store: &DesktopUpdaterBridgeState,
+) -> DesktopUpdaterState {
+    if let Ok(guard) = store.state.lock() {
+        if let Some(state) = guard.as_ref() {
+            return state.clone();
+        }
+    }
+    finalize_desktop_updater_state(build_desktop_updater_state(app))
+}
+
+fn create_desktop_updater_error_state(
+    app: &AppHandle,
+    channel: String,
+    message: String,
+    reason: &str,
+) -> DesktopUpdaterState {
+    finalize_desktop_updater_state(DesktopUpdaterState {
+        supported: false,
+        status: "error".to_string(),
+        channel,
+        current_version: app.package_info().version.to_string(),
+        available_version: None,
+        progress_percent: None,
+        transferred_bytes: None,
+        total_bytes: None,
+        message: Some(message),
+        reason: Some(reason.to_string()),
+        last_updated_at_ms: now_ms(),
+        can_check_for_updates: false,
+        can_download: false,
+        can_restart_to_update: false,
+    })
+}
+
+fn desktop_update_feed_url(app: &AppHandle, channel: &str) -> Result<String, String> {
+    if let Ok(value) = std::env::var("INSTRUCTION_ENGINE_UPDATE_FEED_URL") {
+        let trimmed = value.trim();
+        if !trimmed.is_empty() {
+            return Ok(trimmed.to_string());
+        }
+    }
+
+    if let Ok(value) = std::env::var("INSTRUCTION_ENGINE_UPDATE_FEED_BASE_URL") {
+        let trimmed = value.trim().trim_end_matches('/');
+        if !trimmed.is_empty() {
+            return Ok(format!("{trimmed}/{channel}-latest.json"));
+        }
+    }
+
+    let _ = app;
+    Ok(format!(
+        "https://github.com/Sofreshx/Elegy-copilot/releases/download/desktop-updates/{channel}-latest.json"
+    ))
+}
+
+#[tauri::command]
+fn desktop_updater_get_state(
+    app: AppHandle,
+    store: State<'_, DesktopUpdaterBridgeState>,
+) -> DesktopUpdaterState {
+    desktop_updater_current_state(&app, &store)
+}
+
+#[tauri::command]
+async fn desktop_updater_check(
+    app: AppHandle,
+    store: State<'_, DesktopUpdaterBridgeState>,
+) -> Result<DesktopUpdaterState, String> {
+    let (channel, reason_override, message_override) = resolve_desktop_update_channel(&app);
+    if let Some(reason) = reason_override {
+        let state = finalize_desktop_updater_state(DesktopUpdaterState {
+            supported: false,
+            status: "blocked".to_string(),
+            channel,
+            current_version: app.package_info().version.to_string(),
+            available_version: None,
+            progress_percent: None,
+            transferred_bytes: None,
+            total_bytes: None,
+            message: message_override,
+            reason: Some(reason),
+            last_updated_at_ms: now_ms(),
+            can_check_for_updates: false,
+            can_download: false,
+            can_restart_to_update: false,
+        });
+        return Ok(set_desktop_updater_state(&store, state));
+    }
+
+    let feed_url = desktop_update_feed_url(&app, &channel)?;
+    let feed_url = Url::parse(&feed_url)
+        .map_err(|error| format!("Invalid desktop updater feed URL {feed_url}: {error}"))?;
+    let checking = finalize_desktop_updater_state(DesktopUpdaterState {
+        supported: true,
+        status: "checking".to_string(),
+        channel: channel.clone(),
+        current_version: app.package_info().version.to_string(),
+        available_version: None,
+        progress_percent: None,
+        transferred_bytes: None,
+        total_bytes: None,
+        message: Some("Checking signed Tauri update feed...".to_string()),
+        reason: None,
+        last_updated_at_ms: now_ms(),
+        can_check_for_updates: false,
+        can_download: false,
+        can_restart_to_update: false,
+    });
+    set_desktop_updater_state(&store, checking);
+
+    let update_result = app
+        .updater_builder()
+        .endpoints(vec![feed_url])
+        .map_err(|error| error.to_string())?
+        .build()
+        .map_err(|error| error.to_string())?
+        .check()
+        .await;
+
+    match update_result {
+        Ok(Some(update)) => {
+            if let Ok(mut pending) = store.pending_update.lock() {
+                pending.replace(update.clone());
+            }
+            let state = DesktopUpdaterState {
+                supported: true,
+                status: "available".to_string(),
+                channel,
+                current_version: update.current_version.clone(),
+                available_version: Some(update.version.clone()),
+                progress_percent: None,
+                transferred_bytes: None,
+                total_bytes: None,
+                message: Some(format!("Signed update {} is available.", update.version)),
+                reason: None,
+                last_updated_at_ms: now_ms(),
+                can_check_for_updates: true,
+                can_download: true,
+                can_restart_to_update: false,
+            };
+            Ok(set_desktop_updater_state(&store, state))
+        }
+        Ok(None) => {
+            if let Ok(mut pending) = store.pending_update.lock() {
+                pending.take();
+            }
+            let state = DesktopUpdaterState {
+                supported: true,
+                status: "up-to-date".to_string(),
+                channel,
+                current_version: app.package_info().version.to_string(),
+                available_version: None,
+                progress_percent: None,
+                transferred_bytes: None,
+                total_bytes: None,
+                message: Some("You are on the latest signed desktop version.".to_string()),
+                reason: None,
+                last_updated_at_ms: now_ms(),
+                can_check_for_updates: true,
+                can_download: false,
+                can_restart_to_update: false,
+            };
+            Ok(set_desktop_updater_state(&store, state))
+        }
+        Err(error) => {
+            let state = create_desktop_updater_error_state(
+                &app,
+                channel,
+                error.to_string(),
+                "tauri_updater_error",
+            );
+            Ok(set_desktop_updater_state(&store, state))
+        }
+    }
+}
+
+#[tauri::command]
+async fn desktop_updater_install(
+    app: AppHandle,
+    store: State<'_, DesktopUpdaterBridgeState>,
+) -> Result<DesktopUpdaterState, String> {
+    let update = store
+        .pending_update
+        .lock()
+        .map_err(|_| "Unable to lock pending desktop update.".to_string())?
+        .clone();
+    let Some(update) = update else {
+        return Ok(desktop_updater_current_state(&app, &store));
+    };
+
+    let installing = DesktopUpdaterState {
+        supported: true,
+        status: "downloading".to_string(),
+        channel: resolve_desktop_update_channel(&app).0,
+        current_version: update.current_version.clone(),
+        available_version: Some(update.version.clone()),
+        progress_percent: Some(0.0),
+        transferred_bytes: Some(0),
+        total_bytes: None,
+        message: Some(format!("Installing signed update {}...", update.version)),
+        reason: None,
+        last_updated_at_ms: now_ms(),
+        can_check_for_updates: false,
+        can_download: false,
+        can_restart_to_update: false,
+    };
+    set_desktop_updater_state(&store, installing);
+
+    let mut transferred_bytes: u64 = 0;
+    let install_result = update
+        .download_and_install(
+            |chunk_length, total_bytes| {
+                transferred_bytes = transferred_bytes.saturating_add(chunk_length as u64);
+                let progress_percent = total_bytes
+                    .filter(|total| *total > 0)
+                    .map(|total| (transferred_bytes as f64 / total as f64) * 100.0);
+                let state = DesktopUpdaterState {
+                    supported: true,
+                    status: "downloading".to_string(),
+                    channel: resolve_desktop_update_channel(&app).0,
+                    current_version: update.current_version.clone(),
+                    available_version: Some(update.version.clone()),
+                    progress_percent,
+                    transferred_bytes: Some(transferred_bytes),
+                    total_bytes,
+                    message: Some(format!("Installing signed update {}...", update.version)),
+                    reason: None,
+                    last_updated_at_ms: now_ms(),
+                    can_check_for_updates: false,
+                    can_download: false,
+                    can_restart_to_update: false,
+                };
+                set_desktop_updater_state(&store, state);
+            },
+            || {},
+        )
+        .await;
+
+    match install_result {
+        Ok(()) => {
+            if let Ok(mut pending) = store.pending_update.lock() {
+                pending.take();
+            }
+            let state = DesktopUpdaterState {
+                supported: true,
+                status: "downloaded".to_string(),
+                channel: resolve_desktop_update_channel(&app).0,
+                current_version: update.current_version,
+                available_version: Some(update.version),
+                progress_percent: Some(100.0),
+                transferred_bytes: Some(transferred_bytes),
+                total_bytes: Some(transferred_bytes),
+                message: Some(
+                    "Signed update installed. Restart the app if it is still running.".to_string(),
+                ),
+                reason: None,
+                last_updated_at_ms: now_ms(),
+                can_check_for_updates: true,
+                can_download: false,
+                can_restart_to_update: false,
+            };
+            Ok(set_desktop_updater_state(&store, state))
+        }
+        Err(error) => {
+            let state = create_desktop_updater_error_state(
+                &app,
+                resolve_desktop_update_channel(&app).0,
+                error.to_string(),
+                "tauri_updater_error",
+            );
+            Ok(set_desktop_updater_state(&store, state))
+        }
+    }
+}
+
+#[cfg(windows)]
 fn to_wide_string(s: &str) -> Vec<u16> {
     OsString::from(s)
         .encode_wide()
@@ -460,7 +881,7 @@ fn resolve_desktop_update_channel(app: &AppHandle) -> (String, Option<String>, O
             } else if normalized == "stable" || normalized == "prerelease" {
                 (normalized, None, None)
             } else {
-                let blocked_msg = "Updates are blocked because INSTRUCTION_ENGINE_UPDATE_CHANNEL is invalid for the manual-installer Tauri lane: {}.";
+                let blocked_msg = "Updates are blocked because INSTRUCTION_ENGINE_UPDATE_CHANNEL is invalid for the signed Tauri updater lane: {}.";
                 (
                     default_channel.to_string(),
                     Some("update_channel_invalid".to_string()),
@@ -584,6 +1005,33 @@ fn build_init_script(app: &AppHandle) -> Result<String, String> {
                         clearTimeout(timeout);
                     }
                 };
+                const tauriInvoke = () => {
+                    const tauri = window.__TAURI__;
+                    return tauri && tauri.core && typeof tauri.core.invoke === 'function'
+                        ? tauri.core.invoke.bind(tauri.core)
+                        : null;
+                };
+                const callUpdaterCommand = async (command) => {
+                    const invoke = tauriInvoke();
+                    if (!invoke) {
+                        return null;
+                    }
+                    return await invoke(command);
+                };
+                const syncUpdaterCommand = async (command, fallbackPathname, init = {}) => {
+                    try {
+                        const commandState = await callUpdaterCommand(command);
+                        if (commandState) {
+                            return setUpdaterState(commandState);
+                        }
+                    } catch (error) {
+                        const message = error instanceof Error && error.message.trim()
+                            ? error.message.trim()
+                            : String(error || '').trim() || 'Unable to talk to the Tauri updater.';
+                        return setUpdaterState(buildUpdaterError(message));
+                    }
+                    return syncUpdaterState(fallbackPathname, init);
+                };
                 const syncUpdaterState = async (pathname, init = {}) => {
                     try {
                         const nextState = await callUpdaterApi(pathname, init);
@@ -602,7 +1050,7 @@ fn build_init_script(app: &AppHandle) -> Result<String, String> {
 
                     updaterPollInFlight = true;
                     try {
-                        return await syncUpdaterState('/api/desktop-updater');
+                        return await syncUpdaterCommand('desktop_updater_get_state', '/api/desktop-updater');
                     } finally {
                         updaterPollInFlight = false;
                     }
@@ -655,13 +1103,18 @@ fn build_init_script(app: &AppHandle) -> Result<String, String> {
             close: noop,
             isMaximized: noopBool,
             startResizeDragging: () => noop(),
-          }),
+                    }),
                     updater: Object.freeze({
                         getState: () => pollUpdaterState(),
-                        checkForUpdates: () => syncUpdaterState('/api/desktop-updater/check', { method: 'POST' }),
-                        downloadUpdate: () => syncUpdaterState('/api/desktop-updater/download', { method: 'POST', timeoutMs: 15000 }),
+                        checkForUpdates: () => syncUpdaterCommand('desktop_updater_check', '/api/desktop-updater/check', { method: 'POST' }),
+                        downloadUpdate: () => syncUpdaterCommand('desktop_updater_install', '/api/desktop-updater/download', { method: 'POST', timeoutMs: 15000 }),
                         restartToUpdate: async () => {
                             try {
+                                const invoke = tauriInvoke();
+                                if (invoke) {
+                                    await invoke('desktop_updater_install');
+                                    return true;
+                                }
                                 const payload = await callUpdaterApi('/api/desktop-updater/restart', {
                                     method: 'POST',
                                     timeoutMs: 10000,
@@ -680,7 +1133,7 @@ fn build_init_script(app: &AppHandle) -> Result<String, String> {
                             } catch (error) {
                                 const message = error instanceof Error && error.message.trim()
                                     ? error.message.trim()
-                                    : 'Unable to launch the downloaded installer.';
+                                    : 'Unable to install the signed update.';
                                 setUpdaterState(buildUpdaterError(message));
                                 return false;
                             }
@@ -1114,6 +1567,8 @@ fn main() {
     boot_log!("building tauri app");
     let build_result = tauri::Builder::default()
         .manage(RuntimeChildState::default())
+        .manage(DesktopUpdaterBridgeState::default())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             focus_main_window(app);
         }))
@@ -1142,6 +1597,11 @@ fn main() {
             }
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            desktop_updater_get_state,
+            desktop_updater_check,
+            desktop_updater_install,
+        ])
         .build(tauri::generate_context!());
 
     boot_log!("tauri builder completed");

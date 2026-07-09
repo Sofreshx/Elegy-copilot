@@ -5,7 +5,7 @@ Elegy Copilot now ships as a Tauri-only Windows desktop app with a bundled Node 
 ## Release lanes
 
 - `npm --prefix copilot-ui run desktop:preview:stage` builds and stages the local Windows preview lane.
-- `.github/workflows/desktop-preview-release.yml` publishes unsigned Windows preview artifacts for a matching semver tag.
+- `.github/workflows/desktop-preview-release.yml` publishes signed Windows preview artifacts for a matching semver tag.
 - `.github/workflows/desktop-version-tag.yml` creates `desktop-v<version>` tags for maintainer release flows.
 - `.github/workflows/desktop-release.yml` publishes the Windows release for `desktop-v*` tags.
 
@@ -28,16 +28,18 @@ This produces:
 
 - a Windows NSIS installer under `copilot-ui/release/tauri/windows`
 - `release-manifest.json` with fail-closed channel metadata
+- `<channel>-latest.json` signed Tauri updater feed metadata
+- the Tauri updater `.sig` file matching the Windows installer
 - `windows-installation-guide.md`
 - staged release files under `release-artifacts/windows-tauri`
 
-This lane is manual-installer only. It does not claim in-app updater/feed parity.
+This lane is the signed Tauri updater lane. The NSIS installer remains the fresh-install artifact; in-app updates are governed by the matching-channel `latest.json` feed and signature.
 
 ## Public preview release
 
 `.github/workflows/desktop-preview-release.yml` is the public preview lane.
 
-- Pushing a normal semver tag such as `1.0.0` or `1.0.0-rc.1` builds and publishes unsigned Windows preview artifacts.
+- Pushing a normal semver tag such as `1.0.0` or `1.0.0-rc.1` builds and publishes signed Windows preview artifacts.
 - The preview tag must exactly match `copilot-ui/package.json` at the selected ref.
 - Manual `workflow_dispatch` is available for backfills or non-tag refs.
 - Preview releases are evaluation lane only: semver tags always publish as `prerelease=true`, including manual backfills.
@@ -58,7 +60,7 @@ Workflow:
 Stable promotion guardrails:
 
 - Stable `desktop-vx.y.z` promotion fails closed unless semver tag `x.y.z` exists, resolves to the same commit, and already has a published GitHub prerelease in `desktopRelease.publishRepository`.
-- That preview release must remain `prerelease=true` and include `release-manifest.json`, at least one `.exe` installer, and `windows-installation-guide.md`.
+- That preview release must remain `prerelease=true` and include `release-manifest.json`, the matching `<channel>-latest.json` updater feed, an `.exe.sig`, at least one `.exe` installer, and `windows-installation-guide.md`.
 - Hyphenated `desktop-vx.y.z-*` tags still publish as prerelease based on the tag itself.
 - Do not treat `/releases/latest` as the stable shortcut until historic semver releases are remediated so none remain non-prerelease.
 
@@ -68,4 +70,5 @@ The stable release lane publishes the same staged installer artifacts that passe
 
 - `.github/workflows/repo-ci.yml` is the repo-wide required CI workflow.
 - The Windows packaging check in that workflow runs `npm --prefix copilot-ui run desktop:preview:stage`.
+- Release packaging requires `TAURI_SIGNING_PRIVATE_KEY` and optionally `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` in CI secrets; only the updater public key is committed.
 - Release docs and workflow behavior must stay aligned.

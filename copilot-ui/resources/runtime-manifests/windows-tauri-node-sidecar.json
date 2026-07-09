@@ -6,8 +6,8 @@
   "resourceRoot": ".",
   "releaseLane": {
     "packaging": "windows_nsis_preview_installer",
-    "updateMode": "manual_installer",
-    "autoUpdateEnabled": false,
+    "updateMode": "tauri_signed_updater",
+    "autoUpdateEnabled": true,
     "failClosedChannelPolicy": true
   },
   "nodeRuntime": {

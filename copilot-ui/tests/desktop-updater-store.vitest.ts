@@ -105,14 +105,14 @@ describe('desktopUpdaterStore', () => {
     expect(restarted).toBe(true);
   });
 
-  it('hydrates a blocked manual-installer state when the Tauri bridge is present', async () => {
+  it('hydrates a blocked signed-updater state when the Tauri bridge is present', async () => {
     const updater = window.instructionEngineDesktop?.updater;
     updater?.getState.mockResolvedValueOnce({
       ...BASE_STATE,
       supported: false,
       status: 'blocked',
-      message: 'Tauri Windows stays manual-installer only in this slice.',
-      reason: 'manual_installer_only',
+      message: 'Signature validation failed.',
+      reason: 'tauri_updater_error',
       canCheckForUpdates: false,
     });
 
@@ -120,7 +120,7 @@ describe('desktopUpdaterStore', () => {
     await Promise.resolve();
 
     expect(desktopUpdaterStore.getState().status).toBe('blocked');
-    expect(desktopUpdaterStore.getState().reason).toBe('manual_installer_only');
+    expect(desktopUpdaterStore.getState().reason).toBe('tauri_updater_error');
     expect(desktopUpdaterStore.getState().canCheckForUpdates).toBe(false);
   });
 });

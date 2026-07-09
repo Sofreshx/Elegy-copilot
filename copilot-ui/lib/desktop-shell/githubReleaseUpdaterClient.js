@@ -260,14 +260,15 @@ function validateReleaseManifest(manifest, release, expectedChannel) {
   const updateLane = isObject(manifest.updateLane) ? manifest.updateLane : null;
   if (
     !updateLane
-    || normalizeString(updateLane.mode) !== 'manual_installer'
+    || normalizeString(updateLane.mode) !== 'tauri_signed_updater'
     || updateLane.failClosedChannelPolicy !== true
-    || updateLane.autoUpdateEnabled !== false
-    || updateLane.inPlaceUpgradeSupported !== false
+    || updateLane.autoUpdateEnabled !== true
+    || normalizeString(updateLane.releaseSource) !== 'tauri_static_json'
+    || normalizeString(updateLane.updaterBridgeStatus) !== 'tauri_signed_updater'
   ) {
     return createBlockedResult(
       'github_release_manifest_invalid',
-      'Release metadata does not preserve the approved manual-installer and fail-closed update posture.',
+      'Release metadata does not preserve the approved signed Tauri updater and fail-closed update posture.',
     );
   }
 
