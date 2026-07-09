@@ -193,7 +193,11 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-spec-authoring-skill', { sourceAssetId: 'skill-spec-authoring' }),
       route('codex-spec-review-skill', { sourceAssetId: 'skill-spec-review' }),
       route('codex-spec-planning-bridge-skill', { sourceAssetId: 'skill-spec-planning-bridge' }),
-      route('codex-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning' }),
+      route('codex-elegy-planning-skill', {
+        sourceAssetId: 'skill-elegy-planning',
+        loadMode: 'on-demand',
+        compatibilityFallbackFor: 'elegy-planning@elegy',
+      }),
       route('codex-repo-backed-obsidian-docs-skill', { sourceAssetId: 'skill-repo-backed-obsidian-docs' }),
       route('codex-ui-system-skill', { sourceAssetId: 'skill-ui-system' }),
       route('codex-ui-runtime-exploration-skill', { sourceAssetId: 'skill-ui-runtime-exploration' }),

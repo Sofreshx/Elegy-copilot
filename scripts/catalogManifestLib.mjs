@@ -89,6 +89,9 @@ function materializeAsset(route) {
     source: route.source || sourceAsset.source,
     destination: route.destination || deriveDefaultDestination(sourceAsset),
     ...(route.loadMode || sourceAsset.loadMode ? { loadMode: route.loadMode || sourceAsset.loadMode } : {}),
+    ...(route.compatibilityFallbackFor || sourceAsset.compatibilityFallbackFor
+      ? { compatibilityFallbackFor: route.compatibilityFallbackFor || sourceAsset.compatibilityFallbackFor }
+      : {}),
     ...(route.governance || sourceAsset.governance
       ? { governance: cloneJson(route.governance || sourceAsset.governance) }
       : {}),
