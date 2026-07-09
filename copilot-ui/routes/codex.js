@@ -259,7 +259,7 @@ function register(deps = {}) {
       path: '/api/codex/opencode-workers/install',
       handler: async (ctx) => {
         try {
-          const result = resolvedDeps.opencodeWorkers.installPlugin({
+          const result = await resolvedDeps.opencodeWorkers.installPlugin({
             engineRoot: ctx.engineRoot,
             codexHome: ctx.codexHome,
             env: resolvedDeps.env,

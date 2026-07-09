@@ -4,6 +4,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const childProcess = require('child_process');
+const {
+  installElegyCodexPlugins,
+  windowsPluginBinaryName,
+} = require('./elegyPluginMarketplace');
 
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
@@ -18,11 +22,14 @@ const DEFAULT_CONFIG = Object.freeze({
 });
 
 const PLUGIN_NAME = 'elegy-opencode-workers';
-const REQUIRED_PLUGIN_FILES = Object.freeze([
-  path.join('.codex-plugin', 'plugin.json'),
-  path.join('bin', 'elegy-opencode-workers'),
-  path.join('skills', 'opencode-worker-delegation', 'SKILL.md'),
-]);
+
+function requiredPluginFiles(options = {}) {
+  return [
+    path.join('.codex-plugin', 'plugin.json'),
+    path.join('bin', windowsPluginBinaryName(PLUGIN_NAME, options)),
+    path.join('skills', 'opencode-worker-delegation', 'SKILL.md'),
+  ];
+}
 
 function resolveConfigPath(options = {}) {
   return path.resolve(
@@ -217,7 +224,7 @@ function detectInstalled(options = {}) {
 }
 
 function pluginProjectionReady(pluginRoot) {
-  return REQUIRED_PLUGIN_FILES.every((relativePath) => {
+  return requiredPluginFiles().every((relativePath) => {
     try {
       return fs.existsSync(path.join(pluginRoot, relativePath));
     } catch {
@@ -293,7 +300,7 @@ function classifyPackagingFailure(result) {
 
 function validateInstalledProjection(codexHome) {
   const pluginRoot = path.join(codexHome, 'marketplaces', 'elegy', 'plugins', PLUGIN_NAME);
-  const missing = REQUIRED_PLUGIN_FILES
+  const missing = requiredPluginFiles()
     .map((relativePath) => ({ relativePath, absolutePath: path.join(pluginRoot, relativePath) }))
     .filter((entry) => !fs.existsSync(entry.absolutePath));
   return {
@@ -303,20 +310,22 @@ function validateInstalledProjection(codexHome) {
   };
 }
 
-function installPlugin(options = {}) {
+async function installPlugin(options = {}) {
   const codexHome = options.codexHome || path.join(os.homedir(), '.codex');
   const output = path.join(codexHome, 'marketplaces', 'elegy');
-  const result = runPackaging([
-    'marketplace',
-    'export-codex',
-    '--source',
-    resolveElegyRoot(options),
-    '--plugin',
-    PLUGIN_NAME,
-    '--output',
-    output,
-    '--overwrite',
-  ], options);
+  let result;
+  try {
+    result = await installElegyCodexPlugins({
+      ...options,
+      codexHome,
+      pluginNames: [PLUGIN_NAME],
+    });
+  } catch (error) {
+    result = {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
   const projection = result.ok
     ? validateInstalledProjection(codexHome)
     : { ok: false, pluginRoot: path.join(output, 'plugins', PLUGIN_NAME), missing: [] };
@@ -480,4 +489,5 @@ module.exports = {
   removePlugin,
   listJobs,
   buildUsage,
+  requiredPluginFiles,
 };

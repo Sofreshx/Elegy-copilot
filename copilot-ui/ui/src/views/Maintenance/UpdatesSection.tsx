@@ -103,88 +103,85 @@ function AppUpdateCard() {
   );
 }
 
-function ElegyPlanningUpdateCard() {
-  const { status, checking, updatingPlanning, error } = useStoreValue(toolingUpdatesStore);
-  const planning = status?.elegyPlanningCli ?? null;
+function ElegyPluginsUpdateCard() {
+  const { status, checking, updatingPlugins, error } = useStoreValue(toolingUpdatesStore);
+  const plugins = status?.elegyPlugins ?? null;
+  const pluginRecords = plugins?.plugins ?? [];
+  const installable = pluginRecords
+    .filter((plugin) => plugin.status !== 'current')
+    .map((plugin) => plugin.plugin);
   const tone = error
     ? 'error'
-    : checking || updatingPlanning
+    : checking || updatingPlugins
       ? 'loading'
-      : planning?.updateAvailable
+      : plugins?.updateAvailable
         ? 'warn'
         : 'ok';
   const summary = error
     ? error
-    : checking || updatingPlanning
-      ? 'Checking for updates…'
-      : planning?.updateAvailable
-        ? planning.features?.complete === false
-          ? `Update required (${planning.features.missing.length} missing feature${planning.features.missing.length === 1 ? '' : 's'})`
-          : planning.managedSource?.updateAvailable
-            ? 'Managed GitHub source is newer'
-            : `Update available (${planning.latestVersion ?? 'latest'})`
-        : 'Up to date';
+    : checking || updatingPlugins
+      ? 'Checking Elegy plugins…'
+      : plugins?.lastError
+        ? plugins.lastError
+        : plugins?.updateAvailable
+          ? `${installable.length || pluginRecords.length} plugin${(installable.length || pluginRecords.length) === 1 ? '' : 's'} need install/update`
+          : 'All Elegy plugins are current';
 
   return (
     <Panel
-      title="Elegy Planning"
-      subtitle="elegy-planning CLI"
-      testId="updates-elegy-planning-card"
+      title="Elegy Plugins"
+      subtitle="Codex marketplace plugins"
+      testId="updates-elegy-plugins-card"
       actions={
         <>
           <Button
             variant="secondary"
             size="sm"
-            testId="updates-elegy-planning-check"
+            testId="updates-elegy-plugins-check"
             onClick={() => void toolingUpdatesStore.checkNow()}
           >
             Check
           </Button>
-          {planning?.canUpdate && planning.updateAvailable ? (
+          {plugins?.canUpdate && (plugins.updateAvailable || pluginRecords.length === 0) ? (
             <Button
               variant="primary"
               size="sm"
-              testId="updates-elegy-planning-update"
-              onClick={() => void toolingUpdatesStore.updatePlanning()}
-              disabled={updatingPlanning}
+              testId="updates-elegy-plugins-update"
+              onClick={() => void toolingUpdatesStore.updatePlugins(installable.length ? installable : undefined)}
+              disabled={updatingPlugins}
             >
-              {updatingPlanning ? 'Updating…' : 'Update'}
+              {updatingPlugins ? 'Updating…' : 'Install / Update'}
             </Button>
           ) : null}
         </>
       }
     >
       <div className="updates-card-body">
-        <HealthDot tone={tone} label={summary} testId="updates-elegy-planning-health" />
+        <HealthDot tone={tone} label={summary} testId="updates-elegy-plugins-health" />
         <dl className="updates-card-details">
-          <dt>Current Version</dt>
-          <dd data-testid="updates-elegy-planning-current">{planning?.currentVersion ?? 'unknown'}</dd>
-          <dt>Latest Version</dt>
-          <dd data-testid="updates-elegy-planning-latest">{planning?.latestVersion ?? 'unknown'}</dd>
-          <dt>Feature Surface</dt>
-          <dd data-testid="updates-elegy-planning-features">
-            {planning?.features?.complete
-              ? 'complete'
-              : planning?.features?.missing?.length
-                ? `missing ${planning.features.missing.join(', ')}`
-                : 'unknown'}
-          </dd>
-          <dt>Managed Source</dt>
-          <dd data-testid="updates-elegy-planning-source">
-            {planning?.managedSource?.repoRoot
-              ? planning.managedSource.updateAvailable
-                ? 'newer GitHub source available'
-                : planning.managedSource.kind === 'github-source'
-                  ? 'GitHub source tracked'
-                  : 'source tracked'
-              : 'not detected'}
-          </dd>
-          <dt>CLI Path</dt>
-          <dd data-testid="updates-elegy-planning-path">{planning?.cliPath ?? 'not detected'}</dd>
+          <dt>Marketplace</dt>
+          <dd data-testid="updates-elegy-plugins-marketplace">{plugins?.marketplaceRoot ?? 'not installed'}</dd>
+          <dt>Target</dt>
+          <dd data-testid="updates-elegy-plugins-target">{plugins?.target ?? 'unknown'}</dd>
+          <dt>Channel</dt>
+          <dd data-testid="updates-elegy-plugins-channel">{plugins?.releaseTag ?? 'main-snapshot'}</dd>
+          <dt>Status</dt>
+          <dd data-testid="updates-elegy-plugins-status">{plugins?.status ?? 'notInstalled'}</dd>
         </dl>
-        {planning?.lastError ? (
-          <p className="updates-card-message updates-card-error" data-testid="updates-elegy-planning-error">
-            {planning.lastError}
+        {pluginRecords.length > 0 ? (
+          <div className="updates-card-details" data-testid="updates-elegy-plugins-list">
+            {pluginRecords.map((plugin) => (
+              <div key={plugin.plugin} className="updates-plugin-row" data-testid={`updates-elegy-plugin-${plugin.plugin}`}>
+                <code>{plugin.plugin}</code>
+                <span>{plugin.status}</span>
+                <span>{plugin.installedVersion ?? plugin.marketplaceVersion ?? 'unknown'}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {plugins?.lastError ? (
+          <p className="updates-card-message updates-card-error" data-testid="updates-elegy-plugins-error">
+            {plugins.lastError}
           </p>
         ) : null}
       </div>
@@ -378,7 +375,7 @@ export default function UpdatesSection() {
     <div className="updates-section" data-testid="updates-section">
       <ActiveSessionWarning count={activeSessionCount} />
       <AppUpdateCard />
-      <ElegyPlanningUpdateCard />
+      <ElegyPluginsUpdateCard />
       <ElegySkillsUpdateCard />
       <CliToolingSection />
     </div>

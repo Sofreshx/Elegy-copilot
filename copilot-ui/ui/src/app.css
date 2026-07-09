@@ -4623,6 +4623,22 @@ textarea:focus-visible,
   color: var(--fg-default);
 }
 
+.updates-plugin-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(10rem, 1fr) 7rem minmax(8rem, 1fr);
+  gap: var(--space-sm);
+  align-items: center;
+  min-width: 0;
+}
+
+.updates-plugin-row > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .updates-card-message {
   font-size: var(--text-sm);
   color: var(--fg-muted);

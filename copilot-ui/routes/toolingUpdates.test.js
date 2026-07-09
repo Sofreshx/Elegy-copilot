@@ -91,10 +91,42 @@ test('tooling updates status reports planning and elegy skills update availabili
       },
     }),
     assets: {},
+    elegyPluginMarketplace: {
+      async getElegyPluginMarketplaceStatus() {
+        return {
+          marketplaceName: 'elegy',
+          marketplaceRoot: '/codex-home/marketplaces/elegy',
+          target: 'x86_64-pc-windows-msvc',
+          releaseTag: 'main-snapshot',
+          archiveSha256: 'abc',
+          installedAt: '2026-07-09T00:00:00.000Z',
+          status: 'current',
+          updateAvailable: false,
+          canUpdate: true,
+          plugins: [
+            {
+              plugin: 'elegy-planning',
+              marketplace: 'elegy',
+              target: 'x86_64-pc-windows-msvc',
+              marketplaceVersion: '0.1.0+codex.111111111111',
+              installedVersion: '0.1.0+codex.111111111111',
+              status: 'current',
+              installed: true,
+              enabled: true,
+              available: true,
+              installDir: '/codex-home/marketplaces/elegy/plugins/elegy-planning',
+              recommendedCommand: 'codex plugin add elegy-planning@elegy --json',
+            },
+          ],
+          lastError: null,
+        };
+      },
+    },
   });
   const result = await invoke(routes, 'GET', '/api/tooling-updates/status', {
     engineRoot: '/repo',
     elegyHomeAbs: '/copilot-home',
+    codexHome: '/codex-home',
   });
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.elegyPlanningCli.currentVersion, '0.1.0');
@@ -105,6 +137,8 @@ test('tooling updates status reports planning and elegy skills update availabili
   assert.equal(result.body.elegySkillsAssets.trackedCount, 3);
   assert.equal(result.body.elegySkillsAssets.outdatedCount, 3);
   assert.equal(result.body.elegySkillsAssets.updateAvailable, true);
+  assert.equal(result.body.elegyPlugins.status, 'current');
+  assert.equal(result.body.elegyPlugins.plugins[0].plugin, 'elegy-planning');
   assert.deepEqual(result.body.elegyPlanningCli.features.missing, [
     'session',
     'project-run',
@@ -117,6 +151,134 @@ test('tooling updates status reports planning and elegy skills update availabili
     'entity-search',
   ]);
 });
+
+test('tooling updates status reports Elegy plugin check failures as repairable unknown', async () => {
+  const routes = register({
+    env: {},
+    childProcess: {
+      spawnSync(_cmd, args) {
+        if (args && args.includes('capabilities') && args.includes('--json')) {
+          return { stdout: JSON.stringify({ cliVersion: '0.1.0', planningSchemaVersion: '1.0.0', resultSchemaVersion: 'planning-result/v1' }), stderr: '' };
+        }
+        return { stdout: 'elegy-planning 0.1.0', stderr: '' };
+      },
+    },
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return { tag_name: 'v1.0.0', assets: [] };
+      },
+    }),
+    assets: {},
+    elegyPluginMarketplace: {
+      async getElegyPluginMarketplaceStatus() {
+        throw new Error('Codex plugin list failed');
+      },
+    },
+  });
+
+  const result = await invoke(routes, 'GET', '/api/tooling-updates/status', {
+    engineRoot: '/repo',
+    elegyHomeAbs: '/copilot-home',
+    codexHome: '/codex-home',
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.elegyPlugins.status, 'unknown');
+  assert.equal(result.body.elegyPlugins.updateAvailable, true);
+  assert.match(result.body.elegyPlugins.lastError, /Codex plugin list failed/);
+});
+
+test('tooling updates elegy-plugins endpoint installs through generic Codex marketplace service', async () => {
+  const calls = [];
+  const routes = register({
+    env: {},
+    readJsonBody: async () => ({ pluginNames: ['elegy-planning'] }),
+    childProcess: {
+      spawnSync(_cmd, args) {
+        if (args && args.includes('capabilities') && args.includes('--json')) {
+          return { stdout: JSON.stringify({ cliVersion: '0.1.0', planningSchemaVersion: '1.0.0', resultSchemaVersion: 'planning-result/v1' }), stderr: '' };
+        }
+        if (args && args.includes('health') && args.includes('--json')) {
+          return { stdout: JSON.stringify({ status: 'ok', data: { schemaVersion: '1.0.0' } }), stderr: '' };
+        }
+        return { stdout: 'elegy-planning 0.1.0', stderr: '' };
+      },
+    },
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return { tag_name: 'v1.0.0', assets: [] };
+      },
+    }),
+    assets: {},
+    elegyPluginMarketplace: {
+      async installElegyCodexPlugins(options) {
+        calls.push(['install', options.pluginNames, options.codexHome]);
+        return {
+          ok: true,
+          marketplaceName: 'elegy',
+          marketplaceRoot: `${options.codexHome}/marketplaces/elegy`,
+          target: 'x86_64-pc-windows-msvc',
+        };
+      },
+      async getElegyPluginMarketplaceStatus(options) {
+        calls.push(['status', options.codexHome]);
+        return {
+          marketplaceName: 'elegy',
+          marketplaceRoot: `${options.codexHome}/marketplaces/elegy`,
+          target: 'x86_64-pc-windows-msvc',
+          releaseTag: 'main-snapshot',
+          archiveSha256: 'abc',
+          installedAt: '2026-07-09T00:00:00.000Z',
+          status: 'current',
+          updateAvailable: false,
+          canUpdate: true,
+          plugins: [{ plugin: 'elegy-planning', status: 'current', installed: true, enabled: true }],
+          lastError: null,
+        };
+      },
+    },
+  });
+  const result = await invoke(routes, 'POST', '/api/tooling-updates/update/elegy-plugins', {
+    engineRoot: '/repo',
+    elegyHomeAbs: '/copilot-home',
+    codexHome: '/codex-home',
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.ok, true);
+  assert.equal(result.body.installResult.marketplaceName, 'elegy');
+  assert.equal(result.body.status.elegyPlugins.status, 'current');
+  assert.deepEqual(calls[0], ['install', ['elegy-planning'], '/codex-home']);
+});
+
+test('tooling updates elegy-plugins endpoint requires codexHome', async () => {
+  let installCalled = false;
+  const routes = register({
+    env: {},
+    readJsonBody: async () => ({ pluginNames: ['elegy-planning'] }),
+    elegyPluginMarketplace: {
+      async installElegyCodexPlugins() {
+        installCalled = true;
+        return { ok: true };
+      },
+    },
+  });
+
+  const result = await invoke(routes, 'POST', '/api/tooling-updates/update/elegy-plugins', {
+    engineRoot: '/repo',
+    elegyHomeAbs: '/copilot-home',
+  });
+
+  assert.equal(result.statusCode, 400);
+  assert.equal(result.body.ok, false);
+  assert.match(result.body.error, /codexHome is required/i);
+  assert.equal(installCalled, false);
+});
+
 test('tooling updates elegy-skills endpoint installs from managed GitHub source', async () => {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-tooling-github-skills-'));
   const elegyHome = path.join(tmpRoot, '.elegy');

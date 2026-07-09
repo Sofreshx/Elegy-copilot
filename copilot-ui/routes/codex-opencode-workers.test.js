@@ -160,54 +160,48 @@ test('OpenCode Workers usage prefers cwd-scoped journal when repoPath is supplie
   assert.equal(sent[0].obj.source.path, path.resolve(repo, '.opencode-workers', 'jobs.jsonl'));
 });
 
-test('OpenCode Workers install uses targeted Codex export and validates projection', () => {
+test('OpenCode Workers install delegates to Elegy Codex marketplace and validates projection', async () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ocw-install-'));
   const codexHome = path.join(temp, 'codex-home');
-  const elegyRoot = path.join(temp, 'Elegy');
-  const recordPath = path.join(temp, 'packaging-args.json');
-  fs.mkdirSync(elegyRoot, { recursive: true });
-
-  const fakePackagingJs = path.join(temp, 'fake-packaging.js');
-  fs.writeFileSync(fakePackagingJs, `
-const fs = require('fs');
-const path = require('path');
-const args = process.argv.slice(2);
-fs.writeFileSync(process.env.FAKE_PACKAGING_RECORD, JSON.stringify(args));
-const output = args[args.indexOf('--output') + 1];
-const pluginRoot = path.join(output, 'plugins', 'elegy-opencode-workers');
-fs.mkdirSync(path.join(pluginRoot, '.codex-plugin'), { recursive: true });
-fs.mkdirSync(path.join(pluginRoot, 'bin'), { recursive: true });
-fs.mkdirSync(path.join(pluginRoot, 'skills', 'opencode-worker-delegation'), { recursive: true });
-fs.writeFileSync(path.join(pluginRoot, '.codex-plugin', 'plugin.json'), '{}');
-fs.writeFileSync(path.join(pluginRoot, 'bin', 'elegy-opencode-workers'), 'binary');
-fs.writeFileSync(path.join(pluginRoot, 'skills', 'opencode-worker-delegation', 'SKILL.md'), 'skill');
-process.exit(0);
-`, 'utf8');
-
-  let fakeCommand;
-  if (process.platform === 'win32') {
-    fakeCommand = path.join(temp, 'fake-packaging.cmd');
-    fs.writeFileSync(fakeCommand, `@echo off\r\n"${process.execPath}" "${fakePackagingJs}" %*\r\n`, 'utf8');
-  } else {
-    fakeCommand = path.join(temp, 'fake-packaging.sh');
-    fs.writeFileSync(fakeCommand, `#!/usr/bin/env sh\n"${process.execPath}" "${fakePackagingJs}" "$@"\n`, { mode: 0o755 });
-  }
+  const archiveBuffer = Buffer.from('fake opencode workers marketplace');
+  const sha = require('../lib/elegyPluginMarketplace').sha256Buffer(archiveBuffer);
+  const calls = [];
 
   const opencodeWorkers = require('../lib/opencodeWorkers');
-  const result = opencodeWorkers.installPlugin({
+  const result = await opencodeWorkers.installPlugin({
     codexHome,
-    elegyRoot,
-    env: {
-      ELEGY_PLUGIN_PACKAGING: fakeCommand,
-      FAKE_PACKAGING_RECORD: recordPath,
+    target: 'x86_64-pc-windows-msvc',
+    archiveBuffer,
+    checksumText: sha,
+    extractZip(_archive, destination) {
+      const pluginRoot = path.join(destination, 'plugins', 'elegy-opencode-workers');
+      fs.mkdirSync(path.join(destination, '.agents', 'plugins'), { recursive: true });
+      fs.writeFileSync(path.join(destination, '.agents', 'plugins', 'marketplace.json'), JSON.stringify({
+        name: 'elegy',
+        plugins: [{ name: 'elegy-opencode-workers', source: { source: 'local', path: './plugins/elegy-opencode-workers' } }],
+      }), 'utf8');
+      fs.mkdirSync(path.join(pluginRoot, '.codex-plugin'), { recursive: true });
+      fs.mkdirSync(path.join(pluginRoot, 'bin'), { recursive: true });
+      fs.mkdirSync(path.join(pluginRoot, 'skills', 'opencode-worker-delegation'), { recursive: true });
+      fs.writeFileSync(path.join(pluginRoot, '.codex-plugin', 'plugin.json'), JSON.stringify({ name: 'elegy-opencode-workers', version: '0.1.0+codex.abcdef123456' }));
+      fs.writeFileSync(path.join(pluginRoot, 'bin', 'elegy-opencode-workers.exe'), 'binary');
+      fs.writeFileSync(path.join(pluginRoot, 'skills', 'opencode-worker-delegation', 'SKILL.md'), 'skill');
+    },
+    spawnSyncImpl(command, args) {
+      calls.push([command, ...args]);
+      if (args.includes('--available')) {
+        return { status: 0, stdout: JSON.stringify({ plugins: [{ name: 'elegy-opencode-workers', version: '0.1.0+codex.abcdef123456' }] }), stderr: '' };
+      }
+      return { status: 0, stdout: JSON.stringify({ plugins: [{ name: 'elegy-opencode-workers', version: '0.1.0+codex.abcdef123456', installed: true }] }), stderr: '' };
     },
   });
 
-  const args = JSON.parse(fs.readFileSync(recordPath, 'utf8'));
   assert.equal(result.ok, true);
   assert.equal(result.status.installed, true);
-  assert.deepEqual(args.slice(0, 2), ['marketplace', 'export-codex']);
-  assert.ok(args.includes('--plugin'));
-  assert.equal(args[args.indexOf('--plugin') + 1], 'elegy-opencode-workers');
-  assert.ok(args.includes('--overwrite'));
+  assert.deepEqual(calls.map((call) => call.slice(0, 4)), [
+    ['codex', 'plugin', 'marketplace', 'add'],
+    ['codex', 'plugin', 'add', 'elegy-opencode-workers@elegy'],
+    ['codex', 'plugin', 'list', '--marketplace'],
+    ['codex', 'plugin', 'list', '--marketplace'],
+  ]);
 });

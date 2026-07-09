@@ -153,7 +153,8 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/elegy-planning",
       "destination": "skills/elegy-planning",
-      "loadMode": "always"
+      "loadMode": "on-demand",
+      "compatibilityFallbackFor": "elegy-planning@elegy"
     },
     {
       "id": "codex-repo-backed-obsidian-docs-skill",

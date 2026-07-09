@@ -1242,6 +1242,35 @@ export interface ToolingSkillsAssetsStatus {
   lastError: string | null;
 }
 
+export interface ToolingElegyPluginStatus {
+  plugin: string;
+  marketplace: string;
+  target: string | null;
+  marketplaceVersion: string | null;
+  installedVersion: string | null;
+  status: 'notInstalled' | 'current' | 'stale' | 'missingArtifact' | 'unknown' | string;
+  installed: boolean;
+  enabled: boolean;
+  available: boolean;
+  installDir: string;
+  recommendedCommand: string;
+  error?: string | null;
+}
+
+export interface ToolingElegyPluginsStatus {
+  marketplaceName: string;
+  marketplaceRoot: string;
+  target: string | null;
+  releaseTag: string | null;
+  archiveSha256: string | null;
+  installedAt: string | null;
+  status: 'notInstalled' | 'current' | 'stale' | 'missingArtifact' | 'unknown' | string;
+  updateAvailable: boolean;
+  canUpdate: boolean;
+  plugins: ToolingElegyPluginStatus[];
+  lastError: string | null;
+}
+
 export interface ToolingSurfaceStatus {
   cliPath: string | null;
   installed: boolean;
@@ -1253,6 +1282,7 @@ export interface ToolingUpdatesStatusResponse {
   checkedAtMs: number;
   elegyPlanningCli: ToolingPlanningCliStatus;
   elegySkillsAssets: ToolingSkillsAssetsStatus;
+  elegyPlugins?: ToolingElegyPluginsStatus | null;
   codexSkillsAssets?: ToolingSkillsAssetsStatus | { error: string } | null;
   surfaces?: Record<string, ToolingSurfaceStatus>;
 }
@@ -1262,6 +1292,7 @@ export interface ToolingUpdateActionResponse {
   status?: ToolingUpdatesStatusResponse;
   downloadedPath?: string;
   installMetadata?: unknown;
+  installResult?: unknown;
   syncResult?: unknown;
   surfaceResults?: unknown[];
   error?: string;

@@ -1,6 +1,7 @@
 import {
   checkToolingUpdates,
   getToolingUpdatesStatus,
+  updateElegyPlugins,
   updateElegyPlanningCli,
   updateElegySkillsAssets,
 } from '../lib/api';
@@ -13,6 +14,7 @@ export interface ToolingUpdatesState {
   status: ToolingUpdatesStatusResponse | null;
   loading: boolean;
   checking: boolean;
+  updatingPlugins: boolean;
   updatingPlanning: boolean;
   updatingSkills: boolean;
   error: string | null;
@@ -23,6 +25,7 @@ const INITIAL_STATE: ToolingUpdatesState = {
   status: null,
   loading: false,
   checking: false,
+  updatingPlugins: false,
   updatingPlanning: false,
   updatingSkills: false,
   error: null,
@@ -139,6 +142,42 @@ function createToolingUpdatesStore() {
     }
   }
 
+  async function updatePlugins(pluginNames?: string[]): Promise<void> {
+    store.setState((state) => ({
+      ...state,
+      updatingPlugins: true,
+      error: null,
+    }));
+
+    try {
+      const response = await updateElegyPlugins({
+        ...(pluginNames && pluginNames.length ? { pluginNames } : {}),
+      });
+      if (response.status) {
+        store.setState((state) => ({
+          ...state,
+          status: response.status ?? state.status,
+          updatingPlugins: false,
+          error: null,
+          lastUpdatedAtMs: Date.now(),
+        }));
+      } else {
+        await refresh();
+        store.setState((state) => ({
+          ...state,
+          updatingPlugins: false,
+        }));
+      }
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        updatingPlugins: false,
+        error: toErrorMessage(error),
+        lastUpdatedAtMs: Date.now(),
+      }));
+    }
+  }
+
   async function updateSkills(): Promise<void> {
     store.setState((state) => ({
       ...state,
@@ -199,6 +238,7 @@ function createToolingUpdatesStore() {
     subscribe: store.subscribe,
     refresh,
     checkNow,
+    updatePlugins,
     updatePlanning,
     updateSkills,
     startPolling,

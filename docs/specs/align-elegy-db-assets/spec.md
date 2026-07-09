@@ -148,23 +148,28 @@ The `copilot-ui/routes/opencode.js` status checks MUST use reliable CLI detectio
 
 ### R3 — Refresh Installed Assets
 
-**R3.1 — Install Codex elegy-planning skill:**
-- The file ~/.codex/skills/elegy-planning/SKILL.md MUST exist after operations
-- Use the existing asset sync flow: POST /api/tooling-updates/update/elegy-skills-codex OR direct file copy from `catalog-assets/shared-skills/elegy-planning/` to ~/.codex/skills/elegy-planning/
+**R3.1 — Install Elegy Codex plugin marketplace:**
+- The generated marketplace file `<CODEX_HOME>/marketplaces/elegy/.agents/plugins/marketplace.json` MUST exist after operations.
+- `elegy-planning` MUST install through `POST /api/tooling-updates/update/elegy-plugins`, which delegates to the generic Elegy Codex marketplace service.
+- The service MUST register the marketplace with `codex plugin marketplace add <CODEX_HOME>/marketplaces/elegy --json` before running `codex plugin add elegy-planning@elegy --json`.
+- `codex plugin list --marketplace elegy --json` MUST report `elegy-planning` installed.
+- The copied Codex shared skill under `~/.codex/skills/elegy-planning/` is compatibility fallback only.
 
 **R3.2 — Refresh OpenCode assets:**
 - OpenCode managed assets at ~/.config/opencode MUST be refreshed using the existing syncAll() mechanism
 - After refresh, the managed asset status MUST report all assets up to date (no outdated/missing counts)
 
 **R3.3 — Update instruction references:**
-- **catalog-assets/shared-skills/elegy-planning/SKILL.md:27** — Replace elegy-planning --version with elegy-planning health --json
+- **catalog-assets/shared-skills/elegy-planning/SKILL.md:27** — Shared-skill instructions MUST state that the Codex-native plugin is primary and the shared skill is fallback.
 - **Superseded:** do not make the Copilot DB primary. Current default DB path is ~/.elegy/planning.db.
 - **codex-assets/home/AGENTS.md:74** — Replace ~/.elegy/planning.db with ~/.copilot/elegy-planning.db
 
 **Acceptance:**
-- ~/.codex/skills/elegy-planning/SKILL.md exists
+- `<CODEX_HOME>/marketplaces/elegy/.agents/plugins/marketplace.json` exists.
+- `codex plugin list --marketplace elegy --json` reports `elegy-planning` installed.
+- `~/.codex/skills/elegy-planning/SKILL.md` exists only as compatibility fallback when plugin install is unavailable or disabled.
 - OpenCode managed asset status reports all assets up to date (no outdated/missing counts)
-- Codex planning status check reports planningSkill.installed === true
+- Maintenance status reports `elegyPlugins.plugins[]` with `elegy-planning` installed/current when the Codex plugin path succeeds.
 
 ### R4 — Fix TypeScript Type Mismatch
 

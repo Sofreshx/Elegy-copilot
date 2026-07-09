@@ -15,6 +15,7 @@ const {
 const assetsLib = require('../lib/assets');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 const { resolvePlanningHealth, resolvePlanningFeatureStatus, resolvePlanningCliVersion } = require('../lib/elegyPlanningHealth');
+const elegyPluginMarketplaceDefault = require('../lib/elegyPluginMarketplace');
 
 function parseVersion(value) {
   const normalized = typeof value === 'string' ? value.trim() : '';
@@ -166,11 +167,29 @@ async function buildToolingStatus(ctx, deps, codexHome) {
   const elegySkillsStatus = buildElegySkillAssetsStatus(ctx.opencodeHome, sourceRepoRoot, sourceGitHead);
 
   let codexStatus = null;
+  let elegyPluginsStatus = null;
   if (codexHome) {
     try {
       codexStatus = buildElegySkillAssetsStatus(codexHome, sourceRepoRoot, sourceGitHead);
     } catch {
       codexStatus = { error: 'Unable to check Codex skill status' };
+    }
+    try {
+      elegyPluginsStatus = await deps.elegyPluginMarketplace.getElegyPluginMarketplaceStatus({
+        codexHome,
+        env: ctx.env,
+        childProcess: deps.childProcess,
+      });
+    } catch (error) {
+      elegyPluginsStatus = {
+        marketplaceName: 'elegy',
+        marketplaceRoot: `${codexHome}/marketplaces/elegy`,
+        status: 'unknown',
+        updateAvailable: true,
+        canUpdate: Boolean(codexHome),
+        plugins: [],
+        lastError: error instanceof Error ? error.message : String(error),
+      };
     }
   }
 
@@ -226,6 +245,7 @@ async function buildToolingStatus(ctx, deps, codexHome) {
     },
     elegySkillsAssets: elegySkillsStatus,
     codexSkillsAssets: codexStatus,
+    elegyPlugins: elegyPluginsStatus,
     aft: aftStatus,
   };
 }
@@ -237,6 +257,7 @@ function register(deps = {}) {
     assets: deps.assets || assetsLib,
     childProcess: deps.childProcess || require('node:child_process'),
     fetchImpl: deps.fetchImpl,
+    elegyPluginMarketplace: deps.elegyPluginMarketplace || elegyPluginMarketplaceDefault,
     env: deps.env || process.env,
   };
 
@@ -287,6 +308,43 @@ function register(deps = {}) {
             ok: true,
             downloadedPath: installResult.installedPath,
             installMetadata: installResult.metadata,
+            status,
+          });
+        } catch (error) {
+          resolvedDeps.sendJson(ctx.res, 500, {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/tooling-updates/update/elegy-plugins',
+      handler: async (ctx) => {
+        try {
+          if (!ctx.codexHome) {
+            resolvedDeps.sendJson(ctx.res, 400, {
+              ok: false,
+              error: 'codexHome is required for Elegy plugin install.',
+            });
+            return;
+          }
+          const body = await resolvedDeps.readJsonBody(ctx.req);
+          const installResult = await resolvedDeps.elegyPluginMarketplace.installElegyCodexPlugins({
+            codexHome: ctx.codexHome,
+            env: resolvedDeps.env,
+            childProcess: resolvedDeps.childProcess,
+            fetchImpl: resolvedDeps.fetchImpl,
+            pluginNames: Array.isArray(body.pluginNames) && body.pluginNames.length
+              ? body.pluginNames.map((pluginName) => String(pluginName))
+              : undefined,
+            releaseTag: typeof body.releaseTag === 'string' && body.releaseTag.trim() ? body.releaseTag.trim() : undefined,
+          });
+          const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps, ctx.codexHome);
+          resolvedDeps.sendJson(ctx.res, 200, {
+            ok: true,
+            installResult,
             status,
           });
         } catch (error) {

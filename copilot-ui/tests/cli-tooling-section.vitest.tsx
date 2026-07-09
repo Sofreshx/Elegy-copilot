@@ -51,6 +51,40 @@ describe('CliToolingSection', () => {
           recentActivity: [],
         });
       }
+      if (url.includes('/api/tooling-updates/status') || url.includes('/api/tooling-updates/check')) {
+        return mockResponse({
+          checkedAtMs: Date.now(),
+          elegyPlanningCli: {},
+          elegySkillsAssets: {},
+          elegyPlugins: {
+            marketplaceName: 'elegy',
+            marketplaceRoot: '/codex-home/marketplaces/elegy',
+            target: 'x86_64-pc-windows-msvc',
+            releaseTag: 'main-snapshot',
+            archiveSha256: null,
+            installedAt: null,
+            status: 'missingArtifact',
+            updateAvailable: true,
+            canUpdate: true,
+            plugins: [
+              {
+                plugin: 'elegy-opencode-workers',
+                marketplace: 'elegy',
+                target: 'x86_64-pc-windows-msvc',
+                marketplaceVersion: null,
+                installedVersion: null,
+                status: 'missingArtifact',
+                installed: false,
+                enabled: false,
+                available: false,
+                installDir: '/codex-home/marketplaces/elegy/plugins/elegy-opencode-workers',
+                recommendedCommand: 'codex plugin add elegy-opencode-workers@elegy --json',
+              },
+            ],
+            lastError: null,
+          },
+        });
+      }
       return mockResponse({});
     }));
   });
@@ -94,11 +128,11 @@ describe('CliToolingSection', () => {
     });
 
     // CLI tooling section has its own install buttons separate from
-    // the asset-based Elegy Planning and Elegy Skills cards.
+    // the asset-based Elegy Plugins and Elegy Skills cards.
     expect(screen.getByTestId('updates-cli-claude-cli-install')).toBeInTheDocument();
 
     // The Elegy asset cards should also render
-    expect(screen.getByTestId('updates-elegy-planning-card')).toBeInTheDocument();
+    expect(screen.getByTestId('updates-elegy-plugins-card')).toBeInTheDocument();
     expect(screen.getByTestId('updates-elegy-skills-card')).toBeInTheDocument();
 
     // Installed tool (OpenCode CLI) should NOT have an install button
@@ -108,5 +142,22 @@ describe('CliToolingSection', () => {
     // Not-installed tool (Codex CLI) should have an install button
     const codexCard = screen.getByTestId('updates-cli-codex-cli-card');
     expect(within(codexCard).getByTestId('updates-cli-codex-cli-install')).toBeInTheDocument();
+  });
+
+  it('shows Elegy plugin missing artifacts as installable instead of current', async () => {
+    const { default: UpdatesSection } = await import('../ui/src/views/Maintenance/UpdatesSection');
+    const { toolingUpdatesStore } = await import('../ui/src/stores/toolingUpdatesStore');
+
+    await toolingUpdatesStore.checkNow();
+    render(<UpdatesSection />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('updates-elegy-plugins-card')).toBeInTheDocument();
+    });
+
+    const pluginsCard = screen.getByTestId('updates-elegy-plugins-card');
+    expect(within(pluginsCard).getByTestId('updates-elegy-plugins-health')).not.toHaveTextContent('All Elegy plugins are current');
+    expect(within(pluginsCard).getByTestId('updates-elegy-plugins-health')).toHaveTextContent('1 plugin need install/update');
+    expect(within(pluginsCard).getByTestId('updates-elegy-plugins-update')).toBeInTheDocument();
   });
 });

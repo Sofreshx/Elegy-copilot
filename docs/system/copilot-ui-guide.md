@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-06-30
+updated: 2026-07-09
 category: system
 status: current
 doc_kind: node
@@ -65,7 +65,7 @@ The sidebar and settings structure are defined in `copilot-ui/ui/src/stores/navi
 - **Lexicon**: searchable terminology reference for UI, design, and architecture terms.
 - **Settings**: app info, catalog, OpenCode/Codex/Claude Code configuration.
 - **Remote**: Kimaki-backed Discord session management.
-- **Maintenance**: desktop updates and LSP diagnostics.
+- **Maintenance**: desktop updates, Elegy plugin marketplace status, shared-skill fallback status, and LSP diagnostics.
 - **Local API delivery**: all of the above served as HTTP routes for the desktop app.
 
 ## Planning Boundary
@@ -83,6 +83,25 @@ The sidebar and settings structure are defined in `copilot-ui/ui/src/stores/navi
 - `~/.elegy/planning-db` in packaged mode
 
 The public route inventory is snapshotted by `copilot-ui/tests/api-contract.test.js`.
+
+## Tooling Updates API
+
+Maintenance tooling update routes expose Elegy Codex plugin state as
+`elegyPlugins` on `GET /api/tooling-updates/status` and
+`POST /api/tooling-updates/check`.
+
+`POST /api/tooling-updates/update/elegy-plugins` installs through the generated
+Elegy Codex marketplace under `<CODEX_HOME>/marketplaces/elegy`. The route
+delegates to the generic Elegy plugin marketplace service, which runs Codex
+marketplace registration before plugin installation.
+
+Codex shared skills remain compatibility fallback assets. They are not the
+primary Codex install lane for `elegy-planning` or other Elegy plugins.
+
+When tooling update routes or top-level response fields change, update
+`copilot-ui/tests/api-contract.snapshot.json` through
+`UPDATE_API_SNAPSHOT=1 node copilot-ui/tests/api-contract.test.js` and keep the
+diff scoped to the intended route contracts.
 
 ## Enhanced Git Tab (2026-06-08)
 

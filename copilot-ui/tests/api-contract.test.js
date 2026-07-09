@@ -261,6 +261,7 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/tooling-updates/status' },
   { method: 'POST', path: '/api/tooling-updates/check' },
   { method: 'POST', path: '/api/tooling-updates/update/elegy-planning' },
+  { method: 'POST', path: '/api/tooling-updates/update/elegy-plugins' },
   { method: 'POST', path: '/api/tooling-updates/update/elegy-skills' },
   { method: 'GET', path: '/api/telemetry/harnesses' },
   // OpenCode (5)
@@ -427,7 +428,7 @@ async function run() {
     }
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 157, `Expected 157 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 158, `Expected 158 routes, got ${ROUTE_INVENTORY.length}`);
   });
   } finally {
     if (runningServer) {

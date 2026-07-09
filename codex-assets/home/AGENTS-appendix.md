@@ -22,6 +22,10 @@ Load shared skills only when they materially change the result:
 Recommend durable workflow skills when useful. Do not load them as routine
 ceremony.
 
+Elegy plugins are the primary Codex route for Elegy-owned capabilities. Use the
+`elegy` Codex marketplace when available; shared skills such as
+`elegy-planning` are compatibility fallbacks.
+
 ## Subagents
 
 Default: manual. Use subagents only when the user asks or governed automatic
