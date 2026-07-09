@@ -209,7 +209,7 @@ function createDesktopUpdaterController(options = {}) {
         progressPercent: null,
         transferredBytes: null,
         totalBytes: null,
-        message: `Update ${result.candidate.version} is available. Download the installer to apply it.`,
+        message: `Signed update ${result.candidate.version} is available.`,
         reason: null,
       });
     } catch (error) {
@@ -237,7 +237,7 @@ function createDesktopUpdaterController(options = {}) {
       progressPercent: 0,
       transferredBytes: 0,
       totalBytes: currentCandidate.artifact.size,
-      message: `Downloading installer for ${currentCandidate.version}...`,
+      message: `Downloading signed update artifact for ${currentCandidate.version}...`,
       reason: null,
     });
 
@@ -250,7 +250,7 @@ function createDesktopUpdaterController(options = {}) {
             progressPercent: progress.progressPercent,
             transferredBytes: progress.transferredBytes,
             totalBytes: progress.totalBytes,
-            message: `Downloading installer for ${currentCandidate.version}...`,
+            message: `Downloading signed update artifact for ${currentCandidate.version}...`,
             reason: null,
           });
         },
@@ -263,7 +263,7 @@ function createDesktopUpdaterController(options = {}) {
         progressPercent: 100,
         transferredBytes: downloadedInstaller.totalBytes,
         totalBytes: downloadedInstaller.totalBytes,
-        message: `Installer for ${currentCandidate.version} is ready to launch.`,
+        message: `Signed update artifact for ${currentCandidate.version} is ready.`,
         reason: null,
       });
     } catch (error) {

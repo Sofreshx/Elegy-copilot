@@ -1,0 +1,10 @@
+.git
+node_modules
+**/node_modules
+**/target
+**/.tmp
+**/dist
+**/release/tauri
+**/.vite
+**/.cache
+*.log

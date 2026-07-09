@@ -165,8 +165,8 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
   assert(manifest.resourceRoot === '.', `Expected ${manifestPath} resourceRoot=.`);
   assert(manifest.releaseLane && typeof manifest.releaseLane === 'object', `Expected ${manifestPath} releaseLane object.`);
   assert(manifest.releaseLane.packaging === 'windows_nsis_preview_installer', `Expected ${manifestPath} releaseLane.packaging=windows_nsis_preview_installer.`);
-  assert(manifest.releaseLane.updateMode === 'manual_installer', `Expected ${manifestPath} releaseLane.updateMode=manual_installer.`);
-  assert(manifest.releaseLane.autoUpdateEnabled === false, `Expected ${manifestPath} releaseLane.autoUpdateEnabled=false.`);
+  assert(manifest.releaseLane.updateMode === 'tauri_signed_updater', `Expected ${manifestPath} releaseLane.updateMode=tauri_signed_updater.`);
+  assert(manifest.releaseLane.autoUpdateEnabled === true, `Expected ${manifestPath} releaseLane.autoUpdateEnabled=true.`);
   assert(manifest.releaseLane.failClosedChannelPolicy === true, `Expected ${manifestPath} releaseLane.failClosedChannelPolicy=true.`);
   assert(manifest.nodeRuntime && typeof manifest.nodeRuntime === 'object', `Expected ${manifestPath} nodeRuntime object.`);
   assert(manifest.nodeRuntime.relativePath === 'node/node.exe', `Expected ${manifestPath} nodeRuntime.relativePath=node/node.exe.`);

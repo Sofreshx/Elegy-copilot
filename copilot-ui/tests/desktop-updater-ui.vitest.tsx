@@ -61,7 +61,7 @@ describe('desktop updater UI affordances', () => {
     expect(screen.getByTestId('updates-app-download')).toHaveTextContent('Update');
   });
 
-  it('shows no app action on the maintenance card while idle and auto-checking', async () => {
+  it('shows check action on the maintenance card while idle', async () => {
     updaterState.value = createUpdaterState({
       status: 'idle',
       canDownload: false,
@@ -72,9 +72,27 @@ describe('desktop updater UI affordances', () => {
     const { default: UpdatesSection } = await import('../ui/src/views/Maintenance/UpdatesSection');
     render(<UpdatesSection />);
 
-    expect(screen.queryByTestId('updates-app-check')).not.toBeInTheDocument();
+    expect(screen.getByTestId('updates-app-check')).toHaveTextContent('Check');
     expect(screen.queryByTestId('updates-app-download')).not.toBeInTheDocument();
     expect(screen.queryByTestId('updates-app-restart')).not.toBeInTheDocument();
+  });
+
+  it('shows disabled installing state while the signed updater is applying', async () => {
+    updaterState.value = createUpdaterState({
+      status: 'downloading',
+      availableVersion: '1.0.2',
+      canDownload: false,
+      canRestartToUpdate: false,
+      canCheckForUpdates: false,
+    });
+
+    const { default: UpdatesSection } = await import('../ui/src/views/Maintenance/UpdatesSection');
+    render(<UpdatesSection />);
+
+    expect(screen.getByTestId('updates-app-installing')).toHaveTextContent('Installing...');
+    expect(screen.getByTestId('updates-app-installing')).toBeDisabled();
+    expect(screen.queryByTestId('updates-app-check')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('updates-app-download')).not.toBeInTheDocument();
   });
 });
 

@@ -12,15 +12,15 @@ const BLOCKED_REASON_SUMMARIES: Record<string, string> = {
   current_version_below_minimum_safe: 'This build is below the minimum safe version for self-updates.',
   desktop_bridge_unavailable: 'Desktop updates are unavailable in this runtime.',
   desktop_updater_bridge_error: 'Desktop updates are unavailable because the desktop bridge failed.',
-  github_release_artifact_missing: 'Desktop updates are paused because the published installer artifact is incomplete.',
+  github_release_artifact_missing: 'Desktop updates are paused because the published signed update artifact is incomplete.',
   github_release_channel_mismatch: 'Desktop updates are paused because the published release channel metadata is inconsistent.',
   github_release_manifest_invalid: 'Desktop updates are paused because the published release metadata is invalid.',
   github_release_manifest_missing: 'Desktop updates are paused because the latest release is missing its manifest metadata.',
-  manual_installer_only: 'The Tauri Windows app still uses a manual installer flow for applying updates.',
   publish_repository_unavailable: 'Desktop updates are unavailable because the publish repository is not configured.',
   release_draft_unavailable: 'Desktop updates are paused because the latest published release is still a draft.',
   rollback_policy_malformed: 'Updates are temporarily paused because release policy data is invalid.',
   rollback_policy_source_unavailable: 'Updates are temporarily paused until release policy data is available.',
+  tauri_updater_error: 'Desktop updates are paused because the signed updater failed.',
   update_channel_invalid: 'Updates are blocked because the configured desktop update channel is invalid.',
   updater_module_unavailable: 'Desktop updates are unavailable in this build.',
   updates_disabled_globally: 'Updates are temporarily paused by release policy.',
@@ -66,20 +66,20 @@ export function getDesktopUpdaterPresentation(state: DesktopUpdaterState): Deskt
     case 'downloaded':
       return {
         tone: 'ok',
-        summary: `${formatTargetLabel(state)} is ready. Launch the installer to apply it.`,
+        summary: `${formatTargetLabel(state)} was installed by the signed updater.`,
       };
     case 'available':
       return {
         tone: 'warn',
-        summary: `New version available: ${isKnownVersion(state.availableVersion) ? state.availableVersion : 'download ready'}. Download the installer to apply it.`,
+        summary: `New version available: ${isKnownVersion(state.availableVersion) ? state.availableVersion : 'update ready'}. Install signed update.`,
       };
     case 'downloading': {
       const progress = formatProgressPercent(state.progressPercent);
       return {
         tone: 'loading',
         summary: progress
-          ? `Downloading installer for ${formatTargetLabel(state).toLowerCase()} (${progress}).`
-          : `Downloading installer for ${formatTargetLabel(state).toLowerCase()}.`,
+          ? `Installing signed update for ${formatTargetLabel(state).toLowerCase()} (${progress}).`
+          : `Installing signed update for ${formatTargetLabel(state).toLowerCase()}.`,
       };
     }
     case 'checking':
@@ -103,7 +103,7 @@ export function getDesktopUpdaterPresentation(state: DesktopUpdaterState): Deskt
     default:
       return {
         tone: 'warn',
-        summary: 'Automatic checks are enabled. Download and apply still require your action.',
+        summary: 'Signed update checks are enabled.',
       };
   }
 }

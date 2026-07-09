@@ -13,6 +13,7 @@
   "bundle": {
     "active": true,
     "targets": "nsis",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/icon.ico"
     ],
@@ -25,6 +26,18 @@
       "gen/resources/local-tracker": "local-tracker",
       "gen/resources/scripts": "scripts",
       "gen/resources/moon-bridge": "moon-bridge"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFERTg1ODFEMzBEMTg3N0YKUldSL2g5RXdIVmpvcmVBL1d6c1c0cHh3OFlsU3NXRk9abFJ4U0IrbWc2LzRwTjRyWms4SjgrL0gK",
+      "endpoints": [
+        "https://github.com/Sofreshx/Elegy-copilot/releases/download/desktop-updates/stable-latest.json",
+        "https://github.com/Sofreshx/Elegy-copilot/releases/download/desktop-updates/prerelease-latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

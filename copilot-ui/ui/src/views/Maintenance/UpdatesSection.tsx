@@ -23,6 +23,11 @@ function ActiveSessionWarning({ count }: ActiveSessionWarningProps) {
 function AppUpdateCard() {
   const updaterState = useStoreValue(desktopUpdaterStore);
   const presentation = getDesktopUpdaterPresentation(updaterState);
+  const isInstalling = updaterState.status === 'downloading';
+  const canCheck = updaterState.canCheckForUpdates
+    && !updaterState.canDownload
+    && updaterState.status !== 'checking'
+    && !isInstalling;
 
   return (
     <Panel
@@ -31,6 +36,16 @@ function AppUpdateCard() {
       testId="updates-app-card"
       actions={
         <>
+          {canCheck ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              testId="updates-app-check"
+              onClick={() => void desktopUpdaterStore.checkForUpdates()}
+            >
+              Check
+            </Button>
+          ) : null}
           {updaterState.canDownload ? (
             <Button
               variant="primary"
@@ -41,6 +56,16 @@ function AppUpdateCard() {
               Update
             </Button>
           ) : null}
+          {isInstalling ? (
+            <Button
+              variant="primary"
+              size="sm"
+              testId="updates-app-installing"
+              disabled
+            >
+              Installing...
+            </Button>
+          ) : null}
           {updaterState.canRestartToUpdate ? (
             <Button
               variant="primary"
@@ -48,7 +73,7 @@ function AppUpdateCard() {
               testId="updates-app-restart"
               onClick={() => void desktopUpdaterStore.restartToUpdate()}
             >
-              Restart to Update
+              Relaunch
             </Button>
           ) : null}
         </>

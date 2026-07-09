@@ -21,7 +21,7 @@ const BASE_STATE: DesktopUpdaterState = {
 };
 
 describe('getDesktopUpdaterPresentation', () => {
-  it('summarizes an available update with download guidance', () => {
+  it('summarizes an available update with signed updater guidance', () => {
     expect(getDesktopUpdaterPresentation({
       ...BASE_STATE,
       status: 'available',
@@ -29,11 +29,11 @@ describe('getDesktopUpdaterPresentation', () => {
       canDownload: true,
     })).toEqual({
       tone: 'warn',
-      summary: 'New version available: 1.2.4. Download the installer to apply it.',
+      summary: 'New version available: 1.2.4. Install signed update.',
     });
   });
 
-  it('summarizes download progress with percentage when available', () => {
+  it('summarizes install progress with percentage when available', () => {
     expect(getDesktopUpdaterPresentation({
       ...BASE_STATE,
       status: 'downloading',
@@ -41,11 +41,11 @@ describe('getDesktopUpdaterPresentation', () => {
       progressPercent: 42.4,
     })).toEqual({
       tone: 'loading',
-      summary: 'Downloading installer for version 1.2.4 (42.4%).',
+      summary: 'Installing signed update for version 1.2.4 (42.4%).',
     });
   });
 
-  it('summarizes restart readiness after download completes', () => {
+  it('summarizes legacy downloaded state as already installed', () => {
     expect(getDesktopUpdaterPresentation({
       ...BASE_STATE,
       status: 'downloaded',
@@ -53,7 +53,7 @@ describe('getDesktopUpdaterPresentation', () => {
       canRestartToUpdate: true,
     })).toEqual({
       tone: 'ok',
-      summary: 'Version 1.2.4 is ready. Launch the installer to apply it.',
+      summary: 'Version 1.2.4 was installed by the signed updater.',
     });
   });
 
@@ -71,17 +71,17 @@ describe('getDesktopUpdaterPresentation', () => {
     });
   });
 
-  it('maps the manual-installer bridge state to truthful blocked copy', () => {
+  it('maps signed updater failures to clear blocked copy', () => {
     expect(getDesktopUpdaterPresentation({
       ...BASE_STATE,
       supported: false,
       status: 'blocked',
-      reason: 'manual_installer_only',
-      message: 'Manual installer only.',
+      reason: 'tauri_updater_error',
+      message: 'Signature validation failed.',
       canCheckForUpdates: false,
     })).toEqual({
       tone: 'warn',
-      summary: 'The Tauri Windows app still uses a manual installer flow for applying updates.',
+      summary: 'Desktop updates are paused because the signed updater failed.',
     });
   });
 

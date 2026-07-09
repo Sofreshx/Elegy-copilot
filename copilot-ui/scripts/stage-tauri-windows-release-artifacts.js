@@ -28,7 +28,11 @@ function stageTauriWindowsReleaseArtifacts(options = {}) {
     releaseManifest.updateLane?.installationGuidanceRelativePath
       || '',
   ).trim();
+  const updaterFeedRelativePath = String(releaseManifest.updateLane?.updaterFeedRelativePath || '').trim();
+  const updaterSignatureRelativePath = String(releaseManifest.updateLane?.updaterSignatureRelativePath || '').trim();
   assert(installerRelativePath, `Tauri Windows release manifest is missing artifact.relativePath: ${releaseManifestPath}`);
+  assert(updaterFeedRelativePath, `Tauri Windows release manifest is missing updateLane.updaterFeedRelativePath: ${releaseManifestPath}`);
+  assert(updaterSignatureRelativePath, `Tauri Windows release manifest is missing updateLane.updaterSignatureRelativePath: ${releaseManifestPath}`);
   const installerPath = path.join(releaseRoot, installerRelativePath);
 
   fs.rmSync(outputRoot, { recursive: true, force: true });
@@ -36,6 +40,14 @@ function stageTauriWindowsReleaseArtifacts(options = {}) {
 
   copyRequiredFile(releaseManifestPath, path.join(outputRoot, 'release-manifest.json'));
   copyRequiredFile(installerPath, path.join(outputRoot, installerRelativePath));
+  copyRequiredFile(
+    path.join(releaseRoot, updaterFeedRelativePath),
+    path.join(outputRoot, updaterFeedRelativePath),
+  );
+  copyRequiredFile(
+    path.join(releaseRoot, updaterSignatureRelativePath),
+    path.join(outputRoot, updaterSignatureRelativePath),
+  );
   if (installationGuidanceRelativePath) {
     copyRequiredFile(
       path.join(releaseRoot, installationGuidanceRelativePath),

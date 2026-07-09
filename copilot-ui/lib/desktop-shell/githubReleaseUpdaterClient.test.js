@@ -87,10 +87,11 @@ test('GitHub release updater client selects the latest matching stable release m
         sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       },
       updateLane: {
-        mode: 'manual_installer',
-        autoUpdateEnabled: false,
+        mode: 'tauri_signed_updater',
+        autoUpdateEnabled: true,
         failClosedChannelPolicy: true,
-        inPlaceUpgradeSupported: false,
+        releaseSource: 'tauri_static_json',
+        updaterBridgeStatus: 'tauri_signed_updater',
       },
     });
   };
@@ -195,10 +196,11 @@ test('GitHub release updater client ignores historic semver releases when select
         sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       },
       updateLane: {
-        mode: 'manual_installer',
-        autoUpdateEnabled: false,
+        mode: 'tauri_signed_updater',
+        autoUpdateEnabled: true,
         failClosedChannelPolicy: true,
-        inPlaceUpgradeSupported: false,
+        releaseSource: 'tauri_static_json',
+        updaterBridgeStatus: 'tauri_signed_updater',
       },
     });
   };
@@ -261,10 +263,11 @@ test('GitHub release updater client tolerates normalized installer asset name ma
         sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       },
       updateLane: {
-        mode: 'manual_installer',
-        autoUpdateEnabled: false,
+        mode: 'tauri_signed_updater',
+        autoUpdateEnabled: true,
         failClosedChannelPolicy: true,
-        inPlaceUpgradeSupported: false,
+        releaseSource: 'tauri_static_json',
+        updaterBridgeStatus: 'tauri_signed_updater',
       },
     });
   };

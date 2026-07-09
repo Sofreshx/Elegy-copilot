@@ -42,6 +42,10 @@ function normalizeName(value) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+function normalizeWindowsPath(value) {
+  return path.resolve(String(value || '').replace(/^\\\\\?\\/, '')).toLowerCase();
+}
+
 function collectFiles(rootDir, currentDir = rootDir) {
   if (!fs.existsSync(currentDir)) {
     return [];
@@ -364,7 +368,7 @@ function buildIsolatedLaunchEnv(serverPort) {
   };
 }
 
-async function launchAndValidateInstalledApp(appPath, expectedTitle) {
+async function launchAndValidateInstalledApp(appPath, expectedTitle, expectedResourcesRoot) {
   const serverPort = await getFreePort();
   const launchEnv = buildIsolatedLaunchEnv(serverPort);
   console.log(`[tauri-native-smoke] launching ${path.basename(appPath)} on 127.0.0.1:${serverPort}`);
@@ -378,7 +382,7 @@ async function launchAndValidateInstalledApp(appPath, expectedTitle) {
   let secondInstance = null;
 
   try {
-    await waitForCondition(
+    const healthResponse = await waitForCondition(
       'desktop health endpoint',
       async () => {
         const info = readProcessWindowInfo(child.pid);
@@ -391,6 +395,13 @@ async function launchAndValidateInstalledApp(appPath, expectedTitle) {
       { timeoutMs: startupTimeoutMs },
     );
     console.log('[tauri-native-smoke] loopback health endpoint responded');
+    const runtimeRoot = healthResponse && healthResponse.body ? healthResponse.body.engineRoot : null;
+    assert(runtimeRoot, 'Desktop health endpoint did not report engineRoot runtime root.');
+    assert(
+      normalizeWindowsPath(runtimeRoot) === normalizeWindowsPath(expectedResourcesRoot),
+      `Running desktop runtime root drifted from installed resource root. health.engineRoot=${runtimeRoot}; installedResourcesRoot=${expectedResourcesRoot}`,
+    );
+    console.log(`[tauri-native-smoke] runtime root matches installed resources root ${expectedResourcesRoot}`);
 
     await waitForCondition(
       'desktop main window',
@@ -509,7 +520,7 @@ async function main() {
     console.log(`[tauri-native-smoke] installed app executable ${path.basename(executables.appPath)}`);
     const layout = validateInstalledLayout(resolveInstalledResourcesRoot());
     console.log(`[tauri-native-smoke] validated installed resource layout under ${layout.resourcesRoot}`);
-    const runtimeValidation = await launchAndValidateInstalledApp(executables.appPath, productName);
+    const runtimeValidation = await launchAndValidateInstalledApp(executables.appPath, productName, layout.resourcesRoot);
     await uninstallDesktop(executables.uninstallPath, executables.appPath, layout.resourcesRoot);
 
     console.log(
