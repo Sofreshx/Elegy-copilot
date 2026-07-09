@@ -113,11 +113,11 @@ jobs:
           node scripts/generate-cli-manifest.mjs
           node scripts/generate-policy-lockfiles.js
 
+      - name: Prepare CI-only Tauri updater signing key
+        run: node scripts/prepare-ci-tauri-updater-signing-key.js
+
       - name: Build and stage Tauri desktop preview
         run: npm --prefix copilot-ui run desktop:preview:stage
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
   required-checks:
     if: always()
