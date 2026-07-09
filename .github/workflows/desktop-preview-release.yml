@@ -2,8 +2,6 @@ name: Elegy Copilot Desktop Preview Release
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*.*.*'
       - '!v*'
