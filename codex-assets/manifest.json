@@ -164,34 +164,6 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "codex-ui-system-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/ui-system",
-      "destination": "skills/ui-system",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "codex-ui-runtime-exploration-skill",
-      "type": "skill",
-      "source": "engine-assets/skills/ui-runtime-exploration",
-      "destination": "skills/ui-runtime-exploration",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "codex-ui-visual-review-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/ui-visual-review",
-      "destination": "skills/ui-visual-review",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "codex-impeccable-skill",
-      "type": "skill",
-      "source": "vendor-assets/impeccable/codex/impeccable",
-      "destination": "skills/impeccable",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "codex-sweeper-cleanup-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/sweeper-cleanup",

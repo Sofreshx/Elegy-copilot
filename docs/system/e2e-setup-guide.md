@@ -1,6 +1,6 @@
 ---
 created: 2026-02-22
-updated: 2026-06-29
+updated: 2026-07-10
 category: system
 status: current
 doc_kind: node
@@ -36,11 +36,10 @@ Use when you have, or need, a durable repeatable browser test suite in the proje
 
 This is the right fit for CI and repeatable regression gates.
 
-## UI Runtime Exploration Skill
+## UI Craft Runtime Routing
 
-For browser-mode UI and Tauri desktop E2E work beyond the two flows above, the
-[ui-runtime-exploration skill](../../engine-assets/skills/ui-runtime-exploration/SKILL.md)
-provides a 5-lane routing matrix covering:
+For browser-mode UI and Tauri desktop E2E work beyond the two flows above,
+`elegy-ui-craft@elegy` routes evidence collection across:
 
 - **Browser-mode UI** (agent-browser / Playwright) — web-only exploratory coverage
 - **Tauri desktop E2E** (tauri-driver + WebDriver) — real desktop app automation

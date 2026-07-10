@@ -1,6 +1,6 @@
 ---
 created: 2026-03-09
-updated: 2026-06-30
+updated: 2026-07-10
 category: system
 status: current
 doc_kind: node
@@ -25,7 +25,7 @@ related: [copilot-ui-guide, repo-skill-sync-governance, domain-authorities-freez
 - Repo-local skills are canonical in `<repo>/.github/skills/**`.
 - Generated repo-local mirrors live in `<repo>/.agents/skills/**`, `<repo>/.opencode/skills/**`, and `<repo>/.gemini/skills/**`.
 - External-source state lives under `~/.elegy/catalog/external-sources/`.
-- Vendor-managed shipped assets live under `vendor-assets/` and are installed only through harness manifests.
+- Elegy-owned Codex capabilities install through the `elegy` marketplace; `elegy-ui-craft` is the primary UI capability.
 - Global shipped assets are still split by harness. There is no single universal global skill root yet.
 
 ## Status UI
@@ -45,12 +45,11 @@ related: [copilot-ui-guide, repo-skill-sync-governance, domain-authorities-freez
 - Current MCP targets: `codex`, `opencode`, `antigravity-cli` (legacy alias: `gemini-cli`).
 - The older `providers` subsystem still exists, but it is separate from external sources.
 
-## Vendor Assets
+## UI Capability Sources
 
-- Impeccable is the only approved redistributed UI vendor skill.
-- Impeccable is pinned in `vendor-assets/impeccable/vendor.json` and preserved under `Apache-2.0`.
-- Refresh Impeccable with `node scripts/sync-impeccable-vendor.mjs`, then run `node scripts/validate-vendor-assets.mjs`.
-- ui.sh/TypeUI resources must not be vendored into this repository unless their license changes or separate written redistribution permission exists.
+- `elegy-ui-craft@elegy` replaces the retired standalone UI skills and vendored Impeccable payload.
+- Impeccable remains an attributed research source only; it is not redistributed or maintained here.
+- ui.sh/TypeUI resources must not be vendored unless their license changes or written redistribution permission exists.
 
 ## Useful APIs
 

@@ -1,6 +1,6 @@
 ---
 created: 2026-06-21
-updated: 2026-06-29
+updated: 2026-07-10
 category: system
 status: current
 doc_kind: node
@@ -27,12 +27,10 @@ brief → structured UI spec → local inventory → implementation
 
 | Phase | Responsible skill | Output |
 |-------|------------------|--------|
-| Spec | `ui-design-spec` | Structured spec: target, viewports, states, task, inventory, acceptance criteria |
-| Inventory | `ui-system` | Existing component, token, icon, and layout-pattern citations |
-| Implementation | `ui-system` + implementation lane | Code changes with evidence references |
-| Evidence | Runtime lane (`ui-runtime-exploration` when runtime routing is unclear) | Screenshots, console output, network logs |
-| Visual review | `ui-visual-review` | Defect report: hierarchy, layout, component, UX, a11y, aesthetic |
-| Regression proof | Repo-owned validation commands | Pass/fail on declared validation lane |
+| Brief/spec | `elegy-ui-craft@elegy` (`ui-design-spec` is a non-Codex fallback) | Target, viewports, states, task, inventory, acceptance criteria |
+| Inventory and implementation | `elegy-ui-craft@elegy` + implementation lane | Existing components/tokens/patterns and code changes |
+| Evidence and review | `elegy-ui-craft@elegy` | Screenshots, runtime diagnostics, prioritized findings |
+| Regression proof | UI Craft check plus repo-owned validation commands | Pass/fail on declared validation lane |
 
 ## Required Evidence Per Change
 
@@ -79,18 +77,15 @@ The runner, not the schema alone:
 
 The contract never claims accessibility compliance from a DOM snapshot alone.
 
-## Skill Split
+## Capability Route
 
-| Skill | Role | Load mode |
-|-------|------|-----------|
-| `ui-system` | Inventory-first implementation: reuse, tokens, icons, patterns | on-demand |
-| `ui-design-spec` | Convert prompts/screenshots/Figma context into structured repo-grounded spec | on-demand |
-| `ui-runtime-exploration` | Route browser/Tauri UI work to the correct runtime lane before evidence collection | on-demand |
-| `ui-visual-review` | Review rendered evidence; report defects without editing code | on-demand |
+`elegy-ui-craft@elegy` is the primary Codex capability for UI briefing, local inventory,
+implementation guidance, browser/desktop/component evidence routing, deterministic audit, and
+visual review. The former `ui-system`, `ui-runtime-exploration`, `ui-visual-review`, and vendored
+Impeccable surfaces are retired and must not be reintroduced as compatibility duplicates.
 
-`ui-design-spec` and `ui-visual-review` are separate from `ui-system` to keep spec-authoring and
-visual judgment out of the implementation lane. `ui-runtime-exploration` stays separate because
-runtime/tool routing is a different boundary from both implementation and review.
+`ui-design-spec` remains available to non-Codex harnesses as a narrow fallback until those
+harnesses consume the plugin projection. It does not replace UI Craft's evidence and audit flow.
 
 ## Authority
 

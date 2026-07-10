@@ -34,8 +34,8 @@ Installed harness surfaces and shared skills must therefore stay thin and consis
 ## Codex operating model
 
 Codex should stay leaner than the legacy Copilot fleet:
-- Global Codex install: `AGENTS.md`, read-only `reviewer` agent, write-capable `sweeper` cleanup agent, `repo-setup`, `skill-discovery`, `elegy-planning`, `rubberduck-plan-review`, `implementation-handoff`, `implementation-review`, `spec-dev`, `spec-authoring`, `spec-review`, `ui-system`, `ui-runtime-exploration`, `ui-visual-review`, `commit-check-setup`, `agents-md-authoring`, and `sweeper-cleanup`.
-- Codex keeps the narrow UI execution stack only: `ui-system` for implementation, `ui-runtime-exploration` for browser/Tauri runtime routing, and `ui-visual-review` for read-only evidence review. `ui-design-spec` remains a shared skill, but it is not part of the default Codex install because it adds spec-authoring overhead to the common implementation lane.
+- Global Codex install remains lean; Elegy-owned plugin capabilities are installed from the `elegy` marketplace rather than duplicated in the home manifest.
+- UI work routes to `elegy-ui-craft@elegy`. The former standalone UI implementation, runtime-exploration, visual-review, and Impeccable skills are retired. `ui-design-spec` remains a shared non-Codex fallback only.
 - Codex uses a stricter `implementation-handoff` variant for explicit delegation. It deepens shallow
   plans and requires `rubberduck-plan-review` for complex or incomplete source plans before
   producing a downstream executor brief. Other harnesses retain the shared handoff contract. This

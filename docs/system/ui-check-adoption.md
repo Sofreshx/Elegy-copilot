@@ -1,6 +1,6 @@
 ---
 created: 2026-06-21
-updated: 2026-06-30
+updated: 2026-07-10
 category: system
 status: current
 doc_kind: node
@@ -19,7 +19,8 @@ Recipe for any repo to adopt the governed UI workflow. Three steps + validation.
 ## Prerequisites
 
 - Repo has UI components, tokens, and at least one validation lane (browser or desktop).
-- The implementation and review lanes are available: `ui-system`, `ui-visual-review`, and the appropriate runtime lane for the repo (`ui-runtime-exploration` when browser/Tauri routing matters).
+- Install `elegy-ui-craft@elegy` for the governed inventory, implementation, evidence, audit, and review workflow.
+- Keep the repo-owned UI check adapter available until the UI Craft binary integration owns the same target contract.
 
 ## Steps
 

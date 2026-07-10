@@ -2291,60 +2291,6 @@ textarea:focus-visible,
  * See: .app-layout for the canonical pattern.
  */
 
-/* ── App Layout (sidebar-driven shell) ── */
-
-.app-layout {
-  display: grid;
-  grid-template-rows: auto 1fr 0.85rem;
-  height: 100vh;
-  height: 100dvh;
-  width: 100vw;
-  overflow: hidden;
-  background: var(--color-surface-0, #0d1117);
-}
-
-.app-layout > .runtime-disconnected-banner {
-  grid-row: 1;
-}
-
-.app-layout-body {
-  display: grid;
-  grid-template-columns: 56px 1fr;
-  grid-row: 2;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.app-layout-content {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: var(--space-md) var(--space-lg);
-  min-width: 0;
-  scrollbar-gutter: stable;
-  grid-column: 2;
-}
-
-.app-layout-footer {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  grid-row: 3;
-  padding: 0 0.35rem;
-  border-top: 1px solid rgba(57, 66, 79, 0.18);
-  background: transparent;
-  height: 0.85rem;
-  overflow: hidden;
-}
-
-.app-version {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  color: var(--color-ink-400);
-  letter-spacing: 0.03em;
-  opacity: 0.5;
-}
-
 /* ── Page Container ── */
 .page-container {
   max-width: var(--container-max);
@@ -2888,74 +2834,6 @@ textarea:focus-visible,
 .health-dot-label {
   font-size: 0.75rem;
   color: var(--color-ink-500);
-}
-
-/* ── Sidebar — fixed floating pill ── */
-
-.sidebar {
-  position: fixed;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 56px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-xs) var(--space-2xs);
-  background: rgba(13, 17, 23, 0.45);
-  backdrop-filter: blur(16px);
-  border-radius: 16px;
-  border: 1px solid rgba(57, 66, 79, 0.18);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-  z-index: 100;
-  pointer-events: auto;
-}
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: 0;
-}
-
-.sidebar-item {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  color: var(--color-ink-500);
-  cursor: pointer;
-  font-size: 1rem;
-  padding: 0;
-  transition: background-color var(--duration-fast) var(--ease-standard),
-              color var(--duration-fast) var(--ease-standard),
-              border-color var(--duration-fast) var(--ease-standard);
-  flex-shrink: 0;
-}
-
-.sidebar-item:hover {
-  background: rgba(110, 175, 168, 0.1);
-  color: var(--color-ink-300);
-}
-
-.sidebar-item-active {
-  color: var(--color-brand-400);
-  border-color: rgba(47, 165, 157, 0.35);
-  background: rgba(47, 165, 157, 0.12);
-  box-shadow: 0 0 8px rgba(47, 165, 157, 0.15);
-}
-
-.sidebar-item-icon {
-  flex-shrink: 0;
-  font-size: 1.15rem;
-  line-height: 1;
-  text-align: center;
 }
 
 /* ── Dashboard View ── */
@@ -9677,8 +9555,8 @@ textarea:focus-visible,
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
-  background: rgba(17, 20, 24, 0.7);
-  border: 1px solid rgba(57, 66, 79, 0.35);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-100);
   border-radius: var(--radius-md);
   color: var(--color-ink-400);
   cursor: pointer;
@@ -9690,10 +9568,10 @@ textarea:focus-visible,
 }
 
 .workspace-launch-trigger:hover:not(:disabled) {
-  background: rgba(47, 165, 157, 0.1);
-  border-color: rgba(47, 165, 157, 0.4);
-  color: var(--color-brand-400);
-  box-shadow: 0 0 10px rgba(47, 165, 157, 0.1);
+  background: var(--color-brand-50);
+  border-color: var(--color-brand-200);
+  color: var(--color-brand-600);
+  box-shadow: var(--shadow-focus-ring);
 }
 
 .workspace-launch-trigger:disabled {
@@ -9722,11 +9600,10 @@ textarea:focus-visible,
   top: 100%;
   right: 0;
   margin-top: var(--space-2xs);
-  background: rgba(17, 20, 24, 0.95);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(57, 66, 79, 0.4);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-200);
   border-radius: var(--radius-md);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-md);
   min-width: 14rem;
   max-width: min(22rem, calc(100vw - 2rem));
   max-height: min(24rem, calc(100vh - 8rem));
@@ -9740,7 +9617,7 @@ textarea:focus-visible,
 }
 
 .workspace-launch-menu-group + .workspace-launch-menu-group {
-  border-top: 1px solid rgba(57, 66, 79, 0.2);
+  border-top: 1px solid var(--color-border-100);
 }
 
 .workspace-launch-menu-group-label {
@@ -9776,8 +9653,8 @@ textarea:focus-visible,
 }
 
 .workspace-launch-menu-item:hover:not(:disabled) {
-  background: rgba(47, 165, 157, 0.1);
-  color: var(--color-brand-400);
+  background: var(--color-brand-50);
+  color: var(--color-brand-600);
 }
 
 .workspace-launch-menu-item:disabled {
@@ -10507,134 +10384,6 @@ textarea:focus-visible,
   color: var(--color-error-500);
 }
 
-/* ── Workspace Floating Card ── */
-
-.workspace-floating-card {
-  position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
-  z-index: var(--z-popover, 100);
-  min-width: 14rem;
-  max-width: 18rem;
-  background: rgba(17, 20, 24, 0.92);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(57, 66, 79, 0.25);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 1px rgba(47, 165, 157, 0.15);
-  overflow: hidden;
-  transition: box-shadow var(--duration-fast);
-}
-
-.workspace-floating-card:hover {
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 2px rgba(47, 165, 157, 0.25);
-}
-
-.workspace-floating-card-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-sm);
-  border-bottom: 1px solid rgba(57, 66, 79, 0.15);
-}
-
-.workspace-floating-card-title {
-  font-family: var(--font-display);
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--color-ink-400);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.workspace-floating-card-count {
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  color: var(--color-brand-400);
-  background: rgba(47, 165, 157, 0.12);
-  padding: 0.05rem 0.35rem;
-  border-radius: var(--radius-full);
-  margin-left: auto;
-}
-
-.workspace-floating-card-list {
-  list-style: none;
-  margin: 0;
-  padding: var(--space-2xs);
-  display: grid;
-  gap: 1px;
-}
-
-.workspace-floating-card-item {
-  display: flex;
-  align-items: center;
-}
-
-.workspace-floating-card-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  flex: 1;
-  padding: var(--space-2xs) var(--space-xs);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  color: var(--color-ink-600);
-  cursor: pointer;
-  font-family: var(--font-body);
-  font-size: 0.78rem;
-  text-align: left;
-  transition: background-color var(--duration-fast), color var(--duration-fast);
-}
-
-.workspace-floating-card-btn:hover {
-  background: rgba(110, 175, 168, 0.08);
-  color: var(--color-ink-300);
-}
-
-.workspace-floating-card-btn-active {
-  color: var(--color-brand-400);
-  background: rgba(47, 165, 157, 0.08);
-  border-color: rgba(47, 165, 157, 0.2);
-}
-
-.workspace-floating-card-icon {
-  font-size: 0.85rem;
-  flex-shrink: 0;
-}
-
-.workspace-floating-card-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workspace-floating-card-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-ink-500);
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 0;
-  opacity: 0;
-  transition: opacity var(--duration-fast), color var(--duration-fast);
-}
-
-.workspace-floating-card-item:hover .workspace-floating-card-close {
-  opacity: 0.6;
-}
-
-.workspace-floating-card-close:hover {
-  opacity: 1;
-  color: var(--color-error-500, #ef4444);
-}
-
 /* ── Planning Center ── */
 
 .workspace-planning-center {
@@ -10903,66 +10652,6 @@ textarea:focus-visible,
   color: var(--color-danger-500);
 }
 
-
-/* ── Tab bar row ── */
-
-.workspace-local-tabs-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: var(--space-xs) 0;
-}
-
-/* ── Local Tabs (floating tab bar) ── */
-
-.workspace-local-tabs {
-  display: flex;
-  gap: var(--space-2xs);
-  padding: 2px;
-  background: rgba(17, 20, 24, 0.65);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(57, 66, 79, 0.15);
-  border-radius: var(--radius-md);
-}
-
-.workspace-local-tab {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2xs);
-  padding: 4px 8px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  color: var(--color-ink-500);
-  cursor: pointer;
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  transition: background-color var(--duration-fast), color var(--duration-fast), border-color var(--duration-fast);
-}
-
-.workspace-local-tab:hover {
-  background: rgba(110, 175, 168, 0.1);
-  color: var(--color-ink-300);
-}
-
-.workspace-local-tab-active {
-  background: rgba(47, 165, 157, 0.12);
-  border-color: rgba(47, 165, 157, 0.35);
-  color: var(--color-brand-400);
-  font-weight: 600;
-  box-shadow: 0 0 6px rgba(47, 165, 157, 0.15);
-}
-
-.workspace-local-tab-icon {
-  font-size: 1rem;
-  line-height: 1;
-}
-
-.workspace-local-tab-label {
-  display: none;
-}
 
 /* ── Tab content wrapper ── */
 

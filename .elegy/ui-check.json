@@ -90,7 +90,7 @@
         {
           "id": "workspace-default",
           "path": "navigation:workspace",
-          "viewports": ["desktop"],
+          "viewports": ["desktop", "mobile"],
           "states": ["default"],
           "excludedStates": [
             { "state": "loading", "reason": "Workspace view is opened from a seeded real repository; loading happens in repo registration flow." },
@@ -157,7 +157,7 @@
       "evidenceRoot": "./evidence/ui/workspace-checks",
       "runtimeReport": "runtime-report.json"
     },
-    "workspace-notes": {
+    "workspace-assets": {
       "lane": "browser",
       "workingDirectory": "./",
       "validationCommands": [
@@ -166,46 +166,55 @@
       ],
       "routes": [
         {
-          "id": "workspace-notes-default",
-          "path": "navigation:workspace:notes",
+          "id": "workspace-assets-default",
+          "path": "navigation:workspace:assets",
           "viewports": ["desktop"],
           "states": ["default"],
           "excludedStates": [
-            { "state": "loading", "reason": "Notes loading is component-tested; browser evidence targets the transfer console once status APIs resolve." },
-            { "state": "empty", "reason": "Notes transfer console remains actionable even when the vault has no notes." },
-            { "state": "error", "reason": "Notes Drive setup and import/export failures are covered by render tests and inline messages." },
-            { "state": "disabled", "reason": "Disabled Drive push/pull states are covered by render tests for missing rclone configuration." },
+            { "state": "loading", "reason": "Assets loading is component-tested; browser evidence targets the populated workspace assets surface." },
+            { "state": "empty", "reason": "The opened repository always exposes the assets navigation surface." },
+            { "state": "error", "reason": "Asset API failures are covered by render tests and inline messages." },
+            { "state": "disabled", "reason": "Disabled asset controls are covered by component tests." },
             { "state": "focus", "reason": "Focus state is covered by shared button/input CSS and component-level checks." }
           ],
-          "description": "Real opened-repository Workspace Notes tab with operation banner, vault transfer controls, Drive setup, and vault Git snapshot."
+          "description": "Real opened-repository Workspace Assets tab with repository asset tree and viewer."
         }
       ],
-      "evidenceRoot": "./evidence/ui/workspace-notes",
+      "evidenceRoot": "./evidence/ui/workspace-assets",
       "runtimeReport": "runtime-report.json"
     },
     "pattern-atlas": {
       "lane": "browser",
-      "workingDirectory": "./copilot-ui",
+      "workingDirectory": "./",
       "validationCommands": [
         {
           "id": "build",
-          "command": "npm run ui:build",
+          "command": "npm --prefix copilot-ui run ui:build",
           "description": "Build the UI bundle before validation"
+        },
+        {
+          "id": "evidence",
+          "command": "node scripts/ui-check-copilot-ui.mjs",
+          "description": "Capture settled Pattern Atlas evidence and write the runtime report"
         }
       ],
       "routes": [
         {
           "id": "pattern-atlas-view",
-          "path": "/pattern-atlas",
-          "viewports": ["desktop", "mobile"],
-          "states": ["default", "loading", "empty", "error"],
+          "path": "navigation:pattern-atlas",
+          "viewports": ["desktop"],
+          "states": ["default"],
           "excludedStates": [
-            { "state": "disabled", "reason": "Pattern Atlas is a read-only catalog view with no interactive controls that can be disabled." }
+            { "state": "loading", "reason": "The adapter waits for loading to settle before approved evidence is captured." },
+            { "state": "empty", "reason": "The governed atlas fixture contains entries; empty behavior is covered by component tests." },
+            { "state": "error", "reason": "Runtime diagnostics fail the target instead of accepting an error-state screenshot." },
+            { "state": "disabled", "reason": "Pattern Atlas is a read-only catalog view with no interactive controls that can be disabled." },
+            { "state": "focus", "reason": "This target validates the settled catalog surface; keyboard focus behavior is covered by component tests." }
           ],
           "description": "Pattern Atlas — visual catalog of UI patterns, styles, components, and system architecture patterns"
         }
       ],
-      "evidenceRoot": "./evidence/ui",
+      "evidenceRoot": "./evidence/ui/pattern-atlas",
       "runtimeReport": "runtime-report.json"
     }
   }

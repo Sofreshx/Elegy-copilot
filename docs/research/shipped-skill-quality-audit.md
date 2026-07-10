@@ -1,15 +1,20 @@
 ---
 created: 2026-06-18
-updated: 2026-06-29
+updated: 2026-07-10
 category: research
-status: current
+status: archived
 doc_kind: node
 id: shipped-skill-quality-audit
-summary: Audit of all shipped skills for quality, metadata, and trigger overlap issues.
+summary: Historical generated audit of the 2026-06-29 shipped-skill catalog; UI entries are superseded by elegy-ui-craft.
 tags: [skills, audit, quality]
+related: [ui-craft-source-review, skills-governance]
 ---
 
 # Shipped Skill Quality Audit
+
+> Historical snapshot generated on 2026-06-29. Counts and paths below describe that date and are
+> not current inventory. The listed standalone UI skills were subsequently retired in favor of
+> `elegy-ui-craft@elegy`; see [[ui-craft-source-review]] [ui-craft-source-review.md](ui-craft-source-review.md) [ui-craft-source-review](docs/research/ui-craft-source-review.md).
 
 Generated at: 2026-06-29T10:36:45.284Z
 

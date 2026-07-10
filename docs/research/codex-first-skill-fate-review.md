@@ -1,16 +1,20 @@
 ---
 created: 2026-06-29
-updated: 2026-06-29
+updated: 2026-07-10
 category: research
-status: current
+status: archived
 doc_kind: node
 id: codex-first-skill-fate-review
-summary: Codex-first fate review for selected shared and engine skills, including UI skill split, spec-planning bridge, skill discovery, commit-check setup, and browser/runtime coverage gaps.
+summary: Historical 2026-06-29 Codex-first skill fate review, retained as evidence and superseded for UI routing by elegy-ui-craft.
 tags: [skills, codex, audit, fate, ui, planning, browser]
-related: [skills-governance, search-execute-workflow, ui-development-governance, spec-driven-development, commit-validation-governance]
+related: [ui-craft-source-review, skills-governance, search-execute-workflow, ui-development-governance, spec-driven-development, commit-validation-governance]
 ---
 
 # Codex-First Skill Fate Review
+
+> Historical snapshot (2026-06-29). Its recommendations about the standalone UI skills no longer
+> describe the shipped catalog. Those assets were retired in favor of `elegy-ui-craft@elegy`.
+> See [[ui-craft-source-review]] [ui-craft-source-review.md](ui-craft-source-review.md) [ui-craft-source-review](docs/research/ui-craft-source-review.md).
 
 ## Summary
 

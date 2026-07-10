@@ -14,6 +14,7 @@ import TelemetryView from './TelemetryView';
 import ShellSettingsView from '../../tabs/Shell/ShellSettingsView';
 import NotesSettingsView from './NotesSettingsView';
 import CollaborationStyleSettingsView from './CollaborationStyleSettingsView';
+import AppearanceSettings from './AppearanceSettings';
 import AppIcon from '../../components/AppIcon';
 import { factoryReset, type FactoryResetResponse } from '../../lib/api/system';
 
@@ -153,12 +154,15 @@ function SettingsAppSection({ appInfo, infoLoading }: { appInfo: AppInfo; infoLo
 
   return (
     <div className="settings-section">
+      <AppearanceSettings />
       <CollaborationStyleSettingsView />
 
       <Panel title="Keyboard Shortcuts" subtitle="Navigation and actions" testId="settings-shortcuts">
         <dl className="settings-shortcuts-list">
           <dt><kbd>Ctrl+1</kbd> – <kbd>Ctrl+5</kbd></dt>
           <dd>Switch sidebar sections</dd>
+          <dt><kbd>Ctrl+B</kbd></dt>
+          <dd>Collapse or expand the sidebar</dd>
           <dt><kbd>Escape</kbd></dt>
           <dd>Back from detail view</dd>
         </dl>

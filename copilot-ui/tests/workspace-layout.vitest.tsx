@@ -1,4 +1,4 @@
-import { render, screen, act } from '@testing-library/react';
+import { fireEvent, render, screen, act, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../ui/src/lib/store', () => {
@@ -19,7 +19,7 @@ vi.mock('../ui/src/lib/store', () => {
   const navState = {
     activeWorkspaceId: '/test/repo',
     activeWorkspaceLocalTab: 'docs',
-    openWorkspaces: [],
+    openWorkspaces: [{ repoPath: '/test/repo', repoLabel: 'Open Workspace Label', openedAt: 1 }],
   };
 
   return {
@@ -82,7 +82,9 @@ vi.mock('../ui/src/stores/gitStore', () => ({
 }));
 
 vi.mock('../ui/src/lib/api/workspace', () => ({
-  getWorkspaceLaunchers: vi.fn().mockResolvedValue({ launchers: [] }),
+  getWorkspaceLaunchers: vi.fn().mockResolvedValue({ launchers: [
+    { id: 'vscode', label: 'Visual Studio Code', group: 'ides', available: true },
+  ] }),
   launchWorkspace: vi.fn(),
 }));
 
@@ -123,5 +125,44 @@ describe('WorkspaceView layout contract', () => {
     const tabContent = screen.getByTestId('workspace-tab-content');
     expect(tabContent).toBeInTheDocument();
     expect(tabContent.className).toContain('view-scroll');
+  });
+
+  it('renders persistent workspace identity above labeled tabs', async () => {
+    const { default: WorkspaceView } = await import('../ui/src/views/Workspace/WorkspaceView');
+
+    await act(async () => {
+      render(<WorkspaceView />);
+    });
+
+    const header = screen.getByTestId('workspace-context-header');
+    const tabs = screen.getByTestId('workspace-local-tabs-row');
+    expect(header).toHaveTextContent('Open Workspace Label');
+    expect(header).toHaveTextContent('/test/repo');
+    expect(header.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('links the active tab to a stable tabpanel', async () => {
+    const { default: WorkspaceView } = await import('../ui/src/views/Workspace/WorkspaceView');
+    await act(async () => { render(<WorkspaceView />); });
+
+    const panel = screen.getByRole('tabpanel');
+    expect(panel).toHaveAttribute('id', 'workspace-panel-docs');
+    expect(panel).toHaveAttribute('aria-labelledby', 'workspace-tab-docs');
+  });
+
+  it('opens the launcher menu in light theme with real menu content', async () => {
+    document.documentElement.dataset.theme = 'light';
+    const { getWorkspaceLaunchers } = await import('../ui/src/lib/api/workspace');
+    vi.mocked(getWorkspaceLaunchers).mockResolvedValue({ launchers: [
+      { id: 'vscode', label: 'Visual Studio Code', group: 'ides', available: true },
+    ] } as any);
+    const { default: WorkspaceView } = await import('../ui/src/views/Workspace/WorkspaceView');
+    await act(async () => { render(<WorkspaceView />); });
+
+    const trigger = await screen.findByRole('button', { name: 'Open in...' });
+    await waitFor(() => expect(trigger).not.toBeDisabled());
+    fireEvent.click(trigger);
+    expect(screen.getByTestId('workspace-launch-menu')).toBeInTheDocument();
+    expect(screen.getByText('Visual Studio Code')).toBeInTheDocument();
   });
 });

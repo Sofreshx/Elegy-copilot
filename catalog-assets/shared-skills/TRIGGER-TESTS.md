@@ -234,26 +234,6 @@
 - "Run the backend unit tests"
 - "What's the CI/CD pipeline configuration?"
 
-## ui-system
-### Should Trigger
-- "Build a settings panel using existing components"
-- "Create a new dialog following the design system tokens"
-- "Add an icon to the toolbar — check if it already exists in our icon library"
-### Should Not Trigger
-- "Optimize the GraphQL resolver"
-- "Add a cron job for email delivery"
-- "What's the Redis memory usage?"
-
-## ui-visual-review
-### Should Trigger
-- "Visual review of the new checkout flow — here's a screenshot"
-- "Run a UI audit on the onboarding screens"
-- "Check the rendered form against the design spec"
-### Should Not Trigger
-- "Refactor the authentication middleware"
-- "Seed the database with test data"
-- "How do I configure Nginx?"
-
 ## writing-great-skills
 ### Should Trigger
 - "Evaluate the quality of this skill — does it follow best practices?"
