@@ -14,6 +14,7 @@ const DEFAULT_PLUGIN_NAMES = Object.freeze([
   'elegy-skills',
   'elegy-obsidian',
   'elegy-opencode-workers',
+  'elegy-ui-craft',
 ]);
 const INSTALL_METADATA_NAME = 'elegy-codex-marketplace.install.json';
 

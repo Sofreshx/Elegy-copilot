@@ -8,6 +8,10 @@ const test = require('node:test');
 
 const marketplace = require('./elegyPluginMarketplace');
 
+test('Elegy plugin marketplace includes UI Craft in the default managed set', () => {
+  assert.ok(marketplace.DEFAULT_PLUGIN_NAMES.includes('elegy-ui-craft'));
+});
+
 function writeMarketplace(root, version = '0.1.0+codex.abc123def456') {
   fs.mkdirSync(path.join(root, '.agents', 'plugins'), { recursive: true });
   fs.mkdirSync(path.join(root, 'plugins', 'elegy-planning', '.codex-plugin'), { recursive: true });

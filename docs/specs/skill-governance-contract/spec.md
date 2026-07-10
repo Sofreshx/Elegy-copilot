@@ -38,7 +38,7 @@ Define the authoritative contract for skill format, lifecycle, triage model, and
 
 - R2.1: Skills are classified into triage tiers:
   - **Core**: always-available, loaded proactively (e.g., spec system skills, project-workflow).
-  - **Specialized**: loaded on-demand when triggers match (e.g., ui-system, security).
+  - **Specialized**: loaded on-demand when triggers match (e.g., security or a framework-specific skill).
   - **Default-handled**: domain-specific tools that the agent invokes natively without skill loading.
   - **Deprecated**: retained for compatibility, not loaded by default.
 - R2.2: Classification is declared via catalog metadata and harness asset manifests.

@@ -53,16 +53,34 @@ const WORKSPACE_TAB_TARGETS = {
       '[data-testid="workspace-operation-banner"]',
     ],
   },
-  'workspace-notes': {
-    routeId: 'workspace-notes-default',
-    tabId: 'notes',
-    tabSelector: '[data-testid="workspace-local-tab-notes"]',
+  'workspace-assets': {
+    routeId: 'workspace-assets-default',
+    tabId: 'assets',
+    tabSelector: '[data-testid="workspace-local-tab-assets"]',
     surfaceSelectors: [
-      '[data-testid="notes-tab"]',
-      '[data-testid="workspace-operation-banner"]',
+      '[data-testid="workspace-assets-center"]',
     ],
   },
 };
+
+const EVIDENCE_VIEWPORTS = [
+  { id: 'wide', width: 1440, height: 900 },
+  { id: 'desktop', width: 1280, height: 800 },
+  { id: 'compact', width: 960, height: 720 },
+];
+
+function getEvidenceViewports() {
+  return EVIDENCE_VIEWPORTS.map((viewport) => ({ ...viewport }));
+}
+
+function deriveSurfaceStatus({ ready, consoleErrors, pageErrors, networkFailures }) {
+  return ready
+    && consoleErrors.length === 0
+    && pageErrors.length === 0
+    && networkFailures.length === 0
+    ? 'pass'
+    : 'fail';
+}
 
 // ---------------------------------------------------------------------------
 // HELPERS
@@ -257,7 +275,7 @@ async function setupBrowser() {
   });
 
   const context = await browser.newContext({
-    viewport: { width: 1280, height: 800 },
+    viewport: { width: 1440, height: 900 },
   });
 
   const page = await context.newPage();
@@ -279,10 +297,8 @@ async function setupBrowser() {
     const failure = request.failure();
     networkFailures.push({
       url: request.url(),
-      status: request.resourceType() === 'fetch' || request.resourceType() === 'xhr'
-        ? (failure ? failure.errorText : null)
-        : null,
-      statusText: failure ? failure.errorText : null,
+      status: 0,
+      statusText: failure?.errorText || 'Request failed',
     });
   });
 
@@ -313,7 +329,7 @@ async function setupBrowser() {
  * @returns {Promise<void>}
  */
 async function navigateToView(page, viewId) {
-  const validViews = new Set(['settings', 'catalog', 'workspace', 'workspace-git', 'workspace-checks', 'workspace-notes', 'repositories', 'remote', 'lexicon']);
+  const validViews = new Set(['settings', 'catalog', 'workspace', 'workspace-git', 'workspace-checks', 'workspace-assets', 'repositories', 'remote', 'pattern-atlas']);
   if (!validViews.has(viewId)) {
     throw new Error(`Unknown viewId: "${viewId}". Valid: ${[...validViews].join(', ')}`);
   }
@@ -355,10 +371,10 @@ async function navigateToView(page, viewId) {
     if (!workspaceSeed) {
       throw new Error(`Workspace navigation for "${viewId}" did not receive a workspace seed.`);
     }
-    await page.waitForSelector('[data-testid="workspace-floating-card"]', {
+    await page.waitForSelector('[data-testid^="sidebar-workspace-"]', {
       timeout: PAGE_READY_TIMEOUT_MS,
     });
-    await page.locator('[data-testid="workspace-floating-card"] .workspace-floating-card-btn').first().click();
+    await page.locator('[data-testid^="sidebar-workspace-"]').first().click();
     await page.waitForSelector('[data-testid="workspace-view"]', {
       timeout: PAGE_READY_TIMEOUT_MS,
     });
@@ -380,8 +396,38 @@ async function navigateToView(page, viewId) {
     });
   }
 
-  // Small stabilization delay so any lazy-loaded content renders
-  await page.waitForTimeout(300);
+}
+
+async function waitForTargetReadiness(page, targetId) {
+  try {
+    await page.waitForFunction((id) => {
+      const exists = (selector) => Boolean(document.querySelector(selector));
+      const text = (selector) => document.querySelector(selector)?.textContent || '';
+
+      if (id === 'workspace' || id.startsWith('workspace-')) {
+        const loadingMessage = [...document.querySelectorAll('.state-message')]
+          .some((element) => /^(Loading|Scanning|Checking|Analyzing)/i.test((element.textContent || '').trim()));
+        return exists('[data-testid="workspace-context-header"]')
+          && !exists('[data-testid="github-auth-checking"]')
+          && !text('.workspace-context-status').includes('Checking status')
+          && !loadingMessage;
+      }
+      if (id === 'pattern-atlas') {
+        return exists('[data-testid="pattern-atlas-view"]')
+          && !exists('[data-testid="atlas-loading"]')
+          && exists('[data-testid="atlas-gallery-grid"]');
+      }
+      if (id === 'catalog') {
+        return exists('[data-testid="catalog-shell-view"]')
+          && !exists('[data-testid="catalog-actionable-error"]');
+      }
+      if (id === 'settings') return exists('[data-testid="settings-view"]');
+      return exists('[data-testid="app-layout"]');
+    }, targetId, { timeout: PAGE_READY_TIMEOUT_MS });
+    return { ready: true, reason: null };
+  } catch (error) {
+    return { ready: false, reason: error.message };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -408,6 +454,49 @@ async function captureState(page, viewport, state, evidenceDir, prefix) {
   });
 
   return filename;
+}
+
+async function captureApprovedViewports(page, routeId, evidenceDir, prefix, diagnostics, readiness) {
+  const results = [];
+  for (const viewport of EVIDENCE_VIEWPORTS) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const theme = viewport.id === 'desktop' ? 'light' : 'dark';
+    await page.evaluate((nextTheme) => {
+      window.localStorage.setItem('elegy-copilot-theme', nextTheme);
+      document.documentElement.dataset.theme = nextTheme;
+    }, theme);
+    await page.waitForFunction((nextTheme) => document.documentElement.dataset.theme === nextTheme, theme);
+    if (viewport.id === 'desktop') {
+      const launcher = page.locator('.workspace-launch-trigger:not([disabled])');
+      if (await launcher.count()) {
+        await launcher.first().click();
+        await page.waitForSelector('[data-testid="workspace-launch-menu"]');
+      }
+    }
+    const screenshot = await captureState(page, viewport.id, 'default', evidenceDir, `${prefix}-${theme}`);
+    const readinessErrors = readiness.reason ? [`Readiness failed: ${readiness.reason}`] : [];
+    const resultPageErrors = [...diagnostics.pageErrors, ...readinessErrors];
+    results.push({
+      routeId,
+      viewport: viewport.id === 'compact' ? 'mobile' : 'desktop',
+      state: 'default',
+      status: deriveSurfaceStatus({
+        ready: readiness.ready,
+        consoleErrors: diagnostics.consoleErrors,
+        pageErrors: resultPageErrors,
+        networkFailures: diagnostics.networkFailures,
+      }),
+      ready: readiness.ready,
+      screenshot,
+      consoleErrors: [...diagnostics.consoleErrors],
+      pageErrors: resultPageErrors,
+      networkFailures: [...diagnostics.networkFailures],
+    });
+    if (viewport.id === 'desktop' && await page.locator('[data-testid="workspace-launch-menu"]').count()) {
+      await page.locator('.workspace-launch-trigger').first().click();
+    }
+  }
+  return results;
 }
 
 // ---------------------------------------------------------------------------
@@ -477,77 +566,82 @@ async function runTarget(targetId, browserHandle, evidenceDir) {
 
   if (targetId === 'settings') {
     await navigateToView(page, 'settings');
+    const readiness = await waitForTargetReadiness(page, targetId);
     const screenshot = await captureState(page, 'desktop', 'default', evidenceDir, `settings-default`);
+    const resultPageErrors = [...pageErrors, ...(readiness.reason ? [`Readiness failed: ${readiness.reason}`] : [])];
 
     surfaceResults.push({
       routeId: 'settings-default',
       viewport: 'desktop',
       state: 'default',
-      status: 'pass',
+      status: deriveSurfaceStatus({ ready: readiness.ready, consoleErrors, pageErrors: resultPageErrors, networkFailures }),
+      ready: readiness.ready,
       screenshot,
       consoleErrors: [...consoleErrors],
-      pageErrors: [...pageErrors],
+      pageErrors: resultPageErrors,
       networkFailures: [...networkFailures],
     });
   } else if (targetId === 'catalog') {
     await navigateToView(page, 'catalog');
+    const readiness = await waitForTargetReadiness(page, targetId);
     const screenshot = await captureState(page, 'desktop', 'default', evidenceDir, `catalog-default`);
+    const resultPageErrors = [...pageErrors, ...(readiness.reason ? [`Readiness failed: ${readiness.reason}`] : [])];
 
     surfaceResults.push({
       routeId: 'catalog-default',
       viewport: 'desktop',
       state: 'default',
-      status: 'pass',
+      status: deriveSurfaceStatus({ ready: readiness.ready, consoleErrors, pageErrors: resultPageErrors, networkFailures }),
+      ready: readiness.ready,
       screenshot,
       consoleErrors: [...consoleErrors],
-      pageErrors: [...pageErrors],
+      pageErrors: resultPageErrors,
       networkFailures: [...networkFailures],
     });
   } else if (targetId === 'workspace') {
     await navigateToView(page, 'workspace');
-    const screenshot = await captureState(page, 'desktop', 'default', evidenceDir, `workspace-default`);
-
-    surfaceResults.push({
-      routeId: 'workspace-default',
-      viewport: 'desktop',
-      state: 'default',
-      status: 'pass',
-      screenshot,
-      consoleErrors: [...consoleErrors],
-      pageErrors: [...pageErrors],
-      networkFailures: [...networkFailures],
-    });
-  } else if (targetId === 'workspace-git' || targetId === 'workspace-checks' || targetId === 'workspace-notes') {
+    const readiness = await waitForTargetReadiness(page, targetId);
+    surfaceResults.push(...await captureApprovedViewports(page, 'workspace-default', evidenceDir, 'workspace-default', {
+      consoleErrors, pageErrors, networkFailures,
+    }, readiness));
+  } else if (targetId === 'workspace-git' || targetId === 'workspace-checks' || targetId === 'workspace-assets') {
     await navigateToView(page, targetId);
+    const readiness = await waitForTargetReadiness(page, targetId);
     const routeId = getWorkspaceTabTarget(targetId).routeId;
     const screenshot = await captureState(page, 'desktop', 'default', evidenceDir, routeId);
+    const resultPageErrors = [...pageErrors, ...(readiness.reason ? [`Readiness failed: ${readiness.reason}`] : [])];
 
     surfaceResults.push({
       routeId,
       viewport: 'desktop',
       state: 'default',
-      status: 'pass',
+      status: deriveSurfaceStatus({ ready: readiness.ready, consoleErrors, pageErrors: resultPageErrors, networkFailures }),
+      ready: readiness.ready,
       screenshot,
       consoleErrors: [...consoleErrors],
-      pageErrors: [...pageErrors],
+      pageErrors: resultPageErrors,
       networkFailures: [...networkFailures],
     });
-  } else if (['repositories', 'remote', 'lexicon'].includes(targetId)) {
+  } else if (['repositories', 'remote', 'pattern-atlas'].includes(targetId)) {
     await navigateToView(page, targetId);
+    const readiness = await waitForTargetReadiness(page, targetId);
     const screenshot = await captureState(page, 'desktop', 'default', evidenceDir, `${targetId}-default`);
+    const resultPageErrors = [...pageErrors, ...(readiness.reason ? [`Readiness failed: ${readiness.reason}`] : [])];
+    const routeId = targetId === 'pattern-atlas' ? 'pattern-atlas-view' : `${targetId}-default`;
 
     surfaceResults.push({
-      routeId: `${targetId}-default`,
+      routeId,
       viewport: 'desktop',
       state: 'default',
-      status: 'pass',
+      status: deriveSurfaceStatus({ ready: readiness.ready, consoleErrors, pageErrors: resultPageErrors, networkFailures }),
+      ready: readiness.ready,
       screenshot,
       consoleErrors: [...consoleErrors],
-      pageErrors: [...pageErrors],
+      pageErrors: resultPageErrors,
       networkFailures: [...networkFailures],
     });
   } else {
-    throw new Error(`Unknown targetId: "${targetId}". Supported: settings, catalog, workspace, workspace-git, workspace-checks, workspace-notes, repositories, remote, lexicon`);
+    throw new Error(`Unknown targetId: "${targetId}". Supported: settings, catalog, workspace, workspace-git, workspace-checks, workspace-assets, repositories, remote, pattern-atlas`);
   }
 
   return surfaceResults;
@@ -655,25 +749,35 @@ async function main() {
 
     // Consume any additional errors collected during capture
     // (surfaceResults already captured a snapshot, but we merge final state)
-    const finalResults = surfaceResults.map((sr) => ({
-      ...sr,
-      consoleErrors: [...consoleErrors],
-      pageErrors: [...pageErrors],
-      networkFailures: [...networkFailures],
-    }));
+    const finalResults = surfaceResults.map((sr) => {
+      const readinessErrors = (sr.pageErrors || []).filter((error) => error.startsWith('Readiness failed:'));
+      const finalPageErrors = [...pageErrors, ...readinessErrors];
+      return {
+        ...sr,
+        status: deriveSurfaceStatus({
+          ready: sr.ready,
+          consoleErrors,
+          pageErrors: finalPageErrors,
+          networkFailures,
+        }),
+        consoleErrors: [...consoleErrors],
+        pageErrors: finalPageErrors,
+        networkFailures: [...networkFailures],
+      };
+    });
 
     // Generate runtime report
     const reportResult = generateRuntimeReport(targetId, finalResults, evidenceDir);
     console.error(`[ui-check-copilot-ui] Runtime report written to ${reportResult.reportPath}`);
 
     // Log summary to stderr (stdout is reserved for JSON in CI modes)
-    const totalErrors = consoleErrors.length + pageErrors.length + networkFailures.length;
-    if (totalErrors > 0) {
-      console.error(`[ui-check-copilot-ui] Warnings: ${consoleErrors.length} console errors, ${pageErrors.length} page errors, ${networkFailures.length} network failures`);
-    } else {
-      console.error(`[ui-check-copilot-ui] No errors detected.`);
+    const failedResults = finalResults.filter((result) => result.status === 'fail');
+    if (failedResults.length > 0) {
+      console.error(`[ui-check-copilot-ui] FAILED: ${failedResults.length} surface(s) failed readiness or runtime diagnostics.`);
+      return 1;
     }
 
+    console.error(`[ui-check-copilot-ui] No errors detected.`);
     console.error(`[ui-check-copilot-ui] Target "${targetId}" completed successfully.`);
     return 0;
   } catch (err) {
@@ -701,6 +805,8 @@ export {
   buildWorkspaceStorageSeed,
   getWorkspaceTabTarget,
   isWorkspaceTabTarget,
+  getEvidenceViewports,
+  deriveSurfaceStatus,
   main,
 };
 

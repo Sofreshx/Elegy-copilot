@@ -1,17 +1,81 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { SIDEBAR_NAV_ITEMS } from '../ui/src/stores/navigation';
 
 describe('sidebar', () => {
-  it('renders settings as icon-only with aria-label', async () => {
-    const { default: Sidebar } = await import('../ui/src/components/Sidebar');
-    render(
+  const openWorkspaces = [
+    { repoPath: 'C:/repos/instruction-engine', repoLabel: 'instruction-engine', openedAt: 1 },
+    { repoPath: 'C:/repos/data-pipeline', repoLabel: 'data-pipeline', openedAt: 2 },
+  ];
+
+  function renderSidebar(overrides: Record<string, unknown> = {}) {
+    return import('../ui/src/components/Sidebar').then(({ default: Sidebar }) => render(
       <Sidebar
         items={SIDEBAR_NAV_ITEMS}
-        activeItem="repositories"
+        activeItem="workspace"
+        openWorkspaces={openWorkspaces}
+        activeWorkspaceId="C:/repos/instruction-engine"
+        collapsed={false}
+        onToggleCollapsed={() => {}}
         onNavigate={() => {}}
+        onFocusWorkspace={() => {}}
+        onCloseWorkspace={() => {}}
+        {...overrides}
       />
-    );
+    ));
+  }
+
+  it('renders brand, open workspaces, grouped global tools, and bottom settings', async () => {
+    await renderSidebar();
+
+    expect(screen.getByText('Elegy Copilot')).toBeInTheDocument();
+    const brandIcon = screen.getByText('Elegy Copilot').parentElement?.querySelector('.sidebar-brand-icon');
+    expect(brandIcon?.tagName).toBe('svg');
+    expect(screen.getByTestId('sidebar').querySelector('img')).toBeNull();
+    expect(screen.getByText('Open workspaces')).toBeInTheDocument();
+    expect(screen.getByText('instruction-engine')).toBeInTheDocument();
+    expect(screen.getByText('data-pipeline')).toBeInTheDocument();
+    expect(screen.getByText('Global tools')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-item-repositories')).toHaveTextContent('Repositories');
+    expect(screen.getByTestId('sidebar-item-pattern-atlas')).toHaveTextContent('Pattern Atlas');
+    expect(screen.getByTestId('sidebar-item-settings')).toHaveTextContent('Settings');
+    expect(screen.getByTestId('sidebar-item-settings').closest('.sidebar-footer')).not.toBeNull();
+  });
+
+  it('focuses and closes workspaces through explicit controls', async () => {
+    const onFocusWorkspace = vi.fn();
+    const onCloseWorkspace = vi.fn();
+    await renderSidebar({ onFocusWorkspace, onCloseWorkspace });
+
+    fireEvent.click(screen.getByTestId('sidebar-workspace-instruction-engine'));
+    expect(onFocusWorkspace).toHaveBeenCalledWith('C:/repos/instruction-engine');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close data-pipeline' }));
+    expect(onCloseWorkspace).toHaveBeenCalledWith('C:/repos/data-pipeline');
+  });
+
+  it('renders expanded by default and exposes a collapse toggle', async () => {
+    const onToggleCollapsed = vi.fn();
+    await renderSidebar({ onToggleCollapsed });
+
+    const nav = screen.getByTestId('sidebar');
+    expect(nav).toHaveAttribute('data-collapsed', 'false');
+    const toggle = screen.getByTestId('sidebar-collapse-toggle');
+    expect(toggle).toHaveAttribute('aria-label', 'Collapse sidebar');
+    fireEvent.click(toggle);
+    expect(onToggleCollapsed).toHaveBeenCalledOnce();
+  });
+
+  it('keeps controls accessible when collapsed', async () => {
+    await renderSidebar({ collapsed: true });
+    expect(screen.getByTestId('sidebar')).toHaveAttribute('data-collapsed', 'true');
+    expect(screen.getByTestId('sidebar-collapse-toggle')).toHaveAttribute('aria-label', 'Expand sidebar');
+    expect(screen.getByTestId('sidebar-item-settings')).toHaveAttribute('aria-label', 'Settings');
+    expect(screen.getByTestId('sidebar-workspace-instruction-engine')).toHaveAttribute('aria-label', 'Open instruction-engine');
+  });
+
+  it('renders settings with aria-label and local icon', async () => {
+    await renderSidebar();
     const settingsBtn = screen.getByTestId('sidebar-item-settings');
     expect(settingsBtn).toBeInTheDocument();
     expect(settingsBtn).toHaveAttribute('aria-label', 'Settings');
@@ -21,58 +85,8 @@ describe('sidebar', () => {
     expect(iconEl?.tagName).toBe('svg');
   });
 
-  it('does not render brand icon', async () => {
-    const { default: Sidebar } = await import('../ui/src/components/Sidebar');
-    render(
-      <Sidebar
-        items={SIDEBAR_NAV_ITEMS}
-        activeItem="repositories"
-        onNavigate={() => {}}
-      />
-    );
-    expect(screen.queryByAltText('Elegy Copilot')).not.toBeInTheDocument();
-  });
-
-  it('renders nav items for non-settings routes', async () => {
-    const { default: Sidebar } = await import('../ui/src/components/Sidebar');
-    render(
-      <Sidebar
-        items={SIDEBAR_NAV_ITEMS}
-        activeItem="repositories"
-        onNavigate={() => {}}
-      />
-    );
-    expect(screen.getByTestId('sidebar-item-repositories')).toBeInTheDocument();
-    expect(screen.getByTestId('sidebar-item-pattern-atlas')).toBeInTheDocument();
-  });
-
-  it('is always visible as fixed-width icon rail without collapse', async () => {
-    const { default: Sidebar } = await import('../ui/src/components/Sidebar');
-    render(
-      <Sidebar
-        items={SIDEBAR_NAV_ITEMS}
-        activeItem="repositories"
-        onNavigate={() => {}}
-      />
-    );
-    const nav = screen.getByTestId('sidebar');
-    expect(nav).toHaveClass('sidebar');
-    expect(nav.className).not.toContain('sidebar-collapsed');
-    // No collapse toggle in new design
-    expect(screen.queryByTestId('sidebar-collapse-toggle')).not.toBeInTheDocument();
-    // Settings should still be rendered
-    expect(screen.getByTestId('sidebar-item-settings')).toBeInTheDocument();
-  });
-
   it('each nav item has aria-label and title attributes', async () => {
-    const { default: Sidebar } = await import('../ui/src/components/Sidebar');
-    render(
-      <Sidebar
-        items={SIDEBAR_NAV_ITEMS}
-        activeItem="repositories"
-        onNavigate={() => {}}
-      />
-    );
+    await renderSidebar();
     const lexiconBtn = screen.getByTestId('sidebar-item-pattern-atlas');
     expect(lexiconBtn).toHaveAttribute('aria-label', 'Pattern Atlas');
     expect(lexiconBtn).toHaveAttribute('title');
@@ -80,14 +94,7 @@ describe('sidebar', () => {
   });
 
   it('renders active item with sidebar-item-active class', async () => {
-    const { default: Sidebar } = await import('../ui/src/components/Sidebar');
-    render(
-      <Sidebar
-        items={SIDEBAR_NAV_ITEMS}
-        activeItem="repositories"
-        onNavigate={() => {}}
-      />
-    );
+    await renderSidebar({ activeItem: 'repositories' });
     const activeBtn = screen.getByTestId('sidebar-item-repositories');
     expect(activeBtn.className).toContain('sidebar-item-active');
   });

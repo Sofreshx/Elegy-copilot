@@ -12,7 +12,7 @@ import {
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
 import { runtimeHealthStore } from './stores/runtimeHealthStore';
 import { toolingUpdatesStore } from './stores/toolingUpdatesStore';
-import WorkspaceFloatingCard from './components/WorkspaceFloatingCard';
+import { shellPreferencesStore } from './stores/shellPreferences';
 
 const StandaloneGraphWindow = lazy(() => import('./tabs/Planning/StandaloneGraphWindow'));
 const SessionDetailView = lazy(() => import('./views/Sessions/SessionDetailView'));
@@ -28,15 +28,18 @@ const WorkspaceNotesTab = lazy(() => import('./views/Workspace/WorkspaceNotesTab
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
   const desktopUpdaterState = useStoreValue(desktopUpdaterStore);
+  const shellPreferences = useStoreValue(shellPreferencesStore);
 
   useEffect(() => {
     desktopUpdaterStore.startListening();
     runtimeHealthStore.startWatching();
     toolingUpdatesStore.startPolling();
+    const stopThemeSync = shellPreferencesStore.startThemeSync();
     return () => {
       desktopUpdaterStore.stopListening();
       runtimeHealthStore.stopWatching();
       toolingUpdatesStore.stopPolling();
+      stopThemeSync();
     };
   }, []);
 
@@ -59,6 +62,12 @@ export default function App() {
     }
 
     if (!e.ctrlKey && !e.metaKey) return;
+
+    if (e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      shellPreferencesStore.toggleSidebar();
+      return;
+    }
 
     const digit = parseInt(e.key, 10);
     if (digit >= 1 && digit <= SIDEBAR_NAV_ITEMS.length) {
@@ -139,14 +148,19 @@ export default function App() {
         <Sidebar
           items={SIDEBAR_NAV_ITEMS}
           activeItem={navigationState.activeSidebarItem}
+          openWorkspaces={navigationState.openWorkspaces}
+          activeWorkspaceId={navigationState.activeWorkspaceId}
+          collapsed={shellPreferences.sidebarCollapsed}
+          onToggleCollapsed={() => shellPreferencesStore.toggleSidebar()}
           onNavigate={(id: SidebarItemId) => navigationStore.navigate(id)}
+          onFocusWorkspace={(repoPath) => navigationStore.focusWorkspace(repoPath)}
+          onCloseWorkspace={(repoPath) => navigationStore.closeWorkspace(repoPath)}
         />
       }
     >
       <Suspense>
         {renderContent()}
       </Suspense>
-      <WorkspaceFloatingCard />
       </AppLayout>
     </>
   );

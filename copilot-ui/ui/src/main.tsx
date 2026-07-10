@@ -4,6 +4,9 @@ import './styles/reset.css';
 import './styles/tokens.css';
 import './styles/global.css';
 import './app.css';
+import './styles/shell.css';
+import './styles/workspace-shell.css';
+import './styles/appearance.css';
 import App from './App';
 
 const container = document.getElementById('app');

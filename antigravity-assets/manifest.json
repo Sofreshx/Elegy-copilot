@@ -145,13 +145,6 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "antigravity-ui-visual-review-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/ui-visual-review",
-      "destination": "antigravity/skills/ui-visual-review",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "antigravity-tdd-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/tdd",

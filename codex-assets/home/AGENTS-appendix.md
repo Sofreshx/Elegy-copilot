@@ -15,7 +15,7 @@ Load shared skills only when they materially change the result:
 |---|---|
 | `skill-discovery` | Ambiguous capability routing |
 | `agents-md-authoring` | Instruction files and AGENTS.md layering |
-| `ui-system`, `ui-runtime-exploration`, `ui-visual-review` | UI work |
+| `elegy-ui-craft@elegy` | UI inventory, implementation guidance, runtime evidence, and review |
 | `sweeper-cleanup` | Bounded cleanup |
 | `elegy-planning`, `spec-*`, `rubberduck-plan-review`, `implementation-review`, `implementation-handoff` | Opt-in durable workflow |
 
@@ -25,6 +25,9 @@ ceremony.
 Elegy plugins are the primary Codex route for Elegy-owned capabilities. Use the
 `elegy` Codex marketplace when available; shared skills such as
 `elegy-planning` are compatibility fallbacks.
+
+For UI work, use `elegy-ui-craft@elegy`. The retired standalone UI skills and
+vendored Impeccable package are no longer installed by this repository.
 
 ## Subagents
 

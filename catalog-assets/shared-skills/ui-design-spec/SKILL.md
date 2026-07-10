@@ -23,8 +23,7 @@ never on assumptions about an external design system.
 
 ## Do Not Use
 
-- Pure implementation work where the scope is already clear (use `ui-system`)
-- Visual review of already-built UI (use `ui-visual-review`)
+- Pure implementation or visual-review work when `elegy-ui-craft@elegy` is available
 - Specs for non-UI surfaces (backend, CLI, schema)
 
 ## Spec Structure
@@ -55,7 +54,7 @@ If a state is N/A, state the reason in one sentence.
 
 ### 3. Component Inventory
 
-Run the `ui-system` inventory before completing the spec:
+Run a local inventory before completing the spec (or use UI Craft's inventory when installed):
 
 - Existing domain components that match the surface
 - Existing shared primitives available
@@ -147,8 +146,8 @@ After the spec is written, validate:
 ## Authority
 
 - Local repo code and tokens > this spec > Figma/Storybook/external context.
-- When this spec conflicts with `ui-system`, `ui-system` wins on implementation
-  constraints; this spec wins on user-facing behavior and acceptance criteria.
+- When this spec conflicts with `elegy-ui-craft@elegy`, UI Craft wins on implementation and
+  evidence constraints; this spec wins on explicitly approved user-facing behavior and acceptance criteria.
 
 ## Handoff
 

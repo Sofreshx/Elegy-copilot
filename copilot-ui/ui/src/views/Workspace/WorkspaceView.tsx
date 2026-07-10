@@ -105,6 +105,12 @@ export default function WorkspaceView() {
                === selectedRepoPath.replace(/\\/g, '/').toLowerCase(),
       ) || state.selectedRepo)
     : null;
+  const activeWorkspace = selectedRepoPath
+    ? navState.openWorkspaces.find((workspace) =>
+        workspace.repoPath.replace(/\\/g, '/').toLowerCase()
+          === selectedRepoPath.replace(/\\/g, '/').toLowerCase(),
+      )
+    : null;
 
   useEffect(() => {
     if (selectedRepoPath && typeof selectedRepoPath === 'string' && selectedRepoPath.trim()) {
@@ -201,7 +207,20 @@ export default function WorkspaceView() {
     <div className="workspace-view" data-testid="workspace-view">
       {selectedRepoPath ? (
         <div className="view-shell workspace-layout">
-          {/* Floating local tab switcher and launcher */}
+          <header className="workspace-context-header" data-testid="workspace-context-header">
+            <div className="workspace-context-identity">
+              <h1>{activeWorkspace?.repoLabel || displayRepo?.repoLabel || selectedRepoPath.split(/[\\/]/).filter(Boolean).pop() || 'Workspace'}</h1>
+              <p title={selectedRepoPath}>{selectedRepoPath}</p>
+            </div>
+            <div className="workspace-context-status" aria-label="Repository status">
+              <span className="workspace-context-branch"><AppIcon name="git-branch" size={14} />{gitState.summary?.branch || 'Branch unavailable'}</span>
+              <span className={gitState.summary?.clean ? 'workspace-context-clean' : 'workspace-context-changes'}>
+                <AppIcon name={gitState.summary?.clean ? 'check' : 'warning'} size={14} />
+                {gitState.loading ? 'Checking status' : gitState.summary?.clean ? 'Clean' : gitState.summary ? `${gitState.summary.changedFiles} changed` : 'Status unavailable'}
+              </span>
+            </div>
+          </header>
+
           <div className="view-static workspace-local-tabs-row" data-testid="workspace-local-tabs-row">
             <WorkspaceLocalTabs
               activeTab={navState.activeWorkspaceLocalTab}
@@ -261,7 +280,13 @@ export default function WorkspaceView() {
 
           <GitHubAuthBanner repoPath={selectedRepoPath} />
 
-          <div className="view-scroll workspace-tab-content" data-testid="workspace-tab-content">
+          <div
+            className="view-scroll workspace-tab-content"
+            data-testid="workspace-tab-content"
+            id={`workspace-panel-${navState.activeWorkspaceLocalTab}`}
+            role="tabpanel"
+            aria-labelledby={`workspace-tab-${navState.activeWorkspaceLocalTab}`}
+          >
             <PageContainer fill={navState.activeWorkspaceLocalTab === 'planning'}>
             {navState.activeWorkspaceLocalTab === 'docs' && (
               <WorkspaceDocsTab repoPath={selectedRepoPath} />
