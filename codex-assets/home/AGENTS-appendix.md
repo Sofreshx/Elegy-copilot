@@ -4,69 +4,41 @@ Composed after the shared baseline at install time.
 
 ## Authority
 
-Order: user instruction -> repo canonical docs -> README/maintained docs ->
+Order: user instruction -> repo canonical docs -> maintained docs -> repeated
 implementation patterns. Report conflicts.
 
 ## Skills
 
-Load shared skills only when they materially change the result:
+Load a skill only when its contract changes the work:
 
-| Skill | Use |
+| Need | Route |
 |---|---|
-| `skill-discovery` | Ambiguous capability routing |
-| `agents-md-authoring` | Instruction files and AGENTS.md layering |
-| `elegy-ui-craft@elegy` | UI inventory, implementation guidance, runtime evidence, and review |
-| `sweeper-cleanup` | Bounded cleanup |
-| `elegy-planning`, `spec-*`, `rubberduck-plan-review`, `implementation-review`, `implementation-handoff` | Opt-in durable workflow |
+| Ambiguous capability | `skill-discovery` |
+| Instruction layering | `agents-md-authoring` |
+| UI implementation or review | `elegy-ui-craft@elegy` |
+| Dead-weight removal | `sweeper-cleanup` |
+| Durable multi-session workflow | `elegy-planning`, `spec-*`, review, or handoff skill |
 
-Recommend durable workflow skills when useful. Do not load them as routine
-ceremony.
-
-Elegy plugins are the primary Codex route for Elegy-owned capabilities. Use the
-`elegy` Codex marketplace when available; shared skills such as
-`elegy-planning` are compatibility fallbacks.
-
-For UI work, use `elegy-ui-craft@elegy`. The retired standalone UI skills and
-vendored Impeccable package are no longer installed by this repository.
+Use Elegy plugins before compatibility skills for Elegy-owned capabilities.
+Do not install the retired UI skills or vendored Impeccable package.
 
 ## Subagents
 
-The shared Codex baseline owns native subagent lifecycle, model selection, and
-identity. Do not install or project plugin-owned agent TOMLs that duplicate the
-baseline. The main Sol agent retains requirements, architecture, integration,
-and final judgment.
+Default routing is manual. A plugin may delegate automatically only under its
+explicit routing contract.
 
-Default: manual. A plugin may enable automatic delegation only for sessions
-where its explicit routing contract is active, and only when the task benefits
-from context or token isolation. Do not fan out tiny or tightly coupled work.
+- Give each child a bounded scope, allowed actions, output shape, and stop condition.
+- Native workers use `gpt-5.6-luna` with effort `low`, `medium`, `high`, or `max`.
+- Record exposed identity, model, effort, source, profile, cost policy, write mode, and job ID.
+- Write-capable children require an allowlisted file scope and may not commit,
+  push, publish, change permissions, or edit outside that scope.
 
-Delegation contract:
+## Durable Artifacts
 
-- State scope, boundaries, allowed actions, output shape, and stop condition.
-- Prefer one bounded read-only child before write-capable delegation.
-- Native delegated workers use `gpt-5.6-luna` with effort `low`, `medium`,
-  `high`, or `max`; never select a higher effort or another model family for
-  this lane.
-- Record agent, nickname, model, reasoning effort, source, profile, cost
-  policy, write mode, and job identifier whenever the hosting surface exposes
-  them. Host UI identity is best effort; plugin evidence is authoritative.
-- A write-capable child requires explicit role enablement and an allowlisted
-  file scope. It may not commit, push, publish, change permissions, or modify
-  files outside that scope.
+Use plans or specs only when requested, required across sessions, or needed for
+verifiable acceptance.
 
-## Planning and Specs
+## Placement
 
-Default to the smallest useful plan in the current thread. Use durable planning
-or specs only when requested, multi-session, or needed for verifiable
-acceptance.
-
-## Repo Docs Breadcrumb
-
-Repo policy: canonical docs entrypoint -> nearest routing node -> smallest
-owner.
-
-## Boundaries
-
-- Keep global Codex guidance thin and workflow-specific.
 - Put repo commands and conventions in repo-local `AGENTS.md`.
-- Point to canonical docs instead of copying policy.
+- Put durable policy in canonical docs and link it instead of copying it.

@@ -26,8 +26,8 @@ test('Codex subagent service lists baseline Luna agents without a Spark lane', (
   assert.equal(testRunner.modelReasoningEffort, 'medium');
   assert.equal(testRunner.sandboxMode, 'workspace-write');
   assert.equal(testRunner.missing, true);
-  assert.equal(result.summary.managed, 6);
-  assert.equal(result.summary.missing, 6);
+  assert.equal(result.summary.managed, 4);
+  assert.equal(result.summary.missing, 4);
   assert.equal(result.summary.usable, 0);
 });
 
@@ -126,9 +126,9 @@ test('Codex subagent service reports summary and per-agent usage for the UI', ()
   const explorer = result.agents.find((agent) => agent.name === 'explorer');
   const reviewer = result.agents.find((agent) => agent.name === 'reviewer');
 
-  assert.equal(result.summary.managed, 6);
+  assert.equal(result.summary.managed, 4);
   assert.equal(result.summary.installed, 2);
-  assert.equal(result.summary.missing, 4);
+  assert.equal(result.summary.missing, 2);
   assert.equal(result.summary.usable, 2);
   assert.equal(result.summary.nativeConfigSynced, false);
   assert.equal(explorer.operationalStatus, 'ready');

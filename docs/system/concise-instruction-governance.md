@@ -65,6 +65,25 @@ Write to transfer decisions, not to sound complete. Prefer exact terms, diagrams
 - Delete empty emphasis.
 - Write current canonical docs that describe live state in present state. Do not frame them as change narrative.
 
+### Retention Test
+
+Retain a model-facing directive only when it supplies at least one of:
+
+- a trigger or applicability condition
+- an exact action, technique, tool, or interface
+- a permission, trust, cost, or mutation boundary
+- a failure mode and required response
+- an output contract or acceptance check
+- a repository- or harness-specific fact the model cannot discover reliably
+
+Remove capability reminders and intensity modifiers such as “plan carefully,”
+“think thoroughly,” “be concise,” “use your judgment,” or “produce high-quality
+work.” Replace them only when the missing operational rule is known.
+
+Harness-specific extra guidance requires a named limitation or failure mode.
+Do not place weaker-model scaffolding in the shared baseline or a Codex-reachable
+asset.
+
 ### Section Question Requirement
 
 A section must answer at least one question:
@@ -154,7 +173,8 @@ Use narrow procedural detail only when it prevents a known failure mode, protect
 Before handoff, run the narrowest relevant check:
 
 - `node scripts/validate-instruction-wiring.mjs` — validates shared baseline exists, appendix files are present per harness, compose integrity (no missing sections), and no banned terms in the baseline
-- Manual review: check for empty language, vague abstractions, duplicated policy
+- `node scripts/validate-instruction-quality.mjs` — scans first-party shipped instructions, agents, prompts, skills, and model-facing references for budgets, repeated prose, prompt theory, ceremony, vague intensity, and non-actionable directives
+- Manual review: apply the retention test because semantic fluff cannot be exhaustively detected by phrase matching
 
 ## Output Contract
 

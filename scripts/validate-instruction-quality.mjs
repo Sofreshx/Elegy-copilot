@@ -93,6 +93,26 @@ const PSEUDO_THEORY_PATTERNS = [
 
 const VAGUE_DIRECTIVE_PATTERNS = [
   {
+    id: 'vague-careful-reasoning',
+    pattern: /\b(?:plan|think|reason|review|consider|analy[sz]e)\s+(?:very\s+)?(?:carefully|thoughtfully|thoroughly|meticulously)\b/i,
+    message: 'Replace generic reasoning intensity with a concrete check, decision, or failure mode.',
+  },
+  {
+    id: 'vague-quality-adverb',
+    pattern: /\b(?:work|plan|review|test|implement|document|investigate)\s+(?:carefully|thoughtfully|thoroughly|properly|appropriately)\b/i,
+    message: 'Replace the quality adverb with observable behavior or verification.',
+  },
+  {
+    id: 'vague-be-concise',
+    pattern: /\bbe\s+(?:clear\s+and\s+)?concise\b/i,
+    message: 'Replace generic concision advice with an output shape or size limit.',
+  },
+  {
+    id: 'vague-use-judgment',
+    pattern: /\buse\s+(?:your\s+)?(?:best\s+)?judg(?:e)?ment\b/i,
+    message: 'Replace delegated judgment with explicit criteria or an escalation boundary.',
+  },
+  {
     id: 'vague-make-robust',
     pattern: /\b(make|keep|ensure|be)\s+(it\s+)?robust\b/i,
     message: 'Replace vague robustness commands with failure modes and checks.',
@@ -122,9 +142,22 @@ const CEREMONY_PATTERNS = [
   },
   {
     id: 'ceremony-identity',
-    pattern: /\byou are a deeply\b/i,
-    message: 'Avoid expansive persona setup in repo-managed assets.',
+    pattern: /\byou are (?:an?|the)\s+(?:expert|world[- ]class|highly skilled|deeply experienced)\b/i,
+    message: 'Remove capability-boosting persona claims; retain only role boundaries.',
   },
+];
+
+const ACTIONABLE_DIRECTIVE_MARKERS = [
+  /\bwhen\b/i,
+  /\bif\b/i,
+  /\bunless\b/i,
+  /\bonly\b/i,
+  /\bmust\b/i,
+  /\bdo not\b/i,
+  /\bnever\b/i,
+  /`[^`]+`/,
+  /\b(?:run|use|return|write|read|load|call|ask|stop|report|record|remove|keep|preserve|validate|verify)\b/i,
+  /\b(?:file|path|command|test|reference|plan|goal|work point)\b/i,
 ];
 
 function findRepoRoot(fromDir) {
@@ -262,7 +295,9 @@ function stripCodeFences(text) {
 }
 
 function stripInstructionExamples(text) {
-  return stripCodeFences(text).replace(/`[^`\n]+`/g, '');
+  return stripCodeFences(text)
+    .replace(/`[^`\n]+`/g, '')
+    .replace(/(["“”'])[^"“”'\n]+\1/g, '');
 }
 
 function splitSentences(text) {
@@ -315,6 +350,25 @@ function checkRepeatedSentences(record, text, diagnostics) {
   }
 }
 
+function checkDirectiveActionability(record, text, diagnostics) {
+  if (!['instructions', 'appendix', 'agent', 'prompt', 'skill'].includes(record.kind)) return;
+  const lines = stripCodeFences(text).split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index].trim();
+    if (!/^(?:[-*]|\d+[.)])\s+/.test(line)) continue;
+    const directive = line.replace(/^(?:[-*]|\d+[.)])\s+/, '').replace(/^\*\*[^*]+\*\*:\s*/, '');
+    if (directive.length < 24 || ACTIONABLE_DIRECTIVE_MARKERS.some((pattern) => pattern.test(directive))) continue;
+    if (!/^(?:be|focus|strive|aim|remember|ensure|make sure|consider)\b/i.test(directive)) continue;
+    diagnostics.push({
+      id: 'non-actionable-directive',
+      status: 'violation',
+      file: record.rel,
+      line: index + 1,
+      detail: `Directive lacks a concrete trigger, action, boundary, tool, output, or check: "${directive}"`,
+    });
+  }
+}
+
 function checkBudget(record, text, diagnostics) {
   const budget = BUDGETS[record.kind] || BUDGETS.reference;
   const lines = text.split(/\r?\n/).length;
@@ -349,6 +403,7 @@ function analyzeInstructionQuality(repoRoot) {
     checkPatterns(record, text, PSEUDO_THEORY_PATTERNS, diagnostics);
     checkPatterns(record, text, VAGUE_DIRECTIVE_PATTERNS, diagnostics);
     checkPatterns(record, text, CEREMONY_PATTERNS, diagnostics);
+    checkDirectiveActionability(record, text, diagnostics);
     checkRepeatedSentences(record, text, diagnostics);
   }
 

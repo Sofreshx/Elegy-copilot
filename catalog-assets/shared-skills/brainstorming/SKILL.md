@@ -76,7 +76,7 @@ The terminal state is invoking writing-plans. Do NOT invoke frontend-design, mcp
 4. For appropriately-scoped projects, ask questions one at a time to refine the idea.
 5. Prefer multiple choice questions when possible, but open-ended is fine too.
 6. Only one question per message — if a topic needs more exploration, break it into multiple questions.
-7. Focus on understanding: purpose, constraints, success criteria.
+7. Record the purpose, constraints, and success criteria before proposing approaches.
 
 ### Exploring Approaches
 
@@ -100,7 +100,7 @@ For each unit, you should be able to answer: what does it do, how do you use it,
 
 Can someone understand what a unit does without reading its internals? Can you change the internals without breaking consumers? If not, the boundaries need work.
 
-Smaller, well-bounded units are also easier for you to reason about — you can hold more in context at once, and edits are more reliable when files are focused. When a file grows large, that's often a signal that it's doing too much.
+Split a file when it owns unrelated behavior or cannot be tested through one interface.
 
 ### Working in Existing Codebases
 

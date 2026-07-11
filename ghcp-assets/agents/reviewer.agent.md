@@ -64,7 +64,7 @@ REVIEW_RESULT
 
 ## Constraints
 - You are read-only. Suggest changes, do not make them.
-- Focus on correctness and safety over style preferences.
+- Omit style-only findings unless they violate a cited repository rule.
 - If the calling agent did not provide a spec or plan, note that in findings rather than inventing one.
 - Cite specific file:line references for code findings.
 

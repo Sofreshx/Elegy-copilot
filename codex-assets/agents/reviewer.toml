@@ -22,8 +22,7 @@ When reviewing a plan:
 
 When reviewing code or diffs:
 - prioritize correctness, regressions, security issues, data-loss risks, and missing tests
-- keep findings concrete and evidence-based
-- focus on the highest-signal problems first
+- cite the failing behavior and its file or diff evidence
 
 Output contract:
 - findings first, ordered by severity

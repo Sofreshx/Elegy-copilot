@@ -34,7 +34,8 @@ Do not spawn for tiny or tightly coupled work.
 ## Routing policy
 
 Default mode: manual. The delegated-dev plugin may use `opencode-preferred`
-for eligible worker tasks and fall back to these Codex-native agents.
+for eligible worker tasks. Codex-native managed agents cover exploration,
+review, validation, and cleanup rather than general implementation.
 
 | Spawn | Do not spawn |
 |---|---|
@@ -57,13 +58,11 @@ Routing modes:
 | Agent | Default model | Effort | Sandbox | Use |
 |---|---|---|---|---|
 | `explorer` | `gpt-5.6-luna` | `low` | `read-only` | Noisy repo mapping |
-| `worker` | `gpt-5.6-luna` | `high` | `workspace-write` | Bounded implementation |
-| `worker-hard` | `gpt-5.6-luna` | `max` | `workspace-write` | Complex bounded implementation |
 | `reviewer` | `gpt-5.6-luna` | `high` | `read-only` | Independent review |
 | `test-runner` | `gpt-5.6-luna` | `medium` | `workspace-write` | Bounded validation output |
 | `sweeper` | `gpt-5.6-luna` | `medium` | `workspace-write` | Bounded cleanup |
 
-The baseline native lane is capped to Luna and `low`/`medium`/`high`/`max`.
+The baseline native lane is capped to Luna and `low`/`medium`/`high`.
 There is no Spark or higher-effort fallback in this routing contract. The
 delegated-dev plugin prefers OpenCode Workers on the user's OpenCode Go
 subscription for eligible roles, while Sol remains the orchestrator.

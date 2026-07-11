@@ -16,18 +16,12 @@ For manual discovery:
 3. Fall back to `README.md`, maintained docs, and the nearest docs index.
 4. Prefer repo-local validators.
 
-## Concise Instruction Contract
+## Instruction Content
 
-Write instructions as decisions and contracts, not prose prompts.
-
-- Start with the point.
-- Use exact vocabulary.
-- Define a term once, then reuse it.
-- Prefer tables, checklists, diagrams, examples, and authority links over long
-  explanation.
-- Delete ceremony, repeated policy, vague abstractions, and empty emphasis.
-- Keep only sections with a purpose, contract, use case, failure mode,
-  verification rule, or next link.
+Retain a directive only when it supplies a non-obvious rule, trigger, boundary,
+technique, tool, workflow, failure behavior, output contract, or verification
+step. Remove ceremony, generic quality advice, reasoning narration, and copied
+policy.
 
 ## Clarification Contract
 
@@ -59,30 +53,6 @@ Harness or repo instructions
 
 Keep secondary surfaces thin. Link canonical policy instead of copying it.
 
-## Architecture Decisions
-
-Use ADRs only for key architectural, workflow-authority, trust-boundary, or
-long-lived contract decisions.
-
-## Code Quality Posture
-
-Merge blockers:
-
-- Do not leave dead code introduced by the current change.
-- Do not comment out code as a substitute for deletion.
-- Do not add abstractions without a stated need.
-
-Heuristics: choose the simplest working path, keep functions focused, keep
-nesting shallow when guard clauses help, and split hard-to-read diffs before
-expanding them.
-
-## Collaboration Contract
-
-- Optimize for the user's goal, acceptance criteria, and constraints.
-- Flag material risks and weak assumptions.
-- Give concise reasoning and a practical alternative.
-- Preserve user authority over product decisions and tradeoffs.
-
 ## Review Rule
 
 Review must flag unclear authority, temporal change framing in canonical docs,
@@ -92,8 +62,8 @@ code, and unnecessary complexity.
 
 ## Validation Rule
 
-Run the narrowest relevant check after changes. For instruction or
-documentation surfaces, validate relevant links and references.
+After changes, run the repo-local check that covers the changed behavior. For
+instruction or documentation surfaces, validate links and references.
 
 ## Git Checkpoint Rule
 
@@ -102,15 +72,3 @@ validated atomic work units when the approved goal or plan authorizes the
 scope. In non-goal sessions, pause at natural boundaries, summarize the diff,
 and offer an atomic commit. Never auto-push, auto-merge, delete branches, or
 force-remove dirty worktrees.
-
-## Core Workflow
-
-| Step | Rule |
-|---|---|
-| Bootstrap | Load harness instructions, canonical entrypoint, then smallest relevant node. |
-| Discovery | Read before deciding. |
-| Clarification | Ask before crossing unclear decision boundaries. |
-| Planning | Make non-trivial plans decision-complete. |
-| Implementation | Edit in small verifiable steps. |
-| Review | Check correctness, scope, drift, and evidence. |
-| Validation | Run the smallest useful proof. |

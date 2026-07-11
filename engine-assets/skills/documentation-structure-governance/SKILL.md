@@ -87,7 +87,7 @@ Do not route here when the request is mainly:
 
 ### LLM-Friendly Entrypoint Must
 
-- be compact enough to distill into a downstream brief
+- omit background that does not change the downstream brief
 - include route-to-me triggers
 - include precedence rules and required inputs
 - include the output contract and validation hook

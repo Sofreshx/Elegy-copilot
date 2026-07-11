@@ -172,7 +172,7 @@ export const COMPATIBILITY_MANIFESTS = [
       agentsAreFlat: true,
       skillsRequireFolderName: true,
       notes:
-        'Install only Codex-native home instructions, a read-only reviewer agent, and the repo-setup skill under ~/.codex, then patch ~/.codex/config.toml conservatively. Do not bulk-install Copilot/engine assets into Codex.',
+        'Install Codex-native home instructions, four bounded role agents, and curated skills under ~/.codex, then patch ~/.codex/config.toml conservatively. Do not bulk-install Copilot/engine assets into Codex.',
     },
     governance: SHARED_G05_GOVERNANCE,
     assetRoutes: [

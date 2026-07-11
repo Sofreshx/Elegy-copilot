@@ -30,10 +30,9 @@ const BASELINE_PATH = 'catalog-assets/instructions/agent-session-defaults.md';
 
 const REQUIRED_SECTIONS = [
   '## Repo Discovery',
-  '## Concise Instruction Contract',
+  '## Instruction Content',
   '## Clarification Contract',
   '## Planning Contract',
-  '## Code Quality Posture',
   '## Review Rule',
   '## Validation Rule',
 ];
@@ -141,7 +140,7 @@ function checkBaseline(repoRoot) {
     id: 'baseline-sections',
     status: missingSections.length === 0 ? 'ok' : 'missing',
     detail: missingSections.length === 0
-      ? 'Contains all required portable sections (incl. Code Quality Posture)'
+      ? 'Contains all required portable sections'
       : `Missing ${missingSections.length} section(s): ${missingSections.join(', ')}`,
   });
 
