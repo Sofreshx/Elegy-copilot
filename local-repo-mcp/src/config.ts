@@ -6,6 +6,8 @@ export type RepoRoot = {
   id: string;
   label: string;
   rootPath: string;
+  denyPatterns?: string[];
+  trackedFilesOnlyByDefault?: boolean;
 };
 
 export type OAuthConfig = {
@@ -23,6 +25,10 @@ export const PORT = Number.parseInt(process.env.LOCAL_REPO_MCP_PORT || '3333', 1
 export const MAX_FILE_SIZE_BYTES = 200000;
 export const DEFAULT_TREE_LIMIT = 500;
 export const DEFAULT_SEARCH_LIMIT = 100;
+export const MAX_BATCH_FILES = 20;
+export const MAX_BATCH_BYTES = 500000;
+export const MAX_SEARCH_MATCHES = 500;
+export const MAX_DIFF_BYTES = 500000;
 
 function expandHome(inputPath: string): string {
   if (inputPath === '~') return os.homedir();
@@ -71,6 +77,8 @@ export function getRepoRoots(): RepoRoot[] {
         id: String(entry.alias || entry.repoId || ''),
         label: String(entry.label || entry.repoLabel || entry.alias || entry.repoId || ''),
         rootPath: String(entry.root || entry.repoPath || ''),
+        denyPatterns: Array.isArray(entry.denyPatterns) ? entry.denyPatterns.map(String) : undefined,
+        trackedFilesOnlyByDefault: entry.trackedFilesOnlyByDefault !== false,
       }))
       .filter((root) => root.id && root.rootPath && fs.existsSync(root.rootPath))
     : [];
@@ -84,6 +92,8 @@ function normalizeRoot(root: RepoRoot): RepoRoot {
     id: root.id,
     label: root.label,
     rootPath: path.resolve(expandHome(root.rootPath)),
+    denyPatterns: Array.isArray(root.denyPatterns) ? root.denyPatterns.map(String) : undefined,
+    trackedFilesOnlyByDefault: root.trackedFilesOnlyByDefault !== false,
   };
 }
 

@@ -75,6 +75,64 @@ test('Elegy plugin marketplace service installs verified archive and calls Codex
   ]);
 });
 
+test('marketplace install rejects a missing required plugin before replacing the current projection', async () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-elegy-plugin-preflight-'));
+  const codexHome = path.join(temp, 'codex-home');
+  const currentRoot = path.join(codexHome, 'marketplaces', 'elegy');
+  fs.mkdirSync(path.join(currentRoot, '.agents', 'plugins'), { recursive: true });
+  fs.writeFileSync(path.join(currentRoot, 'sentinel.txt'), 'keep-current', 'utf8');
+
+  await assert.rejects(
+    marketplace.installElegyCodexPlugins({
+      codexHome,
+      pluginNames: ['elegy-planning', 'elegy-ui-craft'],
+      archiveBuffer: Buffer.from('archive-without-ui-craft'),
+      checksumText: `${marketplace.sha256Buffer(Buffer.from('archive-without-ui-craft'))}  archive.zip`,
+      extractZip(_archive, destination) {
+        writeMarketplace(destination);
+      },
+      spawnSyncImpl() {
+        throw new Error('Codex must not be called before archive preflight passes');
+      },
+    }),
+    /missing required plugin.*elegy-ui-craft/i,
+  );
+
+  assert.equal(fs.readFileSync(path.join(currentRoot, 'sentinel.txt'), 'utf8'), 'keep-current');
+});
+
+test('marketplace install rolls back when Codex post-install verification is incomplete', async () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-elegy-plugin-rollback-'));
+  const codexHome = path.join(temp, 'codex-home');
+  const currentRoot = path.join(codexHome, 'marketplaces', 'elegy');
+  fs.mkdirSync(currentRoot, { recursive: true });
+  fs.writeFileSync(path.join(currentRoot, 'sentinel.txt'), 'keep-current', 'utf8');
+  const archiveBuffer = Buffer.from('archive-with-planning');
+  const sha = marketplace.sha256Buffer(archiveBuffer);
+
+  await assert.rejects(
+    marketplace.installElegyCodexPlugins({
+      codexHome,
+      pluginNames: ['elegy-planning'],
+      archiveBuffer,
+      checksumText: `${sha}  archive.zip`,
+      extractZip(_archive, destination) {
+        writeMarketplace(destination);
+      },
+      spawnSyncImpl(_command, args) {
+        if (args.includes('marketplace') || args.includes('add')) {
+          return { status: 0, stdout: JSON.stringify({ ok: true }), stderr: '' };
+        }
+        return { status: 0, stdout: JSON.stringify({ plugins: [] }), stderr: '' };
+      },
+    }),
+    /post-install verification failed/i,
+  );
+
+  assert.equal(fs.readFileSync(path.join(currentRoot, 'sentinel.txt'), 'utf8'), 'keep-current');
+  assert.equal(fs.existsSync(path.join(currentRoot, 'plugins', 'elegy-planning')), false);
+});
+
 test('Elegy plugin marketplace status reports notInstalled current and stale', () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-elegy-plugin-status-'));
   const root = path.join(temp, 'marketplaces', 'elegy');

@@ -16,7 +16,18 @@ import {
   listPendingAuthorizations,
 } from './localOAuth.js';
 import { isMcpPathAllowed } from './publicAccess.js';
-import { findRoot, gitLog, gitStatus, listTree, readFile, searchText, toPublicRoot } from './repoAccess.js';
+import {
+  findRoot,
+  gitChangedFiles,
+  gitDiff,
+  gitLog,
+  gitStatus,
+  listTreeDetailed,
+  readFile,
+  readMany,
+  searchTextDetailed,
+  toPublicRoot,
+} from './repoAccess.js';
 
 type ToolArgs = Record<string, unknown>;
 const oauth = getOAuthConfig();
@@ -46,6 +57,20 @@ function optionalNumberArg(args: ToolArgs, name: string, fallback: number): numb
   if (value === undefined) return fallback;
   if (typeof value !== 'number') throw new Error(`${name} must be a number.`);
   return value;
+}
+
+function optionalBooleanArg(args: ToolArgs, name: string): boolean | undefined {
+  const value = args[name];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'boolean') throw new Error(`${name} must be a boolean.`);
+  return value;
+}
+
+function optionalStringArrayArg(args: ToolArgs, name: string): string[] | undefined {
+  const value = args[name];
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) throw new Error(`${name} must be an array of strings.`);
+  return value as string[];
 }
 
 function registerTool(
@@ -81,36 +106,110 @@ function createMcpServer(): McpServer {
 
   registerTool(server, 'repo_tree', {
     description: 'List files and directories under an exposed root. Paths are relative to the selected root.',
-    inputSchema: { rootId: z.string(), path: z.string().optional(), limit: z.number().int().min(1).max(2000).optional() },
+    inputSchema: {
+      rootId: z.string(),
+      path: z.string().optional(),
+      maxDepth: z.number().int().min(0).max(100).optional(),
+      includeFiles: z.boolean().optional(),
+      includeDirectories: z.boolean().optional(),
+      trackedOnly: z.boolean().optional(),
+      includeGlobs: z.array(z.string()).optional(),
+      excludeGlobs: z.array(z.string()).optional(),
+      limit: z.number().int().min(1).max(2000).optional(),
+      cursor: z.string().optional(),
+    },
   }, async (args) => {
     const roots = getRepoRoots();
     const rootId = stringArg(args, 'rootId');
     return asText({
       rootId,
-      entries: await listTree(findRoot(roots, rootId), optionalStringArg(args, 'path', '.'), optionalNumberArg(args, 'limit', 500)),
+      ...(await listTreeDetailed(findRoot(roots, rootId), {
+        path: optionalStringArg(args, 'path', '.'),
+        maxDepth: args.maxDepth === undefined ? undefined : optionalNumberArg(args, 'maxDepth', 2),
+        includeFiles: optionalBooleanArg(args, 'includeFiles'),
+        includeDirectories: optionalBooleanArg(args, 'includeDirectories'),
+        trackedOnly: optionalBooleanArg(args, 'trackedOnly'),
+        includeGlobs: optionalStringArrayArg(args, 'includeGlobs'),
+        excludeGlobs: optionalStringArrayArg(args, 'excludeGlobs'),
+        limit: optionalNumberArg(args, 'limit', 500),
+        cursor: optionalStringArg(args, 'cursor', ''),
+      })),
     });
   });
 
   registerTool(server, 'repo_read_file', {
-    description: 'Read one text file from an exposed root. The file must be below the size limit and not denied.',
-    inputSchema: { rootId: z.string(), path: z.string() },
+    description: 'Read one bounded text-file range from an exposed root. Paths are relative and denied files are rejected.',
+    inputSchema: {
+      rootId: z.string(),
+      path: z.string(),
+      startLine: z.number().int().min(1).optional(),
+      endLine: z.number().int().min(1).optional(),
+      maxBytes: z.number().int().min(1).max(200000).optional(),
+    },
   }, async (args) => {
     const roots = getRepoRoots();
-    return asText(await readFile(findRoot(roots, stringArg(args, 'rootId')), stringArg(args, 'path')));
+    return asText(await readFile(findRoot(roots, stringArg(args, 'rootId')), stringArg(args, 'path'), {
+      startLine: args.startLine === undefined ? undefined : optionalNumberArg(args, 'startLine', 1),
+      endLine: args.endLine === undefined ? undefined : optionalNumberArg(args, 'endLine', 1),
+      maxBytes: args.maxBytes === undefined ? undefined : optionalNumberArg(args, 'maxBytes', 200000),
+    }));
+  });
+
+  registerTool(server, 'repo_read_many', {
+    description: 'Read several bounded text-file ranges from an exposed root in request order.',
+    inputSchema: {
+      rootId: z.string(),
+      files: z.array(z.object({
+        path: z.string(),
+        startLine: z.number().int().min(1).optional(),
+        endLine: z.number().int().min(1).optional(),
+      })).max(20),
+      maxTotalBytes: z.number().int().min(1).max(500000).optional(),
+    },
+  }, async (args) => {
+    const roots = getRepoRoots();
+    const files = args.files;
+    if (!Array.isArray(files)) throw new Error('files must be an array.');
+    return asText(await readMany(findRoot(roots, stringArg(args, 'rootId')), files.map((file) => {
+      if (!file || typeof file !== 'object' || typeof (file as { path?: unknown }).path !== 'string') throw new Error('Each file needs a path.');
+      const entry = file as { path: string; startLine?: number; endLine?: number };
+      return entry;
+    }), optionalNumberArg(args, 'maxTotalBytes', 500000)));
   });
 
   registerTool(server, 'repo_search', {
     description: 'Search text in allowed files under an exposed root.',
-    inputSchema: { rootId: z.string(), query: z.string(), path: z.string().optional(), limit: z.number().int().min(1).max(500).optional() },
+    inputSchema: {
+      rootId: z.string(),
+      query: z.string(),
+      path: z.string().optional(),
+      caseSensitive: z.boolean().optional(),
+      includeGlobs: z.array(z.string()).optional(),
+      excludeGlobs: z.array(z.string()).optional(),
+      limit: z.number().int().min(1).max(500).optional(),
+      contextBefore: z.number().int().min(0).max(20).optional(),
+      contextAfter: z.number().int().min(0).max(20).optional(),
+      maxMatches: z.number().int().min(1).max(500).optional(),
+      maxMatchesPerFile: z.number().int().min(1).max(500).optional(),
+      trackedOnly: z.boolean().optional(),
+      cursor: z.string().optional(),
+    },
   }, async (args) => {
     const roots = getRepoRoots();
     const rootId = stringArg(args, 'rootId');
     const query = stringArg(args, 'query');
-    return asText({
-      rootId,
-      query,
-      matches: await searchText(findRoot(roots, rootId), query, optionalStringArg(args, 'path', '.'), optionalNumberArg(args, 'limit', 100)),
-    });
+    return asText(await searchTextDetailed(findRoot(roots, rootId), query, {
+      path: optionalStringArg(args, 'path', '.'),
+      caseSensitive: optionalBooleanArg(args, 'caseSensitive'),
+      includeGlobs: optionalStringArrayArg(args, 'includeGlobs'),
+      excludeGlobs: optionalStringArrayArg(args, 'excludeGlobs'),
+      contextBefore: args.contextBefore === undefined ? undefined : optionalNumberArg(args, 'contextBefore', 0),
+      contextAfter: args.contextAfter === undefined ? undefined : optionalNumberArg(args, 'contextAfter', 0),
+      maxMatches: args.maxMatches === undefined ? (args.limit === undefined ? undefined : optionalNumberArg(args, 'limit', 100)) : optionalNumberArg(args, 'maxMatches', 100),
+      maxMatchesPerFile: args.maxMatchesPerFile === undefined ? undefined : optionalNumberArg(args, 'maxMatchesPerFile', 100),
+      trackedOnly: optionalBooleanArg(args, 'trackedOnly'),
+      cursor: optionalStringArg(args, 'cursor', ''),
+    }));
   });
 
   registerTool(server, 'repo_git_status', {
@@ -128,6 +227,55 @@ function createMcpServer(): McpServer {
     const roots = getRepoRoots();
     return asText(await gitLog(findRoot(roots, stringArg(args, 'rootId')), optionalNumberArg(args, 'limit', 20)));
   });
+
+  registerTool(server, 'repo_git_diff', {
+    description: 'Return bounded structured staged or unstaged current-worktree changes relative to HEAD.',
+    inputSchema: {
+      rootId: z.string(),
+      staged: z.boolean().optional(),
+      paths: z.array(z.string()).optional(),
+      contextLines: z.number().int().min(0).max(20).optional(),
+      maxBytes: z.number().int().min(1).max(500000).optional(),
+    },
+  }, async (args) => {
+    const roots = getRepoRoots();
+    return asText(await gitDiff(findRoot(roots, stringArg(args, 'rootId')), {
+      staged: optionalBooleanArg(args, 'staged'),
+      paths: optionalStringArrayArg(args, 'paths'),
+      contextLines: optionalNumberArg(args, 'contextLines', 3),
+      maxBytes: optionalNumberArg(args, 'maxBytes', 500000),
+    }));
+  });
+
+  registerTool(server, 'repo_git_changed_files', {
+    description: 'Return normalized staged, unstaged, deleted, renamed, binary, and untracked worktree changes.',
+    inputSchema: {
+      rootId: z.string(),
+      includeUntracked: z.boolean().optional(),
+      includeStaged: z.boolean().optional(),
+    },
+  }, async (args) => {
+    const roots = getRepoRoots();
+    return asText(await gitChangedFiles(findRoot(roots, stringArg(args, 'rootId')), {
+      includeUntracked: optionalBooleanArg(args, 'includeUntracked'),
+      includeStaged: optionalBooleanArg(args, 'includeStaged'),
+    }));
+  });
+
+  registerTool(server, 'repo_capabilities', {
+    description: 'Describe bounded repository-reader capabilities supported by this server.',
+    inputSchema: {},
+  }, async () => asText({
+    protocolVersion: '1.1',
+    tools: {
+      repo_read_file: { lineRanges: true },
+      repo_read_many: { maxFiles: 20, maxTotalBytes: 500000 },
+      repo_search: { literal: true, globs: true, context: true, pagination: true },
+      repo_git_changed_files: { staged: true, unstaged: true, untracked: true },
+      repo_git_diff: { workingTree: true, structuredFiles: true },
+      repo_tree: { deniedGitInternals: true },
+    },
+  }));
 
   return server;
 }

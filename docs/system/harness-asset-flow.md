@@ -158,8 +158,9 @@ refreshes do not rely on delete-then-copy for normal overwrite paths.
 The instruction writing contract (Authority, Concise Instruction, Clarification, Planning, Review, Validation, Core Workflow) is maintained in a single shared baseline at `catalog-assets/instructions/agent-session-defaults.md`. At install time, each harness installer composes the shared baseline with a harness-specific appendix to produce the installed instruction file.
 
 Vendor assets are shipped only when a pinned source, compatible license, and validation script exist.
-Impeccable is currently the only approved vendored UI skill; ui.sh/TypeUI is intentionally excluded
-because its EULA does not allow redistributing standalone skill resources.
+Impeccable is retained as attributed research only; governed UI capabilities ship through the
+Elegy-owned `elegy-ui-craft@elegy` plugin. ui.sh/TypeUI remains intentionally excluded because its
+EULA does not allow redistributing standalone skill resources.
 
 ### Tier 2: Per-Repo Discovery (repo-setup-profile-bootstrap)
 

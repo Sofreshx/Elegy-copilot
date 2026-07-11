@@ -123,6 +123,9 @@ test('disabled auth lists tools without bearer challenge', async () => {
     assert.equal(response.status, 200);
     assert.equal(response.headers.has('www-authenticate'), false);
     assert.match(body, /repo_roots/);
+    assert.match(body, /repo_read_many/);
+    assert.match(body, /repo_git_changed_files/);
+    assert.match(body, /repo_capabilities/);
   } finally {
     await stopServer(child);
   }

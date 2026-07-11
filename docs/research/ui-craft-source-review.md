@@ -42,3 +42,16 @@ Research is evidence, not executable policy. The plugin ships concise operationa
 Elegy-owned implementations; it does not redistribute the retired Impeccable package. Managed
 cleanup may prune a legacy installed asset only when an Elegy install receipt proves ownership.
 Untracked user-local skills must be preserved and reported.
+
+## Implementation Coverage
+
+| Research requirement | Elegy UI Craft output | Verification |
+|---|---|---|
+| Category-specific visual direction | `ui-brief.schema.json`, category references, `theme generate` | Contract tests cover supported categories and deterministic output |
+| Tokenized, coherent visual system | `ui-theme.schema.json`, generated semantic color/type/spacing/motion tokens | `theme generate` output is deterministic for the same brief and seed |
+| Evidence-backed review | `ui-scorecard.schema.json`, `audit`, `check` and evidence references | Plugin contract and CLI tests validate report contracts |
+| WCAG-aware semantic contrast | `contrast` command and semantic pair report | Contract test verifies ratios and failed thresholds |
+| Avoid generic decorative patterns | Stable audit rules for transition-all, outline removal, important, gradient text, repeating stripes, side stripes, and over-rounded surfaces | Audit contract tests assert the rule IDs and suppression compatibility |
+
+The plugin deliberately does not claim screenshot-only accessibility compliance, mutate project files,
+install project hooks, or depend on an implicit external vendor update.

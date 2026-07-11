@@ -56,9 +56,7 @@ async function run() {
     const bootstrapHtml = fs.readFileSync(path.join(repoRoot, 'src-tauri', 'bootstrap', 'index.html'), 'utf8');
 
     assert.ok(fs.existsSync(brandIconPath), 'Expected branded svg icon asset in ui/public');
-    // Sidebar is now an icon rail — brand icon lives in Settings, not the rail
-    assert.ok(!sidebarSource.includes('sidebar-brand-icon'), 'Expected Sidebar icon rail to NOT render branded icon');
-    assert.ok(!sidebarSource.includes('/elegy-copilot-icon.svg'), 'Expected Sidebar icon rail to NOT reference branded svg');
+    assert.ok(sidebarSource.includes('sidebar-brand-icon'), 'Expected Sidebar to render the branded icon');
     assert.ok(settingsSource.includes('settings-view'), 'Expected SettingsView to have settings-view data-testid');
     assert.ok(settingsSource.includes('settings-toolbar'), 'Expected SettingsView to have settings-toolbar element');
     assert.ok(settingsSource.includes('settings-about-brand'), 'Expected Settings about panel to render branded app identity');
@@ -67,32 +65,13 @@ async function run() {
     assert.ok(bootstrapHtml.includes('Starting workspace...'), 'Expected Tauri bootstrap shell to expose branded startup copy');
   });
 
-  await test('sidebar uses fixed icon rail with no brand, no collapse toggle', async () => {
+  await test('sidebar exposes branded shell and collapse controls', async () => {
     const sidebarSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'Sidebar.tsx'), 'utf8');
 
-    // No brand image — the icon rail should not render brand imagery
-    assert.ok(
-      !sidebarSource.includes('/elegy-copilot-icon.svg'),
-      'Expected Sidebar to NOT reference the branded svg (icon rail has no brand image)'
-    );
-    assert.ok(
-      !sidebarSource.includes('sidebar-brand-icon'),
-      'Expected Sidebar to NOT use sidebar-brand-icon class'
-    );
-
-    // No collapse toggle
-    assert.ok(
-      !sidebarSource.includes('sidebar-collapse-toggle'),
-      'Expected Sidebar to NOT have sidebar-collapse-toggle (always thin, no collapse)'
-    );
-    assert.ok(
-      !sidebarSource.includes('isCollapsed'),
-      'Expected Sidebar to NOT accept isCollapsed prop'
-    );
-    assert.ok(
-      !sidebarSource.includes('onToggleCollapse'),
-      'Expected Sidebar to NOT accept onToggleCollapse prop'
-    );
+    assert.ok(sidebarSource.includes('sidebar-brand-icon'), 'Expected Sidebar to use sidebar-brand-icon');
+    assert.ok(sidebarSource.includes('sidebar-collapse-toggle'), 'Expected Sidebar to expose a collapse toggle');
+    assert.ok(sidebarSource.includes('collapsed'), 'Expected Sidebar to accept collapsed state');
+    assert.ok(sidebarSource.includes('onToggleCollapsed'), 'Expected Sidebar to accept a collapse handler');
 
     // Icon rail specific elements (items are rendered from dynamic items array)
     assert.ok(sidebarSource.includes('className="sidebar"'), 'Expected sidebar className on nav element');
@@ -409,13 +388,10 @@ async function run() {
     assert.ok(source.includes('runGitChecks'), 'Expected runGitChecks function');
   });
 
-  await test('Sidebar is a fixed 52px icon rail with no collapse support', async () => {
+  await test('Sidebar supports collapsed and expanded shell states', async () => {
     const sidebarSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'Sidebar.tsx'), 'utf8');
-    // No collapse props
-    assert.ok(!sidebarSource.includes('isCollapsed'), 'Expected Sidebar to NOT accept isCollapsed');
-    assert.ok(!sidebarSource.includes('sidebar-collapsed'), 'Expected no sidebar-collapsed class reference');
-    assert.ok(!sidebarSource.includes('sidebar-collapse-toggle'), 'Expected no collapse toggle testId');
-    // Fixed rail: items are icon-only
+    assert.ok(sidebarSource.includes('data-collapsed'), 'Expected Sidebar to expose collapsed state');
+    assert.ok(sidebarSource.includes('sidebar-collapse-toggle'), 'Expected collapse toggle testId');
     assert.ok(sidebarSource.includes('aria-label'), 'Expected aria-labels on nav items');
     assert.ok(sidebarSource.includes('title={'), 'Expected title attributes on nav items');
   });
@@ -430,12 +406,13 @@ async function run() {
     assert.ok(layoutSource.includes('app-version'), 'Expected app-version footer element');
   });
 
-  await test('App.tsx does NOT persist sidebar collapse state', async () => {
+  await test('App.tsx wires persisted sidebar collapse state', async () => {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
-    assert.ok(!appSource.includes('elegy-copilot-sidebar-collapsed'), 'Expected NO sidebar collapse localStorage key');
-    assert.ok(!appSource.includes('handleToggleSidebarCollapse'), 'Expected NO sidebar collapse toggle handler');
-    assert.ok(!appSource.includes('isSidebarCollapsed'), 'Expected NO isSidebarCollapsed state');
-    assert.ok(!appSource.includes('sidebarCollapsed'), 'Expected NO sidebarCollapsed prop on AppLayout');
+    const preferencesSource = fs.readFileSync(path.join(uiSrcRoot, 'stores', 'shellPreferences.ts'), 'utf8');
+    assert.ok(appSource.includes('shellPreferences'), 'Expected App.tsx to read shell preferences');
+    assert.ok(appSource.includes('sidebarCollapsed'), 'Expected App.tsx to pass sidebar collapse state');
+    assert.ok(preferencesSource.includes('elegy-copilot-sidebar-collapsed'), 'Expected persisted sidebar preference key');
+    assert.ok(preferencesSource.includes('toggleSidebar'), 'Expected persisted sidebar toggle action');
   });
 
   await test('WorkspaceDocsTab renders WorkspaceDocsCenter with correct props', async () => {

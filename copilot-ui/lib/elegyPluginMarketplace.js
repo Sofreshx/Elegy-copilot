@@ -118,7 +118,12 @@ function parseJsonOutput(stdout) {
 }
 
 function runCodex(args, options = {}) {
-  const command = options.codexCommand || options.env?.CODEX_COMMAND || process.env.CODEX_COMMAND || 'codex';
+  const command = options.codexCommand
+    || options.env?.CODEX_COMMAND
+    || options.env?.CODEX_CLI_PATH
+    || process.env.CODEX_COMMAND
+    || process.env.CODEX_CLI_PATH
+    || 'codex';
   const result = runCommand(command, args, options);
   return {
     ...result,
@@ -155,16 +160,32 @@ function replaceDirectory(staging, destination) {
   fs.mkdirSync(parent, { recursive: true });
   const backup = `${destination}.previous-${Date.now()}`;
   if (fs.existsSync(backup)) fs.rmSync(backup, { recursive: true, force: true });
-  if (fs.existsSync(destination)) fs.renameSync(destination, backup);
+  const hadDestination = fs.existsSync(destination);
+  if (hadDestination) fs.renameSync(destination, backup);
   try {
     fs.renameSync(staging, destination);
-    if (fs.existsSync(backup)) fs.rmSync(backup, { recursive: true, force: true });
   } catch (error) {
     if (!fs.existsSync(destination) && fs.existsSync(backup)) {
       fs.renameSync(backup, destination);
     }
     throw error;
   }
+  let settled = false;
+  return {
+    commit() {
+      if (settled) return;
+      settled = true;
+      if (fs.existsSync(backup)) fs.rmSync(backup, { recursive: true, force: true });
+    },
+    rollback() {
+      if (settled) return;
+      settled = true;
+      if (fs.existsSync(destination)) fs.rmSync(destination, { recursive: true, force: true });
+      if (hadDestination && fs.existsSync(backup)) {
+        fs.renameSync(backup, destination);
+      }
+    },
+  };
 }
 
 function readJson(filePath, fallback = null) {
@@ -190,6 +211,27 @@ function readMarketplacePlugins(marketplaceRoot) {
     category: plugin.category || null,
     sourcePath: plugin.source?.path || null,
   })).filter((plugin) => plugin.name);
+}
+
+function validateMarketplaceProjection(marketplaceRoot, pluginNames) {
+  const marketplace = readJson(path.join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json'), null);
+  const marketplaceNames = new Set(readMarketplacePlugins(marketplaceRoot).map((plugin) => plugin.name));
+  const missing = pluginNames.filter((pluginName) => !marketplaceNames.has(pluginName));
+  if (missing.length > 0) {
+    throw new Error(`Elegy Codex marketplace is missing required plugin(s): ${missing.join(', ')}`);
+  }
+
+  for (const pluginName of pluginNames) {
+    const manifestPath = path.join(marketplaceRoot, 'plugins', pluginName, '.codex-plugin', 'plugin.json');
+    const manifest = readJson(manifestPath, null);
+    if (manifest?.name !== pluginName) {
+      throw new Error(`Elegy Codex marketplace plugin manifest is missing or mismatched for ${pluginName}: ${manifestPath}`);
+    }
+  }
+
+  if (marketplace?.name && marketplace.name !== DEFAULT_MARKETPLACE_NAME) {
+    throw new Error(`Elegy Codex marketplace has unexpected name: ${marketplace.name}`);
+  }
 }
 
 function flattenPluginList(value) {
@@ -313,6 +355,7 @@ async function getElegyPluginMarketplaceStatus(options = {}) {
 
 async function installElegyCodexPlugins(options = {}) {
   const target = options.target || resolveTargetTriple(options);
+  const pluginNames = options.pluginNames || DEFAULT_PLUGIN_NAMES;
   const archiveName = marketplaceArchiveName(target);
   const archiveUrl = options.archiveUrl || releaseAssetUrl(options, archiveName);
   const checksumUrl = options.checksumUrl || `${archiveUrl}.sha256`;
@@ -337,57 +380,70 @@ async function installElegyCodexPlugins(options = {}) {
   if (!fs.existsSync(path.join(staging, '.agents', 'plugins', 'marketplace.json'))) {
     throw new Error('Elegy Codex marketplace archive is missing .agents/plugins/marketplace.json.');
   }
+  validateMarketplaceProjection(staging, pluginNames);
 
-  replaceDirectory(staging, marketplaceRoot);
-  const releaseTag = options.releaseTag || options.env?.ELEGY_RELEASE_TAG || DEFAULT_RELEASE_TAG;
-  const metadata = {
-    schemaVersion: 'elegy-codex-marketplace-install/v1',
-    marketplaceName: DEFAULT_MARKETPLACE_NAME,
-    releaseTag,
-    target,
-    archiveUrl,
-    checksumUrl,
-    archiveSha256: actualSha256,
-    installedAt: new Date().toISOString(),
-  };
-  const metadataPath = writeInstallMetadata(marketplaceRoot, metadata);
+  const transaction = replaceDirectory(staging, marketplaceRoot);
+  try {
+    const releaseTag = options.releaseTag || options.env?.ELEGY_RELEASE_TAG || DEFAULT_RELEASE_TAG;
+    const metadata = {
+      schemaVersion: 'elegy-codex-marketplace-install/v1',
+      marketplaceName: DEFAULT_MARKETPLACE_NAME,
+      releaseTag,
+      target,
+      archiveUrl,
+      checksumUrl,
+      archiveSha256: actualSha256,
+      installedAt: new Date().toISOString(),
+    };
+    const metadataPath = writeInstallMetadata(marketplaceRoot, metadata);
 
-  const marketplaceAdd = runCodex(['plugin', 'marketplace', 'add', marketplaceRoot, '--json'], options);
-  if (!marketplaceAdd.ok) {
-    throw new Error(`Codex marketplace add failed: ${marketplaceAdd.stderr || marketplaceAdd.stdout}`);
-  }
-
-  const pluginNames = options.pluginNames || DEFAULT_PLUGIN_NAMES;
-  const installs = [];
-  for (const pluginName of pluginNames) {
-    const install = runCodex(['plugin', 'add', `${pluginName}@${DEFAULT_MARKETPLACE_NAME}`, '--json'], options);
-    installs.push({ plugin: pluginName, ...install });
-    if (!install.ok) {
-      throw new Error(`Codex plugin add failed for ${pluginName}: ${install.stderr || install.stdout}`);
+    const marketplaceAdd = runCodex(['plugin', 'marketplace', 'add', marketplaceRoot, '--json'], options);
+    if (!marketplaceAdd.ok) {
+      throw new Error(`Codex marketplace add failed: ${marketplaceAdd.stderr || marketplaceAdd.stdout}`);
     }
-  }
 
-  const available = runCodex(['plugin', 'list', '--marketplace', DEFAULT_MARKETPLACE_NAME, '--available', '--json'], options);
-  const installed = runCodex(['plugin', 'list', '--marketplace', DEFAULT_MARKETPLACE_NAME, '--json'], options);
-  return {
-    ok: true,
-    marketplaceName: DEFAULT_MARKETPLACE_NAME,
-    marketplaceRoot,
-    target,
-    archiveSha256: actualSha256,
-    metadataPath,
-    marketplaceAdd,
-    installs,
-    available: available.json,
-    installed: installed.json,
-    status: buildPluginStatus({
+    const installs = [];
+    for (const pluginName of pluginNames) {
+      const install = runCodex(['plugin', 'add', `${pluginName}@${DEFAULT_MARKETPLACE_NAME}`, '--json'], options);
+      installs.push({ plugin: pluginName, ...install });
+      if (!install.ok) {
+        throw new Error(`Codex plugin add failed for ${pluginName}: ${install.stderr || install.stdout}`);
+      }
+    }
+
+    const available = runCodex(['plugin', 'list', '--marketplace', DEFAULT_MARKETPLACE_NAME, '--available', '--json'], options);
+    const installed = runCodex(['plugin', 'list', '--marketplace', DEFAULT_MARKETPLACE_NAME, '--json'], options);
+    const status = buildPluginStatus({
       marketplaceRoot,
       pluginNames,
       installedJson: installed.json,
       availableJson: available.json,
       codexError: installed.ok ? null : (installed.stderr || installed.stdout),
-    }),
-  };
+    });
+    const incomplete = status.plugins.filter((plugin) => plugin.status !== 'current' || plugin.enabled !== true);
+    if (!installed.ok || incomplete.length > 0) {
+      const details = incomplete.map((plugin) => `${plugin.plugin}: ${plugin.status}, enabled=${plugin.enabled}`).join('; ');
+      throw new Error(`Codex plugin post-install verification failed${details ? `: ${details}` : ''}`);
+    }
+
+    transaction.commit();
+    return {
+      ok: true,
+      marketplaceName: DEFAULT_MARKETPLACE_NAME,
+      marketplaceRoot,
+      target,
+      archiveSha256: actualSha256,
+      metadataPath,
+      marketplaceAdd,
+      installs,
+      available: available.json,
+      installed: installed.json,
+      status,
+    };
+  } catch (error) {
+    transaction.rollback();
+    throw error;
+  }
 }
 
 function windowsPluginBinaryName(pluginName, options = {}) {
@@ -412,4 +468,5 @@ module.exports = {
   resolveTargetTriple,
   sha256Buffer,
   windowsPluginBinaryName,
+  validateMarketplaceProjection,
 };
