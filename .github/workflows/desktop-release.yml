@@ -176,6 +176,11 @@ jobs:
         env:
           npm_config_msvs_version: '2022'
 
+      - name: Generate CLI artifacts
+        run: |
+          node scripts/generate-cli-manifest.mjs
+          node scripts/generate-policy-lockfiles.js
+
       - name: Build and stage Windows package
         run: npm --prefix copilot-ui run desktop:preview:stage
         env:
