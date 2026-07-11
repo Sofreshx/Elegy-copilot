@@ -27,5 +27,11 @@ jobs:
       - name: Install workspace dependencies
         run: npm ci
 
-      - name: Run maintained full CI contract
-        run: npm run ci:local:full
+      - name: Run maintained CI contract
+        run: npm run ci:local
+
+      - name: Check Rust backend
+        run: cargo check --manifest-path copilot-ui/src-tauri/Cargo.toml
+
+      - name: Build documentation
+        run: npm run docs:build
