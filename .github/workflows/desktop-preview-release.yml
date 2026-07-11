@@ -2,6 +2,8 @@ name: Elegy Copilot Desktop Preview Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - '*.*.*'
       - '!v*'
@@ -39,6 +41,7 @@ jobs:
       tag_name: ${{ steps.meta.outputs.tag_name }}
       release_name: ${{ steps.meta.outputs.release_name }}
       prerelease: ${{ steps.meta.outputs.prerelease }}
+      main_push: ${{ steps.meta.outputs.main_push }}
     steps:
       - name: Checkout repository metadata
         uses: actions/checkout@v5
@@ -148,6 +151,7 @@ jobs:
           echo "tag_name=${tag_name}" >> "$GITHUB_OUTPUT"
           echo "release_name=${release_name}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
+          echo "main_push=${main_push}" >> "$GITHUB_OUTPUT"
 
   build-windows-preview:
     needs: resolve-preview
@@ -210,6 +214,7 @@ jobs:
           RELEASE_TAG: ${{ needs.resolve-preview.outputs.tag_name }}
           RELEASE_TARGET: ${{ needs.resolve-preview.outputs.release_target }}
           RELEASE_NAME: ${{ needs.resolve-preview.outputs.release_name }}
+          MAIN_PUSH: ${{ needs.resolve-preview.outputs.main_push }}
         run: |
           set -euo pipefail
 
@@ -221,9 +226,31 @@ jobs:
 
           prerelease_flag=(--prerelease)
 
+          if [[ "${MAIN_PUSH}" == "true" ]] && gh api "repos/${GH_REPO}/git/ref/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/${GH_REPO}/git/refs/tags/${RELEASE_TAG}" -f sha="${RELEASE_TARGET}" -F force=true >/dev/null
+          fi
+
           if gh release view "${RELEASE_TAG}" --repo "${GH_REPO}" >/dev/null 2>&1; then
             gh release edit "${RELEASE_TAG}" --repo "${GH_REPO}" --draft=false --target "${RELEASE_TARGET}" --title "${RELEASE_NAME}" "${prerelease_flag[@]}"
             gh release upload "${RELEASE_TAG}" --repo "${GH_REPO}" "${release_files[@]}" --clobber
           else
             gh release create "${RELEASE_TAG}" --repo "${GH_REPO}" "${release_files[@]}" --target "${RELEASE_TARGET}" --title "${RELEASE_NAME}" --generate-notes "${prerelease_flag[@]}"
+          fi
+
+      - name: Publish updater feed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mapfile -t updater_files < <(find release-artifacts/windows-tauri -maxdepth 1 -type f \( -name '*-latest.json' -o -name '*.sig' \) | sort)
+          if [[ "${#updater_files[@]}" -lt 2 ]]; then
+            echo "Expected updater feed and signature artifacts." >&2
+            exit 1
+          fi
+          if gh release view desktop-updates --repo "${GH_REPO}" >/dev/null 2>&1; then
+            gh release upload desktop-updates --repo "${GH_REPO}" "${updater_files[@]}" --clobber
+          else
+            gh release create desktop-updates --repo "${GH_REPO}" "${updater_files[@]}" --target "${GITHUB_SHA}" --title "Elegy Copilot Desktop Update Feeds" --notes "Mutable signed updater feeds. Use versioned releases for installers and changelogs."
           fi
