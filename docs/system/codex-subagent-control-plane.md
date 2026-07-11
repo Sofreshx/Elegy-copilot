@@ -1,6 +1,6 @@
 ---
 created: 2026-07-04
-updated: 2026-07-06
+updated: 2026-07-11
 category: system
 status: current
 doc_kind: node
@@ -12,23 +12,29 @@ related: [harness-asset-flow, agents-vs-skills, ui-development-governance]
 
 # Codex Subagent Control Plane
 
-Purpose: manage Codex subagents without making delegation automatic, opaque, or expensive.
+Purpose: manage Codex subagents without making delegation needless, opaque, or
+expensive. Native Codex owns the subagent lifecycle; plugins may add a bounded
+routing policy around it.
 
 ## Contract
 
 | Owner | Responsibility |
 |---|---|
 | Codex main thread | Requirements, architecture, integration, final judgment |
-| Managed subagent TOML | Role, model, effort, sandbox, prompt |
+| Codex baseline agent TOML | Role, model, effort, sandbox, prompt |
 | Elegy Copilot UI | Inspect, install, update, reset, uninstall, and show usage |
 | Native Codex config | `[agents]` concurrency and depth limits |
 | Local telemetry | Derived usage metadata only |
 
-Subagents are explicit delegation tools. They are not background workers.
+Subagents are explicit delegation tools. They are not background workers. A
+plugin-scoped automatic route is allowed only when the plugin is active, the
+task benefits from context/token isolation, and the packet has a bounded scope.
+Do not spawn for tiny or tightly coupled work.
 
 ## Routing policy
 
-Default mode: manual.
+Default mode: manual. The delegated-dev plugin may use `opencode-preferred`
+for eligible worker tasks and fall back to these Codex-native agents.
 
 | Spawn | Do not spawn |
 |---|---|
@@ -50,18 +56,17 @@ Routing modes:
 
 | Agent | Default model | Effort | Sandbox | Use |
 |---|---|---|---|---|
-| `explorer` | `gpt-5.4-mini` | `low` | `read-only` | Noisy repo mapping |
-| `reviewer` | `gpt-5.5` | `high` | `read-only` | Independent review |
-| `test-runner` | `gpt-5.4-mini` | `medium` | `workspace-write` | Bounded validation output |
-| `sweeper` | `gpt-5.4-mini` | `medium` | `workspace-write` | Bounded cleanup |
+| `explorer` | `gpt-5.6-luna` | `low` | `read-only` | Noisy repo mapping |
+| `worker` | `gpt-5.6-luna` | `high` | `workspace-write` | Bounded implementation |
+| `worker-hard` | `gpt-5.6-luna` | `max` | `workspace-write` | Complex bounded implementation |
+| `reviewer` | `gpt-5.6-luna` | `high` | `read-only` | Independent review |
+| `test-runner` | `gpt-5.6-luna` | `medium` | `workspace-write` | Bounded validation output |
+| `sweeper` | `gpt-5.6-luna` | `medium` | `workspace-write` | Bounded cleanup |
 
-`explorer` also records `gpt-5.3-codex-spark` as an optional fast lane when
-the user has Codex Pro access and the task is shallow read-only exploration.
-
-Do not add a general Codex implementation subagent by default. Subagents exist
-to protect the orchestrator from noisy tool traces or to provide independent
-judgment. Main-thread implementation remains the default until telemetry shows a
-dedicated implementation agent is worth the extra token and coordination cost.
+The baseline native lane is capped to Luna and `low`/`medium`/`high`/`max`.
+There is no Spark or higher-effort fallback in this routing contract. The
+delegated-dev plugin prefers OpenCode Workers on the user's OpenCode Go
+subscription for eligible roles, while Sol remains the orchestrator.
 
 `explorer` is one configurable agent, not a family of explorer agents. Use the
 prompt mode instead:
@@ -103,7 +108,7 @@ Editable fields:
 - reasoning effort
 - sandbox
 - routing mode
-- Spark fast-lane toggle
+- baseline model and effort within the Luna cap
 - developer instructions
 
 Local overrides are preserved until the user resets a managed agent.
@@ -154,6 +159,8 @@ Persist or display:
 - token counts
 - tool names and counts
 - completion/error flags
+- OpenCode profile, profile role, model source, cost policy, write mode, and job
+  identifier when present
 
 Do not persist prompts, responses, tool arguments, or tool outputs.
 

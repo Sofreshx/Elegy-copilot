@@ -34,7 +34,7 @@ test('OpenCode Workers routes expose config defaults and persist updates', async
     u: new URL('http://localhost/api/codex/opencode-workers'),
   });
   assert.equal(initial.sent[0].code, 200);
-  assert.equal(initial.sent[0].obj.config.defaultModelProfile, 'opencode-zen-free');
+  assert.equal(initial.sent[0].obj.config.defaultModelProfile, 'opencode-go-balanced');
   assert.equal(initial.sent[0].obj.config.allowPaidModels, false);
   assert.equal(initial.sent[0].obj.config.writeEnabled, false);
   assert.ok(initial.sent[0].obj.roles.includes('implementation'));
@@ -83,7 +83,7 @@ test('OpenCode Workers reject paid/direct profiles unless opted in', async () =>
   });
 
   assert.equal(routes.sent[0].code, 200);
-  assert.equal(routes.sent[0].obj.config.defaultModelProfile, 'opencode-zen-free');
+  assert.equal(routes.sent[0].obj.config.defaultModelProfile, 'opencode-go-balanced');
   assert.equal(routes.sent[0].obj.config.rolePolicies.implementation?.profile, undefined);
   assert.equal(routes.sent[0].obj.config.rolePolicies.implementation?.writeEnabled, true);
 });

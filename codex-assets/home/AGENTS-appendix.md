@@ -31,15 +31,28 @@ vendored Impeccable package are no longer installed by this repository.
 
 ## Subagents
 
-Default: manual. Use subagents only when the user asks or governed automatic
-read-only delegation is explicitly enabled.
+The shared Codex baseline owns native subagent lifecycle, model selection, and
+identity. Do not install or project plugin-owned agent TOMLs that duplicate the
+baseline. The main Sol agent retains requirements, architecture, integration,
+and final judgment.
+
+Default: manual. A plugin may enable automatic delegation only for sessions
+where its explicit routing contract is active, and only when the task benefits
+from context or token isolation. Do not fan out tiny or tightly coupled work.
 
 Delegation contract:
 
 - State scope, boundaries, allowed actions, output shape, and stop condition.
-- Prefer one read-only child agent before write-capable delegation.
-- Keep architecture, requirements, integration, and final judgment in the main
-  thread.
+- Prefer one bounded read-only child before write-capable delegation.
+- Native delegated workers use `gpt-5.6-luna` with effort `low`, `medium`,
+  `high`, or `max`; never select a higher effort or another model family for
+  this lane.
+- Record agent, nickname, model, reasoning effort, source, profile, cost
+  policy, write mode, and job identifier whenever the hosting surface exposes
+  them. Host UI identity is best effort; plugin evidence is authoritative.
+- A write-capable child requires explicit role enablement and an allowlisted
+  file scope. It may not commit, push, publish, change permissions, or modify
+  files outside that scope.
 
 ## Planning and Specs
 

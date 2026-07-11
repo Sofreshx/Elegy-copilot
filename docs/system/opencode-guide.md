@@ -64,6 +64,14 @@ review, and research. Invoke via the Task tool or `@mention` from any primary ag
 | `scout` | Read-only (restricted bash) | External docs and dependency research |
 | `sweeper` | Write-capable | Evidence-backed cleanup — dead code, stale assets, unused dependencies |
 
+The Elegy delegated-dev adapter uses the OpenCode Worker CLI as its preferred
+subagent backend when the task is independently bounded and the OpenCode Go
+profile is available. Read-only work uses the v1 envelope. Implementation work
+uses the guarded v2 envelope and must provide `writeEnabled: true` plus an
+explicit `allowedFiles` list. Workers cannot commit, push, publish, change
+permissions, or edit outside that list; the adapter stops on scope or policy
+violations instead of silently retrying elsewhere.
+
 Support subagents are leaf-only. `impl`, `explorer`, `reviewer`, `scout`, `sweeper`, and managed note subagents
 must deny Task delegation. Validate with `node scripts/validate-opencode-agent-topology.js`.
 

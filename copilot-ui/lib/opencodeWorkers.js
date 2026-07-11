@@ -11,7 +11,7 @@ const {
 
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
-  defaultModelProfile: 'opencode-zen-free',
+  defaultModelProfile: 'opencode-go-balanced',
   roleProfiles: {},
   rolePolicies: {},
   writeEnabled: false,
@@ -52,6 +52,7 @@ function resolveJournalPath(options = {}, config = null) {
 function isPaidProfile(profile = {}) {
   const tags = Array.isArray(profile.tags) ? profile.tags.map((tag) => String(tag).toLowerCase()) : [];
   const roleModels = Object.values(profile.roleModels || {}).map((model) => String(model).toLowerCase());
+  if (tags.includes('go')) return false;
   return tags.includes('direct') || tags.includes('paid') || tags.includes('mixed') || roleModels.some((model) => !model.includes('-free'));
 }
 

@@ -14,7 +14,7 @@ const bannedPatterns = [
 ];
 
 const requiredAgentFields = ['name', 'description', 'model', 'model_reasoning_effort', 'sandbox_mode', 'developer_instructions'];
-const allowedReasoningEfforts = new Set(['low', 'medium', 'high']);
+const allowedReasoningEfforts = new Set(['low', 'medium', 'high', 'max']);
 
 function parseTomlScalar(content, key) {
   const match = content.match(new RegExp(`^${key}\\s*=\\s*([^\\r\\n]+)`, 'm'));

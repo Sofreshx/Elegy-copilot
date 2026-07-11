@@ -11,13 +11,13 @@
     "skillsDir": "~/.codex/skills",
     "instructionsFile": "~/.codex/AGENTS.md",
     "configFile": "~/.codex/config.toml",
-    "description": "Home-installed Codex session assets for planning-first work, review, and minimal repository setup."
+    "description": "Home-installed Codex session assets for planning-first work, bounded Luna subagents, review, and minimal repository setup."
   },
   "installerHints": {
     "preferExplicitDestinations": true,
     "agentsAreFlat": true,
     "skillsRequireFolderName": true,
-    "notes": "Install only Codex-native home instructions, a read-only reviewer agent, and the repo-setup skill under ~/.codex, then patch ~/.codex/config.toml conservatively. Do not bulk-install Copilot/engine assets into Codex."
+    "notes": "Install only Codex-native home instructions, baseline Luna agents, and the repo-setup skill under ~/.codex, then patch ~/.codex/config.toml conservatively. Do not bulk-install Copilot/engine assets into Codex or project plugin-owned agent TOMLs."
   },
   "governance": {
     "g05": {
@@ -79,6 +79,18 @@
       "type": "agent",
       "source": "codex-assets/agents/test-runner.toml",
       "destination": "agents/test-runner.toml"
+    },
+    {
+      "id": "codex-worker-agent",
+      "type": "agent",
+      "source": "codex-assets/agents/worker.toml",
+      "destination": "agents/worker.toml"
+    },
+    {
+      "id": "codex-worker-hard-agent",
+      "type": "agent",
+      "source": "codex-assets/agents/worker-hard.toml",
+      "destination": "agents/worker-hard.toml"
     },
     {
       "id": "codex-sweeper-agent",

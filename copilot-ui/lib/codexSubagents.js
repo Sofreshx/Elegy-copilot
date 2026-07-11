@@ -23,6 +23,8 @@ const EDITABLE_AGENT_FIELDS = new Set([
   'description',
   'developer_instructions',
 ]);
+const BASELINE_SUBAGENT_MODEL = 'gpt-5.6-luna';
+const BASELINE_SUBAGENT_EFFORTS = new Set(['low', 'medium', 'high', 'max']);
 
 function shaText(text) {
   return crypto.createHash('sha256').update(String(text || ''), 'utf8').digest('hex');
@@ -494,6 +496,16 @@ function updateCodexSubagent(name, updates, options = {}) {
     throw Object.assign(new Error(`Unknown Codex subagent: ${name}`), { statusCode: 404 });
   }
   const parsed = parseAgentToml(currentText, targetPath);
+  if (updates.model !== undefined && String(updates.model) !== BASELINE_SUBAGENT_MODEL) {
+    throw Object.assign(new Error(`Managed Codex subagents must use ${BASELINE_SUBAGENT_MODEL}`), { statusCode: 422 });
+  }
+  if (updates.model_reasoning_effort !== undefined
+    && !BASELINE_SUBAGENT_EFFORTS.has(String(updates.model_reasoning_effort))) {
+    throw Object.assign(new Error('Managed Codex subagent effort must be low, medium, high, or max'), { statusCode: 422 });
+  }
+  if (updates.allowSpark === true) {
+    throw Object.assign(new Error('Spark is disabled for the managed Codex subagent lane'), { statusCode: 422 });
+  }
   for (const [key, value] of Object.entries(updates || {})) {
     if (EDITABLE_AGENT_FIELDS.has(key)) parsed[key] = value;
   }
