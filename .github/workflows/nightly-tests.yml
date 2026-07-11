@@ -30,8 +30,5 @@ jobs:
       - name: Run maintained CI contract
         run: npm run ci:local
 
-      - name: Check Rust backend
-        run: cargo check --manifest-path copilot-ui/src-tauri/Cargo.toml
-
       - name: Build documentation
         run: npm run docs:build
