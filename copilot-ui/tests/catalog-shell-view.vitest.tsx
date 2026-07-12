@@ -219,7 +219,7 @@ describe('CatalogShellView', () => {
 
     expect(
       screen.getByText(
-        'Explore, install, sync, and verify agents, skills, hooks, plugins, and external MCP tools.',
+        'Understand, verify, and repair Elegy-managed resources across every harness.',
       ),
     ).toBeInTheDocument();
 
@@ -227,7 +227,7 @@ describe('CatalogShellView', () => {
       screen.getByTestId('assets-tools-refresh'),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId('assets-tools-sync-harnesses'),
+      screen.getByTestId('assets-tools-repair-issues'),
     ).toBeInTheDocument();
     // Tab bar should be visible
     expect(
@@ -239,6 +239,8 @@ describe('CatalogShellView', () => {
     expect(
       screen.getByTestId('assets-tools-tab-sources'),
     ).toBeInTheDocument();
+    expect(screen.getByTestId('assets-tools-tab-overview')).toBeInTheDocument();
+    expect(screen.queryByTestId('assets-tools-tab-codex')).not.toBeInTheDocument();
   });
 
   // ---- NEW: metric cards ----
@@ -250,7 +252,14 @@ describe('CatalogShellView', () => {
         title: 'Skill',
         count: 6,
         items: [
-          makeItem({ itemId: 's1', kind: 'skill' }),
+          makeItem({
+            itemId: 's1',
+            kind: 'skill',
+            harnessStates: [
+              { harnessId: 'codex', supported: true, expected: true, installed: true, active: true, syncStatus: 'synced' },
+              { harnessId: 'claude', supported: true, expected: false, installed: false, active: false, syncStatus: 'available' },
+            ],
+          }),
           makeItem({ itemId: 's2', kind: 'skill' }),
         ],
       },
@@ -290,35 +299,24 @@ describe('CatalogShellView', () => {
       ).toBeInTheDocument();
     });
 
-    // Agent metric
+    // Health-oriented metrics replace decorative kind totals.
     expect(
-      screen.getByTestId('assets-tools-metric-Agents'),
-    ).toHaveTextContent('2');
-    // Skill metric
+      screen.getByTestId('assets-tools-metric-Needs attention'),
+    ).toBeInTheDocument();
     expect(
-      screen.getByTestId('assets-tools-metric-Skills'),
-    ).toHaveTextContent('2');
-    // Hooks metric — 0 hook items in test data
-    expect(
-      screen.getByTestId('assets-tools-metric-Hooks'),
-    ).toHaveTextContent('0');
-    // Plugins metric
-    expect(
-      screen.getByTestId('assets-tools-metric-Plugins'),
-    ).toHaveTextContent('0');
-    // External Tools metric — 1 mcp item + 0 external installables
-    expect(
-      screen.getByTestId('assets-tools-metric-External Tools'),
+      screen.getByTestId('assets-tools-metric-Healthy'),
     ).toHaveTextContent('1');
-    // Harnesses synced — test items have no installed/active harness states
     expect(
-      screen.getByTestId('assets-tools-metric-Harnesses synced'),
+      screen.getByTestId('assets-tools-metric-Not installed'),
     ).toHaveTextContent('0');
+    expect(
+      screen.getByTestId('assets-tools-metric-External'),
+    ).toBeInTheDocument();
   });
 
   // ---- NEW: three-pane inventory layout ----
 
-  it('renders the inventory tab with three-pane layout', async () => {
+  it('renders the inventory list and opens details in a drawer', async () => {
     apiMocks.getCatalogSummary.mockResolvedValue(
       makeBasicSummary(getDefaultSectionsWithItems(), []),
     );
@@ -334,16 +332,13 @@ describe('CatalogShellView', () => {
       ).toBeInTheDocument();
     });
 
-    // Three panes: group list, reader, status rail
     expect(
       screen.getByTestId('assets-tools-group-list'),
     ).toBeInTheDocument();
-    expect(
-      screen.getByTestId('assets-tools-reader'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByTestId('assets-tools-status-rail'),
-    ).toBeInTheDocument();
+    expect(screen.queryByTestId('asset-detail-drawer')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('assets-tools-item-skill-1'));
+    expect(screen.getByTestId('asset-detail-drawer')).toBeInTheDocument();
+    expect(screen.getByTestId('assets-tools-reader')).toBeInTheDocument();
   });
 
   // ---- NEW: provenance-based grouped items ----
@@ -420,7 +415,7 @@ describe('CatalogShellView', () => {
 
   // ---- NEW: select item and show reader + status rail ----
 
-  it('selects an item and shows reader and status rail details', async () => {
+  it('selects an item and shows readable drawer details', async () => {
     apiMocks.getCatalogSummary.mockResolvedValue(
       makeBasicSummary(getDefaultSectionsWithItems(), []),
     );
@@ -430,12 +425,14 @@ describe('CatalogShellView', () => {
     );
     render(<CatalogShellView />);
 
-    // The component auto-selects the first item
     await waitFor(() => {
       expect(
-        screen.getByTestId('assets-tools-reader'),
+        screen.getByTestId('assets-tools-item-skill-1'),
       ).toBeInTheDocument();
     });
+
+    fireEvent.click(screen.getByTestId('assets-tools-item-skill-1'));
+    expect(screen.getByTestId('asset-detail-drawer')).toBeInTheDocument();
 
     // Title appears in both item card and reader — use getAllByText
     await waitFor(() => {
@@ -447,7 +444,7 @@ describe('CatalogShellView', () => {
       screen.getAllByText('Code Review').length,
     ).toBeGreaterThanOrEqual(1);
 
-    // Click a different item and verify the reader updates
+    // Click a different item and verify the drawer updates
     fireEvent.click(screen.getByTestId('assets-tools-item-agent-1'));
 
     await waitFor(() => {

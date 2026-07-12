@@ -128,6 +128,10 @@ function detectGitRootKind(repoPath) {
   return 'missing';
 }
 
+function isCanonicalGitRepository(repoPath) {
+  return isDirectory(repoPath) && detectGitRootKind(repoPath) === 'directory';
+}
+
 function resolveRepoInventoryPath(elegyHome) {
   return path.join(resolveElegyHome(elegyHome), 'catalog', 'repo-inventory.json');
 }
@@ -213,6 +217,11 @@ function buildCandidate(input = {}) {
     lastSeenAt: normalizeString(input.lastSeenAt) || null,
     snapshotPath: normalizeString(input.snapshotPath) || null,
     snapshot: input.snapshot && typeof input.snapshot === 'object' ? input.snapshot : null,
+    pinned: Boolean(input.pinned),
+    lastActivityMs: typeof input.lastActivityMs === 'number' && Number.isFinite(input.lastActivityMs)
+      ? input.lastActivityMs
+      : null,
+    canonicalRemote: normalizeString(input.canonicalRemote) || null,
   };
 }
 
@@ -235,6 +244,9 @@ function mergeCandidate(map, candidate) {
     lastSeenAt: null,
     snapshotPath: null,
     snapshot: null,
+    pinned: false,
+    lastActivityMs: null,
+    canonicalRemote: null,
   };
 
   existing.repoId = existing.repoId || normalized.repoId;
@@ -254,6 +266,9 @@ function mergeCandidate(map, candidate) {
   existing.lastSeenAt = maxIso(existing.lastSeenAt, normalized.lastSeenAt);
   existing.snapshotPath = existing.snapshotPath || normalized.snapshotPath;
   existing.snapshot = existing.snapshot || normalized.snapshot;
+  existing.pinned = existing.pinned || normalized.pinned;
+  existing.lastActivityMs = Math.max(existing.lastActivityMs || 0, normalized.lastActivityMs || 0) || null;
+  existing.canonicalRemote = existing.canonicalRemote || normalized.canonicalRemote;
 
   map.set(mergeKey, existing);
 }
@@ -625,6 +640,9 @@ function enrichRepo(repo, options = {}) {
     },
     snapshot,
     repoState: overlay,
+    pinned: Boolean(repo.pinned),
+    lastActivityMs: repo.lastActivityMs || null,
+    canonicalRemote: repo.canonicalRemote || extractCanonicalRemote(repoPath),
   };
 }
 
@@ -640,7 +658,18 @@ function compareRepos(left, right) {
 
 function listKnownRepos(options = {}) {
   const elegyHome = resolveElegyHome(options.elegyHome || options.elegyHomeAbs || options.copilotHome || options.copilotHomeAbs);
-  const state = loadRepoInventoryState(elegyHome);
+  let state = loadRepoInventoryState(elegyHome);
+  const validManualRepos = state.manualRepos.filter((entry) => isCanonicalGitRepository(entry.repoPath));
+  const selectedIsValid = !state.selectedRepoPath || isCanonicalGitRepository(state.selectedRepoPath);
+  if (validManualRepos.length !== state.manualRepos.length || !selectedIsValid) {
+    state = saveRepoInventoryState(elegyHome, {
+      ...state,
+      manualRepos: validManualRepos,
+      selectedRepoId: selectedIsValid ? state.selectedRepoId : null,
+      selectedRepoPath: selectedIsValid ? state.selectedRepoPath : null,
+      selectedAt: selectedIsValid ? state.selectedAt : null,
+    });
+  }
   const repos = new Map();
   const projectionHints = readProjectionHints(elegyHome);
   const workspaceScan = repoDiscovery.resolveWorkspaceScanRoots({
@@ -665,6 +694,9 @@ function listKnownRepos(options = {}) {
       source: 'manual',
       registered: true,
       lastSeenAt: manualRepo.updatedAt || manualRepo.addedAt,
+      pinned: manualRepo.pinned,
+      lastActivityMs: manualRepo.lastActivityMs,
+      canonicalRemote: manualRepo.canonicalRemote,
     });
   }
 
@@ -723,6 +755,7 @@ function listKnownRepos(options = {}) {
         selected,
       }, { elegyHome });
     })
+    .filter((repo) => repo.gitRootKind === 'directory')
     .sort(compareRepos);
 
   const selectedRepo = repoList.find((repo) => repo.selected) || null;
@@ -773,6 +806,13 @@ function registerRepo(options = {}) {
   }
   if (!isDirectory(repoPath)) {
     throw Object.assign(new Error(`Repo path does not exist: ${repoPath}`), { statusCode: 404 });
+  }
+  const gitRootKind = detectGitRootKind(repoPath);
+  if (gitRootKind === 'file') {
+    throw Object.assign(new Error(`Repo path is a linked worktree: ${repoPath}`), { statusCode: 400 });
+  }
+  if (gitRootKind !== 'directory') {
+    throw Object.assign(new Error(`Repo path is not a Git repository: ${repoPath}`), { statusCode: 400 });
   }
 
   const now = new Date().toISOString();

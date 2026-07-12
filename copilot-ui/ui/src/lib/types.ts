@@ -2433,6 +2433,11 @@ export interface CatalogRepoInventoryEntry {
   scanStatus?: string;
   lastSeenAt?: string | null;
   lastRefreshAt?: string | null;
+  pinned?: boolean;
+  lastActivityMs?: number | null;
+  canonicalRemote?: string | null;
+  gitRootKind?: 'directory' | 'file' | 'missing' | string;
+  isWorktreeCheckout?: boolean;
   assets?: CatalogRepoAssetSummary;
   hints?: CatalogRepoHints;
   snapshot?: Record<string, unknown>;

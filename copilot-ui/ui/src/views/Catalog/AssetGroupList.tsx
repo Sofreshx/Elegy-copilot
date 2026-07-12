@@ -23,9 +23,14 @@ interface AssetGroupListProps {
 
 /* Helpers */
 function countIssues(item: CatalogGlobalItem): number {
-  return (item.harnessStates || []).filter(
-    (s) => s.syncStatus === 'missing' || s.syncStatus === 'unsupported',
-  ).length;
+  return (item.harnessStates || []).filter(harnessStateNeedsAttention).length;
+}
+
+function harnessStateNeedsAttention(state: CatalogGlobalHarnessState): boolean {
+  if (state.supported === false || state.syncStatus === 'unsupported') return false;
+  const status = state.syncStatus || state.state || '';
+  if (status === 'missing' || status === 'not-installed') return state.expected !== false;
+  return ['stale', 'conflict', 'unmanaged', 'error', 'failed'].includes(status);
 }
 
 function countInstalled(item: CatalogGlobalItem): number {
@@ -119,11 +124,22 @@ export default function AssetGroupList({ sections, selectedItem, onSelectItem, o
                 <div className="assets-tools-item-badges">
                   <Badge tone={getKindBadgeTone(item.kind)}>{item.kind}</Badge>
                   {item.sourceType ? <Badge tone="neutral">{item.sourceType}</Badge> : null}
-                  {issues > 0 ? <Badge tone="danger">⚠ {issues}</Badge> : null}
+                  {issues > 0 ? <Badge tone="danger">⚠ {issues} issue{issues === 1 ? '' : 's'}</Badge> : <Badge tone="success">Healthy</Badge>}
                 </div>
                 {item.description ? (
                   <p className="assets-tools-item-description">{item.description}</p>
                 ) : null}
+                <div className="asset-target-summary" aria-label="Harness state">
+                  {(item.harnessStates || []).map((state) => {
+                    const label = state.supported === false || state.syncStatus === 'unsupported'
+                      ? 'Unsupported'
+                      : harnessStateNeedsAttention(state) ? 'Needs attention'
+                        : state.active ? 'Active'
+                        : state.installed ? 'Installed'
+                          : state.expected === false ? 'Available' : 'Needs attention';
+                    return <span className={`asset-target-state asset-target-state--${label.toLowerCase().replace(/\s+/g, '-')}`} key={state.harnessId}>{state.title || state.harnessId}: {label}</span>;
+                  })}
+                </div>
                 {(item.harnessStates || []).some((hs) => {
                   const actionKind = (hs.metadata as Record<string, unknown> | null)?.actionKind as string | undefined;
                   return actionKind === 'external-source'

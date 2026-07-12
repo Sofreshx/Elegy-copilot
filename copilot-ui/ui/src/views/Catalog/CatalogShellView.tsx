@@ -11,12 +11,10 @@ import type {
 } from '../../lib/types';
 import { catalogWorkspaceStore } from '../../tabs/Assets/catalogWorkspaceStore';
 import CatalogIcon, { type IconName } from './CatalogIcon';
-import AssetsView from '../../tabs/Assets/AssetsView';
 import InventoryTab from './InventoryTab';
 import DiagnosticsTab from './DiagnosticsTab';
 import OperationsTab from './OperationsTab';
 import SourcesTab from './SourcesTab';
-import HarnessTab from './HarnessTab';
 
 /* ------------------------------------------------------------------ */
 /*  Internal types                                                    */
@@ -50,13 +48,15 @@ function getGlobalSections(summary: CatalogSnapshotEnvelope | null): CatalogGlob
 /*  Metrics derivation                                                */
 /* ------------------------------------------------------------------ */
 
-function countPlugins(items: CatalogGlobalItem[]): number {
-  return items.filter(
-    (i) =>
-      i.kind === 'plugin' ||
-      i.kind === 'package' ||
-      (i.kind !== 'agent' && i.kind !== 'skill' && i.kind !== 'hook' && i.kind !== 'mcp'),
-  ).length;
+function harnessNeedsAttention(state: CatalogGlobalHarnessState): boolean {
+  if (state.supported === false || state.syncStatus === 'unsupported') return false;
+  const status = state.syncStatus || state.state || '';
+  if (status === 'missing' || status === 'not-installed') return state.expected !== false;
+  return ['stale', 'conflict', 'unmanaged', 'error', 'failed'].includes(status);
+}
+
+function itemNeedsAttention(item: CatalogGlobalItem): boolean {
+  return (item.harnessStates || []).some(harnessNeedsAttention);
 }
 
 function deriveMetrics(
@@ -67,53 +67,24 @@ function deriveMetrics(
   const externalSources = summary?.externalSources || [];
   const harnesses = summary?.globalInventory?.harnesses || [];
 
-  const externalToolCount =
-    externalSources.reduce((sum, src) => sum + (src.installables?.length || 0), 0) +
-    allItems.filter((i) => i.kind === 'mcp').length;
+  const needsAttention = allItems.filter(itemNeedsAttention).length;
+  const healthy = allItems.filter((item) => (
+    !itemNeedsAttention(item)
+    && (item.harnessStates || []).some((state) => state.installed || state.active)
+  )).length;
+  const notInstalled = allItems.filter((item) => (
+    !itemNeedsAttention(item)
+    && (item.harnessStates || []).some((state) => state.supported !== false)
+    && !(item.harnessStates || []).some((state) => state.installed || state.active)
+  )).length;
+  const external = externalSources.reduce((sum, src) => sum + (src.installables?.length || 0), 0)
+    + allItems.filter((item) => item.sourceType === 'external-source').length;
 
   return [
-    {
-      label: 'Agents',
-      value: allItems.filter((i) => i.kind === 'agent').length,
-      icon: 'agent',
-    },
-    {
-      label: 'Skills',
-      value: allItems.filter((i) => i.kind === 'skill').length,
-      icon: 'skill',
-    },
-    {
-      label: 'Hooks',
-      value: allItems.filter((i) => i.kind === 'hook').length,
-      icon: 'hook',
-    },
-    {
-      label: 'Plugins',
-      value: countPlugins(allItems),
-      icon: 'plugin',
-    },
-    {
-      label: 'External Tools',
-      value: externalToolCount,
-      icon: 'mcp',
-    },
-    {
-      label: 'Harnesses synced',
-      value: (() => {
-        const syncedHarnessIds = new Set<string>();
-        for (const section of sections) {
-          for (const item of section.items || []) {
-            for (const hs of item.harnessStates || []) {
-              if (hs.installed || hs.active) {
-                syncedHarnessIds.add(hs.harnessId);
-              }
-            }
-          }
-        }
-        return syncedHarnessIds.size;
-      })(),
-      icon: 'sync',
-    },
+    { label: 'Needs attention', value: needsAttention, icon: 'hook', sublabel: needsAttention ? 'Repairable drift or missing targets' : 'No known issues' },
+    { label: 'Healthy', value: healthy, icon: 'sync', sublabel: 'Installed or active as expected' },
+    { label: 'Not installed', value: notInstalled, icon: 'skill', sublabel: 'Available without an active issue' },
+    { label: 'External', value: external, icon: 'mcp', sublabel: 'Resources from configured sources' },
   ];
 }
 
@@ -127,9 +98,7 @@ export default function CatalogShellView() {
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'inventory' | 'quality' | 'operations' | 'sources' | 'codex' | 'opencode' | 'claude'>('inventory');
-
-  const [showRepositoryAssets, setShowRepositoryAssets] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'quality' | 'operations' | 'sources'>('inventory');
 
   /* ---- mounted guard ---- */
   const mountedRef = useRef(true);
@@ -176,6 +145,11 @@ export default function CatalogShellView() {
   );
 
   const metrics = useMemo(() => deriveMetrics(summary), [summary]);
+  const attentionSections = useMemo(() => allSections.map((section) => ({
+    ...section,
+    items: (section.items || []).filter(itemNeedsAttention),
+  })), [allSections]);
+  const issueCount = metrics.find((metric) => metric.label === 'Needs attention')?.value || 0;
 
   /* ---- handlers ---- */
   async function handleRefresh(): Promise<void> {
@@ -284,27 +258,6 @@ export default function CatalogShellView() {
   /*  Main render                                                     */
   /* ================================================================ */
 
-  /* If we're showing the repository view, render AssetsView instead */
-  if (showRepositoryAssets) {
-    return (
-      <div className="assets-tools-view" data-testid="catalog-shell-view">
-        <div className="assets-tools-header">
-          <h2>Assets &amp; Tools</h2>
-          <div className="assets-tools-header-actions">
-            <Button
-              onClick={() => setShowRepositoryAssets(false)}
-              testId="assets-tools-back-to-explorer"
-              variant="ghost"
-            >
-              Back to Explorer
-            </Button>
-          </div>
-        </div>
-        <AssetsView />
-      </div>
-    );
-  }
-
   const harnesses = summary?.globalInventory?.harnesses || [];
 
   return (
@@ -316,8 +269,7 @@ export default function CatalogShellView() {
           <div className="assets-tools-header">
             <h2>Assets &amp; Tools</h2>
             <p>
-              Explore, install, sync, and verify agents, skills, hooks, plugins, and
-              external MCP tools.
+              Understand, verify, and repair Elegy-managed resources across every harness.
             </p>
           </div>
           <div className="assets-tools-header-actions">
@@ -332,22 +284,26 @@ export default function CatalogShellView() {
             </Button>
             <Button
               loading={catalogState.installing}
-              disabled={catalogState.installing || catalogState.refreshing || (summaryLoading && !summary)}
               onClick={() => { void catalogWorkspaceStore.installAll(false); }}
-              testId="assets-tools-install-all"
+              testId="assets-tools-repair-issues"
               variant="primary"
+              disabled={catalogState.installing || catalogState.refreshing || (summaryLoading && !summary) || Number(issueCount) === 0}
             >
-              {catalogState.installing ? 'Installing...' : 'Install All'}
+              {catalogState.installing ? 'Repairing...' : `Repair ${issueCount} issue${Number(issueCount) === 1 ? '' : 's'}`}
             </Button>
-            <Button
-              loading={catalogState.installing}
-              disabled={catalogState.installing || catalogState.refreshing || (summaryLoading && !summary)}
-              onClick={() => { void catalogWorkspaceStore.installAll(true); }}
-              testId="assets-tools-force-install"
-              variant="ghost"
-            >
-              Force All
-            </Button>
+            <details className="catalog-more-actions">
+              <summary>More</summary>
+              <Button
+                disabled={catalogState.installing || catalogState.refreshing || (summaryLoading && !summary)}
+                onClick={() => {
+                  if (window.confirm('Force reinstall every managed asset across supported targets? Healthy targets may be overwritten.')) {
+                    void catalogWorkspaceStore.installAll(true);
+                  }
+                }}
+                testId="assets-tools-force-install"
+                variant="ghost"
+              >Force reinstall all…</Button>
+            </details>
 
             {/* Repository Assets moved to Workspace area — see WorkspaceAssetsTab */}
           </div>
@@ -425,13 +381,11 @@ export default function CatalogShellView() {
         {/* TAB BAR */}
         <div className="assets-tools-chip-row" data-testid="assets-tools-tabs">
           {([
-            { key: 'inventory' as const, label: 'Elegy Inventory' },
-            { key: 'quality' as const, label: 'Diagnostics' },
+            { key: 'overview' as const, label: 'Overview' },
+            { key: 'inventory' as const, label: 'Inventory' },
+            { key: 'sources' as const, label: 'External Sources' },
             { key: 'operations' as const, label: 'Operations' },
-            { key: 'sources' as const, label: 'External Inventory' },
-            { key: 'codex' as const, label: 'Codex' },
-            { key: 'opencode' as const, label: 'OpenCode' },
-            { key: 'claude' as const, label: 'Claude' },
+            { key: 'quality' as const, label: 'Diagnostics' },
           ]).map(({ key, label }) => (
             <button
               key={key}
@@ -481,6 +435,15 @@ export default function CatalogShellView() {
           <p className="assets-tools-empty state-error">Catalog summary unavailable</p>
         ) : (
           <>
+            {activeTab === 'overview' && (
+              <div className="catalog-tab-panel" data-testid="assets-tools-overview">
+                <div className="catalog-section-intro">
+                  <h3>{Number(issueCount) > 0 ? 'Resources needing attention' : 'All managed resources are healthy'}</h3>
+                  <p>{Number(issueCount) > 0 ? 'Review desired-versus-actual target state before repairing.' : 'No actionable drift or missing expected targets was reported.'}</p>
+                </div>
+                {Number(issueCount) > 0 ? <InventoryTab sections={attentionSections} harnesses={harnesses} onItemAction={(item, state) => void handleItemAction(item, state)} onUninstall={(item, state) => void handleUninstall(item, state)} mutating={catalogState.mutating} /> : null}
+              </div>
+            )}
             {activeTab === 'inventory' && (
               <div className="catalog-tab-panel">
                 <InventoryTab
@@ -514,47 +477,6 @@ export default function CatalogShellView() {
               </div>
             )}
 
-            {activeTab === 'codex' && (
-              <div className="catalog-tab-panel">
-                <HarnessTab
-                  harnessId="codex"
-                  sections={allSections}
-                  harnesses={harnesses}
-                  onItemAction={(item, state) => void handleItemAction(item, state)}
-                  onUninstall={(item, state) => void handleUninstall(item, state)}
-                  onRefresh={() => void handleRefresh()}
-                  mutating={catalogState.mutating}
-                />
-              </div>
-            )}
-
-            {activeTab === 'opencode' && (
-              <div className="catalog-tab-panel">
-                <HarnessTab
-                  harnessId="opencode"
-                  sections={allSections}
-                  harnesses={harnesses}
-                  onItemAction={(item, state) => void handleItemAction(item, state)}
-                  onUninstall={(item, state) => void handleUninstall(item, state)}
-                  onRefresh={() => void handleRefresh()}
-                  mutating={catalogState.mutating}
-                />
-              </div>
-            )}
-
-            {activeTab === 'claude' && (
-              <div className="catalog-tab-panel">
-                <HarnessTab
-                  harnessId="claude-code"
-                  sections={allSections}
-                  harnesses={harnesses}
-                  onItemAction={(item, state) => void handleItemAction(item, state)}
-                  onUninstall={(item, state) => void handleUninstall(item, state)}
-                  onRefresh={() => void handleRefresh()}
-                  mutating={catalogState.mutating}
-                />
-              </div>
-            )}
           </>
         )}
       </div>

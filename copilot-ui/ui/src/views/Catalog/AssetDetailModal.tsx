@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import type { CatalogGlobalItem, CatalogGlobalHarness, CatalogGlobalHarnessState } from '../../lib/types';
 import { Badge } from '../../components';
 import { normalizeProvenance } from './provenance';
@@ -141,21 +141,6 @@ export default function AssetDetailModal({
   onUninstall,
   mutating,
 }: AssetDetailModalProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  /* Scroll lock on body when modal opens */
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
-
-  /* Focus trap: focus close button on mount */
-  useEffect(() => {
-    closeRef.current?.focus();
-  }, []);
-
   /* Escape key closes */
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -165,48 +150,15 @@ export default function AssetDetailModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  /* Trap Tab within modal */
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Tab' || !panelRef.current) return;
-      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
   const provenance = normalizeProvenance(item.readPath, item.sourceId, item.sourceType);
 
-  /* Backdrop click closes */
-  function handleBackdropClick(e: React.MouseEvent) {
-    if (e.target === e.currentTarget) onClose();
-  }
-
   return (
-    <div
-      className="asset-detail-modal-backdrop"
-      onClick={handleBackdropClick}
-      data-testid="asset-detail-modal-backdrop"
-    >
-      <div
-        ref={panelRef}
-        className="asset-detail-modal"
-        role="dialog"
-        aria-modal="true"
+    <div className="asset-detail-drawer-layer">
+      <aside
+        className="asset-detail-drawer"
+        role="complementary"
         aria-labelledby="asset-detail-modal-title"
-        data-testid="asset-detail-modal"
+        data-testid="asset-detail-drawer"
       >
         {/* Header */}
         <div className="asset-detail-modal-header">
@@ -221,9 +173,7 @@ export default function AssetDetailModal({
               {item.providerId ? <Badge tone="accent">{item.providerId}</Badge> : null}
             </div>
           </div>
-          {/* Plain <button> because Button does not forward refs */}
           <button
-            ref={closeRef}
             onClick={onClose}
             className="button button-ghost button-sm"
             data-testid="asset-detail-modal-close"
@@ -265,7 +215,7 @@ export default function AssetDetailModal({
             )}
           </div>
         </div>
-      </div>
+      </aside>
     </div>
   );
 }

@@ -177,11 +177,11 @@ async function run() {
       assert.ok(manualRepo, 'expected manual repo entry');
       assert.equal(manualRepo.registered, true);
       assert.ok(manualRepo.sources.includes('manual'));
+      assert.equal(manualRepo.pinned, false);
+      assert.equal(manualRepo.lastActivityMs, null);
+      assert.equal(manualRepo.canonicalRemote, null);
       const linkedWorktreeRepo = resolveRepoEntry(inventory, { repoPath: linkedWorktreeRepoPath });
-      assert.ok(linkedWorktreeRepo, 'expected linked worktree repo entry');
-      assert.equal(linkedWorktreeRepo.gitRootPresent, true);
-      assert.equal(linkedWorktreeRepo.gitRootKind, 'file');
-      assert.equal(linkedWorktreeRepo.isWorktreeCheckout, true);
+      assert.equal(linkedWorktreeRepo, null, 'linked worktrees belong to the canonical repository Git view');
       const discoveredRepo = resolveRepoEntry(inventory, { repoPath: discoveredRepoPath });
       assert.ok(discoveredRepo, 'expected workspace scan entry');
       assert.ok(discoveredRepo.sources.includes('workspace-scan'));
@@ -190,9 +190,40 @@ async function run() {
       assert.deepEqual(inventory.workspaceScan.customScanRoots, [path.resolve(scanRoot)]);
       assert.deepEqual(inventory.workspaceScan.scanRoots, [path.resolve(scanRoot)]);
       const orphanRepo = resolveRepoEntry(inventory, { repoId: 'orphan-repo-id' });
-      assert.ok(orphanRepo, 'expected orphan repo-state entry');
-      assert.equal(orphanRepo.scanStatus, 'unresolved');
-      assert.equal(orphanRepo.assets.overlayDisabledCount, 1);
+      assert.equal(orphanRepo, null, 'repo-state without a valid Git path must not create a repository row');
+    });
+    await test('listKnownRepos prunes stale manual repos and clears their selection', async () => {
+      const staleRepoPath = path.join(tmpRoot, 'deleted-manual-repo');
+      fs.mkdirSync(path.join(staleRepoPath, '.git'), { recursive: true });
+      registerRepo({
+        elegyHome,
+        repoPath: staleRepoPath,
+        repoLabel: 'Deleted Manual Repo',
+        select: true,
+        workspaceScanRoots: [scanRoot],
+      });
+      fs.rmSync(staleRepoPath, { recursive: true, force: true });
+
+      const inventory = listKnownRepos({ elegyHome, workspaceScanRoots: [scanRoot] });
+      const persisted = loadRepoInventoryState(elegyHome);
+
+      assert.equal(resolveRepoEntry(inventory, { repoPath: staleRepoPath }), null);
+      assert.equal(persisted.manualRepos.some((entry) => entry.repoPath === path.resolve(staleRepoPath)), false);
+      assert.equal(persisted.selectedRepoPath, null);
+      assert.equal(persisted.selectedRepoId, null);
+    });
+    await test('registerRepo rejects directories that are not canonical Git repositories', async () => {
+      const plainDirectory = path.join(tmpRoot, 'plain-directory');
+      fs.mkdirSync(plainDirectory, { recursive: true });
+
+      assert.throws(
+        () => registerRepo({ elegyHome, repoPath: plainDirectory }),
+        /not a Git repository/i,
+      );
+      assert.throws(
+        () => registerRepo({ elegyHome, repoPath: linkedWorktreeRepoPath }),
+        /linked worktree/i,
+      );
     });
     await test('selectRepo and unregisterRepo persist selection and reversible manual registration', async () => {
       let result = selectRepo({

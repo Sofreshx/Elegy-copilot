@@ -60,7 +60,7 @@ async function run() {
     assert.ok(settingsSource.includes('settings-view'), 'Expected SettingsView to have settings-view data-testid');
     assert.ok(settingsSource.includes('settings-toolbar'), 'Expected SettingsView to have settings-toolbar element');
     assert.ok(settingsSource.includes('settings-about-brand'), 'Expected Settings about panel to render branded app identity');
-    assert.ok(settingsSource.includes('/elegy-copilot-icon.svg'), 'Expected Settings to use the shared branded svg asset');
+    assert.ok(settingsSource.includes('elegy-copilot-icon.svg'), 'Expected Settings to use the shared branded svg asset');
     assert.ok(bootstrapHtml.includes('boot-mark'), 'Expected Tauri bootstrap shell to render the brand mark');
     assert.ok(bootstrapHtml.includes('Starting workspace...'), 'Expected Tauri bootstrap shell to expose branded startup copy');
   });
@@ -359,7 +359,7 @@ async function run() {
     assert.ok(source.includes('repos-launcher-layout'), 'Expected repos-launcher-layout class');
     assert.ok(source.includes('repos-launcher-list'), 'Expected repos-launcher-list class');
     assert.ok(source.includes('repos-launcher-row'), 'Expected repos-launcher-row dense row class');
-    assert.ok(source.includes('repos-register-panel'), 'Expected repos-register-panel test id');
+    assert.ok(source.includes('repos-register-dialog'), 'Expected repository registration dialog test id');
     assert.ok(source.includes('repos-refresh'), 'Expected repos-refresh test id');
     assert.ok(source.includes('repos-search-input'), 'Expected repos-search-input test id');
     assert.ok(source.includes('repos-empty'), 'Expected repos-empty test id for empty state');

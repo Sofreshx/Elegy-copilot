@@ -660,6 +660,49 @@ describe('InventoryTab', () => {
     expect(screen.getByTestId('assets-tools-inventory')).toBeDefined();
   });
 
+  it('treats stale expected targets as issues but unsupported targets as neutral', () => {
+    const item = makeItem({
+      itemId: 'health-aware',
+      title: 'Health Aware Skill',
+      harnessStates: [
+        makeHarnessState({ harnessId: 'codex', title: 'Codex', expected: true, syncStatus: 'stale' }),
+        makeHarnessState({ harnessId: 'claude', title: 'Claude', supported: false, expected: false, syncStatus: 'unsupported' }),
+      ],
+    });
+
+    render(<InventoryTab sections={[makeSection({ items: [item] })]} harnesses={[makeHarness()]} />);
+
+    expect(screen.getAllByText(/1 issue/).length).toBeGreaterThan(0);
+    expect(screen.queryByText('2 issues')).toBeNull();
+  });
+
+  it('labels an installed stale target as needing attention', () => {
+    const item = makeItem({
+      itemId: 'stale-installed',
+      title: 'Stale Installed Skill',
+      harnessStates: [makeHarnessState({
+        installed: true,
+        active: true,
+        expected: true,
+        syncStatus: 'stale',
+      })],
+    });
+
+    render(<InventoryTab sections={[makeSection({ items: [item] })]} harnesses={[makeHarness()]} />);
+
+    expect(screen.getByText('Copilot: Needs attention')).toBeDefined();
+    expect(screen.queryByText('Copilot: Active')).toBeNull();
+  });
+
+  it('opens selected asset details in a persistent drawer', () => {
+    const item = makeItem({ itemId: 'drawer-item', title: 'Drawer Skill' });
+    render(<InventoryTab sections={[makeSection({ items: [item] })]} harnesses={[makeHarness()]} />);
+
+    fireEvent.click(screen.getByTestId('assets-tools-item-drawer-item'));
+
+    expect(screen.getByTestId('asset-detail-drawer')).toBeDefined();
+  });
+
 
   it('switches selected item when clicking a different item', () => {
     const item1 = makeItem({
