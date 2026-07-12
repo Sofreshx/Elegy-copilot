@@ -347,6 +347,25 @@ function createNavigationStore() {
     });
   }
 
+  function reconcileOpenWorkspaces(validRepoPaths: string[]): void {
+    const valid = new Set(validRepoPaths.map(normalizeRepoPath));
+    store.setState((state) => {
+      const openWorkspaces = state.openWorkspaces.filter((workspace) => valid.has(normalizeRepoPath(workspace.repoPath)));
+      if (openWorkspaces.length === state.openWorkspaces.length) return state;
+      const activeWorkspaceId = state.activeWorkspaceId && valid.has(normalizeRepoPath(state.activeWorkspaceId))
+        ? state.activeWorkspaceId
+        : openWorkspaces.at(-1)?.repoPath || null;
+      persistWorkspaceTabs(openWorkspaces);
+      persistActiveWorkspaceId(activeWorkspaceId);
+      return {
+        ...state,
+        openWorkspaces,
+        activeWorkspaceId,
+        activeSidebarItem: activeWorkspaceId ? state.activeSidebarItem : 'repositories',
+      };
+    });
+  }
+
   function persistWorkspaceTabs(tabs: OpenWorkspace[]): void {
     try {
       localStorage.setItem(WORKSPACE_TABS_STORAGE_KEY, JSON.stringify(tabs));
@@ -449,6 +468,7 @@ function createNavigationStore() {
     openWorkspace,
     focusWorkspace,
     closeWorkspace,
+    reconcileOpenWorkspaces,
     reset,
   };
 }

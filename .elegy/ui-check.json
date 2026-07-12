@@ -79,6 +79,32 @@
       "evidenceRoot": "./evidence/ui/catalog",
       "runtimeReport": "runtime-report.json"
     },
+    "repositories": {
+      "lane": "browser",
+      "workingDirectory": "./",
+      "validationCommands": [
+        { "id": "build", "command": "npm --prefix copilot-ui run ui:build", "description": "Build the copilot-ui renderer" },
+        { "id": "evidence", "command": "node scripts/ui-check-copilot-ui.mjs", "timeout": 180000 }
+      ],
+      "routes": [
+        {
+          "id": "repositories-default",
+          "path": "navigation:repositories",
+          "viewports": ["desktop", "mobile"],
+          "states": ["default"],
+          "excludedStates": [
+            { "state": "loading", "reason": "Loading behavior is covered by the repository component test and the evidence adapter captures settled inventory." },
+            { "state": "empty", "reason": "The runtime evidence uses discovered repositories; the empty and no-results states are component-tested." },
+            { "state": "error", "reason": "Repository API failures are covered by store and component tests and are not injected by the browser adapter." },
+            { "state": "disabled", "reason": "Only mutation controls disable during requests; their behavior is component-tested." },
+            { "state": "focus", "reason": "Keyboard focus behavior is covered by component tests and shared focus-visible styling." }
+          ],
+          "description": "Canonical repository browser with grouped inventory and secondary registration/discovery dialogs."
+        }
+      ],
+      "evidenceRoot": "./evidence/ui/repositories",
+      "runtimeReport": "runtime-report.json"
+    },
     "workspace": {
       "lane": "browser",
       "workingDirectory": "./",

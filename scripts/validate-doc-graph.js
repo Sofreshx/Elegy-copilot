@@ -7,7 +7,7 @@ const { matchFrontmatter } = require('./lib/spec-headings.js');
 
 const defaultRepoRoot = path.resolve(__dirname, '..');
 
-const allowedCategory = new Set(['system', 'research', 'adr', 'meta', 'lexicon']);
+const allowedCategory = new Set(['system', 'research', 'adr', 'meta']);
 const allowedStatus = new Set(['current', 'stale', 'draft', 'archived']);
 const allowedDocKind = new Set(['index', 'moc', 'node', 'redirect']);
 
@@ -249,9 +249,6 @@ function validateDocGraph({ repoRoot = defaultRepoRoot } = {}) {
 		}
 		if (rel.startsWith('docs/research/') && meta.category !== 'research') {
 			errors.push(`${rel}: docs/research/** must have category: research.`);
-		}
-		if (rel.startsWith('docs/lexicon/') && meta.category !== 'lexicon') {
-			errors.push(`${rel}: docs/lexicon/** must have category: lexicon.`);
 		}
 		const isTopLevelDocsFile = rel.startsWith('docs/') && !rel.slice('docs/'.length).includes('/');
 		if (isTopLevelDocsFile && docKind !== 'redirect' && !isRepoBackedPlanningArtifact(rel)) {

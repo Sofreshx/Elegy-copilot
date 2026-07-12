@@ -324,7 +324,7 @@ async function setupBrowser() {
  *   remote         → sidebar-item-remote
  *
  * @param {import('@playwright/test').Page} page
- * @param {string}   viewId  - One of: settings, catalog, workspace, workspace-git, workspace-checks, workspace-notes, repositories, remote, lexicon
+ * @param {string}   viewId  - One of: settings, catalog, workspace, workspace-git, workspace-checks, workspace-notes, repositories, remote, pattern-atlas
  * @returns {Promise<void>}
  */
 async function navigateToView(page, viewId) {
@@ -388,7 +388,7 @@ async function navigateToView(page, viewId) {
       }
     }
   } else {
-    // repositories, remote, lexicon
+    // repositories, remote, pattern-atlas
     await page.click(`[data-testid="sidebar-item-${viewId}"]`);
     await page.waitForSelector('[data-testid="app-layout"]', {
       timeout: PAGE_READY_TIMEOUT_MS,
@@ -624,6 +624,12 @@ async function runTarget(targetId, browserHandle, evidenceDir) {
   } else if (['repositories', 'remote', 'pattern-atlas'].includes(targetId)) {
     await navigateToView(page, targetId);
     const readiness = await waitForTargetReadiness(page, targetId);
+    if (targetId === 'repositories') {
+      surfaceResults.push(...await captureApprovedViewports(page, 'repositories-default', evidenceDir, 'repositories-default', {
+        consoleErrors, pageErrors, networkFailures,
+      }, readiness));
+      return surfaceResults;
+    }
     const screenshot = await captureState(page, 'desktop', 'default', evidenceDir, `${targetId}-default`);
     const resultPageErrors = [...pageErrors, ...(readiness.reason ? [`Readiness failed: ${readiness.reason}`] : [])];
     const routeId = targetId === 'pattern-atlas' ? 'pattern-atlas-view' : `${targetId}-default`;

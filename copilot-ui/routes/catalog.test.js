@@ -581,8 +581,7 @@ async function run() {
       assert.deepEqual(workspaceRepo.hints.frameworks, ['express', 'react']);
       assert.deepEqual(workspaceRepo.hints.targets, ['backend', 'frontend']);
       const orphanRepo = listResponse.body.repos.find((repo) => repo.repoId === 'orphan-repo-id');
-      assert.ok(orphanRepo, 'expected repo-state-only orphan entry');
-      assert.equal(orphanRepo.scanStatus, 'unresolved');
+      assert.equal(orphanRepo, undefined, 'repo-state without a canonical Git path must not create a repository row');
       const selectResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/repos/select', {
         repoPath,
       });
