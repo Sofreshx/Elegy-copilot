@@ -315,14 +315,13 @@ async function setupBrowser() {
  *
  * View mapping:
  *   settings       → sidebar-item-settings, then app-layout
- *   catalog        → sidebar-item-settings, then settings-section-catalog
+ *   catalog        → sidebar-item-settings, then settings-nav-catalog
  *   workspace      → seeded opened workspace docs tab
  *   workspace-git  → seeded opened workspace Git tab
  *   workspace-checks → seeded opened workspace Checks tab
  *   workspace-notes → seeded opened workspace Notes tab
  *   repositories   → sidebar-item-repositories
  *   remote         → sidebar-item-remote
- *   lexicon        → sidebar-item-lexicon
  *
  * @param {import('@playwright/test').Page} page
  * @param {string}   viewId  - One of: settings, catalog, workspace, workspace-git, workspace-checks, workspace-notes, repositories, remote, lexicon
@@ -365,7 +364,7 @@ async function navigateToView(page, viewId) {
       timeout: PAGE_READY_TIMEOUT_MS,
     });
     // Then click the Assets & Tools section within settings
-    await page.click('[data-testid="settings-section-catalog"]');
+    await page.click('[data-testid="settings-nav-catalog"]');
     await page.waitForTimeout(500); // Allow content transition
   } else if (viewId === 'workspace' || isWorkspaceTabTarget(viewId)) {
     if (!workspaceSeed) {

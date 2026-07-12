@@ -1,6 +1,6 @@
 import { createStore } from '../lib/store';
 
-export type ThemePreference = 'system' | 'light' | 'dark';
+export type ThemePreference = 'ember';
 
 interface ShellPreferencesState {
   sidebarCollapsed: boolean;
@@ -16,17 +16,7 @@ function readSidebarCollapsed(): boolean {
 }
 
 function readThemePreference(): ThemePreference {
-  try {
-    const value = localStorage.getItem(THEME_STORAGE_KEY);
-    return value === 'light' || value === 'dark' ? value : 'system';
-  } catch { return 'system'; }
-}
-
-function resolveTheme(preference: ThemePreference): 'light' | 'dark' {
-  if (preference !== 'system') return preference;
-  return typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark'
-    : 'light';
+  return 'ember';
 }
 
 function createShellPreferencesStore() {
@@ -34,15 +24,13 @@ function createShellPreferencesStore() {
     sidebarCollapsed: readSidebarCollapsed(),
     themePreference: readThemePreference(),
   });
-  let mediaQuery: MediaQueryList | null = null;
-
   function applyTheme(): void {
-    document.documentElement.dataset.theme = resolveTheme(store.getState().themePreference);
+    document.documentElement.dataset.theme = 'ember';
   }
 
   function setThemePreference(themePreference: ThemePreference): void {
-    try { localStorage.setItem(THEME_STORAGE_KEY, themePreference); } catch { /* best effort */ }
-    store.setState((state) => ({ ...state, themePreference }));
+    try { localStorage.setItem(THEME_STORAGE_KEY, 'ember'); } catch { /* best effort */ }
+    store.setState((state) => ({ ...state, themePreference: 'ember' }));
     applyTheme();
   }
 
@@ -56,13 +44,8 @@ function createShellPreferencesStore() {
 
   function startThemeSync(): () => void {
     applyTheme();
-    if (typeof matchMedia !== 'function') return () => {};
-    mediaQuery = matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = () => {
-      if (store.getState().themePreference === 'system') applyTheme();
-    };
-    mediaQuery.addEventListener?.('change', handleChange);
-    return () => mediaQuery?.removeEventListener?.('change', handleChange);
+    try { localStorage.setItem(THEME_STORAGE_KEY, 'ember'); } catch { /* best effort */ }
+    return () => {};
   }
 
   return {
@@ -76,4 +59,3 @@ function createShellPreferencesStore() {
 }
 
 export const shellPreferencesStore = createShellPreferencesStore();
-

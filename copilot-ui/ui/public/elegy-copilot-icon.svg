@@ -1,21 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-labelledby="elegy-copilot-icon-title elegy-copilot-icon-desc">
   <title id="elegy-copilot-icon-title">Elegy Copilot observer icon</title>
-  <desc id="elegy-copilot-icon-desc">A dark rounded square with a simple observer lens and teal signal node.</desc>
+  <desc id="elegy-copilot-icon-desc">A warm dark rounded square with a simple observer lens and ember signal node.</desc>
   <defs>
     <linearGradient id="elegy-copilot-icon-bg" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#222A33" />
-      <stop offset="1" stop-color="#101317" />
+      <stop stop-color="#382D26" />
+      <stop offset="1" stop-color="#171311" />
     </linearGradient>
     <linearGradient id="elegy-copilot-icon-glyph" x1="18" y1="20" x2="46" y2="44" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F8FAFC" />
-      <stop offset="1" stop-color="#D8E2EA" />
+      <stop stop-color="#F4EADB" />
+      <stop offset="1" stop-color="#CFBDA5" />
     </linearGradient>
   </defs>
   <rect x="4" y="4" width="56" height="56" rx="18" fill="url(#elegy-copilot-icon-bg)" />
-  <rect x="4.75" y="4.75" width="54.5" height="54.5" rx="17.25" stroke="#2F3A45" stroke-width="1.5" />
+  <rect x="4.75" y="4.75" width="54.5" height="54.5" rx="17.25" stroke="#59463A" stroke-width="1.5" />
   <path d="M15.5 32C19.6 24.8 25.1 21.2 32 21.2C38.9 21.2 44.4 24.8 48.5 32C44.4 39.2 38.9 42.8 32 42.8C25.1 42.8 19.6 39.2 15.5 32Z" stroke="url(#elegy-copilot-icon-glyph)" stroke-width="5" stroke-linejoin="round" />
   <circle cx="32" cy="32" r="7.2" fill="url(#elegy-copilot-icon-glyph)" />
-  <circle cx="32" cy="32" r="3.2" fill="#151A20" />
-  <circle cx="45.5" cy="22.5" r="5.5" fill="#6EAFA8" />
-  <circle cx="43.6" cy="20.6" r="1.4" fill="#D6F2EE" fill-opacity="0.9" />
+  <circle cx="32" cy="32" r="3.2" fill="#171311" />
+  <circle cx="45.5" cy="22.5" r="5.5" fill="#D97832" />
+  <circle cx="43.6" cy="20.6" r="1.4" fill="#F2A35E" fill-opacity="0.9" />
 </svg>

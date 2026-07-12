@@ -17,8 +17,9 @@ import CollaborationStyleSettingsView from './CollaborationStyleSettingsView';
 import AppearanceSettings from './AppearanceSettings';
 import AppIcon from '../../components/AppIcon';
 import { factoryReset, type FactoryResetResponse } from '../../lib/api/system';
+import { assetPath } from '../../lib/assetPath';
 
-const BRAND_ICON_SRC = '/elegy-copilot-icon.svg';
+const BRAND_ICON_SRC = assetPath('elegy-copilot-icon.png');
 
 interface AppInfo {
   version?: string;

@@ -83,7 +83,7 @@ antigravity-assets/ ─install─► ~/.gemini/antigravity/
 1. Desktop shell launches → Tauri boots WebView
 2. WebView loads Vite-built SPA → React mounts App.tsx
 3. React calls /api/health to verify backend
-4. Sidebar renders: Repositories | Lexicon | Settings
+4. Sidebar renders: Repositories | Notes | Pattern Atlas | Settings
 5. User opens a repo → WorkspaceView with local tabs
 6. Planning tab → fetches /api/planning/live/roadmap → renders graph
 7. Catalog → /api/catalog/refresh → projection built from assets

@@ -29,9 +29,9 @@ describe('sidebar', () => {
     await renderSidebar();
 
     expect(screen.getByText('Elegy Copilot')).toBeInTheDocument();
-    const brandIcon = screen.getByText('Elegy Copilot').parentElement?.querySelector('.sidebar-brand-icon');
-    expect(brandIcon?.tagName).toBe('svg');
-    expect(screen.getByTestId('sidebar').querySelector('img')).toBeNull();
+    const brandIcon = screen.getByTestId('sidebar-brand-icon');
+    expect(brandIcon.tagName).toBe('IMG');
+    expect(brandIcon).toHaveAttribute('src', '/elegy-copilot-icon.png');
     expect(screen.getByText('Open workspaces')).toBeInTheDocument();
     expect(screen.getByText('instruction-engine')).toBeInTheDocument();
     expect(screen.getByText('data-pipeline')).toBeInTheDocument();
@@ -87,10 +87,10 @@ describe('sidebar', () => {
 
   it('each nav item has aria-label and title attributes', async () => {
     await renderSidebar();
-    const lexiconBtn = screen.getByTestId('sidebar-item-pattern-atlas');
-    expect(lexiconBtn).toHaveAttribute('aria-label', 'Pattern Atlas');
-    expect(lexiconBtn).toHaveAttribute('title');
-    expect(lexiconBtn.querySelector('.sidebar-item-icon')).toBeInTheDocument();
+    const atlasBtn = screen.getByTestId('sidebar-item-pattern-atlas');
+    expect(atlasBtn).toHaveAttribute('aria-label', 'Pattern Atlas');
+    expect(atlasBtn).toHaveAttribute('title');
+    expect(atlasBtn.querySelector('.sidebar-item-icon')).toBeInTheDocument();
   });
 
   it('renders active item with sidebar-item-active class', async () => {

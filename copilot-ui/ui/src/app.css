@@ -5790,7 +5790,8 @@ textarea:focus-visible,
 }
 
 .question-card-textarea:focus {
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
   border-color: var(--color-brand-400);
   box-shadow: var(--shadow-focus-ring);
 }
@@ -6281,7 +6282,8 @@ textarea:focus-visible,
 }
 
 .todo-repo-selector:focus {
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
   border-color: var(--color-brand-400);
   box-shadow: var(--shadow-focus-ring);
 }
@@ -6312,7 +6314,8 @@ textarea:focus-visible,
 }
 
 .todo-add-input:focus {
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
   border-color: var(--color-brand-400);
   box-shadow: var(--shadow-focus-ring);
 }
@@ -6575,7 +6578,8 @@ textarea:focus-visible,
 
 .git-panel-branch-select:focus,
 .git-panel-branch-input:focus {
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
   border-color: var(--color-brand-400);
   box-shadow: var(--shadow-focus-ring);
 }
@@ -6844,7 +6848,8 @@ textarea:focus-visible,
 }
 
 .git-panel-commit-input:focus {
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
   border-color: var(--color-brand-400);
   box-shadow: var(--shadow-focus-ring);
 }
@@ -7037,7 +7042,8 @@ textarea:focus-visible,
   color: inherit;
   font: inherit;
   font-size: 0.9rem;
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
 }
 
 .todo-item-text {
@@ -7649,7 +7655,8 @@ textarea:focus-visible,
   color: var(--color-ink-700, #e6edf3);
   resize: none;
   font-family: inherit;
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
 }
 
 .session-composer-input::placeholder {
@@ -8245,324 +8252,6 @@ textarea:focus-visible,
   text-align: center;
 }
 
-/* ========================================================================
-   Lexicon View
-   ======================================================================== */
-
-.lexicon-view {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  height: 100%;
-  padding: var(--space-md);
-}
-
-.lexicon-title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.lexicon-search-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  max-width: 28rem;
-  width: 100%;
-  margin-left: auto;
-}
-
-.lexicon-search-icon {
-  position: absolute;
-  left: var(--space-xs);
-  font-size: var(--text-sm);
-  pointer-events: none;
-  opacity: 0.5;
-}
-
-.lexicon-search-input {
-  width: 100%;
-  padding: var(--space-xs) var(--space-sm);
-  padding-left: calc(var(--space-lg) + var(--space-2xs));
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--bg-default);
-  color: var(--fg-default);
-  font: inherit;
-  font-size: var(--text-sm);
-  transition: border-color var(--duration-fast) var(--ease-standard);
-}
-
-.lexicon-search-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: var(--shadow-focus-ring);
-}
-
-.lexicon-search-input::placeholder {
-  color: var(--fg-muted);
-}
-
-.lexicon-search-clear {
-  position: absolute;
-  right: var(--space-2xs);
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--fg-muted);
-  font-size: var(--text-xs);
-  padding: var(--space-2xs);
-  line-height: 1;
-  border-radius: var(--radius-sm);
-}
-
-.lexicon-search-clear:hover {
-  color: var(--fg-default);
-  background: var(--bg-subtle);
-}
-
-.lexicon-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2xs);
-  align-items: center;
-}
-
-.lexicon-chip {
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-pill);
-  background: var(--bg-default);
-  color: var(--fg-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-xs);
-  padding: 0.3rem 0.6rem;
-  transition:
-    background-color var(--duration-fast) var(--ease-standard),
-    border-color var(--duration-fast) var(--ease-standard),
-    color var(--duration-fast) var(--ease-standard);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2xs);
-  white-space: nowrap;
-}
-
-.lexicon-chip:hover {
-  border-color: var(--accent);
-  background: var(--bg-tertiary);
-  color: var(--fg-default);
-}
-
-.lexicon-chip-active {
-  border-color: var(--accent);
-  background: var(--bg-tertiary);
-  color: var(--accent);
-  font-weight: 500;
-}
-
-.lexicon-chip-icon {
-  font-size: 0.7rem;
-  opacity: 0.7;
-}
-
-.lexicon-content {
-  flex: 1;
-  overflow-y: auto;
-}
-
-.lexicon-loading {
-  padding: var(--space-xl);
-  text-align: center;
-  color: var(--fg-muted);
-  font-style: italic;
-}
-
-.lexicon-summary {
-  padding: var(--space-xs) 0;
-  font-size: var(--text-sm);
-  color: var(--fg-muted);
-}
-
-.lexicon-summary strong {
-  color: var(--fg-default);
-}
-
-.lexicon-result-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--space-sm);
-}
-
-.lexicon-result-item {
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--bg-default);
-  padding: var(--space-sm);
-  display: grid;
-  gap: var(--space-2xs);
-  transition: border-color var(--duration-fast) var(--ease-standard);
-}
-
-.lexicon-result-item:hover {
-  border-color: var(--color-border-100);
-  background: var(--color-surface-2);
-}
-
-.lexicon-result-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-sm);
-  flex-wrap: wrap;
-}
-
-.lexicon-result-term {
-  font-size: var(--text-md);
-  font-weight: 600;
-  color: var(--fg-default);
-}
-
-.lexicon-result-category {
-  font-size: var(--text-xs);
-  color: var(--fg-muted);
-}
-
-.lexicon-result-definition {
-  font-size: var(--text-sm);
-  color: var(--color-ink-700);
-  margin: 0;
-  line-height: 1.45;
-}
-
-.lexicon-tag-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2xs);
-}
-
-.lexicon-tag {
-  font-size: 0.7rem;
-  padding: 0.15rem 0.45rem;
-  border-radius: var(--radius-pill);
-  background: var(--color-brand-50);
-  color: var(--color-brand-500);
-}
-
-.lexicon-tag-highlighted {
-  background: var(--color-brand-100);
-  color: var(--color-brand-600);
-  font-weight: 500;
-}
-
-.lexicon-highlight {
-  background: rgba(110, 175, 168, 0.22);
-  color: var(--color-brand-500);
-  font-weight: 500;
-  border-radius: 2px;
-  padding: 0 1px;
-}
-
-.lexicon-inline-link {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--accent);
-  font: inherit;
-  font-size: inherit;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.lexicon-inline-link:hover {
-  color: var(--color-brand-400);
-}
-
-.lexicon-category-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
-  gap: var(--space-sm);
-}
-
-.lexicon-category-card {
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--bg-default);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  padding: var(--space-md);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  transition:
-    border-color var(--duration-fast) var(--ease-standard),
-    background-color var(--duration-fast) var(--ease-standard);
-}
-
-.lexicon-category-card:hover {
-  border-color: var(--accent);
-  background: var(--color-surface-2);
-}
-
-.lexicon-category-card-icon {
-  font-size: 1.1rem;
-}
-
-.lexicon-category-card-label {
-  font-size: var(--text-md);
-  font-weight: 500;
-  color: var(--fg-default);
-}
-
-.lexicon-category-term-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: var(--space-sm);
-}
-
-.lexicon-category-term-item {
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--bg-default);
-  padding: var(--space-sm);
-  display: grid;
-  gap: var(--space-2xs);
-}
-
-.lexicon-category-term-item:hover {
-  border-color: var(--color-border-100);
-  background: var(--color-surface-2);
-}
-
-.lexicon-term-link {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-md);
-  font-weight: 600;
-  color: var(--fg-default);
-  text-align: left;
-  padding: 0;
-}
-
-.lexicon-term-link:hover {
-  color: var(--accent);
-}
-
-.lexicon-term-definition {
-  font-size: var(--text-sm);
-  color: var(--color-ink-700);
-  margin: 0;
-  line-height: 1.4;
-}
-
 /* ── Repositories View ── */
 
 .repos-view {
@@ -8838,7 +8527,8 @@ textarea:focus-visible,
 }
 
 .form-textarea:focus {
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
   border-color: var(--color-brand-400);
   box-shadow: var(--shadow-focus-ring);
 }
@@ -8854,7 +8544,8 @@ textarea:focus-visible,
 }
 
 .form-input-field:focus {
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
   border-color: var(--color-brand-400);
   box-shadow: var(--shadow-focus-ring);
 }
@@ -9153,7 +8844,8 @@ textarea:focus-visible,
 }
 
 .repo-card-commit-input:focus {
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
   border-color: var(--color-brand-400);
   box-shadow: var(--shadow-focus-ring);
 }
@@ -9194,7 +8886,8 @@ textarea:focus-visible,
 }
 
 .repo-card-override-input:focus {
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
   border-color: var(--color-brand-400);
   box-shadow: var(--shadow-focus-ring);
 }
@@ -9893,7 +9586,7 @@ textarea:focus-visible,
 }
 
 .workspace-docs-viewer-edit-btn:hover {
-  background: rgba(110, 175, 168, 0.1);
+  background: var(--color-brand-50);
   color: var(--color-ink-300);
 }
 
@@ -9936,7 +9629,8 @@ textarea:focus-visible,
   font-size: 0.85rem;
   line-height: 1.6;
   resize: none;
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
   tab-size: 2;
 }
 
@@ -13007,7 +12701,7 @@ textarea:focus-visible,
   margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary, var(--color-ink-900));
 }
 
 .go-workspaces-form-row {
@@ -13024,19 +12718,19 @@ textarea:focus-visible,
   border: 1px solid var(--border-color, #313244);
   border-radius: 6px;
   background: var(--input-bg, #11111b);
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary, var(--color-ink-900));
   font-size: 13px;
 }
 
 .go-workspaces-form-row input::placeholder {
-  color: var(--text-muted, #6c7086);
+  color: var(--text-muted, var(--color-ink-500));
 }
 
 .go-workspaces-form-row button {
   padding: 8px 16px;
   border: none;
   border-radius: 6px;
-  background: var(--accent-color, #cba6f7);
+  background: var(--accent-color, var(--color-brand-500));
   color: #1e1e2e;
   font-size: 13px;
   font-weight: 600;
@@ -13057,7 +12751,7 @@ textarea:focus-visible,
   margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary, var(--color-ink-900));
 }
 
 .go-workspace-card {
@@ -13072,7 +12766,7 @@ textarea:focus-visible,
 }
 
 .go-workspace-card-active {
-  border-color: var(--accent-color, #cba6f7);
+  border-color: var(--accent-color, var(--color-brand-500));
   background: var(--panel-bg-active, #1e1e2e);
 }
 
@@ -13090,7 +12784,7 @@ textarea:focus-visible,
 .go-workspace-label {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary, var(--color-ink-900));
 }
 
 .go-workspace-badge {
@@ -13103,12 +12797,12 @@ textarea:focus-visible,
 }
 
 .go-workspace-badge-active {
-  background: var(--accent-color, #cba6f7);
+  background: var(--accent-color, var(--color-brand-500));
   color: #1e1e2e;
 }
 
 .go-workspace-badge-detected {
-  background: var(--text-muted, #6c7086);
+  background: var(--text-muted, var(--color-ink-500));
   color: #1e1e2e;
 }
 
@@ -13122,7 +12816,7 @@ textarea:focus-visible,
   align-items: center;
   gap: 12px;
   font-size: 12px;
-  color: var(--text-secondary, #a6adc8);
+  color: var(--text-secondary, var(--color-ink-700));
   flex-wrap: wrap;
 }
 
@@ -13143,13 +12837,13 @@ textarea:focus-visible,
 }
 
 .go-workspace-validation-warning {
-  color: var(--warning-color, #f9e2af);
+  color: var(--warning-color, var(--color-warning-600));
 }
 
 .go-workspace-validation-error,
 .go-workspace-validation-invalid,
 .go-workspace-validation-failed {
-  color: var(--error-color, #f38ba8);
+  color: var(--error-color, var(--color-danger-500));
 }
 
 .go-workspace-card-actions {
@@ -13163,7 +12857,7 @@ textarea:focus-visible,
   border: 1px solid var(--border-color, #313244);
   border-radius: 4px;
   background: transparent;
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary, var(--color-ink-900));
   font-size: 12px;
   cursor: pointer;
 }
@@ -13178,8 +12872,8 @@ textarea:focus-visible,
 }
 
 .go-workspace-delete-btn {
-  color: var(--error-color, #f38ba8) !important;
-  border-color: var(--error-color, #f38ba8) !important;
+  color: var(--error-color, var(--color-danger-500)) !important;
+  border-color: var(--error-color, var(--color-danger-500)) !important;
 }
 
 .go-workspace-validated-at {
@@ -13818,7 +13512,8 @@ textarea:focus-visible,
   border-radius: var(--radius-sm);
   color: var(--color-ink-200);
   font-size: 0.78rem;
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
 }
 
 .workspace-notes-search-input:focus {
@@ -13839,7 +13534,8 @@ textarea:focus-visible,
   border: 1px solid var(--color-ink-200);
   border-radius: var(--radius-sm);
   color: var(--color-ink-300);
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
 }
 
 .workspace-notes-filter-group {
@@ -14103,7 +13799,8 @@ textarea:focus-visible,
   border-radius: var(--radius-sm);
   color: var(--color-ink-200);
   font-size: 0.82rem;
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
 }
 
 .workspace-notes-editor-input:focus {
@@ -14146,7 +13843,8 @@ textarea:focus-visible,
   color: var(--color-ink-200);
   font-size: 0.7rem;
   padding: 1px 8px;
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
   min-width: 80px;
 }
 
@@ -14173,7 +13871,8 @@ textarea:focus-visible,
   font-size: 0.82rem;
   line-height: 1.6;
   resize: none;
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
   font-family: inherit;
 }
 
@@ -14218,7 +13917,8 @@ textarea:focus-visible,
   font-size: 0.78rem;
   line-height: 1.6;
   resize: none;
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
 }
 
 .workspace-notes-raw-textarea:focus {
@@ -15167,15 +14867,16 @@ textarea:focus-visible,
   border: 1px solid var(--border-color, #313244);
   border-radius: 6px;
   background: var(--input-bg, #11111b);
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary, var(--color-ink-900));
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
 }
 
 .go-workspace-selector:focus {
-  outline: none;
-  border-color: var(--accent-color, #cba6f7);
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
+  border-color: var(--accent-color, var(--color-brand-500));
 }
 
 .go-workspace-selector:disabled {
@@ -15185,7 +14886,7 @@ textarea:focus-visible,
 
 .go-workspace-selector option {
   background: var(--input-bg, #11111b);
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary, var(--color-ink-900));
 }
 
 .go-workspace-current-info {
@@ -15193,13 +14894,13 @@ textarea:focus-visible,
   align-items: center;
   gap: 12px;
   font-size: 13px;
-  color: var(--text-secondary, #a6adc8);
+  color: var(--text-secondary, var(--color-ink-700));
   flex-wrap: wrap;
 }
 
 .go-workspace-current-label {
   font-weight: 600;
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary, var(--color-ink-900));
 }
 
 .go-workspace-current-source {
@@ -15227,7 +14928,7 @@ textarea:focus-visible,
 }
 
 .go-workspace-status-row span {
-  color: var(--text-secondary, #a6adc8);
+  color: var(--text-secondary, var(--color-ink-700));
   font-size: 12px;
 }
 
@@ -15235,7 +14936,7 @@ textarea:focus-visible,
 .go-workspace-status-row code {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary, var(--color-ink-900));
   font-size: 13px;
 }
 
@@ -15248,7 +14949,7 @@ textarea:focus-visible,
 
 .go-workspace-open-link {
   font-size: 12px;
-  color: var(--accent-color, #cba6f7);
+  color: var(--accent-color, var(--color-brand-500));
   text-decoration: none;
   white-space: nowrap;
 }
@@ -15275,14 +14976,14 @@ textarea:focus-visible,
 
 .usage-credit-loading {
   font-size: 13px;
-  color: var(--text-muted, #6c7086);
+  color: var(--text-muted, var(--color-ink-500));
   text-align: center;
   padding: var(--space-sm, 8px);
 }
 
 .usage-credit-unavailable {
   font-size: 13px;
-  color: var(--text-muted, #6c7086);
+  color: var(--text-muted, var(--color-ink-500));
   text-align: center;
   padding: var(--space-sm, 8px);
 }
@@ -15290,7 +14991,7 @@ textarea:focus-visible,
 .usage-credit-provider-label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-muted, #6c7086);
+  color: var(--text-muted, var(--color-ink-500));
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: var(--space-xs, 8px);
@@ -15313,11 +15014,11 @@ textarea:focus-visible,
 }
 
 .usage-credit-metric-warning {
-  border-left: 3px solid var(--warning-color, #f9e2af);
+  border-left: 3px solid var(--warning-color, var(--color-warning-600));
 }
 
 .usage-credit-metric-exhausted {
-  border-left: 3px solid var(--error-color, #f38ba8);
+  border-left: 3px solid var(--error-color, var(--color-danger-500));
 }
 
 .usage-credit-metric-header {
@@ -15330,12 +15031,12 @@ textarea:focus-visible,
 .usage-credit-metric-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary, var(--color-ink-900));
 }
 
 .usage-credit-metric-timestamp {
   font-size: 11px;
-  color: var(--text-muted, #6c7086);
+  color: var(--text-muted, var(--color-ink-500));
 }
 
 .usage-credit-metric-values {
@@ -15343,30 +15044,30 @@ textarea:focus-visible,
   align-items: baseline;
   gap: 4px;
   font-size: 14px;
-  color: var(--text-secondary, #a6adc8);
+  color: var(--text-secondary, var(--color-ink-700));
   margin-bottom: 4px;
 }
 
 .usage-credit-metric-current {
   font-size: 18px;
   font-weight: 700;
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary, var(--color-ink-900));
 }
 
 .usage-credit-metric-separator {
   font-size: 14px;
-  color: var(--text-muted, #6c7086);
+  color: var(--text-muted, var(--color-ink-500));
   margin: 0 2px;
 }
 
 .usage-credit-metric-limit {
   font-size: 14px;
-  color: var(--text-muted, #6c7086);
+  color: var(--text-muted, var(--color-ink-500));
 }
 
 .usage-credit-metric-remaining {
   font-size: 12px;
-  color: var(--text-muted, #6c7086);
+  color: var(--text-muted, var(--color-ink-500));
   margin-left: 4px;
 }
 
@@ -15380,13 +15081,13 @@ textarea:focus-visible,
 
 .usage-credit-progress-fill {
   height: 100%;
-  background: var(--accent-color, #cba6f7);
+  background: var(--accent-color, var(--color-brand-500));
   border-radius: 2px;
   transition: width 0.3s ease;
 }
 
 .usage-credit-progress-high {
-  background: var(--error-color, #f38ba8);
+  background: var(--error-color, var(--color-danger-500));
 }
 
 /* Collaboration Style Settings */
@@ -15541,7 +15242,8 @@ textarea:focus-visible,
 }
 
 .atlas-search-input:focus {
-  outline: none;
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
   border-color: var(--accent);
   box-shadow: var(--shadow-focus-ring);
 }

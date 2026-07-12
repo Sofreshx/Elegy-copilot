@@ -43,7 +43,7 @@ Build a Rust-owned durable execution control plane that dispatches isolated codi
 - ~/.elegy/orchestrator/ — execution journal destination (NEW, Rust-owned, not yet created)
 
 **Worktree contract:**
-- docs/lexicon/project-specific.md:241 — worktree lifecycle definition: allocation, activation, completion, interruption, removal. Transitions recorded in shared file registry and `hook_events` table.
+- Obsidian `Research/Lexicon/project-specific.md` — worktree lifecycle definition: allocation, activation, completion, interruption, removal. Transitions recorded in shared file registry and `hook_events` table.
 
 **Spec governance:**
 - `scripts/validate-specs.js` (867 lines) — spec structural + strict-mode validator

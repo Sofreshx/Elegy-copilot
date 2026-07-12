@@ -114,7 +114,7 @@ A comprehensive grep after removal found stale references in production scripts,
 
 **P1 — UI routes reference removed skill:** `copilot-ui/routes/planning.js` includes `roadmap-planning` in `skillsRequired` array. `copilot-ui/routes/sessions.js` conditionally adds it. These will produce broken continuation packages.
 
-**P2 — docs/references still mention removed skills:** docs/system/opencode-guide.md, docs/system/skills-governance.md, docs/system/search-execute-workflow.md, docs/system/system-upgrade-direction-2026.md, docs/lexicon/project-specific.md, docs/specs/asset-sync-truthfulness/spec.md, docs/research/shipped-skill-quality-audit.md, docs/system/instruction-changelog.md.
+**P2 — docs/references still mention removed skills:** docs/system/opencode-guide.md, docs/system/skills-governance.md, docs/system/search-execute-workflow.md, docs/system/system-upgrade-direction-2026.md, docs/specs/asset-sync-truthfulness/spec.md, docs/research/shipped-skill-quality-audit.md, docs/system/instruction-changelog.md.
 
 All non-code stale references (P2-P3) should be cleaned up when the code references are fixed.
 

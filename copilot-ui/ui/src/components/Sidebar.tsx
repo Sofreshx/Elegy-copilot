@@ -2,6 +2,7 @@ import React from 'react';
 import type { OpenWorkspace, SidebarItemId } from '../stores/navigation';
 import type { AppIconName } from './AppIcon';
 import AppIcon from './AppIcon';
+import { assetPath } from '../lib/assetPath';
 
 export interface SidebarItem {
   id: SidebarItemId;
@@ -57,7 +58,13 @@ export default function Sidebar({
   return (
     <nav className="sidebar" data-testid="sidebar" data-collapsed={String(collapsed)}>
       <div className="sidebar-brand-row">
-        <AppIcon name="diamond" size={22} className="sidebar-brand-icon" />
+        <img
+          src={assetPath('elegy-copilot-icon.png')}
+          alt=""
+          className="sidebar-brand-icon"
+          data-testid="sidebar-brand-icon"
+          aria-hidden="true"
+        />
         <span className="sidebar-brand-label">Elegy Copilot</span>
         <button
           type="button"

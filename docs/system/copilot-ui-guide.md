@@ -36,7 +36,6 @@ node copilot-ui/server.js
 |------|------|
 | Repositories | Browse and open registered repositories |
 | Notes | Global notes, vault Git snapshots, import/export, and Google Drive sync |
-| Lexicon | Searchable vocabulary reference |
 | Remote | Kimaki onboarding, projects, Discord sessions, prompts, and logs |
 | Workspace | Appears when a repository is opened; shows docs, git (stash management, force commit, worktree checks/merge), checks, health, planning, execution, and assets tabs |
 | Settings (bottom) | App configuration (via settings gear icon) |
@@ -62,7 +61,6 @@ The sidebar and settings structure are defined in `copilot-ui/ui/src/stores/navi
 - **Catalog control plane**: repo registration, asset install/search, external-source management, skill preview.
 - **Workspace**: per-repo docs, git operations, planning graph, and execution surface.
 - **Sessions**: session browse, detail view with activity stream, artifacts, task board, skill usage.
-- **Lexicon**: searchable terminology reference for UI, design, and architecture terms.
 - **Settings**: app info, catalog, OpenCode/Codex/Claude Code configuration.
 - **Remote**: Kimaki-backed Discord session management.
 - **Maintenance**: desktop updates, Elegy plugin marketplace status, shared-skill fallback status, and LSP diagnostics.

@@ -8,17 +8,7 @@
 .appearance-setting-copy { display: grid; gap: var(--space-2xs); }
 .appearance-setting-copy strong { color: var(--color-ink-900); font-size: var(--text-sm); }
 .appearance-setting-copy span { color: var(--color-ink-500); font-size: var(--text-sm); }
-.appearance-setting select {
-  min-width: 11rem;
-  padding: 0.48rem 2rem 0.48rem var(--space-sm);
-  color: var(--color-ink-900);
-  border: 1px solid var(--color-border-200);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-1);
-}
-.appearance-setting select:focus-visible { outline: 2px solid var(--color-brand-500); outline-offset: 2px; }
 
 @media (max-width: 720px) {
-  .appearance-setting { align-items: stretch; flex-direction: column; gap: var(--space-sm); }
-  .appearance-setting select { width: 100%; }
+  .appearance-setting { align-items: flex-start; flex-direction: column; gap: var(--space-sm); }
 }

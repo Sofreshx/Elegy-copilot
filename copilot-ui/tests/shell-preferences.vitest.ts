@@ -7,33 +7,24 @@ describe('shell preferences', () => {
     vi.resetModules();
   });
 
-  it('defaults to an expanded sidebar and system theme', async () => {
+  it('defaults to an expanded sidebar and Ember theme', async () => {
     const { shellPreferencesStore } = await import('../ui/src/stores/shellPreferences');
     expect(shellPreferencesStore.getState()).toMatchObject({
       sidebarCollapsed: false,
-      themePreference: 'system',
+      themePreference: 'ember',
     });
+    shellPreferencesStore.applyTheme();
+    expect(document.documentElement).toHaveAttribute('data-theme', 'ember');
   });
 
-  it('persists sidebar collapse and theme preference', async () => {
+  it('persists sidebar collapse and the Ember theme', async () => {
     const { shellPreferencesStore } = await import('../ui/src/stores/shellPreferences');
     shellPreferencesStore.toggleSidebar();
-    shellPreferencesStore.setThemePreference('light');
+    shellPreferencesStore.setThemePreference('ember');
 
     expect(shellPreferencesStore.getState().sidebarCollapsed).toBe(true);
     expect(localStorage.getItem('elegy-copilot-sidebar-collapsed')).toBe('true');
-    expect(localStorage.getItem('elegy-copilot-theme')).toBe('light');
-    expect(document.documentElement).toHaveAttribute('data-theme', 'light');
-  });
-
-  it('resolves system theme from the OS preference', async () => {
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
-      matches: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    }));
-    const { shellPreferencesStore } = await import('../ui/src/stores/shellPreferences');
-    shellPreferencesStore.applyTheme();
-    expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
+    expect(localStorage.getItem('elegy-copilot-theme')).toBe('ember');
+    expect(document.documentElement).toHaveAttribute('data-theme', 'ember');
   });
 });
