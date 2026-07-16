@@ -5,10 +5,6 @@
       {
         "path": "copilot-ui/ui/src/components",
         "description": "Shared UI components used across the dashboard and settings surfaces"
-      },
-      {
-        "path": "copilot-ui/ui/src/tabs/PatternAtlas",
-        "description": "Pattern Atlas tab — visual catalog of UI patterns, styles, components, and system architecture patterns"
       }
     ],
     "tokenFiles": [
@@ -23,12 +19,7 @@
         "library": "custom"
       }
     ],
-    "patternDocs": [
-      {
-        "path": "copilot-ui/ui/src/tabs/PatternAtlas/PatternAtlasView.tsx",
-        "description": "Pattern Atlas view — renders visual catalog of UI patterns and system architecture patterns"
-      }
-    ]
+    "patternDocs": []
   },
   "targets": {
     "settings": {
@@ -207,40 +198,6 @@
         }
       ],
       "evidenceRoot": "./evidence/ui/workspace-assets",
-      "runtimeReport": "runtime-report.json"
-    },
-    "pattern-atlas": {
-      "lane": "browser",
-      "workingDirectory": "./",
-      "validationCommands": [
-        {
-          "id": "build",
-          "command": "npm --prefix copilot-ui run ui:build",
-          "description": "Build the UI bundle before validation"
-        },
-        {
-          "id": "evidence",
-          "command": "node scripts/ui-check-copilot-ui.mjs",
-          "description": "Capture settled Pattern Atlas evidence and write the runtime report"
-        }
-      ],
-      "routes": [
-        {
-          "id": "pattern-atlas-view",
-          "path": "navigation:pattern-atlas",
-          "viewports": ["desktop"],
-          "states": ["default"],
-          "excludedStates": [
-            { "state": "loading", "reason": "The adapter waits for loading to settle before approved evidence is captured." },
-            { "state": "empty", "reason": "The governed atlas fixture contains entries; empty behavior is covered by component tests." },
-            { "state": "error", "reason": "Runtime diagnostics fail the target instead of accepting an error-state screenshot." },
-            { "state": "disabled", "reason": "Pattern Atlas is a read-only catalog view with no interactive controls that can be disabled." },
-            { "state": "focus", "reason": "This target validates the settled catalog surface; keyboard focus behavior is covered by component tests." }
-          ],
-          "description": "Pattern Atlas — visual catalog of UI patterns, styles, components, and system architecture patterns"
-        }
-      ],
-      "evidenceRoot": "./evidence/ui/pattern-atlas",
       "runtimeReport": "runtime-report.json"
     }
   }

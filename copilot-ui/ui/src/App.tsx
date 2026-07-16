@@ -17,7 +17,6 @@ import { shellPreferencesStore } from './stores/shellPreferences';
 const StandaloneGraphWindow = lazy(() => import('./tabs/Planning/StandaloneGraphWindow'));
 const SessionDetailView = lazy(() => import('./views/Sessions/SessionDetailView'));
 const SettingsView = lazy(() => import('./views/Settings/SettingsView'));
-const PatternAtlasView = lazy(() => import('./tabs/PatternAtlas/PatternAtlasView'));
 const AssetCreationWizard = lazy(() => import('./views/Catalog/AssetCreationWizard'));
 const AddProjectWizard = lazy(() => import('./views/Project/AddProjectWizard'));
 const WorkspaceView = lazy(() => import('./views/Workspace/WorkspaceView'));
@@ -102,8 +101,6 @@ export default function App() {
         return <RemoteView />;
       case 'mcp':
         return <McpView />;
-      case 'pattern-atlas':
-        return <PatternAtlasView />;
       case 'repositories':
         return <RepositoriesView />;
       case 'notes':

@@ -324,11 +324,11 @@ async function setupBrowser() {
  *   remote         → sidebar-item-remote
  *
  * @param {import('@playwright/test').Page} page
- * @param {string}   viewId  - One of: settings, catalog, workspace, workspace-git, workspace-checks, workspace-notes, repositories, remote, pattern-atlas
+ * @param {string}   viewId  - One of: settings, catalog, workspace, workspace-git, workspace-checks, workspace-notes, repositories, remote
  * @returns {Promise<void>}
  */
 async function navigateToView(page, viewId) {
-  const validViews = new Set(['settings', 'catalog', 'workspace', 'workspace-git', 'workspace-checks', 'workspace-assets', 'repositories', 'remote', 'pattern-atlas']);
+  const validViews = new Set(['settings', 'catalog', 'workspace', 'workspace-git', 'workspace-checks', 'workspace-assets', 'repositories', 'remote']);
   if (!validViews.has(viewId)) {
     throw new Error(`Unknown viewId: "${viewId}". Valid: ${[...validViews].join(', ')}`);
   }
@@ -388,7 +388,7 @@ async function navigateToView(page, viewId) {
       }
     }
   } else {
-    // repositories, remote, pattern-atlas
+    // repositories, remote
     await page.click(`[data-testid="sidebar-item-${viewId}"]`);
     await page.waitForSelector('[data-testid="app-layout"]', {
       timeout: PAGE_READY_TIMEOUT_MS,
@@ -410,11 +410,6 @@ async function waitForTargetReadiness(page, targetId) {
           && !exists('[data-testid="github-auth-checking"]')
           && !text('.workspace-context-status').includes('Checking status')
           && !loadingMessage;
-      }
-      if (id === 'pattern-atlas') {
-        return exists('[data-testid="pattern-atlas-view"]')
-          && !exists('[data-testid="atlas-loading"]')
-          && exists('[data-testid="atlas-gallery-grid"]');
       }
       if (id === 'catalog') {
         return exists('[data-testid="catalog-shell-view"]')
@@ -621,7 +616,7 @@ async function runTarget(targetId, browserHandle, evidenceDir) {
       pageErrors: resultPageErrors,
       networkFailures: [...networkFailures],
     });
-  } else if (['repositories', 'remote', 'pattern-atlas'].includes(targetId)) {
+  } else if (['repositories', 'remote'].includes(targetId)) {
     await navigateToView(page, targetId);
     const readiness = await waitForTargetReadiness(page, targetId);
     if (targetId === 'repositories') {
@@ -632,7 +627,7 @@ async function runTarget(targetId, browserHandle, evidenceDir) {
     }
     const screenshot = await captureState(page, 'desktop', 'default', evidenceDir, `${targetId}-default`);
     const resultPageErrors = [...pageErrors, ...(readiness.reason ? [`Readiness failed: ${readiness.reason}`] : [])];
-    const routeId = targetId === 'pattern-atlas' ? 'pattern-atlas-view' : `${targetId}-default`;
+    const routeId = `${targetId}-default`;
 
     surfaceResults.push({
       routeId,
@@ -646,7 +641,7 @@ async function runTarget(targetId, browserHandle, evidenceDir) {
       networkFailures: [...networkFailures],
     });
   } else {
-    throw new Error(`Unknown targetId: "${targetId}". Supported: settings, catalog, workspace, workspace-git, workspace-checks, workspace-assets, repositories, remote, pattern-atlas`);
+    throw new Error(`Unknown targetId: "${targetId}". Supported: settings, catalog, workspace, workspace-git, workspace-checks, workspace-assets, repositories, remote`);
   }
 
   return surfaceResults;

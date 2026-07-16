@@ -23,16 +23,17 @@ describe('UI theme contract', () => {
     expect(menu).not.toContain('rgba(17, 20, 24');
   });
 
-  it('defines the Ember surface and semantic status colors', () => {
+  it('defines the Graphite surface and semantic status colors', () => {
     const css = readFileSync(path.resolve(process.cwd(), 'ui/src/styles/tokens.css'), 'utf8');
-    expect(css).toContain(':root[data-theme="ember"]');
+    expect(css).toContain(':root[data-theme="graphite"]');
+    expect(css).not.toContain(':root[data-theme="ember"]');
     expect(css).not.toContain(':root[data-theme="light"]');
     expect(css).not.toContain('#78b8b0');
     const warning = css.match(/--color-warning-600:\s*(#[0-9a-fA-F]{3,6})/)?.[1];
     const success = css.match(/--color-success-500:\s*(#[0-9a-fA-F]{3,6})/)?.[1];
     expect(warning).toBeTruthy();
     expect(success).toBeTruthy();
-    expect(contrastRatio(warning!, '#211b18')).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio(success!, '#211b18')).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(warning!, '#1d2124')).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(success!, '#1d2124')).toBeGreaterThanOrEqual(4.5);
   });
 });

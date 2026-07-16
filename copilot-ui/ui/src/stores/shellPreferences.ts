@@ -1,6 +1,6 @@
 import { createStore } from '../lib/store';
 
-export type ThemePreference = 'ember';
+export type ThemePreference = 'graphite';
 
 interface ShellPreferencesState {
   sidebarCollapsed: boolean;
@@ -16,7 +16,7 @@ function readSidebarCollapsed(): boolean {
 }
 
 function readThemePreference(): ThemePreference {
-  return 'ember';
+  return 'graphite';
 }
 
 function createShellPreferencesStore() {
@@ -25,12 +25,12 @@ function createShellPreferencesStore() {
     themePreference: readThemePreference(),
   });
   function applyTheme(): void {
-    document.documentElement.dataset.theme = 'ember';
+    document.documentElement.dataset.theme = store.getState().themePreference;
   }
 
   function setThemePreference(themePreference: ThemePreference): void {
-    try { localStorage.setItem(THEME_STORAGE_KEY, 'ember'); } catch { /* best effort */ }
-    store.setState((state) => ({ ...state, themePreference: 'ember' }));
+    try { localStorage.setItem(THEME_STORAGE_KEY, themePreference); } catch { /* best effort */ }
+    store.setState((state) => ({ ...state, themePreference }));
     applyTheme();
   }
 
@@ -44,7 +44,7 @@ function createShellPreferencesStore() {
 
   function startThemeSync(): () => void {
     applyTheme();
-    try { localStorage.setItem(THEME_STORAGE_KEY, 'ember'); } catch { /* best effort */ }
+    try { localStorage.setItem(THEME_STORAGE_KEY, store.getState().themePreference); } catch { /* best effort */ }
     return () => {};
   }
 

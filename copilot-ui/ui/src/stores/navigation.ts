@@ -13,7 +13,6 @@ export const SIDEBAR_IDS = [
   'workspace',
   'remote',
   'mcp',
-  'pattern-atlas',
   'repositories',
   'notes',
   'settings',
@@ -122,7 +121,6 @@ export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
   { id: 'notes', label: 'Notes', icon: 'file-text', description: 'Read, write, import, export, and sync workspace notes' },
   { id: 'remote', label: 'Remote', icon: 'hexagon', description: 'Manage Discord-driven remote sessions via Kimaki' },
   { id: 'mcp', label: 'MCP', icon: 'mcp', description: 'Expose selected local MCP servers to web chatbots' },
-  { id: 'pattern-atlas', label: 'Pattern Atlas', icon: 'layout', description: 'Visual catalog of UI patterns, styles, components, and system architecture patterns' },
   { id: 'settings', label: 'Settings', icon: 'settings', description: 'App configuration and preferences' },
 ];
 

@@ -37,7 +37,7 @@ describe('sidebar', () => {
     expect(screen.getByText('data-pipeline')).toBeInTheDocument();
     expect(screen.getByText('Global tools')).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-item-repositories')).toHaveTextContent('Repositories');
-    expect(screen.getByTestId('sidebar-item-pattern-atlas')).toHaveTextContent('Pattern Atlas');
+    expect(screen.queryByText('Pattern Atlas')).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-item-settings')).toHaveTextContent('Settings');
     expect(screen.getByTestId('sidebar-item-settings').closest('.sidebar-footer')).not.toBeNull();
   });
@@ -85,12 +85,14 @@ describe('sidebar', () => {
     expect(iconEl?.tagName).toBe('svg');
   });
 
-  it('each nav item has aria-label and title attributes', async () => {
+  it('each nav item has aria-label, title, and a local icon', async () => {
     await renderSidebar();
-    const atlasBtn = screen.getByTestId('sidebar-item-pattern-atlas');
-    expect(atlasBtn).toHaveAttribute('aria-label', 'Pattern Atlas');
-    expect(atlasBtn).toHaveAttribute('title');
-    expect(atlasBtn.querySelector('.sidebar-item-icon')).toBeInTheDocument();
+    for (const item of SIDEBAR_NAV_ITEMS) {
+      const button = screen.getByTestId(`sidebar-item-${item.id}`);
+      expect(button).toHaveAttribute('aria-label', item.label);
+      expect(button).toHaveAttribute('title');
+      expect(button.querySelector('.sidebar-item-icon')).toBeInTheDocument();
+    }
   });
 
   it('renders active item with sidebar-item-active class', async () => {
