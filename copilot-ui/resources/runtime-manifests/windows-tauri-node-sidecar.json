@@ -56,6 +56,12 @@
       "target": "engine-assets"
     },
     {
+      "id": "catalog-assets",
+      "kind": "directory",
+      "source": "../catalog-assets",
+      "target": "catalog-assets"
+    },
+    {
       "id": "cli-policy",
       "kind": "directory",
       "source": "../.cli/policy",
@@ -100,6 +106,7 @@
       "kind": "file",
       "source": "resources/moon-bridge/moon-bridge.exe",
       "target": "moon-bridge/moon-bridge.exe",
+      "optional": true,
       "description": "Bundled Moon Bridge proxy binary for DeepSeek V4 provider routing"
     },
     {

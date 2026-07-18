@@ -187,6 +187,12 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
+      - name: Run native Windows release acceptance
+        run: npm --prefix copilot-ui run desktop:smoke:native
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
       - name: Upload Windows package
         uses: actions/upload-artifact@v4
         with:
@@ -281,3 +287,46 @@ jobs:
           else
             gh release create desktop-updates --repo "${GH_REPO}" "${updater_files[@]}" --target "${GITHUB_SHA}" --title "Elegy Copilot Desktop Update Feeds" --notes "Mutable signed updater feeds. Use versioned releases for installers and changelogs."
           fi
+
+  verify-published-release:
+    if: ${{ needs.resolve-release.outputs.publish_mode == 'published' }}
+    needs:
+      - resolve-release
+      - publish-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository scripts
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.resolve-release.outputs.release_tag }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Verify published GitHub download contract
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.resolve-release.outputs.release_version }}
+          RELEASE_PRERELEASE: ${{ needs.resolve-release.outputs.prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          feed_tag="desktop-v${RELEASE_VERSION}"
+          if [[ "${RELEASE_PRERELEASE}" == "true" ]]; then
+            feed_tag="${RELEASE_VERSION}"
+          fi
+          args=(
+            --repo "${GH_REPO}"
+            --tag "${RELEASE_TAG}"
+            --expected-version "${RELEASE_VERSION}"
+            --feed-tag "${feed_tag}"
+          )
+          if [[ "${RELEASE_PRERELEASE}" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          node scripts/desktop-release-acceptance.js "${args[@]}"

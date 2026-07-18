@@ -57,6 +57,10 @@ function findResourceCopy(manifest, id) {
     : null;
 }
 
+function isOptionalResource(resource) {
+  return resource && resource.optional === true;
+}
+
 function getRuntimeManifestsCopy(manifest, manifestPath) {
   const runtimeManifestsCopy = findResourceCopy(manifest, 'runtime-manifests');
   assert(runtimeManifestsCopy, `Expected ${manifestPath} resourceCopies to include runtime-manifests.`);
@@ -154,6 +158,7 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     'local-tracker-node-modules',
     'local-tracker-package-json',
     'scripts',
+    'catalog-assets',
     'moon-bridge-binary',
     'runtime-manifests',
   ];
@@ -198,11 +203,9 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     assert(!path.isAbsolute(resource.target), `Expected ${manifestPath} resourceCopies.${resource.id}.target to stay relative: ${resource.target}`);
 
     const sourcePath = path.resolve(activeWorkspaceRoot, resource.source);
-    if (resource.id === 'moon-bridge-binary') {
-      // Moon Bridge binary is an optional bundled resource — runtime falls back to git+go build
-      if (!fs.existsSync(sourcePath)) {
-        continue;
-      }
+    if (isOptionalResource(resource) && !fs.existsSync(sourcePath)) {
+      // Optional packaged resources may be provisioned later by the runtime.
+      continue;
     }
     if (resource.kind === 'file') {
       requireFile(`Tauri sidecar model source ${resource.id}`, sourcePath);
@@ -305,14 +308,7 @@ function validateTauriBundleConfig(options = {}) {
   assert(tauriConfig.bundle.targets === 'nsis', `Expected ${tauriConfigPath} bundle.targets=nsis.`);
 
   const expectedMappings = {
-    'gen/resources/node': 'node',
-    'gen/resources/copilot-ui': 'copilot-ui',
-    'gen/resources/runtime-manifests': 'runtime-manifests',
-    'gen/resources/.cli': '.cli',
-    'gen/resources/engine-assets': 'engine-assets',
-    'gen/resources/local-tracker': 'local-tracker',
-    'gen/resources/scripts': 'scripts',
-    'gen/resources/moon-bridge': 'moon-bridge',
+    'gen/resources': 'resources',
   };
 
   for (const [fromPath, toPath] of Object.entries(expectedMappings)) {
@@ -323,6 +319,7 @@ function validateTauriBundleConfig(options = {}) {
     tauriConfigPath,
     bundleTarget: tauriConfig.bundle.targets,
     resourceMappingCount: Object.keys(expectedMappings).length,
+    resourceMappings: expectedMappings,
   };
 }
 
@@ -427,6 +424,7 @@ function validateStagedTauriNodeSidecarLayoutMetadata(options = {}) {
 }
 
 module.exports = {
+  isOptionalResource,
   manifestRelativePath,
   loadTauriNodeSidecarLayout,
   resolveWorkspaceDependencyRoot,

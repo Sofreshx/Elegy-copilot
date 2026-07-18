@@ -198,6 +198,12 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
+      - name: Run native Windows preview acceptance
+        run: npm --prefix copilot-ui run desktop:smoke:native
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
       - name: Prune stale desktop preview release assets
         shell: bash
         env:
@@ -254,3 +260,22 @@ jobs:
           else
             gh release create desktop-updates --repo "${GH_REPO}" "${updater_files[@]}" --target "${GITHUB_SHA}" --title "Elegy Copilot Desktop Update Feeds" --notes "Mutable signed updater feeds. Use versioned releases for installers and changelogs."
           fi
+
+      - name: Verify published preview download contract
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.resolve-preview.outputs.tag_name }}
+          RELEASE_VERSION: ${{ needs.resolve-preview.outputs.tag_name }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          feed_tag="desktop-v${RELEASE_VERSION}"
+          if [[ "${RELEASE_VERSION}" == *-* ]]; then
+            feed_tag="${RELEASE_VERSION}"
+          fi
+          node scripts/desktop-release-acceptance.js \
+            --repo "${GH_REPO}" \
+            --tag "${RELEASE_TAG}" \
+            --expected-version "${RELEASE_VERSION}" \
+            --feed-tag "${feed_tag}" \
+            --prerelease

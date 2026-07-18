@@ -70,5 +70,11 @@ The stable release lane publishes the same staged installer artifacts that passe
 
 - `.github/workflows/repo-ci.yml` is the repo-wide required CI workflow.
 - The Windows packaging check in that workflow runs `npm --prefix copilot-ui run desktop:preview:stage`.
+- Windows release builds must pass `npm --prefix copilot-ui run desktop:smoke:native`, which installs,
+  launches, checks the runtime health endpoint and native window, verifies single-instance reuse, and
+  uninstalls the packaged app.
+- Published releases must pass `node scripts/desktop-release-acceptance.js`, which downloads every
+  GitHub release asset and verifies installer naming, hashes, updater signatures, feed URLs, and
+  installation guidance against the published release metadata.
 - Release packaging requires `TAURI_SIGNING_PRIVATE_KEY` and optionally `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` in CI secrets; only the updater public key is committed.
 - Release docs and workflow behavior must stay aligned.

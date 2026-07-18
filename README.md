@@ -61,6 +61,11 @@ Desktop app development: `npm --prefix copilot-ui run desktop:dev`
 
 Desktop download: [Releases page](https://github.com/Sofreshx/Elegy-copilot/releases)
 
+The stable Windows desktop release is distributed as a signed Tauri NSIS installer on the release
+page. Download the installer, run it, and launch Elegy Copilot after installation. The app bundles
+its Node runtime and runtime assets, then uses the matching stable updater feed for signed in-app
+updates. Preview releases are evaluation builds and must not be mixed with stable updates.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, validation commands, and PR expectations.

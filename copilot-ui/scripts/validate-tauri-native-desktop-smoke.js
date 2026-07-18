@@ -6,7 +6,7 @@ const net = require('net');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 
-const { loadTauriNodeSidecarLayout } = require('./tauri-node-sidecar-layout');
+const { isOptionalResource, loadTauriNodeSidecarLayout } = require('./tauri-node-sidecar-layout');
 const { validateTauriWindowsReleaseArtifacts } = require('./validate-tauri-windows-release-artifacts');
 const { removeTarget } = require('./clean-tauri-release');
 
@@ -242,6 +242,9 @@ function validateInstalledLayout(resourcesRoot) {
 
   for (const resource of manifest.resourceCopies || []) {
     const expectedPath = path.join(resourcesRoot, resource.target);
+    if (!fs.existsSync(expectedPath) && isOptionalResource(resource)) {
+      continue;
+    }
     assert(fs.existsSync(expectedPath), `Missing installed resource ${resource.id}: ${expectedPath}`);
     const stat = fs.statSync(expectedPath);
     if (resource.kind === 'file') {
