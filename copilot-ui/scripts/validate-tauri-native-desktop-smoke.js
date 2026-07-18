@@ -39,6 +39,31 @@ function formatStartupDiagnostics({ errorMessage, bootLog = '', stdout = '', std
   return sections.join('\n');
 }
 
+function resolveUserShortcutPaths({ userProfile = process.env.USERPROFILE, appData = process.env.APPDATA } = {}) {
+  return [
+    path.join(String(userProfile || ''), 'Desktop', 'Elegy Copilot.lnk'),
+    path.join(String(appData || ''), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Elegy Copilot.lnk'),
+  ];
+}
+
+function snapshotPathStates(paths, fsApi = fs) {
+  return paths.map((filePath) => ({
+    filePath,
+    exists: fsApi.existsSync(filePath),
+    contents: fsApi.existsSync(filePath) ? Buffer.from(fsApi.readFileSync(filePath)) : null,
+  }));
+}
+
+function restorePathStates(states, fsApi = fs) {
+  for (const state of states) {
+    if (state.exists) {
+      fsApi.writeFileSync(state.filePath, state.contents);
+    } else if (fsApi.existsSync(state.filePath)) {
+      fsApi.unlinkSync(state.filePath);
+    }
+  }
+}
+
 function ensureCleanDir(targetPath) {
   removeTarget(targetPath);
   fs.mkdirSync(targetPath, { recursive: true });
@@ -538,6 +563,8 @@ async function uninstallDesktop(uninstallPath, appPath, resourcesRoot) {
 async function main() {
   assert(process.platform === 'win32', 'validate-tauri-native-desktop-smoke.js only supports Windows hosts.');
 
+  const shortcutStates = snapshotPathStates(resolveUserShortcutPaths());
+
   try {
     const releaseValidation = validateTauriWindowsReleaseArtifacts({ workspaceRoot });
     const tauriConfig = JSON.parse(fs.readFileSync(path.join(workspaceRoot, 'src-tauri', 'tauri.conf.json'), 'utf8'));
@@ -561,6 +588,11 @@ async function main() {
         + `node=${path.basename(layout.nodeRuntimePath)}.`,
     );
   } finally {
+    try {
+      restorePathStates(shortcutStates);
+    } catch (error) {
+      console.error(`[tauri-native-smoke] failed to restore user shortcuts: ${error.message || error}`);
+    }
     cleanupScratchRoot();
   }
 }
@@ -575,4 +607,7 @@ if (require.main === module) {
 
 module.exports = {
   formatStartupDiagnostics,
+  resolveUserShortcutPaths,
+  snapshotPathStates,
+  restorePathStates,
 };
