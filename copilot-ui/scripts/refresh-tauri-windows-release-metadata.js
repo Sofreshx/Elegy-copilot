@@ -84,6 +84,10 @@ function encodeReleaseAssetName(fileName) {
   return encodeURIComponent(fileName).replace(/%20/g, '%20');
 }
 
+function resolvePublishedInstallerName(installerName) {
+  return String(installerName || '').replace(/\s+/g, '.');
+}
+
 function resolveDownloadBaseUrl(options, packageJson, channel) {
   const explicit = String(options.downloadBaseUrl || '').trim();
   if (explicit) {
@@ -111,7 +115,7 @@ function refreshTauriWindowsReleaseMetadata(options = {}) {
   const bundleRoot = path.resolve(options.bundleRoot || path.join(activeWorkspaceRoot, 'src-tauri', 'target', 'release', 'bundle'));
   const installerPath = resolveNsisInstallerPath(bundleRoot);
   const installerSignaturePath = resolveInstallerSignaturePath(installerPath);
-  const installerName = path.basename(installerPath);
+  const installerName = resolvePublishedInstallerName(path.basename(installerPath));
   const signatureName = `${installerName}.sig`;
   const installerStat = fs.statSync(installerPath);
   const releaseRoot = path.resolve(options.releaseRoot || path.join(activeWorkspaceRoot, 'release', 'tauri', 'windows'));
@@ -214,5 +218,6 @@ if (require.main === module) {
 module.exports = {
   refreshTauriWindowsReleaseMetadata,
   renderWindowsInstallationGuide,
+  resolvePublishedInstallerName,
   resolveNsisInstallerPath,
 };

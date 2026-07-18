@@ -143,6 +143,11 @@ test('refreshes release metadata with a signed Tauri updater feed', () => {
 
   assert.equal(releaseManifest.updateLane.mode, 'tauri_signed_updater');
   assert.equal(path.basename(result.updaterFeedPath), 'stable-latest.json');
+  assert.equal(result.installerName, 'Elegy.Copilot_1.2.3_x64-setup.exe');
+  assert.ok(fs.existsSync(result.installerPath));
+  assert.ok(fs.existsSync(path.join(fixture.releaseRoot, 'Elegy.Copilot_1.2.3_x64-setup.exe.sig')));
+  assert.equal(releaseManifest.artifact.relativePath, 'Elegy.Copilot_1.2.3_x64-setup.exe');
   assert.equal(feed.platforms['windows-x86_64'].signature, 'fresh-signature');
+  assert.match(feed.platforms['windows-x86_64'].url, /Elegy\.Copilot_1\.2\.3_x64-setup\.exe$/);
   assert.match(feed.platforms['windows-x86_64'].url, /^https:\/\/github\.com\/Sofreshx\/Elegy-copilot\/releases\/download\/desktop-v1\.2\.3\//);
 });

@@ -2,7 +2,7 @@
 
 - Desktop version: 1.0.5
 - Release channel: stable
-- Windows installer: Elegy Copilot_1.0.5_x64-setup.exe
+- Windows installer: Elegy.Copilot_1.0.5_x64-setup.exe
 
 ## Operator truth
 
@@ -14,7 +14,7 @@
 
 ## User steps
 
-1. Download the matching-channel Windows installer (`Elegy Copilot_1.0.5_x64-setup.exe`).
+1. Download the matching-channel Windows installer (`Elegy.Copilot_1.0.5_x64-setup.exe`).
 2. Close any running desktop app instances before starting the installer.
 3. Run the installer manually and follow the Windows installation prompts.
 4. Launch the app after installation completes.
