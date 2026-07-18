@@ -3,6 +3,7 @@
 const fs = require('fs');
 const http = require('http');
 const net = require('net');
+const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 
@@ -46,6 +47,18 @@ function resolveUserShortcutPaths({ userProfile = process.env.USERPROFILE, appDa
   ];
 }
 
+function resolveInstallerRegistryKey({ publisher = 'elegycopilot', productName = 'Elegy Copilot' } = {}) {
+  return `HKCU\\Software\\${publisher}\\${productName}`;
+}
+
+function resolveInstallerUninstallRegistryKey({ productName = 'Elegy Copilot' } = {}) {
+  return `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${productName}`;
+}
+
+function resolveInstallerRegistryBackupPath({ tempDirectory = os.tmpdir(), processId = process.pid } = {}) {
+  return path.join(tempDirectory, `elegy-copilot-tauri-native-smoke-${processId}.reg`);
+}
+
 function snapshotPathStates(paths, fsApi = fs) {
   return paths.map((filePath) => ({
     filePath,
@@ -61,6 +74,51 @@ function restorePathStates(states, fsApi = fs) {
     } else if (fsApi.existsSync(state.filePath)) {
       fsApi.unlinkSync(state.filePath);
     }
+  }
+}
+
+function snapshotInstallerRegistryKey({ registryKey = resolveInstallerRegistryKey(), backupPath = resolveInstallerRegistryBackupPath() } = {}) {
+
+  const query = spawnSync('reg.exe', ['query', registryKey], {
+    encoding: 'utf8',
+    stdio: 'pipe',
+    windowsHide: true,
+  });
+  if (query.status !== 0) {
+    return { registryKey, backupPath, exists: false };
+  }
+
+  spawnSyncChecked('reg.exe', ['export', registryKey, backupPath, '/y']);
+  return { registryKey, backupPath, exists: true };
+}
+
+function snapshotInstallerRegistryState() {
+  return [
+    snapshotInstallerRegistryKey(),
+    snapshotInstallerRegistryKey({
+      registryKey: resolveInstallerUninstallRegistryKey(),
+      backupPath: resolveInstallerRegistryBackupPath({ processId: `${process.pid}-uninstall` }),
+    }),
+  ];
+}
+
+function restoreInstallerRegistryKey(snapshot) {
+  if (snapshot.exists) {
+    spawnSyncChecked('reg.exe', ['import', snapshot.backupPath]);
+    fs.rmSync(snapshot.backupPath, { force: true });
+    return;
+  }
+
+  spawnSync('reg.exe', ['delete', snapshot.registryKey, '/f'], {
+    encoding: 'utf8',
+    stdio: 'pipe',
+    windowsHide: true,
+  });
+}
+
+function restoreInstallerRegistryState(snapshots) {
+  for (const snapshot of snapshots) {
+    restoreInstallerRegistryKey(snapshot);
   }
 }
 
@@ -564,6 +622,7 @@ async function main() {
   assert(process.platform === 'win32', 'validate-tauri-native-desktop-smoke.js only supports Windows hosts.');
 
   const shortcutStates = snapshotPathStates(resolveUserShortcutPaths());
+  const installerRegistryState = snapshotInstallerRegistryState();
 
   try {
     const releaseValidation = validateTauriWindowsReleaseArtifacts({ workspaceRoot });
@@ -593,6 +652,11 @@ async function main() {
     } catch (error) {
       console.error(`[tauri-native-smoke] failed to restore user shortcuts: ${error.message || error}`);
     }
+    try {
+      restoreInstallerRegistryState(installerRegistryState);
+    } catch (error) {
+      console.error(`[tauri-native-smoke] failed to restore installer registry state: ${error.message || error}`);
+    }
     cleanupScratchRoot();
   }
 }
@@ -608,6 +672,9 @@ if (require.main === module) {
 module.exports = {
   formatStartupDiagnostics,
   resolveUserShortcutPaths,
+  resolveInstallerRegistryKey,
+  resolveInstallerUninstallRegistryKey,
+  resolveInstallerRegistryBackupPath,
   snapshotPathStates,
   restorePathStates,
 };

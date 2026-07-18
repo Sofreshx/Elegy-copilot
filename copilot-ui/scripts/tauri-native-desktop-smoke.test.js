@@ -6,6 +6,9 @@ const test = require('node:test');
 const {
   formatStartupDiagnostics,
   resolveUserShortcutPaths,
+  resolveInstallerRegistryKey,
+  resolveInstallerUninstallRegistryKey,
+  resolveInstallerRegistryBackupPath,
   snapshotPathStates,
   restorePathStates,
 } = require('./validate-tauri-native-desktop-smoke');
@@ -53,4 +56,27 @@ test('restores user-facing shortcuts after the smoke installer mutates them', ()
 
   assert.deepEqual(files.get(shortcutPaths[0]), Buffer.from('original desktop shortcut'));
   assert.equal(files.has(shortcutPaths[1]), false);
+});
+
+test('uses the Tauri installer registry key for side-effect isolation', () => {
+  assert.equal(
+    resolveInstallerRegistryKey(),
+    'HKCU\\Software\\elegycopilot\\Elegy Copilot',
+  );
+  assert.equal(
+    resolveInstallerUninstallRegistryKey(),
+    'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Elegy Copilot',
+  );
+});
+
+test('stores the installer registry backup outside the scratch install tree', () => {
+  const backupPath = resolveInstallerRegistryBackupPath({
+    tempDirectory: 'C:\\Users\\smoke-user\\AppData\\Local\\Temp',
+    processId: 1234,
+  });
+
+  assert.equal(
+    backupPath,
+    'C:\\Users\\smoke-user\\AppData\\Local\\Temp\\elegy-copilot-tauri-native-smoke-1234.reg',
+  );
 });
