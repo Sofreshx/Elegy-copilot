@@ -315,6 +315,17 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn normalize_windows_extended_path(path: PathBuf) -> PathBuf {
+    let value = path.to_string_lossy();
+    if let Some(rest) = value.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    if let Some(rest) = value.strip_prefix(r"\\?\") {
+        return PathBuf::from(rest);
+    }
+    path
+}
+
 fn runtime_root(app: &AppHandle) -> Result<PathBuf, String> {
     if cfg!(debug_assertions) {
         let root = repo_root();
@@ -338,7 +349,7 @@ fn runtime_root(app: &AppHandle) -> Result<PathBuf, String> {
             candidates.push(exe_dir.to_path_buf());
         }
     }
-    let root = resolve_runtime_root_from_candidates(candidates)?;
+    let root = normalize_windows_extended_path(resolve_runtime_root_from_candidates(candidates)?);
     eprintln!(
         "[tauri-runtime] release mode, resource_dir: {}",
         root.display()
@@ -436,6 +447,18 @@ mod tests {
 
         assert_eq!(resolved, resources_root);
         let _ = std::fs::remove_dir_all(temp);
+    }
+
+    #[test]
+    fn runtime_root_normalization_removes_windows_extended_path_prefixes() {
+        assert_eq!(
+            normalize_windows_extended_path(PathBuf::from(r"\\?\D:\elegy\resources")),
+            PathBuf::from(r"D:\elegy\resources"),
+        );
+        assert_eq!(
+            normalize_windows_extended_path(PathBuf::from(r"\\?\UNC\server\share\elegy")),
+            PathBuf::from(r"\\server\share\elegy"),
+        );
     }
 
     #[test]
