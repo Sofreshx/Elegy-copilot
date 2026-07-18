@@ -132,6 +132,7 @@
       "@photostructure/sqlite-vec",
       "better-sqlite3",
       "eventsource-parser",
+      "js-yaml",
       "kimaki",
       "pg",
       "toml"

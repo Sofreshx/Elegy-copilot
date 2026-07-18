@@ -31,3 +31,12 @@ test('treats the optional Moon Bridge binary as optional during installed-layout
   assert.ok(moonBridge);
   assert.equal(isOptionalResource(moonBridge), true);
 });
+
+test('declares js-yaml because packaged runtime routes require it', () => {
+  const { manifest } = loadTauriNodeSidecarLayout();
+
+  assert.ok(
+    manifest.nodeModulePayload.requiredRuntimePackages.includes('js-yaml'),
+    'Expected the packaged runtime dependency closure to include js-yaml.',
+  );
+});
