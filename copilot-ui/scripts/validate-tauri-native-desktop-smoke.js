@@ -29,6 +29,16 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function formatStartupDiagnostics({ errorMessage, bootLog = '', stdout = '', stderr = '' }) {
+  const sections = [
+    String(errorMessage || '').trim(),
+    bootLog.trim() ? `tauri boot log:\n${bootLog.trim()}` : '',
+    stdout.trim() ? `child stdout:\n${stdout.trim()}` : '',
+    stderr.trim() ? `child stderr:\n${stderr.trim()}` : '',
+  ].filter(Boolean);
+  return sections.join('\n');
+}
+
 function ensureCleanDir(targetPath) {
   removeTarget(targetPath);
   fs.mkdirSync(targetPath, { recursive: true });
@@ -375,28 +385,44 @@ async function launchAndValidateInstalledApp(appPath, expectedTitle, expectedRes
   const serverPort = await getFreePort();
   const launchEnv = buildIsolatedLaunchEnv(serverPort);
   console.log(`[tauri-native-smoke] launching ${path.basename(appPath)} on 127.0.0.1:${serverPort}`);
+  const stdoutChunks = [];
+  const stderrChunks = [];
   const child = spawn(appPath, [], {
     cwd: path.dirname(appPath),
     env: launchEnv,
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
+  child.stdout.on('data', (chunk) => stdoutChunks.push(Buffer.from(chunk)));
+  child.stderr.on('data', (chunk) => stderrChunks.push(Buffer.from(chunk)));
 
   let secondInstance = null;
 
   try {
-    const healthResponse = await waitForCondition(
-      'desktop health endpoint',
-      async () => {
-        const info = readProcessWindowInfo(child.pid);
-        if (!info.exists) {
-          throw new Error(info.message || `Desktop process ${child.pid} exited before /api/health became ready.`);
-        }
-        const response = await httpGetJson(`http://127.0.0.1:${serverPort}/api/health`);
-        return response.status === 200 ? response : null;
-      },
-      { timeoutMs: startupTimeoutMs },
-    );
+    let healthResponse;
+    try {
+      healthResponse = await waitForCondition(
+        'desktop health endpoint',
+        async () => {
+          const info = readProcessWindowInfo(child.pid);
+          if (!info.exists) {
+            throw new Error(info.message || `Desktop process ${child.pid} exited before /api/health became ready.`);
+          }
+          const response = await httpGetJson(`http://127.0.0.1:${serverPort}/api/health`);
+          return response.status === 200 ? response : null;
+        },
+        { timeoutMs: startupTimeoutMs },
+      );
+    } catch (error) {
+      const bootLogPath = path.join(stateRoot, 'home', '.elegy', 'tauri-boot.log');
+      const bootLog = fs.existsSync(bootLogPath) ? fs.readFileSync(bootLogPath, 'utf8') : '';
+      throw new Error(formatStartupDiagnostics({
+        errorMessage: error instanceof Error ? error.message : String(error),
+        bootLog,
+        stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+        stderr: Buffer.concat(stderrChunks).toString('utf8'),
+      }));
+    }
     console.log('[tauri-native-smoke] loopback health endpoint responded');
     const runtimeRoot = healthResponse && healthResponse.body ? healthResponse.body.engineRoot : null;
     assert(runtimeRoot, 'Desktop health endpoint did not report engineRoot runtime root.');
@@ -539,8 +565,14 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  const detail = error instanceof Error ? error.message : String(error);
-  console.error(`[tauri-native-smoke] ${detail}`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error(`[tauri-native-smoke] ${detail}`);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  formatStartupDiagnostics,
+};
