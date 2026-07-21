@@ -1,6 +1,6 @@
 ---
 created: 2026-06-04
-updated: 2026-07-06
+updated: 2026-07-20
 category: system
 status: current
 doc_kind: node
@@ -48,7 +48,7 @@ Shared runtime defaults and config validation for the repo-local scripts. Owns:
 
 Read-only scan of a workspace root. Defaults to `cwd()` if no path is given. Detects:
 
-- **TypeScript/Node.js**: `package.json` scripts, test frameworks (vitest/jest), lint tools (eslint), formatters (prettier), typecheck (tsc), coverage config, Docs Pages when `docs:build` and `scripts/validate-doc-graph.js` exist
+- **TypeScript/Node.js**: root and array/object-form wildcard workspaces, `package.json` scripts, test frameworks (vitest/jest), lint tools (eslint), formatters (prettier), typecheck (tsc), coverage config, Docs Pages when `docs:build` and `scripts/validate-doc-graph.js` exist
 - **Rust**: `Cargo.toml` workspace members, cargo test, cargo clippy, cargo fmt, cargo check, coverage tools (cargo llvm-cov, cargo tarpaulin)
 - **Existing config**: whether `.copilot/commit-checks.json` already exists
 
@@ -152,14 +152,46 @@ Missing or disabled lanes are excluded from both numerator and denominator.
 
 - Same repo files → same discovery output
 - Same config + same lane exit codes → same selected lane statuses and composite score
+- Generated fallback `npx` commands use `--no-install` to prevent dependency download during checks
 - Tie-breaking: lexical sort of lane keys before summing weights
 - Missing coverage tool → coverage score = 0 with a WARN status
 - Missing coverage metric (e.g., no branch data) → that sub-metric is treated as 0
 
+## Git Hooks
+
+Pre-commit and pre-push hooks are installed automatically during `commit-check-setup` bootstrap,
+update, or repair. The hook contract:
+
+### Layout
+
+- `.githooks/pre-commit` — elegy-managed hook; runs `node scripts/commit-check-run.mjs --group commit`
+- `.githooks/pre-push` — elegy-managed hook; runs `node scripts/commit-check-run.mjs --group push`
+- `scripts/setup-git-hooks.mjs` — idempotent re-sync tool; sets `core.hooksPath` to `.githooks`, validates hooks exist
+- `package.json` `prepare` script — runs `setup-git-hooks.mjs` on `npm install` (skipped when `CI=true` or `ELEGY_SKIP_HOOKS_INSTALL=1`)
+
+### Hook gate mapping
+
+| Hook | Runner flag | Lanes run | Escapes |
+|---|---|---|---|
+| pre-commit | `--group commit` | lint, format, typecheck, build-contracts | `git commit --no-verify` |
+| pre-push | `--group push` | test | `git push --no-verify` |
+
+### CI skip
+
+The `prepare` script and `setup-git-hooks.mjs` exit 0 without mutation when `CI=true` or
+`ELEGY_SKIP_HOOKS_INSTALL=1`. CI catches `--no-verify` pushes via the `quality` job in
+`repo-ci.yml` (test, lint, format, typecheck).
+
+### Determinism
+
+Hook files are tracked in `.githooks/` and overwritten from the skill's bundled templates during
+every bootstrap, update, or repair. They carry an Elegy marker header so `setup-git-hooks.mjs`
+can distinguish elegy-managed hooks from user hooks. The `core.hooksPath` value is set
+idempotently and rolled back on infrastructure failure.
+
 ## Non-Goals
 
 - Running integration or E2E tests (these belong in CI or the `@test-runner` lane)
-- Setting up pre-commit git hooks (deferred to future slice)
 - Code quality beyond lint/format (separate governance surface)
 - Language support beyond TypeScript/Node.js and Rust (extensible via plugin config)
 - Replacing spec-authored pre-implementation proof, broader validation routing, or reviewer evidence
@@ -176,6 +208,8 @@ Missing or disabled lanes are excluded from both numerator and denominator.
 - Manual checks and review-only evidence do not belong in the narrow commit gate by default.
 
 ## Skill Mapping
+
+The executable `commit-check-setup` skill invokes its bundled `commit-check-bootstrap.mjs` coordinator. The coordinator infers bootstrap, update, or repair; preserves existing runtime scripts; backs up config; rolls back infrastructure failures; and reports setup success separately from repository check health. The repo-local scripts remain the runtime authority after installation.
 
 The shipped skill (`commit-validation-governance`) performs two modes:
 
@@ -198,7 +232,9 @@ The shipped skill (`commit-validation-governance`) performs two modes:
 - [ ] `commit-check-discover.mjs` accurately detects TypeScript, Rust, and Docs Pages lanes in this repo
   → verify: run against elegy-copilot root, confirm test/coverage/lint/format/typecheck lanes are detected for JS/Rust and `docs-pages` is detected when docs validation exists
 - [ ] `commit-check-setup.mjs` generates a valid `.copilot/commit-checks.json` that the runner can consume
-  → verify: run setup, then run `commit-check-run.mjs --config .copilot/commit-checks.json --json`, confirm exit 0 and valid score JSON
+  → verify: run setup, then run `commit-check-run.mjs --config .copilot/commit-checks.json --json`, confirm valid score JSON; exit 1 is repository-health evidence, not setup failure
+- [ ] The skill coordinator backs up config, preserves existing runtime scripts, and restores affected files after infrastructure failure
+  → verify: run `node --test scripts/commit-check-bootstrap.test.mjs`
 - [ ] Scoring algorithm is deterministic: same config + same lane results → same composite score
   → verify: run the runner twice with a fixed mock config, confirm identical output
 - [ ] Blocking lanes force failure regardless of composite score

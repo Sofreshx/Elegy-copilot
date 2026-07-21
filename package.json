@@ -13,6 +13,7 @@
   ],
   "scripts": {
     "postinstall": "npm run build:contracts",
+    "prepare": "node scripts/setup-git-hooks.mjs",
     "build:contracts": "npm run build --workspace=contracts",
     "contracts:validate:session-state-sample": "node scripts/validate-session-state-canonical.js",
     "docs:dev": "vitepress dev docs",

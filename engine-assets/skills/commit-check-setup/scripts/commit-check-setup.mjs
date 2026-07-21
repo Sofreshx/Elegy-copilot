@@ -155,6 +155,28 @@ function addPackageJsonScript(repoRoot, config) {
   return true;
 }
 
+function addPrepareScript(repoRoot) {
+  const pkgPath = path.join(repoRoot, 'package.json');
+  if (!exists(pkgPath)) return false;
+
+  const pkg = readJson(pkgPath);
+  if (!pkg) return false;
+
+  if (!pkg.scripts) pkg.scripts = {};
+  if (pkg.scripts['prepare']) {
+    if (pkg.scripts['prepare'].includes('setup-git-hooks.mjs')) {
+      return false;
+    }
+    console.warn('[setup] npm script "prepare" already exists in package.json; add hooks setup manually: node scripts/setup-git-hooks.mjs');
+    return false;
+  }
+
+  pkg.scripts['prepare'] = 'node scripts/setup-git-hooks.mjs';
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
+  console.log('[setup] Added "prepare" hook setup script to package.json');
+  return true;
+}
+
 export async function setup(repoRoot, options = {}) {
   if (!exists(repoRoot)) {
     throw new Error(`Repo root not found: ${repoRoot}`);
@@ -200,6 +222,10 @@ export async function setup(repoRoot, options = {}) {
     addPackageJsonScript(repoRoot, configPath);
   }
 
+  if (options.hooks !== false) {
+    addPrepareScript(repoRoot);
+  }
+
   return { configPath, config };
 }
 
@@ -207,8 +233,10 @@ function main() {
   const repoRoot = process.argv[2] || process.cwd();
   const force = process.argv.includes('--force');
   const noScript = process.argv.includes('--no-script');
+  const noHooks = process.argv.includes('--no-hooks');
+  const hooksEnabled = process.argv.includes('--hooks') ? true : undefined;
 
-  setup(repoRoot, { force, noScript })
+  setup(repoRoot, { force, noScript, hooks: noHooks ? false : hooksEnabled })
     .then(({ configPath }) => {
       console.log(`\nCommit validation config ready: ${configPath}`);
       console.log('Run checks with: node scripts/commit-check-run.mjs --json --repo "' + repoRoot + '"');

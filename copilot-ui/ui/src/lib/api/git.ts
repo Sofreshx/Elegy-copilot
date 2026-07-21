@@ -486,6 +486,37 @@ export async function applyElegyCheckRecommendation(repoPath: string, proposal: 
   });
 }
 
+// ─── Git hooks state and setup ──────────────────────────────────────────────
+
+export interface GitHooksState {
+  available: boolean;
+  reason?: string;
+  coreHooksPath?: string | null;
+  active?: boolean;
+  hooks?: Record<string, { exists: boolean; managed: boolean; group: string }>;
+}
+
+export interface GitHooksSetupResult {
+  hooksConfigured: boolean;
+  coreHooksPath: string;
+  hooksPresent: Record<string, boolean>;
+  allHooksPresent: boolean;
+  skipped?: boolean;
+  reason?: string;
+}
+
+export async function getGitHooksState(repoPath: string, baseUrl?: string): Promise<GitHooksState> {
+  const url = `/api/git/hooks/state?repoPath=${encodeURIComponent(repoPath)}`;
+  return apiRequest<GitHooksState>(url, { baseUrl });
+}
+
+export async function setupGitHooks(repoPath: string, baseUrl?: string): Promise<GitHooksSetupResult> {
+  return apiRequest<GitHooksSetupResult>('/api/git/hooks/setup', {
+    baseUrl,
+    method: 'POST',
+  });
+}
+
 // ─── Merge candidate and dry-run APIs ──────────────────────────────────────
 
 export interface MergeCandidate {

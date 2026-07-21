@@ -1,0 +1,15 @@
+#!/bin/sh
+# Elegy managed hook — do not edit directly. Re-run commit-check-setup skill to update.
+NODE=$(command -v node 2>/dev/null || command -v node.exe 2>/dev/null || echo '')
+if [ -z "$NODE" ] && [ -x "/c/Program Files/nodejs/node.exe" ]; then
+  NODE="/c/Program Files/nodejs/node.exe"
+fi
+if [ -z "$NODE" ] && [ -x "/c/Program Files (x86)/nodejs/node.exe" ]; then
+  NODE="/c/Program Files (x86)/nodejs/node.exe"
+fi
+if [ -z "$NODE" ]; then
+  echo "[elegy] node not found — skipping push checks" >&2
+  exit 0
+fi
+"$NODE" scripts/commit-check-run.mjs --group push
+exit $?

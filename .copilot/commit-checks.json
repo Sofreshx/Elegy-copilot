@@ -32,6 +32,12 @@
       "cost": "fast",
       "opensWindow": false
     },
+    "push": {
+      "label": "Push",
+      "description": "Pre-push checks — test + typecheck",
+      "cost": "medium",
+      "opensWindow": false
+    },
     "ci-local": {
       "label": "CI Local",
       "description": "Full local CI parity gate",
@@ -72,7 +78,7 @@
       "skippable": false,
       "requiresReasonOnSkip": false,
       "defaultProfiles": [
-        "commit"
+        "push"
       ],
       "cost": "medium",
       "opensWindow": false,

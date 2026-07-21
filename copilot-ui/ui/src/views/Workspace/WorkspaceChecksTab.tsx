@@ -6,6 +6,7 @@ import { checksStore } from '../../stores/checksStore';
 import type { RunSession } from '../../stores/checksStore';
 import { deriveWorkspaceOperationSnapshot } from '../../stores/workspaceOperationStore';
 import type { GitCheckResults, GitChecksDiscoverResponse } from '../../lib/api/git';
+import { getGitHooksState, setupGitHooks } from '../../lib/api/git';
 import WorkspaceOperationBanner from './WorkspaceOperationBanner';
 
 interface WorkspaceChecksTabProps {
@@ -67,6 +68,12 @@ const s = {
     marginBottom: '12px',
     flexWrap: 'wrap' as const,
     alignItems: 'center',
+  } as React.CSSProperties,
+  hooksStatus: {
+    padding: '8px 12px',
+    background: DARK_BG_2,
+    borderRadius: '6px',
+    marginBottom: '12px',
   } as React.CSSProperties,
   sectionTitle: {
     color: TEXT_PRIMARY,
@@ -363,6 +370,8 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   const [logFilter, setLogFilter] = useState('');
   const [expandedLane, setExpandedLane] = useState<string | null>(null);
   const [confirmHeavyLanes, setConfirmHeavyLanes] = useState<LaneInfo[]>([]);
+  const [profileBarOpen, setProfileBarOpen] = useState(false);
+  const [hooksState, setHooksState] = useState<any>(null);
 
   const { runSession, runningChecks, checkResults, checkState, ciSync, discoveredChecks, loading } = storeState;
   const operationSnapshot = deriveWorkspaceOperationSnapshot({
@@ -374,6 +383,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   useEffect(() => {
     if (!repoPath) return;
     void checksStore.load(repoPath);
+    void getGitHooksState(repoPath).then(setHooksState).catch(() => {});
   }, [repoPath]);
 
   // ─── Derived data ──────────────────────────────────────────────────────────
@@ -497,6 +507,66 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
     if (operationSnapshot.nextAction?.id === 'checks.run') {
       handleProfileClick('ci-local');
     }
+  }
+
+  // ─── Render: Git Hooks Status ──────────────────────────────────────────────
+  function renderHooksStatus() {
+    if (!hooksState?.available) {
+      return (
+        <div style={s.hooksStatus} data-testid="workspace-checks-hooks-status">
+          <div style={{ color: TEXT_MUTED, fontSize: '12px' }}>
+            Git hooks: not configured. Run commit-check setup to enable.
+          </div>
+        </div>
+      );
+    }
+
+    const handleReinstall = () => {
+      void setupGitHooks(repoPath).then((result) => {
+        void getGitHooksState(repoPath).then(setHooksState).catch(() => {});
+        if (result.skipped) {
+          notificationStore.info(`Hooks setup skipped: ${result.reason || 'env'}`);
+        } else if (result.allHooksPresent) {
+          notificationStore.success('Git hooks re-installed');
+        } else {
+          notificationStore.warning('Hooks configured but some hook files are missing');
+        }
+      }).catch((err) => {
+        notificationStore.error(`Failed to set up hooks: ${String(err.message || err)}`);
+      });
+    };
+
+    const hooks = hooksState.hooks || {};
+    const active = hooksState.active;
+    const allPresent = Object.values(hooks).every((h: any) => h?.exists);
+    const showReinstall = !active || !allPresent;
+
+    return (
+      <div style={s.hooksStatus} data-testid="workspace-checks-hooks-status">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: TEXT_PRIMARY }}>Git hooks:</span>
+          {Object.entries(hooks).map(([name, hook]: [string, any]) => (
+            <span
+              key={name}
+              style={{
+                fontSize: '12px',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                background: hook.exists && active ? 'rgba(0,200,100,0.15)' : 'rgba(255,200,0,0.1)',
+                color: hook.exists && active ? '#4caf50' : TEXT_MUTED,
+              }}
+            >
+              {name} ({hook.group})
+            </span>
+          ))}
+          {showReinstall && (
+            <Button variant="ghost" size="sm" onClick={handleReinstall} testId="workspace-checks-reinstall-hooks">
+              Re-install
+            </Button>
+          )}
+        </div>
+      </div>
+    );
   }
 
   // ─── Render: Top Strip ─────────────────────────────────────────────────────
@@ -1112,8 +1182,22 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
         snapshot={operationSnapshot}
         onPrimaryAction={handleOperationPrimaryAction}
       />
+      {renderHooksStatus()}
       {renderTopStrip()}
-      {renderProfileBar()}
+
+      {/* Manual run — collapsible */}
+      <div style={{ marginBottom: 12 }}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setProfileBarOpen(!profileBarOpen)}
+          testId="workspace-checks-manual-run-toggle"
+        >
+          {profileBarOpen ? 'Hide Manual Run' : 'Manual Run...'}
+        </Button>
+      </div>
+      {profileBarOpen && renderProfileBar()}
+
       {renderConfirmDialog()}
       {renderRunStatus()}
       {renderLaneMatrix()}

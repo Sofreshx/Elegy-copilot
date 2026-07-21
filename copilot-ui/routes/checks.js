@@ -4,6 +4,9 @@ const { sendJson: defaultSendJson } = require('./_helpers');
 const { discoverChecks, runAllChecks, runAllChecksWithProfile, syncCiState: syncCheckCiState } = require('../lib/gitCheckRunner');
 const { resolveCommitCheckConfig } = require('../lib/commitCheckConfig');
 const elegyChecks = require('../lib/elegyChecksRunner');
+const path = require('node:path');
+const fs = require('node:fs');
+const { spawnSync } = require('node:child_process');
 
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -279,6 +282,64 @@ function handlePackShow(ctx, deps) {
   sendElegyResult(res, sendJson, result, 'elegy-checks binary is not available');
 }
 
+function handleHooksState(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const repoPath = resolveRepoPath(ctx) || process.cwd();
+
+  try {
+    const hooksScript = path.join(repoPath, 'scripts', 'setup-git-hooks.mjs');
+    if (!fs.existsSync(hooksScript)) {
+      sendJson(res, 200, {
+        available: false,
+        reason: 'setup-git-hooks.mjs not found — run commit-check-setup first',
+      });
+      return;
+    }
+
+    const result = spawnSync(process.execPath, [hooksScript, '--status', '--json', repoPath], {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 10000,
+    });
+
+    if (result.status !== 0) {
+      sendJson(res, 500, { error: 'Failed to read hooks state', stderr: result.stderr });
+      return;
+    }
+
+    const state = JSON.parse(result.stdout);
+    sendJson(res, 200, { available: true, ...state });
+  } catch (error) {
+    sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
+function handleHooksSetup(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson } = deps;
+  const repoPath = resolveRepoPath(ctx) || process.cwd();
+
+  try {
+    const hooksScript = path.join(repoPath, 'scripts', 'setup-git-hooks.mjs');
+    if (!fs.existsSync(hooksScript)) {
+      sendJson(res, 404, { error: 'setup-git-hooks.mjs not found — run commit-check-setup first' });
+      return;
+    }
+
+    const result = spawnSync(process.execPath, [hooksScript, '--json', repoPath], {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 10000,
+    });
+
+    const output = JSON.parse(result.stdout);
+    sendJson(res, 200, output);
+  } catch (error) {
+    sendJson(res, 500, { error: String(error.message || error) });
+  }
+}
+
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const readJsonBody = context.readJsonBody || require('./_helpers').readJsonBody;
@@ -296,6 +357,8 @@ function register(context = {}) {
     { method: 'POST', path: '/api/git/checks/apply', handler: (ctx) => handleChecksApply(ctx, deps) },
     { method: 'GET', path: '/api/git/checks/packs', handler: (ctx) => handlePacksList(ctx, deps) },
     { method: 'GET', path: /^\/api\/git\/checks\/packs\/([^/]+)$/, handler: (ctx) => handlePackShow(ctx, deps) },
+    { method: 'GET', path: '/api/git/hooks/state', handler: (ctx) => handleHooksState(ctx, deps) },
+    { method: 'POST', path: '/api/git/hooks/setup', handler: (ctx) => handleHooksSetup(ctx, deps) },
   ];
 }
 

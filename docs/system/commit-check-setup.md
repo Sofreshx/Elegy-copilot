@@ -1,6 +1,6 @@
 ---
 created: 2026-06-09
-updated: 2026-06-28
+updated: 2026-07-20
 category: system
 status: current
 doc_kind: node
@@ -14,64 +14,63 @@ related: [commit-validation-governance, repo-setup-governance, validation-govern
 
 ## Purpose
 
-Define the contract for the executable `commit-check-setup` skill that bootstraps or updates a target repo's commit-validation infrastructure. This is the mutating complement to the read-only `commit-validation-governance` skill.
+Define the executable `commit-check-setup` skill contract. A bundled coordinator owns mutation; the model-facing skill only invokes it and interprets its JSON result.
 
 ## Authority
 
 This doc is a sub-node under `commit-validation-governance`. The repo-local script contract, config format, and pass/fail algorithm are defined there — this doc covers only the setup/update workflow.
 
-## Modes
+## Coordinator
 
-| Mode | Mutates repo | Copies scripts | Generates config | Force overwrite | Smoke test |
-|------|-------------|----------------|-----------------|-----------------|------------|
-| `bootstrap` | Yes | Yes | Yes (force) | Yes | Yes |
-| `update` | Yes | No | Yes (merge) | No | Yes |
+Run from the installed skill directory:
 
-## Script Source and Copy Contract
-
-Source scripts are bundled inside the skill directory at `scripts/commit-check-{defaults,discover,setup,run}.mjs`.
-
-Copy rules:
-- Byte-for-byte copy from skill's bundled `scripts/` dir, no modification during transfer
-- If target `scripts/` dir doesn't exist, create it
-- If script already exists at target, skip copy (bootstrap) or leave as-is (update)
-
-## Config Generation Contract
-
-Bootstrap runs: `node scripts/commit-check-setup.mjs <root> --force`
-
-Update runs: `node scripts/commit-check-setup.mjs <root>` (merge mode)
-
-Before overwrite in bootstrap mode:
-- If `.copilot/commit-checks.json` exists, copy to the generated .copilot/commit-checks.json.bak backup (created during setup)
-
-Config output: `.copilot/commit-checks.json` per the schema in `commit-validation-governance.md`. The generated config includes `profiles`, `groups`, lane-level `blocking`, lane-level `requiresReasonOnSkip`, and a `docs-pages` lane when docs build validation is discoverable.
-
-## Smoke Test Contract
-
-After config generation, always run:
-```
-node scripts/commit-check-run.mjs --json --repo <root>
+```text
+node scripts/commit-check-bootstrap.mjs --repo <absolute-repo-root>
 ```
 
-Expected: exit 0 with valid JSON containing `overallPass` field. Report `compositeScore` and lane results.
+The coordinator requires an explicit git repository root. `--dry-run` returns the inferred plan without mutation. `--mode` exists for diagnostics; normal skill use leaves mode selection on `auto`.
 
-## Edge Cases
+| Inferred mode | Repository state | Behavior |
+|---|---|---|
+| `bootstrap` | No config or runtime scripts | Install runtime and create config |
+| `update` | Config and all runtime scripts exist | Preserve runtime and merge config |
+| `repair` | Partial infrastructure exists | Install only missing runtime and merge or create config |
 
-- **No `package.json`**: Skip npm script addition silently.
-- **`commit-check` script already exists in `package.json`**: Skip addition silently.
-- **Config already exists in bootstrap mode**: Back up, then overwrite with `--force`.
-- **Scripts exist but config missing**: Run setup (merge mode) instead of bootstrap.
-- **Script copy fails**: Fail closed, report error, do not generate config.
+## Mutation Contract
+
+- Copy bundled runtime files byte-for-byte only when the target file is missing.
+- Preserve every existing runtime file.
+- Back up an existing config to `.copilot/commit-checks.json.bak` before generation.
+- Snapshot every affected file and restore it when copying, config generation, or runner protocol validation fails.
+- Add the npm script through the repo-local setup runtime when `package.json` permits it.
+- Return all planned and completed mutations as JSON.
+
+The four repo-local runtime files remain `commit-check-{defaults,discover,setup,run}.mjs`. The coordinator is skill-only and is not copied into target repositories.
+
+## Result Contract
+
+Keep infrastructure success separate from repository health:
+
+- `setupSucceeded: false`: infrastructure mutation failed and rollback was attempted. Exit 2.
+- `setupSucceeded: true`, `repositoryChecksPassed: false`: installation is valid, but one or more selected blocking lanes fail. Exit 0 from the coordinator.
+- Both true: installation and selected repository checks pass. Exit 0.
+
+The coordinator accepts runner exits 0 and 1 only when stdout is valid JSON containing boolean `overallPass`. Any other runner result is an infrastructure failure and triggers rollback.
 
 ## Acceptance Checks
 
-- [ ] All four scripts exist in target after bootstrap
+- [ ] Auto mode selects bootstrap, update, and repair from repository state
+- [ ] All five runtime scripts exist after bootstrap or repair (includes `setup-git-hooks.mjs`)
+- [ ] `.githooks/pre-commit` and `.githooks/pre-push` exist after bootstrap or repair
+- [ ] `core.hooksPath` is set to `.githooks` after bootstrap or repair
 - [ ] `.copilot/commit-checks.json` is valid JSON, `schemaVersion: 3`
-- [ ] `commit-check-run.mjs --json` exits 0 after bootstrap
-- [ ] Repos with `docs:build` and `scripts/validate-doc-graph.js` get a `docs-pages` lane in `ci-local`
 - [ ] Update merges new lanes without overwriting user customizations
-- [ ] Backup file created when overwriting existing config
+- [ ] Existing runtime scripts remain byte-identical during update
+- [ ] Hook files are overwritten from bundled templates on update and repair
+- [ ] Existing config is backed up before update
+- [ ] `prepare` npm script is injected when `package.json` permits
+- [ ] Infrastructure failures restore affected files (scripts, hooks, config, package.json)
+- [ ] Failing repository checks do not misreport setup failure
 
 ## Canonical References
 
