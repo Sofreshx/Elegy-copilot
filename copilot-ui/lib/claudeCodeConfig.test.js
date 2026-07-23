@@ -22,12 +22,30 @@ const {
 
 describe('claudeCodeConfig', () => {
   let tmpDir;
+  let originalXdgDataHome;
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-code-config-test-'));
+    originalXdgDataHome = process.env.XDG_DATA_HOME;
+    process.env.XDG_DATA_HOME = path.join(tmpDir, 'xdg-data');
+    const nativeAuthDir = path.join(process.env.XDG_DATA_HOME, 'opencode');
+    fs.mkdirSync(nativeAuthDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(nativeAuthDir, 'auth.json'),
+      JSON.stringify({
+        deepseek: { key: 'native-deepseek-key' },
+        'opencode-go': { key: 'native-opencode-go-key' },
+      }),
+      'utf8',
+    );
   });
 
   afterEach(() => {
+    if (originalXdgDataHome === undefined) {
+      delete process.env.XDG_DATA_HOME;
+    } else {
+      process.env.XDG_DATA_HOME = originalXdgDataHome;
+    }
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -136,10 +154,9 @@ describe('claudeCodeConfig', () => {
     });
 
     it('setMode deepseek-direct uses native auth key as fallback when no explicit key provided', () => {
-      // The test environment has ~/.local/share/opencode/auth.json with a deepseek key
-      // So this should succeed via fallback, not throw
       const result = setMode(tmpDir, 'deepseek-direct');
       assert.equal(result.activeMode, 'deepseek-direct');
+      assert.equal(readSettings(tmpDir).env.ANTHROPIC_API_KEY, 'native-deepseek-key');
     });
 
     it('setMode deepseek-direct uses explicit key over fallback', () => {
@@ -151,10 +168,9 @@ describe('claudeCodeConfig', () => {
     });
 
     it('setMode opencode-go uses native auth key as fallback when no resolver provided', () => {
-      // The test environment has ~/.local/share/opencode/auth.json with an opencode-go key
-      // So this should succeed via fallback, not throw
       const result = setMode(tmpDir, 'opencode-go');
       assert.equal(result.activeMode, 'opencode-go');
+      assert.equal(readSettings(tmpDir).env.ANTHROPIC_API_KEY, 'native-opencode-go-key');
     });
 
     it('setMode opencode-go succeeds with key resolver', () => {

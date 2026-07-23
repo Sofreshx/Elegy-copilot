@@ -115,6 +115,13 @@ jobs:
           node scripts/generate-cli-manifest.mjs
           node scripts/generate-policy-lockfiles.js
 
+      - name: Build repository-owned test prerequisites
+        run: |
+          npm --prefix copilot-ui run ui:build
+          npm --prefix local-tracker run build
+          npm --prefix local-repo-mcp run build
+          cargo build --manifest-path elegy-checks/Cargo.toml
+
       - name: Run repository quality gate
         run: npm run quality:push
 

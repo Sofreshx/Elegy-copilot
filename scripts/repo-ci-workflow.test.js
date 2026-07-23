@@ -37,5 +37,9 @@ test('desktop quality runs cold on the supported Windows platform with generated
 
   assert.match(qualityJob, /runs-on: windows-latest/);
   assert.match(qualityJob, /node scripts\/generate-cli-manifest\.mjs/);
+  assert.match(qualityJob, /npm --prefix copilot-ui run ui:build/);
+  assert.match(qualityJob, /npm --prefix local-tracker run build/);
+  assert.match(qualityJob, /npm --prefix local-repo-mcp run build/);
+  assert.match(qualityJob, /cargo build --manifest-path elegy-checks\/Cargo\.toml/);
   assert.match(rootPackage.scripts['quality:test'], /test-with-ledger\.js --force/);
 });
