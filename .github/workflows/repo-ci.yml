@@ -66,6 +66,9 @@ jobs:
       - name: Build local-tracker (produces dist for sidecar validation)
         run: npm --prefix local-tracker run build
 
+      - name: Build local-repo-mcp (produces dist for sidecar validation)
+        run: npm --prefix local-repo-mcp run build
+
       - name: Tauri config preflight (Linux)
         run: npm --prefix copilot-ui run tauri:check:linux
 
