@@ -29,3 +29,13 @@ test('the Rust quality gate prepares Tauri generated resources on a clean checko
     'quality:rust must create the generated Tauri resource directory before Cargo runs.',
   );
 });
+
+test('desktop quality runs cold on the supported Windows platform with generated artifacts', () => {
+  const workflow = fs.readFileSync(path.join(repoRoot, '.github', 'workflows', 'repo-ci.yml'), 'utf8');
+  const rootPackage = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+  const qualityJob = workflow.split('  quality:')[1].split('  desktop-tauri-preview:')[0];
+
+  assert.match(qualityJob, /runs-on: windows-latest/);
+  assert.match(qualityJob, /node scripts\/generate-cli-manifest\.mjs/);
+  assert.match(rootPackage.scripts['quality:test'], /test-with-ledger\.js --force/);
+});

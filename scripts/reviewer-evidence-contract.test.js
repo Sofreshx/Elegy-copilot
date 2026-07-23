@@ -65,7 +65,7 @@ function main() {
     assert.ok(hasReviewResult, 'reviewer.md should define a REVIEW_RESULT output block');
 
     // Verify the review output block requires concrete fields
-    const reviewResultSection = content.split('REVIEW_RESULT')[1] || '';
+    const reviewResultSection = content.match(/```\s*REVIEW_RESULT([\s\S]*?)```/i)?.[1] || '';
     const hasConfidence = /confidence.*[<>0-9]/i.test(reviewResultSection);
     const hasVerdict = /verdict/i.test(reviewResultSection);
     const hasFindings = /findings/i.test(reviewResultSection);

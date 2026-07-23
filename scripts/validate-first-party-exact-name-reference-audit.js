@@ -16,13 +16,6 @@ const targetFiles = [
 		forbidDetectedSkillsTables: false,
 		exactNameAllowlist: [],
 	},
-	{
-		filePath: path.join(repoRoot, 'engine-assets', 'skills', 'stack-detector', 'SKILL.md'),
-		displayPath: 'engine-assets/skills/stack-detector/SKILL.md',
-		forbiddenSectionTitles: [],
-		forbidDetectedSkillsTables: true,
-		exactNameAllowlist: ['frontend', 'skill-discovery'],
-	},
 ];
 
 function escapeRegExp(value) {

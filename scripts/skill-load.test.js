@@ -29,10 +29,10 @@ function run(...args) {
 
 // --- Tests ---
 
-test('loads wolverine-core SKILL.md content', () => {
-	const result = run('wolverine-core');
+test('loads repo-quality-setup SKILL.md content', () => {
+	const result = run('repo-quality-setup');
 	assert.strictEqual(result.status, 0, `exit code: ${result.status}, stderr: ${result.stderr}`);
-	assert.ok(result.stdout.includes('wolverine'), 'expected skill content to mention wolverine');
+	assert.ok(result.stdout.includes('repository-owned'), 'expected repository quality skill content');
 	assert.ok(result.stdout.includes('---'), 'expected YAML frontmatter');
 });
 
