@@ -63,6 +63,10 @@ fn runtime_diagnostic_timestamp_ms() -> u128 {
         .unwrap_or(0)
 }
 
+fn is_leap_year(year: u64) -> bool {
+    (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
+}
+
 fn runtime_diagnostic_format_timestamp(timestamp_ms: u128) -> String {
     let total_seconds = (timestamp_ms / 1000) as u64;
     let millis = (timestamp_ms % 1000) as u64;
@@ -74,7 +78,7 @@ fn runtime_diagnostic_format_timestamp(timestamp_ms: u128) -> String {
     let mut year: u64 = 1970;
     let mut remaining_days = day_index;
     loop {
-        let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+        let leap = is_leap_year(year);
         let days_in_year = if leap { 366 } else { 365 };
         if remaining_days < days_in_year {
             break;
@@ -82,7 +86,7 @@ fn runtime_diagnostic_format_timestamp(timestamp_ms: u128) -> String {
         remaining_days -= days_in_year;
         year += 1;
     }
-    let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    let leap = is_leap_year(year);
     let month_lengths = if leap {
         [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     } else {
@@ -124,7 +128,7 @@ fn time_format(seconds: i64, nanos: u32) -> String {
     let mut year: u64 = 1970;
     let mut remaining_days = day_index;
     loop {
-        let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+        let leap = is_leap_year(year);
         let days_in_year = if leap { 366 } else { 365 };
         if remaining_days < days_in_year {
             break;
@@ -132,7 +136,7 @@ fn time_format(seconds: i64, nanos: u32) -> String {
         remaining_days -= days_in_year;
         year += 1;
     }
-    let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    let leap = is_leap_year(year);
     let month_lengths = if leap {
         [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     } else {
