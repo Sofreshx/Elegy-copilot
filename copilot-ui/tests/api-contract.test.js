@@ -424,7 +424,10 @@ async function run() {
             await test(`${key} — dispatches without snapshotting external availability`, async () => {
               const shape = capturedShapes[key];
               assert.ok(shape && shape.status !== null, `${key} failed to dispatch`);
-              assert.notStrictEqual(shape.status, 404, `${key} fell through to the static-file handler`);
+              assert.ok(
+                registeredRoutes.some((registeredRoute) => routeDescriptorMatchesSample(registeredRoute, route)),
+                `${key} is missing from the route registry`,
+              );
             });
             continue;
           }
