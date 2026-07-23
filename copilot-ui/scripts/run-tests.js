@@ -15,7 +15,7 @@ if (!fs.existsSync(includeListFile)) {
     process.exit(1);
 }
 
-const TEST_TIMEOUT_MS = 120_000; // 2 minutes per test file
+const TEST_TIMEOUT_MS = 240_000; // Must exceed the longest test-owned Windows suite timeout.
 
 const testsToRun = JSON.parse(fs.readFileSync(includeListFile, 'utf8'));
 const results = {};

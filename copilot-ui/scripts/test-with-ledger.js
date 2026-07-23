@@ -125,7 +125,7 @@ const resultsFile = path.join(tmpWorkDir, `results-${Date.now()}.json`);
 fs.writeFileSync(includeListFile, JSON.stringify(testsToRun));
 
 // 4. Run tests
-const LEDGER_TIMEOUT_MS = 300_000; // 5 minutes for entire test run
+const LEDGER_TIMEOUT_MS = 900_000; // Cold Windows runs include long-lived server integration suites.
 
 try {
     execSync(`node ${path.join(__dirname, 'run-tests.js')}`, { 
