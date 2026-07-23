@@ -58,6 +58,7 @@ const ENGINE_ASSET_ROUTES = [
   route('skill-ui-design-spec'),
   route('skill-sweeper-cleanup'),
   route('skill-commit-check-setup'),
+  route('skill-repo-quality-setup'),
   route('skill-commit-validation-governance'),
   route('skill-skill-authoring'),
   route('skill-agents-md-authoring'),
@@ -198,6 +199,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-repo-backed-obsidian-docs-skill', { sourceAssetId: 'skill-repo-backed-obsidian-docs' }),
       route('codex-sweeper-cleanup-skill', { sourceAssetId: 'skill-sweeper-cleanup' }),
       route('codex-commit-check-setup-skill', { sourceAssetId: 'skill-commit-check-setup' }),
+      route('codex-repo-quality-setup-skill', { sourceAssetId: 'skill-repo-quality-setup' }),
       route('codex-agents-md-authoring-skill', { sourceAssetId: 'skill-agents-md-authoring' }),
       route('codex-tdd-skill', { sourceAssetId: 'skill-tdd' }),
       route('codex-brainstorming-skill', { sourceAssetId: 'skill-brainstorming' }),
@@ -239,6 +241,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-code-review-skill'),
       route('opencode-github-workflow-skill'),
       route('opencode-commit-check-setup-skill', { sourceAssetId: 'skill-commit-check-setup' }),
+      route('opencode-repo-quality-setup-skill', { sourceAssetId: 'skill-repo-quality-setup' }),
       route('opencode-elegy-obsidian-skill', { sourceAssetId: 'skill-elegy-obsidian' }),
       route('opencode-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning' }),
       route('opencode-elegy-skills-discovery-skill', { sourceAssetId: 'skill-elegy-skills-discovery' }),
@@ -297,7 +300,7 @@ export const COMPATIBILITY_MANIFESTS = [
     },
     governance: SHARED_G05_GOVERNANCE,
     assetRoutes: [
-      route('antigravity-global-instructions'),
+      route('antigravity-global-instructions', { destination: 'GEMINI.md' }),
       route('antigravity-skill-discovery-skill', {
         sourceAssetId: 'skill-discovery',
         destination: 'antigravity/skills/skill-discovery',
@@ -333,6 +336,10 @@ export const COMPATIBILITY_MANIFESTS = [
       route('antigravity-commit-check-setup-skill', {
         sourceAssetId: 'skill-commit-check-setup',
         destination: 'antigravity/skills/commit-check-setup',
+      }),
+      route('antigravity-repo-quality-setup-skill', {
+        sourceAssetId: 'skill-repo-quality-setup',
+        destination: 'antigravity/skills/repo-quality-setup',
       }),
       route('antigravity-skill-authoring-skill', {
         sourceAssetId: 'skill-skill-authoring',

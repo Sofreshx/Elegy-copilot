@@ -168,7 +168,7 @@
             { "state": "disabled", "reason": "Disabled run controls are covered by render tests during an active check run." },
             { "state": "focus", "reason": "Focus state is covered by shared button/input CSS and component-level checks." }
           ],
-          "description": "Real opened-repository Workspace Checks tab with operation banner, profile controls, lane matrix, logs, and run history."
+          "description": "Real opened-repository Workspace Checks tab with quality readiness, one next action, and collapsed diagnostic controls."
         }
       ],
       "evidenceRoot": "./evidence/ui/workspace-checks",

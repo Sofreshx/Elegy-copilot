@@ -21,10 +21,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22.x'
           cache: npm
@@ -66,6 +66,9 @@ jobs:
       - name: Build local-tracker (produces dist for sidecar validation)
         run: npm --prefix local-tracker run build
 
+      - name: Build local-repo-mcp (produces dist for sidecar validation)
+        run: npm --prefix local-repo-mcp run build
+
       - name: Tauri config preflight (Linux)
         run: npm --prefix copilot-ui run tauri:check:linux
 
@@ -81,19 +84,60 @@ jobs:
       - name: Run backend tests
         run: node copilot-ui/lib/repoInventoryService.test.js
 
+  quality:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          toolchain: stable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
+            scripts/package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Generate repository-owned test artifacts
+        run: |
+          node scripts/generate-cli-manifest.mjs
+          node scripts/generate-policy-lockfiles.js
+
+      - name: Build repository-owned test prerequisites
+        run: |
+          npm --prefix copilot-ui run ui:build
+          npm --prefix local-tracker run build
+          npm --prefix local-repo-mcp run build
+          cargo build --manifest-path elegy-checks/Cargo.toml
+
+      - name: Run repository quality gate
+        run: npm run quality:push
+
   desktop-tauri-preview:
     needs: build
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup MSVC build environment
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '22.x'
           cache: npm
@@ -123,6 +167,7 @@ jobs:
     if: always()
     needs:
       - build
+      - quality
       - desktop-tauri-preview
     runs-on: ubuntu-latest
     steps:
@@ -138,5 +183,10 @@ jobs:
 
           if [[ '${{ needs.desktop-tauri-preview.result }}' != 'success' ]]; then
             echo "desktop-tauri-preview did not succeed: ${{ needs.desktop-tauri-preview.result }}" >&2
+            exit 1
+          fi
+
+          if [[ '${{ needs.quality.result }}' != 'success' ]]; then
+            echo "quality did not succeed: ${{ needs.quality.result }}" >&2
             exit 1
           fi

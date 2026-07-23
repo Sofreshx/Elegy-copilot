@@ -68,99 +68,6 @@
       "kind"
     ]
   },
-  "GET /api/planning/live/roadmaps": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "contractVersion",
-      "count",
-      "deterministic",
-      "kind",
-      "repo",
-      "roadmaps"
-    ]
-  },
-  "GET /api/planning/live/goals": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "contractVersion",
-      "count",
-      "deterministic",
-      "goals",
-      "kind",
-      "repo"
-    ]
-  },
-  "GET /api/planning/live/roadmaps/RM-demo": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "GET /api/planning/live/goals/GOAL-demo": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "GET /api/planning/live/plans": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "contractVersion",
-      "count",
-      "deterministic",
-      "filters",
-      "kind",
-      "plans",
-      "repo"
-    ]
-  },
-  "GET /api/planning/live/plans/PLAN-demo": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "GET /api/planning/live/todos": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "contractVersion",
-      "count",
-      "deterministic",
-      "filters",
-      "kind",
-      "repo",
-      "todos"
-    ]
-  },
   "POST /api/planning/persistence/init": {
     "status": 200,
     "contentType": "application/json",
@@ -1172,73 +1079,6 @@
       "projection"
     ]
   },
-  "GET /api/remote/status": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "appId",
-      "dataDir",
-      "guildIds",
-      "installUrl",
-      "lastError",
-      "state"
-    ]
-  },
-  "POST /api/remote/restart": {
-    "status": 503,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "error",
-      "policy"
-    ]
-  },
-  "GET /api/remote/projects": {
-    "status": 503,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error"
-    ]
-  },
-  "GET /api/remote/sessions": {
-    "status": 503,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error"
-    ]
-  },
-  "POST /api/remote/send": {
-    "status": 503,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "error",
-      "policy"
-    ]
-  },
-  "POST /api/remote/projects/add": {
-    "status": 503,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "error",
-      "policy"
-    ]
-  },
-  "GET /api/remote/logs": {
-    "status": 503,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error"
-    ]
-  },
   "GET /api/ui-runtime-overlay/sessions": {
     "status": 200,
     "contentType": "application/json",
@@ -1471,17 +1311,6 @@
       "elegySkillsAssets"
     ]
   },
-  "POST /api/tooling-updates/update/elegy-planning": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "downloadedPath",
-      "installSource",
-      "ok",
-      "status"
-    ]
-  },
   "POST /api/tooling-updates/update/elegy-plugins": {
     "status": 500,
     "contentType": "application/json",
@@ -1491,45 +1320,13 @@
       "ok"
     ]
   },
-  "POST /api/tooling-updates/update/elegy-skills": {
+  "GET /api/telemetry/harnesses": {
     "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "ok",
-      "status",
-      "syncResult"
-    ]
-  },
-  "GET /api/opencode/status": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "activeProfileId",
-      "availableModels",
-      "availableRoutes",
-      "bigModel",
-      "configPath",
-      "configPreview",
-      "effectiveProfileId",
-      "elegyPlanningCli",
-      "elegySkillsAssets",
-      "invalidProviderModels",
-      "isCustomConfig",
-      "lanes",
-      "opencodeCli",
-      "opencodeHome",
-      "overallStatus",
-      "planningLiveAuthority",
-      "profileMismatch",
-      "profiles",
-      "roleModels",
-      "selectedProfileId",
-      "setupChecks",
-      "smallModel",
-      "warnings",
-      "worktreePermissionProfile"
+      "generatedAt",
+      "harnesses"
     ]
   },
   "POST /api/opencode/config": {
@@ -1694,7 +1491,6 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "action",
       "error"
     ]
   },
@@ -1737,6 +1533,22 @@
     "bodyType": "json",
     "bodyKeys": [
       "action",
+      "error"
+    ]
+  },
+  "GET /api/git/quality/status": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/git/quality/setup-task": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
       "error"
     ]
   }

@@ -313,7 +313,6 @@ async function run() {
       let receivedOptions = null;
       const response = await invokeInstallSurfaces(
         elegyHomeAbs,
-        path.join(tmpRoot, '.vscode-copilot'),
         { target: 'opencode', force: false },
         {
           engineRoot: tmpRoot,

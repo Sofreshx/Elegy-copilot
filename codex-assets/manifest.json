@@ -178,6 +178,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "codex-repo-quality-setup-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/repo-quality-setup",
+      "destination": "skills/repo-quality-setup",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "codex-agents-md-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/agents-md-authoring",

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-29
+updated: 2026-07-20
 category: system
 status: current
 doc_kind: node
@@ -10,6 +10,24 @@ tags: [changelog]
 ---
 
 # Instruction Changelog
+
+## 2026-07-20 - Sol/Luna routing and patient process observation
+
+- Sharpened the root `AGENTS.md` into a task-to-authority and task-to-validation router.
+- Consolidated portable authority, discovery, instruction-content, planning, review, validation,
+  Git, and long-running-work guidance in the shared baseline.
+- Removed duplicated authority, repo-breadcrumb, and placement sections from every harness appendix;
+  appendices now contain only harness-specific routing and boundaries.
+- Defined Sol as the integration and judgment lane and Luna as the bounded exploration, review,
+  validation, and cleanup lane in the Codex appendix.
+- Updated the Codex installer test to assert the governed Luna model and no-Spark contract.
+- Added a wiring check that rejects future appendices which reintroduce baseline-owned sections.
+- Corrected the generated Antigravity manifest route so the composed instructions install into the
+  managed `GEMINI.md` block instead of an unused `agent-session-defaults.md` file.
+- Tightened cross-cutting discovery, installer-specific validation routes, deterministic capability
+  triggers, and conditional Copilot planning guidance after a second semantic review.
+- Excluded project-specific critic commits, sprint checkpoint files, fixed output ceilings, and
+  mandatory full-suite rituals from the global instruction surface.
 
 ## 2026-06-29 - Current-state-only durable docs rule
 

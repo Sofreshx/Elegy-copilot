@@ -27,9 +27,8 @@ managed SDK/CLI lane, not just the current shell implementation alone.
 Migration posture:
 
 - The primary Windows desktop lane is now Tauri-first.
-- The current Tauri preview/release lane is limited to a manual-installer release manifest + packaged
-  Windows installer; the app may automatically check matching-channel GitHub releases, but installer download/apply still require explicit user action and in-app Tauri updater/feed behavior remains intentionally disabled in this slice.
-- The Tauri shell may expose a desktop updater bridge for GitHub-release-backed state, checks, and manual-installer download handoff, but that bridge must not imply seamless in-place updater transport.
+- The current Tauri preview/release lane uses the signed Tauri updater (`download_and_install` with `tauri-plugin-process` relaunch) for in-app updates; the NSIS installer remains the fresh-install artifact. Automatic matching-channel check, download, install, and relaunch are active.
+- The Tauri shell exposes the signed GitHub-release-backed updater for state, checks, download, install, and relaunch. NSIS remains the explicit fresh-install and recovery fallback.
 - Tauri primary path must preserve the fail-closed rollback and kill-switch semantics documented here.
 
 ## Ownership

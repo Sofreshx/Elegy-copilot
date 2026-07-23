@@ -1,5 +1,6 @@
 'use strict';
 const assert = require('assert');
+const childProcess = require('child_process');
 const fs = require('fs');
 const http = require('http');
 const os = require('os');
@@ -11,7 +12,12 @@ function withTempDir(fn) {
   return Promise.resolve()
     .then(() => fn(dir))
     .finally(() => {
-      fs.rmSync(dir, { recursive: true, force: true });
+      fs.rmSync(dir, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+      });
     });
 }
 function requestJson({ method = 'GET', baseUrl, pathname, body }) {
@@ -68,6 +74,7 @@ async function run() {
     const elegyHome = path.join(tmpRoot, '.elegy');
     const repoRoot = path.join(tmpRoot, 'repos', 'alpha');
     fs.mkdirSync(repoRoot, { recursive: true });
+    childProcess.execFileSync('git', ['init'], { cwd: repoRoot, stdio: 'ignore' });
     repoInventoryService.registerRepo({
       elegyHome,
       repoPath: repoRoot,

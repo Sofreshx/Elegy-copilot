@@ -8,8 +8,6 @@ function normalizeWhitespace(value) {
 	return value.replace(/\s+/g, ' ').trim();
 }
 
-const SHARED_BASELINE = 'catalog-assets/instructions/agent-session-defaults.md';
-
 const skillExpectations = [
 	{
 		relativePath: 'catalog-assets/shared-skills/rubberduck-plan-review/SKILL.md',
@@ -35,20 +33,15 @@ const skillExpectations = [
 			'Narrow candidate constraints to the minimum hard constraints needed for the active step',
 		],
 	},
+	{
+		relativePath: 'docs/system/adr-governance.md',
+		requiredSnippets: [
+			'ADRs are for key architectural, workflow-authority, trust-boundary, or long-lived contract',
+		],
+	},
 ];
 
 (function run() {
-	// Check shared baseline for ADR governance phrase
-	const baselineContent = normalizeWhitespace(
-		fs.readFileSync(path.join(repoRoot, SHARED_BASELINE), 'utf8'),
-	);
-	assert.ok(
-		baselineContent.includes(normalizeWhitespace(
-			'Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions',
-		)),
-		`expected ${SHARED_BASELINE} to include the ADR governance phrase`,
-	);
-
 	// Check skill files for candidate constraint governance phrase
 	for (const { relativePath, requiredSnippets } of skillExpectations) {
 		const absolutePath = path.join(repoRoot, relativePath);

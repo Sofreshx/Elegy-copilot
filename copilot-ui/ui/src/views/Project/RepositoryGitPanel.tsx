@@ -71,7 +71,7 @@ export default function RepositoryGitPanel({ repoPath, mode = 'project' }: Repos
   const status = state.status;
   const summary = state.summary;
   const pullRequest = state.pullRequest?.pullRequest;
-  const hasChanges = Boolean(status && status.files.length > 0);
+  const hasChanges = Boolean(status && Array.isArray(status.files) && status.files.length > 0);
 
   function handleOpenPullRequest() {
     if (!pullRequest?.url) {

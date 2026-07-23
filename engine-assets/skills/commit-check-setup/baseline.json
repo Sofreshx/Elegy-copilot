@@ -1,14 +1,21 @@
 {
   "schemaVersion": 1,
   "skill": "commit-check-setup",
-  "baselineVersion": "1.0.0",
+  "baselineVersion": "2.0.0",
   "mode": "executable",
-  "requiredScripts": [
+  "coordinatorScript": "scripts/commit-check-bootstrap.mjs",
+  "requiredRuntimeScripts": [
     "scripts/commit-check-discover.mjs",
     "scripts/commit-check-defaults.mjs",
     "scripts/commit-check-setup.mjs",
-    "scripts/commit-check-run.mjs"
+    "scripts/commit-check-run.mjs",
+    "scripts/setup-git-hooks.mjs"
   ],
+  "requiredHookFiles": [
+    ".githooks/pre-commit",
+    ".githooks/pre-push"
+  ],
+  "coreHooksPath": ".githooks",
   "requiredConfig": ".copilot/commit-checks.json",
   "optionalNpmScript": "commit-check",
   "configSchemaVersion": 3,
@@ -17,20 +24,38 @@
     "setupSubNodeKey": "commit-check-setup",
     "note": "Canonical source identifiers, not filesystem paths. Resolve via elegy-copilot repo."
   },
+  "modeSelection": "auto",
   "modes": {
     "bootstrap": {
       "copiesScripts": true,
       "generatesConfig": true,
       "forceOverwrite": true,
       "backsUpExisting": true,
-      "smokeTests": true
+      "rollsBackInfrastructureFailure": true,
+      "smokeTests": true,
+      "installsHooks": true,
+      "setsCoreHooksPath": true
     },
     "update": {
       "copiesScripts": false,
       "generatesConfig": true,
       "forceOverwrite": false,
-      "backsUpExisting": false,
-      "smokeTests": true
+      "backsUpExisting": true,
+      "rollsBackInfrastructureFailure": true,
+      "smokeTests": true,
+      "installsHooks": true,
+      "setsCoreHooksPath": true
+    },
+    "repair": {
+      "copiesMissingScripts": true,
+      "preservesExistingScripts": true,
+      "generatesConfig": true,
+      "backsUpExisting": true,
+      "rollsBackInfrastructureFailure": true,
+      "smokeTests": true,
+      "installsHooks": true,
+      "setsCoreHooksPath": true
     }
-  }
+  },
+  "resultFields": ["setupSucceeded", "repositoryChecksPassed"]
 }

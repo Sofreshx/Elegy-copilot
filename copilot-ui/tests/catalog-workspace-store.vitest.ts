@@ -267,6 +267,9 @@ describe('catalogWorkspaceStore', () => {
           kind: 'skill',
           title: 'Test skill',
           contentPath: 'C:\\Users\\lolzi\\.elegy\\skills\\test\\SKILL.md',
+          metadata: {
+            viewPath: 'skills/test/SKILL.md',
+          },
         },
       },
       entries: [

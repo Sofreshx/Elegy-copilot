@@ -159,6 +159,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "opencode-repo-quality-setup-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/repo-quality-setup",
+      "destination": "skills/repo-quality-setup",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "opencode-elegy-obsidian-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/elegy-obsidian",

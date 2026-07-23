@@ -70,6 +70,7 @@
       "description": "Commit check setup and governance validation skills for enforcing commit policies.",
       "assetIds": [
         "skill-commit-validation-governance",
+        "skill-repo-quality-setup",
         "skill-commit-check-setup"
       ],
       "installTarget": "repo-local",
@@ -517,6 +518,13 @@
       "type": "skill",
       "source": "engine-assets/skills/commit-check-setup",
       "destination": "skills/commit-check-setup",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-repo-quality-setup",
+      "type": "skill",
+      "source": "engine-assets/skills/repo-quality-setup",
+      "destination": "skills/repo-quality-setup",
       "loadMode": "on-demand"
     },
     {

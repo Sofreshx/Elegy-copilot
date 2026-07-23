@@ -111,6 +111,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "claude-repo-quality-setup-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/repo-quality-setup",
+      "destination": "skills/repo-quality-setup",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "claude-skill-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/skill-authoring",

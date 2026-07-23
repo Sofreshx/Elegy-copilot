@@ -2,6 +2,9 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const store = {
+  enabled: true,
+  pid: 1234,
+  uptimeMs: 1000,
   status: {
     state: 'ready' as const,
     available: true,
@@ -43,6 +46,8 @@ const store = {
   addProject: vi.fn(),
   refreshLogs: vi.fn(),
   restart: vi.fn(),
+  toggleRemote: vi.fn(),
+  renameSession: vi.fn(),
 };
 
 vi.mock('../ui/src/tabs/Remote/RemoteStore', () => ({

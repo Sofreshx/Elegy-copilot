@@ -36,6 +36,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const REPO_ROOT = path.resolve(__dirname, '..');
 const { AC_VAGUE_TOKEN_RE } = require('./lib/ac-vague-tokens');
 const { parseInlineList, parseFrontmatterYaml } = require('./lib/spec-yaml.js');
 const { collectSpecFiles } = require('./lib/spec-collector.js');
@@ -376,7 +377,7 @@ function normalizePathRef(p) {
 
 function checkLiveness(meta, sections, specFilePath) {
   const errors = [];
-  const repoRoot = process.cwd();
+  const repoRoot = REPO_ROOT;
   const skipPatterns = parseSkipPaths(meta);
 
   for (const heading of ['Context Evidence', 'Implementation Links']) {

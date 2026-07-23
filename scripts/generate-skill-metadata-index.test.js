@@ -313,14 +313,6 @@ test('first-wave metadata carriers are emitted for normalized source skills', ()
 	assert.deepStrictEqual(skillDiscovery.aliasKeys, ['search-execute']);
 	assert.deepStrictEqual(skillDiscovery.stacks, ['orchestration']);
 	assert.deepStrictEqual(skillDiscovery.tags, ['catalog', 'discovery', 'routing', 'workflow']);
-
-	const stackDetector = first.entries.find((entry) => entry.skill === 'stack-detector');
-	assert.ok(stackDetector, 'expected stack-detector entry');
-	assert.deepStrictEqual(stackDetector.aliasKeys, ['target-context-detector']);
-	assert.deepStrictEqual(stackDetector.frameworks, ['angular', 'aspire', 'orleans', 'react', 'signalr', 'vue']);
-	assert.deepStrictEqual(stackDetector.languages, ['csharp', 'go', 'javascript', 'python', 'typescript']);
-	assert.deepStrictEqual(stackDetector.stacks, ['api', 'desktop', 'frontend', 'infra']);
-	assert.deepStrictEqual(stackDetector.tags, ['classification', 'detection', 'routing', 'targeting']);
 });
 
 console.log(`\n${passed} tests passed`);

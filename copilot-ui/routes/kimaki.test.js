@@ -18,6 +18,8 @@ test('registers the supported Remote API without legacy destructive routes', () 
       'POST /api/remote/projects/add',
       'GET /api/remote/logs',
       'POST /api/remote/sessions/rename',
+      'POST /api/remote/enable',
+      'POST /api/remote/disable',
     ],
   );
 });

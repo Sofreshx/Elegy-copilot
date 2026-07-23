@@ -48,22 +48,8 @@
     {
       "skill": "commit-check-setup",
       "name": "commit-check-setup",
-      "description": "Full bootstrap or update of commit-check setup for a target repo. Copies commit-check scripts, generates .copilot/commit-checks.json config, adds npm script, and smoke tests. Triggers on: commit check setup, setup commit checks, bootstrap commit checks, configure pre-commit checks, update commit checks, init commit checks.",
-      "triggersOn": [
-        "bootstrap commit checks",
-        "commit check setup",
-        "configure pre-commit checks",
-        "init commit checks",
-        "setup commit checks",
-        "update commit checks"
-      ],
-      "tags": [
-        "bootstrap",
-        "commit",
-        "quality",
-        "setup",
-        "validation"
-      ],
+      "description": "Compatibility route for older requests to set up commit checks or Elegy-managed .githooks. Route new setup, migration, and repair work to repo-quality-setup.",
+      "triggersOn": [],
       "manifest": {
         "id": "skill-commit-check-setup",
         "loadMode": "on-demand"
@@ -196,6 +182,16 @@
       ],
       "manifest": {
         "id": "skill-project-conventions-governance",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "repo-quality-setup",
+      "name": "repo-quality-setup",
+      "description": "Audit, bootstrap, migrate, or repair repository-owned local checks, Git hooks, and GitHub Actions parity after an explicit request. Use for onboarding a repository to quality practices or updating its quality workflow; do not use merely to run or triage existing checks.",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-repo-quality-setup",
         "loadMode": "on-demand"
       }
     },

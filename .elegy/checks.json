@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "configVersion": 3,
+  "configVersion": 4,
   "generated": "2026-07-06T16:06:19.757182600+00:00",
   "defaultProfile": "commit",
   "profiles": {
@@ -19,6 +19,12 @@
     "desktop-preview": {
       "label": "Desktop Preview",
       "description": "Packaged runtime/build validation, skippable with reason",
+      "cost": "medium",
+      "opensWindow": false
+    },
+    "push": {
+      "label": "Push",
+      "description": "Full local type checking and tests before remote work",
       "cost": "medium",
       "opensWindow": false
     },
@@ -163,6 +169,36 @@
       "promotionState": "enforced",
       "owner": null
     },
+    "ci-map-pr": {
+      "enabled": true,
+      "group": "ci",
+      "description": "Map local checks to PR workflow jobs and report gaps",
+      "cwd": ".",
+      "timeoutMs": 30000,
+      "blocking": false,
+      "required": false,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": [],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": null,
+      "ciJob": null,
+      "ciRequired": false,
+      "commands": [
+        "elegy-checks ci-map --repo . --scope pr --json"
+      ],
+      "gateStrength": "advisory",
+      "determinism": "deterministic-runnable",
+      "sourcePack": "github-actions",
+      "tags": [
+        "github-actions",
+        "ci"
+      ],
+      "severity": "warning",
+      "promotionState": "advisory",
+      "owner": null
+    },
     "desktop-preview": {
       "enabled": true,
       "group": "release",
@@ -188,6 +224,66 @@
       "determinism": "deterministic-runnable",
       "sourcePack": null,
       "tags": [],
+      "severity": "warning",
+      "promotionState": "advisory",
+      "owner": null
+    },
+    "docs-graph": {
+      "enabled": true,
+      "group": "docs",
+      "description": "Check documentation graph/frontmatter",
+      "cwd": ".",
+      "timeoutMs": 60000,
+      "blocking": false,
+      "required": false,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": [],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": null,
+      "ciJob": null,
+      "ciRequired": false,
+      "commands": [
+        "node scripts/validate-doc-graph.js"
+      ],
+      "gateStrength": "advisory",
+      "determinism": "deterministic-runnable",
+      "sourcePack": "docs",
+      "tags": [
+        "docs",
+        "frontmatter"
+      ],
+      "severity": "warning",
+      "promotionState": "advisory",
+      "owner": null
+    },
+    "docs-links": {
+      "enabled": true,
+      "group": "docs",
+      "description": "Check markdown links",
+      "cwd": ".",
+      "timeoutMs": 120000,
+      "blocking": false,
+      "required": false,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": [],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": null,
+      "ciJob": null,
+      "ciRequired": false,
+      "commands": [
+        "npm run docs:check:links"
+      ],
+      "gateStrength": "advisory",
+      "determinism": "deterministic-runnable",
+      "sourcePack": "docs",
+      "tags": [
+        "docs",
+        "links"
+      ],
       "severity": "warning",
       "promotionState": "advisory",
       "owner": null
@@ -222,62 +318,124 @@
       "promotionState": "enforced",
       "owner": null
     },
-    "format": {
+    "instruction-budgets": {
       "enabled": true,
-      "group": "commit",
-      "description": "Check code formatting",
+      "group": "governance",
+      "description": "Warn when instruction surfaces exceed configured budgets",
       "cwd": ".",
       "timeoutMs": 60000,
-      "blocking": true,
-      "required": true,
+      "blocking": false,
+      "required": false,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": [
-        "commit"
-      ],
-      "cost": "fast",
+      "defaultProfiles": [],
+      "cost": "medium",
       "opensWindow": false,
-      "ciWorkflow": "",
-      "ciJob": "",
+      "ciWorkflow": null,
+      "ciJob": null,
       "ciRequired": false,
       "commands": [
-        "cargo fmt --manifest-path copilot-ui/src-tauri/Cargo.toml -- --check"
+        "npm run validate:instruction-budgets"
       ],
-      "gateStrength": "blocking",
+      "gateStrength": "advisory",
       "determinism": "deterministic-runnable",
-      "sourcePack": null,
-      "tags": [],
-      "severity": "error",
-      "promotionState": "enforced",
+      "sourcePack": "agents-instructions",
+      "tags": [
+        "agents",
+        "instructions"
+      ],
+      "severity": "warning",
+      "promotionState": "advisory",
       "owner": null
     },
-    "lint": {
+    "instruction-quality": {
       "enabled": true,
-      "group": "commit",
-      "description": "Lint all source code",
+      "group": "governance",
+      "description": "Validate deterministic instruction quality heuristics",
       "cwd": ".",
       "timeoutMs": 60000,
-      "blocking": true,
-      "required": true,
+      "blocking": false,
+      "required": false,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": [
-        "commit"
-      ],
-      "cost": "fast",
+      "defaultProfiles": [],
+      "cost": "medium",
       "opensWindow": false,
-      "ciWorkflow": "",
-      "ciJob": "",
+      "ciWorkflow": null,
+      "ciJob": null,
       "ciRequired": false,
       "commands": [
-        "cargo clippy --manifest-path copilot-ui/src-tauri/Cargo.toml -- -D warnings"
+        "npm run validate:instruction-quality"
       ],
-      "gateStrength": "blocking",
+      "gateStrength": "advisory",
       "determinism": "deterministic-runnable",
-      "sourcePack": null,
-      "tags": [],
-      "severity": "error",
-      "promotionState": "enforced",
+      "sourcePack": "agents-instructions",
+      "tags": [
+        "agents",
+        "instructions"
+      ],
+      "severity": "warning",
+      "promotionState": "advisory",
+      "owner": null
+    },
+    "instruction-wiring": {
+      "enabled": true,
+      "group": "governance",
+      "description": "Validate instruction wiring",
+      "cwd": ".",
+      "timeoutMs": 60000,
+      "blocking": false,
+      "required": false,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": [],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": null,
+      "ciJob": null,
+      "ciRequired": false,
+      "commands": [
+        "npm run validate:instruction-wiring"
+      ],
+      "gateStrength": "advisory",
+      "determinism": "deterministic-runnable",
+      "sourcePack": "agents-instructions",
+      "tags": [
+        "agents",
+        "instructions"
+      ],
+      "severity": "warning",
+      "promotionState": "advisory",
+      "owner": null
+    },
+    "npm-audit-advisory": {
+      "enabled": true,
+      "group": "security",
+      "description": "Run npm audit as advisory dependency hygiene",
+      "cwd": ".",
+      "timeoutMs": 120000,
+      "blocking": false,
+      "required": false,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": [],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": null,
+      "ciJob": null,
+      "ciRequired": false,
+      "commands": [
+        "npm audit --audit-level=high"
+      ],
+      "gateStrength": "advisory",
+      "determinism": "deterministic-runnable",
+      "sourcePack": "security-basics",
+      "tags": [
+        "security",
+        "dependencies"
+      ],
+      "severity": "warning",
+      "promotionState": "advisory",
       "owner": null
     },
     "release-smoke": {
@@ -309,6 +467,134 @@
       "promotionState": "advisory",
       "owner": null
     },
+    "rust-clippy": {
+      "enabled": true,
+      "group": "commit",
+      "description": "Run Rust clippy with warnings denied",
+      "cwd": ".",
+      "timeoutMs": 120000,
+      "blocking": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": [
+        "commit"
+      ],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": "repo-ci.yml",
+      "ciJob": "quality",
+      "ciRequired": true,
+      "commands": [
+        "cargo clippy --manifest-path copilot-ui/src-tauri/Cargo.toml -- -D warnings",
+        "cargo clippy --manifest-path elegy-checks/Cargo.toml -- -D warnings"
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": "rust",
+      "tags": [
+        "rust",
+        "lint"
+      ],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
+    },
+    "rust-format": {
+      "enabled": true,
+      "group": "commit",
+      "description": "Check Rust formatting",
+      "cwd": ".",
+      "timeoutMs": 60000,
+      "blocking": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": [
+        "commit"
+      ],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": "repo-ci.yml",
+      "ciJob": "quality",
+      "ciRequired": true,
+      "commands": [
+        "cargo fmt --manifest-path copilot-ui/src-tauri/Cargo.toml -- --check",
+        "cargo fmt --manifest-path elegy-checks/Cargo.toml -- --check"
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": "rust",
+      "tags": [
+        "rust",
+        "format"
+      ],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
+    },
+    "rust-test": {
+      "enabled": true,
+      "group": "push",
+      "description": "Run Rust tests",
+      "cwd": ".",
+      "timeoutMs": 120000,
+      "blocking": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": [
+        "push"
+      ],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": "repo-ci.yml",
+      "ciJob": "quality",
+      "ciRequired": true,
+      "commands": [
+        "cargo test --manifest-path copilot-ui/src-tauri/Cargo.toml",
+        "cargo test --manifest-path elegy-checks/Cargo.toml"
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": "rust",
+      "tags": [
+        "rust",
+        "test"
+      ],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
+    },
+    "specs-validate": {
+      "enabled": true,
+      "group": "governance",
+      "description": "Validate spec structure and index drift when the repo opts into specs",
+      "cwd": ".",
+      "timeoutMs": 120000,
+      "blocking": false,
+      "required": false,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": [],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": null,
+      "ciJob": null,
+      "ciRequired": false,
+      "commands": [
+        "node scripts/validate-specs.js --strict docs/specs"
+      ],
+      "gateStrength": "advisory",
+      "determinism": "deterministic-runnable",
+      "sourcePack": "specs",
+      "tags": [
+        "specs"
+      ],
+      "severity": "warning",
+      "promotionState": "advisory",
+      "owner": null
+    },
     "stylelint": {
       "enabled": true,
       "group": "lint",
@@ -336,6 +622,36 @@
       "promotionState": "enforced",
       "owner": null
     },
+    "tauri-check": {
+      "enabled": true,
+      "group": "ci",
+      "description": "Run Tauri/Rust desktop compile checks",
+      "cwd": ".",
+      "timeoutMs": 300000,
+      "blocking": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": [],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": null,
+      "ciJob": null,
+      "ciRequired": false,
+      "commands": [
+        "npm --prefix copilot-ui run tauri:check"
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": "tauri",
+      "tags": [
+        "tauri",
+        "desktop"
+      ],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
+    },
     "test": {
       "enabled": true,
       "group": "push",
@@ -347,16 +663,15 @@
       "skippable": false,
       "requiresReasonOnSkip": false,
       "defaultProfiles": [
-        "commit"
+        "push"
       ],
       "cost": "medium",
       "opensWindow": false,
       "ciWorkflow": "repo-ci.yml",
-      "ciJob": "build",
+      "ciJob": "quality",
       "ciRequired": true,
       "commands": [
-        "npx vitest run",
-        "cargo test --manifest-path copilot-ui/src-tauri/Cargo.toml"
+        "npm run test:all"
       ],
       "gateStrength": "blocking",
       "determinism": "deterministic-runnable",
@@ -368,7 +683,7 @@
     },
     "typecheck": {
       "enabled": true,
-      "group": "commit",
+      "group": "push",
       "description": "Type-check TypeScript and Rust code",
       "cwd": ".",
       "timeoutMs": 60000,
@@ -377,20 +692,15 @@
       "skippable": false,
       "requiresReasonOnSkip": false,
       "defaultProfiles": [
-        "commit"
+        "push"
       ],
       "cost": "fast",
       "opensWindow": false,
-      "ciWorkflow": "",
-      "ciJob": "",
-      "ciRequired": false,
+      "ciWorkflow": "repo-ci.yml",
+      "ciJob": "quality",
+      "ciRequired": true,
       "commands": [
-        "npx tsc -p \"contracts/tsconfig.json\" --noEmit",
-        "npx tsc -p \"copilot-ui/ui/tsconfig.json\" --noEmit",
-        "npx tsc -p \"local-repo-mcp/tsconfig.json\" --noEmit",
-        "npx tsc -p \"local-tracker/tsconfig.json\" --noEmit",
-        "npx tsc -p \"local-tracker/tsconfig.build.json\" --noEmit",
-        "cargo check --manifest-path copilot-ui/src-tauri/Cargo.toml"
+        "npm run quality:typecheck"
       ],
       "gateStrength": "blocking",
       "determinism": "deterministic-runnable",

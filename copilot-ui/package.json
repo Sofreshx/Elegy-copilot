@@ -1,6 +1,6 @@
 {
   "name": "elegy-copilot-desktop",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "private": true,
   "description": "Elegy Copilot desktop app",
   "author": "Sofreshx",
@@ -13,6 +13,7 @@
     "test:vitest": "node scripts/run-vitest.js",
     "build:local-tracker": "npm --prefix ../local-tracker run build",
     "build:local-tracker:desktop": "npm --prefix ../local-tracker run build",
+    "build:local-repo-mcp:desktop": "npm --prefix ../local-repo-mcp run build",
     "build:tauri-runtime-host": "node ../node_modules/typescript/bin/tsc -p tsconfig.tauri-runtime.json",
     "test:tauri-runtime-host": "npm run build:tauri-runtime-host && node --test lib/desktop-shell/desktopRuntime/runtimeService.test.js lib/desktop-shell/desktopRuntime/kimakiRuntimeResolver.test.js lib/desktop-shell/desktopRuntime/kimakiSseParser.test.js lib/desktop-shell/desktopRuntime/kimakiCli.test.js lib/desktop-shell/desktopRuntime/kimakiRuntimeService.test.js",
     "desktop:dev": "npm run tauri:dev:windows",
@@ -35,8 +36,8 @@
     "tauri:check": "npm run build:tauri-runtime-host && npm run verify:native-deps && npm run prepare:tauri:win-bundle && cargo check --manifest-path src-tauri/Cargo.toml",
     "tauri:check:linux": "npm run build:tauri-runtime-host",
     "tauri:build:win": "npm exec -- tauri build --bundles nsis",
-    "tauri:dev:windows": "npm run ui:build && npm run build:local-tracker:desktop && npm run build:tauri-runtime-host && npm run verify:native-deps && npm run prepare:tauri:win-bundle && node scripts/run-tauri-dev-windows.js",
-    "package:tauri:win:preview": "npm run verify:native-deps && npm run clean:tauri-release && npm run ui:build && npm run build:local-tracker:desktop && npm run build:tauri-runtime-host && npm run validate:tauri-node-sidecar-layout && npm run prepare:tauri:win-bundle && npm run tauri:build:win && npm run refresh:tauri:win-release-metadata && npm run validate:tauri:win-release-artifacts",
+    "tauri:dev:windows": "npm run ui:build && npm run build:local-tracker:desktop && npm run build:local-repo-mcp:desktop && npm run build:tauri-runtime-host && node scripts/run-tauri-dev-windows.js",
+    "package:tauri:win:preview": "npm run verify:native-deps && npm run clean:tauri-release && npm run ui:build && npm run build:local-tracker:desktop && npm run build:local-repo-mcp:desktop && npm run build:tauri-runtime-host && npm run validate:tauri-node-sidecar-layout && npm run prepare:tauri:win-bundle && npm run tauri:build:win && npm run refresh:tauri:win-release-metadata && npm run validate:tauri:win-release-artifacts",
     "package:tauri:win:preview:stage": "npm run package:tauri:win:preview && npm run stage:tauri:win-release-artifacts",
     "ui:build": "vite build --config vite.config.ts",
     "lint:css": "stylelint \"ui/src/**/*.css\" --config ui/.stylelintrc.json"

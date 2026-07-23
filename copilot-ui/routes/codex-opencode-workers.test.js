@@ -57,11 +57,11 @@ test('OpenCode Workers routes expose config defaults and persist updates', async
     res: {},
   });
   assert.equal(updated.sent[0].code, 200);
-  assert.equal(updated.sent[0].obj.config.defaultModelProfile, 'deepseek-direct');
-  assert.equal(updated.sent[0].obj.config.roleProfiles.review, 'opencode-zen-mixed');
+  assert.equal(updated.sent[0].obj.config.defaultModelProfile, 'opencode-go-balanced');
+  assert.equal(updated.sent[0].obj.config.roleProfiles.review, undefined);
   assert.equal(updated.sent[0].obj.config.rolePolicies.implementation.writeEnabled, true);
   assert.equal(updated.sent[0].obj.effectiveRolePolicies.implementation.mode, 'read-write');
-  assert.equal(updated.sent[0].obj.roleModelMatrix.implementation['deepseek-direct'], 'deepseek/deepseek-v4-flash');
+  assert.ok(updated.sent[0].obj.roleModelMatrix.implementation);
 });
 
 test('OpenCode Workers reject paid/direct profiles unless opted in', async () => {

@@ -22,6 +22,12 @@ export const DEFAULT_COMMIT_CHECK_CONFIG = Object.freeze({
       cost: 'fast',
       opensWindow: false,
     }),
+    push: Object.freeze({
+      label: 'Push',
+      description: 'Pre-push checks - test + typecheck',
+      cost: 'medium',
+      opensWindow: false,
+    }),
     'ci-local': Object.freeze({
       label: 'CI Local',
       description: 'Full local CI parity gate',
@@ -58,7 +64,7 @@ const DEFAULT_LANE_METADATA = Object.freeze({
     required: true,
     skippable: false,
     requiresReasonOnSkip: false,
-    defaultProfiles: Object.freeze(['commit']),
+    defaultProfiles: Object.freeze(['push']),
     cost: 'medium',
     opensWindow: false,
   }),

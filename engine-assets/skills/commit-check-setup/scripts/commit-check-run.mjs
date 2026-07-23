@@ -137,7 +137,11 @@ export function runChecks(config, repoRoot, options = {}) {
   }
 
   const { selectedLanes, selectedGroup, skipLanes = new Map(), runAll = false } = options;
-  const profile = options.profile || DEFAULT_COMMIT_CHECK_CONFIG.defaultProfile;
+  const hasExplicitSelection = selectedGroup || selectedLanes || runAll;
+  const explicitProfile = options.profile != null;
+  const profile = explicitProfile
+    ? options.profile
+    : (hasExplicitSelection ? null : DEFAULT_COMMIT_CHECK_CONFIG.defaultProfile);
   const threshold = config.threshold ?? DEFAULT_COMMIT_CHECK_CONFIG.threshold;
   const weights = config.weights ?? DEFAULT_COMMIT_CHECK_CONFIG.weights;
   const gates = config.gates ?? DEFAULT_COMMIT_CHECK_CONFIG.gates;

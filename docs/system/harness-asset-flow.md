@@ -1,6 +1,6 @@
 ---
 created: 2026-06-09
-updated: 2026-06-30
+updated: 2026-07-21
 category: system
 status: current
 doc_kind: node
@@ -155,7 +155,11 @@ Codex also gets two managed configuration surfaces:
 Installer writes now use temp-sibling replace semantics for file and directory updates so managed
 refreshes do not rely on delete-then-copy for normal overwrite paths.
 
-The instruction writing contract (Authority, Concise Instruction, Clarification, Planning, Review, Validation, Core Workflow) is maintained in a single shared baseline at `catalog-assets/instructions/agent-session-defaults.md`. At install time, each harness installer composes the shared baseline with a harness-specific appendix to produce the installed instruction file.
+The portable session contract (repo discovery, instruction content, clarification, planning,
+long-running work, documentation shape, review, validation, and Git checkpoints) is maintained in
+a single shared baseline at `catalog-assets/instructions/agent-session-defaults.md`. At install
+time, each harness installer composes the shared baseline with a harness-specific appendix to
+produce the installed instruction file.
 
 Vendor assets are shipped only when a pinned source, compatible license, and validation script exist.
 Impeccable is retained as attributed research only; governed UI capabilities ship through the
@@ -183,6 +187,18 @@ Per-repo files are **discovered by** Elegy Copilot, not created by it. When `--r
 
 Per-repo files are created by the **repo owner** (human or CI), not by the install process. Elegy Copilot's role is to validate and patch overlays when the owner opts in.
 
+### Desktop Packaging Tier (Tauri sidecar manifest)
+
+The packaged desktop app is a third asset-consumption tier. The Tauri sidecar layout manifest at `copilot-ui/resources/runtime-manifests/windows-tauri-node-sidecar.json` declares which central asset directories are staged into the installer's `resources/` directory at package time. The packaged backend resolves `engineRoot` to that `resources/` directory, so every runtime read of a central asset path must be covered by a `resourceCopies` entry or the installed app will fail with ENOENT.
+
+The manifest bundles:
+
+- `engine-assets` and `catalog-assets` (shared sources)
+- All five harness-specific asset directories: `codex-assets`, `opencode-assets`, `claude-assets`, `antigravity-assets`, `ghcp-assets`
+- The `local-repo-mcp` runtime package (`dist`, `node_modules`, `package.json`), which the local MCP server spawns against at runtime. Because the repo uses npm workspaces, `local-repo-mcp`'s runtime dependencies (`@modelcontextprotocol/sdk`, `jose`, `zod` and transitives) are hoisted to the root `node_modules/` in development. The bundle preparation script (`prepare-tauri-windows-bundle.js`) stages this hoisted closure from the root `node_modules/` into `resources/local-repo-mcp/node_modules/` at package time so the spawned MCP server process has a complete dependency tree.
+
+A runtime asset drift guard in `copilot-ui/scripts/tauri-node-sidecar-layout.js` scans `copilot-ui/{server.js,lib,routes}` for harness-asset path references and `resolveMcpPackageRoot` usage, then asserts each referenced root has a matching `resourceCopies` entry. This guard runs as part of `validate:tauri-node-sidecar-layout` and `desktop:check`. The native desktop smoke lane additionally probes `POST /api/local-repo-mcp/start` to verify the bundled MCP package actually launches.
+
 ## Harness Comparison
 
 | Dimension | Copilot | OpenCode | Codex | Antigravity | Claude | GHCP |
@@ -203,8 +219,20 @@ The instruction writing contract lives in a single shared portable baseline at `
 
 ## Validation
 
-- `node scripts/validate-instruction-wiring.mjs` — checks shared baseline exists at `catalog-assets/instructions/agent-session-defaults.md`, manifests reference correct paths, appendix files exist for each harness, and no banned terms appear in the baseline
-- `node scripts/validate-installed-governance-wiring.test.js` — validates installed governance wiring across harnesses
+- `node scripts/validate-instruction-wiring.mjs` — validates baseline structure, manifest composition,
+  harness appendix ownership, shared skill routes, and retired-reference removal
+- `node scripts/validate-manifest.js` — validates manifest IDs, destinations, source paths, required
+  assets, and generated-manifest parity
+- Run the changed harness's focused check:
+
+| Harness | Focused check |
+|---|---|
+| Elegy Copilot | `node --test scripts/cli-install.test.js` |
+| Codex | `node --test scripts/codex-install.test.js` |
+| OpenCode | `node --test scripts/opencode-install.test.js` |
+| Antigravity | `node --test scripts/antigravity-install.test.js` |
+| Claude Code | `node scripts/claude-install.mjs --dry-run` |
+| GitHub Copilot CLI | `npm run install:ghcp:dry` |
 
 ## References
 

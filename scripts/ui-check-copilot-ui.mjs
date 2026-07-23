@@ -50,7 +50,7 @@ const WORKSPACE_TAB_TARGETS = {
     tabSelector: '[data-testid="workspace-local-tab-checks"]',
     surfaceSelectors: [
       '[data-testid="workspace-checks-tab"]',
-      '[data-testid="workspace-operation-banner"]',
+      '[data-testid="workspace-checks-readiness"]',
     ],
   },
   'workspace-assets': {

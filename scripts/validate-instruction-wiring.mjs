@@ -62,6 +62,20 @@ const APPENDICES = [
   'ghcp-assets/home/AGENTS-appendix.md',
 ];
 
+const BASELINE_OWNED_APPENDIX_HEADINGS = [
+  '## Authority',
+  '## Repo Discovery',
+  '## Instruction Content',
+  '## Clarification Contract',
+  '## Planning Contract',
+  '## Long-Running Work',
+  '## Review Rule',
+  '## Validation Rule',
+  '## Git Checkpoint Rule',
+  '## Repo docs breadcrumb',
+  '## Placement',
+];
+
 const SHARED_SKILLS = [
   {
     id: 'skill-authoring',
@@ -210,13 +224,32 @@ function checkManifestWiring(repoRoot) {
   return results;
 }
 
-/** Check each appendix file exists. */
+/** Check each appendix exists and does not duplicate baseline-owned sections. */
 function checkAppendixFiles(repoRoot) {
-  return APPENDICES.map((rel) => {
+  const results = [];
+
+  for (const rel of APPENDICES) {
     const id = rel.replace(/\.md$/, '').replace(/\//g, '-');
-    const exists = fs.existsSync(path.join(repoRoot, rel));
-    return { id, status: exists ? 'ok' : 'missing', detail: exists ? `${rel} exists` : `${rel} not found` };
-  });
+    const fullPath = path.join(repoRoot, rel);
+    if (!fs.existsSync(fullPath)) {
+      results.push({ id, status: 'missing', detail: `${rel} not found` });
+      continue;
+    }
+
+    results.push({ id, status: 'ok', detail: `${rel} exists` });
+    const content = fs.readFileSync(fullPath, 'utf8');
+    const duplicatedHeadings = BASELINE_OWNED_APPENDIX_HEADINGS.filter((heading) =>
+      content.split(/\r?\n/).includes(heading));
+    results.push({
+      id: `${id}-baseline-ownership`,
+      status: duplicatedHeadings.length === 0 ? 'ok' : 'violation',
+      detail: duplicatedHeadings.length === 0
+        ? `${rel}: no baseline-owned sections duplicated`
+        : `${rel}: duplicates ${duplicatedHeadings.join(', ')}`,
+    });
+  }
+
+  return results;
 }
 
 /** Check each shared skill exists with agentskills.io-compliant frontmatter. */

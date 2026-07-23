@@ -13,7 +13,10 @@ use std::{
 };
 
 #[cfg(windows)]
-use std::{ffi::OsString, os::windows::ffi::OsStrExt};
+use std::{
+    ffi::OsString,
+    os::windows::{ffi::OsStrExt, process::CommandExt},
+};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
@@ -27,6 +30,9 @@ const SHUTDOWN_SIGNAL: &str = "shutdown\n";
 const RUNTIME_BOOT_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_DIAGNOSTIC_LINES: usize = 80;
 const MAX_MSGBOX_TEXT_LEN: usize = 4096;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 type StderrCapture = Arc<Mutex<Vec<String>>>;
 
@@ -57,6 +63,10 @@ fn runtime_diagnostic_timestamp_ms() -> u128 {
         .unwrap_or(0)
 }
 
+fn is_leap_year(year: u64) -> bool {
+    (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
+}
+
 fn runtime_diagnostic_format_timestamp(timestamp_ms: u128) -> String {
     let total_seconds = (timestamp_ms / 1000) as u64;
     let millis = (timestamp_ms % 1000) as u64;
@@ -68,7 +78,7 @@ fn runtime_diagnostic_format_timestamp(timestamp_ms: u128) -> String {
     let mut year: u64 = 1970;
     let mut remaining_days = day_index;
     loop {
-        let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+        let leap = is_leap_year(year);
         let days_in_year = if leap { 366 } else { 365 };
         if remaining_days < days_in_year {
             break;
@@ -76,7 +86,7 @@ fn runtime_diagnostic_format_timestamp(timestamp_ms: u128) -> String {
         remaining_days -= days_in_year;
         year += 1;
     }
-    let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    let leap = is_leap_year(year);
     let month_lengths = if leap {
         [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     } else {
@@ -118,7 +128,7 @@ fn time_format(seconds: i64, nanos: u32) -> String {
     let mut year: u64 = 1970;
     let mut remaining_days = day_index;
     loop {
-        let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+        let leap = is_leap_year(year);
         let days_in_year = if leap { 366 } else { 365 };
         if remaining_days < days_in_year {
             break;
@@ -126,7 +136,7 @@ fn time_format(seconds: i64, nanos: u32) -> String {
         remaining_days -= days_in_year;
         year += 1;
     }
-    let leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    let leap = is_leap_year(year);
     let month_lengths = if leap {
         [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
     } else {
@@ -527,7 +537,7 @@ fn finalize_desktop_updater_state(mut state: DesktopUpdaterState) -> DesktopUpda
     state.can_check_for_updates =
         state.supported && state.status != "checking" && state.status != "downloading";
     state.can_download = state.supported && state.status == "available";
-    state.can_restart_to_update = false;
+    state.can_restart_to_update = state.supported && state.status == "downloaded";
     state
 }
 
@@ -817,6 +827,11 @@ async fn desktop_updater_install(
             Ok(set_desktop_updater_state(&store, state))
         }
     }
+}
+
+#[tauri::command]
+fn desktop_updater_relaunch(app: AppHandle) {
+    app.restart();
 }
 
 #[cfg(windows)]
@@ -1135,7 +1150,7 @@ fn build_init_script(app: &AppHandle) -> Result<String, String> {
                             try {
                                 const invoke = tauriInvoke();
                                 if (invoke) {
-                                    await invoke('desktop_updater_install');
+                                    await invoke('desktop_updater_relaunch');
                                     return true;
                                 }
                                 const payload = await callUpdaterApi('/api/desktop-updater/restart', {
@@ -1442,7 +1457,12 @@ fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result
     let copilot_ui_root = root.join("copilot-ui");
     let server_entrypoint = copilot_ui_root.join("server.js");
     eprintln!("[tauri-runtime] spawning node runtime host");
-    let mut child = Command::new(node_executable)
+    let mut runtime_command = Command::new(node_executable);
+
+    #[cfg(windows)]
+    runtime_command.creation_flags(CREATE_NO_WINDOW);
+
+    let mut child = runtime_command
         .arg(runtime_host)
         .env(
             "ELEGY_TAURI_APP_VERSION",
@@ -1591,6 +1611,7 @@ fn main() {
     let build_result = tauri::Builder::default()
         .manage(RuntimeChildState::default())
         .manage(DesktopUpdaterBridgeState::default())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             focus_main_window(app);
@@ -1624,6 +1645,7 @@ fn main() {
             desktop_updater_get_state,
             desktop_updater_check,
             desktop_updater_install,
+            desktop_updater_relaunch,
         ])
         .build(tauri::generate_context!());
 

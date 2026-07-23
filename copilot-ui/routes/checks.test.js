@@ -1,6 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('path');
 
 let passed = 0;
@@ -64,11 +66,13 @@ async function invoke(routes, method, pathname, body) {
   return { res, body: parseBody(res) };
 }
 
-function registerWithMocks({ body = {} } = {}) {
+function registerWithMocks({ body = {}, qualityService, launchRepoQualityTask } = {}) {
   const { register } = require('./checks');
   return register({
     sendJson: createSendJson(),
     readJsonBody: createReadJsonBody(body),
+    qualityService,
+    launchRepoQualityTask,
   });
 }
 
@@ -77,7 +81,91 @@ async function run() {
 
   await test('register returns check route descriptors', async () => {
     const routes = registerWithMocks();
-    assert.equal(routes.length, 11);
+    assert.equal(routes.length, 15);
+  });
+
+  await test('GET /api/git/quality/status requires repoPath', async () => {
+    const routes = registerWithMocks();
+    const { res, body } = await invoke(routes, 'GET', '/api/git/quality/status');
+    assert.equal(res.statusCode, 400);
+    assert.match(body.error, /repoPath/i);
+  });
+
+  await test('GET /api/git/quality/status reports readiness for the selected repository', async () => {
+    const testRepo = path.resolve(__dirname, '..');
+    const qualityService = {
+      buildRepoQualityStatus: async (repoPath) => ({
+        schemaVersion: 1,
+        repoPath,
+        readiness: 'setup-required',
+        nextAction: { id: 'setup-quality' },
+      }),
+    };
+    const routes = registerWithMocks({ qualityService });
+    const { res, body } = await invoke(routes, 'GET', `/api/git/quality/status?repoPath=${encodeURIComponent(testRepo)}`);
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.repoPath, testRepo);
+    assert.equal(body.readiness, 'setup-required');
+    assert.equal(body.nextAction.id, 'setup-quality');
+  });
+
+  await test('POST /api/git/quality/setup-task requires repoPath', async () => {
+    const routes = registerWithMocks({ body: {} });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/quality/setup-task');
+    assert.equal(res.statusCode, 400);
+    assert.match(body.error, /repoPath/i);
+  });
+
+  await test('POST /api/git/quality/setup-task scopes the task to the selected repository', async () => {
+    const testRepo = path.resolve(__dirname, '..');
+    const qualityService = {
+      createRepoQualitySetupTask: async (repoPath, options) => ({
+        launched: false,
+        repoPath,
+        skill: 'repo-quality-setup',
+        prompt: `Set up ${repoPath}`,
+        launcherAvailable: Boolean(options.launchTask),
+      }),
+    };
+    const routes = registerWithMocks({ body: { repoPath: testRepo }, qualityService });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/quality/setup-task');
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.repoPath, testRepo);
+    assert.equal(body.skill, 'repo-quality-setup');
+    assert.equal(body.launched, false);
+  });
+
+  await test('GET /api/git/hooks/state requires repoPath', async () => {
+    const routes = registerWithMocks();
+    const { res, body } = await invoke(routes, 'GET', '/api/git/hooks/state');
+    assert.equal(res.statusCode, 400);
+    assert.match(body.error, /repoPath/i);
+  });
+
+  await test('POST /api/git/hooks/setup requires repoPath in the request body', async () => {
+    const routes = registerWithMocks({ body: {} });
+    const { res, body } = await invoke(routes, 'POST', '/api/git/hooks/setup');
+    assert.equal(res.statusCode, 400);
+    assert.match(body.error, /repoPath/i);
+  });
+
+  await test('POST /api/git/hooks/setup uses the selected repository', async () => {
+    const testRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'elegy-hooks-route-'));
+    const scriptsDir = path.join(testRepo, 'scripts');
+    fs.mkdirSync(scriptsDir);
+    fs.writeFileSync(
+      path.join(scriptsDir, 'setup-git-hooks.mjs'),
+      "console.log(JSON.stringify({ repoPath: process.argv[3] }));\n",
+      'utf8',
+    );
+    try {
+      const routes = registerWithMocks({ body: { repoPath: testRepo } });
+      const { res, body } = await invoke(routes, 'POST', '/api/git/hooks/setup');
+      assert.equal(res.statusCode, 200);
+      assert.equal(body.repoPath, testRepo);
+    } finally {
+      fs.rmSync(testRepo, { recursive: true, force: true });
+    }
   });
 
   await test('GET /api/git/checks/discover requires repoPath', async () => {

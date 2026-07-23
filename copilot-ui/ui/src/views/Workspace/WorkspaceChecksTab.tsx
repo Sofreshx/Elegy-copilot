@@ -4,9 +4,8 @@ import { notificationStore } from '../../stores/notificationStore';
 import { useStoreValue } from '../../lib/store';
 import { checksStore } from '../../stores/checksStore';
 import type { RunSession } from '../../stores/checksStore';
-import { deriveWorkspaceOperationSnapshot } from '../../stores/workspaceOperationStore';
 import type { GitCheckResults, GitChecksDiscoverResponse } from '../../lib/api/git';
-import WorkspaceOperationBanner from './WorkspaceOperationBanner';
+import { createRepoQualitySetupTask } from '../../lib/api/git';
 
 interface WorkspaceChecksTabProps {
   repoPath: string;
@@ -67,6 +66,12 @@ const s = {
     marginBottom: '12px',
     flexWrap: 'wrap' as const,
     alignItems: 'center',
+  } as React.CSSProperties,
+  hooksStatus: {
+    padding: '8px 12px',
+    background: DARK_BG_2,
+    borderRadius: '6px',
+    marginBottom: '12px',
   } as React.CSSProperties,
   sectionTitle: {
     color: TEXT_PRIMARY,
@@ -363,12 +368,11 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   const [logFilter, setLogFilter] = useState('');
   const [expandedLane, setExpandedLane] = useState<string | null>(null);
   const [confirmHeavyLanes, setConfirmHeavyLanes] = useState<LaneInfo[]>([]);
+  const [profileBarOpen, setProfileBarOpen] = useState(false);
+  const [setupTaskPrompt, setSetupTaskPrompt] = useState<string | null>(null);
+  const [startingSetupTask, setStartingSetupTask] = useState(false);
 
-  const { runSession, runningChecks, checkResults, checkState, ciSync, discoveredChecks, loading } = storeState;
-  const operationSnapshot = deriveWorkspaceOperationSnapshot({
-    repoPath,
-    checksState: storeState,
-  });
+  const { runSession, runningChecks, checkResults, checkState, ciSync, discoveredChecks, qualityStatus, loading } = storeState;
 
   // ─── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -493,10 +497,84 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
     setConfirmHeavyLanes([]);
   }
 
-  function handleOperationPrimaryAction() {
-    if (operationSnapshot.nextAction?.id === 'checks.run') {
-      handleProfileClick('ci-local');
+  async function handleQualityPrimaryAction() {
+    if (!qualityStatus) return;
+    if (qualityStatus.readiness === 'setup-required' || qualityStatus.readiness === 'repair-required') {
+      setStartingSetupTask(true);
+      try {
+        const result = await createRepoQualitySetupTask(repoPath);
+        if (result.launched) {
+          notificationStore.success('Repository quality task started');
+        } else {
+          setSetupTaskPrompt(result.prompt);
+        }
+      } catch (err) {
+        notificationStore.error(`Failed to start setup task: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        setStartingSetupTask(false);
+      }
+      return;
     }
+    if (qualityStatus.readiness === 'local-failing') {
+      setProfileBarOpen(true);
+      return;
+    }
+    void checksStore.refresh(repoPath);
+  }
+
+  function renderReadiness() {
+    if (!qualityStatus) return null;
+    const readinessLabels: Record<string, string> = {
+      ready: 'Ready',
+      unsupported: 'Not supported yet',
+      'setup-required': 'Setup required',
+      'repair-required': 'Migration required',
+      'local-failing': 'Local checks failing',
+      'remote-failing': 'GitHub checks failing',
+      'remote-unknown': 'GitHub status unavailable',
+    };
+    const hooksLabel = qualityStatus.local.hooks.configured && qualityStatus.local.hooks.active
+      ? qualityStatus.local.hooks.manager
+      : 'Not configured';
+    const githubLabel = qualityStatus.remote.available
+      ? qualityStatus.remote.latestConclusion || 'Connected'
+      : 'Unavailable';
+    return (
+      <section style={{ ...s.hooksStatus, border: `1px solid ${BORDER}`, padding: 16 }} data-testid="workspace-checks-readiness">
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <div>
+            <div style={s.label}>Repository quality</div>
+            <h2 style={{ color: TEXT_PRIMARY, fontSize: 20, margin: '4px 0 10px' }}>
+              {readinessLabels[qualityStatus.readiness] || qualityStatus.readiness}
+            </h2>
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+              <div><span style={s.label}>Hooks</span><div style={s.value}>{hooksLabel}</div></div>
+              <div><span style={s.label}>Local proof</span><div style={s.value}>{qualityStatus.local.lastProof ? (qualityStatus.local.lastProof.overallPass ? 'Passing' : 'Failing') : 'Not run'}</div></div>
+              <div><span style={s.label}>GitHub</span><div style={s.value}>{githubLabel}</div></div>
+            </div>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={startingSetupTask}
+            onClick={() => void handleQualityPrimaryAction()}
+            testId="workspace-checks-primary-action"
+          >
+            {startingSetupTask ? 'Starting...' : qualityStatus.nextAction.label}
+          </Button>
+        </div>
+        {qualityStatus.drift.length > 0 && (
+          <div style={{ marginTop: 12, color: WARNING }}>
+            {qualityStatus.drift.map((item) => <div key={item.id}>{item.message}</div>)}
+          </div>
+        )}
+        {setupTaskPrompt && (
+          <pre data-testid="workspace-checks-setup-prompt" style={{ margin: '12px 0 0', padding: 10, background: DARK_BG, whiteSpace: 'pre-wrap' }}>
+            {setupTaskPrompt}
+          </pre>
+        )}
+      </section>
+    );
   }
 
   // ─── Render: Top Strip ─────────────────────────────────────────────────────
@@ -1108,31 +1186,43 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   // ─── Render: Main ──────────────────────────────────────────────────────────
   return (
     <div style={s.container} className="workspace-checks-tab" data-testid="workspace-checks-tab">
-      <WorkspaceOperationBanner
-        snapshot={operationSnapshot}
-        onPrimaryAction={handleOperationPrimaryAction}
-      />
+      {renderReadiness()}
       {renderTopStrip()}
-      {renderProfileBar()}
-      {renderConfirmDialog()}
-      {renderRunStatus()}
-      {renderLaneMatrix()}
 
-      {/* Log console toggle */}
-      <div style={{ marginBottom: 16 }}>
+      {/* Manual run — collapsible */}
+      <div style={{ marginBottom: 12 }}>
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setShowLogConsole(!showLogConsole)}
-          testId="workspace-checks-log-toggle"
+          onClick={() => setProfileBarOpen(!profileBarOpen)}
+          testId="workspace-checks-manual-run-toggle"
         >
-          {showLogConsole ? 'Hide Logs' : 'Show Logs'}
+          {profileBarOpen ? 'Hide check details' : 'Check details and manual runs'}
         </Button>
       </div>
+      {profileBarOpen && (
+        <>
+          {renderProfileBar()}
+          {renderConfirmDialog()}
+          {renderRunStatus()}
+          {renderLaneMatrix()}
 
-      {showLogConsole && renderLogConsole()}
-      {renderRunTraceSummary()}
-      {renderRunHistory()}
+          <div style={{ marginBottom: 16 }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowLogConsole(!showLogConsole)}
+              testId="workspace-checks-log-toggle"
+            >
+              {showLogConsole ? 'Hide Logs' : 'Show Logs'}
+            </Button>
+          </div>
+
+          {showLogConsole && renderLogConsole()}
+          {renderRunTraceSummary()}
+          {renderRunHistory()}
+        </>
+      )}
     </div>
   );
 }

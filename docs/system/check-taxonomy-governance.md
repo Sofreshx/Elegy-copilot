@@ -66,6 +66,9 @@ Every formal check should declare one of these strengths:
 - `commit-check` owns the narrow "safe to commit" gate.
 - Keep it fast, deterministic, and low-friction.
 - Do not move heavy integration, browser, or review-only checks into `commit-check` by default.
+- **Group → hook mapping**: `group: commit` lanes run on `pre-commit`; `group: push` lanes run on
+  `pre-push`. Hooks use `--group <name>` (not `--profile`) to select lanes, decoupling group
+  membership from profile membership.
 
 ### Validation lane
 

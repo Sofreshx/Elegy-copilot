@@ -109,12 +109,35 @@ function probeEnvironment() {
   return { probes, unmet };
 }
 
-function collectWorkspaceDeps(repoRoot, pkg) {
-  const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
-  const workspaces = pkg.workspaces || [];
+function workspacePatterns(pkg) {
+  if (Array.isArray(pkg.workspaces)) return pkg.workspaces;
+  if (Array.isArray(pkg.workspaces?.packages)) return pkg.workspaces.packages;
+  return [];
+}
 
-  for (const ws of workspaces) {
-    const wsRoot = path.join(repoRoot, ws.replace(/\/+$/, ''));
+function expandWorkspacePattern(repoRoot, pattern) {
+  if (typeof pattern !== 'string' || pattern.startsWith('!')) return [];
+  const segments = pattern.replace(/\\/g, '/').replace(/\/+$/, '').split('/');
+  let roots = [repoRoot];
+  for (const segment of segments) {
+    if (!segment) continue;
+    const matcher = segment.includes('*')
+      ? new RegExp(`^${segment.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replaceAll('*', '.*')}$`)
+      : null;
+    roots = roots.flatMap(root => {
+      if (!matcher) return [path.join(root, segment)];
+      if (!exists(root)) return [];
+      return fs.readdirSync(root, { withFileTypes: true })
+        .filter(entry => entry.isDirectory() && matcher.test(entry.name))
+        .map(entry => path.join(root, entry.name));
+    });
+  }
+  return roots;
+}
+
+function collectWorkspaceDeps(pkg, workspaceRoots) {
+  const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+  for (const wsRoot of workspaceRoots) {
     const wsPkgPath = path.join(wsRoot, 'package.json');
     if (!exists(wsPkgPath)) continue;
     const wsPkg = readJson(wsPkgPath);
@@ -126,18 +149,9 @@ function collectWorkspaceDeps(repoRoot, pkg) {
 }
 
 function collectWorkspacePackageRoots(repoRoot, pkg) {
-  const roots = [];
-  const workspaces = pkg.workspaces || [];
-
-  for (const ws of workspaces) {
-    if (typeof ws !== 'string' || ws.includes('*')) continue;
-    const wsRoot = path.join(repoRoot, ws.replace(/\/+$/, ''));
-    if (exists(path.join(wsRoot, 'package.json'))) {
-      roots.push(wsRoot);
-    }
-  }
-
-  return roots;
+  return [...new Set(workspacePatterns(pkg)
+    .flatMap(pattern => expandWorkspacePattern(repoRoot, pattern))
+    .filter(root => exists(path.join(root, 'package.json'))))];
 }
 
 function collectTsConfigCommands(repoRoot, workspaceRoots) {
@@ -158,13 +172,13 @@ function collectTsConfigCommands(repoRoot, workspaceRoots) {
     const relative = path.relative(repoRoot, candidate).replace(/\\/g, '/');
     if (seen.has(relative)) continue;
     seen.add(relative);
-    commands.push(`npx tsc -p "${relative}" --noEmit`);
+    commands.push(`npx --no-install tsc -p "${relative}" --noEmit`);
   }
 
   return commands;
 }
 
-function detectEmbeddedVitestConfig(repoRoot) {
+function detectEmbeddedVitestConfig(repoRoot, workspaceRoots) {
   // Check for vitest config embedded in vite.config.* files
   const viteConfigPatterns = [
     'vite.config.ts', 'vite.config.js', 'vite.config.mts', 'vite.config.mjs',
@@ -174,18 +188,7 @@ function detectEmbeddedVitestConfig(repoRoot) {
   // Only check repo root + known workspace dirs, not recursive
   const dirsToCheck = [repoRoot];
 
-  // Also check workspace package roots from package.json
-  const pkgJsonPath = path.join(repoRoot, 'package.json');
-  if (exists(pkgJsonPath)) {
-    const pkg = readJson(pkgJsonPath);
-    if (pkg && pkg.workspaces) {
-      for (const ws of pkg.workspaces) {
-        if (typeof ws === 'string' && !ws.includes('*')) {
-          dirsToCheck.push(path.join(repoRoot, ws.replace(/\/+$/, '')));
-        }
-      }
-    }
-  }
+  dirsToCheck.push(...workspaceRoots);
 
   for (const dir of dirsToCheck) {
     for (const pattern of viteConfigPatterns) {
@@ -215,8 +218,8 @@ function detectTypeScriptLanes(repoRoot) {
   }
 
   const scripts = pkg.scripts || {};
-  const deps = collectWorkspaceDeps(repoRoot, pkg);
   const workspaceRoots = collectWorkspacePackageRoots(repoRoot, pkg);
+  const deps = collectWorkspaceDeps(pkg, workspaceRoots);
 
   const hasTsConfig = exists(path.join(repoRoot, 'tsconfig.json')) ||
     exists(path.join(repoRoot, 'tsconfig.build.json'));
@@ -243,7 +246,7 @@ function detectTypeScriptLanes(repoRoot) {
   if (hasVitest || hasJest) {
     const testScript = scripts.test || scripts['test:unit'] || null;
     const testFramework = hasVitest ? 'vitest' : 'jest';
-    const defaultCmd = hasVitest ? 'npx vitest run' : 'npx jest';
+    const defaultCmd = hasVitest ? 'npx --no-install vitest run' : 'npx --no-install jest';
 
     let commands = [];
     if (testScript && testScript !== 'echo "no tests"') {
@@ -257,7 +260,7 @@ function detectTypeScriptLanes(repoRoot) {
     lanes.test = { found: true, commands, framework: testFramework };
 
     const coverageScript = scripts['test:coverage'] || scripts.coverage || null;
-    const embeddedVitestConfigs = detectEmbeddedVitestConfig(repoRoot);
+    const embeddedVitestConfigs = detectEmbeddedVitestConfig(repoRoot, workspaceRoots);
     const hasEmbeddedVitest = embeddedVitestConfigs.length > 0;
     const hasCoverageConfig = (hasVitest &&
       (exists(path.join(repoRoot, 'vitest.config.ts')) ||
@@ -269,10 +272,10 @@ function detectTypeScriptLanes(repoRoot) {
     if (coverageScript || hasCoverageConfig || hasC8) {
       let coverageCommands = coverageScript
         ? [`npm run ${Object.entries(scripts).find(([,v]) => v === coverageScript)?.[0] || 'test:coverage'}`]
-        : [hasVitest ? 'npx vitest run --coverage' : 'npx jest --coverage'];
+        : [hasVitest ? 'npx --no-install vitest run --coverage' : 'npx --no-install jest --coverage'];
       lanes.coverage = { found: true, commands: coverageCommands, tool: hasVitest ? 'vitest/istanbul' : 'jest/istanbul' };
     } else if (hasCoverageConfig) {
-      lanes.coverage = { found: true, commands: ['npx vitest run --coverage'], tool: 'vitest/istanbul' };
+      lanes.coverage = { found: true, commands: ['npx --no-install vitest run --coverage'], tool: 'vitest/istanbul' };
     }
   }
 
@@ -280,7 +283,7 @@ function detectTypeScriptLanes(repoRoot) {
     const lintScript = scripts.lint || null;
     let commands = lintScript
       ? [`npm run ${Object.entries(scripts).find(([,v]) => v === lintScript)?.[0] || 'lint'}`]
-      : ['npx eslint .'];
+      : ['npx --no-install eslint .'];
     lanes.lint = { found: true, commands, linter: 'eslint' };
   }
 
@@ -288,7 +291,7 @@ function detectTypeScriptLanes(repoRoot) {
     const formatScript = scripts.format || scripts['format:check'] || null;
     let commands = formatScript
       ? [`npm run ${Object.entries(scripts).find(([,v]) => v === formatScript)?.[0] || 'format'}`]
-      : ['npx prettier --check .'];
+      : ['npx --no-install prettier --check .'];
     lanes.format = { found: true, commands, formatter: 'prettier' };
   }
 
@@ -298,7 +301,7 @@ function detectTypeScriptLanes(repoRoot) {
       ? [`npm run ${Object.entries(scripts).find(([,v]) => v === typecheckScript)?.[0] || 'typecheck'}`]
       : tsConfigCommands.length > 0
         ? tsConfigCommands
-        : ['npx tsc --noEmit'];
+        : ['npx --no-install tsc --noEmit'];
     lanes.typecheck = { found: true, commands, tool: 'tsc' };
   }
 
@@ -411,10 +414,10 @@ function detectRustLanes(repoRoot) {
     .join(' ');
 
   // For each cargo manifest, build commands
-  const testCommands = cargoTomls.map(c => `cargo test --manifest-path ${c.relative}`);
-  const checkCommands = cargoTomls.map(c => `cargo check --manifest-path ${c.relative}`);
-  const clippyCommands = cargoTomls.map(c => `cargo clippy --manifest-path ${c.relative} -- -D warnings`);
-  const fmtCommands = cargoTomls.map(c => `cargo fmt --manifest-path ${c.relative} -- --check`);
+  const testCommands = cargoTomls.map(c => `cargo test --manifest-path "${c.relative}"`);
+  const checkCommands = cargoTomls.map(c => `cargo check --manifest-path "${c.relative}"`);
+  const clippyCommands = cargoTomls.map(c => `cargo clippy --manifest-path "${c.relative}" -- -D warnings`);
+  const fmtCommands = cargoTomls.map(c => `cargo fmt --manifest-path "${c.relative}" -- --check`);
 
   lanes.test = { found: true, commands: testCommands, framework: 'cargo-test' };
   lanes.typecheck = { found: true, commands: checkCommands, tool: 'cargo-check' };

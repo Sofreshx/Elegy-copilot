@@ -84,9 +84,10 @@ This command:
 
 - runs the packaged Windows signed-updater lane (`desktop:preview:stage`)
 - silently installs the staged NSIS installer into `copilot-ui/.tmp/tauri-native-desktop-smoke/install`
-- validates the installed Tauri resource layout against `resources/runtime-manifests/windows-tauri-node-sidecar.json`
+- validates the installed Tauri resource layout against `resources/runtime-manifests/windows-tauri-node-sidecar.json` (including all harness-specific asset directories and the `local-repo-mcp` runtime package)
 - launches the installed desktop app with an isolated repo-local home/state root and a fixed loopback server port
 - verifies `/api/health`, that the running runtime root matches the installed resources root, the native `Elegy Copilot` window, and first-pass Tauri single-instance reuse
+- probes `POST /api/local-repo-mcp/start` then `POST /api/local-repo-mcp/stop` to verify the bundled local repo MCP server launches and stays running
 - silently runs the generated uninstaller and confirms the installed app payload is removed
 
 Still manual after this slice:

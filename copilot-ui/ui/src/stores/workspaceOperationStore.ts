@@ -273,7 +273,7 @@ export function deriveWorkspaceOperationSnapshot({
         : 'ready';
 
   const topBlocker = blockers.find((blocker) => blocker.severity === 'blocked') || blockers[0] || null;
-  const nextAction = topBlocker?.actionLabel
+  const nextAction: WorkspaceNextAction | null = topBlocker?.actionLabel
     ? {
       id: topBlocker.source === 'checks'
         ? 'checks.run'

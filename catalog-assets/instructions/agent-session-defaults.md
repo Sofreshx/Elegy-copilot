@@ -1,74 +1,79 @@
-# Agent Session Defaults
+# Agent Session Router
 
-Portable baseline for all harnesses. Keep this repo-agnostic; put harness-only
-rules in the appendix and repo-only rules in repo instructions.
+Portable baseline for all harnesses. Harness appendices add tool-specific
+routing; repo instruction files add project-specific commands and authority.
 
 ## Repo Discovery
 
-The active harness loads global and project instruction files before the
-session starts. Treat loaded instructions as active unless a deeper scoped file
-or user instruction overrides them.
+Apply explicit user instructions first, then the active global-to-local
+instruction chain. A nearer scoped instruction overrides a broader instruction
+at the same authority layer.
 
-For manual discovery:
+Use the repo instruction entrypoint to discover any repo-declared canonical
+authority. Once identified, that authority governs maintained docs and repeated
+implementation patterns beneath it. Report conflicts.
 
-1. Read the repo instruction entrypoint when present.
-2. Apply deeper scoped instruction files for the active tree.
-3. Fall back to `README.md`, maintained docs, and the nearest docs index.
-4. Prefer repo-local validators.
+Route downward and stop at the smallest set of owning nodes required for the
+task:
+
+```text
+instruction chain -> repo entrypoint -> relevant topics -> owning nodes
+```
+
+Prefer repo-local validators. Do not broaden discovery when the route is
+already clear.
 
 ## Instruction Content
 
-Retain a directive only when it supplies a non-obvious rule, trigger, boundary,
-technique, tool, workflow, failure behavior, output contract, or verification
-step. Remove ceremony, generic quality advice, reasoning narration, and copied
+Keep instruction surfaces as routers. Retain only non-obvious triggers,
+actions, boundaries, failure behavior, output contracts, and checks. Put durable
+policy in its canonical owner; remove ceremony, generic advice, and copied
 policy.
 
 ## Clarification Contract
 
 Never implement through ambiguity.
 
-Clarify only when uncertainty changes scope, architecture, data handling,
-destructive action, external cost, user-visible behavior, acceptance criteria,
-validation, ownership, security, or privacy. Do not ask when the answer is
-discoverable from files, docs, tests, config, or current state.
+Investigate discoverable facts first. Clarify only when uncertainty changes
+scope, architecture, data handling, destructive action, external cost,
+user-visible behavior, acceptance criteria, validation, ownership, security,
+or privacy.
 
 ## Planning Contract
 
 Plan non-trivial work after reading the relevant local sources.
 
-A ready plan states goal, success criteria, authority path, facts, assumptions,
-smallest workable path, validation, and stop conditions. Another implementer
-must be able to execute it without making product or architecture decisions.
+A ready plan states the goal, success criteria, authority path, facts,
+assumptions, smallest workable path, validation, and stop conditions. It leaves
+no product or architecture decision to the implementer.
 
-## Documentation Shape
+## Long-Running Work
 
-Route downward:
+Let builds, validations, exports, and delegated work reach a natural result.
+Prefer one call with a suitable timeout. If a tool yields, use its wait or
+resume path instead of adding status probes or repeatedly reading growing logs.
 
-```text
-Harness or repo instructions
-  -> canonical entrypoint
-    -> relevant topic
-      -> smallest canonical node
-```
-
-Keep secondary surfaces thin. Link canonical policy instead of copying it.
+Interrupt only for an explicit error; a permission, credential,
+destructive-action, or privacy boundary; a confirmed stall; or user direction.
+After completion, inspect the exit status, concise summary, and relevant output
+once. Keep verbose logs outside model context when practical.
 
 ## Review Rule
 
-Review must flag unclear authority, temporal change framing in canonical docs,
-duplicated policy, assumptions treated as facts, missing clarification, vague
-abstractions, prose where structure fits better, copied harness policy, dead
-code, and unnecessary complexity.
+For review requests, lead with actionable findings and exact evidence. Check
+the active authority and acceptance criteria; flag assumptions presented as
+facts, duplicated policy, dead code, and unnecessary complexity.
 
 ## Validation Rule
 
-After changes, run the repo-local check that covers the changed behavior. For
-instruction or documentation surfaces, validate links and references.
+After changes, run the narrowest repo-local check that covers the changed
+behavior. Validate links for instruction or documentation changes. Report
+failed or skipped checks.
 
 ## Git Checkpoint Rule
 
-Keep work commit-sized. In goal or durable planning sessions, auto-commit
-validated atomic work units when the approved goal or plan authorizes the
-scope. In non-goal sessions, pause at natural boundaries, summarize the diff,
-and offer an atomic commit. Never auto-push, auto-merge, delete branches, or
-force-remove dirty worktrees.
+Keep changes scoped and preserve unrelated work. In goal or durable planning
+sessions, commit validated atomic units only when the approved goal or plan
+authorizes it. Otherwise, pause at a natural boundary and offer an atomic
+commit. Never auto-push, auto-merge, delete branches, or force-remove dirty
+worktrees.

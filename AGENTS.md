@@ -3,12 +3,26 @@
 Shared-asset and control-plane workspace for Copilot, Codex, OpenCode, Antigravity, Claude Code,
 and the local desktop UI.
 
-## Start Here
+## Bootstrap
 
 1. Open `docs/system/index.md`.
-2. For governance or instruction-surface work, route through
-   `docs/system/mocs/conventions-and-governance.md`.
-3. Expand only to the smallest owning node for the active rule family.
+2. Use the task routes below to find the owning canonical node.
+3. Read the smallest set of owning nodes required for the task, plus any nearer
+   scoped instruction file, before editing.
+
+If no canonical node owns a rule-bearing change, route the gap through
+`docs/system/mocs/conventions-and-governance.md` instead of inferring policy.
+
+## Task Routes
+
+| Task | Start | Focused validation |
+|---|---|---|
+| Instructions or governance | `docs/system/mocs/conventions-and-governance.md` | `npm run validate:instruction-wiring`, `npm run validate:instruction-quality`, and `npm run validate:instruction-budgets` |
+| Documentation structure or links | `docs/system/documentation-structure-governance.md` | `npm run docs:check:links` |
+| Harness assets or installers | `docs/system/harness-asset-flow.md` | `node scripts/validate-manifest.js`, then the harness-specific check owned there |
+| Desktop UI | `docs/system/copilot-ui-guide.md` | `npm run ui:check` |
+| Specs or planning | `docs/system/spec-driven-development.md` | `npm run docs:check:links`; run `npm run generate:spec-index` when the spec inventory changes |
+| Broad repository change | `docs/system/project-conventions-governance.md` | `npm run ci:local` |
 
 ## Area Map
 
@@ -21,28 +35,3 @@ and the local desktop UI.
 | Desktop UI | `copilot-ui/` | Local dashboard, desktop shell, backend |
 | Contracts | `contracts/` | Shared runtime contracts |
 | Local tracker | `local-tracker/` | Session/task tracking and gateway support |
-
-## Key Commands
-
-```bash
-npm ci
-npm run test:all
-npm run ci:local
-npm run ci:local:full
-npm run docs:check:links
-npm run generate:spec-index
-npm run ui:check
-npm run build:rust-backend
-npm run test:rust-backend
-npm --prefix copilot-ui run desktop:dev
-```
-
-Additional npm scripts: `npm run postinstall`, `npm run contracts:validate:session-state-sample`, `npm run docs:dev`, `npm run docs:preview`, `npm run docs:check:links`, `npm run validate:guidelines-wiring`, `npm run validate:instruction-wiring`, `npm run validate:instruction-budgets`, `npm run obsidian-docs:preflight`, `npm run obsidian-docs:init`, `npm run obsidian-docs:validate`, `npm run generate:spec-index`, `npm run ci:local:full`, `npm run ui:check`, `npm run ui:check:validate`, `npm run commit-check:discover`, `npm run commit-check:setup`, `npm run commit-check:run`, `npm run build:rust-backend`, `npm run test:rust-backend`, `npm run install:ghcp`, `npm run install:ghcp:dry`, `npm run ghcp:profile:switch`, `npm run ghcp:profile:list`, `npm run ghcp:profile:current`.
-
-
-## Canonical Pointers
-
-- Instruction writing and thin entrypoints: `docs/system/concise-instruction-governance.md`
-- Repo conventions and review posture: `docs/system/project-conventions-governance.md`
-- Documentation structure and freshness: `docs/system/documentation-structure-governance.md`
-- Shared baseline workflow contract: `catalog-assets/instructions/agent-session-defaults.md`
