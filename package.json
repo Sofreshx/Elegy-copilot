@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "postinstall": "npm run build:contracts",
-    "prepare": "node scripts/setup-git-hooks.mjs",
+    "prepare": "lefthook install",
     "build:contracts": "npm run build --workspace=contracts",
     "contracts:validate:session-state-sample": "node scripts/validate-session-state-canonical.js",
     "docs:dev": "vitepress dev docs",
@@ -30,6 +30,12 @@
     "obsidian-docs:validate": "node scripts/obsidian-docs-validate.js",
     "generate:spec-index": "node scripts/generate-spec-index.js",
     "test:all": "npm run test --workspaces --if-present",
+    "quality:manifests": "node scripts/validate-manifest.js",
+    "quality:instructions": "npm run validate:instruction-wiring && npm run validate:instruction-quality && npm run validate:instruction-budgets",
+    "quality:typecheck": "npx tsc -p contracts/tsconfig.json --noEmit && npx tsc -p copilot-ui/ui/tsconfig.json --noEmit && npx tsc -p local-repo-mcp/tsconfig.json --noEmit && npx tsc -p local-tracker/tsconfig.json --noEmit && npx tsc -p local-tracker/tsconfig.build.json --noEmit",
+    "quality:rust": "cargo fmt --manifest-path copilot-ui/src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path copilot-ui/src-tauri/Cargo.toml -- -D warnings",
+    "quality:test": "npm run test:all && cargo test --manifest-path copilot-ui/src-tauri/Cargo.toml",
+    "quality:push": "npm run quality:typecheck && npm run quality:rust && npm run quality:test",
     "clean": "npm run clean --workspaces --if-present",
     "ci:local": "node scripts/validate-ci-lockfiles.js && node scripts/generate-cli-manifest.mjs && node scripts/generate-policy-lockfiles.js && node scripts/validate-policy-lockfiles.js && node scripts/validate-manifest.js && node scripts/validate-doc-graph.js && node scripts/check-docs-dead-links.mjs && node scripts/validate-guidelines-wiring.mjs && node --test scripts/validate-instruction-quality.test.mjs scripts/desktop-release-acceptance.test.js copilot-ui/tests/codex-subagents-service.test.js && npm --prefix copilot-ui run ui:build && npm --prefix local-tracker run build && npm --prefix copilot-ui run tauri:check:linux && npm --prefix copilot-ui run validate:tauri-node-sidecar-layout && node copilot-ui/tests/ui-react-smoke.test.js && node copilot-ui/tests/runtime-startup-contract.test.js && node copilot-ui/lib/repoInventoryService.test.js",
     "ci:local:full": "npm run ci:local && npm --prefix copilot-ui run tauri:check && npm run docs:build",
@@ -53,7 +59,9 @@
     "@playwright/test": "^1.59.1"
   },
   "devDependencies": {
+    "@opencode-ai/plugin": "^1.17.8",
     "better-sqlite3": "^12.10.0",
+    "lefthook": "^2.1.10",
     "mermaid": "^11.12.3",
     "undici": "^6.27.0",
     "vitepress": "^1.6.4",

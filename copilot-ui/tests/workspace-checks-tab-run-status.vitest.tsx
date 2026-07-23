@@ -5,6 +5,8 @@ vi.mock('../ui/src/lib/api/git', () => ({
   discoverGitChecks: vi.fn(),
   getGitCheckState: vi.fn(),
   getGitCiSync: vi.fn(),
+  getRepoQualityStatus: vi.fn(),
+  createRepoQualitySetupTask: vi.fn(),
   runGitChecksWithProfile: vi.fn(),
 }));
 
@@ -75,6 +77,52 @@ describe('WorkspaceChecksTab run status', () => {
         summary: { totalCiJobs: 0, mapped: 0, gaps: 0, readiness: 'no-ci' },
       },
     });
+    vi.mocked(gitApi.getRepoQualityStatus).mockResolvedValue({
+      schemaVersion: 'repo-quality-status/v1',
+      repoPath: '/test/repo',
+      readiness: 'setup-required',
+      nextAction: { id: 'setup-quality-workflow', label: 'Set up quality workflow' },
+      support: { supported: true, adapter: 'node', reason: null },
+      local: {
+        config: { elegy: false, legacyCommitCheck: false },
+        hooks: { manager: 'none', configured: false, active: false, configPath: null, coreHooksPath: null },
+        lastProof: null,
+        freshness: { fresh: false, reason: 'No recorded proof.' },
+      },
+      remote: { available: false, reason: 'GitHub CLI is unavailable.' },
+      drift: [],
+    });
+  });
+
+  it('leads with repository readiness and the recommended next action', async () => {
+    render(<WorkspaceChecksTab repoPath="/test/repo" repoId="repo-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-checks-readiness')).toHaveTextContent('Setup required');
+    });
+    expect(screen.getByTestId('workspace-checks-primary-action')).toHaveTextContent('Set up quality workflow');
+    expect(screen.getByTestId('workspace-checks-readiness')).toHaveTextContent('HooksNot configured');
+    expect(screen.getByTestId('workspace-checks-readiness')).toHaveTextContent('GitHubUnavailable');
+  });
+
+  it('shows a scoped skill prompt when the task launcher is unavailable', async () => {
+    vi.mocked(gitApi.createRepoQualitySetupTask).mockResolvedValue({
+      schemaVersion: 'repo-quality-setup-task/v1',
+      repoPath: '/test/repo',
+      skill: 'repo-quality-setup',
+      launched: false,
+      reason: 'Codex task launcher is unavailable.',
+      prompt: 'Use the repo-quality-setup skill for /test/repo.',
+    });
+    render(<WorkspaceChecksTab repoPath="/test/repo" repoId="repo-1" />);
+
+    const action = await screen.findByTestId('workspace-checks-primary-action');
+    fireEvent.click(action);
+
+    await waitFor(() => {
+      expect(gitApi.createRepoQualitySetupTask).toHaveBeenCalledWith('/test/repo');
+    });
+    expect(screen.getByTestId('workspace-checks-setup-prompt')).toHaveTextContent('repo-quality-setup skill for /test/repo');
   });
 
   it('shows selected lanes as running and keeps a copyable trace after failure', async () => {
@@ -83,11 +131,10 @@ describe('WorkspaceChecksTab run status', () => {
 
     render(<WorkspaceChecksTab repoPath="/test/repo" repoId="repo-1" />);
 
+    fireEvent.click(await screen.findByTestId('workspace-checks-manual-run-toggle'));
     await waitFor(() => {
       expect(screen.getByTestId('workspace-checks-profile-commit')).toBeInTheDocument();
     });
-    expect(screen.getByTestId('workspace-operation-banner')).toBeInTheDocument();
-
     fireEvent.click(screen.getByTestId('workspace-checks-profile-commit'));
 
     await waitFor(() => {

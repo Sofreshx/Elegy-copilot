@@ -62,6 +62,36 @@
       "target": "catalog-assets"
     },
     {
+      "id": "codex-assets",
+      "kind": "directory",
+      "source": "../codex-assets",
+      "target": "codex-assets"
+    },
+    {
+      "id": "opencode-assets",
+      "kind": "directory",
+      "source": "../opencode-assets",
+      "target": "opencode-assets"
+    },
+    {
+      "id": "claude-assets",
+      "kind": "directory",
+      "source": "../claude-assets",
+      "target": "claude-assets"
+    },
+    {
+      "id": "antigravity-assets",
+      "kind": "directory",
+      "source": "../antigravity-assets",
+      "target": "antigravity-assets"
+    },
+    {
+      "id": "ghcp-assets",
+      "kind": "directory",
+      "source": "../ghcp-assets",
+      "target": "ghcp-assets"
+    },
+    {
       "id": "cli-policy",
       "kind": "directory",
       "source": "../.cli/policy",
@@ -87,6 +117,24 @@
       "kind": "file",
       "source": "../local-tracker/package.json",
       "target": "local-tracker/package.json"
+    },
+    {
+      "id": "local-repo-mcp-dist",
+      "kind": "directory",
+      "source": "../local-repo-mcp/dist",
+      "target": "local-repo-mcp/dist"
+    },
+    {
+      "id": "local-repo-mcp-node-modules",
+      "kind": "directory",
+      "source": "../local-repo-mcp/node_modules",
+      "target": "local-repo-mcp/node_modules"
+    },
+    {
+      "id": "local-repo-mcp-package-json",
+      "kind": "file",
+      "source": "../local-repo-mcp/package.json",
+      "target": "local-repo-mcp/package.json"
     },
     {
       "id": "scripts",

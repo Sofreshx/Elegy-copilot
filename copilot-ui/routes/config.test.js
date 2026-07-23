@@ -107,7 +107,7 @@ describe('config routes', () => {
   it('GET instruction inspector returns harness summaries', async () => {
     const mocks = makeMocks();
     const routes = register(mocks);
-    await routes[4].handler({ res: {} });
+    await routes.find((route) => route.path === '/api/config/collaboration-profile/instructions').handler({ res: {} });
     assert.equal(mocks.sent[0].code, 200);
     assert.ok(Array.isArray(mocks.sent[0].obj.targets));
     assert.ok(mocks.sent[0].obj.targets.length >= 5);
@@ -122,7 +122,7 @@ describe('config routes', () => {
     });
     assert.equal(mocks.sent[0].code, 200);
     assert.equal(mocks.sent[0].mode, 'text');
-    assert.ok(String(mocks.sent[0].text || '').includes('# Agent Session Defaults'));
+    assert.ok(String(mocks.sent[0].text || '').includes('# Agent Session Router'));
   });
   it('GET instruction inspector ignores CRLF-only drift for installed files', async () => {
     const mocks = makeMocks();
@@ -139,8 +139,8 @@ describe('config routes', () => {
     });
     mock.method(fs, 'readFileSync', (candidatePath, ...args) => {
       if (candidatePath === codexPath) {
-        const baselinePath = path.resolve(process.cwd(), 'catalog-assets', 'instructions', 'agent-session-defaults.md');
-        const appendixPath = path.resolve(process.cwd(), 'codex-assets', 'home', 'AGENTS-appendix.md');
+        const baselinePath = path.resolve(__dirname, '..', '..', 'catalog-assets', 'instructions', 'agent-session-defaults.md');
+        const appendixPath = path.resolve(__dirname, '..', '..', 'codex-assets', 'home', 'AGENTS-appendix.md');
         const profileContent = buildProfileContent({
           enabled: true,
           presetId: 'constructive-coworker',

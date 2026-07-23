@@ -1,6 +1,6 @@
 ---
 created: 2026-06-04
-updated: 2026-06-29
+updated: 2026-07-22
 category: system
 status: current
 doc_kind: node
@@ -14,23 +14,22 @@ related: [doc-graph-spec, system-docs-index]
 
 ## Action version pinning
 
-Pin GitHub Actions to **major versions** only (`@v4`), never specific patches
-(`@v4.4.6`).  Major-version pins auto-update with deprecation warnings and are
-the canonical form for this repo.  Specific patch pins break silently when
-the upstream release numbering skips or restructures.
+Pin every third-party GitHub Action to a **full commit SHA** and retain the human-readable
+release or channel as an inline comment. A mutable major tag is useful for discovery but is not
+an immutable supply-chain boundary.
 
 An audit of `.github/workflows/*.yml` should show only `@v<N>` patterns:
 
 ```yaml
-# Correct
-uses: actions/checkout@v4
-uses: actions/setup-node@v4
-uses: actions/upload-artifact@v4
+# Correct: immutable execution with readable provenance
+uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-# Avoid — may fail at runtime
-uses: actions/checkout@v4.2.2
-uses: actions/setup-node@v4.1.0
+# Avoid: mutable tag
+uses: actions/checkout@v5
 ```
+
+Configure Dependabot's `github-actions` ecosystem to propose SHA updates. Review those changes
+like dependency updates; never replace a SHA automatically at runtime.
 
 ## Local install discipline
 
@@ -86,7 +85,8 @@ correct view components, but they cannot detect stale imports in other files.
 
 ## Local validation before push
 
-Run `npm run ci:local` to mirror the `Repo CI / build` job locally. This runs
+Git hooks run the normal local boundaries automatically: staged-file checks before commit and
+`npm run quality:push` before push. Run `npm run ci:local` to mirror the broader `Repo CI / build` job locally. This runs
 manifest/doc validators, dead-link checking, the UI build, the local-tracker
 build, the Linux Tauri preflight, sidecar layout validation, and the inline
 smoke/contract test files:

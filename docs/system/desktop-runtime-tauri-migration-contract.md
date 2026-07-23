@@ -19,7 +19,7 @@ This document freezes the approved/current contract for the Windows-first Tauri 
 - **Former primary desktop runtime:** Electron
 - **Approved migration target:** Windows-first Tauri desktop shell
 - **Current primary desktop runtime:** Windows-first Tauri desktop shell
-- **Current update posture:** the active Tauri Windows lane is a NSIS preview/manual-installer path with GitHub-release-backed automatic checks and explicit user download/apply, not an in-place updater cutover
+- **Current update posture:** the active Tauri Windows lane uses signed, matching-channel GitHub release feeds for automatic in-app check, download, install, and relaunch; NSIS remains the fresh-install artifact
 
 The migration does **not** change these existing product contracts:
 
@@ -135,11 +135,11 @@ The contract is shell-neutral: Tauri may use different implementation plumbing t
 
 ## Updater/feed/signing checkpoint for the active Tauri lane
 
-Tauri is now the primary shell, but updater cutover is still **not** considered full in-app parity until this checkpoint remains satisfied and the remaining workflow cutover is completed.
+Tauri is now the primary shell and the signed updater cutover is active. Release readiness depends on keeping this checkpoint satisfied.
 
 Canon for the active Windows Tauri preview/release lane must record:
 
-1. the Tauri updater/feed mechanism to use, or an explicit first-cut manual-installer posture
+1. the signed Tauri updater/feed mechanism and matching-channel policy
 2. the Windows signing path and evidence expectations
 3. rollback + kill-switch equivalence with existing fail-closed policy
 4. stable/prerelease lane handling for app artifacts and managed SDK/CLI pairing
@@ -149,8 +149,8 @@ Checkpoint rules:
 
 - No private signing keys may be committed to the repo or stored on CI runners.
 - Signing custody remains external through the managed signing service / HSM / KMS posture already frozen in [[security-model]] [security-model.md](security-model.md). [security-model](docs/system/security-model.md)
-- The current implemented checkpoint seam is a Windows-first NSIS packaging lane that emits manual-installer release metadata with fail-closed channel pairing; it performs automatic matching-channel release checks but does **not** claim live in-app updater/feed parity yet.
-- The active Tauri shell may expose GitHub-release-backed updater status and manual-installer download state through a shell bridge, but that bridge must require explicit user action for installer download/apply and must not imply seamless transport/feed support until a later cut enables it.
+- The current implemented checkpoint seam is a Windows-first NSIS packaging lane that emits signed updater release metadata with fail-closed channel pairing; it performs automatic matching-channel release checks, calls `download_and_install`, and supports relaunch via `tauri-plugin-process` with feed parity live.
+- The active Tauri shell exposes the signed GitHub-release-backed updater through a shell bridge that supports check, download, install, and relaunch to apply signed updates in place.
 - Public GitHub semver tags such as `1.2.3` and `1.2.3-rc.1` remain preview/evaluation releases and should stay marked as prerelease, while stable desktop downloads come from promoted non-prerelease `desktop-v*` releases.
 - Until historic semver releases are remediated so none remain non-prerelease, `/releases/latest` must not be treated as the stable desktop shortcut.
 
@@ -161,7 +161,7 @@ conditions are in place:
 
 1. the bundled Node sidecar model is implemented and validated on Windows
 2. startup-token handoff parity is proven under Tauri
-3. updater/feed/signing decisions for the current slice are documented as an explicit manual-installer posture
+3. updater/feed/signing decisions for the current slice document signed in-app updates and NSIS fresh-install fallback
 4. rollback/kill-switch posture remains fail closed
 5. legacy shell migration guidance has been retired from release metadata
 

@@ -5,6 +5,7 @@ const test = require('node:test');
 
 const {
   formatStartupDiagnostics,
+  resolveSmokeInstallerOverride,
   resolveUserShortcutPaths,
   resolveInstallerRegistryKey,
   resolveInstallerUninstallRegistryKey,
@@ -12,6 +13,21 @@ const {
   snapshotPathStates,
   restorePathStates,
 } = require('./validate-tauri-native-desktop-smoke');
+
+test('does not require a local installer override by default', () => {
+  const previous = process.env.ELEGY_TAURI_NATIVE_SMOKE_INSTALLER;
+
+  try {
+    delete process.env.ELEGY_TAURI_NATIVE_SMOKE_INSTALLER;
+    assert.equal(resolveSmokeInstallerOverride(), null);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.ELEGY_TAURI_NATIVE_SMOKE_INSTALLER;
+    } else {
+      process.env.ELEGY_TAURI_NATIVE_SMOKE_INSTALLER = previous;
+    }
+  }
+});
 
 test('formats native startup diagnostics with boot log and child stderr', () => {
   const message = formatStartupDiagnostics({

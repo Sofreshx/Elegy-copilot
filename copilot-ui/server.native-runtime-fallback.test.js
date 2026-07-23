@@ -1,5 +1,6 @@
 'use strict';
 const assert = require('assert');
+const childProcess = require('child_process');
 const fs = require('fs');
 const http = require('http');
 const os = require('os');
@@ -68,6 +69,7 @@ async function run() {
     const elegyHome = path.join(tmpRoot, '.elegy');
     const repoRoot = path.join(tmpRoot, 'repos', 'alpha');
     fs.mkdirSync(repoRoot, { recursive: true });
+    childProcess.execFileSync('git', ['init'], { cwd: repoRoot, stdio: 'ignore' });
     repoInventoryService.registerRepo({
       elegyHome,
       repoPath: repoRoot,

@@ -131,7 +131,7 @@ describe('opencode route - register', () => {
     );
     expect(installRoute).toBeDefined();
   });
-  it('reports ready when all dependencies are satisfied', async () => {
+  it('reports degraded when optional governed integrations still need attention', async () => {
     const sendJson = createMockSendJson();
     const opencodeConfig = createMockOpenCodeConfig();
     const assets = createMockAssets([
@@ -199,7 +199,7 @@ describe('opencode route - register', () => {
       const nonOk = body.setupChecks.filter((c: { status: string }) => c.status !== 'ok').map((c: { id: string; status: string }) => `${c.id}: ${c.status}`);
       console.error('Non-ok checks:', JSON.stringify(nonOk));
     }
-    expect(body.overallStatus).toBe('ready');
+    expect(body.overallStatus).toBe('degraded');
     expect(Array.isArray(body.setupChecks)).toBe(true);
     expect(Array.isArray(body.warnings)).toBe(true);
     expect(Array.isArray(body.lanes)).toBe(true);
@@ -231,7 +231,7 @@ describe('opencode route - register', () => {
     expect(body.overallStatus).toBe('degraded');
     expect(body.warnings.length).toBeGreaterThan(0);
   });
-  it('returns all four lane definitions', async () => {
+  it('returns the current governed lane definitions', async () => {
     const sendJson = createMockSendJson();
     const routes = register({ sendJson, assets: createMockAssets(), opencodeConfig: createMockOpenCodeConfig(), childProcess: { spawnSync: () => ({ stdout: '1.0.0', stderr: '' }) } });
     const statusRoute = routes.find(
@@ -242,9 +242,9 @@ describe('opencode route - register', () => {
     const body = sendJson.mock.calls[0][2] as { lanes: Array<{ id: string }> };
     const laneIds = body.lanes.map((l) => l.id);
     expect(laneIds).toContain('quick');
-    expect(laneIds).toContain('standard');
-    expect(laneIds).toContain('spec');
     expect(laneIds).toContain('project');
+    expect(laneIds).toContain('runner');
+    expect(laneIds).toContain('runner-flash');
   });
   it('returns profiles with opencode-go and deepseek-direct', async () => {
     const sendJson = createMockSendJson();

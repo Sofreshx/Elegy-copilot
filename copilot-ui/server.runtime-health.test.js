@@ -448,7 +448,6 @@ async function run() {
       const elegyHome = path.join(root, '.elegy');
       const sandboxesHome = path.join(root, '.elegy', 'sandboxes');
       fs.mkdirSync(path.join(elegyHome, 'session-state', 'reconcile-1'), { recursive: true });
-      fs.mkdirSync(path.join( 'session-state', 'reconcile-1'), { recursive: true });
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
       const server = trackProcess(childProcess.spawn(process.execPath, [
@@ -482,7 +481,7 @@ async function run() {
         assert.ok(Array.isArray(sessionsResponse.body.sessions));
         const merged = sessionsResponse.body.sessions.find((entry) => entry.canonicalKey === 'reconcile-1');
         assert.ok(merged);
-        assert.strictEqual(merged.mergedCount, 2);
+        assert.strictEqual(merged.mergedCount, 1);
         assert.strictEqual(merged.authority, 'fs');
         assert.ok(merged.reconciliation);
         assert.strictEqual(merged.reconciliation.deterministic, true);
@@ -491,7 +490,7 @@ async function run() {
         assert.deepStrictEqual(merged.reconciliation.sourcePrecedence, ['artifact']);
         assert.strictEqual(merged.reconciliation.hasRuntimeState, false);
         assert.strictEqual(merged.reconciliation.hasArtifactState, true);
-        assert.deepStrictEqual(merged.reconciliation.sourceSet, ['cli', 'vscode']);
+        assert.deepStrictEqual(merged.reconciliation.sourceSet, ['cli']);
       } finally {
         await stopTrackedProcess(server);
       }

@@ -1302,7 +1302,7 @@ async function run() {
       repoId: 'elegy-copilot',
     }]);
     assert.equal(body.projection.repo.repoId, 'elegy-copilot');
-    assert.equal(body.projection.repo.repoLabel, 'Elegy Copilot');
+    assert.equal(body.projection.repo.repoLabel, 'Instruction Engine');
     assert.equal(body.projection.taskBoard.items.length, 1);
     assert.equal(body.projection.taskBoard.items[0].taskId, 'TASK-1');
     assert.equal(body.projection.taskBoard.items[0].projection.durableStore, 'repo-state');

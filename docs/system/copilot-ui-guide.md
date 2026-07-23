@@ -105,7 +105,8 @@ diff scoped to the intended route contracts.
 
 The Workspace Git tab now includes:
 
-- **Canonical commit-check contract**: Prefers repo-local `.copilot/commit-checks.json` lane-based CI checks over legacy known-script discovery. Runs `scripts/commit-check-run.mjs --json` when available.
+- **Repository quality readiness**: The Checks tab reads one repo-scoped status that combines the active hook manager, `.elegy/checks.json` proof, configuration drift, and GitHub Actions state. It leads with one readiness state and one next action; manual profiles, lanes, logs, and history remain secondary diagnostics.
+- **Setup task handoff**: Setup and migration actions launch a Codex task rooted at the selected repository with the `repo-quality-setup` skill. When the task launcher is unavailable, the UI exposes the exact scoped prompt instead of mutating the app process directory.
 - **Reliable Verify & Commit**: Awaits check completion directly; commits on pass, blocks on failure, shows neutral "No checks configured" when no checks exist.
 - **Force commit**: After failed checks, a "Force Commit" button prompts for an override reason and sends `unsafeOverride: { reason }` to the gated backend.
 - **Stash management**: Compact area under the commit composer shows stash count, "Stash changes" button, and expandable list with per-entry Apply/Pop/Drop actions.

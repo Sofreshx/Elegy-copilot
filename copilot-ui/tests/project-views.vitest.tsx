@@ -85,6 +85,7 @@ describe('Project views', () => {
     ]);
     apiMocks.getGitSummary.mockResolvedValue({
       branch: 'feature/git-panel',
+      files: [{ status: ' M', path: 'src/App.tsx' }],
       clean: false,
       changedFiles: 3,
       stagedFiles: 1,

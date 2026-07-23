@@ -290,10 +290,30 @@ function prepareTauriWindowsBundle(options = {}) {
     logger,
   });
 
+  let localRepoMcpStagedPackageCount = 0;
+  const localRepoMcpPackageJsonPath = path.resolve(activeWorkspaceRoot, '..', 'local-repo-mcp', 'package.json');
+  if (fs.existsSync(localRepoMcpPackageJsonPath)) {
+    const localRepoMcpPackageJson = readJson(localRepoMcpPackageJsonPath, 'local-repo-mcp package.json');
+    const localRepoMcpRuntimeDeps = Object.keys(localRepoMcpPackageJson.dependencies || {});
+    if (localRepoMcpRuntimeDeps.length > 0) {
+      const repoNodeModulesRoot = path.resolve(activeWorkspaceRoot, '..', 'node_modules');
+      const localRepoMcpNodeModulesTarget = path.join(stagedResourcesRoot, 'local-repo-mcp', 'node_modules');
+      logger(`[tauri-win-bundle] staging local-repo-mcp runtime node_modules closure from ${localRepoMcpRuntimeDeps.join(', ')}`);
+      const localRepoMcpNodeModules = stageRuntimeNodeModules({
+        sourceRoot: repoNodeModulesRoot,
+        targetRoot: localRepoMcpNodeModulesTarget,
+        requiredRuntimePackages: localRepoMcpRuntimeDeps,
+        logger,
+      });
+      localRepoMcpStagedPackageCount = localRepoMcpNodeModules.stagedPackageCount;
+    }
+  }
+
   return {
     stagedResourcesRoot,
     copiedResourceCount,
     stagedRuntimePackageCount: runtimeNodeModules.stagedPackageCount,
+    stagedLocalRepoMcpPackageCount: localRepoMcpStagedPackageCount,
     nodeExecutablePath,
     nodeRuntimeRelativePath: manifest.nodeRuntime.relativePath,
     nodeModulesTargetRoot: manifest.nodeModulePayload.targetRoot,
@@ -309,6 +329,7 @@ if (require.main === module) {
     console.log(
       `[tauri-win-bundle] staged ${result.copiedResourceCount} resource payload(s); `
       + `runtimePackages=${result.stagedRuntimePackageCount}; `
+      + `localRepoMcpPackages=${result.stagedLocalRepoMcpPackageCount}; `
       + `node=${result.nodeRuntimeRelativePath}; nodeSource=${result.nodeExecutablePath}; `
       + `nodeModules=${result.nodeModulesTargetRoot}; channel=${result.channel}.`,
     );

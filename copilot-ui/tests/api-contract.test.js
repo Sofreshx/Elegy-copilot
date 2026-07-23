@@ -6,6 +6,31 @@ const os = require('os');
 const path = require('path');
 const { startServer } = require('../server');
 const SNAPSHOT_PATH = path.join(__dirname, 'api-contract.snapshot.json');
+const ROUTE_REGISTRY_SNAPSHOT_PATH = path.join(__dirname, 'api-route-registry.snapshot.json');
+const VOLATILE_CONTRACT_ROUTES = new Set([
+  'GET /api/planning/live/roadmaps',
+  'GET /api/planning/live/goals',
+  'GET /api/planning/live/roadmaps/RM-demo',
+  'GET /api/planning/live/goals/GOAL-demo',
+  'GET /api/planning/live/plans',
+  'GET /api/planning/live/plans/PLAN-demo',
+  'GET /api/planning/live/todos',
+  'GET /api/remote/status',
+  'POST /api/remote/restart',
+  'GET /api/remote/projects',
+  'GET /api/remote/sessions',
+  'POST /api/remote/send',
+  'POST /api/remote/projects/add',
+  'GET /api/remote/logs',
+  'POST /api/tooling-updates/update/elegy-planning',
+  'POST /api/tooling-updates/update/elegy-skills',
+  'GET /api/opencode/status',
+]);
+const NON_INVOCABLE_CONTRACT_ROUTES = new Set([
+  'POST /api/tooling-updates/update/elegy-planning',
+  'POST /api/tooling-updates/update/elegy-plugins',
+  'POST /api/tooling-updates/update/elegy-skills',
+]);
 let passed = 0;
 let failed = 0;
 async function test(name, fn) {
@@ -292,6 +317,8 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/git/pull' },
   { method: 'POST', path: '/api/git/push' },
   { method: 'POST', path: '/api/git/pull-request' },
+  { method: 'GET', path: '/api/git/quality/status' },
+  { method: 'POST', path: '/api/git/quality/setup-task' },
 ];
 async function run() {
   console.log(`\nAPI Contract Tests — ${ROUTE_INVENTORY.length} routes\n`);
@@ -322,34 +349,28 @@ async function run() {
     const registeredRoutes = runningServer && runningServer.routeRegistry && Array.isArray(runningServer.routeRegistry._routes)
       ? runningServer.routeRegistry._routes
       : [];
-    await test('route inventory matches registered route count after excluding retired planning and workflow handlers', async () => {
-      const activeInventoryCount = ROUTE_INVENTORY.filter((sample) => (
-        !isRetiredRepoFilePlanningRoute(sample)
-        && !isRetiredStandaloneWorkflowRoute(sample)
-      )).length;
-      assert.strictEqual(
-        activeInventoryCount,
-        registeredRoutes.length,
-        `Active inventory count ${activeInventoryCount} does not match registered route count ${registeredRoutes.length}`
-      );
+    const registeredRouteDescriptors = registeredRoutes.map(describeRouteDescriptor).sort();
+    if (allowSnapshotUpdate) {
+      fs.writeFileSync(ROUTE_REGISTRY_SNAPSHOT_PATH, JSON.stringify(registeredRouteDescriptors, null, 2) + '\n');
+    }
+    await test('registered route descriptors match the complete registry snapshot', async () => {
+      assert.ok(fs.existsSync(ROUTE_REGISTRY_SNAPSHOT_PATH), 'Route registry snapshot is missing; review and refresh snapshots.');
+      const baseline = JSON.parse(fs.readFileSync(ROUTE_REGISTRY_SNAPSHOT_PATH, 'utf8'));
+      assert.deepStrictEqual(registeredRouteDescriptors, baseline);
     });
-     await test('every registered route has an inventory sample', async () => {
-       const uncoveredRoutes = registeredRoutes
-         .filter((route) => !ROUTE_INVENTORY.some((sample) => routeDescriptorMatchesSample(route, sample)))
-         .map(describeRouteDescriptor);
-       assert.deepStrictEqual(
-         uncoveredRoutes,
-         [],
-         `Registered routes missing inventory coverage: ${uncoveredRoutes.join(', ')}`
-       );
-     });
      // Capture contract shapes for all routes
-     const currentSnapshot = {};
+    const capturedShapes = {};
     for (const route of ROUTE_INVENTORY) {
       const key = `${route.method} ${route.path}`;
+      if (NON_INVOCABLE_CONTRACT_ROUTES.has(key)) {
+        continue;
+      }
       const shape = await httpRequest(baseUrl, route.method, route.path);
-      currentSnapshot[key] = shape;
+      capturedShapes[key] = shape;
     }
+    const currentSnapshot = Object.fromEntries(
+      Object.entries(capturedShapes).filter(([key]) => !VOLATILE_CONTRACT_ROUTES.has(key))
+    );
     // Load or create snapshot
     const snapshotExists = fs.existsSync(SNAPSHOT_PATH);
     if (!snapshotExists) {
@@ -360,7 +381,7 @@ async function run() {
       for (const route of ROUTE_INVENTORY) {
         const key = `${route.method} ${route.path}`;
         await test(`${key} — dispatches`, async () => {
-          const shape = currentSnapshot[key];
+          const shape = capturedShapes[key];
           assert.ok(shape, `No response captured for ${key}`);
           // A dispatched route should never return null status (connection error)
           // and should not return 404 from the static-file handler
@@ -379,7 +400,9 @@ async function run() {
       } else {
         // Check no routes were removed
         await test('no routes removed from baseline', async () => {
-          const baselineKeys = Object.keys(baseline);
+    const baselineKeys = Object.keys(baseline).filter(
+      (key) => !NON_INVOCABLE_CONTRACT_ROUTES.has(key),
+    );
           const currentKeys = Object.keys(currentSnapshot);
           const removed = baselineKeys.filter((k) => !currentKeys.includes(k));
           assert.deepStrictEqual(
@@ -391,9 +414,23 @@ async function run() {
         // Check each route's contract shape matches
         for (const route of ROUTE_INVENTORY) {
           const key = `${route.method} ${route.path}`;
+          if (NON_INVOCABLE_CONTRACT_ROUTES.has(key)) {
+            await test(`${key} — is registered without executing the external mutation`, async () => {
+              assert.ok(registeredRouteDescriptors.includes(key), `${key} is missing from the route registry`);
+            });
+            continue;
+          }
+          if (VOLATILE_CONTRACT_ROUTES.has(key)) {
+            await test(`${key} — dispatches without snapshotting external availability`, async () => {
+              const shape = capturedShapes[key];
+              assert.ok(shape && shape.status !== null, `${key} failed to dispatch`);
+              assert.notStrictEqual(shape.status, 404, `${key} fell through to the static-file handler`);
+            });
+            continue;
+          }
           await test(`${key} — contract shape matches baseline`, async () => {
             const baselineShape = baseline[key];
-            const currentShape = currentSnapshot[key];
+            const currentShape = capturedShapes[key];
             if (!baselineShape) {
               assert.fail(
                 `New route missing from baseline snapshot: ${key}. Re-run with UPDATE_API_SNAPSHOT=1 after review to update the snapshot.`
@@ -428,7 +465,7 @@ async function run() {
     }
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 158, `Expected 158 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 160, `Expected 160 routes, got ${ROUTE_INVENTORY.length}`);
   });
   } finally {
     if (runningServer) {

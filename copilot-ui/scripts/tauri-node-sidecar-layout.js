@@ -70,7 +70,9 @@ function getRuntimeManifestsCopy(manifest, manifestPath) {
 function loadTauriNodeSidecarLayout(options = {}) {
   const activeWorkspaceRoot = path.resolve(options.workspaceRoot || workspaceRoot);
   const manifestPath = path.resolve(options.manifestPath || path.join(activeWorkspaceRoot, manifestRelativePath));
-  const manifest = readJson(manifestPath, 'Windows Tauri Node sidecar layout manifest');
+  const manifest = options.manifest && typeof options.manifest === 'object'
+    ? options.manifest
+    : readJson(manifestPath, 'Windows Tauri Node sidecar layout manifest');
   return {
     workspaceRoot: activeWorkspaceRoot,
     manifestPath,
@@ -157,8 +159,16 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     'local-tracker-dist',
     'local-tracker-node-modules',
     'local-tracker-package-json',
+    'local-repo-mcp-dist',
+    'local-repo-mcp-node-modules',
+    'local-repo-mcp-package-json',
     'scripts',
     'catalog-assets',
+    'codex-assets',
+    'opencode-assets',
+    'claude-assets',
+    'antigravity-assets',
+    'ghcp-assets',
     'moon-bridge-binary',
     'runtime-manifests',
   ];
@@ -292,6 +302,7 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     updateMode: manifest.releaseLane.updateMode,
     packaging: manifest.releaseLane.packaging,
     status: manifest.status,
+    runtimeAssetReferences: validateRuntimeAssetReferences({ workspaceRoot: activeWorkspaceRoot }),
   };
 }
 
@@ -423,11 +434,87 @@ function validateStagedTauriNodeSidecarLayoutMetadata(options = {}) {
   };
 }
 
+function scanRuntimeAssetReferences(activeWorkspaceRoot) {
+  const HARNESS_ASSET_RE = /['"`](codex|opencode|claude|antigravity|ghcp)-assets[/'"`]/g;
+  const scanTargets = [];
+  const serverJsPath = path.join(activeWorkspaceRoot, 'server.js');
+  if (fs.existsSync(serverJsPath)) scanTargets.push(serverJsPath);
+  for (const dirName of ['lib', 'routes']) {
+    const dirPath = path.join(activeWorkspaceRoot, dirName);
+    if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) continue;
+    for (const relativeFile of collectFiles(dirPath)) {
+      if (!relativeFile.endsWith('.js')) continue;
+      if (relativeFile.includes('.test.')) continue;
+      scanTargets.push(path.join(dirPath, relativeFile.split('/').join(path.sep)));
+    }
+  }
+
+  const harnessRefs = new Set();
+  let referencesLocalRepoMcpPackage = false;
+  for (const filePath of scanTargets) {
+    const text = fs.readFileSync(filePath, 'utf8');
+    HARNESS_ASSET_RE.lastIndex = 0;
+    let match;
+    while ((match = HARNESS_ASSET_RE.exec(text))) {
+      harnessRefs.add(`${match[1]}-assets`);
+    }
+    if (!referencesLocalRepoMcpPackage && /resolveMcpPackageRoot/.test(text)) {
+      referencesLocalRepoMcpPackage = true;
+    }
+  }
+
+  return {
+    harnessRefs: [...harnessRefs].sort(),
+    referencesLocalRepoMcpPackage,
+    scannedFileCount: scanTargets.length,
+  };
+}
+
+function validateRuntimeAssetReferences(options = {}) {
+  const { workspaceRoot: activeWorkspaceRoot, manifestPath, manifest } = loadTauriNodeSidecarLayout(options);
+  const { harnessRefs, referencesLocalRepoMcpPackage, scannedFileCount } = scanRuntimeAssetReferences(activeWorkspaceRoot);
+  const resourceCopies = Array.isArray(manifest.resourceCopies) ? manifest.resourceCopies : [];
+  const errors = [];
+
+  for (const ref of harnessRefs) {
+    const entry = resourceCopies.find((resource) => resource && resource.id === ref);
+    if (!entry) {
+      errors.push(`runtime code references ${ref}/ but ${manifestPath} resourceCopies has no "${ref}" entry`);
+      continue;
+    }
+    if (entry.kind !== 'directory') {
+      errors.push(`runtime code references ${ref}/ but ${manifestPath} resourceCopies.${ref}.kind is "${entry.kind}" (expected "directory")`);
+    }
+  }
+
+  if (referencesLocalRepoMcpPackage) {
+    for (const id of ['local-repo-mcp-dist', 'local-repo-mcp-node-modules', 'local-repo-mcp-package-json']) {
+      const entry = resourceCopies.find((resource) => resource && resource.id === id);
+      if (!entry) {
+        errors.push(`runtime code resolves the local-repo-mcp package root (resolveMcpPackageRoot) but ${manifestPath} resourceCopies is missing "${id}"`);
+      }
+    }
+  }
+
+  assert(
+    errors.length === 0,
+    `Tauri sidecar runtime asset drift guard failed (scanned ${scannedFileCount} runtime file(s)):\n  - ${errors.join('\n  - ')}`,
+  );
+
+  return {
+    harnessRefs,
+    referencesLocalRepoMcpPackage,
+    scannedFileCount,
+  };
+}
+
 module.exports = {
   isOptionalResource,
   manifestRelativePath,
   loadTauriNodeSidecarLayout,
   resolveWorkspaceDependencyRoot,
+  scanRuntimeAssetReferences,
+  validateRuntimeAssetReferences,
   validateTauriBundleConfig,
   validatePackagedTauriNodeSidecarLayoutMetadata,
   validateStagedTauriNodeSidecarLayoutMetadata,

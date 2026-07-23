@@ -60,7 +60,7 @@ async function main() {
       const agentsMdPath = path.join(opencodeHome, 'AGENTS.md');
       assert.ok(fs.existsSync(agentsMdPath));
       const agentsMdContent = fs.readFileSync(agentsMdPath, 'utf8');
-      assert.ok(agentsMdContent.includes('Agent Session Defaults'), 'AGENTS.md should contain the baseline');
+      assert.ok(agentsMdContent.includes('Agent Session Router'), 'AGENTS.md should contain the baseline');
       assert.ok(agentsMdContent.includes('Harness Appendix'), 'AGENTS.md should contain harness appendix');
       assert.ok(fs.existsSync(path.join(skillsHome, 'rubberduck-plan-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-review', 'SKILL.md')));

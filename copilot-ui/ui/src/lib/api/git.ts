@@ -486,6 +486,70 @@ export async function applyElegyCheckRecommendation(repoPath: string, proposal: 
   });
 }
 
+export type RepoQualityReadiness =
+  | 'ready'
+  | 'unsupported'
+  | 'setup-required'
+  | 'repair-required'
+  | 'local-failing'
+  | 'remote-failing'
+  | 'remote-unknown';
+
+export interface RepoQualityStatus {
+  schemaVersion: 'repo-quality-status/v1';
+  repoPath: string;
+  readiness: RepoQualityReadiness;
+  nextAction: { id: string; label: string };
+  support: { supported: boolean; adapter: string; reason: string | null };
+  local: {
+    config: { elegy: boolean; legacyCommitCheck: boolean };
+    hooks: {
+      manager: string;
+      configured: boolean;
+      active: boolean;
+      configPath: string | null;
+      coreHooksPath: string | null;
+    };
+    lastProof: GitCheckStateResponse['lastRun'];
+    freshness: { fresh: boolean; reason: string };
+  };
+  remote: {
+    available: boolean;
+    reason?: string;
+    provider?: 'github';
+    repository?: string;
+    branch?: string | null;
+    latestConclusion?: string | null;
+    protected?: boolean;
+    runs?: Array<Record<string, unknown>>;
+  };
+  drift: Array<{ id: string; severity: 'warning' | 'error'; message: string }>;
+}
+
+export interface RepoQualitySetupTaskResult {
+  schemaVersion: 'repo-quality-setup-task/v1';
+  repoPath: string;
+  skill: 'repo-quality-setup';
+  prompt: string;
+  launched: boolean;
+  taskId?: string | null;
+  reason?: string;
+}
+
+export async function getRepoQualityStatus(repoPath: string, baseUrl?: string): Promise<RepoQualityStatus> {
+  const url = `/api/git/quality/status?repoPath=${encodeURIComponent(repoPath)}`;
+  return apiRequest<RepoQualityStatus>(url, { baseUrl });
+}
+
+export async function createRepoQualitySetupTask(repoPath: string, baseUrl?: string): Promise<RepoQualitySetupTaskResult> {
+  return apiRequest<RepoQualitySetupTaskResult>('/api/git/quality/setup-task', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath }),
+  });
+}
+
 // ─── Git hooks state and setup ──────────────────────────────────────────────
 
 export interface GitHooksState {
@@ -514,6 +578,8 @@ export async function setupGitHooks(repoPath: string, baseUrl?: string): Promise
   return apiRequest<GitHooksSetupResult>('/api/git/hooks/setup', {
     baseUrl,
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath }),
   });
 }
 

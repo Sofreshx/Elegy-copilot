@@ -1,0 +1,25 @@
+min_version: 2.1.10
+
+pre-commit:
+  parallel: true
+  commands:
+    instructions:
+      glob: "{AGENTS.md,catalog-assets/instructions/**,engine-assets/**,codex-assets/**,opencode-assets/**,antigravity-assets/**,claude-assets/**}"
+      run: npm run quality:instructions
+    docs:
+      glob: "docs/**/*.{md,mdx}"
+      run: npm run docs:check:links
+    manifests:
+      glob: "{catalog-assets/**,engine-assets/manifest.json,codex-assets/manifest.json,opencode-assets/manifest.json,antigravity-assets/manifest.json,claude-assets/manifest.json}"
+      run: npm run quality:manifests
+    typescript:
+      glob: "**/*.{ts,tsx}"
+      run: npm run quality:typecheck
+    rust:
+      glob: "**/*.rs"
+      run: npm run quality:rust
+
+pre-push:
+  commands:
+    quality:
+      run: npm run quality:push

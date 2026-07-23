@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-30
+updated: 2026-07-21
 category: system
 status: current
 doc_kind: node
@@ -47,6 +47,12 @@ Use the helper scripts to load env vars before running local tooling:
 Set `MCP_ENV_FILE` to override the default location.
 
 You can also pass a command to the scripts to run tools in the same env.
+
+## Bundled Local Repo MCP Server
+
+The local repo MCP server (`local-repo-mcp/`) is bundled into the packaged desktop app. The Tauri sidecar manifest stages `local-repo-mcp/dist`, `local-repo-mcp/node_modules`, and `local-repo-mcp/package.json` into the installer's `resources/` directory. In the installed app, the desktop backend spawns the bundled server directly — no separate `npm --prefix local-repo-mcp run build` is needed.
+
+In development, the build step `npm run build:local-repo-mcp:desktop` (from `copilot-ui`) compiles the server before desktop dev or packaging. The native desktop smoke lane probes `POST /api/local-repo-mcp/start` to verify the bundled package launches end-to-end.
 
 ## Provider Defaults
 

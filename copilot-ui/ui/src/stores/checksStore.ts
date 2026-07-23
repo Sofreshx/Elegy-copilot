@@ -3,6 +3,7 @@ import {
   discoverGitChecks,
   getGitCheckState,
   getGitCiSync,
+  getRepoQualityStatus,
   runGitChecksWithProfile,
 } from '../lib/api/git';
 import type {
@@ -10,6 +11,7 @@ import type {
   GitCheckStateResponse,
   GitChecksDiscoverResponse,
   GitCiSyncResponse,
+  RepoQualityStatus,
 } from '../lib/api/git';
 
 export type RunOutcome = 'running' | 'pass' | 'fail' | 'error';
@@ -41,6 +43,8 @@ export interface ChecksStoreState {
   ciSync: GitCiSyncResponse | null;
   /** Discovered checks for the repo */
   discoveredChecks: GitChecksDiscoverResponse | null;
+  /** Consolidated local hook/check and GitHub readiness. */
+  qualityStatus: RepoQualityStatus | null;
   /** Initial load in progress */
   loading: boolean;
 }
@@ -53,6 +57,7 @@ const INITIAL_STATE: ChecksStoreState = {
   checkState: null,
   ciSync: null,
   discoveredChecks: null,
+  qualityStatus: null,
   loading: false,
 };
 
@@ -65,10 +70,11 @@ function createChecksStore() {
     const version = ++loadVersion;
     store.setState((s) => ({ ...s, repoPath, loading: true }));
     try {
-      const [stateResult, ciSyncResult, discoveryResult] = await Promise.all([
+      const [stateResult, ciSyncResult, discoveryResult, qualityStatus] = await Promise.all([
         getGitCheckState(repoPath),
         getGitCiSync(repoPath),
         discoverGitChecks(repoPath),
+        getRepoQualityStatus(repoPath),
       ]);
       if (version !== loadVersion) return;
       store.setState((s) => ({
@@ -76,6 +82,7 @@ function createChecksStore() {
         checkState: stateResult,
         ciSync: ciSyncResult,
         discoveredChecks: discoveryResult,
+        qualityStatus,
         loading: false,
         // Seed checkResults from persisted state if a prior run exists
         checkResults: s.checkResults ?? (stateResult.lastRun?.overallPass !== undefined
@@ -104,10 +111,11 @@ function createChecksStore() {
     const version = ++loadVersion;
     store.setState((s) => ({ ...s, loading: true }));
     try {
-      const [stateResult, ciSyncResult, discoveryResult] = await Promise.all([
+      const [stateResult, ciSyncResult, discoveryResult, qualityStatus] = await Promise.all([
         getGitCheckState(repoPath),
         getGitCiSync(repoPath),
         discoverGitChecks(repoPath),
+        getRepoQualityStatus(repoPath),
       ]);
       if (version !== loadVersion) return;
       store.setState((s) => ({
@@ -115,6 +123,7 @@ function createChecksStore() {
         checkState: stateResult,
         ciSync: ciSyncResult,
         discoveredChecks: discoveryResult,
+        qualityStatus,
         loading: false,
       }));
     } catch {

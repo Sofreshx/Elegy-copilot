@@ -57,7 +57,7 @@
       "id": "antigravity-global-instructions",
       "type": "instructions",
       "source": "catalog-assets/instructions/agent-session-defaults.md",
-      "destination": "agent-session-defaults.md",
+      "destination": "GEMINI.md",
       "appendix": "antigravity-assets/home/GEMINI-appendix.md"
     },
     {
@@ -121,6 +121,13 @@
       "type": "skill",
       "source": "engine-assets/skills/commit-check-setup",
       "destination": "antigravity/skills/commit-check-setup",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "antigravity-repo-quality-setup-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/repo-quality-setup",
+      "destination": "antigravity/skills/repo-quality-setup",
       "loadMode": "on-demand"
     },
     {

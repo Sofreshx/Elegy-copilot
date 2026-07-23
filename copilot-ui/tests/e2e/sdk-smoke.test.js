@@ -80,8 +80,8 @@ function run() {
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const snapshotPath = path.resolve(__dirname, 'snapshots', 'sdk-smoke.yaml');
   const snapshot = validateSnapshot(snapshotPath);
-  if (!snapshot.includes('elegy-copilot-sdk-smoke')) {
-    throw new Error('Snapshot id mismatch for elegy-copilot smoke test.');
+  if (!snapshot.includes('instruction-engine-sdk-smoke')) {
+    throw new Error('Snapshot id mismatch for instruction-engine smoke test.');
   }
 
   const smokeMode = resolveSmokeMode();

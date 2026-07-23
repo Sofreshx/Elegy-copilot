@@ -4,6 +4,7 @@ const { sendJson: defaultSendJson } = require('./_helpers');
 const { discoverChecks, runAllChecks, runAllChecksWithProfile, syncCiState: syncCheckCiState } = require('../lib/gitCheckRunner');
 const { resolveCommitCheckConfig } = require('../lib/commitCheckConfig');
 const elegyChecks = require('../lib/elegyChecksRunner');
+const defaultQualityService = require('../lib/repoQualityService');
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
@@ -282,10 +283,51 @@ function handlePackShow(ctx, deps) {
   sendElegyResult(res, sendJson, result, 'elegy-checks binary is not available');
 }
 
+function handleQualityStatus(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson, qualityService } = deps;
+  const repoPath = resolveRepoPath(ctx);
+  if (!repoPath) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+
+  return Promise.resolve(qualityService.buildRepoQualityStatus(repoPath))
+    .then((status) => sendJson(res, 200, status))
+    .catch((error) => sendJson(res, 500, { error: String(error.message || error) }));
+}
+
+function handleQualitySetupTask(ctx, deps) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody, qualityService, launchRepoQualityTask } = deps;
+  return Promise.resolve()
+    .then(() => readJsonBody(req))
+    .then((body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const repoPath = isNonEmptyString(payload.repoPath) ? payload.repoPath.trim() : '';
+      if (!repoPath) {
+        throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+      }
+      return qualityService.createRepoQualitySetupTask(repoPath, {
+        launchTask: launchRepoQualityTask,
+      });
+    })
+    .then((result) => sendJson(res, 200, result))
+    .catch((error) => {
+      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      sendJson(res, statusCode, { error: String(error.message || error) });
+    });
+}
+
 function handleHooksState(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
-  const repoPath = resolveRepoPath(ctx) || process.cwd();
+  const repoPath = resolveRepoPath(ctx);
+
+  if (!repoPath) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
 
   try {
     const hooksScript = path.join(repoPath, 'scripts', 'setup-git-hooks.mjs');
@@ -316,34 +358,44 @@ function handleHooksState(ctx, deps) {
 }
 
 function handleHooksSetup(ctx, deps) {
-  const { res } = ctx;
-  const { sendJson } = deps;
-  const repoPath = resolveRepoPath(ctx) || process.cwd();
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+  return Promise.resolve()
+    .then(() => readJsonBody(req))
+    .then((body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const repoPath = isNonEmptyString(payload.repoPath) ? payload.repoPath.trim() : '';
+      if (!repoPath) {
+        throw Object.assign(new Error('repoPath is required'), { statusCode: 400 });
+      }
 
-  try {
-    const hooksScript = path.join(repoPath, 'scripts', 'setup-git-hooks.mjs');
-    if (!fs.existsSync(hooksScript)) {
-      sendJson(res, 404, { error: 'setup-git-hooks.mjs not found — run commit-check-setup first' });
-      return;
-    }
+      const hooksScript = path.join(repoPath, 'scripts', 'setup-git-hooks.mjs');
+      if (!fs.existsSync(hooksScript)) {
+        throw Object.assign(new Error('setup-git-hooks.mjs not found — run repo-quality-setup first'), { statusCode: 404 });
+      }
 
-    const result = spawnSync(process.execPath, [hooksScript, '--json', repoPath], {
-      encoding: 'utf8',
-      windowsHide: true,
-      timeout: 10000,
+      const result = spawnSync(process.execPath, [hooksScript, '--json', repoPath], {
+        encoding: 'utf8',
+        windowsHide: true,
+        timeout: 10000,
+      });
+      if (result.status !== 0) {
+        throw new Error(result.stderr || 'Failed to set up hooks');
+      }
+      sendJson(res, 200, JSON.parse(result.stdout));
+    })
+    .catch((error) => {
+      const statusCode = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      sendJson(res, statusCode, { error: String(error.message || error) });
     });
-
-    const output = JSON.parse(result.stdout);
-    sendJson(res, 200, output);
-  } catch (error) {
-    sendJson(res, 500, { error: String(error.message || error) });
-  }
 }
 
 function register(context = {}) {
   const sendJson = context.sendJson || defaultSendJson;
   const readJsonBody = context.readJsonBody || require('./_helpers').readJsonBody;
-  const deps = { sendJson, readJsonBody };
+  const qualityService = context.qualityService || defaultQualityService;
+  const launchRepoQualityTask = context.launchRepoQualityTask;
+  const deps = { sendJson, readJsonBody, qualityService, launchRepoQualityTask };
 
   return [
     { method: 'GET', path: '/api/git/checks/discover', handler: (ctx) => handleChecksDiscover(ctx, deps) },
@@ -357,6 +409,8 @@ function register(context = {}) {
     { method: 'POST', path: '/api/git/checks/apply', handler: (ctx) => handleChecksApply(ctx, deps) },
     { method: 'GET', path: '/api/git/checks/packs', handler: (ctx) => handlePacksList(ctx, deps) },
     { method: 'GET', path: /^\/api\/git\/checks\/packs\/([^/]+)$/, handler: (ctx) => handlePackShow(ctx, deps) },
+    { method: 'GET', path: '/api/git/quality/status', handler: (ctx) => handleQualityStatus(ctx, deps) },
+    { method: 'POST', path: '/api/git/quality/setup-task', handler: (ctx) => handleQualitySetupTask(ctx, deps) },
     { method: 'GET', path: '/api/git/hooks/state', handler: (ctx) => handleHooksState(ctx, deps) },
     { method: 'POST', path: '/api/git/hooks/setup', handler: (ctx) => handleHooksSetup(ctx, deps) },
   ];

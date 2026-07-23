@@ -246,6 +246,46 @@ function readProcessWindowInfo(processId) {
   ].join('\n'));
 }
 
+function listConsoleDescendants(processId) {
+  const result = runPowerShellJson([
+    '$ErrorActionPreference = "Stop"',
+    '$allProcesses = @(Get-CimInstance Win32_Process)',
+    'function Get-Descendants([int]$parentId) {',
+    '  foreach ($child in @($allProcesses | Where-Object { [int]$_.ParentProcessId -eq $parentId })) {',
+    '    $child',
+    '    Get-Descendants ([int]$child.ProcessId)',
+    '  }',
+    '}',
+    `$descendants = @(Get-Descendants ${Number(processId)})`,
+    '$matches = @($descendants | Where-Object { $_.Name -ieq "conhost.exe" })',
+    '[pscustomobject]@{',
+    '  count = $matches.Count',
+    '  processes = @($matches | ForEach-Object {',
+    '    $windowProcess = Get-Process -Id ([int]$_.ProcessId) -ErrorAction SilentlyContinue',
+    '    [pscustomobject]@{ id = [int]$_.ProcessId; parentId = [int]$_.ParentProcessId; name = [string]$_.Name; mainWindowHandle = if($windowProcess){[int64]$windowProcess.MainWindowHandle}else{0}; mainWindowTitle = if($windowProcess){[string]$windowProcess.MainWindowTitle}else{[string]::Empty} }',
+    '  })',
+    '  visibleCount = @($matches | Where-Object {',
+    '    $windowProcess = Get-Process -Id ([int]$_.ProcessId) -ErrorAction SilentlyContinue',
+    '    $windowProcess -and $windowProcess.MainWindowHandle -ne 0',
+    '  }).Count',
+    '  descendants = @($descendants | ForEach-Object {',
+    '    [pscustomobject]@{ id = [int]$_.ProcessId; parentId = [int]$_.ParentProcessId; name = [string]$_.Name; path = [string]$_.ExecutablePath; commandLine = [string]$_.CommandLine }',
+    '  })',
+    '} | ConvertTo-Json -Compress',
+  ].join('\n'));
+
+  return {
+    count: Number(result.count || 0),
+    visibleCount: Number(result.visibleCount || 0),
+    processes: Array.isArray(result.processes)
+      ? result.processes
+      : (result.processes ? [result.processes] : []),
+    descendants: Array.isArray(result.descendants)
+      ? result.descendants
+      : (result.descendants ? [result.descendants] : []),
+  };
+}
+
 function countVisibleWindowsForPath(appPath, expectedTitle) {
   return runPowerShellJson([
     '$ErrorActionPreference = "Stop"',
@@ -294,6 +334,19 @@ function resolveInstalledResourcesRoot() {
     .find((relativePath) => relativePath.split(path.sep).join('/').endsWith('runtime-manifests/windows-tauri-node-sidecar.json'));
   assert(manifestMatch, `Unable to locate installed Tauri resources under ${installRoot}.`);
   return path.dirname(path.dirname(path.join(installRoot, manifestMatch)));
+}
+
+function resolveSmokeInstallerOverride() {
+  const override = String(process.env.ELEGY_TAURI_NATIVE_SMOKE_INSTALLER || '').trim();
+  if (!override) {
+    return null;
+  }
+
+  assert(path.isAbsolute(override), 'ELEGY_TAURI_NATIVE_SMOKE_INSTALLER must be an absolute path.');
+  const installerPath = path.resolve(override);
+  assert(fs.existsSync(installerPath), `ELEGY_TAURI_NATIVE_SMOKE_INSTALLER does not exist: ${installerPath}`);
+  assert(path.extname(installerPath).toLowerCase() === '.exe', `ELEGY_TAURI_NATIVE_SMOKE_INSTALLER must point to an .exe installer: ${installerPath}`);
+  return installerPath;
 }
 
 function resolveInstalledExecutables(productName) {
@@ -441,6 +494,33 @@ function httpGetJson(url) {
   });
 }
 
+function httpPostJson(url) {
+  return new Promise((resolve, reject) => {
+    const request = http.request(url, { method: 'POST', timeout: 10_000, headers: { 'content-length': '0' } }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => {
+        const rawBody = Buffer.concat(chunks).toString('utf8');
+        let body = null;
+        try {
+          body = rawBody ? JSON.parse(rawBody) : null;
+        } catch {
+          body = rawBody;
+        }
+        resolve({
+          status: response.statusCode,
+          body,
+          rawBody,
+        });
+      });
+    });
+
+    request.on('error', reject);
+    request.on('timeout', () => request.destroy(new Error(`Timed out requesting ${url}`)));
+    request.end();
+  });
+}
+
 function buildIsolatedLaunchEnv(serverPort) {
   const isolatedHome = path.join(stateRoot, 'home');
   const isolatedAppData = path.join(stateRoot, 'appdata');
@@ -480,6 +560,7 @@ async function launchAndValidateInstalledApp(appPath, expectedTitle, expectedRes
   child.stderr.on('data', (chunk) => stderrChunks.push(Buffer.from(chunk)));
 
   let secondInstance = null;
+  let restartInstance = null;
 
   try {
     let healthResponse;
@@ -515,6 +596,29 @@ async function launchAndValidateInstalledApp(appPath, expectedTitle, expectedRes
     );
     console.log(`[tauri-native-smoke] runtime root matches installed resources root ${expectedResourcesRoot}`);
 
+    const mcpStartResponse = await httpPostJson(`http://127.0.0.1:${serverPort}/api/local-repo-mcp/start`);
+    assert(
+      mcpStartResponse.status === 200,
+      `POST /api/local-repo-mcp/start returned ${mcpStartResponse.status}; expected 200. Body: ${typeof mcpStartResponse.body === 'string' ? mcpStartResponse.body : JSON.stringify(mcpStartResponse.body)}`,
+    );
+    const mcpStartBody = mcpStartResponse.body && typeof mcpStartResponse.body === 'object' ? mcpStartResponse.body : {};
+    assert(
+      mcpStartBody.server && mcpStartBody.server.running === true,
+      `MCP start response did not report server.running=true: ${JSON.stringify(mcpStartBody.server || null)}`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const mcpStatusAfterSettle = await httpGetJson(`http://127.0.0.1:${serverPort}/api/local-repo-mcp/status`);
+    assert(mcpStatusAfterSettle.status === 200, `GET /api/local-repo-mcp/status returned ${mcpStatusAfterSettle.status} after start.`);
+    const mcpStatusBody = mcpStatusAfterSettle.body && typeof mcpStatusAfterSettle.body === 'object' ? mcpStatusAfterSettle.body : {};
+    assert(
+      mcpStatusBody.server && mcpStatusBody.server.running === true,
+      `Local Repo MCP server exited immediately after start. server=${JSON.stringify(mcpStatusBody.server || null)}`,
+    );
+    console.log('[tauri-native-smoke] local-repo-mcp server started and stayed running');
+    const mcpStopResponse = await httpPostJson(`http://127.0.0.1:${serverPort}/api/local-repo-mcp/stop`);
+    assert(mcpStopResponse.status === 200, `POST /api/local-repo-mcp/stop returned ${mcpStopResponse.status}; expected 200.`);
+    console.log('[tauri-native-smoke] local-repo-mcp server stopped');
+
     await waitForCondition(
       'desktop main window',
       async () => {
@@ -527,6 +631,13 @@ async function launchAndValidateInstalledApp(appPath, expectedTitle, expectedRes
       { timeoutMs: startupTimeoutMs },
     );
     console.log(`[tauri-native-smoke] observed native window "${expectedTitle}"`);
+
+    const consoleDescendants = listConsoleDescendants(child.pid);
+    assert(
+      consoleDescendants.visibleCount === 0,
+      `Packaged desktop spawned a visible console host: ${JSON.stringify(consoleDescendants.processes)}`,
+    );
+    console.log('[tauri-native-smoke] backend is headless; no visible console window observed');
 
     secondInstance = spawn(appPath, [], {
       cwd: path.dirname(appPath),
@@ -544,9 +655,55 @@ async function launchAndValidateInstalledApp(appPath, expectedTitle, expectedRes
     const windowCount = countVisibleWindowsForPath(appPath, expectedTitle);
     assert(windowCount.count === 1, `Expected exactly one visible native desktop window for ${appPath}; found ${windowCount.count}.`);
 
+    closeWindowForProcess(child.pid);
+    const firstExit = await waitForChildExit(child, 10_000);
+    if (!firstExit.exited) {
+      stopProcess(child.pid);
+    }
+    console.log('[tauri-native-smoke] initial desktop instance stopped');
+
+    const restartServerPort = await getFreePort();
+    const restartEnv = buildIsolatedLaunchEnv(restartServerPort);
+    restartInstance = spawn(appPath, [], {
+      cwd: path.dirname(appPath),
+      env: restartEnv,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+
+    await waitForCondition(
+      'desktop restart health endpoint',
+      async () => {
+        const info = readProcessWindowInfo(restartInstance.pid);
+        if (!info.exists) {
+          throw new Error(info.message || `Desktop process ${restartInstance.pid} exited during restart.`);
+        }
+        const response = await httpGetJson(`http://127.0.0.1:${restartServerPort}/api/health`);
+        return response.status === 200 ? response : null;
+      },
+      { timeoutMs: startupTimeoutMs },
+    );
+    await waitForCondition(
+      'desktop restart main window',
+      async () => {
+        const info = readProcessWindowInfo(restartInstance.pid);
+        if (!info.exists) {
+          throw new Error(info.message || `Desktop process ${restartInstance.pid} exited before its restart window was ready.`);
+        }
+        return info.mainWindowHandle !== 0 && info.mainWindowTitle === expectedTitle ? info : null;
+      },
+      { timeoutMs: startupTimeoutMs },
+    );
+    const restartConsoleDescendants = listConsoleDescendants(restartInstance.pid);
+    assert(
+      restartConsoleDescendants.visibleCount === 0,
+      `Restarted packaged desktop spawned a visible console host: ${JSON.stringify(restartConsoleDescendants.processes)}`,
+    );
+    console.log('[tauri-native-smoke] desktop restarted successfully without a visible console window');
+
     return {
-      processId: child.pid,
-      serverPort,
+      processId: restartInstance.pid,
+      serverPort: restartServerPort,
       visibleWindowCount: windowCount.count,
     };
   } finally {
@@ -555,6 +712,23 @@ async function launchAndValidateInstalledApp(appPath, expectedTitle, expectedRes
         stopProcess(secondInstance.pid);
       } catch {
         // best-effort cleanup for any stray second instance
+      }
+    }
+
+    if (restartInstance && !restartInstance.killed && restartInstance.exitCode == null) {
+      try {
+        closeWindowForProcess(restartInstance.pid);
+      } catch {
+        // fall through to forced termination below
+      }
+
+      const exitResult = await waitForChildExit(restartInstance, 10_000);
+      if (!exitResult.exited) {
+        try {
+          stopProcess(restartInstance.pid);
+        } catch {
+          // ignore cleanup failure; uninstall will surface any remaining lock problems
+        }
       }
     }
 
@@ -625,7 +799,13 @@ async function main() {
   const installerRegistryState = snapshotInstallerRegistryState();
 
   try {
-    const releaseValidation = validateTauriWindowsReleaseArtifacts({ workspaceRoot });
+    const installerOverride = resolveSmokeInstallerOverride();
+    const releaseValidation = installerOverride
+      ? { installerPath: installerOverride }
+      : validateTauriWindowsReleaseArtifacts({ workspaceRoot });
+    if (installerOverride) {
+      console.log(`[tauri-native-smoke] using explicit local installer override ${installerOverride}`);
+    }
     const tauriConfig = JSON.parse(fs.readFileSync(path.join(workspaceRoot, 'src-tauri', 'tauri.conf.json'), 'utf8'));
     const productName = String(tauriConfig.productName || '').trim();
     assert(productName, 'Expected src-tauri/tauri.conf.json to declare productName.');
@@ -671,6 +851,8 @@ if (require.main === module) {
 
 module.exports = {
   formatStartupDiagnostics,
+  listConsoleDescendants,
+  resolveSmokeInstallerOverride,
   resolveUserShortcutPaths,
   resolveInstallerRegistryKey,
   resolveInstallerUninstallRegistryKey,

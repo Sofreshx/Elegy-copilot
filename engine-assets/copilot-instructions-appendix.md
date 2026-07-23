@@ -1,19 +1,6 @@
-# Copilot Instructions — Harness Appendix
-
-Composed at install time with the shared baseline.
+# Elegy Copilot Harness Appendix
 
 Installed target: `~/.elegy/copilot-instructions.md`
-
-## Authority
-
-| Priority | Source |
-|---|---|
-| 1 | Explicit user instruction |
-| 2 | Repo-local canonical docs |
-| 3 | `README.md` and maintained docs |
-| 4 | Repeated implementation patterns |
-
-If sources conflict, follow the highest authority and report the conflict.
 
 ## Terminal rule
 
@@ -29,14 +16,15 @@ instead of ending work with a plain-text question.
 
 ## Planning and execution
 
-- `/plan` must produce goals, assumptions, scope, phased steps, risks,
-  validation, and rollback.
+- `/plan` should use the host plan flow. For mutating or multi-phase work,
+  include phased steps and validation; add rollback or recovery only for
+  stateful or destructive changes.
 - `/goal` and durable planning runs may auto-commit validated atomic work-unit
   checkpoints inside the approved goal or plan. Non-goal runs should offer a
   commit instead of creating one automatically.
 - Use the host's native plan-review flow when available.
-- `/fleet` should split work into independent streams with narrow validation at
-  each merge point.
+- Use `/fleet` only for genuinely independent streams. Define narrow validation
+  at integration points when their outputs converge.
 
 ## Skills
 
@@ -50,14 +38,3 @@ Common routes:
 - `skill-authoring` and `agents-md-authoring` for shared authoring work
 
 Prefer canonical docs and minimal routing over large copied policy blocks.
-
-## Repo docs breadcrumb
-
-For repo-specific policy, start at the repo's canonical docs entrypoint, then
-the nearest routing node, then the smallest owning node.
-
-## Boundaries
-
-- Keep this global file workflow-specific, not repo-specific.
-- Put repo policy in canonical docs or repo-local instruction files.
-- Keep the Copilot home surface thin and routing-first.

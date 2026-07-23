@@ -48,22 +48,22 @@ test('empty query with --json returns all entries as JSON array', () => {
 	assert.ok(Array.isArray(parsed[0].explanations), 'expected explanations array');
 });
 
-test('search "wolverine" returns wolverine-core and wolverine-http', () => {
-	const result = run('--json', 'wolverine');
+test('search "commit" returns the repository commit-check capabilities', () => {
+	const result = run('--json', 'commit');
 	assert.strictEqual(result.status, 0);
 	const parsed = JSON.parse(result.stdout);
 	const names = parsed.map((r) => r.name);
-	assert.ok(names.includes('wolverine-core'), `expected wolverine-core in results, got: ${names.join(', ')}`);
-	assert.ok(names.includes('wolverine-http'), `expected wolverine-http in results, got: ${names.join(', ')}`);
+	assert.ok(names.includes('commit-check-setup'), `expected commit-check-setup in results, got: ${names.join(', ')}`);
+	assert.ok(names.includes('commit-validation-governance'), `expected commit-validation-governance in results, got: ${names.join(', ')}`);
 });
 
-test('search "auth" returns auth-related skills', () => {
-	const result = run('--json', 'auth');
+test('search "documentation" returns documentation capabilities', () => {
+	const result = run('--json', 'documentation');
 	assert.strictEqual(result.status, 0);
 	const parsed = JSON.parse(result.stdout);
-	assert.ok(parsed.length > 0, 'expected at least one auth-related skill');
+	assert.ok(parsed.length > 0, 'expected at least one documentation-related skill');
 	const names = parsed.map((r) => r.name);
-	assert.ok(names.includes('auth') || names.includes('firebase-auth'), `expected auth or firebase-auth, got: ${names.join(', ')}`);
+	assert.ok(names.includes('documentation-authoring'), `expected documentation-authoring, got: ${names.join(', ')}`);
 });
 
 test('non-matching query returns empty result with exit code 0', () => {
@@ -94,7 +94,7 @@ test('exact name match scores higher than trigger match', () => {
 });
 
 test('targeting flags influence ranking output', () => {
-	const result = run('--json', '--prefer-load-mode', 'on-demand', 'roadmap');
+	const result = run('--json', '--prefer-load-mode', 'on-demand', 'commit');
 	assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
 	const parsed = JSON.parse(result.stdout);
 	assert.ok(parsed.length > 0, 'expected targeting query to return at least one result');
@@ -105,10 +105,10 @@ test('targeting flags influence ranking output', () => {
 });
 
 test('human format output contains skill name and vault path', () => {
-	const result = run('stack-detector');
+	const result = run('agents-md-authoring');
 	assert.strictEqual(result.status, 0);
 	const output = result.stdout;
-	assert.ok(output.includes('stack-detector'), 'expected stack-detector in output');
+	assert.ok(output.includes('agents-md-authoring'), 'expected agents-md-authoring in output');
 	assert.ok(output.includes('SKILL.md'), 'expected SKILL.md path in output');
 });
 

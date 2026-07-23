@@ -32,6 +32,7 @@ const skipCache = forceRun || !commandAllowed;
 // 1. Discover tests
 function findTests(dir, fileList = []) {
     const ignoredDirectories = new Set([
+        '.tmp',
         'node_modules',
         'release',
         'ui-dist',
@@ -46,7 +47,10 @@ function findTests(dir, fileList = []) {
                 findTests(filePath, fileList);
             }
         } else if (filePath.endsWith('.test.js')) {
-            fileList.push(filePath);
+            const source = fs.readFileSync(filePath, 'utf8');
+            if (!/(?:from\s+['"]vitest['"]|require\(['"]vitest['"]\))/.test(source)) {
+                fileList.push(filePath);
+            }
         }
     }
     return fileList;
