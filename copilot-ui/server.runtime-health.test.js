@@ -22,7 +22,7 @@ const {
 } = require('./lib/planningApiContracts');
 const { acquirePlanningMutationRouteLock, startServer } = require('./server');
 const serverPath = path.join(__dirname, 'server.js');
-const TEST_SUITE_TIMEOUT_MS = 180_000; // 180 seconds for entire suite on Windows
+const TEST_SUITE_TIMEOUT_MS = 360_000; // Cold Windows CI exercises repeated managed-asset startup.
 // Track all spawned server processes for cleanup on unexpected exit
 const trackedProcesses = new Set();
 function trackProcess(proc) {
@@ -212,7 +212,7 @@ function startMockTrackerStatusServer(expectedToken = 'ws2-tracker-token') {
     });
   });
 }
-async function waitForHealth(baseUrl, attempts = 60) {
+async function waitForHealth(baseUrl, attempts = 300) {
   for (let i = 0; i < attempts; i++) {
     try {
       const response = await fetchJson(`${baseUrl}/api/health`);
@@ -229,7 +229,12 @@ function withTempDir(fn) {
   return Promise.resolve()
     .then(() => fn(dir))
     .finally(() => {
-      fs.rmSync(dir, { recursive: true, force: true });
+      fs.rmSync(dir, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+      });
     });
 }
 async function withPatchedEnv(overrides, fn) {
