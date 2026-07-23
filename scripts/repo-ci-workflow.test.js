@@ -36,6 +36,11 @@ test('desktop quality runs cold on the supported Windows platform with generated
   const qualityJob = workflow.split('  quality:')[1].split('  desktop-tauri-preview:')[0];
 
   assert.match(qualityJob, /runs-on: windows-latest/);
+  assert.match(
+    qualityJob,
+    /timeout-minutes: 30/,
+    'quality job must allow the bounded cold-Windows test budgets to complete.',
+  );
   assert.match(qualityJob, /node scripts\/generate-cli-manifest\.mjs/);
   assert.match(qualityJob, /npm --prefix copilot-ui run ui:build/);
   assert.match(qualityJob, /npm --prefix local-tracker run build/);
