@@ -7,6 +7,9 @@ const fs = require('fs');
 const workspaceRoot = path.resolve(__dirname, '..');
 const tauriRoot = path.join(workspaceRoot, 'src-tauri');
 const cargoManifestPath = 'Cargo.toml';
+const tauriDevConfig = {
+  identifier: 'dev.elegycopilot.desktop.tauri.local',
+};
 const tauriDevBinaryNames = [
   'elegy-copilot-tauri-shell.exe',
   'elegy_copilot_tauri_shell.exe',
@@ -104,7 +107,10 @@ function mergeEnv(base, overlay) {
 
 function runCargoTauriDev() {
   const vsEnv = getVsDevEnv();
-  const mergedEnv = vsEnv ? mergeEnv(process.env, vsEnv) : process.env;
+  const mergedEnv = mergeEnv(
+    vsEnv ? mergeEnv(process.env, vsEnv) : process.env,
+    { TAURI_CONFIG: JSON.stringify(tauriDevConfig) },
+  );
 
   const command = 'cargo';
   const args = ['run', '--manifest-path', cargoManifestPath];
