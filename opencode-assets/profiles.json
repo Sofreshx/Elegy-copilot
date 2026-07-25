@@ -98,31 +98,31 @@
     },
     "opencode-go-flash": {
       "label": "OpenCode Go Flash",
-      "description": "Paid DeepSeek V4 Flash for every role: the cost-first default for delegated work",
+      "description": "Paid Flash for execution, GLM-5.2 for planning: the cost-first default for delegated work",
       "tags": [
         "go",
         "deepseek",
         "flash",
         "cost-first"
       ],
-      "notes": "Deliberately never routes to a premium tier. Escalate explicitly if a role truly needs one.",
+      "notes": "opencode-go is a flat subscription; cost is expressed as requests per 5h (flash 31650, glm-5.2 50). Planning is rare enough to afford the scarce model; everything else stays on Flash.",
       "roleModels": {
-        "planning": "opencode-go/deepseek-v4-flash",
+        "planning": "opencode-go/glm-5.2",
         "implementation": "opencode-go/deepseek-v4-flash",
         "exploration": "opencode-go/deepseek-v4-flash",
         "review": "opencode-go/deepseek-v4-flash",
         "research": "opencode-go/deepseek-v4-flash"
       },
       "small": "opencode-go/deepseek-v4-flash",
-      "big": "opencode-go/deepseek-v4-flash",
+      "big": "opencode-go/glm-5.2",
       "review": "opencode-go/deepseek-v4-flash",
       "smallLabel": "DeepSeek V4 Flash",
-      "bigLabel": "DeepSeek V4 Flash",
+      "bigLabel": "GLM-5.2",
       "reviewLabel": "DeepSeek V4 Flash"
     },
     "opencode-cross-review": {
-      "label": "OpenCode Cross-Family Review",
-      "description": "Paid Flash for work, a non-DeepSeek free model for review independence",
+      "label": "OpenCode Deep Cross-Family Review",
+      "description": "Escalation profile for important reviews: GLM-5.2 reviews Flash-produced work, across model families",
       "tags": [
         "go",
         "zen",
@@ -130,20 +130,20 @@
         "cross-family",
         "review-independence"
       ],
-      "notes": "LLM judges favour their own model family, so release review must not be DeepSeek-judging-DeepSeek. Free Zen availability changes daily: nemotron-3-ultra-free was observed stalling on 2026-07-25. If review stalls, switch review to another non-DeepSeek id (opencode/ling-3.0-flash-free, opencode/laguna-s-2.1-free) or a paid non-DeepSeek model.",
+      "notes": "Use explicitly via --model-profile for reviews that gate a release. GLM-5.2 is a different family from DeepSeek, so it avoids same-family self-preference, and is capped at 50 requests per 5h. Zero-quota fallback: opencode/mimo-v2.5-free (free, non-DeepSeek, but availability varies - nemotron-3-ultra-free was observed stalling on 2026-07-25).",
       "roleModels": {
-        "planning": "opencode-go/deepseek-v4-flash",
+        "planning": "opencode-go/glm-5.2",
         "implementation": "opencode-go/deepseek-v4-flash",
         "exploration": "opencode-go/deepseek-v4-flash",
-        "review": "opencode/mimo-v2.5-free",
+        "review": "opencode-go/glm-5.2",
         "research": "opencode-go/deepseek-v4-flash"
       },
       "small": "opencode-go/deepseek-v4-flash",
-      "big": "opencode-go/deepseek-v4-flash",
-      "review": "opencode/mimo-v2.5-free",
+      "big": "opencode-go/glm-5.2",
+      "review": "opencode-go/glm-5.2",
       "smallLabel": "DeepSeek V4 Flash",
-      "bigLabel": "DeepSeek V4 Flash",
-      "reviewLabel": "MiMo v2.5 (free, non-DeepSeek)"
+      "bigLabel": "GLM-5.2",
+      "reviewLabel": "GLM-5.2 (non-DeepSeek)"
     }
   },
   "roleToAgent": {
