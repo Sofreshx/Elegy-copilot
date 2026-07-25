@@ -59,6 +59,15 @@ export interface LocalRepoMcpStatusResponse {
   connectorUrl?: string;
   server: LocalRepoMcpProcessStatus;
   tunnel: LocalRepoMcpProcessStatus;
+  lifecycle?: {
+    code: string;
+    blocked: boolean;
+    recovering: boolean;
+    message?: string;
+    reason?: string;
+    retryDelayMs?: number;
+    checkedAt?: string;
+  };
   securityState: 'Stopped' | 'Local only' | 'OAuth protected' | 'Misconfigured' | string;
   chatGptAccess?: {
     mode: 'none' | 'quick' | 'stable' | string;

@@ -15,6 +15,7 @@ const {
 const CONFIG_SCHEMA_VERSION = 3;
 const DEFAULT_PORT = 3333;
 const provisioningPreviews = new Map();
+const RECOVERY_DELAYS_MS = [1000, 2000, 5000, 10000, 30000];
 
 let mcpProcess = null;
 let tunnelProcess = null;
@@ -27,6 +28,20 @@ let mcpLastProbe = null;
 let mcpLastNotice = '';
 let mcpOutput = { stdout: '', stderr: '' };
 const MCP_OUTPUT_LIMIT = 4000;
+let managedLifecycle = {
+  options: null,
+  monitorTimer: null,
+  recoveryTimer: null,
+  failures: [],
+  stopping: false,
+  manualStop: false,
+  suppressRecovery: false,
+  last: {
+    code: 'not_initialized',
+    blocked: false,
+    recovering: false,
+  },
+};
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -50,6 +65,185 @@ function resolveConfigPath(elegyHome) {
 
 function resolveApprovalSecretPath(elegyHome) {
   return path.join(resolveElegyHome(elegyHome), 'local-repo-mcp', 'approval-secret');
+}
+
+function resolveRuntimeStatePath(elegyHome) {
+  return path.join(resolveElegyHome(elegyHome), 'local-repo-mcp', 'runtime-state.json');
+}
+
+function sha256(value) {
+  return crypto.createHash('sha256').update(String(value)).digest('hex');
+}
+
+function lifecycleConfigHash(config) {
+  return sha256(JSON.stringify({
+    port: config.port,
+    publicOrigin: config.stableTunnel?.publicOrigin || '',
+    tunnelId: config.stableTunnel?.cloudflareTunnelId || '',
+    tunnelName: config.stableTunnel?.cloudflareTunnelName || '',
+    configPath: config.stableTunnel?.cloudflareConfigPath || '',
+    credentialsPath: config.stableTunnel?.cloudflareCredentialsPath || '',
+  }));
+}
+
+function readRuntimeState(options = {}) {
+  return readJsonIfExists(resolveRuntimeStatePath(options.elegyHome || options.elegyHomeAbs));
+}
+
+function writeRuntimeState(options = {}, value) {
+  writeJsonAtomic(resolveRuntimeStatePath(options.elegyHome || options.elegyHomeAbs), value);
+}
+
+function recordOwnedProcess(kind, child, command, args, config, options = {}) {
+  if (!child?.pid || tunnelMode !== 'named') return;
+  const current = readRuntimeState(options) || {};
+  const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now();
+  writeRuntimeState(options, {
+    version: 1,
+    mode: 'stable',
+    instanceId: normalizeString(current.instanceId) || crypto.randomUUID(),
+    updatedAt: new Date(nowMs).toISOString(),
+    processes: {
+      ...(current.processes && typeof current.processes === 'object' ? current.processes : {}),
+      [kind]: {
+        pid: child.pid,
+        startedAt: new Date(nowMs).toISOString(),
+        executablePath: String(command),
+        args: [...args],
+        argsHash: sha256(JSON.stringify(args)),
+        configHash: lifecycleConfigHash(config),
+      },
+    },
+  });
+}
+
+function forgetOwnedProcess(kind, pid, options = {}) {
+  const current = readRuntimeState(options);
+  if (!current?.processes?.[kind] || current.processes[kind].pid !== pid) return;
+  const processes = { ...current.processes };
+  delete processes[kind];
+  writeRuntimeState(options, {
+    ...current,
+    updatedAt: new Date().toISOString(),
+    processes,
+  });
+}
+
+function isPidAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function inspectOwnedProcess(record) {
+  if (!isPidAlive(record?.pid)) return { alive: false };
+  if (process.platform === 'win32') {
+    const script = [
+      `$p = Get-CimInstance Win32_Process -Filter "ProcessId = ${Number(record.pid)}" -ErrorAction SilentlyContinue`,
+      'if ($p) {',
+      '  [pscustomobject]@{',
+      '    alive = $true',
+      '    startedAt = $p.CreationDate.ToUniversalTime().ToString("o")',
+      '    executablePath = [string]$p.ExecutablePath',
+      '    commandLine = [string]$p.CommandLine',
+      '  } | ConvertTo-Json -Compress',
+      '}',
+    ].join('\n');
+    try {
+      const parsed = JSON.parse(execFileSync(
+        'powershell.exe',
+        ['-NoProfile', '-Command', script],
+        { encoding: 'utf8', windowsHide: true, timeout: 10000 },
+      ));
+      return parsed?.alive ? parsed : { alive: false };
+    } catch {
+      return { alive: true, unverifiable: true };
+    }
+  }
+  try {
+    const startedAtText = execFileSync(
+      'ps',
+      ['-p', String(record.pid), '-o', 'lstart='],
+      { encoding: 'utf8', timeout: 10000 },
+    ).trim();
+    const commandLine = execFileSync(
+      'ps',
+      ['-p', String(record.pid), '-o', 'command='],
+      { encoding: 'utf8', timeout: 10000 },
+    ).trim();
+    const startedAtMs = Date.parse(startedAtText);
+    return {
+      alive: Boolean(commandLine),
+      commandLine,
+      startedAt: Number.isFinite(startedAtMs) ? new Date(startedAtMs).toISOString() : '',
+    };
+  } catch {
+    return { alive: true, unverifiable: true };
+  }
+}
+
+function processRecordMatches(record, actual, config) {
+  if (!actual?.alive || actual.unverifiable) return false;
+  if (record.configHash !== lifecycleConfigHash(config)) return false;
+  const commandLine = normalizeString(actual.commandLine);
+  const executable = normalizeString(actual.executablePath).toLowerCase();
+  const expectedExecutable = normalizeString(record.executablePath).toLowerCase();
+  const executableMatches = executable
+    ? executable === expectedExecutable || path.basename(executable) === path.basename(expectedExecutable)
+    : commandLine.toLowerCase().includes(expectedExecutable);
+  const argsMatch = Array.isArray(actual.args)
+    ? sha256(JSON.stringify(actual.args)) === record.argsHash
+    : Array.isArray(record.args) && record.args.every((arg) => commandLine.includes(String(arg)));
+  const actualStartedAt = Date.parse(actual.startedAt || '');
+  const expectedStartedAt = Date.parse(record.startedAt || '');
+  const startMatches = Number.isFinite(actualStartedAt) && Number.isFinite(expectedStartedAt)
+    ? Math.abs(actualStartedAt - expectedStartedAt) <= 5000
+    : false;
+  return executableMatches && argsMatch && startMatches;
+}
+
+function createAdoptedProcess(record, isAlive) {
+  return {
+    pid: record.pid,
+    adopted: true,
+    killed: false,
+    exitCode: null,
+    signalCode: null,
+    isAlive,
+    kill(signal = 'SIGTERM') {
+      process.kill(record.pid, signal);
+      this.killed = true;
+    },
+  };
+}
+
+function computeRecoveryDelay(failureTimestamps = [], nowMs = Date.now()) {
+  const recent = failureTimestamps.filter((timestamp) =>
+    Number.isFinite(timestamp) && timestamp >= nowMs - 10 * 60 * 1000
+  );
+  return recent.length >= RECOVERY_DELAYS_MS.length ? null : RECOVERY_DELAYS_MS[recent.length];
+}
+
+function shouldRetryManagedLifecycleError(error) {
+  const code = normalizeString(error?.code);
+  if (!code) return true;
+  return !(
+    code === 'foreign_process'
+    || code === 'stable_origin_invalid'
+    || code === 'cloudflared_version_failed'
+    || code === 'cloudflare_tunnel_list_failed'
+    || code.startsWith('cloudflare_credentials')
+    || code.startsWith('cloudflare_config')
+    || code.startsWith('cloudflare_ingress')
+    || code.startsWith('cloudflare_service')
+    || code.startsWith('cloudflare_hostname')
+    || code.startsWith('cloudflare_catch_all')
+    || code.startsWith('cloudflare_tunnel_')
+  );
 }
 
 function readJsonIfExists(filePath) {
@@ -326,7 +520,10 @@ function readTextIfExists(filePath) {
 }
 
 function isRunning(child) {
-  return Boolean(child && child.exitCode == null && child.signalCode == null && !child.killed);
+  if (!child || child.exitCode != null || child.signalCode != null || child.killed) return false;
+  return child.adopted === true
+    ? (typeof child.isAlive === 'function' ? child.isAlive() : isPidAlive(child.pid))
+    : true;
 }
 
 function appendOutput(kind, chunk) {
@@ -749,6 +946,7 @@ function getStatus(options = {}) {
       output: tunnelOutput,
     },
     probe: mcpLastProbe,
+    lifecycle: managedLifecycle.last,
     securityState,
     chatGptAccess: {
       mode: exposureMode,
@@ -789,6 +987,225 @@ function validateStableConfiguration(options = {}) {
   };
 }
 
+function setLifecycleStatus(next) {
+  managedLifecycle.last = {
+    ...managedLifecycle.last,
+    ...next,
+    checkedAt: new Date().toISOString(),
+  };
+  return managedLifecycle.last;
+}
+
+function adoptOwnedRuntimeProcesses(options, config) {
+  const runtime = readRuntimeState(options);
+  if (!runtime?.processes || runtime.mode !== 'stable') return { adopted: [] };
+  const inspect = typeof options.inspectProcess === 'function' ? options.inspectProcess : inspectOwnedProcess;
+  const adopted = [];
+  const stale = [];
+  for (const kind of ['tunnel', 'mcp']) {
+    const record = runtime.processes[kind];
+    if (!record) continue;
+    const actual = inspect(record, kind);
+    if (!actual?.alive) {
+      stale.push(kind);
+      continue;
+    }
+    if (!processRecordMatches(record, actual, config)) {
+      return {
+        adopted,
+        blocker: {
+          code: 'foreign_process',
+          blocked: true,
+          recovering: false,
+          message: `A surviving process for ${kind} does not match Elegy ownership metadata. It was not adopted or terminated.`,
+          pid: record.pid,
+        },
+      };
+    }
+    const handle = createAdoptedProcess(record, () => {
+      const latest = inspect(record, kind);
+      return processRecordMatches(record, latest, config);
+    });
+    if (kind === 'tunnel') {
+      tunnelProcess = handle;
+      tunnelMode = 'named';
+    } else {
+      mcpProcess = handle;
+    }
+    adopted.push(kind);
+  }
+  if (stale.length > 0) {
+    const processes = { ...runtime.processes };
+    for (const kind of stale) delete processes[kind];
+    writeRuntimeState(options, { ...runtime, updatedAt: new Date().toISOString(), processes });
+  }
+  return { adopted };
+}
+
+function scheduleManagedRecovery(reason) {
+  const options = managedLifecycle.options;
+  if (
+    !options
+    || managedLifecycle.stopping
+    || managedLifecycle.manualStop
+    || managedLifecycle.suppressRecovery
+    || managedLifecycle.recoveryTimer
+  ) return;
+  const nowMs = typeof options.now === 'function' ? options.now() : Date.now();
+  const delay = computeRecoveryDelay(managedLifecycle.failures, nowMs);
+  if (delay == null) {
+    setLifecycleStatus({
+      code: 'recovery_exhausted',
+      blocked: true,
+      recovering: false,
+      message: 'Persistent tunnel recovery stopped after five failures in ten minutes.',
+      reason,
+    });
+    return;
+  }
+  managedLifecycle.failures = managedLifecycle.failures
+    .filter((timestamp) => timestamp >= nowMs - 10 * 60 * 1000)
+    .concat(nowMs);
+  setLifecycleStatus({
+    code: 'recovery_scheduled',
+    blocked: false,
+    recovering: true,
+    message: `Persistent tunnel recovery is scheduled in ${delay}ms.`,
+    reason,
+    retryDelayMs: delay,
+  });
+  const schedule = typeof options.setTimeout === 'function' ? options.setTimeout : setTimeout;
+  managedLifecycle.recoveryTimer = schedule(async () => {
+    managedLifecycle.recoveryTimer = null;
+    if (managedLifecycle.stopping || managedLifecycle.manualStop) return;
+    try {
+      await startTunnel({ ...options, lifecycleInternal: true });
+      managedLifecycle.failures = [];
+      setLifecycleStatus({
+        code: 'recovered',
+        blocked: false,
+        recovering: false,
+        message: 'Persistent tunnel processes recovered successfully.',
+      });
+    } catch (error) {
+      if (!shouldRetryManagedLifecycleError(error)) {
+        setLifecycleStatus({
+          code: error?.code || 'recovery_blocked',
+          blocked: true,
+          recovering: false,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        return;
+      }
+      setLifecycleStatus({
+        code: error?.code || 'recovery_failed',
+        blocked: false,
+        recovering: true,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      scheduleManagedRecovery('recovery_attempt_failed');
+    }
+  }, delay);
+  managedLifecycle.recoveryTimer?.unref?.();
+}
+
+function runManagedLifecycleCheck() {
+  if (!managedLifecycle.options || managedLifecycle.stopping || managedLifecycle.manualStop) {
+    return managedLifecycle.last;
+  }
+  if (!isRunning(tunnelProcess) || !isRunning(mcpProcess)) {
+    scheduleManagedRecovery('owned_process_not_running');
+  }
+  return managedLifecycle.last;
+}
+
+async function initializeManagedLifecycle(options = {}) {
+  managedLifecycle.options = { ...options };
+  managedLifecycle.stopping = false;
+  managedLifecycle.manualStop = false;
+  managedLifecycle.failures = [];
+  const config = loadConfig(options);
+  if (
+    config.stableTunnel?.managementMode !== 'managed'
+    || config.stableTunnel?.setupVersion !== 1
+    || config.stableTunnel?.autoStart !== true
+  ) {
+    setLifecycleStatus({
+      code: 'autostart_disabled',
+      blocked: false,
+      recovering: false,
+      message: 'Persistent tunnel autostart is not enabled for a completed managed setup.',
+    });
+    return getStatus(options);
+  }
+  const adoption = adoptOwnedRuntimeProcesses(options, config);
+  if (adoption.blocker) {
+    setLifecycleStatus(adoption.blocker);
+    return getStatus(options);
+  }
+  if (adoption.adopted.includes('tunnel') && adoption.adopted.includes('mcp')) {
+    setLifecycleStatus({
+      code: 'owned_processes_adopted',
+      blocked: false,
+      recovering: false,
+      message: 'Adopted the matching persistent tunnel processes from the previous Elegy runtime.',
+    });
+  } else {
+    try {
+      validateStableConfiguration(options);
+      await startTunnel({ ...options, lifecycleInternal: true });
+      setLifecycleStatus({
+        code: 'autostart_started',
+        blocked: false,
+        recovering: false,
+        message: 'Persistent tunnel autostart completed.',
+      });
+    } catch (error) {
+      setLifecycleStatus({
+        code: error?.code || 'autostart_blocked',
+        blocked: true,
+        recovering: false,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return getStatus(options);
+    }
+  }
+  if (options.monitor !== false && !managedLifecycle.monitorTimer) {
+    const scheduleInterval = typeof options.setInterval === 'function' ? options.setInterval : setInterval;
+    managedLifecycle.monitorTimer = scheduleInterval(runManagedLifecycleCheck, 5000);
+    managedLifecycle.monitorTimer?.unref?.();
+  }
+  return getStatus(options);
+}
+
+async function shutdownManagedLifecycle(options = {}) {
+  managedLifecycle.stopping = true;
+  const lifecycleOptions = managedLifecycle.options || options;
+  const clearScheduledTimeout = typeof lifecycleOptions.clearTimeout === 'function'
+    ? lifecycleOptions.clearTimeout
+    : clearTimeout;
+  const clearScheduledInterval = typeof lifecycleOptions.clearInterval === 'function'
+    ? lifecycleOptions.clearInterval
+    : clearInterval;
+  if (managedLifecycle.recoveryTimer) clearScheduledTimeout(managedLifecycle.recoveryTimer);
+  if (managedLifecycle.monitorTimer) clearScheduledInterval(managedLifecycle.monitorTimer);
+  managedLifecycle.recoveryTimer = null;
+  managedLifecycle.monitorTimer = null;
+  if (options.stopProcesses !== false) {
+    await stopServer({ ...lifecycleOptions, lifecycleInternal: true });
+    await stopTunnel({ ...lifecycleOptions, lifecycleInternal: true });
+    const runtimePath = resolveRuntimeStatePath(lifecycleOptions.elegyHome || lifecycleOptions.elegyHomeAbs);
+    if (fs.existsSync(runtimePath)) fs.rmSync(runtimePath, { force: true });
+  }
+  managedLifecycle.options = null;
+  setLifecycleStatus({
+    code: 'stopped',
+    blocked: false,
+    recovering: false,
+    message: 'Persistent tunnel lifecycle supervision stopped.',
+  });
+}
+
 function startServer(options = {}) {
   const config = loadConfig(options);
   if (isRunning(mcpProcess)) return getStatus(options);
@@ -827,6 +1244,8 @@ function startServer(options = {}) {
       ELEGY_HOME: resolveElegyHome(options.elegyHome || options.elegyHomeAbs),
     },
   });
+  recordOwnedProcess('mcp', mcpProcess, process.execPath, [entry], config, options);
+  const ownedMcpPid = mcpProcess.pid;
   mcpProcess.stdout?.on('data', (chunk) => appendOutput('stdout', chunk));
   mcpProcess.stderr?.on('data', (chunk) => appendOutput('stderr', chunk));
   mcpProcess.once('error', (error) => {
@@ -835,6 +1254,8 @@ function startServer(options = {}) {
   mcpProcess.once('exit', (code, signal) => {
     mcpLastExit = { code, signal, at: new Date().toISOString(), stdout: mcpOutput.stdout, stderr: mcpOutput.stderr };
     mcpProcess = null;
+    forgetOwnedProcess('mcp', ownedMcpPid, options);
+    scheduleManagedRecovery('mcp_process_exited');
   });
   return getStatus(options);
 }
@@ -899,6 +1320,10 @@ async function waitForMcpReady(options = {}) {
 
 async function stopChild(child) {
   if (!isRunning(child)) return;
+  if (child.adopted === true) {
+    try { child.kill(); } catch { /* process already exited */ }
+    return;
+  }
   await new Promise((resolve) => {
     const timer = setTimeout(() => {
       try { child.kill('SIGKILL'); } catch { /* ignore */ }
@@ -913,7 +1338,14 @@ async function stopChild(child) {
 }
 
 async function stopServer(options = {}) {
-  await stopChild(mcpProcess);
+  if (!options.lifecycleInternal) managedLifecycle.manualStop = true;
+  const previousSuppression = managedLifecycle.suppressRecovery;
+  managedLifecycle.suppressRecovery = true;
+  try {
+    await stopChild(mcpProcess);
+  } finally {
+    managedLifecycle.suppressRecovery = previousSuppression;
+  }
   mcpProcess = null;
   return getStatus(options);
 }
@@ -1013,6 +1445,7 @@ async function startQuickTunnel(options = {}) {
 }
 
 async function startTunnel(options = {}) {
+  managedLifecycle.manualStop = false;
   const config = loadConfig(options);
   const validated = validateStableConfiguration(options);
   const cloudflaredPath = validated.validation.cloudflarePath || validated.validation.cloudflaredPath;
@@ -1041,11 +1474,11 @@ async function startTunnel(options = {}) {
   saveConfig({ ...options, config: stableConfig });
   const currentStatus = getStatus(options);
   if (currentStatus.securityState === 'OAuth protected' && currentStatus.tunnel.mode === 'named') {
-    await stopServer(options);
-    startServer(options);
+    await stopServer({ ...options, lifecycleInternal: true });
+    startServer({ ...options, authMode: 'oauth' });
     return waitForMcpReady(options);
   }
-  if (isRunning(tunnelProcess)) await stopTunnel(options);
+  if (isRunning(tunnelProcess)) await stopTunnel({ ...options, lifecycleInternal: true });
   const args = config.cloudflareConfigPath
     ? ['tunnel', '--config', config.cloudflareConfigPath, 'run', config.cloudflareTunnelName]
     : ['tunnel', 'run', config.cloudflareTunnelName];
@@ -1055,29 +1488,40 @@ async function startTunnel(options = {}) {
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  tunnelMode = 'named';
+  recordOwnedProcess('tunnel', tunnelProcess, cloudflaredPath, args, stableConfig, options);
+  const ownedTunnelPid = tunnelProcess.pid;
   tunnelProcess.stdout?.on('data', (chunk) => appendTunnelOutput('stdout', chunk));
   tunnelProcess.stderr?.on('data', (chunk) => appendTunnelOutput('stderr', chunk));
-  tunnelMode = 'named';
   quickTunnelBaseUrl = '';
   mcpLastProbe = null;
   tunnelProcess.once('exit', (code, signal) => {
     tunnelLastExit = { code, signal, at: new Date().toISOString(), output: tunnelOutput };
     tunnelProcess = null;
     tunnelMode = 'none';
+    forgetOwnedProcess('tunnel', ownedTunnelPid, options);
+    scheduleManagedRecovery('tunnel_process_exited');
   });
-  if (isRunning(mcpProcess)) await stopServer(options);
+  if (isRunning(mcpProcess)) await stopServer({ ...options, lifecycleInternal: true });
   startServer({ ...options, authMode: 'oauth' });
   try {
     return await waitForMcpReady(options);
   } catch (error) {
-    await stopServer(options);
-    await stopTunnel(options);
+    await stopServer({ ...options, lifecycleInternal: true });
+    await stopTunnel({ ...options, lifecycleInternal: true });
     throw Object.assign(error, { statusCode: error.statusCode || 500 });
   }
 }
 
 async function stopTunnel(options = {}) {
-  await stopChild(tunnelProcess);
+  if (!options.lifecycleInternal) managedLifecycle.manualStop = true;
+  const previousSuppression = managedLifecycle.suppressRecovery;
+  managedLifecycle.suppressRecovery = true;
+  try {
+    await stopChild(tunnelProcess);
+  } finally {
+    managedLifecycle.suppressRecovery = previousSuppression;
+  }
   tunnelProcess = null;
   tunnelMode = 'none';
   quickTunnelBaseUrl = '';
@@ -1153,6 +1597,11 @@ module.exports = {
   previewManagedTunnelProvisioning,
   confirmManagedTunnelProvisioning,
   cancelManagedTunnelProvisioning,
+  computeRecoveryDelay,
+  shouldRetryManagedLifecycleError,
+  initializeManagedLifecycle,
+  runManagedLifecycleCheck,
+  shutdownManagedLifecycle,
   stopTunnel,
   probe,
   getPendingAuthorizations,

@@ -58,6 +58,7 @@ function loadManager(spawnCalls, onSpawn = null, execFileSyncImpl = () => '') {
   childProcess.execFileSync = execFileSyncImpl;
   childProcess.spawn = (...args) => {
     const child = makeChild();
+    child.pid = 1234 + spawnCalls.length;
     spawnCalls.push({ args, child });
     onSpawn?.(args, child, spawnCalls.length - 1);
     return child;
@@ -733,4 +734,364 @@ test('startTunnel starts named tunnel and OAuth MCP server with stable URL', asy
   assert.equal(status.chatGptAccess.urlStable, true);
   assert.equal(status.chatGptAccess.ready, false);
   assert.equal(status.chatGptAccess.lifecycleState, 'online_unverified');
+});
+
+test('startTunnel persists strong ownership metadata for both managed processes', async () => {
+  const ctx = makeContext();
+  mockFetchOk({ oauthMetadataOk: true });
+  const credentialsPath = path.join(ctx.root, 'tunnel-id.json');
+  const cloudflareConfigPath = path.join(ctx.root, 'config.yml');
+  fs.writeFileSync(credentialsPath, '{}', 'utf8');
+  fs.writeFileSync(cloudflareConfigPath, [
+    'tunnel: tunnel-id',
+    `credentials-file: ${JSON.stringify(credentialsPath)}`,
+    'ingress:',
+    '  - hostname: mcp.example.com',
+    '    service: http://127.0.0.1:3333',
+    '  - service: http_status:404',
+  ].join('\n'), 'utf8');
+  writeConfig(ctx.elegyHomeAbs, {
+    schemaVersion: 3,
+    activeExposureMode: 'stable',
+    publicBaseUrl: 'https://mcp.example.com',
+    cloudflareTunnelName: 'local-mcp',
+    cloudflareConfigPath,
+    cloudflaredPath: makeCloudflared(ctx),
+    stableTunnel: {
+      configured: true,
+      managementMode: 'managed',
+      setupVersion: 1,
+      autoStart: true,
+      publicOrigin: 'https://mcp.example.com',
+      canonicalResource: 'https://mcp.example.com/mcp',
+      hostname: 'mcp.example.com',
+      cloudflareTunnelName: 'local-mcp',
+      cloudflareTunnelId: 'tunnel-id',
+      cloudflareConfigPath,
+      cloudflareCredentialsPath: credentialsPath,
+    },
+  });
+  const spawnCalls = [];
+  const manager = loadManager(spawnCalls, null, (_command, args) =>
+    args[0] === '--version'
+      ? 'cloudflared version 2026.7.0'
+      : JSON.stringify([{ id: 'tunnel-id', name: 'local-mcp' }])
+  );
+
+  await manager.startTunnel(ctx);
+
+  const runtimePath = path.join(ctx.elegyHomeAbs, 'local-repo-mcp', 'runtime-state.json');
+  const runtime = JSON.parse(fs.readFileSync(runtimePath, 'utf8'));
+  assert.equal(runtime.version, 1);
+  assert.equal(runtime.mode, 'stable');
+  assert.equal(runtime.processes.tunnel.pid, 1234);
+  assert.equal(runtime.processes.mcp.pid, 1235);
+  assert.match(runtime.processes.tunnel.argsHash, /^[a-f0-9]{64}$/);
+  assert.match(runtime.processes.mcp.configHash, /^[a-f0-9]{64}$/);
+  assert.notEqual(runtime.processes.tunnel.argsHash, runtime.processes.mcp.argsHash);
+});
+
+test('initializeManagedLifecycle autostarts only completed managed setup', async () => {
+  const ctx = makeContext();
+  mockFetchOk({ oauthMetadataOk: true });
+  const credentialsPath = path.join(ctx.root, 'tunnel-id.json');
+  const cloudflareConfigPath = path.join(ctx.root, 'config.yml');
+  fs.writeFileSync(credentialsPath, '{}', 'utf8');
+  fs.writeFileSync(cloudflareConfigPath, [
+    'tunnel: tunnel-id',
+    `credentials-file: ${JSON.stringify(credentialsPath)}`,
+    'ingress:',
+    '  - hostname: mcp.example.com',
+    '    service: http://127.0.0.1:3333',
+    '  - service: http_status:404',
+  ].join('\n'), 'utf8');
+  writeConfig(ctx.elegyHomeAbs, {
+    schemaVersion: 3,
+    publicBaseUrl: 'https://mcp.example.com',
+    cloudflareTunnelName: 'local-mcp',
+    cloudflareConfigPath,
+    cloudflaredPath: makeCloudflared(ctx),
+    stableTunnel: {
+      configured: true,
+      managementMode: 'managed',
+      setupVersion: 1,
+      autoStart: true,
+      publicOrigin: 'https://mcp.example.com',
+      canonicalResource: 'https://mcp.example.com/mcp',
+      hostname: 'mcp.example.com',
+      cloudflareTunnelName: 'local-mcp',
+      cloudflareTunnelId: 'tunnel-id',
+      cloudflareConfigPath,
+      cloudflareCredentialsPath: credentialsPath,
+    },
+  });
+  const spawnCalls = [];
+  const manager = loadManager(spawnCalls, null, (_command, args) =>
+    args[0] === '--version'
+      ? 'cloudflared version 2026.7.0'
+      : JSON.stringify([{ id: 'tunnel-id', name: 'local-mcp' }])
+  );
+
+  const result = await manager.initializeManagedLifecycle({ ...ctx, monitor: false });
+
+  assert.equal(result.lifecycle.code, 'autostart_started');
+  assert.equal(spawnCalls.length, 2);
+  assert.equal(result.tunnel.mode, 'named');
+});
+
+test('initializeManagedLifecycle refuses ambiguous surviving process ownership', async () => {
+  const ctx = makeContext({
+    schemaVersion: 3,
+    stableTunnel: {
+      configured: true,
+      managementMode: 'managed',
+      setupVersion: 1,
+      autoStart: true,
+      publicOrigin: 'https://mcp.example.com',
+      cloudflareTunnelName: 'local-mcp',
+    },
+  });
+  const runtimePath = path.join(ctx.elegyHomeAbs, 'local-repo-mcp', 'runtime-state.json');
+  fs.mkdirSync(path.dirname(runtimePath), { recursive: true });
+  fs.writeFileSync(runtimePath, JSON.stringify({
+    version: 1,
+    mode: 'stable',
+    instanceId: 'old-instance',
+    processes: {
+      tunnel: {
+        pid: 999,
+        startedAt: '2026-07-25T12:00:00.000Z',
+        executablePath: 'cloudflared.exe',
+        args: ['tunnel', 'run', 'local-mcp'],
+        argsHash: 'expected-hash',
+        configHash: 'config-hash',
+      },
+    },
+  }), 'utf8');
+  const manager = loadManager([]);
+
+  const result = await manager.initializeManagedLifecycle({
+    ...ctx,
+    monitor: false,
+    inspectProcess: () => ({
+      alive: true,
+      startedAt: '2026-07-25T12:00:00.000Z',
+      executablePath: 'unrelated.exe',
+      args: ['--other'],
+    }),
+  });
+
+  assert.equal(result.lifecycle.code, 'foreign_process');
+  assert.equal(result.lifecycle.blocked, true);
+  assert.equal(fs.existsSync(runtimePath), true);
+});
+
+test('initializeManagedLifecycle adopts only fully matching surviving process records', async () => {
+  const ctx = makeContext();
+  mockFetchOk({ oauthMetadataOk: true });
+  const credentialsPath = path.join(ctx.root, 'tunnel-id.json');
+  const cloudflareConfigPath = path.join(ctx.root, 'config.yml');
+  fs.writeFileSync(credentialsPath, '{}', 'utf8');
+  fs.writeFileSync(cloudflareConfigPath, [
+    'tunnel: tunnel-id',
+    `credentials-file: ${JSON.stringify(credentialsPath)}`,
+    'ingress:',
+    '  - hostname: mcp.example.com',
+    '    service: http://127.0.0.1:3333',
+    '  - service: http_status:404',
+  ].join('\n'), 'utf8');
+  writeConfig(ctx.elegyHomeAbs, {
+    schemaVersion: 3,
+    publicBaseUrl: 'https://mcp.example.com',
+    cloudflareTunnelName: 'local-mcp',
+    cloudflareConfigPath,
+    cloudflaredPath: makeCloudflared(ctx),
+    stableTunnel: {
+      configured: true,
+      managementMode: 'managed',
+      setupVersion: 1,
+      autoStart: true,
+      publicOrigin: 'https://mcp.example.com',
+      canonicalResource: 'https://mcp.example.com/mcp',
+      hostname: 'mcp.example.com',
+      cloudflareTunnelName: 'local-mcp',
+      cloudflareTunnelId: 'tunnel-id',
+      cloudflareConfigPath,
+      cloudflareCredentialsPath: credentialsPath,
+    },
+  });
+  const firstSpawnCalls = [];
+  const firstManager = loadManager(firstSpawnCalls, null, (_command, args) =>
+    args[0] === '--version'
+      ? 'cloudflared version 2026.7.0'
+      : JSON.stringify([{ id: 'tunnel-id', name: 'local-mcp' }])
+  );
+  await firstManager.startTunnel(ctx);
+  const runtimePath = path.join(ctx.elegyHomeAbs, 'local-repo-mcp', 'runtime-state.json');
+  const runtime = JSON.parse(fs.readFileSync(runtimePath, 'utf8'));
+
+  const secondSpawnCalls = [];
+  const secondManager = loadManager(secondSpawnCalls);
+  const result = await secondManager.initializeManagedLifecycle({
+    ...ctx,
+    monitor: false,
+    inspectProcess: (record) => ({
+      alive: true,
+      startedAt: record.startedAt,
+      executablePath: record.executablePath,
+      args: record.args,
+    }),
+  });
+
+  assert.equal(result.lifecycle.code, 'owned_processes_adopted');
+  assert.equal(result.tunnel.running, true);
+  assert.equal(result.server.running, true);
+  assert.equal(secondSpawnCalls.length, 0);
+  assert.equal(runtime.processes.tunnel.pid, result.tunnel.pid);
+  assert.equal(runtime.processes.mcp.pid, result.server.pid);
+});
+
+test('computeRecoveryDelay applies bounded backoff and stops after five failures in ten minutes', () => {
+  const manager = loadManager([]);
+  const now = Date.parse('2026-07-25T12:10:00.000Z');
+
+  assert.equal(manager.computeRecoveryDelay([], now), 1000);
+  assert.equal(manager.computeRecoveryDelay([now - 1000], now), 2000);
+  assert.equal(manager.computeRecoveryDelay([now - 2000, now - 1000], now), 5000);
+  assert.equal(manager.computeRecoveryDelay([now - 3000, now - 2000, now - 1000], now), 10000);
+  assert.equal(manager.computeRecoveryDelay([now - 4000, now - 3000, now - 2000, now - 1000], now), 30000);
+  assert.equal(manager.computeRecoveryDelay([now - 5000, now - 4000, now - 3000, now - 2000, now - 1000], now), null);
+  assert.equal(manager.computeRecoveryDelay([now - 700000], now), 1000);
+});
+
+test('managed lifecycle retries crashes but stops on configuration and ownership blockers', () => {
+  const manager = loadManager([]);
+
+  assert.equal(manager.shouldRetryManagedLifecycleError({ code: 'process_exited' }), true);
+  assert.equal(manager.shouldRetryManagedLifecycleError({ code: 'probe_error' }), true);
+  assert.equal(manager.shouldRetryManagedLifecycleError({ code: 'cloudflare_credentials_missing' }), false);
+  assert.equal(manager.shouldRetryManagedLifecycleError({ code: 'cloudflare_config_invalid' }), false);
+  assert.equal(manager.shouldRetryManagedLifecycleError({ code: 'cloudflare_tunnel_list_failed' }), false);
+  assert.equal(manager.shouldRetryManagedLifecycleError({ code: 'stable_origin_invalid' }), false);
+  assert.equal(manager.shouldRetryManagedLifecycleError({ code: 'foreign_process' }), false);
+});
+
+test('managed lifecycle schedules first MCP crash recovery after one second', async () => {
+  const ctx = makeContext();
+  mockFetchOk({ oauthMetadataOk: true });
+  const credentialsPath = path.join(ctx.root, 'tunnel-id.json');
+  const cloudflareConfigPath = path.join(ctx.root, 'config.yml');
+  fs.writeFileSync(credentialsPath, '{}', 'utf8');
+  fs.writeFileSync(cloudflareConfigPath, [
+    'tunnel: tunnel-id',
+    `credentials-file: ${JSON.stringify(credentialsPath)}`,
+    'ingress:',
+    '  - hostname: mcp.example.com',
+    '    service: http://127.0.0.1:3333',
+    '  - service: http_status:404',
+  ].join('\n'), 'utf8');
+  writeConfig(ctx.elegyHomeAbs, {
+    schemaVersion: 3,
+    publicBaseUrl: 'https://mcp.example.com',
+    cloudflareTunnelName: 'local-mcp',
+    cloudflareConfigPath,
+    cloudflaredPath: makeCloudflared(ctx),
+    stableTunnel: {
+      configured: true,
+      managementMode: 'managed',
+      setupVersion: 1,
+      autoStart: true,
+      publicOrigin: 'https://mcp.example.com',
+      canonicalResource: 'https://mcp.example.com/mcp',
+      hostname: 'mcp.example.com',
+      cloudflareTunnelName: 'local-mcp',
+      cloudflareTunnelId: 'tunnel-id',
+      cloudflareConfigPath,
+      cloudflareCredentialsPath: credentialsPath,
+    },
+  });
+  const spawnCalls = [];
+  const scheduled = [];
+  const manager = loadManager(spawnCalls, null, (_command, args) =>
+    args[0] === '--version'
+      ? 'cloudflared version 2026.7.0'
+      : JSON.stringify([{ id: 'tunnel-id', name: 'local-mcp' }])
+  );
+  await manager.initializeManagedLifecycle({
+    ...ctx,
+    monitor: false,
+    now: () => Date.parse('2026-07-25T12:00:00.000Z'),
+    setTimeout: (callback, delay) => {
+      scheduled.push({ callback, delay });
+      return { unref() {} };
+    },
+  });
+
+  spawnCalls[1].child.exitCode = 1;
+  spawnCalls[1].child.emit('exit', 1, null);
+  const status = manager.getStatus(ctx);
+
+  assert.equal(scheduled.length, 1);
+  assert.equal(scheduled[0].delay, 1000);
+  assert.equal(status.lifecycle.code, 'recovery_scheduled');
+  assert.equal(status.lifecycle.reason, 'mcp_process_exited');
+});
+
+test('intentional stable server restart does not schedule crash recovery', async () => {
+  const ctx = makeContext();
+  mockFetchOk({ oauthMetadataOk: true });
+  const credentialsPath = path.join(ctx.root, 'tunnel-id.json');
+  const cloudflareConfigPath = path.join(ctx.root, 'config.yml');
+  fs.writeFileSync(credentialsPath, '{}', 'utf8');
+  fs.writeFileSync(cloudflareConfigPath, [
+    'tunnel: tunnel-id',
+    `credentials-file: ${JSON.stringify(credentialsPath)}`,
+    'ingress:',
+    '  - hostname: mcp.example.com',
+    '    service: http://127.0.0.1:3333',
+    '  - service: http_status:404',
+  ].join('\n'), 'utf8');
+  writeConfig(ctx.elegyHomeAbs, {
+    schemaVersion: 3,
+    publicBaseUrl: 'https://mcp.example.com',
+    cloudflareTunnelName: 'local-mcp',
+    cloudflareConfigPath,
+    cloudflaredPath: makeCloudflared(ctx),
+    stableTunnel: {
+      configured: true,
+      managementMode: 'managed',
+      setupVersion: 1,
+      autoStart: true,
+      publicOrigin: 'https://mcp.example.com',
+      canonicalResource: 'https://mcp.example.com/mcp',
+      hostname: 'mcp.example.com',
+      cloudflareTunnelName: 'local-mcp',
+      cloudflareTunnelId: 'tunnel-id',
+      cloudflareConfigPath,
+      cloudflareCredentialsPath: credentialsPath,
+    },
+  });
+  const spawnCalls = [];
+  const scheduled = [];
+  const manager = loadManager(spawnCalls, null, (_command, args) =>
+    args[0] === '--version'
+      ? 'cloudflared version 2026.7.0'
+      : JSON.stringify([{ id: 'tunnel-id', name: 'local-mcp' }])
+  );
+  const lifecycleOptions = {
+    ...ctx,
+    monitor: false,
+    setTimeout: (callback, delay) => {
+      scheduled.push({ callback, delay });
+      return { unref() {} };
+    },
+  };
+  await manager.initializeManagedLifecycle(lifecycleOptions);
+
+  await manager.startTunnel({ ...ctx, lifecycleInternal: true });
+
+  assert.equal(spawnCalls.length, 3);
+  assert.equal(spawnCalls[0].child.killed, false);
+  assert.equal(spawnCalls[1].child.killed, true);
+  assert.equal(scheduled.length, 0);
 });

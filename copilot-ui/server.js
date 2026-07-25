@@ -4696,6 +4696,7 @@ async function startServer(options = {}) {
       ? path.resolve(options.engineRoot.trim())
       : path.resolve(__dirname, '..');
   const logger = quiet ? () => {} : (message) => console.log(message);
+  const localRepoMcpManager = options.localRepoMcpManager || require('./lib/localRepoMcpManager');
   const elegyHome = resolveElegyHome(args);
   const sandboxesHome = resolveSandboxesHome(args);
   const opencodeHome = resolveOpenCodeHomeFromEnv(process.env);
@@ -5231,7 +5232,7 @@ async function startServer(options = {}) {
     }));
   });
 
-    server.listen(args.port, host, () => {
+    server.listen(args.port, host, async () => {
       if (settled) return;
       settled = true;
       const addr = server.address();
@@ -5273,6 +5274,17 @@ async function startServer(options = {}) {
         });
       }, desktopUpdaterAutoCheckIntervalMs);
 
+      try {
+        await localRepoMcpManager.initializeManagedLifecycle({
+          elegyHomeAbs: path.resolve(elegyHome),
+          engineRoot,
+        });
+      } catch (error) {
+        if (!quiet) {
+          console.warn(`[local-repo-mcp] lifecycle initialization failed: ${String(error && error.message ? error.message : error)}`);
+        }
+      }
+
       resolve({
         server,
         routeRegistry,
@@ -5288,6 +5300,11 @@ async function startServer(options = {}) {
         close: () => new Promise((closeResolve) => {
           Promise.resolve()
             .then(() => stopDesktopUpdaterBackgroundWork())
+            .then(() => localRepoMcpManager.shutdownManagedLifecycle({
+              elegyHomeAbs: path.resolve(elegyHome),
+              engineRoot,
+              stopProcesses: true,
+            }))
             .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
             .then(() => shutdownExecutorServiceSafely(executorService))
             .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
@@ -5363,4 +5380,3 @@ module.exports = {
   executePlanningMerge,
   rollbackMergeCommitAfterPersistenceFailure,
 };
-
