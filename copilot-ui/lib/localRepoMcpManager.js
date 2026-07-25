@@ -6,7 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFileSync, spawn } = require('child_process');
 
-const CONFIG_SCHEMA_VERSION = 1;
+const CONFIG_SCHEMA_VERSION = 2;
 const DEFAULT_PORT = 3333;
 
 let mcpProcess = null;
@@ -63,6 +63,32 @@ function createDefaultConfig() {
   return {
     schemaVersion: CONFIG_SCHEMA_VERSION,
     port: DEFAULT_PORT,
+    activeExposureMode: 'quick',
+    quickTunnel: {
+      enabled: true,
+    },
+    stableTunnel: {
+      configured: false,
+      publicOrigin: '',
+      canonicalResource: '',
+      hostname: '',
+      cloudflareTunnelName: '',
+      cloudflareTunnelId: '',
+      cloudflareConfigPath: '',
+      cloudflareCredentialsPath: '',
+      cloudflaredPath: '',
+      autoStart: false,
+    },
+    oauth: {
+      provider: 'builtin',
+      issuer: '',
+      audience: '',
+      requiredScopes: ['repo:read'],
+      accessTokenTtlSeconds: 3600,
+      refreshTokenTtlSeconds: 2592000,
+    },
+    // Compatibility aliases for existing clients. Remove only after all shipped
+    // desktop versions understand the v2 profile fields.
     authProvider: 'builtin',
     publicBaseUrl: '',
     authIssuer: '',
@@ -77,31 +103,110 @@ function createDefaultConfig() {
 
 function normalizeConfig(raw) {
   const defaults = createDefaultConfig();
-  const requiredScopes = Array.isArray(raw?.requiredScopes)
-    ? raw.requiredScopes.map(normalizeString).filter(Boolean)
+  const stableRaw = raw?.stableTunnel && typeof raw.stableTunnel === 'object' ? raw.stableTunnel : {};
+  const oauthRaw = raw?.oauth && typeof raw.oauth === 'object' ? raw.oauth : {};
+  const publicOrigin = normalizeString(stableRaw.publicOrigin || raw?.publicBaseUrl).replace(/\/+$/, '');
+  const canonicalResource = normalizeString(stableRaw.canonicalResource || connectorUrlFromBase(publicOrigin));
+  const requiredScopesSource = Array.isArray(oauthRaw.requiredScopes) ? oauthRaw.requiredScopes : raw?.requiredScopes;
+  const requiredScopes = Array.isArray(requiredScopesSource)
+    ? requiredScopesSource.map(normalizeString).filter(Boolean)
     : defaults.requiredScopes;
+  const authProvider = normalizeString(oauthRaw.provider || raw?.authProvider) === 'external' ? 'external' : 'builtin';
+  const authIssuer = authProvider === 'builtin'
+    ? publicOrigin
+    : normalizeString(oauthRaw.issuer || raw?.authIssuer);
+  const authAudience = authProvider === 'builtin'
+    ? canonicalResource
+    : normalizeString(oauthRaw.audience || raw?.authAudience);
+  const cloudflareTunnelName = normalizeString(stableRaw.cloudflareTunnelName || raw?.cloudflareTunnelName);
+  const cloudflareConfigPath = normalizeString(stableRaw.cloudflareConfigPath || raw?.cloudflareConfigPath);
+  const cloudflaredPath = normalizeString(stableRaw.cloudflaredPath || raw?.cloudflaredPath);
+  const stableConfigured = Boolean(publicOrigin && cloudflareTunnelName);
+  const activeExposureMode = normalizeString(raw?.activeExposureMode) === 'stable' ? 'stable' : 'quick';
   return {
+    ...raw,
     ...defaults,
+    schemaVersion: CONFIG_SCHEMA_VERSION,
     port: Number.isInteger(raw?.port) && raw.port > 0 ? raw.port : defaults.port,
-    authProvider: normalizeString(raw?.authProvider) === 'external' ? 'external' : 'builtin',
-    publicBaseUrl: normalizeString(raw?.publicBaseUrl).replace(/\/+$/, ''),
-    authIssuer: normalizeString(raw?.authIssuer),
-    authAudience: normalizeString(raw?.authAudience),
+    activeExposureMode,
+    quickTunnel: {
+      enabled: raw?.quickTunnel?.enabled !== false,
+    },
+    stableTunnel: {
+      ...defaults.stableTunnel,
+      ...stableRaw,
+      configured: stableConfigured,
+      publicOrigin,
+      canonicalResource,
+      hostname: normalizeString(stableRaw.hostname || (() => {
+        try { return publicOrigin ? new URL(publicOrigin).hostname : ''; } catch { return ''; }
+      })()),
+      cloudflareTunnelName,
+      cloudflareTunnelId: normalizeString(stableRaw.cloudflareTunnelId),
+      cloudflareConfigPath,
+      cloudflareCredentialsPath: normalizeString(stableRaw.cloudflareCredentialsPath),
+      cloudflaredPath,
+      autoStart: stableRaw.autoStart === true,
+    },
+    oauth: {
+      ...defaults.oauth,
+      ...oauthRaw,
+      provider: authProvider,
+      issuer: authIssuer,
+      audience: authAudience,
+      requiredScopes: requiredScopes.length ? requiredScopes : defaults.requiredScopes,
+    },
+    authProvider,
+    publicBaseUrl: publicOrigin,
+    authIssuer,
+    authAudience,
     requiredScopes: requiredScopes.length ? requiredScopes : defaults.requiredScopes,
-    cloudflareTunnelName: normalizeString(raw?.cloudflareTunnelName),
-    cloudflareConfigPath: normalizeString(raw?.cloudflareConfigPath),
-    cloudflaredPath: normalizeString(raw?.cloudflaredPath),
+    cloudflareTunnelName,
+    cloudflareConfigPath,
+    cloudflaredPath,
     updatedAt: normalizeString(raw?.updatedAt) || null,
   };
 }
 
 function loadConfig(options = {}) {
-  return normalizeConfig(readJsonIfExists(resolveConfigPath(options.elegyHome || options.elegyHomeAbs)) || {});
+  const configPath = resolveConfigPath(options.elegyHome || options.elegyHomeAbs);
+  const raw = readJsonIfExists(configPath) || {};
+  const config = normalizeConfig(raw);
+  if (Object.keys(raw).length > 0 && raw.schemaVersion !== CONFIG_SCHEMA_VERSION) {
+    const backupPath = path.join(path.dirname(configPath), 'config.v1.backup.json');
+    if (!fs.existsSync(backupPath)) writeJsonAtomic(backupPath, raw);
+    writeJsonAtomic(configPath, config);
+  }
+  return config;
 }
 
 function saveConfig(options = {}) {
   const elegyHome = resolveElegyHome(options.elegyHome || options.elegyHomeAbs);
-  const config = normalizeConfig({ ...loadConfig({ elegyHome }), ...options.config, updatedAt: new Date().toISOString() });
+  const current = loadConfig({ elegyHome });
+  const incoming = options.config && typeof options.config === 'object' ? options.config : {};
+  const stableTunnel = {
+    ...current.stableTunnel,
+    ...(incoming.stableTunnel && typeof incoming.stableTunnel === 'object' ? incoming.stableTunnel : {}),
+  };
+  if (Object.hasOwn(incoming, 'publicBaseUrl')) stableTunnel.publicOrigin = incoming.publicBaseUrl;
+  if (Object.hasOwn(incoming, 'cloudflareTunnelName')) stableTunnel.cloudflareTunnelName = incoming.cloudflareTunnelName;
+  if (Object.hasOwn(incoming, 'cloudflareConfigPath')) stableTunnel.cloudflareConfigPath = incoming.cloudflareConfigPath;
+  if (Object.hasOwn(incoming, 'cloudflaredPath')) stableTunnel.cloudflaredPath = incoming.cloudflaredPath;
+  const oauth = {
+    ...current.oauth,
+    ...(incoming.oauth && typeof incoming.oauth === 'object' ? incoming.oauth : {}),
+  };
+  if (Object.hasOwn(incoming, 'authProvider')) oauth.provider = incoming.authProvider;
+  if (Object.hasOwn(incoming, 'authIssuer')) oauth.issuer = incoming.authIssuer;
+  if (Object.hasOwn(incoming, 'authAudience')) oauth.audience = incoming.authAudience;
+  if (Object.hasOwn(incoming, 'requiredScopes')) oauth.requiredScopes = incoming.requiredScopes;
+  const config = normalizeConfig({
+    ...current,
+    ...incoming,
+    stableTunnel,
+    oauth,
+    updatedAt: new Date().toISOString(),
+  });
   writeJsonAtomic(resolveConfigPath(elegyHome), config);
   return config;
 }
@@ -373,7 +478,25 @@ function getStatus(options = {}) {
   const audienceEffective = getEffectiveAuthAudience(config);
   const issuerEffective = getEffectiveAuthIssuer(config);
   const securityState = computeSecurityState(config, serverRunning, tunnelRunning);
-  const chatGptReady = Boolean(serverRunning && tunnelRunning && tunnelMode === 'quick' && quickConnectorUrl && mcpLastProbe?.ok);
+  const stableConfigured = Boolean(config.stableTunnel?.configured);
+  const stableUrl = config.stableTunnel?.canonicalResource || connectorUrlFromBase(config.publicBaseUrl);
+  const exposureMode = tunnelRunning && tunnelMode === 'quick'
+    ? 'quick'
+    : stableConfigured ? 'stable' : 'none';
+  const quickReady = Boolean(serverRunning && tunnelRunning && tunnelMode === 'quick' && quickConnectorUrl && mcpLastProbe?.ok);
+  // The current stable probe proves discovery metadata only. It must not be
+  // promoted to ChatGPT-ready until the full OAuth flow is exercised.
+  const stableOnline = Boolean(serverRunning && tunnelRunning && tunnelMode === 'named');
+  const lifecycleState = exposureMode === 'quick'
+    ? (quickReady ? 'quick_ready' : 'stopped')
+    : !stableConfigured
+      ? 'not_configured'
+      : !stableOnline
+        ? 'configured_offline'
+        : mcpLastProbe?.ok
+          ? 'online_unverified'
+          : 'degraded';
+  const chatGptReady = quickReady;
   const cloudflared = getCloudflaredStatus(config);
   return {
     config,
@@ -396,11 +519,14 @@ function getStatus(options = {}) {
     probe: mcpLastProbe,
     securityState,
     chatGptAccess: {
-      mode: 'quick-cloudflare',
+      mode: exposureMode,
+      configured: exposureMode === 'quick' ? true : stableConfigured,
+      online: exposureMode === 'quick' ? quickReady : stableOnline,
       ready: chatGptReady,
-      url: chatGptReady ? quickConnectorUrl : '',
-      auth: 'none',
-      urlStable: false,
+      url: exposureMode === 'quick' ? (quickReady ? quickConnectorUrl : '') : stableUrl,
+      auth: exposureMode === 'stable' ? 'oauth' : 'none',
+      urlStable: exposureMode === 'stable',
+      lifecycleState,
       blocker: cloudflared.available ? '' : 'cloudflared is required before exposing Local Repo Reader to ChatGPT.',
     },
     prerequisites: {
@@ -412,6 +538,37 @@ function getStatus(options = {}) {
         audienceEffective,
       },
       chatGptAccessReady: chatGptReady,
+    },
+  };
+}
+
+function validateStableConfiguration(options = {}) {
+  const config = loadConfig(options);
+  validateOAuthConfig(config);
+  let publicUrl;
+  try {
+    publicUrl = new URL(config.publicBaseUrl);
+  } catch {
+    throw Object.assign(new Error('publicBaseUrl must be a valid HTTPS origin'), { statusCode: 400 });
+  }
+  if (publicUrl.protocol !== 'https:' || publicUrl.pathname !== '/' || publicUrl.search || publicUrl.hash) {
+    throw Object.assign(new Error('publicBaseUrl must be an HTTPS origin without a path, query, or fragment'), { statusCode: 400 });
+  }
+  if (!config.cloudflareTunnelName) {
+    throw Object.assign(new Error('cloudflareTunnelName is required'), { statusCode: 400 });
+  }
+  if (config.cloudflareConfigPath && !fs.existsSync(expandHome(config.cloudflareConfigPath))) {
+    throw Object.assign(new Error('cloudflareConfigPath does not exist'), { statusCode: 400 });
+  }
+  const cloudflared = requireCloudflared(config);
+  return {
+    ...getStatus(options),
+    validation: {
+      ok: true,
+      mode: 'stable',
+      cloudflaredPath: cloudflared,
+      publicOrigin: config.publicBaseUrl,
+      canonicalResource: config.stableTunnel.canonicalResource,
     },
   };
 }
@@ -642,12 +799,26 @@ async function startTunnel(options = {}) {
     throw Object.assign(new Error('cloudflareTunnelName is required for named tunnel mode'), { statusCode: 400 });
   }
   const stableBaseUrl = config.publicBaseUrl.replace(/\/+$/, '');
+  const canonicalResource = connectorUrlFromBase(stableBaseUrl);
   const stableConfig = {
     ...config,
+    activeExposureMode: 'stable',
+    stableTunnel: {
+      ...config.stableTunnel,
+      configured: true,
+      publicOrigin: stableBaseUrl,
+      canonicalResource,
+    },
     authProvider: config.authProvider || 'builtin',
     publicBaseUrl: stableBaseUrl,
     authIssuer: config.authProvider === 'external' ? config.authIssuer : stableBaseUrl,
-    authAudience: config.authProvider === 'external' ? config.authAudience : stableBaseUrl,
+    authAudience: config.authProvider === 'external' ? config.authAudience : canonicalResource,
+    oauth: {
+      ...config.oauth,
+      provider: config.authProvider || 'builtin',
+      issuer: config.authProvider === 'external' ? config.authIssuer : stableBaseUrl,
+      audience: config.authProvider === 'external' ? config.authAudience : canonicalResource,
+    },
   };
   saveConfig({ ...options, config: stableConfig });
   const currentStatus = getStatus(options);
@@ -752,6 +923,7 @@ module.exports = {
   stopServer,
   startTunnel,
   startQuickTunnel,
+  validateStableConfiguration,
   stopTunnel,
   probe,
   getPendingAuthorizations,

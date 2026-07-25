@@ -409,8 +409,8 @@ describe('McpView', () => {
     expect(screen.getByTestId('mcp-config-root-status-instruction-engine')).toHaveTextContent('enabled');
     expect(within(screen.getByTestId('mcp-config-modal')).getByText('ChatGPT Access')).toBeInTheDocument();
     expect(screen.getByTestId('mcp-config-cloudflared-path')).toBeInTheDocument();
-    expect(screen.queryByTestId('mcp-config-public-url')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('mcp-config-tunnel-name')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mcp-config-public-url')).toBeInTheDocument();
+    expect(screen.getByTestId('mcp-config-tunnel-name')).toBeInTheDocument();
     expect(screen.queryByTestId('mcp-config-auth-issuer')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mcp-config-auth-audience')).not.toBeInTheDocument();
 
@@ -419,6 +419,20 @@ describe('McpView', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('mcp-config-modal')).not.toBeInTheDocument();
     });
+  });
+
+  it('shows persistent access separately and keeps it unverified while offline', async () => {
+    render(<McpView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mcp-persistent-access')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Persistent OAuth Tunnel')).toBeInTheDocument();
+    expect(screen.getByTestId('mcp-stable-readiness')).toHaveTextContent('configured — offline');
+    expect(screen.getByTestId('mcp-stable-copy-url')).toBeInTheDocument();
+    expect(screen.getByTestId('mcp-stable-start')).not.toBeDisabled();
+    expect(screen.getByText(/not marked ChatGPT-ready until a complete OAuth authorization probe succeeds/i)).toBeInTheDocument();
   });
 
   it('shows simple ChatGPT connection values in primary configuration', async () => {

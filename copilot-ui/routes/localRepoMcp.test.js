@@ -62,6 +62,7 @@ function makeDeps(body) {
       startServer: () => { state.started = true; return status(); },
       stopServer: async () => { state.started = false; return status(); },
       startTunnel: () => { state.tunnelStarted = true; return status(); },
+      validateStableConfiguration: () => ({ ...status(), validation: { ok: true, mode: 'stable' } }),
       startQuickTunnel: async () => { state.started = true; state.tunnelStarted = true; return status(); },
       stopTunnel: async () => { state.tunnelStarted = false; return status(); },
       probe: async () => ({ ...status(), probe: { ok: true } }),
@@ -97,6 +98,7 @@ test('register exposes local repo MCP routes', () => {
   assert.ok(routes.some((route) => route.method === 'GET' && route.path === '/api/local-repo-mcp/status'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/roots/add'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/start'));
+  assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/stable/validate'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/quick/start'));
   assert.ok(routes.some((route) => route.method === 'GET' && route.path === '/api/local-repo-mcp/oauth/pending'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/oauth/approve'));

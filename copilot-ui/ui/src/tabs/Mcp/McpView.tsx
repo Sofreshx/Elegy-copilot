@@ -10,8 +10,10 @@ import {
   removeLocalRepoMcpRoot,
   saveLocalRepoMcpConfig,
   startLocalRepoMcpQuickTunnel,
+  startLocalRepoMcpTunnel,
   stopLocalRepoMcp,
   stopLocalRepoMcpTunnel,
+  validateLocalRepoMcpStableTunnel,
   type LocalRepoMcpConfig,
   type LocalRepoMcpStatusResponse,
 } from '../../lib/api';
@@ -132,6 +134,9 @@ export default function McpView() {
   const localMcpEndpoint = status?.server.url || `http://127.0.0.1:${config.port}/mcp`;
   const chatGptUrl = status?.chatGptAccess?.url || '';
   const chatGptReady = Boolean(status?.chatGptAccess?.ready && chatGptUrl);
+  const stableConfigured = Boolean(config.stableTunnel?.configured || (config.publicBaseUrl && config.cloudflareTunnelName));
+  const stableUrl = config.stableTunnel?.canonicalResource || (config.publicBaseUrl ? `${config.publicBaseUrl.replace(/\/+$/, '')}/mcp` : '');
+  const stableOnline = status?.chatGptAccess?.mode === 'stable' && Boolean(status.chatGptAccess.online);
   const cloudflaredMissing = Boolean(status?.prerequisites?.cloudflared && !status.prerequisites.cloudflared.available);
   const securityState = error ? 'Error' : status?.securityState || 'Stopped';
   const startChatGptDisabled = mutating || chatGptReady || cloudflaredMissing;
@@ -285,6 +290,49 @@ export default function McpView() {
                       <Button size="sm" variant="secondary" disabled={mutating} onClick={() => setConfiguringProviderId(provider.id)} testId="mcp-configure">Configure</Button>
                     </div>
                   </div>
+                  <div className="mcp-chatgpt-setup" data-testid="mcp-persistent-access">
+                    <div className="mcp-chatgpt-setup-header">
+                      <div>
+                        <h4>Persistent OAuth Tunnel <StatusBadge status="experimental" tone="accent" /></h4>
+                        <p className="assets-tools-item-description">Uses your Cloudflare named tunnel and a stable OAuth-protected endpoint.</p>
+                      </div>
+                      <StatusBadge
+                        status={stableOnline ? 'online — OAuth unverified' : stableConfigured ? 'configured — offline' : 'not configured'}
+                        tone={stableOnline ? 'accent' : 'neutral'}
+                        testId="mcp-stable-readiness"
+                      />
+                    </div>
+                    {stableUrl ? (
+                      <div className="catalog-inline-note mcp-provider-url">
+                        {stableUrl}
+                        <CopyButton text={stableUrl} testId="mcp-stable-copy-url" />
+                      </div>
+                    ) : null}
+                    <p className="catalog-inline-note">
+                      Stable mode is not marked ChatGPT-ready until a complete OAuth authorization probe succeeds.
+                    </p>
+                    <div className="opencode-model-actions">
+                      <Button
+                        size="sm"
+                        disabled={mutating || !stableConfigured}
+                        onClick={() => void mutate(validateLocalRepoMcpStableTunnel)}
+                        testId="mcp-stable-validate"
+                      >
+                        Validate Configuration
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={mutating || !stableConfigured || stableOnline}
+                        onClick={() => void mutate(startLocalRepoMcpTunnel)}
+                        testId="mcp-stable-start"
+                      >
+                        Start Persistent Access
+                      </Button>
+                      <Button size="sm" variant="secondary" disabled={mutating} onClick={() => setConfiguringProviderId(provider.id)} testId="mcp-stable-configure">
+                        {stableConfigured ? 'Edit Configuration' : 'Set Up Persistent Access'}
+                      </Button>
+                    </div>
+                  </div>
                 </article>
               </div>
             ) : (
@@ -334,6 +382,9 @@ function LocalRepoReaderConfigModal({
   const [repoPathInput, setRepoPathInput] = useState('');
   const [repoLabelInput, setRepoLabelInput] = useState('');
   const [cloudflaredPathInput, setCloudflaredPathInput] = useState(config.cloudflaredPath || '');
+  const [publicOriginInput, setPublicOriginInput] = useState(config.stableTunnel?.publicOrigin || config.publicBaseUrl || '');
+  const [tunnelNameInput, setTunnelNameInput] = useState(config.stableTunnel?.cloudflareTunnelName || config.cloudflareTunnelName || '');
+  const [tunnelConfigPathInput, setTunnelConfigPathInput] = useState(config.stableTunnel?.cloudflareConfigPath || config.cloudflareConfigPath || '');
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -413,6 +464,33 @@ function LocalRepoReaderConfigModal({
     await saveLocalRepoMcpConfig({ cloudflaredPath: cloudflaredPathInput.trim() });
   }
 
+  async function saveStableConfiguration() {
+    const publicOrigin = publicOriginInput.trim().replace(/\/+$/, '');
+    const cloudflareTunnelName = tunnelNameInput.trim();
+    await saveLocalRepoMcpConfig({
+      activeExposureMode: 'stable',
+      publicBaseUrl: publicOrigin,
+      authProvider: 'builtin',
+      authIssuer: publicOrigin,
+      authAudience: publicOrigin ? `${publicOrigin}/mcp` : '',
+      cloudflareTunnelName,
+      cloudflareConfigPath: tunnelConfigPathInput.trim(),
+      cloudflaredPath: cloudflaredPathInput.trim(),
+      stableTunnel: {
+        configured: Boolean(publicOrigin && cloudflareTunnelName),
+        publicOrigin,
+        canonicalResource: publicOrigin ? `${publicOrigin}/mcp` : '',
+        hostname: (() => { try { return publicOrigin ? new URL(publicOrigin).hostname : ''; } catch { return ''; } })(),
+        cloudflareTunnelName,
+        cloudflareTunnelId: config.stableTunnel?.cloudflareTunnelId || '',
+        cloudflareConfigPath: tunnelConfigPathInput.trim(),
+        cloudflareCredentialsPath: config.stableTunnel?.cloudflareCredentialsPath || '',
+        cloudflaredPath: cloudflaredPathInput.trim(),
+        autoStart: config.stableTunnel?.autoStart || false,
+      },
+    });
+  }
+
   function handleBackdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) onClose();
   }
@@ -467,6 +545,20 @@ function LocalRepoReaderConfigModal({
                 <span><strong>Stable URL</strong>requires external tunnel setup</span>
               </div>
             </details>
+          </Panel>
+
+          <Panel title="Persistent OAuth Tunnel" subtitle="Experimental advanced configuration" testId="mcp-config-stable">
+            <p className="catalog-inline-note">
+              Bring an existing Cloudflare named tunnel. Validation is local-only in this first slice and does not provision or change Cloudflare resources.
+            </p>
+            <div className="assets-tools-add-panel-form" style={{ marginTop: 12 }}>
+              <FormInput label="Public Origin" testId="mcp-config-public-url" value={publicOriginInput} onValueChange={setPublicOriginInput} placeholder="https://repo-mcp.example.com" />
+              <FormInput label="Tunnel Name" testId="mcp-config-tunnel-name" value={tunnelNameInput} onValueChange={setTunnelNameInput} placeholder="local-repo-mcp" />
+              <FormInput label="Cloudflare Config Path" testId="mcp-config-tunnel-config-path" value={tunnelConfigPathInput} onValueChange={setTunnelConfigPathInput} placeholder="Optional path to config.yml" />
+            </div>
+            <div className="opencode-model-actions" style={{ marginTop: 12 }}>
+              <Button size="sm" disabled={mutating} onClick={() => void onMutate(saveStableConfiguration)} testId="mcp-config-save-stable">Save Persistent Configuration</Button>
+            </div>
           </Panel>
 
           <Panel title="Readable Repositories" subtitle="Registered repos enabled for chatbot reads" testId="mcp-config-roots">

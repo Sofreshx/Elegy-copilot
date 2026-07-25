@@ -3,6 +3,28 @@ import { apiRequest } from './core';
 
 export interface LocalRepoMcpConfig {
   schemaVersion?: number;
+  activeExposureMode?: 'quick' | 'stable';
+  quickTunnel?: { enabled: boolean };
+  stableTunnel?: {
+    configured: boolean;
+    publicOrigin: string;
+    canonicalResource: string;
+    hostname: string;
+    cloudflareTunnelName: string;
+    cloudflareTunnelId: string;
+    cloudflareConfigPath: string;
+    cloudflareCredentialsPath: string;
+    cloudflaredPath: string;
+    autoStart: boolean;
+  };
+  oauth?: {
+    provider: 'builtin' | 'external' | string;
+    issuer: string;
+    audience: string;
+    requiredScopes: string[];
+    accessTokenTtlSeconds?: number;
+    refreshTokenTtlSeconds?: number;
+  };
   authProvider?: 'builtin' | 'external' | string;
   port: number;
   publicBaseUrl: string;
@@ -37,11 +59,14 @@ export interface LocalRepoMcpStatusResponse {
   tunnel: LocalRepoMcpProcessStatus;
   securityState: 'Stopped' | 'Local only' | 'OAuth protected' | 'Misconfigured' | string;
   chatGptAccess?: {
-    mode: 'quick-cloudflare' | string;
+    mode: 'none' | 'quick' | 'stable' | string;
+    configured?: boolean;
+    online?: boolean;
     ready: boolean;
     url: string;
     auth: 'none' | 'oauth' | string;
     urlStable: boolean;
+    lifecycleState?: 'not_configured' | 'configured_offline' | 'starting' | 'online_unverified' | 'oauth_ready' | 'degraded' | 'misconfigured' | 'repair_required' | 'quick_ready' | 'stopped' | string;
     blocker?: string;
   };
   prerequisites?: {
@@ -128,6 +153,10 @@ export function stopLocalRepoMcp(): Promise<LocalRepoMcpStatusResponse> {
 
 export function startLocalRepoMcpTunnel(): Promise<LocalRepoMcpStatusResponse> {
   return apiRequest<LocalRepoMcpStatusResponse>('/api/local-repo-mcp/tunnel/start', { method: 'POST' });
+}
+
+export function validateLocalRepoMcpStableTunnel(): Promise<LocalRepoMcpStatusResponse> {
+  return apiRequest<LocalRepoMcpStatusResponse>('/api/local-repo-mcp/tunnel/stable/validate', { method: 'POST' });
 }
 
 export function startLocalRepoMcpQuickTunnel(): Promise<LocalRepoMcpStatusResponse> {

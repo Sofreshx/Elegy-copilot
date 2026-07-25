@@ -175,6 +175,52 @@ test('status reports missing cloudflared prerequisite', async () => withMissingC
   assert.equal(status.prerequisites.chatGptAccessReady, false);
 }));
 
+test('loadConfig migrates v1 stable fields into v2 profiles with a one-time backup', () => {
+  const ctx = makeContext({
+    schemaVersion: 1,
+    publicBaseUrl: 'https://mcp.example.com/',
+    cloudflareTunnelName: 'local-mcp',
+    cloudflareConfigPath: 'C:\\cloudflared\\config.yml',
+    authProvider: 'builtin',
+    requiredScopes: ['repo:read'],
+    customField: 'preserved',
+  });
+  const manager = loadManager([]);
+
+  const config = manager.loadConfig(ctx);
+  const backupPath = path.join(ctx.elegyHomeAbs, 'local-repo-mcp', 'config.v1.backup.json');
+
+  assert.equal(config.schemaVersion, 2);
+  assert.equal(config.activeExposureMode, 'quick');
+  assert.equal(config.quickTunnel.enabled, true);
+  assert.equal(config.stableTunnel.configured, true);
+  assert.equal(config.stableTunnel.publicOrigin, 'https://mcp.example.com');
+  assert.equal(config.stableTunnel.canonicalResource, 'https://mcp.example.com/mcp');
+  assert.equal(config.oauth.audience, 'https://mcp.example.com/mcp');
+  assert.equal(config.customField, 'preserved');
+  assert.equal(fs.existsSync(backupPath), true);
+  assert.equal(JSON.parse(fs.readFileSync(backupPath, 'utf8')).schemaVersion, 1);
+});
+
+test('status preserves configured stable endpoint while offline without claiming readiness', () => {
+  const ctx = makeContext({
+    publicBaseUrl: 'https://mcp.example.com',
+    cloudflareTunnelName: 'local-mcp',
+  });
+  const manager = loadManager([]);
+
+  const status = manager.getStatus(ctx);
+
+  assert.equal(status.chatGptAccess.mode, 'stable');
+  assert.equal(status.chatGptAccess.configured, true);
+  assert.equal(status.chatGptAccess.online, false);
+  assert.equal(status.chatGptAccess.ready, false);
+  assert.equal(status.chatGptAccess.url, 'https://mcp.example.com/mcp');
+  assert.equal(status.chatGptAccess.auth, 'oauth');
+  assert.equal(status.chatGptAccess.urlStable, true);
+  assert.equal(status.chatGptAccess.lifecycleState, 'configured_offline');
+});
+
 test('startQuickTunnel with blank OAuth config generates no-auth ChatGPT URL', async () => {
   const ctx = makeContext();
   writeConfig(ctx.elegyHomeAbs, { cloudflaredPath: makeCloudflared(ctx) });
@@ -491,10 +537,15 @@ test('startTunnel starts named tunnel and OAuth MCP server with stable URL', asy
   assert.deepEqual(spawnCalls[0].args[1], ['tunnel', 'run', 'local-mcp']);
   assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_PUBLIC_BASE_URL, 'https://mcp.example.com');
   assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_ISSUER, 'https://mcp.example.com');
-  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_AUDIENCE, 'https://mcp.example.com');
+  assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_AUDIENCE, 'https://mcp.example.com/mcp');
   assert.equal(status.tunnel.running, true);
   assert.equal(status.tunnel.mode, 'named');
   assert.equal(status.tunnel.publicUrl, 'https://mcp.example.com/mcp');
   assert.equal(status.connectorUrl, 'https://mcp.example.com/mcp');
   assert.equal(status.securityState, 'OAuth protected');
+  assert.equal(status.chatGptAccess.mode, 'stable');
+  assert.equal(status.chatGptAccess.auth, 'oauth');
+  assert.equal(status.chatGptAccess.urlStable, true);
+  assert.equal(status.chatGptAccess.ready, false);
+  assert.equal(status.chatGptAccess.lifecycleState, 'online_unverified');
 });

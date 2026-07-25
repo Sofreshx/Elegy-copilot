@@ -133,6 +133,17 @@ function register(deps = {}) {
     },
     {
       method: 'POST',
+      path: '/api/local-repo-mcp/tunnel/stable/validate',
+      handler: (ctx) => {
+        try {
+          resolvedDeps.sendJson(ctx.res, 200, resolvedDeps.manager.validateStableConfiguration(ctx));
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
+    {
+      method: 'POST',
       path: '/api/local-repo-mcp/tunnel/start',
       handler: async (ctx) => {
         try {
