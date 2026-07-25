@@ -234,10 +234,10 @@ function validateMarketplaceProjection(marketplaceRoot, pluginNames) {
   }
 }
 
-function flattenPluginList(value) {
+function flattenPluginList(value, keys = ['plugins', 'available', 'installed', 'items']) {
   if (Array.isArray(value)) return value;
   if (!value || typeof value !== 'object') return [];
-  for (const key of ['plugins', 'available', 'installed', 'items']) {
+  for (const key of keys) {
     if (Array.isArray(value[key])) return value[key];
   }
   return [];
@@ -251,8 +251,8 @@ function pluginRecordVersion(record) {
   return typeof record?.version === 'string' ? record.version : null;
 }
 
-function normalizePluginRecords(value) {
-  return flattenPluginList(value)
+function normalizePluginRecords(value, keys) {
+  return flattenPluginList(value, keys)
     .map((record) => ({
       raw: record,
       name: pluginRecordName(record),
@@ -267,8 +267,14 @@ function buildPluginStatus({ marketplaceRoot, pluginNames = DEFAULT_PLUGIN_NAMES
   const metadata = readJson(path.join(marketplaceRoot, INSTALL_METADATA_NAME), null);
   const marketplacePlugins = readMarketplacePlugins(marketplaceRoot);
   const marketplaceByName = new Map(marketplacePlugins.map((plugin) => [plugin.name, plugin]));
-  const installedByName = new Map(normalizePluginRecords(installedJson).map((record) => [record.name, record]));
-  const availableByName = new Map(normalizePluginRecords(availableJson).map((record) => [record.name, record]));
+  const installedByName = new Map(
+    normalizePluginRecords(installedJson, ['installed', 'plugins', 'items', 'available'])
+      .map((record) => [record.name, record]),
+  );
+  const availableByName = new Map(
+    normalizePluginRecords(availableJson, ['available', 'plugins', 'items', 'installed'])
+      .map((record) => [record.name, record]),
+  );
 
   const names = pluginNames && pluginNames.length ? pluginNames : DEFAULT_PLUGIN_NAMES;
   const records = names.map((name) => {
@@ -371,78 +377,84 @@ async function installElegyCodexPlugins(options = {}) {
   }
 
   const marketplaceRoot = resolveMarketplaceRoot(options);
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'elegy-codex-marketplace-'));
-  const archivePath = path.join(tempRoot, archiveName);
-  const staging = path.join(tempRoot, 'staging');
-  fs.writeFileSync(archivePath, archiveBuffer);
-  const extractZip = options.extractZip || extractZipWithShell;
-  extractZip(archivePath, staging, options);
-  if (!fs.existsSync(path.join(staging, '.agents', 'plugins', 'marketplace.json'))) {
-    throw new Error('Elegy Codex marketplace archive is missing .agents/plugins/marketplace.json.');
-  }
-  validateMarketplaceProjection(staging, pluginNames);
-
-  const transaction = replaceDirectory(staging, marketplaceRoot);
+  const marketplaceParent = path.dirname(marketplaceRoot);
+  fs.mkdirSync(marketplaceParent, { recursive: true });
+  const tempRoot = fs.mkdtempSync(path.join(marketplaceParent, '.elegy-codex-marketplace-'));
   try {
-    const releaseTag = options.releaseTag || options.env?.ELEGY_RELEASE_TAG || DEFAULT_RELEASE_TAG;
-    const metadata = {
-      schemaVersion: 'elegy-codex-marketplace-install/v1',
-      marketplaceName: DEFAULT_MARKETPLACE_NAME,
-      releaseTag,
-      target,
-      archiveUrl,
-      checksumUrl,
-      archiveSha256: actualSha256,
-      installedAt: new Date().toISOString(),
-    };
-    const metadataPath = writeInstallMetadata(marketplaceRoot, metadata);
-
-    const marketplaceAdd = runCodex(['plugin', 'marketplace', 'add', marketplaceRoot, '--json'], options);
-    if (!marketplaceAdd.ok) {
-      throw new Error(`Codex marketplace add failed: ${marketplaceAdd.stderr || marketplaceAdd.stdout}`);
+    const archivePath = path.join(tempRoot, archiveName);
+    const staging = path.join(tempRoot, 'staging');
+    fs.writeFileSync(archivePath, archiveBuffer);
+    const extractZip = options.extractZip || extractZipWithShell;
+    extractZip(archivePath, staging, options);
+    if (!fs.existsSync(path.join(staging, '.agents', 'plugins', 'marketplace.json'))) {
+      throw new Error('Elegy Codex marketplace archive is missing .agents/plugins/marketplace.json.');
     }
+    validateMarketplaceProjection(staging, pluginNames);
 
-    const installs = [];
-    for (const pluginName of pluginNames) {
-      const install = runCodex(['plugin', 'add', `${pluginName}@${DEFAULT_MARKETPLACE_NAME}`, '--json'], options);
-      installs.push({ plugin: pluginName, ...install });
-      if (!install.ok) {
-        throw new Error(`Codex plugin add failed for ${pluginName}: ${install.stderr || install.stdout}`);
+    const transaction = replaceDirectory(staging, marketplaceRoot);
+    try {
+      const releaseTag = options.releaseTag || options.env?.ELEGY_RELEASE_TAG || DEFAULT_RELEASE_TAG;
+      const metadata = {
+        schemaVersion: 'elegy-codex-marketplace-install/v1',
+        marketplaceName: DEFAULT_MARKETPLACE_NAME,
+        releaseTag,
+        target,
+        archiveUrl,
+        checksumUrl,
+        archiveSha256: actualSha256,
+        installedAt: new Date().toISOString(),
+      };
+      const metadataPath = writeInstallMetadata(marketplaceRoot, metadata);
+
+      const marketplaceAdd = runCodex(['plugin', 'marketplace', 'add', marketplaceRoot, '--json'], options);
+      if (!marketplaceAdd.ok) {
+        throw new Error(`Codex marketplace add failed: ${marketplaceAdd.stderr || marketplaceAdd.stdout}`);
       }
-    }
 
-    const available = runCodex(['plugin', 'list', '--marketplace', DEFAULT_MARKETPLACE_NAME, '--available', '--json'], options);
-    const installed = runCodex(['plugin', 'list', '--marketplace', DEFAULT_MARKETPLACE_NAME, '--json'], options);
-    const status = buildPluginStatus({
-      marketplaceRoot,
-      pluginNames,
-      installedJson: installed.json,
-      availableJson: available.json,
-      codexError: installed.ok ? null : (installed.stderr || installed.stdout),
-    });
-    const incomplete = status.plugins.filter((plugin) => plugin.status !== 'current' || plugin.enabled !== true);
-    if (!installed.ok || incomplete.length > 0) {
-      const details = incomplete.map((plugin) => `${plugin.plugin}: ${plugin.status}, enabled=${plugin.enabled}`).join('; ');
-      throw new Error(`Codex plugin post-install verification failed${details ? `: ${details}` : ''}`);
-    }
+      const installs = [];
+      for (const pluginName of pluginNames) {
+        const install = runCodex(['plugin', 'add', `${pluginName}@${DEFAULT_MARKETPLACE_NAME}`, '--json'], options);
+        installs.push({ plugin: pluginName, ...install });
+        if (!install.ok) {
+          throw new Error(`Codex plugin add failed for ${pluginName}: ${install.stderr || install.stdout}`);
+        }
+      }
 
-    transaction.commit();
-    return {
-      ok: true,
-      marketplaceName: DEFAULT_MARKETPLACE_NAME,
-      marketplaceRoot,
-      target,
-      archiveSha256: actualSha256,
-      metadataPath,
-      marketplaceAdd,
-      installs,
-      available: available.json,
-      installed: installed.json,
-      status,
-    };
-  } catch (error) {
-    transaction.rollback();
-    throw error;
+      const available = runCodex(['plugin', 'list', '--marketplace', DEFAULT_MARKETPLACE_NAME, '--available', '--json'], options);
+      const installed = runCodex(['plugin', 'list', '--marketplace', DEFAULT_MARKETPLACE_NAME, '--json'], options);
+      const status = buildPluginStatus({
+        marketplaceRoot,
+        pluginNames,
+        installedJson: installed.json,
+        availableJson: available.json,
+        codexError: installed.ok ? null : (installed.stderr || installed.stdout),
+      });
+      const incomplete = status.plugins.filter((plugin) => plugin.status !== 'current' || plugin.enabled !== true);
+      if (!installed.ok || incomplete.length > 0) {
+        const details = incomplete.map((plugin) => `${plugin.plugin}: ${plugin.status}, enabled=${plugin.enabled}`).join('; ');
+        throw new Error(`Codex plugin post-install verification failed${details ? `: ${details}` : ''}`);
+      }
+
+      transaction.commit();
+      return {
+        ok: true,
+        marketplaceName: DEFAULT_MARKETPLACE_NAME,
+        marketplaceRoot,
+        target,
+        archiveSha256: actualSha256,
+        metadataPath,
+        marketplaceAdd,
+        installs,
+        available: available.json,
+        installed: installed.json,
+        status,
+      };
+    } catch (error) {
+      transaction.rollback();
+      throw error;
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 }
 

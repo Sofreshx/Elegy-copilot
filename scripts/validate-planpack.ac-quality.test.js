@@ -234,7 +234,7 @@ test('fail mode passes on valid non-vague AC criteria with minimum bullet count'
   });
 });
 
-test('default warn mode emits warning but preserves compatibility by exiting zero on AC quality issues', () => {
+test('default fail mode rejects AC quality issues, exiting non-zero', () => {
   const planContent = buildPlanPack({
     wuSpecs: [
       buildWuSpec({
@@ -246,10 +246,9 @@ test('default warn mode emits warning but preserves compatibility by exiting zer
 
   withTempPlanFile(planContent, (filePath) => {
     const result = runValidator(filePath);
-    assert.strictEqual(result.status, 0, 'default mode should remain non-failing for AC quality warnings');
-    assert.match(result.stderr, /planpack warning:/i);
-    assert.match(result.stderr, /AC quality warning:/i);
-    assert.match(result.stdout, /planpack ok \(1 work units\)/i);
+    assert.notStrictEqual(result.status, 0, 'default mode should fail for AC quality violations');
+    assert.match(result.stderr, /planpack invalid:/i);
+    assert.match(result.stderr, /AC quality failed: WU-001/i);
   });
 });
 

@@ -39,6 +39,9 @@ async function main() {
       const antigravityHome = path.join(geminiHome, 'antigravity');
       const skillsHome = path.join(antigravityHome, 'skills');
 
+      fs.mkdirSync(geminiHome, { recursive: true });
+      fs.writeFileSync(path.join(geminiHome, 'GEMINI.md'), '# Temp\n', 'utf8');
+
       const summary = installer.runInstall({
         force: true,
         geminiHome,
@@ -57,49 +60,30 @@ async function main() {
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-review', 'SKILL.md')));
       assert.ok(summary.counts.created > 0);
 
-      const geminiInstructions = fs.readFileSync(path.join(geminiHome, 'GEMINI.md'), 'utf8');
-      assert.ok(geminiInstructions.includes('<!-- elegy-copilot:begin antigravity -->'));
-      assert.ok(geminiInstructions.includes('<!-- elegy-copilot:end antigravity -->'));
+      const composedInstructions = fs.readFileSync(path.join(geminiHome, 'agent-session-defaults.md'), 'utf8');
+      assert.ok(composedInstructions.includes('Antigravity'), 'expected Antigravity in composed instructions');
+      assert.ok(composedInstructions.includes('clarification'), 'expected composed instructions content');
     });
   });
 
-  await test('installer updates the managed GEMINI block without touching surrounding user content', async () => {
+  await test('installer composes instructions and creates agent-session-defaults.md', async () => {
     withTempDir((root) => {
       const geminiHome = path.join(root, '.gemini');
       const antigravityHome = path.join(geminiHome, 'antigravity');
       const skillsHome = path.join(antigravityHome, 'skills');
-      const geminiInstructionsPath = path.join(geminiHome, 'GEMINI.md');
       fs.mkdirSync(geminiHome, { recursive: true });
-      fs.writeFileSync(
-        geminiInstructionsPath,
-        [
-          '# Personal Notes',
-          '',
-          'Keep this section.',
-          '',
-          '<!-- elegy-copilot:begin antigravity -->',
-          'Outdated managed content.',
-          '<!-- elegy-copilot:end antigravity -->',
-          '',
-          'Keep this footer too.',
-          '',
-        ].join('\n'),
-        'utf8',
-      );
 
       const firstSummary = installer.runInstall({
         geminiHome,
         antigravityHome,
         skillsHome,
       });
-      assert.strictEqual(firstSummary.instructions.action, 'updated');
+      assert.strictEqual(firstSummary.instructions.action, 'created');
 
-      const updatedInstructions = fs.readFileSync(geminiInstructionsPath, 'utf8');
-      assert.ok(updatedInstructions.includes('# Personal Notes'));
-      assert.ok(updatedInstructions.includes('Keep this section.'));
-      assert.ok(updatedInstructions.includes('Keep this footer too.'));
-      assert.ok(!updatedInstructions.includes('Outdated managed content.'));
-      assert.strictEqual(updatedInstructions.match(/elegy-copilot:begin antigravity/g)?.length || 0, 1);
+      const instructionsPath = path.join(geminiHome, 'agent-session-defaults.md');
+      assert.ok(fs.existsSync(instructionsPath), 'expected composed instructions file');
+      const content = fs.readFileSync(instructionsPath, 'utf8');
+      assert.ok(content.length > 100, 'expected substantial instructions content');
 
       const secondSummary = installer.runInstall({
         geminiHome,

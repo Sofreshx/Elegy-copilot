@@ -46,6 +46,7 @@ test('Elegy plugin marketplace service installs verified archive and calls Codex
     archiveBuffer,
     checksumText: `${sha}  elegy-codex-marketplace-x86_64-pc-windows-msvc.zip`,
     extractZip(_archive, destination) {
+      assert.equal(path.dirname(path.dirname(destination)), path.join(codexHome, 'marketplaces'));
       writeMarketplace(destination);
     },
     spawnSyncImpl(command, args) {
@@ -153,6 +154,21 @@ test('Elegy plugin marketplace status reports notInstalled current and stale', (
     availableJson: { plugins: [{ name: 'elegy-planning', version: '0.1.0+codex.111111111111' }] },
   });
   assert.equal(current.plugins[0].status, 'current');
+
+  const currentCodexSplitShape = marketplace.buildPluginStatus({
+    marketplaceRoot: root,
+    pluginNames: ['elegy-planning'],
+    installedJson: {
+      installed: [{ name: 'elegy-planning', version: '0.1.0+codex.111111111111', installed: true, enabled: true }],
+      available: [],
+    },
+    availableJson: {
+      installed: [{ name: 'elegy-planning', version: '0.1.0+codex.111111111111', installed: true, enabled: true }],
+      available: [],
+    },
+  });
+  assert.equal(currentCodexSplitShape.plugins[0].status, 'current');
+  assert.equal(currentCodexSplitShape.plugins[0].enabled, true);
 
   const stale = marketplace.buildPluginStatus({
     marketplaceRoot: root,

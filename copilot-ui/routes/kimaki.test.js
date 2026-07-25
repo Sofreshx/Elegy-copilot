@@ -5,7 +5,7 @@ const test = require('node:test');
 
 const { register } = require('./kimaki');
 
-test('registers the supported Remote API without legacy destructive routes', () => {
+test('registers the supported Remote API', () => {
   const routes = register({});
   assert.deepEqual(
     routes.map((route) => `${route.method} ${route.path}`),

@@ -4546,19 +4546,6 @@ function handleApi({ req, res, u, elegyHome, sandboxesHome, engineRoot, changeTr
     ? planningDurabilityDependencyGate
     : evaluatePlanningDurabilityDependencyGate({ env: process.env });
 
-  const isMutatingRequest = req.method && !['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase());
-  if (isMutatingRequest) {
-    const policy = getPolicyPreflight(engineRoot);
-    if (!policy.ok) {
-      sendJson(res, 503, {
-        error: 'Policy gate blocked mutating request',
-        code: 'policy_gate_blocked',
-        policy,
-      });
-      return;
-    }
-  }
-
   if (isPlanningDurabilityRoute(pathname) && activePlanningDurabilityDependencyGate.ready !== true) {
     const gateFailure = buildPlanningDurabilityDependencyGateFailure(pathname, req.method, activePlanningDurabilityDependencyGate);
     sendJson(res, gateFailure.statusCode, gateFailure.body);
@@ -4576,6 +4563,19 @@ function handleApi({ req, res, u, elegyHome, sandboxesHome, engineRoot, changeTr
     if (durabilityRouteGate.required && durabilityRouteGate.ready !== true) {
       const gateFailure = buildPlanningDurabilityRouteGateFailure(pathname, req.method, durabilityRouteGate);
       sendJson(res, gateFailure.statusCode, gateFailure.body);
+      return;
+    }
+  }
+
+  const isMutatingRequest = req.method && !['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase());
+  if (isMutatingRequest) {
+    const policy = getPolicyPreflight(engineRoot);
+    if (!policy.ok) {
+      sendJson(res, 503, {
+        error: 'Policy gate blocked mutating request',
+        code: 'policy_gate_blocked',
+        policy,
+      });
       return;
     }
   }

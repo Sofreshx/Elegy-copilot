@@ -1,9 +1,9 @@
 ---
 spec_id: opencode-workers-read-write-role-support
 title: OpenCode Workers Read/Write Role Support
-status: draft
+status: implemented
 type: feature
-updated: 2026-07-07
+updated: 2026-07-16
 ---
 
 # OpenCode Workers Read/Write Role Support
@@ -15,31 +15,49 @@ validation, and implementation. Write-capable workers are opt-in: the global
 write setting and the role write setting must both be enabled before a worker
 role is considered read/write.
 
-## Contract
+## Canonical Contract
 
-- Default config keeps `writeEnabled: false`.
-- Role policies may set a profile and `writeEnabled` per role.
-- `roleProfiles` remains backward-compatible and is derived from role policies.
-- Paid/direct model profiles require `allowPaidModels: true`.
-- Cwd-scoped usage reads `<repo>/.opencode-workers/jobs.jsonl` when a repo path
-  is supplied; otherwise usage falls back to the global worker journal.
-- Usage evidence records permission request counts, denials, write attempts,
-  changed files, and dirty git state when the worker result provides them.
+The runtime contract is owned by the external `elegy-opencode-workers` plugin:
+`docs/write-capable-worker-design.md` in that repository is the authority, and
+its `README.md` ("Guarded Implementation") is the usage summary. This spec is
+the dashboard-side projection.
+
+Shipped contract facts the dashboard relies on:
+
+- Role `implementation` runs only when all four gates pass: config
+  `writeEnabled`, config `roleWrite.implementation`, spawn `writeEnabled`, and
+  a non-empty exact `allowedFiles` list.
+- Default config keeps `writeEnabled: false`; read-only roles are unchanged
+  and deny every permission fail-closed.
+- Paid/direct model profiles require `allowPaidModels: true`; the resolved
+  spawn model is pinned for the whole session.
+- The worker edits a detached git worktree under the worker state root; the
+  caller checkout never changes. Only `edit`/`write`/`apply_patch` requests on
+  exact allowlisted files are approved, always `allow_once`.
+- The job journal lives outside the repository
+  (`~/.elegy/opencode-workers/jobs/<repo-hash>.jsonl`); the legacy
+  `<repo>/.opencode-workers/jobs.jsonl` remains readable for old jobs.
+- A completed job exposes `worktree {path, baseCommit, retainedUntil}`,
+  `changes {files, insertions, deletions, bytes}`,
+  `artifact {patchPath, sha256, manifestPath}`, `writeAttempts`, and the
+  permission decision records. Terminal failures carry `signal` values such as
+  `supervisor_lost` and `watchdog_timeout`.
 
 ## Safety Boundary
 
-The dashboard exposes configuration and evidence for write-capable workers, but
-the external `elegy-opencode-workers` implementation must enforce write-mode
-execution. Write-mode worker jobs are incomplete unless the plugin:
+The dashboard exposes configuration and evidence for write-capable workers;
+the external `elegy-opencode-workers` plugin enforces write-mode execution:
 
-- rejects write mode when config disables it;
-- runs only inside the provided cwd/repo scope;
+- rejects write mode when any gate disables it;
+- runs implementation jobs only inside the managed worktree for the cwd/repo;
 - surfaces permission requests and decisions;
-- reports changed files or git dirty-state evidence;
-- fails denied, unknown, or unmediated permission requests.
+- reports changed files, artifact hashes, and dirty git-state evidence;
+- fails denied, unknown, or unmediated permission requests as
+  `policy_violation`.
 
-Codex remains responsible for requirements, approvals, integration, validation,
-and final acceptance.
+Codex remains responsible for requirements, approvals, patch application,
+integration, validation, and final acceptance; the worker never runs shell,
+never spawns subagents, and never commits or publishes.
 
 ## Validation
 
