@@ -7,7 +7,24 @@ import type { OAuthConfig } from './config.js';
 const KEY_ID = 'local-repo-mcp-local-key';
 const AUTH_TTL_MS = 10 * 60 * 1000;
 const CODE_TTL_MS = 2 * 60 * 1000;
-const TOKEN_TTL_SECONDS = 60 * 60;
+type RegisteredClient = {
+  clientId: string;
+  clientName: string;
+  redirectUris: string[];
+  createdAt: string;
+};
+
+type RefreshTokenGrant = {
+  tokenHash: string;
+  familyId: string;
+  clientId: string;
+  scope: string;
+  resource: string;
+  issuedAt: string;
+  expiresAt: string;
+  rotatedAt?: string;
+  revokedAt?: string;
+};
 
 type PendingAuthorization = {
   id: string;
@@ -29,6 +46,8 @@ type PendingAuthorization = {
 
 type OAuthStore = {
   pending: PendingAuthorization[];
+  clients: RegisteredClient[];
+  refreshTokens: RefreshTokenGrant[];
 };
 
 export class LocalOAuthError extends Error {
@@ -54,8 +73,9 @@ function storePath(config: OAuthConfig): string {
 function writeJsonAtomic(filePath: string, value: unknown): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tempPath = path.join(path.dirname(filePath), `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`);
-  fs.writeFileSync(tempPath, JSON.stringify(value, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(tempPath, JSON.stringify(value, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
   fs.renameSync(tempPath, filePath);
+  try { fs.chmodSync(filePath, 0o600); } catch { /* Windows ACLs are managed by the user profile. */ }
 }
 
 async function loadPrivateJwk(config: OAuthConfig): Promise<JWK> {
@@ -82,12 +102,16 @@ export async function getPublicJwks(config: OAuthConfig): Promise<{ keys: JWK[] 
 
 function loadStore(config: OAuthConfig): OAuthStore {
   const filePath = storePath(config);
-  if (!fs.existsSync(filePath)) return { pending: [] };
+  if (!fs.existsSync(filePath)) return { pending: [], clients: [], refreshTokens: [] };
   try {
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')) as OAuthStore;
-    return { pending: Array.isArray(parsed.pending) ? parsed.pending : [] };
+    return {
+      pending: Array.isArray(parsed.pending) ? parsed.pending : [],
+      clients: Array.isArray(parsed.clients) ? parsed.clients : [],
+      refreshTokens: Array.isArray(parsed.refreshTokens) ? parsed.refreshTokens : [],
+    };
   } catch {
-    return { pending: [] };
+    return { pending: [], clients: [], refreshTokens: [] };
   }
 }
 
@@ -98,7 +122,8 @@ function saveStore(config: OAuthConfig, store: OAuthStore): void {
     const expiry = entry.codeExpiresAt || entry.expiresAt;
     return Date.parse(expiry) > now;
   });
-  writeJsonAtomic(storePath(config), { pending });
+  const refreshTokens = store.refreshTokens.filter((entry) => Date.parse(entry.expiresAt) > now);
+  writeJsonAtomic(storePath(config), { pending, clients: store.clients, refreshTokens });
 }
 
 function requestedScopes(scope: string): string[] {
@@ -121,11 +146,54 @@ export function buildAuthorizationServerMetadata(config: OAuthConfig) {
     token_endpoint: `${config.issuer}/oauth/token`,
     jwks_uri: `${config.issuer}/.well-known/jwks.json`,
     response_types_supported: ['code'],
-    grant_types_supported: ['authorization_code'],
+    registration_endpoint: `${config.issuer}/oauth/register`,
+    revocation_endpoint: `${config.issuer}/oauth/revoke`,
+    grant_types_supported: ['authorization_code', 'refresh_token'],
     token_endpoint_auth_methods_supported: ['none'],
     code_challenge_methods_supported: ['S256'],
-    client_id_metadata_document_supported: true,
-    scopes_supported: config.requiredScopes,
+    scopes_supported: [...new Set([...config.requiredScopes, 'offline_access'])],
+  };
+}
+
+function assertRedirectUri(value: string): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new LocalOAuthError('invalid_redirect_uri', 'redirect_uris must contain absolute URLs.');
+  }
+  const loopback = (url.hostname === '127.0.0.1' || url.hostname === '[::1]' || url.hostname === 'localhost');
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+    throw new LocalOAuthError('invalid_redirect_uri', 'Redirect URIs must use HTTPS, except loopback HTTP callbacks.');
+  }
+  if (url.hash) throw new LocalOAuthError('invalid_redirect_uri', 'Redirect URIs must not contain fragments.');
+}
+
+export function registerClient(config: OAuthConfig, metadata: Record<string, unknown>) {
+  const redirectUris = Array.isArray(metadata.redirect_uris)
+    ? metadata.redirect_uris.map(String)
+    : [];
+  if (redirectUris.length === 0) throw new LocalOAuthError('invalid_client_metadata', 'redirect_uris is required.');
+  redirectUris.forEach(assertRedirectUri);
+  if (metadata.token_endpoint_auth_method && metadata.token_endpoint_auth_method !== 'none') {
+    throw new LocalOAuthError('invalid_client_metadata', 'Only public clients with token_endpoint_auth_method=none are supported.');
+  }
+  const store = loadStore(config);
+  const client: RegisteredClient = {
+    clientId: crypto.randomUUID(),
+    clientName: String(metadata.client_name || 'MCP client').slice(0, 200),
+    redirectUris: [...new Set(redirectUris)],
+    createdAt: new Date().toISOString(),
+  };
+  store.clients.push(client);
+  saveStore(config, store);
+  return {
+    client_id: client.clientId,
+    client_name: client.clientName,
+    redirect_uris: client.redirectUris,
+    token_endpoint_auth_method: 'none',
+    grant_types: ['authorization_code', 'refresh_token'],
+    response_types: ['code'],
   };
 }
 
@@ -137,13 +205,19 @@ export function createPendingAuthorization(config: OAuthConfig, authorizeUrl: UR
   const scope = authorizeUrl.searchParams.get('scope') || config.requiredScopes.join(' ');
   const codeChallenge = authorizeUrl.searchParams.get('code_challenge') || '';
   const codeChallengeMethod = authorizeUrl.searchParams.get('code_challenge_method') || '';
-  const resource = authorizeUrl.searchParams.get('resource') || config.audience;
+  const resource = authorizeUrl.searchParams.get('resource') || '';
 
   if (responseType !== 'code') throw new LocalOAuthError('unsupported_response_type', 'Only authorization code flow is supported.');
   if (!clientId) throw new LocalOAuthError('invalid_request', 'client_id is required.');
   if (!redirectUri) throw new LocalOAuthError('invalid_request', 'redirect_uri is required.');
+  const registeredClient = loadStore(config).clients.find((entry) => entry.clientId === clientId);
+  if (!registeredClient) throw new LocalOAuthError('unauthorized_client', 'client_id is not registered.', 401);
+  if (!registeredClient.redirectUris.includes(redirectUri)) {
+    throw new LocalOAuthError('invalid_request', 'redirect_uri is not registered for this client.');
+  }
   if (!codeChallenge) throw new LocalOAuthError('invalid_request', 'code_challenge is required.');
   if (codeChallengeMethod !== 'S256') throw new LocalOAuthError('invalid_request', 'code_challenge_method must be S256.');
+  if (!resource) throw new LocalOAuthError('invalid_target', 'resource is required.');
   if (resource !== config.audience) throw new LocalOAuthError('invalid_target', 'resource must match the Local Repo MCP audience.');
   assertAllowedScopes(scope, config);
 
@@ -216,18 +290,95 @@ function verifyPkce(codeVerifier: string, codeChallenge: string): void {
   }
 }
 
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('base64url');
+}
+
+async function issueAccessToken(config: OAuthConfig, clientId: string, scope: string, resource: string) {
+  const privateJwk = await loadPrivateJwk(config);
+  const key = await importJWK(privateJwk, 'RS256');
+  return new SignJWT({ scope, client_id: clientId, resource })
+    .setProtectedHeader({ alg: 'RS256', kid: KEY_ID })
+    .setIssuer(config.issuer)
+    .setAudience(resource)
+    .setSubject('local-user')
+    .setJti(crypto.randomUUID())
+    .setIssuedAt()
+    .setExpirationTime(`${config.accessTokenTtlSeconds}s`)
+    .sign(key);
+}
+
+function createRefreshToken(store: OAuthStore, config: OAuthConfig, grant: Omit<RefreshTokenGrant, 'tokenHash' | 'issuedAt' | 'expiresAt'>) {
+  const token = crypto.randomBytes(48).toString('base64url');
+  const now = new Date();
+  store.refreshTokens.push({
+    ...grant,
+    tokenHash: hashToken(token),
+    issuedAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + config.refreshTokenTtlSeconds * 1000).toISOString(),
+  });
+  return token;
+}
+
+async function exchangeRefreshToken(config: OAuthConfig, form: URLSearchParams) {
+  const refreshToken = form.get('refresh_token') || '';
+  const clientId = form.get('client_id') || '';
+  const resource = form.get('resource') || '';
+  if (!refreshToken || !clientId || !resource) {
+    throw new LocalOAuthError('invalid_request', 'refresh_token, client_id, and resource are required.');
+  }
+  if (resource !== config.audience) throw new LocalOAuthError('invalid_target', 'resource must match the Local Repo MCP audience.');
+  const store = loadStore(config);
+  const grant = store.refreshTokens.find((entry) => entry.tokenHash === hashToken(refreshToken));
+  if (!grant || grant.clientId !== clientId || grant.resource !== resource) {
+    throw new LocalOAuthError('invalid_grant', 'Refresh token is invalid.', 401);
+  }
+  if (grant.rotatedAt || grant.revokedAt) {
+    const now = new Date().toISOString();
+    for (const member of store.refreshTokens) {
+      if (member.familyId === grant.familyId) member.revokedAt = member.revokedAt || now;
+    }
+    saveStore(config, store);
+    throw new LocalOAuthError('invalid_grant', 'Refresh token replay detected; token family revoked.', 401);
+  }
+  if (Date.parse(grant.expiresAt) <= Date.now()) throw new LocalOAuthError('invalid_grant', 'Refresh token expired.', 401);
+  grant.rotatedAt = new Date().toISOString();
+  const nextRefreshToken = createRefreshToken(store, config, {
+    familyId: grant.familyId,
+    clientId,
+    scope: grant.scope,
+    resource,
+  });
+  saveStore(config, store);
+  return {
+    access_token: await issueAccessToken(config, clientId, grant.scope, resource),
+    token_type: 'Bearer',
+    expires_in: config.accessTokenTtlSeconds,
+    refresh_token: nextRefreshToken,
+    scope: grant.scope,
+  };
+}
+
 export async function exchangeAuthorizationCode(config: OAuthConfig, form: URLSearchParams) {
   const grantType = form.get('grant_type') || '';
+  if (grantType === 'refresh_token') return exchangeRefreshToken(config, form);
   const code = form.get('code') || '';
   const redirectUri = form.get('redirect_uri') || '';
   const codeVerifier = form.get('code_verifier') || '';
+  const clientId = form.get('client_id') || '';
+  const resource = form.get('resource') || '';
 
-  if (grantType !== 'authorization_code') throw new LocalOAuthError('unsupported_grant_type', 'Only authorization_code is supported.');
-  if (!code || !redirectUri || !codeVerifier) throw new LocalOAuthError('invalid_request', 'code, redirect_uri, and code_verifier are required.');
+  if (grantType !== 'authorization_code') throw new LocalOAuthError('unsupported_grant_type', 'Grant type is not supported.');
+  if (!code || !redirectUri || !codeVerifier || !clientId || !resource) {
+    throw new LocalOAuthError('invalid_request', 'code, redirect_uri, code_verifier, client_id, and resource are required.');
+  }
+  if (resource !== config.audience) throw new LocalOAuthError('invalid_target', 'resource must match the Local Repo MCP audience.');
 
   const store = loadStore(config);
   const pending = store.pending.find((entry) => entry.code === code && !entry.consumedAt);
   if (!pending || !pending.approvedAt) throw new LocalOAuthError('invalid_grant', 'Authorization code is not approved.', 401);
+  if (pending.clientId !== clientId) throw new LocalOAuthError('invalid_grant', 'client_id does not match authorization request.', 401);
+  if (pending.resource !== resource) throw new LocalOAuthError('invalid_target', 'resource does not match authorization request.', 401);
   if (pending.redirectUri !== redirectUri) throw new LocalOAuthError('invalid_grant', 'redirect_uri does not match authorization request.', 401);
   if (!pending.codeExpiresAt || Date.parse(pending.codeExpiresAt) <= Date.now()) {
     throw new LocalOAuthError('invalid_grant', 'Authorization code expired.', 401);
@@ -235,26 +386,34 @@ export async function exchangeAuthorizationCode(config: OAuthConfig, form: URLSe
   verifyPkce(codeVerifier, pending.codeChallenge);
 
   pending.consumedAt = new Date().toISOString();
+  const scope = requestedScopes(pending.scope).filter((item) => config.requiredScopes.includes(item)).join(' ') || config.requiredScopes.join(' ');
+  const refreshToken = createRefreshToken(store, config, {
+    familyId: crypto.randomUUID(),
+    clientId: pending.clientId,
+    scope,
+    resource: pending.resource,
+  });
   saveStore(config, store);
 
-  const privateJwk = await loadPrivateJwk(config);
-  const key = await importJWK(privateJwk, 'RS256');
-  const scope = requestedScopes(pending.scope).filter((item) => config.requiredScopes.includes(item)).join(' ') || config.requiredScopes.join(' ');
-  const accessToken = await new SignJWT({ scope, client_id: pending.clientId })
-    .setProtectedHeader({ alg: 'RS256', kid: KEY_ID })
-    .setIssuer(config.issuer)
-    .setAudience(config.audience)
-    .setSubject('local-user')
-    .setIssuedAt()
-    .setExpirationTime(`${TOKEN_TTL_SECONDS}s`)
-    .sign(key);
-
   return {
-    access_token: accessToken,
+    access_token: await issueAccessToken(config, pending.clientId, scope, pending.resource),
     token_type: 'Bearer',
-    expires_in: TOKEN_TTL_SECONDS,
+    expires_in: config.accessTokenTtlSeconds,
+    refresh_token: refreshToken,
     scope,
   };
+}
+
+export function revokeToken(config: OAuthConfig, token: string): void {
+  if (!token) return;
+  const store = loadStore(config);
+  const grant = store.refreshTokens.find((entry) => entry.tokenHash === hashToken(token));
+  if (!grant) return;
+  const now = new Date().toISOString();
+  for (const member of store.refreshTokens) {
+    if (member.familyId === grant.familyId) member.revokedAt = member.revokedAt || now;
+  }
+  saveStore(config, store);
 }
 
 export async function verifyLocalJwt(token: string, config: OAuthConfig) {

@@ -44,7 +44,7 @@ function mockReady(overrides: Record<string, unknown> = {}) {
     securityState: 'Stopped',
     probe: null,
     chatGptAccess: {
-      mode: 'quick-cloudflare',
+      mode: 'quick',
       ready: serverRunning && tunnelRunning,
       url: chatGptUrl,
       auth: 'none',
@@ -93,7 +93,7 @@ function mockMissingOAuth() {
     securityState: 'Stopped',
     connectorUrl: '',
     chatGptAccess: {
-      mode: 'quick-cloudflare',
+      mode: 'quick',
       ready: false,
       url: '',
       auth: 'none',
@@ -123,7 +123,7 @@ function mockIssuerOnly() {
     securityState: 'Local only',
     connectorUrl: '',
     chatGptAccess: {
-      mode: 'quick-cloudflare',
+      mode: 'quick',
       ready: false,
       url: '',
       auth: 'none',
@@ -153,7 +153,7 @@ function mockMissingCloudflared() {
     securityState: 'Stopped',
     connectorUrl: '',
     chatGptAccess: {
-      mode: 'quick-cloudflare',
+      mode: 'quick',
       ready: false,
       url: '',
       auth: 'none',
@@ -217,7 +217,7 @@ describe('McpView', () => {
       tunnel: { running: true, pid: 2, mode: 'quick', publicUrl: 'https://sample.trycloudflare.com/mcp' },
       securityState: 'ChatGPT ready',
       chatGptAccess: {
-        mode: 'quick-cloudflare',
+        mode: 'quick',
         ready: true,
         url: 'https://sample.trycloudflare.com/mcp',
         auth: 'none',
@@ -321,7 +321,7 @@ describe('McpView', () => {
       tunnel: { running: true, pid: 2, mode: 'quick', publicUrl: 'https://sample.trycloudflare.com/mcp' },
       securityState: 'ChatGPT ready',
       chatGptAccess: {
-        mode: 'quick-cloudflare',
+        mode: 'quick',
         ready: true,
         url: 'https://sample.trycloudflare.com/mcp',
         auth: 'none',
@@ -347,7 +347,7 @@ describe('McpView', () => {
       tunnel: { running: true, pid: 2, mode: 'quick', publicUrl: 'https://sample.trycloudflare.com/mcp' },
       securityState: 'Misconfigured',
       chatGptAccess: {
-        mode: 'quick-cloudflare',
+        mode: 'quick',
         ready: false,
         url: '',
         auth: 'none',
@@ -379,7 +379,7 @@ describe('McpView', () => {
       tunnel: { running: true, pid: 2, mode: 'quick', publicUrl: 'https://sample.trycloudflare.com/mcp' },
       securityState: 'ChatGPT ready',
       chatGptAccess: {
-        mode: 'quick-cloudflare',
+        mode: 'quick',
         ready: true,
         url: 'https://sample.trycloudflare.com/mcp',
         auth: 'none',

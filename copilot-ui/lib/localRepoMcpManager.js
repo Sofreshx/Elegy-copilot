@@ -441,6 +441,131 @@ async function probeOAuthMetadata(baseUrl) {
   }
 }
 
+async function fetchJson(url, init = {}) {
+  const response = await fetch(url, init);
+  const text = await response.text().catch(() => '');
+  let payload = null;
+  try { payload = text ? JSON.parse(text) : null; } catch { payload = null; }
+  return { response, payload, text };
+}
+
+async function probeOAuthFlow(options = {}) {
+  const config = loadConfig(options);
+  const publicOrigin = config.publicBaseUrl;
+  const resource = config.stableTunnel.canonicalResource;
+  const localOrigin = `http://127.0.0.1:${config.port}`;
+  if (!publicOrigin || !resource) {
+    return { ok: false, code: 'oauth_config_missing', message: 'Persistent OAuth origin and canonical resource are required.' };
+  }
+  try {
+    const protectedResult = await fetchJson(`${publicOrigin}/.well-known/oauth-protected-resource`);
+    if (!protectedResult.response.ok || protectedResult.payload?.resource !== resource) {
+      return { ok: false, code: 'protected_resource_metadata_invalid', status: protectedResult.response.status, message: 'Protected Resource Metadata does not advertise the canonical MCP resource.' };
+    }
+    const authorizationServer = protectedResult.payload?.authorization_servers?.[0];
+    if (!authorizationServer) return { ok: false, code: 'authorization_server_missing', message: 'Protected Resource Metadata has no authorization server.' };
+    const metadataResult = await fetchJson(`${authorizationServer}/.well-known/oauth-authorization-server`);
+    const metadata = metadataResult.payload || {};
+    if (!metadataResult.response.ok || !metadata.registration_endpoint || !metadata.token_endpoint || !metadata.revocation_endpoint) {
+      return { ok: false, code: 'authorization_server_metadata_invalid', status: metadataResult.response.status, message: 'Authorization Server Metadata is incomplete.' };
+    }
+
+    const challengeResponse = await postMcpProbe(resource, 1, 'initialize');
+    if (challengeResponse.status !== 401 || !hasOAuthChallenge(challengeResponse)) {
+      return { ok: false, code: 'oauth_challenge_missing', status: challengeResponse.status, message: 'Unauthenticated MCP request did not return an OAuth bearer challenge.' };
+    }
+
+    const redirectUri = 'https://chatgpt.com/connector/oauth/cb';
+    const registration = await fetchJson(metadata.registration_endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ client_name: 'Elegy OAuth readiness probe', redirect_uris: [redirectUri], token_endpoint_auth_method: 'none' }),
+    });
+    const clientId = registration.payload?.client_id;
+    if (!registration.response.ok || !clientId) {
+      return { ok: false, code: 'client_registration_failed', status: registration.response.status, message: 'Dynamic client registration failed.' };
+    }
+
+    const verifier = crypto.randomBytes(32).toString('base64url');
+    const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+    const authorizeUrl = new URL(metadata.authorization_endpoint);
+    authorizeUrl.search = new URLSearchParams({
+      response_type: 'code',
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      scope: `${config.requiredScopes.join(' ')} offline_access`,
+      state: crypto.randomBytes(16).toString('base64url'),
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+      resource,
+    }).toString();
+    const authorization = await fetch(authorizeUrl);
+    if (!authorization.ok) return { ok: false, code: 'authorization_request_failed', status: authorization.status, message: 'Authorization request failed.' };
+
+    const approvalSecret = getApprovalSecret(options);
+    const pendingResult = await fetchJson(`${localOrigin}/oauth/pending`, {
+      headers: { 'x-local-repo-mcp-approval-secret': approvalSecret },
+    });
+    const pending = Array.isArray(pendingResult.payload?.pending)
+      ? pendingResult.payload.pending.find((entry) => entry.clientId === clientId)
+      : null;
+    if (!pending) return { ok: false, code: 'authorization_pending_missing', message: 'Synthetic authorization request was not found on the local approval channel.' };
+    const approval = await fetchJson(`${localOrigin}/oauth/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-local-repo-mcp-approval-secret': approvalSecret },
+      body: JSON.stringify({ id: pending.id }),
+    });
+    if (!approval.response.ok || !approval.payload?.redirectUrl) {
+      return { ok: false, code: 'authorization_approval_failed', status: approval.response.status, message: 'Synthetic authorization could not be approved.' };
+    }
+    const code = new URL(approval.payload.redirectUrl).searchParams.get('code') || '';
+    const tokenResult = await fetchJson(metadata.token_endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirectUri, code_verifier: verifier, client_id: clientId, resource }),
+    });
+    if (!tokenResult.response.ok || !tokenResult.payload?.access_token || !tokenResult.payload?.refresh_token) {
+      return { ok: false, code: 'token_exchange_failed', status: tokenResult.response.status, message: 'Authorization-code token exchange failed.' };
+    }
+    const refreshResult = await fetchJson(metadata.token_endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: tokenResult.payload.refresh_token, client_id: clientId, resource }),
+    });
+    if (!refreshResult.response.ok || !refreshResult.payload?.access_token || !refreshResult.payload?.refresh_token) {
+      return { ok: false, code: 'refresh_exchange_failed', status: refreshResult.response.status, message: 'Refresh-token rotation failed.' };
+    }
+    const authenticated = await fetch(resource, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json, text/event-stream',
+        authorization: `Bearer ${refreshResult.payload.access_token}`,
+        'content-type': 'application/json',
+      },
+      body: buildMcpProbeBody(3, 'tools/list'),
+    });
+    const authenticatedText = await authenticated.text().catch(() => '');
+    const authenticatedPayload = parseMcpJson(authenticatedText);
+    if (!authenticated.ok || !Array.isArray(authenticatedPayload?.result?.tools)) {
+      return { ok: false, code: 'authenticated_mcp_failed', status: authenticated.status, message: 'Authenticated MCP tools/list failed.' };
+    }
+    await fetch(metadata.revocation_endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token: refreshResult.payload.refresh_token, client_id: clientId }),
+    });
+    return {
+      ok: true,
+      code: 'oauth_flow_ok',
+      status: authenticated.status,
+      message: 'OAuth discovery, PKCE, refresh rotation, revocation, and authenticated MCP access succeeded.',
+      tools: authenticatedPayload.result.tools.map((tool) => normalizeString(tool?.name)).filter(Boolean),
+    };
+  } catch (error) {
+    return { ok: false, code: 'oauth_flow_error', status: null, message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 function escapePowerShellSingleQuoted(value) {
   return String(value || '').replace(/'/g, "''");
 }
@@ -497,16 +622,19 @@ function getStatus(options = {}) {
   // The current stable probe proves discovery metadata only. It must not be
   // promoted to ChatGPT-ready until the full OAuth flow is exercised.
   const stableOnline = Boolean(serverRunning && tunnelRunning && tunnelMode === 'named');
+  const stableReady = Boolean(stableOnline && mcpLastProbe?.ok && mcpLastProbe?.code === 'oauth_flow_ok');
   const lifecycleState = exposureMode === 'quick'
     ? (quickReady ? 'quick_ready' : 'stopped')
     : !stableConfigured
       ? 'not_configured'
       : !stableOnline
         ? 'configured_offline'
-        : mcpLastProbe?.ok
-          ? 'online_unverified'
+        : stableReady
+          ? 'oauth_ready'
+          : mcpLastProbe?.ok
+            ? 'online_unverified'
           : 'degraded';
-  const chatGptReady = quickReady;
+  const chatGptReady = quickReady || stableReady;
   const cloudflared = getCloudflaredStatus(config);
   return {
     config,
@@ -600,6 +728,8 @@ function startServer(options = {}) {
       LOCAL_REPO_MCP_AUTH_AUDIENCE: effectiveAuthAudience,
       LOCAL_REPO_MCP_AUTH_MODE: authEnabled ? 'oauth' : 'disabled',
       LOCAL_REPO_MCP_REQUIRED_SCOPES: config.requiredScopes.join(' '),
+      LOCAL_REPO_MCP_ACCESS_TOKEN_TTL_SECONDS: String(config.oauth.accessTokenTtlSeconds),
+      LOCAL_REPO_MCP_REFRESH_TOKEN_TTL_SECONDS: String(config.oauth.refreshTokenTtlSeconds),
       LOCAL_REPO_MCP_PUBLIC_ACCESS_TOKEN: '',
       LOCAL_REPO_MCP_APPROVAL_SECRET: getApprovalSecret(options),
       ELEGY_HOME: resolveElegyHome(options.elegyHome || options.elegyHomeAbs),
@@ -865,8 +995,11 @@ async function stopTunnel(options = {}) {
 
 async function probe(options = {}) {
   const status = getStatus(options);
-  const probeResult = await probeMcpEndpoint(status.server.url);
-  mcpLastProbe = { ...probeResult, target: status.server.url, checkedAt: new Date().toISOString() };
+  const probeResult = status.chatGptAccess.mode === 'stable' && status.server.running && status.tunnel.running
+    ? await probeOAuthFlow(options)
+    : await probeMcpEndpoint(status.server.url);
+  const target = status.chatGptAccess.mode === 'stable' ? status.chatGptAccess.url : status.server.url;
+  mcpLastProbe = { ...probeResult, target, checkedAt: new Date().toISOString() };
   return {
     ...getStatus(options),
     probe: mcpLastProbe,

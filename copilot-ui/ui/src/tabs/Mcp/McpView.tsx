@@ -6,6 +6,7 @@ import {
   getLocalRepoMcpConfig,
   getLocalRepoMcpPendingAuthorizations,
   getLocalRepoMcpStatus,
+  probeLocalRepoMcp,
   registerCatalogRepo,
   removeLocalRepoMcpRoot,
   saveLocalRepoMcpConfig,
@@ -133,10 +134,11 @@ export default function McpView() {
   const enabledRootCount = access?.repos?.length || 0;
   const localMcpEndpoint = status?.server.url || `http://127.0.0.1:${config.port}/mcp`;
   const chatGptUrl = status?.chatGptAccess?.url || '';
-  const chatGptReady = Boolean(status?.chatGptAccess?.ready && chatGptUrl);
+  const chatGptReady = Boolean(status?.chatGptAccess?.mode === 'quick' && status.chatGptAccess.ready && chatGptUrl);
   const stableConfigured = Boolean(config.stableTunnel?.configured || (config.publicBaseUrl && config.cloudflareTunnelName));
   const stableUrl = config.stableTunnel?.canonicalResource || (config.publicBaseUrl ? `${config.publicBaseUrl.replace(/\/+$/, '')}/mcp` : '');
   const stableOnline = status?.chatGptAccess?.mode === 'stable' && Boolean(status.chatGptAccess.online);
+  const stableReady = stableOnline && status?.chatGptAccess?.lifecycleState === 'oauth_ready';
   const cloudflaredMissing = Boolean(status?.prerequisites?.cloudflared && !status.prerequisites.cloudflared.available);
   const securityState = error ? 'Error' : status?.securityState || 'Stopped';
   const startChatGptDisabled = mutating || chatGptReady || cloudflaredMissing;
@@ -297,8 +299,8 @@ export default function McpView() {
                         <p className="assets-tools-item-description">Uses your Cloudflare named tunnel and a stable OAuth-protected endpoint.</p>
                       </div>
                       <StatusBadge
-                        status={stableOnline ? 'online — OAuth unverified' : stableConfigured ? 'configured — offline' : 'not configured'}
-                        tone={stableOnline ? 'accent' : 'neutral'}
+                        status={stableReady ? 'ChatGPT ready' : stableOnline ? 'online — OAuth unverified' : stableConfigured ? 'configured — offline' : 'not configured'}
+                        tone={stableReady ? 'success' : stableOnline ? 'accent' : 'neutral'}
                         testId="mcp-stable-readiness"
                       />
                     </div>
@@ -309,7 +311,9 @@ export default function McpView() {
                       </div>
                     ) : null}
                     <p className="catalog-inline-note">
-                      Stable mode is not marked ChatGPT-ready until a complete OAuth authorization probe succeeds.
+                      {stableReady
+                        ? 'Full OAuth authorization, refresh rotation, revocation, and authenticated MCP access passed.'
+                        : 'Stable mode is not marked ChatGPT-ready until a complete OAuth authorization probe succeeds.'}
                     </p>
                     <div className="opencode-model-actions">
                       <Button
@@ -327,6 +331,15 @@ export default function McpView() {
                         testId="mcp-stable-start"
                       >
                         Start Persistent Access
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={mutating || !stableOnline}
+                        onClick={() => void mutate(probeLocalRepoMcp)}
+                        testId="mcp-stable-test"
+                      >
+                        Test OAuth Connection
                       </Button>
                       <Button size="sm" variant="secondary" disabled={mutating} onClick={() => setConfiguringProviderId(provider.id)} testId="mcp-stable-configure">
                         {stableConfigured ? 'Edit Configuration' : 'Set Up Persistent Access'}

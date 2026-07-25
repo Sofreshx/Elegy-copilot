@@ -15,21 +15,20 @@ export class AuthError extends Error {
 }
 
 export function buildProtectedResourceMetadata(config: OAuthConfig) {
-  const resource = config.publicBaseUrl || config.audience;
   return {
-    resource,
+    resource: config.audience,
     authorization_servers: config.issuer ? [config.issuer] : [],
     scopes_supported: config.requiredScopes,
     bearer_methods_supported: ['header'],
-    resource_documentation: config.publicBaseUrl ? `${config.publicBaseUrl}/mcp` : undefined,
+    resource_documentation: config.audience || undefined,
   };
 }
 
 export function buildWwwAuthenticate(config: OAuthConfig): string {
   const parts = ['Bearer'];
-  if (config.publicBaseUrl || config.audience) {
-    parts.push(`resource="${config.publicBaseUrl || config.audience}"`);
-    parts.push(`resource_metadata="${config.publicBaseUrl || config.audience}/.well-known/oauth-protected-resource"`);
+  if (config.audience) {
+    parts.push(`resource="${config.audience}"`);
+    parts.push(`resource_metadata="${config.publicBaseUrl}/.well-known/oauth-protected-resource"`);
   }
   if (config.requiredScopes.length > 0) {
     parts.push(`scope="${config.requiredScopes.join(' ')}"`);

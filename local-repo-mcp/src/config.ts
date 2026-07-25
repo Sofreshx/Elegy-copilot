@@ -19,6 +19,8 @@ export type OAuthConfig = {
   publicBaseUrl: string;
   publicAccessToken: string;
   stateDir: string;
+  accessTokenTtlSeconds: number;
+  refreshTokenTtlSeconds: number;
 };
 
 export const PORT = Number.parseInt(process.env.LOCAL_REPO_MCP_PORT || '3333', 10);
@@ -120,5 +122,7 @@ export function getOAuthConfig(): OAuthConfig {
     publicBaseUrl,
     publicAccessToken: (process.env.LOCAL_REPO_MCP_PUBLIC_ACCESS_TOKEN || '').trim(),
     stateDir: resolveOAuthStateDir(),
+    accessTokenTtlSeconds: Number.parseInt(process.env.LOCAL_REPO_MCP_ACCESS_TOKEN_TTL_SECONDS || '3600', 10),
+    refreshTokenTtlSeconds: Number.parseInt(process.env.LOCAL_REPO_MCP_REFRESH_TOKEN_TTL_SECONDS || '2592000', 10),
   };
 }

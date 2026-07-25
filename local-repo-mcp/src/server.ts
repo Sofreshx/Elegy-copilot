@@ -14,6 +14,8 @@ import {
   getAuthorizationStatus,
   getPublicJwks,
   listPendingAuthorizations,
+  registerClient,
+  revokeToken,
 } from './localOAuth.js';
 import { isMcpPathAllowed } from './publicAccess.js';
 import {
@@ -32,6 +34,19 @@ import {
 type ToolArgs = Record<string, unknown>;
 const oauth = getOAuthConfig();
 const approvalSecret = process.env.LOCAL_REPO_MCP_APPROVAL_SECRET || '';
+const oauthRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+function allowOAuthRequest(req: http.IncomingMessage): boolean {
+  const now = Date.now();
+  const key = req.socket.remoteAddress || 'unknown';
+  const current = oauthRateLimits.get(key);
+  if (!current || current.resetAt <= now) {
+    oauthRateLimits.set(key, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  current.count += 1;
+  return current.count <= 60;
+}
 
 function asText(payload: unknown) {
   return {
@@ -286,7 +301,14 @@ function sendJson(res: http.ServerResponse, statusCode: number, payload: unknown
 }
 
 function sendHtml(res: http.ServerResponse, statusCode: number, html: string): void {
-  res.writeHead(statusCode, { 'content-type': 'text/html; charset=utf-8' });
+  res.writeHead(statusCode, {
+    'content-type': 'text/html; charset=utf-8',
+    'cache-control': 'no-store',
+    'content-security-policy': "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    'referrer-policy': 'no-referrer',
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'DENY',
+  });
   res.end(html);
 }
 
@@ -383,11 +405,6 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
-  if (oauth.enabled && oauth.provider === 'builtin' && requestUrl.pathname === '/.well-known/openid-configuration') {
-    sendJson(res, 200, buildAuthorizationServerMetadata(oauth));
-    return;
-  }
-
   if (oauth.enabled && oauth.provider === 'builtin' && requestUrl.pathname === '/.well-known/oauth-authorization-server') {
     sendJson(res, 200, buildAuthorizationServerMetadata(oauth));
     return;
@@ -398,7 +415,29 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
+  if (oauth.enabled && oauth.provider === 'builtin' && req.method === 'POST' && requestUrl.pathname === '/oauth/register') {
+    if (!allowOAuthRequest(req)) {
+      sendJson(res, 429, { error: 'slow_down', error_description: 'Too many OAuth requests.' }, { 'retry-after': '60' });
+      return;
+    }
+    try {
+      const body = JSON.parse(await readBody(req) || '{}') as Record<string, unknown>;
+      sendJson(res, 201, registerClient(oauth, body), { 'cache-control': 'no-store' });
+    } catch (error) {
+      const statusCode = error instanceof LocalOAuthError ? error.statusCode : 400;
+      sendJson(res, statusCode, {
+        error: error instanceof LocalOAuthError ? error.code : 'invalid_client_metadata',
+        error_description: error instanceof Error ? error.message : String(error),
+      }, { 'cache-control': 'no-store' });
+    }
+    return;
+  }
+
   if (oauth.enabled && oauth.provider === 'builtin' && req.method === 'GET' && requestUrl.pathname === '/oauth/authorize') {
+    if (!allowOAuthRequest(req)) {
+      sendJson(res, 429, { error: 'slow_down', error_description: 'Too many OAuth requests.' }, { 'retry-after': '60' });
+      return;
+    }
     try {
       const pending = createPendingAuthorization(oauth, requestUrl);
       sendHtml(res, 200, authorizationHtml(pending));
@@ -439,12 +478,29 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   if (oauth.enabled && oauth.provider === 'builtin' && req.method === 'POST' && requestUrl.pathname === '/oauth/token') {
+    if (!allowOAuthRequest(req)) {
+      sendJson(res, 429, { error: 'slow_down', error_description: 'Too many OAuth requests.' }, { 'retry-after': '60' });
+      return;
+    }
     try {
       const form = new URLSearchParams(await readBody(req));
       sendJson(res, 200, await exchangeAuthorizationCode(oauth, form), { 'cache-control': 'no-store' });
     } catch (error) {
       const statusCode = error instanceof LocalOAuthError ? error.statusCode : 400;
       sendJson(res, statusCode, { error: error instanceof LocalOAuthError ? error.code : 'invalid_grant', error_description: error instanceof Error ? error.message : String(error) }, { 'cache-control': 'no-store' });
+    }
+    return;
+  }
+
+  if (oauth.enabled && oauth.provider === 'builtin' && req.method === 'POST' && requestUrl.pathname === '/oauth/revoke') {
+    try {
+      const form = new URLSearchParams(await readBody(req));
+      revokeToken(oauth, form.get('token') || '');
+      res.writeHead(200, { 'cache-control': 'no-store' });
+      res.end();
+    } catch {
+      res.writeHead(200, { 'cache-control': 'no-store' });
+      res.end();
     }
     return;
   }
