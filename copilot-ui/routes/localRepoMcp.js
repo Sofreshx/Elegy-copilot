@@ -195,6 +195,98 @@ function register(deps = {}) {
       },
     },
     {
+      method: 'GET',
+      path: '/api/local-repo-mcp/tunnel/stable/cloudflare-login',
+      handler: (ctx) => {
+        try {
+          resolvedDeps.sendJson(ctx.res, 200, resolvedDeps.manager.getCloudflareLoginStatus(ctx));
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/local-repo-mcp/tunnel/stable/cloudflare-login',
+      handler: (ctx) => {
+        try {
+          resolvedDeps.sendJson(ctx.res, 200, resolvedDeps.manager.startCloudflareLogin(ctx));
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/local-repo-mcp/tunnel/stable/diagnostics/run',
+      handler: async (ctx) => {
+        try {
+          resolvedDeps.sendJson(ctx.res, 200, await resolvedDeps.manager.runDiagnostics(ctx));
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
+    {
+      method: 'GET',
+      path: '/api/local-repo-mcp/tunnel/stable/diagnostics/export',
+      handler: async (ctx) => {
+        try {
+          resolvedDeps.sendJson(ctx.res, 200, await resolvedDeps.manager.exportDiagnostics(ctx));
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/local-repo-mcp/tunnel/stable/repair/preview',
+      handler: async (ctx) => {
+        try {
+          const body = await resolvedDeps.readJsonBody(ctx.req);
+          resolvedDeps.sendJson(
+            ctx.res,
+            200,
+            resolvedDeps.manager.previewDiagnosticRepair({ ...ctx, repairId: body?.repairId }),
+          );
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/local-repo-mcp/tunnel/stable/repair/confirm',
+      handler: async (ctx) => {
+        try {
+          const body = await resolvedDeps.readJsonBody(ctx.req);
+          resolvedDeps.sendJson(
+            ctx.res,
+            200,
+            await resolvedDeps.manager.confirmDiagnosticRepair({ ...ctx, previewId: body?.previewId }),
+          );
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/local-repo-mcp/tunnel/stable/repair/cancel',
+      handler: async (ctx) => {
+        try {
+          const body = await resolvedDeps.readJsonBody(ctx.req);
+          resolvedDeps.sendJson(
+            ctx.res,
+            200,
+            resolvedDeps.manager.cancelDiagnosticRepair({ ...ctx, previewId: body?.previewId }),
+          );
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
+    {
       method: 'POST',
       path: '/api/local-repo-mcp/tunnel/start',
       handler: async (ctx) => {

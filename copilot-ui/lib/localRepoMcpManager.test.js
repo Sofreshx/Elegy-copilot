@@ -53,6 +53,48 @@ function makeCloudflared(ctx) {
   return executablePath;
 }
 
+function writeManagedStableConfig(ctx, overrides = {}) {
+  const credentialsPath = path.join(ctx.root, 'tunnel-id.json');
+  const cloudflareConfigPath = path.join(ctx.root, 'elegy-local-repo-mcp.yml');
+  const cloudflaredPath = makeCloudflared(ctx);
+  fs.writeFileSync(credentialsPath, '{}', 'utf8');
+  fs.writeFileSync(cloudflareConfigPath, [
+    'tunnel: tunnel-id',
+    `credentials-file: ${JSON.stringify(credentialsPath)}`,
+    'ingress:',
+    '  - hostname: mcp-reader.example.com',
+    '    service: http://127.0.0.1:3333',
+    '  - service: http_status:404',
+  ].join('\n'), 'utf8');
+  writeConfig(ctx.elegyHomeAbs, {
+    schemaVersion: 3,
+    activeExposureMode: 'stable',
+    publicBaseUrl: 'https://mcp-reader.example.com',
+    authProvider: 'builtin',
+    authIssuer: 'https://mcp-reader.example.com',
+    authAudience: 'https://mcp-reader.example.com/mcp',
+    cloudflareTunnelName: 'elegy-local-repo-mcp',
+    cloudflareConfigPath,
+    cloudflaredPath,
+    stableTunnel: {
+      configured: true,
+      publicOrigin: 'https://mcp-reader.example.com',
+      canonicalResource: 'https://mcp-reader.example.com/mcp',
+      hostname: 'mcp-reader.example.com',
+      cloudflareTunnelName: 'elegy-local-repo-mcp',
+      cloudflareTunnelId: 'tunnel-id',
+      cloudflareConfigPath,
+      cloudflareCredentialsPath: credentialsPath,
+      cloudflaredPath,
+      managementMode: 'managed',
+      setupVersion: 1,
+      autoStart: true,
+    },
+    ...overrides,
+  });
+  return { credentialsPath, cloudflareConfigPath, cloudflaredPath };
+}
+
 function loadManager(spawnCalls, onSpawn = null, execFileSyncImpl = () => '') {
   delete require.cache[managerPath];
   childProcess.execFileSync = execFileSyncImpl;
@@ -1094,4 +1136,175 @@ test('intentional stable server restart does not schedule crash recovery', async
   assert.equal(spawnCalls[0].child.killed, false);
   assert.equal(spawnCalls[1].child.killed, true);
   assert.equal(scheduled.length, 0);
+});
+
+test('runDiagnostics stores a six-layer report and exports only redacted allowlisted fields', async () => {
+  const ctx = makeContext();
+  writeManagedStableConfig(ctx);
+  const manager = loadManager([], null, (_command, args) =>
+    args[0] === '--version'
+      ? 'cloudflared version 2026.7.0'
+      : JSON.stringify([{ id: 'tunnel-id', name: 'elegy-local-repo-mcp' }])
+  );
+
+  const report = await manager.runDiagnostics({
+    ...ctx,
+    resolveDns: async () => [{ address: '203.0.113.10', family: 4 }],
+    diagnosticFetch: async (url) => {
+      const target = String(url);
+      const payload = target.endsWith('/.well-known/oauth-protected-resource')
+        ? {
+          resource: 'https://mcp-reader.example.com/mcp',
+          authorization_servers: ['https://mcp-reader.example.com'],
+        }
+        : target.endsWith('/.well-known/oauth-authorization-server')
+          ? {
+            authorization_endpoint: 'https://mcp-reader.example.com/authorize',
+            token_endpoint: 'https://mcp-reader.example.com/token',
+            registration_endpoint: 'https://mcp-reader.example.com/register',
+            revocation_endpoint: 'https://mcp-reader.example.com/revoke',
+          }
+          : {};
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        text: async () => JSON.stringify(payload),
+      };
+    },
+    diagnosticProbeOAuthFlow: async () => ({
+      ok: false,
+      code: 'token_exchange_failed',
+      message: 'Bearer private-token failed at https://mcp-reader.example.com.',
+    }),
+  });
+  const exported = await manager.exportDiagnostics(ctx);
+
+  assert.equal(report.checks.length, 6);
+  assert.equal(report.overall, 'blocked');
+  assert.equal(exported.checks.length, 6);
+  assert.doesNotMatch(JSON.stringify(exported), /private-token|mcp-reader\.example\.com|tunnel-id/);
+  assert.equal(exported.checks.every((check) => check.details === undefined), true);
+});
+
+test('exportDiagnostics requires a previously run report and never starts a probe', async () => {
+  const ctx = makeContext();
+  writeManagedStableConfig(ctx);
+  const manager = loadManager();
+
+  await assert.rejects(
+    () => manager.exportDiagnostics({
+      ...ctx,
+      diagnosticProbeOAuthFlow: async () => {
+        assert.fail('export must not initiate an OAuth probe');
+      },
+    }),
+    (error) => error.statusCode === 409 && error.code === 'diagnostics_not_run'
+  );
+});
+
+test('repair preview and confirmation recreate only the managed DNS route', async () => {
+  const ctx = makeContext();
+  writeManagedStableConfig(ctx);
+  const execCalls = [];
+  const manager = loadManager([], null, (_command, args) => {
+    execCalls.push(args);
+    if (args[0] === '--version') return 'cloudflared version 2026.7.0';
+    if (args[0] === 'tunnel' && args[1] === 'list') {
+      return JSON.stringify([{ id: 'tunnel-id', name: 'elegy-local-repo-mcp' }]);
+    }
+    return '';
+  });
+  await manager.runDiagnostics({
+    ...ctx,
+    resolveDns: async () => { throw new Error('ENOTFOUND'); },
+    diagnosticFetch: async () => { throw new Error('offline'); },
+    diagnosticProbeOAuthFlow: async () => ({ ok: false, code: 'oauth_flow_error' }),
+  });
+
+  const preview = manager.previewDiagnosticRepair({
+    ...ctx,
+    repairId: 'repair_dns_route',
+    previewId: 'repair-preview-1',
+    nowMs: Date.parse('2026-07-25T12:00:00.000Z'),
+  });
+  const result = await manager.confirmDiagnosticRepair({
+    ...ctx,
+    previewId: preview.previewId,
+    nowMs: Date.parse('2026-07-25T12:01:00.000Z'),
+  });
+
+  assert.equal(preview.operations.length, 1);
+  assert.deepEqual(preview.operations[0].args, [
+    'tunnel',
+    'route',
+    'dns',
+    'elegy-local-repo-mcp',
+    'mcp-reader.example.com',
+  ]);
+  assert.equal(result.repair.status, 'completed');
+  assert.equal(execCalls.some((args) => args.join(' ') === 'tunnel route dns elegy-local-repo-mcp mcp-reader.example.com'), true);
+  assert.throws(
+    () => manager.previewDiagnosticRepair({ ...ctx, repairId: 'delete_tunnel' }),
+    (error) => error.code === 'diagnostic_repair_unavailable',
+  );
+});
+
+test('startCloudflareLogin launches one owned cloudflared browser-login process', () => {
+  const ctx = makeContext();
+  writeConfig(ctx.elegyHomeAbs, { cloudflaredPath: makeCloudflared(ctx) });
+  const spawnCalls = [];
+  const manager = loadManager(spawnCalls);
+
+  const started = manager.startCloudflareLogin(ctx);
+  const repeated = manager.startCloudflareLogin(ctx);
+
+  assert.equal(spawnCalls.length, 1);
+  assert.deepEqual(spawnCalls[0].args[1], ['tunnel', 'login']);
+  assert.equal(started.cloudflareLogin.running, true);
+  assert.equal(repeated.cloudflareLogin.pid, started.cloudflareLogin.pid);
+
+  spawnCalls[0].child.exitCode = 0;
+  spawnCalls[0].child.emit('exit', 0, null);
+  const completed = manager.getCloudflareLoginStatus(ctx);
+  assert.equal(completed.cloudflareLogin.running, false);
+  assert.equal(completed.cloudflareLogin.lastExit.code, 0);
+});
+
+test('credentials-path repair updates persisted state and the managed cloudflared config', async () => {
+  const ctx = makeContext();
+  const files = writeManagedStableConfig(ctx);
+  const raw = JSON.parse(fs.readFileSync(path.join(ctx.elegyHomeAbs, 'local-repo-mcp', 'config.json'), 'utf8'));
+  raw.stableTunnel.cloudflareCredentialsPath = path.join(ctx.root, 'missing.json');
+  fs.writeFileSync(path.join(ctx.elegyHomeAbs, 'local-repo-mcp', 'config.json'), JSON.stringify(raw), 'utf8');
+  fs.writeFileSync(files.cloudflareConfigPath, [
+    'tunnel: tunnel-id',
+    `credentials-file: ${JSON.stringify(path.join(ctx.root, 'wrong.json'))}`,
+    'ingress:',
+    '  - hostname: mcp-reader.example.com',
+    '    service: http://127.0.0.1:3333',
+    '  - service: http_status:404',
+  ].join('\n'), 'utf8');
+  const manager = loadManager([], null, (_command, args) =>
+    args[0] === '--version'
+      ? 'cloudflared version 2026.7.0'
+      : JSON.stringify([{ id: 'tunnel-id', name: 'elegy-local-repo-mcp' }])
+  );
+  await manager.runDiagnostics({
+    ...ctx,
+    resolveDns: async () => [{ address: '203.0.113.10', family: 4 }],
+    diagnosticFetch: async () => { throw new Error('offline'); },
+    diagnosticProbeOAuthFlow: async () => ({ ok: false, code: 'oauth_flow_error' }),
+  });
+  const preview = manager.previewDiagnosticRepair({
+    ...ctx,
+    repairId: 'repair_credentials_path',
+    previewId: 'credentials-preview',
+  });
+
+  await manager.confirmDiagnosticRepair({ ...ctx, previewId: preview.previewId });
+  const repaired = manager.loadConfig(ctx);
+
+  assert.equal(repaired.stableTunnel.cloudflareCredentialsPath, files.credentialsPath);
+  assert.equal(fs.readFileSync(files.cloudflareConfigPath, 'utf8').includes(files.credentialsPath), true);
 });

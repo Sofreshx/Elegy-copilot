@@ -10,11 +10,17 @@ const {
   createManagedTunnelProvisioningPreview,
   executeManagedTunnelProvisioning,
   inspectNamedTunnelConfiguration,
+  repairManagedTunnelConfig,
 } = require('./localRepoMcpCloudflare');
+const {
+  createRedactedDiagnosticExport,
+  runPersistentDiagnostics,
+} = require('./localRepoMcpDiagnostics');
 
 const CONFIG_SCHEMA_VERSION = 3;
 const DEFAULT_PORT = 3333;
 const provisioningPreviews = new Map();
+const diagnosticRepairPreviews = new Map();
 const RECOVERY_DELAYS_MS = [1000, 2000, 5000, 10000, 30000];
 
 let mcpProcess = null;
@@ -27,6 +33,9 @@ let mcpLastExit = null;
 let mcpLastProbe = null;
 let mcpLastNotice = '';
 let mcpOutput = { stdout: '', stderr: '' };
+let lastDiagnostics = null;
+let cloudflareLoginProcess = null;
+let cloudflareLoginLastExit = null;
 const MCP_OUTPUT_LIMIT = 4000;
 let managedLifecycle = {
   options: null,
@@ -467,6 +476,47 @@ function confirmManagedTunnelProvisioning(options = {}) {
 function cancelManagedTunnelProvisioning(options = {}) {
   const preview = consumeProvisioningPreview(options);
   return { cancelled: true, previewId: preview.previewId };
+}
+
+function getCloudflareLoginStatus(options = {}) {
+  const config = loadConfig(options);
+  const cloudflared = getCloudflaredStatus(config);
+  return {
+    cloudflareLogin: {
+      available: cloudflared.available,
+      cloudflaredPath: cloudflared.path,
+      running: isRunning(cloudflareLoginProcess),
+      pid: isRunning(cloudflareLoginProcess) ? cloudflareLoginProcess.pid : null,
+      lastExit: cloudflareLoginLastExit,
+      certPath: path.join(os.homedir(), '.cloudflared', 'cert.pem'),
+      loggedIn: fs.existsSync(path.join(os.homedir(), '.cloudflared', 'cert.pem')),
+    },
+  };
+}
+
+function startCloudflareLogin(options = {}) {
+  if (isRunning(cloudflareLoginProcess)) return getCloudflareLoginStatus(options);
+  const config = loadConfig(options);
+  const cloudflaredPath = requireCloudflared(config);
+  cloudflareLoginLastExit = null;
+  const child = spawn(cloudflaredPath, ['tunnel', 'login'], {
+    cwd: options.engineRoot || process.cwd(),
+    env: { ...process.env },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  cloudflareLoginProcess = child;
+  child.stdout?.on('data', () => {});
+  child.stderr?.on('data', () => {});
+  child.on('exit', (code, signal) => {
+    cloudflareLoginLastExit = {
+      code,
+      signal,
+      exitedAt: new Date().toISOString(),
+    };
+    if (cloudflareLoginProcess === child) cloudflareLoginProcess = null;
+  });
+  return getCloudflareLoginStatus(options);
 }
 
 function saveConfig(options = {}) {
@@ -985,6 +1035,196 @@ function validateStableConfiguration(options = {}) {
       ...inspection,
     },
   };
+}
+
+async function runDiagnostics(options = {}) {
+  const config = loadConfig(options);
+  const report = await runPersistentDiagnostics({
+    config,
+    status: getStatus(options),
+    validateConfiguration: () => {
+      const cloudflared = requireCloudflared(config);
+      return inspectNamedTunnelConfiguration(config, cloudflared, { exec: execFileSync });
+    },
+    resolveDns: options.resolveDns,
+    fetch: options.diagnosticFetch || global.fetch,
+    probeOAuthFlow: options.diagnosticProbeOAuthFlow || (() => probeOAuthFlow(options)),
+    now: options.diagnosticNow,
+  });
+  lastDiagnostics = {
+    scope: provisioningScope(options),
+    report,
+  };
+  return report;
+}
+
+async function exportDiagnostics(options = {}) {
+  const stored = lastDiagnostics?.scope === provisioningScope(options) ? lastDiagnostics.report : null;
+  if (!stored) {
+    throw Object.assign(
+      new Error('Run persistent tunnel diagnostics before exporting a report.'),
+      { statusCode: 409, code: 'diagnostics_not_run' }
+    );
+  }
+  return createRedactedDiagnosticExport(stored, loadConfig(options));
+}
+
+function diagnosticRepairOperations(repairId, config) {
+  const stable = config.stableTunnel || {};
+  if (repairId === 'repair_dns_route') {
+    return [{
+      kind: 'command',
+      command: requireCloudflared(config),
+      args: ['tunnel', 'route', 'dns', stable.cloudflareTunnelName, stable.hostname],
+      effect: `Recreates the DNS route for ${stable.hostname}.`,
+    }];
+  }
+  if (repairId === 'repair_managed_config') {
+    return [{
+      kind: 'write-config',
+      path: stable.cloudflareConfigPath,
+      effect: 'Backs up and rewrites only the dedicated Elegy cloudflared ingress config.',
+    }];
+  }
+  if (repairId === 'repair_credentials_path') {
+    return [{
+      kind: 'update-config',
+      path: stable.cloudflareConfigPath,
+      effect: 'Finds the persisted tunnel UUID credentials beside the managed config and updates only its path.',
+    }];
+  }
+  if (repairId === 'repair_approval_secret') {
+    return [{
+      kind: 'rotate-local-secret',
+      effect: 'Stops owned persistent processes, rotates the local approval secret, and restarts them.',
+    }];
+  }
+  if (repairId === 'repair_restart_and_probe') {
+    return [{
+      kind: 'restart-and-probe',
+      effect: 'Restarts owned persistent processes and reruns the full public OAuth probe.',
+    }];
+  }
+  throw new CloudflareConfigError(
+    'diagnostic_repair_unavailable',
+    'The requested diagnostic repair is unavailable or intentionally unsupported.',
+  );
+}
+
+function previewDiagnosticRepair(options = {}) {
+  const repairId = normalizeString(options.repairId);
+  const storedReport = lastDiagnostics?.scope === provisioningScope(options) ? lastDiagnostics.report : null;
+  if (!storedReport?.repairs?.some((repair) => repair.id === repairId)) {
+    throw new CloudflareConfigError(
+      'diagnostic_repair_unavailable',
+      'Run diagnostics again and select one of the currently offered safe repairs.',
+    );
+  }
+  const config = loadConfig(options);
+  if (config.stableTunnel?.managementMode !== 'managed') {
+    throw new CloudflareConfigError(
+      'diagnostic_repair_requires_managed_tunnel',
+      'Automated repair is limited to Elegy-managed persistent tunnels.',
+    );
+  }
+  const previewId = normalizeString(options.previewId) || crypto.randomUUID();
+  const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now();
+  const preview = {
+    previewId,
+    repairId,
+    createdAt: new Date(nowMs).toISOString(),
+    expiresAt: new Date(nowMs + 10 * 60 * 1000).toISOString(),
+    operations: diagnosticRepairOperations(repairId, config),
+  };
+  diagnosticRepairPreviews.set(previewId, {
+    scope: provisioningScope(options),
+    preview,
+  });
+  return preview;
+}
+
+function consumeDiagnosticRepairPreview(options = {}) {
+  const previewId = normalizeString(options.previewId);
+  const stored = diagnosticRepairPreviews.get(previewId);
+  if (!stored || stored.scope !== provisioningScope(options)) {
+    throw new CloudflareConfigError(
+      'diagnostic_repair_preview_not_found',
+      'Diagnostic repair preview was not found or has already been used.',
+    );
+  }
+  diagnosticRepairPreviews.delete(previewId);
+  const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now();
+  if (Date.parse(stored.preview.expiresAt) < nowMs) {
+    throw new CloudflareConfigError(
+      'diagnostic_repair_preview_expired',
+      'Diagnostic repair preview expired. Run diagnostics and review a new preview.',
+    );
+  }
+  return stored.preview;
+}
+
+async function confirmDiagnosticRepair(options = {}) {
+  const preview = consumeDiagnosticRepairPreview(options);
+  let config = loadConfig(options);
+  const stable = config.stableTunnel || {};
+  if (preview.repairId === 'repair_dns_route') {
+    const operation = preview.operations[0];
+    execFileSync(operation.command, operation.args, {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 30000,
+    });
+  } else if (preview.repairId === 'repair_managed_config') {
+    repairManagedTunnelConfig(config);
+  } else if (preview.repairId === 'repair_credentials_path') {
+    const candidate = path.join(
+      path.dirname(stable.cloudflareConfigPath),
+      `${stable.cloudflareTunnelId}.json`,
+    );
+    if (!stable.cloudflareTunnelId || !fs.existsSync(candidate)) {
+      throw new CloudflareConfigError(
+        'cloudflare_credentials_recovery_unavailable',
+        'No unambiguous credentials file exists for the persisted tunnel UUID. Log in to Cloudflare or attach the correct existing credentials.',
+      );
+    }
+    config = saveConfig({
+      ...options,
+      config: { stableTunnel: { cloudflareCredentialsPath: candidate } },
+    });
+    repairManagedTunnelConfig(config);
+  } else if (preview.repairId === 'repair_approval_secret') {
+    await stopTunnel(options);
+    await stopServer(options);
+    const secretPath = resolveApprovalSecretPath(options.elegyHome || options.elegyHomeAbs);
+    if (fs.existsSync(secretPath)) fs.rmSync(secretPath, { force: true });
+    getApprovalSecret(options);
+    await startTunnel(options);
+  } else if (preview.repairId === 'repair_restart_and_probe') {
+    await stopTunnel(options);
+    await stopServer(options);
+    await startTunnel(options);
+    await probe(options);
+  } else {
+    throw new CloudflareConfigError(
+      'diagnostic_repair_unavailable',
+      'The requested diagnostic repair is unavailable or intentionally unsupported.',
+    );
+  }
+  lastDiagnostics = null;
+  return {
+    repair: {
+      id: preview.repairId,
+      status: 'completed',
+      completedAt: new Date().toISOString(),
+    },
+    config,
+    status: getStatus(options),
+  };
+}
+
+function cancelDiagnosticRepair(options = {}) {
+  const preview = consumeDiagnosticRepairPreview(options);
+  return { cancelled: true, previewId: preview.previewId, repairId: preview.repairId };
 }
 
 function setLifecycleStatus(next) {
@@ -1597,6 +1837,13 @@ module.exports = {
   previewManagedTunnelProvisioning,
   confirmManagedTunnelProvisioning,
   cancelManagedTunnelProvisioning,
+  getCloudflareLoginStatus,
+  startCloudflareLogin,
+  runDiagnostics,
+  exportDiagnostics,
+  previewDiagnosticRepair,
+  confirmDiagnosticRepair,
+  cancelDiagnosticRepair,
   computeRecoveryDelay,
   shouldRetryManagedLifecycleError,
   initializeManagedLifecycle,

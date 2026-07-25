@@ -73,6 +73,33 @@ function makeDeps(body) {
         config: state.config,
       }),
       cancelManagedTunnelProvisioning: (_ctx) => ({ cancelled: true, previewId: 'preview-1' }),
+      getCloudflareLoginStatus: () => ({ cloudflareLogin: { available: true, running: false, loggedIn: false } }),
+      startCloudflareLogin: () => ({ cloudflareLogin: { available: true, running: true, loggedIn: false, pid: 42 } }),
+      runDiagnostics: async () => ({
+        schemaVersion: 1,
+        overall: 'blocked',
+        checks: [{ id: 'dns', layer: 'dns', status: 'blocked', code: 'dns_lookup_failed' }],
+        repairs: [{ id: 'repair_dns_route', requiresConfirmation: true }],
+      }),
+      exportDiagnostics: async () => ({
+        schemaVersion: 1,
+        overall: 'blocked',
+        checks: [{ id: 'dns', layer: 'dns', status: 'blocked', code: 'dns_lookup_failed' }],
+        repairs: [{ id: 'repair_dns_route', requiresConfirmation: true }],
+      }),
+      previewDiagnosticRepair: (_ctx) => ({
+        previewId: 'repair-preview-1',
+        repairId: 'repair_dns_route',
+        operations: [{ kind: 'command', command: 'cloudflared', args: ['tunnel', 'route', 'dns'] }],
+      }),
+      confirmDiagnosticRepair: async (_ctx) => ({
+        repair: { id: 'repair_dns_route', status: 'completed' },
+      }),
+      cancelDiagnosticRepair: (_ctx) => ({
+        cancelled: true,
+        previewId: 'repair-preview-1',
+        repairId: 'repair_dns_route',
+      }),
       startQuickTunnel: async () => { state.started = true; state.tunnelStarted = true; return status(); },
       stopTunnel: async () => { state.tunnelStarted = false; return status(); },
       probe: async () => ({ ...status(), probe: { ok: true } }),
@@ -112,9 +139,64 @@ test('register exposes local repo MCP routes', () => {
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/stable/provision/preview'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/stable/provision/confirm'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/stable/provision/cancel'));
+  assert.ok(routes.some((route) => route.method === 'GET' && route.path === '/api/local-repo-mcp/tunnel/stable/cloudflare-login'));
+  assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/stable/cloudflare-login'));
+  assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/stable/diagnostics/run'));
+  assert.ok(routes.some((route) => route.method === 'GET' && route.path === '/api/local-repo-mcp/tunnel/stable/diagnostics/export'));
+  assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/stable/repair/preview'));
+  assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/stable/repair/confirm'));
+  assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/stable/repair/cancel'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/quick/start'));
   assert.ok(routes.some((route) => route.method === 'GET' && route.path === '/api/local-repo-mcp/oauth/pending'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/oauth/approve'));
+});
+
+test('Cloudflare login routes expose status separately from the user-triggered login action', async () => {
+  const routes = register(makeDeps());
+  const status = await invoke(routes, 'GET', '/api/local-repo-mcp/tunnel/stable/cloudflare-login');
+  const started = await invoke(routes, 'POST', '/api/local-repo-mcp/tunnel/stable/cloudflare-login');
+
+  assert.equal(status.body.cloudflareLogin.running, false);
+  assert.equal(started.body.cloudflareLogin.running, true);
+});
+
+test('diagnostic and safe-repair routes keep inspection, preview, and confirmation separate', async () => {
+  const diagnostics = await invoke(
+    register(makeDeps()),
+    'POST',
+    '/api/local-repo-mcp/tunnel/stable/diagnostics/run',
+  );
+  assert.equal(diagnostics.statusCode, 200);
+  assert.equal(diagnostics.body.checks[0].code, 'dns_lookup_failed');
+
+  const exported = await invoke(
+    register(makeDeps()),
+    'GET',
+    '/api/local-repo-mcp/tunnel/stable/diagnostics/export',
+  );
+  assert.equal(exported.statusCode, 200);
+  assert.equal(exported.body.schemaVersion, 1);
+
+  const preview = await invoke(
+    register(makeDeps({ repairId: 'repair_dns_route' })),
+    'POST',
+    '/api/local-repo-mcp/tunnel/stable/repair/preview',
+  );
+  assert.equal(preview.body.previewId, 'repair-preview-1');
+
+  const confirmed = await invoke(
+    register(makeDeps({ previewId: 'repair-preview-1' })),
+    'POST',
+    '/api/local-repo-mcp/tunnel/stable/repair/confirm',
+  );
+  assert.equal(confirmed.body.repair.status, 'completed');
+
+  const cancelled = await invoke(
+    register(makeDeps({ previewId: 'repair-preview-1' })),
+    'POST',
+    '/api/local-repo-mcp/tunnel/stable/repair/cancel',
+  );
+  assert.equal(cancelled.body.cancelled, true);
 });
 
 test('managed provisioning routes keep preview and confirmation separate', async () => {

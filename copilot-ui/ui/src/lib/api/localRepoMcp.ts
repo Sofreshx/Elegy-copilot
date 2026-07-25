@@ -122,6 +122,74 @@ export interface LocalRepoMcpConfigResponse {
   access: LocalRepoReaderAccessState;
 }
 
+export interface LocalRepoMcpCloudflareOperation {
+  kind: string;
+  command?: string;
+  args?: string[];
+  path?: string;
+  effect: string;
+}
+
+export interface LocalRepoMcpProvisioningPreview {
+  previewId: string;
+  createdAt?: string;
+  expiresAt: string;
+  tunnelName?: string;
+  zone?: string;
+  hostname: string;
+  publicOrigin?: string;
+  canonicalResource: string;
+  operations: LocalRepoMcpCloudflareOperation[];
+}
+
+export interface LocalRepoMcpProvisioningResult {
+  provisioning: LocalRepoMcpProvisioningPreview & {
+    tunnelId?: string;
+    configPath?: string;
+    credentialsPath?: string;
+  };
+  config: LocalRepoMcpConfig;
+}
+
+export interface LocalRepoMcpCloudflareLoginResponse {
+  cloudflareLogin: {
+    available: boolean;
+    cloudflaredPath?: string;
+    running: boolean;
+    pid?: number | null;
+    lastExit?: { code?: number | null; signal?: string | null; exitedAt?: string } | null;
+    certPath?: string;
+    loggedIn: boolean;
+  };
+}
+
+export interface LocalRepoMcpDiagnosticReport {
+  schemaVersion: number;
+  generatedAt?: string;
+  overall: 'pass' | 'blocked' | string;
+  checks: Array<{
+    id: string;
+    layer: string;
+    status: 'pass' | 'blocked' | string;
+    code: string;
+    message: string;
+  }>;
+  repairs: Array<{
+    id: string;
+    label: string;
+    description?: string;
+    requiresConfirmation: boolean;
+  }>;
+}
+
+export interface LocalRepoMcpRepairPreview {
+  previewId: string;
+  repairId: string;
+  createdAt?: string;
+  expiresAt?: string;
+  operations: LocalRepoMcpCloudflareOperation[];
+}
+
 export function getLocalRepoMcpStatus(): Promise<LocalRepoMcpStatusResponse> {
   return apiRequest<LocalRepoMcpStatusResponse>('/api/local-repo-mcp/status');
 }
@@ -168,6 +236,74 @@ export function startLocalRepoMcpTunnel(): Promise<LocalRepoMcpStatusResponse> {
 
 export function validateLocalRepoMcpStableTunnel(): Promise<LocalRepoMcpStatusResponse> {
   return apiRequest<LocalRepoMcpStatusResponse>('/api/local-repo-mcp/tunnel/stable/validate', { method: 'POST' });
+}
+
+export function getLocalRepoMcpCloudflareLoginStatus(): Promise<LocalRepoMcpCloudflareLoginResponse> {
+  return apiRequest<LocalRepoMcpCloudflareLoginResponse>('/api/local-repo-mcp/tunnel/stable/cloudflare-login');
+}
+
+export function startLocalRepoMcpCloudflareLogin(): Promise<LocalRepoMcpCloudflareLoginResponse> {
+  return apiRequest<LocalRepoMcpCloudflareLoginResponse>('/api/local-repo-mcp/tunnel/stable/cloudflare-login', {
+    method: 'POST',
+  });
+}
+
+export function previewLocalRepoMcpManagedProvisioning(zone: string): Promise<LocalRepoMcpProvisioningPreview> {
+  return apiRequest<LocalRepoMcpProvisioningPreview>('/api/local-repo-mcp/tunnel/stable/provision/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ zone }),
+  });
+}
+
+export function confirmLocalRepoMcpManagedProvisioning(previewId: string): Promise<LocalRepoMcpProvisioningResult> {
+  return apiRequest<LocalRepoMcpProvisioningResult>('/api/local-repo-mcp/tunnel/stable/provision/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ previewId }),
+  });
+}
+
+export function cancelLocalRepoMcpManagedProvisioning(previewId: string): Promise<{ cancelled: boolean }> {
+  return apiRequest<{ cancelled: boolean }>('/api/local-repo-mcp/tunnel/stable/provision/cancel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ previewId }),
+  });
+}
+
+export function runLocalRepoMcpDiagnostics(): Promise<LocalRepoMcpDiagnosticReport> {
+  return apiRequest<LocalRepoMcpDiagnosticReport>('/api/local-repo-mcp/tunnel/stable/diagnostics/run', {
+    method: 'POST',
+  });
+}
+
+export function exportLocalRepoMcpDiagnostics(): Promise<LocalRepoMcpDiagnosticReport> {
+  return apiRequest<LocalRepoMcpDiagnosticReport>('/api/local-repo-mcp/tunnel/stable/diagnostics/export');
+}
+
+export function previewLocalRepoMcpDiagnosticRepair(repairId: string): Promise<LocalRepoMcpRepairPreview> {
+  return apiRequest<LocalRepoMcpRepairPreview>('/api/local-repo-mcp/tunnel/stable/repair/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repairId }),
+  });
+}
+
+export function confirmLocalRepoMcpDiagnosticRepair(previewId: string): Promise<{ repair: { id: string; status: string } }> {
+  return apiRequest<{ repair: { id: string; status: string } }>('/api/local-repo-mcp/tunnel/stable/repair/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ previewId }),
+  });
+}
+
+export function cancelLocalRepoMcpDiagnosticRepair(previewId: string): Promise<{ cancelled: boolean }> {
+  return apiRequest<{ cancelled: boolean }>('/api/local-repo-mcp/tunnel/stable/repair/cancel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ previewId }),
+  });
 }
 
 export function startLocalRepoMcpQuickTunnel(): Promise<LocalRepoMcpStatusResponse> {

@@ -14614,6 +14614,152 @@ textarea:focus-visible,
   width: min(94vw, 980px);
 }
 
+.mcp-diagnostic-report,
+.mcp-repair-preview,
+.mcp-provisioning-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+}
+
+.mcp-diagnostic-report-header,
+.mcp-repair-option,
+.mcp-setup-steps > li,
+.mcp-setup-step-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.mcp-diagnostic-report h5,
+.mcp-repair-preview h5,
+.mcp-provisioning-preview h5,
+.mcp-repair-options h5 {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.mcp-diagnostic-checks,
+.mcp-repair-options,
+.mcp-setup-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.mcp-diagnostic-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--color-ink-100);
+}
+
+.mcp-diagnostic-check code,
+.mcp-provisioning-preview code,
+.mcp-repair-preview code {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-ink-500);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.mcp-diagnostic-check p,
+.mcp-repair-option p,
+.mcp-setup-steps p,
+.mcp-provisioning-preview p,
+.mcp-repair-preview p {
+  margin: 2px 0 0;
+  color: var(--color-ink-600);
+  font-size: 0.8rem;
+}
+
+.mcp-repair-option {
+  align-items: center;
+  padding: var(--space-xs);
+  border: 1px solid var(--color-ink-100);
+  border-radius: var(--radius-sm);
+}
+
+.mcp-setup-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: setup-step;
+}
+
+.mcp-setup-steps > li {
+  counter-increment: setup-step;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-ink-100);
+  border-radius: var(--radius-sm);
+}
+
+.mcp-setup-steps > li::before {
+  content: counter(setup-step);
+  display: grid;
+  place-items: center;
+  flex: 0 0 1.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--color-ink-100);
+  color: var(--color-ink-700);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.mcp-setup-steps > li > div:first-of-type {
+  flex: 1;
+}
+
+.mcp-setup-step-action {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.mcp-autostart-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+  padding: var(--space-sm);
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.mcp-autostart-toggle span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mcp-autostart-toggle small {
+  color: var(--color-ink-600);
+}
+
+@media (max-width: 720px) {
+  .mcp-chatgpt-setup-header,
+  .mcp-diagnostic-report-header,
+  .mcp-repair-option,
+  .mcp-setup-steps > li {
+    flex-direction: column;
+  }
+
+  .mcp-setup-step-action {
+    align-items: flex-start;
+  }
+}
+
 /* ================================================================== */
 /*  Harness Tab (Codex / OpenCode / Claude asset views)               */
 /* ================================================================== */

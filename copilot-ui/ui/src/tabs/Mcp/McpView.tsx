@@ -3,21 +3,35 @@ import { Button, CopyButton, FormInput, PageContainer, Panel, StatusBadge, Toolb
 import {
   addLocalRepoMcpRoot,
   approveLocalRepoMcpAuthorization,
+  cancelLocalRepoMcpDiagnosticRepair,
+  cancelLocalRepoMcpManagedProvisioning,
+  confirmLocalRepoMcpDiagnosticRepair,
+  confirmLocalRepoMcpManagedProvisioning,
+  exportLocalRepoMcpDiagnostics,
   getCatalogRepos,
+  getLocalRepoMcpCloudflareLoginStatus,
   getLocalRepoMcpConfig,
   getLocalRepoMcpPendingAuthorizations,
   getLocalRepoMcpStatus,
   probeLocalRepoMcp,
+  previewLocalRepoMcpDiagnosticRepair,
+  previewLocalRepoMcpManagedProvisioning,
   registerCatalogRepo,
   removeLocalRepoMcpRoot,
   saveLocalRepoMcpConfig,
+  runLocalRepoMcpDiagnostics,
+  startLocalRepoMcpCloudflareLogin,
   startLocalRepoMcpQuickTunnel,
   startLocalRepoMcpTunnel,
   stopLocalRepoMcp,
   stopLocalRepoMcpTunnel,
   validateLocalRepoMcpStableTunnel,
   type LocalRepoMcpConfig,
+  type LocalRepoMcpCloudflareLoginResponse,
+  type LocalRepoMcpDiagnosticReport,
   type LocalRepoMcpPendingAuthorization,
+  type LocalRepoMcpProvisioningPreview,
+  type LocalRepoMcpRepairPreview,
   type LocalRepoMcpStatusResponse,
 } from '../../lib/api';
 import type { CatalogRepoInventoryEntry, LocalRepoReaderAccessState } from '../../lib/types';
@@ -70,6 +84,9 @@ export default function McpView() {
   const [pendingErrorCode, setPendingErrorCode] = useState<string | null>(null);
   const [pendingAuthorizations, setPendingAuthorizations] = useState<LocalRepoMcpPendingAuthorization[]>([]);
   const [configuringProviderId, setConfiguringProviderId] = useState<string | null>(null);
+  const [diagnosticReport, setDiagnosticReport] = useState<LocalRepoMcpDiagnosticReport | null>(null);
+  const [repairPreview, setRepairPreview] = useState<LocalRepoMcpRepairPreview | null>(null);
+  const [cloudflareLoginState, setCloudflareLoginState] = useState<LocalRepoMcpCloudflareLoginResponse['cloudflareLogin'] | null>(null);
 
   async function loadPendingAuthorizations() {
     try {
@@ -88,16 +105,18 @@ export default function McpView() {
   async function load() {
     setError(null);
     try {
-      const [statusResult, configResult, reposResult] = await Promise.all([
+      const [statusResult, configResult, reposResult, cloudflareLoginResult] = await Promise.all([
         getLocalRepoMcpStatus(),
         getLocalRepoMcpConfig(),
         getCatalogRepos(),
+        getLocalRepoMcpCloudflareLoginStatus().catch(() => null),
       ]);
       const nextConfig = { ...EMPTY_CONFIG, ...configResult.config };
       setStatus(statusResult);
       setConfig(nextConfig);
       setAccess(configResult.access);
       setRepos(reposResult.repos.filter((repo) => repo.repoPath));
+      setCloudflareLoginState(cloudflareLoginResult?.cloudflareLogin || null);
       if (statusResult.securityState === 'OAuth protected') {
         void loadPendingAuthorizations();
       } else {
@@ -142,7 +161,9 @@ export default function McpView() {
   const chatGptUrl = status?.chatGptAccess?.url || '';
   const chatGptReady = Boolean(status?.chatGptAccess?.mode === 'quick' && status.chatGptAccess.ready && chatGptUrl);
   const stableConfigured = Boolean(config.stableTunnel?.configured || (config.publicBaseUrl && config.cloudflareTunnelName));
-  const stableUrl = config.stableTunnel?.canonicalResource || (config.publicBaseUrl ? `${config.publicBaseUrl.replace(/\/+$/, '')}/mcp` : '');
+  const stableUrl = stableConfigured
+    ? config.stableTunnel?.canonicalResource || (config.publicBaseUrl ? `${config.publicBaseUrl.replace(/\/+$/, '')}/mcp` : '')
+    : '';
   const stableOnline = status?.chatGptAccess?.mode === 'stable' && Boolean(status.chatGptAccess.online);
   const stableReady = stableOnline && status?.chatGptAccess?.lifecycleState === 'oauth_ready';
   const cloudflaredMissing = Boolean(status?.prerequisites?.cloudflared && !status.prerequisites.cloudflared.available);
@@ -153,6 +174,40 @@ export default function McpView() {
 
   async function startChatGptAccess() {
     await startLocalRepoMcpQuickTunnel();
+  }
+
+  async function runStableDiagnostics() {
+    const report = await runLocalRepoMcpDiagnostics();
+    setDiagnosticReport(report);
+    setRepairPreview(null);
+  }
+
+  async function previewStableRepair(repairId: string) {
+    setRepairPreview(await previewLocalRepoMcpDiagnosticRepair(repairId));
+  }
+
+  async function confirmStableRepair() {
+    if (!repairPreview) return;
+    await confirmLocalRepoMcpDiagnosticRepair(repairPreview.previewId);
+    setRepairPreview(null);
+    setDiagnosticReport(await runLocalRepoMcpDiagnostics());
+  }
+
+  async function cancelStableRepair() {
+    if (!repairPreview) return;
+    await cancelLocalRepoMcpDiagnosticRepair(repairPreview.previewId);
+    setRepairPreview(null);
+  }
+
+  async function downloadDiagnosticExport() {
+    const exported = await exportLocalRepoMcpDiagnostics();
+    const blob = new Blob([`${JSON.stringify(exported, null, 2)}\n`], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `elegy-local-repo-mcp-diagnostics-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   const provider = useMemo<McpProviderDescriptor>(() => ({
@@ -361,7 +416,98 @@ export default function McpView() {
                         <pre>{status.tunnel.output?.stderr || status.tunnel.output?.stdout || JSON.stringify(status.tunnel.lastExit, null, 2)}</pre>
                       </details>
                     ) : null}
+                    {status?.lifecycle?.message && (stableConfigured || status.lifecycle.code !== 'autostart_disabled') ? (
+                      <p className="catalog-inline-note" data-testid="mcp-stable-lifecycle">
+                        {status.lifecycle.message}
+                      </p>
+                    ) : null}
+                    {diagnosticReport ? (
+                      <section className="mcp-diagnostic-report" data-testid="mcp-diagnostic-report" aria-label="Persistent tunnel diagnostic report">
+                        <div className="mcp-diagnostic-report-header">
+                          <h5>Connection diagnostics</h5>
+                          <StatusBadge
+                            status={diagnosticReport.overall === 'pass' ? 'all checks passed' : 'attention required'}
+                            tone={diagnosticReport.overall === 'pass' ? 'success' : 'danger'}
+                          />
+                        </div>
+                        <div className="mcp-diagnostic-checks">
+                          {diagnosticReport.checks.map((check) => (
+                            <div className="mcp-diagnostic-check" key={check.id}>
+                              <StatusBadge
+                                status={check.status}
+                                tone={check.status === 'pass' ? 'success' : 'danger'}
+                              />
+                              <div>
+                                <strong>{check.layer.replace(/_/g, ' ')}</strong>
+                                <code>{check.code}</code>
+                                <p>{check.message}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {diagnosticReport.repairs.length > 0 ? (
+                          <div className="mcp-repair-options">
+                            <h5>Safe repairs</h5>
+                            {diagnosticReport.repairs.map((repair) => (
+                              <div className="mcp-repair-option" key={repair.id}>
+                                <div>
+                                  <strong>{repair.label}</strong>
+                                  {repair.description ? <p>{repair.description}</p> : null}
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  disabled={mutating || Boolean(repairPreview)}
+                                  onClick={() => void mutate(() => previewStableRepair(repair.id))}
+                                  testId={`mcp-repair-preview-${repair.id}`}
+                                >
+                                  Preview
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </section>
+                    ) : null}
+                    {repairPreview ? (
+                      <section className="mcp-repair-preview" data-testid="mcp-repair-preview">
+                        <h5>Review repair operations</h5>
+                        {repairPreview.operations.map((operation, index) => (
+                          <div className="catalog-inline-note" key={`${operation.kind}-${index}`}>
+                            <strong>{operation.kind.replace(/-/g, ' ')}</strong>
+                            {operation.command ? <code>{[operation.command, ...(operation.args || [])].join(' ')}</code> : null}
+                            <p>{operation.effect}</p>
+                          </div>
+                        ))}
+                        <div className="opencode-model-actions">
+                          <Button size="sm" disabled={mutating} onClick={() => void mutate(confirmStableRepair)} testId="mcp-repair-confirm">
+                            Confirm Repair
+                          </Button>
+                          <Button size="sm" variant="secondary" disabled={mutating} onClick={() => void mutate(cancelStableRepair)} testId="mcp-repair-cancel">
+                            Cancel
+                          </Button>
+                        </div>
+                      </section>
+                    ) : null}
                     <div className="opencode-model-actions">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={mutating || !stableConfigured}
+                        onClick={() => void mutate(runStableDiagnostics)}
+                        testId="mcp-stable-diagnostics-run"
+                      >
+                        Run Diagnostics
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={mutating || !diagnosticReport}
+                        onClick={() => void mutate(downloadDiagnosticExport)}
+                        testId="mcp-stable-diagnostics-export"
+                      >
+                        Export Redacted Report
+                      </Button>
                       <Button
                         size="sm"
                         disabled={mutating || !stableConfigured}
@@ -405,6 +551,7 @@ export default function McpView() {
         <LocalRepoReaderConfigModal
           access={access}
           config={config}
+          initialCloudflareLogin={cloudflareLoginState}
           loading={loading}
           mutating={mutating}
           repos={repos}
@@ -420,6 +567,7 @@ export default function McpView() {
 function LocalRepoReaderConfigModal({
   access,
   config,
+  initialCloudflareLogin,
   loading,
   mutating,
   repos,
@@ -429,6 +577,7 @@ function LocalRepoReaderConfigModal({
 }: {
   access: LocalRepoReaderAccessState | null;
   config: LocalRepoMcpConfig;
+  initialCloudflareLogin: LocalRepoMcpCloudflareLoginResponse['cloudflareLogin'] | null;
   loading: boolean;
   mutating: boolean;
   repos: CatalogRepoInventoryEntry[];
@@ -446,6 +595,9 @@ function LocalRepoReaderConfigModal({
   const [tunnelIdInput, setTunnelIdInput] = useState(config.stableTunnel?.cloudflareTunnelId || '');
   const [tunnelConfigPathInput, setTunnelConfigPathInput] = useState(config.stableTunnel?.cloudflareConfigPath || config.cloudflareConfigPath || '');
   const [tunnelCredentialsPathInput, setTunnelCredentialsPathInput] = useState(config.stableTunnel?.cloudflareCredentialsPath || '');
+  const [managedZoneInput, setManagedZoneInput] = useState('');
+  const [cloudflareLogin, setCloudflareLogin] = useState<LocalRepoMcpCloudflareLoginResponse['cloudflareLogin'] | null>(initialCloudflareLogin);
+  const [provisioningPreview, setProvisioningPreview] = useState<LocalRepoMcpProvisioningPreview | null>(null);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -523,6 +675,49 @@ function LocalRepoReaderConfigModal({
 
   async function saveCloudflaredPath() {
     await saveLocalRepoMcpConfig({ cloudflaredPath: cloudflaredPathInput.trim() });
+  }
+
+  async function beginCloudflareLogin() {
+    const result = await startLocalRepoMcpCloudflareLogin();
+    setCloudflareLogin(result.cloudflareLogin);
+  }
+
+  async function previewManagedSetup() {
+    setProvisioningPreview(await previewLocalRepoMcpManagedProvisioning(managedZoneInput.trim()));
+  }
+
+  async function confirmManagedSetup() {
+    if (!provisioningPreview) return;
+    await confirmLocalRepoMcpManagedProvisioning(provisioningPreview.previewId);
+    setProvisioningPreview(null);
+  }
+
+  async function cancelManagedSetup() {
+    if (!provisioningPreview) return;
+    await cancelLocalRepoMcpManagedProvisioning(provisioningPreview.previewId);
+    setProvisioningPreview(null);
+  }
+
+  async function setStableAutoStart(enabled: boolean) {
+    await saveLocalRepoMcpConfig({
+      stableTunnel: {
+        ...(config.stableTunnel || {
+          configured: false,
+          publicOrigin: '',
+          canonicalResource: '',
+          hostname: '',
+          cloudflareTunnelName: '',
+          cloudflareTunnelId: '',
+          cloudflareConfigPath: '',
+          cloudflareCredentialsPath: '',
+          cloudflaredPath: '',
+          managementMode: 'managed',
+          setupVersion: 0,
+          autoStart: false,
+        }),
+        autoStart: enabled,
+      },
+    });
   }
 
   async function saveStableConfiguration() {
@@ -610,9 +805,106 @@ function LocalRepoReaderConfigModal({
             </details>
           </Panel>
 
-          <Panel title="Persistent OAuth Tunnel" subtitle="Experimental advanced configuration" testId="mcp-config-stable">
+          <Panel title="Managed Persistent OAuth Tunnel" subtitle="Guided Cloudflare Free setup" testId="mcp-managed-setup-wizard">
+            <ol className="mcp-setup-steps">
+              <li>
+                <div>
+                  <strong>Connect Cloudflare</strong>
+                  <p>Cloudflare opens a browser so you can authorize this workstation. Elegy never receives your account password.</p>
+                </div>
+                <div className="mcp-setup-step-action">
+                  <StatusBadge
+                    status={cloudflareLogin?.loggedIn ? 'connected' : cloudflareLogin?.running ? 'waiting for browser' : 'not connected'}
+                    tone={cloudflareLogin?.loggedIn ? 'success' : cloudflareLogin?.running ? 'accent' : 'neutral'}
+                  />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={mutating || cloudflareLogin?.running || cloudflareLogin?.available === false}
+                    onClick={() => void onMutate(beginCloudflareLogin)}
+                    testId="mcp-cloudflare-login-start"
+                  >
+                    {cloudflareLogin?.loggedIn ? 'Reconnect' : 'Connect Cloudflare'}
+                  </Button>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <strong>Choose your existing DNS zone</strong>
+                  <p>Elegy will use <code>mcp-reader.&lt;your-zone&gt;</code>. Named tunnels and DNS routing are available on Cloudflare Free.</p>
+                </div>
+                <FormInput
+                  label="Cloudflare Zone"
+                  testId="mcp-managed-zone"
+                  value={managedZoneInput}
+                  onValueChange={setManagedZoneInput}
+                  placeholder="example.com"
+                />
+              </li>
+              <li>
+                <div>
+                  <strong>Review the exact changes</strong>
+                  <p>The preview expires after ten minutes. Nothing is provisioned until you confirm it.</p>
+                </div>
+                <Button
+                  size="sm"
+                  disabled={mutating || !managedZoneInput.trim() || Boolean(provisioningPreview)}
+                  onClick={() => void onMutate(previewManagedSetup)}
+                  testId="mcp-managed-preview"
+                >
+                  Preview Cloudflare Setup
+                </Button>
+              </li>
+            </ol>
+            {provisioningPreview ? (
+              <section className="mcp-provisioning-preview" data-testid="mcp-managed-preview-details">
+                <div className="mcp-diagnostic-report-header">
+                  <div>
+                    <h5>Frozen provisioning preview</h5>
+                    <p><strong>Endpoint</strong> {provisioningPreview.canonicalResource}</p>
+                  </div>
+                  <StatusBadge status="awaiting confirmation" tone="accent" />
+                </div>
+                {provisioningPreview.operations.map((operation, index) => (
+                  <div className="catalog-inline-note" key={`${operation.kind}-${index}`}>
+                    <strong>{operation.kind.replace(/-/g, ' ')}</strong>
+                    {operation.command ? <code>{[operation.command, ...(operation.args || [])].join(' ')}</code> : null}
+                    <p>{operation.effect}</p>
+                  </div>
+                ))}
+                <p className="catalog-inline-note">
+                  Partial failures preserve any tunnel or DNS resource already created and return a repair path. Elegy never deletes Cloudflare resources automatically.
+                </p>
+                <div className="opencode-model-actions">
+                  <Button size="sm" disabled={mutating} onClick={() => void onMutate(confirmManagedSetup)} testId="mcp-managed-confirm">
+                    Confirm and Provision
+                  </Button>
+                  <Button size="sm" variant="secondary" disabled={mutating} onClick={() => void onMutate(cancelManagedSetup)} testId="mcp-managed-cancel">
+                    Cancel
+                  </Button>
+                </div>
+              </section>
+            ) : null}
+            {config.stableTunnel?.managementMode === 'managed' && config.stableTunnel.setupVersion >= 1 ? (
+              <label className="mcp-autostart-toggle">
+                <input
+                  type="checkbox"
+                  checked={config.stableTunnel.autoStart}
+                  disabled={mutating}
+                  onChange={(event) => void onMutate(() => setStableAutoStart(event.target.checked))}
+                  data-testid="mcp-managed-autostart"
+                />
+                <span>
+                  <strong>Start persistent access with Elegy</strong>
+                  <small>Uses owned-process validation and bounded crash recovery. No Windows service is installed.</small>
+                </span>
+              </label>
+            ) : null}
+          </Panel>
+
+          <Panel title="Attach Existing Persistent Tunnel" subtitle="Manual advanced configuration" testId="mcp-config-stable">
             <p className="catalog-inline-note">
-              Bring an existing Cloudflare named tunnel. Validation is local-only in this first slice and does not provision or change Cloudflare resources.
+              Use this path only when a named tunnel and DNS route already exist. Elegy validates the local config, credentials, ingress, and account-visible tunnel identity.
             </p>
             <div className="assets-tools-add-panel-form" style={{ marginTop: 12 }}>
               <FormInput label="Public Origin" testId="mcp-config-public-url" value={publicOriginInput} onValueChange={setPublicOriginInput} placeholder="https://repo-mcp.example.com" />

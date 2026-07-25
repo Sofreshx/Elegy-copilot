@@ -10,6 +10,7 @@ const {
   createManagedTunnelProvisioningPreview,
   executeManagedTunnelProvisioning,
   inspectNamedTunnelConfiguration,
+  repairManagedTunnelConfig,
   validateIngress,
 } = require('./localRepoMcpCloudflare');
 
@@ -118,4 +119,26 @@ test('preserves a created tunnel and reports repairable state when DNS routing f
   assert.equal(created, true);
   assert.equal(fs.existsSync(path.join(root, 'tunnel-id.json')), true);
   assert.equal(fs.existsSync(configPath), false);
+});
+
+test('managed config repair creates a current backup and rewrites only the dedicated ingress file', () => {
+  const ctx = fixture();
+  ctx.config.stableTunnel.managementMode = 'managed';
+  ctx.config.stableTunnel.hostname = 'repo-mcp.example.com';
+  ctx.config.stableTunnel.cloudflareTunnelId = 'tunnel-id';
+  const configPath = ctx.config.stableTunnel.cloudflareConfigPath;
+  const original = fs.readFileSync(configPath, 'utf8');
+
+  const result = repairManagedTunnelConfig(ctx.config);
+  const repaired = fs.readFileSync(configPath, 'utf8');
+
+  assert.equal(fs.readFileSync(result.backupPath, 'utf8'), original);
+  assert.match(repaired, /tunnel: tunnel-id/);
+  assert.match(repaired, /hostname: repo-mcp\.example\.com/);
+  assert.match(repaired, /service: http:\/\/127\.0\.0\.1:3333/);
+
+  fs.writeFileSync(configPath, 'broken: second-repair\n', 'utf8');
+  const second = repairManagedTunnelConfig(ctx.config);
+  assert.notEqual(second.backupPath, result.backupPath);
+  assert.equal(fs.readFileSync(second.backupPath, 'utf8'), 'broken: second-repair\n');
 });

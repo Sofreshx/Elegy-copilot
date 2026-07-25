@@ -257,6 +257,58 @@ function executeManagedTunnelProvisioning(preview, options = {}) {
   };
 }
 
+function repairManagedTunnelConfig(config) {
+  const stable = config?.stableTunnel || {};
+  if (stable.managementMode !== 'managed') {
+    throw new CloudflareConfigError(
+      'cloudflare_config_repair_unavailable',
+      'Elegy can rewrite only its dedicated managed cloudflared config.',
+    );
+  }
+  const configPath = resolveConfiguredPath(stable.cloudflareConfigPath);
+  const credentialsPath = resolveConfiguredPath(stable.cloudflareCredentialsPath);
+  const tunnelId = normalize(stable.cloudflareTunnelId);
+  const hostname = normalize(stable.hostname);
+  if (!configPath || !credentialsPath || !tunnelId || !hostname) {
+    throw new CloudflareConfigError(
+      'cloudflare_config_repair_incomplete',
+      'Managed tunnel identity, hostname, config path, and credentials path are required for config repair.',
+    );
+  }
+  if (!fs.existsSync(credentialsPath)) {
+    throw new CloudflareConfigError(
+      'cloudflare_credentials_missing',
+      'The managed tunnel credentials file is missing; the config was not rewritten.',
+    );
+  }
+  const preview = {
+    configDir: path.dirname(configPath),
+    configPath,
+    hostname,
+    port: config.port,
+  };
+  const backupBase = `${configPath}.repair-backup-${Date.now()}`;
+  let backupPath = backupBase;
+  let backupIndex = 1;
+  while (fs.existsSync(backupPath)) {
+    backupPath = `${backupBase}-${backupIndex}`;
+    backupIndex += 1;
+  }
+  if (fs.existsSync(configPath)) {
+    fs.copyFileSync(configPath, backupPath, fs.constants.COPYFILE_EXCL);
+  }
+  if (fs.existsSync(configPath)) fs.rmSync(configPath, { force: true });
+  try {
+    writeManagedConfigAtomic(preview, tunnelId, credentialsPath);
+  } catch (error) {
+    if (!fs.existsSync(configPath) && fs.existsSync(backupPath)) {
+      fs.copyFileSync(backupPath, configPath, fs.constants.COPYFILE_EXCL);
+    }
+    throw error;
+  }
+  return { configPath, backupPath: fs.existsSync(backupPath) ? backupPath : '' };
+}
+
 function validateIngress(config, expectedHostname, expectedService) {
   const ingress = Array.isArray(config?.ingress) ? config.ingress : [];
   if (ingress.length < 2) {
@@ -348,5 +400,6 @@ module.exports = {
   inspectCloudflaredVersion,
   inspectNamedTunnelConfiguration,
   listNamedTunnels,
+  repairManagedTunnelConfig,
   validateIngress,
 };

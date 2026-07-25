@@ -5,15 +5,25 @@ import McpView from './McpView';
 const api = vi.hoisted(() => ({
   addLocalRepoMcpRoot: vi.fn(),
   approveLocalRepoMcpAuthorization: vi.fn(),
+  cancelLocalRepoMcpDiagnosticRepair: vi.fn(),
+  cancelLocalRepoMcpManagedProvisioning: vi.fn(),
+  confirmLocalRepoMcpDiagnosticRepair: vi.fn(),
+  confirmLocalRepoMcpManagedProvisioning: vi.fn(),
+  exportLocalRepoMcpDiagnostics: vi.fn(),
   getCatalogRepos: vi.fn(),
+  getLocalRepoMcpCloudflareLoginStatus: vi.fn(),
   getLocalRepoMcpConfig: vi.fn(),
   getLocalRepoMcpPendingAuthorizations: vi.fn(),
   getLocalRepoMcpStatus: vi.fn(),
   probeLocalRepoMcp: vi.fn(),
+  previewLocalRepoMcpDiagnosticRepair: vi.fn(),
+  previewLocalRepoMcpManagedProvisioning: vi.fn(),
   registerCatalogRepo: vi.fn(),
   removeLocalRepoMcpRoot: vi.fn(),
+  runLocalRepoMcpDiagnostics: vi.fn(),
   saveLocalRepoMcpConfig: vi.fn(),
   startLocalRepoMcp: vi.fn(),
+  startLocalRepoMcpCloudflareLogin: vi.fn(),
   startLocalRepoMcpQuickTunnel: vi.fn(),
   startLocalRepoMcpTunnel: vi.fn(),
   stopLocalRepoMcp: vi.fn(),
@@ -179,6 +189,10 @@ describe('McpView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockReady();
+    api.getLocalRepoMcpCloudflareLoginStatus.mockResolvedValue({
+      cloudflareLogin: { available: true, running: false, loggedIn: false, certPath: 'C:\\Users\\test\\.cloudflared\\cert.pem' },
+    });
+    api.exportLocalRepoMcpDiagnostics.mockResolvedValue({ schemaVersion: 1, overall: 'pass', checks: [], repairs: [] });
   });
 
   afterEach(() => {
@@ -478,6 +492,39 @@ describe('McpView', () => {
     expect(screen.getByText(/not marked ChatGPT-ready until a complete OAuth authorization probe succeeds/i)).toBeInTheDocument();
   });
 
+  it('does not present a stale endpoint as persistent when stable setup is incomplete', async () => {
+    mockMissingOAuth();
+    const staleConfig = {
+      ...config,
+      publicBaseUrl: 'https://old-session.trycloudflare.com',
+      cloudflareTunnelName: '',
+      stableTunnel: {
+        configured: false,
+        publicOrigin: 'https://old-session.trycloudflare.com',
+        canonicalResource: 'https://old-session.trycloudflare.com/mcp',
+        cloudflareTunnelName: '',
+      },
+    };
+    api.getLocalRepoMcpConfig.mockResolvedValue({ config: staleConfig, access: { repos: [] } });
+    api.getLocalRepoMcpStatus.mockResolvedValue({
+      ...(await api.getLocalRepoMcpStatus()),
+      config: staleConfig,
+      lifecycle: {
+        code: 'autostart_disabled',
+        blocked: false,
+        recovering: false,
+        message: 'Persistent tunnel autostart is not enabled.',
+      },
+    });
+
+    render(<McpView />);
+    await waitFor(() => expect(screen.getByTestId('mcp-persistent-access')).toBeInTheDocument());
+
+    expect(screen.getByTestId('mcp-stable-readiness')).toHaveTextContent('not configured');
+    expect(screen.queryByTestId('mcp-stable-copy-url')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mcp-stable-lifecycle')).not.toBeInTheDocument();
+  });
+
   it('shows simple ChatGPT connection values in primary configuration', async () => {
     const localConfig = {
       ...config,
@@ -509,5 +556,76 @@ describe('McpView', () => {
     expect(primaryConfig.getByText('None in the default ChatGPT flow')).toBeInTheDocument();
     expect(primaryConfig.getByText('requires external tunnel setup')).toBeInTheDocument();
     expect(screen.queryByTestId('mcp-config-advanced')).not.toBeInTheDocument();
+  });
+
+  it('guides managed Cloudflare setup through login, frozen preview, and confirmation', async () => {
+    mockMissingOAuth();
+    api.startLocalRepoMcpCloudflareLogin.mockResolvedValue({
+      cloudflareLogin: { available: true, running: true, loggedIn: false, pid: 42 },
+    });
+    api.previewLocalRepoMcpManagedProvisioning.mockResolvedValue({
+      previewId: 'preview-1',
+      expiresAt: '2026-07-25T12:10:00.000Z',
+      hostname: 'mcp-reader.example.com',
+      canonicalResource: 'https://mcp-reader.example.com/mcp',
+      operations: [
+        { kind: 'command', command: 'cloudflared', args: ['tunnel', 'create', 'elegy-local-repo-mcp'], effect: 'Create tunnel' },
+        { kind: 'command', command: 'cloudflared', args: ['tunnel', 'route', 'dns', 'elegy-local-repo-mcp', 'mcp-reader.example.com'], effect: 'Create DNS' },
+      ],
+    });
+    api.confirmLocalRepoMcpManagedProvisioning.mockResolvedValue({
+      provisioning: { status: 'completed' },
+      config: { ...config, stableTunnel: { configured: true, autoStart: false } },
+    });
+
+    render(<McpView />);
+    await waitFor(() => expect(screen.getByTestId('mcp-stable-configure')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('mcp-stable-configure'));
+
+    expect(screen.getByTestId('mcp-managed-setup-wizard')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mcp-cloudflare-login-start'));
+    await waitFor(() => expect(api.startLocalRepoMcpCloudflareLogin).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText('Cloudflare Zone'), { target: { value: 'example.com' } });
+    fireEvent.click(screen.getByTestId('mcp-managed-preview'));
+    await waitFor(() => expect(api.previewLocalRepoMcpManagedProvisioning).toHaveBeenCalledWith('example.com'));
+    expect(screen.getByTestId('mcp-managed-preview-details')).toHaveTextContent('mcp-reader.example.com');
+    expect(screen.getByTestId('mcp-managed-preview-details')).toHaveTextContent('tunnel create');
+
+    fireEvent.click(screen.getByTestId('mcp-managed-confirm'));
+    await waitFor(() => expect(api.confirmLocalRepoMcpManagedProvisioning).toHaveBeenCalledWith('preview-1'));
+  });
+
+  it('runs structured persistent diagnostics and previews repairs before confirmation', async () => {
+    api.runLocalRepoMcpDiagnostics.mockResolvedValue({
+      schemaVersion: 1,
+      generatedAt: '2026-07-25T12:00:00.000Z',
+      overall: 'blocked',
+      checks: [
+        { id: 'dns_resolution', layer: 'dns', status: 'blocked', code: 'dns_lookup_failed', message: 'DNS is missing.' },
+      ],
+      repairs: [
+        { id: 'repair_dns_route', label: 'Repair Cloudflare DNS route', description: 'Recreate DNS.', requiresConfirmation: true },
+      ],
+    });
+    api.previewLocalRepoMcpDiagnosticRepair.mockResolvedValue({
+      previewId: 'repair-preview-1',
+      repairId: 'repair_dns_route',
+      operations: [{ kind: 'command', command: 'cloudflared', args: ['tunnel', 'route', 'dns'], effect: 'Recreate DNS.' }],
+    });
+    api.confirmLocalRepoMcpDiagnosticRepair.mockResolvedValue({
+      repair: { id: 'repair_dns_route', status: 'completed' },
+    });
+
+    render(<McpView />);
+    await waitFor(() => expect(screen.getByTestId('mcp-stable-diagnostics-run')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('mcp-stable-diagnostics-run'));
+
+    await waitFor(() => expect(screen.getByTestId('mcp-diagnostic-report')).toHaveTextContent('DNS is missing.'));
+    expect(screen.getByTestId('mcp-diagnostic-report')).toHaveTextContent('dns_lookup_failed');
+    fireEvent.click(screen.getByTestId('mcp-repair-preview-repair_dns_route'));
+    await waitFor(() => expect(screen.getByTestId('mcp-repair-preview')).toHaveTextContent('Recreate DNS.'));
+    fireEvent.click(screen.getByTestId('mcp-repair-confirm'));
+    await waitFor(() => expect(api.confirmLocalRepoMcpDiagnosticRepair).toHaveBeenCalledWith('repair-preview-1'));
   });
 });
