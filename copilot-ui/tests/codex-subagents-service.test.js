@@ -46,11 +46,18 @@ test('Codex subagent service updates and resets a managed agent safely', () => {
   assert.equal(explorer.modelReasoningEffort, 'medium');
   assert.equal(explorer.routingMode, 'suggested');
   assert.equal(explorer.drift, true);
+  const installedText = fs.readFileSync(path.join(tmp, 'agents', 'explorer.toml'), 'utf8');
+  assert.doesNotMatch(installedText, /^\[elegy\]$/m);
+  const settings = JSON.parse(fs.readFileSync(path.join(tmp, '.elegy-copilot-codex-subagents.json'), 'utf8'));
+  assert.equal(settings.agentRouting.explorer, 'suggested');
 
   result = codexSubagents.resetCodexSubagent('explorer', { codexHome: tmp, engineRoot });
   explorer = result.agents.find((agent) => agent.name === 'explorer');
   assert.equal(explorer.model, 'gpt-5.6-luna');
   assert.equal(explorer.drift, false);
+  assert.equal(explorer.routingMode, 'manual');
+  const resetSettings = JSON.parse(fs.readFileSync(path.join(tmp, '.elegy-copilot-codex-subagents.json'), 'utf8'));
+  assert.equal(resetSettings.agentRouting?.explorer, undefined);
 });
 
 test('Codex subagent service enforces the Luna model and effort cap', () => {

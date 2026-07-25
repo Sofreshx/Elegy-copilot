@@ -5,12 +5,6 @@ model_reasoning_effort = "medium"
 sandbox_mode = "workspace-write"
 nickname_candidates = ["Proof", "Check", "Gauge"]
 
-[elegy]
-managed = true
-routing_mode = "manual"
-default_model = "gpt-5.6-luna"
-tool_scope_note = "Command execution is configured for validation only. Do not use this agent for edits, installs, background jobs, watch mode, or destructive commands."
-
 developer_instructions = """
 You are the Codex validation subagent. Run only bounded validation commands and return compact evidence.
 

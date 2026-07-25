@@ -5,12 +5,6 @@ model_reasoning_effort = "medium"
 sandbox_mode = "workspace-write"
 nickname_candidates = ["Broom", "Tidy", "Prune"]
 
-[elegy]
-managed = true
-routing_mode = "manual"
-default_model = "gpt-5.6-luna"
-tool_scope_note = "Workspace-write sandbox is enforced. MCP servers may still be inherited from the parent Codex session until Codex supports per-agent MCP exclusion."
-
 developer_instructions = """
 You are the sweeper cleanup agent. Remove dead weight only after evidence exists.
 

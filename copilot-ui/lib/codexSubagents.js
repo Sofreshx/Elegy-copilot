@@ -25,6 +25,13 @@ const EDITABLE_AGENT_FIELDS = new Set([
 ]);
 const BASELINE_SUBAGENT_MODEL = 'gpt-5.6-luna';
 const BASELINE_SUBAGENT_EFFORTS = new Set(['low', 'medium', 'high', 'max']);
+const AGENT_ROUTING_MODES = new Set(['manual', 'suggested', 'governed-automatic', 'off']);
+const AGENT_TOOL_SCOPE_NOTES = {
+  explorer: 'Read-only sandbox is enforced. MCP servers may still be inherited from the parent Codex session until Codex supports per-agent MCP exclusion.',
+  reviewer: 'Read-only sandbox is enforced. MCP servers may still be inherited from the parent Codex session until Codex supports per-agent MCP exclusion.',
+  sweeper: 'Workspace-write sandbox is enforced. MCP servers may still be inherited from the parent Codex session until Codex supports per-agent MCP exclusion.',
+  'test-runner': 'Command execution is configured for validation only. Do not use this agent for edits, installs, background jobs, watch mode, or destructive commands.',
+};
 
 function shaText(text) {
   return crypto.createHash('sha256').update(String(text || ''), 'utf8').digest('hex');
@@ -75,12 +82,19 @@ function asBoundedInteger(value, fallback, min, max) {
 }
 
 function normalizeSettingsShape(settings) {
+  const agentRouting = {};
+  for (const [name, mode] of Object.entries(settings.agentRouting || {})) {
+    if (/^[A-Za-z0-9_-]+$/.test(name) && AGENT_ROUTING_MODES.has(String(mode))) {
+      agentRouting[name] = String(mode);
+    }
+  }
   return {
     routingMode: typeof settings.routingMode === 'string' ? settings.routingMode : DEFAULT_SETTINGS.routingMode,
     maxThreads: asBoundedInteger(settings.maxThreads, DEFAULT_SETTINGS.maxThreads, 1, 8),
     maxDepth: asBoundedInteger(settings.maxDepth, DEFAULT_SETTINGS.maxDepth, 0, 2),
     jobMaxRuntimeSeconds: asBoundedInteger(settings.jobMaxRuntimeSeconds, DEFAULT_SETTINGS.jobMaxRuntimeSeconds, 60, 86400),
     telemetryRetentionDays: asBoundedInteger(settings.telemetryRetentionDays, DEFAULT_SETTINGS.telemetryRetentionDays, 1, 3650),
+    agentRouting,
   };
 }
 
@@ -319,7 +333,7 @@ function normalizeOperationalStatus({ managed, missing, drift, parseError, routi
   return 'unmanaged';
 }
 
-function normalizeAgentRecord(installed, source, usageByAgent) {
+function normalizeAgentRecord(installed, source, usageByAgent, settings = null) {
   const parsed = installed?.parsed || source?.parsed || {};
   const name = String(parsed.name || source?.name || installed?.name || '');
   const sourceHash = source?.sourceHash || null;
@@ -328,7 +342,10 @@ function normalizeAgentRecord(installed, source, usageByAgent) {
   const drift = Boolean(sourceHash && installedHash && sourceHash !== installedHash);
   const missing = Boolean(source && !installed);
   const parseError = parsed._parseError || null;
-  const routingMode = parsed.elegy?.routing_mode || 'manual';
+  const routingMode = settings?.agentRouting?.[name]
+    || parsed.elegy?.routing_mode
+    || settings?.routingMode
+    || DEFAULT_SETTINGS.routingMode;
   const operationalStatus = normalizeOperationalStatus({ managed, missing, drift, parseError, routingMode });
   const usageSummary = buildUsageSummary(name, usageByAgent);
 
@@ -340,9 +357,9 @@ function normalizeAgentRecord(installed, source, usageByAgent) {
     sandboxMode: parsed.sandbox_mode || null,
     nicknameCandidates: Array.isArray(parsed.nickname_candidates) ? parsed.nickname_candidates : [],
     routingMode,
-    fastModel: parsed.elegy?.fast_model || null,
-    allowSpark: parsed.elegy?.allow_spark === true,
-    toolScopeNote: parsed.elegy?.tool_scope_note || 'MCP inheritance depends on the parent Codex session.',
+    fastModel: null,
+    allowSpark: false,
+    toolScopeNote: AGENT_TOOL_SCOPE_NOTES[name] || 'MCP inheritance depends on the parent Codex session.',
     managed,
     scope: installed?.scope || (source ? 'global' : 'unknown'),
     missing,
@@ -415,6 +432,7 @@ function listCodexSubagents(options = {}) {
   const engineRoot = repoRootFromOption(options.engineRoot);
   const sourceAgents = loadManifestAgents(engineRoot);
   const installedAgents = readInstalledAgents(agentsDir, 'global');
+  const settings = getSettings(codexHome);
   const usageByAgent = new Map();
   for (const row of options.usageByAgent || []) {
     if (row && row.name) usageByAgent.set(row.name, row);
@@ -424,16 +442,15 @@ function listCodexSubagents(options = {}) {
   const names = new Set([...sourceAgents.keys(), ...installedByName.keys()]);
   const agents = Array.from(names)
     .sort((a, b) => a.localeCompare(b))
-    .map((name) => normalizeAgentRecord(installedByName.get(name), sourceAgents.get(name), usageByAgent));
+    .map((name) => normalizeAgentRecord(installedByName.get(name), sourceAgents.get(name), usageByAgent, settings));
 
   const projectAgents = [];
   const repoPath = options.repoPath ? path.resolve(options.repoPath) : '';
   if (repoPath) {
     projectAgents.push(...readInstalledAgents(path.join(repoPath, '.codex', 'agents'), 'project')
-      .map((agent) => normalizeAgentRecord(agent, null, usageByAgent)));
+      .map((agent) => normalizeAgentRecord(agent, null, usageByAgent, settings)));
   }
 
-  const settings = getSettings(codexHome);
   const nativeConfig = getNativeAgentsConfig(codexHome, settings);
 
   return {
@@ -470,16 +487,8 @@ function serializeAgentToml(agent) {
     lines.push(`nickname_candidates = [${agent.nickname_candidates.map(formatTomlString).join(', ')}]`);
   }
   lines.push('');
-  lines.push('[elegy]');
-  lines.push('managed = true');
-  lines.push(`routing_mode = ${formatTomlString(agent.elegy?.routing_mode || 'manual')}`);
-  if (agent.elegy?.default_model) lines.push(`default_model = ${formatTomlString(agent.elegy.default_model)}`);
-  if (agent.elegy?.fast_model) lines.push(`fast_model = ${formatTomlString(agent.elegy.fast_model)}`);
-  if (typeof agent.elegy?.allow_spark === 'boolean') lines.push(`allow_spark = ${agent.elegy.allow_spark ? 'true' : 'false'}`);
-  if (agent.elegy?.tool_scope_note) lines.push(`tool_scope_note = ${formatTomlString(agent.elegy.tool_scope_note)}`);
-  lines.push('');
   lines.push('developer_instructions = """');
-  lines.push(String(agent.developer_instructions || '').replace(/"""/g, '\\"\\"\\"').trim());
+  lines.push(String(agent.developer_instructions || agent.elegy?.developer_instructions || '').replace(/"""/g, '\\"\\"\\"').trim());
   lines.push('"""');
   lines.push('');
   return lines.join('\n');
@@ -509,16 +518,22 @@ function updateCodexSubagent(name, updates, options = {}) {
   for (const [key, value] of Object.entries(updates || {})) {
     if (EDITABLE_AGENT_FIELDS.has(key)) parsed[key] = value;
   }
-  if (updates.routingMode) {
-    parsed.elegy = parsed.elegy || {};
-    parsed.elegy.routing_mode = String(updates.routingMode);
-  }
-  if (updates.allowSpark !== undefined) {
-    parsed.elegy = parsed.elegy || {};
-    parsed.elegy.allow_spark = updates.allowSpark === true;
+  if (updates.routingMode !== undefined && !AGENT_ROUTING_MODES.has(String(updates.routingMode))) {
+    throw Object.assign(new Error('Unknown Codex subagent routing mode'), { statusCode: 422 });
   }
   fs.mkdirSync(agentsDir, { recursive: true });
   fs.writeFileSync(targetPath, serializeAgentToml(parsed), 'utf8');
+  if (updates.routingMode !== undefined) {
+    const currentSettings = getSettings(codexHome);
+    const nextSettings = normalizeSettingsShape({
+      ...currentSettings,
+      agentRouting: {
+        ...currentSettings.agentRouting,
+        [String(name)]: String(updates.routingMode),
+      },
+    });
+    fs.writeFileSync(currentSettings.settingsPath, `${JSON.stringify(nextSettings, null, 2)}\n`, 'utf8');
+  }
   return listCodexSubagents(options);
 }
 
@@ -531,6 +546,13 @@ function resetCodexSubagent(name, options = {}) {
   }
   fs.mkdirSync(agentsDir, { recursive: true });
   fs.writeFileSync(safeResolveAgentPath(agentsDir, name), source.sourceText, 'utf8');
+  const currentSettings = getSettings(codexHome);
+  if (Object.prototype.hasOwnProperty.call(currentSettings.agentRouting, String(name))) {
+    const agentRouting = { ...currentSettings.agentRouting };
+    delete agentRouting[String(name)];
+    const nextSettings = normalizeSettingsShape({ ...currentSettings, agentRouting });
+    fs.writeFileSync(currentSettings.settingsPath, `${JSON.stringify(nextSettings, null, 2)}\n`, 'utf8');
+  }
   return listCodexSubagents(options);
 }
 

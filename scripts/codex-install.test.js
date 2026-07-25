@@ -65,8 +65,8 @@ async function main() {
       assert.strictEqual(firstSummary.generatedRoles, 0, 'Codex install should not generate engine role wrappers');
       const explorerAgent = fs.readFileSync(path.join(codexHome, 'agents', 'explorer.toml'), 'utf8');
       assert.ok(explorerAgent.includes('model = "gpt-5.6-luna"'));
-      assert.ok(explorerAgent.includes('default_model = "gpt-5.6-luna"'));
-      assert.ok(explorerAgent.includes('allow_spark = false'));
+      assert.doesNotMatch(explorerAgent, /^\[elegy\]$/m);
+      assert.ok(explorerAgent.includes('developer_instructions = """'));
 
       const configToml = fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8');
       const profileToml = fs.readFileSync(path.join(codexHome, 'instruction_engine_plan_review.config.toml'), 'utf8');

@@ -62,6 +62,13 @@ function runAudit(options = {}) {
     }
 
     if (relativePath.startsWith('agents/') && relativePath.endsWith('.toml')) {
+      if (/^\s*\[elegy\]\s*$/m.test(content)) {
+        findings.push({
+          relativePath,
+          label: 'Unsupported Codex agent table: elegy',
+        });
+      }
+
       for (const field of requiredAgentFields) {
         if (!new RegExp(`^${field}\\s*=`, 'm').test(content)) {
           findings.push({

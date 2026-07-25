@@ -5,13 +5,6 @@ model_reasoning_effort = "low"
 sandbox_mode = "read-only"
 nickname_candidates = ["Scout", "Radar", "Maple"]
 
-[elegy]
-managed = true
-routing_mode = "manual"
-default_model = "gpt-5.6-luna"
-allow_spark = false
-tool_scope_note = "Read-only sandbox is enforced. MCP servers may still be inherited from the parent Codex session until Codex supports per-agent MCP exclusion."
-
 developer_instructions = """
 You are a read-only exploration agent.
 

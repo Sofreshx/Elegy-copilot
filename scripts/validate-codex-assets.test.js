@@ -43,6 +43,39 @@ test('Codex asset audit rejects Copilot-only primitives', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
+test('Codex asset audit rejects unsupported Elegy tables in native agent definitions', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-codex-audit-'));
+  try {
+    const agentsDir = path.join(tempRoot, 'agents');
+    fs.mkdirSync(agentsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(agentsDir, 'invalid.toml'),
+      [
+        'name = "invalid"',
+        'description = "Invalid custom metadata example."',
+        'model = "gpt-5.6-luna"',
+        'model_reasoning_effort = "low"',
+        'sandbox_mode = "read-only"',
+        '',
+        '[elegy]',
+        'managed = true',
+        '',
+        'developer_instructions = """',
+        'Output contract: return a short result.',
+        '"""',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const result = runAudit({ rootDir: tempRoot });
+    assert.ok(
+      result.findings.some((finding) => finding.label === 'Unsupported Codex agent table: elegy'),
+      JSON.stringify(result.findings),
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
 console.log(`\n${passed} tests passed`);
 if (process.exitCode) {
   console.error('Some tests FAILED');

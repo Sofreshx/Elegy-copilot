@@ -5,12 +5,6 @@ model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 nickname_candidates = ["Atlas", "Delta", "Echo"]
 
-[elegy]
-managed = true
-routing_mode = "manual"
-default_model = "gpt-5.6-luna"
-tool_scope_note = "Read-only sandbox is enforced. MCP servers may still be inherited from the parent Codex session until Codex supports per-agent MCP exclusion."
-
 developer_instructions = """
 You are a review-only agent. Do not make edits or run write-capable commands unless the user explicitly changes your role.
 
