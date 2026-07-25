@@ -130,20 +130,20 @@
         "cross-family",
         "review-independence"
       ],
-      "notes": "LLM judges favour their own model family, so release review must not be DeepSeek-judging-DeepSeek. Free Zen availability can change daily.",
+      "notes": "LLM judges favour their own model family, so release review must not be DeepSeek-judging-DeepSeek. Free Zen availability changes daily: nemotron-3-ultra-free was observed stalling on 2026-07-25. If review stalls, switch review to another non-DeepSeek id (opencode/ling-3.0-flash-free, opencode/laguna-s-2.1-free) or a paid non-DeepSeek model.",
       "roleModels": {
         "planning": "opencode-go/deepseek-v4-flash",
         "implementation": "opencode-go/deepseek-v4-flash",
         "exploration": "opencode-go/deepseek-v4-flash",
-        "review": "opencode/nemotron-3-ultra-free",
+        "review": "opencode/mimo-v2.5-free",
         "research": "opencode-go/deepseek-v4-flash"
       },
       "small": "opencode-go/deepseek-v4-flash",
       "big": "opencode-go/deepseek-v4-flash",
-      "review": "opencode/nemotron-3-ultra-free",
+      "review": "opencode/mimo-v2.5-free",
       "smallLabel": "DeepSeek V4 Flash",
       "bigLabel": "DeepSeek V4 Flash",
-      "reviewLabel": "Nemotron 3 Ultra (free, non-DeepSeek)"
+      "reviewLabel": "MiMo v2.5 (free, non-DeepSeek)"
     }
   },
   "roleToAgent": {
