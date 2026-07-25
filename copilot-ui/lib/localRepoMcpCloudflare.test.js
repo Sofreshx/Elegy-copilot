@@ -7,6 +7,8 @@ const path = require('node:path');
 const test = require('node:test');
 const {
   CloudflareConfigError,
+  createManagedTunnelProvisioningPreview,
+  executeManagedTunnelProvisioning,
   inspectNamedTunnelConfiguration,
   validateIngress,
 } = require('./localRepoMcpCloudflare');
@@ -76,4 +78,44 @@ test('rejects a config without a final catch-all rule', () => {
     }, 'repo-mcp.example.com', 'http://127.0.0.1:3333'),
     (error) => error instanceof CloudflareConfigError && error.code === 'cloudflare_catch_all_missing',
   );
+});
+
+test('preserves a created tunnel and reports repairable state when DNS routing fails', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'local-repo-mcp-provisioning-'));
+  const configPath = path.join(root, 'elegy-local-repo-mcp.yml');
+  const preview = createManagedTunnelProvisioningPreview({
+    zone: 'example.com',
+    previewId: 'preview-1',
+    nowMs: 0,
+    configDir: root,
+    cloudflaredPath: 'cloudflared',
+    exec: () => '[]',
+  });
+  let created = false;
+  const exec = (_command, args) => {
+    if (args[0] === 'tunnel' && args[1] === 'create') {
+      created = true;
+      fs.writeFileSync(path.join(root, 'tunnel-id.json'), '{}', 'utf8');
+      return '';
+    }
+    if (args[0] === 'tunnel' && args[1] === 'list') {
+      return JSON.stringify([{ id: 'tunnel-id', name: 'elegy-local-repo-mcp' }]);
+    }
+    if (args[0] === 'tunnel' && args[1] === 'route') {
+      throw new Error('DNS record already exists');
+    }
+    return '';
+  };
+
+  assert.throws(
+    () => executeManagedTunnelProvisioning(preview, { exec }),
+    (error) =>
+      error instanceof CloudflareConfigError
+      && error.code === 'cloudflare_dns_route_failed'
+      && error.partial?.tunnelCreated === true
+      && error.partial?.tunnelId === 'tunnel-id',
+  );
+  assert.equal(created, true);
+  assert.equal(fs.existsSync(path.join(root, 'tunnel-id.json')), true);
+  assert.equal(fs.existsSync(configPath), false);
 });

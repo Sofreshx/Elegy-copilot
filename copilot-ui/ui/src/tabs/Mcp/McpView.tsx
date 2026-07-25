@@ -547,6 +547,8 @@ function LocalRepoReaderConfigModal({
         cloudflareConfigPath: tunnelConfigPathInput.trim(),
         cloudflareCredentialsPath: tunnelCredentialsPathInput.trim(),
         cloudflaredPath: cloudflaredPathInput.trim(),
+        managementMode: config.stableTunnel?.managementMode || 'existing',
+        setupVersion: config.stableTunnel?.setupVersion || 0,
         autoStart: config.stableTunnel?.autoStart || false,
       },
     });

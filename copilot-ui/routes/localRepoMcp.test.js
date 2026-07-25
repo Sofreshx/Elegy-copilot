@@ -63,6 +63,16 @@ function makeDeps(body) {
       stopServer: async () => { state.started = false; return status(); },
       startTunnel: () => { state.tunnelStarted = true; return status(); },
       validateStableConfiguration: () => ({ ...status(), validation: { ok: true, mode: 'stable' } }),
+      previewManagedTunnelProvisioning: (_ctx) => ({
+        previewId: 'preview-1',
+        hostname: 'mcp-reader.example.com',
+        operations: [{ kind: 'command', command: 'cloudflared', args: ['tunnel', 'create', 'elegy-local-repo-mcp'] }],
+      }),
+      confirmManagedTunnelProvisioning: (_ctx) => ({
+        provisioning: { status: 'completed' },
+        config: state.config,
+      }),
+      cancelManagedTunnelProvisioning: (_ctx) => ({ cancelled: true, previewId: 'preview-1' }),
       startQuickTunnel: async () => { state.started = true; state.tunnelStarted = true; return status(); },
       stopTunnel: async () => { state.tunnelStarted = false; return status(); },
       probe: async () => ({ ...status(), probe: { ok: true } }),
@@ -99,9 +109,49 @@ test('register exposes local repo MCP routes', () => {
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/roots/add'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/start'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/stable/validate'));
+  assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/stable/provision/preview'));
+  assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/stable/provision/confirm'));
+  assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/stable/provision/cancel'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/tunnel/quick/start'));
   assert.ok(routes.some((route) => route.method === 'GET' && route.path === '/api/local-repo-mcp/oauth/pending'));
   assert.ok(routes.some((route) => route.method === 'POST' && route.path === '/api/local-repo-mcp/oauth/approve'));
+});
+
+test('managed provisioning routes keep preview and confirmation separate', async () => {
+  const previewRoutes = register(makeDeps({ zone: 'example.com' }));
+  const preview = await invoke(previewRoutes, 'POST', '/api/local-repo-mcp/tunnel/stable/provision/preview');
+  assert.equal(preview.statusCode, 200);
+  assert.equal(preview.body.previewId, 'preview-1');
+  assert.equal(preview.body.hostname, 'mcp-reader.example.com');
+
+  const confirmRoutes = register(makeDeps({ previewId: 'preview-1' }));
+  const confirmed = await invoke(confirmRoutes, 'POST', '/api/local-repo-mcp/tunnel/stable/provision/confirm');
+  assert.equal(confirmed.statusCode, 200);
+  assert.equal(confirmed.body.provisioning.status, 'completed');
+
+  const cancelRoutes = register(makeDeps({ previewId: 'preview-1' }));
+  const cancelled = await invoke(cancelRoutes, 'POST', '/api/local-repo-mcp/tunnel/stable/provision/cancel');
+  assert.equal(cancelled.statusCode, 200);
+  assert.equal(cancelled.body.cancelled, true);
+});
+
+test('managed provisioning errors expose stable blocker codes', async () => {
+  const deps = makeDeps({ zone: 'bad zone' });
+  deps.manager.previewManagedTunnelProvisioning = () => {
+    throw Object.assign(new Error('Cloudflare zone is invalid.'), {
+      statusCode: 400,
+      code: 'cloudflare_zone_invalid',
+      partial: { tunnelCreated: false },
+    });
+  };
+  const routes = register(deps);
+
+  const result = await invoke(routes, 'POST', '/api/local-repo-mcp/tunnel/stable/provision/preview');
+
+  assert.equal(result.statusCode, 400);
+  assert.equal(result.body.code, 'cloudflare_zone_invalid');
+  assert.equal(result.body.error, 'Cloudflare zone is invalid.');
+  assert.deepEqual(result.body.partial, { tunnelCreated: false });
 });
 
 test('start and stop are idempotent through manager state', async () => {

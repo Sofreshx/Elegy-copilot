@@ -175,7 +175,7 @@ test('status reports missing cloudflared prerequisite', async () => withMissingC
   assert.equal(status.prerequisites.chatGptAccessReady, false);
 }));
 
-test('loadConfig migrates v1 stable fields into v2 profiles with a one-time backup', () => {
+test('loadConfig migrates v1 stable fields into v3 profiles with a one-time backup', () => {
   const ctx = makeContext({
     schemaVersion: 1,
     publicBaseUrl: 'https://mcp.example.com/',
@@ -190,16 +190,185 @@ test('loadConfig migrates v1 stable fields into v2 profiles with a one-time back
   const config = manager.loadConfig(ctx);
   const backupPath = path.join(ctx.elegyHomeAbs, 'local-repo-mcp', 'config.v1.backup.json');
 
-  assert.equal(config.schemaVersion, 2);
+  assert.equal(config.schemaVersion, 3);
   assert.equal(config.activeExposureMode, 'quick');
   assert.equal(config.quickTunnel.enabled, true);
   assert.equal(config.stableTunnel.configured, true);
   assert.equal(config.stableTunnel.publicOrigin, 'https://mcp.example.com');
   assert.equal(config.stableTunnel.canonicalResource, 'https://mcp.example.com/mcp');
+  assert.equal(config.stableTunnel.managementMode, 'existing');
+  assert.equal(config.stableTunnel.setupVersion, 0);
   assert.equal(config.oauth.audience, 'https://mcp.example.com/mcp');
   assert.equal(config.customField, 'preserved');
   assert.equal(fs.existsSync(backupPath), true);
   assert.equal(JSON.parse(fs.readFileSync(backupPath, 'utf8')).schemaVersion, 1);
+});
+
+test('loadConfig migrates v2 profiles into v3 without changing OAuth state', () => {
+  const ctx = makeContext({
+    schemaVersion: 2,
+    activeExposureMode: 'stable',
+    stableTunnel: {
+      configured: true,
+      publicOrigin: 'https://mcp.example.com',
+      canonicalResource: 'https://mcp.example.com/mcp',
+      hostname: 'mcp.example.com',
+      cloudflareTunnelName: 'local-mcp',
+      cloudflareTunnelId: 'tunnel-id',
+      cloudflareConfigPath: 'C:\\cloudflared\\config.yml',
+      cloudflareCredentialsPath: 'C:\\cloudflared\\tunnel-id.json',
+      autoStart: true,
+    },
+    oauth: {
+      provider: 'builtin',
+      issuer: 'https://mcp.example.com',
+      audience: 'https://mcp.example.com/mcp',
+      requiredScopes: ['repo:read'],
+      accessTokenTtlSeconds: 120,
+      refreshTokenTtlSeconds: 2592000,
+    },
+  });
+  const manager = loadManager([]);
+
+  const config = manager.loadConfig(ctx);
+  const backupPath = path.join(ctx.elegyHomeAbs, 'local-repo-mcp', 'config.v2.backup.json');
+
+  assert.equal(config.schemaVersion, 3);
+  assert.equal(config.stableTunnel.managementMode, 'existing');
+  assert.equal(config.stableTunnel.setupVersion, 0);
+  assert.equal(config.oauth.accessTokenTtlSeconds, 120);
+  assert.equal(config.oauth.audience, 'https://mcp.example.com/mcp');
+  assert.equal(fs.existsSync(backupPath), true);
+});
+
+test('managed provisioning preview freezes safe Cloudflare commands and a dedicated config target', () => {
+  const ctx = makeContext({ cloudflaredPath: makeCloudflared({ root: fs.mkdtempSync(path.join(os.tmpdir(), 'cloudflared-preview-')) }) });
+  const cloudflareConfigDir = path.join(ctx.root, '.cloudflared');
+  const manager = loadManager([], null, (_command, args) => {
+    if (args[0] === 'tunnel' && args[1] === 'list') return '[]';
+    return '';
+  });
+
+  const preview = manager.previewManagedTunnelProvisioning({
+    ...ctx,
+    zone: 'Example.COM',
+    cloudflareConfigDir,
+    previewId: 'preview-1',
+    nowMs: Date.parse('2026-07-25T12:00:00.000Z'),
+  });
+
+  assert.equal(preview.previewId, 'preview-1');
+  assert.equal(preview.expiresAt, '2026-07-25T12:10:00.000Z');
+  assert.equal(preview.tunnelName, 'elegy-local-repo-mcp');
+  assert.equal(preview.hostname, 'mcp-reader.example.com');
+  assert.equal(preview.configPath, path.join(cloudflareConfigDir, 'elegy-local-repo-mcp.yml'));
+  assert.deepEqual(
+    preview.operations.filter((operation) => operation.kind === 'command').map((operation) => operation.args),
+    [
+      ['tunnel', 'create', 'elegy-local-repo-mcp'],
+      ['tunnel', 'route', 'dns', 'elegy-local-repo-mcp', 'mcp-reader.example.com'],
+    ],
+  );
+  assert.equal(preview.operations.some((operation) => operation.kind === 'write-config'), true);
+});
+
+test('managed provisioning confirm executes the frozen preview once and persists managed stable configuration', () => {
+  const ctx = makeContext();
+  const cloudflaredPath = makeCloudflared(ctx);
+  writeConfig(ctx.elegyHomeAbs, { cloudflaredPath });
+  const cloudflareConfigDir = path.join(ctx.root, '.cloudflared');
+  const execCalls = [];
+  const manager = loadManager([], null, (_command, args) => {
+    execCalls.push(args);
+    if (args[0] === 'tunnel' && args[1] === 'list') {
+      return execCalls.length === 1
+        ? '[]'
+        : JSON.stringify([{ id: 'tunnel-id', name: 'elegy-local-repo-mcp' }]);
+    }
+    if (args[0] === 'tunnel' && args[1] === 'create') {
+      fs.mkdirSync(cloudflareConfigDir, { recursive: true });
+      fs.writeFileSync(path.join(cloudflareConfigDir, 'tunnel-id.json'), '{}', 'utf8');
+    }
+    return '';
+  });
+  const baseOptions = {
+    ...ctx,
+    cloudflareConfigDir,
+    previewId: 'preview-1',
+    nowMs: Date.parse('2026-07-25T12:00:00.000Z'),
+  };
+  manager.previewManagedTunnelProvisioning({ ...baseOptions, zone: 'example.com' });
+
+  const result = manager.confirmManagedTunnelProvisioning(baseOptions);
+  const config = manager.loadConfig(ctx);
+
+  assert.equal(result.provisioning.status, 'completed');
+  assert.equal(config.stableTunnel.managementMode, 'managed');
+  assert.equal(config.stableTunnel.setupVersion, 1);
+  assert.equal(config.stableTunnel.publicOrigin, 'https://mcp-reader.example.com');
+  assert.equal(config.stableTunnel.cloudflareTunnelId, 'tunnel-id');
+  assert.equal(fs.existsSync(config.stableTunnel.cloudflareConfigPath), true);
+  assert.match(fs.readFileSync(config.stableTunnel.cloudflareConfigPath, 'utf8'), /http:\/\/127\.0\.0\.1:3333/);
+  assert.throws(
+    () => manager.confirmManagedTunnelProvisioning(baseOptions),
+    (error) => error.code === 'cloudflare_preview_not_found',
+  );
+});
+
+test('managed provisioning refuses unsafe zones and expired confirmations', () => {
+  const ctx = makeContext();
+  writeConfig(ctx.elegyHomeAbs, { cloudflaredPath: makeCloudflared(ctx) });
+  const manager = loadManager([], null, (_command, args) =>
+    args[0] === 'tunnel' && args[1] === 'list' ? '[]' : ''
+  );
+
+  assert.throws(
+    () => manager.previewManagedTunnelProvisioning({ ...ctx, zone: 'example.com --token secret' }),
+    (error) => error.code === 'cloudflare_zone_invalid',
+  );
+
+  manager.previewManagedTunnelProvisioning({
+    ...ctx,
+    zone: 'example.com',
+    previewId: 'expired-preview',
+    nowMs: Date.parse('2026-07-25T12:00:00.000Z'),
+    cloudflareConfigDir: path.join(ctx.root, '.cloudflared'),
+  });
+
+  assert.throws(
+    () => manager.confirmManagedTunnelProvisioning({
+      ...ctx,
+      previewId: 'expired-preview',
+      nowMs: Date.parse('2026-07-25T12:10:00.001Z'),
+    }),
+    (error) => error.code === 'cloudflare_preview_expired',
+  );
+});
+
+test('managed provisioning cancellation invalidates the frozen preview without executing commands', () => {
+  const ctx = makeContext();
+  writeConfig(ctx.elegyHomeAbs, { cloudflaredPath: makeCloudflared(ctx) });
+  const execCalls = [];
+  const manager = loadManager([], null, (_command, args) => {
+    execCalls.push(args);
+    return args[0] === 'tunnel' && args[1] === 'list' ? '[]' : '';
+  });
+  const options = {
+    ...ctx,
+    zone: 'example.com',
+    previewId: 'cancel-preview',
+    cloudflareConfigDir: path.join(ctx.root, '.cloudflared'),
+  };
+  manager.previewManagedTunnelProvisioning(options);
+
+  const result = manager.cancelManagedTunnelProvisioning(options);
+
+  assert.deepEqual(result, { cancelled: true, previewId: 'cancel-preview' });
+  assert.equal(execCalls.length, 1);
+  assert.throws(
+    () => manager.confirmManagedTunnelProvisioning(options),
+    (error) => error.code === 'cloudflare_preview_not_found',
+  );
 });
 
 test('status preserves configured stable endpoint while offline without claiming readiness', () => {

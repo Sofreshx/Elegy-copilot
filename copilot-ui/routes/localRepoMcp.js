@@ -6,7 +6,11 @@ const accessDefault = require('../lib/localRepoReaderAccess');
 const repoInventoryDefault = require('../lib/repoInventoryService');
 
 function sendError(res, sendJson, error) {
-  sendJson(res, error.statusCode || 500, { error: error.message || String(error) });
+  sendJson(res, error.statusCode || 500, {
+    ...(error.code ? { code: error.code } : {}),
+    ...(error.partial && typeof error.partial === 'object' ? { partial: error.partial } : {}),
+    error: error.message || String(error),
+  });
 }
 
 function resolveRegisteredRepo(deps, ctx, request) {
@@ -137,6 +141,54 @@ function register(deps = {}) {
       handler: (ctx) => {
         try {
           resolvedDeps.sendJson(ctx.res, 200, resolvedDeps.manager.validateStableConfiguration(ctx));
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/local-repo-mcp/tunnel/stable/provision/preview',
+      handler: async (ctx) => {
+        try {
+          const body = await resolvedDeps.readJsonBody(ctx.req);
+          resolvedDeps.sendJson(
+            ctx.res,
+            200,
+            resolvedDeps.manager.previewManagedTunnelProvisioning({ ...ctx, zone: body?.zone }),
+          );
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/local-repo-mcp/tunnel/stable/provision/confirm',
+      handler: async (ctx) => {
+        try {
+          const body = await resolvedDeps.readJsonBody(ctx.req);
+          resolvedDeps.sendJson(
+            ctx.res,
+            200,
+            resolvedDeps.manager.confirmManagedTunnelProvisioning({ ...ctx, previewId: body?.previewId }),
+          );
+        } catch (error) {
+          sendError(ctx.res, resolvedDeps.sendJson, error);
+        }
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/local-repo-mcp/tunnel/stable/provision/cancel',
+      handler: async (ctx) => {
+        try {
+          const body = await resolvedDeps.readJsonBody(ctx.req);
+          resolvedDeps.sendJson(
+            ctx.res,
+            200,
+            resolvedDeps.manager.cancelManagedTunnelProvisioning({ ...ctx, previewId: body?.previewId }),
+          );
         } catch (error) {
           sendError(ctx.res, resolvedDeps.sendJson, error);
         }

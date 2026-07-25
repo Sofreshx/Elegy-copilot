@@ -5,10 +5,16 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync, spawn } = require('child_process');
-const { inspectNamedTunnelConfiguration } = require('./localRepoMcpCloudflare');
+const {
+  CloudflareConfigError,
+  createManagedTunnelProvisioningPreview,
+  executeManagedTunnelProvisioning,
+  inspectNamedTunnelConfiguration,
+} = require('./localRepoMcpCloudflare');
 
-const CONFIG_SCHEMA_VERSION = 2;
+const CONFIG_SCHEMA_VERSION = 3;
 const DEFAULT_PORT = 3333;
+const provisioningPreviews = new Map();
 
 let mcpProcess = null;
 let tunnelProcess = null;
@@ -80,6 +86,8 @@ function createDefaultConfig() {
       cloudflareConfigPath: '',
       cloudflareCredentialsPath: '',
       cloudflaredPath: '',
+      managementMode: 'existing',
+      setupVersion: 0,
       autoStart: false,
     },
     oauth: {
@@ -149,6 +157,10 @@ function normalizeConfig(raw) {
       cloudflareConfigPath,
       cloudflareCredentialsPath: normalizeString(stableRaw.cloudflareCredentialsPath),
       cloudflaredPath,
+      managementMode: stableRaw.managementMode === 'managed' ? 'managed' : 'existing',
+      setupVersion: Number.isInteger(stableRaw.setupVersion) && stableRaw.setupVersion > 0
+        ? stableRaw.setupVersion
+        : 0,
       autoStart: stableRaw.autoStart === true,
     },
     oauth: {
@@ -176,11 +188,91 @@ function loadConfig(options = {}) {
   const raw = readJsonIfExists(configPath) || {};
   const config = normalizeConfig(raw);
   if (Object.keys(raw).length > 0 && raw.schemaVersion !== CONFIG_SCHEMA_VERSION) {
-    const backupPath = path.join(path.dirname(configPath), 'config.v1.backup.json');
+    const sourceVersion = Number.isInteger(raw.schemaVersion) && raw.schemaVersion > 0 ? raw.schemaVersion : 1;
+    const backupPath = path.join(path.dirname(configPath), `config.v${sourceVersion}.backup.json`);
     if (!fs.existsSync(backupPath)) writeJsonAtomic(backupPath, raw);
     writeJsonAtomic(configPath, config);
   }
   return config;
+}
+
+function provisioningScope(options = {}) {
+  return resolveElegyHome(options.elegyHome || options.elegyHomeAbs);
+}
+
+function previewManagedTunnelProvisioning(options = {}) {
+  const config = loadConfig(options);
+  const cloudflaredPath = requireCloudflared(config);
+  const previewId = normalizeString(options.previewId) || crypto.randomUUID();
+  const preview = createManagedTunnelProvisioningPreview({
+    zone: options.zone,
+    previewId,
+    nowMs: options.nowMs,
+    port: config.port,
+    cloudflaredPath,
+    configDir: options.cloudflareConfigDir,
+    exec: execFileSync,
+  });
+  provisioningPreviews.set(previewId, {
+    scope: provisioningScope(options),
+    preview,
+  });
+  return preview;
+}
+
+function consumeProvisioningPreview(options = {}) {
+  const previewId = normalizeString(options.previewId);
+  const stored = provisioningPreviews.get(previewId);
+  if (!stored || stored.scope !== provisioningScope(options)) {
+    throw new CloudflareConfigError(
+      'cloudflare_preview_not_found',
+      'Cloudflare provisioning preview was not found or has already been used.',
+    );
+  }
+  provisioningPreviews.delete(previewId);
+  const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now();
+  if (Date.parse(stored.preview.expiresAt) < nowMs) {
+    throw new CloudflareConfigError(
+      'cloudflare_preview_expired',
+      'Cloudflare provisioning preview expired. Generate and review a new preview.',
+    );
+  }
+  return stored.preview;
+}
+
+function confirmManagedTunnelProvisioning(options = {}) {
+  const preview = consumeProvisioningPreview(options);
+  const provisioning = executeManagedTunnelProvisioning(preview, { exec: execFileSync });
+  const config = saveConfig({
+    ...options,
+    config: {
+      activeExposureMode: 'stable',
+      publicBaseUrl: provisioning.publicOrigin,
+      cloudflareTunnelName: provisioning.tunnel.name,
+      cloudflareConfigPath: provisioning.configPath,
+      cloudflaredPath: preview.cloudflaredPath,
+      stableTunnel: {
+        configured: true,
+        managementMode: 'managed',
+        setupVersion: 1,
+        autoStart: false,
+        publicOrigin: provisioning.publicOrigin,
+        canonicalResource: provisioning.canonicalResource,
+        hostname: provisioning.hostname,
+        cloudflareTunnelName: provisioning.tunnel.name,
+        cloudflareTunnelId: provisioning.tunnel.id,
+        cloudflareConfigPath: provisioning.configPath,
+        cloudflareCredentialsPath: provisioning.credentialsPath,
+        cloudflaredPath: preview.cloudflaredPath,
+      },
+    },
+  });
+  return { provisioning, config };
+}
+
+function cancelManagedTunnelProvisioning(options = {}) {
+  const preview = consumeProvisioningPreview(options);
+  return { cancelled: true, previewId: preview.previewId };
 }
 
 function saveConfig(options = {}) {
@@ -1058,6 +1150,9 @@ module.exports = {
   startTunnel,
   startQuickTunnel,
   validateStableConfiguration,
+  previewManagedTunnelProvisioning,
+  confirmManagedTunnelProvisioning,
+  cancelManagedTunnelProvisioning,
   stopTunnel,
   probe,
   getPendingAuthorizations,

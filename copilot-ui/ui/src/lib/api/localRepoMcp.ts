@@ -15,6 +15,8 @@ export interface LocalRepoMcpConfig {
     cloudflareConfigPath: string;
     cloudflareCredentialsPath: string;
     cloudflaredPath: string;
+    managementMode: 'managed' | 'existing';
+    setupVersion: number;
     autoStart: boolean;
   };
   oauth?: {
