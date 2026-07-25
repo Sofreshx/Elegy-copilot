@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync, spawn } = require('child_process');
+const { inspectNamedTunnelConfiguration } = require('./localRepoMcpCloudflare');
 
 const CONFIG_SCHEMA_VERSION = 2;
 const DEFAULT_PORT = 3333;
@@ -13,6 +14,8 @@ let mcpProcess = null;
 let tunnelProcess = null;
 let tunnelMode = 'none';
 let quickTunnelBaseUrl = '';
+let tunnelLastExit = null;
+let tunnelOutput = { stdout: '', stderr: '' };
 let mcpLastExit = null;
 let mcpLastProbe = null;
 let mcpLastNotice = '';
@@ -239,6 +242,13 @@ function appendOutput(kind, chunk) {
   mcpOutput = {
     ...mcpOutput,
     [kind]: `${mcpOutput[kind] || ''}${text}`.slice(-MCP_OUTPUT_LIMIT),
+  };
+}
+
+function appendTunnelOutput(kind, chunk) {
+  tunnelOutput = {
+    ...tunnelOutput,
+    [kind]: `${tunnelOutput[kind] || ''}${chunk.toString()}`.slice(-MCP_OUTPUT_LIMIT),
   };
 }
 
@@ -515,6 +525,8 @@ function getStatus(options = {}) {
       pid: tunnelRunning ? tunnelProcess.pid : null,
       mode: tunnelRunning ? tunnelMode : 'none',
       publicUrl: tunnelRunning ? connectorUrl : '',
+      lastExit: tunnelLastExit,
+      output: tunnelOutput,
     },
     probe: mcpLastProbe,
     securityState,
@@ -545,30 +557,14 @@ function getStatus(options = {}) {
 function validateStableConfiguration(options = {}) {
   const config = loadConfig(options);
   validateOAuthConfig(config);
-  let publicUrl;
-  try {
-    publicUrl = new URL(config.publicBaseUrl);
-  } catch {
-    throw Object.assign(new Error('publicBaseUrl must be a valid HTTPS origin'), { statusCode: 400 });
-  }
-  if (publicUrl.protocol !== 'https:' || publicUrl.pathname !== '/' || publicUrl.search || publicUrl.hash) {
-    throw Object.assign(new Error('publicBaseUrl must be an HTTPS origin without a path, query, or fragment'), { statusCode: 400 });
-  }
-  if (!config.cloudflareTunnelName) {
-    throw Object.assign(new Error('cloudflareTunnelName is required'), { statusCode: 400 });
-  }
-  if (config.cloudflareConfigPath && !fs.existsSync(expandHome(config.cloudflareConfigPath))) {
-    throw Object.assign(new Error('cloudflareConfigPath does not exist'), { statusCode: 400 });
-  }
   const cloudflared = requireCloudflared(config);
+  const inspection = inspectNamedTunnelConfiguration(config, cloudflared, { exec: execFileSync });
   return {
     ...getStatus(options),
     validation: {
-      ok: true,
       mode: 'stable',
       cloudflaredPath: cloudflared,
-      publicOrigin: config.publicBaseUrl,
-      canonicalResource: config.stableTunnel.canonicalResource,
+      ...inspection,
     },
   };
 }
@@ -752,6 +748,8 @@ async function startQuickTunnel(options = {}) {
 
   tunnelMode = 'quick';
   quickTunnelBaseUrl = '';
+  tunnelLastExit = null;
+  tunnelOutput = { stdout: '', stderr: '' };
   if (isRunning(mcpProcess)) await stopServer(options);
   startServer({ ...options, authMode: 'disabled' });
   try {
@@ -767,6 +765,7 @@ async function startQuickTunnel(options = {}) {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   tunnelProcess.once('exit', () => {
+    tunnelLastExit = { at: new Date().toISOString(), output: tunnelOutput };
     tunnelProcess = null;
     tunnelMode = 'none';
     quickTunnelBaseUrl = '';
@@ -793,11 +792,8 @@ async function startQuickTunnel(options = {}) {
 
 async function startTunnel(options = {}) {
   const config = loadConfig(options);
-  validateOAuthConfig(config);
-  const cloudflaredPath = requireCloudflared(config);
-  if (!config.cloudflareTunnelName) {
-    throw Object.assign(new Error('cloudflareTunnelName is required for named tunnel mode'), { statusCode: 400 });
-  }
+  const validated = validateStableConfiguration(options);
+  const cloudflaredPath = validated.validation.cloudflarePath || validated.validation.cloudflaredPath;
   const stableBaseUrl = config.publicBaseUrl.replace(/\/+$/, '');
   const canonicalResource = connectorUrlFromBase(stableBaseUrl);
   const stableConfig = {
@@ -831,14 +827,19 @@ async function startTunnel(options = {}) {
   const args = config.cloudflareConfigPath
     ? ['tunnel', '--config', config.cloudflareConfigPath, 'run', config.cloudflareTunnelName]
     : ['tunnel', 'run', config.cloudflareTunnelName];
+  tunnelLastExit = null;
+  tunnelOutput = { stdout: '', stderr: '' };
   tunnelProcess = spawn(cloudflaredPath, args, {
     windowsHide: true,
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
+  tunnelProcess.stdout?.on('data', (chunk) => appendTunnelOutput('stdout', chunk));
+  tunnelProcess.stderr?.on('data', (chunk) => appendTunnelOutput('stderr', chunk));
   tunnelMode = 'named';
   quickTunnelBaseUrl = '';
   mcpLastProbe = null;
-  tunnelProcess.once('exit', () => {
+  tunnelProcess.once('exit', (code, signal) => {
+    tunnelLastExit = { code, signal, at: new Date().toISOString(), output: tunnelOutput };
     tunnelProcess = null;
     tunnelMode = 'none';
   });

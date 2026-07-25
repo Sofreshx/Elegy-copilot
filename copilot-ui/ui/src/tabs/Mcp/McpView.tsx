@@ -384,7 +384,9 @@ function LocalRepoReaderConfigModal({
   const [cloudflaredPathInput, setCloudflaredPathInput] = useState(config.cloudflaredPath || '');
   const [publicOriginInput, setPublicOriginInput] = useState(config.stableTunnel?.publicOrigin || config.publicBaseUrl || '');
   const [tunnelNameInput, setTunnelNameInput] = useState(config.stableTunnel?.cloudflareTunnelName || config.cloudflareTunnelName || '');
+  const [tunnelIdInput, setTunnelIdInput] = useState(config.stableTunnel?.cloudflareTunnelId || '');
   const [tunnelConfigPathInput, setTunnelConfigPathInput] = useState(config.stableTunnel?.cloudflareConfigPath || config.cloudflareConfigPath || '');
+  const [tunnelCredentialsPathInput, setTunnelCredentialsPathInput] = useState(config.stableTunnel?.cloudflareCredentialsPath || '');
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -482,9 +484,9 @@ function LocalRepoReaderConfigModal({
         canonicalResource: publicOrigin ? `${publicOrigin}/mcp` : '',
         hostname: (() => { try { return publicOrigin ? new URL(publicOrigin).hostname : ''; } catch { return ''; } })(),
         cloudflareTunnelName,
-        cloudflareTunnelId: config.stableTunnel?.cloudflareTunnelId || '',
+        cloudflareTunnelId: tunnelIdInput.trim(),
         cloudflareConfigPath: tunnelConfigPathInput.trim(),
-        cloudflareCredentialsPath: config.stableTunnel?.cloudflareCredentialsPath || '',
+        cloudflareCredentialsPath: tunnelCredentialsPathInput.trim(),
         cloudflaredPath: cloudflaredPathInput.trim(),
         autoStart: config.stableTunnel?.autoStart || false,
       },
@@ -554,7 +556,9 @@ function LocalRepoReaderConfigModal({
             <div className="assets-tools-add-panel-form" style={{ marginTop: 12 }}>
               <FormInput label="Public Origin" testId="mcp-config-public-url" value={publicOriginInput} onValueChange={setPublicOriginInput} placeholder="https://repo-mcp.example.com" />
               <FormInput label="Tunnel Name" testId="mcp-config-tunnel-name" value={tunnelNameInput} onValueChange={setTunnelNameInput} placeholder="local-repo-mcp" />
+              <FormInput label="Tunnel UUID" testId="mcp-config-tunnel-id" value={tunnelIdInput} onValueChange={setTunnelIdInput} placeholder="Optional; discovered during validation" />
               <FormInput label="Cloudflare Config Path" testId="mcp-config-tunnel-config-path" value={tunnelConfigPathInput} onValueChange={setTunnelConfigPathInput} placeholder="Optional path to config.yml" />
+              <FormInput label="Credentials Path" testId="mcp-config-tunnel-credentials-path" value={tunnelCredentialsPathInput} onValueChange={setTunnelCredentialsPathInput} placeholder="Optional; otherwise read from config.yml" />
             </div>
             <div className="opencode-model-actions" style={{ marginTop: 12 }}>
               <Button size="sm" disabled={mutating} onClick={() => void onMutate(saveStableConfiguration)} testId="mcp-config-save-stable">Save Persistent Configuration</Button>

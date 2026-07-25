@@ -521,20 +521,36 @@ test('getPendingAuthorizations skips OAuth polling for no-auth sessions', async 
 test('startTunnel starts named tunnel and OAuth MCP server with stable URL', async () => {
   const ctx = makeContext();
   mockFetchOk({ oauthMetadataOk: true });
+  const credentialsPath = path.join(ctx.root, 'tunnel-id.json');
+  const cloudflareConfigPath = path.join(ctx.root, 'config.yml');
+  fs.writeFileSync(credentialsPath, '{}', 'utf8');
+  fs.writeFileSync(cloudflareConfigPath, [
+    'tunnel: tunnel-id',
+    `credentials-file: ${JSON.stringify(credentialsPath)}`,
+    'ingress:',
+    '  - hostname: mcp.example.com',
+    '    service: http://127.0.0.1:3333',
+    '  - service: http_status:404',
+  ].join('\n'), 'utf8');
   writeConfig(ctx.elegyHomeAbs, {
     publicBaseUrl: 'https://mcp.example.com',
     authIssuer: 'https://old-quick.trycloudflare.com',
     authAudience: 'https://old-quick.trycloudflare.com',
     cloudflareTunnelName: 'local-mcp',
+    cloudflareConfigPath,
     cloudflaredPath: makeCloudflared(ctx),
   });
   const spawnCalls = [];
-  const manager = loadManager(spawnCalls);
+  const manager = loadManager(spawnCalls, null, (_command, args) =>
+    args[0] === '--version'
+      ? 'cloudflared version 2026.7.0'
+      : JSON.stringify([{ id: 'tunnel-id', name: 'local-mcp' }])
+  );
 
   const status = await manager.startTunnel(ctx);
 
   assert.equal(spawnCalls.length, 2);
-  assert.deepEqual(spawnCalls[0].args[1], ['tunnel', 'run', 'local-mcp']);
+  assert.deepEqual(spawnCalls[0].args[1], ['tunnel', '--config', cloudflareConfigPath, 'run', 'local-mcp']);
   assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_PUBLIC_BASE_URL, 'https://mcp.example.com');
   assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_ISSUER, 'https://mcp.example.com');
   assert.equal(spawnCalls[1].args[2].env.LOCAL_REPO_MCP_AUTH_AUDIENCE, 'https://mcp.example.com/mcp');
