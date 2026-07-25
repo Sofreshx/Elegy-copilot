@@ -4,6 +4,7 @@ import McpView from './McpView';
 
 const api = vi.hoisted(() => ({
   addLocalRepoMcpRoot: vi.fn(),
+  approveLocalRepoMcpAuthorization: vi.fn(),
   getCatalogRepos: vi.fn(),
   getLocalRepoMcpConfig: vi.fn(),
   getLocalRepoMcpPendingAuthorizations: vi.fn(),
@@ -299,6 +300,48 @@ describe('McpView', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('mcp-pending-warning')).toHaveTextContent('Approval channel is out of sync');
+    });
+  });
+
+  it('shows and approves pending persistent OAuth requests', async () => {
+    mockReady({
+      server: { running: true, pid: 1, url: 'http://127.0.0.1:3333/mcp' },
+      tunnel: { running: true, pid: 2, mode: 'named', publicUrl: 'https://mcp.example.com/mcp' },
+      securityState: 'OAuth protected',
+      chatGptAccess: {
+        mode: 'stable',
+        configured: true,
+        online: true,
+        ready: false,
+        url: 'https://mcp.example.com/mcp',
+        auth: 'oauth',
+        urlStable: true,
+        lifecycleState: 'online_unverified',
+      },
+    });
+    api.getLocalRepoMcpPendingAuthorizations.mockResolvedValue({
+      pending: [{
+        id: 'auth-1',
+        userCode: '123456',
+        clientId: 'chatgpt-client',
+        scope: 'repo:read offline_access',
+        resource: 'https://mcp.example.com/mcp',
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      }],
+      server: { running: true },
+      tunnel: { running: true },
+    });
+    api.approveLocalRepoMcpAuthorization.mockResolvedValue({});
+
+    render(<McpView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mcp-pending-authorizations')).toHaveTextContent('123456');
+    });
+    fireEvent.click(screen.getByTestId('mcp-approve-auth-1'));
+    await waitFor(() => {
+      expect(api.approveLocalRepoMcpAuthorization).toHaveBeenCalledWith('auth-1');
     });
   });
 

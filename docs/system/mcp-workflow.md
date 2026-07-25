@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-07-21
+updated: 2026-07-25
 category: system
 status: current
 doc_kind: node
@@ -53,6 +53,33 @@ You can also pass a command to the scripts to run tools in the same env.
 The local repo MCP server (`local-repo-mcp/`) is bundled into the packaged desktop app. The Tauri sidecar manifest stages `local-repo-mcp/dist`, `local-repo-mcp/node_modules`, and `local-repo-mcp/package.json` into the installer's `resources/` directory. In the installed app, the desktop backend spawns the bundled server directly — no separate `npm --prefix local-repo-mcp run build` is needed.
 
 In development, the build step `npm run build:local-repo-mcp:desktop` (from `copilot-ui`) compiles the server before desktop dev or packaging. The native desktop smoke lane probes `POST /api/local-repo-mcp/start` to verify the bundled package launches end-to-end.
+
+### Local Repo Reader exposure modes
+
+The desktop supports two independent exposure profiles:
+
+- **Temporary Quick Tunnel** starts an unauthenticated Cloudflare Quick Tunnel with a generated URL.
+  It is the default fallback and its URL changes when restarted.
+- **Persistent OAuth Tunnel** uses an existing locally managed Cloudflare named tunnel, a stable
+  HTTPS origin, and the built-in OAuth server. The canonical MCP resource is always
+  `<public-origin>/mcp`; it is also the access-token audience and OAuth `resource` value.
+
+Persistent configuration is stored under `~/.elegy/local-repo-mcp/config.json` using schema
+version 2. Version-1 fields migrate atomically and are backed up once. Configuration state remains
+visible while the server and connector are offline.
+
+Before starting persistent access, Elegy validates the selected tunnel through `cloudflared`,
+the credentials file, hostname ingress, loopback service port, and final catch-all ingress rule.
+The local MCP listener remains bound to `127.0.0.1`.
+
+Persistent access is ChatGPT-ready only after the public test completes Protected Resource
+Metadata and authorization-server discovery, dynamic client registration, PKCE authorization,
+local approval, resource-bound token exchange, refresh-token rotation, revocation, and an
+authenticated MCP tool listing. Metadata-only reachability is reported as unverified.
+
+Stopping persistent access does not delete Cloudflare DNS, tunnel identity, credentials, OAuth
+state, or signing keys. To roll back, stop persistent access and start the Quick Tunnel; the stable
+profile remains available for later repair.
 
 ## Provider Defaults
 

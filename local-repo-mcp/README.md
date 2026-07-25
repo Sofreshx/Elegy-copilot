@@ -10,15 +10,52 @@ npm --prefix local-repo-mcp run build
 npm --prefix local-repo-mcp start
 ```
 
-Required OAuth environment:
+For built-in OAuth, the public origin and canonical MCP resource are distinct:
 
 ```text
 LOCAL_REPO_MCP_PUBLIC_BASE_URL=https://mcp.example.com
-LOCAL_REPO_MCP_AUTH_ISSUER=https://your-tenant.auth0.com/
-LOCAL_REPO_MCP_AUTH_AUDIENCE=https://mcp.example.com
+LOCAL_REPO_MCP_AUTH_PROVIDER=builtin
+LOCAL_REPO_MCP_AUTH_ISSUER=https://mcp.example.com
+LOCAL_REPO_MCP_AUTH_AUDIENCE=https://mcp.example.com/mcp
+LOCAL_REPO_MCP_AUTH_MODE=oauth
 ```
 
 Roots come from `~/.elegy/catalog/local-repo-reader/access.json`, which is managed by Elegy-Copilot.
+
+## Persistent ChatGPT access
+
+Use the desktop MCP page to configure an existing Cloudflare named tunnel. Its `config.yml` must
+route the stable hostname to the loopback MCP port and finish with a catch-all rule:
+
+```yaml
+tunnel: <TUNNEL_UUID>
+credentials-file: C:\Users\<user>\.cloudflared\<TUNNEL_UUID>.json
+
+ingress:
+  - hostname: repo-mcp.example.com
+    service: http://127.0.0.1:3333
+  - service: http_status:404
+```
+
+The Persistent OAuth Tunnel workflow is:
+
+1. Save the HTTPS public origin, tunnel name, config path, and optional credentials path.
+2. Validate the configuration.
+3. Start Persistent Access.
+4. Run **Test OAuth Connection**.
+5. When the test reports ChatGPT-ready, register the displayed `/mcp` endpoint in ChatGPT with
+   OAuth authentication.
+6. Approve pending requests in Elegy Copilot by matching the displayed approval code.
+
+The built-in server implements Protected Resource Metadata, authorization-server metadata,
+dynamic public-client registration, exact redirect URI matching, PKCE S256, mandatory resource
+indicators, audience-bound JWT access tokens, rotating refresh tokens with replay-family
+revocation, and RFC-style token revocation. OAuth state files and signing keys are written with
+owner-only file modes where supported.
+
+Quick Tunnel remains the recovery path. Stopping or repairing Persistent Access never removes
+Cloudflare resources or OAuth state. Start Temporary Quick Tunnel to regain temporary access while
+leaving the stable profile intact.
 
 ## Reader guarantees
 

@@ -2,6 +2,7 @@ import { MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, CopyButton, FormInput, PageContainer, Panel, StatusBadge, Toolbar } from '../../components';
 import {
   addLocalRepoMcpRoot,
+  approveLocalRepoMcpAuthorization,
   getCatalogRepos,
   getLocalRepoMcpConfig,
   getLocalRepoMcpPendingAuthorizations,
@@ -16,6 +17,7 @@ import {
   stopLocalRepoMcpTunnel,
   validateLocalRepoMcpStableTunnel,
   type LocalRepoMcpConfig,
+  type LocalRepoMcpPendingAuthorization,
   type LocalRepoMcpStatusResponse,
 } from '../../lib/api';
 import type { CatalogRepoInventoryEntry, LocalRepoReaderAccessState } from '../../lib/types';
@@ -66,6 +68,7 @@ export default function McpView() {
   const [error, setError] = useState<string | null>(null);
   const [pendingError, setPendingError] = useState<string | null>(null);
   const [pendingErrorCode, setPendingErrorCode] = useState<string | null>(null);
+  const [pendingAuthorizations, setPendingAuthorizations] = useState<LocalRepoMcpPendingAuthorization[]>([]);
   const [configuringProviderId, setConfiguringProviderId] = useState<string | null>(null);
 
   async function loadPendingAuthorizations() {
@@ -74,9 +77,11 @@ export default function McpView() {
       const pendingStoppedNormally = pendingResult.pendingError && !pendingResult.server.running && !pendingResult.tunnel.running;
       setPendingError(pendingStoppedNormally ? null : pendingResult.pendingError || null);
       setPendingErrorCode(pendingStoppedNormally ? null : pendingResult.pendingErrorCode || null);
+      setPendingAuthorizations(pendingResult.pending || []);
     } catch (err) {
       setPendingError(err instanceof Error ? err.message : String(err));
       setPendingErrorCode(null);
+      setPendingAuthorizations([]);
     }
   }
 
@@ -98,6 +103,7 @@ export default function McpView() {
       } else {
         setPendingError(null);
         setPendingErrorCode(null);
+        setPendingAuthorizations([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -315,6 +321,46 @@ export default function McpView() {
                         ? 'Full OAuth authorization, refresh rotation, revocation, and authenticated MCP access passed.'
                         : 'Stable mode is not marked ChatGPT-ready until a complete OAuth authorization probe succeeds.'}
                     </p>
+                    {pendingAuthorizations.length > 0 ? (
+                      <div data-testid="mcp-pending-authorizations">
+                        <h5>OAuth approval required</h5>
+                        {pendingAuthorizations.map((pending) => (
+                          <div className="catalog-inline-note" key={pending.id} data-testid="mcp-pending-authorization">
+                            <div className="mcp-provider-meta">
+                              <span><strong>Approval code</strong>{pending.userCode}</span>
+                              <span><strong>Client</strong>{pending.clientId}</span>
+                              <span><strong>Scopes</strong>{pending.scope}</span>
+                              <span><strong>Resource</strong>{pending.resource}</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              disabled={mutating}
+                              onClick={() => void mutate(() => approveLocalRepoMcpAuthorization(pending.id))}
+                              testId={`mcp-approve-${pending.id}`}
+                            >
+                              Approve
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {stableReady ? (
+                      <details className="catalog-inline-note" data-testid="mcp-chatgpt-registration">
+                        <summary>Register in ChatGPT</summary>
+                        <ol>
+                          <li>Create a custom MCP app using the endpoint above.</li>
+                          <li>Select OAuth authentication.</li>
+                          <li>Complete the approval request shown here.</li>
+                          <li>Future restarts reuse the same endpoint.</li>
+                        </ol>
+                      </details>
+                    ) : null}
+                    {status?.tunnel.lastExit || status?.tunnel.output?.stderr ? (
+                      <details className="catalog-inline-note" data-testid="mcp-stable-diagnostics">
+                        <summary>Persistent tunnel diagnostics</summary>
+                        <pre>{status.tunnel.output?.stderr || status.tunnel.output?.stdout || JSON.stringify(status.tunnel.lastExit, null, 2)}</pre>
+                      </details>
+                    ) : null}
                     <div className="opencode-model-actions">
                       <Button
                         size="sm"
