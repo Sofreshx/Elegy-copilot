@@ -21,6 +21,7 @@ Common routes:
 - `planning-tools` and `project-workflow` for OpenCode project lanes
 - `rubberduck-plan-review` and `implementation-review` for review gates
 - `skill-authoring` and `agents-md-authoring` for shared authoring work
+- `opencode-worker-delegation` before supervised worker delegation or model selection, when installed
 
 ## Profiles
 

@@ -62,6 +62,12 @@ const APPENDICES = [
   'ghcp-assets/home/AGENTS-appendix.md',
 ];
 
+const OPENCODE_WORKER_ROUTE_APPENDICES = [
+  'codex-assets/home/AGENTS-appendix.md',
+  'claude-assets/home/CLAUDE-appendix.md',
+  'opencode-assets/home/AGENTS-appendix.md',
+];
+
 const BASELINE_OWNED_APPENDIX_HEADINGS = [
   '## Authority',
   '## Repo Discovery',
@@ -252,6 +258,32 @@ function checkAppendixFiles(repoRoot) {
   return results;
 }
 
+function checkOpenCodeWorkerRoutes(repoRoot) {
+  return OPENCODE_WORKER_ROUTE_APPENDICES.map((rel) => {
+    const fullPath = path.join(repoRoot, rel);
+    const id = `opencode-worker-route-${rel.replace(/\//g, '-')}`;
+    if (!fs.existsSync(fullPath)) {
+      return { id, status: 'missing', detail: `${rel} not found` };
+    }
+    const content = fs.readFileSync(fullPath, 'utf8');
+    const routeLine = content
+      .split(/\r?\n/)
+      .find((line) => line.includes('`opencode-worker-delegation`'));
+    const routed = Boolean(
+      routeLine
+      && /\bbefore\b/i.test(routeLine)
+      && /\bwhen installed\b/i.test(routeLine)
+    );
+    return {
+      id,
+      status: routed ? 'ok' : 'violation',
+      detail: routed
+        ? `${rel}: routes eligible delegation to opencode-worker-delegation before use and only when installed`
+        : `${rel}: missing qualified opencode-worker-delegation route`,
+    };
+  });
+}
+
 /** Check each shared skill exists with agentskills.io-compliant frontmatter. */
 function checkSharedSkills(repoRoot) {
   const results = [];
@@ -429,6 +461,7 @@ function main() {
     ...checkBaseline(repoRoot),
     ...checkManifestWiring(repoRoot),
     ...checkAppendixFiles(repoRoot),
+    ...checkOpenCodeWorkerRoutes(repoRoot),
     ...checkSharedSkills(repoRoot),
     ...checkManifestSkillEntries(repoRoot),
     ...checkNoLegacyGuidelinesRefs(repoRoot),

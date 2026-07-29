@@ -13,6 +13,7 @@ Load a skill only when its contract changes the work:
 | Durable planning state | `elegy-planning` |
 | Spec lifecycle | `spec-dev`, `spec-authoring`, `spec-review`, or `spec-planning-bridge` |
 | Implementation review or handoff | `implementation-review` or `implementation-handoff` |
+| Bounded OpenCode delegation, when installed | `opencode-worker-delegation` before selecting a worker or model |
 
 ## Sol/Luna Routing
 

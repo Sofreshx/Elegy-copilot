@@ -12,3 +12,4 @@ Common routes:
 - `spec-dev` for an end-to-end spec workflow
 - `skill-authoring` for shared skill authoring
 - `agents-md-authoring` for instruction layering and instruction-file audits
+- `opencode-worker-delegation` before bounded OpenCode delegation or model selection, when installed
