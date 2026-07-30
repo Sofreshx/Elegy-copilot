@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 export type ExternalSourceType = ExtensibleString<'github-repo'>;
-export type ExternalInstallableKind = ExtensibleString<'skill' | 'mcp-server' | 'cli-tool' | 'opencode-plugin'>;
+export type ExternalInstallableKind = ExtensibleString<'mcp-server' | 'cli-tool' | 'opencode-plugin'>;
 export type ExternalSourceTarget = ExtensibleString<
   'copilot' | 'codex' | 'opencode' | 'antigravity' | 'gemini-cli' | 'antigravity-cli' | 'host'
 >;
@@ -48,11 +48,7 @@ export interface ExternalSourceRecord {
   owner?: string;
   repo?: string;
   defaultRef?: string;
-  includeSkills?: boolean;
   includeMcp?: boolean;
-  preferredSkillPathPrefixes?: string[];
-  hiddenPathPrefixes?: string[];
-  deprecatedPathPrefixes?: string[];
   mcpManifestPath?: string;
   setupHints?: string[];
   installables?: ExternalInstallableRecord[];
@@ -111,7 +107,7 @@ function normalizeExternalInstallableRecord(value: unknown): ExternalInstallable
   const record = value as Record<string, unknown>;
   const installableId = normalizeString(record.installableId || record.id);
   const kind = normalizeString(record.kind);
-  if (!installableId || !kind) {
+  if (!installableId || !kind || kind.toLowerCase() === 'skill') {
     return null;
   }
 
@@ -180,11 +176,7 @@ function normalizeExternalSourceRecord(value: unknown): ExternalSourceRecord | n
     owner: normalizeString(record.owner) || undefined,
     repo: normalizeString(record.repo) || undefined,
     defaultRef: normalizeString(record.defaultRef) || undefined,
-    includeSkills: normalizeBoolean(record.includeSkills, true),
     includeMcp: normalizeBoolean(record.includeMcp, false),
-    preferredSkillPathPrefixes: normalizeStringList(record.preferredSkillPathPrefixes),
-    hiddenPathPrefixes: normalizeStringList(record.hiddenPathPrefixes),
-    deprecatedPathPrefixes: normalizeStringList(record.deprecatedPathPrefixes),
     mcpManifestPath: normalizeString(record.mcpManifestPath) || undefined,
     setupHints: normalizeStringList(record.setupHints),
     installables: Array.isArray(record.installables)

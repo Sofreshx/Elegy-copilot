@@ -63,7 +63,6 @@ export const SHIPPED_ASSETS = [
   skill('skill-spec-authoring', 'catalog-assets/shared-skills/spec-authoring', { loadMode: 'on-demand' }),
   skill('skill-spec-dev', 'catalog-assets/shared-skills/spec-dev', { loadMode: 'on-demand' }),
   skill('skill-spec-review', 'catalog-assets/shared-skills/spec-review', { loadMode: 'on-demand' }),
-  skill('skill-spec-planning-bridge', 'catalog-assets/shared-skills/spec-planning-bridge', { loadMode: 'on-demand' }),
   skill('skill-ui-design-spec', 'catalog-assets/shared-skills/ui-design-spec', { loadMode: 'on-demand' }),
   skill('skill-sweeper-cleanup', 'catalog-assets/shared-skills/sweeper-cleanup', { loadMode: 'on-demand' }),
   skill('skill-skill-authoring', 'catalog-assets/shared-skills/skill-authoring', { loadMode: 'on-demand' }),
@@ -76,12 +75,11 @@ export const SHIPPED_ASSETS = [
   }),
   agent('codex-explorer-agent', 'codex-assets/agents/explorer.toml'),
   agent('codex-reviewer-agent', 'codex-assets/agents/reviewer.toml'),
+  agent('codex-reviewer-strong-agent', 'codex-assets/agents/reviewer_strong.toml'),
+  agent('codex-worker-agent', 'codex-assets/agents/worker.toml'),
   agent('codex-test-runner-agent', 'codex-assets/agents/test-runner.toml'),
   agent('codex-sweeper-agent', 'codex-assets/agents/sweeper.toml'),
   skill('codex-repo-setup-skill', 'codex-assets/skills/repo-setup'),
-  skill('codex-implementation-handoff-skill', 'codex-assets/skills/implementation-handoff', {
-    loadMode: 'on-demand',
-  }),
 
   instructions('opencode-global-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {
     appendix: 'opencode-assets/home/AGENTS-appendix.md',
@@ -235,8 +233,8 @@ export const SHIPPED_BUNDLES = [
     id: 'spec-driven-development-lane',
     title: 'Spec-Driven Development Skills',
     description:
-      'Repo-local spec routing, authoring, adversarial review, and planning handoff skills for durable specs under docs/specs/ without creating a separate planner fleet.',
-    assetIds: ['skill-spec-dev', 'skill-spec-authoring', 'skill-spec-review', 'skill-spec-planning-bridge'],
+      'Repo-local spec routing, authoring, and adversarial review skills for durable specs under docs/specs/ without creating a separate planner fleet.',
+    assetIds: ['skill-spec-dev', 'skill-spec-authoring', 'skill-spec-review'],
     installTarget: 'repo-local',
     activationScope: 'repo',
     materialization: 'on-demand',

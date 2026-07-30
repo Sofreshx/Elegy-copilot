@@ -34,14 +34,18 @@ Installed harness surfaces and shared skills must therefore stay thin and consis
 ## Codex operating model
 
 Codex should stay leaner than the legacy Copilot fleet:
-- Global Codex install remains lean; Elegy-owned plugin capabilities are installed from the `elegy` marketplace rather than duplicated in the home manifest.
-- UI work routes to `elegy-ui-craft@elegy`. The former standalone UI implementation, runtime-exploration, visual-review, and Impeccable skills are retired. `ui-design-spec` remains a shared non-Codex fallback only.
-- Codex uses a stricter `implementation-handoff` variant for explicit delegation. It deepens shallow
-  plans and requires `rubberduck-plan-review` for complex or incomplete source plans before
-  producing a downstream executor brief. Other harnesses retain the shared handoff contract. This
-  is an approved duplicate-name exception: both skills keep the `implementation-handoff` name to
-  preserve the shared invocation surface, and the exception must stay explicit in skill metadata
-  and shipped-skill diagnostics.
+- Global Codex install contains six focused user skills: `repo-setup`,
+  `repo-backed-obsidian-docs`, `sweeper-cleanup`, `repo-quality-setup`,
+  `agents-md-authoring`, and `tdd`. Native Codex handles discovery, review,
+  implementation handoff, and routine spec work without duplicate global
+  skills.
+- Elegy marketplace plugins are explicit opt-ins; Instruction Engine does not
+  reinstall a default plugin fleet after the user removes it.
+- The former standalone UI implementation, runtime-exploration, visual-review,
+  and Impeccable skills are retired. `ui-design-spec` remains a shared
+  non-Codex fallback only.
+- Codex delegates bounded implementation directly to native Luna workers.
+  Other harnesses retain their implementation-handoff contracts.
 - Repo-specific hazards: repo-local `AGENTS.md` overlays and repo-local skills.
 - Legacy engine/Copilot orchestration agents are not bulk-installed into Codex.
 - Cross-model reviewer agents are not part of the Codex install surface.
@@ -106,9 +110,6 @@ No default-handled skill surfaces are currently shipped in the lean first-party 
 ## Current deprecated compatibility surfaces
 These remain installed only to preserve older routing and prompt references:
 - `code-review`: OpenCode compatibility review surface retained for older routing references; prefer current reviewer/agent pathways.
-
-Setting to show them:
-- `skillInstaller.skills.showDefaultHandled = true`
 
 ## Recurrence detection for generalized issues
 When an issue repeats across sessions, capture:

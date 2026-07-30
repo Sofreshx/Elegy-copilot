@@ -1,11 +1,11 @@
 ---
 created: 2026-03-13
-updated: 2026-06-29
+updated: 2026-07-30
 category: system
 status: current
 doc_kind: node
 id: reviewer-lane-governance
-summary: Canonical responsibility and routing contract for the single shipped reviewer leaf and workflow-specific planning reviewers.
+summary: Canonical responsibility and routing contract for bounded review, strong independent review, and orchestrator judgment.
 tags: [review, governance, routing]
 related: [search-execute-workflow, project-conventions-governance, follow-up-discovery-governance, goal-contract-governance, testing-quality-governance, validation-governance]
 ---
@@ -14,8 +14,9 @@ related: [search-execute-workflow, project-conventions-governance, follow-up-dis
 
 ## Purpose
 
-Define the canonical review posture for the lean workflow: one shipped reviewer leaf for
-implementation review, plus host-native planning review where the runtime provides it.
+Define the canonical review posture for the lean workflow: bounded implementation
+review, strong independent review when judgment is consequential, and final
+decision ownership in the orchestrator.
 
 ## Context
 
@@ -23,15 +24,24 @@ The approved reviewer model is intentionally small:
 
 - `@code-reviewer` is the single shipped reviewer leaf for broad correctness, regression,
   convention, and request/spec-fit review
-- planning review uses the host's native review affordance or `rubberduck-plan-review`
+- Codex uses `reviewer` on Luna for bounded implementation slices and
+  `reviewer_strong` on Sol for complex plans or consequential cross-cutting review
+- other harnesses use their host-native planning review affordance
 - final closure, remaining-work judgment, and follow-up discovery are orchestrator responsibilities,
   not separate reviewer lanes
+
+Independence determines whether review should be delegated. Complexity and
+consequence determine the reviewer model. A reviewer finding is advisory until
+the orchestrator verifies and accepts it.
 
 ## Canonical Lane Split
 
 | Lane | Primary responsibility | Not responsible for | Default relationship |
 | --- | --- | --- | --- |
 | `@code-reviewer` | high-signal defects, regressions, convention drift, and implementation-vs-request/plan fit | final requested-vs-delivered summary, backlog persistence, roadmap selection | default review lane for execution and bounded review tasks |
+| Codex `reviewer` | bounded implementation diffs, regressions, conventions, request fit, and missing tests | complex architecture or consequential risk judgment | Luna review leaf |
+| Codex `reviewer_strong` | complex plans, architecture, security, privacy, migrations, data-loss risk, cross-cutting changes, and disputed findings | final approval or closure | read-only Sol review leaf |
+| Orchestrator | reconciliation, final validation, approval, closure, and the answer | independent first-pass review when a bounded leaf adds value | final decision owner |
 
 ## Normalized Finding Categories
 
@@ -52,15 +62,21 @@ Use deterministic routing when intent is clear:
 
 - "review this diff", "check correctness", "look for regressions", "did this implementation match the request?" -> `@code-reviewer`
 - "review conventions/style/naming/docs alignment" -> `@code-reviewer`
-- "challenge this plan before execution" -> use rubberduck-plan-review skill
+- Codex bounded implementation review -> `reviewer`
+- Codex complex-plan, architecture, security, privacy, migration, data-loss, cross-cutting, or disputed review -> `reviewer_strong`
+- "challenge this plan before execution" -> use the host-native strong review affordance
 
-If the user does not specify a narrow lane, use `@code-reviewer`.
+Classify complexity and consequence before applying a default. In Codex, use
+`reviewer` for bounded review and `reviewer_strong` for consequential review.
+In a harness that exposes only the shared reviewer leaf, use `@code-reviewer`.
 
 ## Coexistence Rules
 
 1. `@code-reviewer` is both the broad default reviewer and the implementation-vs-spec/request fit reviewer.
 2. Reviewer lanes stay read-only.
-3. Missing authority-path or conventions-surface issues route through canonical conventions docs and skills, not dedicated governance agents.
+3. Bounded reviewers escalate rather than resolve architecture or consequential-risk judgment.
+4. Reviewers do not own final validation, approval, closure, or the answer.
+5. Missing authority-path or conventions-surface issues route through canonical conventions docs and skills, not dedicated governance agents.
 
 ## Adversarial Review Posture
 

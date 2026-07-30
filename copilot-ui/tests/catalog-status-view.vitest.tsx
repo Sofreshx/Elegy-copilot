@@ -56,16 +56,6 @@ const mockCatalogState = {
         },
         installables: [
           {
-            installableId: 'skill:brainstorming',
-            kind: 'skill',
-            title: 'Brainstorming',
-            description: 'Prompted ideation skill.',
-            targetSupport: ['codex', 'opencode', 'gemini-cli'],
-            metadata: {
-              relativeSkillFilePath: 'skills/brainstorming/SKILL.md',
-            },
-          },
-          {
             installableId: 'mcp:ghidra',
             kind: 'mcp',
             title: 'Ghidra MCP',
@@ -77,17 +67,6 @@ const mockCatalogState = {
         activation: {
           codex: {
             installables: {
-              'skill:brainstorming': {
-                installed: true,
-                enabled: true,
-                managedName: 'external--demo-source--brainstorming',
-                installedPath: 'C:\\Users\\demo\\.codex\\skills\\external--demo-source--brainstorming',
-                overallStatus: 'installed and active',
-                lastVerifiedAt: '2026-03-09T00:05:00.000Z',
-                warnings: [],
-                errors: [],
-                checks: [],
-              },
               'mcp:ghidra': {
                 installed: true,
                 enabled: true,
@@ -108,18 +87,6 @@ const mockCatalogState = {
                 enabled: false,
                 overallStatus: 'supported, not active',
                 warnings: ['OpenCode restart required'],
-                errors: [],
-                checks: [],
-              },
-            },
-          },
-          'gemini-cli': {
-            installables: {
-              'skill:brainstorming': {
-                installed: false,
-                enabled: false,
-                overallStatus: 'supported, not active',
-                warnings: [],
                 errors: [],
                 checks: [],
               },
@@ -216,7 +183,7 @@ const mockStatsState = {
           uniqueSkillCount: 1,
           skills: [
             {
-              assetId: 'skill:brainstorming',
+              assetId: 'skill:managed-brainstorming',
               assetKind: 'skill',
               invocationCount: 3,
             },
@@ -281,7 +248,7 @@ describe('CatalogStatusView', () => {
       skills: [
         {
           name: 'brainstorming',
-          absPath: 'C:\\Users\\demo\\.codex\\skills\\external--demo-source--brainstorming',
+          absPath: 'C:\\Users\\demo\\.codex\\skills\\brainstorming',
           kind: 'full',
         },
       ],
@@ -319,25 +286,22 @@ describe('CatalogStatusView', () => {
 
     expect(screen.getByText('Demo Source')).toBeInTheDocument();
     expect(screen.getAllByText('Spec Kit').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Supports: Codex, OpenCode, Antigravity CLI/i)).toBeInTheDocument();
+    expect(screen.getByText(/Supports: Codex, OpenCode/i)).toBeInTheDocument();
     expect(screen.getByText(/Supports: Host CLI/i)).toBeInTheDocument();
     const targetDetails = screen.getAllByTestId('catalog-status-installable-target-detail').map((node) => node.textContent || '');
     expect(targetDetails.some((value) => /Codex: installed and active/i.test(value))).toBe(true);
     expect(targetDetails.some((value) => /OpenCode: supported, not active/i.test(value))).toBe(true);
-    expect(targetDetails.some((value) => /Antigravity CLI: supported, not active/i.test(value))).toBe(true);
     expect(targetDetails.some((value) => /Host CLI: installed/i.test(value))).toBe(true);
     expect(screen.getAllByText('brainstorming').length).toBeGreaterThan(0);
-    expect(screen.getByText('skill:brainstorming')).toBeInTheDocument();
+    expect(screen.getByText('skill:managed-brainstorming')).toBeInTheDocument();
     expect(screen.getByText(/Verification partial/i)).toBeInTheDocument();
     expect(screen.getByTestId('catalog-status-external-inventory-list')).toHaveTextContent('Ghidra MCP');
     expect(screen.getByTestId('catalog-status-external-inventory-list')).toHaveTextContent('Spec Kit');
 
     const sourceList = screen.getByTestId('catalog-status-source-list');
-    const brainstormingItem = within(sourceList).getByText('Brainstorming').closest('li');
     const ghidraItem = within(sourceList).getByText('Ghidra MCP').closest('li');
     const specKitInstallableItem = within(sourceList).getAllByText('Spec Kit')[1]?.closest('li');
 
-    expect(brainstormingItem).not.toBeNull();
     expect(ghidraItem).not.toBeNull();
     expect(specKitInstallableItem).not.toBeNull();
 
@@ -345,11 +309,9 @@ describe('CatalogStatusView', () => {
       fireEvent.click(screen.getAllByTestId('catalog-status-source-refresh')[0]);
       fireEvent.click(screen.getAllByTestId('catalog-status-source-sync-install-verify')[0]);
       fireEvent.click(screen.getByTestId('catalog-status-source-bootstrap-spec-kit'));
-      fireEvent.click(within(brainstormingItem as HTMLElement).getByRole('button', { name: 'Details' }));
       fireEvent.click(within(ghidraItem as HTMLElement).getByRole('button', { name: 'Details' }));
-      fireEvent.click(within(brainstormingItem as HTMLElement).getByRole('button', { name: /Deactivate Codex/i }));
-      fireEvent.click(within(brainstormingItem as HTMLElement).getByRole('button', { name: /Activate OpenCode/i }));
-      fireEvent.click(within(brainstormingItem as HTMLElement).getByRole('button', { name: /Activate Antigravity CLI/i }));
+      fireEvent.click(within(ghidraItem as HTMLElement).getByRole('button', { name: /Deactivate Codex/i }));
+      fireEvent.click(within(ghidraItem as HTMLElement).getByRole('button', { name: /Activate OpenCode/i }));
       fireEvent.click(within(specKitInstallableItem as HTMLElement).getByRole('button', { name: /Deactivate Host CLI/i }));
     });
 
@@ -373,13 +335,6 @@ describe('CatalogStatusView', () => {
       expect(storeMocks.getCatalogContent).toHaveBeenCalledWith({
         mode: 'external-source',
         sourceId: 'demo-source',
-        path: 'skills/brainstorming/SKILL.md',
-      });
-    });
-    await waitFor(() => {
-      expect(storeMocks.getCatalogContent).toHaveBeenCalledWith({
-        mode: 'external-source',
-        sourceId: 'demo-source',
         path: 'bridge_mcp_ghidra.py',
       });
     });
@@ -387,22 +342,15 @@ describe('CatalogStatusView', () => {
     await waitFor(() => {
       expect(storeMocks.deactivateExternalSourceInstallable).toHaveBeenCalledWith({
         sourceId: 'demo-source',
-        installableId: 'skill:brainstorming',
+        installableId: 'mcp:ghidra',
         target: 'codex',
       });
     });
     await waitFor(() => {
       expect(storeMocks.activateExternalSourceInstallable).toHaveBeenCalledWith({
         sourceId: 'demo-source',
-        installableId: 'skill:brainstorming',
+        installableId: 'mcp:ghidra',
         target: 'opencode',
-      });
-    });
-    await waitFor(() => {
-      expect(storeMocks.activateExternalSourceInstallable).toHaveBeenCalledWith({
-        sourceId: 'demo-source',
-        installableId: 'skill:brainstorming',
-        target: 'gemini-cli',
       });
     });
     await waitFor(() => {

@@ -1,6 +1,6 @@
 ---
 created: 2026-03-09
-updated: 2026-07-10
+updated: 2026-07-30
 category: system
 status: current
 doc_kind: node
@@ -14,7 +14,7 @@ related: [copilot-ui-guide, repo-skill-sync-governance, domain-authorities-freez
 
 ## Purpose
 
-`copilot-ui` is the local control plane for installs, repo registration, search, and external-source management. It builds a projection over file-backed state. It is not a second source of truth.
+`copilot-ui` is the local control plane for manifest-driven harness installs, repo registration, search, MCP/CLI integration management, and the Elegy Codex plugin marketplace. It builds a projection over file-backed state. It is not a second source of truth.
 
 ## Current Authorities
 
@@ -24,26 +24,22 @@ related: [copilot-ui-guide, repo-skill-sync-governance, domain-authorities-freez
 - Antigravity global assets come from `antigravity-assets/` and install to the current Gemini-compatible `~/.gemini` layout.
 - Repo-local skills are canonical in `<repo>/.github/skills/**`.
 - Generated repo-local mirrors live in `<repo>/.agents/skills/**`, `<repo>/.opencode/skills/**`, and `<repo>/.gemini/skills/**`.
-- External-source state lives under `~/.elegy/catalog/external-sources/`.
+- Harness manifests control the curated global skill sets; third-party skill sources are not installed through the catalog.
 - Elegy-owned Codex capabilities install through the `elegy` marketplace; `elegy-ui-craft` is the primary UI capability.
 - Global shipped assets are still split by harness. There is no single universal global skill root yet.
 
 ## Status UI
 
 - `Catalog > Status` is the primary status page.
-- It shows supported install targets, external sources, installed inventory, and recent runtime-used skills.
+- It shows supported install targets, configured MCP/CLI integrations, installed inventory, and recent runtime-used skills.
 - Older overlapping status blocks were removed from `Assets`.
 
-## External Sources
+## External MCP, CLI, and Plugin Integrations
 
-- Sources can be listed, added, refreshed, removed, reinstalled, and activated or deactivated per target.
-- Public GitHub sources are ingested by reading repo contents only.
-- Discovery currently supports `SKILL.md` skills and `server.json` MCP servers.
-- Upstream installer scripts are never executed.
-- Activation is global per target, not repo-scoped.
-- Current skill targets: `codex`, `opencode`, `antigravity`.
+- MCP and CLI integrations can be configured, enabled, disabled, refreshed, or removed per target.
+- External MCP configuration and CLI/plugin integrations remain supported; review third-party integrations before enabling them.
 - Current MCP targets: `codex`, `opencode`, `antigravity-cli` (legacy alias: `gemini-cli`).
-- The older `providers` subsystem still exists, but it is separate from external sources.
+- The older `providers` subsystem remains separate from these integrations.
 
 ## UI Capability Sources
 

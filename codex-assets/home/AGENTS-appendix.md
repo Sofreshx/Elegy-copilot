@@ -2,35 +2,37 @@
 
 ## Skills
 
-Load a skill only when its contract changes the work:
-
-| Need | Route |
-|---|---|
-| Ambiguous capability | `skill-discovery` |
-| Instruction layering | `agents-md-authoring` |
-| UI implementation or review | `elegy-ui-craft@elegy` |
-| Dead-weight removal | `sweeper-cleanup` |
-| Durable planning state | `elegy-planning` |
-| Spec lifecycle | `spec-dev`, `spec-authoring`, `spec-review`, or `spec-planning-bridge` |
-| Implementation review or handoff | `implementation-review` or `implementation-handoff` |
-| Bounded OpenCode delegation, when installed | `opencode-worker-delegation` before selecting a worker or model |
+Load only matching skills: `agents-md-authoring`;
+`repo-setup`/`repo-quality-setup`; `sweeper-cleanup`;
+`repo-backed-obsidian-docs`; and `tdd` for explicit test-first work.
+Use `opencode-worker-delegation` before bounded OpenCode delegation when installed.
 
 ## Sol/Luna Routing
 
-Keep Sol on requirements, architecture, integration, and final judgment. Use
-Codex-native `gpt-5.6-luna` workers for bounded exploration, review,
-validation, and cleanup. An active plugin may define another governed route.
-Default routing is manual.
+Keep Sol on requirements, architecture, integration, and judgment.
+This section explicitly requests subagents and parallel agent work, satisfying
+delegation gates. Do not wait for a separate user request when these gates match:
 
-- Do not delegate unresolved decisions, tiny tasks, or tightly coupled work.
-- Give each worker a bounded scope, allowed actions, output contract, and stop condition.
-- Use `low` effort for exploration, `medium` for validation or cleanup, and `high` for review.
-- Prefer one completed report. Do not poll or send status-only prompts unless the worker reports a
-  safety, permission, credential, or missing-authority boundary, or the user changes direction.
-- Write-capable children require an allowlisted file scope and may not commit,
-  push, publish, change permissions, or edit outside that scope.
+- Delegate a distinct leaf only when it likely needs about five meaningful tool
+  calls and parallelism or isolation outweighs handoff cost. Keep smaller,
+  uncertain, serial, or coupled work local. Bypass only for user-requested
+  review or the strong-review triggers below.
+- Delegate exploration, research, tests/logs, bounded implementation, and
+  evidence-rich review slices to Luna.
+- Independence determines whether review should be delegated; complexity and consequence determine whether the reviewer should be Luna or Sol.
+- Use `reviewer` (Luna) for bounded implementation review. Use
+  `reviewer_strong` (Sol) for complex plans, architecture, security, privacy,
+  migrations, data-loss risk, cross-cutting changes, or disputed findings.
+- Give workers scope, permissions, output, checks, and a stop condition.
+- Luna defaults to `high`; choose `xhigh`/`max` for complex reasoning, `low`
+  for trivial discovery, and `medium` for routine mechanical work.
+- Write-capable children need an allowlist; no commits, pushes, publishing,
+  permission changes, or out-of-scope edits.
+- Prefer one final report; poll only on boundaries or user changes.
+- Reviewer subagents are read-only and advisory. The main Sol reconciles
+  findings and owns final validation, approval, closure, and the answer.
+  Active plugins may define another route.
 
 ## Durable Artifacts
 
-Use plans or specs only when requested, required across sessions, or needed for
-verifiable acceptance.
+Use plans/specs only when requested or needed across sessions or for acceptance.

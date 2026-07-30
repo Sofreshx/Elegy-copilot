@@ -1,6 +1,6 @@
 ---
 created: 2026-05-21
-updated: 2026-06-27
+updated: 2026-07-30
 category: system
 status: current
 doc_kind: node
@@ -175,7 +175,7 @@ See the normative spec (R12) for the full freshness contract. The validator prod
 
 Specs are the durable requirements contract. `elegy-planning` is the durable execution and roadmap authority. They complement each other without merging.
 
-When a spec reaches `approved` status, the project lane picks it up for implementation via the `spec-planning-bridge` skill:
+When a spec reaches `approved` status, the normal project lane picks it up for implementation:
 
 | Role | Owner | Artifact |
 |---|---|---|
@@ -187,11 +187,11 @@ When a spec reaches `approved` status, the project lane picks it up for implemen
 
 1. The `approved` spec must have a `spec_id`.
 2. The project plan or work point must reference the spec via a **file-scope selector** using the grammar defined in the normative spec (R10).
-3. Alternatively, record an explicit `planning_insight_record` with `insightType: 'spec-link'` linking the plan to the spec path.
+3. The spec's `Implementation Links` must identify the active plan or work point.
 
 ### Validation
 
-The `spec-review` skill checks for the handoff link during review. A dormant structural validator is available at `scripts/validate-specs.js` for manual research use.
+The `spec-review` skill checks for the handoff link during review. A dormant structural validator is available at `scripts/validate-specs.js` for manual research use. No dedicated spec-to-planning bridge skill currently ships. Rebuild considerations are recorded in `~/.elegy/backlogs/instruction-engine/issues/planning-ideas-log.md`.
 
 ## When to Write a plan.md
 
@@ -250,8 +250,8 @@ planner abstraction.
 1. Use the `spec-dev` skill to choose `spec-first`, `spec-anchored`, or `spec-as-source`.
 2. Use `spec-authoring` to create or refine the durable spec when the work is spec-anchored or spec-as-source. The authoring gate must pass (context evidence, allowed/forbidden behavior, verifiable acceptance checks, and deterministic proof posture when automation is feasible).
 3. Use `spec-review` before implementation planning when the spec should drive later work.
-4. Use `spec-planning-bridge` to link the approved spec to an `elegy-planning` roadmap or plan via `exact:primary:docs/specs/<spec-slug>/spec.md` file-scope selector.
-5. Move into the project lane after the handoff is complete.
+4. Link the approved spec from the normal project lane using the `exact:primary:docs/specs/<spec-slug>/spec.md` file-scope selector and reciprocal `Implementation Links`.
+5. Continue implementation only after the handoff is verified.
 
 ## Specs Location
 

@@ -9,13 +9,7 @@ const childProcess = require('node:child_process');
 const DEFAULT_REPOSITORY = 'Sofreshx/Elegy';
 const DEFAULT_RELEASE_TAG = 'main-snapshot';
 const DEFAULT_MARKETPLACE_NAME = 'elegy';
-const DEFAULT_PLUGIN_NAMES = Object.freeze([
-  'elegy-planning',
-  'elegy-skills',
-  'elegy-obsidian',
-  'elegy-opencode-workers',
-  'elegy-ui-craft',
-]);
+const DEFAULT_PLUGIN_NAMES = Object.freeze([]);
 const INSTALL_METADATA_NAME = 'elegy-codex-marketplace.install.json';
 
 function resolveTargetTriple(options = {}) {
@@ -332,7 +326,7 @@ function buildPluginStatus({ marketplaceRoot, pluginNames = DEFAULT_PLUGIN_NAMES
     installedAt: metadata?.installedAt || null,
     status: aggregateStatus,
     updateAvailable: records.some((record) => repairableStatuses.has(record.status)),
-    canUpdate: true,
+    canUpdate: records.length > 0,
     plugins: records,
     lastError: codexError || (integrityError ? `${integrityError.plugin} is missing from the Elegy Codex marketplace projection.` : null),
   };
@@ -341,6 +335,9 @@ function buildPluginStatus({ marketplaceRoot, pluginNames = DEFAULT_PLUGIN_NAMES
 async function getElegyPluginMarketplaceStatus(options = {}) {
   const marketplaceRoot = resolveMarketplaceRoot(options);
   const pluginNames = options.pluginNames || DEFAULT_PLUGIN_NAMES;
+  if (pluginNames.length === 0) {
+    return buildPluginStatus({ marketplaceRoot, pluginNames });
+  }
   let installedJson = null;
   let availableJson = null;
   let codexError = null;
@@ -360,8 +357,20 @@ async function getElegyPluginMarketplaceStatus(options = {}) {
 }
 
 async function installElegyCodexPlugins(options = {}) {
-  const target = options.target || resolveTargetTriple(options);
   const pluginNames = options.pluginNames || DEFAULT_PLUGIN_NAMES;
+  const marketplaceRoot = resolveMarketplaceRoot(options);
+  if (pluginNames.length === 0) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: 'no-default-managed-plugins',
+      marketplaceName: DEFAULT_MARKETPLACE_NAME,
+      marketplaceRoot,
+      installs: [],
+      status: buildPluginStatus({ marketplaceRoot, pluginNames }),
+    };
+  }
+  const target = options.target || resolveTargetTriple(options);
   const archiveName = marketplaceArchiveName(target);
   const archiveUrl = options.archiveUrl || releaseAssetUrl(options, archiveName);
   const checksumUrl = options.checksumUrl || `${archiveUrl}.sha256`;
@@ -376,7 +385,6 @@ async function installElegyCodexPlugins(options = {}) {
     throw new Error(`Checksum mismatch for ${archiveName}: expected ${expectedSha256}, got ${actualSha256}`);
   }
 
-  const marketplaceRoot = resolveMarketplaceRoot(options);
   const marketplaceParent = path.dirname(marketplaceRoot);
   fs.mkdirSync(marketplaceParent, { recursive: true });
   const tempRoot = fs.mkdtempSync(path.join(marketplaceParent, '.elegy-codex-marketplace-'));

@@ -262,7 +262,7 @@ Source: https://docs.github.com/en/copilot/concepts/agents/copilot-cli/about-cop
 Only enable when needed for current task:
 
 ```bash
-# Via Skill Installer sidebar
+# Via the desktop Catalog
 Operations → MCP Providers → Enable [Provider]
 
 # Store secrets outside repo

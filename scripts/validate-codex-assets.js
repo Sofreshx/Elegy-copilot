@@ -13,8 +13,8 @@ const bannedPatterns = [
   { label: 'Elegy home path: ~/.elegy', pattern: /~\/\.elegy/i },
 ];
 
-const requiredAgentFields = ['name', 'description', 'model', 'model_reasoning_effort', 'sandbox_mode', 'developer_instructions'];
-const allowedReasoningEfforts = new Set(['low', 'medium', 'high', 'max']);
+const requiredAgentFields = ['name', 'description', 'model', 'sandbox_mode', 'developer_instructions'];
+const allowedReasoningEfforts = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 
 function parseTomlScalar(content, key) {
   const match = content.match(new RegExp(`^${key}\\s*=\\s*([^\\r\\n]+)`, 'm'));

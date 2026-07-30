@@ -162,9 +162,10 @@ async function run() {
     assert.equal(candidates[0].kind, 'skill');
   });
 
-  test('collectCandidates gathers from external sources', () => {
+  test('collectCandidates excludes external skills while retaining MCP candidates', () => {
     const installable = makeInstallable({ id: 'ext-mcp', kind: 'mcp' });
-    const source = makeSource('gh-test', [installable]);
+    const externalSkill = makeInstallable({ id: 'skill:third-party', kind: 'skill', title: 'Third-party skill' });
+    const source = makeSource('gh-test', [installable, externalSkill]);
     const externalSources = { sources: [source] };
     const candidates = policyService.collectCandidates({ externalSources });
     assert.equal(candidates.length, 1);

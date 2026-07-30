@@ -304,13 +304,6 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "opencode-spec-planning-bridge-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/spec-planning-bridge",
-      "destination": "skills/spec-planning-bridge",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "opencode-ui-design-spec-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/ui-design-spec",

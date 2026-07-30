@@ -81,10 +81,6 @@ copilot-ui/kimaki
 copilot-ui/kimaki.cmd
 copilot-ui/kimaki.ps1
 
-# Skill installer local artifacts
-.skill-installer/
-**/.skill-installer/
-
 .instructions/
 
 # Instruction Engine task logs (tasks belong to target repos)
@@ -92,6 +88,10 @@ copilot-ui/kimaki.ps1
 .instructions/tasks.archive/
 messaging-gateway.config.json
 /prompt.md
+
+# Accidental shell redirection artifacts
+/nul
+/own=
 
 # LLM temp file sanctioned roots
 /.tmp/

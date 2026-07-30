@@ -1,7 +1,6 @@
 name = "explorer"
 description = "Read-only exploration agent for broad file discovery, grep-heavy scans, and short repository maps. Use only when exploration would otherwise create noisy main-thread context."
 model = "gpt-5.6-luna"
-model_reasoning_effort = "low"
 sandbox_mode = "read-only"
 nickname_candidates = ["Scout", "Radar", "Maple"]
 

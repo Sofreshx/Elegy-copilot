@@ -2,56 +2,15 @@
   "schemaVersion": 1,
   "sources": [
     {
-      "sourceId": "caveman",
-      "title": "Caveman",
-      "description": "Public skills repository with compact communication and workflow skills.",
-      "url": "https://github.com/JuliusBrussee/caveman",
-      "sourceType": "github-repo",
-      "owner": "JuliusBrussee",
-      "repo": "caveman",
-      "defaultRef": "main",
-      "includeSkills": true,
-      "includeMcp": false,
-      "preferredSkillPathPrefixes": [
-        "skills/"
-      ]
-    },
-    {
-      "sourceId": "mattpocock-skills",
-      "title": "Matt Pocock Skills",
-      "description": "Composable public engineering skills with setup and workflow helpers.",
-      "url": "https://github.com/mattpocock/skills",
-      "sourceType": "github-repo",
-      "owner": "mattpocock",
-      "repo": "skills",
-      "defaultRef": "main",
-      "includeSkills": true,
-      "includeMcp": false,
-      "preferredSkillPathPrefixes": [
-        "skills/"
-      ],
-      "hiddenPathPrefixes": [
-        "skills/in-progress/",
-        "skills/personal/"
-      ],
-      "deprecatedPathPrefixes": [
-        "skills/deprecated/"
-      ]
-    },
-    {
       "sourceId": "context7",
       "title": "Context7",
-      "description": "Public skill and MCP source for up-to-date documentation retrieval.",
+      "description": "Public CLI and MCP source for up-to-date documentation retrieval.",
       "url": "https://github.com/upstash/context7",
       "sourceType": "github-repo",
       "owner": "upstash",
       "repo": "context7",
       "defaultRef": "master",
-      "includeSkills": true,
       "includeMcp": true,
-      "preferredSkillPathPrefixes": [
-        "skills/"
-      ],
       "mcpManifestPath": "server.json",
       "installables": [
         {
@@ -116,13 +75,10 @@
       ],
       "conflictGroups": [
         {
-          "groupId": "context7-cli-skills",
-          "label": "CLI + Skills",
+          "groupId": "context7-cli",
+          "label": "CLI",
           "installableIds": [
-            "cli:context7",
-            "skill:context7-cli",
-            "skill:context7-mcp",
-            "skill:find-docs"
+            "cli:context7"
           ],
           "conflictsWith": [
             "context7-mcp"
@@ -135,7 +91,7 @@
             "mcp:context7"
           ],
           "conflictsWith": [
-            "context7-cli-skills"
+            "context7-cli"
           ]
         }
       ]
@@ -149,7 +105,6 @@
       "owner": "LaurieWired",
       "repo": "GhidraMCP",
       "defaultRef": "main",
-      "includeSkills": false,
       "includeMcp": false,
       "setupHints": [
         "Install the latest GhidraMCP extension zip inside Ghidra via File > Install Extensions.",
@@ -205,7 +160,6 @@
       "owner": "github",
       "repo": "spec-kit",
       "defaultRef": "v0.8.13",
-      "includeSkills": false,
       "includeMcp": false,
       "setupHints": [
         "Spec Kit is optional upstream tooling and does not replace this repo's internal spec-driven profile.",
@@ -268,7 +222,6 @@
       "owner": "cortexkit",
       "repo": "aft",
       "defaultRef": "main",
-      "includeSkills": false,
       "includeMcp": false,
       "setupHints": [
         "Use npx @cortexkit/aft@latest setup for full AFT setup.",
@@ -303,7 +256,6 @@
       "owner": "cortexkit",
       "repo": "magic-context",
       "defaultRef": "main",
-      "includeSkills": false,
       "includeMcp": false,
       "setupHints": [
         "Magic Context conflicts with DCP. Only one context manager can be active at a time.",
@@ -345,7 +297,6 @@
       "owner": "rtk-ai",
       "repo": "rtk",
       "defaultRef": "main",
-      "includeSkills": false,
       "includeMcp": false,
       "setupHints": [
         "RTK requires the rtk CLI to be installed first.",
@@ -383,7 +334,6 @@
       "owner": "Opencode-DCP",
       "repo": "opencode-dynamic-context-pruning",
       "defaultRef": "main",
-      "includeSkills": false,
       "includeMcp": false,
       "setupHints": [
         "DCP conflicts with Magic Context. Only one context manager can be active at a time.",

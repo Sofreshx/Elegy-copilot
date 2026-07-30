@@ -75,11 +75,11 @@ const INITIAL_DETAIL_STATE: DetailState = {
   label: 'No source detail selected',
 };
 
-function resolveContext7ModeInstallableIds(mode: 'cli-skills' | 'mcp'): string[] {
+function resolveContext7ModeInstallableIds(mode: 'cli' | 'mcp'): string[] {
   if (mode === 'mcp') {
     return ['mcp:context7'];
   }
-  return ['cli:context7', 'skill:context7-cli', 'skill:context7-mcp', 'skill:find-docs'];
+  return ['cli:context7'];
 }
 
 const INSTALL_SURFACE_CARDS: Array<{
@@ -219,10 +219,24 @@ function readSourceVerificationSummary(source: CatalogExternalSourceProjection |
   };
 }
 
+function isExternalToolInstallable(installable: CatalogExternalSourceInstallable | null | undefined): boolean {
+  return installable?.kind === 'mcp' || installable?.kind === 'mcp-server' || installable?.kind === 'cli-tool';
+}
+
+function isVisibleExternalToolInstallable(installable: CatalogExternalSourceInstallable | null | undefined): boolean {
+  return isExternalToolInstallable(installable) && installable?.hiddenByDefault !== true;
+}
+
 function countExternalSourceActiveTargets(source: CatalogExternalSourceProjection | null | undefined): number {
   if (!source?.activation || typeof source.activation !== 'object') {
     return 0;
   }
+
+  const installableIds = new Set(
+    (Array.isArray(source.installables) ? source.installables : [])
+      .filter(isVisibleExternalToolInstallable)
+      .map((installable) => installable.installableId),
+  );
 
   let count = 0;
   for (const targetState of Object.values(source.activation)) {
@@ -230,9 +244,9 @@ function countExternalSourceActiveTargets(source: CatalogExternalSourceProjectio
       continue;
     }
     const installables = targetState.installables && typeof targetState.installables === 'object'
-      ? Object.values(targetState.installables as Record<string, Record<string, unknown>>)
+      ? Object.entries(targetState.installables as Record<string, Record<string, unknown>>)
       : [];
-    if (installables.some((entry) => entry?.enabled === true)) {
+    if (installables.some(([installableId, entry]) => installableIds.has(installableId) && entry?.enabled === true)) {
       count += 1;
     }
   }
@@ -241,7 +255,7 @@ function countExternalSourceActiveTargets(source: CatalogExternalSourceProjectio
 
 function countVisibleExternalInstallables(source: CatalogExternalSourceProjection | null | undefined): number {
   return Array.isArray(source?.installables)
-    ? source.installables.filter((installable) => installable.hiddenByDefault !== true).length
+    ? source.installables.filter(isVisibleExternalToolInstallable).length
     : 0;
 }
 
@@ -325,7 +339,6 @@ function readInstallableReadablePath(installable: CatalogExternalSourceInstallab
     ? installable.metadata as Record<string, unknown>
     : {};
   const candidate = [
-    metadata.relativeSkillFilePath,
     metadata.readPath,
     installable.sourcePath,
     installable.relativePath,
@@ -342,7 +355,7 @@ function buildExternalInventoryEntries(sources: CatalogExternalSourceProjection[
     .flatMap((source) => {
       const installables = Array.isArray(source.installables) ? source.installables : [];
       return installables.flatMap((installable) => {
-        if (installable.kind !== 'mcp' && installable.kind !== 'cli-tool' && installable.kind !== 'skill') {
+        if (!isExternalToolInstallable(installable)) {
           return [];
         }
         const supportedTargets = readExternalInstallableTargets(installable);
@@ -398,7 +411,7 @@ export default function CatalogStatusView() {
     inventory: EMPTY_INSTALLED_INVENTORY,
   });
   const [detailState, setDetailState] = useState<DetailState>(INITIAL_DETAIL_STATE);
-  const [context7Mode, setContext7Mode] = useState<'cli-skills' | 'mcp'>('cli-skills');
+  const [context7Mode, setContext7Mode] = useState<'cli' | 'mcp'>('cli');
   const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -546,7 +559,7 @@ export default function CatalogStatusView() {
     });
   };
 
-  const handleSyncInstallVerifyContext7 = async (source: CatalogExternalSourceProjection, mode: 'cli-skills' | 'mcp') => {
+  const handleSyncInstallVerifyContext7 = async (source: CatalogExternalSourceProjection, mode: 'cli' | 'mcp') => {
     await catalogWorkspaceStore.syncInstallVerifyExternalSource({
       sourceId: source.sourceId,
       installableIds: resolveContext7ModeInstallableIds(mode),
@@ -615,6 +628,11 @@ export default function CatalogStatusView() {
 
   const handleDeactivateAllForSource = async (source: CatalogExternalSourceProjection) => {
     const activation = source.activation && typeof source.activation === 'object' ? source.activation : {};
+    const installableIds = new Set(
+      (Array.isArray(source.installables) ? source.installables : [])
+        .filter(isExternalToolInstallable)
+        .map((installable) => installable.installableId),
+    );
     const promises: Array<Promise<void>> = [];
 
     for (const [targetKey, targetState] of Object.entries(activation)) {
@@ -628,7 +646,7 @@ export default function CatalogStatusView() {
       }
 
       for (const [installableId, entry] of Object.entries(installables as Record<string, Record<string, unknown>>)) {
-        if (entry?.enabled === true) {
+        if (installableIds.has(installableId) && entry?.enabled === true) {
           promises.push(
             catalogWorkspaceStore.deactivateExternalSourceInstallable({
               sourceId: source.sourceId,
@@ -697,15 +715,15 @@ export default function CatalogStatusView() {
 
       {/* External Assets — Featured */}
       <Panel
-        subtitle="Quick-access cards for Context7 and Caveman. Enable or disable with one click. Full management lives in the Sources panel below."
+        subtitle="Quick-access cards for featured MCP, CLI, and plugin integrations. Enable or disable with one click. Full management lives in the Sources panel below."
         testId="catalog-status-external-assets-panel"
         title="External Assets"
       >
         {(() => {
-          const featuredIds = ['context7', 'caveman'];
+          const featuredIds = ['context7'];
           const featured = externalSources.filter((s) => featuredIds.includes(s.sourceId));
           const otherShipped = externalSources.filter(
-            (s) => s.sourceId !== 'context7' && s.sourceId !== 'caveman' && !s.editable,
+            (s) => !featuredIds.includes(s.sourceId) && !s.editable,
           );
 
           if (featured.length === 0 && otherShipped.length === 0) {
@@ -739,12 +757,12 @@ export default function CatalogStatusView() {
                         <div className="catalog-action-row" style={{ marginBottom: '6px' }}>
                           <label className="planning-checkbox" style={{ marginRight: '12px' }}>
                             <input
-                              checked={context7Mode === 'cli-skills'}
-                              onChange={() => setContext7Mode('cli-skills')}
+                              checked={context7Mode === 'cli'}
+                              onChange={() => setContext7Mode('cli')}
                               type="radio"
                               name="context7-mode"
                             />
-                            CLI + Skills (recommended)
+                            CLI (recommended)
                           </label>
                           <label className="planning-checkbox">
                             <input
@@ -1040,7 +1058,7 @@ export default function CatalogStatusView() {
             onChange={(event) => handleExternalSourceDraftChange({ includeMcp: event.target.checked })}
             type="checkbox"
           />
-          Probe for MCP manifests in addition to skills
+          Probe for MCP manifests
         </label>
 
         <div className="catalog-action-row">
@@ -1062,7 +1080,7 @@ export default function CatalogStatusView() {
           <ul className="catalog-repo-list" data-testid="catalog-status-source-list">
             {externalSources.map((source) => {
               const installables = Array.isArray(source.installables)
-                ? source.installables.filter((installable) => installable.hiddenByDefault !== true)
+                ? source.installables.filter(isVisibleExternalToolInstallable)
                 : [];
               const activeTargetCount = countExternalSourceActiveTargets(source);
               const visibleInstallableCount = countVisibleExternalInstallables(source);

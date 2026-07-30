@@ -180,16 +180,6 @@
 - "Add a favicon to the site"
 - "What is the Node.js event loop?"
 
-## spec-planning-bridge
-### Should Trigger
-- "Hand off the approved spec to the planning lane"
-- "Bridge the spec to a roadmap in elegy-planning"
-- "Link the spec to the implementation plan"
-### Should Not Trigger
-- "Fix a typo in the error message"
-- "Add a dependency to package.json"
-- "What's the default timeout for fetch?"
-
 ## spec-review
 ### Should Trigger
 - "Review the spec for the inventory module before we plan"

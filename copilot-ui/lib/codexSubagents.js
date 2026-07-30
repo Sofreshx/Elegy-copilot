@@ -10,8 +10,8 @@ const SETTINGS_FILE = '.elegy-copilot-codex-subagents.json';
 const MANAGED_INVENTORY_FILE = '.elegy-copilot-codex-managed.json';
 const CONFIG_FILE = 'config.toml';
 const DEFAULT_SETTINGS = {
-  routingMode: 'manual',
-  maxThreads: 3,
+  routingMode: 'governed-automatic',
+  maxThreads: 6,
   maxDepth: 1,
   jobMaxRuntimeSeconds: 1800,
   telemetryRetentionDays: 90,
@@ -24,11 +24,13 @@ const EDITABLE_AGENT_FIELDS = new Set([
   'developer_instructions',
 ]);
 const BASELINE_SUBAGENT_MODEL = 'gpt-5.6-luna';
-const BASELINE_SUBAGENT_EFFORTS = new Set(['low', 'medium', 'high', 'max']);
+const BASELINE_SUBAGENT_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 const AGENT_ROUTING_MODES = new Set(['manual', 'suggested', 'governed-automatic', 'off']);
 const AGENT_TOOL_SCOPE_NOTES = {
   explorer: 'Read-only sandbox is enforced. MCP servers may still be inherited from the parent Codex session until Codex supports per-agent MCP exclusion.',
   reviewer: 'Read-only sandbox is enforced. MCP servers may still be inherited from the parent Codex session until Codex supports per-agent MCP exclusion.',
+  reviewer_strong: 'Read-only Sol review is enforced for complex or consequential independent review. Final approval and closure remain with the main Sol.',
+  worker: 'Workspace-write sandbox is enforced. Assign an explicit file or module allowlist and avoid overlapping write ownership.',
   sweeper: 'Workspace-write sandbox is enforced. MCP servers may still be inherited from the parent Codex session until Codex supports per-agent MCP exclusion.',
   'test-runner': 'Command execution is configured for validation only. Do not use this agent for edits, installs, background jobs, watch mode, or destructive commands.',
 };
@@ -153,7 +155,7 @@ function patchNativeAgentsConfigText(originalText, settings) {
   const lines = normalized ? normalized.split('\n') : [];
   const headerIndex = lines.findIndex((line) => isAgentsTableHeader(line));
   const managedLines = [
-    `max_threads = ${values.maxThreads}`,
+    `max_concurrent_threads_per_session = ${values.maxThreads}`,
     `max_depth = ${values.maxDepth}`,
     `job_max_runtime_seconds = ${values.jobMaxRuntimeSeconds}`,
   ];
@@ -173,7 +175,8 @@ function patchNativeAgentsConfigText(originalText, settings) {
       }
     }
     let section = lines.slice(headerIndex + 1, nextHeaderIndex);
-    section = upsertKeyLine(section, 'max_threads', managedLines[0]);
+    section = section.filter((line) => !/^\s*max_threads\s*=/.test(String(line || '')));
+    section = upsertKeyLine(section, 'max_concurrent_threads_per_session', managedLines[0]);
     section = upsertKeyLine(section, 'max_depth', managedLines[1]);
     section = upsertKeyLine(section, 'job_max_runtime_seconds', managedLines[2]);
     patched = ensureTrailingNewline([
@@ -209,8 +212,9 @@ function getNativeAgentsConfig(codexHome, settings = null) {
     };
   }
   const agents = parsed.agents && typeof parsed.agents === 'object' ? parsed.agents : {};
+  const configuredMaxThreads = agents.max_concurrent_threads_per_session ?? agents.max_threads;
   const values = {
-    maxThreads: Number.isFinite(Number(agents.max_threads)) ? Number(agents.max_threads) : null,
+    maxThreads: Number.isFinite(Number(configuredMaxThreads)) ? Number(configuredMaxThreads) : null,
     maxDepth: Number.isFinite(Number(agents.max_depth)) ? Number(agents.max_depth) : null,
     jobMaxRuntimeSeconds: Number.isFinite(Number(agents.job_max_runtime_seconds)) ? Number(agents.job_max_runtime_seconds) : null,
   };
@@ -505,12 +509,13 @@ function updateCodexSubagent(name, updates, options = {}) {
     throw Object.assign(new Error(`Unknown Codex subagent: ${name}`), { statusCode: 404 });
   }
   const parsed = parseAgentToml(currentText, targetPath);
-  if (updates.model !== undefined && String(updates.model) !== BASELINE_SUBAGENT_MODEL) {
-    throw Object.assign(new Error(`Managed Codex subagents must use ${BASELINE_SUBAGENT_MODEL}`), { statusCode: 422 });
+  const managedModel = String(source?.parsed?.model || BASELINE_SUBAGENT_MODEL);
+  if (updates.model !== undefined && String(updates.model) !== managedModel) {
+    throw Object.assign(new Error(`Managed Codex subagent ${name} must use ${managedModel}`), { statusCode: 422 });
   }
   if (updates.model_reasoning_effort !== undefined
     && !BASELINE_SUBAGENT_EFFORTS.has(String(updates.model_reasoning_effort))) {
-    throw Object.assign(new Error('Managed Codex subagent effort must be low, medium, high, or max'), { statusCode: 422 });
+    throw Object.assign(new Error('Managed Codex subagent effort must be low, medium, high, xhigh, or max'), { statusCode: 422 });
   }
   if (updates.allowSpark === true) {
     throw Object.assign(new Error('Spark is disabled for the managed Codex subagent lane'), { statusCode: 422 });

@@ -1,6 +1,6 @@
 ---
 created: 2026-07-04
-updated: 2026-07-11
+updated: 2026-07-30
 category: system
 status: current
 doc_kind: node
@@ -12,8 +12,9 @@ related: [harness-asset-flow, agents-vs-skills, ui-development-governance]
 
 # Codex Subagent Control Plane
 
-Purpose: manage Codex subagents without making delegation needless, opaque, or
-expensive. Native Codex owns the subagent lifecycle; plugins may add a bounded
+Purpose: keep Sol focused on orchestration and final judgment while using
+bounded subagents for parallel work, context isolation, and independent
+challenge. Native Codex owns the subagent lifecycle; plugins may add a bounded
 routing policy around it.
 
 ## Contract
@@ -26,21 +27,28 @@ routing policy around it.
 | Native Codex config | `[agents]` concurrency and depth limits |
 | Local telemetry | Derived usage metadata only |
 
-Subagents are explicit delegation tools. They are not background workers. A
-plugin-scoped automatic route is allowed only when the plugin is active, the
-task benefits from context/token isolation, and the packet has a bounded scope.
-Do not spawn for tiny or tightly coupled work.
+Subagents are bounded delegation tools. The default route is proactive when a
+task benefits from parallelism or context isolation and the packet has a clear
+scope. Do not spawn for tiny, serial, unresolved, or tightly coupled work.
 
 ## Routing policy
 
-Default mode: manual. The delegated-dev plugin may use `opencode-preferred`
-for eligible worker tasks. Codex-native managed agents cover exploration,
-review, validation, and cleanup rather than general implementation.
+Default mode: `governed-automatic`. Sol actively assesses safe delegation on
+non-trivial tasks and delegates only when the benefit exceeds handoff cost.
+The delegated-dev plugin may use `opencode-preferred` for eligible worker
+tasks. Codex-native managed agents cover exploration, bounded implementation,
+review, validation, and cleanup.
+
+Apply one default cost gate: spawn a leaf only when it has a distinct
+deliverable and is expected to perform about five or more meaningful tool
+calls. Bypass the numeric threshold only for user-requested independent review
+or the consequential strong-review triggers below. Keep smaller or uncertain
+work in the parent; do not bundle trivial work merely to reach the threshold.
 
 | Spawn | Do not spawn |
 |---|---|
-| User asks for subagents, delegation, or parallel work | Tiny edit or one-file answer |
-| Read-only exploration would create about five or more noisy tool calls | Requirements are unclear |
+| Independent work can run in parallel or isolate noisy context | Tiny edit or one-file answer |
+| A bounded leaf has a distinct deliverable and about five or more meaningful tool calls | Requirements are unclear |
 | Independent review slices can run in parallel | Work is serial or write-conflicting |
 | Test/log triage can return a short summary | Handoff is longer than doing the task inline |
 
@@ -50,22 +58,73 @@ Routing modes:
 |---|---|
 | `manual` | Spawn only after explicit user request |
 | `suggested` | Main agent may recommend delegation, then wait |
-| `governed-automatic` | Main agent may use approved read-only delegation when gates match |
+| `governed-automatic` | Main agent proactively delegates approved bounded work when gates match |
 | `off` | Do not use managed subagents |
 
 ## Managed agents
 
 | Agent | Default model | Effort | Sandbox | Use |
 |---|---|---|---|---|
-| `explorer` | `gpt-5.6-luna` | `low` | `read-only` | Noisy repo mapping |
-| `reviewer` | `gpt-5.6-luna` | `high` | `read-only` | Independent review |
-| `test-runner` | `gpt-5.6-luna` | `medium` | `workspace-write` | Bounded validation output |
-| `sweeper` | `gpt-5.6-luna` | `medium` | `workspace-write` | Bounded cleanup |
+| `explorer` | `gpt-5.6-luna` | inherited (`high`) | `read-only` | Noisy repo mapping and non-trivial investigation |
+| `reviewer` | `gpt-5.6-luna` | inherited (`high`) | `read-only` | Bounded implementation review |
+| `reviewer_strong` | `gpt-5.6-sol` | inherited (`high`) | `read-only` | Complex or consequential independent review |
+| `worker` | `gpt-5.6-luna` | inherited (`high`) | `workspace-write` | Bounded implementation with explicit ownership |
+| `test-runner` | `gpt-5.6-luna` | inherited (`high`) | `workspace-write` | Bounded validation output |
+| `sweeper` | `gpt-5.6-luna` | inherited (`high`) | `workspace-write` | Bounded cleanup |
 
-The baseline native lane is capped to Luna and `low`/`medium`/`high`.
-There is no Spark or higher-effort fallback in this routing contract. The
+The bounded utility lane is capped to Luna and defaults to `high`, including
+exploration, implementation, and routine review. `reviewer_strong` is the
+explicit Sol exception for judgment-heavy review. Role files intentionally omit
+`model_reasoning_effort`, so Sol may choose `xhigh` or `max` for a complex
+delegation. Use `low` only for trivial discovery and `medium` only for routine
+mechanical work.
+There is no Spark fallback in this routing contract. The
 delegated-dev plugin prefers OpenCode Workers on the user's OpenCode Go
 subscription for eligible roles, while Sol remains the orchestrator.
+
+## Review routing
+
+Independence determines whether review should be delegated. Complexity and
+consequence determine the model:
+
+| Review | Default owner |
+|---|---|
+| Bounded diff correctness, regressions, conventions, request fit, missing tests | `reviewer` (Luna) |
+| Complex plans, architecture, security, privacy, migrations, data-loss risk, cross-cutting changes, disputed findings | `reviewer_strong` (Sol) |
+| Requirements, trade-offs, integration, final validation, approval, closure, answer | Main Sol |
+
+Both reviewers are read-only and advisory. The main Sol verifies and
+reconciles their findings.
+
+## Native Go agents
+
+`elegy-codex-go-agents` is a separate experimental plugin for running genuine
+native Codex child sessions against OpenCode Go. It does not replace OpenCode
+Workers and must not change the parent session's root `model` or
+`model_provider`.
+
+The plugin owns an isolated localhost Responses provider, fixed
+`explorer_go`/`reviewer_go` variants, paired OpenAI variants, and optional
+`explorer`/`reviewer` aliases. Explicit fixed variants override aliases.
+Authentication is resolved per request from the existing OpenCode Go profile
+store or native OpenCode auth. The selector stores only an account identifier,
+so profile changes require no bridge restart and never copy API keys into Codex
+TOML or bridge configuration.
+
+Capability status:
+
+| Capability | Status |
+|---|---|
+| Native child identity and isolated provider selection | Observed |
+| Parent provider remains OpenAI | Observed |
+| Flash/Pro text and function-call probes | Observed |
+| Hot switching between existing OpenCode Go profiles | Observed |
+| Full native child streaming turn | Blocked in pinned Moon Bridge adapter |
+
+Keep aliases on the OpenAI variants until the full native streaming turn,
+tool-result continuation, cancellation, and one visible fallback pass release
+tests. The CLI is the v1 control surface; desktop UI controls are deferred until
+that protocol gate passes.
 
 `explorer` is one configurable agent, not a family of explorer agents. Use the
 prompt mode instead:
@@ -107,7 +166,8 @@ Editable fields:
 - reasoning effort
 - sandbox
 - routing mode
-- baseline model and effort within the Luna cap
+- bounded-lane model and effort within the Luna cap
+- the fixed Sol strong-review lane
 - developer instructions
 
 Local overrides are preserved until the user resets a managed agent.
@@ -125,18 +185,50 @@ Heavy details stay behind expansion: developer instructions, capability truth
 labels, raw TOML, source path, installed path, and tool-scope notes.
 
 The Subagents tab writes routing metadata to
-`~/.codex/.elegy-copilot-codex-subagents.json` and native Codex fan-out limits
-to `~/.codex/config.toml`:
+`~/.codex/.elegy-copilot-codex-subagents.json` and native Codex concurrency,
+depth, and runtime limits to `~/.codex/config.toml`. The installer owns the
+native enablement, default subagent model, and default effort:
 
 ```toml
 [agents]
-max_threads = 3
+enabled = true
+max_concurrent_threads_per_session = 6
+default_subagent_model = "gpt-5.6-luna"
+default_subagent_reasoning_effort = "high"
 max_depth = 1
 job_max_runtime_seconds = 1800
 ```
 
+This policy follows OpenAI's current Codex guidance to keep requirements and
+integration in the main thread, use subagents for context isolation and
+parallel work, prefer bounded prompts with explicit outputs, and avoid
+overlapping write-heavy scopes. See the official
+[Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents) and
+[Best practices](https://learn.chatgpt.com/guides/best-practices) guides.
+
 Project-scoped `.codex/agents` entries are discovery-only in the UI. Edit them
 in the project repo.
+
+## Installation authority
+
+Instruction Engine owns the durable global policy installed at
+`~/.codex/AGENTS.md`. It composes
+`catalog-assets/instructions/agent-session-defaults.md` with
+`codex-assets/home/AGENTS-appendix.md`; `codex-assets/home/AGENTS.md` is only a
+source-tree marker and is not an install source. The CLI setup and desktop
+asset installer use this same manifest-driven composition.
+
+The managed inventory records the installed hash. A later setup run replaces
+an older managed version when its current hash still matches that inventory,
+but preserves a file whose hash shows a user edit. Do not duplicate this
+durable policy in Codex custom instructions. Use `~/.codex/config.toml` for
+model, effort, concurrency, and depth settings.
+
+Codex loads `~/.codex/AGENTS.override.md` instead of `AGENTS.md` when the
+override exists. Setup installs the managed file but reports this condition;
+merge or remove the override to activate the managed global policy. A legacy
+install with no trustworthy inventory remains protected as drift and requires
+an explicit reset or `--force`.
 
 ## Telemetry
 

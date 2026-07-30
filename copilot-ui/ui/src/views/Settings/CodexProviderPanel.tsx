@@ -72,7 +72,7 @@ function routingTone(routingMode: string): 'neutral' | 'brand' | 'accent' | 'suc
 
 function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSubagentRecord; saving: boolean; readOnly?: boolean }) {
   const [model, setModel] = useState(agent.model || '');
-  const [effort, setEffort] = useState(agent.modelReasoningEffort || 'medium');
+  const [effort, setEffort] = useState(agent.modelReasoningEffort || 'high');
   const [sandbox, setSandbox] = useState(agent.sandboxMode || 'read-only');
   const [routingMode, setRoutingMode] = useState(agent.routingMode || 'manual');
   const [allowSpark, setAllowSpark] = useState(agent.allowSpark);
@@ -80,7 +80,7 @@ function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSu
 
   useEffect(() => {
     setModel(agent.model || '');
-    setEffort(agent.modelReasoningEffort || 'medium');
+    setEffort(agent.modelReasoningEffort || 'high');
     setSandbox(agent.sandboxMode || 'read-only');
     setRoutingMode(agent.routingMode || 'manual');
     setAllowSpark(agent.allowSpark);
@@ -139,6 +139,8 @@ function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSu
                 <option value="low">low</option>
                 <option value="medium">medium</option>
                 <option value="high">high</option>
+                <option value="xhigh">xhigh</option>
+                <option value="max">max</option>
               </select>
             </label>
             <label>
@@ -310,7 +312,7 @@ function CodexSubagentsSection({ state }: { state: CodexProviderState }) {
               <div className="settings-row-label">
                 <strong>Routing mode</strong>
                 <span className="settings-row-description">
-                  Default is manual. Governed automatic allows only policy-approved read-only delegation.
+                  Default is governed automatic for policy-approved bounded delegation.
                 </span>
               </div>
               <div className="settings-row-action">

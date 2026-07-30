@@ -91,7 +91,7 @@ async function run() {
       snapshot: {
         installables: [
           {
-            installableId: 'skill:brainstorming',
+            installableId: 'mcp:context7',
           },
         ],
       },
@@ -100,14 +100,14 @@ async function run() {
       source: { sourceId: body.sourceId },
       installable: { installableId: body.installableId },
       target: body.target,
-      materialized: { managedName: 'external--demo-source--brainstorming' },
+      materialized: { managedName: 'external--demo-source--context7' },
       state: { ok: true },
     }),
     deactivateInstallable: (_options, body) => ({
       source: { sourceId: body.sourceId },
       installable: { installableId: body.installableId },
       target: body.target,
-      removed: { managedName: 'external--demo-source--brainstorming' },
+      removed: { managedName: 'external--demo-source--context7' },
       state: { ok: true },
     }),
     syncInstallVerifySource: async (_options, body) => ({
@@ -153,7 +153,7 @@ async function run() {
     externalSources,
     readJsonBody: () => Promise.resolve({
       sourceId: 'demo-source',
-      installableId: 'skill:brainstorming',
+      installableId: 'mcp:context7',
       target: 'codex',
       url: 'https://github.com/example/demo-source',
     }),
@@ -244,7 +244,7 @@ async function run() {
       externalSources,
       readJsonBody: () => Promise.resolve({
         sourceId: 'demo-source',
-        installableId: 'skill:brainstorming',
+        installableId: 'mcp:context7',
         target: 'codex',
         url: 'https://github.com/example/demo-source',
       }),

@@ -8,8 +8,17 @@ const test = require('node:test');
 
 const marketplace = require('./elegyPluginMarketplace');
 
-test('Elegy plugin marketplace includes UI Craft in the default managed set', () => {
-  assert.ok(marketplace.DEFAULT_PLUGIN_NAMES.includes('elegy-ui-craft'));
+test('Elegy plugins are explicit opt-ins rather than a default managed set', async () => {
+  assert.deepEqual(marketplace.DEFAULT_PLUGIN_NAMES, []);
+  const result = await marketplace.installElegyCodexPlugins({
+    codexHome: fs.mkdtempSync(path.join(os.tmpdir(), 'ie-elegy-plugins-empty-')),
+    spawnSyncImpl() {
+      throw new Error('Codex must not be called when no plugins are selected');
+    },
+  });
+  assert.equal(result.skipped, true);
+  assert.equal(result.reason, 'no-default-managed-plugins');
+  assert.equal(result.status.canUpdate, false);
 });
 
 function writeMarketplace(root, version = '0.1.0+codex.abc123def456') {

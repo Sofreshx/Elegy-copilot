@@ -266,6 +266,7 @@ function collectCandidates(options = {}) {
       for (const installable of installables) {
         if (!installable || typeof installable !== 'object') continue;
         const kind = normalizeString(installable.kind);
+        if (kind.toLowerCase() === 'skill') continue;
         if (!ALL_KINDS.includes(kind)) continue;
         candidates.push(
           normalizeExternalInstallable(installable, source, {

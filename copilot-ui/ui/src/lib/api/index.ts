@@ -22,4 +22,3 @@ export * from './github';
 export * from './repoAssets';
 export * from './orchestrator';
 export * from './config';
-export * from './localRepoMcp';

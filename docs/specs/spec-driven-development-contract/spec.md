@@ -3,7 +3,7 @@ spec_id: spec-driven-development-contract
 title: Spec-Driven Development Contract
 status: draft
 type: contract
-updated: 2026-06-27
+updated: 2026-07-30
 supersedes:
   - verifiable-acceptance-criteria
 ---
@@ -21,7 +21,7 @@ Define the authoritative, verifiable contract for durable repo specs under `docs
 - `catalog-assets/shared-skills/spec-authoring/SKILL.md` (190 lines) — inline "shared contract" defining required frontmatter, headings, and accepted values. This skill will reference this spec instead of duplicating the contract.
 - `catalog-assets/shared-skills/spec-review/SKILL.md` (52 lines) — 16 review checks; check #1 says "Verify the spec uses the shared contract and required headings" but the contract is not defined in a spec artifact.
 - `catalog-assets/shared-skills/spec-dev/SKILL.md` (78 lines) — routing rules for spec-first, spec-anchored, spec-as-source; references `docs/specs/` as default location without citing a normative contract.
-- `catalog-assets/shared-skills/spec-planning-bridge/SKILL.md` (99 lines) — defines the file-scope selector grammar for elegy-planning handoff inline rather than referencing a spec.
+- `~/.elegy/backlogs/instruction-engine/issues/planning-ideas-log.md` — records why the former bridge skill was unshipped and the evidence required before reconsidering it.
 - `scripts/validate-specs.js` (dormant — historically enforced the contract structurally; kept in-repo as implementation history). The validator should reference this spec as its compliance target.
 - `scripts/validate-specs.test.js` (508 lines) — 16 test cases; validates against the current validator behavior, not against a spec.
 - `docs/specs/verifiable-acceptance-criteria/spec.md` (103 lines, `draft`) — defines the `→ verify:` marker format (R1). This spec absorbs and supersedes it.
@@ -131,7 +131,7 @@ Define the authoritative, verifiable contract for durable repo specs under `docs
   - Intent: `primary` (main artifact), `review`, or `affected`
 - R10.2: For spec-to-planning linkage, the canonical selector is: `exact:primary:docs/specs/<spec-slug>/spec.md` where `<spec-slug>` matches the `spec_id` frontmatter key.
 - R10.3: This selector is used in: work point `fileScope` arrays, plan `fileScope` arrays, and `Implementation Links` in the spec itself.
-- R10.4: Semantic linkage (audit trail) MUST always pair a file-scope selector with a `planning_insight_record` of `insightType: 'spec-link'`.
+- R10.4: The file-scope selector and reciprocal `Implementation Links` are the complete handoff contract. Do not require a planning insight type that the planning runtime does not support.
 
 #### R11 — Spec Retention Rules
 
@@ -216,7 +216,7 @@ Define the authoritative, verifiable contract for durable repo specs under `docs
 - `catalog-assets/shared-skills/spec-authoring/SKILL.md` — updated to reference this spec
 - `catalog-assets/shared-skills/spec-review/SKILL.md` — updated to reference this spec
 - `catalog-assets/shared-skills/spec-dev/SKILL.md` — updated to reference this spec
-- `catalog-assets/shared-skills/spec-planning-bridge/SKILL.md` — updated to reference this spec
+- `~/.elegy/backlogs/instruction-engine/issues/planning-ideas-log.md` — unshipping rationale and rebuild gates for the former bridge skill
 - `docs/system/spec-driven-development.md` — thinned to reference this spec
 - `scripts/validate-specs.js` — may receive new checks from this spec's requirements
 - `scripts/lib/ac-vague-tokens.js` — referenced in R4.3
@@ -230,4 +230,4 @@ Define the authoritative, verifiable contract for durable repo specs under `docs
 
 - This spec intentionally supersedes `verifiable-acceptance-criteria` — that spec's `→ verify:` marker contract (R1) is absorbed here as R4, and its vague-language detection (R2) is absorbed as R4.3. The remaining requirements of that spec (plan-pack validator changes, spec-review checklist) are covered by this spec's broader contract or delegated to operational docs.
 - R13 (ADR Promotion) references `docs/adr/` but existing ADRs live in `docs/system/` with `-adr.md` suffix — this spec uses the current convention. If ADR location changes, update R13.1.
-- File-scope selector grammar (R10) is defined here normatively for the first time — previously only in `catalog-assets/shared-skills/spec-planning-bridge/SKILL.md`.
+- File-scope selector grammar (R10) remains the supported direct handoff mechanism. The former dedicated bridge skill was removed because its planning commands and semantic insight contract were not executable.

@@ -1,6 +1,6 @@
 ---
 created: 2026-05-11
-updated: 2026-06-30
+updated: 2026-07-30
 category: system
 status: current
 doc_kind: node
@@ -129,11 +129,11 @@ To customize file sync between worktrees, create .opencode/worktree.json in your
 
 The plugin also injects `OPENCODE_WORKTREE_PATH`, `OPENCODE_WORKTREE_ROOT`, and `OPENCODE_PROJECT_ID` env vars into all shell commands.
 
-## Catalog And External Sources
+## Catalog and External Integrations
 
-- `Catalog > Status` can activate external-source skills for OpenCode under `~/.config/opencode/skills/`.
-- External-source MCP servers for OpenCode are materialized through `~/.config/opencode/opencode.json`.
-- Source activation is global, not repo-scoped.
+- The manifest-driven OpenCode installer is the supported way to install curated global skills under `~/.config/opencode/skills/`.
+- Repo-local skills remain owned by the selected repository and its generated mirrors.
+- Catalog-managed external MCP configuration for OpenCode is materialized through `~/.config/opencode/opencode.json`; CLI and plugin integrations remain supported.
 
 ## Quick Checks
 

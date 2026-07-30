@@ -204,7 +204,8 @@ export function syncFile(src, dst, options = {}) {
     return buildSyncResult('skipped', dst, { sourceHash, destinationHash });
   }
 
-  if (!options.force) {
+  const replacesManagedVersion = Boolean(options.previousHash) && destinationHash === options.previousHash;
+  if (!options.force && !replacesManagedVersion) {
     logSyncAction('skipped_conflict', dst, log);
     return buildSyncResult('skipped_conflict', dst, { sourceHash, destinationHash });
   }
@@ -240,7 +241,8 @@ export function syncDirectory(src, dst, options = {}) {
     return buildSyncResult('skipped', dst, { sourceHash, destinationHash });
   }
 
-  if (!options.force) {
+  const replacesManagedVersion = Boolean(options.previousHash) && destinationHash === options.previousHash;
+  if (!options.force && !replacesManagedVersion) {
     logSyncAction('skipped_conflict', dst, log);
     return buildSyncResult('skipped_conflict', dst, { sourceHash, destinationHash });
   }
@@ -277,7 +279,8 @@ export function syncText(content, dst, options = {}) {
     return buildSyncResult('skipped', dst, { sourceHash, destinationHash });
   }
 
-  if (!options.force) {
+  const replacesManagedVersion = Boolean(options.previousHash) && destinationHash === options.previousHash;
+  if (!options.force && !replacesManagedVersion) {
     logSyncAction('skipped_conflict', dst, log);
     return buildSyncResult('skipped_conflict', dst, { sourceHash, destinationHash });
   }

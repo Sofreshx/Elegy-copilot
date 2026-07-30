@@ -66,9 +66,6 @@ jobs:
       - name: Build local-tracker (produces dist for sidecar validation)
         run: npm --prefix local-tracker run build
 
-      - name: Build local-repo-mcp (produces dist for sidecar validation)
-        run: npm --prefix local-repo-mcp run build
-
       - name: Tauri config preflight (Linux)
         run: npm --prefix copilot-ui run tauri:check:linux
 
@@ -119,7 +116,6 @@ jobs:
         run: |
           npm --prefix copilot-ui run ui:build
           npm --prefix local-tracker run build
-          npm --prefix local-repo-mcp run build
           cargo build --manifest-path elegy-checks/Cargo.toml
 
       - name: Run repository quality gate

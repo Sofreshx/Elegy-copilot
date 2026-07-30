@@ -15,9 +15,9 @@ const CODEX_REQUIRED_ASSETS = [
 	{ id: 'codex-global-instructions', type: 'instructions' },
 	{ id: 'codex-explorer-agent', type: 'agent' },
 	{ id: 'codex-reviewer-agent', type: 'agent' },
+	{ id: 'codex-worker-agent', type: 'agent' },
 	{ id: 'codex-test-runner-agent', type: 'agent' },
 	{ id: 'codex-repo-setup-skill', type: 'skill' },
-	{ id: 'codex-skill-discovery-skill', type: 'skill' },
 ];
 
 const ANTIGRAVITY_REQUIRED_ASSETS = [

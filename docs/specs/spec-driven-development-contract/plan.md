@@ -2,7 +2,7 @@
 
 ## Overview
 
-Establish `docs/specs/spec-driven-development-contract/spec.md` as the single normative source of truth for the durable spec contract. Thin downstream consumers (canonical doc, 4 spec skills) to reference this spec instead of duplicating the contract inline. Update the validator to enforce new requirements surfaced by this spec. Promote stale draft specs to their correct status.
+Establish `docs/specs/spec-driven-development-contract/spec.md` as the single normative source of truth for the durable spec contract. Thin downstream consumers (canonical doc and retained spec skills) to reference this spec instead of duplicating the contract inline. Update the validator to enforce new requirements surfaced by this spec. Promote stale draft specs to their correct status.
 
 ## Phases
 
@@ -27,11 +27,11 @@ Establish `docs/specs/spec-driven-development-contract/spec.md` as the single no
 - [ ] Refactor `catalog-assets/shared-skills/spec-authoring/SKILL.md` — remove inline contract (lines 19-53), replace with reference
 - [ ] Refactor `catalog-assets/shared-skills/spec-review/SKILL.md` — update check #1 to reference normative spec
 - [ ] Refactor `catalog-assets/shared-skills/spec-dev/SKILL.md` — minor reference update
-- [ ] Refactor `catalog-assets/shared-skills/spec-planning-bridge/SKILL.md` — reference R10 for file-scope grammar
+- [x] Remove the non-functional bridge skill; retain R10 file-scope linkage and track rebuild prerequisites in `~/.elegy/backlogs/instruction-engine/issues/planning-ideas-log.md`
 
 ### Phase 5 — Skill Consistency Normalization
-- [ ] Add `spec_contract` frontmatter field to all 4 spec skills
-- [ ] Ensure consistent heading structure across all 4 skills
+- [ ] Add `spec_contract` frontmatter field to the retained spec skills
+- [ ] Ensure consistent heading structure across the retained spec skills
 - [ ] Ensure output contract format consistency
 
 ### Phase 6 — Promote Stale Drafts
