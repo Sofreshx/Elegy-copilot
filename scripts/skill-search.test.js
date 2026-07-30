@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 const assert = require('assert');
 const childProcess = require('child_process');
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const repoRoot = path.resolve(__dirname, '..');
 const scriptPath = path.resolve(__dirname, 'skill-search.mjs');
+const testHome = fs.mkdtempSync(path.join(os.tmpdir(), 'elegy-skill-search-'));
 
 let passed = 0;
 function test(name, fn) {
@@ -22,6 +25,11 @@ function test(name, fn) {
 function run(...args) {
 	const result = childProcess.spawnSync(process.execPath, [scriptPath, '--no-telemetry', ...args], {
 		cwd: repoRoot,
+		env: {
+			...process.env,
+			HOME: testHome,
+			USERPROFILE: testHome,
+		},
 		stdio: 'pipe',
 		encoding: 'utf8',
 	});
@@ -111,5 +119,7 @@ test('human format output contains skill name and vault path', () => {
 	assert.ok(output.includes('agents-md-authoring'), 'expected agents-md-authoring in output');
 	assert.ok(output.includes('SKILL.md'), 'expected SKILL.md path in output');
 });
+
+fs.rmSync(testHome, { recursive: true, force: true });
 
 console.log(`\nskill-search tests: ${passed} passed`);

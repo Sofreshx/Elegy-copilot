@@ -336,6 +336,7 @@ Validation is phase-aware:
 - `scripts/validate-planpack-planning.js` enforces the v1 planning schema for fresh plans. It validates the plan pack structure, WU shape, AC quality mode, and the base progress-tracker sections required before execution starts.
 - `scripts/validate-planpack-execution.js` enforces execution-time progress, evidence, and final-gate contracts for versioned planpacks.
 - `scripts/validate-planpack.js` remains a migration-only compatibility entrypoint for legacy callers that have not yet moved to the phase-specific validators.
+- AC quality enforcement defaults to `fail`; use `--ac-enforcement warn` only as an explicit compatibility opt-down.
 
 Fail-closed defaults:
 - Missing `IE_PLAN_PACK_VERSION` marker fails validation.
@@ -368,7 +369,7 @@ Execution validation (`validate-planpack-execution.js`) additionally checks:
 The legacy `validate-planpack.js` entrypoint still invokes the same full execution/final-gate rules, but only as a migration-only compatibility path.
 
 ### What Validation Does NOT Check
-- Content quality (that's the reviewers' job)
+- Broader semantic content quality beyond the deterministic AC checks (that's the reviewers' job)
 - Dependency cycle detection (best-effort; complex cycles require manual review)
 - WU sizing or count limits
 

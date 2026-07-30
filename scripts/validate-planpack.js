@@ -306,7 +306,7 @@ function parseCliArgs(argv) {
 		maxFutureSkewMinutes: 5,
 		nowIso: '',
 		allowLegacyBestEffort: false,
-		acEnforcement: 'warn',
+		acEnforcement: 'fail',
 	};
 
 	for (let index = 0; index < argv.length; index++) {
