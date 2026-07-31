@@ -265,6 +265,23 @@ test('non-shell fences and noise lines are ignored', () => {
   assert.ok(byId.dev.some((c) => c.command === 'npm' && c.args[1] === 'dev'));
 });
 
+test('line continuations are ignored without leaking payload lines', () => {
+  const discovery = discover(buildFixture({
+    'package.json': '{}',
+    'README.md': [
+      '```bash',
+      'npm install \\',
+      '  --save-dev lodash',
+      'npm run dev',
+      '```',
+    ].join('\n'),
+  }));
+  const all = discovery.categories.flatMap((g) => g.commands);
+  assert.ok(!all.some((c) => c.args[0] === '--save-dev'), 'continuation payload does not leak');
+  const byId = categoriesById(discovery);
+  assert.ok(byId.dev.some((c) => c.command === 'npm' && c.args[1] === 'dev'));
+});
+
 test('empty repo produces empty discovery', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cmd-empty-'));
   const discovery = discover(root);

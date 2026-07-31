@@ -369,6 +369,7 @@ function readDocCommands(repoPath, docName) {
   }
   const lines = content.split(/\r?\n/);
   let fenceLang = null;
+  let skipContinuation = false;
   const rawCandidates = [];
   for (const [idx, raw] of lines.entries()) {
     const trimmed = raw.trim();
@@ -382,12 +383,18 @@ function readDocCommands(repoPath, docName) {
       }
       continue;
     }
+    if (skipContinuation) {
+      if (!trimmed.endsWith('\\')) skipContinuation = false;
+      continue;
+    }
     if (fenceLang === 'non-shell') continue;
     const inShellFence = fenceLang !== null;
     const promptLine = /^\$\s+/.test(raw);
     if (!inShellFence && !promptLine) continue;
     const candidate = cleanCandidateLine(raw);
-    if (candidate) rawCandidates.push({ text: candidate, line: idx + 1 });
+    if (!candidate) continue;
+    if (trimmed.endsWith('\\')) skipContinuation = true;
+    rawCandidates.push({ text: candidate, line: idx + 1 });
   }
 
   const commands = [];

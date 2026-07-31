@@ -23,6 +23,7 @@ const repoInventoryService = require('./lib/repoInventoryService');
 const assets = require('./lib/assets');
 const planState = require('./lib/planState');
 const { createAutonomousDecisionLog } = require('./lib/autonomousDecisionLog');
+const { shutdownActiveRuns } = require('./lib/executionRunner');
 const {
   SESSION_RECONCILIATION_CONTRACT_VERSION,
   SESSION_RECONCILIATION_SOURCES,
@@ -4663,6 +4664,14 @@ async function shutdownWorkflowLayerServiceSafely(workflowLayerService) {
   }
 }
 
+async function shutdownExecutionRunsSafely() {
+  try {
+    shutdownActiveRuns();
+  } catch {
+    // Best-effort shutdown on server close/error.
+  }
+}
+
 async function closePlanningPersistenceClientSafely(client) {
   if (!client || typeof client.close !== 'function') {
     return;
@@ -5210,6 +5219,7 @@ async function startServer(options = {}) {
         .then(() => stopDesktopUpdaterBackgroundWork())
         .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
         .then(() => shutdownExecutorServiceSafely(executorService))
+        .then(() => shutdownExecutionRunsSafely())
         .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
         .finally(() => {
           if (elegyDb && typeof elegyDb.close === 'function') elegyDb.close();
@@ -5292,6 +5302,7 @@ async function startServer(options = {}) {
             .then(() => stopDesktopUpdaterBackgroundWork())
             .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
             .then(() => shutdownExecutorServiceSafely(executorService))
+            .then(() => shutdownExecutionRunsSafely())
             .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
             .finally(() => {
               if (elegyDb && typeof elegyDb.close === 'function') elegyDb.close();

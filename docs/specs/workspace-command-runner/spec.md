@@ -80,7 +80,7 @@ Make the copilot-ui Workspace Execute tab a practical per-repository command run
 
 ### R5 — Execute tab composition
 
-- `WorkspaceExecutionTab.tsx` MUST keep the existing orchestrator-session surface, but move it below the new commands surface inside a collapsed section rendered only when `health.pilot.enabled` is true.
+- `WorkspaceExecutionTab.tsx` MUST keep the existing orchestrator-session surface, but move it below the new commands surface in a collapsible section; its controls are disabled when `health.pilot.enabled` is false.
 - The commands surface MUST show: header with repo label and scan timestamp, Setup card, ordered command groups with per-row Run/Stop, description, source badge, and last exit code, and an expandable output area with live tail while running.
 - The tab MUST poll an active run's status while running and refresh discovery on mount; a manual Refresh button MUST re-run discovery.
 - Empty state MUST show a guidance message when no commands are found.

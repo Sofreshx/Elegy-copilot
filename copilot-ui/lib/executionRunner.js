@@ -313,5 +313,4 @@ module.exports = {
   writeRunOutcome,
   getExecutionStateDir,
   shutdownActiveRuns,
-  MAX_OUTPUT_CHARS,
 };
