@@ -27,6 +27,8 @@ const VOLATILE_CONTRACT_ROUTES = new Set([
   'GET /api/opencode/status',
 ]);
 const NON_INVOCABLE_CONTRACT_ROUTES = new Set([
+  // Installation is an external mutation; contract tests verify registration without invoking it.
+  'POST /api/lsp/install',
   'POST /api/tooling-updates/update/elegy-planning',
   'POST /api/tooling-updates/update/elegy-plugins',
   'POST /api/tooling-updates/update/elegy-skills',
