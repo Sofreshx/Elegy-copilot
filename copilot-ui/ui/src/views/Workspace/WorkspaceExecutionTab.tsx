@@ -182,7 +182,8 @@ export default function WorkspaceExecutionTab({
       try {
         const run = await getExecutionRun(activeRunId);
         if (cancelled) return;
-        setRunOutputs((current) => ({ ...current, [activeRunId]: run }));
+        const outputKey = run.commandId ?? run.kind;
+        setRunOutputs((current) => ({ ...current, [outputKey]: run }));
         if (!isExecutionRunActive(run.status)) {
           if (timer) clearInterval(timer);
           void loadOverview();
@@ -492,10 +493,7 @@ export default function WorkspaceExecutionTab({
               {group.commands.map((command) => {
                 const isActive = activeRun?.commandId === command.id;
                 const lastOutcome = overview?.lastRuns?.[command.id];
-                const witnessed = runOutputs[activeRunId ?? '']?.commandId === command.id
-                  ? runOutputs[activeRunId ?? '']
-                  : undefined;
-                const outputRun = isActive ? activeRun : witnessed;
+                const outputRun = isActive ? activeRun : runOutputs[command.id];
                 const expanded = expandedCommands.has(command.id);
                 const outputText = outputRun
                   ? [outputRun.stdout, outputRun.stderr].filter(Boolean).join('\n')
