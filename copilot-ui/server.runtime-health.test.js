@@ -413,6 +413,9 @@ async function run() {
       ], {
         env: {
           ...process.env,
+          // Keep this isolated health test from invoking the external managed
+          // elegy-planning installer when the fixture has no local binary.
+          INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH: process.execPath,
           INSTRUCTION_ENGINE_RUNTIME_MODE: 'repo',
           INSTRUCTION_ENGINE_RUNTIME_PROVIDER_SELECTED: 'not-a-provider',
           INSTRUCTION_ENGINE_RUNTIME_PROVIDER: '',
