@@ -940,6 +940,12 @@ async function run() {
         elegyHome,
         sandboxesHome,
         managedAssetSyncOnStart: false,
+        env: {
+          ...process.env,
+          // This fixture only exercises the skipped-sync decision and must not
+          // start a managed source install as a side effect.
+          INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH: process.execPath,
+        },
         quiet: true,
       });
       try {
