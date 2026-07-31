@@ -22,7 +22,7 @@ function fallbackNormalizeExternalInstallableRecord(value) {
   const record = value;
   const installableId = typeof record.installableId === 'string' ? record.installableId.trim() : '';
   const kind = typeof record.kind === 'string' ? record.kind.trim() : '';
-  if (!installableId || !kind) {
+  if (!installableId || !kind || kind.toLowerCase() === 'skill') {
     return null;
   }
 
@@ -88,11 +88,7 @@ function fallbackNormalizeExternalSourceRecord(value) {
     owner: typeof record.owner === 'string' && record.owner.trim() ? record.owner.trim() : undefined,
     repo: typeof record.repo === 'string' && record.repo.trim() ? record.repo.trim() : undefined,
     defaultRef: typeof record.defaultRef === 'string' && record.defaultRef.trim() ? record.defaultRef.trim() : undefined,
-    includeSkills: record.includeSkills !== false,
     includeMcp: record.includeMcp === true,
-    preferredSkillPathPrefixes: normalizeList(record.preferredSkillPathPrefixes),
-    hiddenPathPrefixes: normalizeList(record.hiddenPathPrefixes),
-    deprecatedPathPrefixes: normalizeList(record.deprecatedPathPrefixes),
     mcpManifestPath: typeof record.mcpManifestPath === 'string' && record.mcpManifestPath.trim() ? record.mcpManifestPath.trim() : undefined,
     setupHints: normalizeList(record.setupHints),
     installables: Array.isArray(record.installables)
@@ -470,10 +466,6 @@ function resolveInstallableCommandSourcePaths(installable) {
 }
 
 function installableRequiresCachedSourceFiles(installable) {
-  if (normalizeString(installable?.kind) === 'skill') {
-    return true;
-  }
-
   const sourcePaths = resolveInstallableCommandSourcePaths(installable);
   if (sourcePaths.length === 0) {
     return false;
@@ -851,7 +843,7 @@ function describeInstallableLifecycle(installable) {
   if (kind === 'opencode-plugin') {
     return 'opencode-plugin';
   }
-  return 'skill';
+  return 'unknown';
 }
 
 function resolveInstallableLabel(installable) {
@@ -920,50 +912,6 @@ function hasInternalSpecDrivenScaffold(repoPath) {
     path.join(repoPath, 'GEMINI.md'),
   ];
   return probePaths.some((probePath) => String(readTextIfExists(probePath) || '').includes(INTERNAL_SPEC_DRIVEN_MARKER));
-}
-
-function walkFiles(dirPath) {
-  const results = [];
-  const stack = [dirPath];
-
-  while (stack.length > 0) {
-    const current = stack.pop();
-    let entries = [];
-    try {
-      entries = fs.readdirSync(current, { withFileTypes: true });
-    } catch {
-      entries = [];
-    }
-
-    for (const entry of entries) {
-      const nextPath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        stack.push(nextPath);
-        continue;
-      }
-      if (entry.isFile()) {
-        results.push(nextPath);
-      }
-    }
-  }
-
-  results.sort((left, right) => left.localeCompare(right));
-  return results;
-}
-
-function copyDirectory(sourcePath, targetPath) {
-  if (typeof fs.cpSync === 'function') {
-    ensureDir(path.dirname(targetPath));
-    fs.cpSync(sourcePath, targetPath, { recursive: true, force: true });
-    return;
-  }
-  ensureDir(targetPath);
-  for (const filePath of walkFiles(sourcePath)) {
-    const relPath = path.relative(sourcePath, filePath);
-    const destinationPath = path.join(targetPath, relPath);
-    ensureDir(path.dirname(destinationPath));
-    fs.copyFileSync(filePath, destinationPath);
-  }
 }
 
 function readShippedSources(engineRoot) {
@@ -1045,11 +993,7 @@ function parseGitHubSourceInput(payload) {
     owner: parsed.owner,
     repo: parsed.repo,
     defaultRef: normalizeString(payload?.ref || payload?.defaultRef) || 'main',
-    includeSkills: payload?.includeSkills !== false,
     includeMcp: payload?.includeMcp === true,
-    preferredSkillPathPrefixes: normalizeStringList(payload?.preferredSkillPathPrefixes),
-    hiddenPathPrefixes: normalizeStringList(payload?.hiddenPathPrefixes),
-    deprecatedPathPrefixes: normalizeStringList(payload?.deprecatedPathPrefixes),
     mcpManifestPath: normalizeString(payload?.mcpManifestPath) || undefined,
     editable: true,
   };
@@ -1067,8 +1011,38 @@ function hasEnabledTargetInstalls(sourceState) {
     const installables = targetState && typeof targetState === 'object' && targetState.installables && typeof targetState.installables === 'object'
       ? targetState.installables
       : {};
-    return Object.values(installables).some((entry) => entry && typeof entry === 'object' && entry.enabled === true);
+    return Object.entries(installables).some(([installableId, entry]) =>
+      !String(installableId).startsWith('skill:')
+      && entry && typeof entry === 'object'
+      && normalizeString(entry.kind).toLowerCase() !== 'skill'
+      && entry.enabled === true
+    );
   });
+}
+
+function filterActivationTargets(sourceState, installables) {
+  const supportedInstallableIds = new Set(installables.map((entry) => entry.installableId));
+  const targets = sourceState && sourceState.targets && typeof sourceState.targets === 'object'
+    ? sourceState.targets
+    : {};
+  const filteredTargets = {};
+
+  for (const [target, targetState] of Object.entries(targets)) {
+    const targetInstallables = targetState && typeof targetState === 'object' && targetState.installables && typeof targetState.installables === 'object'
+      ? targetState.installables
+      : {};
+    const supportedInstallables = Object.fromEntries(
+      Object.entries(targetInstallables).filter(([installableId]) => supportedInstallableIds.has(installableId)),
+    );
+    if (Object.keys(supportedInstallables).length > 0) {
+      filteredTargets[target] = {
+        ...targetState,
+        installables: supportedInstallables,
+      };
+    }
+  }
+
+  return filteredTargets;
 }
 
 function normalizeFetchedInstallable(entry) {
@@ -1077,7 +1051,7 @@ function normalizeFetchedInstallable(entry) {
   }
   const kind = normalizeString(entry.kind);
   const installableId = normalizeString(entry.installableId);
-  if (!kind || !installableId) {
+  if (!kind || !installableId || kind.toLowerCase() === 'skill') {
     return null;
   }
 
@@ -1121,80 +1095,6 @@ function normalizeFetchedDocument(document) {
     resolvedRef: normalizeString(document?.resolvedRef) || undefined,
     installables,
   };
-}
-
-function deriveSkillInstallableTitle(skillText, fallbackName) {
-  const firstHeading = String(skillText || '').match(/^#\s+(.+)$/m);
-  return normalizeString(firstHeading?.[1]) || fallbackName;
-}
-
-function deriveSkillInstallableDescription(skillText) {
-  const lines = String(skillText || '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .filter((line) => !line.startsWith('#'));
-  return normalizeString(lines[0]) || undefined;
-}
-
-function isPathUnderPrefixes(relativePath, prefixes) {
-  const normalizedPath = normalizeRelativePath(relativePath).toLowerCase();
-  return normalizeStringList(prefixes).some((prefix) => {
-    const normalizedPrefix = normalizeRelativePath(prefix).toLowerCase();
-    return normalizedPrefix && (normalizedPath === normalizedPrefix || normalizedPath.startsWith(`${normalizedPrefix}/`));
-  });
-}
-
-function discoverSkillInstallables(source, extractedRoot) {
-  if (source.includeSkills === false) {
-    return [];
-  }
-
-  const files = walkFiles(extractedRoot);
-  const preferredPrefixes = normalizeStringList(source.preferredSkillPathPrefixes);
-  const hiddenPrefixes = normalizeStringList(source.hiddenPathPrefixes);
-  const deprecatedPrefixes = normalizeStringList(source.deprecatedPathPrefixes);
-  const installables = [];
-
-  for (const filePath of files) {
-    if (path.basename(filePath).toUpperCase() !== 'SKILL.MD') {
-      continue;
-    }
-
-    const relativePath = normalizeRelativePath(path.relative(extractedRoot, filePath));
-    if (preferredPrefixes.length > 0 && !isPathUnderPrefixes(relativePath, preferredPrefixes)) {
-      continue;
-    }
-
-    const directoryRelativePath = normalizeRelativePath(path.dirname(relativePath));
-    const skillText = readTextIfExists(filePath) || '';
-    const pathSegments = directoryRelativePath.split('/').filter(Boolean);
-    const fallbackName = pathSegments[pathSegments.length - 1] || path.basename(path.dirname(filePath));
-    const installableSlug = slugifyName(pathSegments.join('-')) || slugifyName(fallbackName) || 'skill';
-    const installableId = `skill:${installableSlug}`;
-
-    installables.push({
-      installableId,
-      kind: 'skill',
-      name: fallbackName,
-      title: deriveSkillInstallableTitle(skillText, fallbackName),
-      description: deriveSkillInstallableDescription(skillText),
-      relativePath: directoryRelativePath,
-      sourcePath: directoryRelativePath,
-      status: 'active',
-      hiddenByDefault: isPathUnderPrefixes(relativePath, hiddenPrefixes),
-      deprecated: isPathUnderPrefixes(relativePath, deprecatedPrefixes),
-      setupHints: fallbackName === 'setup-matt-pocock-skills'
-        ? ['Run setup-matt-pocock-skills in your target harness after enabling this source.']
-        : [],
-      targetSupport: ['codex', 'opencode', 'antigravity'],
-      metadata: {
-        relativeSkillFilePath: relativePath,
-      },
-    });
-  }
-
-  return installables;
 }
 
 function normalizeContext7McpManifest(manifest) {
@@ -1390,10 +1290,11 @@ function fetchGitHubSourceArchive(source, cacheRoot, fetchImpl) {
       }
 
       const extractedRoot = path.join(extractRoot, rootDirectory.name);
-      const installables = [
-        ...discoverSkillInstallables(source, extractedRoot),
-        ...discoverMcpInstallables(source, extractedRoot),
-      ];
+      const installablesById = new Map(resolveShippedInstallables(source).map((entry) => [entry.installableId, entry]));
+      for (const installable of discoverMcpInstallables(source, extractedRoot)) {
+        installablesById.set(installable.installableId, installable);
+      }
+      const installables = Array.from(installablesById.values());
 
       const snapshot = {
         schemaVersion: 1,
@@ -1533,7 +1434,7 @@ function listSources(options) {
           verificationErrors: Array.isArray(sourceState.verificationErrors) ? sourceState.verificationErrors : [],
         },
         installables,
-        activation: sourceState.targets && typeof sourceState.targets === 'object' ? sourceState.targets : {},
+        activation: filterActivationTargets(sourceState, installables),
       };
     }),
   };
@@ -1625,7 +1526,6 @@ async function refreshSource(options, sourceId) {
   const sourceRecord = resolveSourceById({ engineRoot, elegyHome }, sourceId).source;
   const shippedInstallables = resolveShippedInstallables(sourceRecord);
   const usesShippedInstallablesOnly = shippedInstallables.length > 0
-    && sourceRecord.includeSkills !== true
     && sourceRecord.includeMcp !== true;
   if (usesShippedInstallablesOnly && !shippedInstallables.some((entry) => installableRequiresCachedSourceFiles(entry))) {
     const fetchedAt = new Date().toISOString();
@@ -1692,13 +1592,6 @@ async function refreshSource(options, sourceId) {
     }));
     throw error;
   }
-}
-
-function resolveManagedSkillName(sourceId, installable) {
-  const name = slugifyName(installable.name || installable.installableId.replace(/^skill:/, ''))
-    || slugifyName(installable.installableId.replace(/^skill:/, ''))
-    || 'skill';
-  return `external--${normalizeExternalSourceId(sourceId)}--${name}`;
 }
 
 function resolveManagedMcpName(sourceId, installable) {
@@ -1851,34 +1744,6 @@ function upsertGeminiCliMcpConfig(settingsPath, sourceId, installable, enabled, 
   });
 }
 
-function applySkillInstallable(target, sourceId, installable, sourceRoot, targetHomes) {
-  const sourcePath = path.join(sourceRoot, installable.sourcePath);
-  const skillName = resolveManagedSkillName(sourceId, installable);
-  let targetSkillsHome = null;
-
-  if (target === 'codex') {
-    targetSkillsHome = targetHomes.codexSkillsHome || path.join(targetHomes.codexHome, 'skills');
-  } else if (target === 'opencode') {
-    targetSkillsHome = targetHomes.opencodeSkillsHome || path.join(targetHomes.opencodeHome, 'skills');
-  } else if (target === 'antigravity') {
-    targetSkillsHome = targetHomes.antigravitySkillsHome || path.join(targetHomes.antigravityHome, 'skills');
-  }
-
-  if (!targetSkillsHome) {
-    throw Object.assign(new Error(`Target ${target} does not support skill materialization.`), { statusCode: 400 });
-  }
-
-  const destinationPath = path.join(targetSkillsHome, skillName);
-  safeRemove(destinationPath);
-  copyDirectory(sourcePath, destinationPath);
-  return {
-    kind: 'skill',
-    target,
-    path: destinationPath,
-    managedName: skillName,
-  };
-}
-
 function applyMcpInstallable(target, sourceId, installable, cached, targetHomes) {
   if (target === 'codex') {
     const configPath = path.join(targetHomes.codexHome, 'config.toml');
@@ -2028,32 +1893,6 @@ async function applyOpencodePluginInstallable(sourceId, installable, options) {
   };
 }
 
-function removeSkillInstallable(target, sourceId, installable, targetHomes) {
-  const skillName = resolveManagedSkillName(sourceId, installable);
-  let targetSkillsHome = null;
-
-  if (target === 'codex') {
-    targetSkillsHome = targetHomes.codexSkillsHome || path.join(targetHomes.codexHome, 'skills');
-  } else if (target === 'opencode') {
-    targetSkillsHome = targetHomes.opencodeSkillsHome || path.join(targetHomes.opencodeHome, 'skills');
-  } else if (target === 'antigravity') {
-    targetSkillsHome = targetHomes.antigravitySkillsHome || path.join(targetHomes.antigravityHome, 'skills');
-  }
-
-  if (!targetSkillsHome) {
-    throw Object.assign(new Error(`Target ${target} does not support skill removal.`), { statusCode: 400 });
-  }
-
-  const destinationPath = path.join(targetSkillsHome, skillName);
-  safeRemove(destinationPath);
-  return {
-    kind: 'skill',
-    target,
-    path: destinationPath,
-    managedName: skillName,
-  };
-}
-
 function removeMcpInstallable(target, sourceId, installable, targetHomes) {
   if (target === 'codex') {
     const configPath = path.join(targetHomes.codexHome, 'config.toml');
@@ -2186,12 +2025,9 @@ function resolveTargetHomes(options = {}) {
 
   return {
     codexHome,
-    codexSkillsHome: options.codexSkillsHome || process.env.INSTRUCTION_ENGINE_CODEX_SKILLS_HOME || path.join(codexHome, 'skills'),
     opencodeHome,
-    opencodeSkillsHome: options.opencodeSkillsHome || process.env.INSTRUCTION_ENGINE_OPENCODE_SKILLS_HOME || path.join(opencodeHome, 'skills'),
     geminiHome,
     antigravityHome,
-    antigravitySkillsHome: options.antigravitySkillsHome || process.env.INSTRUCTION_ENGINE_ANTIGRAVITY_SKILLS_HOME || path.join(antigravityHome, 'skills'),
   };
 }
 
@@ -2219,9 +2055,6 @@ function resolveSupportedTargets(installable) {
   if (Array.isArray(installable?.targetSupport) && installable.targetSupport.length > 0) {
     return normalizeExternalSourceTargetList(installable.targetSupport);
   }
-  if (installable?.kind === 'skill') {
-    return ['codex', 'opencode', 'antigravity'];
-  }
   if (installable?.kind === 'cli-tool') {
     return [HOST_TARGET];
   }
@@ -2233,15 +2066,6 @@ function resolveSupportedTargets(installable) {
 
 function resolveMaterializeInstallable(options, source, installable, target, cached) {
   const targetHomes = resolveTargetHomes(options);
-  const extractedRoot = cached ? resolveCachedExtractedRoot(cached.sourceCacheRoot) : null;
-  if (installable.kind === 'skill') {
-    if (!extractedRoot) {
-      throw Object.assign(new Error(`Cached source contents for ${source.sourceId} are unavailable. Refresh the source and try again.`), {
-        statusCode: 409,
-      });
-    }
-    return Promise.resolve(applySkillInstallable(target, source.sourceId, installable, extractedRoot, targetHomes));
-  }
   if (installable.kind === 'mcp-server') {
     return Promise.resolve(applyMcpInstallable(target, source.sourceId, installable, cached, targetHomes));
   }
@@ -2256,9 +2080,6 @@ function resolveMaterializeInstallable(options, source, installable, target, cac
 
 async function resolveRemoveInstallable(options, source, installable, target) {
   const targetHomes = resolveTargetHomes(options);
-  if (installable.kind === 'skill') {
-    return removeSkillInstallable(target, source.sourceId, installable, targetHomes);
-  }
   if (installable.kind === 'mcp-server') {
     return removeMcpInstallable(target, source.sourceId, installable, targetHomes);
   }
@@ -2606,22 +2427,7 @@ async function verifyInstallableTarget(options, source, installable, target) {
     { target }
   ));
 
-  if (kind === 'skill') {
-    const installedPath = normalizeString(installableState.installedPath);
-    const pathState = readInstalledPathState(installedPath);
-    const status = installableState.enabled === true && pathState.exists ? 'ready' : installableState.enabled === true ? 'warning' : 'inactive';
-    checks.push(createCheck(
-      'materialized',
-      `${resolveInstallableLabel(installable)} files`,
-      status,
-      pathState.exists
-        ? `Managed skill files are present at ${installedPath}.`
-        : installableState.enabled === true
-          ? `Expected managed skill files at ${installedPath || '(missing path)'} but they were not found.`
-          : 'Skill is not active for this target.',
-      { target, installedPath: installedPath || null }
-    ));
-  } else if (kind === 'mcp-server') {
+  if (kind === 'mcp-server') {
     const installedPath = normalizeString(installableState.installedPath);
     const pathState = readInstalledPathState(installedPath);
     const configured = installableState.enabled === true;

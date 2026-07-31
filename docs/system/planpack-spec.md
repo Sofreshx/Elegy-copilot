@@ -1,35 +1,112 @@
 ---
 created: 2026-02-23
-updated: 2026-06-29
+updated: 2026-07-31
 category: system
-status: draft
+status: current
 doc_kind: node
 id: planpack-spec
-summary: Specification for the Plan Pack document format used by planning agents.
-tags: [planpack, spec, planning]
+summary: Specification for concise Markdown plan files and the legacy v1 compatibility format.
+tags: [plan, spec, planning]
 related: [goal-contract-governance, progressive-constraint-narrowing, adr-governance]
 ---
 
-# Plan Pack Specification
+# Markdown Plan Specification
 
-This document defines the canonical structure of an assembled Plan Pack — the first top-level
-document persisted in a session's `plan.md` artifact, produced by `@o-planner` or another
-planner that writes persisted session-state artifacts, and consumed by orchestrator-managed
-execution workflows.
+This document defines the current concise Markdown plan format used by `/plan`
+and planned execution workflows. The filename and the v1 sections below retain
+the historical `planpack` name only for parser and migration compatibility; new
+plans should use the v2 format and call themselves plans.
 
-> **Scope**: This spec covers the **final assembled** plan pack only. Sub-planning stages may
-> produce preliminary output that gets normalized by the planner during assembly; those
-> intermediate forms are not specified here.
+The Markdown plan owns approved intent, decisions, acceptance criteria, task
+dependencies, delegation marks, validation, and delivery expectations. An
+optional SQLite/`elegy-planning` backend may hold durable execution graph state,
+leases, or resume metadata when that materially helps; it does not replace the
+plan or change its approved scope.
 
-In canonical persisted session state, `plan.md` contains two top-level markdown documents in sequence:
+## Current default: v2 Markdown plan
+
+Use this compact structure for new plans:
+
+```markdown
+# Plan — <Title>
+<!-- IE_PLAN_VERSION: 2 -->
+
+## Goal
+- <one concise statement of the requested outcome>
+
+## Acceptance Criteria
+- <observable, testable result>
+- <observable, testable result>
+
+## Work
+### T-001 — <task title>
+- Depends on: none
+- Mode: read
+- Parallel: yes
+- Scope: `path/or/topic`
+- Done when: <concrete result>
+- Validate: <command or observable check>
+- Can delegate: explorer
+
+### T-002 — <task title>
+- Depends on: T-001
+- Mode: write
+- Parallel: no
+- Scope: `path/to/owned/files`
+- Done when: <concrete result>
+- Validate: <command or observable check>
+- Can delegate: worker
+
+## Delivery
+- Commit shape: <atomic commit boundary or "no commit requested">
+- PR handoff: <review/readiness expectation; no automatic push or merge>
+```
+
+Rules:
+
+- The title must be `# Plan — <title>` and the marker must be exactly
+  `<!-- IE_PLAN_VERSION: 2 -->`.
+- `Goal`, `Acceptance Criteria`, `Work`, and `Delivery` are required. Goal must
+  state the requested outcome. Acceptance criteria must describe observable
+  outcomes; placeholders and phrases such as “it works” are invalid.
+- Each task has a unique `T-NNN` ID and all six task fields shown above. Use
+  `read`, `write`, `validate`, or `review` for `Mode`; use `yes` only when the
+  task is independent of its parallel siblings.
+- `Depends on` names existing task IDs or `none`. Dependencies must be acyclic.
+- `Scope` is the ownership boundary. Parallel write tasks must have disjoint
+  scopes. Keep shared files and integration work in one task or sequence them.
+- `Can delegate` is optional. If present, it must match the task mode:
+  `explorer`/`read`, `worker`/`write`, `sweeper`/`write`, `test-runner`/`validate`, or
+  `reviewer`/`reviewer_strong`/`review`.
+- The main agent decides whether a marked task is worth delegating, checks its
+  result against the goal and acceptance criteria, and owns integration,
+  validation, commit hygiene, and PR readiness.
+- Keep the plan concise. Do not add a separate orchestration gate, speculative
+  architecture, or runtime state that does not help execution.
+
+Validate v2 plans with `node scripts/validate-planpack.js <plan-file>` or the
+focused contract test `node scripts/validate-plan.v2.test.js`.
+`validate-planpack-execution.js` fails closed for v2 until a v2 progress,
+evidence, and final-gate contract is defined; it must not treat plan structure
+alone as execution-completion evidence.
+
+## Legacy v1 compatibility
+
+The remainder of this document defines the historical v1 assembled format.
+It remains supported for existing persisted sessions and migration tooling but
+is not the default vocabulary for new plans.
+
+In canonical legacy persisted session state, `plan.md` contains two top-level
+Markdown documents in sequence:
 
 1. `# Plan Pack — <Title>`
 2. `# Plan-Pack Progress Tracker`
 
-This document specifies the Plan Pack portion. The Progress Tracker portion is defined by [[session-state-artifacts]] [session-state-artifacts](docs/system/session-state-artifacts.md)
+This document specifies the legacy Plan Pack portion. The Progress Tracker
+portion is defined by [[session-state-artifacts]] [session-state-artifacts](docs/system/session-state-artifacts.md)
 [session-state-artifacts.md](session-state-artifacts.md). Separate
-`x-PLANPACK-PROGRESS-<SESSION_ID>.md` files are legacy compatibility artifacts only and are not the canonical
-persisted layout for fresh plans.
+`x-PLANPACK-PROGRESS-<SESSION_ID>.md` files are legacy compatibility artifacts
+only and are not the canonical persisted layout for fresh plans.
 
 ## Top-Level Heading Order
 

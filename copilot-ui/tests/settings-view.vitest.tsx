@@ -346,6 +346,9 @@ describe('SettingsView', () => {
     expect(screen.getByTestId('codex-subagent-explorer')).toHaveTextContent('2 runs · 8 tools');
     expect(screen.getByTestId('codex-subagent-test-runner')).toHaveTextContent('Missing');
     expect(screen.getByTestId('codex-subagent-reset-test-runner')).toHaveTextContent('Install');
+    expect(screen.getByTestId('codex-subagent-routing')).toHaveTextContent('Direct work stays with the main agent.');
+    expect(screen.getByTestId('codex-subagent-routing')).toHaveTextContent('Approved plans may delegate explicitly marked tasks.');
+    expect(screen.queryByTestId('codex-subagent-routing-mode')).not.toBeInTheDocument();
   });
 
   it('enables hard restore when a backup exists', async () => {

@@ -55,7 +55,7 @@ A typical session directory contains:
 
 ```
 ~/.copilot/session-state/<SESSION_ID>/
-  plan.md              # Plan Pack + Progress Tracker (canonical)
+  plan.md              # Markdown plan + Progress Tracker (canonical)
   execution-state.json # Additive runtime execution overlay (optional, v1)
   handoff.md           # Planning-to-execution bootstrap summary
   proposition.md       # Append-only session guidance artifact
@@ -119,16 +119,20 @@ Deprecated compatibility status:
 
 ### Plan Artifact (`plan.md`)
 
-The plan artifact contains **two top-level documents in one markdown file**:
+The plan artifact contains a Markdown plan and, when persisted execution state
+is needed, a progress tracker in one markdown file:
 
-1. **Plan Pack** — High-level plan structure, work unit specifications, dependencies, risks
-2. **Plan-Pack Progress Tracker** — Live execution state (status tables, checkpoints, next unit)
+1. **Markdown plan** — Goal, acceptance criteria, task structure, dependencies,
+   delegation marks, validation, and delivery expectations
+2. **Progress Tracker** — Live execution state (status tables, checkpoints,
+   next unit)
 
-This dual-document approach matches the persisted session planning workflow output used by the planning/execution lane.
+New plans use the concise v2 Markdown format. The historical v1 Plan Pack
+heading remains accepted for persisted sessions and migration tooling.
 
 In the default chat-first orchestrator path, the same conceptual state may remain in chat and host/runtime state instead of being written immediately to `plan.md`. When a persisted lane is chosen later, the artifact should still follow this shape.
 
-In persisted workflows, the planner returns the Plan Pack + Progress Tracker content and the
+In persisted workflows, the planner returns the Markdown plan + Progress Tracker content and the
 orchestrator/host materializes `plan.md` through an explicit markdown-writing lane. The planner must
 not assume an existing `plan.md` is already present on disk.
 
@@ -144,7 +148,7 @@ High-level goal intent and completion semantics for planning/review workflows ar
 
 `execution-state.json` is an **optional additive overlay** for persisted orchestrator runs. It does not replace
 `plan.md`; instead it captures the latest machine-readable runtime view of the execution slice while keeping the
-approved plan pack and progress tracker intact.
+approved plan and progress tracker intact.
 
 Contract goals:
 
@@ -160,7 +164,7 @@ replacing the approved planning intent in `plan.md`. Compatibility rules for thi
 
 - preserve `execution-state-v1` compatibility; do not introduce a new schema version for tree-based resume
   semantics alone
-- treat the tree as optional runtime context, not as a second plan artifact or a replacement for the plan-pack
+- treat the tree as optional runtime context, not as a second plan artifact or a replacement for the plan
   progress tracker
 - prefer the latest valid tree when rebuilding active execution context, but fail soft back to plan-derived
   framing/status when the overlay is missing or malformed
@@ -259,7 +263,7 @@ Emission rules:
   follow-up work, not to imply unrestricted parallel execution.
 - If no persisted session workflow is in use, chat-first state may remain in chat/runtime state only.
 
-When a plan pack participates in downstream planning reconciliation or compatibility flows, `plan.md`
+When a plan participates in downstream planning reconciliation or compatibility flows, `plan.md`
 may also include explicit linkage markers such as:
 
 - `IE_LINKED_BACKLOG_IDS`
@@ -269,7 +273,7 @@ may also include explicit linkage markers such as:
 - `IE_PLAN_ORIGIN_KIND`
 - `IE_PLAN_OUTCOME`
 
-These markers are optional for generic plan packs, but they are required when the session is expected to
+These markers are optional for generic plans, but they are required when the session is expected to
 participate in automatic downstream planning reconciliation. The canonical linkage and authority semantics
 are defined in [[planning-backlog-roadmap-contract]] [planning-backlog-roadmap-contract.md](planning-backlog-roadmap-contract.md). [planning-backlog-roadmap-contract](docs/system/planning-backlog-roadmap-contract.md)
 
@@ -510,7 +514,7 @@ GET /api/sessions/:id/verification-guide
 
 Returns `{ id, source, content }` with the raw Markdown content, or `404` if the artifact was not generated for the session.
 
-The dashboard also exposes deterministic roadmap reconciliation for linked plan packs via:
+The dashboard also exposes deterministic roadmap reconciliation for linked plans via:
 
 ```
 POST /api/sessions/:id/roadmap-sync

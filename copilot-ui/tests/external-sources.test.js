@@ -93,8 +93,6 @@ async function run() {
         owner: 'example',
         repo: 'seeded-source',
         defaultRef: 'main',
-        includeSkills: true,
-        preferredSkillPathPrefixes: ['skills'],
       },
     ]);
     await test('listSources merges shipped and user sources with cached installables', async () => {
@@ -112,12 +110,12 @@ async function run() {
         resolvedRef: 'main',
         installables: [
           {
-            installableId: 'skill:brainstorming',
-            kind: 'skill',
-            name: 'brainstorming',
-            title: 'Brainstorming',
-            sourcePath: 'skills/brainstorming',
-            targetSupport: ['codex', 'opencode', 'antigravity'],
+            installableId: 'mcp:context7',
+            kind: 'mcp-server',
+            name: 'context7',
+            title: 'Context7',
+            sourcePath: 'server.json',
+            targetSupport: ['codex', 'opencode', 'gemini-cli'],
           },
         ],
       });
@@ -130,7 +128,7 @@ async function run() {
             targets: {
               codex: {
                 installables: {
-                  'skill:brainstorming': {
+                  'mcp:context7': {
                     enabled: true,
                   },
                 },
@@ -146,7 +144,7 @@ async function run() {
       assert.strictEqual(demoSource.editable, true);
       assert.strictEqual(demoSource.sync.status, 'ready');
       assert.strictEqual(demoSource.installables.length, 1);
-      assert.strictEqual(demoSource.activation.codex.installables['skill:brainstorming'].enabled, true);
+      assert.strictEqual(demoSource.activation.codex.installables['mcp:context7'].enabled, true);
     });
     await test('listSources surfaces persisted verification state in source sync metadata', async () => {
       writeJson(path.join(externalSources.resolveStatePath(elegyHome)), {
@@ -184,44 +182,6 @@ async function run() {
       assert.strictEqual(demoSource.sync.verificationStatus, 'partial');
       assert.deepStrictEqual(demoSource.sync.verificationWarnings, ['repo not initialized']);
       assert.deepStrictEqual(demoSource.sync.verificationErrors, []);
-    });
-    await test('activateInstallable materializes skills into target homes and records state', async () => {
-      const sourceCacheRoot = path.join(externalSources.resolveCacheRoot(elegyHome), 'demo-source');
-      writeJson(path.join(sourceCacheRoot, 'snapshot.json'), {
-        schemaVersion: 1,
-        sourceId: 'demo-source',
-        fetchedAt: '2026-05-19T00:00:00.000Z',
-        resolvedRef: 'main',
-        installables: [
-          {
-            installableId: 'skill:brainstorming',
-            kind: 'skill',
-            name: 'brainstorming',
-            title: 'Brainstorming',
-            sourcePath: 'skills/brainstorming',
-            targetSupport: ['codex', 'opencode', 'antigravity'],
-          },
-        ],
-      });
-      writeText(path.join(sourceCacheRoot, 'extracted', 'demo-source-main', 'skills', 'brainstorming', 'SKILL.md'), '# Brainstorming\n');
-      const result = await externalSources.activateInstallable({
-        engineRoot,
-        elegyHome,
-        codexHome,
-        opencodeHome,
-        geminiHome,
-        antigravityHome,
-      }, {
-        sourceId: 'demo-source',
-        installableId: 'skill:brainstorming',
-        target: 'codex',
-      });
-      assert.strictEqual(result.target, 'codex');
-      assert.strictEqual(result.materialized.kind, 'skill');
-      assert.ok(fs.existsSync(path.join(codexHome, 'skills', 'external--demo-source--brainstorming', 'SKILL.md')));
-      const listed = externalSources.listSources({ engineRoot, elegyHome });
-      const demoSource = listed.sources.find((source) => source.sourceId === 'demo-source');
-      assert.strictEqual(demoSource.activation.codex.installables['skill:brainstorming'].enabled, true);
     });
     await test('Antigravity CLI alias normalizes to the shared Gemini CLI target for MCP installs', async () => {
       const sourceCacheRoot = path.join(externalSources.resolveCacheRoot(elegyHome), 'demo-source');
@@ -284,6 +244,64 @@ async function run() {
       assert.strictEqual(demoSource.sync.status, 'error');
       assert.match(String(demoSource.sync.lastError || ''), /unable to download/i);
     });
+    await test('refreshSource preserves shipped Context7 CLI alongside discovered MCP installables', async () => {
+      writeCatalog([
+        {
+          sourceId: 'context7',
+          title: 'Context7',
+          url: 'https://github.com/upstash/context7',
+          sourceType: 'github-repo',
+          owner: 'upstash',
+          repo: 'context7',
+          defaultRef: 'main',
+          includeMcp: true,
+          mcpManifestPath: 'server.json',
+          installables: [
+            {
+              installableId: 'cli:context7',
+              kind: 'cli-tool',
+              name: 'context7',
+              title: 'Context7 CLI',
+              targetSupport: ['host'],
+              installCommand: 'npm install --global @upstash/context7',
+            },
+          ],
+        },
+      ]);
+      const originalExecFileSync = childProcess.execFileSync;
+      try {
+        childProcess.execFileSync = (command, args) => {
+          assert.strictEqual(command, 'tar');
+          const extractRoot = args[args.indexOf('-C') + 1];
+          writeJson(path.join(extractRoot, 'context7-main', 'server.json'), {
+            title: 'Context7 MCP',
+            remotes: [{ url: 'https://mcp.context7.com/mcp' }],
+            packages: [{ registryType: 'npm', identifier: '@upstash/context7-mcp' }],
+          });
+        };
+        const result = await externalSources.refreshSource({
+          engineRoot,
+          elegyHome,
+          fetch: async () => ({
+            ok: true,
+            arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+          }),
+        }, 'context7');
+        assert.deepStrictEqual(
+          result.snapshot.installables.map((installable) => installable.installableId).sort(),
+          ['cli:context7', 'mcp:context7'],
+        );
+      } finally {
+        childProcess.execFileSync = originalExecFileSync;
+      }
+      const listed = externalSources.listSources({ engineRoot, elegyHome });
+      const context7 = listed.sources.find((source) => source.sourceId === 'context7');
+      assert.ok(context7, 'expected Context7 source in the catalog');
+      assert.deepStrictEqual(
+        context7.installables.map((installable) => installable.installableId).sort(),
+        ['cli:context7', 'mcp:context7'],
+      );
+    });
     await test('removeSource rejects removal while active target installs remain', async () => {
       let caught = null;
       try {
@@ -305,7 +323,6 @@ async function run() {
           owner: 'LaurieWired',
           repo: 'GhidraMCP',
           defaultRef: 'main',
-          includeSkills: false,
           includeMcp: false,
           installables: [
             {
@@ -410,7 +427,6 @@ async function run() {
           owner: 'github',
           repo: 'spec-kit',
           defaultRef: 'v0.8.13',
-          includeSkills: false,
           includeMcp: false,
           installables: [
             {
@@ -469,7 +485,6 @@ async function run() {
           owner: 'github',
           repo: 'spec-kit',
           defaultRef: 'v0.8.13',
-          includeSkills: false,
           includeMcp: false,
           installables: [
             {
@@ -530,7 +545,6 @@ async function run() {
           owner: 'github',
           repo: 'spec-kit',
           defaultRef: 'v0.8.13',
-          includeSkills: false,
           includeMcp: false,
           installables: [
             {
@@ -589,7 +603,6 @@ async function run() {
           owner: 'example',
           repo: 'conflict-source',
           defaultRef: 'main',
-          includeSkills: false,
           includeMcp: true,
           installables: [
             {
@@ -673,20 +686,20 @@ async function run() {
     });
     await test('findConflictGroupForInstallable returns the correct group', async () => {
       const conflictGroups = [
-        { groupId: 'group-a', installableIds: ['cli:tool-a', 'skill:skill-a'] },
+        { groupId: 'group-a', installableIds: ['cli:tool-a', 'mcp:tool-c'] },
         { groupId: 'group-b', installableIds: ['mcp:tool-b'] },
       ];
-      const group = externalSources.findConflictGroupForInstallable(conflictGroups, 'skill:skill-a');
+      const group = externalSources.findConflictGroupForInstallable(conflictGroups, 'mcp:tool-c');
       assert.ok(group);
       assert.strictEqual(group.groupId, 'group-a');
     });
     await test('resolveConflictingInstallableIds returns all conflicting installable IDs', async () => {
       const conflictGroups = [
         { groupId: 'group-a', installableIds: ['cli:tool-a'], conflictsWith: ['group-b'] },
-        { groupId: 'group-b', installableIds: ['mcp:tool-b', 'skill:skill-b'], conflictsWith: ['group-a'] },
+        { groupId: 'group-b', installableIds: ['mcp:tool-b', 'mcp:tool-c'], conflictsWith: ['group-a'] },
       ];
       const ids = externalSources.resolveConflictingInstallableIds(conflictGroups, 'group-a');
-      assert.deepStrictEqual(ids.sort(), ['mcp:tool-b', 'skill:skill-b']);
+      assert.deepStrictEqual(ids.sort(), ['mcp:tool-b', 'mcp:tool-c']);
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });

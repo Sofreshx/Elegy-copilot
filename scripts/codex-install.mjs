@@ -269,24 +269,28 @@ function buildManagedInventory(assetResults) {
 
   for (const result of Array.isArray(assetResults) ? assetResults : []) {
     const destination = normalizeRel(result.destination);
+    const managedHash = String(result.managedHash ?? result.sourceHash ?? '');
+    if (!managedHash) {
+      continue;
+    }
     if (result.type === 'instructions') {
-      inventory.instructions[path.basename(destination)] = String(result.sourceHash || '');
+      inventory.instructions[path.basename(destination)] = managedHash;
       continue;
     }
     if (result.type === 'agent') {
-      inventory.agents[path.basename(destination)] = String(result.sourceHash || '');
+      inventory.agents[path.basename(destination)] = managedHash;
       continue;
     }
     if (result.type === 'skill') {
       const suffix = destination.startsWith('skills/') ? destination.slice('skills/'.length) : destination;
       const topDirectory = normalizeRel(suffix).split('/').filter(Boolean)[0];
       if (topDirectory) {
-        inventory.skills[topDirectory] = String(result.sourceHash || '');
+        inventory.skills[topDirectory] = managedHash;
       }
       continue;
     }
     if (result.type === 'config') {
-      inventory.configFiles[path.basename(destination)] = String(result.sourceHash || '');
+      inventory.configFiles[path.basename(destination)] = managedHash;
     }
   }
 
@@ -392,6 +396,22 @@ function mapDestination(asset, codexHome, skillsHome) {
     return path.join(skillsHome, suffix);
   }
   return path.join(codexHome, destination);
+}
+
+function getPreviousManagedHash(inventory, asset) {
+  const destination = normalizeRel(asset.destination);
+  if (asset.type === 'instructions') {
+    return inventory.instructions[path.basename(destination)] || '';
+  }
+  if (asset.type === 'agent') {
+    return inventory.agents[path.basename(destination)] || '';
+  }
+  if (asset.type === 'skill') {
+    const suffix = destination.startsWith('skills/') ? destination.slice('skills/'.length) : destination;
+    const topDirectory = normalizeRel(suffix).split('/').filter(Boolean)[0];
+    return topDirectory ? inventory.skills[topDirectory] || '' : '';
+  }
+  return '';
 }
 
 function validateManifestAsset(asset) {
@@ -595,6 +615,8 @@ export function runInstall(args = {}) {
   }
 
   const inventoryPath = path.join(codexHome, INVENTORY_FILE);
+  const overridePath = path.join(codexHome, 'AGENTS.override.md');
+  const previousInventory = readManagedInventory(inventoryPath);
   ensureDir(codexHome, args.dryRun);
   ensureDir(path.join(codexHome, 'agents'), args.dryRun);
   ensureDir(skillsHome, args.dryRun);
@@ -608,19 +630,24 @@ export function runInstall(args = {}) {
       throw new Error(`Source asset missing: ${asset.source}`);
     }
 
+    const previousHash = getPreviousManagedHash(previousInventory, asset);
+    const syncOptions = {
+      ...args,
+      previousHash,
+    };
     let syncResult;
     if (asset.transform === 'engine-agent-to-codex-role') {
       const roleToml = buildCodexRoleToml(src, normalizeRel(asset.source));
-      syncResult = syncText(roleToml, dst, args);
+      syncResult = syncText(roleToml, dst, syncOptions);
     } else if (asset.type === 'skill') {
-      syncResult = syncDirectory(src, dst, args);
+      syncResult = syncDirectory(src, dst, syncOptions);
     } else if (asset.appendix) {
       const profile = getCollaborationProfile();
       const profileContent = buildProfileContent(profile);
       const composed = composeInstructionsFromAsset(asset, repoRoot, profileContent);
-      syncResult = syncText(composed, dst, args);
+      syncResult = syncText(composed, dst, syncOptions);
     } else {
-      syncResult = syncFile(src, dst, args);
+      syncResult = syncFile(src, dst, syncOptions);
     }
 
     assetResults.push({
@@ -630,6 +657,7 @@ export function runInstall(args = {}) {
       destination: normalizeRel(asset.destination),
       generated: asset.generated === true,
       ...syncResult,
+      managedHash: syncResult.action === 'skipped_conflict' ? previousHash : syncResult.sourceHash,
     });
   }
 
@@ -693,7 +721,6 @@ export function runInstall(args = {}) {
     },
   ];
 
-  const previousInventory = readManagedInventory(inventoryPath);
   const desiredInventory = buildManagedInventory([...assetResults, ...configInventoryResults]);
 
   const pruneResults = [
@@ -735,6 +762,12 @@ export function runInstall(args = {}) {
       inventoryPath,
       configPath,
     },
+    instructions: {
+      managedPath: path.join(codexHome, 'AGENTS.md'),
+      overridePath,
+      overridePresent: fs.existsSync(overridePath),
+      activeGlobalPath: fs.existsSync(overridePath) ? overridePath : path.join(codexHome, 'AGENTS.md'),
+    },
     counts: buildCounts([
       ...assetResults,
       ...pruneResults,
@@ -758,6 +791,12 @@ export function runInstall(args = {}) {
     },
     repoSetup,
   };
+
+  if (summary.instructions.overridePresent) {
+    console.warn(
+      `[WARN]   ${overridePath} suppresses the managed AGENTS.md; merge or remove the override to activate Instruction Engine global policy.`,
+    );
+  }
 
   // Keep planning session discovery pinned to the shared Elegy home.
   if (process.platform === 'win32') {

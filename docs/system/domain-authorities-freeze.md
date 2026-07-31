@@ -1,6 +1,6 @@
 ---
 created: 2026-03-14
-updated: 2026-06-28
+updated: 2026-07-30
 category: system
 status: current
 doc_kind: node
@@ -160,13 +160,7 @@ agents, and MCP providers.
 
 **Migration posture**
 
-Settings keys such as:
-
-- `skillInstaller.skills.disabledByRepo`
-- `skillInstaller.agents.disabledByRepo`
-- `skillInstaller.mcp.providers.disabledByRepo`
-
-are frozen as compatibility/import inputs only.
+Legacy enablement settings are frozen as compatibility/import inputs only.
 
 Later cleanup streams should:
 

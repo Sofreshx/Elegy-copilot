@@ -13,7 +13,10 @@ export const DEFAULT_PROVIDER_ID = 'opencode-go'; // default managed profile pro
 export const DEFAULT_MODEL = 'mimo-v2-pro';
 export const PROFILE_CONFIG_SUFFIX = '.config.toml';
 export const DEFAULT_AGENT_CONFIG = {
-  maxThreads: 3,
+  enabled: true,
+  maxThreads: 6,
+  defaultSubagentModel: 'gpt-5.6-luna',
+  defaultSubagentReasoningEffort: 'high',
   maxDepth: 1,
   jobMaxRuntimeSeconds: 1800,
 };
@@ -173,7 +176,12 @@ function asBoundedInteger(value, fallback, min, max) {
 
 export function normalizeAgentConfig(options = {}) {
   return {
+    enabled: options.enabled !== false,
     maxThreads: asBoundedInteger(options.maxThreads, DEFAULT_AGENT_CONFIG.maxThreads, 1, 8),
+    defaultSubagentModel: String(options.defaultSubagentModel || DEFAULT_AGENT_CONFIG.defaultSubagentModel),
+    defaultSubagentReasoningEffort: String(
+      options.defaultSubagentReasoningEffort || DEFAULT_AGENT_CONFIG.defaultSubagentReasoningEffort,
+    ),
     maxDepth: asBoundedInteger(options.maxDepth, DEFAULT_AGENT_CONFIG.maxDepth, 0, 2),
     jobMaxRuntimeSeconds: asBoundedInteger(
       options.jobMaxRuntimeSeconds,
@@ -315,8 +323,23 @@ function upsertKeyLine(lines, key, line) {
 }
 
 function upsertAgentConfigLines(sectionLines, values) {
-  let nextLines = [...sectionLines];
-  nextLines = upsertKeyLine(nextLines, 'max_threads', `max_threads = ${values.maxThreads}`);
+  let nextLines = sectionLines.filter((line) => !/^\s*max_threads\s*=/.test(String(line || '')));
+  nextLines = upsertKeyLine(nextLines, 'enabled', `enabled = ${values.enabled}`);
+  nextLines = upsertKeyLine(
+    nextLines,
+    'max_concurrent_threads_per_session',
+    `max_concurrent_threads_per_session = ${values.maxThreads}`,
+  );
+  nextLines = upsertKeyLine(
+    nextLines,
+    'default_subagent_model',
+    `default_subagent_model = "${values.defaultSubagentModel}"`,
+  );
+  nextLines = upsertKeyLine(
+    nextLines,
+    'default_subagent_reasoning_effort',
+    `default_subagent_reasoning_effort = "${values.defaultSubagentReasoningEffort}"`,
+  );
   nextLines = upsertKeyLine(nextLines, 'max_depth', `max_depth = ${values.maxDepth}`);
   nextLines = upsertKeyLine(nextLines, 'job_max_runtime_seconds', `job_max_runtime_seconds = ${values.jobMaxRuntimeSeconds}`);
   return nextLines;
@@ -331,7 +354,10 @@ export function patchAgentsConfig(originalText, options = {}) {
   if (headerIndex === -1) {
     const agentSection = [
       '[agents]',
-      `max_threads = ${values.maxThreads}`,
+      `enabled = ${values.enabled}`,
+      `max_concurrent_threads_per_session = ${values.maxThreads}`,
+      `default_subagent_model = "${values.defaultSubagentModel}"`,
+      `default_subagent_reasoning_effort = "${values.defaultSubagentReasoningEffort}"`,
       `max_depth = ${values.maxDepth}`,
       `job_max_runtime_seconds = ${values.jobMaxRuntimeSeconds}`,
     ].join('\n');

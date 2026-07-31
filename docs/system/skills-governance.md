@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-30
+updated: 2026-07-31
 category: system
 status: current
 doc_kind: node
@@ -34,14 +34,18 @@ Installed harness surfaces and shared skills must therefore stay thin and consis
 ## Codex operating model
 
 Codex should stay leaner than the legacy Copilot fleet:
-- Global Codex install remains lean; Elegy-owned plugin capabilities are installed from the `elegy` marketplace rather than duplicated in the home manifest.
-- UI work routes to `elegy-ui-craft@elegy`. The former standalone UI implementation, runtime-exploration, visual-review, and Impeccable skills are retired. `ui-design-spec` remains a shared non-Codex fallback only.
-- Codex uses a stricter `implementation-handoff` variant for explicit delegation. It deepens shallow
-  plans and requires `rubberduck-plan-review` for complex or incomplete source plans before
-  producing a downstream executor brief. Other harnesses retain the shared handoff contract. This
-  is an approved duplicate-name exception: both skills keep the `implementation-handoff` name to
-  preserve the shared invocation surface, and the exception must stay explicit in skill metadata
-  and shipped-skill diagnostics.
+- Global Codex install contains seven focused user skills: `repo-setup`,
+  `repo-backed-obsidian-docs`, `sweeper-cleanup`, `repo-quality-setup`,
+  `agents-md-authoring`, `tdd`, and the on-demand `elegy-planning` skill.
+  Native Codex handles discovery, review, implementation handoff, and routine
+  spec work without duplicate global skills.
+- Elegy marketplace plugins are explicit opt-ins; Instruction Engine does not
+  reinstall a default plugin fleet after the user removes it.
+- The former standalone UI implementation, runtime-exploration, visual-review,
+  and Impeccable skills are retired. `ui-design-spec` remains a shared
+  non-Codex fallback only.
+- Codex delegates bounded implementation directly to native Luna workers.
+  Other harnesses retain their implementation-handoff contracts.
 - Repo-specific hazards: repo-local `AGENTS.md` overlays and repo-local skills.
 - Legacy engine/Copilot orchestration agents are not bulk-installed into Codex.
 - Cross-model reviewer agents are not part of the Codex install surface.
@@ -53,7 +57,7 @@ OpenCode should stay native-first rather than mirroring the Copilot fleet:
 - elegy-copilot adds the lane agent surface (`quick`, `project`) as OpenCode-native primary agents with supporting subagents (`impl`, `reviewer`, `explorer`, `scout`, `sweeper`). Lane agents are workflow-enforcing agents, not Copilot fleet duplicates — they use OpenCode's native agent infrastructure and delegate to subagents for execution.
 - elegy-copilot adds the missing reusable skill surface: skill-discovery (skill name, not an npm package), rubberduck-plan-review (skill name, not an npm package), planning-tools (skill name, not an npm package), project-workflow, implementation-review (skill name, not an npm package), implementation-handoff (skill name, not an npm package), spec-dev (skill name, not an npm package), spec-authoring (skill name, not an npm package), spec-review (skill name, not an npm package), security, project-conventions-governance, and sweeper-cleanup.
 - `code-review` remains a compatibility surface during the transition, but it is not the recommended primary OpenCode routing path.
-- Do not bulk-install Copilot orchestration agents, plan-pack/session-state authoring lanes, or other Copilot-only workflow surfaces into OpenCode.
+- Do not bulk-install Copilot orchestration agents, session-plan/state authoring lanes, or other Copilot-only workflow surfaces into OpenCode.
 - Do not create a parallel custom OpenCode agent fleet for code exploration or web research when the built-in `Explore` and `Scout` agents already cover that role. (The lane subagents `impl`, `reviewer`, and `explorer` serve specific lane workflow phases and do not constitute a parallel fleet.)
 - The current custom `code-explorer` style aliases are transition-only compatibility surfaces and should not grow into a parallel OpenCode agent fleet.
 
@@ -70,7 +74,7 @@ remain evidence-backed and validated.
 - Durable repo specs default to `docs/specs/<spec-slug>/spec.md` with optional `docs/specs/index.md`.
 - Repo-local spec scaffolding is opt-in per selected repo through the existing harness installers using the `spec-driven` repo-setup profile.
 - Use specs to clarify or anchor requirements before normal planning.
-- Keep plan packs, roadmap flows, implementation review, and validation as the execution and evidence lanes.
+- Keep Markdown plans, roadmap flows, implementation review, and validation as the execution and evidence lanes.
 
 ## Planning-critical shared install set
 
@@ -106,9 +110,6 @@ No default-handled skill surfaces are currently shipped in the lean first-party 
 ## Current deprecated compatibility surfaces
 These remain installed only to preserve older routing and prompt references:
 - `code-review`: OpenCode compatibility review surface retained for older routing references; prefer current reviewer/agent pathways.
-
-Setting to show them:
-- `skillInstaller.skills.showDefaultHandled = true`
 
 ## Recurrence detection for generalized issues
 When an issue repeats across sessions, capture:

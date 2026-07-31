@@ -159,9 +159,6 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     'local-tracker-dist',
     'local-tracker-node-modules',
     'local-tracker-package-json',
-    'local-repo-mcp-dist',
-    'local-repo-mcp-node-modules',
-    'local-repo-mcp-package-json',
     'scripts',
     'catalog-assets',
     'codex-assets',
@@ -450,7 +447,6 @@ function scanRuntimeAssetReferences(activeWorkspaceRoot) {
   }
 
   const harnessRefs = new Set();
-  let referencesLocalRepoMcpPackage = false;
   for (const filePath of scanTargets) {
     const text = fs.readFileSync(filePath, 'utf8');
     HARNESS_ASSET_RE.lastIndex = 0;
@@ -458,21 +454,17 @@ function scanRuntimeAssetReferences(activeWorkspaceRoot) {
     while ((match = HARNESS_ASSET_RE.exec(text))) {
       harnessRefs.add(`${match[1]}-assets`);
     }
-    if (!referencesLocalRepoMcpPackage && /resolveMcpPackageRoot/.test(text)) {
-      referencesLocalRepoMcpPackage = true;
-    }
   }
 
   return {
     harnessRefs: [...harnessRefs].sort(),
-    referencesLocalRepoMcpPackage,
     scannedFileCount: scanTargets.length,
   };
 }
 
 function validateRuntimeAssetReferences(options = {}) {
   const { workspaceRoot: activeWorkspaceRoot, manifestPath, manifest } = loadTauriNodeSidecarLayout(options);
-  const { harnessRefs, referencesLocalRepoMcpPackage, scannedFileCount } = scanRuntimeAssetReferences(activeWorkspaceRoot);
+  const { harnessRefs, scannedFileCount } = scanRuntimeAssetReferences(activeWorkspaceRoot);
   const resourceCopies = Array.isArray(manifest.resourceCopies) ? manifest.resourceCopies : [];
   const errors = [];
 
@@ -487,15 +479,6 @@ function validateRuntimeAssetReferences(options = {}) {
     }
   }
 
-  if (referencesLocalRepoMcpPackage) {
-    for (const id of ['local-repo-mcp-dist', 'local-repo-mcp-node-modules', 'local-repo-mcp-package-json']) {
-      const entry = resourceCopies.find((resource) => resource && resource.id === id);
-      if (!entry) {
-        errors.push(`runtime code resolves the local-repo-mcp package root (resolveMcpPackageRoot) but ${manifestPath} resourceCopies is missing "${id}"`);
-      }
-    }
-  }
-
   assert(
     errors.length === 0,
     `Tauri sidecar runtime asset drift guard failed (scanned ${scannedFileCount} runtime file(s)):\n  - ${errors.join('\n  - ')}`,
@@ -503,7 +486,6 @@ function validateRuntimeAssetReferences(options = {}) {
 
   return {
     harnessRefs,
-    referencesLocalRepoMcpPackage,
     scannedFileCount,
   };
 }

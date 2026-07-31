@@ -460,11 +460,7 @@ export interface CatalogSourceAddPayload {
   url: string;
   ref?: string;
   defaultRef?: string;
-  includeSkills?: boolean;
   includeMcp?: boolean;
-  preferredSkillPathPrefixes?: string[];
-  hiddenPathPrefixes?: string[];
-  deprecatedPathPrefixes?: string[];
   mcpManifestPath?: string;
 }
 

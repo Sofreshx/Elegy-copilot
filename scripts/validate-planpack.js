@@ -812,6 +812,218 @@ function validateTrustedEvidenceBindingAndRetention(progressContent, cliOptions)
 	};
 }
 
+function isPlanPlaceholder(value) {
+	const normalized = String(value || '')
+		.trim()
+		.replace(/^[-*]\s+/, '')
+		.trim();
+	return /^(?:-|—|tbd|todo|n\/a|none specified)$/i.test(normalized)
+		|| /<[^>\r\n]+>/.test(normalized);
+}
+
+function normalizePlanScope(value) {
+	const normalized = String(value || '')
+		.trim()
+		.replace(/^`|`$/g, '')
+		.replace(/\\/g, '/')
+		.trim();
+	const wildcardIndex = normalized.search(/[?*]/);
+	if (wildcardIndex >= 0) {
+		return normalized.slice(0, wildcardIndex).replace(/\/+$/, '') || '.';
+	}
+	return normalized.replace(/\/+$/, '');
+}
+
+function splitPlanScopes(value) {
+	return String(value || '')
+		.split(/[;,]/)
+		.map(normalizePlanScope)
+		.filter(Boolean);
+}
+
+function planScopesOverlap(left, right) {
+	const a = normalizePlanScope(left);
+	const b = normalizePlanScope(right);
+	if (!a || !b) return false;
+	if (a === '.' || b === '.' || a === '*' || b === '*') return true;
+	return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+}
+
+function parsePlanDependencies(value) {
+	const normalized = String(value || '').trim();
+	if (!normalized || /^(?:none|nil|—|-|\[\])$/i.test(normalized)) return [];
+	return normalized
+		.replace(/^\[/, '')
+		.replace(/\]$/, '')
+		.split(/[,;\s]+/)
+		.map(item => item.trim())
+		.filter(Boolean);
+}
+
+function validatePlanV2(content) {
+	const errors = [];
+	const body = String(content || '').split(/^#\s+(?:Plan|Plan-Pack) Progress\b/im)[0];
+	const versionMatch = body.match(/<!--\s*IE_PLAN_VERSION:\s*(\d+)\s*-->/i);
+
+	if (!versionMatch) {
+		errors.push('missing required version marker: <!-- IE_PLAN_VERSION: 2 -->');
+	} else if (Number.parseInt(versionMatch[1], 10) !== 2) {
+		errors.push(`unsupported plan version: ${versionMatch[1]} (supported: 2)`);
+	}
+
+	const titleMatch = body.match(/^#\s+Plan\s+—\s+(.+)$/im);
+	if (!titleMatch) {
+		errors.push('missing required heading: # Plan — <title>');
+	} else if (isPlanPlaceholder(titleMatch[1])) {
+		errors.push('Plan title contains a placeholder');
+	}
+
+	const requiredSections = ['Goal', 'Acceptance Criteria', 'Work', 'Delivery'];
+	for (const sectionName of requiredSections) {
+		if (!extractH2Section(body, sectionName)) {
+			errors.push(`missing required heading: ## ${sectionName}`);
+		}
+	}
+
+	const goalSection = extractH2Section(body, 'Goal').trim();
+	if (!goalSection || isPlanPlaceholder(goalSection)) {
+		errors.push('Goal must describe the requested outcome');
+	}
+
+	const acceptanceSection = extractH2Section(body, 'Acceptance Criteria');
+	const acceptanceBullets = acceptanceSection
+		.split(/\r?\n/)
+		.map(line => line.match(/^\s*[-*]\s+(.+)$/)?.[1]?.trim())
+		.filter(Boolean);
+	if (acceptanceBullets.length === 0) {
+		errors.push('Acceptance Criteria must contain at least one bullet');
+	}
+	for (const criterion of acceptanceBullets) {
+		if (isPlanPlaceholder(criterion) || /^(?:it works|works as expected|everything works|done)\b/i.test(criterion)) {
+			errors.push(`Acceptance Criteria is vague: ${criterion}`);
+		}
+	}
+
+	const deliverySection = extractH2Section(body, 'Delivery').trim();
+	if (!deliverySection || isPlanPlaceholder(deliverySection)) {
+		errors.push('Delivery must describe commit and review expectations');
+	}
+
+	const workSection = extractH2Section(body, 'Work');
+	const taskHeadingRe = /^###\s+(T-\d{3})\s+—\s+(.+)$/;
+	const taskMatches = [];
+	const workLines = workSection.split(/\r?\n/);
+	for (let index = 0; index < workLines.length; index += 1) {
+		const match = workLines[index].match(taskHeadingRe);
+		if (!match) continue;
+		const taskLines = [];
+		for (let next = index + 1; next < workLines.length; next += 1) {
+			if (/^###\s+/.test(workLines[next])) break;
+			taskLines.push(workLines[next]);
+		}
+		taskMatches.push({ id: match[1], title: match[2].trim(), lines: taskLines });
+	}
+
+	if (taskMatches.length === 0) {
+		errors.push('Work must contain at least one ### T-NNN task');
+	}
+
+	const tasks = new Map();
+	const delegateModes = {
+		explorer: 'read',
+		worker: 'write',
+		sweeper: 'write',
+		'test-runner': 'validate',
+		reviewer: 'review',
+		reviewer_strong: 'review',
+	};
+	const allowedModes = new Set(['read', 'write', 'validate', 'review']);
+
+	for (const task of taskMatches) {
+		if (tasks.has(task.id)) {
+			errors.push(`duplicate task ID: ${task.id}`);
+			continue;
+		}
+
+		const fields = new Map();
+		for (const line of task.lines) {
+			const fieldMatch = line.match(/^\s*-\s+([^:]+):\s*(.*)$/);
+			if (fieldMatch) fields.set(normalizeFieldName(fieldMatch[1]), fieldMatch[2].trim());
+		}
+
+		const requiredFields = ['dependson', 'mode', 'parallel', 'scope', 'donewhen', 'validate'];
+		for (const field of requiredFields) {
+			if (!fields.has(field) || !fields.get(field)) errors.push(`${task.id} missing required field: ${field}`);
+		}
+
+		const mode = String(fields.get('mode') || '').toLowerCase();
+		const parallel = String(fields.get('parallel') || '').toLowerCase();
+		const delegate = String(fields.get('candelegate') || '').toLowerCase();
+		const dependencies = parsePlanDependencies(fields.get('dependson'));
+		if (isPlanPlaceholder(task.title)) errors.push(`${task.id} title contains a placeholder`);
+
+		if (!allowedModes.has(mode)) errors.push(`${task.id} Mode must be read, write, validate, or review`);
+		if (!['yes', 'no'].includes(parallel)) errors.push(`${task.id} Parallel must be yes or no`);
+		if (!/^(?:T-\d{3})$/.test(task.id)) errors.push(`invalid task ID: ${task.id}`);
+		if (isPlanPlaceholder(fields.get('scope'))) errors.push(`${task.id} Scope must be concrete`);
+		if (isPlanPlaceholder(fields.get('donewhen'))) errors.push(`${task.id} Done when must be concrete`);
+		if (isPlanPlaceholder(fields.get('validate'))) errors.push(`${task.id} Validate must be concrete`);
+
+		if (delegate) {
+			if (!Object.prototype.hasOwnProperty.call(delegateModes, delegate)) {
+				errors.push(`${task.id} has unknown delegation role: ${delegate}`);
+			} else if (delegateModes[delegate] !== mode) {
+				errors.push(`${delegate} delegation requires Mode=${delegateModes[delegate]} (${task.id} has Mode=${mode || 'missing'})`);
+			}
+		}
+
+		tasks.set(task.id, {
+			id: task.id,
+			mode,
+			parallel,
+			delegate,
+			dependencies,
+			scopes: splitPlanScopes(fields.get('scope')),
+		});
+	}
+
+	for (const task of tasks.values()) {
+		for (const dependency of task.dependencies) {
+			if (!tasks.has(dependency)) errors.push(`${task.id} references missing task: ${dependency}`);
+		}
+	}
+
+	const visitState = new Map();
+	function visit(taskId, stack = []) {
+		const state = visitState.get(taskId);
+		if (state === 'visiting') {
+			errors.push(`task dependency cycle: ${[...stack, taskId].join(' -> ')}`);
+			return;
+		}
+		if (state === 'visited') return;
+		visitState.set(taskId, 'visiting');
+		const task = tasks.get(taskId);
+		for (const dependency of task?.dependencies || []) {
+			if (tasks.has(dependency)) visit(dependency, [...stack, taskId]);
+		}
+		visitState.set(taskId, 'visited');
+	}
+	for (const taskId of tasks.keys()) visit(taskId);
+
+	const parallelWrites = [...tasks.values()].filter(task => task.parallel === 'yes' && task.mode === 'write');
+	for (let leftIndex = 0; leftIndex < parallelWrites.length; leftIndex += 1) {
+		for (let rightIndex = leftIndex + 1; rightIndex < parallelWrites.length; rightIndex += 1) {
+			const left = parallelWrites[leftIndex];
+			const right = parallelWrites[rightIndex];
+			if (left.scopes.some(leftScope => right.scopes.some(rightScope => planScopesOverlap(leftScope, rightScope)))) {
+				errors.push(`parallel write scope overlap: ${left.id} and ${right.id}`);
+			}
+		}
+	}
+
+	return { errors, taskCount: tasks.size };
+}
+
 const cliOptions = parseCliArgs(process.argv.slice(2));
 const filePath = cliOptions.filePath || path.join(process.cwd(), 'plan.md');
 
@@ -821,6 +1033,24 @@ if (!fs.existsSync(filePath)) {
 }
 
 const content = fs.readFileSync(filePath, 'utf8');
+
+const planPreamble = content.split(/^##\s+/m)[0];
+const hasV2PlanHeader = /^\uFEFF?[ \t]*#\s+Plan\s+—\s+[^\r\n]+/i.test(planPreamble);
+
+if (hasV2PlanHeader) {
+	if (cliOptions.phase === 'execution') {
+		console.error('plan invalid:\n  v2 execution validation is not defined; use the planning validator until a v2 execution-evidence contract exists');
+		process.exit(1);
+	}
+	const v2Result = validatePlanV2(content);
+	if (v2Result.errors.length > 0) {
+		console.error(`plan invalid:\n${v2Result.errors.map(error => `  ${error}`).join('\n')}`);
+		process.exit(1);
+	}
+	console.log(`plan ok (${v2Result.taskCount} tasks)`);
+	process.exit(0);
+}
+
 const legacyCompatibilityMode = cliOptions.phase === 'full';
 
 if (legacyCompatibilityMode) {

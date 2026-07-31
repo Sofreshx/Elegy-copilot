@@ -1,6 +1,6 @@
 ---
 created: 2026-05-21
-updated: 2026-06-27
+updated: 2026-07-31
 category: system
 status: current
 doc_kind: node
@@ -16,14 +16,14 @@ related: [workflow-planning-contract, validation-governance, check-taxonomy-gove
 
 Define the shared v1 contract for spec-driven development in `elegy-copilot`.
 
-This layer complements existing Plan Pack, roadmap, review, and validation assets. It does not
+This layer complements existing Markdown plan, roadmap, review, and validation assets. It does not
 replace them, and it does not introduce a new orchestrator fleet.
 
 ## Positioning
 
 - Use spec-driven development when the work needs a tighter requirements contract before planning or implementation.
 - Default durable repo specs live under `docs/specs/`.
-- `elegy-planning` is the durable execution and roadmap authority. Specs define requirements; plans define execution.
+- Markdown plans define approved execution intent. `elegy-planning` may hold optional durable graph state, while roadmap authority follows the planning/backlog contract.
 - Keep implementation review and validation in the existing review and validation lanes.
 - Physical spec archiving (moving specs to an archive folder) is not the default. Specs are the permanent requirements record.
 
@@ -173,9 +173,10 @@ See the normative spec (R12) for the full freshness contract. The validator prod
 
 ## Spec-to-Planning Handoff
 
-Specs are the durable requirements contract. `elegy-planning` is the durable execution and roadmap authority. They complement each other without merging.
+Specs are the durable requirements contract. Markdown plans own approved execution intent;
+`elegy-planning` may provide optional durable graph state without replacing that intent.
 
-When a spec reaches `approved` status, the project lane picks it up for implementation via the `spec-planning-bridge` skill:
+When a spec reaches `approved` status, the normal project lane picks it up for implementation:
 
 | Role | Owner | Artifact |
 |---|---|---|
@@ -187,11 +188,11 @@ When a spec reaches `approved` status, the project lane picks it up for implemen
 
 1. The `approved` spec must have a `spec_id`.
 2. The project plan or work point must reference the spec via a **file-scope selector** using the grammar defined in the normative spec (R10).
-3. Alternatively, record an explicit `planning_insight_record` with `insightType: 'spec-link'` linking the plan to the spec path.
+3. The spec's `Implementation Links` must identify the active plan or work point.
 
 ### Validation
 
-The `spec-review` skill checks for the handoff link during review. A dormant structural validator is available at `scripts/validate-specs.js` for manual research use.
+The `spec-review` skill checks for the handoff link during review. A dormant structural validator is available at `scripts/validate-specs.js` for manual research use. No dedicated spec-to-planning bridge skill currently ships. Rebuild considerations are recorded in `~/.elegy/backlogs/instruction-engine/issues/planning-ideas-log.md`.
 
 ## When to Write a plan.md
 
@@ -250,8 +251,8 @@ planner abstraction.
 1. Use the `spec-dev` skill to choose `spec-first`, `spec-anchored`, or `spec-as-source`.
 2. Use `spec-authoring` to create or refine the durable spec when the work is spec-anchored or spec-as-source. The authoring gate must pass (context evidence, allowed/forbidden behavior, verifiable acceptance checks, and deterministic proof posture when automation is feasible).
 3. Use `spec-review` before implementation planning when the spec should drive later work.
-4. Use `spec-planning-bridge` to link the approved spec to an `elegy-planning` roadmap or plan via `exact:primary:docs/specs/<spec-slug>/spec.md` file-scope selector.
-5. Move into the project lane after the handoff is complete.
+4. Link the approved spec from the normal project lane using the `exact:primary:docs/specs/<spec-slug>/spec.md` file-scope selector and reciprocal `Implementation Links`.
+5. Continue implementation only after the handoff is verified.
 
 ## Specs Location
 
@@ -267,5 +268,5 @@ If spec validation is revived in the future, it should return as explicit opt-in
 
 - Not every task needs a durable spec.
 - Specs are durable repo artifacts for non-trivial work or explicit spec requests.
-- Plan packs and roadmap artifacts remain authoritative for execution planning and multi-session planning.
+- Markdown plans and roadmap artifacts remain authoritative for execution planning and multi-session planning.
 - `spec-as-source` is narrow and declarative by design.

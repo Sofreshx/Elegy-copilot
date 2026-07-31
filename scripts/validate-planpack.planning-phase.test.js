@@ -147,6 +147,17 @@ test('planning validator accepts a structurally valid pre-execution planpack wit
 	});
 });
 
+test('planning validator keeps a valid v1 plan on the v1 path when its body mentions the v2 marker', () => {
+	const planContent = buildPlanningPlanPack().replace(
+		'- Ensure fresh approved plans can validate before execution evidence exists.',
+		'- Ensure fresh approved plans can validate before execution evidence exists. A migration note may mention <!-- IE_PLAN_VERSION: 2 --> without changing this file version.',
+	);
+	withTempPlanFile(planContent, (filePath) => {
+		const result = runValidator(PLANNING_VALIDATOR_PATH, filePath, ['--ac-enforcement', 'fail']);
+		assert.strictEqual(result.status, 0, `v1 plan should remain on the compatibility path, stderr: ${result.stderr}`);
+	});
+});
+
 test('planning validator still requires the base progress tracker next-unit section', () => {
 	const planContent = buildPlanningPlanPack({ omitNextUnit: true });
 	withTempPlanFile(planContent, (filePath) => {

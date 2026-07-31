@@ -62,10 +62,7 @@ questionnaire.
 4. If no roadmap exists, create one via `planning_roadmap_create`
 5. **Accept spec handoff:** If this project was handed an approved spec,
    confirm the `exact:primary:docs/specs/<spec-slug>/spec.md` file-scope
-   selector is present on the work point. Record the handoff acceptance:
-   `planning_insight_record(insightType: 'spec-link', entityType: 'plan',
-   entityId: '<plan-id>', content: 'Accepted handoff from spec
-   docs/specs/<slug>/spec.md')`.
+   selector is present on the work point or plan.
 
 ## Phase 1: Plan
 

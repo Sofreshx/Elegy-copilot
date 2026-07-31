@@ -71,10 +71,20 @@ When changing workflows or release docs:
 
 ## Pull requests
 
-- Keep changes scoped and explain the user-visible outcome.
+- Keep each PR focused on one user-visible outcome and keep commits atomic;
+  avoid unrelated cleanup, generated files, or formatting churn.
+- Explain the problem, approach, acceptance criteria, validation commands and
+  results, known limitations, and any reviewer focus areas.
+- Use a draft PR while implementation or required checks are incomplete; mark it
+  ready only after the diff is clean and the acceptance criteria are verified.
 - Include the narrowest relevant validation commands in the PR description.
 - Update docs when behavior, workflow, or repo structure changes.
 - Do not commit secrets, signing material, or machine-local state.
+
+Agents must not auto-push, auto-merge, or promote protected branches. A planned
+commit or PR handoff still requires the main agent to inspect the diff and
+reconcile validation and review evidence first. See
+[Git Checkpoint Governance](docs/system/git-checkpoint-governance.md).
 
 ## Need help?
 

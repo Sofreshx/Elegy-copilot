@@ -17,7 +17,7 @@
     "preferExplicitDestinations": true,
     "agentsAreFlat": true,
     "skillsRequireFolderName": true,
-    "notes": "Install Codex-native home instructions, four bounded role agents, and curated skills under ~/.codex, then patch ~/.codex/config.toml conservatively. Do not bulk-install Copilot/engine assets into Codex."
+    "notes": "Install Codex-native home instructions, five bounded Luna role agents, one strong Sol reviewer, and seven focused skills under ~/.codex, then patch ~/.codex/config.toml conservatively. Elegy plugins remain explicit opt-ins."
   },
   "governance": {
     "g05": {
@@ -75,6 +75,18 @@
       "destination": "agents/reviewer.toml"
     },
     {
+      "id": "codex-reviewer-strong-agent",
+      "type": "agent",
+      "source": "codex-assets/agents/reviewer_strong.toml",
+      "destination": "agents/reviewer_strong.toml"
+    },
+    {
+      "id": "codex-worker-agent",
+      "type": "agent",
+      "source": "codex-assets/agents/worker.toml",
+      "destination": "agents/worker.toml"
+    },
+    {
       "id": "codex-test-runner-agent",
       "type": "agent",
       "source": "codex-assets/agents/test-runner.toml",
@@ -93,70 +105,6 @@
       "destination": "skills/repo-setup"
     },
     {
-      "id": "codex-skill-discovery-skill",
-      "type": "skill",
-      "source": "engine-assets/skills/skill-discovery",
-      "destination": "skills/skill-discovery",
-      "loadMode": "always"
-    },
-    {
-      "id": "codex-rubberduck-plan-review-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/rubberduck-plan-review",
-      "destination": "skills/rubberduck-plan-review",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "codex-implementation-review-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/implementation-review",
-      "destination": "skills/implementation-review",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "codex-implementation-handoff-skill",
-      "type": "skill",
-      "source": "codex-assets/skills/implementation-handoff",
-      "destination": "skills/implementation-handoff",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "codex-spec-dev-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/spec-dev",
-      "destination": "skills/spec-dev",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "codex-spec-authoring-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/spec-authoring",
-      "destination": "skills/spec-authoring",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "codex-spec-review-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/spec-review",
-      "destination": "skills/spec-review",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "codex-spec-planning-bridge-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/spec-planning-bridge",
-      "destination": "skills/spec-planning-bridge",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "codex-elegy-planning-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/elegy-planning",
-      "destination": "skills/elegy-planning",
-      "loadMode": "on-demand",
-      "compatibilityFallbackFor": "elegy-planning@elegy"
-    },
-    {
       "id": "codex-repo-backed-obsidian-docs-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/repo-backed-obsidian-docs",
@@ -168,13 +116,6 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/sweeper-cleanup",
       "destination": "skills/sweeper-cleanup",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "codex-commit-check-setup-skill",
-      "type": "skill",
-      "source": "engine-assets/skills/commit-check-setup",
-      "destination": "skills/commit-check-setup",
       "loadMode": "on-demand"
     },
     {
@@ -199,10 +140,10 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "codex-brainstorming-skill",
+      "id": "codex-elegy-planning-skill",
       "type": "skill",
-      "source": "catalog-assets/shared-skills/brainstorming",
-      "destination": "skills/brainstorming",
+      "source": "catalog-assets/shared-skills/elegy-planning",
+      "destination": "skills/elegy-planning",
       "loadMode": "on-demand"
     }
   ],

@@ -5,8 +5,6 @@ import { useStoreValue } from '../../lib/store';
 import { catalogWorkspaceStore } from '../../tabs/Assets/catalogWorkspaceStore';
 
 const SHIPPED_SOURCE_IDS = new Set([
-  'caveman',
-  'mattpocock-skills',
   'context7',
   'ghidra-mcp',
   'spec-kit',
@@ -97,7 +95,7 @@ export default function SourcesTab({ externalSources, onSourceChanged }: Sources
       {/* Default / Shipped Sources */}
       <Panel
         title={`Default Sources (${shippedSources.length})`}
-        subtitle="Pre-configured external skill, MCP, and plugin sources shipped with Elegy Copilot."
+        subtitle="Pre-configured external MCP, CLI, and plugin sources shipped with Elegy Copilot."
       >
         {shippedSources.length === 0 ? (
           <p className="assets-tools-empty">No default sources configured.</p>
@@ -153,7 +151,7 @@ export default function SourcesTab({ externalSources, onSourceChanged }: Sources
       {/* User Sources */}
       <Panel
         title={`User Sources (${userSources.length})`}
-        subtitle="Externally-added tools, MCP servers, and skill folders."
+        subtitle="Externally added MCP servers, CLI tools, and plugins."
         actions={
           <Button onClick={() => setShowAddTool(true)} testId="sources-add-tool" variant="secondary">
             Add Source

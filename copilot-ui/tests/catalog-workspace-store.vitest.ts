@@ -1114,9 +1114,9 @@ describe('catalogWorkspaceStore', () => {
               title: 'Demo Source',
               installables: [
                 {
-                  installableId: 'skill:brainstorming',
-                  kind: 'skill',
-                  title: 'Brainstorming',
+                  installableId: 'mcp:context7',
+                  kind: 'mcp-server',
+                  title: 'Context7',
                   targetSupport: ['codex', 'opencode'],
                 },
               ],
@@ -1140,16 +1140,16 @@ describe('catalogWorkspaceStore', () => {
               title: 'Demo Source',
               installables: [
                 {
-                  installableId: 'skill:brainstorming',
-                  kind: 'skill',
-                  title: 'Brainstorming',
+                  installableId: 'mcp:context7',
+                  kind: 'mcp-server',
+                  title: 'Context7',
                   targetSupport: ['codex', 'opencode'],
                 },
               ],
               activation: {
                 codex: {
                   installables: {
-                    'skill:brainstorming': {
+                    'mcp:context7': {
                       enabled: true,
                     },
                   },
@@ -1174,16 +1174,16 @@ describe('catalogWorkspaceStore', () => {
               title: 'Demo Source',
               installables: [
                 {
-                  installableId: 'skill:brainstorming',
-                  kind: 'skill',
-                  title: 'Brainstorming',
+                  installableId: 'mcp:context7',
+                  kind: 'mcp-server',
+                  title: 'Context7',
                   targetSupport: ['codex', 'opencode'],
                 },
               ],
               activation: {
                 codex: {
                   installables: {
-                    'skill:brainstorming': {
+                    'mcp:context7': {
                       enabled: false,
                     },
                   },
@@ -1203,25 +1203,25 @@ describe('catalogWorkspaceStore', () => {
     await catalogWorkspaceStore.loadWorkspace();
     await catalogWorkspaceStore.activateExternalSourceInstallable({
       sourceId: 'demo-source',
-      installableId: 'skill:brainstorming',
+      installableId: 'mcp:context7',
       target: 'codex',
     });
     await catalogWorkspaceStore.deactivateExternalSourceInstallable({
       sourceId: 'demo-source',
-      installableId: 'skill:brainstorming',
+      installableId: 'mcp:context7',
       target: 'codex',
     });
     expect(mockActivateCatalogSourceInstallable).toHaveBeenCalledWith({
       sourceId: 'demo-source',
-      installableId: 'skill:brainstorming',
+      installableId: 'mcp:context7',
       target: 'codex',
     });
     expect(mockDeactivateCatalogSourceInstallable).toHaveBeenCalledWith({
       sourceId: 'demo-source',
-      installableId: 'skill:brainstorming',
+      installableId: 'mcp:context7',
       target: 'codex',
     });
-    expect(catalogWorkspaceStore.getState().installMessage).toContain('Deactivated skill:brainstorming for codex');
+    expect(catalogWorkspaceStore.getState().installMessage).toContain('Deactivated mcp:context7 for codex');
   });
   it('reinstalls active external installables for one target and across all active targets', async () => {
     mockGetCatalogRepos.mockResolvedValue({ repos: [], selectedRepo: null });
@@ -1240,8 +1240,8 @@ describe('catalogWorkspaceStore', () => {
             title: 'Demo Source',
             installables: [
               {
-                installableId: 'skill:brainstorming',
-                kind: 'skill',
+                installableId: 'mcp:ghidra',
+                kind: 'mcp-server',
                 targetSupport: ['codex', 'opencode'],
               },
               {
@@ -1253,13 +1253,13 @@ describe('catalogWorkspaceStore', () => {
             activation: {
               codex: {
                 installables: {
-                  'skill:brainstorming': { enabled: true },
+                  'mcp:ghidra': { enabled: true },
                   'mcp:context7': { enabled: true },
                 },
               },
               opencode: {
                 installables: {
-                  'skill:brainstorming': { enabled: true },
+                  'mcp:ghidra': { enabled: true },
                 },
               },
             },
@@ -1278,7 +1278,7 @@ describe('catalogWorkspaceStore', () => {
     await catalogWorkspaceStore.reinstallExternalSourceAllTargets('demo-source');
     expect(mockActivateCatalogSourceInstallable).toHaveBeenCalledWith({
       sourceId: 'demo-source',
-      installableId: 'skill:brainstorming',
+      installableId: 'mcp:ghidra',
       target: 'codex',
     });
     expect(mockActivateCatalogSourceInstallable).toHaveBeenCalledWith({
@@ -1288,7 +1288,7 @@ describe('catalogWorkspaceStore', () => {
     });
     expect(mockActivateCatalogSourceInstallable).toHaveBeenCalledWith({
       sourceId: 'demo-source',
-      installableId: 'skill:brainstorming',
+      installableId: 'mcp:ghidra',
       target: 'opencode',
     });
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Reinstalled 2 active target(s)');

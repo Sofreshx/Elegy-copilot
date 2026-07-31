@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-07-06
+updated: 2026-07-31
 category: system
 status: current
 doc_kind: index
@@ -32,6 +32,7 @@ Use docs in this order:
 - [[progressive-constraint-narrowing]] [progressive-constraint-narrowing.md](progressive-constraint-narrowing.md) [progressive-constraint-narrowing](docs/system/progressive-constraint-narrowing.md)
 - [[adr-governance]] [adr-governance.md](adr-governance.md) [adr-governance](docs/system/adr-governance.md)
 - [[spec-driven-development]] [spec-driven-development.md](spec-driven-development.md) [spec-driven-development](docs/system/spec-driven-development.md)
+- [[planpack-spec]] [planpack-spec.md](planpack-spec.md) [Markdown plan specification](docs/system/planpack-spec.md)
 - [[commit-validation-governance]] [commit-validation-governance.md](commit-validation-governance.md) [commit-validation-governance](docs/system/commit-validation-governance.md)
 - [[git-checkpoint-governance]] [git-checkpoint-governance.md](git-checkpoint-governance.md) [git-checkpoint-governance](docs/system/git-checkpoint-governance.md)
 - [[check-taxonomy-governance]] [check-taxonomy-governance.md](check-taxonomy-governance.md) [check-taxonomy-governance](docs/system/check-taxonomy-governance.md)

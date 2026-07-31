@@ -344,29 +344,6 @@
       }
     },
     {
-      "skill": "spec-planning-bridge",
-      "name": "spec-planning-bridge",
-      "description": "Bridge an approved spec to a durable planning lane (roadmap, plan, work points) without merging spec and planning authority domains. Use after spec review to hand an approved spec to elegy-planning. Triggers on: spec handoff, spec to planning, bridge spec to plan, link spec to roadmap, spec planning bridge. User-invoked; do not auto-load.",
-      "triggersOn": [
-        "bridge spec to plan",
-        "link spec to roadmap",
-        "spec handoff",
-        "spec planning bridge",
-        "spec to planning"
-      ],
-      "tags": [
-        "bridge",
-        "elegy-planning",
-        "handoff",
-        "planning",
-        "specs"
-      ],
-      "manifest": {
-        "id": "skill-spec-planning-bridge",
-        "loadMode": "on-demand"
-      }
-    },
-    {
       "skill": "spec-review",
       "name": "spec-review",
       "description": "",

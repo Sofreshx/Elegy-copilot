@@ -34,7 +34,7 @@ related: [system-docs-index]
 - Runner lane design: `docs/system/runner-lane-design.md`
 - Model capability profiles: `docs/system/model-capability-profile.md`
 - Channel capability matrix: `docs/system/channel-capability-matrix.md`
-- Repository backlog, roadmap, and plan-pack boundaries: [[planning-backlog-roadmap-contract]] [../planning-backlog-roadmap-contract.md](../planning-backlog-roadmap-contract.md) [planning-backlog-roadmap-contract](docs/system/planning-backlog-roadmap-contract.md)
+- Repository backlog, roadmap, and plan boundaries: [[planning-backlog-roadmap-contract]] [../planning-backlog-roadmap-contract.md](../planning-backlog-roadmap-contract.md) [planning-backlog-roadmap-contract](docs/system/planning-backlog-roadmap-contract.md)
 - Governance lanes: [[project-conventions-governance]] [../project-conventions-governance.md](../project-conventions-governance.md) [project-conventions-governance](docs/system/project-conventions-governance.md)
 - Documentation/structure governance: [[documentation-structure-governance]] [../documentation-structure-governance.md](../documentation-structure-governance.md) [documentation-structure-governance](docs/system/documentation-structure-governance.md)
 - Repo setup governance: [[repo-setup-governance]] [../repo-setup-governance.md](../repo-setup-governance.md) [repo-setup-governance](docs/system/repo-setup-governance.md)

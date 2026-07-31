@@ -78,7 +78,7 @@ The orchestrator and canonical docs continue to use these normalized fields:
 
 | Field | Allowed values | Current interpretation |
 | --- | --- | --- |
-| `planning_surface` | `plan-pack` \| `roadmap` \| `both` \| `none` | Selects whether work should land in session artifacts, durable roadmap entities, both, or neither |
+| `planning_surface` | `plan-pack` \| `roadmap` \| `both` \| `none` | Selects whether work should land in session Markdown plan artifacts, durable roadmap entities, both, or neither. `plan-pack` is the retained compatibility value. |
 | `session_horizon` | `single-session` \| `multi-session` | Declares whether the ask closes inside one execution session or needs durable follow-up |
 | `execution_readiness` | `ready` \| `stageable` \| `not-ready` | Declares whether execution can start now |
 | `overlap_risk` | `low` \| `medium` \| `high` | Signals risk of mixing durable planning with active execution |
@@ -87,7 +87,8 @@ Interpretation rules:
 
 - `planning_surface: roadmap` means durable work should land in `elegy-planning` roadmap and
   work-point space, not repo markdown roadmaps.
-- `planning_surface: plan-pack` means the active execution artifact is
+- `planning_surface: plan-pack` means the active execution artifact is the session
+  Markdown plan (the enum value is retained for compatibility) at
   `~/.copilot/session-state/<SESSION_ID>/plan.md`.
 - `planning_surface: both` means durable roadmap framing happens first, then the selected slice moves
   into session execution artifacts.

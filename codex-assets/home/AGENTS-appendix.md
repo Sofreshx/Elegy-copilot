@@ -2,35 +2,39 @@
 
 ## Skills
 
-Load a skill only when its contract changes the work:
-
-| Need | Route |
-|---|---|
-| Ambiguous capability | `skill-discovery` |
-| Instruction layering | `agents-md-authoring` |
-| UI implementation or review | `elegy-ui-craft@elegy` |
-| Dead-weight removal | `sweeper-cleanup` |
-| Durable planning state | `elegy-planning` |
-| Spec lifecycle | `spec-dev`, `spec-authoring`, `spec-review`, or `spec-planning-bridge` |
-| Implementation review or handoff | `implementation-review` or `implementation-handoff` |
-| Bounded OpenCode delegation, when installed | `opencode-worker-delegation` before selecting a worker or model |
+Load only matching skills: `agents-md-authoring`;
+`repo-setup`/`repo-quality-setup`; `sweeper-cleanup`;
+`repo-backed-obsidian-docs`; and `tdd` for explicit test-first work.
+Use `opencode-worker-delegation` before bounded OpenCode delegation or model selection, when installed.
 
 ## Sol/Luna Routing
 
-Keep Sol on requirements, architecture, integration, and final judgment. Use
-Codex-native `gpt-5.6-luna` workers for bounded exploration, review,
-validation, and cleanup. An active plugin may define another governed route.
-Default routing is manual.
+Keep Sol/Luna Max on requirements, architecture, integration, and judgment.
 
-- Do not delegate unresolved decisions, tiny tasks, or tightly coupled work.
-- Give each worker a bounded scope, allowed actions, output contract, and stop condition.
-- Use `low` effort for exploration, `medium` for validation or cleanup, and `high` for review.
-- Prefer one completed report. Do not poll or send status-only prompts unless the worker reports a
-  safety, permission, credential, or missing-authority boundary, or the user changes direction.
-- Write-capable children require an allowlisted file scope and may not commit,
-  push, publish, change permissions, or edit outside that scope.
+- Direct work: do not delegate unless the user asks.
+- Planned work: in `/plan` or approved execution, delegate only explicitly
+  marked tasks; keep them local when unsafe or not useful.
+- Favor independent exploration, isolated implementation, noisy validation,
+  long checks, and review.
+- Give workers scope, result, validation, and a stop condition.
+- Use `explorer` for read-only discovery, `worker` for bounded writes,
+  `test-runner` for command-only validation, `reviewer` for bounded review, and
+  `reviewer_strong` for consequential plans or architecture.
+- Workers never commit, push, publish, change permissions, spawn children, or
+  edit outside their assigned scope. Reviewers are read-only and advisory.
+- The main agent checks results against the goal/AC, reconciles conflicts, and
+  owns validation and delivery.
+
+## Plan execution
+
+When `/plan` is active, use a concise Markdown plan as the default durable
+artifact. A ready plan has `Goal`, observable `Acceptance Criteria`, a `Work`
+graph of `T-NNN` tasks, and `Delivery` expectations. Each task states its
+dependencies, mode, parallel safety, scope, done condition, and validation.
+Mark `Can delegate` only for a task that is safe to hand off; an optional
+`elegy-planning` backend may track durable graph execution, but it never
+replaces the approved Markdown intent or broadens scope.
 
 ## Durable Artifacts
 
-Use plans or specs only when requested, required across sessions, or needed for
-verifiable acceptance.
+Use plans/specs only when requested or needed across sessions or for acceptance.

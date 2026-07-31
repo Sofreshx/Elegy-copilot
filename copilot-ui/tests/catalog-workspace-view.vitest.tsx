@@ -76,21 +76,21 @@ const mockState = {
         editable: true,
         installables: [
           {
-            installableId: 'skill:brainstorming',
-            kind: 'skill',
-            title: 'Brainstorming',
-            description: 'Prompted ideation skill.',
+            installableId: 'mcp:demo-server',
+            kind: 'mcp',
+            title: 'Demo MCP Server',
+            description: 'External MCP integration.',
             targetSupport: ['codex', 'opencode'],
           },
         ],
         activation: {
           codex: {
             installables: {
-              'skill:brainstorming': {
+              'mcp:demo-server': {
                 installed: true,
                 enabled: true,
-                managedName: 'external--demo-source--brainstorming',
-                installedPath: 'C:\\Users\\demo\\.codex\\skills\\external--demo-source--brainstorming',
+                managedName: 'demo-server',
+                installedPath: 'C:\\Users\\demo\\.codex\\config.toml',
               },
             },
           },

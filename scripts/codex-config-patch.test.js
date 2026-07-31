@@ -340,7 +340,11 @@ async function main() {
   await test('patcher adds native Codex agents limits', async () => {
     const result = patcher.patchCodexConfig('', { enableExternalProviders: false });
     assert.ok(result.includes('[agents]'), result);
-    assert.ok(result.includes('max_threads = 3'), result);
+    assert.ok(result.includes('enabled = true'), result);
+    assert.ok(result.includes('max_concurrent_threads_per_session = 6'), result);
+    assert.ok(!result.includes('max_threads ='), result);
+    assert.ok(result.includes('default_subagent_model = "gpt-5.6-luna"'), result);
+    assert.ok(result.includes('default_subagent_reasoning_effort = "high"'), result);
     assert.ok(result.includes('max_depth = 1'), result);
     assert.ok(result.includes('job_max_runtime_seconds = 1800'), result);
   });
@@ -364,7 +368,9 @@ async function main() {
       maxDepth: 0,
       jobMaxRuntimeSeconds: 900,
     });
-    assert.ok(result.includes('[agents]\nmax_threads = 2\nmax_depth = 0\njob_max_runtime_seconds = 900\nunknown = "preserved"'), result);
+    assert.ok(result.includes('[agents]\nmax_depth = 0\njob_max_runtime_seconds = 900\nunknown = "preserved"'), result);
+    assert.ok(result.includes('max_concurrent_threads_per_session = 2'), result);
+    assert.ok(!result.includes('max_threads ='), result);
     assert.ok(result.includes('[agents.explorer]\nmodel = "gpt-5.4-mini"'), result);
   });
 
