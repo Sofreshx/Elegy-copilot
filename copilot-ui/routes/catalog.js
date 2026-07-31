@@ -43,7 +43,7 @@ const MAX_SEARCH_LIMIT = 100;
 const INSTALL_SURFACE_HARNESSES = new Set(['codex', 'opencode', 'antigravity', 'claude-code']);
 const HARNESS_INSTALLABLE_KINDS = Object.freeze({
   copilot: new Set(['agent', 'skill']),
-  codex: new Set(['agent', 'skill', 'mcp']),
+  codex: new Set(['agent', 'skill', 'mcp', 'instructions']),
   opencode: new Set(['agent', 'skill', 'mcp', 'hook', 'plugin']),
   antigravity: new Set(['skill']),
   'claude-code': new Set(['skill', 'instructions']),
@@ -60,20 +60,50 @@ function installSurfaceTargetToHarnessId(target) {
   return target;
 }
 
+function isExistingAssetPath(targetPath, fsImpl = fs) {
+  try {
+    const stat = fsImpl.statSync(targetPath);
+    return stat.isFile() || stat.isDirectory();
+  } catch (_) {
+    return false;
+  }
+}
+
+function hashAssetPath(targetPath, fsImpl = fs, cryptoImpl = crypto) {
+  const stat = fsImpl.statSync(targetPath);
+  if (stat.isFile()) {
+    return cryptoImpl.createHash('sha256').update(fsImpl.readFileSync(targetPath)).digest('hex');
+  }
+  if (!stat.isDirectory()) {
+    throw new Error(`Unsupported asset path: ${targetPath}`);
+  }
+  const hash = cryptoImpl.createHash('sha256');
+  const entries = fsImpl.readdirSync(targetPath, { withFileTypes: true })
+    .sort((left, right) => left.name.localeCompare(right.name));
+  for (const entry of entries) {
+    const childPath = path.join(targetPath, entry.name);
+    hash.update(entry.name);
+    hash.update('\0');
+    hash.update(hashAssetPath(childPath, fsImpl, cryptoImpl));
+    hash.update('\0');
+  }
+  return hash.digest('hex');
+}
+
 const GLOBAL_CATALOG_KEY_FEATURES = Object.freeze({
   'skill::skill-discovery': {
     central: true,
     keyFeature: true,
     keyFeatureLabel: 'Retrieval',
     keyFeatureOrder: 0,
-    scopeKinds: ['global', 'harness', 'repo'],
+    scopeKinds: ['global', 'repo'],
   },
   'skill::stack-detector': {
     central: true,
     keyFeature: true,
     keyFeatureLabel: 'Retrieval',
     keyFeatureOrder: 1,
-    scopeKinds: ['global', 'harness', 'repo'],
+    scopeKinds: ['global', 'repo'],
   },
 });
 
@@ -732,8 +762,95 @@ function normalizeDescription(value) {
   return normalized || null;
 }
 
+function normalizeCatalogScope(value, fallback = null) {
+  const normalized = normalizeString(value).toLowerCase();
+  if (!normalized) return fallback;
+  if (['global', 'harness', 'harness-global', 'home'].includes(normalized)) return 'global';
+  if (['repo', 'repo-local', 'repository', 'repository-local'].includes(normalized)) return 'repo';
+  if (['user', 'user-global'].includes(normalized)) return 'user';
+  if (normalized === 'external') return 'external';
+  return fallback;
+}
+
+function normalizeManagementOwner(value, fallback = 'elegy') {
+  const normalized = normalizeString(value).toLowerCase();
+  if (['elegy', 'elegy-managed', 'catalog', 'catalog-managed'].includes(normalized)) return 'elegy';
+  if (['harness', 'harness-owned', 'native'].includes(normalized)) return 'harness';
+  if (['repository', 'repo', 'repo-owned'].includes(normalized)) return 'repository';
+  if (['external', 'third-party'].includes(normalized)) return 'external';
+  return fallback;
+}
+
+function buildManagementMetadata({
+  owner = 'elegy',
+  sourceOfTruth = 'elegy-catalog',
+  scope = 'global',
+  readOnly,
+  readOnlyReason = null,
+} = {}) {
+  const normalizedOwner = normalizeManagementOwner(owner);
+  const normalizedScope = normalizeCatalogScope(scope, 'global');
+  const effectiveReadOnly = readOnly === true
+    || normalizedOwner === 'harness'
+    || normalizedOwner === 'repository';
+  return {
+    owner: normalizedOwner,
+    sourceOfTruth: normalizeString(sourceOfTruth) || normalizedOwner,
+    scope: normalizedScope,
+    readOnly: effectiveReadOnly,
+    readOnlyReason: effectiveReadOnly
+      ? normalizeString(readOnlyReason)
+        || (normalizedOwner === 'harness' ? 'Managed by the harness.' : null)
+        || (normalizedOwner === 'repository' ? 'Managed by the repository.' : null)
+      : null,
+  };
+}
+
 function normalizeScopeKinds(...values) {
-  return Array.from(new Set(values.flatMap((value) => normalizeArray(value).map((entry) => normalizeString(entry).toLowerCase())).filter(Boolean)));
+  return Array.from(new Set(
+    values
+      .flatMap((value) => normalizeArray(value))
+      .map((entry) => normalizeCatalogScope(entry))
+      .filter(Boolean),
+  ));
+}
+
+function resolveManifestManagement(manifestSource, asset, manifestDocument) {
+  const explicit = asset?.management && typeof asset.management === 'object'
+    ? asset.management
+    : manifestDocument?.management && typeof manifestDocument.management === 'object'
+      ? manifestDocument.management
+      : {};
+  const kind = normalizeManifestAssetItemKind(asset?.type);
+  const defaultOwner = manifestSource.source === 'codex' && kind === 'agent' ? 'harness' : 'elegy';
+  const owner = normalizeManagementOwner(explicit.owner || explicit.ownerType, defaultOwner);
+  const sourceOfTruth = normalizeString(explicit.sourceOfTruth)
+    || (owner === 'harness' ? manifestSource.harnessId : 'elegy-catalog');
+  return buildManagementMetadata({
+    owner,
+    sourceOfTruth,
+    scope: explicit.scope || explicit.scopeKind || 'global',
+    readOnly: explicit.readOnly === true,
+    readOnlyReason: explicit.readOnlyReason,
+  });
+}
+
+function chooseManagementMetadata(previous, next) {
+  if (!previous) return next || null;
+  if (!next) return previous;
+  const rank = { elegy: 1, external: 2, harness: 3, repository: 4 };
+  const previousRank = rank[normalizeManagementOwner(previous.owner)] || 0;
+  const nextRank = rank[normalizeManagementOwner(next.owner)] || 0;
+  if (nextRank > previousRank) return next;
+  if (previousRank > nextRank) return previous;
+  return {
+    ...previous,
+    ...next,
+    owner: normalizeManagementOwner(next.owner, normalizeManagementOwner(previous.owner)),
+    scope: normalizeCatalogScope(next.scope, normalizeCatalogScope(previous.scope, 'global')),
+    readOnly: previous.readOnly === true || next.readOnly === true,
+    readOnlyReason: next.readOnlyReason || previous.readOnlyReason || null,
+  };
 }
 
 function buildConceptualCatalogKey(kind, rawValue) {
@@ -837,7 +954,12 @@ function normalizeManifestAssetItemKind(type) {
 
 function isManifestAssetSupportedForGlobalInventory(type) {
   const normalized = normalizeManifestAssetItemKind(type);
-  return normalized === 'skill' || normalized === 'agent' || normalized === 'mcp' || normalized === 'hook';
+  return normalized === 'skill'
+    || normalized === 'agent'
+    || normalized === 'mcp'
+    || normalized === 'hook'
+    || normalized === 'plugin'
+    || normalized === 'instructions';
 }
 
 function listHarnessRows(ctx) {
@@ -898,6 +1020,7 @@ function buildHarnessState({
   canSync = false,
   detail = null,
   metadata = null,
+  management = null,
   assetId = null,
   isExternallyManaged = false,
   conflict = false,
@@ -910,19 +1033,28 @@ function buildHarnessState({
   const resolvedActive = typeof active === 'boolean' ? active : resolvedInstalled;
   const derivedState = deriveHarnessState({ supported, expected: expected === true, installed: resolvedInstalled, installPath: resolvedInstallPath, conflict: conflict === true });
   const effectiveState = isExternallyManaged && derivedState === 'unmanaged' ? 'external-managed' : derivedState;
+  const effectiveManagement = management && typeof management === 'object'
+    ? buildManagementMetadata(management)
+    : buildManagementMetadata({
+      owner: metadata?.actionKind === 'external-source' ? 'external' : 'elegy',
+      sourceOfTruth: metadata?.actionKind === 'external-source' ? 'external' : 'elegy-catalog',
+      scope: metadata?.scope || 'global',
+    });
+  const actionsAllowed = effectiveManagement.readOnly !== true;
   return {
     harnessId,
     title: humanizeHarnessId(harnessId),
+    assetId: normalizeString(assetId) || null,
     supported,
     expected: supported && expected === true,
     installed: resolvedInstalled,
     active: resolvedActive,
     installPath: resolvedInstallPath,
     actions: {
-      canInstall: supported && canInstall,
-      canActivate: supported && canActivate,
-      canDeactivate: supported && canDeactivate,
-      canSync: supported && canSync,
+      canInstall: supported && actionsAllowed && canInstall,
+      canActivate: supported && actionsAllowed && canActivate,
+      canDeactivate: supported && actionsAllowed && canDeactivate,
+      canSync: supported && actionsAllowed && canSync,
     },
     state: effectiveState,
     sourceHash: null,
@@ -934,6 +1066,7 @@ function buildHarnessState({
     conflict: conflict === true,
     detail,
     metadata,
+    management: effectiveManagement,
     syncStatus: null,
   };
 }
@@ -1032,6 +1165,8 @@ function buildProjectionInventory(summary, ctx, engineManifestAssetIds = new Set
     agent: [],
     mcp: [],
     hook: [],
+    plugin: [],
+    instructions: [],
   };
 
   for (const effectiveAsset of effectiveAssets) {
@@ -1096,6 +1231,11 @@ function buildProjectionInventory(summary, ctx, engineManifestAssetIds = new Set
           detail: sourceActionMetadata,
           metadata: {
             actionKind: 'catalog-asset',
+          },
+          management: {
+            owner: 'elegy',
+            sourceOfTruth: 'elegy-catalog',
+            scope: selectedEntry?.scope?.kind || effectiveAsset?.scope?.kind || 'global',
           },
           conflict: false,
         })),
@@ -1163,6 +1303,20 @@ function buildInstalledPathCandidatesForManifestAsset(ctx, source, asset) {
     }
   }
 
+  if (source === 'claude' || source === 'claude-code') {
+    const claudeHome = normalizeString(ctx.claudeHome);
+    const claudeSkillsHome = normalizeString(ctx.claudeSkillsHome);
+    const normalizedKind = normalizeManifestAssetItemKind(asset.type);
+    if (normalizedKind === 'skill') {
+      const suffix = destination.replace(/^skills[\\/]/i, '');
+      if (claudeSkillsHome) {
+        candidates.push(path.join(claudeSkillsHome, suffix));
+      }
+    } else if (claudeHome) {
+      candidates.push(path.join(claudeHome, destination));
+    }
+  }
+
   return candidates;
 }
 
@@ -1179,6 +1333,8 @@ function buildManifestInventory(ctx) {
     agent: [],
     mcp: [],
     hook: [],
+    plugin: [],
+    instructions: [],
   };
   const ledger = ctx.elegyHomeAbs ? installLedgerLib.readInstallLedger(ctx.elegyHomeAbs) : null;
   // Secondary ledgers for external-managed detection
@@ -1198,6 +1354,7 @@ function buildManifestInventory(ctx) {
       const sourceAbs = sourcePath ? path.join(path.resolve(ctx.engineRoot), sourcePath) : '';
       const conceptualKey = buildManifestConceptualCatalogKey(asset);
       const assetId = normalizeString(asset?.id);
+      const management = resolveManifestManagement(manifestSource, asset, manifestScan.document);
       const installedPaths = buildInstalledPathCandidatesForManifestAsset(ctx, manifestSource.source, asset)
         .filter((candidate) => candidate && safeStat(candidate, fs));
       grouped[kind].push({
@@ -1218,8 +1375,8 @@ function buildManifestInventory(ctx) {
           sourcePath,
           destination: normalizeString(asset?.destination) || null,
           readPath: sourceAbs || null,
-          scopeKind: 'harness',
-          scopeKinds: ['harness'],
+          scopeKind: management.scope,
+          scopeKinds: [management.scope],
         },
         actions: {
           kind: 'install-surface',
@@ -1235,7 +1392,12 @@ function buildManifestInventory(ctx) {
             harnessId: harness.harnessId,
             kind,
             installedPaths,
-            expected: installLedgerLib.isAssetExpectedForUser(assetId, manifestSource.harnessId, ledger),
+            // Read-only harness/repository assets are expected by their source of
+            // truth, not by Elegy's install ledger. This keeps native assets
+            // observable without making them look like Elegy-managed inventory.
+            expected: management.readOnly
+              ? true
+              : installLedgerLib.isAssetExpectedForUser(assetId, manifestSource.harnessId, ledger),
             canInstall: INSTALL_SURFACE_HARNESSES.has(harness.harnessId),
             canSync: INSTALL_SURFACE_HARNESSES.has(harness.harnessId),
             assetId: assetId,
@@ -1250,6 +1412,7 @@ function buildManifestInventory(ctx) {
             metadata: {
               actionKind: 'install-surface',
             },
+            management,
             conflict: false,
           })),
       });
@@ -1322,6 +1485,11 @@ function buildExternalSourceInventory(summary, ctx) {
           sourceId: normalizeString(source.sourceId) || null,
           installableId: normalizeString(installable.installableId) || null,
         },
+        management: {
+          owner: 'external',
+          sourceOfTruth: 'external',
+          scope: 'external',
+        },
         conflict: false,
       })];
     }
@@ -1354,6 +1522,11 @@ function buildExternalSourceInventory(summary, ctx) {
             actionKind: 'external-source',
             sourceId: normalizeString(source.sourceId) || null,
             installableId: normalizeString(installable.installableId) || null,
+          },
+          management: {
+            owner: 'external',
+            sourceOfTruth: 'external',
+            scope: 'external',
           },
           conflict: false,
         });
@@ -1398,8 +1571,8 @@ function buildExternalSourceInventory(summary, ctx) {
           relativePath: normalizeString(installable.relativePath) || null,
           sourcePath: normalizeString(installable.sourcePath) || null,
           readPath: externalReadPath,
-          scopeKind: kind === 'cli-tool' ? 'global' : 'harness',
-          scopeKinds: [kind === 'cli-tool' ? 'global' : 'harness'],
+          scopeKind: 'external',
+          scopeKinds: ['external'],
           ...sourceVerificationDetail,
         },
         actions: {
@@ -1442,6 +1615,16 @@ function mergeHarnessStateMaps(existingStates, incomingStates) {
       ...(previous.actions && typeof previous.actions === 'object' ? previous.actions : {}),
       ...(state.actions && typeof state.actions === 'object' ? state.actions : {}),
     };
+    const mergedManagement = chooseManagementMetadata(previous.management, state.management);
+    for (const action of ['canInstall', 'canActivate', 'canDeactivate', 'canSync']) {
+      mergedActions[action] = previous.actions?.[action] === true || state.actions?.[action] === true;
+    }
+    if (mergedManagement?.readOnly === true) {
+      mergedActions.canInstall = false;
+      mergedActions.canActivate = false;
+      mergedActions.canDeactivate = false;
+      mergedActions.canSync = false;
+    }
     merged.set(harnessId, {
       ...previous,
       ...state,
@@ -1449,10 +1632,12 @@ function mergeHarnessStateMaps(existingStates, incomingStates) {
       expected: previous.expected || state.expected,
       installed: previous.installed || state.installed,
       active: previous.active || state.active,
+      assetId: normalizeString(state.assetId || previous.assetId) || null,
       installPath: previous.installPath || state.installPath || null,
       actions: mergedActions,
       detail: Object.keys(mergedDetail).length ? mergedDetail : null,
       metadata: Object.keys(mergedMetadata).length ? mergedMetadata : null,
+      management: mergedManagement,
     });
   }
   return sortHarnessStates(Array.from(merged.values())).map((state) => ({
@@ -1541,13 +1726,23 @@ function mergeInventoryItems(items) {
           : installedHarnessCount > 0
             ? 'installed'
             : 'available';
+      const managementOwners = Array.from(new Set(
+        harnessStates
+          .map((state) => normalizeManagementOwner(state.management?.owner, 'elegy'))
+          .filter(Boolean),
+      ));
+      const managementScopes = Array.from(new Set(
+        harnessStates
+          .map((state) => normalizeCatalogScope(state.management?.scope))
+          .filter(Boolean),
+      ));
       return {
         ...item,
         title: item.title || humanizeCatalogKey(item.conceptualKey || item.itemKey || item.itemId),
         detail: {
           ...(item.detail && typeof item.detail === 'object' ? item.detail : {}),
           scopeKinds,
-          scopeKind: normalizeString(item.detail?.scopeKind) || (scopeKinds.length === 1 ? scopeKinds[0] : null),
+          scopeKind: normalizeCatalogScope(item.detail?.scopeKind, scopeKinds.length === 1 ? scopeKinds[0] : null),
         },
         harnessStates,
         central: feature?.central === true,
@@ -1555,6 +1750,8 @@ function mergeInventoryItems(items) {
         keyFeatureLabel: feature?.keyFeatureLabel || null,
         keyFeatureOrder: Number.isFinite(feature?.keyFeatureOrder) ? feature.keyFeatureOrder : null,
         scopeKinds,
+        managementOwners,
+        managementScopes,
         syncStatus,
         expectedHarnessCount,
         missingHarnessCount,
@@ -1596,7 +1793,7 @@ function buildGlobalCatalogInventory(summary, externalSourcesSummary, ctx) {
   const manifestInventory = buildManifestInventory(ctx);
   const externalInventory = buildExternalSourceInventory({ externalSources: externalSourcesSummary?.sources || [] }, ctx);
 
-  const sections = ['skill', 'agent', 'mcp', 'cli-tool', 'hook', 'plugin'].map((kind) => {
+  const sections = ['skill', 'agent', 'mcp', 'cli-tool', 'hook', 'plugin', 'instructions'].map((kind) => {
     const items = mergeInventoryItems([
       ...(projectionInventory[kind] || []),
       ...(manifestInventory[kind] || []),
@@ -3391,6 +3588,14 @@ function collectManifestAssetIdsForHarness(engineRoot, harnessId) {
   const manifestScan = loadManifestDocument(engineRoot, fileName);
   const assets = expandManifestAssets(engineRoot, manifestScan.document);
   return assets
+    .filter((asset) => {
+      const management = resolveManifestManagement(
+        { source: harnessId === 'claude-code' ? 'claude' : harnessId, harnessId },
+        asset,
+        manifestScan.document,
+      );
+      return management.owner === 'elegy' && management.readOnly !== true;
+    })
     .map((asset) => normalizeString(asset?.id))
     .filter(Boolean);
 }
@@ -3407,6 +3612,20 @@ function handleHarnessOptIn(ctx, deps) {
       const harnessId = installSurfaceTargetToHarnessId(target);
 
       if (optIn) {
+        const manifestFileName = harnessId === 'claude-code' ? 'claude-assets/manifest.json'
+          : harnessId === 'codex' ? 'codex-assets/manifest.json'
+          : harnessId === 'opencode' ? 'opencode-assets/manifest.json'
+          : harnessId === 'antigravity' ? 'antigravity-assets/manifest.json'
+          : null;
+        const manifestScan = manifestFileName
+          ? loadManifestDocument(deps.engineRoot || ctx.engineRoot, manifestFileName)
+          : { document: null };
+        const manifestAssets = expandManifestAssets(deps.engineRoot || ctx.engineRoot, manifestScan.document);
+        const managedOnly = manifestAssets.some((asset) => resolveManifestManagement(
+          { source: harnessId === 'claude-code' ? 'claude' : harnessId, harnessId },
+          asset,
+          manifestScan.document,
+        ).readOnly);
         const installOptions = {
           target,
           dryRun: false,
@@ -3422,6 +3641,8 @@ function handleHarnessOptIn(ctx, deps) {
           opencodeSkillsHome: ctx.opencodeSkillsHome,
           claudeHome: ctx.claudeHome,
           claudeSkillsHome: ctx.claudeSkillsHome,
+          managedOnly,
+          skipConfig: managedOnly,
         };
         await deps.installSurfaces(installOptions);
         // TODO(P2.2a): Capture per-asset hashes after install for staleness/conflict detection.
@@ -3461,6 +3682,30 @@ async function handleHarnessAssetUninstall(ctx, deps) {
         throw Object.assign(new Error('harnessId and assetId are required'), { statusCode: 400 });
       }
 
+      const manifestFileName = harnessId === 'claude-code' ? 'claude-assets/manifest.json'
+        : harnessId === 'codex' ? 'codex-assets/manifest.json'
+        : harnessId === 'opencode' ? 'opencode-assets/manifest.json'
+        : harnessId === 'antigravity' ? 'antigravity-assets/manifest.json'
+        : null;
+      if (manifestFileName) {
+        const manifestScan = loadManifestDocument(deps.engineRoot || ctx.engineRoot, manifestFileName);
+        const manifestAsset = expandManifestAssets(deps.engineRoot || ctx.engineRoot, manifestScan.document)
+          .find((asset) => normalizeString(asset?.id) === assetId);
+        if (manifestAsset) {
+          const management = resolveManifestManagement(
+            { source: harnessId === 'claude-code' ? 'claude' : harnessId, harnessId },
+            manifestAsset,
+            manifestScan.document,
+          );
+          if (management.readOnly) {
+            throw Object.assign(
+              new Error(`${assetId} is read-only because it is managed by ${management.sourceOfTruth}.`),
+              { statusCode: 409 },
+            );
+          }
+        }
+      }
+
       const ledger = installLedgerLib.readInstallLedger(ctx.elegyHomeAbs);
       const isManaged = installLedgerLib.isAssetExpectedForUser(assetId, harnessId, ledger);
 
@@ -3490,12 +3735,7 @@ async function handleHarnessAssetUninstall(ctx, deps) {
         return;
       }
 
-      // Resolve destination path from manifest
-      const manifestFileName = harnessId === 'claude-code' ? 'claude-assets/manifest.json'
-        : harnessId === 'codex' ? 'codex-assets/manifest.json'
-        : harnessId === 'opencode' ? 'opencode-assets/manifest.json'
-        : harnessId === 'antigravity' ? 'antigravity-assets/manifest.json'
-        : null;
+      // Resolve destination path from the manifest already selected above.
       if (!manifestFileName) {
         deps.sendJson(ctx.res, 200, {
           kind: 'catalog.harness_asset_uninstall',
@@ -3520,11 +3760,21 @@ async function handleHarnessAssetUninstall(ctx, deps) {
           return;
         }
 
+        const management = resolveManifestManagement(
+          { source: harnessId, harnessId },
+          asset,
+          manifestScan.document,
+        );
+        if (management.readOnly) {
+          throw Object.assign(
+            new Error(`${assetId} is read-only because it is managed by ${management.sourceOfTruth}.`),
+            { statusCode: 409 },
+          );
+        }
+
         // Build destination path candidates
         const destCandidates = buildInstalledPathCandidatesForManifestAsset(ctx, harnessId, asset, manifestScan.document);
-        const destPath = destCandidates.find((c) => {
-          try { return deps.fs.statSync(c).isFile(); } catch (_) { return false; }
-        });
+        const destPath = destCandidates.find((c) => isExistingAssetPath(c, deps.fs));
 
         if (!destPath) {
           // Already not on disk — remove from ledger
@@ -3542,8 +3792,7 @@ async function handleHarnessAssetUninstall(ctx, deps) {
         }
 
         // Compute hash and check against ledger
-        const fileContent = deps.fs.readFileSync(destPath);
-        const fileHash = deps.crypto.createHash('sha256').update(fileContent).digest('hex');
+        const fileHash = hashAssetPath(destPath, deps.fs, deps.crypto);
         const ledgerHash = installLedgerLib.getAssetHash(ctx.elegyHomeAbs, harnessId, assetId);
 
         let hashWarning = null;
@@ -3551,8 +3800,11 @@ async function handleHarnessAssetUninstall(ctx, deps) {
           hashWarning = `Hash mismatch at ${destPath} — file was modified since install. Removing anyway.`;
         }
 
-        // Remove the file
-        try { deps.fs.unlinkSync(destPath); } catch (_) { /* best effort */ }
+        // Remove the managed file or skill directory.
+        try {
+          if (typeof deps.fs.rmSync === 'function') deps.fs.rmSync(destPath, { recursive: true, force: true });
+          else deps.fs.unlinkSync(destPath);
+        } catch (_) { /* best effort */ }
 
         // Remove from ledger
         const updatedIds = (ledger?.harnesses?.[harnessId]?.managedAssetIds || [])
@@ -3610,28 +3862,30 @@ async function handleHarnessAssetCheck(ctx, deps) {
 
             const result = { assetId: aid, harnessId: hid, state: 'unknown', conflict: false, warnings: [], sourcePath: null, installPath: null };
             const isManaged = installLedgerLib.isAssetExpectedForUser(aid, hid, ledger);
+            const management = resolveManifestManagement(
+              { source: hid === 'claude-code' ? 'claude' : hid, harnessId: hid },
+              asset,
+              manifestScan.document,
+            );
+            const expectedBySourceOfTruth = management.readOnly === true || isManaged;
 
             // Check source
             const sourcePath = path.resolve(deps.engineRoot || ctx.engineRoot, normalizeString(asset?.source) || '');
             result.sourcePath = sourcePath;
             let sourceHash = null;
             try {
-              const sourceContent = deps.fs.readFileSync(sourcePath);
-              sourceHash = deps.crypto.createHash('sha256').update(sourceContent).digest('hex');
+            sourceHash = hashAssetPath(sourcePath, deps.fs, deps.crypto);
             } catch (_) {
               result.warnings.push(`Source not found: ${sourcePath}`);
             }
 
             // Check destination
             const destCandidates = buildInstalledPathCandidatesForManifestAsset(ctx, hid, asset, manifestScan.document);
-            const destPath = destCandidates.find((c) => {
-              try { return deps.fs.statSync(c).isFile(); } catch (_) { return false; }
-            });
+            const destPath = destCandidates.find((c) => isExistingAssetPath(c, deps.fs));
             let destHash = null;
             if (destPath) {
               try {
-                const destContent = deps.fs.readFileSync(destPath);
-                destHash = deps.crypto.createHash('sha256').update(destContent).digest('hex');
+                destHash = hashAssetPath(destPath, deps.fs, deps.crypto);
               } catch (_) {
                 result.warnings.push(`Cannot read destination: ${destPath}`);
               }
@@ -3647,21 +3901,21 @@ async function handleHarnessAssetCheck(ctx, deps) {
               : false;
 
             // Derive state
-            if (!destPath && !isManaged && isExternalManaged) {
+            if (!destPath && !expectedBySourceOfTruth && isExternalManaged) {
               result.state = 'external-managed';
               result.warnings.push('Asset tracked in secondary ledger but not installed');
-            } else if (!destPath && !isManaged) {
+            } else if (!destPath && !expectedBySourceOfTruth) {
               result.state = 'available';
-            } else if (!destPath && isManaged) {
+            } else if (!destPath && expectedBySourceOfTruth) {
               result.state = 'not-installed';
               result.warnings.push('Expected but not installed');
-            } else if (destPath && !isManaged && isExternalManaged) {
+            } else if (destPath && !expectedBySourceOfTruth && isExternalManaged) {
               result.state = 'external-managed';
               result.warnings.push('File exists and tracked in secondary ledger (not primary)');
-            } else if (destPath && !isManaged) {
+            } else if (destPath && !expectedBySourceOfTruth) {
               result.state = 'unmanaged';
               result.warnings.push('File exists but not tracked in ledger');
-            } else if (destPath && isManaged) {
+            } else if (destPath && expectedBySourceOfTruth) {
               if (sourceHash && destHash && sourceHash !== destHash) {
                 result.state = 'conflict';
                 result.drift = true;
@@ -3704,12 +3958,28 @@ async function handleHarnessAssetCheck(ctx, deps) {
 async function handleHarnessSync(ctx, deps) {
   deps.readJsonBody(ctx.req)
     .then(async (body) => {
-      const harnessId = normalizeString(body?.harnessId);
-      if (!harnessId || !['codex', 'opencode', 'antigravity', 'claude'].includes(harnessId)) {
+      const requestedHarnessId = normalizeString(body?.harnessId);
+      if (!requestedHarnessId || !['codex', 'opencode', 'antigravity', 'claude', 'claude-code'].includes(requestedHarnessId)) {
         throw Object.assign(new Error('harnessId must be codex, opencode, antigravity, or claude'), { statusCode: 400 });
       }
 
+      const harnessId = requestedHarnessId === 'claude' ? 'claude-code' : requestedHarnessId;
+
       const effectiveTarget = harnessId === 'claude-code' ? 'claude' : harnessId;
+      const manifestFileName = harnessId === 'claude-code' ? 'claude-assets/manifest.json'
+        : harnessId === 'codex' ? 'codex-assets/manifest.json'
+        : harnessId === 'opencode' ? 'opencode-assets/manifest.json'
+        : harnessId === 'antigravity' ? 'antigravity-assets/manifest.json'
+        : null;
+      const manifestScan = manifestFileName
+        ? loadManifestDocument(deps.engineRoot || ctx.engineRoot, manifestFileName)
+        : { document: null };
+      const manifestAssets = expandManifestAssets(deps.engineRoot || ctx.engineRoot, manifestScan.document);
+      const hasReadOnlyAssets = manifestAssets.some((asset) => resolveManifestManagement(
+        { source: harnessId === 'claude-code' ? 'claude' : harnessId, harnessId },
+        asset,
+        manifestScan.document,
+      ).readOnly);
 
       const installOptions = {
         target: effectiveTarget,
@@ -3726,6 +3996,8 @@ async function handleHarnessSync(ctx, deps) {
         opencodeSkillsHome: ctx.opencodeSkillsHome,
         claudeHome: ctx.claudeHome,
         claudeSkillsHome: ctx.claudeSkillsHome,
+        managedOnly: hasReadOnlyAssets,
+        skipConfig: hasReadOnlyAssets,
       };
 
       await deps.installSurfaces(installOptions);
@@ -3736,6 +4008,7 @@ async function handleHarnessSync(ctx, deps) {
         deterministic: true,
         ok: true,
         harnessId,
+        managedOnly: hasReadOnlyAssets,
         message: `Synced ${harnessId} harness assets.`,
       });
     })
@@ -3850,9 +4123,7 @@ function handleForceDeleteUnmanaged(ctx, deps) {
 
         // Resolve destination path from manifest
         const destCandidates = buildInstalledPathCandidatesForManifestAsset(ctx, harnessId, asset, manifestScan.document);
-        const destPath = destCandidates.find((c) => {
-          try { return deps.fs.statSync(c).isFile(); } catch (_) { return false; }
-        });
+        const destPath = destCandidates.find((c) => isExistingAssetPath(c, deps.fs));
 
         if (!destPath) {
           deps.sendJson(ctx.res, 200, {
@@ -3886,8 +4157,9 @@ function handleForceDeleteUnmanaged(ctx, deps) {
           normalizedDest = `skills/${match[1]}`;
         }
 
-        // Delete the file
-        deps.fs.unlinkSync(destPath);
+        // Delete the managed file or skill directory.
+        if (typeof deps.fs.rmSync === 'function') deps.fs.rmSync(destPath, { recursive: true, force: true });
+        else deps.fs.unlinkSync(destPath);
 
         deps.sendJson(ctx.res, 200, {
           kind: 'catalog.unmanaged_force_delete',

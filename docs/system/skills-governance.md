@@ -34,18 +34,20 @@ Installed harness surfaces and shared skills must therefore stay thin and consis
 ## Codex operating model
 
 Codex should stay leaner than the legacy Copilot fleet:
-- Global Codex install contains seven focused user skills: `repo-setup`,
+- Global Codex install contains six compatibility skills: `repo-setup`,
   `repo-backed-obsidian-docs`, `sweeper-cleanup`, `repo-quality-setup`,
-  `agents-md-authoring`, `tdd`, and the on-demand `elegy-planning` skill.
-  Native Codex handles discovery, review, implementation handoff, and routine
-  spec work without duplicate global skills.
-- Elegy marketplace plugins are explicit opt-ins; Instruction Engine does not
-  reinstall a default plugin fleet after the user removes it.
+  `agents-md-authoring`, and `tdd`. Native Codex handles discovery, review,
+  implementation handoff, and routine spec work without duplicate global
+  skills.
+- Codex's current Elegy marketplace receipt contains four read-only plugin
+  statuses: `elegy-documentation`, `elegy-mcp`, `elegy-checks`, and
+  `elegy-planning`. `elegy-planning` is the direct Codex subagent/workflow
+  integration; plugin installation and updates remain in Maintenance.
 - The former standalone UI implementation, runtime-exploration, visual-review,
   and Impeccable skills are retired. `ui-design-spec` remains a shared
   non-Codex fallback only.
-- Codex delegates bounded implementation directly to native Luna workers.
-  Other harnesses retain their implementation-handoff contracts.
+- Codex delegates bounded implementation directly to its native `worker`
+  agent. Other harnesses retain their implementation-handoff contracts.
 - Repo-specific hazards: repo-local `AGENTS.md` overlays and repo-local skills.
 - Legacy engine/Copilot orchestration agents are not bulk-installed into Codex.
 - Cross-model reviewer agents are not part of the Codex install surface.

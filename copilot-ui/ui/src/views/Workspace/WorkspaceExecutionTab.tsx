@@ -8,6 +8,21 @@ import {
   Panel,
   StatusBadge,
 } from '../../components';
+import { ApiError } from '../../lib/api/core';
+import {
+  getExecutionOverview,
+  getExecutionRun,
+  isExecutionRunActive,
+  refreshExecutionCommands,
+  runExecutionCommand,
+  startExecutionSetup,
+  stopExecutionRun,
+} from '../../lib/api/execution';
+import type {
+  ExecutionCommand,
+  ExecutionOverview,
+  ExecutionRun,
+} from '../../lib/api/execution';
 import {
   createOrchestratorSession,
   getOrchestratorHealth,
@@ -97,12 +112,162 @@ function formatTime(value: string): string {
   return Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString() : value;
 }
 
+function readCommandError(error: unknown): string {
+  if (error instanceof ApiError && error.payload && typeof error.payload === 'object') {
+    const payload = error.payload as Record<string, unknown>;
+    return typeof payload.message === 'string' ? payload.message : error.message;
+  }
+  return error instanceof Error ? error.message : 'Request failed';
+}
+
+function commandDisplay(command: ExecutionCommand): string {
+  return [command.command, ...(command.args ?? [])].join(' ').trim();
+}
+
+function sourceLabel(command: ExecutionCommand): string | null {
+  const source = command.source;
+  if (!source || source.kind !== 'readme') return null;
+  const segments = source.docPath.split(/[\\/]/);
+  return segments[segments.length - 1] || source.docPath;
+}
+
+function flattenCommands(overview: ExecutionOverview | null): ExecutionCommand[] {
+  const out: ExecutionCommand[] = [];
+  for (const group of overview?.discovery?.categories ?? []) {
+    for (const command of group.commands ?? []) {
+      out.push(command);
+    }
+  }
+  return out;
+}
+
 export default function WorkspaceExecutionTab({
   repoPath,
   repoId,
   repoLabel,
 }: WorkspaceExecutionTabProps) {
   const effectiveRepoId = repoId || repoPath;
+  const [overview, setOverview] = useState<ExecutionOverview | null>(null);
+  const [commandsLoading, setCommandsLoading] = useState(true);
+  const [commandsError, setCommandsError] = useState<string | null>(null);
+  const [busyCommandId, setBusyCommandId] = useState<string | null>(null);
+  const [expandedCommands, setExpandedCommands] = useState<ReadonlySet<string>>(new Set());
+  const [runOutputs, setRunOutputs] = useState<Record<string, ExecutionRun>>({});
+
+  const loadOverview = useCallback(async () => {
+    try {
+      setCommandsLoading(true);
+      setCommandsError(null);
+      const next = await getExecutionOverview(repoPath);
+      setOverview(next);
+    } catch (requestError) {
+      setCommandsError(readCommandError(requestError));
+    } finally {
+      setCommandsLoading(false);
+    }
+  }, [repoPath]);
+
+  useEffect(() => {
+    void loadOverview();
+  }, [loadOverview]);
+
+  const activeRun = overview?.activeRun ?? null;
+  const activeRunId = activeRun?.runId ?? null;
+  const activeRunStatus = activeRun?.status ?? null;
+  useEffect(() => {
+    if (!activeRunId || !isExecutionRunActive(activeRunStatus)) return undefined;
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const poll = async () => {
+      try {
+        const run = await getExecutionRun(activeRunId);
+        if (cancelled) return;
+        setRunOutputs((current) => ({ ...current, [activeRunId]: run }));
+        if (!isExecutionRunActive(run.status)) {
+          if (timer) clearInterval(timer);
+          void loadOverview();
+        }
+      } catch {
+        // transient polling error; keep polling
+      }
+    };
+    void poll();
+    timer = setInterval(() => void poll(), 1000);
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [activeRunId, activeRunStatus, loadOverview]);
+
+  const runCommand = useCallback(async (commandId: string) => {
+    try {
+      setBusyCommandId(commandId);
+      setCommandsError(null);
+      await runExecutionCommand(repoPath, commandId);
+      await loadOverview();
+    } catch (requestError) {
+      setCommandsError(readCommandError(requestError));
+    } finally {
+      setBusyCommandId(null);
+    }
+  }, [repoPath, loadOverview]);
+
+  const stopActiveRun = useCallback(async () => {
+    if (!activeRun) return;
+    try {
+      setBusyCommandId(activeRun.commandId ?? 'active-run');
+      setCommandsError(null);
+      await stopExecutionRun(activeRun.runId);
+      await loadOverview();
+    } catch (requestError) {
+      setCommandsError(readCommandError(requestError));
+    } finally {
+      setBusyCommandId(null);
+    }
+  }, [activeRun, loadOverview]);
+
+  const runSetup = useCallback(async () => {
+    try {
+      setBusyCommandId('setup');
+      setCommandsError(null);
+      await startExecutionSetup(repoPath);
+      await loadOverview();
+    } catch (requestError) {
+      setCommandsError(readCommandError(requestError));
+    } finally {
+      setBusyCommandId(null);
+    }
+  }, [repoPath, loadOverview]);
+
+  const refreshCommands = useCallback(async () => {
+    try {
+      setCommandsLoading(true);
+      setCommandsError(null);
+      const discovery = await refreshExecutionCommands(repoPath);
+      setOverview((current) => (current ? { ...current, discovery } : current));
+    } catch (requestError) {
+      setCommandsError(readCommandError(requestError));
+    } finally {
+      setCommandsLoading(false);
+    }
+  }, [repoPath]);
+
+  const toggleExpanded = useCallback((commandId: string) => {
+    setExpandedCommands((current) => {
+      const next = new Set(current);
+      if (next.has(commandId)) next.delete(commandId);
+      else next.add(commandId);
+      return next;
+    });
+  }, []);
+
+  const setupState = overview?.setup;
+  const setupActive = activeRun && activeRun.kind === 'setup';
+  const discoveredCommands = flattenCommands(overview);
+  const discovery = overview?.discovery ?? null;
+
+  // --- Orchestrator (pilot-gated workers) state, preserved from earlier design ---
+
   const [sessions, setSessions] = useState<OrchestratorSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [session, setSession] = useState<OrchestratorSession | null>(null);
@@ -114,6 +279,7 @@ export default function WorkspaceExecutionTab({
   const [adapterId, setAdapterId] = useState<OrchestratorAdapterId>('native');
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [workersOpen, setWorkersOpen] = useState(true);
 
   const load = useCallback(async () => {
     try {
@@ -157,7 +323,7 @@ export default function WorkspaceExecutionTab({
     });
   }, [selectedId]);
 
-  const runCommand = useCallback(async (
+  const runOrchestratorAction = useCallback(async (
     action: 'retry' | 'resume' | 'cancel' | 'approvals' | 'input',
     payload: Record<string, unknown> = {},
   ) => {
@@ -233,210 +399,376 @@ export default function WorkspaceExecutionTab({
       <div className="workspace-execution-toolbar">
         <div>
           <h2>Execution</h2>
-          <p>Run isolated workers, inspect observed evidence, and approve repository actions.</p>
+          <p>Run commands discovered from this repository, then drive worker sessions.</p>
         </div>
         <div className="workspace-execution-health">
-          <HealthDot
-            tone={connected ? 'ok' : 'error'}
-            label={connected ? 'Runtime connected' : 'Runtime disconnected'}
-            testId="workspace-execution-connection"
-          />
-          <Button variant="ghost" size="sm" onClick={() => void load()} testId="workspace-execution-refresh">
+          {repoLabel && (
+            <Badge tone="accent" testId="workspace-execution-repo-label">
+              <AppIcon name="repo" size={13} /> {repoLabel}
+            </Badge>
+          )}
+          {discovery && (
+            <span className="workspace-execution-scan-time" data-testid="workspace-execution-scan-time">
+              Scanned {formatTime(discovery.detectedAt)}
+            </span>
+          )}
+          <Button variant="ghost" size="sm" onClick={() => void refreshCommands()} testId="workspace-execution-commands-refresh">
             <AppIcon name="refresh" size={15} /> Refresh
           </Button>
         </div>
       </div>
 
-      {warning && (
-        <div
-          className={`workspace-execution-alert workspace-execution-alert--${warning.tone}`}
-          data-testid={`workspace-execution-state-${presentation}`}
-        >
-          <AppIcon name={warning.tone === 'success' ? 'success' : 'warning'} size={18} />
-          <div><strong>{warning.title}</strong><span>{warning.detail}</span></div>
-        </div>
-      )}
-      {error && <div className="workspace-execution-error" role="alert">{error}</div>}
-      {!pilotEnabled && (
-        <div className="workspace-execution-alert workspace-execution-alert--accent" data-testid="workspace-execution-pilot-disabled">
-          <AppIcon name="warning" size={18} />
-          <div><strong>Experimental pilot is off</strong><span>Set ELEGY_ORCHESTRATOR_EXPERIMENTAL=1 to enable bounded execution.</span></div>
+      {commandsError && (
+        <div className="workspace-execution-error" role="alert" data-testid="workspace-execution-commands-error">
+          {commandsError}
         </div>
       )}
 
-      <Panel title="New session" subtitle={repoPath} testId="workspace-execution-create">
-        <div className="workspace-execution-create-row">
-          <FormInput
-            label="Session title"
-            value={title}
-            placeholder={`${repoLabel || 'Repository'} execution`}
-            onValueChange={setTitle}
-            testId="workspace-execution-title"
-          />
-          <label className="form-input" htmlFor="workspace-execution-adapter">
-            <span className="form-label">Worker</span>
-            <select
-              id="workspace-execution-adapter"
-              className="form-select"
-              value={adapterId}
-              onChange={(event) => setAdapterId(event.target.value as OrchestratorAdapterId)}
-              data-testid="workspace-execution-adapter"
-            >
-              <option value="native" disabled={!pilotAdapters.has('native')}>Native checks</option>
-              <option value="codex-exec" disabled={!pilotAdapters.has('codex-exec') || adapterAvailability.get('codex-exec') === false}>Codex</option>
-              <option value="opencode-acp" disabled={!pilotAdapters.has('opencode-acp') || adapterAvailability.get('opencode-acp') === false}>OpenCode</option>
-            </select>
-          </label>
-          <Button
-            onClick={() => void createSession()}
-            disabled={!connected || !pilotEnabled || busyAction === 'create'}
-            testId="workspace-execution-create-button"
+      <section className="workspace-execution-commands" data-testid="workspace-execution-commands">
+        {discovery?.setup && (
+          <Panel
+            title="Setup"
+            subtitle={discovery.setup.label}
+            testId="workspace-execution-setup"
+            actions={(
+              <StatusBadge
+                status={setupState?.status ?? 'not-started'}
+                testId="workspace-execution-setup-status"
+              />
+            )}
           >
-            <AppIcon name="play" size={15} />
-            {busyAction === 'create' ? 'Creating…' : 'Create session'}
-          </Button>
-        </div>
-      </Panel>
-
-      <div className="workspace-execution-layout">
-        <Panel
-          title="Sessions"
-          subtitle={`${sessions.length} for this repository`}
-          testId="workspace-execution-sessions"
-        >
-          {loading ? <p className="state-message">Loading execution sessions…</p> : null}
-          {!loading && sessions.length === 0 ? (
-            <p className="state-message">No execution sessions for this repository.</p>
-          ) : null}
-          <div className="workspace-execution-session-list">
-            {sessions.map((item) => (
-              <button
-                key={item.sessionId}
-                type="button"
-                className={`workspace-execution-session${selectedId === item.sessionId ? ' is-active' : ''}`}
-                onClick={() => {
-                  setSelectedId(item.sessionId);
-                  setSession(item);
-                }}
-                data-testid={`workspace-execution-session-${item.sessionId}`}
+            <div className="workspace-execution-setup-row">
+              <span>
+                {setupActive
+                  ? 'Installing dependencies and preparing the workspace…'
+                  : setupState?.status === 'done'
+                    ? 'Setup completed successfully.'
+                    : setupState?.status === 'failed'
+                      ? `Setup failed with exit code ${setupState.lastExitCode ?? -1}.`
+                      : 'Run the discovered setup command to prepare this repository.'}
+              </span>
+              <Button
+                onClick={() => void (setupActive ? stopActiveRun() : runSetup())}
+                disabled={Boolean(busyCommandId) || (activeRun !== null && !setupActive)}
+                testId="workspace-execution-setup-button"
               >
-                <span><strong>{item.title}</strong><small>{item.adapterId}</small></span>
-                <StatusBadge status={item.state} />
-              </button>
-            ))}
-          </div>
-        </Panel>
+                <AppIcon name={setupActive ? 'pause' : 'play'} size={15} />
+                {setupActive
+                  ? 'Stop setup'
+                  : busyCommandId === 'setup'
+                    ? 'Starting…'
+                    : setupState?.status === 'done' || setupState?.status === 'failed'
+                      ? 'Re-run setup'
+                      : 'Run setup'}
+              </Button>
+            </div>
+          </Panel>
+        )}
 
-        <div className="workspace-execution-detail">
-          {!session ? (
-            <Panel testId="workspace-execution-empty">
-              <p className="state-message">Create or select a session to inspect execution state.</p>
+        <div className="workspace-execution-command-list">
+          {commandsLoading && !discovery ? (
+            <Panel testId="workspace-execution-loading">
+              <p className="state-message">Discovering repository commands…</p>
             </Panel>
-          ) : (
-            <>
-              <Panel
-                title={session.title}
-                subtitle={`${session.adapterId} · revision ${session.revision}`}
-                testId="workspace-execution-summary"
-                actions={<StatusBadge status={session.state} testId="workspace-execution-status" />}
-                footer={(
-                  <div className="workspace-execution-actions">
-                    <Button size="sm" variant="secondary" disabled={!connected || Boolean(busyAction)} onClick={() => void runCommand('retry')}>
-                      Retry
-                    </Button>
-                    <Button size="sm" variant="secondary" disabled={!connected || Boolean(busyAction)} onClick={() => void runCommand('resume')}>
-                      Resume
-                    </Button>
-                    <Button size="sm" variant="danger" disabled={!connected || Boolean(busyAction) || session.state === 'cancelled'} onClick={() => void runCommand('cancel')}>
-                      Cancel
-                    </Button>
+          ) : null}
+          {!commandsLoading && discoveredCommands.length === 0 ? (
+            <Panel testId="workspace-execution-empty">
+              <p className="state-message">
+                No commands discovered in this repository. Add npm scripts or shell instructions to a
+                README, then press Refresh.
+              </p>
+            </Panel>
+          ) : null}
+          {discovery?.categories.map((group) => (
+            <div
+              className="workspace-execution-group"
+              key={group.id}
+              data-testid={`workspace-execution-category-${group.id}`}
+            >
+              <div className="workspace-execution-group-header">
+                <strong>{group.label}</strong>
+                <span>{group.commands.length}</span>
+              </div>
+              {group.commands.map((command) => {
+                const isActive = activeRun?.commandId === command.id;
+                const lastOutcome = overview?.lastRuns?.[command.id];
+                const witnessed = runOutputs[activeRunId ?? '']?.commandId === command.id
+                  ? runOutputs[activeRunId ?? '']
+                  : undefined;
+                const outputRun = isActive ? activeRun : witnessed;
+                const expanded = expandedCommands.has(command.id);
+                const outputText = outputRun
+                  ? [outputRun.stdout, outputRun.stderr].filter(Boolean).join('\n')
+                  : '';
+                return (
+                  <div
+                    className={`workspace-execution-command${isActive ? ' is-active' : ''}`}
+                    key={command.id}
+                    data-testid={`workspace-execution-command-${command.id}`}
+                  >
+                    <div className="workspace-execution-command-main">
+                      <div className="workspace-execution-command-copy">
+                        <strong>{command.label}</strong>
+                        <span className="workspace-execution-mono">{commandDisplay(command)}</span>
+                        {command.description ? <small>{command.description}</small> : null}
+                      </div>
+                      {sourceLabel(command) && (
+                        <Badge tone="accent">{sourceLabel(command)}</Badge>
+                      )}
+                      <div className="workspace-execution-command-actions">
+                        {lastOutcome && (
+                          <StatusBadge
+                            status={lastOutcome.lastExitCode === 0 ? 'done' : 'failed'}
+                            testId={`workspace-execution-outcome-${command.id}`}
+                          />
+                        )}
+                        <Button
+                          size="sm"
+                          variant={isActive ? 'danger' : 'secondary'}
+                          disabled={
+                            Boolean(busyCommandId)
+                            || (!isActive && activeRun !== null && !setupActive)
+                          }
+                          onClick={() => void (isActive ? stopActiveRun() : runCommand(command.id))}
+                          testId={`workspace-execution-run-${command.id}`}
+                        >
+                          <AppIcon name={isActive ? 'pause' : 'play'} size={14} />
+                          {isActive
+                            ? 'Stop'
+                            : busyCommandId === command.id
+                              ? 'Starting…'
+                              : 'Run'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => toggleExpanded(command.id)}
+                          testId={`workspace-execution-expand-${command.id}`}
+                        >
+                          <AppIcon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} />
+                        </Button>
+                      </div>
+                    </div>
+                    {expanded && (
+                      <pre className="workspace-execution-output" data-testid={`workspace-execution-output-${command.id}`}>
+                        {outputText || (isActive ? 'Waiting for output…' : 'Run this command to see its output.')}
+                      </pre>
+                    )}
                   </div>
-                )}
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="workspace-execution-workers">
+        <div className="workspace-execution-workers-toggle">
+          <button
+            type="button"
+            onClick={() => setWorkersOpen((current) => !current)}
+            data-testid="workspace-execution-workers-toggle"
+            aria-expanded={workersOpen}
+          >
+            <AppIcon name={workersOpen ? 'chevron-down' : 'chevron-up'} size={15} />
+            <strong>Workers & orchestrator sessions</strong>
+          </button>
+        </div>
+        {workersOpen && (
+          <div className="workspace-execution-workers-body">
+            {warning && (
+              <div
+                className={`workspace-execution-alert workspace-execution-alert--${warning.tone}`}
+                data-testid={`workspace-execution-state-${presentation}`}
               >
-                <div className="workspace-execution-facts">
-                  <span><small>Lease</small><strong>{readString(lease, 'status') || 'not claimed'}</strong></span>
-                  <span><small>Journal</small><strong>{health?.journal.ready ? 'ready' : 'unavailable'}</strong></span>
-                  <span><small>Recovery</small><strong>{health?.orphanRecovery.ready ? 'ready' : 'blocked'}</strong></span>
-                  <span><small>Updated</small><strong>{formatTime(session.updatedAt)}</strong></span>
+                <AppIcon name={warning.tone === 'success' ? 'success' : 'warning'} size={18} />
+                <div><strong>{warning.title}</strong><span>{warning.detail}</span></div>
+              </div>
+            )}
+            {error && <div className="workspace-execution-error" role="alert">{error}</div>}
+            {!pilotEnabled && (
+              <div className="workspace-execution-alert workspace-execution-alert--accent" data-testid="workspace-execution-pilot-disabled">
+                <AppIcon name="warning" size={18} />
+                <div><strong>Experimental pilot is off</strong><span>Set ELEGY_ORCHESTRATOR_EXPERIMENTAL=1 to enable bounded execution.</span></div>
+              </div>
+            )}
+
+            <Panel title="New session" subtitle={repoPath} testId="workspace-execution-create">
+              <div className="workspace-execution-create-row">
+                <FormInput
+                  label="Session title"
+                  value={title}
+                  placeholder={`${repoLabel || 'Repository'} execution`}
+                  onValueChange={setTitle}
+                  testId="workspace-execution-title"
+                />
+                <label className="form-input" htmlFor="workspace-execution-adapter">
+                  <span className="form-label">Worker</span>
+                  <select
+                    id="workspace-execution-adapter"
+                    className="form-select"
+                    value={adapterId}
+                    onChange={(event) => setAdapterId(event.target.value as OrchestratorAdapterId)}
+                    data-testid="workspace-execution-adapter"
+                  >
+                    <option value="native" disabled={!pilotAdapters.has('native')}>Native checks</option>
+                    <option value="codex-exec" disabled={!pilotAdapters.has('codex-exec') || adapterAvailability.get('codex-exec') === false}>Codex</option>
+                    <option value="opencode-acp" disabled={!pilotAdapters.has('opencode-acp') || adapterAvailability.get('opencode-acp') === false}>OpenCode</option>
+                  </select>
+                </label>
+                <Button
+                  onClick={() => void createSession()}
+                  disabled={!connected || !pilotEnabled || busyAction === 'create'}
+                  testId="workspace-execution-create-button"
+                >
+                  <AppIcon name="play" size={15} />
+                  {busyAction === 'create' ? 'Creating…' : 'Create session'}
+                </Button>
+              </div>
+            </Panel>
+
+            <div className="workspace-execution-layout">
+              <Panel
+                title="Sessions"
+                subtitle={`${sessions.length} for this repository`}
+                testId="workspace-execution-sessions"
+              >
+                {loading ? <p className="state-message">Loading execution sessions…</p> : null}
+                {!loading && sessions.length === 0 ? (
+                  <p className="state-message">No execution sessions for this repository.</p>
+                ) : null}
+                <div className="workspace-execution-session-list">
+                  {sessions.map((item) => (
+                    <button
+                      key={item.sessionId}
+                      type="button"
+                      className={`workspace-execution-session${selectedId === item.sessionId ? ' is-active' : ''}`}
+                      onClick={() => {
+                        setSelectedId(item.sessionId);
+                        setSession(item);
+                      }}
+                      data-testid={`workspace-execution-session-${item.sessionId}`}
+                    >
+                      <span><strong>{item.title}</strong><small>{item.adapterId}</small></span>
+                      <StatusBadge status={item.state} />
+                    </button>
+                  ))}
                 </div>
-                {planningRefs.length > 0 && (
-                  <div className="workspace-execution-planning-links">
-                    {planningRefs.map(([label, value]) => (
-                      <button
-                        type="button"
-                        key={label}
-                        onClick={() => navigationStore.setActiveWorkspaceLocalTab('planning')}
-                      >
-                        <AppIcon name="diamond" size={13} /> {label}: {value}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </Panel>
 
-              <div className="workspace-execution-detail-grid">
-                <Panel title="Work point & evidence" testId="workspace-execution-evidence">
-                  {workPoint ? (
-                    <dl className="workspace-execution-definition-list">
-                      <div><dt>Work point</dt><dd>{readString(workPoint, 'workPointId') || 'Attached work point'}</dd></div>
-                      <div><dt>Validation</dt><dd>{readString(validation, 'status') || readString(workPoint, 'validationStatus') || 'pending'}</dd></div>
-                      <div><dt>Changed paths</dt><dd>{Array.isArray(evidence?.changedPaths) ? evidence.changedPaths.join(', ') : 'Not verified'}</dd></div>
-                      <div><dt>Diff hash</dt><dd className="workspace-execution-mono">{readString(evidence, 'diffHash') || 'Not available'}</dd></div>
-                      <div><dt>Result tree</dt><dd className="workspace-execution-mono">{readString(evidence, 'resultTreeSha') || 'Not available'}</dd></div>
-                    </dl>
-                  ) : <p className="state-message">No work point has been attached.</p>}
-                  {evidencePatch && (
-                    <pre className="workspace-execution-diff" data-testid="workspace-execution-diff">
-                      {evidencePatch}
-                    </pre>
-                  )}
-                </Panel>
+              <div className="workspace-execution-detail">
+                {!session ? (
+                  <Panel testId="workspace-execution-empty">
+                    <p className="state-message">Create or select a session to inspect execution state.</p>
+                  </Panel>
+                ) : (
+                  <>
+                    <Panel
+                      title={session.title}
+                      subtitle={`${session.adapterId} · revision ${session.revision}`}
+                      testId="workspace-execution-summary"
+                      actions={<StatusBadge status={session.state} testId="workspace-execution-status" />}
+                      footer={(
+                        <div className="workspace-execution-actions">
+                          <Button size="sm" variant="secondary" disabled={!connected || Boolean(busyAction)} onClick={() => void runOrchestratorAction('retry')}>
+                            Retry
+                          </Button>
+                          <Button size="sm" variant="secondary" disabled={!connected || Boolean(busyAction)} onClick={() => void runOrchestratorAction('resume')}>
+                            Resume
+                          </Button>
+                          <Button size="sm" variant="danger" disabled={!connected || Boolean(busyAction) || session.state === 'cancelled'} onClick={() => void runOrchestratorAction('cancel')}>
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
+                    >
+                      <div className="workspace-execution-facts">
+                        <span><small>Lease</small><strong>{readString(lease, 'status') || 'not claimed'}</strong></span>
+                        <span><small>Journal</small><strong>{health?.journal.ready ? 'ready' : 'unavailable'}</strong></span>
+                        <span><small>Recovery</small><strong>{health?.orphanRecovery.ready ? 'ready' : 'blocked'}</strong></span>
+                        <span><small>Updated</small><strong>{formatTime(session.updatedAt)}</strong></span>
+                      </div>
+                      {planningRefs.length > 0 && (
+                        <div className="workspace-execution-planning-links">
+                          {planningRefs.map(([label, value]) => (
+                            <button
+                              type="button"
+                              key={label}
+                              onClick={() => navigationStore.setActiveWorkspaceLocalTab('planning')}
+                            >
+                              <AppIcon name="diamond" size={13} /> {label}: {value}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </Panel>
 
-                <Panel title="Approval" testId="workspace-execution-approval">
-                  {approval ? (
-                    <div className="workspace-execution-approval-copy">
-                      <Badge tone={approvalStatus === 'stale' ? 'danger' : 'accent'}>
-                        {approvalStatus || 'pending'}
-                      </Badge>
-                      <p>{readString(approval, 'summary') || 'Review the verified repository state.'}</p>
+                    <div className="workspace-execution-detail-grid">
+                      <Panel title="Work point & evidence" testId="workspace-execution-evidence">
+                        {workPoint ? (
+                          <dl className="workspace-execution-definition-list">
+                            <div><dt>Work point</dt><dd>{readString(workPoint, 'workPointId') || 'Attached work point'}</dd></div>
+                            <div><dt>Validation</dt><dd>{readString(validation, 'status') || readString(workPoint, 'validationStatus') || 'pending'}</dd></div>
+                            <div><dt>Changed paths</dt><dd>{Array.isArray(evidence?.changedPaths) ? evidence.changedPaths.join(', ') : 'Not verified'}</dd></div>
+                            <div><dt>Diff hash</dt><dd className="workspace-execution-mono">{readString(evidence, 'diffHash') || 'Not available'}</dd></div>
+                            <div><dt>Result tree</dt><dd className="workspace-execution-mono">{readString(evidence, 'resultTreeSha') || 'Not available'}</dd></div>
+                          </dl>
+                        ) : <p className="state-message">No work point has been attached.</p>}
+                        {evidencePatch && (
+                          <pre className="workspace-execution-diff" data-testid="workspace-execution-diff">
+                            {evidencePatch}
+                          </pre>
+                        )}
+                      </Panel>
+
+                      <Panel title="Approval" testId="workspace-execution-approval">
+                        {approval ? (
+                          <div className="workspace-execution-approval-copy">
+                            <Badge tone={approvalStatus === 'stale' ? 'danger' : 'accent'}>
+                              {approvalStatus || 'pending'}
+                            </Badge>
+                            <p>{readString(approval, 'summary') || 'Review the verified repository state.'}</p>
+                          </div>
+                        ) : <p className="state-message">No approval request is waiting.</p>}
+                        <div className="workspace-execution-actions">
+                          <Button size="sm" disabled={!connected || !approvalPending || Boolean(busyAction)} onClick={() => void runOrchestratorAction('approvals', { decision: 'approved', status: 'approved' })}>
+                            Approve
+                          </Button>
+                          <Button size="sm" variant="danger" disabled={!connected || !approvalPending || Boolean(busyAction)} onClick={() => void runOrchestratorAction('approvals', { decision: 'rejected', status: 'rejected' })}>
+                            Reject
+                          </Button>
+                        </div>
+                      </Panel>
+
+                      <Panel title="Input request" testId="workspace-execution-input">
+                        {inputRequest ? (
+                          <>
+                            <p>{readString(inputRequest, 'prompt') || 'Worker input requested.'}</p>
+                            <Button size="sm" variant="secondary" disabled={!connected || Boolean(busyAction)} onClick={() => void runOrchestratorAction('input', { status: 'answered', value: 'continue' })}>
+                              Continue
+                            </Button>
+                          </>
+                        ) : <p className="state-message">No input request is waiting.</p>}
+                      </Panel>
+
+                      <Panel title="Timeline" testId="workspace-execution-timeline">
+                        <ol className="workspace-execution-timeline">
+                          {session.events.map((event) => (
+                            <li key={event.eventId}>
+                              <span aria-hidden="true" />
+                              <div><strong>{event.eventType}</strong><small>{formatTime(event.occurredAt)}</small></div>
+                            </li>
+                          ))}
+                        </ol>
+                      </Panel>
                     </div>
-                  ) : <p className="state-message">No approval request is waiting.</p>}
-                  <div className="workspace-execution-actions">
-                    <Button size="sm" disabled={!connected || !approvalPending || Boolean(busyAction)} onClick={() => void runCommand('approvals', { decision: 'approved', status: 'approved' })}>
-                      Approve
-                    </Button>
-                    <Button size="sm" variant="danger" disabled={!connected || !approvalPending || Boolean(busyAction)} onClick={() => void runCommand('approvals', { decision: 'rejected', status: 'rejected' })}>
-                      Reject
-                    </Button>
-                  </div>
-                </Panel>
-
-                <Panel title="Input request" testId="workspace-execution-input">
-                  {inputRequest ? (
-                    <>
-                      <p>{readString(inputRequest, 'prompt') || 'Worker input requested.'}</p>
-                      <Button size="sm" variant="secondary" disabled={!connected || Boolean(busyAction)} onClick={() => void runCommand('input', { status: 'answered', value: 'continue' })}>
-                        Continue
-                      </Button>
-                    </>
-                  ) : <p className="state-message">No input request is waiting.</p>}
-                </Panel>
-
-                <Panel title="Timeline" testId="workspace-execution-timeline">
-                  <ol className="workspace-execution-timeline">
-                    {session.events.map((event) => (
-                      <li key={event.eventId}>
-                        <span aria-hidden="true" />
-                        <div><strong>{event.eventType}</strong><small>{formatTime(event.occurredAt)}</small></div>
-                      </li>
-                    ))}
-                  </ol>
-                </Panel>
+                  </>
+                )}
               </div>
-            </>
-          )}
-        </div>
-      </div>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

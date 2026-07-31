@@ -30,6 +30,9 @@ vi.mock('../ui/src/lib/api/git', () => ({
   pullGit: vi.fn(),
   checkoutGitBranch: vi.fn(),
   discoverGitChecks: vi.fn(),
+  getGitCheckPlan: vi.fn(),
+  getGitHubCheckHistory: vi.fn(),
+  getRepoQualityStatus: vi.fn(),
   getGitCheckState: vi.fn(),
   getGitCiSync: vi.fn(),
   runGitChecks: vi.fn(),
@@ -204,6 +207,36 @@ describe('WorkspaceGitTab', () => {
         { name: 'test', path: 'npm test', description: 'Run tests', source: 'legacy' },
       ],
     });
+    vi.mocked(gitApi.getGitCheckPlan).mockResolvedValue({
+      schemaVersion: 'check-plan/v1',
+      repoPath: '/test/repo',
+      action: 'commit',
+      selectionMode: 'change-aware',
+      affectedScope: { branch: 'main', head: 'abc123', dirtyHash: 'dirty123', changedFiles: [] },
+      candidates: [],
+      recommendedChecks: [],
+      requiredChecks: [],
+      omittedChecks: [],
+      expectedCost: { tier: 'fast', score: 0, checkCount: 0 },
+      selectionRationale: 'No checks selected.',
+      readOnly: true,
+      persistence: 'approval-gated-adoption-only',
+    });
+    vi.mocked(gitApi.getRepoQualityStatus).mockResolvedValue({
+      schemaVersion: 'repo-quality-status/v1',
+      repoPath: '/test/repo',
+      readiness: 'ready',
+      nextAction: { id: 'refresh', label: 'Refresh' },
+      support: { supported: true, adapter: 'node', reason: null },
+      local: {
+        config: { elegy: false, legacyCommitCheck: false },
+        hooks: { manager: 'none', configured: false, active: false, configPath: null, coreHooksPath: null },
+        lastProof: null,
+        freshness: { fresh: false, reason: 'No recorded proof.' },
+      },
+      remote: { available: false, reason: 'GitHub unavailable.' },
+      drift: [],
+    });
     vi.mocked(gitApi.getGitCheckState).mockResolvedValue({
       repoId: 'repo-1',
       repoPath: '/test/repo',
@@ -220,6 +253,16 @@ describe('WorkspaceGitTab', () => {
         mappings: [],
         summary: { totalCiJobs: 0, mapped: 0, gaps: 0, readiness: 'no-ci' },
       },
+    });
+    vi.mocked(gitApi.getGitHubCheckHistory).mockResolvedValue({
+      source: 'github',
+      available: false,
+      reason: 'GitHub unavailable.',
+      provider: 'github',
+      repository: null,
+      branch: null,
+      runs: [],
+      mergedIntoLocalEvidence: false,
     });
     vi.mocked(gitApi.runGitChecks).mockResolvedValue({
       repoRoot: '/test/repo',

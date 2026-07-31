@@ -5,7 +5,6 @@
 Load only matching skills: `agents-md-authoring`;
 `repo-setup`/`repo-quality-setup`; `sweeper-cleanup`;
 `repo-backed-obsidian-docs`; and `tdd` for explicit test-first work.
-Use `opencode-worker-delegation` before bounded OpenCode delegation or model selection, when installed.
 
 ## Sol/Luna Routing
 

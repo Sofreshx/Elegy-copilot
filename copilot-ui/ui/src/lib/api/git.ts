@@ -158,6 +158,13 @@ export interface GitCheckResult {
   cost?: 'fast' | 'medium' | 'heavy';
   opensWindow?: boolean;
   defaultProfiles?: string[];
+  gateStrength?: string | null;
+  determinism?: string | null;
+  sourcePack?: string | null;
+  tags?: string[];
+  severity?: string | null;
+  promotionState?: string | null;
+  owner?: string | null;
 }
 
 export interface GitCheckResults {
@@ -177,6 +184,18 @@ export interface GitCheckResults {
   results: GitCheckResult[];
   message: string;
   profile?: string | null;
+  runId?: string | null;
+  branch?: string | null;
+  head?: string | null;
+  dirtyHash?: string | null;
+  configHash?: string | null;
+  configPath?: string | null;
+  planHash?: string | null;
+  planPath?: string | null;
+  action?: string | null;
+  selectionMode?: string | null;
+  runnerVersion?: string | null;
+  sourceKind?: string | null;
   requiredFailures?: string[];
   skippedLanes?: Record<string, string>;
   overrideReasons?: Record<string, string>;
@@ -299,6 +318,13 @@ export interface GitChecksDiscoverResponse {
     defaultProfiles?: string[];
     cost?: 'fast' | 'medium' | 'heavy';
     opensWindow?: boolean;
+    gateStrength?: string | null;
+    determinism?: string | null;
+    sourcePack?: string | null;
+    tags?: string[];
+    severity?: string | null;
+    promotionState?: string | null;
+    owner?: string | null;
   }>;
 }
 
@@ -319,8 +345,27 @@ export async function runGitChecks(repoPath: string, baseUrl?: string): Promise<
 export interface RunChecksWithProfileOptions {
   profile?: string;
   selectedLane?: string;
+  selectedLanes?: string[];
   selectedGroup?: string;
   skipLanes?: Record<string, string>;
+  runAll?: boolean;
+  action?: 'commit' | 'push' | 'ci-local' | 'release';
+  planHash?: string | null;
+  planPath?: string | null;
+  selectionMode?: string;
+  background?: boolean;
+}
+
+export interface GitCheckRunJobResponse {
+  runId: string;
+  repoPath: string;
+  profile: string | null;
+  status: 'running' | 'complete' | 'failed';
+  startedAt: string;
+  endedAt?: string | null;
+  source?: string;
+  result?: GitCheckResults | null;
+  error?: string | null;
 }
 
 export async function runGitChecksWithProfile(
@@ -328,12 +373,151 @@ export async function runGitChecksWithProfile(
   options: RunChecksWithProfileOptions,
   baseUrl?: string,
 ): Promise<GitCheckResults> {
-  return apiRequest<GitCheckResults>('/api/git/checks/run', {
+  const response = await apiRequest<GitCheckResults | GitCheckRunJobResponse>('/api/git/checks/run', {
     baseUrl,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repoPath, ...options }),
   });
+  if (options.background && 'status' in response && response.status === 'running') {
+    return waitForGitCheckRun(response.runId, baseUrl);
+  }
+  if ('status' in response && response.status === 'failed') {
+    throw new Error(response.error || 'Background check run failed.');
+  }
+  if ('status' in response && response.status === 'complete' && response.result) {
+    return response.result;
+  }
+  return response as GitCheckResults;
+}
+
+export async function getGitCheckRunStatus(runId: string, baseUrl?: string): Promise<GitCheckRunJobResponse> {
+  const url = `/api/git/checks/runs/${encodeURIComponent(runId)}`;
+  return apiRequest<GitCheckRunJobResponse>(url, { baseUrl });
+}
+
+async function waitForGitCheckRun(runId: string, baseUrl?: string): Promise<GitCheckResults> {
+  for (let attempt = 0; attempt < 3600; attempt += 1) {
+    const job = await getGitCheckRunStatus(runId, baseUrl);
+    if (job.status === 'complete' && job.result) return job.result;
+    if (job.status === 'failed') throw new Error(job.error || 'Background check run failed.');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error('Background check run timed out while polling for completion.');
+}
+
+export interface GitCheckPlanCandidate {
+  id: string;
+  name?: string;
+  description?: string;
+  classification: 'verified' | 'inferred' | 'manual' | 'remote-only' | string;
+  source?: string;
+  provenance?: string;
+  command?: string | null;
+  commands?: string[];
+  cwd?: string;
+  kind?: string | null;
+  executionPolicy?: 'local-command' | 'never-auto-execute' | string;
+  required?: boolean;
+  blocking?: boolean;
+  skippable?: boolean;
+  cost?: 'fast' | 'medium' | 'heavy' | string;
+  defaultProfiles?: string[];
+  gateStrength?: string | null;
+  determinism?: string | null;
+  ciWorkflow?: string | null;
+  ciJob?: string | null;
+  ciRequired?: boolean;
+  opensWindow?: boolean;
+  commandProvenance?: { source?: string; path?: string; field?: string; job?: string | null };
+  reason?: string;
+  remoteOnly?: boolean;
+  affectedByChange?: boolean;
+}
+
+export interface GitCheckPlanResponse {
+  schemaVersion: 'check-plan/v1';
+  repoPath: string;
+  action: 'commit' | 'push' | 'ci-local' | 'release' | string;
+  generatedAt?: string;
+  planHash?: string | null;
+  configHash?: string | null;
+  selectionMode: string;
+  affectedScope: {
+    branch: string | null;
+    head: string | null;
+    dirtyHash: string | null;
+    clean?: boolean;
+    changedFiles: string[];
+  };
+  discoveryMode?: string;
+  candidates: GitCheckPlanCandidate[];
+  recommendedChecks: GitCheckPlanCandidate[];
+  requiredChecks: GitCheckPlanCandidate[];
+  omittedChecks: Array<{ id: string; reason: string; classification: string }>;
+  expectedCost: { tier: 'fast' | 'medium' | 'heavy' | string; score: number; checkCount: number };
+  selectionRationale: string;
+  remoteEvidence?: GitCheckPlanCandidate[];
+  readOnly: boolean;
+  persistence: 'approval-gated-adoption-only' | string;
+}
+
+export async function getGitCheckPlan(
+  repoPath: string,
+  action: GitCheckPlanResponse['action'] = 'commit',
+  baseUrl?: string,
+  selectionMode?: string,
+): Promise<GitCheckPlanResponse> {
+  const mode = selectionMode ? `&selectionMode=${encodeURIComponent(selectionMode)}` : '';
+  const url = `/api/git/checks/plan?repoPath=${encodeURIComponent(repoPath)}&action=${encodeURIComponent(action)}${mode}`;
+  return apiRequest<GitCheckPlanResponse>(url, { baseUrl });
+}
+
+export interface GitHubCheckHistoryResponse {
+  source: 'github';
+  available: boolean;
+  reason: string | null;
+  provider: 'github';
+  repository: string | null;
+  branch: string | null;
+  runs: Array<Record<string, unknown>>;
+  mergedIntoLocalEvidence: false;
+}
+
+export async function getGitHubCheckHistory(
+  repoPath: string,
+  options: { branch?: string | null; limit?: number } = {},
+  baseUrl?: string,
+): Promise<GitHubCheckHistoryResponse> {
+  const params = new URLSearchParams({ repoPath });
+  // `null` explicitly means all branches. Omitting the option preserves the
+  // backend's default of the current branch.
+  if (options.branch === null) params.set('branch', 'all');
+  else if (options.branch) params.set('branch', options.branch);
+  if (options.limit) params.set('limit', String(options.limit));
+  return apiRequest<GitHubCheckHistoryResponse>(`/api/git/checks/github-history?${params.toString()}`, { baseUrl });
+}
+
+export interface GitLocalCheckHistoryResponse {
+  repoId: string;
+  branch: string | null;
+  limit: number;
+  offset: number;
+  nextOffset: number | null;
+  runs: any[];
+}
+
+export async function getGitLocalCheckHistory(
+  repoPath: string,
+  options: { branch?: string | null; limit?: number; offset?: number } = {},
+  baseUrl?: string,
+): Promise<GitLocalCheckHistoryResponse> {
+  const params = new URLSearchParams({ repoPath });
+  if (options.branch === null) params.set('branch', 'all');
+  else if (options.branch) params.set('branch', options.branch);
+  if (options.limit) params.set('limit', String(options.limit));
+  if (options.offset) params.set('offset', String(options.offset));
+  return apiRequest<GitLocalCheckHistoryResponse>(`/api/git/checks/history?${params.toString()}`, { baseUrl });
 }
 
 export interface GitCheckStateResponse {
@@ -342,8 +526,9 @@ export interface GitCheckStateResponse {
   hasState: boolean;
   lastRun: {
     timestamp: string;
-    gitFingerprint: { head: string | null; dirtyHash: string | null };
+    gitFingerprint: { branch?: string | null; head: string | null; dirtyHash: string | null };
     configHash: string | null;
+    configPath?: string | null;
     overallPass: boolean;
     compositeScore: number | null;
     profile?: string | null;
@@ -363,11 +548,27 @@ export interface GitCheckStateResponse {
       cost?: string;
       opensWindow?: boolean;
       defaultProfiles?: string[];
+      gateStrength?: string;
+      determinism?: string;
+      sourcePack?: string | null;
+      tags?: string[];
+      severity?: string;
+      promotionState?: string;
+      owner?: string | null;
       commands: Array<{ command: string; exitCode: number; success: boolean; durationMs: number }>;
     }>;
     groups: Record<string, { description: string }>;
     groupResults: Record<string, { passedLanes: string[]; failedLanes: string[]; allPassed: boolean }>;
     ciSync: any | null;
+    branch?: string | null;
+    head?: string | null;
+    dirtyHash?: string | null;
+    planHash?: string | null;
+    action?: string | null;
+    selectionMode?: string | null;
+    runnerVersion?: string | null;
+    source?: string | null;
+    sourceKind?: string | null;
   } | null;
   freshness: { fresh: boolean; reason: string };
   history: any[];
@@ -429,6 +630,7 @@ export interface ElegyChecksAuditResponse {
 
 export interface ElegyChecksHistoryResponse {
   repoId: string;
+  branch: string | null;
   limit: number;
   offset: number;
   nextOffset: number | null;
@@ -441,6 +643,13 @@ export interface ElegyChecksHistoryResponse {
     checksPassed: number;
     checksFailed: number;
     configHash: string;
+    configPath?: string | null;
+    planHash?: string | null;
+    action?: string | null;
+    selectionMode?: string | null;
+    runnerVersion?: string | null;
+    source?: string | null;
+    lanes?: Record<string, unknown>;
   }>;
 }
 
@@ -500,6 +709,7 @@ export interface RepoQualityStatus {
   repoPath: string;
   readiness: RepoQualityReadiness;
   nextAction: { id: string; label: string };
+  remoteStatus?: string;
   support: { supported: boolean; adapter: string; reason: string | null };
   local: {
     config: { elegy: boolean; legacyCommitCheck: boolean };

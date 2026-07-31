@@ -1,17 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../components';
-import { notificationStore } from '../../stores/notificationStore';
-import {
-  discoverGitChecks,
-  getGitCheckState,
-  getGitCiSync,
-} from '../../lib/api/git';
+import { useStoreValue } from '../../lib/store';
+import { checksStore } from '../../stores/checksStore';
 import type {
   GitCheckResult,
   GitCheckResults,
   GitCheckStateResponse,
   GitChecksDiscoverResponse,
-  GitCiSyncResponse,
 } from '../../lib/api/git';
 
 interface WorkspaceChecksSectionProps {
@@ -19,6 +14,7 @@ interface WorkspaceChecksSectionProps {
   checkResults?: GitCheckResults | null;
   runningChecks?: boolean;
   onRunChecks?: () => void;
+  onOpenChecks?: () => void;
 }
 
 type ReadinessStatus = 'ready' | 'stale' | 'failed' | 'running' | 'not-configured' | 'not-run' | 'ci-gap';
@@ -124,48 +120,21 @@ function formatDuration(durationMs: number | null): string | null {
 }
 
 export default function WorkspaceChecksSection({
-  repoPath,
-  checkResults,
-  runningChecks,
+  checkResults: propCheckResults,
+  runningChecks: propRunningChecks,
   onRunChecks,
+  onOpenChecks,
 }: WorkspaceChecksSectionProps) {
-  const [checkState, setCheckState] = useState<GitCheckStateResponse | null>(null);
-  const [ciSync, setCiSync] = useState<GitCiSyncResponse | null>(null);
-  const [discoveredChecks, setDiscoveredChecks] = useState<GitChecksDiscoverResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const checksState = useStoreValue(checksStore.store);
+  const checkResults = propCheckResults ?? checksState.checkResults;
+  const runningChecks = propRunningChecks ?? checksState.runningChecks;
+  const checkState = checksState.checkState;
+  const ciSync = checksState.ciSync;
+  const discoveredChecks = checksState.discoveredChecks;
+  const loading = checksState.loading;
   const [expanded, setExpanded] = useState(false);
   const [expandedLane, setExpandedLane] = useState<string | null>(null);
   const [showCiSummary, setShowCiSummary] = useState(false);
-
-  useEffect(() => {
-    if (!repoPath) return;
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const [stateResult, ciSyncResult, discoveryResult] = await Promise.all([
-          getGitCheckState(repoPath),
-          getGitCiSync(repoPath),
-          discoverGitChecks(repoPath),
-        ]);
-        if (!cancelled) {
-          setCheckState(stateResult);
-          setCiSync(ciSyncResult);
-          setDiscoveredChecks(discoveryResult);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          notificationStore.error('Failed to load check state', {
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
-    return () => { cancelled = true; };
-  }, [repoPath, checkResults?.checkedAt]);
 
   useEffect(() => {
     if (runningChecks || (checkResults && !checkResults.allPassed)) {
@@ -248,6 +217,16 @@ export default function WorkspaceChecksSection({
         >
           {runningChecks ? 'Running...' : checkResults ? 'Re-run checks' : 'Run All'}
         </Button>
+        {onOpenChecks && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onOpenChecks}
+            testId="workspace-checks-open-full"
+          >
+            Open Checks tab
+          </Button>
+        )}
       </div>
 
       {expanded && (

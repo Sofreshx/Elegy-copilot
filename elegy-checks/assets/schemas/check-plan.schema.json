@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elegy.dev/schemas/check-plan/v1",
+  "title": "Elegy local repository check plan",
+  "description": "Read-only, AI-selected repository proof metadata. Discovered remote workflow commands are descriptive only.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "repoPath",
+    "action",
+    "selectionMode",
+    "affectedScope",
+    "candidates",
+    "recommendedChecks",
+    "requiredChecks",
+    "omittedChecks",
+    "expectedCost",
+    "selectionRationale",
+    "readOnly",
+    "persistence"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "check-plan/v1" },
+    "repoPath": { "type": "string" },
+    "action": { "enum": ["commit", "push", "ci-local", "release"] },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "planHash": { "type": ["string", "null"] },
+    "configHash": { "type": ["string", "null"] },
+    "selectionMode": { "type": "string" },
+    "affectedScope": {
+      "type": "object",
+      "required": ["branch", "head", "dirtyHash", "changedFiles"],
+      "properties": {
+        "branch": { "type": ["string", "null"] },
+        "head": { "type": ["string", "null"] },
+        "dirtyHash": { "type": ["string", "null"] },
+        "clean": { "type": "boolean" },
+        "changedFiles": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "candidates": { "$ref": "#/$defs/checks" },
+    "recommendedChecks": { "$ref": "#/$defs/checks" },
+    "requiredChecks": { "$ref": "#/$defs/checks" },
+    "omittedChecks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "reason", "classification"],
+        "properties": {
+          "id": { "type": "string" },
+          "reason": { "type": "string" },
+          "classification": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "expectedCost": {
+      "type": "object",
+      "required": ["tier", "score", "checkCount"],
+      "properties": {
+        "tier": { "enum": ["fast", "medium", "heavy"] },
+        "score": { "type": "number" },
+        "checkCount": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "selectionRationale": { "type": "string" },
+    "readOnly": { "const": true },
+    "persistence": { "const": "approval-gated-adoption-only" }
+  },
+  "$defs": {
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "classification", "executionPolicy"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "classification": { "enum": ["verified", "inferred", "manual", "remote-only"] },
+          "source": { "type": "string" },
+          "provenance": { "type": "string" },
+          "command": { "type": ["string", "null"] },
+          "commands": { "type": "array", "items": { "type": "string" } },
+          "executionPolicy": { "enum": ["local-command", "never-auto-execute"] },
+          "required": { "type": "boolean" },
+          "blocking": { "type": "boolean" },
+          "defaultProfiles": { "type": "array", "items": { "type": "string" } },
+          "commandProvenance": {
+            "type": "object",
+            "properties": {
+              "source": { "type": "string" },
+              "path": { "type": "string" },
+              "field": { "type": "string" },
+              "job": { "type": ["string", "null"] }
+            },
+            "additionalProperties": true
+          },
+          "cost": { "enum": ["fast", "medium", "heavy"] }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

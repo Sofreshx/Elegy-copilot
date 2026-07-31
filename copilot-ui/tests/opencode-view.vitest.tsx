@@ -3,6 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OpenCodeStatusResponse } from '../ui/src/lib/types';
 import { opencodeStore } from '../ui/src/stores/opencodeStore';
 
+vi.mock('../ui/src/views/Catalog/HarnessAssetsPanel', () => ({
+  default: ({ harnessId }: { harnessId: string }) => (
+    <div data-testid={`mock-harness-assets-panel-${harnessId}`}>Assets inventory</div>
+  ),
+}));
+
 const mockStatus: OpenCodeStatusResponse = {
   overallStatus: 'ready',
   warnings: [],
@@ -280,6 +286,16 @@ describe('OpenCodeView', () => {
     expect(screen.getByTestId('opencode-refreshing')).toHaveTextContent('Refreshing…');
     // Content should still be visible
     expect(screen.getByTestId('opencode-overview')).toBeInTheDocument();
+  });
+
+  it('mounts the dedicated Assets tab while retaining native OpenCode tabs', async () => {
+    opencodeStore.setState((s) => ({ ...s, status: mockStatus, loading: false }));
+    const { default: OpenCodeView } = await import('../ui/src/tabs/OpenCode/OpenCodeView');
+    render(<OpenCodeView />);
+
+    fireEvent.click(screen.getByTestId('opencode-tab-assets'));
+    expect(screen.getByTestId('mock-harness-assets-panel-opencode')).toBeInTheDocument();
+    expect(screen.getByTestId('opencode-tab-go-workspaces')).toBeInTheDocument();
   });
 
   it('shows detected native auth as runtime active when native wins auto mode', async () => {

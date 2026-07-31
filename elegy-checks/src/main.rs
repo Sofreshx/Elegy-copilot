@@ -5,6 +5,7 @@ use std::path::PathBuf;
 mod ci;
 mod config;
 mod doctor;
+mod evidence;
 mod packs;
 mod runner;
 mod store;
@@ -56,16 +57,28 @@ enum Commands {
     Run {
         #[arg(long)]
         repo: PathBuf,
+        #[arg(long, alias = "all-enabled")]
+        all: bool,
         #[arg(long)]
         profile: Option<String>,
+        #[arg(long, action = clap::ArgAction::Append)]
+        check: Vec<String>,
+        #[arg(long, default_value = "run")]
+        action: String,
         #[arg(long)]
-        check: Option<String>,
+        plan: Option<PathBuf>,
+        #[arg(long)]
+        plan_hash: Option<String>,
+        #[arg(long)]
+        config: Option<PathBuf>,
         #[arg(long)]
         json: bool,
     },
     State {
         #[arg(long)]
         repo: PathBuf,
+        #[arg(long)]
+        plan: Option<PathBuf>,
         #[arg(long)]
         json: bool,
     },
@@ -100,6 +113,8 @@ enum Commands {
     History {
         #[arg(long)]
         repo: PathBuf,
+        #[arg(long)]
+        branch: Option<String>,
         #[arg(long)]
         limit: Option<i64>,
         #[arg(long)]
@@ -196,17 +211,64 @@ fn run() -> Result<()> {
         }
         Commands::Run {
             repo,
+            all,
             profile,
             check,
+            action,
+            plan,
+            plan_hash,
+            config,
             ..
         } => {
-            let result = runner::run_checks(&repo, profile.as_deref(), check.as_deref())?;
+            if all && (profile.is_some() || !check.is_empty()) {
+                return Err(anyhow::anyhow!(
+                    "--all cannot be combined with --profile or --check"
+                ));
+            }
+            let result = if all
+                && action == "run"
+                && plan.is_none()
+                && plan_hash.is_none()
+                && config.is_none()
+            {
+                runner::run_all_checks(&repo)?
+            } else if !all
+                && action == "run"
+                && plan.is_none()
+                && plan_hash.is_none()
+                && config.is_none()
+                && check.len() <= 1
+            {
+                runner::run_checks(&repo, profile.as_deref(), check.first().map(String::as_str))?
+            } else {
+                let selection = if all {
+                    runner::Selection::AllEnabled
+                } else if check.len() > 1 {
+                    runner::Selection::Checks(check)
+                } else if let Some(check) = check.into_iter().next() {
+                    runner::Selection::Check(check)
+                } else if let Some(profile) = profile {
+                    runner::Selection::Profile(profile)
+                } else {
+                    runner::Selection::Default
+                };
+                runner::run_checks_with_options(
+                    &repo,
+                    runner::RunOptions {
+                        selection,
+                        action,
+                        plan,
+                        plan_hash,
+                        config_path: config,
+                    },
+                )?
+            };
             let exit_code = if result.overall_pass { 0 } else { 1 };
             print_json(&result)?;
             std::process::exit(exit_code);
         }
-        Commands::State { repo, .. } => {
-            let result = store::read_state(&repo)?;
+        Commands::State { repo, plan, .. } => {
+            let result = store::read_state_with_plan(&repo, plan.as_deref())?;
             print_json(&result)
         }
         Commands::Logs {
@@ -235,11 +297,17 @@ fn run() -> Result<()> {
         }
         Commands::History {
             repo,
+            branch,
             limit,
             offset,
             ..
         } => {
-            let result = store::read_history(&repo, limit, offset)?;
+            let result = store::read_history(
+                &repo,
+                limit,
+                offset,
+                branch.as_deref().filter(|value| *value != "all"),
+            )?;
             print_json(&result)
         }
         Commands::Doctor { repo, .. } => {

@@ -25,7 +25,7 @@ Instruction Engine policy around it.
 | Codex main thread | Requirements, architecture, integration, final judgment |
 | Approved Markdown plan | Goal, acceptance criteria, task graph, delegation marks, validation, delivery |
 | Codex baseline agent TOML | Role, model, effort, sandbox, prompt |
-| Elegy Copilot UI | Inspect, install, update, reset, uninstall, and show usage |
+| Elegy Copilot UI | Inspect the native receipt; manage only Elegy-owned compatibility assets and show usage |
 | Native Codex config | `[agents]` concurrency and depth limits |
 | Local telemetry | Derived usage metadata only |
 
@@ -116,41 +116,36 @@ Both reviewers are read-only and advisory. The main agent verifies and
 reconciles their findings, including whether the planned problem and chosen
 direction remain the right ones.
 
-## Native Go agents
+## Native Codex baseline
 
-This experimental provider lane is not a default delegation path and cannot
-override the direct-work or approved-plan policy above.
+Codex owns its native subagent lifecycle and configuration. The current receipt
+is intentionally small and is the source of truth for the Codex manifest:
 
-`elegy-codex-go-agents` is a separate experimental plugin for running genuine
-native Codex child sessions against an external provider. It is outside the
-managed role set and must not change the parent session's root `model` or
-`model_provider`.
+- Six native, harness-owned agents: `explorer`, `reviewer`, `reviewer_strong`,
+  `worker`, `test-runner`, and `sweeper`.
+- Six Elegy-managed compatibility skills retained for fallback workflows.
+- Four Codex marketplace plugins: `elegy-documentation`, `elegy-mcp`,
+  `elegy-checks`, and `elegy-planning`.
 
-The plugin owns an isolated localhost Responses provider, fixed
-`explorer_go`/`reviewer_go` variants, paired OpenAI variants, and optional
-`explorer`/`reviewer` aliases. Explicit fixed variants override aliases.
-Authentication is resolved per request from the existing OpenCode Go profile
-store or native OpenCode auth. The selector stores only an account identifier,
-so profile changes require no bridge restart and never copy API keys into Codex
-TOML or bridge configuration.
+`elegy-planning` is the direct Codex subagent/workflow integration. Codex does
+not use a native-Go lane, OpenAI fallback agent variants, Moon Bridge, or a
+Codex-side OpenCode Worker relay. OpenCode Go and OpenCode Worker features remain
+OpenCode-only.
 
-Capability status:
+The installed `[agents]` policy is:
 
-| Capability | Status |
-|---|---|
-| Native child identity and isolated provider selection | Observed |
-| Parent provider remains OpenAI | Observed |
-| Flash/Pro text and function-call probes | Observed |
-| Hot switching between existing OpenCode Go profiles | Observed |
-| Full native child streaming turn | Blocked in pinned Moon Bridge adapter |
+```toml
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 6
+default_subagent_model = "gpt-5.6-luna"
+default_subagent_reasoning_effort = "high"
+max_depth = 1
+job_max_runtime_seconds = 1800
+```
 
-Keep aliases on the OpenAI variants until the full native streaming turn,
-tool-result continuation, cancellation, and one visible fallback pass release
-tests. The CLI is the v1 control surface; desktop UI controls are deferred until
-that protocol gate passes.
-
-`explorer` is one configurable agent, not a family of explorer agents. Use the
-prompt mode instead:
+The `explorer` agent is one configurable agent, not a family of provider
+variants. Use a prompt mode when the investigation needs a specific shape:
 
 | Mode | Use |
 |---|---|
@@ -179,47 +174,24 @@ Path: Codex Settings.
 
 Tabs:
 
-- Overview: provider, CLI, planning setup.
-- Subagents: status summary, delegation policy, concurrency, managed global agents, project agent discovery.
-- Subagent Usage: local derived run metadata.
+- Overview: native Codex CLI health, the expected `[agents]` receipt, and the
+  current read-only marketplace plugin status.
+- Assets: Codex manifest inventory, including harness-owned native agents and
+  Elegy-managed compatibility assets with their scope and action rules.
+- Subagents: read-only native agent status, delegation policy, concurrency,
+  project agent discovery, and recent runtime state.
+- Usage: local derived run metadata.
 
-Editable fields:
-
-- model
-- reasoning effort
-- sandbox
-- developer instructions
-
-Local overrides are preserved until the user resets a managed agent.
-
-The Subagents tab must make background delegation visible at a glance:
-
-- managed, installed, missing, drifted, invalid, disabled, and usable counts
-- native `[agents]` sync state
-- delegation policy and fan-out limits
-- per-agent status, model, effort, sandbox, and recent usage
-- install/reset/save actions for managed agents
-- project-scoped agents displayed read-only and separate from managed global agents
+Native agents, Codex configuration, and marketplace plugin status are
+read-only in these views because Codex or the marketplace is their source of
+truth. Managed compatibility assets can be synchronized from the Codex Assets
+tab. Plugin installation and updates remain in the Maintenance marketplace.
 
 Heavy details stay behind expansion: developer instructions, capability truth
-labels, raw TOML, source path, installed path, and tool-scope notes.
-
-The Subagents tab preserves legacy routing metadata in
-`~/.codex/.elegy-copilot-codex-subagents.json` for compatibility, and writes
-native Codex concurrency, depth, and runtime limits to
-`~/.codex/config.toml`. Routing metadata is informational; the installed
-instructions and approved Markdown plan own delegation behavior. The installer
-owns the native enablement, default subagent model, and default effort:
-
-```toml
-[agents]
-enabled = true
-max_concurrent_threads_per_session = 6
-default_subagent_model = "gpt-5.6-luna"
-default_subagent_reasoning_effort = "high"
-max_depth = 1
-job_max_runtime_seconds = 1800
-```
+labels, raw TOML, and tool-scope notes. Public usage telemetry exposes only
+file names for its state/rollout source labels; it does not expose local home
+or repository paths. Project-scoped `.codex/agents` entries are discovery-only
+in the UI and are edited in the project repository.
 
 This policy follows OpenAI's current Codex guidance to keep requirements and
 integration in the main thread, use subagents for context isolation and
@@ -227,9 +199,6 @@ parallel work, prefer bounded prompts with explicit outputs, and avoid
 overlapping write-heavy scopes. See the official
 [Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents) and
 [Best practices](https://learn.chatgpt.com/guides/best-practices) guides.
-
-Project-scoped `.codex/agents` entries are discovery-only in the UI. Edit them
-in the project repo.
 
 ## Installation authority
 
@@ -272,7 +241,8 @@ Persist or display:
 - token counts
 - tool names and counts
 - completion/error flags
-- OpenCode profile, profile role, model source, cost policy, write mode, and job
+- provider ID/profile/role, model source, resolved model ID, requested release,
+  reasoning effort, timestamps, cost policy, write mode, scope status, and job
   identifier when present
 
 Do not persist prompts, responses, tool arguments, or tool outputs.

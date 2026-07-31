@@ -110,6 +110,7 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./repoAssets'), context);
   registry.registerModule(require('./git'), context);
   registry.registerModule(require('./workspace'), context);
+  registry.registerModule(require('./execution'), context);
   registry.registerModule(require('./elegyDb'), context);
   registry.registerModule(require('./codeReview'), context);
   registry.registerModule(require('./shell'), context);

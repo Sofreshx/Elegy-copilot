@@ -52,145 +52,272 @@
       "id": "opencode-agent-explorer",
       "type": "agent",
       "source": "opencode-assets/agents/explorer.md",
-      "destination": "agents/explorer.md"
+      "destination": "agents/explorer.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-agent-impl",
       "type": "agent",
       "source": "opencode-assets/agents/impl.md",
-      "destination": "agents/impl.md"
+      "destination": "agents/impl.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-agent-impl-pro",
       "type": "agent",
       "source": "opencode-assets/agents/impl-pro.md",
-      "destination": "agents/impl-pro.md"
+      "destination": "agents/impl-pro.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-agent-project",
       "type": "agent",
       "source": "opencode-assets/agents/project.md",
-      "destination": "agents/project.md"
+      "destination": "agents/project.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-agent-quick",
       "type": "agent",
       "source": "opencode-assets/agents/quick.md",
-      "destination": "agents/quick.md"
+      "destination": "agents/quick.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-agent-reviewer",
       "type": "agent",
       "source": "opencode-assets/agents/reviewer.md",
-      "destination": "agents/reviewer.md"
+      "destination": "agents/reviewer.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-agent-runner",
       "type": "agent",
       "source": "opencode-assets/agents/runner.md",
-      "destination": "agents/runner.md"
+      "destination": "agents/runner.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-agent-runner-flash",
       "type": "agent",
       "source": "opencode-assets/agents/runner-flash.md",
-      "destination": "agents/runner-flash.md"
+      "destination": "agents/runner-flash.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-agent-scout",
       "type": "agent",
       "source": "opencode-assets/agents/scout.md",
-      "destination": "agents/scout.md"
+      "destination": "agents/scout.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-agent-sweeper",
       "type": "agent",
       "source": "opencode-assets/agents/sweeper.md",
-      "destination": "agents/sweeper.md"
+      "destination": "agents/sweeper.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "notes-enhance",
       "type": "agent",
       "source": "opencode-assets/agents/notes-enhance.md",
-      "destination": "agents/notes-enhance.md"
+      "destination": "agents/notes-enhance.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "notes-reexamine",
       "type": "agent",
       "source": "opencode-assets/agents/notes-reexamine.md",
-      "destination": "agents/notes-reexamine.md"
+      "destination": "agents/notes-reexamine.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "notes-research",
       "type": "agent",
       "source": "opencode-assets/agents/notes-research.md",
-      "destination": "agents/notes-research.md"
+      "destination": "agents/notes-research.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "notes-deduplicate",
       "type": "agent",
       "source": "opencode-assets/agents/notes-deduplicate.md",
-      "destination": "agents/notes-deduplicate.md"
+      "destination": "agents/notes-deduplicate.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-agent-session-analytics",
       "type": "agent",
       "source": "opencode-assets/agents/session-analytics.md",
-      "destination": "agents/session-analytics.md"
+      "destination": "agents/session-analytics.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-code-review-skill",
       "type": "skill",
       "source": "opencode-assets/skills/code-review",
-      "destination": "skills/code-review"
+      "destination": "skills/code-review",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-github-workflow-skill",
       "type": "skill",
       "source": "opencode-assets/skills/github-workflow",
       "destination": "skills/github-workflow",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-commit-check-setup-skill",
       "type": "skill",
       "source": "engine-assets/skills/commit-check-setup",
       "destination": "skills/commit-check-setup",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-repo-quality-setup-skill",
       "type": "skill",
       "source": "engine-assets/skills/repo-quality-setup",
       "destination": "skills/repo-quality-setup",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
+    },
+    {
+      "id": "opencode-repo-checks-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/repo-checks",
+      "destination": "skills/repo-checks",
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-elegy-obsidian-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/elegy-obsidian",
       "destination": "skills/elegy-obsidian",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-elegy-planning-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/elegy-planning",
       "destination": "skills/elegy-planning",
-      "loadMode": "always"
+      "loadMode": "always",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-elegy-skills-discovery-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/elegy-skills-discovery",
       "destination": "skills/elegy-skills-discovery",
-      "loadMode": "always"
+      "loadMode": "always",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-global-instructions",
       "type": "instructions",
       "source": "catalog-assets/instructions/agent-session-defaults.md",
       "destination": "AGENTS.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      },
       "appendix": "opencode-assets/home/AGENTS-appendix.md"
     },
     {
@@ -198,176 +325,311 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-handoff",
       "destination": "skills/implementation-handoff",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-implementation-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-review",
       "destination": "skills/implementation-review",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-planning-plugin",
       "type": "plugin",
       "source": "opencode-assets/plugins/planning.js",
-      "destination": "plugins/planning.js"
+      "destination": "plugins/planning.js",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-planning-tools-skill",
       "type": "skill",
       "source": "opencode-assets/skills/planning-tools",
-      "destination": "skills/planning-tools"
+      "destination": "skills/planning-tools",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-planning-tools-read-skill",
       "type": "skill",
       "source": "opencode-assets/skills/planning-tools-read",
-      "destination": "skills/planning-tools-read"
+      "destination": "skills/planning-tools-read",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-planning-tools-write-skill",
       "type": "skill",
       "source": "opencode-assets/skills/planning-tools-write",
-      "destination": "skills/planning-tools-write"
+      "destination": "skills/planning-tools-write",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-planning-tools-run-skill",
       "type": "skill",
       "source": "opencode-assets/skills/planning-tools-run",
-      "destination": "skills/planning-tools-run"
+      "destination": "skills/planning-tools-run",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-plugins-package-json",
       "type": "plugin",
       "source": "opencode-assets/plugins/package.json",
-      "destination": "plugins/package.json"
+      "destination": "plugins/package.json",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-notify-plugin",
       "type": "plugin",
       "source": "opencode-assets/plugins/notify.js",
-      "destination": "plugins/notify.js"
+      "destination": "plugins/notify.js",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-project-conventions-governance-skill",
       "type": "skill",
       "source": "engine-assets/skills/project-conventions-governance",
-      "destination": "skills/project-conventions-governance"
+      "destination": "skills/project-conventions-governance",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-repo-backed-obsidian-docs-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/repo-backed-obsidian-docs",
       "destination": "skills/repo-backed-obsidian-docs",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-rubberduck-plan-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",
       "destination": "skills/rubberduck-plan-review",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-security-skill",
       "type": "skill",
       "source": "engine-assets/skills/security",
-      "destination": "skills/security"
+      "destination": "skills/security",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-skill-discovery-skill",
       "type": "skill",
       "source": "engine-assets/skills/skill-discovery",
       "destination": "skills/skill-discovery",
-      "loadMode": "always"
+      "loadMode": "always",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-spec-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-authoring",
       "destination": "skills/spec-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-spec-dev-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-dev",
       "destination": "skills/spec-dev",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-spec-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-review",
       "destination": "skills/spec-review",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-ui-design-spec-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/ui-design-spec",
       "destination": "skills/ui-design-spec",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-sweeper-cleanup-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/sweeper-cleanup",
       "destination": "skills/sweeper-cleanup",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-worktree-plugin",
       "type": "plugin",
       "source": "opencode-assets/plugins/worktree.js",
-      "destination": "plugins/worktree.js"
+      "destination": "plugins/worktree.js",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-worktree-skill",
       "type": "skill",
       "source": "opencode-assets/skills/worktree",
-      "destination": "skills/worktree"
+      "destination": "skills/worktree",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-project-workflow-skill",
       "type": "skill",
       "source": "opencode-assets/skills/project-workflow",
-      "destination": "skills/project-workflow"
+      "destination": "skills/project-workflow",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-runner-workflow-skill",
       "type": "skill",
       "source": "opencode-assets/skills/runner-workflow",
-      "destination": "skills/runner-workflow"
+      "destination": "skills/runner-workflow",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-skill-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/skill-authoring",
       "destination": "skills/skill-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-agents-md-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/agents-md-authoring",
       "destination": "skills/agents-md-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-tdd-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/tdd",
       "destination": "skills/tdd",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "opencode-brainstorming-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/brainstorming",
       "destination": "skills/brainstorming",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     }
   ],
   "sourcePatterns": []

@@ -304,10 +304,10 @@ describe('CatalogShellView', () => {
       screen.getByTestId('assets-tools-metric-Needs attention'),
     ).toBeInTheDocument();
     expect(
-      screen.getByTestId('assets-tools-metric-Healthy'),
+      screen.getByTestId('assets-tools-metric-Elegy-managed'),
     ).toHaveTextContent('1');
     expect(
-      screen.getByTestId('assets-tools-metric-Not installed'),
+      screen.getByTestId('assets-tools-metric-Harness-owned'),
     ).toHaveTextContent('0');
     expect(
       screen.getByTestId('assets-tools-metric-External'),
@@ -341,9 +341,9 @@ describe('CatalogShellView', () => {
     expect(screen.getByTestId('assets-tools-reader')).toBeInTheDocument();
   });
 
-  // ---- NEW: provenance-based grouped items ----
+  // ---- NEW: ownership-based grouped items ----
 
-  it('renders items grouped by provenance in the left pane', async () => {
+  it('renders items grouped by ownership in the left pane', async () => {
     apiMocks.getCatalogSummary.mockResolvedValue(
       makeBasicSummary(getDefaultSectionsWithItems(), []),
     );
@@ -359,9 +359,9 @@ describe('CatalogShellView', () => {
       ).toBeInTheDocument();
     });
 
-    // Default test items have sourceId 'elegy', which falls to "User / repo / external"
+    // Missing management metadata defaults to Elegy-managed.
     expect(
-      screen.getByTestId('assets-tools-prov-group-user-repo-external'),
+      screen.getByTestId('assets-tools-owner-group-elegy'),
     ).toBeInTheDocument();
 
     // Each item card is present
@@ -454,10 +454,10 @@ describe('CatalogShellView', () => {
     });
   });
 
-  // ---- NEW: inventory tab shows provenance groups ----
+  // ---- NEW: inventory tab shows ownership groups ----
 
-  it('renders inventory tab with provenance-based groups', async () => {
-    // Our default sections have skill (elegy sourceId) and agent
+  it('renders inventory tab with ownership-based groups', async () => {
+    // Our default sections have skill and agent items with no explicit owner.
     apiMocks.getCatalogSummary.mockResolvedValue(
       makeBasicSummary(getDefaultSectionsWithItems(), []),
     );
@@ -473,10 +473,9 @@ describe('CatalogShellView', () => {
       ).toBeInTheDocument();
     });
 
-    // The default items have sourceId 'elegy' which doesn't match any known root,
-    // so they should appear in the "User / repo / external" group
+    // Missing metadata is treated as Elegy-managed for compatibility.
     expect(
-      screen.getByTestId('assets-tools-prov-group-user-repo-external'),
+      screen.getByTestId('assets-tools-owner-group-elegy'),
     ).toBeInTheDocument();
   });
 

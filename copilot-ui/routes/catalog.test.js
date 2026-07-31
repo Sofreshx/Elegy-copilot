@@ -1055,6 +1055,218 @@ async function run() {
       }
     });
 
+    await test('catalog summary keeps per-harness ownership, normalized scopes, and action boundaries', async () => {
+      const codexManifestDir = path.join(engineRoot, 'codex-assets');
+      const opencodeManifestDir = path.join(engineRoot, 'opencode-assets');
+      fs.mkdirSync(codexManifestDir, { recursive: true });
+      fs.mkdirSync(opencodeManifestDir, { recursive: true });
+      writeJson(path.join(codexManifestDir, 'manifest.json'), {
+        assets: [{
+          id: 'codex-core-guardrails',
+          type: 'skill',
+          source: 'codex-assets/skills/core-guardrails/SKILL.md',
+          destination: 'skills/core-guardrails',
+          management: {
+            owner: 'harness',
+            sourceOfTruth: 'codex',
+            scope: 'harness-global',
+            readOnly: true,
+            readOnlyReason: 'Native Codex skill.',
+          },
+        }],
+      });
+      writeJson(path.join(opencodeManifestDir, 'manifest.json'), {
+        assets: [{
+          id: 'opencode-core-guardrails',
+          type: 'skill',
+          source: 'opencode-assets/skills/core-guardrails/SKILL.md',
+          destination: 'skills/core-guardrails',
+          management: {
+            owner: 'repository',
+            sourceOfTruth: 'repository',
+            scope: 'repo-local',
+          },
+        }],
+      });
+      writeJson(path.join(engineRoot, 'engine-assets', 'external-sources.json'), {
+        schemaVersion: 1,
+        sources: [{
+          sourceId: 'demo-source',
+          title: 'Demo source',
+          url: 'https://example.test/demo-source',
+          installables: [{
+            installableId: 'mcp:demo',
+            kind: 'mcp-server',
+            title: 'Demo MCP',
+            targetSupport: ['codex'],
+          }],
+        }],
+      });
+
+      const ctx = {
+        ...baseCtx,
+        codexHome: path.join(tmpRoot, 'codex-home'),
+        codexSkillsHome: path.join(tmpRoot, 'codex-home', 'skills'),
+        opencodeHome: path.join(tmpRoot, 'opencode-home'),
+        opencodeSkillsHome: path.join(tmpRoot, 'opencode-home', 'skills'),
+      };
+      const summaryResponse = await invoke(routes, ctx, 'GET', '/api/catalog/summary');
+      assert.equal(summaryResponse.res.statusCode, 200);
+      const skillSection = summaryResponse.body.summary.globalInventory.sections.find((section) => section.kind === 'skill');
+      const merged = skillSection.items.find((item) => item.itemId === 'skill-core-guardrails');
+      assert.ok(merged, 'expected the conceptual skill to be merged across harnesses');
+      assert.deepEqual(merged.managementOwners.sort(), ['elegy', 'harness', 'repository']);
+      assert.deepEqual(merged.managementScopes.sort(), ['global', 'repo']);
+
+      const copilot = merged.harnessStates.find((state) => state.harnessId === 'copilot');
+      const codex = merged.harnessStates.find((state) => state.harnessId === 'codex');
+      const opencode = merged.harnessStates.find((state) => state.harnessId === 'opencode');
+      assert.equal(copilot.management.owner, 'elegy');
+      assert.equal(copilot.management.scope, 'global');
+      assert.equal(copilot.management.readOnly, false);
+      assert.equal(copilot.actions.canInstall, true);
+      assert.equal(codex.management.owner, 'harness');
+      assert.equal(codex.management.scope, 'global');
+      assert.equal(codex.management.readOnly, true);
+      assert.equal(codex.assetId, 'codex-core-guardrails');
+      assert.deepEqual(codex.actions, { canInstall: false, canActivate: false, canDeactivate: false, canSync: false });
+      assert.equal(opencode.management.owner, 'repository');
+      assert.equal(opencode.management.scope, 'repo');
+      assert.equal(opencode.management.readOnly, true);
+      assert.equal(opencode.assetId, 'opencode-core-guardrails');
+      assert.deepEqual(opencode.actions, { canInstall: false, canActivate: false, canDeactivate: false, canSync: false });
+
+      const externalSection = summaryResponse.body.summary.globalInventory.sections.find((section) => section.kind === 'mcp');
+      const external = externalSection.items.find((item) => item.itemId === 'demo-source:mcp:demo');
+      assert.ok(external, 'expected external installable in the global inventory');
+      const externalState = external.harnessStates.find((state) => state.harnessId === 'codex');
+      assert.equal(externalState.management.owner, 'external');
+      assert.equal(externalState.management.scope, 'external');
+      assert.equal(externalState.management.readOnly, false);
+      assert.equal(externalState.actions.canActivate, true);
+    });
+
+    await test('server rejects harness mutations for read-only manifest assets', async () => {
+      const ctx = {
+        ...baseCtx,
+        codexHome: path.join(tmpRoot, 'codex-home'),
+        codexSkillsHome: path.join(tmpRoot, 'codex-home', 'skills'),
+      };
+      const response = await invoke(routes, ctx, 'POST', '/api/catalog/harness-assets/uninstall', {
+        harnessId: 'codex',
+        assetId: 'codex-core-guardrails',
+      });
+      assert.equal(response.res.statusCode, 409);
+      assert.equal(response.body.kind, 'catalog.harness_asset_uninstall');
+      assert.match(response.body.error, /read-only/i);
+    });
+
+    await test('harness-owned assets are checked without an Elegy ledger entry', async () => {
+      const codexManifestDir = path.join(engineRoot, 'codex-assets');
+      const sourcePath = path.join(codexManifestDir, 'agents', 'native.toml');
+      const codexHome = path.join(tmpRoot, 'native-codex-home');
+      const installedPath = path.join(codexHome, 'agents', 'native.toml');
+      writeJson(path.join(codexManifestDir, 'manifest.json'), {
+        assets: [{
+          id: 'codex-native-agent',
+          type: 'agent',
+          source: 'codex-assets/agents/native.toml',
+          destination: 'agents/native.toml',
+          management: { owner: 'harness', sourceOfTruth: 'codex', scope: 'global' },
+        }],
+      });
+      writeText(sourcePath, 'name = "native"\n');
+      writeText(installedPath, 'name = "native"\n');
+
+      const response = await invoke(routes, {
+        ...baseCtx,
+        codexHome,
+        codexSkillsHome: path.join(codexHome, 'skills'),
+      }, 'POST', '/api/catalog/harness-assets/check', {
+        harnessId: 'codex',
+        assetId: 'codex-native-agent',
+      });
+      assert.equal(response.res.statusCode, 200);
+      const result = response.body.results.find((entry) => entry.assetId === 'codex-native-agent');
+      assert.equal(result.state, 'installed');
+    });
+
+    await test('managed skill directories can be checked and uninstalled', async () => {
+      const codexManifestDir = path.join(engineRoot, 'codex-assets');
+      const sourceRoot = path.join(codexManifestDir, 'skills', 'managed-directory');
+      const codexHome = path.join(tmpRoot, 'directory-codex-home');
+      const installedRoot = path.join(codexHome, 'skills', 'managed-directory');
+      writeJson(path.join(codexManifestDir, 'manifest.json'), {
+        assets: [{
+          id: 'codex-managed-directory-skill',
+          type: 'skill',
+          source: 'codex-assets/skills/managed-directory',
+          destination: 'skills/managed-directory',
+        }],
+      });
+      writeText(path.join(sourceRoot, 'SKILL.md'), '# Managed skill\n');
+      writeText(path.join(installedRoot, 'SKILL.md'), '# Managed skill\n');
+      writeJson(path.join(elegyHomeAbs, 'catalog', 'install-ledger.json'), {
+        schemaVersion: 1,
+        generatedAt: new Date().toISOString(),
+        harnesses: { codex: { optedInAt: new Date().toISOString(), managedAssetIds: ['codex-managed-directory-skill'] } },
+      });
+
+      const checked = await invoke(routes, {
+        ...baseCtx,
+        codexHome,
+        codexSkillsHome: path.join(codexHome, 'skills'),
+      }, 'POST', '/api/catalog/harness-assets/check', {
+        harnessId: 'codex',
+        assetId: 'codex-managed-directory-skill',
+      });
+      const checkResult = checked.body.results.find((entry) => entry.assetId === 'codex-managed-directory-skill');
+      assert.equal(checkResult.state, 'installed');
+
+      const removed = await invoke(routes, {
+        ...baseCtx,
+        codexHome,
+        codexSkillsHome: path.join(codexHome, 'skills'),
+      }, 'POST', '/api/catalog/harness-assets/uninstall', {
+        harnessId: 'codex',
+        assetId: 'codex-managed-directory-skill',
+      });
+      assert.equal(removed.res.statusCode, 200);
+      assert.equal(fs.existsSync(installedRoot), false);
+    });
+
+    await test('Claude harness checks resolve installed skill destinations from the dedicated Claude skills home', async () => {
+      const claudeManifestDir = path.join(engineRoot, 'claude-assets');
+      const sourcePath = path.join(claudeManifestDir, 'skills', 'installed', 'SKILL.md');
+      const claudeHome = path.join(tmpRoot, 'claude-home');
+      const claudeSkillsHome = path.join(claudeHome, 'skills');
+      const installedPath = path.join(claudeSkillsHome, 'installed', 'SKILL.md');
+      writeJson(path.join(claudeManifestDir, 'manifest.json'), {
+        assets: [{
+          id: 'claude-installed-skill',
+          type: 'skill',
+          source: 'claude-assets/skills/installed/SKILL.md',
+          destination: 'skills/installed/SKILL.md',
+        }],
+      });
+      writeText(sourcePath, '# Claude source skill\n');
+      writeText(installedPath, '# Claude installed skill\n');
+
+      const response = await invoke(routes, {
+        ...baseCtx,
+        claudeHome,
+        claudeSkillsHome,
+      }, 'POST', '/api/catalog/harness-assets/check', {
+        harnessId: 'claude-code',
+        assetId: 'claude-installed-skill',
+      });
+      assert.equal(response.res.statusCode, 200);
+      const result = response.body.results.find((entry) => entry.assetId === 'claude-installed-skill');
+      assert.ok(result, 'expected Claude asset check result');
+      assert.equal(result.installPath, installedPath);
+      assert.equal(result.state, 'unmanaged');
+    });
+
     await test('harness conflict state is returned when destination hash differs from source', async () => {
       // Create a minimal opencode-assets manifest so the check endpoint can scan it
       const opaDir = path.join(engineRoot, 'opencode-assets');

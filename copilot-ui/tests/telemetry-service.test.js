@@ -70,6 +70,7 @@ test('Codex subagent telemetry aggregates state_5 sqlite and rollout metadata', 
     rolloutPath,
     [
       JSON.stringify({ type: 'function_call', name: 'shell_command' }),
+      JSON.stringify({ type: 'message', payload: { text: 'Native Codex run completed.' } }),
       JSON.stringify({ type: 'token_count', payload: { total_token_usage: { input_tokens: 10, cached_input_tokens: 2, output_tokens: 5, reasoning_output_tokens: 1, total_tokens: 16 } } }),
       JSON.stringify({ type: 'task_complete' }),
     ].join('\n'),
@@ -110,7 +111,24 @@ test('Codex subagent telemetry aggregates state_5 sqlite and rollout metadata', 
   db.prepare('INSERT INTO thread_spawn_edges VALUES (?, ?, ?)').run('parent-1', 'child-1', 'closed');
   db.close();
 
-  const usage = telemetryService.buildCodexSubagentUsage({ codexHome: tmp, limit: 50 });
+  const usage = telemetryService.buildCodexSubagentUsage({
+    codexHome: tmp,
+    limit: 50,
+    providerMetadataByAgent: {
+      explorer: {
+        providerId: 'openai',
+        providerProfile: 'openai',
+        providerRole: 'explorer',
+        modelSource: 'agent-toml',
+        resolvedModelId: 'gpt-5.4-mini',
+        requestedRelease: null,
+        costPolicy: 'parent-openai-account',
+        writeMode: 'read-only',
+        jobIdentifier: 'job-explorer-1',
+        scopeStatus: 'not_applicable',
+      },
+    },
+  });
 
   assert.equal(usage.coverage, 'codex-state-plus-rollouts');
   assert.equal(usage.summary.runs, 1);
@@ -118,4 +136,26 @@ test('Codex subagent telemetry aggregates state_5 sqlite and rollout metadata', 
   assert.equal(usage.summary.toolEvents, 1);
   assert.equal(usage.byAgent[0].name, 'explorer');
   assert.equal(usage.runs[0].completed, true);
+  assert.equal(usage.runs[0].state, 'completed');
+  assert.equal(usage.runs[0].providerId, 'openai');
+  assert.equal(usage.runs[0].providerProfile, 'openai');
+  assert.equal(usage.runs[0].providerRole, 'explorer');
+  assert.equal(usage.runs[0].modelSource, 'agent-toml');
+  assert.equal(usage.runs[0].resolvedModelId, 'gpt-5.4-mini');
+  assert.equal(usage.runs[0].costPolicy, 'parent-openai-account');
+  assert.equal(usage.runs[0].writeMode, 'read-only');
+  assert.equal(usage.runs[0].jobIdentifier, 'job-explorer-1');
+  assert.equal(usage.runs[0].scopeStatus, 'not_applicable');
+  assert.equal(usage.runs[0].rolloutPath, 'rollout.jsonl');
+  assert.equal(usage.source.path, 'state_5.sqlite');
+  assert.equal(JSON.stringify(usage).includes(tmp), false);
+
+  const internalUsage = telemetryService.buildCodexSubagentUsage({
+    codexHome: tmp,
+    limit: 50,
+    includeInternalScopeMetadata: true,
+    scopeRepoPath: tmp,
+  });
+  assert.equal(internalUsage.runs[0].workspacePath, tmp);
+  assert.equal(internalUsage.runs[0].declaredScope, undefined);
 });

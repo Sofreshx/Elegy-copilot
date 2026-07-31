@@ -3,22 +3,22 @@ spec_id: opencode-model-profile-ux
 title: OpenCode Model & Profile Switching UX
 status: implemented
 type: feature
-updated: 2026-06-30
+updated: 2026-07-31
 ---
 
 # OpenCode Model & Profile Switching UX
 
 ## Intent
 
-The OpenCode settings UI in Elegy Copilot offers profile switching (opencode-go vs deepseek-direct) and per-role model overrides (small/big/review), but the current implementation is broken in five ways: (0) switching profiles or running codex-install contaminates Codex config by hardcoding `model_provider = "opencode-go"` as a root-level key outside the managed block, breaking Codex when `OPENCODE_API_KEY` is not set; (1) activating a profile only writes to a state file without applying model changes to agent files, so the active profile badge is disconnected from actual agent configuration; (2) model selection uses free-text inputs instead of a discoverable selector drawer showing real available model names with provider context; (3) the Permissions tab crashes with React error #31 when OpenCode's config contains object-valued permission entries; and (4) a missing `saving` prop leaves save buttons permanently enabled during save operations. This spec defines the hardening requirements to close these gaps.
+The OpenCode settings UI in Elegy Copilot offers profile switching and per-role model overrides. This spec covers the OpenCode-only profile and permissions hardening. Codex now has a native-provider settings surface: OpenCode profile changes and OpenCode installation must never write Codex configuration, and legacy Codex provider references are handled only by the safe migration.
 
 ## Context Evidence
 
-- `scripts/codex-config-patch.mjs` — `DEFAULT_PROVIDER_ID` hardcoded. `buildRootKeyLines()` writes the provider as a root-level key in the config preamble, OUTSIDE the managed block markers. This means the root-level provider survives `stripManagedBlock()` independently.
-- `scripts/codex-install.mjs` — Imports and calls `patchConfigFile()` during `runInstall()`, writing the hardcoded provider to the Codex config. No CLI argument or OpenCode profile awareness.
-- `copilot-ui/lib/codexConfig.js` — `setMode()` already has `stripIeManagedRootKeys` logic for the DeepSeek bridge case. The config patch script does not follow this same managed-block pattern for root keys.
-- `scripts/opencode-profile-switch.mjs` — This script is INNOCENT — zero references to Codex, the provider, or the Codex config. It only edits agent files and the OpenCode config. The contamination is purely from the config patch and install scripts.
-- `copilot-ui/routes/opencode.js` — Imports `codexConfig` lib but only calls read-only `getPlanningSkillStatus()`. No write operations on Codex config.
+- `scripts/codex-config-patch.mjs` — Patches only the native `[agents]` receipt and removes known legacy provider references; it has no provider-switch argument.
+- `scripts/codex-install.mjs` — Installs six native agents and six Elegy compatibility skills; Codex plugins are installed through the marketplace.
+- `copilot-ui/lib/codexConfig.js` — Reports native Codex status and performs the idempotent, backup-writing legacy migration.
+- `scripts/opencode-profile-switch.mjs` — Edits only OpenCode agent files and OpenCode configuration. It must not touch Codex configuration.
+- `copilot-ui/routes/opencode.js` — Owns OpenCode provider/profile routes and retains no Codex provider mutation path.
 - `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx` — ProfilesSection: profile cards render but "Activate" only writes to the state file without running the CLI profile switch script. The `saving` prop is destructured but not wired via `SectionProps`.
 - `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx` — `reviewModel` hardcoded as a useState string, ignoring the actual review model from the active profile.
 - `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx` — Model Selection panel uses plain text inputs with no autocomplete or selector drawer.
@@ -39,13 +39,12 @@ The OpenCode settings UI in Elegy Copilot offers profile switching (opencode-go 
 - Save/Activate button correctly disabled during save operations via `saving` prop
 - Active profile badge reflecting actual agent frontmatter state
 - Profile mismatch detection with warning banner when state file and agent files diverge
-- `codex-config-patch.mjs` accepting `--provider-id` argument for controlled fallback
 
 ### Forbidden Behavior
 
 - Writing OpenCode profile changes to `~/.codex/config.toml` under any circumstances
 - Hardcoded default provider ID as root-level key in Codex config assuming `OPENCODE_API_KEY`
-- Codex Provider Panel being bypassed by OpenCode profile switching
+- OpenCode provider/profile controls being surfaced as Codex configuration
 - Permissions tab crashing with object-valued permission entries
 - Free-text model inputs without selector or autocomplete (must use `<select>` dropdowns)
 - `reviewModel` hardcoded instead of reading from active profile
@@ -55,10 +54,10 @@ The OpenCode settings UI in Elegy Copilot offers profile switching (opencode-go 
 
 ### R0 — Codex Config Must Be Isolated from OpenCode Profile Changes
 
-- `scripts/codex-config-patch.mjs` must NOT hardcode a default provider ID at the root level that assumes `OPENCODE_API_KEY` is available. The `DEFAULT_PROVIDER_ID` fallback is scoped to managed block profiles only (written inside `[profiles.X]` tables, not as a root-level `model_provider` key). When no OpenCode API key is configured, Codex falls back to its native provider.
-- `scripts/codex-install.mjs` accepts a `--provider-id` argument so the caller can control which provider is written for the managed block. The root-level `model_provider` key is not written when using managed block profiles.
+- `scripts/codex-config-patch.mjs` writes the native `[agents]` settings and never writes an OpenCode provider route. Codex falls back to its native provider.
+- `scripts/codex-install.mjs` installs the native six-agent/six-skill receipt and does not accept provider-switch arguments.
 - The OpenCode profile switching UI (`POST /api/opencode/config`) does NOT write to Codex config under any circumstances. The separation is absolute.
-- The Codex Provider Panel remains the sole UI path for configuring Codex providers.
+- Codex settings expose native CLI health, agent policy, usage, asset ownership, and marketplace plugin status; OpenCode provider routing remains in OpenCode settings.
 
 ### R1 — Fix Permissions Tab Crash
 
@@ -105,13 +104,13 @@ The OpenCode settings UI in Elegy Copilot offers profile switching (opencode-go 
 - Changing the profiles.json schema or agentRoles mapping.
 - Full runtime model validation (e.g., checking if a model string is valid against the provider API).
 - Redesigning the entire OpenCode settings layout — only the Profiles tab content changes.
-- Supporting profile switching for non-OpenCode harnesses (Codex, Copilot, Antigravity) from the OpenCode settings tab. Codex has its own Provider Panel for that.
-- Implementing a full configuration diff/merge strategy for `~/.codex/config.toml` managed blocks — only the hardcoded default provider bug is in scope.
+- Supporting profile switching for non-OpenCode harnesses (Codex, Copilot, Antigravity) from the OpenCode settings tab. Codex has its own native settings surface.
+- Implementing OpenCode provider routing inside Codex configuration; Codex's known-legacy migration is a separate safe cleanup path.
 
 ## Acceptance Checks
 
 - Codex config is not affected by OpenCode profile switching.
-  → verify: Manual: Switch OpenCode profile via UI → check Codex config — root key must remain unchanged.
+  → verify: Manual: Switch an OpenCode profile via UI → check Codex config — no Codex provider route is added or changed.
 - Permissions tab renders without crashing when OpenCode config contains object-valued permission entries.
   → verify: Manual: Open the OpenCode settings → Permissions tab. Confirm no white screen / crash.
 - Activating a profile updates agent frontmatter files with the correct models.
@@ -133,13 +132,13 @@ The OpenCode settings UI in Elegy Copilot offers profile switching (opencode-go 
 - `opencode-assets/profiles.json` — profile definitions and agentRoles (canonical model source)
 - `scripts/opencode-profile-switch.mjs` — CLI profile switch (invoked by backend via child_process)
 - `scripts/frontmatter-utils.mjs` — YAML frontmatter parsing (fixed CRLF line ending handling)
-- `scripts/codex-config-patch.mjs` — DEFAULT_PROVIDER_ID hardcoding and root-key placement (fix)
-- `scripts/codex-install.mjs` — patchConfigFile call site (add --provider-id argument)
+- `scripts/codex-config-patch.mjs` — native `[agents]` patching and known-legacy cleanup
+- `scripts/codex-install.mjs` — six-agent/six-skill receipt installer
 
 ## Validation Evidence
 
 - `node scripts/validate-specs.js --strict docs/specs/` — No errors for `opencode-model-profile-ux` spec. All remaining errors are pre-existing in other specs.
-- `node scripts/codex-config-patch.test.js` — 12/12 tests pass, including new `--provider-id` test.
+- `node scripts/codex-config-patch.test.js` — current native config and migration tests pass.
 - `npm --prefix copilot-ui run test:vitest` — 265/270 tests pass; 5 pre-existing failures unrelated to these changes. `opencode-api.vitest.ts` passes all 17 tests including new child_process mock tests.
 - `npx tsc -p copilot-ui/ui/tsconfig.json --noEmit` — 0 new TypeScript errors introduced.
 - `node -c copilot-ui/routes/opencode.js` — Syntax OK.

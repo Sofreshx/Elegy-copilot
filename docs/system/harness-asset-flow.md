@@ -31,6 +31,27 @@ Central assets live in the elegy-copilot repo under these directories:
 | `claude-assets/` | Claude Code-specific instructions and skills |
 | `ghcp-assets/` | GitHub Copilot CLI instructions, lane agents, profiles, and wrapper |
 
+## Ownership and scope
+
+The central catalog is an overview of harness state, not a replacement source
+of truth. Every harness state carries management metadata:
+`owner` (`elegy`, `harness`, `repository`, or `external`), `sourceOfTruth`, a
+normalized `scope` (`global`, `repo`, `user`, or `external`), `readOnly`, and an
+optional read-only explanation. Source and destination paths remain provenance
+only.
+
+Elegy-managed compatibility assets can be installed, synchronized, or removed
+when the target supports the operation. Native harness assets and repository-
+owned assets are shown with explicit read-only badges and status-only refresh;
+they never receive install, sync, or removal controls. External source entries
+retain source activation/deactivation controls. The overview groups and filters
+by harness, owner, scope, kind, and status, and its attention metric excludes
+non-actionable read-only drift.
+
+`Assets & Tools` remains the cross-harness overview. Codex, OpenCode, and
+Claude Code settings each also expose an `Assets` tab using the same inventory
+component; Antigravity remains central-only in this pass.
+
 ## Architecture Diagram
 
 ```mermaid
@@ -143,14 +164,19 @@ Each harness gets:
 - **Instructions file** (`AGENTS.md`, `GEMINI.md`, `CLAUDE.md`, or `copilot-instructions.md`)
 - **Skills** — shared skills from `engine-assets/`, `catalog-assets/`, and approved `vendor-assets/`
 - **Agents** (where applicable) — harness-specific agent files
-- **Plugins** (OpenCode only) — worktree plugin
+- **Plugins** — OpenCode's worktree plugin and Codex's read-only Elegy marketplace receipt
 
 GHCP gets lane agents plus wrapper/profile assets rather than a shared skill install surface.
 GHCP uses its dedicated installer and is not part of `install-all.sh` / `install-all.ps1`.
 
-Codex also gets two managed configuration surfaces:
-- root `config.toml` defaults for install-safe shared settings such as `review_model`
-- a separate named profile overlay file (`<profile>.config.toml`) for the managed review/planning profile
+Codex also gets one native configuration surface. The installer maintains the
+expected `[agents]` receipt in `~/.codex/config.toml`: `enabled = true`,
+concurrency `6`, model `gpt-5.6-luna`, reasoning `high`, depth `1`, and runtime
+`1800` seconds. Codex-native agents and configuration are harness-owned and
+read-only in the catalog. The six shared compatibility skills remain
+Elegy-managed; Codex marketplace plugin installation and updates stay in the
+Maintenance marketplace, with `elegy-planning` providing direct Codex
+subagent/workflow integration.
 
 Installer writes now use temp-sibling replace semantics for file and directory updates so managed
 refreshes do not rely on delete-then-copy for normal overwrite paths.
@@ -205,8 +231,8 @@ A runtime asset drift guard in `copilot-ui/scripts/tauri-node-sidecar-layout.js`
 | **Instructions** | `copilot-instructions.md` | `AGENTS.md` | `AGENTS.md` | `GEMINI.md` | `CLAUDE.md` | `copilot-instructions.md` |
 | **Contract** | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+appendix |
 | **Agents** | 6 | 15 | 6 | 0 | 0 | 6 |
-| **Skills** | 26 | 31 | 7 | 15 | 10 | 0 |
-| **Plugins** | 0 | 4 | 0 | 0 | 0 | 0 |
+| **Skills** | 26 | 31 | 6 | 15 | 10 | 0 |
+| **Plugins** | 0 | 4 | 4 (marketplace receipt) | 0 | 0 | 0 |
 | **Managed block** | No | No | No | Yes | No | No |
 | **Profile injection** | Yes | Yes | Yes | Yes | Yes | No |
 | **Install script** | `cli-install.mjs` | `opencode-install.mjs` | `codex-install.mjs` | `antigravity-install.mjs` | `claude-install.mjs` | `ghcp-install.mjs` |
@@ -221,12 +247,14 @@ The instruction writing contract lives in a single shared portable baseline at `
   harness appendix ownership, shared skill routes, and retired-reference removal
 - `node scripts/validate-manifest.js` — validates manifest IDs, destinations, source paths, required
   assets, and generated-manifest parity
+- `node scripts/validate-codex-assets.js` — validates the six native-agent/six compatibility-skill
+  Codex receipt and rejects obsolete fallback lanes
 - Run the changed harness's focused check:
 
 | Harness | Focused check |
 |---|---|
 | Elegy Copilot | `node --test scripts/cli-install.test.js` |
-| Codex | `node --test scripts/codex-install.test.js` |
+| Codex | `node --test scripts/codex-install.test.js scripts/codex-config-patch.test.js` |
 | OpenCode | `node --test scripts/opencode-install.test.js` |
 | Antigravity | `node --test scripts/antigravity-install.test.js` |
 | Claude Code | `node scripts/claude-install.mjs --dry-run` |

@@ -11,6 +11,24 @@
     "repoRoot": { "type": "string" },
     "profile": { "type": ["string", "null"] },
     "configHash": { "type": "string" },
+    "configPath": { "type": ["string", "null"] },
+    "branch": { "type": ["string", "null"] },
+    "head": { "type": ["string", "null"] },
+    "dirtyTreeFingerprint": { "type": ["string", "null"] },
+    "planIdentity": {
+      "type": ["object", "null"],
+      "required": ["path", "hash"],
+      "properties": {
+        "path": { "type": "string" },
+        "hash": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "planHash": { "type": ["string", "null"] },
+    "action": { "type": "string" },
+    "selectionMode": { "type": "string" },
+    "runnerVersion": { "type": "string" },
+    "source": { "type": "string" },
     "overallPass": { "type": "boolean" },
     "checksRun": { "type": "integer" },
     "checksPassed": { "type": "integer" },
@@ -25,10 +43,16 @@
         "type": "object",
         "required": ["status", "exitCode", "durationMs", "details", "commands"],
         "properties": {
-          "status": { "enum": ["PASS", "FAIL", "WARN"] },
+          "status": { "enum": ["PASS", "FAIL", "WARN", "SKIP", "NOT_REQUIRED", "NOT_RUN"] },
           "exitCode": { "type": "integer" },
           "durationMs": { "type": "integer" },
           "details": { "type": "string" },
+          "blocking": { "type": "boolean" },
+          "required": { "type": "boolean" },
+          "skippable": { "type": "boolean" },
+          "cost": { "type": "string" },
+          "opensWindow": { "type": "boolean" },
+          "defaultProfiles": { "type": "array", "items": { "type": "string" } },
           "commands": {
             "type": "array",
             "items": {

@@ -1,6 +1,6 @@
 ---
 created: 2026-03-09
-updated: 2026-07-30
+updated: 2026-07-31
 category: system
 status: current
 doc_kind: node
@@ -25,8 +25,41 @@ related: [copilot-ui-guide, repo-skill-sync-governance, domain-authorities-freez
 - Repo-local skills are canonical in `<repo>/.github/skills/**`.
 - Generated repo-local mirrors live in `<repo>/.agents/skills/**`, `<repo>/.opencode/skills/**`, and `<repo>/.gemini/skills/**`.
 - Harness manifests control the curated global skill sets; third-party skill sources are not installed through the catalog.
-- Elegy-owned Codex capabilities install through the `elegy` marketplace; `elegy-ui-craft` is the primary UI capability.
+- Codex's current Elegy marketplace receipt is read-only in the catalog: `elegy-documentation`,
+  `elegy-mcp`, `elegy-checks`, and `elegy-planning`. The planning plugin is the direct Codex
+  subagent/workflow integration.
 - Global shipped assets are still split by harness. There is no single universal global skill root yet.
+
+## Ownership and Scope
+
+The central Assets & Tools view is a cross-harness projection. Each harness
+state carries its own management metadata so one conceptual asset can be
+Elegy-managed in one harness and harness- or repository-owned in another.
+Metadata includes:
+
+- `owner`: `elegy`, `harness`, `repository`, or `external`;
+- `sourceOfTruth`: the authority that owns the content or activation state;
+- `scope`: normalized to `global`, `repo`, `user`, or `external`;
+- `readOnly` and an optional `readOnlyReason`.
+
+Manifest and installed paths are provenance, not ownership. The UI labels both
+owner and scope and never uses color as the only indicator.
+
+Action rules are deliberately asymmetric:
+
+- Elegy-managed assets may be installed, synchronized, or removed when the
+  target supports that operation.
+- Harness-owned native assets and repository-owned assets are observable but
+  read-only. They have no install, sync, or removal controls.
+- External-source assets expose activation/deactivation through their source;
+  they are not copied into an Elegy-managed manifest lane.
+
+`Needs attention` counts only actionable issues. The overview also groups and
+filters by harness, owner, scope, kind, and status. Codex, OpenCode, and Claude
+Code each expose a dedicated `Assets` settings tab backed by the same inventory
+component; Antigravity remains visible in the central overview only for this
+pass. Read-only harness assets use status refresh, while managed targets expose
+Elegy synchronization only when permitted.
 
 ## Status UI
 

@@ -7,7 +7,7 @@ const path = require('path');
 const { test } = require('node:test');
 const codexSubagents = require('../lib/codexSubagents');
 
-test('Codex subagent service lists bounded Luna agents and the strong Sol reviewer without a Spark lane', () => {
+test('Codex subagent service lists the six native Codex roles', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-codex-subagents-'));
   const result = codexSubagents.listCodexSubagents({
     codexHome: tmp,
@@ -38,6 +38,9 @@ test('Codex subagent service lists bounded Luna agents and the strong Sol review
   assert.equal(strongReviewer.model, 'gpt-5.6-sol');
   assert.equal(strongReviewer.sandboxMode, 'read-only');
   assert.equal(strongReviewer.missing, true);
+  assert.deepEqual(result.agents.map((agent) => agent.name), [
+    'explorer', 'reviewer', 'reviewer_strong', 'sweeper', 'test-runner', 'worker',
+  ]);
   assert.equal(result.summary.managed, 6);
   assert.equal(result.summary.missing, 6);
   assert.equal(result.summary.usable, 0);
@@ -73,7 +76,7 @@ test('Codex subagent service updates and resets a managed agent safely', () => {
   assert.equal(resetSettings.agentRouting?.explorer, undefined);
 });
 
-test('Codex subagent service enforces the Luna model and supported effort range', () => {
+test('Codex subagent service enforces native model and supported effort range', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-codex-subagents-'));
   const engineRoot = path.resolve(__dirname, '..', '..');
 
@@ -132,6 +135,7 @@ test('Codex subagent settings patch native Codex agents config', () => {
   assert.ok(configText.includes('max_depth = 0'), configText);
   assert.ok(configText.includes('job_max_runtime_seconds = 900'), configText);
   assert.ok(configText.includes('[agents.explorer]\nmodel = "gpt-5.4-mini"'), configText);
+  assert.ok(configText.includes('model = "gpt-5.5"'), configText);
 });
 
 test('Codex subagent service falls back to manual routing for invalid persisted settings', () => {
@@ -208,4 +212,22 @@ test('Codex subagent service reports summary and per-agent usage for the UI', ()
   assert.equal(explorer.usable, true);
   assert.deepEqual(explorer.usageSummary, { runs: 2, tokens: 1200, toolEvents: 9, errors: 0 });
   assert.deepEqual(reviewer.usageSummary, { runs: 1, tokens: 800, toolEvents: 2, errors: 1 });
+});
+
+test('Codex subagent service exposes native provider metadata for telemetry projection', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-codex-subagents-'));
+  const engineRoot = path.resolve(__dirname, '..', '..');
+
+  codexSubagents.resetCodexSubagent('explorer', { codexHome: tmp, engineRoot });
+  const metadata = codexSubagents.getCodexSubagentProviderMetadata({ codexHome: tmp, engineRoot });
+
+  assert.equal(metadata.explorer.providerId, 'openai');
+  assert.equal(metadata.explorer.providerRole, 'explorer');
+  assert.equal(metadata.explorer.providerProfile, 'codex-native');
+  assert.equal(metadata.explorer.modelSource, 'agent-toml');
+  assert.equal(metadata.explorer.resolvedModelId, 'gpt-5.6-luna');
+  assert.equal(metadata.explorer.requestedRelease, null);
+  assert.equal(metadata.explorer.writeMode, 'read-only');
+  assert.equal(metadata.explorer.scopeStatus, 'not_applicable');
+  assert.equal(Object.prototype.hasOwnProperty.call(metadata.explorer, 'apiKey'), false);
 });

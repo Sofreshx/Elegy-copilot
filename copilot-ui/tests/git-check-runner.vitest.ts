@@ -285,6 +285,30 @@ describe('runAllChecks', () => {
     expect(args.indexOf('--reason')).toBeLessThan(args.indexOf('--skip'));
   });
 
+  it('passes an explicit all-enabled selection instead of falling back to the default profile', async () => {
+    setupCanonicalMocks(
+      {
+        lint: { commands: ['npm run lint'], defaultProfiles: ['commit'] },
+        test: { commands: ['npm test'], defaultProfiles: ['push'] },
+      },
+      {
+        timestamp: '2026-06-08T12:00:00.000Z',
+        compositeScore: 100,
+        overallPass: true,
+        lanes: {
+          lint: { status: 'PASS', score: 100, details: 'Passed', commands: [] },
+          test: { status: 'PASS', score: 100, details: 'Passed', commands: [] },
+        },
+      },
+    );
+
+    await runAllChecksWithProfile('/fake/repo', { runAll: true });
+
+    const args = mockExecFile.mock.calls[0][1];
+    expect(args).toContain('--all');
+    expect(args).not.toContain('--profile');
+  });
+
   it('returns parse diagnostics when canonical output is invalid', async () => {
     mockExistsSync.mockImplementation((p: any) => {
       const pStr = String(p).replace(/\\/g, '/');

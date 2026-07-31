@@ -17,7 +17,7 @@
     "preferExplicitDestinations": true,
     "agentsAreFlat": true,
     "skillsRequireFolderName": true,
-    "notes": "Install Codex-native home instructions, five bounded Luna role agents, one strong Sol reviewer, and seven focused skills under ~/.codex, then patch ~/.codex/config.toml conservatively. Elegy plugins remain explicit opt-ins."
+    "notes": "Install the six native Codex role agents and six Elegy compatibility skills under ~/.codex. Native agents and Codex configuration remain harness-owned; Elegy plugins are installed through the Codex marketplace."
   },
   "governance": {
     "g05": {
@@ -60,91 +60,168 @@
       "type": "instructions",
       "source": "catalog-assets/instructions/agent-session-defaults.md",
       "destination": "AGENTS.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global",
+        "readOnly": false
+      },
       "appendix": "codex-assets/home/AGENTS-appendix.md"
     },
     {
       "id": "codex-explorer-agent",
       "type": "agent",
       "source": "codex-assets/agents/explorer.toml",
-      "destination": "agents/explorer.toml"
+      "destination": "agents/explorer.toml",
+      "management": {
+        "owner": "harness",
+        "sourceOfTruth": "codex",
+        "scope": "global",
+        "readOnly": true,
+        "readOnlyReason": "Native Codex asset; manage it through Codex."
+      }
     },
     {
       "id": "codex-reviewer-agent",
       "type": "agent",
       "source": "codex-assets/agents/reviewer.toml",
-      "destination": "agents/reviewer.toml"
+      "destination": "agents/reviewer.toml",
+      "management": {
+        "owner": "harness",
+        "sourceOfTruth": "codex",
+        "scope": "global",
+        "readOnly": true,
+        "readOnlyReason": "Native Codex asset; manage it through Codex."
+      }
     },
     {
       "id": "codex-reviewer-strong-agent",
       "type": "agent",
       "source": "codex-assets/agents/reviewer_strong.toml",
-      "destination": "agents/reviewer_strong.toml"
+      "destination": "agents/reviewer_strong.toml",
+      "management": {
+        "owner": "harness",
+        "sourceOfTruth": "codex",
+        "scope": "global",
+        "readOnly": true,
+        "readOnlyReason": "Native Codex asset; manage it through Codex."
+      }
     },
     {
       "id": "codex-worker-agent",
       "type": "agent",
       "source": "codex-assets/agents/worker.toml",
-      "destination": "agents/worker.toml"
+      "destination": "agents/worker.toml",
+      "management": {
+        "owner": "harness",
+        "sourceOfTruth": "codex",
+        "scope": "global",
+        "readOnly": true,
+        "readOnlyReason": "Native Codex asset; manage it through Codex."
+      }
     },
     {
       "id": "codex-test-runner-agent",
       "type": "agent",
       "source": "codex-assets/agents/test-runner.toml",
-      "destination": "agents/test-runner.toml"
+      "destination": "agents/test-runner.toml",
+      "management": {
+        "owner": "harness",
+        "sourceOfTruth": "codex",
+        "scope": "global",
+        "readOnly": true,
+        "readOnlyReason": "Native Codex asset; manage it through Codex."
+      }
     },
     {
       "id": "codex-sweeper-agent",
       "type": "agent",
       "source": "codex-assets/agents/sweeper.toml",
-      "destination": "agents/sweeper.toml"
+      "destination": "agents/sweeper.toml",
+      "management": {
+        "owner": "harness",
+        "sourceOfTruth": "codex",
+        "scope": "global",
+        "readOnly": true,
+        "readOnlyReason": "Native Codex asset; manage it through Codex."
+      }
     },
     {
       "id": "codex-repo-setup-skill",
       "type": "skill",
       "source": "codex-assets/skills/repo-setup",
-      "destination": "skills/repo-setup"
+      "destination": "skills/repo-setup",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global",
+        "readOnly": false
+      }
     },
     {
       "id": "codex-repo-backed-obsidian-docs-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/repo-backed-obsidian-docs",
       "destination": "skills/repo-backed-obsidian-docs",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global",
+        "readOnly": false
+      }
     },
     {
       "id": "codex-sweeper-cleanup-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/sweeper-cleanup",
       "destination": "skills/sweeper-cleanup",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global",
+        "readOnly": false
+      }
     },
     {
       "id": "codex-repo-quality-setup-skill",
       "type": "skill",
       "source": "engine-assets/skills/repo-quality-setup",
       "destination": "skills/repo-quality-setup",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global",
+        "readOnly": false
+      }
     },
     {
       "id": "codex-agents-md-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/agents-md-authoring",
       "destination": "skills/agents-md-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global",
+        "readOnly": false
+      }
     },
     {
       "id": "codex-tdd-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/tdd",
       "destination": "skills/tdd",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "codex-elegy-planning-skill",
-      "type": "skill",
-      "source": "catalog-assets/shared-skills/elegy-planning",
-      "destination": "skills/elegy-planning",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global",
+        "readOnly": false
+      }
     }
   ],
   "sourcePatterns": []

@@ -24,7 +24,8 @@ The setup must remain usable without the Elegy desktop app running.
 |---|---|
 | Commands and tool configuration | The target repository |
 | Hook installation and dispatch | The repository's existing hook manager; Lefthook is the default when none exists |
-| Check profiles, evidence, and CI mapping | `.elegy/checks.json` and `elegy-checks` |
+| Adopted check profiles, evidence, and CI mapping | `.elegy/checks.json` and `elegy-checks` |
+| Read-only discovery and change-specific selection | `check-plan/v1` and the repository's native metadata |
 | Clean-checkout enforcement | GitHub Actions |
 | Readiness and next action | Copilot Workspace Checks UI |
 | Onboarding and migration | `repo-quality-setup` skill |
@@ -51,7 +52,13 @@ Pin third-party actions to full commit SHAs with a version comment and let Depen
 
 ### Elegy evidence
 
-`.elegy/checks.json` describes profiles, costs, blocking behavior, and the GitHub workflow/job that repeats each required lane. It does not install hooks and is not a second command implementation.
+`.elegy/checks.json` is optional adopted policy metadata. When present it
+describes profiles, costs, blocking behavior, and the GitHub workflow/job that
+repeats each required lane. When absent, `check-plan/v1` may discover native
+package scripts, Cargo commands, and hooks in read-only mode and execute only
+explicitly selected local candidates through an ephemeral runner config. It
+does not install hooks and is not a second command implementation. Persisting
+discovered policy remains an approval-gated `repo-quality-setup` operation.
 
 The supported profiles are:
 

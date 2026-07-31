@@ -83,6 +83,14 @@ function materializeAsset(route) {
     throw new Error(`Unknown shipped asset '${route.sourceAssetId || route.assetId}' in manifest routing.`);
   }
 
+  // Keep management explicit in generated manifests. A destination path is
+  // provenance, not evidence that Elegy owns the installed asset.
+  const management = route.management || sourceAsset.management || {
+    owner: 'elegy',
+    sourceOfTruth: 'elegy-catalog',
+    scope: 'global',
+  };
+
   return {
     id: route.assetId || sourceAsset.id,
     type: sourceAsset.type,
@@ -95,6 +103,7 @@ function materializeAsset(route) {
     ...(route.governance || sourceAsset.governance
       ? { governance: cloneJson(route.governance || sourceAsset.governance) }
       : {}),
+    management: cloneJson(management),
     ...(sourceAsset.appendix ? { appendix: sourceAsset.appendix } : {}),
   };
 }

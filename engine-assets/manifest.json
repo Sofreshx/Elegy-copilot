@@ -71,6 +71,7 @@
       "assetIds": [
         "skill-commit-validation-governance",
         "skill-repo-quality-setup",
+        "skill-repo-checks",
         "skill-commit-check-setup"
       ],
       "installTarget": "repo-local",
@@ -336,223 +337,400 @@
       "id": "agent-code-explorer",
       "type": "agent",
       "source": "engine-assets/agents/code-explorer.agent.md",
-      "destination": "agents/code-explorer.agent.md"
+      "destination": "agents/code-explorer.agent.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "agent-code-reviewer",
       "type": "agent",
       "source": "engine-assets/agents/code-reviewer.agent.md",
-      "destination": "agents/code-reviewer.agent.md"
+      "destination": "agents/code-reviewer.agent.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "agent-execute",
       "type": "agent",
       "source": "engine-assets/agents/execute.agent.md",
-      "destination": "agents/execute.agent.md"
+      "destination": "agents/execute.agent.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "agent-impl",
       "type": "agent",
       "source": "engine-assets/agents/impl.agent.md",
-      "destination": "agents/impl.agent.md"
+      "destination": "agents/impl.agent.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "agent-search",
       "type": "agent",
       "source": "engine-assets/agents/search.agent.md",
-      "destination": "agents/search.agent.md"
+      "destination": "agents/search.agent.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "agent-test-runner",
       "type": "agent",
       "source": "engine-assets/agents/test-runner.agent.md",
-      "destination": "agents/test-runner.agent.md"
+      "destination": "agents/test-runner.agent.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "hook-session-lifecycle",
       "type": "hook",
       "source": "engine-assets/hooks/session-lifecycle/hook.md",
-      "destination": "hooks/session-lifecycle/hook.md"
+      "destination": "hooks/session-lifecycle/hook.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "hook-worktree-session-tracker",
       "type": "hook",
       "source": "engine-assets/hooks/worktree-session-tracker/hook.md",
-      "destination": "hooks/worktree-session-tracker/hook.md"
+      "destination": "hooks/worktree-session-tracker/hook.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "copilot-instructions",
       "type": "instructions",
       "source": "catalog-assets/instructions/agent-session-defaults.md",
       "destination": "agent-session-defaults.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      },
       "appendix": "engine-assets/copilot-instructions-appendix.md"
     },
     {
       "id": "prompt-elegy-copilot-plan",
       "type": "prompt",
       "source": "engine-assets/prompts/elegy-copilot-plan.prompt.md",
-      "destination": "prompts/elegy-copilot-plan.prompt.md"
+      "destination": "prompts/elegy-copilot-plan.prompt.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-core-guardrails",
       "type": "skill",
       "source": "engine-assets/skills/core-guardrails",
       "destination": "skills/core-guardrails",
-      "loadMode": "always"
+      "loadMode": "always",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-discovery",
       "type": "skill",
       "source": "engine-assets/skills/skill-discovery",
       "destination": "skills/skill-discovery",
-      "loadMode": "always"
+      "loadMode": "always",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-documentation-authoring",
       "type": "skill",
       "source": "engine-assets/skills/documentation-authoring",
       "destination": "skills/documentation-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-documentation-structure-governance",
       "type": "skill",
       "source": "engine-assets/skills/documentation-structure-governance",
       "destination": "skills/documentation-structure-governance",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-implementation-handoff",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-handoff",
       "destination": "skills/implementation-handoff",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-implementation-review",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-review",
       "destination": "skills/implementation-review",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-project-conventions-governance",
       "type": "skill",
       "source": "engine-assets/skills/project-conventions-governance",
       "destination": "skills/project-conventions-governance",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-repo-setup-governance",
       "type": "skill",
       "source": "engine-assets/skills/repo-setup-governance",
       "destination": "skills/repo-setup-governance",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-roadmap-authoring",
       "type": "skill",
       "source": "engine-assets/skills/roadmap-authoring",
       "destination": "skills/roadmap-authoring",
-      "loadMode": "always"
+      "loadMode": "always",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-rubberduck-plan-review",
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",
       "destination": "skills/rubberduck-plan-review",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-security",
       "type": "skill",
       "source": "engine-assets/skills/security",
       "destination": "skills/security",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-spec-authoring",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-authoring",
       "destination": "skills/spec-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-spec-dev",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-dev",
       "destination": "skills/spec-dev",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-spec-review",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-review",
       "destination": "skills/spec-review",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-ui-design-spec",
       "type": "skill",
       "source": "catalog-assets/shared-skills/ui-design-spec",
       "destination": "skills/ui-design-spec",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-sweeper-cleanup",
       "type": "skill",
       "source": "catalog-assets/shared-skills/sweeper-cleanup",
       "destination": "skills/sweeper-cleanup",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-commit-check-setup",
       "type": "skill",
       "source": "engine-assets/skills/commit-check-setup",
       "destination": "skills/commit-check-setup",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-repo-quality-setup",
       "type": "skill",
       "source": "engine-assets/skills/repo-quality-setup",
       "destination": "skills/repo-quality-setup",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
+    },
+    {
+      "id": "skill-repo-checks",
+      "type": "skill",
+      "source": "engine-assets/skills/repo-checks",
+      "destination": "skills/repo-checks",
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-commit-validation-governance",
       "type": "skill",
       "source": "engine-assets/skills/commit-validation-governance",
       "destination": "skills/commit-validation-governance",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-skill-authoring",
       "type": "skill",
       "source": "catalog-assets/shared-skills/skill-authoring",
       "destination": "skills/skill-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-agents-md-authoring",
       "type": "skill",
       "source": "catalog-assets/shared-skills/agents-md-authoring",
       "destination": "skills/agents-md-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-tdd",
       "type": "skill",
       "source": "catalog-assets/shared-skills/tdd",
       "destination": "skills/tdd",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "skill-brainstorming",
       "type": "skill",
       "source": "catalog-assets/shared-skills/brainstorming",
       "destination": "skills/brainstorming",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     }
   ],
   "sourcePatterns": []

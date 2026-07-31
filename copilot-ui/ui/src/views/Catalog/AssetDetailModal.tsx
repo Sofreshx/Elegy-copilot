@@ -3,6 +3,12 @@ import type { CatalogGlobalItem, CatalogGlobalHarness, CatalogGlobalHarnessState
 import { Badge } from '../../components';
 import { normalizeProvenance } from './provenance';
 import AssetReader from './AssetReader';
+import {
+  getManagementMetadata,
+  getManagementOwnerClass,
+  getManagementOwnerLabel,
+  getManagementScopeLabel,
+} from './harnessStateHelper';
 
 interface AssetDetailModalProps {
   item: CatalogGlobalItem;
@@ -53,6 +59,50 @@ function renderHarnessActions({
   mutating?: boolean;
 }): React.ReactNode {
   const state: string = hs.state || hs.syncStatus || '';
+  const management = getManagementMetadata(hs);
+  if (management.readOnly) {
+    return (
+      <span className="asset-detail-readonly-note">
+        <span className={getManagementOwnerClass(hs)}>{getManagementOwnerLabel(hs)}</span>
+        {' · '}{getManagementScopeLabel(hs)}
+        {management.readOnlyReason ? ` · ${management.readOnlyReason}` : ' · status only'}
+      </span>
+    );
+  }
+  const actionKind = (hs.metadata as Record<string, unknown> | null)?.actionKind as string | undefined;
+  if (actionKind === 'external-source') {
+    const canActivate = hs.actions?.canActivate === true;
+    const canDeactivate = hs.actions?.canDeactivate === true && (hs.active || hs.installed);
+    return (
+      <>
+        {canActivate ? (
+          <button
+            className="button button-sm button-primary"
+            disabled={mutating}
+            onClick={() => onAction?.(item, hs)}
+            data-testid="asset-detail-activate-btn"
+            type="button"
+          >
+            Activate
+          </button>
+        ) : null}
+        {canDeactivate ? (
+          <button
+            className="button button-sm button-secondary"
+            disabled={mutating}
+            onClick={() => onAction?.(item, hs)}
+            data-testid="asset-detail-deactivate-btn"
+            type="button"
+          >
+            Deactivate
+          </button>
+        ) : null}
+        {!canActivate && !canDeactivate ? (
+          <span className="asset-detail-readonly-note">External source status only</span>
+        ) : null}
+      </>
+    );
+  }
   const targets = item.actions?.installSurfaceTargets || [];
   const canInstall = targets.length > 0 && (state === 'available' || state === 'not-installed' || state === 'missing');
   const canUpdate = targets.length > 0 && (state === 'installed' || state === 'synced' || state === 'stale');
@@ -169,7 +219,12 @@ export default function AssetDetailModal({
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
               <Badge tone={getKindBadgeTone(item.kind)}>{item.kind}</Badge>
               {item.sourceType ? <Badge tone="neutral">{item.sourceType}</Badge> : null}
-              <Badge tone="brand">{provenance.group}</Badge>
+                  <Badge tone="brand">{provenance.group}</Badge>
+                  {(item.harnessStates || []).length === 1 ? (
+                    <span className={getManagementOwnerClass(item.harnessStates?.[0])}>
+                      {getManagementOwnerLabel(item.harnessStates?.[0])} · {getManagementScopeLabel(item.harnessStates?.[0])}
+                    </span>
+                  ) : null}
               {item.providerId ? <Badge tone="accent">{item.providerId}</Badge> : null}
             </div>
           </div>
@@ -198,6 +253,9 @@ export default function AssetDetailModal({
                   <span className="asset-detail-harness-title">{hs.title || hs.harnessId}</span>
                   <span className={`state-badge ${getHarnessStateBadgeClass(hs.state || hs.syncStatus)}`}>
                     {getHarnessStateLabel(hs.state || hs.syncStatus)}
+                  </span>
+                  <span className={getManagementOwnerClass(hs)}>
+                    {getManagementOwnerLabel(hs)} · {getManagementScopeLabel(hs)}
                   </span>
                   {hs.installPath ? (
                     <span className="asset-detail-harness-path" title={hs.installPath}>

@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Badge, Button, Panel, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import type { ClaudeCodeStatusResponse } from '../../lib/types';
 import { claudeCodeStore } from '../../stores/claudeCodeStore';
 import ClaudeCodeProviderPanel from '../../views/Settings/ClaudeCodeProviderPanel';
+import HarnessAssetsPanel from '../../views/Catalog/HarnessAssetsPanel';
 
 function StatusDot({ status }: { status: string }) {
   const className = status === 'ok' ? 'health-dot health-dot-ok'
@@ -112,6 +113,7 @@ function SetupSection({ status }: { status: ClaudeCodeStatusResponse }) {
 
 export default function ClaudeCodeView() {
   const state = useStoreValue(claudeCodeStore);
+  const [activeSection, setActiveSection] = useState<'overview' | 'assets'>('overview');
 
   useEffect(() => {
     void claudeCodeStore.load();
@@ -126,6 +128,29 @@ export default function ClaudeCodeView() {
         <h2>Claude Code Setup</h2>
       </Toolbar>
 
+      <div className="workspace-nav" role="tablist" aria-label="Claude Code sections">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === 'overview'}
+          className={`opencode-tab${activeSection === 'overview' ? ' opencode-tab-active' : ''}`}
+          data-testid="claude-code-tab-overview"
+          onClick={() => setActiveSection('overview')}
+        >
+          Overview
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === 'assets'}
+          className={`opencode-tab${activeSection === 'assets' ? ' opencode-tab-active' : ''}`}
+          data-testid="claude-code-tab-assets"
+          onClick={() => setActiveSection('assets')}
+        >
+          Assets
+        </button>
+      </div>
+
       <div className="opencode-content">
         {state.loading && !state.status ? (
           <p className="opencode-loading" data-testid="claude-code-loading">Loading Claude Code status...</p>
@@ -139,7 +164,11 @@ export default function ClaudeCodeView() {
           <p className="opencode-message" data-testid="claude-code-message">{state.message}</p>
         ) : null}
 
-        {state.status && state.status.overallStatus ? (
+        {activeSection === 'assets' ? (
+          <HarnessAssetsPanel harnessId="claude-code" />
+        ) : null}
+
+        {activeSection === 'overview' && state.status && state.status.overallStatus ? (
           <>
             <ReadinessSection status={state.status} />
             <SetupSection status={state.status} />

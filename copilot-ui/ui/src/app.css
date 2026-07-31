@@ -4900,6 +4900,46 @@ textarea:focus-visible,
   box-shadow: 0 1px 6px color-mix(in srgb, var(--color-accent-400) 8%, transparent);
 }
 
+/* Ownership is intentionally conveyed with both text and a colored token. */
+.asset-owner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  border: 1px solid var(--color-ink-200);
+  border-radius: 999px;
+  color: var(--color-ink-600);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0.12rem 0.42rem;
+  white-space: nowrap;
+}
+
+.asset-owner-badge--elegy {
+  background: color-mix(in srgb, var(--color-accent-400) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent-500) 42%, var(--color-ink-200));
+  color: var(--color-accent-700, var(--color-accent-600));
+}
+
+.asset-owner-badge--harness {
+  background: color-mix(in srgb, var(--color-brand-400) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-brand-500) 42%, var(--color-ink-200));
+  color: var(--color-brand-700, var(--color-brand-600));
+}
+
+.asset-owner-badge--repository {
+  background: color-mix(in srgb, var(--color-success) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-success) 42%, var(--color-ink-200));
+  color: var(--color-success);
+}
+
+.asset-owner-badge--external,
+.asset-owner-badge--mixed {
+  background: var(--color-surface-2);
+  border-color: var(--color-ink-300);
+  color: var(--color-ink-600);
+}
+
 .assets-tools-item-header {
   display: flex;
   justify-content: space-between;
@@ -4950,6 +4990,32 @@ textarea:focus-visible,
   border: 1px solid var(--color-warning-200);
   font-size: 0.75rem;
   color: var(--color-warning-600);
+}
+
+.asset-ownership-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-1);
+  color: var(--color-ink-500);
+  font-size: 0.75rem;
+}
+
+.asset-ownership-legend-title {
+  color: var(--color-ink-800);
+  font-weight: 700;
+  margin-right: var(--space-2xs);
+}
+
+.asset-ownership-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
 }
 
 /* Sources tab layout */
@@ -14467,6 +14533,12 @@ textarea:focus-visible,
   pointer-events: auto;
 }
 
+.asset-detail-readonly-note {
+  color: var(--color-ink-500);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
 .asset-target-summary {
   display: flex;
   flex-wrap: wrap;
@@ -14937,6 +15009,12 @@ textarea:focus-visible,
   white-space: nowrap;
 }
 
+.harness-card-scope {
+  color: var(--color-ink-500);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
 .harness-card-meta {
   display: flex;
   align-items: center;
@@ -15241,6 +15319,134 @@ textarea:focus-visible,
 
 .workspace-execution-timeline small {
   color: var(--color-ink-500);
+}
+
+/* ── Workspace Execution: discovered commands ── */
+
+.workspace-execution-health {
+  flex-wrap: wrap;
+}
+
+.workspace-execution-scan-time {
+  color: var(--color-ink-500);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.workspace-execution-commands,
+.workspace-execution-workers {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.workspace-execution-setup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.workspace-execution-setup-row > span {
+  color: var(--color-ink-600);
+}
+
+.workspace-execution-command-list {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.workspace-execution-group {
+  display: grid;
+  gap: var(--space-2xs);
+}
+
+.workspace-execution-group-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-2xs);
+  border-bottom: 1px solid var(--color-ink-200);
+}
+
+.workspace-execution-group-header span {
+  color: var(--color-ink-500);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+
+.workspace-execution-command {
+  display: grid;
+  gap: var(--space-2xs);
+  padding: var(--space-sm);
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-1);
+}
+
+.workspace-execution-command.is-active {
+  border-color: var(--color-brand-500);
+  background: var(--color-brand-50);
+}
+
+.workspace-execution-command-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.workspace-execution-command-copy {
+  display: grid;
+  gap: var(--space-2xs);
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.workspace-execution-command-copy small {
+  color: var(--color-ink-500);
+}
+
+.workspace-execution-command-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  margin-left: auto;
+}
+
+.workspace-execution-output {
+  max-height: 20rem;
+  margin: 0;
+  padding: var(--space-sm);
+  overflow: auto;
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-ink-900);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  white-space: pre-wrap;
+}
+
+.workspace-execution-workers-toggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs) 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-700);
+  cursor: pointer;
+}
+
+.workspace-execution-workers-toggle button:hover {
+  color: var(--color-brand-600);
+}
+
+.workspace-execution-workers-body {
+  display: grid;
+  gap: var(--space-md);
 }
 
 @media (max-width: 960px) {

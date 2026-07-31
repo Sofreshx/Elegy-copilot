@@ -168,6 +168,11 @@ function handleAssetsInstallSurfaces(ctx, deps) {
       opencodeSkillsHome,
       claudeHome,
       claudeSkillsHome,
+      // The Elegy UI is never the lifecycle authority for native Codex
+      // agents/config. Keep the UI install lane limited to explicit Elegy
+      // compatibility assets; the Codex CLI remains the native authority.
+      managedOnly: body.target === 'codex' || body.target === 'all',
+      skipConfig: body.target === 'codex' || body.target === 'all',
     }))
     .then((result) => sendJson(res, 200, result))
     .catch((e) => sendJson(res, e.statusCode || 500, { error: String(e.message || e) }));

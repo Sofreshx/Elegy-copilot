@@ -215,8 +215,8 @@ function SettingsAppSection({ appInfo, infoLoading }: { appInfo: AppInfo; infoLo
       <Panel title="Factory Reset" subtitle="Reset all integrated surfaces to defaults" testId="settings-factory-reset">
         <div className="settings-factory-reset">
           <p className="settings-factory-reset-desc">
-            Resets OpenCode config to defaults and removes Codex experimental settings.
-            Installed tools and workspace data remain untouched.
+            Resets OpenCode configuration to defaults. Native Codex configuration,
+            installed assets, and workspace data remain untouched.
           </p>
 
           {!showConfirm ? (

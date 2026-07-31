@@ -1,116 +1,9 @@
-import type { CodexProviderDeepseekStatus, CodexProviderStatusResponse, MoonBridgeBootstrapStatus } from '../types';
+import type { CodexProviderStatusResponse } from '../types';
 import { apiRequest, normalizeCodexProviderStatusResponse } from './core';
 
 export async function getCodexProviderStatus(baseUrl?: string): Promise<CodexProviderStatusResponse> {
   const payload = await apiRequest<unknown>('/api/config/codex-provider', { baseUrl });
   return normalizeCodexProviderStatusResponse(payload);
-}
-
-export async function setCodexProviderMode(
-  mode: 'native' | 'deepseek-bridge',
-  baseUrl?: string,
-): Promise<CodexProviderStatusResponse> {
-  const payload = await apiRequest<unknown>('/api/config/codex-provider', {
-    baseUrl,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode }),
-  });
-  return normalizeCodexProviderStatusResponse(payload);
-}
-
-export async function resetCodexProvider(
-  hard = false,
-  baseUrl?: string,
-): Promise<CodexProviderStatusResponse> {
-  const payload = await apiRequest<unknown>('/api/config/codex-provider/reset', {
-    baseUrl,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ hard }),
-  });
-  return normalizeCodexProviderStatusResponse(payload);
-}
-
-export interface DeepseekSettingsPayload {
-  bridgePath?: string;
-  bridgeConfigPath?: string;
-  bridgeUrl?: string;
-  keyConfigured?: boolean;
-  apiKey?: string;
-}
-
-export async function getDeepseekStatus(baseUrl?: string): Promise<CodexProviderDeepseekStatus> {
-  const payload = await apiRequest<CodexProviderDeepseekStatus>('/api/config/codex-provider/deepseek', { baseUrl });
-  return payload;
-}
-
-export async function saveDeepseekSettings(
-  settings: DeepseekSettingsPayload,
-  baseUrl?: string,
-): Promise<CodexProviderDeepseekStatus> {
-  const payload = await apiRequest<CodexProviderDeepseekStatus>('/api/config/codex-provider/deepseek', {
-    baseUrl,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(settings),
-  });
-  return payload;
-}
-
-export async function startDeepseekBridge(baseUrl?: string): Promise<CodexProviderDeepseekStatus & { bridgeRunning: boolean; message: string }> {
-  const payload = await apiRequest<CodexProviderDeepseekStatus & { bridgeRunning: boolean; message: string }>(
-    '/api/config/codex-provider/deepseek/start',
-    { baseUrl, method: 'POST' },
-  );
-  return payload;
-}
-
-export async function stopDeepseekBridge(baseUrl?: string): Promise<{ bridgeRunning: boolean; message: string }> {
-  const payload = await apiRequest<{ bridgeRunning: boolean; message: string }>(
-    '/api/config/codex-provider/deepseek/stop',
-    { baseUrl, method: 'POST' },
-  );
-  return payload;
-}
-
-export async function checkDeepseekBridge(baseUrl?: string): Promise<CodexProviderDeepseekStatus> {
-  const payload = await apiRequest<CodexProviderDeepseekStatus>(
-    '/api/config/codex-provider/deepseek/status',
-    { baseUrl, method: 'POST' },
-  );
-  return payload;
-}
-
-export async function getBootstrapStatus(baseUrl?: string): Promise<MoonBridgeBootstrapStatus> {
-  const payload = await apiRequest<MoonBridgeBootstrapStatus>(
-    '/api/config/codex-provider/deepseek/bootstrap',
-    { baseUrl },
-  );
-  return payload;
-}
-
-export interface BootstrapMoonBridgeResponse {
-  success: boolean;
-  message?: string;
-  error?: string;
-  status: MoonBridgeBootstrapStatus;
-}
-
-export async function bootstrapMoonBridge(
-  options: { forceRebuild?: boolean } = {},
-  baseUrl?: string,
-): Promise<BootstrapMoonBridgeResponse> {
-  const payload = await apiRequest<BootstrapMoonBridgeResponse>(
-    '/api/config/codex-provider/deepseek/bootstrap',
-    {
-      baseUrl,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ forceRebuild: options.forceRebuild }),
-    },
-  );
-  return payload;
 }
 
 export function getCodexCliStatus(baseUrl?: string): Promise<{ codexHome: string; cli: { installed: boolean; version: string | null; installCommand: string; lastError: string | null } }> {
@@ -122,52 +15,6 @@ export function installCodexCli(baseUrl?: string): Promise<{ ok: boolean; versio
     baseUrl,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-  });
-}
-
-export async function factoryResetCodexProvider(baseUrl?: string): Promise<CodexProviderStatusResponse> {
-  const payload = await apiRequest<unknown>('/api/config/codex-provider/factory-reset', {
-    baseUrl,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
-  return normalizeCodexProviderStatusResponse(payload);
-}
-
-export async function reinstallCodexSurface(baseUrl?: string): Promise<{ target: string; dryRun: boolean; force: boolean; surfaces: unknown[] }> {
-  return apiRequest('/api/assets/install-surfaces', {
-    baseUrl,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ target: 'codex', force: true }),
-  });
-}
-
-export interface CodexPlanningSkillStatus {
-  installed: boolean;
-  skillDir: string;
-  skillFile: string | null;
-  codexHome: string;
-}
-
-export interface CodexPlanningStatusResponse {
-  codexHome: string;
-  planningSkill: CodexPlanningSkillStatus;
-  planningCliPath: string | null;
-  planningDbPath: string | null;
-  ready: boolean;
-}
-
-export async function getCodexPlanningStatus(baseUrl?: string): Promise<CodexPlanningStatusResponse> {
-  return apiRequest<CodexPlanningStatusResponse>('/api/codex-planning-status', { baseUrl });
-}
-
-export async function installCodexPlanningSkill(force = false, baseUrl?: string): Promise<{ ok: boolean; syncResult?: unknown; error?: string }> {
-  return apiRequest('/api/tooling-updates/update/elegy-skills-codex', {
-    baseUrl,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ force }),
   });
 }
 
@@ -196,8 +43,11 @@ export interface CodexSubagentRecord {
   name: string;
   description: string;
   model: string | null;
+  modelProvider: string | null;
   modelReasoningEffort: string | null;
   sandboxMode: string | null;
+  writeEnabled: boolean;
+  requestedRelease: string | null;
   routingMode: string;
   fastModel: string | null;
   allowSpark: boolean;
@@ -253,9 +103,27 @@ export interface CodexSubagentsResponse {
 
 export interface CodexSubagentUsageRun {
   threadId: string;
-  parentThreadId: string;
+  parentThreadId: string | null;
   agent: string;
+  nickname: string | null;
+  status: string | null;
+  state: 'starting' | 'running' | 'waiting_tool' | 'completed' | 'failed' | 'canceled' | 'stale' | string;
   model: string | null;
+  reasoningEffort: string | null;
+  sandboxMode: string | null;
+  createdAt: string | null;
+  startedAt: string | null;
+  providerId: string | null;
+  providerProfile: string | null;
+  providerRole: string | null;
+  modelSource: string | null;
+  resolvedModelId: string | null;
+  requestedRelease: string | null;
+  costPolicy: string | null;
+  writeMode: string | null;
+  jobIdentifier: string | null;
+  scopeStatus: 'not_applicable' | 'verified' | 'scope_violation' | 'unknown' | string;
+  changedFiles: string[];
   toolEvents: number;
   errors: number;
   completed: boolean;
@@ -330,100 +198,4 @@ export function uninstallCodexSubagent(name: string, force = false, baseUrl?: st
 
 export function getCodexSubagentUsage(baseUrl?: string): Promise<CodexSubagentUsageResponse> {
   return apiRequest('/api/codex/subagents/usage', { baseUrl });
-}
-
-export interface OpenCodeWorkerConfig {
-  enabled: boolean;
-  defaultModelProfile: string;
-  roleProfiles: Record<string, string>;
-  rolePolicies: Record<string, { profile?: string; writeEnabled: boolean }>;
-  writeEnabled: boolean;
-  allowPaidModels: boolean;
-  profilesPath: string | null;
-  journalPath: string | null;
-  timeoutSeconds: number;
-}
-
-export interface OpenCodeWorkerProfile {
-  id: string;
-  label: string;
-  description: string;
-  tags: string[];
-  roleModels: Record<string, string>;
-  paid: boolean;
-}
-
-export interface OpenCodeWorkersStatusResponse {
-  installed: boolean;
-  enabled: boolean;
-  configPath: string;
-  journalPath: string;
-  profileCatalogPath: string;
-  journalScope: string;
-  config: OpenCodeWorkerConfig;
-  roles: string[];
-  effectiveRoleProfiles: Record<string, string>;
-  effectiveRolePolicies: Record<string, { profile: string; writeEnabled: boolean; mode: string }>;
-  roleModelMatrix: Record<string, Record<string, string | null>>;
-  profiles: OpenCodeWorkerProfile[];
-}
-
-export interface OpenCodeWorkersUsageResponse {
-  generatedAt: string;
-  source: { kind: string; path: string };
-  summary: {
-    runs: number;
-    completed: number;
-    failed: number;
-    policyViolations: number;
-    permissionDenials: number;
-    permissionRequests: number;
-    writeAttempts: number;
-    changedFiles: number;
-    dirtyGitStates: number;
-    tokens: number;
-    cost: number;
-  };
-  byModel: Array<{ name: string; count: number }>;
-  byRole: Array<{ name: string; count: number }>;
-  journalScope: string;
-  permissionEvidence: Array<Record<string, unknown>>;
-  recentJobs: Array<Record<string, unknown>>;
-}
-
-export function getOpenCodeWorkersStatus(options: { repoPath?: string | null } = {}, baseUrl?: string): Promise<OpenCodeWorkersStatusResponse> {
-  const query = options.repoPath ? `?repoPath=${encodeURIComponent(options.repoPath)}` : '';
-  return apiRequest(`/api/codex/opencode-workers${query}`, { baseUrl });
-}
-
-export function saveOpenCodeWorkersConfig(
-  config: Partial<OpenCodeWorkerConfig>,
-  options: { repoPath?: string | null } = {},
-  baseUrl?: string,
-): Promise<OpenCodeWorkersStatusResponse> {
-  return apiRequest('/api/codex/opencode-workers/config', {
-    baseUrl,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ config, repoPath: options.repoPath || '' }),
-  });
-}
-
-export function getOpenCodeWorkersUsage(options: { repoPath?: string | null } = {}, baseUrl?: string): Promise<OpenCodeWorkersUsageResponse> {
-  const query = options.repoPath ? `?repoPath=${encodeURIComponent(options.repoPath)}` : '';
-  return apiRequest(`/api/codex/opencode-workers/usage${query}`, { baseUrl });
-}
-
-export function installOpenCodeWorkers(baseUrl?: string): Promise<{ ok: boolean; status: OpenCodeWorkersStatusResponse; result?: unknown }> {
-  return apiRequest('/api/codex/opencode-workers/install', {
-    baseUrl,
-    method: 'POST',
-  });
-}
-
-export function removeOpenCodeWorkers(baseUrl?: string): Promise<{ ok: boolean; status: OpenCodeWorkersStatusResponse; removed?: string[] }> {
-  return apiRequest('/api/codex/opencode-workers/remove', {
-    baseUrl,
-    method: 'POST',
-  });
 }

@@ -46,8 +46,29 @@ async function main() {
     assert.strictEqual(instructions.source, 'catalog-assets/instructions/agent-session-defaults.md');
     assert.strictEqual(instructions.appendix, 'codex-assets/home/AGENTS-appendix.md');
     assert.strictEqual(instructions.destination, 'AGENTS.md');
-    const planningSkill = manifest.assets.find((asset) => asset.id === 'codex-elegy-planning-skill');
-    assert.strictEqual(planningSkill.loadMode, 'on-demand');
+    assert.deepStrictEqual(
+      manifest.assets.filter((asset) => asset.type === 'agent').map((asset) => asset.id),
+      [
+        'codex-explorer-agent',
+        'codex-reviewer-agent',
+        'codex-reviewer-strong-agent',
+        'codex-worker-agent',
+        'codex-test-runner-agent',
+        'codex-sweeper-agent',
+      ],
+    );
+    assert.deepStrictEqual(
+      manifest.assets.filter((asset) => asset.type === 'skill').map((asset) => asset.id),
+      [
+        'codex-repo-setup-skill',
+        'codex-repo-backed-obsidian-docs-skill',
+        'codex-sweeper-cleanup-skill',
+        'codex-repo-quality-setup-skill',
+        'codex-agents-md-authoring-skill',
+        'codex-tdd-skill',
+      ],
+    );
+    assert.ok(!manifest.assets.some((asset) => /planning|repo-checks|openai|go/i.test(asset.id)));
   });
 
   await test('installer creates lean Codex assets and reruns idempotently', async () => {
@@ -85,7 +106,6 @@ async function main() {
         'repo-quality-setup',
         'agents-md-authoring',
         'tdd',
-        'elegy-planning',
       ]) {
         assert.ok(fs.existsSync(path.join(skillsHome, retainedSkill, 'SKILL.md')), retainedSkill);
       }
@@ -129,7 +149,6 @@ async function main() {
 
       const configToml = fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8');
       const profileToml = fs.readFileSync(path.join(codexHome, 'instruction_engine_plan_review.config.toml'), 'utf8');
-      assert.ok(configToml.includes('review_model = "deepseek-v4-pro"'));
       assert.ok(configToml.includes('[agents]'));
       assert.ok(configToml.includes('enabled = true'));
       assert.ok(configToml.includes('max_concurrent_threads_per_session = 6'));
@@ -138,10 +157,10 @@ async function main() {
       assert.ok(configToml.includes('default_subagent_reasoning_effort = "high"'));
       assert.ok(configToml.includes('max_depth = 1'));
       assert.ok(configToml.includes('job_max_runtime_seconds = 1800'));
+      assert.doesNotMatch(configToml, /review_model|model_provider|model_providers|deepseek|opencode/i);
       assert.ok(!configToml.includes('[profiles.instruction_engine_plan_review]'));
-      assert.ok(profileToml.includes('model = "mimo-v2-pro"'));
-      assert.ok(profileToml.includes('model_provider = "opencode-go"'));
       assert.ok(profileToml.includes('plan_mode_reasoning_effort = "xhigh"'));
+      assert.doesNotMatch(profileToml, /model_provider|model_providers|deepseek|opencode/i);
 
       const secondSummary = installer.runInstall({
         codexHome,
@@ -255,7 +274,7 @@ async function main() {
     });
   });
 
-  await test('installer omits managed OpenCode provider defaults when external providers are disabled', async () => {
+  await test('managed-only installer syncs Elegy assets without touching native Codex state', async () => {
     withTempDir((root) => {
       const codexHome = path.join(root, '.codex');
       const skillsHome = path.join(codexHome, 'skills');
@@ -264,15 +283,53 @@ async function main() {
         force: true,
         codexHome,
         skillsHome,
-        enableExternalProviders: false,
       });
 
+      const explorerPath = path.join(codexHome, 'agents', 'explorer.toml');
+      const configPath = path.join(codexHome, 'config.toml');
+      const nativeAgent = fs.readFileSync(explorerPath, 'utf8');
+      const nativeConfig = fs.readFileSync(configPath, 'utf8');
+      fs.writeFileSync(explorerPath, `${nativeAgent}\n# Codex-owned customization\n`, 'utf8');
+      fs.writeFileSync(configPath, `${nativeConfig}\n# Codex-owned configuration\n`, 'utf8');
+
+      installer.runInstall({
+        force: true,
+        managedOnly: true,
+        skipConfig: true,
+        codexHome,
+        skillsHome,
+      });
+
+      assert.match(fs.readFileSync(explorerPath, 'utf8'), /Codex-owned customization/);
+      assert.match(fs.readFileSync(configPath, 'utf8'), /Codex-owned configuration/);
       const configToml = fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8');
       const profileToml = fs.readFileSync(path.join(codexHome, 'instruction_engine_plan_review.config.toml'), 'utf8');
-      assert.ok(!configToml.includes('[model_providers.'), configToml);
-      assert.ok(!profileToml.includes('model_provider = "opencode-go"'), profileToml);
-      assert.ok(!profileToml.includes('model = "mimo-v2-pro"'), profileToml);
-      assert.ok(profileToml.includes('plan_mode_reasoning_effort = "xhigh"'), profileToml);
+      assert.equal(configToml, fs.readFileSync(configPath, 'utf8'));
+      assert.equal(profileToml, fs.readFileSync(path.join(codexHome, 'instruction_engine_plan_review.config.toml'), 'utf8'));
+      assert.ok(fs.existsSync(path.join(skillsHome, 'repo-setup', 'SKILL.md')));
+    });
+  });
+
+  await test('managed-only installer prunes retired Elegy-managed skills', async () => {
+    withTempDir((root) => {
+      const codexHome = path.join(root, '.codex');
+      const skillsHome = path.join(codexHome, 'skills');
+      installer.runInstall({ force: true, codexHome, skillsHome });
+
+      const retiredSkillPath = path.join(skillsHome, 'elegy-planning');
+      fs.mkdirSync(retiredSkillPath, { recursive: true });
+      fs.writeFileSync(path.join(retiredSkillPath, 'SKILL.md'), '# Retired skill\n', 'utf8');
+      const inventoryPath = path.join(codexHome, '.elegy-copilot-codex-managed.json');
+      const inventory = JSON.parse(fs.readFileSync(inventoryPath, 'utf8'));
+      inventory.skills['elegy-planning'] = dirHash(retiredSkillPath);
+      fs.writeFileSync(inventoryPath, `${JSON.stringify(inventory, null, 2)}\n`, 'utf8');
+
+      const summary = installer.runInstall({ managedOnly: true, skipConfig: true, codexHome, skillsHome });
+
+      assert.equal(fs.existsSync(retiredSkillPath), false);
+      assert.ok(summary.cleanup.pruneResults.some(
+        (entry) => entry.action === 'pruned' && entry.path === retiredSkillPath,
+      ));
     });
   });
 

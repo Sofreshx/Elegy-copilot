@@ -28,7 +28,6 @@ import {
   applyStash,
   popStash,
   dropStash,
-  getGitCheckState,
 } from '../../lib/api/git';
 import type { MergeWorktreeResponse } from '../../lib/api/git';
 import { listExecutorWorktrees, analyzeWorktreeCleanup, removeWorktreeWithBranch } from '../../lib/api/executor';
@@ -270,14 +269,10 @@ const STATE_LABELS: Record<WorktreeComputedState, string> = {
 // ─── CompactCheckStatus inline component ────────────────────────────────────
 
 function CompactCheckStatus({ repoPath }: { repoPath: string }) {
-  const [state, setState] = useState<GitCheckStateResponse | null>(null);
-  
-  useEffect(() => {
-    if (!repoPath) return;
-    let cancelled = false;
-    getGitCheckState(repoPath).then(s => { if (!cancelled) setState(s); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [repoPath]);
+  const checksState = useStoreValue(checksStore.store);
+  const state: GitCheckStateResponse | null = checksState.repoPath === repoPath
+    ? checksState.checkState
+    : null;
 
   if (!state?.lastRun) {
     return (
@@ -354,6 +349,7 @@ interface WorkspaceGitTabProps {
   onSetPullRequestBody: (b: string) => void;
   onRefreshGitState: () => void;
   onGenerateCommitMessage: () => void;
+  onOpenChecks?: () => void;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -376,6 +372,7 @@ export default function WorkspaceGitTab({
   onSetPullRequestBody,
   onRefreshGitState,
   onGenerateCommitMessage,
+  onOpenChecks,
 }: WorkspaceGitTabProps) {
   const checksState = useStoreValue(checksStore.store);
   const summary = gitState.summary;
@@ -385,6 +382,10 @@ export default function WorkspaceGitTab({
   const changeCount = summary?.changedFiles ?? 0;
   const stagedCount = summary?.stagedFiles ?? 0;
   const unstagedCount = changeCount - stagedCount;
+
+  useEffect(() => {
+    if (repoPath) void checksStore.load(repoPath);
+  }, [repoPath]);
 
   // ─── Section 1: Branch switch popover ──────────────────────────────────────
   const [showBranchPopover, setShowBranchPopover] = useState(false);
@@ -2128,6 +2129,7 @@ export default function WorkspaceGitTab({
             checkResults={failedCheckResults || checkResults}
             runningChecks={runningChecks}
             onRunChecks={handleComposerRunChecks}
+            onOpenChecks={onOpenChecks}
           />
         </div>
       </div>

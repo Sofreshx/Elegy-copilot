@@ -5,7 +5,6 @@ import {
   resetOpenCodeConfig,
   installOpenCodeAssets,
   installOpenCodeTooling,
-  installCodexPlanning as installCodexPlanningApi,
   installOpenCodeCli as installOpenCodeCliApi,
   getOpenCodeRequestLogs,
   getGoWorkspaces,
@@ -302,32 +301,6 @@ function createOpenCodeStore() {
     }
   }
 
-  async function installCodexPlanning(): Promise<void> {
-    store.setState((state) => ({ ...state, toolingInstalling: true, error: null, message: null }));
-    try {
-      const response = await installCodexPlanningApi();
-      if (response.ok) {
-        store.setState((state) => ({
-          ...state,
-          toolingInstalling: false,
-          message: 'Codex elegy-planning skill installed.',
-        }));
-      } else {
-        store.setState((state) => ({
-          ...state,
-          toolingInstalling: false,
-          error: response.error || 'Failed to install Codex planning skill.',
-        }));
-      }
-    } catch (error) {
-      store.setState((state) => ({
-        ...state,
-        toolingInstalling: false,
-        error: toErrorMessage(error),
-      }));
-    }
-  }
-
   async function installOpenCodeCli(): Promise<void> {
     store.setState((state) => ({ ...state, installingCli: true, error: null, message: null }));
     try {
@@ -603,7 +576,6 @@ function createOpenCodeStore() {
     resetConfig,
     installAssets,
     installTooling,
-    installCodexPlanning,
     installOpenCodeCli,
     installWorktreePermissions,
     loadRequestLogs,

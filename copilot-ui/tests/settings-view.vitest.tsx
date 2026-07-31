@@ -6,15 +6,8 @@ import { codexProviderStore } from '../ui/src/stores/codexProviderStore';
 
 const apiMocks = vi.hoisted(() => ({
   getCodexProviderStatus: vi.fn(),
-  setCodexProviderMode: vi.fn(),
-  resetCodexProvider: vi.fn(),
-  getDeepseekStatus: vi.fn(),
-  saveDeepseekSettings: vi.fn(),
-  startDeepseekBridge: vi.fn(),
-  stopDeepseekBridge: vi.fn(),
-  checkDeepseekBridge: vi.fn(),
-  getBootstrapStatus: vi.fn(),
-  bootstrapMoonBridge: vi.fn(),
+  getCodexCliStatus: vi.fn(),
+  installCodexCli: vi.fn(),
   getCodexSubagents: vi.fn(),
   getCodexSubagentUsage: vi.fn(),
   getRemotePreference: vi.fn(),
@@ -26,15 +19,8 @@ vi.mock('../ui/src/lib/api/codexConfig', async () => {
   return {
     ...actual,
     getCodexProviderStatus: apiMocks.getCodexProviderStatus,
-    setCodexProviderMode: apiMocks.setCodexProviderMode,
-    resetCodexProvider: apiMocks.resetCodexProvider,
-    getDeepseekStatus: apiMocks.getDeepseekStatus,
-    saveDeepseekSettings: apiMocks.saveDeepseekSettings,
-    startDeepseekBridge: apiMocks.startDeepseekBridge,
-    stopDeepseekBridge: apiMocks.stopDeepseekBridge,
-    checkDeepseekBridge: apiMocks.checkDeepseekBridge,
-    getBootstrapStatus: apiMocks.getBootstrapStatus,
-    bootstrapMoonBridge: apiMocks.bootstrapMoonBridge,
+    getCodexCliStatus: apiMocks.getCodexCliStatus,
+    installCodexCli: apiMocks.installCodexCli,
     getCodexSubagents: apiMocks.getCodexSubagents,
     getCodexSubagentUsage: apiMocks.getCodexSubagentUsage,
   };
@@ -58,121 +44,20 @@ describe('SettingsView', () => {
     apiMocks.getCodexProviderStatus.mockResolvedValue({
       codexHome: 'C:/Users/demo/.codex',
       configPath: 'C:/Users/demo/.codex/config.toml',
-      statePath: 'C:/Users/demo/.codex/.elegy-codex-provider-state.json',
-      backupPath: 'C:/Users/demo/.codex/.elegy-codex-provider-backup.toml',
+      backupPath: null,
       exists: true,
       activeMode: 'native',
       providerId: 'openai',
-      hasManagedBlock: false,
-      hasBackup: true,
-      deepseek: {
-        bridgePath: null,
-        bridgeConfigPath: null,
-        bridgeUrl: 'http://127.0.0.1:38440/v1',
-        keyConfigured: false,
-        bridgeReachable: false,
-        modelsVisible: false,
-        bridgeBinaryAvailable: false,
-      },
+      hasLegacyBlock: false,
+      hasBackup: false,
     });
-    apiMocks.getDeepseekStatus.mockResolvedValue({
-      bridgePath: null,
-      bridgeConfigPath: null,
-      bridgeUrl: 'http://127.0.0.1:38440/v1',
-      keyConfigured: false,
-      bridgeReachable: false,
-      modelsVisible: false,
-      bridgeBinaryAvailable: false,
-    });
-    apiMocks.setCodexProviderMode.mockResolvedValue({
+    apiMocks.getCodexCliStatus.mockResolvedValue({
       codexHome: 'C:/Users/demo/.codex',
-      configPath: 'C:/Users/demo/.codex/config.toml',
-      statePath: 'C:/Users/demo/.codex/.elegy-codex-provider-state.json',
-      backupPath: 'C:/Users/demo/.codex/.elegy-codex-provider-backup.toml',
-      exists: true,
-      activeMode: 'deepseek-bridge',
-      providerId: 'instruction_engine_deepseek',
-      hasManagedBlock: true,
-      hasBackup: true,
-      deepseek: {
-        bridgePath: '/path/to/bridge.exe',
-        bridgeConfigPath: null,
-        bridgeUrl: 'http://127.0.0.1:38440/v1',
-        keyConfigured: true,
-        bridgeReachable: true,
-        modelsVisible: true,
-        bridgeBinaryAvailable: true,
-      },
+      cli: { installed: true, version: '0.1.0', installCommand: 'codex', lastError: null },
     });
-    apiMocks.resetCodexProvider.mockResolvedValue({
-      codexHome: 'C:/Users/demo/.codex',
-      configPath: 'C:/Users/demo/.codex/config.toml',
-      statePath: 'C:/Users/demo/.codex/.elegy-codex-provider-state.json',
-      backupPath: 'C:/Users/demo/.codex/.elegy-codex-provider-backup.toml',
-      exists: true,
-      activeMode: 'native',
-      providerId: 'openai',
-      hasManagedBlock: false,
-      hasBackup: true,
-      deepseek: {
-        bridgePath: null,
-        bridgeConfigPath: null,
-        bridgeUrl: 'http://127.0.0.1:38440/v1',
-        keyConfigured: false,
-        bridgeReachable: false,
-        modelsVisible: false,
-        bridgeBinaryAvailable: false,
-      },
-    });
-    apiMocks.saveDeepseekSettings.mockResolvedValue({
-      bridgePath: '/path/to/bridge.exe',
-      bridgeUrl: 'http://127.0.0.1:38440/v1',
-      keyConfigured: true,
-      bridgeReachable: false,
-      modelsVisible: false,
-      bridgeBinaryAvailable: true,
-    });
-    apiMocks.startDeepseekBridge.mockResolvedValue({ bridgeRunning: true, bridgeReachable: true, modelsVisible: true, bridgeBinaryAvailable: true, keyConfigured: true, message: 'Moon Bridge started.' });
-    apiMocks.stopDeepseekBridge.mockResolvedValue({ bridgeRunning: false, message: 'Moon Bridge stopped.' });
-    apiMocks.checkDeepseekBridge.mockResolvedValue({
-      bridgeUrl: 'http://127.0.0.1:38440/v1',
-      keyConfigured: true,
-      bridgeReachable: true,
-      modelsVisible: true,
-      bridgeBinaryAvailable: true,
-      bridgeRunning: true,
-      modelIds: ['deepseek-v4-pro', 'deepseek-v4-flash'],
-    });
+    apiMocks.installCodexCli.mockResolvedValue({ ok: true, version: '0.1.0' });
     apiMocks.getRemotePreference.mockResolvedValue({ enabled: false });
     apiMocks.setRemotePreference.mockResolvedValue({ enabled: true });
-    apiMocks.getBootstrapStatus.mockResolvedValue({
-      installRoot: 'C:/Users/demo/.copilot/managed-cli/moon-bridge',
-      sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
-      binaryPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/bin/moon-bridge.exe',
-      configPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/config.yml',
-      gitAvailable: true,
-      goAvailable: true,
-      installed: false,
-      built: false,
-      lastBootstrapAt: null,
-      lastError: null,
-    });
-    apiMocks.bootstrapMoonBridge.mockResolvedValue({
-      success: true,
-      message: 'Moon Bridge installed and built successfully.',
-      status: {
-        installRoot: 'C:/Users/demo/.copilot/managed-cli/moon-bridge',
-        sourceUrl: 'https://github.com/ZhiYi-R/moon-bridge.git',
-        binaryPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/bin/moon-bridge.exe',
-        configPath: 'C:/Users/demo/.copilot/managed-cli/moon-bridge/config.yml',
-        gitAvailable: true,
-        goAvailable: true,
-        installed: true,
-        built: true,
-        lastBootstrapAt: '2025-06-05T00:00:00.000Z',
-        lastError: null,
-      },
-    });
     apiMocks.getCodexSubagents.mockResolvedValue({
       codexHome: 'C:/Users/demo/.codex',
       agentsDir: 'C:/Users/demo/.codex/agents',
@@ -270,14 +155,13 @@ describe('SettingsView', () => {
       byAgent: [{ name: 'explorer', count: 2, tokens: 1200, toolEvents: 8, errors: 0 }],
       runs: [],
     });
-
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ version: '1.0.0', channel: 'dev', routeCount: 123 }),
     }));
   });
 
-  it('renders Codex provider controls with three mode buttons', async () => {
+  it('renders native Codex settings without legacy provider controls', async () => {
     navigationStore.setSettingsSection('codex');
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
 
@@ -286,17 +170,31 @@ describe('SettingsView', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('settings-codex-provider')).toBeInTheDocument();
-    });
-    await waitFor(() => {
-      expect(screen.getByTestId('codex-provider-mode-badge')).toHaveTextContent('Native Codex');
+      expect(screen.getByTestId('codex-native-status')).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId('codex-provider-native')).toBeInTheDocument();
-    expect(screen.getByTestId('codex-provider-deepseek')).toBeInTheDocument();
+    expect(screen.getByTestId('codex-agents-expectation-values')).toHaveTextContent('6');
+    expect(screen.getByTestId('codex-agents-expectation-values')).toHaveTextContent('gpt-5.6-luna');
+    expect(screen.getByTestId('codex-agents-expectation-values')).toHaveTextContent('1800s');
+    expect(screen.queryByText(/Moon Bridge|DeepSeek|OpenCode Worker|Native Go/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('codex-tab-assets')).toBeInTheDocument();
   });
 
-  it('renders DeepSeek fields when deepseek-bridge mode is active', async () => {
+  it('surfaces a blocking migration warning for legacy Codex provider state', async () => {
+    apiMocks.getCodexProviderStatus.mockResolvedValueOnce({
+      codexHome: 'C:/Users/demo/.codex',
+      configPath: 'C:/Users/demo/.codex/config.toml',
+      backupPath: null,
+      exists: true,
+      activeMode: 'native',
+      providerId: 'openai',
+      hasLegacyBlock: true,
+      hasBackup: false,
+      legacyMigration: {
+        required: true,
+        action: 'Run the Codex installer to remove known Elegy legacy provider blocks.',
+      },
+    });
     navigationStore.setSettingsSection('codex');
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
 
@@ -304,23 +202,14 @@ describe('SettingsView', () => {
       render(<SettingsView />);
     });
 
-    // Start in native mode; click the DeepSeek V4 button to switch to deepseek-bridge mode
     await waitFor(() => {
-      expect(screen.getByTestId('codex-provider-mode-badge')).toHaveTextContent('Native Codex');
+      expect(screen.getByTestId('codex-legacy-migration-warning')).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByTestId('codex-provider-deepseek'));
-    await waitFor(() => {
-      expect(screen.getByTestId('codex-provider-mode-badge')).toHaveTextContent('DeepSeek V4');
-    });
-
-    expect(screen.getByTestId('deepseek-bridge-path')).toBeInTheDocument();
-    expect(screen.getByTestId('deepseek-save-settings')).toBeInTheDocument();
-    expect(screen.getByTestId('deepseek-start-bridge')).toBeInTheDocument();
-    expect(screen.getByTestId('deepseek-stop-bridge')).toBeInTheDocument();
-    expect(screen.getByTestId('deepseek-check-status')).toBeInTheDocument();
+    expect(screen.getByTestId('codex-legacy-migration-warning')).toHaveTextContent(/migration required/i);
+    expect(screen.getByTestId('codex-legacy-migration-warning')).toHaveTextContent(/Run the Codex installer/i);
   });
 
-  it('renders Codex subagent status summary and compact managed rows', async () => {
+  it('shows the four Codex marketplace plugins as read-only status', async () => {
     navigationStore.setSettingsSection('codex');
     const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
 
@@ -329,75 +218,47 @@ describe('SettingsView', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('codex-provider-mode-badge')).toHaveTextContent('Native Codex');
+      expect(screen.getByTestId('codex-plugin-status')).toBeInTheDocument();
+    });
+    for (const plugin of ['elegy-documentation', 'elegy-mcp', 'elegy-checks', 'elegy-planning']) {
+      expect(screen.getByTestId(`codex-plugin-${plugin}`)).toHaveTextContent('Marketplace-managed · read-only');
+    }
+    expect(screen.getByTestId('codex-plugin-elegy-planning')).toHaveTextContent('Direct Codex subagent/workflow plugin');
+  });
+
+  it('mounts the dedicated Codex Assets tab with status-only inventory', async () => {
+    navigationStore.setSettingsSection('codex');
+    const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
+
+    await act(async () => {
+      render(<SettingsView />);
+    });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Assets' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('harness-assets-panel-codex')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('harness-assets-refresh-codex')).toBeInTheDocument();
+  });
+
+  it('renders native Codex subagents as read-only rows', async () => {
+    navigationStore.setSettingsSection('codex');
+    const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
+
+    await act(async () => {
+      render(<SettingsView />);
     });
 
     fireEvent.click(screen.getByRole('tab', { name: 'Subagents' }));
 
     await waitFor(() => {
       expect(apiMocks.getCodexSubagents).toHaveBeenCalled();
-      expect(screen.getByTestId('codex-subagents-summary')).toBeInTheDocument();
+      expect(screen.getByTestId('codex-subagents-panel')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('3/4')).toBeInTheDocument();
-    expect(screen.getByText('3 installed · 1 missing')).toBeInTheDocument();
-    expect(screen.getByTestId('codex-subagent-explorer')).toHaveTextContent('Ready');
-    expect(screen.getByTestId('codex-subagent-explorer')).toHaveTextContent('gpt-5.4-mini');
-    expect(screen.getByTestId('codex-subagent-explorer')).toHaveTextContent('2 runs · 8 tools');
-    expect(screen.getByTestId('codex-subagent-test-runner')).toHaveTextContent('Missing');
-    expect(screen.getByTestId('codex-subagent-reset-test-runner')).toHaveTextContent('Install');
-    expect(screen.getByTestId('codex-subagent-routing')).toHaveTextContent('Direct work stays with the main agent.');
-    expect(screen.getByTestId('codex-subagent-routing')).toHaveTextContent('Approved plans may delegate explicitly marked tasks.');
-    expect(screen.queryByTestId('codex-subagent-routing-mode')).not.toBeInTheDocument();
-  });
-
-  it('enables hard restore when a backup exists', async () => {
-    navigationStore.setSettingsSection('codex');
-    const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
-
-    await act(async () => {
-      render(<SettingsView />);
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId('codex-provider-hard-reset')).not.toBeDisabled();
-    });
-
-    fireEvent.click(screen.getByTestId('codex-provider-hard-reset'));
-
-    await waitFor(() => {
-      expect(apiMocks.resetCodexProvider).toHaveBeenCalledWith(true);
-    });
-  });
-  it('startBridge merges bridgeReachable and modelsVisible so activate enables without Check Status', async () => {
-    // Set up native-mode status first, then simulate guided deepseek flow
-    navigationStore.setSettingsSection('codex');
-    const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
-
-    await act(async () => {
-      render(<SettingsView />);
-    });
-
-    // Verify initial state: deepseek section visible, activate not present in native mode
-    await waitFor(() => {
-      expect(screen.getByTestId('codex-provider-mode-badge')).toHaveTextContent('Native Codex');
-    });
-
-    // Click Start Bridge — the mock returns bridgeReachable: true, modelsVisible: true
-    fireEvent.click(screen.getByTestId('deepseek-start-bridge'));
-
-    // After start, the store should have merged bridgeReachable and modelsVisible
-    // into deepseekStatus. The mock also returns bridgeBinaryAvailable: true, keyConfigured: true.
-    await waitFor(() => {
-      expect(apiMocks.startDeepseekBridge).toHaveBeenCalled();
-    });
-
-    // The activate button should become enabled because prereqsMet now includes
-    // bridgeRunning, bridgeReachable, and modelsVisible from the start response.
-    await waitFor(() => {
-      const activateBtn = screen.getByTestId('deepseek-activate');
-      expect(activateBtn).not.toBeDisabled();
-    });
+    expect(screen.getByTestId('codex-agent-explorer')).toHaveTextContent('Harness-owned · read-only');
+    expect(screen.getByTestId('codex-agent-test-runner')).toHaveTextContent('Harness-owned · read-only');
+    expect(screen.queryByText(/Native Go|DeepSeek|OpenCode Worker/i)).not.toBeInTheDocument();
   });
 
   it('renders all settings nav items from the shared SETTINGS_NAV_ITEMS list', async () => {

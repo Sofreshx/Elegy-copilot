@@ -58,6 +58,11 @@
       "type": "instructions",
       "source": "catalog-assets/instructions/agent-session-defaults.md",
       "destination": "GEMINI.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      },
       "appendix": "antigravity-assets/home/GEMINI-appendix.md"
     },
     {
@@ -65,98 +70,180 @@
       "type": "skill",
       "source": "engine-assets/skills/skill-discovery",
       "destination": "antigravity/skills/skill-discovery",
-      "loadMode": "always"
+      "loadMode": "always",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "antigravity-rubberduck-plan-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",
       "destination": "antigravity/skills/rubberduck-plan-review",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "antigravity-implementation-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-review",
       "destination": "antigravity/skills/implementation-review",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "antigravity-implementation-handoff-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-handoff",
       "destination": "antigravity/skills/implementation-handoff",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "antigravity-spec-dev-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-dev",
       "destination": "antigravity/skills/spec-dev",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "antigravity-spec-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-authoring",
       "destination": "antigravity/skills/spec-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "antigravity-spec-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-review",
       "destination": "antigravity/skills/spec-review",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "antigravity-commit-check-setup-skill",
       "type": "skill",
       "source": "engine-assets/skills/commit-check-setup",
       "destination": "antigravity/skills/commit-check-setup",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "antigravity-repo-quality-setup-skill",
       "type": "skill",
       "source": "engine-assets/skills/repo-quality-setup",
       "destination": "antigravity/skills/repo-quality-setup",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
+    },
+    {
+      "id": "antigravity-repo-checks-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/repo-checks",
+      "destination": "antigravity/skills/repo-checks",
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "antigravity-skill-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/skill-authoring",
       "destination": "antigravity/skills/skill-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "antigravity-agents-md-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/agents-md-authoring",
       "destination": "antigravity/skills/agents-md-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "antigravity-ui-design-spec-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/ui-design-spec",
       "destination": "antigravity/skills/ui-design-spec",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "antigravity-tdd-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/tdd",
       "destination": "antigravity/skills/tdd",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     },
     {
       "id": "antigravity-brainstorming-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/brainstorming",
       "destination": "antigravity/skills/brainstorming",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
     }
   ],
   "sourcePatterns": []

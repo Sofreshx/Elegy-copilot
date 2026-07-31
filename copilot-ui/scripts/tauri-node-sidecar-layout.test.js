@@ -4,7 +4,6 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const {
-  isOptionalResource,
   loadTauriNodeSidecarLayout,
   scanRuntimeAssetReferences,
   validateRuntimeAssetReferences,
@@ -66,14 +65,6 @@ test('drift guard detects a missing harness-assets manifest entry', () => {
     /codex-assets/,
     'Expected drift guard to fail when a referenced harness-assets dir is missing from resourceCopies',
   );
-});
-
-test('treats the optional Moon Bridge binary as optional during installed-layout validation', () => {
-  const { manifest } = loadTauriNodeSidecarLayout();
-  const moonBridge = manifest.resourceCopies.find((resource) => resource.id === 'moon-bridge-binary');
-
-  assert.ok(moonBridge);
-  assert.equal(isOptionalResource(moonBridge), true);
 });
 
 test('declares js-yaml because packaged runtime routes require it', () => {

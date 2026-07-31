@@ -274,8 +274,6 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/config/remote-sessions' },
   { method: 'PUT', path: '/api/config/remote-sessions' },
   { method: 'GET', path: '/api/config/codex-provider' },
-  { method: 'PUT', path: '/api/config/codex-provider' },
-  { method: 'POST', path: '/api/config/codex-provider/reset' },
   { method: 'GET', path: '/api/remote/status' },
   { method: 'POST', path: '/api/remote/restart' },
   { method: 'GET', path: '/api/remote/projects' },
@@ -301,6 +299,13 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/executor/worktrees' },
   { method: 'GET', path: '/api/executor/runs' },
   { method: 'GET', path: '/api/executor/runs/test-run-id' },
+  // Execution routes (6)
+  { method: 'GET', path: '/api/execution/overview' },
+  { method: 'POST', path: '/api/execution/refresh' },
+  { method: 'POST', path: '/api/execution/run' },
+  { method: 'POST', path: '/api/execution/setup' },
+  { method: 'GET', path: '/api/execution/runs/test-run-id' },
+  { method: 'POST', path: '/api/execution/runs/test-run-id/stop' },
   // Workflows (16)
   // Git (6)
   { method: 'GET', path: '/api/git/status' },
@@ -468,7 +473,7 @@ async function run() {
     }
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 160, `Expected 160 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 164, `Expected 164 routes, got ${ROUTE_INVENTORY.length}`);
   });
   } finally {
     if (runningServer) {

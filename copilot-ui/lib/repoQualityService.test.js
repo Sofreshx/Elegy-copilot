@@ -89,3 +89,18 @@ test('setup task uses an available launcher and returns its task id', async () =
   assert.equal(calls[0].cwd, root);
   assert.match(calls[0].prompt, /audit.*preview.*approval/i);
 });
+
+test('remote failure stays separate from local readiness', () => {
+  const root = makeRepo();
+  fs.mkdirSync(path.join(root, '.elegy'));
+  fs.writeFileSync(path.join(root, '.elegy', 'checks.json'), '{"schemaVersion":2,"checks":{}}');
+  fs.writeFileSync(path.join(root, 'lefthook.yml'), 'pre-commit:\n  jobs: []\n');
+
+  const status = buildRepoQualityStatus(root, {
+    git: () => ({ status: 0, stdout: '.git/hooks\n', stderr: '' }),
+    github: () => ({ available: true, latestConclusion: 'failure', runs: [] }),
+  });
+
+  assert.equal(status.readiness, 'ready');
+  assert.equal(status.remoteStatus, 'failing');
+});
