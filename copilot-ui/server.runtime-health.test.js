@@ -856,6 +856,12 @@ async function run() {
         engineRoot: root,
         elegyHome,
         sandboxesHome,
+        env: {
+          ...process.env,
+          // Exercise runtime health without starting the external managed
+          // elegy-planning installer for this temporary fixture.
+          INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH: process.execPath,
+        },
         quiet: true,
       });
       try {
@@ -907,6 +913,12 @@ async function run() {
           engineRoot: root,
           elegyHome,
           sandboxesHome,
+          env: {
+            ...process.env,
+            // The asset sync call is stubbed below; avoid unrelated managed
+            // planning installation work during server startup.
+            INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH: process.execPath,
+          },
           quiet: true,
         });
         try {

@@ -294,7 +294,12 @@ test('discovery staleness tracks source mtimes', () => {
   const root = buildFixture();
   const discovery = discover(root);
   assert.equal(isDiscoveryStale(discovery), false);
-  fs.appendFileSync(path.join(root, 'README.md'), '\nmore docs\n', 'utf8');
+  const readmePath = path.join(root, 'README.md');
+  fs.appendFileSync(readmePath, '\nmore docs\n', 'utf8');
+  // Windows filesystems may retain coarse mtime precision; force a distinct
+  // timestamp so this test checks staleness rather than clock resolution.
+  const changedAt = new Date(Date.now() + 2_000);
+  fs.utimesSync(readmePath, changedAt, changedAt);
   assert.equal(isDiscoveryStale(discovery), true);
   assert.equal(isDiscoveryStale(null), true);
 });
