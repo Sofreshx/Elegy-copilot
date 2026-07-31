@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('path');
+const { discoverCheckPlan } = require('../lib/checkPlanService');
 
 let passed = 0;
 
@@ -81,7 +82,7 @@ async function run() {
 
   await test('register returns check route descriptors', async () => {
     const routes = registerWithMocks();
-    assert.equal(routes.length, 15);
+    assert.equal(routes.length, 18);
   });
 
   await test('GET /api/git/quality/status requires repoPath', async () => {
@@ -184,6 +185,43 @@ async function run() {
     assert.ok(Array.isArray(body.checks));
   });
 
+  await test('GET /api/git/checks/plan requires repoPath', async () => {
+    const routes = registerWithMocks();
+    const { res, body } = await invoke(routes, 'GET', '/api/git/checks/plan');
+    assert.equal(res.statusCode, 400);
+    assert.match(body.error, /repoPath/i);
+  });
+
+  await test('GET /api/git/checks/plan returns a read-only action plan', async () => {
+    const routes = registerWithMocks();
+    const testRepo = path.resolve(__dirname, '..');
+    const { res, body } = await invoke(routes, 'GET', `/api/git/checks/plan?repoPath=${encodeURIComponent(testRepo)}&action=push`);
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.schemaVersion, 'check-plan/v1');
+    assert.equal(body.action, 'push');
+    assert.equal(body.readOnly, true);
+    assert.ok(Array.isArray(body.recommendedChecks));
+    assert.ok(Array.isArray(body.omittedChecks));
+  });
+
+  await test('GET /api/git/checks/github-history requires repoPath', async () => {
+    const routes = registerWithMocks();
+    const { res, body } = await invoke(routes, 'GET', '/api/git/checks/github-history');
+    assert.equal(res.statusCode, 400);
+    assert.match(body.error, /repoPath/i);
+  });
+
+  await test('GET /api/git/checks/github-history keeps remote evidence in its own envelope', async () => {
+    const routes = registerWithMocks();
+    const testRepo = path.resolve(__dirname, '..');
+    const { res, body } = await invoke(routes, 'GET', `/api/git/checks/github-history?repoPath=${encodeURIComponent(testRepo)}&branch=main`);
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.source, 'github');
+    assert.equal(typeof body.available, 'boolean');
+    assert.ok(Array.isArray(body.runs));
+    assert.equal(body.mergedIntoLocalEvidence, false);
+  });
+
   await test('POST /api/git/checks/run requires repoPath', async () => {
     const routes = registerWithMocks({ body: {} });
     const { res, body } = await invoke(routes, 'POST', '/api/git/checks/run');
@@ -198,6 +236,58 @@ async function run() {
     assert.equal(typeof body.allPassed, 'boolean');
     assert.equal(typeof body.checksRun, 'number');
     assert.ok(Array.isArray(body.results));
+  });
+
+  await test('POST /api/git/checks/run accepts a hash created for explicitly selected lanes', async () => {
+    const testRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'elegy-selected-plan-'));
+    try {
+      fs.writeFileSync(path.join(testRepo, 'package.json'), JSON.stringify({
+        scripts: { test: 'node -e "process.exit(0)"' },
+      }), 'utf8');
+      const plan = discoverCheckPlan(testRepo, {
+        action: 'commit',
+        selectionMode: 'ai-selected',
+        selectedIds: ['package.test'],
+      });
+      const routes = registerWithMocks({ body: {
+        repoPath: testRepo,
+        selectedLanes: ['package.test'],
+        planHash: plan.planHash,
+        action: 'commit',
+        selectionMode: 'ai-selected',
+      } });
+      const { res, body } = await invoke(routes, 'POST', '/api/git/checks/run');
+      assert.equal(res.statusCode, 200);
+      assert.equal(typeof body.allPassed, 'boolean');
+    } finally {
+      fs.rmSync(testRepo, { recursive: true, force: true });
+    }
+  });
+
+  await test('POST /api/git/checks/run can return a background job and a later complete result', async () => {
+    const testRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'elegy-check-job-'));
+    try {
+      const routes = registerWithMocks({ body: { repoPath: testRepo, background: true } });
+      const started = await invoke(routes, 'POST', '/api/git/checks/run', {});
+      assert.equal(started.res.statusCode, 200);
+      assert.equal(started.body.status, 'running');
+      assert.ok(started.body.runId);
+
+      let completed = null;
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const polled = await invoke(routes, 'GET', `/api/git/checks/runs/${encodeURIComponent(started.body.runId)}`);
+        if (polled.body.status === 'complete') {
+          completed = polled;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      assert.ok(completed);
+      assert.equal(completed.res.statusCode, 200);
+      assert.equal(completed.body.result.source, 'none');
+    } finally {
+      fs.rmSync(testRepo, { recursive: true, force: true });
+    }
   });
 
   await test('GET /api/git/checks/state returns persisted state envelope', async () => {
@@ -245,6 +335,7 @@ async function run() {
     assert.equal(res.statusCode, 200);
     assert.ok(Array.isArray(body.runs));
     assert.equal(body.limit, 1);
+    assert.ok(Object.prototype.hasOwnProperty.call(body, 'branch'));
   });
 
   await test('GET /api/git/checks/doctor returns diagnostic envelope', async () => {

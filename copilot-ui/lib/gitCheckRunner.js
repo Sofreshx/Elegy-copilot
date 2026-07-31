@@ -392,6 +392,74 @@ async function runAllChecksWithProfile(repoRoot, options) {
   return runAllChecksLegacy(repoRoot);
 }
 
+function cachedResultsFromElegyState(repoRoot, state) {
+  const lastRun = state?.lastRun;
+  if (!lastRun) return null;
+  const lanes = lastRun.lanes || {};
+  const laneNames = Object.keys(lanes);
+  const results = laneNames.map((name) => {
+    const lane = lanes[name] || {};
+    const status = String(lane.status || 'NOT_RUN').toUpperCase();
+    const passed = status === 'PASS' || status === 'SKIP';
+    return {
+      checkName: name,
+      status,
+      passed,
+      exitCode: lane.exitCode,
+      durationMs: lane.durationMs,
+      error: status === 'FAIL' ? (lane.details || 'Check failed') : undefined,
+      output: lane.details || '',
+      commands: lane.commands || [],
+      group: lane.group || null,
+      blocking: lane.blocking !== false,
+      ciWorkflow: lane.ciWorkflow || null,
+      ciJob: lane.ciJob || null,
+      ciRequired: lane.ciRequired === true,
+      required: lane.required !== false,
+      skippable: lane.skippable === true,
+      cost: lane.cost || 'fast',
+      opensWindow: lane.opensWindow === true,
+      defaultProfiles: lane.defaultProfiles || [],
+      gateStrength: lane.gateStrength || null,
+      determinism: lane.determinism || null,
+      sourcePack: lane.sourcePack || null,
+      tags: lane.tags || [],
+      severity: lane.severity || null,
+      promotionState: lane.promotionState || null,
+      owner: lane.owner || null,
+    };
+  });
+  return {
+    repoRoot,
+    source: 'elegy-checks',
+    sourceKind: lastRun.sourceKind || 'local',
+    checkedAt: lastRun.timestamp,
+    runId: lastRun.runId || null,
+    branch: lastRun.branch || lastRun.gitFingerprint?.branch || null,
+    head: lastRun.head || lastRun.gitFingerprint?.head || null,
+    dirtyHash: lastRun.dirtyHash || lastRun.gitFingerprint?.dirtyHash || null,
+    configHash: lastRun.configHash || null,
+    planHash: lastRun.planHash || lastRun.planIdentity?.hash || null,
+    action: lastRun.action || null,
+    selectionMode: lastRun.selectionMode || null,
+    runnerVersion: lastRun.runnerVersion || null,
+    checksAvailable: laneNames.length,
+    checksRun: laneNames.length,
+    checksPassed: results.filter((result) => result.passed).length,
+    checksFailed: results.filter((result) => !result.passed).length,
+    allPassed: lastRun.overallPass === true,
+    gatePassed: lastRun.overallPass === true,
+    profile: lastRun.profile || null,
+    requiredFailures: lastRun.requiredFailures || lastRun.blockingFailures || [],
+    blockingFailures: lastRun.blockingFailures || lastRun.requiredFailures || [],
+    skippedLanes: lastRun.skippedLanes || {},
+    logs: lastRun.logs || [],
+    results,
+    message: lastRun.overallPass ? 'Using fresh cached local proof.' : 'Cached local proof failed.',
+    cached: true,
+  };
+}
+
 /**
  * Run checks before a git action (commit, push, PR).
  * Returns { allowed: boolean, checkResults, requiresOverride: boolean }
@@ -440,7 +508,28 @@ async function gateGitAction(repoRoot, action, unsafeOverride, profile, branchNa
   }
 
   // Freshness check — reuse prior cached results if git state hasn't changed
+  let elegyStateAvailable = false;
   try {
+    const elegyState = elegyChecks.getState(repoRoot);
+    elegyStateAvailable = Boolean(elegyState);
+    const lastRun = elegyState?.lastRun;
+    const actionMatches = lastRun && (!lastRun.action || lastRun.action === action || lastRun.action === profile);
+    const profileMatches = lastRun && (!lastRun.profile || lastRun.profile === profile);
+    if (elegyState?.freshness?.fresh && lastRun?.overallPass && actionMatches && profileMatches) {
+      const cachedResults = cachedResultsFromElegyState(repoRoot, elegyState);
+      if (cachedResults) {
+        return {
+          allowed: true,
+          skipped: false,
+          checkResults: cachedResults,
+          message: 'All pre-action checks passed (fresh local evidence).',
+        };
+      }
+    }
+  } catch {
+    // Fall through to the compatibility path when the Elegy state reader is unavailable.
+  }
+  if (!elegyStateAvailable) try {
     const { deriveRepoId, checkFreshness } = require('./checkState');
     const repoId = deriveRepoId(repoRoot);
     const config = resolveCommitCheckConfig(repoRoot);
@@ -523,7 +612,11 @@ async function gateGitAction(repoRoot, action, unsafeOverride, profile, branchNa
     profile = 'ci-local';
     
     // Run checks NOW (we're past the freshness cache check)
-    const protectedResults = await runAllChecksWithProfile(repoRoot, { profile: 'ci-local' });
+    const protectedResults = await runAllChecksWithProfile(repoRoot, {
+      profile: 'ci-local',
+      action: 'ci-local',
+      selectionMode: 'profile',
+    });
     
     if (!protectedResults.allPassed) {
       return {
@@ -564,7 +657,11 @@ async function gateGitAction(repoRoot, action, unsafeOverride, profile, branchNa
   }
 
   const checkResults = profile
-    ? await runAllChecksWithProfile(repoRoot, { profile })
+    ? await runAllChecksWithProfile(repoRoot, {
+      profile,
+      action: ['commit', 'push', 'ci-local', 'release'].includes(profile) ? profile : 'ci-local',
+      selectionMode: 'profile',
+    })
     : await runAllChecks(repoRoot);
 
   if (checkResults.checksAvailable === 0) {

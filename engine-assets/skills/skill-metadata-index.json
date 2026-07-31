@@ -186,6 +186,22 @@
       }
     },
     {
+      "skill": "repo-checks",
+      "name": "repo-checks",
+      "description": "Run and report repository-native proof for an active change, including the smallest sufficient local checks and any required remote evidence. Use when asked to run repository checks, validate a change, assess proof, or report check results; do not use for adopting, migrating, or repairing the repository check system. Triggers on: run checks, repository proof, validate this change, check evidence, CI proof.",
+      "triggersOn": [
+        "check evidence",
+        "ci proof",
+        "repository proof",
+        "run checks",
+        "validate this change"
+      ],
+      "manifest": {
+        "id": "skill-repo-checks",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "repo-quality-setup",
       "name": "repo-quality-setup",
       "description": "Audit, bootstrap, migrate, or repair repository-owned local checks, Git hooks, and GitHub Actions parity after an explicit request. Use for onboarding a repository to quality practices or updating its quality workflow; do not use merely to run or triage existing checks.",

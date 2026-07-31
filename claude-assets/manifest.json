@@ -111,6 +111,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "claude-repo-checks-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/repo-checks",
+      "destination": "skills/repo-checks",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "claude-skill-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/skill-authoring",

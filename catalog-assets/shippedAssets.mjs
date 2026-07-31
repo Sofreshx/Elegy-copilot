@@ -46,6 +46,7 @@ export const SHIPPED_ASSETS = [
   skill('skill-repo-backed-obsidian-docs', 'catalog-assets/shared-skills/repo-backed-obsidian-docs', { loadMode: 'on-demand' }),
   skill('skill-commit-check-setup', 'engine-assets/skills/commit-check-setup', { loadMode: 'on-demand' }),
   skill('skill-repo-quality-setup', 'engine-assets/skills/repo-quality-setup', { loadMode: 'on-demand' }),
+  skill('skill-repo-checks', 'engine-assets/skills/repo-checks', { loadMode: 'on-demand' }),
   skill('skill-commit-validation-governance', 'engine-assets/skills/commit-validation-governance', {
     loadMode: 'on-demand',
   }),
@@ -251,7 +252,12 @@ export const SHIPPED_BUNDLES = [
     id: 'commit-validation-governance',
     title: 'Commit Validation & Governance Skills',
     description: 'Commit check setup and governance validation skills for enforcing commit policies.',
-    assetIds: ['skill-commit-validation-governance', 'skill-repo-quality-setup', 'skill-commit-check-setup'],
+    assetIds: [
+      'skill-commit-validation-governance',
+      'skill-repo-quality-setup',
+      'skill-repo-checks',
+      'skill-commit-check-setup',
+    ],
     installTarget: 'repo-local',
     activationScope: 'repo',
     materialization: 'on-demand',

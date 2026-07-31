@@ -41,7 +41,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
   { id: 'telemetry', label: 'Telemetry', icon: 'runtime', description: 'Session and event telemetry collected by the dashboard.' },
   { id: 'maintenance', label: 'Maintenance', icon: 'maintenance', description: 'Updates and diagnostics for the desktop runtime.' },
   { id: 'runtime', label: 'Runtime', icon: 'play', description: 'Live runtime health and harness session status.' },
-  { id: 'codex', label: 'Codex', icon: 'codex', description: 'Switch local Codex between OpenAI defaults and DeepSeek via Moon Bridge.' },
+  { id: 'codex', label: 'Codex', icon: 'codex', description: 'Inspect native Codex, subagents, usage, and Elegy marketplace plugins.' },
   { id: 'claude-code', label: 'Claude Code', icon: 'claude-code', description: 'Claude Code installation and configuration.' },
   { id: 'github', label: 'GitHub CLI', icon: 'git-branch', description: 'GitHub authentication and CLI status.' },
   { id: 'shell', label: 'Shell', icon: 'play', description: 'Default shell and terminal environment used by sessions.' },

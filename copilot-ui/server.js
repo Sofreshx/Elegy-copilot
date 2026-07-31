@@ -23,6 +23,7 @@ const repoInventoryService = require('./lib/repoInventoryService');
 const assets = require('./lib/assets');
 const planState = require('./lib/planState');
 const { createAutonomousDecisionLog } = require('./lib/autonomousDecisionLog');
+const { shutdownActiveRuns } = require('./lib/executionRunner');
 const {
   SESSION_RECONCILIATION_CONTRACT_VERSION,
   SESSION_RECONCILIATION_SOURCES,
@@ -4526,25 +4527,25 @@ function serveProjectsDashboardRoute({ req, res, pathname, elegyHome }) {
   return false;
 }
 
-function handleApi({ req, res, u, elegyHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry, elegyDb, sessionHooks }) {
+function handleApi({ req, res, u, env = process.env, elegyHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry, elegyDb, sessionHooks }) {
   // Auth scope: single-session only. Multi-session aggregate views are deferred.
   // All API endpoints serve one session at a time. No cross-session auth tokens.
   const pathname = u.pathname;
   const elegyHomeAbs = path.resolve(elegyHome);
-  const codexHome = resolveCodexHomeFromEnv(process.env);
-  const codexSkillsHome = resolveCodexSkillsHomeFromEnv(process.env, codexHome);
-  const geminiHome = resolveGeminiHomeFromEnv(process.env);
-  const antigravityHome = resolveAntigravityHomeFromEnv(process.env, geminiHome);
-  const antigravitySkillsHome = resolveAntigravitySkillsHomeFromEnv(process.env, antigravityHome);
-  const opencodeHome = resolveOpenCodeHomeFromEnv(process.env);
-  const opencodeSkillsHome = resolveOpenCodeSkillsHomeFromEnv(process.env, opencodeHome);
-  const opencodeDataHome = resolveOpenCodeDataHomeFromEnv(process.env);
-  const claudeHome = resolveClaudeHomeFromEnv(process.env);
-  const claudeSkillsHome = resolveClaudeSkillsHomeFromEnv(process.env, claudeHome);
+  const codexHome = resolveCodexHomeFromEnv(env);
+  const codexSkillsHome = resolveCodexSkillsHomeFromEnv(env, codexHome);
+  const geminiHome = resolveGeminiHomeFromEnv(env);
+  const antigravityHome = resolveAntigravityHomeFromEnv(env, geminiHome);
+  const antigravitySkillsHome = resolveAntigravitySkillsHomeFromEnv(env, antigravityHome);
+  const opencodeHome = resolveOpenCodeHomeFromEnv(env);
+  const opencodeSkillsHome = resolveOpenCodeSkillsHomeFromEnv(env, opencodeHome);
+  const opencodeDataHome = resolveOpenCodeDataHomeFromEnv(env);
+  const claudeHome = resolveClaudeHomeFromEnv(env);
+  const claudeSkillsHome = resolveClaudeSkillsHomeFromEnv(env, claudeHome);
   const activePlanningDurabilityDependencyGate = planningDurabilityDependencyGate
     && typeof planningDurabilityDependencyGate === 'object'
     ? planningDurabilityDependencyGate
-    : evaluatePlanningDurabilityDependencyGate({ env: process.env });
+    : evaluatePlanningDurabilityDependencyGate({ env });
 
   if (isPlanningDurabilityRoute(pathname) && activePlanningDurabilityDependencyGate.ready !== true) {
     const gateFailure = buildPlanningDurabilityDependencyGateFailure(pathname, req.method, activePlanningDurabilityDependencyGate);
@@ -4663,6 +4664,14 @@ async function shutdownWorkflowLayerServiceSafely(workflowLayerService) {
   }
 }
 
+async function shutdownExecutionRunsSafely() {
+  try {
+    shutdownActiveRuns();
+  } catch {
+    // Best-effort shutdown on server close/error.
+  }
+}
+
 async function closePlanningPersistenceClientSafely(client) {
   if (!client || typeof client.close !== 'function') {
     return;
@@ -4698,7 +4707,7 @@ async function startServer(options = {}) {
   const logger = quiet ? () => {} : (message) => console.log(message);
   const elegyHome = resolveElegyHome(args);
   const sandboxesHome = resolveSandboxesHome(args);
-  const opencodeHome = resolveOpenCodeHomeFromEnv(process.env);
+  const opencodeHome = resolveOpenCodeHomeFromEnv(env);
   const autonomousDecisionLog = createAutonomousDecisionLog(elegyHome);
   const trackerUrl = resolveTrackerUrl(args);
   const trackerTokenResolution = await resolveTrackerToken(args);
@@ -5149,6 +5158,7 @@ async function startServer(options = {}) {
           req,
           res,
           u,
+          env,
           elegyHome,
           sandboxesHome,
           engineRoot,
@@ -5209,6 +5219,7 @@ async function startServer(options = {}) {
         .then(() => stopDesktopUpdaterBackgroundWork())
         .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
         .then(() => shutdownExecutorServiceSafely(executorService))
+        .then(() => shutdownExecutionRunsSafely())
         .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
         .finally(() => {
           if (elegyDb && typeof elegyDb.close === 'function') elegyDb.close();
@@ -5265,6 +5276,7 @@ async function startServer(options = {}) {
           console.warn(`[desktop-updater] startup check failed: ${String(error && error.message ? error.message : error)}`);
         }
       });
+
       desktopUpdaterAutoCheckTimer = setInterval(() => {
         void desktopUpdaterController.checkForUpdates().catch((error) => {
           if (!quiet) {
@@ -5290,6 +5302,7 @@ async function startServer(options = {}) {
             .then(() => stopDesktopUpdaterBackgroundWork())
             .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
             .then(() => shutdownExecutorServiceSafely(executorService))
+            .then(() => shutdownExecutionRunsSafely())
             .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
             .finally(() => {
               if (elegyDb && typeof elegyDb.close === 'function') elegyDb.close();

@@ -2303,46 +2303,18 @@ export function normalizePlanningDiagramsResponse(payload: unknown): PlanningDia
 
 export function normalizeCodexProviderStatusResponse(payload: unknown): CodexProviderStatusResponse {
   const record = asRecord(payload);
-  const gateway = asRecord(record.gateway);
   const providerId = asTrimmedString(record.providerId) || 'openai';
-  const deepseek = asRecord(record.deepseek);
 
   return {
     ...record,
     codexHome: asString(record.codexHome),
     configPath: asString(record.configPath),
-    statePath: asString(record.statePath),
-    backupPath: asString(record.backupPath),
+    backupPath: asTrimmedString(record.backupPath) || null,
     exists: asBoolean(record.exists, false),
     activeMode: asTrimmedString(record.activeMode) || 'native',
     providerId,
-    hasManagedBlock: asBoolean(record.hasManagedBlock, false),
     hasLegacyBlock: asBoolean(record.hasLegacyBlock, false),
     hasBackup: asBoolean(record.hasBackup, false),
-    lastAppliedAt: asTrimmedString(record.lastAppliedAt) || null,
-    lastResetAt: asTrimmedString(record.lastResetAt) || null,
-    backupCreatedAt: asTrimmedString(record.backupCreatedAt) || null,
-    changed: asBoolean(record.changed, false),
-    action: asTrimmedString(record.action) || undefined,
-    gateway: {
-      ...gateway,
-      providerId: asTrimmedString(gateway.providerId) || providerId,
-      model: asTrimmedString(gateway.model) || '',
-      baseUrl: asTrimmedString(gateway.baseUrl) || '',
-    },
-    deepseek: Object.keys(deepseek).length > 0 ? {
-      bridgePath: typeof deepseek.bridgePath === 'string' ? deepseek.bridgePath : null,
-      bridgeConfigPath: typeof deepseek.bridgeConfigPath === 'string' ? deepseek.bridgeConfigPath : null,
-      bridgeUrl: asTrimmedString(deepseek.bridgeUrl) || '',
-      keyConfigured: asBoolean(deepseek.keyConfigured, false),
-      bridgeReachable: asBoolean(deepseek.bridgeReachable, false),
-      modelsVisible: asBoolean(deepseek.modelsVisible, false),
-      bridgeBinaryAvailable: asBoolean(deepseek.bridgeBinaryAvailable, false),
-      bridgeCheckoutAvailable: asBoolean(deepseek.bridgeCheckoutAvailable, false),
-      bridgeRunning: asBoolean(deepseek.bridgeRunning, false),
-      modelIds: Array.isArray(deepseek.modelIds) ? deepseek.modelIds as string[] : undefined,
-      probeError: typeof deepseek.probeError === 'string' ? deepseek.probeError : null,
-    } : undefined,
   };
 }
 

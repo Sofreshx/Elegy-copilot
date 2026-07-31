@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-07-09
+updated: 2026-07-31
 category: system
 status: current
 doc_kind: node
@@ -51,10 +51,27 @@ Settings is a rich view with these tabs:
 | OpenCode Setup | OpenCode configuration, CLI tooling, provider stats |
 | Maintenance | Updates and diagnostics (LSP, stats) |
 | Runtime | Dashboard health view (DashboardView) |
-| Codex Providers | Provider configuration panel |
+| Codex | Native Codex CLI health, subagents, usage, and plugin receipt |
 | Claude Code Setup | Claude Code configuration panel |
 
 The sidebar and settings structure are defined in `copilot-ui/ui/src/stores/navigation.ts` (SIDEBAR_NAV_ITEMS, SETTINGS_NAV_ITEMS) and rendered in `copilot-ui/ui/src/views/Settings/SettingsView.tsx`.
+
+### Asset views
+
+`Assets & Tools` is the cross-harness inventory and repair overview. Its
+merged rows retain per-harness management metadata: owner (`Elegy-managed`,
+`Harness-owned`, `Repository-owned`, or `External`), source of truth, normalized
+scope (`global`, `repo`, `user`, or `external`), read-only state, and an
+optional explanation. Paths are provenance only. Owner and scope are shown as
+text and badges in addition to color.
+
+Codex, OpenCode, and Claude Code settings each have a dedicated `Assets` tab;
+Antigravity remains central-only for now. Harness-owned native assets and
+repository-owned assets are status-only and never expose install, sync, or
+remove controls. Elegy-managed compatibility assets retain permitted install,
+sync, and removal actions. External sources retain source activation actions.
+`Needs attention` includes only actionable issues. A read-only harness view
+refreshes status; a managed view offers `Sync Elegy assets` when supported.
 
 ## Current Responsibilities
 
@@ -65,6 +82,16 @@ The sidebar and settings structure are defined in `copilot-ui/ui/src/stores/navi
 - **Remote**: Kimaki-backed Discord session management.
 - **Maintenance**: desktop updates, Elegy plugin marketplace status, shared-skill fallback status, and LSP diagnostics.
 - **Local API delivery**: all of the above served as HTTP routes for the desktop app.
+
+## Workspace Execute Tab
+
+The Workspace "Execute" local tab (`WorkspaceExecutionTab.tsx`) is the command runner surface for the opened repository:
+
+- **Discovered commands**: deterministic discovery from `package.json` scripts, README shell instructions (`README.md`, `README`, `CONTRIBUTING.md`, `GETTING_STARTED.md`), and `Makefile` targets, grouped into fixed categories (Setup, Start/Dev, Test, Lint/Check, Build, Docs, Other). Shell-metacharacter commands are rejected, not executed. Press **Refresh** to re-scan.
+- **Setup card**: one-click run of the highest-priority install/build command with a persisted status (`not-started` / `running` / `done` / `failed`) and exit code.
+- **Run / Stop**: one active run per repository; output tail is captured (50k chars cap) and expandable per command row; last exit status per command persists across sessions.
+- **Persistence**: discovery cache and run outcomes live under `~/.elegy/repo-state/<repoId>/execution/` (`discovery.json`, `runs.json`), keyed by the repository state id.
+- **Workers section**: a collapsible panel below the commands list hosts the orchestrator session controls (pilot-gated by `ELEGY_ORCHESTRATOR_EXPERIMENTAL`). Backend: `copilot-ui/routes/execution.js` + `copilot-ui/lib/commandDiscovery.js` / `executionRunner.js`.
 
 ## Planning Boundary
 
@@ -93,8 +120,12 @@ Elegy Codex marketplace under `<CODEX_HOME>/marketplaces/elegy`. The route
 delegates to the generic Elegy plugin marketplace service, which runs Codex
 marketplace registration before plugin installation.
 
-Codex shared skills remain compatibility fallback assets. They are not the
-primary Codex install lane for `elegy-planning` or other Elegy plugins.
+Codex's six shared skills remain compatibility fallback assets. They are not
+the primary install lane for the four current Elegy Codex plugins:
+`elegy-documentation`, `elegy-mcp`, `elegy-checks`, and `elegy-planning`.
+`elegy-planning` is the direct Codex subagent/workflow plugin. Plugin
+installation and updates remain in Maintenance; the Codex Assets tab shows
+their read-only receipt only.
 
 When tooling update routes or top-level response fields change, update
 `copilot-ui/tests/api-contract.snapshot.json` through

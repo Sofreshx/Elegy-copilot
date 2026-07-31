@@ -232,8 +232,9 @@ function withTempDir(fn) {
       fs.rmSync(dir, {
         recursive: true,
         force: true,
-        maxRetries: 10,
-        retryDelay: 100,
+        // Windows may hold a just-copied managed asset briefly after the server closes.
+        maxRetries: 60,
+        retryDelay: 250,
       });
     });
 }
@@ -412,6 +413,9 @@ async function run() {
       ], {
         env: {
           ...process.env,
+          // Keep this isolated health test from invoking the external managed
+          // elegy-planning installer when the fixture has no local binary.
+          INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH: process.execPath,
           INSTRUCTION_ENGINE_RUNTIME_MODE: 'repo',
           INSTRUCTION_ENGINE_RUNTIME_PROVIDER_SELECTED: 'not-a-provider',
           INSTRUCTION_ENGINE_RUNTIME_PROVIDER: '',
@@ -683,6 +687,12 @@ async function run() {
             port,
             elegyHome,
             sandboxesHome,
+            env: {
+              ...process.env,
+              // Keep this persistence-route fixture independent of the
+              // external managed planning installer.
+              INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH: process.execPath,
+            },
             planningPersistenceClient: {
               query: async () => {
                 throw new Error(noisyDiagnostic);
@@ -852,6 +862,12 @@ async function run() {
         engineRoot: root,
         elegyHome,
         sandboxesHome,
+        env: {
+          ...process.env,
+          // Exercise runtime health without starting the external managed
+          // elegy-planning installer for this temporary fixture.
+          INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH: process.execPath,
+        },
         quiet: true,
       });
       try {
@@ -903,6 +919,12 @@ async function run() {
           engineRoot: root,
           elegyHome,
           sandboxesHome,
+          env: {
+            ...process.env,
+            // The asset sync call is stubbed below; avoid unrelated managed
+            // planning installation work during server startup.
+            INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH: process.execPath,
+          },
           quiet: true,
         });
         try {
@@ -936,6 +958,12 @@ async function run() {
         elegyHome,
         sandboxesHome,
         managedAssetSyncOnStart: false,
+        env: {
+          ...process.env,
+          // This fixture only exercises the skipped-sync decision and must not
+          // start a managed source install as a side effect.
+          INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH: process.execPath,
+        },
         quiet: true,
       });
       try {

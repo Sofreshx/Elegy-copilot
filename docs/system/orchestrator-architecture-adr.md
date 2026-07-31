@@ -24,7 +24,7 @@ The Elegy Copilot currently has no durable execution orchestrator. Work is dispa
 
 The existing Rust native runtime (port 3211, Axum) is an optional sidecar with stubbed capabilities (`planning_persistence=disabled`, `autonomous_decision_log=not_ported`). The orchestrator extends this runtime with new modules.
 
-The existing workspace Execution tab (`copilot-ui/ui/src/views/Workspace/WorkspaceExecutionTab.tsx`) is a placeholder showing a `WorkspaceCommandsCard` and a "Terminal — future release" div. The orchestrator must replace it with a real operator control surface.
+The existing workspace Execution tab (`copilot-ui/ui/src/views/Workspace/WorkspaceExecutionTab.tsx`) is the operator surface: it runs deterministic commands discovered from the repository (README, package.json scripts, Makefile) and hosts the orchestrator session controls in a collapsed pilot-gated section below the commands list.
 
 The existing shared worktree contract and worktree registry already exist at `~/.elegy/repo-state/<repoId>/worktrees/`.
 

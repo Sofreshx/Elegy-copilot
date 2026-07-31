@@ -3,6 +3,21 @@ const route = (assetId, extra = {}) => ({
   ...extra,
 });
 
+const CODEX_ELEGY_MANAGEMENT = {
+  owner: 'elegy',
+  sourceOfTruth: 'elegy-catalog',
+  scope: 'global',
+  readOnly: false,
+};
+
+const CODEX_NATIVE_MANAGEMENT = {
+  owner: 'harness',
+  sourceOfTruth: 'codex',
+  scope: 'global',
+  readOnly: true,
+  readOnlyReason: 'Native Codex asset; manage it through Codex.',
+};
+
 export const TARGET_ROUTING_SCHEMA_VERSION = 1;
 
 export const SHARED_G05_GOVERNANCE = {
@@ -58,6 +73,7 @@ const ENGINE_ASSET_ROUTES = [
   route('skill-sweeper-cleanup'),
   route('skill-commit-check-setup'),
   route('skill-repo-quality-setup'),
+  route('skill-repo-checks'),
   route('skill-commit-validation-governance'),
   route('skill-skill-authoring'),
   route('skill-agents-md-authoring'),
@@ -172,24 +188,23 @@ export const COMPATIBILITY_MANIFESTS = [
       agentsAreFlat: true,
       skillsRequireFolderName: true,
       notes:
-        'Install Codex-native home instructions, five bounded Luna role agents, one strong Sol reviewer, and seven focused skills under ~/.codex, then patch ~/.codex/config.toml conservatively. Elegy plugins remain explicit opt-ins.',
+        'Install the six native Codex role agents and six Elegy compatibility skills under ~/.codex. Native agents and Codex configuration remain harness-owned; Elegy plugins are installed through the Codex marketplace.',
     },
     governance: SHARED_G05_GOVERNANCE,
     assetRoutes: [
-      route('codex-global-instructions', { destination: 'AGENTS.md' }),
-      route('codex-explorer-agent'),
-      route('codex-reviewer-agent'),
-      route('codex-reviewer-strong-agent'),
-      route('codex-worker-agent'),
-      route('codex-test-runner-agent'),
-      route('codex-sweeper-agent'),
-      route('codex-repo-setup-skill'),
-      route('codex-repo-backed-obsidian-docs-skill', { sourceAssetId: 'skill-repo-backed-obsidian-docs' }),
-      route('codex-sweeper-cleanup-skill', { sourceAssetId: 'skill-sweeper-cleanup' }),
-      route('codex-repo-quality-setup-skill', { sourceAssetId: 'skill-repo-quality-setup' }),
-      route('codex-agents-md-authoring-skill', { sourceAssetId: 'skill-agents-md-authoring' }),
-      route('codex-tdd-skill', { sourceAssetId: 'skill-tdd' }),
-      route('codex-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning', loadMode: 'on-demand' }),
+      route('codex-global-instructions', { destination: 'AGENTS.md', management: CODEX_ELEGY_MANAGEMENT }),
+      route('codex-explorer-agent', { management: CODEX_NATIVE_MANAGEMENT }),
+      route('codex-reviewer-agent', { management: CODEX_NATIVE_MANAGEMENT }),
+      route('codex-reviewer-strong-agent', { management: CODEX_NATIVE_MANAGEMENT }),
+      route('codex-worker-agent', { management: CODEX_NATIVE_MANAGEMENT }),
+      route('codex-test-runner-agent', { management: CODEX_NATIVE_MANAGEMENT }),
+      route('codex-sweeper-agent', { management: CODEX_NATIVE_MANAGEMENT }),
+      route('codex-repo-setup-skill', { management: CODEX_ELEGY_MANAGEMENT }),
+      route('codex-repo-backed-obsidian-docs-skill', { sourceAssetId: 'skill-repo-backed-obsidian-docs', management: CODEX_ELEGY_MANAGEMENT }),
+      route('codex-sweeper-cleanup-skill', { sourceAssetId: 'skill-sweeper-cleanup', management: CODEX_ELEGY_MANAGEMENT }),
+      route('codex-repo-quality-setup-skill', { sourceAssetId: 'skill-repo-quality-setup', management: CODEX_ELEGY_MANAGEMENT }),
+      route('codex-agents-md-authoring-skill', { sourceAssetId: 'skill-agents-md-authoring', management: CODEX_ELEGY_MANAGEMENT }),
+      route('codex-tdd-skill', { sourceAssetId: 'skill-tdd', management: CODEX_ELEGY_MANAGEMENT }),
     ],
   },
   {
@@ -229,6 +244,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-github-workflow-skill'),
       route('opencode-commit-check-setup-skill', { sourceAssetId: 'skill-commit-check-setup' }),
       route('opencode-repo-quality-setup-skill', { sourceAssetId: 'skill-repo-quality-setup' }),
+      route('opencode-repo-checks-skill', { sourceAssetId: 'skill-repo-checks' }),
       route('opencode-elegy-obsidian-skill', { sourceAssetId: 'skill-elegy-obsidian' }),
       route('opencode-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning' }),
       route('opencode-elegy-skills-discovery-skill', { sourceAssetId: 'skill-elegy-skills-discovery' }),
@@ -322,6 +338,10 @@ export const COMPATIBILITY_MANIFESTS = [
       route('antigravity-repo-quality-setup-skill', {
         sourceAssetId: 'skill-repo-quality-setup',
         destination: 'antigravity/skills/repo-quality-setup',
+      }),
+      route('antigravity-repo-checks-skill', {
+        sourceAssetId: 'skill-repo-checks',
+        destination: 'antigravity/skills/repo-checks',
       }),
       route('antigravity-skill-authoring-skill', {
         sourceAssetId: 'skill-skill-authoring',

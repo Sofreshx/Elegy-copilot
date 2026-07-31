@@ -958,8 +958,8 @@ function handleGitActionWithGate(ctx, deps, action, executeAction) {
 
       // Determine profile based on action type
       let profile = 'commit'; // default
-      if (action === 'push') profile = 'ci-local';
-      if (action === 'pull-request') profile = 'ci-local';
+      if (action === 'push') profile = 'push';
+      if (action === 'pull-request') profile = 'push';
 
       // Detect current branch for protected-branch policy
       let branchName = null;

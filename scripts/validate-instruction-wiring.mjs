@@ -63,7 +63,6 @@ const APPENDICES = [
 ];
 
 const OPENCODE_WORKER_ROUTE_APPENDICES = [
-  'codex-assets/home/AGENTS-appendix.md',
   'claude-assets/home/CLAUDE-appendix.md',
   'opencode-assets/home/AGENTS-appendix.md',
 ];

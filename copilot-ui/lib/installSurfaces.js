@@ -46,6 +46,8 @@ async function installCodexSurface(options) {
     force: options.force,
     codexHome: options.codexHome,
     skillsHome: options.codexSkillsHome,
+    managedOnly: options.managedOnly === true,
+    skipConfig: options.skipConfig === true,
   });
 }
 

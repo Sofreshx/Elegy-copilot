@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { readGitEvidence } = require('./gitEvidence');
 
 const HISTORY_MAX = 10;
 
@@ -21,37 +22,14 @@ function deriveRepoId(repoRoot) {
 
 /**
  * Compute a git fingerprint for a repo root.
- * Returns { head, dirtyHash } or { head: null, dirtyHash: null } on failure.
+ * Returns { branch, head, dirtyHash } or null fields on failure.
  *
  * @param {string} repoRoot
  * @returns {{ head: string|null, dirtyHash: string|null }}
  */
 function computeGitFingerprint(repoRoot) {
-  try {
-    const { execSync } = require('child_process');
-    const head = execSync('git rev-parse HEAD', {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'ignore'],
-      timeout: 10000,
-    }).trim();
-
-    const porcelain = execSync('git status --porcelain', {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'ignore'],
-      timeout: 10000,
-    }).trim();
-
-    let dirtyHash = null;
-    if (porcelain.length > 0) {
-      dirtyHash = crypto.createHash('sha256').update(porcelain, 'utf8').digest('hex');
-    }
-
-    return { head, dirtyHash };
-  } catch {
-    return { head: null, dirtyHash: null };
-  }
+  const evidence = readGitEvidence(repoRoot);
+  return { branch: evidence.branch, head: evidence.head, dirtyHash: evidence.dirtyHash };
 }
 
 /**
@@ -140,8 +118,17 @@ function buildState(repoId, repoPath, runResult, config, ciSyncResult) {
     repoPath,
     lastRun: {
       timestamp: new Date().toISOString(),
-      gitFingerprint,
+      gitFingerprint: {
+        branch: runResult.branch || gitFingerprint.branch,
+        head: runResult.head || gitFingerprint.head,
+        dirtyHash: runResult.dirtyHash || gitFingerprint.dirtyHash,
+      },
       configHash,
+      planHash: runResult.planHash || runResult.planIdentity?.hash || null,
+      action: runResult.action || null,
+      selectionMode: runResult.selectionMode || null,
+      runnerVersion: runResult.runnerVersion || null,
+      source: runResult.sourceKind || runResult.source || 'local',
       overallPass: runResult.allPassed !== false,
       gatePassed: runResult.gatePassed ?? (runResult.allPassed !== false),
       compositeScore: runResult.compositeScore,
@@ -202,7 +189,7 @@ function writeCheckState(repoId, repoPath, runResult, config, ciSyncResult) {
  * @param {Object|null} config
  * @returns {{ fresh: boolean, reason: string, lastRun?: Object }}
  */
-function checkFreshness(repoId, repoPath, config, profile) {
+function checkFreshness(repoId, repoPath, config, profile, planHash) {
   const state = readCheckState(repoId);
   if (!state || !state.lastRun) {
     return { fresh: false, reason: 'no-prior-run' };
@@ -210,21 +197,48 @@ function checkFreshness(repoId, repoPath, config, profile) {
 
   const currentFingerprint = computeGitFingerprint(repoPath);
   const currentConfigHash = computeConfigHash(config);
+  const previousFingerprint = state.lastRun.gitFingerprint || {};
 
-  if (currentFingerprint.head !== state.lastRun.gitFingerprint.head) {
+  if (currentFingerprint.branch !== previousFingerprint.branch) {
+    return { fresh: false, reason: 'branch-changed' };
+  }
+  if (currentFingerprint.head !== previousFingerprint.head) {
     return { fresh: false, reason: 'head-changed' };
   }
-  if (currentFingerprint.dirtyHash !== state.lastRun.gitFingerprint.dirtyHash) {
+  if (currentFingerprint.dirtyHash !== previousFingerprint.dirtyHash) {
     return { fresh: false, reason: 'working-tree-changed' };
   }
   if (currentConfigHash !== state.lastRun.configHash) {
     return { fresh: false, reason: 'config-changed' };
+  }
+  if (state.lastRun.planHash) {
+    const currentPlanHash = resolveCurrentPlanHash(repoPath, state.lastRun, planHash);
+    if (currentPlanHash && currentPlanHash !== state.lastRun.planHash) {
+      return { fresh: false, reason: 'plan-changed' };
+    }
   }
   if (profile && state.lastRun.profile !== profile) {
     return { fresh: false, reason: 'different-profile' };
   }
 
   return { fresh: true, reason: 'fresh', lastRun: state.lastRun };
+}
+
+function resolveCurrentPlanHash(repoPath, lastRun, explicitPlanHash) {
+  if (typeof explicitPlanHash === 'string' && explicitPlanHash.length > 0) return explicitPlanHash;
+  try {
+    const { discoverCheckPlan } = require('./checkPlanService');
+    const action = ['commit', 'push', 'ci-local', 'release'].includes(lastRun.action)
+      ? lastRun.action
+      : lastRun.profile === 'push'
+        ? 'push'
+        : lastRun.profile === 'release'
+          ? 'release'
+          : 'commit';
+    return discoverCheckPlan(repoPath, { action }).planHash || null;
+  } catch {
+    return null;
+  }
 }
 
 /**

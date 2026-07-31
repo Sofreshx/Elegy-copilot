@@ -8,7 +8,7 @@
 
 ## Overview
 
-This plan implements R0–R5 of the opencode-model-profile-ux spec. The goal is to fix the broken profile switching UX, isolate Codex config from OpenCode changes, add a discoverable model selector drawer, and harden the Permissions tab against crashes.
+This plan implements R0–R5 of the OpenCode profile UX spec. The profile, model-selector, and permissions work remains OpenCode-only. The historical R0 provider-switch steps are superseded by the native Codex settings modernization: Codex installation uses the six-agent/six-skill receipt and the safe legacy migration, with no `--provider-id` path.
 
 The work is ordered into 4 phases. Phase 1 (quick fixes) addresses the crash, the broken props, and the Codex contamination — these are independent and can run in parallel. Phase 2 (backend integration) makes profile activation actually work by invoking the CLI switch script, which depends on Phase 1's props fix for correct save behavior. Phase 3 (UX enhancement) adds the model selector drawer, which depends on Phase 2's model resolution infrastructure. Phase 4 (drift detection) adds the mismatch warning system, which depends on Phase 2's agent file access.
 
@@ -20,7 +20,7 @@ The work is ordered into 4 phases. Phase 1 (quick fixes) addresses the crash, th
 Phase 1: Quick Fixes (R1 + R4 + R0)
     → R1: Normalize permission values in GET /api/opencode/permissions
     → R4: Fix SectionProps to include saving, remove type casts
-    → R0: Fix codex-config-patch.mjs default provider + add --provider-id
+    → R0: Keep Codex native-provider configuration isolated from OpenCode
     → These have zero cross-dependencies — implement in any order
     → Run existing tests after each fix
 
@@ -65,20 +65,9 @@ Phase 4: Drift Detection (R5)
   - Thread `state.saving` from the store into `<SectionComponent>` at line 882: `<SectionComponent status={state.status} selectedLaneId={state.selectedLaneId} saving={state.saving} />`
 - Verify: Save button in Profiles tab disables during save. Activate button disables during save. TypeScript compilation passes.
 
-**1.3 R0 — Fix Codex Config Contamination (35 min)**
-- **Strategy:** Make `providerId` an **optional** parameter (default `undefined`). When undefined, skip the root-level `model_provider` key entirely. This avoids breaking the standalone CLI or the 16 call sites in `codex-config-patch.test.js`.
-- In `scripts/codex-config-patch.mjs`:
-  - Remove the hardcoded `DEFAULT_PROVIDER_ID = 'opencode-go'` on line 11.
-  - Change `patchCodexConfig()` and `patchConfigFile()` signatures to accept an optional `{ providerId, modelId, reviewModelId }` object.
-  - In `buildRootKeyLines()`, only emit `model_provider = "..."` when `providerId` is a non-empty string.
-  - In `parseArgs()` (lines 316-341), add `--provider-id` argument support for standalone CLI invocation.
-- In `scripts/codex-install.mjs`:
-  - Accept a `--provider-id` CLI argument. Pass it through to `patchConfigFile()`.
-  - When `--provider-id` is absent, `providerId` is `undefined` → no root-level `model_provider` key is written.
-- In `scripts/codex-config-patch.test.js`:
-  - The 16 call sites for `patchConfigFile()`/`patchCodexConfig()` already call without `providerId` → default `undefined` → behavior is preserved (no change needed if `providerId` is optional).
-  - Tests that explicitly check for `model_provider = "` in output must be updated: those assertions should only pass when `providerId` IS provided. Add one test case WITH `--provider-id opencode-go` to confirm the key is written.
-- Verify: Run `node scripts/codex-config-patch.test.js` passes. Run `node scripts/codex-install.mjs` without `--provider-id` → `~/.codex/config.toml` has NO root-level `model_provider` key. Codex uses its native provider. Run with `--provider-id opencode-go` → root-level key is written. Switching OpenCode profile in UI does NOT rewrite Codex config.
+**1.3 R0 — Verify native Codex isolation (35 min)**
+- **Strategy:** Keep Codex native-provider configuration owned by Codex and make the OpenCode profile route read/write only OpenCode files. Known legacy root references are removed by the idempotent migration with a backup.
+- Verify: Run the native Codex patcher and migration tests. Confirm the six-agent/six-skill install leaves unrelated Codex configuration intact, removes only known legacy provider references, and never adds an OpenCode provider route. Switching an OpenCode profile does not rewrite Codex config.
 
 ---
 
@@ -189,9 +178,9 @@ R0 (Codex isolation) ───── independent ──────┤
 | P1 R1 | `copilot-ui/routes/opencode.js` | Add `normalizePermissions()` helper; use in GET handler |
 | P1 R4 | `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx` | Update SectionProps, fix type casts, thread saving |
 | P1 R4 | `copilot-ui/ui/src/stores/opencodeStore.ts` | No changes needed (saving already in state) |
-| P1 R0 | `scripts/codex-config-patch.mjs` | Remove DEFAULT_PROVIDER_ID constant; accept optional providerId param; add --provider-id to parseArgs |
-| P1 R0 | `scripts/codex-install.mjs` | Add --provider-id CLI argument |
-| P1 R0 | `scripts/codex-config-patch.test.js` | Update tests asserting `model_provider = "` in output; add test with --provider-id |
+| P1 R0 | `scripts/codex-config-patch.mjs` | Keep native `[agents]` patching and remove only known legacy provider references |
+| P1 R0 | `scripts/codex-install.mjs` | Install the six-agent/six-skill Codex receipt without provider switching |
+| P1 R0 | `scripts/codex-config-patch.test.js` | Cover native defaults, idempotence, and root-only legacy cleanup |
 | P2 R2 | `copilot-ui/routes/opencode.js` | POST handler invokes opencode-profile-switch.mjs via child_process; reorder state file update; add existence check + timeout |
 | P2 R2 | `copilot-ui/ui/src/stores/opencodeStore.ts` | Handle structured API errors in saveConfig |
 | P2 R2 | `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx` | Show error/success messages for profile switch |

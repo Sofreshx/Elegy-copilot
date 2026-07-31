@@ -5,7 +5,6 @@ const path = require('path');
 const os = require('os');
 const opencodeLogReader = require('./opencodeLogReader');
 const opencodeConfig = require('./opencodeConfig');
-const opencodeWorkers = require('./opencodeWorkers');
 let BetterSqlite3 = null;
 try {
   BetterSqlite3 = require('better-sqlite3');
@@ -38,6 +37,11 @@ function safeStat(filePath, fsImpl = fs) {
 function truncate(value, max = MAX_LINE_LENGTH) {
   const text = typeof value === 'string' ? value : String(value || '');
   return text.length > max ? `${text.slice(0, max - 1)}...` : text;
+}
+
+function publicTelemetryPath(filePath) {
+  if (typeof filePath !== 'string' || !filePath) return null;
+  return filePath.replace(/\\/g, '/').split('/').pop() || null;
 }
 
 function increment(map, key) {
@@ -222,6 +226,18 @@ function getTableColumns(db, tableName) {
   }
 }
 
+function normalizeCodexSubagentState(status, completed, updatedAt, nowValue = Date.now()) {
+  const normalized = String(status || '').toLowerCase().replace(/[- ]/g, '_');
+  if (normalized === 'canceled' || normalized === 'cancelled') return 'canceled';
+  if (normalized === 'failed' || normalized === 'error') return 'failed';
+  if (normalized === 'waiting_tool' || normalized === 'waiting_for_tool') return 'waiting_tool';
+  if (normalized === 'starting' || normalized === 'queued' || normalized === 'pending') return 'starting';
+  if (completed || normalized === 'closed' || normalized === 'completed' || normalized === 'done') return 'completed';
+  const updatedMs = updatedAt ? new Date(updatedAt).getTime() : 0;
+  if (updatedMs > 0 && nowValue - updatedMs > 120_000) return 'stale';
+  return 'running';
+}
+
 function buildCodexSubagentUsage(options = {}) {
   const codexHome = options.codexHome || path.join(os.homedir(), '.codex');
   const limit = clampLimit(options.limit);
@@ -230,7 +246,7 @@ function buildCodexSubagentUsage(options = {}) {
   if (!db) {
     return {
       generatedAt: new Date().toISOString(),
-      source: { kind: 'codex-state', path: statePath },
+      source: { kind: 'codex-state', path: publicTelemetryPath(statePath) },
       coverage: 'no-readable-state',
       runs: [],
       byAgent: [],
@@ -247,7 +263,7 @@ function buildCodexSubagentUsage(options = {}) {
     if (!hasTable(db, 'threads') || !hasTable(db, 'thread_spawn_edges')) {
       return {
         generatedAt: new Date().toISOString(),
-        source: { kind: 'codex-state', path: statePath },
+        source: { kind: 'codex-state', path: publicTelemetryPath(statePath) },
         coverage: 'unsupported-state-schema',
         runs: [],
         byAgent: [],
@@ -256,6 +272,9 @@ function buildCodexSubagentUsage(options = {}) {
     }
 
     const columns = getTableColumns(db, 'threads');
+    const workspaceColumn = columns.has('cwd')
+      ? 'cwd'
+      : (columns.has('repo_path') ? 'repo_path' : 'NULL');
     const selectColumns = [
       'id',
       columns.has('agent_role') ? 'agent_role' : 'NULL AS agent_role',
@@ -267,6 +286,7 @@ function buildCodexSubagentUsage(options = {}) {
       columns.has('tokens_used') ? 'tokens_used' : 'NULL AS tokens_used',
       columns.has('created_at') ? 'created_at' : 'NULL AS created_at',
       columns.has('updated_at') ? 'updated_at' : 'NULL AS updated_at',
+      `${workspaceColumn} AS workspace_path`,
     ].join(', ');
     const rows = db.prepare(`
       SELECT e.parent_thread_id, e.child_thread_id, e.status AS edge_status, ${selectColumns}
@@ -281,18 +301,40 @@ function buildCodexSubagentUsage(options = {}) {
       const rollout = summarizeRollout(row.rollout_path, options);
       const totalTokens = rollout.tokens.totalTokens || asNumber(row.tokens_used, 0);
       const agentName = row.agent_role || 'unknown';
+      const providerMetadata = options.providerMetadataByAgent?.[agentName] || {};
+      const state = normalizeCodexSubagentState(
+        row.edge_status,
+        rollout.completed,
+        row.updated_at || row.created_at,
+        options.nowMs || Date.now(),
+      );
       const run = {
         parentThreadId: row.parent_thread_id,
         threadId: row.child_thread_id,
         status: row.edge_status || null,
+        state,
         agent: agentName,
         nickname: row.agent_nickname || null,
         model: row.model || null,
         reasoningEffort: row.reasoning_effort || null,
         sandboxMode: row.sandbox_mode || null,
-        rolloutPath: row.rollout_path || null,
+        rolloutPath: publicTelemetryPath(row.rollout_path),
         createdAt: row.created_at || null,
         updatedAt: row.updated_at || null,
+        startedAt: row.created_at || null,
+        providerId: providerMetadata.providerId || null,
+        providerProfile: providerMetadata.providerProfile || null,
+        providerRole: providerMetadata.providerRole || agentName,
+        modelSource: providerMetadata.modelSource || 'thread-state',
+        resolvedModelId: Object.prototype.hasOwnProperty.call(providerMetadata, 'resolvedModelId')
+          ? providerMetadata.resolvedModelId
+          : (row.model || null),
+        requestedRelease: providerMetadata.requestedRelease || null,
+        costPolicy: providerMetadata.costPolicy || null,
+        writeMode: providerMetadata.writeMode || row.sandbox_mode || null,
+        jobIdentifier: providerMetadata.jobIdentifier || null,
+        scopeStatus: providerMetadata.scopeStatus || (row.sandbox_mode === 'workspace-write' ? 'unknown' : 'not_applicable'),
+        changedFiles: Array.isArray(providerMetadata.changedFiles) ? providerMetadata.changedFiles.slice(0, 100) : [],
         tokens: {
           ...rollout.tokens,
           totalTokens,
@@ -305,7 +347,13 @@ function buildCodexSubagentUsage(options = {}) {
       };
       if (run.toolEvents > 0 && run.toolEvents < 5) run.flags.push('low-tool-count');
       if (run.errors > 0) run.flags.push('tool-errors');
-      if (!run.completed && run.status !== 'closed') run.flags.push('possibly-stale');
+      if (run.state === 'stale') run.flags.push('possibly-stale');
+      if (options.includeInternalScopeMetadata === true) {
+        run.workspacePath = options.scopeRepoPath || row.workspace_path || null;
+        run.declaredScope = Array.isArray(providerMetadata.declaredScope) && providerMetadata.declaredScope.length > 0
+          ? providerMetadata.declaredScope.slice(0, 100)
+          : rollout.declaredScope;
+      }
 
       const aggregate = byAgentMap.get(agentName) || {
         name: agentName,
@@ -341,7 +389,7 @@ function buildCodexSubagentUsage(options = {}) {
 
     return {
       generatedAt: new Date().toISOString(),
-      source: { kind: 'codex-state', path: statePath },
+      source: { kind: 'codex-state', path: publicTelemetryPath(statePath) },
       coverage: 'codex-state-plus-rollouts',
       runs,
       byAgent,
@@ -355,7 +403,7 @@ function buildCodexSubagentUsage(options = {}) {
   } catch (error) {
     return {
       generatedAt: new Date().toISOString(),
-      source: { kind: 'codex-state', path: statePath },
+      source: { kind: 'codex-state', path: publicTelemetryPath(statePath) },
       coverage: 'state-read-error',
       error: error.message,
       runs: [],
@@ -559,7 +607,6 @@ function buildCodexTelemetry(options = {}) {
   const logsPath = path.join(codexHome, 'state_5.sqlite');
   const logStat = safeStat(logsPath, options.fs || fs);
   const subagents = buildCodexSubagentUsage({ ...options, codexHome, limit: options.limit || DEFAULT_EVENT_LIMIT });
-  const workers = opencodeWorkers.buildUsage(options);
   const subagentTools = new Map();
   for (const agent of subagents.byAgent || []) {
     for (const tool of agent.topTools || []) {
@@ -584,12 +631,9 @@ function buildCodexTelemetry(options = {}) {
     summary: {
       requests: null,
       sampledRequests: null,
-      errors: subagents.summary.errors + workers.summary.failed + workers.summary.policyViolations,
+      errors: subagents.summary.errors,
       toolEvents: subagents.summary.toolEvents,
       sessions: sessions.count,
-      workerRuns: workers.summary.runs,
-      workerTokens: workers.summary.tokens,
-      workerCost: workers.summary.cost,
     },
     providerUsage: {
       providers: [],
@@ -614,16 +658,8 @@ function buildCodexTelemetry(options = {}) {
       label: session.name || session.id,
       message: session.id,
       })),
-      ...workers.recentJobs.map((job) => ({
-        timestamp: job.completedAt || job.startedAt || '',
-        type: 'opencode-worker',
-        source: workers.source.path,
-        label: job.role || job.id,
-        message: `${job.state || 'unknown'} · ${job.model || 'unknown'}`,
-      })),
     ].slice(0, clampLimit(options.limit)),
     subagents,
-    opencodeWorkers: workers,
   };
 }
 

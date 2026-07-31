@@ -68,7 +68,7 @@ describe('CliToolingSection', () => {
             canUpdate: true,
             plugins: [
               {
-                plugin: 'elegy-opencode-workers',
+                plugin: 'elegy-checks',
                 marketplace: 'elegy',
                 target: 'x86_64-pc-windows-msvc',
                 marketplaceVersion: null,
@@ -77,8 +77,8 @@ describe('CliToolingSection', () => {
                 installed: false,
                 enabled: false,
                 available: false,
-                installDir: '/codex-home/marketplaces/elegy/plugins/elegy-opencode-workers',
-                recommendedCommand: 'codex plugin add elegy-opencode-workers@elegy --json',
+                installDir: '/codex-home/marketplaces/elegy/plugins/elegy-checks',
+                recommendedCommand: 'codex plugin add elegy-checks@elegy --json',
               },
             ],
             lastError: null,

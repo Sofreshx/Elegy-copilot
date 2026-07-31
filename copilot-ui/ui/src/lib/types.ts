@@ -1758,9 +1758,29 @@ export interface CatalogGlobalHarnessActions {
   [key: string]: unknown;
 }
 
+export type CatalogManagementOwner = 'elegy' | 'harness' | 'repository' | 'external' | string;
+export type CatalogManagementScope = 'global' | 'repo' | 'user' | 'external' | string;
+
+/**
+ * Lifecycle authority for one asset in one harness. This intentionally lives
+ * on the harness state rather than only on the conceptual item because a
+ * shared asset may be Elegy-managed for one harness and native/read-only for
+ * another.
+ */
+export interface CatalogManagementMetadata {
+  owner: CatalogManagementOwner;
+  sourceOfTruth: string;
+  scope: CatalogManagementScope;
+  readOnly: boolean;
+  readOnlyReason?: string | null;
+  [key: string]: unknown;
+}
+
 export interface CatalogGlobalHarnessState {
   harnessId: string;
   title: string;
+  /** Manifest-level identifier for mutations; distinct from a merged conceptual itemId. */
+  assetId?: string | null;
   supported: boolean;
   expected?: boolean;
   installed?: boolean;
@@ -1778,6 +1798,7 @@ export interface CatalogGlobalHarnessState {
   errors?: string[];
   detail?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
+  management?: CatalogManagementMetadata | null;
   [key: string]: unknown;
 }
 
@@ -1800,7 +1821,7 @@ export interface CatalogGlobalItem {
   itemId: string;
   conceptualKey?: string;
   itemKey: string;
-  kind: 'skill' | 'agent' | 'mcp' | string;
+  kind: 'skill' | 'agent' | 'mcp' | 'hook' | 'plugin' | 'instructions' | string;
   title: string;
   description?: string | null;
   sourceType?: string | null;
@@ -1814,6 +1835,8 @@ export interface CatalogGlobalItem {
   keyFeatureLabel?: string | null;
   keyFeatureOrder?: number | null;
   scopeKinds?: string[];
+  managementOwners?: CatalogManagementOwner[];
+  managementScopes?: CatalogManagementScope[];
   syncStatus?: string | null;
   expectedHarnessCount?: number;
   missingHarnessCount?: number;
@@ -1824,7 +1847,7 @@ export interface CatalogGlobalItem {
 }
 
 export interface CatalogGlobalSection {
-  kind: 'skill' | 'agent' | 'mcp' | string;
+  kind: 'skill' | 'agent' | 'mcp' | 'hook' | 'plugin' | 'instructions' | string;
   title: string;
   count: number;
   items: CatalogGlobalItem[];
@@ -3278,78 +3301,20 @@ export interface PlanningMergeResponse {
 }
 
 
-export interface CodexProviderGatewayConfig {
-  providerId: string;
-  model: string;
-  baseUrl: string;
-  [key: string]: unknown;
-}
-
-export interface CodexProviderDeepseekStatus {
-  bridgePath: string | null;
-  bridgeConfigPath: string | null;
-  bridgeUrl: string;
-  keyConfigured: boolean;
-  bridgeReachable: boolean;
-  modelsVisible: boolean;
-  bridgeBinaryAvailable: boolean;
-  bridgeCheckoutAvailable: boolean;
-  bridgeRunning?: boolean;
-  probeError?: string | null;
-  modelIds?: string[];
-  bootstrap?: MoonBridgeBootstrapStatus | null;
-}
-
-export interface MoonBridgeBootstrapStatus {
-  installRoot: string;
-  sourceUrl: string;
-  binaryPath: string;
-  configPath: string;
-  metadataPath: string;
-  gitAvailable: boolean;
-  goAvailable: boolean;
-  installed: boolean;
-  built: boolean;
-  bundledInstalled: boolean;
-  bundledSourceAvailable: boolean;
-  lastBootstrapAt: string | null;
-  lastError: string | null;
-}
-
 export interface CodexProviderStatusResponse {
   codexHome: string;
   configPath: string;
-  statePath: string;
-  backupPath: string;
+  backupPath: string | null;
   exists: boolean;
-  activeMode: 'native' | 'deepseek-bridge' | string;
+  activeMode: 'native' | string;
   providerId: string;
-  hasManagedBlock: boolean;
   hasLegacyBlock?: boolean;
   hasBackup: boolean;
-  lastAppliedAt?: string | null;
-  lastResetAt?: string | null;
-  backupCreatedAt?: string | null;
-  gateway: CodexProviderGatewayConfig;
-  deepseek?: CodexProviderDeepseekStatus;
-  changed?: boolean;
-  action?: string;
+  legacyMigration?: {
+    required: boolean;
+    action: string;
+  };
   [key: string]: unknown;
-}
-
-export interface CodexPlanningSkillStatus {
-  installed: boolean;
-  skillDir: string;
-  skillFile: string | null;
-  codexHome: string;
-}
-
-export interface CodexPlanningStatusResponse {
-  codexHome: string;
-  planningSkill: CodexPlanningSkillStatus;
-  planningCliPath: string | null;
-  planningDbPath: string | null;
-  ready: boolean;
 }
 
 
@@ -3547,7 +3512,7 @@ export interface OpenCodeAssetsInstallResponse {
   error?: string;
 }
 
-export type OpenCodeToolingInstallKind = 'elegy-planning-cli' | 'elegy-skills' | 'install-codex-planning' | 'worktree-permission-profile';
+export type OpenCodeToolingInstallKind = 'elegy-planning-cli' | 'elegy-skills' | 'worktree-permission-profile';
 
 export interface OpenCodeToolingInstallPayload {
   kind: OpenCodeToolingInstallKind;
@@ -3638,7 +3603,7 @@ export interface EffectivePromptResponse {
   }>;
 }
 
-export type OpenCodeTabSectionId = 'overview' | 'lanes' | 'profiles' | 'setup' | 'logs' | 'go-workspaces' | 'permissions' | 'experimental' | 'prompts';
+export type OpenCodeTabSectionId = 'overview' | 'assets' | 'lanes' | 'profiles' | 'setup' | 'logs' | 'go-workspaces' | 'permissions' | 'experimental' | 'prompts';
 
 export interface OpenCodeRequestLogEntry {
   timestamp: string;

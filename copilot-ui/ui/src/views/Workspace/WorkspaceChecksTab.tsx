@@ -4,7 +4,7 @@ import { notificationStore } from '../../stores/notificationStore';
 import { useStoreValue } from '../../lib/store';
 import { checksStore } from '../../stores/checksStore';
 import type { RunSession } from '../../stores/checksStore';
-import type { GitCheckResults, GitChecksDiscoverResponse } from '../../lib/api/git';
+import type { GitCheckPlanCandidate, GitCheckResults, GitChecksDiscoverResponse } from '../../lib/api/git';
 import { createRepoQualitySetupTask } from '../../lib/api/git';
 
 interface WorkspaceChecksTabProps {
@@ -15,6 +15,7 @@ interface WorkspaceChecksTabProps {
 // ─── Profile button config ──────────────────────────────────────────────────
 const PROFILE_BUTTONS = [
   { id: 'commit', label: 'Run Commit', profile: 'commit' },
+  { id: 'push', label: 'Run Push', profile: 'push' },
   { id: 'ci-local', label: 'Run CI', profile: 'ci-local' },
   { id: 'desktop-preview', label: 'Run Desktop', profile: 'desktop-preview' },
   { id: 'release', label: 'Run Release', profile: 'release' },
@@ -32,6 +33,13 @@ const SUCCESS = 'var(--color-success-500)';
 const FAILURE = 'var(--color-danger-500)';
 const WARNING = 'var(--color-warning-600)';
 const INFO = 'var(--color-brand-400)';
+
+type CheckRunAction = 'commit' | 'push' | 'ci-local' | 'release';
+
+function actionForProfile(profile: string): CheckRunAction {
+  if (profile === 'commit' || profile === 'push' || profile === 'release') return profile;
+  return 'ci-local';
+}
 
 // ─── Style objects ──────────────────────────────────────────────────────────
 const s = {
@@ -181,7 +189,7 @@ interface LaneInfo {
   opensWindow?: boolean;
 }
 
-type LaneStatusKind = 'pass' | 'fail' | 'skip' | 'running' | 'not-run' | 'unknown';
+type LaneStatusKind = 'pass' | 'fail' | 'warning' | 'skip' | 'running' | 'not-required' | 'not-run' | 'unknown';
 interface DisplayLane {
   status: string;
   exitCode: number | null;
@@ -198,6 +206,9 @@ interface DisplayLane {
   cost?: string;
   opensWindow?: boolean;
   defaultProfiles?: string[];
+  provenance?: string | null;
+  source?: string | null;
+  commandProvenance?: { source?: string; path?: string; field?: string; job?: string | null };
   commands: Array<{ command: string; exitCode: number | null; success: boolean; durationMs: number | null }>;
 }
 
@@ -208,11 +219,16 @@ function normalizeLaneStatus(status: string | undefined): LaneStatusKind {
       return 'pass';
     case 'FAIL':
       return 'fail';
+    case 'WARN':
+    case 'WARNING':
+      return 'warning';
     case 'SKIP':
     case 'SKIPPED':
       return 'skip';
     case 'RUNNING':
       return 'running';
+    case 'NOT-REQUIRED':
+      return 'not-required';
     case '':
     case 'CONFIGURED':
     case 'NOT-RUN':
@@ -240,6 +256,10 @@ function getLaneStatusView(status: string | undefined): {
       return { kind, icon: '-', label: 'SKIP', color: TEXT_MUTED, background: 'var(--color-surface-2)', borderColor: BORDER };
     case 'running':
       return { kind, icon: 'run', label: 'RUNNING', color: INFO, background: 'rgba(120, 184, 176, 0.12)', borderColor: 'var(--color-brand-400)' };
+    case 'warning':
+      return { kind, icon: '!', label: 'WARNING', color: WARNING, background: 'var(--color-warning-50)', borderColor: 'var(--color-warning-200)' };
+    case 'not-required':
+      return { kind, icon: '—', label: 'NOT REQUIRED', color: TEXT_MUTED, background: 'var(--color-surface-1)', borderColor: BORDER };
     case 'not-run':
       return { kind, icon: '-', label: 'NOT RUN', color: TEXT_MUTED, background: 'var(--color-surface-1)', borderColor: BORDER };
     default:
@@ -268,7 +288,32 @@ function discoveredToLane(check: GitChecksDiscoverResponse['checks'][number]): D
     cost: check.cost,
     opensWindow: check.opensWindow,
     defaultProfiles: check.defaultProfiles,
+    source: check.source,
     commands,
+  };
+}
+
+function planCandidateToLane(check: GitCheckPlanCandidate): DisplayLane {
+  return {
+    status: 'NOT_RUN',
+    exitCode: null,
+    durationMs: null,
+    score: null,
+    details: check.description || `${check.classification} candidate discovered from ${check.provenance || check.source || 'repository metadata'}.`,
+    group: check.kind || null,
+    blocking: check.blocking === true,
+    ciWorkflow: check.ciWorkflow || null,
+    ciJob: check.ciJob || null,
+    ciRequired: check.ciRequired === true,
+    required: check.required === true,
+    skippable: check.skippable === true,
+    cost: check.cost,
+    opensWindow: check.opensWindow === true,
+    defaultProfiles: check.defaultProfiles || [],
+    provenance: check.provenance || null,
+    source: check.source || null,
+    commandProvenance: check.commandProvenance,
+    commands: (check.commands || []).map((command) => ({ command, exitCode: null, success: true, durationMs: null })),
   };
 }
 
@@ -371,8 +416,22 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   const [profileBarOpen, setProfileBarOpen] = useState(false);
   const [setupTaskPrompt, setSetupTaskPrompt] = useState<string | null>(null);
   const [startingSetupTask, setStartingSetupTask] = useState(false);
+  const [historySource, setHistorySource] = useState<'local' | 'github'>('local');
+  const [historyBranch, setHistoryBranch] = useState<'current' | 'all'>('current');
 
-  const { runSession, runningChecks, checkResults, checkState, ciSync, discoveredChecks, qualityStatus, loading } = storeState;
+  const {
+    runSession,
+    runningChecks,
+    checkResults,
+    checkState,
+    ciSync,
+    discoveredChecks,
+    qualityStatus,
+    checkPlan,
+    githubHistory: githubHistoryResponse,
+    error,
+    loading,
+  } = storeState;
 
   // ─── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -388,9 +447,15 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   const overallPass = lastRun?.overallPass;
   const compositeScore = lastRun?.compositeScore;
   const freshness = checkState?.freshness;
+  const recommendedChecks = checkPlan?.recommendedChecks ?? [];
+  const recommendedProfile = checkPlan?.action && ['commit', 'push', 'ci-local', 'release'].includes(checkPlan.action)
+    ? checkPlan.action
+    : 'commit';
+  const ciGapCount = ciSync?.syncResult?.summary?.gaps ?? 0;
   const allLanes = lastRun?.lanes ?? {};
   const baseDisplayLanes: Record<string, DisplayLane> = {
     ...Object.fromEntries((discoveredChecks?.checks ?? []).map((check) => [check.name, discoveredToLane(check)])),
+    ...Object.fromEntries((checkPlan?.candidates ?? []).map((check) => [check.id, planCandidateToLane(check)])),
     ...allLanes,
   };
   const runningLaneNames = new Set(runSession?.outcome === 'running' ? runSession.targetLanes : []);
@@ -415,14 +480,37 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
       counts[kind] += 1;
       return counts;
     },
-    { pass: 0, fail: 0, skip: 0, running: 0, 'not-run': 0, unknown: 0 } as Record<LaneStatusKind, number>,
+    { pass: 0, fail: 0, warning: 0, skip: 0, running: 0, 'not-required': 0, 'not-run': 0, unknown: 0 } as Record<LaneStatusKind, number>,
   );
-  const history = (checkState?.history ?? []).slice(-5) as Array<{
+  const currentBranch = checkPlan?.affectedScope.branch || lastRun?.branch || qualityStatus?.remote.branch || null;
+  const localHistory = [
+    ...(checkState?.lastRun ? [checkState.lastRun] : []),
+    ...(checkState?.history ?? []),
+  ].slice(0, 25) as Array<{
+    runId?: string | null;
     timestamp?: string;
     profile?: string | null;
     overallPass?: boolean;
+    branch?: string | null;
+    head?: string | null;
+    planHash?: string | null;
+    source?: string | null;
     lanes?: Record<string, { durationMs?: number; status?: string }>;
   }>;
+  const githubHistory = githubHistoryResponse?.runs ?? qualityStatus?.remote.runs ?? [];
+  const filteredGithubHistory = githubHistory
+    .filter((entry) => {
+      if (historyBranch === 'all' || !currentBranch) return true;
+      const branch = String(entry.headBranch || entry.branch || entry.ref || '')
+        .replace(/^refs\/heads\//, '');
+      return !branch || branch === currentBranch;
+    })
+    .slice(0, 10);
+  const githubHistoryAvailable = githubHistoryResponse?.available ?? qualityStatus?.remote.available ?? false;
+  const githubHistoryReason = githubHistoryResponse?.reason || qualityStatus?.remote.reason || null;
+  const filteredLocalHistory = localHistory
+    .filter((entry) => historyBranch === 'all' || !currentBranch || !entry.branch || entry.branch === currentBranch)
+    .slice(0, 10);
 
   // Freshness display
   let freshnessLabel: string;
@@ -451,10 +539,38 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   const groupEntries = Array.from(groupedLanes.entries());
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
-  function handleRunProfile(profile: string) {
+  function handleRunProfile(profile: string, selectionMode = 'profile') {
+    const action = actionForProfile(profile);
+    // Explicit profile runs honor the adopted/discovered profile membership.
+    // The change-aware plan has its own one-click action below; it must not
+    // silently replace a user's request for a named profile.
     const targetLanes = resolveTargetLaneNames(baseDisplayLanes, profile);
     setShowLogConsole(true);
-    void checksStore.startRun(repoPath, profile, getProfileLabel(profile), targetLanes);
+    void checksStore.startRun(repoPath, profile, getProfileLabel(profile), targetLanes, {
+      selectionMode,
+      action,
+      selectedLanes: targetLanes,
+    });
+  }
+
+  function handleRunRecommended() {
+    if (!checkPlan || recommendedChecks.length === 0) {
+      setProfileBarOpen(true);
+      return;
+    }
+    setActiveProfile(recommendedProfile);
+    setShowLogConsole(true);
+    void checksStore.startRun(
+      repoPath,
+      recommendedProfile,
+      `recommended ${recommendedProfile}`,
+      recommendedChecks.map((check) => check.id),
+      {
+        selectionMode: 'recommended',
+        action: actionForProfile(recommendedProfile),
+        selectedLanes: recommendedChecks.map((check) => check.id),
+      },
+    );
   }
 
   const handleRefresh = useCallback(() => {
@@ -568,10 +684,76 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
             {qualityStatus.drift.map((item) => <div key={item.id}>{item.message}</div>)}
           </div>
         )}
+        {ciGapCount > 0 && (
+          <div style={{ marginTop: 12, color: WARNING }} data-testid="workspace-checks-ci-gap">
+            {ciGapCount} GitHub job(s) have no local lane mapping. Local proof remains separate from remote evidence.
+          </div>
+        )}
         {setupTaskPrompt && (
           <pre data-testid="workspace-checks-setup-prompt" style={{ margin: '12px 0 0', padding: 10, background: DARK_BG, whiteSpace: 'pre-wrap' }}>
             {setupTaskPrompt}
           </pre>
+        )}
+      </section>
+    );
+  }
+
+  function renderRecommendation() {
+    if (error) {
+      return (
+        <section style={{ ...s.hooksStatus, border: `1px solid ${FAILURE}`, marginBottom: 12 }} data-testid="workspace-checks-error">
+          <div style={s.label}>Checks unavailable</div>
+          <div style={{ color: FAILURE, marginTop: 4 }}>{error}</div>
+          <div style={{ marginTop: 8 }}>
+            <Button variant="ghost" size="sm" onClick={handleRefresh}>
+              Retry discovery
+            </Button>
+          </div>
+        </section>
+      );
+    }
+    if (!checkPlan) {
+      return (
+        <section style={{ ...s.hooksStatus, border: `1px solid ${BORDER}`, marginBottom: 12 }} data-testid="workspace-checks-recommendation-loading">
+          <div style={s.label}>Recommended for this change</div>
+          <div style={{ color: TEXT_MUTED, marginTop: 4 }}>Inspecting repository policy and affected scope…</div>
+        </section>
+      );
+    }
+    const remoteCount = checkPlan.remoteEvidence?.length ?? checkPlan.candidates.filter((check) => check.classification === 'remote-only').length;
+    const adopted = checkPlan.discoveryMode?.includes('adopted') || checkPlan.candidates.some((check) => check.provenance === 'adopted-policy');
+    return (
+      <section style={{ ...s.hooksStatus, border: `1px solid ${BORDER}`, marginBottom: 12 }} data-testid="workspace-checks-recommendation">
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 260, flex: 1 }}>
+            <div style={s.label}>Recommended for this change</div>
+            <h2 style={{ color: TEXT_PRIMARY, fontSize: 18, margin: '4px 0 8px' }}>
+              {recommendedChecks.length > 0 ? `${recommendedChecks.length} local proof lane${recommendedChecks.length === 1 ? '' : 's'}` : 'No executable local proof selected'}
+            </h2>
+            <div style={{ color: TEXT_SECONDARY, lineHeight: 1.45 }}>{checkPlan.selectionRationale}</div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8, color: TEXT_MUTED, fontSize: 11 }}>
+              <span>Action: {checkPlan.action}</span>
+              <span>Cost: {checkPlan.expectedCost.tier}</span>
+              <span>Branch: {checkPlan.affectedScope.branch || 'detached'}</span>
+              <span>Source: {adopted ? 'adopted policy + discovery' : 'zero-config discovery'}</span>
+              {remoteCount > 0 && <span>{remoteCount} remote-only lane{remoteCount === 1 ? '' : 's'}</span>}
+            </div>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={runningChecks || recommendedChecks.length === 0}
+            loading={runningChecks && activeProfile === recommendedProfile}
+            onClick={() => handleRunRecommended()}
+            testId="workspace-checks-recommended-run"
+          >
+            Run recommended proof
+          </Button>
+        </div>
+        {!adopted && recommendedChecks.length > 0 && (
+          <div style={{ marginTop: 10, color: WARNING, fontSize: 12 }}>
+            Discovery is read-only. This run uses an ephemeral plan; adopt the policy separately if you want hooks and durable metadata.
+          </div>
         )}
       </section>
     );
@@ -586,6 +768,16 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
         <div>
           <div style={s.label}>Repo</div>
           <div style={s.value} title={repoPath}>{repoName}</div>
+        </div>
+
+        <div>
+          <div style={s.label}>Branch</div>
+          <div style={s.value}>{checkPlan?.affectedScope.branch || lastRun?.branch || 'detached'}</div>
+        </div>
+
+        <div>
+          <div style={s.label}>Evidence source</div>
+          <div style={s.value}>{lastRun?.sourceKind || (lastRun?.source === 'elegy-checks' ? 'local' : lastRun?.source) || 'local'}</div>
         </div>
 
         {/* Last run timestamp */}
@@ -873,6 +1065,13 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
             )}
 
             {/* Commands */}
+            {(lane.provenance || lane.commandProvenance) && (
+              <div style={{ color: TEXT_MUTED, fontSize: 11, marginBottom: 8 }}>
+                Evidence source: {lane.provenance || lane.source || 'repository metadata'}
+                {lane.commandProvenance?.path ? ` · ${lane.commandProvenance.path}` : ''}
+                {lane.commandProvenance?.field ? ` · ${lane.commandProvenance.field}` : ''}
+              </div>
+            )}
             {lane.commands && lane.commands.length > 0 && (
               <div>
                 <div style={{ color: TEXT_MUTED, fontSize: '10px', textTransform: 'uppercase', marginBottom: 4 }}>
@@ -893,8 +1092,8 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
                       fontFamily: 'monospace',
                     }}
                   >
-                    <span style={{ color: cmd.success ? SUCCESS : FAILURE }}>
-                      {cmd.success ? 'ok' : 'fail'}
+                    <span style={{ color: normalizeLaneStatus(lane.status) === 'not-run' ? TEXT_MUTED : cmd.success ? SUCCESS : FAILURE }}>
+                      {normalizeLaneStatus(lane.status) === 'not-run' ? 'planned' : cmd.success ? 'ok' : 'fail'}
                     </span>
                     <code style={{ flex: 1, color: TEXT_SECONDARY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {cmd.command}
@@ -938,8 +1137,10 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
             <span style={{ display: 'inline-flex', gap: 6, marginLeft: 10, flexWrap: 'wrap', verticalAlign: 'middle' }}>
               {laneStatusCounts.pass > 0 && <span style={{ ...s.badge('var(--color-success-50)'), color: SUCCESS }}>PASS {laneStatusCounts.pass}</span>}
               {laneStatusCounts.fail > 0 && <span style={{ ...s.badge('var(--color-danger-50)'), color: FAILURE }}>FAIL {laneStatusCounts.fail}</span>}
+              {laneStatusCounts.warning > 0 && <span style={{ ...s.badge('var(--color-warning-50)'), color: WARNING }}>WARN {laneStatusCounts.warning}</span>}
               {laneStatusCounts.running > 0 && <span style={{ ...s.badge('rgba(120, 184, 176, 0.12)'), color: INFO }}>RUN {laneStatusCounts.running}</span>}
               {laneStatusCounts.skip > 0 && <span style={{ ...s.badge('rgba(154, 160, 166, 0.18)'), color: TEXT_MUTED }}>- {laneStatusCounts.skip}</span>}
+              {laneStatusCounts['not-required'] > 0 && <span style={{ ...s.badge('var(--color-surface-2)'), color: TEXT_MUTED }}>NOT REQUIRED {laneStatusCounts['not-required']}</span>}
               {laneStatusCounts['not-run'] > 0 && <span style={{ ...s.badge('var(--color-surface-2)'), color: TEXT_MUTED }}>NOT RUN {laneStatusCounts['not-run']}</span>}
               {laneStatusCounts.unknown > 0 && <span style={{ ...s.badge('rgba(255, 152, 0, 0.20)'), color: WARNING }}>? {laneStatusCounts.unknown}</span>}
             </span>
@@ -985,11 +1186,85 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
 
   // ─── Render: Run History ──────────────────────────────────────────────────
   function renderRunHistory() {
-    if (history.length === 0) return null;
+    const showingLocal = historySource === 'local';
+    const hasRows = showingLocal ? filteredLocalHistory.length > 0 : filteredGithubHistory.length > 0;
 
     return (
       <div style={{ marginBottom: 16 }} data-testid="workspace-checks-run-history">
-        <div style={s.sectionTitle}>Run History (last {history.length})</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          <div style={s.sectionTitle}>Evidence history</div>
+          <div style={{ display: 'flex', gap: 4 }} role="group" aria-label="Evidence source">
+            {(['local', 'github'] as const).map((source) => (
+              <button
+                key={source}
+                type="button"
+                onClick={() => setHistorySource(source)}
+                style={{
+                  border: `1px solid ${historySource === source ? INFO : BORDER}`,
+                  background: historySource === source ? 'rgba(120, 184, 176, 0.12)' : DARK_BG_2,
+                  color: historySource === source ? TEXT_PRIMARY : TEXT_MUTED,
+                  borderRadius: 4,
+                  padding: '4px 8px',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                }}
+                data-testid={`workspace-checks-history-${source}`}
+              >
+                {source === 'local' ? 'Local proof' : 'GitHub history'}
+              </button>
+            ))}
+          </div>
+          <label style={{ color: TEXT_MUTED, fontSize: 11, marginLeft: 'auto' }}>
+            Branch{' '}
+            <select
+              value={historyBranch}
+              onChange={(event) => setHistoryBranch(event.target.value as 'current' | 'all')}
+              style={{ background: DARK_BG_3, color: TEXT_SECONDARY, border: `1px solid ${BORDER}`, borderRadius: 4, padding: '3px 5px' }}
+              data-testid="workspace-checks-history-branch"
+            >
+              <option value="current">{currentBranch || 'current'}</option>
+              <option value="all">All branches</option>
+            </select>
+          </label>
+        </div>
+        <div style={{ color: TEXT_MUTED, fontSize: 11, marginBottom: 8 }}>
+          {showingLocal
+            ? 'Local runs are the repository proof source; GitHub results are never merged into this pass/fail state.'
+            : githubHistoryAvailable
+              ? `Read-only GitHub runs for ${historyBranch === 'all' ? 'all branches' : currentBranch || 'the current branch'}.`
+              : githubHistoryReason || 'GitHub history is unavailable.'}
+        </div>
+        {!hasRows && (
+          <div style={{ color: TEXT_MUTED, fontStyle: 'italic', padding: '8px 0' }} data-testid="workspace-checks-history-empty">
+            {showingLocal
+              ? 'No local evidence runs recorded.'
+              : githubHistoryAvailable
+                ? `No GitHub runs recorded for ${historyBranch === 'all' ? 'these branches' : 'this branch'}.`
+                : 'GitHub history is unavailable.'}
+          </div>
+        )}
+        {!showingLocal && filteredGithubHistory.length > 0 && (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={s.table}>
+              <thead><tr><th style={s.th}>Created</th><th style={s.th}>Workflow</th><th style={s.th}>Result</th><th style={s.th}>Commit</th></tr></thead>
+              <tbody>
+                {filteredGithubHistory.map((entry, idx) => {
+                  const conclusion = String(entry.conclusion || entry.status || 'unknown');
+                  const passed = conclusion.toLowerCase() === 'success';
+                  return (
+                    <tr key={`${String(entry.databaseId || entry.createdAt || idx)}`}>
+                      <td style={s.td}>{entry.createdAt ? formatTimestamp(String(entry.createdAt)) : '—'}</td>
+                      <td style={s.td}>{String(entry.workflowName || 'GitHub workflow')}</td>
+                      <td style={{ ...s.td, color: passed ? SUCCESS : conclusion === 'unknown' ? WARNING : FAILURE }}>{conclusion}</td>
+                      <td style={s.td}>{entry.headSha ? String(entry.headSha).slice(0, 8) : '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {showingLocal && filteredLocalHistory.length > 0 && (
         <div style={{ overflowX: 'auto' }}>
           <table style={s.table}>
             <thead>
@@ -1002,11 +1277,11 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
               </tr>
             </thead>
             <tbody>
-              {history.map((entry, idx) => {
+              {filteredLocalHistory.map((entry, idx) => {
                 const hLanes = entry.lanes ?? {};
                 const hLaneEntries = Object.entries(hLanes);
-                const passed = hLaneEntries.filter(([, l]) => l.status === 'pass').length;
-                const failed = hLaneEntries.filter(([, l]) => l.status === 'fail').length;
+                const passed = hLaneEntries.filter(([, l]) => String(l.status).toUpperCase() === 'PASS').length;
+                const failed = hLaneEntries.filter(([, l]) => String(l.status).toUpperCase() === 'FAIL').length;
                 const totalDuration = hLaneEntries.reduce((sum, [, l]) => sum + (l.durationMs || 0), 0);
 
                 return (
@@ -1033,6 +1308,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
             </tbody>
           </table>
         </div>
+        )}
       </div>
     );
   }
@@ -1187,6 +1463,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   return (
     <div style={s.container} className="workspace-checks-tab" data-testid="workspace-checks-tab">
       {renderReadiness()}
+      {renderRecommendation()}
       {renderTopStrip()}
 
       {/* Manual run — collapsible */}
@@ -1220,9 +1497,9 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
 
           {showLogConsole && renderLogConsole()}
           {renderRunTraceSummary()}
-          {renderRunHistory()}
         </>
       )}
+      {renderRunHistory()}
     </div>
   );
 }

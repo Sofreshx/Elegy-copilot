@@ -17,7 +17,10 @@ role is considered read/write.
 
 ## Canonical Contract
 
-The runtime contract is owned by the external `elegy-opencode-workers` plugin:
+The runtime contract is owned by the external `elegy-opencode-workers` plugin.
+This is an OpenCode-only dashboard projection: Codex no longer starts or
+relays OpenCode Worker jobs, and Codex delegation uses its native agents plus
+the Elegy plugin marketplace. The plugin's
 `docs/write-capable-worker-design.md` in that repository is the authority, and
 its `README.md` ("Guarded Implementation") is the usage summary. This spec is
 the dashboard-side projection.
@@ -43,6 +46,12 @@ Shipped contract facts the dashboard relies on:
   permission decision records. Terminal failures carry `signal` values such as
   `supervisor_lost` and `watchdog_timeout`.
 
+## OpenCode-only Boundary
+
+The dashboard exposes this configuration and evidence only from the OpenCode
+settings/workspace surfaces. It is not a shared harness asset and it is not
+available from Codex settings or the cross-harness Codex inventory.
+
 ## Safety Boundary
 
 The dashboard exposes configuration and evidence for write-capable workers;
@@ -61,6 +70,6 @@ never spawns subagents, and never commits or publishes.
 
 ## Validation
 
-- `node --test copilot-ui/routes/codex-opencode-workers.test.js`
+- `node copilot-ui/scripts/run-vitest.js tests/opencode-view.vitest.tsx tests/opencode-go-workspaces-routes.vitest.ts`
 - `npm --prefix copilot-ui run ui:build`
 - `npm run ui:check -- --target settings`

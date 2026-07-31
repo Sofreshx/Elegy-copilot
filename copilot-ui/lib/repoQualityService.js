@@ -63,7 +63,7 @@ function parseGitHubRepo(remoteUrl) {
   return match ? `${match[1]}/${match[2]}` : null;
 }
 
-function readGitHubState(repoRoot) {
+function readGitHubState(repoRoot, options = {}) {
   const auth = run('gh', ['auth', 'status'], repoRoot);
   if (auth.status !== 0) return { available: false, reason: 'GitHub CLI is unavailable or unauthenticated.' };
 
@@ -72,11 +72,17 @@ function readGitHubState(repoRoot) {
   if (!repository) return { available: false, reason: 'Origin is not a GitHub repository.' };
 
   const branchResult = run('git', ['branch', '--show-current'], repoRoot);
-  const branch = branchResult.stdout || null;
+  const hasBranchOverride = options.branch !== undefined;
+  const branch = hasBranchOverride
+    ? (options.branch ? String(options.branch).trim() || null : null)
+    : (String(branchResult.stdout || '').trim() || null);
   const prResult = run('gh', ['pr', 'view', '--json', 'number,url,state,isDraft,statusCheckRollup'], repoRoot);
-  const runsResult = branch
-    ? run('gh', ['run', 'list', '--branch', branch, '--limit', '5', '--json', 'databaseId,workflowName,status,conclusion,url,headSha,createdAt'], repoRoot)
-    : { status: 1, stdout: '', stderr: '' };
+  const requestedLimit = Number(options.limit);
+  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(Math.floor(requestedLimit), 50) : 5;
+  const runsArgs = ['run', 'list'];
+  if (branch) runsArgs.push('--branch', branch);
+  runsArgs.push('--limit', String(limit), '--json', 'databaseId,workflowName,status,conclusion,url,headSha,headBranch,createdAt');
+  const runsResult = run('gh', runsArgs, repoRoot);
   const rulesResult = run('gh', ['api', `repos/${repository}/rulesets`], repoRoot);
 
   const runs = runsResult.status === 0 ? parseJson(runsResult.stdout, []) : [];
@@ -151,13 +157,13 @@ function buildRepoQualityStatus(repoRoot, dependencies = {}) {
   } else if (state?.lastRun && state.lastRun.overallPass === false) {
     readiness = 'local-failing';
     nextAction = { id: 'inspect-local-failure', label: 'Inspect local failure' };
-  } else if (remote.available && ['failure', 'cancelled', 'timed_out'].includes(remote.latestConclusion)) {
-    readiness = 'remote-failing';
-    nextAction = { id: 'inspect-github-failure', label: 'Inspect GitHub failure' };
-  } else if (!remote.available) {
-    readiness = 'remote-unknown';
-    nextAction = { id: 'refresh-github', label: 'Connect or refresh GitHub' };
   }
+
+  const remoteStatus = !remote.available
+    ? 'unavailable'
+    : ['failure', 'cancelled', 'timed_out'].includes(remote.latestConclusion)
+      ? 'failing'
+      : remote.latestConclusion || 'unknown';
 
   return {
     schemaVersion: 'repo-quality-status/v1',
@@ -172,6 +178,7 @@ function buildRepoQualityStatus(repoRoot, dependencies = {}) {
       freshness: state?.freshness || { fresh: false, reason: 'No recorded proof.' },
     },
     remote,
+    remoteStatus,
     drift,
   };
 }

@@ -6,58 +6,32 @@ import toml from 'toml';
 import { fileURLToPath } from 'url';
 import { getBestShell } from './shell-detect.mjs';
 import { writeTextAtomically } from './install-surface-utils.mjs';
+import { createRequire } from 'module';
 
-export const DEFAULT_REVIEW_MODEL = 'deepseek-v4-pro';
+const require = createRequire(import.meta.url);
+const { migrateLegacyCodexConfig } = require('../copilot-ui/lib/codexConfig.js');
+
 export const DEFAULT_PROFILE_NAME = 'instruction_engine_plan_review';
-export const DEFAULT_PROVIDER_ID = 'opencode-go'; // default managed profile provider
-export const DEFAULT_MODEL = 'mimo-v2-pro';
 export const PROFILE_CONFIG_SUFFIX = '.config.toml';
-export const DEFAULT_AGENT_CONFIG = {
+export const DEFAULT_AGENT_CONFIG = Object.freeze({
   enabled: true,
   maxThreads: 6,
   defaultSubagentModel: 'gpt-5.6-luna',
   defaultSubagentReasoningEffort: 'high',
   maxDepth: 1,
   jobMaxRuntimeSeconds: 1800,
-};
+});
 
-export const EXTERNAL_PROVIDERS = [
-  {
-    id: 'opencode',
-    name: 'OpenCode Zen',
-    baseUrl: 'https://opencode.ai/zen/v1',
-    envKey: 'OPENCODE_API_KEY',
-  },
-  {
-    id: 'opencode-chat',
-    name: 'OpenCode Zen Chat',
-    baseUrl: 'https://opencode.ai/zen/v1',
-    envKey: 'OPENCODE_API_KEY',
-    wireApi: 'responses',
-  },
-  {
-    id: 'opencode-go',
-    name: 'OpenCode Go',
-    baseUrl: 'https://opencode.ai/zen/go/v1',
-    envKey: 'OPENCODE_API_KEY',
-    wireApi: 'responses',
-  },
-];
-
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const args = {
     dryRun: false,
     config: '',
-    reviewModel: DEFAULT_REVIEW_MODEL,
     profileName: DEFAULT_PROFILE_NAME,
-    enableExternalProviders: true,
-    providerId: '',
-    modelId: '',
     shell: '',
   };
 
-  for (let i = 0; i < argv.length; i += 1) {
-    const value = argv[i];
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
     if (value === '--dry-run') {
       args.dryRun = true;
       continue;
@@ -67,23 +41,11 @@ function parseArgs(argv) {
       continue;
     }
     if (value === '--config') {
-      i += 1;
-      if (i >= argv.length || String(argv[i]).startsWith('--')) {
+      index += 1;
+      if (index >= argv.length || String(argv[index]).startsWith('--')) {
         throw new Error('Missing required --config <path>');
       }
-      args.config = argv[i] || '';
-      continue;
-    }
-    if (value.startsWith('--review-model=')) {
-      args.reviewModel = value.slice('--review-model='.length);
-      continue;
-    }
-    if (value === '--review-model') {
-      i += 1;
-      if (i >= argv.length || String(argv[i]).startsWith('--')) {
-        throw new Error('Missing required review model value');
-      }
-      args.reviewModel = argv[i] || '';
+      args.config = argv[index] || '';
       continue;
     }
     if (value.startsWith('--profile-name=')) {
@@ -91,43 +53,11 @@ function parseArgs(argv) {
       continue;
     }
     if (value === '--profile-name') {
-      i += 1;
-      if (i >= argv.length || String(argv[i]).startsWith('--')) {
+      index += 1;
+      if (index >= argv.length || String(argv[index]).startsWith('--')) {
         throw new Error('Missing required profile name value');
       }
-      args.profileName = argv[i] || '';
-      continue;
-    }
-    if (value === '--enable-external-providers') {
-      args.enableExternalProviders = true;
-      continue;
-    }
-    if (value === '--disable-external-providers') {
-      args.enableExternalProviders = false;
-      continue;
-    }
-    if (value.startsWith('--provider-id=')) {
-      args.providerId = value.slice('--provider-id='.length);
-      continue;
-    }
-    if (value === '--provider-id') {
-      i += 1;
-      if (i >= argv.length || String(argv[i]).startsWith('--')) {
-        throw new Error('Missing required --provider-id <id>');
-      }
-      args.providerId = argv[i] || '';
-      continue;
-    }
-    if (value.startsWith('--model-id=')) {
-      args.modelId = value.slice('--model-id='.length);
-      continue;
-    }
-    if (value === '--model-id') {
-      i += 1;
-      if (i >= argv.length || String(argv[i]).startsWith('--')) {
-        throw new Error('Missing required --model-id <id>');
-      }
-      args.modelId = argv[i] || '';
+      args.profileName = argv[index] || '';
       continue;
     }
     if (value.startsWith('--shell=')) {
@@ -135,28 +65,22 @@ function parseArgs(argv) {
       continue;
     }
     if (value === '--shell') {
-      i += 1;
-      if (i >= argv.length || String(argv[i]).startsWith('--')) {
+      index += 1;
+      if (index >= argv.length || String(argv[index]).startsWith('--')) {
         throw new Error('Missing required --shell <value>');
       }
-      args.shell = argv[i] || '';
+      args.shell = argv[index] || '';
       continue;
     }
-    throw new Error(`Unknown arg: ${value}`);
+    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --config <path>, --profile-name <name>, --shell <value>)`);
   }
 
   if (!args.config) {
     throw new Error('Missing required --config <path>');
   }
-
-  if (!args.reviewModel) {
-    throw new Error('Missing required review model value');
-  }
-
   if (!args.profileName) {
     throw new Error('Missing required profile name value');
   }
-
   return args;
 }
 
@@ -192,58 +116,142 @@ export function normalizeAgentConfig(options = {}) {
   };
 }
 
-export function stripManagedBlock(text) {
-  const normalized = normalizeText(text);
-  return normalized
-    .replace(/\n?# BEGIN elegy-copilot managed codex defaults[\s\S]*?# END elegy-copilot managed codex defaults\n?/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trimEnd();
-}
-
 function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function isTableHeaderLine(line) {
-  return /^\s*\[\[?[^\]]+\]?\]\s*(?:#.*)?$/.test(String(line || '').trim());
+  return /^\s*\[\[?[^\]]+\]?\]\]\s*(?:#.*)?$/.test(String(line || '').trim())
+    || /^\s*\[[^\]]+\]\s*(?:#.*)?$/.test(String(line || '').trim());
 }
 
 function isAgentsTableHeader(line) {
   return /^\s*\[agents\]\s*(?:#.*)?$/.test(String(line || '').trim());
 }
 
-function splitRootPreamble(text) {
-  const normalized = normalizeText(text);
-  const lines = normalized.split('\n');
-  const tableHeaderIndex = lines.findIndex((line) => isTableHeaderLine(line));
-  if (tableHeaderIndex === -1) {
-    return { preambleLines: lines, bodyText: '' };
+const LEGACY_MARKERS = [
+  ['# BEGIN elegy managed deepseek provider', '# END elegy managed deepseek provider'],
+  ['# BEGIN elegy managed codex provider', '# END elegy managed codex provider'],
+  ['# BEGIN elegy-copilot managed codex defaults', '# END elegy-copilot managed codex defaults'],
+  ['# BEGIN elegy managed native Go provider', '# END elegy managed native Go provider'],
+];
+
+const LEGACY_PROVIDER_SIGNATURES = new Map([
+  ['instruction_engine_deepseek', ['base_url = "http://127.0.0.1:38440/v1"']],
+  ['opencode_go_bridge', ['base_url = "http://127.0.0.1:38441/v1"']],
+  ['opencode-go', ['base_url = "https://opencode.ai/zen/go/v1"', 'env_key = "OPENCODE_API_KEY"']],
+  ['opencode', ['base_url = "https://opencode.ai/zen/v1"', 'env_key = "OPENCODE_API_KEY"']],
+  ['opencode-chat', ['base_url = "https://opencode.ai/zen/v1"', 'env_key = "OPENCODE_API_KEY"']],
+]);
+
+const LEGACY_ROOT_PROVIDERS = new Set([
+  'instruction_engine_deepseek',
+  'opencode_go_bridge',
+  'opencode-go',
+  'opencode',
+  'opencode-chat',
+]);
+
+function stripMarkedBlocks(text) {
+  let next = normalizeText(text);
+  let changed = false;
+  for (const [start, end] of LEGACY_MARKERS) {
+    const pattern = new RegExp(`\\n?${escapeRegExp(start)}[\\s\\S]*?${escapeRegExp(end)}\\n?`, 'g');
+    const stripped = next.replace(pattern, '\n');
+    changed ||= stripped !== next;
+    next = stripped;
+  }
+  return { text: next.replace(/\n{3,}/g, '\n\n').trimEnd(), changed };
+}
+
+function stripKnownProviderTables(text) {
+  const lines = normalizeText(text).split('\n');
+  const output = [];
+  let changed = false;
+  for (let index = 0; index < lines.length;) {
+    const match = String(lines[index] || '').trim().match(/^\[model_providers\.([^\]]+)\]\s*$/);
+    if (!match || !LEGACY_PROVIDER_SIGNATURES.has(match[1])) {
+      output.push(lines[index]);
+      index += 1;
+      continue;
+    }
+
+    const section = [];
+    let cursor = index + 1;
+    while (cursor < lines.length && !isTableHeaderLine(lines[cursor])) {
+      section.push(String(lines[cursor] || '').trim());
+      cursor += 1;
+    }
+    const signatures = LEGACY_PROVIDER_SIGNATURES.get(match[1]) || [];
+    if (signatures.every((signature) => section.includes(signature))) {
+      changed = true;
+    } else {
+      output.push(...lines.slice(index, cursor));
+    }
+    index = cursor;
   }
   return {
-    preambleLines: lines.slice(0, tableHeaderIndex),
-    bodyText: lines.slice(tableHeaderIndex).join('\n').trim(),
+    text: output.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd(),
+    changed,
   };
 }
 
-function hasTopLevelKey(text, key) {
-  return new RegExp(`^\\s*${escapeRegExp(key)}\\s*=`, 'm').test(text);
+function stripKnownProfileTable(text, profileName = DEFAULT_PROFILE_NAME) {
+  const lines = normalizeText(text).split('\n');
+  const header = `[profiles.${profileName}]`;
+  const output = [];
+  let changed = false;
+  for (let index = 0; index < lines.length;) {
+    if (String(lines[index] || '').trim() !== header) {
+      output.push(lines[index]);
+      index += 1;
+      continue;
+    }
+    changed = true;
+    index += 1;
+    while (index < lines.length && !isTableHeaderLine(lines[index])) index += 1;
+  }
+  return {
+    text: output.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd(),
+    changed,
+  };
 }
 
-function hasProviderTable(text, providerId) {
-  return new RegExp(`^\\s*\\[model_providers\\.${escapeRegExp(providerId)}\\]\\s*$`, 'm').test(text);
+function stripKnownRootReferences(text, enabled) {
+  if (!enabled) return { text, changed: false };
+  const legacyModels = new Set(['deepseek-v4-pro', 'deepseek-v4-flash']);
+  const lines = normalizeText(text).split('\n');
+  let inTable = false;
+  const filtered = lines.filter((line) => {
+    if (isTableHeaderLine(line)) {
+      inTable = true;
+      return true;
+    }
+    if (inTable) return true;
+    const match = String(line || '').trim().match(/^(model_provider|model|review_model|model_catalog_json)\s*=\s*"([^"]*)"\s*$/);
+    if (!match) return true;
+    if (match[1] === 'model_provider') return !LEGACY_ROOT_PROVIDERS.has(match[2]);
+    if (match[1] === 'model_catalog_json') return !match[2].includes('models_catalog.deepseek.json');
+    return !legacyModels.has(match[2]);
+  });
+  return {
+    text: filtered.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd(),
+    changed: filtered.length !== lines.length,
+  };
 }
 
-function stripTable(text, tableHeaderPattern) {
-  const normalized = normalizeText(text);
-  const pattern = new RegExp(
-    `(?:^|\\n)\\s*\\[${tableHeaderPattern}\\]\\s*\\n[\\s\\S]*?(?=\\n\\s*\\[[^\\]]+\\]\\s*\\n|$)`,
-    'g',
-  );
-  return normalized.replace(pattern, '\n').replace(/\n{3,}/g, '\n\n').trimEnd();
-}
-
-function stripLegacyProfileTable(text, profileName) {
-  return stripTable(text, `profiles\\.${escapeRegExp(profileName)}`);
+export function stripKnownLegacyConfig(text, options = {}) {
+  const marked = stripMarkedBlocks(text);
+  const providers = stripKnownProviderTables(marked.text);
+  const profiles = stripKnownProfileTable(providers.text, options.profileName || DEFAULT_PROFILE_NAME);
+  const cleaned = marked.changed || providers.changed || profiles.changed;
+  // Root references are known legacy surface identifiers themselves. Remove
+  // them even when no matching provider table remains in the user's config.
+  const roots = stripKnownRootReferences(profiles.text, true);
+  return {
+    text: roots.text,
+    changed: cleaned || roots.changed,
+  };
 }
 
 function validateToml(text, context = 'after Codex config patch') {
@@ -257,92 +265,24 @@ function validateToml(text, context = 'after Codex config patch') {
   }
 }
 
-function buildProviderTable(provider) {
-  const lines = [];
-  lines.push(`[model_providers.${provider.id}]`);
-  lines.push(`name = "${provider.name}"`);
-  lines.push(`base_url = "${provider.baseUrl}"`);
-  lines.push(`env_key = "${provider.envKey}"`);
-  if (provider.wireApi) {
-    lines.push(`wire_api = "${provider.wireApi}"`);
-  }
-  return lines.join('\n');
-}
-
-function buildRootKeyLines({ needsModel, needsProvider, needsReviewModel, reviewModel, modelId, providerId }) {
-  const lines = [];
-  if (needsModel) {
-    lines.push(`model = "${modelId || DEFAULT_MODEL}"`);
-  }
-  if (needsProvider && providerId) {
-    lines.push(`model_provider = "${providerId}"`);
-  }
-  if (needsReviewModel) {
-    lines.push(`review_model = "${reviewModel}"`);
-  }
-  return lines;
-}
-
-function buildProfileConfig(options = {}) {
-  const enableExternalProviders = options.enableExternalProviders !== false;
-  const providerId = options.providerId || (enableExternalProviders ? DEFAULT_PROVIDER_ID : '');
-  const modelId = options.modelId || (providerId ? DEFAULT_MODEL : '');
-  const lines = [];
-  if (providerId) {
-    lines.push(`model_provider = "${providerId}"`);
-  }
-  if (modelId) {
-    lines.push(`model = "${modelId}"`);
-  }
-  lines.push(
-    'personality = "pragmatic"',
-    'model_reasoning_effort = "max"',
-    'plan_mode_reasoning_effort = "xhigh"',
-  );
-  return ensureTrailingNewline(lines.join('\n'));
-}
-
-function buildMissingProviderTables({ enableExternalProviders, existingProviders }) {
-  if (!enableExternalProviders) {
-    return [];
-  }
-  return EXTERNAL_PROVIDERS
-    .filter((provider) => !existingProviders.has(provider.id))
-    .map((provider) => buildProviderTable(provider));
-}
-
 function upsertKeyLine(lines, key, line) {
   const pattern = new RegExp(`^\\s*${escapeRegExp(key)}\\s*=`);
   const index = lines.findIndex((candidate) => pattern.test(String(candidate || '')));
-  if (index >= 0) {
-    const next = [...lines];
-    next[index] = line;
-    return next;
-  }
-  return [...lines, line];
+  if (index < 0) return [...lines, line];
+  const next = [...lines];
+  next[index] = line;
+  return next;
 }
 
 function upsertAgentConfigLines(sectionLines, values) {
-  let nextLines = sectionLines.filter((line) => !/^\s*max_threads\s*=/.test(String(line || '')));
-  nextLines = upsertKeyLine(nextLines, 'enabled', `enabled = ${values.enabled}`);
-  nextLines = upsertKeyLine(
-    nextLines,
-    'max_concurrent_threads_per_session',
-    `max_concurrent_threads_per_session = ${values.maxThreads}`,
-  );
-  nextLines = upsertKeyLine(
-    nextLines,
-    'default_subagent_model',
-    `default_subagent_model = "${values.defaultSubagentModel}"`,
-  );
-  nextLines = upsertKeyLine(
-    nextLines,
-    'default_subagent_reasoning_effort',
-    `default_subagent_reasoning_effort = "${values.defaultSubagentReasoningEffort}"`,
-  );
-  nextLines = upsertKeyLine(nextLines, 'max_depth', `max_depth = ${values.maxDepth}`);
-  nextLines = upsertKeyLine(nextLines, 'job_max_runtime_seconds', `job_max_runtime_seconds = ${values.jobMaxRuntimeSeconds}`);
-  return nextLines;
+  let next = sectionLines.filter((line) => !/^\s*max_threads\s*=/.test(String(line || '')));
+  next = upsertKeyLine(next, 'enabled', `enabled = ${values.enabled}`);
+  next = upsertKeyLine(next, 'max_concurrent_threads_per_session', `max_concurrent_threads_per_session = ${values.maxThreads}`);
+  next = upsertKeyLine(next, 'default_subagent_model', `default_subagent_model = "${values.defaultSubagentModel}"`);
+  next = upsertKeyLine(next, 'default_subagent_reasoning_effort', `default_subagent_reasoning_effort = "${values.defaultSubagentReasoningEffort}"`);
+  next = upsertKeyLine(next, 'max_depth', `max_depth = ${values.maxDepth}`);
+  next = upsertKeyLine(next, 'job_max_runtime_seconds', `job_max_runtime_seconds = ${values.jobMaxRuntimeSeconds}`);
+  return next;
 }
 
 export function patchAgentsConfig(originalText, options = {}) {
@@ -351,8 +291,8 @@ export function patchAgentsConfig(originalText, options = {}) {
   const lines = normalized ? normalized.split('\n') : [];
   const headerIndex = lines.findIndex((line) => isAgentsTableHeader(line));
 
-  if (headerIndex === -1) {
-    const agentSection = [
+  if (headerIndex < 0) {
+    const section = [
       '[agents]',
       `enabled = ${values.enabled}`,
       `max_concurrent_threads_per_session = ${values.maxThreads}`,
@@ -361,7 +301,7 @@ export function patchAgentsConfig(originalText, options = {}) {
       `max_depth = ${values.maxDepth}`,
       `job_max_runtime_seconds = ${values.jobMaxRuntimeSeconds}`,
     ].join('\n');
-    const patched = ensureTrailingNewline([normalized, agentSection].filter((section) => section.trim()).join('\n\n'));
+    const patched = ensureTrailingNewline([normalized, section].filter((value) => value.trim()).join('\n\n'));
     validateToml(patched);
     return patched;
   }
@@ -373,124 +313,50 @@ export function patchAgentsConfig(originalText, options = {}) {
       break;
     }
   }
-
-  const before = lines.slice(0, headerIndex + 1);
-  const section = lines.slice(headerIndex + 1, nextHeaderIndex);
-  const after = lines.slice(nextHeaderIndex);
   const patched = ensureTrailingNewline([
-    ...before,
-    ...upsertAgentConfigLines(section, values),
-    ...after,
+    ...lines.slice(0, headerIndex + 1),
+    ...upsertAgentConfigLines(lines.slice(headerIndex + 1, nextHeaderIndex), values),
+    ...lines.slice(nextHeaderIndex),
   ].join('\n').trimEnd());
   validateToml(patched);
   return patched;
 }
 
 export function resolveProfileConfigPath(configPath, profileName = DEFAULT_PROFILE_NAME) {
-  const resolvedConfigPath = path.resolve(configPath);
-  return path.join(path.dirname(resolvedConfigPath), `${profileName}${PROFILE_CONFIG_SUFFIX}`);
+  return path.join(path.dirname(path.resolve(configPath)), `${profileName}${PROFILE_CONFIG_SUFFIX}`);
+}
+
+export function buildProfileConfig() {
+  return ensureTrailingNewline([
+    'personality = "pragmatic"',
+    'model_reasoning_effort = "max"',
+    'plan_mode_reasoning_effort = "xhigh"',
+  ].join('\n'));
 }
 
 export function patchCodexConfig(originalText, options = {}) {
-  const reviewModel = options.reviewModel || DEFAULT_REVIEW_MODEL;
-  const profileName = options.profileName || DEFAULT_PROFILE_NAME;
-  const enableExternalProviders = options.enableExternalProviders !== false;
-  const providerId = options.providerId;
-  const modelId = options.modelId;
-  const stripped = stripLegacyProfileTable(stripManagedBlock(originalText), profileName);
-  // Only check the preamble (before first table header) for root keys.
-  // Keys inside [profiles.*] or [model_providers.*] sections are NOT root-level defaults.
-  const rootPreambleText = splitRootPreamble(stripped).preambleLines.join('\n');
-  const needsModel = !hasTopLevelKey(rootPreambleText, 'model');
-  const needsProvider = !!providerId && !hasTopLevelKey(rootPreambleText, 'model_provider');
-  const needsReviewModel = !hasTopLevelKey(rootPreambleText, 'review_model');
-
-  const existingProviders = new Set();
-  if (enableExternalProviders) {
-    for (const provider of EXTERNAL_PROVIDERS) {
-      if (hasProviderTable(stripped, provider.id)) {
-        existingProviders.add(provider.id);
-      }
-    }
-  }
-
-  const missingProviderTables = buildMissingProviderTables({
-    enableExternalProviders,
-    existingProviders,
-  });
-  const needsProviders = missingProviderTables.length > 0;
-
-  if (!needsModel && !needsProvider && !needsReviewModel && !needsProviders && stripped === normalizeText(originalText).trimEnd()) {
-    const stable = ensureTrailingNewline(stripped || '');
-    return options.manageAgents === false ? stable : patchAgentsConfig(stable, options);
-  }
-
-  const rootKeyLines = buildRootKeyLines({ needsModel, needsProvider, needsReviewModel, reviewModel, modelId, providerId });
-  const { preambleLines, bodyText } = splitRootPreamble(stripped);
-  const rootKeysNeeded = rootKeyLines.length > 0;
-  let nextPreambleLines = [...preambleLines];
-
-  if (rootKeysNeeded) {
-    // Remove any existing root key lines for the keys we're adding to avoid duplication
-    const rootKeysToCheck = [];
-    if (needsModel) rootKeysToCheck.push('model');
-    if (needsProvider) rootKeysToCheck.push('model_provider');
-    if (needsReviewModel) rootKeysToCheck.push('review_model');
-
-    nextPreambleLines = nextPreambleLines.filter((line) => {
-      for (const key of rootKeysToCheck) {
-        if (new RegExp(`^\\s*${escapeRegExp(key)}\\s*=`).test(String(line || ''))) {
-          return false;
-        }
-      }
-      return true;
-    });
-
-    nextPreambleLines = nextPreambleLines.concat(rootKeyLines);
-  }
-
-  const preambleText = nextPreambleLines.join('\n').trimEnd();
-  const sections = [];
-  if (preambleText) sections.push(preambleText);
-  if (bodyText) sections.push(bodyText);
-  sections.push(...missingProviderTables);
-
-  if (sections.length === 0) {
-    return '';
-  }
-
-  const patched = ensureTrailingNewline(sections.join('\n\n'));
-  return options.manageAgents === false ? patched : patchAgentsConfig(patched, options);
+  const cleaned = stripKnownLegacyConfig(originalText, options).text;
+  return options.manageAgents === false ? cleaned : patchAgentsConfig(cleaned, options);
 }
 
 export function patchConfigFile(configPath, options = {}) {
+  const migration = migrateLegacyCodexConfig(path.dirname(configPath), { dryRun: options.dryRun });
   const existing = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
   const patched = patchCodexConfig(existing, options);
-  const changed = normalizeText(existing) !== normalizeText(patched);
-
-  if (!options.dryRun && changed) {
+  const changed = normalizeText(existing) !== normalizeText(patched) || migration.changed;
+  if (!options.dryRun && normalizeText(existing) !== normalizeText(patched)) {
     writeTextAtomically(patched, configPath);
   }
-
-  return { changed, content: patched };
+  return { changed, content: patched, migration };
 }
 
 export function writeProfileConfigFile(configPath, options = {}) {
-  const profileName = options.profileName || DEFAULT_PROFILE_NAME;
-  const profilePath = resolveProfileConfigPath(configPath, profileName);
+  const profilePath = resolveProfileConfigPath(configPath, options.profileName || DEFAULT_PROFILE_NAME);
   const existing = fs.existsSync(profilePath) ? fs.readFileSync(profilePath, 'utf8') : '';
-  const patched = buildProfileConfig(options);
+  const patched = buildProfileConfig();
   const changed = normalizeText(existing) !== normalizeText(patched);
-
-  if (!options.dryRun && changed) {
-    writeTextAtomically(patched, profilePath);
-  }
-
-  return {
-    changed,
-    content: patched,
-    path: profilePath,
-  };
+  if (!options.dryRun && changed) writeTextAtomically(patched, profilePath);
+  return { changed, content: patched, path: profilePath };
 }
 
 const isMainModule = process.argv[1]
@@ -501,8 +367,6 @@ if (isMainModule) {
   (async () => {
     try {
       const args = parseArgs(process.argv.slice(2));
-
-      // Resolve shell: prefer --shell flag, otherwise auto-detect
       let shellValue = args.shell || null;
       if (!shellValue) {
         const bestShell = await getBestShell({ skipSlowProbes: true });
@@ -511,22 +375,8 @@ if (isMainModule) {
         }
       }
 
-      const result = patchConfigFile(args.config, {
-        dryRun: args.dryRun,
-        reviewModel: args.reviewModel,
-        profileName: args.profileName,
-        enableExternalProviders: args.enableExternalProviders,
-        providerId: args.providerId || undefined,
-        modelId: args.modelId || undefined,
-      });
-      const profileResult = writeProfileConfigFile(args.config, {
-        dryRun: args.dryRun,
-        profileName: args.profileName,
-        providerId: args.providerId || undefined,
-        modelId: args.modelId || undefined,
-      });
-
-      // Apply [windows] shell section if not already present
+      const result = patchConfigFile(args.config, { dryRun: args.dryRun, profileName: args.profileName });
+      const profileResult = writeProfileConfigFile(args.config, { dryRun: args.dryRun, profileName: args.profileName });
       let finalContent = result.content;
       let shellChanged = false;
       if (shellValue && !finalContent.includes('[windows]')) {
@@ -537,19 +387,9 @@ if (isMainModule) {
       if (args.dryRun) {
         process.stdout.write(finalContent);
       } else if (result.changed || shellChanged || profileResult.changed) {
-        if (shellChanged && !args.dryRun) {
-          writeTextAtomically(finalContent, args.config);
-        }
-        if (result.changed || shellChanged) {
-          console.log(`[CONFIG] ${args.config}`);
-        } else {
-          console.log(`[SKIP]   ${args.config} (up-to-date)`);
-        }
-        if (profileResult.changed) {
-          console.log(`[CONFIG] ${profileResult.path}`);
-        } else {
-          console.log(`[SKIP]   ${profileResult.path} (up-to-date)`);
-        }
+        if (shellChanged) writeTextAtomically(finalContent, args.config);
+        console.log(result.changed || shellChanged ? `[CONFIG] ${args.config}` : `[SKIP]   ${args.config} (up-to-date)`);
+        console.log(profileResult.changed ? `[CONFIG] ${profileResult.path}` : `[SKIP]   ${profileResult.path} (up-to-date)`);
       } else {
         console.log(`[SKIP]   ${args.config} (up-to-date)`);
         console.log(`[SKIP]   ${profileResult.path} (up-to-date)`);

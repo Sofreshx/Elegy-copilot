@@ -310,6 +310,7 @@ export default function WorkspaceView() {
                 onSetPullRequestTitle={(t: string) => gitStore.setPullRequestTitle(t)}
                 onSetPullRequestBody={(b: string) => gitStore.setPullRequestBody(b)}
                 onRefreshGitState={handleRefreshGitState}
+                onOpenChecks={() => navigationStore.setActiveWorkspaceLocalTab('checks')}
               />
             )}
             {navState.activeWorkspaceLocalTab === 'checks' && (

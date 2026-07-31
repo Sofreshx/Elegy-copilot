@@ -128,7 +128,7 @@ When a result is `skipped` or `skipped_conflict`, `warning` is set and
 `CatalogStatusView` renders a per-asset breakdown row:
 
 ```
-codex-elegy-planning-skill: source path missing
+codex-repo-quality-setup-skill: source path missing
 ```
 
 ### R3 — Per-harness install ledger
@@ -282,7 +282,7 @@ New users see `expected: false` for every harness until they opt in.
 - **A4.** If a manifest asset's source path is missing on disk, the install
   completes for the other assets and the failed one shows in state.warning
   with the asset id and reason source path missing.
-  → verify: screen.getByTestId('catalog-status-install-surface-detail') contains "codex-elegy-planning-skill: source path missing"
+  → verify: screen.getByTestId('catalog-status-install-surface-detail') contains "codex-repo-quality-setup-skill: source path missing"
 - **A5.** The Status view's "Installed inventory" panel shows the same count for
   Codex/OpenCode/Antigravity as the Global view's per-harness "Synced/Installed"
   harness pills.

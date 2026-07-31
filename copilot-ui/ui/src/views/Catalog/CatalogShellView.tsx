@@ -15,6 +15,7 @@ import InventoryTab from './InventoryTab';
 import DiagnosticsTab from './DiagnosticsTab';
 import OperationsTab from './OperationsTab';
 import SourcesTab from './SourcesTab';
+import { getManagementMetadata } from './harnessStateHelper';
 
 /* ------------------------------------------------------------------ */
 /*  Internal types                                                    */
@@ -50,6 +51,7 @@ function getGlobalSections(summary: CatalogSnapshotEnvelope | null): CatalogGlob
 
 function harnessNeedsAttention(state: CatalogGlobalHarnessState): boolean {
   if (state.supported === false || state.syncStatus === 'unsupported') return false;
+  if (getManagementMetadata(state).readOnly) return false;
   const status = state.syncStatus || state.state || '';
   if (status === 'missing' || status === 'not-installed') return state.expected !== false;
   return ['stale', 'conflict', 'unmanaged', 'error', 'failed'].includes(status);
@@ -68,22 +70,15 @@ function deriveMetrics(
   const harnesses = summary?.globalInventory?.harnesses || [];
 
   const needsAttention = allItems.filter(itemNeedsAttention).length;
-  const healthy = allItems.filter((item) => (
-    !itemNeedsAttention(item)
-    && (item.harnessStates || []).some((state) => state.installed || state.active)
-  )).length;
-  const notInstalled = allItems.filter((item) => (
-    !itemNeedsAttention(item)
-    && (item.harnessStates || []).some((state) => state.supported !== false)
-    && !(item.harnessStates || []).some((state) => state.installed || state.active)
-  )).length;
+  const elegyManaged = allItems.filter((item) => (item.harnessStates || []).some((state) => getManagementMetadata(state).owner === 'elegy')).length;
+  const harnessOwned = allItems.filter((item) => (item.harnessStates || []).some((state) => getManagementMetadata(state).owner === 'harness')).length;
   const external = externalSources.reduce((sum, src) => sum + (src.installables?.length || 0), 0)
     + allItems.filter((item) => item.sourceType === 'external-source').length;
 
   return [
     { label: 'Needs attention', value: needsAttention, icon: 'hook', sublabel: needsAttention ? 'Repairable drift or missing targets' : 'No known issues' },
-    { label: 'Healthy', value: healthy, icon: 'sync', sublabel: 'Installed or active as expected' },
-    { label: 'Not installed', value: notInstalled, icon: 'skill', sublabel: 'Available without an active issue' },
+    { label: 'Elegy-managed', value: elegyManaged, icon: 'sync', sublabel: 'Lifecycle can be managed here' },
+    { label: 'Harness-owned', value: harnessOwned, icon: 'agent', sublabel: 'Status only; native authority' },
     { label: 'External', value: external, icon: 'mcp', sublabel: 'Resources from configured sources' },
   ];
 }
@@ -175,6 +170,9 @@ export default function CatalogShellView() {
     item: CatalogGlobalItem,
     harnessState: CatalogGlobalHarnessState,
   ): Promise<void> {
+    if (harnessState.management?.readOnly) {
+      return;
+    }
     const actionKind =
       (typeof harnessState.metadata?.actionKind === 'string'
         ? harnessState.metadata.actionKind
@@ -191,13 +189,13 @@ export default function CatalogShellView() {
         await catalogWorkspaceStore.deactivateExternalSourceInstallable({
           sourceId: item.sourceId,
           installableId,
-          target: harnessState.harnessId,
+          target: harnessState.harnessId === 'claude-code' ? 'claude' : harnessState.harnessId,
         });
       } else if (harnessState.actions?.canActivate) {
         await catalogWorkspaceStore.activateExternalSourceInstallable({
           sourceId: item.sourceId,
           installableId,
-          target: harnessState.harnessId,
+          target: harnessState.harnessId === 'claude-code' ? 'claude' : harnessState.harnessId,
         });
       }
       await handleRefresh();
@@ -224,7 +222,11 @@ export default function CatalogShellView() {
     item: CatalogGlobalItem,
     harnessState: CatalogGlobalHarnessState,
   ): Promise<void> {
+    if (harnessState.management?.readOnly) {
+      return;
+    }
     const assetId = (harnessState.metadata as Record<string, unknown> | null)?.installableId
+      || harnessState.assetId
       || (typeof item.itemId === 'string' ? item.itemId : '')
       || '';
     if (!assetId || !harnessState.harnessId) {
@@ -405,6 +407,13 @@ export default function CatalogShellView() {
         {/* METRIC STRIP - now inside scrollable content */}
         <div className="assets-tools-metrics" data-testid="assets-tools-metrics">
           {metrics.map(renderMetricCard)}
+        </div>
+        <div className="asset-ownership-legend" data-testid="asset-ownership-legend" aria-label="Asset ownership legend">
+          <span className="asset-ownership-legend-title">Lifecycle authority</span>
+          <span className="asset-ownership-legend-item"><span className="asset-owner-badge asset-owner-badge--elegy">Elegy-managed</span> install, sync, or remove when available</span>
+          <span className="asset-ownership-legend-item"><span className="asset-owner-badge asset-owner-badge--harness">Harness-owned</span> inspect status only</span>
+          <span className="asset-ownership-legend-item"><span className="asset-owner-badge asset-owner-badge--repository">Repository-owned</span> source-controlled</span>
+          <span className="asset-ownership-legend-item"><span className="asset-owner-badge asset-owner-badge--external">External</span> activate through its source</span>
         </div>
 
         {/* TAB CONTENT */}

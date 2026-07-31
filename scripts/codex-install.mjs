@@ -7,8 +7,8 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import {
   DEFAULT_PROFILE_NAME,
-  DEFAULT_REVIEW_MODEL,
   patchConfigFile,
+  resolveProfileConfigPath,
   writeProfileConfigFile,
 } from './codex-config-patch.mjs';
 import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
@@ -107,6 +107,30 @@ function buildCounts(results) {
 
 function readManifest() {
   return JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+}
+
+function isElegyManagedAsset(asset) {
+  const owner = String(asset?.management?.owner || '').trim().toLowerCase();
+  return owner !== 'harness' && owner !== 'harness-owned' && owner !== 'repository' && owner !== 'repo-owned';
+}
+
+function mergeManagedInventories(previous, current) {
+  const currentMap = (key) => ({
+    ...(current?.[key] && typeof current[key] === 'object' ? current[key] : {}),
+  });
+  const previousMap = (key) => ({
+    ...(previous?.[key] && typeof previous[key] === 'object' ? previous[key] : {}),
+  });
+  return {
+    schemaVersion: 1,
+    surface: 'codex',
+    // managedOnly deliberately owns compatibility instructions and skills;
+    // native agents and config remain outside this lifecycle lane.
+    instructions: currentMap('instructions'),
+    skills: currentMap('skills'),
+    agents: previousMap('agents'),
+    configFiles: previousMap('configFiles'),
+  };
 }
 
 function listPatternMatches(sourceGlob, patternType) {
@@ -431,13 +455,11 @@ export function parseArgs(argv) {
     skillsHome: '',
     repoRoot: '',
     elegyCliPath: '',
-    reviewModel: DEFAULT_REVIEW_MODEL,
     profileName: DEFAULT_PROFILE_NAME,
     setupProfile: '',
-    enableExternalProviders: true,
+    managedOnly: false,
+    skipConfig: false,
     printEnvOnly: false,
-    providerId: '',
-    modelId: '',
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -448,6 +470,14 @@ export function parseArgs(argv) {
     }
     if (value === '--force') {
       args.force = true;
+      continue;
+    }
+    if (value === '--managed-only') {
+      args.managedOnly = true;
+      continue;
+    }
+    if (value === '--skip-config') {
+      args.skipConfig = true;
       continue;
     }
     if (value.startsWith('--codex-home=')) {
@@ -498,18 +528,6 @@ export function parseArgs(argv) {
       args.elegyCliPath = argv[i] || '';
       continue;
     }
-    if (value.startsWith('--review-model=')) {
-      args.reviewModel = value.slice('--review-model='.length);
-      continue;
-    }
-    if (value === '--review-model') {
-      i += 1;
-      if (i >= argv.length) {
-        throw new Error('Missing value for --review-model');
-      }
-      args.reviewModel = argv[i] || '';
-      continue;
-    }
     if (value.startsWith('--profile-name=')) {
       args.profileName = value.slice('--profile-name='.length);
       continue;
@@ -534,43 +552,11 @@ export function parseArgs(argv) {
       args.setupProfile = argv[i] || '';
       continue;
     }
-    if (value === '--enable-external-providers') {
-      args.enableExternalProviders = true;
-      continue;
-    }
-    if (value === '--disable-external-providers') {
-      args.enableExternalProviders = false;
-      continue;
-    }
-    if (value.startsWith('--provider-id=')) {
-      args.providerId = value.slice('--provider-id='.length);
-      continue;
-    }
-    if (value === '--provider-id') {
-      i += 1;
-      if (i >= argv.length || String(argv[i]).startsWith('--')) {
-        throw new Error('Missing value for --provider-id');
-      }
-      args.providerId = argv[i] || '';
-      continue;
-    }
-    if (value.startsWith('--model-id=')) {
-      args.modelId = value.slice('--model-id='.length);
-      continue;
-    }
-    if (value === '--model-id') {
-      i += 1;
-      if (i >= argv.length || String(argv[i]).startsWith('--')) {
-        throw new Error('Missing value for --model-id');
-      }
-      args.modelId = argv[i] || '';
-      continue;
-    }
     if (value === '--print-env-only') {
       args.printEnvOnly = true;
       continue;
     }
-    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --codex-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --review-model <model>, --profile-name <name>, --setup-profile <key>, --enable-external-providers, --disable-external-providers, --print-env-only)`);
+    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --managed-only, --skip-config, --codex-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --profile-name <name>, --setup-profile <key>, --print-env-only)`);
   }
 
   if (args.repoRoot && !args.setupProfile) {
@@ -604,7 +590,8 @@ export function runInstall(args = {}) {
   const skillsHome = resolveSkillsHome(args.skillsHome, codexHome);
   const repoSetupRoot = args.repoRoot ? path.resolve(args.repoRoot) : '';
   const manifest = readManifest();
-  const assets = expandManifestAssets(manifest);
+  const allAssets = expandManifestAssets(manifest);
+  const assets = args.managedOnly ? allAssets.filter(isElegyManagedAsset) : allAssets;
 
   console.log(`Codex home:  ${codexHome}`);
   console.log(`Skills home: ${skillsHome}`);
@@ -662,21 +649,28 @@ export function runInstall(args = {}) {
   }
 
   const configPath = path.join(codexHome, 'config.toml');
-  const configResult = patchConfigFile(configPath, {
-    dryRun: args.dryRun,
-    reviewModel: args.reviewModel,
-    profileName: args.profileName,
-    enableExternalProviders: args.enableExternalProviders,
-    providerId: args.providerId || undefined,
-    modelId: args.modelId || undefined,
-  });
-  const profileResult = writeProfileConfigFile(configPath, {
-    dryRun: args.dryRun,
-    profileName: args.profileName,
-    enableExternalProviders: args.enableExternalProviders,
-    providerId: args.providerId || undefined,
-    modelId: args.modelId || undefined,
-  });
+  let configResult;
+  let profileResult;
+  if (args.skipConfig) {
+    configResult = {
+      changed: false,
+      content: fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '',
+    };
+    profileResult = {
+      changed: false,
+      content: '',
+      path: resolveProfileConfigPath(configPath, args.profileName),
+    };
+  } else {
+    configResult = patchConfigFile(configPath, {
+      dryRun: args.dryRun,
+      profileName: args.profileName,
+    });
+    profileResult = writeProfileConfigFile(configPath, {
+      dryRun: args.dryRun,
+      profileName: args.profileName,
+    });
+  }
   const configAction = args.dryRun
     ? (configResult.changed ? 'would_patch' : 'skipped')
     : (configResult.changed ? 'patched' : 'skipped');
@@ -721,18 +715,24 @@ export function runInstall(args = {}) {
     },
   ];
 
-  const desiredInventory = buildManagedInventory([...assetResults, ...configInventoryResults]);
+  const desiredInventory = args.managedOnly
+    ? mergeManagedInventories(previousInventory, buildManagedInventory(assetResults))
+    : buildManagedInventory([...assetResults, ...configInventoryResults]);
 
   const pruneResults = [
-    ...pruneManagedEntries(path.join(codexHome, 'agents'), previousInventory.agents, desiredInventory.agents, 'agent', shaFile, args),
+    ...(args.managedOnly ? [] : [
+      ...pruneManagedEntries(path.join(codexHome, 'agents'), previousInventory.agents, desiredInventory.agents, 'agent', shaFile, args),
+    ]),
     ...pruneManagedEntries(skillsHome, previousInventory.skills, desiredInventory.skills, 'skill', dirHash, args),
   ];
 
   // For instructions tracked in inventory (e.g. AGENTS.md), prune from codexHome root.
   // Only handle flat file entries that live directly in codexHome.
   const instructionsRoot = codexHome;
-  pruneResults.push(...pruneManagedEntries(instructionsRoot, previousInventory.instructions, desiredInventory.instructions, 'instructions', shaFile, args));
-  pruneResults.push(...pruneManagedEntries(instructionsRoot, previousInventory.configFiles, desiredInventory.configFiles, 'config', shaFile, args));
+  if (!args.managedOnly) {
+    pruneResults.push(...pruneManagedEntries(instructionsRoot, previousInventory.instructions, desiredInventory.instructions, 'instructions', shaFile, args));
+    pruneResults.push(...pruneManagedEntries(instructionsRoot, previousInventory.configFiles, desiredInventory.configFiles, 'config', shaFile, args));
+  }
 
   const inventoryResult = syncText(`${JSON.stringify(desiredInventory, null, 2)}\n`, inventoryPath, {
     dryRun: args.dryRun,

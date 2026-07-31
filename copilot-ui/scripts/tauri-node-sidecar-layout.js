@@ -166,7 +166,6 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     'claude-assets',
     'antigravity-assets',
     'ghcp-assets',
-    'moon-bridge-binary',
     'runtime-manifests',
   ];
 

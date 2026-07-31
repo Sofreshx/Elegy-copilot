@@ -18,12 +18,11 @@ const {
   GITHUB_ELEGY_SKILL_ASSETS,
 } = require('../lib/elegyPlanningCliResolver');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
-const codexConfig = require('../lib/codexConfig');
 const { resolvePlanningHealth, resolvePlanningFeatureStatus } = require('../lib/elegyPlanningHealth');
 const providerUsageStats = require('../lib/providerUsageStats');
 const toolCliInstallers = require('../lib/toolCliInstallers');
 
-const TOOLING_INSTALL_KINDS = new Set(['elegy-planning-cli', 'elegy-skills', 'install-codex-planning', 'worktree-permission-profile']);
+const TOOLING_INSTALL_KINDS = new Set(['elegy-planning-cli', 'elegy-skills', 'worktree-permission-profile']);
 
 function isLegacyElegyManifestAsset(asset) {
   if (!asset || typeof asset !== 'object') return false;
@@ -33,13 +32,6 @@ function isLegacyElegyManifestAsset(asset) {
   return id.includes('elegy-')
     || source.includes('catalog-assets/shared-skills/elegy-')
     || destination.includes('skills/elegy-');
-}
-
-function isElegySkillAsset(asset) {
-  if (!asset || typeof asset !== 'object') return false;
-  const id = asTrimmedString(asset.id).toLowerCase();
-  return id.includes('elegy-')
-    || id.includes('codex-elegy-planning');
 }
 
 function isTruthy(value) {
@@ -356,7 +348,7 @@ function buildProfiles(opencodeHome, engineRoot) {
   };
 }
 
-function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, opencodeConfigLib, codexHome) {
+function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, opencodeConfigLib) {
   const checks = [];
   const ocLib = opencodeConfigLib || opencodeConfigDefault;
 
@@ -508,37 +500,6 @@ function buildSetupChecks(opencodeHome, elegyHomeAbs, engineRoot, assets, ctx, o
     detail: `Provider route is set to ${providerRoute}`,
     action: null,
   });
-
-  // Codex elegy-planning check (only when codexHome is available)
-  if (codexHome) {
-    try {
-      const planningSkillStatus = codexConfig.getPlanningSkillStatus(codexHome);
-      const cliPath = resolveElegyPlanningCliPath({
-        cliPath: ctx.env && ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
-        runtimeRoot: engineRoot,
-        elegyHome: elegyHomeAbs,
-        env: ctx.env,
-      });
-      const ready = planningSkillStatus.installed && Boolean(cliPath);
-      checks.push({
-        id: 'codex-elegy-planning',
-        label: 'Codex Elegy Planning',
-        status: ready ? 'ok' : 'warning',
-        detail: ready
-          ? `Codex planning skill installed at ${planningSkillStatus.skillDir}`
-          : 'Install elegy-planning skill for Codex to enable planning-first work.',
-        action: ready ? undefined : { kind: 'install-codex-planning', label: 'Install Codex Planning' },
-      });
-    } catch (_) {
-      checks.push({
-        id: 'codex-elegy-planning',
-        label: 'Codex Elegy Planning',
-        status: 'warning',
-        detail: 'Unable to check Codex planning status. Install elegy-planning skill for Codex.',
-        action: { kind: 'install-codex-planning', label: 'Install Codex Planning' },
-      });
-    }
-  }
 
   const projectLaneReady = checks.filter((c) => c.id === 'elegy-planning-cli' || c.id === 'elegy-planning-live' || c.id === 'elegy-skills' || c.id === 'worktree-plugin' || c.id === 'opencode-config');
   const projectLaneBlockers = projectLaneReady.filter((c) => c.status !== 'ok');
@@ -934,7 +895,6 @@ async function buildOpenCodeStatus(ctx, deps) {
     toolCliInstallers: deps.toolCliInstallers || toolCliInstallers,
   };
 
-  const codexHome = ctx.codexHome || path.join(require('os').homedir(), '.codex');
   const setupChecks = buildSetupChecks(
     opencodeHome,
     elegyHomeAbs,
@@ -942,7 +902,6 @@ async function buildOpenCodeStatus(ctx, deps) {
     assets,
     augmentedContext,
     opencodeConfig,
-    codexHome,
   );
 
   const overallStatus = resolveOverallStatus(setupChecks);
@@ -1903,23 +1862,6 @@ function register(deps = {}) {
               force,
             });
             result = { syncResult };
-          } else if (kind === 'install-codex-planning') {
-            const codexHome = ctx.codexHome || path.join(require('os').homedir(), '.codex');
-            if (!codexHome) {
-              resolvedDeps.sendJson(ctx.res, 400, {
-                ok: false,
-                error: 'codexHome is required for Codex planning skill install.',
-              });
-              return;
-            }
-            const syncResult = resolvedDeps.assets.syncAll(engineRoot, codexHome, {
-              dryRun: false,
-              force,
-              pointerMode: true,
-              manifestPath: 'codex-assets/manifest.json',
-              assetFilter: isElegySkillAsset,
-            });
-            result = { syncResult };
           } else if (kind === 'worktree-permission-profile') {
             if (!opencodeHome) {
               resolvedDeps.sendJson(ctx.res, 400, {
@@ -1985,32 +1927,6 @@ function register(deps = {}) {
           resolvedDeps.sendJson(ctx.res, 500, {
             error: error instanceof Error ? error.message : String(error),
           });
-        }
-      },
-    },
-    {
-      method: 'GET',
-      path: '/api/codex-planning-status',
-      handler: async (ctx) => {
-        try {
-          const codexHome = ctx.codexHome || path.join(require('os').homedir(), '.codex');
-          const codexConfig = require('../lib/codexConfig');
-          const planningSkillStatus = codexConfig.getPlanningSkillStatus(codexHome);
-          const cliPath = resolveElegyPlanningCliPath({
-            cliPath: ctx.env && ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
-            runtimeRoot: ctx.engineRoot,
-            elegyHome: ctx.elegyHomeAbs,
-            env: ctx.env,
-          });
-          resolvedDeps.sendJson(ctx.res, 200, {
-            codexHome,
-            planningSkill: planningSkillStatus,
-            planningCliPath: cliPath || null,
-            planningDbPath: ctx.env && ctx.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH || null,
-            ready: planningSkillStatus.installed && Boolean(cliPath),
-          });
-        } catch (error) {
-          resolvedDeps.sendJson(ctx.res, 500, { error: error instanceof Error ? error.message : String(error) });
         }
       },
     },

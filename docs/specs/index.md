@@ -1,6 +1,6 @@
 ---
 title: Specs Index
-updated: 2026-07-02
+updated: 2026-07-31
 ---
 
 # Specs Index
@@ -12,6 +12,7 @@ updated: 2026-07-02
 | [obsidian-vault-notes](obsidian-vault-notes/spec.md) | draft | Vault-based Notes tab with git versioning and rclone Google Drive sync |
 | [copilot-ui-git-remote-enhancements](copilot-ui-git-remote-enhancements/spec.md) | draft | Git remote operations for copilot-ui |
 | [workspace-git-enhancement](workspace-git-enhancement/spec.md) | draft | Workspace git enhancements |
+| [workspace-command-runner](workspace-command-runner/spec.md) | implemented | Deterministic command discovery and execution in the Workspace Execute tab |
 
 ## Template
 

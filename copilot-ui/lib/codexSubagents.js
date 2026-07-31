@@ -358,13 +358,18 @@ function normalizeAgentRecord(installed, source, usageByAgent, settings = null) 
     || DEFAULT_SETTINGS.routingMode);
   const operationalStatus = normalizeOperationalStatus({ managed, missing, drift, parseError });
   const usageSummary = buildUsageSummary(name, usageByAgent);
+  const modelProvider = parsed.model_provider || null;
+  const writeEnabled = parsed.sandbox_mode === 'workspace-write';
 
   return {
     name,
     description: String(parsed.description || ''),
     model: parsed.model || null,
+    modelProvider,
     modelReasoningEffort: parsed.model_reasoning_effort || null,
     sandboxMode: parsed.sandbox_mode || null,
+    writeEnabled,
+    requestedRelease: null,
     nicknameCandidates: Array.isArray(parsed.nickname_candidates) ? parsed.nickname_candidates : [],
     routingMode,
     fastModel: null,
@@ -481,6 +486,37 @@ function listCodexSubagents(options = {}) {
   };
 }
 
+function getCodexSubagentProviderMetadata(options = {}) {
+  const codexHome = resolveCodexHome(options.codexHome);
+  const agentsDir = path.join(codexHome, 'agents');
+  const engineRoot = repoRootFromOption(options.engineRoot);
+  const sourceAgents = loadManifestAgents(engineRoot);
+  const installedByName = new Map(readInstalledAgents(agentsDir, 'global').map((agent) => [agent.name, agent]));
+  const names = new Set([...sourceAgents.keys(), ...installedByName.keys()]);
+  const metadata = {};
+
+  for (const name of names) {
+    const source = sourceAgents.get(name);
+    const installed = installedByName.get(name);
+    const parsed = installed?.parsed || source?.parsed || {};
+    const providerId = String(parsed.model_provider || 'openai');
+    const model = parsed.model ? String(parsed.model) : null;
+    metadata[name] = {
+      providerId,
+      providerProfile: 'codex-native',
+      providerRole: name,
+      modelSource: 'agent-toml',
+      resolvedModelId: model,
+      requestedRelease: null,
+      costPolicy: 'codex-account',
+      writeMode: parsed.sandbox_mode ? String(parsed.sandbox_mode) : null,
+      jobIdentifier: null,
+      scopeStatus: parsed.sandbox_mode === 'workspace-write' ? 'unknown' : 'not_applicable',
+    };
+  }
+  return metadata;
+}
+
 function formatTomlString(value) {
   return JSON.stringify(String(value ?? ''));
 }
@@ -491,6 +527,7 @@ function serializeAgentToml(agent) {
     `description = ${formatTomlString(agent.description)}`,
   ];
   if (agent.model) lines.push(`model = ${formatTomlString(agent.model)}`);
+  if (agent.model_provider) lines.push(`model_provider = ${formatTomlString(agent.model_provider)}`);
   if (agent.model_reasoning_effort) lines.push(`model_reasoning_effort = ${formatTomlString(agent.model_reasoning_effort)}`);
   if (agent.sandbox_mode) lines.push(`sandbox_mode = ${formatTomlString(agent.sandbox_mode)}`);
   if (Array.isArray(agent.nickname_candidates) && agent.nickname_candidates.length > 0) {
@@ -588,6 +625,7 @@ module.exports = {
   updateCodexSubagent,
   resetCodexSubagent,
   uninstallCodexSubagent,
+  getCodexSubagentProviderMetadata,
   _testing: {
     parseAgentToml,
     serializeAgentToml,

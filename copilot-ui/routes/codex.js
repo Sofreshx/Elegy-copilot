@@ -3,7 +3,6 @@
 const toolCliInstallers = require('../lib/toolCliInstallers');
 const codexSubagentsDefault = require('../lib/codexSubagents');
 const telemetryServiceDefault = require('../lib/telemetryService');
-const opencodeWorkersDefault = require('../lib/opencodeWorkers');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 const path = require('path');
 const os = require('os');
@@ -15,11 +14,19 @@ function register(deps = {}) {
     toolCliInstallers: deps.toolCliInstallers || toolCliInstallers,
     codexSubagents: deps.codexSubagents || codexSubagentsDefault,
     telemetryService: deps.telemetryService || telemetryServiceDefault,
-    opencodeWorkers: deps.opencodeWorkers || opencodeWorkersDefault,
-    fs: deps.fs || require('fs'),
-    path: deps.path || path,
-    env: deps.env || process.env,
   };
+
+  function buildCodexUsage(ctx, limit = 200) {
+    const codexHome = ctx.codexHome || path.join(os.homedir(), '.codex');
+    const providerMetadataByAgent = typeof resolvedDeps.codexSubagents.getCodexSubagentProviderMetadata === 'function'
+      ? resolvedDeps.codexSubagents.getCodexSubagentProviderMetadata({ codexHome, engineRoot: ctx.engineRoot })
+      : {};
+    return resolvedDeps.telemetryService.buildCodexSubagentUsage({
+      codexHome,
+      limit,
+      providerMetadataByAgent,
+    });
+  }
 
   return [
     {
@@ -29,14 +36,9 @@ function register(deps = {}) {
         try {
           const codexHome = ctx.codexHome || path.join(os.homedir(), '.codex');
           const cliStatus = resolvedDeps.toolCliInstallers.getCliToolStatus('codex-cli');
-          resolvedDeps.sendJson(ctx.res, 200, {
-            codexHome,
-            cli: cliStatus,
-          });
+          resolvedDeps.sendJson(ctx.res, 200, { codexHome, cli: cliStatus });
         } catch (error) {
-          resolvedDeps.sendJson(ctx.res, 500, {
-            error: error instanceof Error ? error.message : String(error),
-          });
+          resolvedDeps.sendJson(ctx.res, 500, { error: error instanceof Error ? error.message : String(error) });
         }
       },
     },
@@ -56,10 +58,7 @@ function register(deps = {}) {
             cli: cliStatus,
           });
         } catch (error) {
-          resolvedDeps.sendJson(ctx.res, 500, {
-            ok: false,
-            error: error instanceof Error ? error.message : String(error),
-          });
+          resolvedDeps.sendJson(ctx.res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) });
         }
       },
     },
@@ -70,10 +69,7 @@ function register(deps = {}) {
         try {
           const codexHome = ctx.codexHome || path.join(os.homedir(), '.codex');
           const repoPath = ctx.u.searchParams.get('repoPath') || '';
-          const usage = resolvedDeps.telemetryService.buildCodexSubagentUsage({
-            codexHome,
-            limit: 200,
-          });
+          const usage = buildCodexUsage(ctx, 200);
           const result = resolvedDeps.codexSubagents.listCodexSubagents({
             codexHome,
             repoPath,
@@ -82,9 +78,7 @@ function register(deps = {}) {
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {
-          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
-            error: error instanceof Error ? error.message : String(error),
-          });
+          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, { error: error instanceof Error ? error.message : String(error) });
         }
       },
     },
@@ -98,10 +92,7 @@ function register(deps = {}) {
           const result = resolvedDeps.codexSubagents.saveSettings(codexHome, body || {});
           resolvedDeps.sendJson(ctx.res, 200, { ok: true, ...result });
         } catch (error) {
-          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
-            ok: false,
-            error: error instanceof Error ? error.message : String(error),
-          });
+          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, { ok: false, error: error instanceof Error ? error.message : String(error) });
         }
       },
     },
@@ -112,10 +103,7 @@ function register(deps = {}) {
         try {
           const body = await resolvedDeps.readJsonBody(ctx.req);
           const codexHome = ctx.codexHome || path.join(os.homedir(), '.codex');
-          const usage = resolvedDeps.telemetryService.buildCodexSubagentUsage({
-            codexHome,
-            limit: 200,
-          });
+          const usage = buildCodexUsage(ctx, 200);
           const result = resolvedDeps.codexSubagents.updateCodexSubagent(decodeURIComponent(ctx.match[1]), body || {}, {
             codexHome,
             engineRoot: ctx.engineRoot,
@@ -123,9 +111,7 @@ function register(deps = {}) {
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {
-          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
-            error: error instanceof Error ? error.message : String(error),
-          });
+          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, { error: error instanceof Error ? error.message : String(error) });
         }
       },
     },
@@ -135,10 +121,7 @@ function register(deps = {}) {
       handler: async (ctx) => {
         try {
           const codexHome = ctx.codexHome || path.join(os.homedir(), '.codex');
-          const usage = resolvedDeps.telemetryService.buildCodexSubagentUsage({
-            codexHome,
-            limit: 200,
-          });
+          const usage = buildCodexUsage(ctx, 200);
           const result = resolvedDeps.codexSubagents.resetCodexSubagent(decodeURIComponent(ctx.match[1]), {
             codexHome,
             engineRoot: ctx.engineRoot,
@@ -146,9 +129,7 @@ function register(deps = {}) {
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {
-          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
-            error: error instanceof Error ? error.message : String(error),
-          });
+          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, { error: error instanceof Error ? error.message : String(error) });
         }
       },
     },
@@ -159,10 +140,7 @@ function register(deps = {}) {
         try {
           const codexHome = ctx.codexHome || path.join(os.homedir(), '.codex');
           const force = ctx.u.searchParams.get('force') === 'true';
-          const usage = resolvedDeps.telemetryService.buildCodexSubagentUsage({
-            codexHome,
-            limit: 200,
-          });
+          const usage = buildCodexUsage(ctx, 200);
           const result = resolvedDeps.codexSubagents.uninstallCodexSubagent(decodeURIComponent(ctx.match[1]), {
             codexHome,
             engineRoot: ctx.engineRoot,
@@ -171,9 +149,7 @@ function register(deps = {}) {
           });
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {
-          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
-            error: error instanceof Error ? error.message : String(error),
-          });
+          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, { error: error instanceof Error ? error.message : String(error) });
         }
       },
     },
@@ -182,130 +158,10 @@ function register(deps = {}) {
       path: '/api/codex/subagents/usage',
       handler: async (ctx) => {
         try {
-          const codexHome = ctx.codexHome || path.join(os.homedir(), '.codex');
-          const limit = Number(ctx.u.searchParams.get('limit') || 100);
-          const result = resolvedDeps.telemetryService.buildCodexSubagentUsage({
-            codexHome,
-            limit,
-          });
+          const result = buildCodexUsage(ctx, Number(ctx.u.searchParams.get('limit') || 100));
           resolvedDeps.sendJson(ctx.res, 200, result);
         } catch (error) {
-          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      },
-    },
-    {
-      method: 'GET',
-      path: '/api/codex/opencode-workers',
-      handler: async (ctx) => {
-        try {
-          const result = resolvedDeps.opencodeWorkers.getStatus({
-            engineRoot: ctx.engineRoot,
-            codexHome: ctx.codexHome,
-            env: resolvedDeps.env,
-            repoPath: ctx.u.searchParams.get('repoPath') || '',
-          });
-          resolvedDeps.sendJson(ctx.res, 200, result);
-        } catch (error) {
-          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      },
-    },
-    {
-      method: 'PUT',
-      path: '/api/codex/opencode-workers/config',
-      handler: async (ctx) => {
-        try {
-          const body = await resolvedDeps.readJsonBody(ctx.req);
-          const result = resolvedDeps.opencodeWorkers.saveConfig(body?.config || {}, {
-            engineRoot: ctx.engineRoot,
-            codexHome: ctx.codexHome,
-            env: resolvedDeps.env,
-            repoPath: body?.repoPath || '',
-          });
-          resolvedDeps.sendJson(ctx.res, 200, result);
-        } catch (error) {
-          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      },
-    },
-    {
-      method: 'GET',
-      path: '/api/codex/opencode-workers/jobs',
-      handler: async (ctx) => {
-        try {
-          const result = resolvedDeps.opencodeWorkers.listJobs({
-            engineRoot: ctx.engineRoot,
-            codexHome: ctx.codexHome,
-            env: resolvedDeps.env,
-            repoPath: ctx.u.searchParams.get('repoPath') || '',
-          });
-          resolvedDeps.sendJson(ctx.res, 200, result);
-        } catch (error) {
-          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      },
-    },
-    {
-      method: 'POST',
-      path: '/api/codex/opencode-workers/install',
-      handler: async (ctx) => {
-        try {
-          const result = await resolvedDeps.opencodeWorkers.installPlugin({
-            engineRoot: ctx.engineRoot,
-            codexHome: ctx.codexHome,
-            env: resolvedDeps.env,
-          });
-          resolvedDeps.sendJson(ctx.res, result.ok ? 200 : 500, result);
-        } catch (error) {
-          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      },
-    },
-    {
-      method: 'POST',
-      path: '/api/codex/opencode-workers/remove',
-      handler: async (ctx) => {
-        try {
-          const result = resolvedDeps.opencodeWorkers.removePlugin({
-            engineRoot: ctx.engineRoot,
-            codexHome: ctx.codexHome,
-            env: resolvedDeps.env,
-          });
-          resolvedDeps.sendJson(ctx.res, 200, result);
-        } catch (error) {
-          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      },
-    },
-    {
-      method: 'GET',
-      path: '/api/codex/opencode-workers/usage',
-      handler: async (ctx) => {
-        try {
-          const result = resolvedDeps.opencodeWorkers.buildUsage({
-            engineRoot: ctx.engineRoot,
-            codexHome: ctx.codexHome,
-            env: resolvedDeps.env,
-            repoPath: ctx.u.searchParams.get('repoPath') || '',
-          });
-          resolvedDeps.sendJson(ctx.res, 200, result);
-        } catch (error) {
-          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, {
-            error: error instanceof Error ? error.message : String(error),
-          });
+          resolvedDeps.sendJson(ctx.res, error.statusCode || 500, { error: error instanceof Error ? error.message : String(error) });
         }
       },
     },

@@ -10,6 +10,11 @@ import {
   getHarnessStateLabel,
   getHarnessStateBadgeClass,
   getHarnessRowActions,
+  getManagementOwner,
+  getManagementOwnerClass,
+  getManagementOwnerLabel,
+  getManagementScopeLabel,
+  isHarnessReadOnly,
 } from './harnessStateHelper';
 import { normalizeProvenance } from './provenance';
 
@@ -28,6 +33,20 @@ interface HarnessTabProps {
   onUninstall?: (item: CatalogGlobalItem, state: CatalogGlobalHarnessState) => void;
   onRefresh?: () => void;
   mutating?: boolean;
+}
+
+function toInstallSurfaceTarget(harnessId: string): 'codex' | 'opencode' | 'antigravity' | 'claude' {
+  return harnessId === 'claude-code' ? 'claude' : harnessId as 'codex' | 'opencode' | 'antigravity' | 'claude';
+}
+
+function toExternalTarget(harnessId: string): string {
+  return harnessId === 'claude-code' ? 'claude' : harnessId;
+}
+
+function getHarnessAssetId(item: CatalogGlobalItem, state: CatalogGlobalHarnessState): string {
+  return typeof state.assetId === 'string' && state.assetId.trim()
+    ? state.assetId
+    : item.itemId;
 }
 
 export default function HarnessTab({ harnessId, sections, harnesses, onItemAction, onUninstall, onRefresh, mutating }: HarnessTabProps) {
@@ -53,12 +72,24 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
     return result;
   }, [sections, harnessId]);
 
-  // installSurface is idempotent — it syncs/updates the full harness surface
-  // and is the correct API for both Install and Sync/Update actions
+  const hasManagedItems = harnessItems.some(({ hs }) => (
+    !isHarnessReadOnly(hs)
+    && getManagementOwner(hs) === 'elegy'
+    && Object.values(hs.actions || {}).some(Boolean)
+  ));
+
+  const handleRefreshStatus = useCallback(() => {
+    setHarnessMessage('Refreshing harness status...');
+    onRefresh?.();
+    setTimeout(() => setHarnessMessage(null), 4000);
+  }, [onRefresh]);
+
+  // Activation must go through the opt-in route so the backend records the
+  // managed asset ledger atomically with the surface installation.
   const handleInstall = useCallback(async () => {
     setHarnessMessage('Installing harness assets...');
     try {
-      await catalogWorkspaceStore.installSurface(harnessId as 'codex' | 'opencode' | 'antigravity' | 'claude');
+      await catalogWorkspaceStore.toggleHarnessOptIn(toInstallSurfaceTarget(harnessId), true);
       setHarnessMessage(`Install completed for ${harnessId}.`);
       notificationStore.success(`Install completed for ${harnessId}`);
     } catch (err) {
@@ -74,7 +105,7 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
   const handleSyncUpdate = useCallback(async () => {
     setHarnessMessage('Syncing harness assets...');
     try {
-      await catalogWorkspaceStore.installSurface(harnessId as 'codex' | 'opencode' | 'antigravity' | 'claude');
+      await catalogWorkspaceStore.installSurface(toInstallSurfaceTarget(harnessId));
       setHarnessMessage(`Sync completed for ${harnessId}.`);
       notificationStore.success(`Sync completed for ${harnessId}`);
     } catch (err) {
@@ -87,11 +118,12 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
     }
   }, [harnessId, onRefresh]);
 
-  const handleCheck = useCallback(async (item: CatalogGlobalItem) => {
+  const handleCheck = useCallback(async (item: CatalogGlobalItem, hs: CatalogGlobalHarnessState) => {
+    const assetId = getHarnessAssetId(item, hs);
     setMutatingAssetId(item.itemId);
     try {
-      const results = await catalogWorkspaceStore.checkHarnessAssets(harnessId, item.itemId);
-      const result = results.find(r => r.assetId === item.itemId);
+      const results = await catalogWorkspaceStore.checkHarnessAssets(harnessId, assetId);
+      const result = results.find(r => r.assetId === assetId);
       if (result) {
         const warningCount = result.warnings?.length || 0;
         const message = warningCount > 0
@@ -115,11 +147,12 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
     }
   }, [harnessId]);
 
-  const handleDeactivate = useCallback(async (item: CatalogGlobalItem) => {
+  const handleDeactivate = useCallback(async (item: CatalogGlobalItem, hs: CatalogGlobalHarnessState) => {
+    const assetId = getHarnessAssetId(item, hs);
     setMutatingAssetId(item.itemId);
     try {
-      await catalogWorkspaceStore.uninstallHarnessAsset(harnessId, item.itemId);
-      setHarnessMessage(`Deactivated ${item.itemId}.`);
+      await catalogWorkspaceStore.uninstallHarnessAsset(harnessId, assetId);
+      setHarnessMessage(`Deactivated ${assetId}.`);
       notificationStore.success(`Deactivated ${item.title}`);
       setConfirmRemove(null);
     } catch (err) {
@@ -142,7 +175,7 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
       await catalogWorkspaceStore.activateExternalSourceInstallable({
         sourceId: item.sourceId,
         installableId,
-        target: harnessId,
+        target: toExternalTarget(harnessId),
       });
       setHarnessMessage(`Activated ${item.title}.`);
       notificationStore.success(`Activated ${item.title}`);
@@ -167,7 +200,7 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
       await catalogWorkspaceStore.deactivateExternalSourceInstallable({
         sourceId: item.sourceId,
         installableId,
-        target: harnessId,
+        target: toExternalTarget(harnessId),
       });
       setHarnessMessage(`Deactivated ${item.title}.`);
       notificationStore.success(`Deactivated ${item.title}`);
@@ -207,7 +240,7 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
                 e.stopPropagation();
                 if (actionInfo.action === 'activate') void handleActivate(item, hs);
                 else if (actionInfo.action === 'deactivate') void handleExternalDeactivate(item, hs);
-                else if (actionInfo.action === 'check') void handleCheck(item);
+                else if (actionInfo.action === 'check') void handleCheck(item, hs);
               }}
             >
               {actionInfo.label}
@@ -240,7 +273,7 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
                   testId={`harness-remove-confirm-btn-${confirmRemove}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    void handleDeactivate(item);
+                    void handleDeactivate(item, hs);
                   }}
                 >
                   Yes
@@ -292,7 +325,7 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
                 e.stopPropagation();
                 if (actionInfo.action === 'install') void handleInstall();
                 else if (actionInfo.action === 'sync-update') void handleSyncUpdate();
-                else if (actionInfo.action === 'check') void handleCheck(item);
+                else if (actionInfo.action === 'check') void handleCheck(item, hs);
               }}
             >
               {actionInfo.action === 'sync-update' ? (hs.state === 'stale' ? 'Sync' : 'Reinstall') : actionInfo.label}
@@ -334,14 +367,15 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
             variant="secondary"
             size="sm"
             disabled={mutating || storeState.mutating || false}
-            loading={mutating || storeState.installing || false}
-            testId={`harness-refresh-all-${harnessId}`}
+            loading={hasManagedItems ? mutating || storeState.installing || false : false}
+            testId={`harness-refresh-status-${harnessId}`}
             onClick={(e) => {
               e.stopPropagation();
-              void handleSyncUpdate();
+              if (hasManagedItems) void handleSyncUpdate();
+              else handleRefreshStatus();
             }}
           >
-            Refresh all
+            {hasManagedItems ? 'Sync Elegy assets' : 'Refresh status'}
           </Button>
         </div>
         {harnessMessage && (
@@ -386,6 +420,8 @@ export default function HarnessTab({ harnessId, sections, harnesses, onItemActio
                   </span>
                   <Badge tone={kindBadgeTone}>{item.kind}</Badge>
                   <span className="harness-card-provenance">{provenance.group}</span>
+                  <span className={getManagementOwnerClass(hs)}>{getManagementOwnerLabel(hs)}</span>
+                  <span className="harness-card-scope">{getManagementScopeLabel(hs)}</span>
                 </div>
                 <div className="harness-card-meta">
                   <span className={stateBadgeClass}>{stateLabel}</span>

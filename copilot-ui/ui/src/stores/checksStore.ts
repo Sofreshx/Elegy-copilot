@@ -1,16 +1,20 @@
 import { createStore } from '../lib/store';
 import {
   discoverGitChecks,
+  getGitCheckPlan,
   getGitCheckState,
   getGitCiSync,
+  getGitHubCheckHistory,
   getRepoQualityStatus,
   runGitChecksWithProfile,
 } from '../lib/api/git';
 import type {
   GitCheckResults,
+  GitCheckPlanResponse,
   GitCheckStateResponse,
   GitChecksDiscoverResponse,
   GitCiSyncResponse,
+  GitHubCheckHistoryResponse,
   RepoQualityStatus,
 } from '../lib/api/git';
 
@@ -45,6 +49,12 @@ export interface ChecksStoreState {
   discoveredChecks: GitChecksDiscoverResponse | null;
   /** Consolidated local hook/check and GitHub readiness. */
   qualityStatus: RepoQualityStatus | null;
+  /** Read-only AI-selected proof plan for the current change. */
+  checkPlan: GitCheckPlanResponse | null;
+  /** Read-only GitHub run history; never merged into local evidence. */
+  githubHistory: GitHubCheckHistoryResponse | null;
+  /** Last load/refresh failure, kept visible to the Checks surface. */
+  error: string | null;
   /** Initial load in progress */
   loading: boolean;
 }
@@ -58,6 +68,9 @@ const INITIAL_STATE: ChecksStoreState = {
   ciSync: null,
   discoveredChecks: null,
   qualityStatus: null,
+  checkPlan: null,
+  githubHistory: null,
+  error: null,
   loading: false,
 };
 
@@ -70,11 +83,13 @@ function createChecksStore() {
     const version = ++loadVersion;
     store.setState((s) => ({ ...s, repoPath, loading: true }));
     try {
-      const [stateResult, ciSyncResult, discoveryResult, qualityStatus] = await Promise.all([
+      const [stateResult, ciSyncResult, discoveryResult, qualityStatus, checkPlan, githubHistory] = await Promise.all([
         getGitCheckState(repoPath),
         getGitCiSync(repoPath),
         discoverGitChecks(repoPath),
         getRepoQualityStatus(repoPath),
+        getGitCheckPlan(repoPath, 'commit'),
+        getGitHubCheckHistory(repoPath, { branch: null }),
       ]);
       if (version !== loadVersion) return;
       store.setState((s) => ({
@@ -83,6 +98,9 @@ function createChecksStore() {
         ciSync: ciSyncResult,
         discoveredChecks: discoveryResult,
         qualityStatus,
+        checkPlan,
+        githubHistory,
+        error: null,
         loading: false,
         // Seed checkResults from persisted state if a prior run exists
         checkResults: s.checkResults ?? (stateResult.lastRun?.overallPass !== undefined
@@ -100,9 +118,13 @@ function createChecksStore() {
             }
           : null),
       }));
-    } catch {
+    } catch (error) {
       if (version !== loadVersion) return;
-      store.setState((s) => ({ ...s, loading: false }));
+      store.setState((s) => ({
+        ...s,
+        loading: false,
+        error: error instanceof Error ? error.message : String(error),
+      }));
     }
   }
 
@@ -111,11 +133,13 @@ function createChecksStore() {
     const version = ++loadVersion;
     store.setState((s) => ({ ...s, loading: true }));
     try {
-      const [stateResult, ciSyncResult, discoveryResult, qualityStatus] = await Promise.all([
+      const [stateResult, ciSyncResult, discoveryResult, qualityStatus, checkPlan, githubHistory] = await Promise.all([
         getGitCheckState(repoPath),
         getGitCiSync(repoPath),
         discoverGitChecks(repoPath),
         getRepoQualityStatus(repoPath),
+        getGitCheckPlan(repoPath, 'commit'),
+        getGitHubCheckHistory(repoPath, { branch: null }),
       ]);
       if (version !== loadVersion) return;
       store.setState((s) => ({
@@ -124,11 +148,18 @@ function createChecksStore() {
         ciSync: ciSyncResult,
         discoveredChecks: discoveryResult,
         qualityStatus,
+        checkPlan,
+        githubHistory,
+        error: null,
         loading: false,
       }));
-    } catch {
+    } catch (error) {
       if (version !== loadVersion) return;
-      store.setState((s) => ({ ...s, loading: false }));
+      store.setState((s) => ({
+        ...s,
+        loading: false,
+        error: error instanceof Error ? error.message : String(error),
+      }));
     }
   }
 
@@ -142,6 +173,11 @@ function createChecksStore() {
     profile: string,
     label: string,
     targetLanes: string[],
+    runOptions: {
+      selectionMode?: string;
+      action?: 'commit' | 'push' | 'ci-local' | 'release';
+      selectedLanes?: string[];
+    } = {},
   ): Promise<void> {
     const runId = `${Date.now()}-${profile}`;
     const session: RunSession = {
@@ -165,8 +201,28 @@ function createChecksStore() {
     }));
 
     try {
+      const currentPlan = store.getState().checkPlan;
+      const action: 'commit' | 'push' | 'ci-local' | 'release' = runOptions.action
+        || (profile === 'commit'
+          ? 'commit'
+          : profile === 'push'
+            ? 'push'
+            : profile === 'release'
+              ? 'release'
+              : 'ci-local');
+      const selectionMode = runOptions.selectionMode || (profile === 'all' ? 'explicit-all' : 'profile');
+      const runPlan = await getGitCheckPlan(repoPath, action, undefined, selectionMode).catch(() => currentPlan);
+      const selectedLanes = selectionMode === 'recommended'
+        ? (runPlan?.recommendedChecks ?? []).map((check) => check.id)
+        : runOptions.selectedLanes;
       const results = await runGitChecksWithProfile(repoPath, {
         profile: profile === 'all' ? undefined : profile,
+        runAll: profile === 'all',
+        action,
+        selectedLanes,
+        planHash: runPlan?.planHash || currentPlan?.planHash || null,
+        selectionMode,
+        background: true,
       });
 
       store.setState((s) => ({

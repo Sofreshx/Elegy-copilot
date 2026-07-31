@@ -174,6 +174,12 @@ function makeHarnessState(overrides: Partial<CatalogGlobalHarnessState> = {}): C
     actions: { canInstall: false, canActivate: false, canDeactivate: false, canSync: true },
     detail: null,
     metadata: null,
+    management: {
+      owner: 'elegy',
+      sourceOfTruth: 'elegy-catalog',
+      scope: 'global',
+      readOnly: false,
+    },
     ...overrides,
   };
 }
@@ -234,12 +240,28 @@ describe('AssetGroupList', () => {
     cleanup();
   });
 
-  it('renders groups organized by provenance', () => {
+  it('renders groups organized by ownership', () => {
     const sections = [
       makeSection({
         items: [
           makeItem({ itemId: 'skill-1', title: 'Skill One', readPath: 'engine-assets/skills/one/SKILL.md', sourceId: 'engine-assets' }),
-          makeItem({ itemId: 'skill-2', title: 'Skill Two', readPath: 'codex-assets/skills/two/SKILL.md', sourceId: 'codex-assets' }),
+          makeItem({
+            itemId: 'skill-2',
+            title: 'Skill Two',
+            readPath: 'codex-assets/skills/two/SKILL.md',
+            sourceId: 'codex-assets',
+            harnessStates: [makeHarnessState({
+              harnessId: 'codex',
+              title: 'Codex',
+              management: {
+                owner: 'harness',
+                sourceOfTruth: 'codex',
+                scope: 'global',
+                readOnly: true,
+                readOnlyReason: 'Native Codex asset.',
+              },
+            })],
+          }),
         ],
       }),
     ];
@@ -251,9 +273,9 @@ describe('AssetGroupList', () => {
     expect(screen.getByText('Skill One')).toBeDefined();
     expect(screen.getByText('Skill Two')).toBeDefined();
     // Group headers should be present
-    const coreGroup = screen.getByTestId('assets-tools-prov-group-copilot-core');
+    const coreGroup = screen.getByTestId('assets-tools-owner-group-elegy');
     expect(coreGroup).toBeDefined();
-    const codexGroup = screen.getByTestId('assets-tools-prov-group-codex-specific');
+    const codexGroup = screen.getByTestId('assets-tools-owner-group-harness');
     expect(codexGroup).toBeDefined();
   });
 
@@ -263,7 +285,7 @@ describe('AssetGroupList', () => {
       <AssetGroupList sections={sections} selectedItem={null} onSelectItem={() => {}} />
     );
 
-    const groupHeader = screen.getByTestId('assets-tools-prov-group-copilot-core');
+    const groupHeader = screen.getByTestId('assets-tools-owner-group-elegy');
     expect(groupHeader.textContent).toContain('total');
     expect(groupHeader.textContent).toContain('installed');
   });
@@ -282,7 +304,7 @@ describe('AssetGroupList', () => {
     const warningBadge = screen.getByText(/⚠.*1/);
     expect(warningBadge).toBeDefined();
     // Group header should mention issues
-    const groupHeader = screen.getByTestId('assets-tools-prov-group-copilot-core');
+    const groupHeader = screen.getByTestId('assets-tools-owner-group-elegy');
     expect(groupHeader.textContent).toContain('issues');
   });
 
@@ -330,6 +352,58 @@ describe('AssetGroupList', () => {
     expect(screen.getByText('shipped')).toBeDefined();
   });
 
+  it('renders an accessible owner badge, normalized scope, and read-only explanation', () => {
+    const item = makeItem({
+      itemId: 'native-agent',
+      title: 'Native Agent',
+      harnessStates: [makeHarnessState({
+        harnessId: 'codex',
+        title: 'Codex',
+        management: {
+          owner: 'harness',
+          sourceOfTruth: 'codex',
+          scope: 'global',
+          readOnly: true,
+          readOnlyReason: 'Manage this agent in Codex.',
+        },
+      })],
+    });
+    render(<AssetGroupList sections={[makeSection({ items: [item] })]} selectedItem={null} onSelectItem={() => {}} />);
+
+    const ownerBadge = screen.getByLabelText('Harness-owned');
+    expect(ownerBadge.className).toContain('asset-owner-badge--harness');
+    expect(screen.getByTestId('assets-tools-item-native-agent')).toHaveTextContent('Global');
+    expect(screen.getByTestId('assets-tools-item-native-agent')).toHaveTextContent('read-only');
+  });
+
+  it('does not count read-only drift as an actionable issue or expose uninstall controls', () => {
+    const item = makeItem({
+      itemId: 'native-drift',
+      title: 'Native Drift',
+      harnessStates: [makeHarnessState({
+        harnessId: 'codex',
+        title: 'Codex',
+        installed: true,
+        active: true,
+        state: 'conflict',
+        syncStatus: 'stale',
+        actions: { canInstall: true, canActivate: true, canDeactivate: true, canSync: true },
+        management: {
+          owner: 'harness',
+          sourceOfTruth: 'codex',
+          scope: 'global',
+          readOnly: true,
+        },
+      })],
+    });
+    render(<AssetGroupList sections={[makeSection({ items: [item] })]} selectedItem={null} onSelectItem={() => {}} />);
+
+    const group = screen.getByTestId('assets-tools-owner-group-harness');
+    expect(group.textContent).not.toContain('issues');
+    expect(screen.queryByRole('button', { name: 'Uninstall' })).toBeNull();
+    expect(screen.getByText(/Observed drift/)).toBeDefined();
+  });
+
   it('calls onSelectItem when clicking an item', () => {
     const onSelect = vi.fn();
     const item = makeItem({ itemId: 'skill-1' });
@@ -367,16 +441,14 @@ describe('AssetGroupList', () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
-  it('renders multiple groups with mixed provenance', () => {
+  it('renders multiple groups with mixed ownership', () => {
     const sections = [
       makeSection({
         items: [
-          makeItem({ itemId: 'skill-1', title: 'Engine Skill', readPath: 'engine-assets/skills/s1/SKILL.md', sourceId: 'engine-assets' }),
-          makeItem({ itemId: 'skill-2', title: 'Codex Skill', readPath: 'codex-assets/skills/s2/SKILL.md', sourceId: 'codex-assets' }),
-          makeItem({ itemId: 'skill-3', title: 'OC Skill', readPath: 'opencode-assets/skills/s3/SKILL.md', sourceId: 'opencode-assets' }),
-          makeItem({ itemId: 'skill-4', title: 'AG Skill', readPath: 'antigravity-assets/skills/s4/SKILL.md', sourceId: 'antigravity-assets' }),
-          makeItem({ itemId: 'skill-5', title: 'Claude Skill', readPath: 'claude-assets/skills/s5/SKILL.md', sourceId: 'claude-assets' }),
-          makeItem({ itemId: 'skill-6', title: 'External Skill', readPath: 'user/skills/s6/SKILL.md', sourceId: null, sourceType: 'user' }),
+          makeItem({ itemId: 'skill-1', title: 'Elegy Skill', readPath: 'engine-assets/skills/s1/SKILL.md', sourceId: 'engine-assets' }),
+          makeItem({ itemId: 'skill-2', title: 'Harness Skill', readPath: 'codex-assets/skills/s2/SKILL.md', sourceId: 'codex-assets', harnessStates: [makeHarnessState({ management: { owner: 'harness', sourceOfTruth: 'codex', scope: 'global', readOnly: true } })] }),
+          makeItem({ itemId: 'skill-3', title: 'Repository Skill', readPath: 'opencode-assets/skills/s3/SKILL.md', sourceId: 'opencode-assets', harnessStates: [makeHarnessState({ management: { owner: 'repository', sourceOfTruth: 'repository', scope: 'repo', readOnly: true } })] }),
+          makeItem({ itemId: 'skill-4', title: 'External Skill', readPath: 'user/skills/s4/SKILL.md', sourceId: null, sourceType: 'external-source', harnessStates: [makeHarnessState({ management: { owner: 'external', sourceOfTruth: 'external', scope: 'external', readOnly: false }, metadata: { actionKind: 'external-source' }, actions: { canInstall: false, canActivate: true, canDeactivate: true, canSync: false } })] }),
         ],
       }),
     ];
@@ -385,12 +457,10 @@ describe('AssetGroupList', () => {
     );
 
     // Should show all groups
-    expect(screen.getByTestId('assets-tools-prov-group-copilot-core')).toBeDefined();
-    expect(screen.getByTestId('assets-tools-prov-group-codex-specific')).toBeDefined();
-    expect(screen.getByTestId('assets-tools-prov-group-opencode-specific')).toBeDefined();
-    expect(screen.getByTestId('assets-tools-prov-group-antigravity-specific')).toBeDefined();
-    expect(screen.getByTestId('assets-tools-prov-group-claude-specific')).toBeDefined();
-    expect(screen.getByTestId('assets-tools-prov-group-user-repo-external')).toBeDefined();
+    expect(screen.getByTestId('assets-tools-owner-group-elegy')).toBeDefined();
+    expect(screen.getByTestId('assets-tools-owner-group-harness')).toBeDefined();
+    expect(screen.getByTestId('assets-tools-owner-group-repository')).toBeDefined();
+    expect(screen.getByTestId('assets-tools-owner-group-external')).toBeDefined();
   });
 });
 
@@ -690,7 +760,7 @@ describe('InventoryTab', () => {
 
     render(<InventoryTab sections={[makeSection({ items: [item] })]} harnesses={[makeHarness()]} />);
 
-    expect(screen.getByText('Copilot: Needs attention')).toBeDefined();
+    expect(screen.getByText(/Copilot.*Needs attention/)).toBeDefined();
     expect(screen.queryByText('Copilot: Active')).toBeNull();
   });
 
@@ -701,6 +771,29 @@ describe('InventoryTab', () => {
     fireEvent.click(screen.getByTestId('assets-tools-item-drawer-item'));
 
     expect(screen.getByTestId('asset-detail-drawer')).toBeDefined();
+  });
+
+  it('filters inventory by normalized scope, owner, harness, and read-only status', () => {
+    const managed = makeItem({ itemId: 'managed', title: 'Managed Asset' });
+    const native = makeItem({
+      itemId: 'native',
+      title: 'Native Asset',
+      harnessStates: [makeHarnessState({
+        harnessId: 'codex',
+        title: 'Codex',
+        state: 'installed',
+        management: { owner: 'repository', sourceOfTruth: 'repo', scope: 'repo-local', readOnly: true },
+      })],
+    });
+    render(<InventoryTab sections={[makeSection({ items: [managed, native] })]} harnesses={[makeHarness(), makeHarness({ harnessId: 'codex', title: 'Codex' })]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'repo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'repository' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Codex' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Read-only' }));
+
+    expect(screen.getByText('Native Asset')).toBeDefined();
+    expect(screen.queryByText('Managed Asset')).toBeNull();
   });
 
 
@@ -750,6 +843,7 @@ import SourcesTab from './SourcesTab';
 // Mock catalogWorkspaceStore for HarnessTab/SourcesTab tests
 const storeMocks = vi.hoisted(() => ({
   installSurface: vi.fn(),
+  toggleHarnessOptIn: vi.fn(),
   checkHarnessAssets: vi.fn(),
   uninstallHarnessAsset: vi.fn(),
   activateExternalSourceInstallable: vi.fn(),
@@ -764,6 +858,7 @@ vi.mock('../../tabs/Assets/catalogWorkspaceStore', () => ({
     getState: () => ({ mutating: false, refreshing: false, error: null, installMessage: null }),
     subscribe: vi.fn(() => vi.fn()),
     installSurface: storeMocks.installSurface,
+    toggleHarnessOptIn: storeMocks.toggleHarnessOptIn,
     checkHarnessAssets: storeMocks.checkHarnessAssets,
     uninstallHarnessAsset: storeMocks.uninstallHarnessAsset,
     activateExternalSourceInstallable: storeMocks.activateExternalSourceInstallable,
@@ -933,7 +1028,28 @@ describe('HarnessTab', () => {
     expect(installBtn).toBeInTheDocument();
   });
 
-  it('calls installSurface when install button is clicked', async () => {
+  it('renders an install action from canInstall without conceptual item targets', () => {
+    const item = makeItemHS({
+      harnessStates: [makeHarnessStateHS({
+        state: 'not-installed',
+        syncStatus: 'missing',
+        installed: false,
+        active: false,
+        actions: { canInstall: true, canActivate: false, canDeactivate: false, canSync: false },
+      })],
+    });
+    render(
+      <HarnessTab
+        harnessId="codex"
+        sections={[makeSection({ items: [item] })]}
+        harnesses={[makeHarness({ harnessId: 'codex', title: 'Codex' })]}
+      />
+    );
+
+    expect(screen.getByTestId('harness-install-btn-test-skill-1')).toBeInTheDocument();
+  });
+
+  it('opts into the harness when an asset is activated', async () => {
     const onRefresh = vi.fn();
     const item = makeItemHS({
       harnessStates: [makeHarnessStateHS({
@@ -956,7 +1072,7 @@ describe('HarnessTab', () => {
     );
 
     fireEvent.click(screen.getByTestId('harness-install-btn-test-skill-1'));
-    expect(storeMocks.installSurface).toHaveBeenCalledWith('codex');
+    expect(storeMocks.toggleHarnessOptIn).toHaveBeenCalledWith('codex', true);
   });
 
   it('calls checkHarnessAssets when check button is clicked', async () => {
@@ -966,6 +1082,7 @@ describe('HarnessTab', () => {
         state: 'installed',
         syncStatus: 'synced',
         installed: true,
+        assetId: 'codex-managed-test-skill',
         actions: { canInstall: false, canSync: false },
       })],
     });
@@ -981,7 +1098,7 @@ describe('HarnessTab', () => {
     );
 
     fireEvent.click(screen.getByTestId('harness-check-btn-test-skill-1'));
-    expect(storeMocks.checkHarnessAssets).toHaveBeenCalledWith('codex', 'test-skill-1');
+    expect(storeMocks.checkHarnessAssets).toHaveBeenCalledWith('codex', 'codex-managed-test-skill');
   });
 
   it('shows remove confirmation and calls uninstallHarnessAsset', async () => {
@@ -990,6 +1107,7 @@ describe('HarnessTab', () => {
       harnessStates: [makeHarnessStateHS({
         state: 'installed',
         installed: true,
+        assetId: 'codex-managed-test-skill',
       })],
     });
     const sections = [makeSection({ items: [item] })];
@@ -1014,7 +1132,7 @@ describe('HarnessTab', () => {
 
     // Click confirm
     fireEvent.click(confirmBtn);
-    expect(storeMocks.uninstallHarnessAsset).toHaveBeenCalledWith('codex', 'test-skill-1');
+    expect(storeMocks.uninstallHarnessAsset).toHaveBeenCalledWith('codex', 'codex-managed-test-skill');
   });
 });
 

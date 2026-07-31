@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "configVersion": 4,
+  "configVersion": 5,
   "generated": "2026-07-06T16:06:19.757182600+00:00",
   "defaultProfile": "commit",
   "profiles": {
@@ -54,6 +54,36 @@
       "workflow": "repo-ci.yml",
       "job": "desktop-tauri-preview",
       "reason": "Windows Tauri desktop preview is a required GitHub Actions job and is not part of the default local commit or ci-local profile."
+    },
+    {
+      "workflow": "desktop-preview-release.yml",
+      "job": "build-windows-preview",
+      "reason": "Windows preview packaging is hosted release evidence and remains remote-only."
+    },
+    {
+      "workflow": "desktop-preview-release.yml",
+      "job": "resolve-preview",
+      "reason": "Preview artifact resolution runs in the hosted release workflow and remains remote-only."
+    },
+    {
+      "workflow": "desktop-release.yml",
+      "job": "build-windows",
+      "reason": "Windows release packaging is hosted release evidence and remains remote-only."
+    },
+    {
+      "workflow": "desktop-release.yml",
+      "job": "publish-release",
+      "reason": "Publishing and signing are remote release operations and are never executed by local discovery or proof."
+    },
+    {
+      "workflow": "desktop-release.yml",
+      "job": "resolve-release",
+      "reason": "Release artifact resolution runs in the hosted release workflow and remains remote-only."
+    },
+    {
+      "workflow": "desktop-release.yml",
+      "job": "verify-published-release",
+      "reason": "Published-release verification depends on hosted release artifacts and remains remote-only."
     }
   ],
   "checks": {
@@ -82,6 +112,37 @@
       "determinism": "deterministic-runnable",
       "sourcePack": null,
       "tags": [],
+      "severity": "error",
+      "promotionState": "enforced",
+      "owner": null
+    },
+    "manifests": {
+      "enabled": true,
+      "group": "commit",
+      "description": "Validate shipped harness manifests",
+      "cwd": ".",
+      "timeoutMs": 120000,
+      "blocking": true,
+      "required": true,
+      "skippable": false,
+      "requiresReasonOnSkip": false,
+      "defaultProfiles": [
+        "commit"
+      ],
+      "cost": "medium",
+      "opensWindow": false,
+      "ciWorkflow": "",
+      "ciJob": "",
+      "ciRequired": false,
+      "commands": [
+        "npm run quality:manifests"
+      ],
+      "gateStrength": "blocking",
+      "determinism": "deterministic-runnable",
+      "sourcePack": null,
+      "tags": [
+        "manifests"
+      ],
       "severity": "error",
       "promotionState": "enforced",
       "owner": null
@@ -123,7 +184,9 @@
       "required": true,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": [],
+      "defaultProfiles": [
+        "ci-local"
+      ],
       "cost": "medium",
       "opensWindow": false,
       "ciWorkflow": "repo-ci.yml",
@@ -238,7 +301,9 @@
       "required": false,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": [],
+      "defaultProfiles": [
+        "ci-local"
+      ],
       "cost": "medium",
       "opensWindow": false,
       "ciWorkflow": null,
@@ -268,7 +333,9 @@
       "required": false,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": [],
+      "defaultProfiles": [
+        "commit"
+      ],
       "cost": "medium",
       "opensWindow": false,
       "ciWorkflow": null,
@@ -328,7 +395,9 @@
       "required": false,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": [],
+      "defaultProfiles": [
+        "commit"
+      ],
       "cost": "medium",
       "opensWindow": false,
       "ciWorkflow": null,
@@ -358,7 +427,9 @@
       "required": false,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": [],
+      "defaultProfiles": [
+        "commit"
+      ],
       "cost": "medium",
       "opensWindow": false,
       "ciWorkflow": null,
@@ -388,7 +459,9 @@
       "required": false,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": [],
+      "defaultProfiles": [
+        "commit"
+      ],
       "cost": "medium",
       "opensWindow": false,
       "ciWorkflow": null,
@@ -632,7 +705,9 @@
       "required": true,
       "skippable": false,
       "requiresReasonOnSkip": false,
-      "defaultProfiles": [],
+      "defaultProfiles": [
+        "ci-local"
+      ],
       "cost": "medium",
       "opensWindow": false,
       "ciWorkflow": null,
@@ -692,6 +767,7 @@
       "skippable": false,
       "requiresReasonOnSkip": false,
       "defaultProfiles": [
+        "commit",
         "push"
       ],
       "cost": "fast",

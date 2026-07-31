@@ -8,17 +8,13 @@ const test = require('node:test');
 
 const marketplace = require('./elegyPluginMarketplace');
 
-test('Elegy plugins are explicit opt-ins rather than a default managed set', async () => {
-  assert.deepEqual(marketplace.DEFAULT_PLUGIN_NAMES, []);
-  const result = await marketplace.installElegyCodexPlugins({
-    codexHome: fs.mkdtempSync(path.join(os.tmpdir(), 'ie-elegy-plugins-empty-')),
-    spawnSyncImpl() {
-      throw new Error('Codex must not be called when no plugins are selected');
-    },
-  });
-  assert.equal(result.skipped, true);
-  assert.equal(result.reason, 'no-default-managed-plugins');
-  assert.equal(result.status.canUpdate, false);
+test('Elegy Codex marketplace exposes the current four-plugin receipt', () => {
+  assert.deepEqual(marketplace.DEFAULT_PLUGIN_NAMES, [
+    'elegy-documentation',
+    'elegy-mcp',
+    'elegy-checks',
+    'elegy-planning',
+  ]);
 });
 
 function writeMarketplace(root, version = '0.1.0+codex.abc123def456') {
@@ -195,12 +191,12 @@ test('Elegy plugin marketplace status treats missing artifacts as repairable', (
 
   const status = marketplace.buildPluginStatus({
     marketplaceRoot: root,
-    pluginNames: ['elegy-planning', 'elegy-opencode-workers'],
+    pluginNames: ['elegy-planning', 'elegy-checks'],
     installedJson: { plugins: [{ name: 'elegy-planning', version: '0.1.0+codex.111111111111', installed: true }] },
     availableJson: { plugins: [{ name: 'elegy-planning', version: '0.1.0+codex.111111111111' }] },
   });
 
-  assert.equal(status.plugins[1].plugin, 'elegy-opencode-workers');
+  assert.equal(status.plugins[1].plugin, 'elegy-checks');
   assert.equal(status.plugins[1].status, 'missingArtifact');
   assert.equal(status.status, 'missingArtifact');
   assert.equal(status.updateAvailable, true);
@@ -209,11 +205,11 @@ test('Elegy plugin marketplace status treats missing artifacts as repairable', (
 test('Elegy plugin marketplace maps Windows target and binary suffix', () => {
   assert.equal(marketplace.resolveTargetTriple({ platform: 'win32', arch: 'x64' }), 'x86_64-pc-windows-msvc');
   assert.equal(
-    marketplace.windowsPluginBinaryName('elegy-opencode-workers', { platform: 'win32' }),
-    'elegy-opencode-workers.exe',
+    marketplace.windowsPluginBinaryName('elegy-planning', { platform: 'win32' }),
+    'elegy-planning.exe',
   );
   assert.equal(
-    marketplace.windowsPluginBinaryName('elegy-opencode-workers', { platform: 'linux' }),
-    'elegy-opencode-workers',
+    marketplace.windowsPluginBinaryName('elegy-planning', { platform: 'linux' }),
+    'elegy-planning',
   );
 });

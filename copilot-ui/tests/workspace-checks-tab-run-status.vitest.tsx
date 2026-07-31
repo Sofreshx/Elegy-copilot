@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../ui/src/lib/api/git', () => ({
   discoverGitChecks: vi.fn(),
+  getGitCheckPlan: vi.fn(),
   getGitCheckState: vi.fn(),
   getGitCiSync: vi.fn(),
+  getGitHubCheckHistory: vi.fn(),
   getRepoQualityStatus: vi.fn(),
   createRepoQualitySetupTask: vi.fn(),
   runGitChecksWithProfile: vi.fn(),
@@ -60,6 +62,30 @@ describe('WorkspaceChecksTab run status', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(gitApi.discoverGitChecks).mockResolvedValue(discovery);
+    vi.mocked(gitApi.getGitCheckPlan).mockResolvedValue({
+      schemaVersion: 'check-plan/v1',
+      repoPath: '/test/repo',
+      action: 'commit',
+      planHash: 'plan-1',
+      discoveryMode: 'adopted-policy-plus-read-only-discovery',
+      selectionMode: 'change-aware',
+      affectedScope: { branch: 'feature/checks', head: 'abc123', dirtyHash: 'dirty123', changedFiles: ['src/example.ts'] },
+      candidates: [],
+      recommendedChecks: discovery.checks.map((check) => ({
+        id: check.name,
+        name: check.name,
+        classification: 'verified' as const,
+        executionPolicy: 'local-command' as const,
+        required: check.required,
+        cost: check.cost,
+      })),
+      requiredChecks: [],
+      omittedChecks: [],
+      expectedCost: { tier: 'fast', score: 1, checkCount: 1 },
+      selectionRationale: 'Tests selected for this change.',
+      readOnly: true,
+      persistence: 'approval-gated-adoption-only',
+    });
     vi.mocked(gitApi.getGitCheckState).mockResolvedValue({
       repoId: 'repo-1',
       repoPath: '/test/repo',
@@ -76,6 +102,16 @@ describe('WorkspaceChecksTab run status', () => {
         mappings: [],
         summary: { totalCiJobs: 0, mapped: 0, gaps: 0, readiness: 'no-ci' },
       },
+    });
+    vi.mocked(gitApi.getGitHubCheckHistory).mockResolvedValue({
+      source: 'github',
+      available: false,
+      reason: 'GitHub CLI is unavailable.',
+      provider: 'github',
+      repository: null,
+      branch: null,
+      runs: [],
+      mergedIntoLocalEvidence: false,
     });
     vi.mocked(gitApi.getRepoQualityStatus).mockResolvedValue({
       schemaVersion: 'repo-quality-status/v1',
@@ -177,5 +213,33 @@ describe('WorkspaceChecksTab run status', () => {
     expect(screen.getByTestId('workspace-checks-log-console')).toHaveTextContent('lane_end');
     expect(screen.getByTestId('workspace-checks-run-trace')).toHaveTextContent('Failed lanes: lint');
     expect(screen.getByTestId('workspace-checks-copy-trace')).toBeInTheDocument();
+  });
+
+  it('offers the selected proof plan and preserves its identity when running it', async () => {
+    vi.mocked(gitApi.runGitChecksWithProfile).mockResolvedValue({
+      repoRoot: '/test/repo',
+      source: 'commit-check',
+      checkedAt: new Date().toISOString(),
+      checksAvailable: 1,
+      checksRun: 1,
+      checksPassed: 1,
+      checksFailed: 0,
+      allPassed: true,
+      results: [],
+      message: 'All checks passed.',
+    });
+
+    render(<WorkspaceChecksTab repoPath="/test/repo" repoId="repo-1" />);
+    const runRecommended = await screen.findByTestId('workspace-checks-recommended-run');
+    fireEvent.click(runRecommended);
+
+    await waitFor(() => {
+      expect(gitApi.runGitChecksWithProfile).toHaveBeenCalledWith('/test/repo', expect.objectContaining({
+        profile: 'commit',
+        planHash: 'plan-1',
+        selectionMode: 'recommended',
+        selectedLanes: ['lint', 'test'],
+      }));
+    });
   });
 });

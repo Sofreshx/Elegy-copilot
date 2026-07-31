@@ -1,6 +1,6 @@
 ---
 created: 2026-05-11
-updated: 2026-07-30
+updated: 2026-07-31
 category: system
 status: current
 doc_kind: node
@@ -64,13 +64,20 @@ review, and research. Invoke via the Task tool or `@mention` from any primary ag
 | `scout` | Read-only (restricted bash) | External docs and dependency research |
 | `sweeper` | Write-capable | Evidence-backed cleanup — dead code, stale assets, unused dependencies |
 
-The Elegy delegated-dev adapter uses the OpenCode Worker CLI as its preferred
+The OpenCode delegated-dev adapter uses the OpenCode Worker CLI as its preferred
 subagent backend when the task is independently bounded and the OpenCode Go
 profile is available. Read-only work uses the v1 envelope. Implementation work
 uses the guarded v2 envelope and must provide `writeEnabled: true` plus an
 explicit `allowedFiles` list. Workers cannot commit, push, publish, change
 permissions, or edit outside that list; the adapter stops on scope or policy
 violations instead of silently retrying elsewhere.
+
+This OpenCode Worker path is optional and remains an OpenCode-only
+session/job integration. It is not a Codex delegation lane and must not be
+described as one. Codex uses its native six-agent receipt and the
+plugin-first `elegy-planning` marketplace integration; there is no Codex-side
+OpenCode Go or Worker bridge. Do not describe the OpenCode Worker and Codex
+plugin paths as interchangeable.
 
 Support subagents are leaf-only. `impl`, `explorer`, `reviewer`, `scout`, `sweeper`, and managed note subagents
 must deny Task delegation. Validate with `node scripts/validate-opencode-agent-topology.js`.

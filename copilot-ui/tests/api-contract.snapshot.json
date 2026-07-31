@@ -1237,52 +1237,14 @@
     "bodyType": "json",
     "bodyKeys": [
       "activeMode",
-      "backupCreatedAt",
       "backupPath",
       "codexHome",
       "configPath",
-      "deepseek",
       "exists",
-      "gateway",
       "hasBackup",
       "hasLegacyBlock",
-      "hasManagedBlock",
-      "lastAppliedAt",
-      "lastResetAt",
-      "providerId",
-      "statePath"
-    ]
-  },
-  "PUT /api/config/codex-provider": {
-    "status": 400,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error"
-    ]
-  },
-  "POST /api/config/codex-provider/reset": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "action",
-      "activeMode",
-      "backupCreatedAt",
-      "backupPath",
-      "changed",
-      "codexHome",
-      "configPath",
-      "deepseek",
-      "exists",
-      "gateway",
-      "hasBackup",
-      "hasLegacyBlock",
-      "hasManagedBlock",
-      "lastAppliedAt",
-      "lastResetAt",
-      "providerId",
-      "statePath"
+      "legacyMigration",
+      "providerId"
     ]
   },
   "GET /api/tooling-updates/status": {
@@ -1410,6 +1372,55 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
+      "error"
+    ]
+  },
+  "GET /api/execution/overview": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/execution/refresh": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/execution/run": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/execution/setup": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "GET /api/execution/runs/test-run-id": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/execution/runs/test-run-id/stop": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
       "error"
     ]
   },

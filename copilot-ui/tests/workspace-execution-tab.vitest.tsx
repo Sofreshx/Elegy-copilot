@@ -15,14 +15,30 @@ vi.mock('../ui/src/lib/api/orchestrator', () => ({
   })),
 }));
 
+vi.mock('../ui/src/lib/api/execution', () => ({
+  getExecutionOverview: vi.fn(),
+  getExecutionRun: vi.fn(),
+  isExecutionRunActive: vi.fn((status: string | null | undefined) =>
+    status === 'running' || status === 'stopping'),
+  refreshExecutionCommands: vi.fn(),
+  runExecutionCommand: vi.fn(),
+  startExecutionSetup: vi.fn(),
+  stopExecutionRun: vi.fn(),
+}));
+
 import WorkspaceExecutionTab, {
   deriveExecutionPresentation,
 } from '../ui/src/views/Workspace/WorkspaceExecutionTab';
 import * as api from '../ui/src/lib/api/orchestrator';
+import * as executionApi from '../ui/src/lib/api/execution';
 import type {
   OrchestratorHealth,
   OrchestratorSession,
 } from '../ui/src/lib/api/orchestrator';
+import type {
+  ExecutionOverview,
+  ExecutionRun,
+} from '../ui/src/lib/api/execution';
 
 const health: OrchestratorHealth = {
   schemaVersion: 'orchestrator-health/v1',
@@ -89,6 +105,97 @@ function session(overrides: Partial<OrchestratorSession> = {}): OrchestratorSess
   };
 }
 
+function overview(overrides: Partial<ExecutionOverview> = {}): ExecutionOverview {
+  return {
+    repoPath: '/repo',
+    discovery: {
+      schemaVersion: 1,
+      repoPath: '/repo',
+      detectedAt: '2026-07-31T08:00:00Z',
+      sources: [{ path: '/repo/package.json', mtime: '2026-07-31T07:00:00Z' }],
+      setup: { id: 'npm:install', label: 'Install dependencies' },
+      categories: [
+        {
+          id: 'setup',
+          label: 'Setup',
+          commands: [
+            {
+              id: 'npm:install',
+              kind: 'package.json',
+              command: 'npm',
+              args: ['install'],
+              label: 'Install dependencies',
+              description: 'Install all npm dependencies',
+              category: 'setup',
+              longRunning: false,
+              source: null,
+            },
+          ],
+        },
+        {
+          id: 'test',
+          label: 'Test',
+          commands: [
+            {
+              id: 'npm:test',
+              kind: 'package.json',
+              command: 'npm',
+              args: ['run', 'test'],
+              label: 'Run tests',
+              description: 'Run the test suite',
+              category: 'test',
+              longRunning: false,
+              source: null,
+            },
+          ],
+        },
+        {
+          id: 'dev',
+          label: 'Start / Dev',
+          commands: [
+            {
+              id: 'readme:start',
+              kind: 'readme',
+              command: 'npm',
+              args: ['run', 'dev'],
+              label: 'Start the app',
+              description: 'Start the dev server',
+              category: 'dev',
+              longRunning: true,
+              source: { kind: 'readme', docPath: '/repo/README.md', line: 12 },
+            },
+          ],
+        },
+      ],
+      meta: { total: 3, skipped: 0 },
+    },
+    setup: { status: 'not-started' },
+    activeRun: null,
+    lastRuns: {
+      'npm:test': { lastRunAt: '2026-07-31T07:30:00Z', lastExitCode: 0 },
+    },
+    ...overrides,
+  };
+}
+
+function run(overrides: Partial<ExecutionRun> = {}): ExecutionRun {
+  return {
+    runId: 'run-1',
+    repoPath: '/repo',
+    kind: 'command',
+    commandId: 'npm:test',
+    command: 'npm',
+    args: ['run', 'test'],
+    status: 'running',
+    exitCode: null,
+    stdout: 'PASS 1 test\n',
+    stderr: '',
+    startedAt: '2026-07-31T08:05:00Z',
+    finishedAt: null,
+    ...overrides,
+  };
+}
+
 describe('WorkspaceExecutionTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -99,6 +206,7 @@ describe('WorkspaceExecutionTab', () => {
       handlers.onOpen();
       return () => {};
     });
+    vi.mocked(executionApi.getExecutionOverview).mockResolvedValue(overview());
   });
 
   it.each([
@@ -190,5 +298,106 @@ describe('WorkspaceExecutionTab', () => {
       'approvals',
       expect.objectContaining({ decision: 'approved' }),
     );
+  });
+
+  it('renders discovered commands grouped by category with setup card', async () => {
+    render(<WorkspaceExecutionTab repoPath="/repo" repoId="repo-1" repoLabel="Repo One" />);
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-execution-commands')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('workspace-execution-setup')).toHaveTextContent('Install dependencies');
+    expect(screen.getByTestId('workspace-execution-setup-status')).toHaveTextContent('not-started');
+    expect(screen.getByTestId('workspace-execution-category-test')).toHaveTextContent('Run tests');
+    expect(screen.getByTestId('workspace-execution-command-npm:test')).toHaveTextContent('npm run test');
+    expect(screen.getByTestId('workspace-execution-command-readme:start')).toHaveTextContent('README.md');
+    expect(screen.getByTestId('workspace-execution-outcome-npm:test')).toHaveTextContent('done');
+    expect(screen.getByTestId('workspace-execution-repo-label')).toHaveTextContent('Repo One');
+    expect(screen.getByTestId('workspace-execution-scan-time')).toHaveTextContent('Scanned');
+  });
+
+  it('starts a command run and refreshes the overview', async () => {
+    vi.mocked(executionApi.runExecutionCommand).mockResolvedValue({
+      runId: 'run-1',
+      run: run(),
+    });
+    render(<WorkspaceExecutionTab repoPath="/repo" repoId="repo-1" repoLabel="Repo One" />);
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-execution-run-npm:test')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('workspace-execution-run-npm:test'));
+    await waitFor(() => {
+      expect(executionApi.runExecutionCommand).toHaveBeenCalledWith('/repo', 'npm:test');
+      expect(executionApi.getExecutionOverview).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('runs setup when the setup button is pressed', async () => {
+    vi.mocked(executionApi.startExecutionSetup).mockResolvedValue({
+      runId: 'run-setup',
+      run: run({ runId: 'run-setup', commandId: 'setup', command: 'npm', args: ['install'] }),
+    });
+    render(<WorkspaceExecutionTab repoPath="/repo" repoId="repo-1" repoLabel="Repo One" />);
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-execution-setup-button')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('workspace-execution-setup-button'));
+    await waitFor(() => {
+      expect(executionApi.startExecutionSetup).toHaveBeenCalledWith('/repo');
+    });
+  });
+
+  it('shows an active run with stop and expands its output', async () => {
+    const activeRun = run({ runId: 'run-1', status: 'running' });
+    vi.mocked(executionApi.getExecutionOverview).mockResolvedValue(overview({ activeRun }));
+    vi.mocked(executionApi.getExecutionRun).mockResolvedValue(activeRun);
+    vi.mocked(executionApi.stopExecutionRun).mockResolvedValue({ ...activeRun, status: 'stopped' });
+    render(<WorkspaceExecutionTab repoPath="/repo" repoId="repo-1" repoLabel="Repo One" />);
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-execution-run-npm:test')).toHaveTextContent('Stop');
+    });
+    fireEvent.click(screen.getByTestId('workspace-execution-expand-npm:test'));
+    expect(screen.getByTestId('workspace-execution-output-npm:test')).toHaveTextContent('PASS 1 test');
+    fireEvent.click(screen.getByTestId('workspace-execution-run-npm:test'));
+    await waitFor(() => {
+      expect(executionApi.stopExecutionRun).toHaveBeenCalledWith('run-1');
+    });
+  });
+
+  it('renders the empty state when nothing is discovered', async () => {
+    vi.mocked(executionApi.getExecutionOverview).mockResolvedValue(overview({
+      discovery: {
+        ...overview().discovery,
+        setup: null,
+        categories: [],
+        meta: { total: 0, skipped: 0 },
+      },
+      setup: { status: 'not-started' },
+      lastRuns: {},
+    }));
+    render(<WorkspaceExecutionTab repoPath="/repo" repoId="repo-1" repoLabel="Repo One" />);
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-execution-empty')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('workspace-execution-setup')).not.toBeInTheDocument();
+  });
+
+  it('refreshes discovery from the toolbar', async () => {
+    vi.mocked(executionApi.refreshExecutionCommands).mockResolvedValue(overview().discovery);
+    render(<WorkspaceExecutionTab repoPath="/repo" repoId="repo-1" repoLabel="Repo One" />);
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-execution-commands-refresh')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('workspace-execution-commands-refresh'));
+    await waitFor(() => {
+      expect(executionApi.refreshExecutionCommands).toHaveBeenCalledWith('/repo');
+    });
+  });
+
+  it('surfaces command errors in the alert area', async () => {
+    vi.mocked(executionApi.getExecutionOverview).mockRejectedValue(new Error('boom'));
+    render(<WorkspaceExecutionTab repoPath="/repo" repoId="repo-1" repoLabel="Repo One" />);
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-execution-commands-error')).toHaveTextContent('boom');
+    });
   });
 });

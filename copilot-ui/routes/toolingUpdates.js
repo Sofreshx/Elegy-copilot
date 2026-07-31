@@ -383,34 +383,6 @@ function register(deps = {}) {
         }
       },
     },
-    {
-      method: 'POST',
-      path: '/api/tooling-updates/update/elegy-skills-codex',
-      handler: async (ctx) => {
-        try {
-          const body = await resolvedDeps.readJsonBody(ctx.req);
-          const syncResult = await syncElegySkillAssetsFromGitHub({
-            elegyHome: ctx.elegyHomeAbs,
-            targetHome: ctx.codexHome,
-            env: resolvedDeps.env,
-            childProcess: resolvedDeps.childProcess,
-            force: Boolean(body.force),
-          });
-
-          const status = await buildToolingStatus({ ...ctx, env: resolvedDeps.env }, resolvedDeps, ctx.codexHome);
-          resolvedDeps.sendJson(ctx.res, 200, {
-            ok: true,
-            syncResult,
-            status,
-          });
-        } catch (error) {
-          resolvedDeps.sendJson(ctx.res, 500, {
-            ok: false,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      },
-    },
   ];
 }
 

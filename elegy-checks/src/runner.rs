@@ -1,8 +1,10 @@
 use crate::config::{self, CheckConfig, ChecksConfig};
+use crate::evidence::git_evidence;
 use crate::store;
 use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -10,6 +12,38 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const LOG_LIMIT: usize = 64 * 1024;
+pub const RUNNER_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[derive(Debug, Clone)]
+pub enum Selection {
+    Default,
+    AllEnabled,
+    Profile(String),
+    Check(String),
+    Checks(Vec<String>),
+}
+
+impl Default for Selection {
+    fn default() -> Self {
+        Self::Default
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RunOptions {
+    pub selection: Selection,
+    pub action: String,
+    pub plan: Option<std::path::PathBuf>,
+    pub plan_hash: Option<String>,
+    pub config_path: Option<std::path::PathBuf>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanIdentity {
+    pub path: String,
+    pub hash: String,
+}
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -20,6 +54,16 @@ pub struct RunResult {
     pub repo_root: String,
     pub profile: Option<String>,
     pub config_hash: String,
+    pub config_path: Option<String>,
+    pub branch: Option<String>,
+    pub head: Option<String>,
+    pub dirty_tree_fingerprint: Option<String>,
+    pub plan_identity: Option<PlanIdentity>,
+    pub plan_hash: Option<String>,
+    pub action: String,
+    pub selection_mode: String,
+    pub runner_version: String,
+    pub source: String,
     pub overall_pass: bool,
     pub checks_run: usize,
     pub checks_passed: usize,
@@ -87,10 +131,61 @@ pub fn run_checks(
     profile: Option<&str>,
     check_filter: Option<&str>,
 ) -> Result<RunResult> {
+    let selection = if let Some(check) = check_filter {
+        Selection::Check(check.to_string())
+    } else if let Some(profile) = profile {
+        Selection::Profile(profile.to_string())
+    } else {
+        Selection::Default
+    };
+    run_checks_with_options(
+        repo,
+        RunOptions {
+            selection,
+            ..RunOptions::default()
+        },
+    )
+}
+
+pub fn run_all_checks(repo: &Path) -> Result<RunResult> {
+    run_checks_with_options(
+        repo,
+        RunOptions {
+            selection: Selection::AllEnabled,
+            ..RunOptions::default()
+        },
+    )
+}
+
+pub fn run_checks_with_options(repo: &Path, options: RunOptions) -> Result<RunResult> {
     let repo = config::normalize_repo(repo)?;
-    let cfg = config::load_config(&repo)?;
+    let cfg = if let Some(config_path) = options.config_path.as_deref() {
+        config::load_config_path(config_path)?
+    } else {
+        config::load_config(&repo)?
+    };
     let config_hash = config::config_hash(&cfg)?;
-    let selected = select_checks(&cfg, profile, check_filter)?;
+    let config_path = options
+        .config_path
+        .as_ref()
+        .map(|path| {
+            path.canonicalize()
+                .unwrap_or_else(|_| path.clone())
+                .display()
+                .to_string()
+        })
+        .or_else(|| Some(config::config_path(&repo).display().to_string()));
+    let (selected, profile, selection_mode) = select_checks(&cfg, &options.selection)?;
+    let plan_identity = options
+        .plan
+        .as_deref()
+        .map(|path| plan_identity(&repo, path))
+        .transpose()?;
+    let plan_hash = options
+        .plan_hash
+        .clone()
+        .or_else(|| plan_identity.as_ref().map(|plan| plan.hash.clone()));
+    let git = git_evidence(&repo);
     let run_id = format!("{}-{}", Utc::now().timestamp_millis(), std::process::id());
     let timestamp = Utc::now().to_rfc3339();
 
@@ -128,8 +223,22 @@ pub fn run_checks(
         run_id,
         timestamp,
         repo_root: repo.display().to_string(),
-        profile: profile.map(ToOwned::to_owned),
+        profile,
         config_hash,
+        config_path,
+        branch: git.branch,
+        head: git.head,
+        dirty_tree_fingerprint: git.dirty_tree_fingerprint,
+        plan_identity,
+        plan_hash,
+        action: if options.action.is_empty() {
+            "run".to_string()
+        } else {
+            options.action
+        },
+        selection_mode,
+        runner_version: RUNNER_VERSION.to_string(),
+        source: "elegy-checks".to_string(),
         overall_pass,
         checks_run,
         checks_passed,
@@ -145,10 +254,20 @@ pub fn run_checks(
 
 fn select_checks<'a>(
     cfg: &'a ChecksConfig,
-    profile: Option<&str>,
-    check_filter: Option<&str>,
-) -> Result<Vec<(String, &'a CheckConfig)>> {
-    let profile = profile.or(cfg.default_profile.as_deref());
+    selection: &Selection,
+) -> Result<(Vec<(String, &'a CheckConfig)>, Option<String>, String)> {
+    let (profile, check_filter, check_filters, selection_mode) = match selection {
+        Selection::Default => (
+            cfg.default_profile.as_deref(),
+            None,
+            None,
+            "default-profile".to_string(),
+        ),
+        Selection::AllEnabled => (None, None, None, "all-enabled".to_string()),
+        Selection::Profile(profile) => (Some(profile.as_str()), None, None, "profile".to_string()),
+        Selection::Check(check) => (None, Some(check.as_str()), None, "check".to_string()),
+        Selection::Checks(checks) => (None, None, Some(checks.as_slice()), "checks".to_string()),
+    };
     let mut selected = Vec::new();
     for (name, check) in &cfg.checks {
         if !check.enabled {
@@ -156,6 +275,10 @@ fn select_checks<'a>(
         }
         if let Some(filter) = check_filter {
             if name != filter {
+                continue;
+            }
+        } else if let Some(filters) = check_filters {
+            if !filters.iter().any(|filter| name == filter) {
                 continue;
             }
         } else if let Some(profile) = profile {
@@ -170,7 +293,32 @@ fn select_checks<'a>(
             return Err(anyhow!("Unknown or disabled check: {filter}"));
         }
     }
-    Ok(selected)
+    if let Some(filters) = check_filters {
+        if let Some(filter) = filters
+            .iter()
+            .find(|filter| !selected.iter().any(|(name, _)| name == *filter))
+        {
+            return Err(anyhow!("Unknown or disabled check: {filter}"));
+        }
+    }
+    Ok((selected, profile.map(ToOwned::to_owned), selection_mode))
+}
+
+fn plan_identity(repo: &Path, path: &Path) -> Result<PlanIdentity> {
+    let resolved = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        repo.join(path)
+    };
+    let canonical = resolved.canonicalize().unwrap_or(resolved);
+    let bytes = std::fs::read(&canonical)
+        .with_context(|| format!("Unable to read plan {}", canonical.display()))?;
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    Ok(PlanIdentity {
+        path: canonical.display().to_string(),
+        hash: format!("{:x}", hasher.finalize()),
+    })
 }
 
 fn run_one_check(repo: &Path, name: &str, check: &CheckConfig) -> Result<LaneResult> {
@@ -332,7 +480,129 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
+    fn all_enabled_selection_ignores_default_profile() {
+        let _lock = crate::store::TEST_STATE_LOCK.lock().unwrap();
+        let dir = tempdir().unwrap();
+        let mut cfg = ChecksConfig {
+            schema_version: 1,
+            default_profile: Some("commit".to_string()),
+            ..ChecksConfig::default()
+        };
+        cfg.checks.insert(
+            "commit-only".to_string(),
+            CheckConfig {
+                commands: vec![success_command()],
+                default_profiles: vec!["commit".to_string()],
+                ..CheckConfig::default()
+            },
+        );
+        cfg.checks.insert(
+            "ci-only".to_string(),
+            CheckConfig {
+                commands: vec![success_command()],
+                default_profiles: vec!["ci-local".to_string()],
+                ..CheckConfig::default()
+            },
+        );
+        write_config(dir.path(), &cfg).unwrap();
+
+        let result = run_checks_with_options(
+            dir.path(),
+            RunOptions {
+                selection: Selection::AllEnabled,
+                ..RunOptions::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(result.lanes.len(), 2);
+        assert_eq!(result.selection_mode, "all-enabled");
+        assert_eq!(result.action, "run");
+
+        let legacy_default = run_checks(dir.path(), None, None).unwrap();
+        assert_eq!(legacy_default.lanes.len(), 1);
+        assert_eq!(legacy_default.selection_mode, "default-profile");
+    }
+
+    #[test]
+    fn explicit_check_selection_runs_multiple_requested_lanes() {
+        let _lock = crate::store::TEST_STATE_LOCK.lock().unwrap();
+        let dir = tempdir().unwrap();
+        let mut cfg = ChecksConfig {
+            schema_version: 1,
+            default_profile: Some("commit".to_string()),
+            ..ChecksConfig::default()
+        };
+        for name in ["first", "second", "third"] {
+            cfg.checks.insert(
+                name.to_string(),
+                CheckConfig {
+                    commands: vec![success_command()],
+                    ..CheckConfig::default()
+                },
+            );
+        }
+        write_config(dir.path(), &cfg).unwrap();
+
+        let result = run_checks_with_options(
+            dir.path(),
+            RunOptions {
+                selection: Selection::Checks(vec!["first".to_string(), "third".to_string()]),
+                ..RunOptions::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(result.lanes.len(), 2);
+        assert!(result.lanes.contains_key("first"));
+        assert!(result.lanes.contains_key("third"));
+        assert!(!result.lanes.contains_key("second"));
+        assert_eq!(result.selection_mode, "checks");
+    }
+
+    #[test]
+    fn run_result_contains_execution_evidence_and_plan_identity() {
+        let _lock = crate::store::TEST_STATE_LOCK.lock().unwrap();
+        let dir = tempdir().unwrap();
+        let mut cfg = ChecksConfig {
+            schema_version: 1,
+            default_profile: Some("commit".to_string()),
+            ..ChecksConfig::default()
+        };
+        cfg.checks.insert(
+            "pass".to_string(),
+            CheckConfig {
+                commands: vec![success_command()],
+                default_profiles: vec!["commit".to_string()],
+                ..CheckConfig::default()
+            },
+        );
+        write_config(dir.path(), &cfg).unwrap();
+        let plan = dir.path().join("plan.md");
+        std::fs::write(&plan, "approved plan\n").unwrap();
+
+        let result = run_checks_with_options(
+            dir.path(),
+            RunOptions {
+                action: "verify".to_string(),
+                plan: Some(plan),
+                ..RunOptions::default()
+            },
+        )
+        .unwrap();
+        let json = serde_json::to_value(result).unwrap();
+
+        assert_eq!(json["action"], "verify");
+        assert_eq!(json["selectionMode"], "default-profile");
+        assert_eq!(json["source"], "elegy-checks");
+        assert!(!json["runnerVersion"].as_str().unwrap().is_empty());
+        assert!(!json["configHash"].as_str().unwrap().is_empty());
+        assert!(!json["planIdentity"]["hash"].as_str().unwrap().is_empty());
+    }
+
+    #[test]
     fn failing_blocking_check_fails_run() {
+        let _lock = crate::store::TEST_STATE_LOCK.lock().unwrap();
         let dir = tempdir().unwrap();
         let mut cfg = ChecksConfig {
             schema_version: 1,
@@ -362,6 +632,14 @@ mod tests {
             "exit /b 7".to_string()
         } else {
             "exit 7".to_string()
+        }
+    }
+
+    fn success_command() -> String {
+        if cfg!(windows) {
+            "exit /b 0".to_string()
+        } else {
+            "true".to_string()
         }
     }
 }

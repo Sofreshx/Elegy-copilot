@@ -14,9 +14,11 @@ import type {
   OpenCodeWarning,
 } from '../../lib/types';
 import { opencodeStore } from '../../stores/opencodeStore';
+import HarnessAssetsPanel from '../../views/Catalog/HarnessAssetsPanel';
 
 const TAB_SECTIONS: Array<{ id: OpenCodeTabSectionId; label: string }> = [
   { id: 'overview', label: 'Overview' },
+  { id: 'assets', label: 'Assets' },
   { id: 'lanes', label: 'Lanes' },
   { id: 'profiles', label: 'Profiles' },
   { id: 'logs', label: 'Request Log' },
@@ -470,6 +472,10 @@ function RequestLogSection(_props: SectionProps) {
       </div>
     </div>
   );
+}
+
+function AssetsSection(_props: SectionProps): React.ReactElement {
+  return <HarnessAssetsPanel harnessId="opencode" />;
 }
 
 type SectionProps = { status: OpenCodeStatusResponse; selectedLaneId: string | null; saving: boolean };
@@ -1771,6 +1777,7 @@ function PromptsSection(_props: SectionProps): React.ReactElement {
 
 const SECTION_COMPONENTS: Partial<Record<OpenCodeTabSectionId, React.FC<SectionProps>>> = {
   overview: OverviewSection,
+  assets: AssetsSection,
   lanes: LaneSection,
   profiles: ProfilesSection,
   logs: RequestLogSection,

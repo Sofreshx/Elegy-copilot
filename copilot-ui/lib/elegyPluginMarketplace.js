@@ -9,7 +9,12 @@ const childProcess = require('node:child_process');
 const DEFAULT_REPOSITORY = 'Sofreshx/Elegy';
 const DEFAULT_RELEASE_TAG = 'main-snapshot';
 const DEFAULT_MARKETPLACE_NAME = 'elegy';
-const DEFAULT_PLUGIN_NAMES = Object.freeze([]);
+const DEFAULT_PLUGIN_NAMES = Object.freeze([
+  'elegy-documentation',
+  'elegy-mcp',
+  'elegy-checks',
+  'elegy-planning',
+]);
 const INSTALL_METADATA_NAME = 'elegy-codex-marketplace.install.json';
 
 function resolveTargetTriple(options = {}) {

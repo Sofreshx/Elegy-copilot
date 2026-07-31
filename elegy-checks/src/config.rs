@@ -406,7 +406,13 @@ pub fn migrate_repo(repo: &Path) -> Result<MigrateResult> {
 
 pub fn load_config(repo: &Path) -> Result<ChecksConfig> {
     let repo = normalize_repo(repo)?;
-    let path = config_path(&repo);
+    load_config_path(&config_path(&repo))
+}
+
+/// Load a validated config from an explicit path without requiring it to be
+/// inside the repository. The local discovery runner uses this for an
+/// ephemeral, read-only plan snapshot when `.elegy/checks.json` is absent.
+pub fn load_config_path(path: &Path) -> Result<ChecksConfig> {
     let raw =
         fs::read_to_string(&path).with_context(|| format!("Unable to read {}", path.display()))?;
     let mut config: ChecksConfig = serde_json::from_str(&raw)
@@ -436,8 +442,17 @@ pub fn config_hash(config: &ChecksConfig) -> Result<String> {
 }
 
 pub fn normalize_repo(repo: &Path) -> Result<PathBuf> {
-    repo.canonicalize()
-        .with_context(|| format!("Unable to resolve repo path {}", repo.display()))
+    let canonical = repo
+        .canonicalize()
+        .with_context(|| format!("Unable to resolve repo path {}", repo.display()))?;
+    #[cfg(windows)]
+    {
+        let value = canonical.to_string_lossy();
+        if let Some(stripped) = value.strip_prefix(r"\\?\") {
+            return Ok(PathBuf::from(stripped));
+        }
+    }
+    Ok(canonical)
 }
 
 pub fn config_path(repo: &Path) -> PathBuf {

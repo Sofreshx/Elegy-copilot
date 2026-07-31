@@ -1,11 +1,18 @@
 import type { CatalogGlobalItem, CatalogGlobalSection, CatalogGlobalHarnessState } from '../../lib/types';
-import { normalizeProvenance, compareProvenanceGroups, type ProvenanceGroupInfo } from './provenance';
 import { Badge } from '../../components';
-import { canDeactivateAsset } from './harnessStateHelper';
+import {
+  canDeactivateAsset,
+  getManagementMetadata,
+  getManagementOwnerClass,
+  getManagementOwnerLabel,
+  getManagementScopeLabel,
+  isHarnessReadOnly,
+} from './harnessStateHelper';
 
 /* Types */
-export interface ProvenanceAssetGroup {
-  groupInfo: ProvenanceGroupInfo;
+export interface ManagementAssetGroup {
+  groupKey: string;
+  groupLabel: string;
   items: CatalogGlobalItem[];
   totalCount: number;
   installedCount: number;
@@ -28,6 +35,7 @@ function countIssues(item: CatalogGlobalItem): number {
 
 function harnessStateNeedsAttention(state: CatalogGlobalHarnessState): boolean {
   if (state.supported === false || state.syncStatus === 'unsupported') return false;
+  if (isHarnessReadOnly(state)) return false;
   const status = state.syncStatus || state.state || '';
   if (status === 'missing' || status === 'not-installed') return state.expected !== false;
   return ['stale', 'conflict', 'unmanaged', 'error', 'failed'].includes(status);
@@ -39,20 +47,33 @@ function countInstalled(item: CatalogGlobalItem): number {
   ).length;
 }
 
-function getProvenanceGroup(item: CatalogGlobalItem): ProvenanceGroupInfo {
-  const readPath = item.readPath ?? '';
-  return normalizeProvenance(readPath, item.sourceId, item.sourceType);
+function getItemManagementKey(item: CatalogGlobalItem): string {
+  const owners = item.managementOwners?.length
+    ? item.managementOwners
+    : Array.from(new Set((item.harnessStates || []).map((state) => getManagementMetadata(state).owner)));
+  if (owners.length !== 1) return 'mixed';
+  return String(owners[0] || 'elegy');
 }
 
-function groupByProvenance(items: CatalogGlobalItem[]): ProvenanceAssetGroup[] {
-  const grouped = new Map<string, ProvenanceAssetGroup>();
+function getManagementGroupLabel(groupKey: string): string {
+  switch (groupKey) {
+    case 'harness': return 'Harness-owned · read-only';
+    case 'repository': return 'Repository-owned · read-only';
+    case 'external': return 'External sources';
+    case 'mixed': return 'Mixed ownership';
+    default: return 'Elegy-managed';
+  }
+}
+
+function groupByManagement(items: CatalogGlobalItem[]): ManagementAssetGroup[] {
+  const grouped = new Map<string, ManagementAssetGroup>();
   
   for (const item of items) {
-    const groupInfo = getProvenanceGroup(item);
-    const key = groupInfo.groupKey;
+    const key = getItemManagementKey(item);
     if (!grouped.has(key)) {
       grouped.set(key, {
-        groupInfo,
+        groupKey: key,
+        groupLabel: getManagementGroupLabel(key),
         items: [],
         totalCount: 0,
         installedCount: 0,
@@ -66,9 +87,8 @@ function groupByProvenance(items: CatalogGlobalItem[]): ProvenanceAssetGroup[] {
     g.issueCount += countIssues(item);
   }
   
-  return Array.from(grouped.values()).sort((a, b) => 
-    compareProvenanceGroups(a.groupInfo, b.groupInfo)
-  );
+  const order: Record<string, number> = { elegy: 0, mixed: 1, harness: 2, repository: 3, external: 4 };
+  return Array.from(grouped.values()).sort((a, b) => (order[a.groupKey] ?? 99) - (order[b.groupKey] ?? 99));
 }
 
 function getKindBadgeTone(kind: string): 'neutral' | 'brand' | 'accent' | 'success' | 'danger' {
@@ -85,18 +105,18 @@ function getKindBadgeTone(kind: string): 'neutral' | 'brand' | 'accent' | 'succe
 /* Component */
 export default function AssetGroupList({ sections, selectedItem, onSelectItem, onItemAction, onUninstall, mutating }: AssetGroupListProps) {
   const allItems = sections.flatMap((s) => s.items || []);
-  const groups = groupByProvenance(allItems);
+  const groups = groupByManagement(allItems);
 
   return (
     <aside className="assets-tools-filters" data-testid="assets-tools-group-list">
       {groups.map((group) => (
         <div
           className="assets-tools-group"
-          data-testid={`assets-tools-prov-group-${group.groupInfo.groupKey}`}
-          key={group.groupInfo.groupKey}
+          data-testid={`assets-tools-owner-group-${group.groupKey}`}
+          key={group.groupKey}
         >
           <div className="assets-tools-group-header">
-            <h3>{group.groupInfo.group}</h3>
+            <h3>{group.groupLabel}</h3>
             <span className="assets-tools-group-count">
               {group.totalCount} total &middot; {group.installedCount} installed
               {group.issueCount > 0 ? ` &middot; ${group.issueCount} issues` : ''}
@@ -124,6 +144,9 @@ export default function AssetGroupList({ sections, selectedItem, onSelectItem, o
                 <div className="assets-tools-item-badges">
                   <Badge tone={getKindBadgeTone(item.kind)}>{item.kind}</Badge>
                   {item.sourceType ? <Badge tone="neutral">{item.sourceType}</Badge> : null}
+                  {item.managementScopes?.map((scope) => (
+                    <Badge key={scope} tone="neutral">{scope}</Badge>
+                  ))}
                   {issues > 0 ? <Badge tone="danger">⚠ {issues} issue{issues === 1 ? '' : 's'}</Badge> : <Badge tone="success">Healthy</Badge>}
                 </div>
                 {item.description ? (
@@ -131,13 +154,24 @@ export default function AssetGroupList({ sections, selectedItem, onSelectItem, o
                 ) : null}
                 <div className="asset-target-summary" aria-label="Harness state">
                   {(item.harnessStates || []).map((state) => {
+                    const management = getManagementMetadata(state);
                     const label = state.supported === false || state.syncStatus === 'unsupported'
                       ? 'Unsupported'
+                      : isHarnessReadOnly(state) && (state.state === 'conflict' || state.syncStatus === 'stale')
+                        ? 'Observed drift'
                       : harnessStateNeedsAttention(state) ? 'Needs attention'
                         : state.active ? 'Active'
                         : state.installed ? 'Installed'
                           : state.expected === false ? 'Available' : 'Needs attention';
-                    return <span className={`asset-target-state asset-target-state--${label.toLowerCase().replace(/\s+/g, '-')}`} key={state.harnessId}>{state.title || state.harnessId}: {label}</span>;
+                    return (
+                      <span className={`asset-target-state asset-target-state--${label.toLowerCase().replace(/\s+/g, '-')}`} key={state.harnessId}>
+                        <span className={getManagementOwnerClass(state)} aria-label={getManagementOwnerLabel(state)}>
+                          {getManagementOwnerLabel(state)}
+                        </span>{' '}
+                        {state.title || state.harnessId} · {getManagementScopeLabel(state)}: {label}
+                        {management.readOnly ? ' · read-only' : ''}
+                      </span>
+                    );
                   })}
                 </div>
                 {(item.harnessStates || []).some((hs) => {
@@ -167,10 +201,10 @@ export default function AssetGroupList({ sections, selectedItem, onSelectItem, o
                               onUninstall?.(item, hs);
                             }
                           }}
-                          title={`Uninstall from ${hs.title || hs.harnessId}`}
+                          title={isExternal ? `Deactivate ${hs.title || hs.harnessId} source` : `Uninstall from ${hs.title || hs.harnessId}`}
                           type="button"
                         >
-                          Uninstall
+                          {isExternal ? 'Deactivate' : 'Uninstall'}
                         </button>
                       );
                     })}

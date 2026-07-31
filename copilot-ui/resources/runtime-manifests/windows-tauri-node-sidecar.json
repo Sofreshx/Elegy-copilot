@@ -132,14 +132,6 @@
       ]
     },
     {
-      "id": "moon-bridge-binary",
-      "kind": "file",
-      "source": "resources/moon-bridge/moon-bridge.exe",
-      "target": "moon-bridge/moon-bridge.exe",
-      "optional": true,
-      "description": "Bundled Moon Bridge proxy binary for DeepSeek V4 provider routing"
-    },
-    {
       "id": "runtime-manifests",
       "kind": "directory",
       "source": "resources/runtime-manifests",
