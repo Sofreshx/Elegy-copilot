@@ -687,6 +687,12 @@ async function run() {
             port,
             elegyHome,
             sandboxesHome,
+            env: {
+              ...process.env,
+              // Keep this persistence-route fixture independent of the
+              // external managed planning installer.
+              INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH: process.execPath,
+            },
             planningPersistenceClient: {
               query: async () => {
                 throw new Error(noisyDiagnostic);
