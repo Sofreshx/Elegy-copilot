@@ -1,20 +1,22 @@
 ﻿---
 name: elegy-planning
-description: Use when an agent needs to create, inspect, update, validate, or export durable planning state — goals, roadmaps, plans, work points, todos, issues, review points, insights, and project runs — through the dedicated elegy-planning CLI over SQLite. User-invoked; do not auto-load.
+description: Use during /plan or approved planned execution when durable graph state, resume support, leases, or cross-session coordination materially help; direct-work use remains user-invoked only.
 license: Apache-2.0
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
-> **Invocation posture**: user-invoked only. This skill writes durable planning state to SQLite and must not be auto-invoked by the model. The model may recommend loading this skill but must not load it without user approval.
+> **Invocation posture**: planned-work only. The planner or main orchestrator may load this skill during `/plan` or approved plan execution when durable planning state materially helps. Do not load it for direct work unless the user explicitly asks. This skill writes durable planning state to SQLite.
 
 # Elegy Planning
 
 > Use when an agent needs to create, inspect, update, validate, or export durable planning state — goals, roadmaps, plans, work points, todos, issues, review points, insights, and project runs — through the dedicated `elegy-planning` CLI over SQLite.
 
-SQLite is the durable authority. Markdown and JSON projections are
-generated, derived outputs. Omitted scope defaults to `default` and
-that silent default is a common source of agent mistakes — always pass
-`--scope <scope-key>` explicitly.
+The Markdown plan owns approved intent, decisions, and acceptance criteria.
+SQLite owns optional durable execution state and graph coordination. SQLite's
+Markdown and JSON exports are derived execution views; they do not replace the
+approved plan. Omitted scope
+defaults to `default` and that silent default is a common source of mistakes —
+always pass `--scope <scope-key>` explicitly when using SQLite.
 
 Default storage:
 - Planning DB: `~/.elegy/planning.db`.
@@ -26,7 +28,8 @@ Default storage:
 
 1. Resolve the scope key. Use
    `elegy-planning --scope <scope-key> scope list --json` to confirm the
-   scope exists. If the user did not name one, ask.
+   scope exists. If no safe scope can be resolved, continue with the
+   Markdown plan and do not initialize a new scope implicitly.
 2. Create a goal:
    `elegy-planning --scope <scope-key> --json --non-interactive --correlation-id <id> goal create --id <slug> --title <t> --description <d> --acceptance <a> --acceptance <a> --rejection <r> --rejection <r>`.
    Repeat `--acceptance` and `--rejection` for multiple criteria. Do
@@ -129,8 +132,9 @@ project-render)
 ## Workflow
 
 1. Resolve scope.
-   - If the user did not name a scope, call `scope list --json` and
-     ask. Never let `--scope` default to `default` silently.
+   - If the user did not name a scope, use an existing repo/session
+     mapping when available. Otherwise continue with Markdown and do not
+     let `--scope` default to `default` silently.
 2. Author top-down.
    - Goal first, then roadmap, then plan, then work points, then
      todos. Authoring in this order lets `--file-scope` selectors
@@ -190,9 +194,9 @@ Summary: 48 capabilities across read-only (27), disk_write (20), and cross-host 
 - Minimum supported `elegy-planning` version: `0.1.0`. The CLI is
   pinned to its companion Rust workspace; check `elegy --version`
   before invoking.
-- SQLite is the only durable backend in scope. There is no
-  PostgreSQL or remote-database path; the host-local SQLite file is
-  the source of truth.
+- SQLite is the only optional durable backend in scope. There is no
+  PostgreSQL or remote-database path; the host-local SQLite file owns
+  execution state for the active scope.
 - Semver rule: minor must be >= the version that introduced the
   capability (e.g. `planning-project-run-claim` is only present in
   versions that ship the project-run feature). Patch is unconstrained.
@@ -248,15 +252,14 @@ Expected: `status: "ok"`, `data.plan.fileScopes = []`. Re-running
 
 ## Boundaries
 
-- This skill owns: durable planning records (goals, roadmaps, plans,
+- This skill owns: optional durable planning records (goals, roadmaps, plans,
   work points, todos, issues, review points, insights, project runs)
   and their SQLite storage.
 - This skill does not own: vault operations, repo operations, agent
   host projection, or MCP tool registration. Those live in their
   own skills.
-- This skill does not own: planning state on other systems. Even when
-  another system mirrors planning state, the SQLite file under the
-  active scope is authority.
+- This skill does not own: approved plan intent, which remains in the
+  active Markdown plan, or planning state on other systems.
 - Companion skills:
   - `elegy-memory` — for facts, preferences, and procedural
     memories that span planning sessions.

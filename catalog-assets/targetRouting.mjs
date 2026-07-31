@@ -172,7 +172,7 @@ export const COMPATIBILITY_MANIFESTS = [
       agentsAreFlat: true,
       skillsRequireFolderName: true,
       notes:
-        'Install Codex-native home instructions, five bounded Luna role agents, one strong Sol reviewer, and six focused skills under ~/.codex, then patch ~/.codex/config.toml conservatively. Elegy plugins remain explicit opt-ins.',
+        'Install Codex-native home instructions, five bounded Luna role agents, one strong Sol reviewer, and seven focused skills under ~/.codex, then patch ~/.codex/config.toml conservatively. Elegy plugins remain explicit opt-ins.',
     },
     governance: SHARED_G05_GOVERNANCE,
     assetRoutes: [
@@ -189,6 +189,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-repo-quality-setup-skill', { sourceAssetId: 'skill-repo-quality-setup' }),
       route('codex-agents-md-authoring-skill', { sourceAssetId: 'skill-agents-md-authoring' }),
       route('codex-tdd-skill', { sourceAssetId: 'skill-tdd' }),
+      route('codex-elegy-planning-skill', { sourceAssetId: 'skill-elegy-planning', loadMode: 'on-demand' }),
     ],
   },
   {

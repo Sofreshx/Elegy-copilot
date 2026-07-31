@@ -1,6 +1,6 @@
 ---
 created: 2026-03-15
-updated: 2026-07-06
+updated: 2026-07-31
 category: system
 status: current
 doc_kind: node
@@ -19,20 +19,21 @@ review outcome surface.
 
 ## Context
 
-Planning and execution already have canonical artifacts for decomposition (`plan.md`/Plan Pack),
-session runtime state (`docs/system/session-state-artifacts.md`), and durable planning authority
-(`elegy-planning`, as summarized in `docs/system/planning-backlog-roadmap-contract.md`). This goal
-contract adds a stable cross-workflow outcome layer and now explicitly drives workflow behavior in
-orchestrator and persisted session-state execution.
+Planning and execution already have canonical artifacts for decomposition (`plan.md`/Markdown plan)
+and session runtime state (`docs/system/session-state-artifacts.md`). `elegy-planning` may add
+optional durable graph execution state, while backlog and roadmap authority remains governed by
+`docs/system/planning-backlog-roadmap-contract.md`. This goal contract adds a stable cross-workflow
+outcome layer and explicitly drives orchestrator and persisted-session closure behavior.
 
 ## Details
 
 ### High-Level Goal Intent Surface
 
-Plans should include an explicit high-level goal bullet list that states intended outcomes before
-work-unit decomposition.
+Plans should include one or more explicit high-level goal bullets that state intended outcomes before
+task decomposition.
 
-- The list is human-readable planning intent, not a replacement for `WU-*` execution tracking.
+- The list is human-readable planning intent, not a replacement for task execution tracking
+  (`T-*` in v2 plans and `WU-*` in legacy v1 plans).
 - Goal bullets should remain stable enough for end-of-execution outcome review.
 
 ### Goal Completion States
@@ -143,7 +144,7 @@ session execution artifacts.
 
 | Surface | Canonical authority | Not authoritative for |
 | --- | --- | --- |
-| High-level goal intent/completion/carryover rules | This goal contract | Work-unit decomposition details or runtime session reconciliation |
+| High-level goal intent/completion/carryover rules | This goal contract | Task decomposition details or runtime session reconciliation |
 | Repo backlog/roadmap prioritization and cross-plan portfolio state | `docs/system/planning-backlog-roadmap-contract.md` | Session execution state or per-session artifact lifecycle |
 | Session artifact layout, plan/proposition/handoff/verification guide shape | `docs/system/session-state-artifacts.md` | Repo backlog/roadmap prioritization |
 

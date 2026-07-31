@@ -17,7 +17,7 @@
     "preferExplicitDestinations": true,
     "agentsAreFlat": true,
     "skillsRequireFolderName": true,
-    "notes": "Install Codex-native home instructions, five bounded Luna role agents, one strong Sol reviewer, and six focused skills under ~/.codex, then patch ~/.codex/config.toml conservatively. Elegy plugins remain explicit opt-ins."
+    "notes": "Install Codex-native home instructions, five bounded Luna role agents, one strong Sol reviewer, and seven focused skills under ~/.codex, then patch ~/.codex/config.toml conservatively. Elegy plugins remain explicit opt-ins."
   },
   "governance": {
     "g05": {
@@ -137,6 +137,13 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/tdd",
       "destination": "skills/tdd",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "codex-elegy-planning-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/elegy-planning",
+      "destination": "skills/elegy-planning",
       "loadMode": "on-demand"
     }
   ],

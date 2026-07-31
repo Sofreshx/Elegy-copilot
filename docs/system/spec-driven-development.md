@@ -1,6 +1,6 @@
 ---
 created: 2026-05-21
-updated: 2026-07-30
+updated: 2026-07-31
 category: system
 status: current
 doc_kind: node
@@ -16,14 +16,14 @@ related: [workflow-planning-contract, validation-governance, check-taxonomy-gove
 
 Define the shared v1 contract for spec-driven development in `elegy-copilot`.
 
-This layer complements existing Plan Pack, roadmap, review, and validation assets. It does not
+This layer complements existing Markdown plan, roadmap, review, and validation assets. It does not
 replace them, and it does not introduce a new orchestrator fleet.
 
 ## Positioning
 
 - Use spec-driven development when the work needs a tighter requirements contract before planning or implementation.
 - Default durable repo specs live under `docs/specs/`.
-- `elegy-planning` is the durable execution and roadmap authority. Specs define requirements; plans define execution.
+- Markdown plans define approved execution intent. `elegy-planning` may hold optional durable graph state, while roadmap authority follows the planning/backlog contract.
 - Keep implementation review and validation in the existing review and validation lanes.
 - Physical spec archiving (moving specs to an archive folder) is not the default. Specs are the permanent requirements record.
 
@@ -173,7 +173,8 @@ See the normative spec (R12) for the full freshness contract. The validator prod
 
 ## Spec-to-Planning Handoff
 
-Specs are the durable requirements contract. `elegy-planning` is the durable execution and roadmap authority. They complement each other without merging.
+Specs are the durable requirements contract. Markdown plans own approved execution intent;
+`elegy-planning` may provide optional durable graph state without replacing that intent.
 
 When a spec reaches `approved` status, the normal project lane picks it up for implementation:
 
@@ -267,5 +268,5 @@ If spec validation is revived in the future, it should return as explicit opt-in
 
 - Not every task needs a durable spec.
 - Specs are durable repo artifacts for non-trivial work or explicit spec requests.
-- Plan packs and roadmap artifacts remain authoritative for execution planning and multi-session planning.
+- Markdown plans and roadmap artifacts remain authoritative for execution planning and multi-session planning.
 - `spec-as-source` is narrow and declarative by design.

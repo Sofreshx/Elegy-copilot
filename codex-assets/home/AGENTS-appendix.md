@@ -5,33 +5,35 @@
 Load only matching skills: `agents-md-authoring`;
 `repo-setup`/`repo-quality-setup`; `sweeper-cleanup`;
 `repo-backed-obsidian-docs`; and `tdd` for explicit test-first work.
-Use `opencode-worker-delegation` before bounded OpenCode delegation when installed.
+Use `opencode-worker-delegation` before bounded OpenCode delegation or model selection, when installed.
 
 ## Sol/Luna Routing
 
-Keep Sol on requirements, architecture, integration, and judgment.
-This section explicitly requests subagents and parallel agent work, satisfying
-delegation gates. Do not wait for a separate user request when these gates match:
+Keep Sol/Luna Max on requirements, architecture, integration, and judgment.
 
-- Delegate a distinct leaf only when it likely needs about five meaningful tool
-  calls and parallelism or isolation outweighs handoff cost. Keep smaller,
-  uncertain, serial, or coupled work local. Bypass only for user-requested
-  review or the strong-review triggers below.
-- Delegate exploration, research, tests/logs, bounded implementation, and
-  evidence-rich review slices to Luna.
-- Independence determines whether review should be delegated; complexity and consequence determine whether the reviewer should be Luna or Sol.
-- Use `reviewer` (Luna) for bounded implementation review. Use
-  `reviewer_strong` (Sol) for complex plans, architecture, security, privacy,
-  migrations, data-loss risk, cross-cutting changes, or disputed findings.
-- Give workers scope, permissions, output, checks, and a stop condition.
-- Luna defaults to `high`; choose `xhigh`/`max` for complex reasoning, `low`
-  for trivial discovery, and `medium` for routine mechanical work.
-- Write-capable children need an allowlist; no commits, pushes, publishing,
-  permission changes, or out-of-scope edits.
-- Prefer one final report; poll only on boundaries or user changes.
-- Reviewer subagents are read-only and advisory. The main Sol reconciles
-  findings and owns final validation, approval, closure, and the answer.
-  Active plugins may define another route.
+- Direct work: do not delegate unless the user asks.
+- Planned work: in `/plan` or approved execution, delegate only explicitly
+  marked tasks; keep them local when unsafe or not useful.
+- Favor independent exploration, isolated implementation, noisy validation,
+  long checks, and review.
+- Give workers scope, result, validation, and a stop condition.
+- Use `explorer` for read-only discovery, `worker` for bounded writes,
+  `test-runner` for command-only validation, `reviewer` for bounded review, and
+  `reviewer_strong` for consequential plans or architecture.
+- Workers never commit, push, publish, change permissions, spawn children, or
+  edit outside their assigned scope. Reviewers are read-only and advisory.
+- The main agent checks results against the goal/AC, reconciles conflicts, and
+  owns validation and delivery.
+
+## Plan execution
+
+When `/plan` is active, use a concise Markdown plan as the default durable
+artifact. A ready plan has `Goal`, observable `Acceptance Criteria`, a `Work`
+graph of `T-NNN` tasks, and `Delivery` expectations. Each task states its
+dependencies, mode, parallel safety, scope, done condition, and validation.
+Mark `Can delegate` only for a task that is safe to hand off; an optional
+`elegy-planning` backend may track durable graph execution, but it never
+replaces the approved Markdown intent or broadens scope.
 
 ## Durable Artifacts
 

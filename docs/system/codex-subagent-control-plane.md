@@ -1,65 +1,87 @@
 ---
 created: 2026-07-04
-updated: 2026-07-30
+updated: 2026-07-31
 category: system
 status: current
 doc_kind: node
 id: codex-subagent-control-plane
-summary: Managed Codex subagent definitions, routing policy, UI controls, and usage telemetry.
+summary: Managed Codex subagent definitions, plan-scoped delegation policy, UI controls, and usage telemetry.
 tags: [codex, agents, telemetry, control-plane]
 related: [harness-asset-flow, agents-vs-skills, ui-development-governance]
 ---
 
 # Codex Subagent Control Plane
 
-Purpose: keep Sol focused on orchestration and final judgment while using
-bounded subagents for parallel work, context isolation, and independent
-challenge. Native Codex owns the subagent lifecycle; plugins may add a bounded
-routing policy around it.
+Purpose: keep the main Codex agent focused on requirements, direction,
+integration, and final judgment while using bounded subagents for explicit
+planned work, parallel exploration, context isolation, and independent
+challenge. Native Codex owns the subagent lifecycle; this document defines the
+Instruction Engine policy around it.
 
 ## Contract
 
 | Owner | Responsibility |
 |---|---|
 | Codex main thread | Requirements, architecture, integration, final judgment |
+| Approved Markdown plan | Goal, acceptance criteria, task graph, delegation marks, validation, delivery |
 | Codex baseline agent TOML | Role, model, effort, sandbox, prompt |
 | Elegy Copilot UI | Inspect, install, update, reset, uninstall, and show usage |
 | Native Codex config | `[agents]` concurrency and depth limits |
 | Local telemetry | Derived usage metadata only |
 
-Subagents are bounded delegation tools. The default route is proactive when a
-task benefits from parallelism or context isolation and the packet has a clear
-scope. Do not spawn for tiny, serial, unresolved, or tightly coupled work.
+## Delegation policy
 
-## Routing policy
+There is no separate orchestrator gate or automatic delegation service. The
+main agent is the orchestrator and evaluates whether the requested work and
+the selected direction are correct.
 
-Default mode: `governed-automatic`. Sol actively assesses safe delegation on
-non-trivial tasks and delegates only when the benefit exceeds handoff cost.
-The delegated-dev plugin may use `opencode-preferred` for eligible worker
-tasks. Codex-native managed agents cover exploration, bounded implementation,
-review, validation, and cleanup.
+Direct work is main-agent only by default. Use a subagent only when the user
+explicitly asks for one. A direct request to review or investigate can be
+handled as a bounded subagent request when the scope and result are clear.
 
-Apply one default cost gate: spawn a leaf only when it has a distinct
-deliverable and is expected to perform about five or more meaningful tool
-calls. Bypass the numeric threshold only for user-requested independent review
-or the consequential strong-review triggers below. Keep smaller or uncertain
-work in the parent; do not bundle trivial work merely to reach the threshold.
+When `/plan` is active or an approved Markdown plan is being executed, the
+plan is the delegation boundary:
 
-| Spawn | Do not spawn |
-|---|---|
-| Independent work can run in parallel or isolate noisy context | Tiny edit or one-file answer |
-| A bounded leaf has a distinct deliverable and about five or more meaningful tool calls | Requirements are unclear |
-| Independent review slices can run in parallel | Work is serial or write-conflicting |
-| Test/log triage can return a short summary | Handoff is longer than doing the task inline |
+- Delegate only tasks explicitly marked as delegable.
+- Prefer independent exploration, isolated implementation, noisy validation,
+  long-running checks, and independent review.
+- Keep requirements, architecture, trade-offs, integration, and final
+  acceptance with the main agent.
+- Keep tasks local when they are tiny, serial, unclear, coupled, write
+  conflicting, or cheaper to complete inline.
+- Give each delegated task a bounded scope, expected result, validation, and
+  stop condition. Workers never commit, push, publish, change permissions,
+  spawn children, or edit outside their scope.
+- The main agent checks the result against the user goal, planned acceptance
+  criteria, and the necessity and direction of the work before integrating it.
 
-Routing modes:
+The Markdown plan is the default durable artifact. It owns approved intent,
+decisions, acceptance criteria, task dependencies, delegation marks, and
+delivery expectations. SQLite or `elegy-planning` may be used as an optional
+execution backend when durable graph state, leases, or resume support
+materially help; it must not replace the Markdown plan or silently broaden
+scope.
 
-| Mode | Behavior |
-|---|---|
-| `manual` | Spawn only after explicit user request |
-| `suggested` | Main agent may recommend delegation, then wait |
-| `governed-automatic` | Main agent proactively delegates approved bounded work when gates match |
-| `off` | Do not use managed subagents |
+Legacy `routingMode` settings remain readable for compatibility and telemetry,
+but they are not an execution gate. Installed Codex instructions and the
+approved plan define delegation behavior.
+
+```mermaid
+flowchart TD
+  U["User prompt"] --> D{"Direct work or /plan?"}
+  D -->|Direct| M["Main agent only"]
+  D -->|"/plan"| P["Markdown plan v2\nGoal · acceptance · task graph · delivery"]
+  P --> G{"Task marked Can delegate?"}
+  G -->|No| M
+  G -->|Yes| E["Main agent evaluates need, direction, scope, and risk"]
+  E -->|Keep local| M
+  E -->|Delegate| W["Bounded subagent\nrole · allowlist · validation · stop condition"]
+  W --> R["Worker result"]
+  R --> V["Main agent verifies against goal and acceptance criteria"]
+  M --> I["Integrate, validate, commit/PR handoff"]
+  V --> I
+  P -. optional durable graph state .-> S["SQLite / elegy-planning"]
+```
 
 ## Managed agents
 
@@ -78,9 +100,6 @@ explicit Sol exception for judgment-heavy review. Role files intentionally omit
 `model_reasoning_effort`, so Sol may choose `xhigh` or `max` for a complex
 delegation. Use `low` only for trivial discovery and `medium` only for routine
 mechanical work.
-There is no Spark fallback in this routing contract. The
-delegated-dev plugin prefers OpenCode Workers on the user's OpenCode Go
-subscription for eligible roles, while Sol remains the orchestrator.
 
 ## Review routing
 
@@ -91,16 +110,20 @@ consequence determine the model:
 |---|---|
 | Bounded diff correctness, regressions, conventions, request fit, missing tests | `reviewer` (Luna) |
 | Complex plans, architecture, security, privacy, migrations, data-loss risk, cross-cutting changes, disputed findings | `reviewer_strong` (Sol) |
-| Requirements, trade-offs, integration, final validation, approval, closure, answer | Main Sol |
+| Requirements, trade-offs, integration, final validation, approval, closure, answer | Main agent |
 
-Both reviewers are read-only and advisory. The main Sol verifies and
-reconciles their findings.
+Both reviewers are read-only and advisory. The main agent verifies and
+reconciles their findings, including whether the planned problem and chosen
+direction remain the right ones.
 
 ## Native Go agents
 
+This experimental provider lane is not a default delegation path and cannot
+override the direct-work or approved-plan policy above.
+
 `elegy-codex-go-agents` is a separate experimental plugin for running genuine
-native Codex child sessions against OpenCode Go. It does not replace OpenCode
-Workers and must not change the parent session's root `model` or
+native Codex child sessions against an external provider. It is outside the
+managed role set and must not change the parent session's root `model` or
 `model_provider`.
 
 The plugin owns an isolated localhost Responses provider, fixed
@@ -157,7 +180,7 @@ Path: Codex Settings.
 Tabs:
 
 - Overview: provider, CLI, planning setup.
-- Subagents: status summary, routing settings, managed global agents, project agent discovery.
+- Subagents: status summary, delegation policy, concurrency, managed global agents, project agent discovery.
 - Subagent Usage: local derived run metadata.
 
 Editable fields:
@@ -165,9 +188,6 @@ Editable fields:
 - model
 - reasoning effort
 - sandbox
-- routing mode
-- bounded-lane model and effort within the Luna cap
-- the fixed Sol strong-review lane
 - developer instructions
 
 Local overrides are preserved until the user resets a managed agent.
@@ -176,18 +196,20 @@ The Subagents tab must make background delegation visible at a glance:
 
 - managed, installed, missing, drifted, invalid, disabled, and usable counts
 - native `[agents]` sync state
-- routing mode and fan-out limits
-- per-agent status, routing, model, effort, sandbox, and recent usage
+- delegation policy and fan-out limits
+- per-agent status, model, effort, sandbox, and recent usage
 - install/reset/save actions for managed agents
 - project-scoped agents displayed read-only and separate from managed global agents
 
 Heavy details stay behind expansion: developer instructions, capability truth
 labels, raw TOML, source path, installed path, and tool-scope notes.
 
-The Subagents tab writes routing metadata to
-`~/.codex/.elegy-copilot-codex-subagents.json` and native Codex concurrency,
-depth, and runtime limits to `~/.codex/config.toml`. The installer owns the
-native enablement, default subagent model, and default effort:
+The Subagents tab preserves legacy routing metadata in
+`~/.codex/.elegy-copilot-codex-subagents.json` for compatibility, and writes
+native Codex concurrency, depth, and runtime limits to
+`~/.codex/config.toml`. Routing metadata is informational; the installed
+instructions and approved Markdown plan own delegation behavior. The installer
+owns the native enablement, default subagent model, and default effort:
 
 ```toml
 [agents]
@@ -261,6 +283,8 @@ Use:
 
 - `node scripts/validate-codex-assets.js`
 - `node scripts/codex-config-patch.test.js`
+- `node scripts/validate-plan.v2.test.js`
+- `node scripts/validate-planpack.planning-phase.test.js`
 - `node scripts/codex-install.test.js`
 - `node --test copilot-ui/tests/codex-subagents-service.test.js copilot-ui/tests/telemetry-service.test.js`
 - `npm run ui:check`

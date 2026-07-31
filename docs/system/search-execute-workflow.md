@@ -89,7 +89,7 @@ For elegy-copilot itself, repo-rule authority stays in `docs/system/**`.
 
 - start from `docs/system/index.md`, a relevant MOC, or a deterministic core-lane governance node
 - load the smallest relevant canonical node before write-capable feature or modification work
-- require the write-capable leaf to repeat that bootstrap even when an orchestrator brief, plan pack,
+- require the write-capable leaf to repeat that bootstrap even when an orchestrator brief, Markdown plan,
   `@execute` brief, or repo-local instruction file already summarized the task
 - treat repo-local `.github/*` assets, installed prompts, and agent assets as routing or
   discoverability aids unless a canonical doc explicitly promotes them into higher authority
@@ -202,14 +202,14 @@ normalized route-selection fields from [planning-backlog-roadmap-contract.md](pl
 Deterministic routing posture:
 
 - `planning_surface: roadmap` -> keep `@orchestrator` as the owner of roadmap/backlog surface selection and persistence rules; when repo writes are needed, route through existing writing lanes and planning skills rather than dedicated backlog/roadmap planner agents
-- `planning_surface: plan-pack` -> create a bounded implementation plan only when `execution_readiness` is `ready` or `stageable`; use `implementation-handoff` when another executor or future session needs a concrete brief
+- `planning_surface: plan-pack` (legacy name for the session Markdown plan) -> create a bounded implementation plan only when `execution_readiness` is `ready` or `stageable`; use `implementation-handoff` when another executor or future session needs a concrete brief
 - `planning_surface: both` -> handle durable roadmap/backlog framing first, then create the selected implementation plan only when that slice is `ready` or `stageable`
-- `planning_surface: none` -> do not create roadmap or plan-pack artifacts; route directly to the bounded delivery/reporting lane needed for the request, such as commit prep, review prep, or CI result checks
+- `planning_surface: none` -> do not create roadmap or Markdown plan artifacts; route directly to the bounded delivery/reporting lane needed for the request, such as commit prep, review prep, or CI result checks
 
 This posture keeps planning-surface choice explicit, preserves the bounded coordinator topology, and avoids
 mixing durable roadmap authority with session execution state by default.
 
-Plan-pack or handoff generation runs only when `planning_surface` includes `plan-pack` and
+Plan or handoff generation runs only when `planning_surface` includes the legacy `plan-pack` value and
 `execution_readiness` is `ready` or `stageable`. `roadmap`, `none`, and `not-ready` postures must
 not start implementation planning.
 

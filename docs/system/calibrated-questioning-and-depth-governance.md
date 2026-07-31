@@ -42,7 +42,7 @@ Depth calibration starts from the existing normalized planning fields rather tha
 
 | Field | Calibration use |
 | --- | --- |
-| `planning_surface` | Decides whether active execution-planning or execution-review depth is even in play and keeps roadmap authority separate from plan-pack authority. |
+| `planning_surface` | Decides whether active execution-planning or execution-review depth is even in play and keeps roadmap authority separate from session-plan authority. |
 | `session_horizon` | Shapes how much carryover and resumability questioning is needed once the route is already selected. |
 | `execution_readiness` | Decides whether the current step should execute, stage, or stop for more input before deeper challenge continues. |
 | `overlap_risk` | Raises scrutiny on validation, persistence, and bounded-overlap decisions once the route is already selected. |
@@ -81,10 +81,10 @@ Planner, reviewer, and follow-up agents apply this policy locally without redefi
 
 This policy changes questioning intensity, not output ownership.
 
-- Plan-pack shape stays owned by [planpack-spec.md](planpack-spec.md).
+- Markdown plan shape stays owned by [planpack-spec.md](planpack-spec.md); its filename and v1 sections are legacy compatibility surfaces.
 - Reviewer outputs stay owned by [reviewer-lane-governance.md](reviewer-lane-governance.md).
 - Follow-up output routing stays owned by [follow-up-discovery-governance.md](follow-up-discovery-governance.md).
-- If richer plan-pack sections become required, update [planpack-spec.md](planpack-spec.md) first before prompts or agent assets redefine outputs.
+- If richer plan sections become required, update [planpack-spec.md](planpack-spec.md) first before prompts or agent assets redefine outputs.
 
 ## References
 

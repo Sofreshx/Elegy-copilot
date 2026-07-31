@@ -63,18 +63,10 @@ function subagentStatusLabel(agent: CodexSubagentRecord): string {
   return agent.managed ? 'Managed' : 'Unmanaged';
 }
 
-function routingTone(routingMode: string): 'neutral' | 'brand' | 'accent' | 'success' | 'danger' {
-  if (routingMode === 'off') return 'neutral';
-  if (routingMode === 'governed-automatic') return 'brand';
-  if (routingMode === 'suggested') return 'accent';
-  return 'success';
-}
-
 function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSubagentRecord; saving: boolean; readOnly?: boolean }) {
   const [model, setModel] = useState(agent.model || '');
   const [effort, setEffort] = useState(agent.modelReasoningEffort || 'high');
   const [sandbox, setSandbox] = useState(agent.sandboxMode || 'read-only');
-  const [routingMode, setRoutingMode] = useState(agent.routingMode || 'manual');
   const [allowSpark, setAllowSpark] = useState(agent.allowSpark);
   const [instructions, setInstructions] = useState(splitInstructions(agent.content));
 
@@ -82,7 +74,6 @@ function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSu
     setModel(agent.model || '');
     setEffort(agent.modelReasoningEffort || 'high');
     setSandbox(agent.sandboxMode || 'read-only');
-    setRoutingMode(agent.routingMode || 'manual');
     setAllowSpark(agent.allowSpark);
     setInstructions(splitInstructions(agent.content));
   }, [agent]);
@@ -103,10 +94,6 @@ function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSu
               {readOnly ? <Badge tone="neutral">Project</Badge> : null}
             </div>
             <span className="settings-row-description">{agent.description}</span>
-          </div>
-          <div>
-            <span className="settings-row-description">Routing</span>
-            <div><Badge tone={routingTone(agent.routingMode)}>{agent.routingMode}</Badge></div>
           </div>
           <div>
             <span className="settings-row-description">Model</span>
@@ -148,15 +135,6 @@ function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSu
               <select value={sandbox} onChange={(event) => setSandbox(event.target.value)} style={inputStyle} disabled={fieldsDisabled}>
                 <option value="read-only">read-only</option>
                 <option value="workspace-write">workspace-write</option>
-              </select>
-            </label>
-            <label>
-              <span className="settings-row-description">Routing</span>
-              <select value={routingMode} onChange={(event) => setRoutingMode(event.target.value)} style={inputStyle} disabled={fieldsDisabled}>
-                <option value="manual">manual</option>
-                <option value="suggested">suggested</option>
-                <option value="governed-automatic">governed automatic</option>
-                <option value="off">off</option>
               </select>
             </label>
           </div>
@@ -207,7 +185,6 @@ function CodexSubagentCard({ agent, saving, readOnly = false }: { agent: CodexSu
               model_reasoning_effort: effort,
               sandbox_mode: sandbox,
               developer_instructions: instructions,
-              routingMode,
               allowSpark,
             })}
           >
@@ -262,10 +239,6 @@ function CodexSubagentSummary({ data, usage }: { data: NonNullable<CodexProvider
           <div><Badge tone={summary.drifted > 0 ? 'brand' : 'success'}>{summary.drifted} local</Badge></div>
         </div>
         <div>
-          <span className="settings-row-description">Routing</span>
-          <div><Badge tone={routingTone(summary.routingMode)}>{summary.routingMode}</Badge></div>
-        </div>
-        <div>
           <span className="settings-row-description">Fan-out</span>
           <div><Badge tone="neutral">{summary.maxThreads} threads · depth {summary.maxDepth}</Badge></div>
         </div>
@@ -303,33 +276,17 @@ function CodexSubagentsSection({ state }: { state: CodexProviderState }) {
     <>
       {data ? <CodexSubagentSummary data={data} usage={state.subagentUsage} /> : null}
 
-      <Panel title="Subagent Routing" subtitle="Control when Codex should delegate work" testId="codex-subagent-routing">
+      <Panel title="Delegation Policy" subtitle="Keep direct work local and make planned delegation explicit" testId="codex-subagent-routing">
         {!settings ? (
           <p className="state-message">Loading subagent settings…</p>
         ) : (
           <>
-            <div className="settings-row">
-              <div className="settings-row-label">
-                <strong>Routing mode</strong>
-                <span className="settings-row-description">
-                  Default is governed automatic for policy-approved bounded delegation.
-                </span>
-              </div>
-              <div className="settings-row-action">
-                <select
-                  value={settings.routingMode}
-                  disabled={state.subagentSaving}
-                  onChange={(event) => updateSetting({ routingMode: event.target.value })}
-                  style={inputStyle}
-                  data-testid="codex-subagent-routing-mode"
-                >
-                  <option value="manual">Manual only</option>
-                  <option value="suggested">Suggested</option>
-                  <option value="governed-automatic">Governed automatic</option>
-                  <option value="off">Off</option>
-                </select>
-              </div>
-            </div>
+            <p className="settings-row-description" style={{ marginTop: 0 }}>
+              <strong>Direct work stays with the main agent.</strong> Subagents are used only when the user asks for them.
+            </p>
+            <p className="settings-row-description">
+              <strong>Approved plans may delegate explicitly marked tasks.</strong> The main agent checks the result against the goal and acceptance criteria before delivery.
+            </p>
             <div className="settings-row">
               <div className="settings-row-label">
                 <strong>Concurrency</strong>

@@ -10,7 +10,7 @@ const SETTINGS_FILE = '.elegy-copilot-codex-subagents.json';
 const MANAGED_INVENTORY_FILE = '.elegy-copilot-codex-managed.json';
 const CONFIG_FILE = 'config.toml';
 const DEFAULT_SETTINGS = {
-  routingMode: 'governed-automatic',
+  routingMode: 'manual',
   maxThreads: 6,
   maxDepth: 1,
   jobMaxRuntimeSeconds: 1800,
@@ -91,13 +91,20 @@ function normalizeSettingsShape(settings) {
     }
   }
   return {
-    routingMode: typeof settings.routingMode === 'string' ? settings.routingMode : DEFAULT_SETTINGS.routingMode,
+    routingMode: AGENT_ROUTING_MODES.has(String(settings.routingMode))
+      ? String(settings.routingMode)
+      : DEFAULT_SETTINGS.routingMode,
     maxThreads: asBoundedInteger(settings.maxThreads, DEFAULT_SETTINGS.maxThreads, 1, 8),
     maxDepth: asBoundedInteger(settings.maxDepth, DEFAULT_SETTINGS.maxDepth, 0, 2),
     jobMaxRuntimeSeconds: asBoundedInteger(settings.jobMaxRuntimeSeconds, DEFAULT_SETTINGS.jobMaxRuntimeSeconds, 60, 86400),
     telemetryRetentionDays: asBoundedInteger(settings.telemetryRetentionDays, DEFAULT_SETTINGS.telemetryRetentionDays, 1, 3650),
     agentRouting,
   };
+}
+
+function normalizeRoutingMode(value) {
+  const normalized = String(value || '');
+  return AGENT_ROUTING_MODES.has(normalized) ? normalized : DEFAULT_SETTINGS.routingMode;
 }
 
 function safeAgentFileName(name) {
@@ -328,10 +335,9 @@ function buildUsageSummary(name, usageByAgent) {
   };
 }
 
-function normalizeOperationalStatus({ managed, missing, drift, parseError, routingMode }) {
+function normalizeOperationalStatus({ managed, missing, drift, parseError }) {
   if (parseError) return 'invalid';
   if (missing) return 'missing';
-  if (String(routingMode || '').toLowerCase() === 'off') return 'disabled';
   if (drift) return 'overridden';
   if (managed) return 'ready';
   return 'unmanaged';
@@ -346,11 +352,11 @@ function normalizeAgentRecord(installed, source, usageByAgent, settings = null) 
   const drift = Boolean(sourceHash && installedHash && sourceHash !== installedHash);
   const missing = Boolean(source && !installed);
   const parseError = parsed._parseError || null;
-  const routingMode = settings?.agentRouting?.[name]
+  const routingMode = normalizeRoutingMode(settings?.agentRouting?.[name]
     || parsed.elegy?.routing_mode
     || settings?.routingMode
-    || DEFAULT_SETTINGS.routingMode;
-  const operationalStatus = normalizeOperationalStatus({ managed, missing, drift, parseError, routingMode });
+    || DEFAULT_SETTINGS.routingMode);
+  const operationalStatus = normalizeOperationalStatus({ managed, missing, drift, parseError });
   const usageSummary = buildUsageSummary(name, usageByAgent);
 
   return {

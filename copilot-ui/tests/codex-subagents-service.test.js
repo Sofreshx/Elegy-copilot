@@ -41,6 +41,7 @@ test('Codex subagent service lists bounded Luna agents and the strong Sol review
   assert.equal(result.summary.managed, 6);
   assert.equal(result.summary.missing, 6);
   assert.equal(result.summary.usable, 0);
+  assert.equal(result.summary.routingMode, 'manual');
 });
 
 test('Codex subagent service updates and resets a managed agent safely', () => {
@@ -67,7 +68,7 @@ test('Codex subagent service updates and resets a managed agent safely', () => {
   explorer = result.agents.find((agent) => agent.name === 'explorer');
   assert.equal(explorer.model, 'gpt-5.6-luna');
   assert.equal(explorer.drift, false);
-  assert.equal(explorer.routingMode, 'governed-automatic');
+  assert.equal(explorer.routingMode, 'manual');
   const resetSettings = JSON.parse(fs.readFileSync(path.join(tmp, '.elegy-copilot-codex-subagents.json'), 'utf8'));
   assert.equal(resetSettings.agentRouting?.explorer, undefined);
 });
@@ -131,6 +132,38 @@ test('Codex subagent settings patch native Codex agents config', () => {
   assert.ok(configText.includes('max_depth = 0'), configText);
   assert.ok(configText.includes('job_max_runtime_seconds = 900'), configText);
   assert.ok(configText.includes('[agents.explorer]\nmodel = "gpt-5.4-mini"'), configText);
+});
+
+test('Codex subagent service falls back to manual routing for invalid persisted settings', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-codex-subagents-'));
+  fs.writeFileSync(path.join(tmp, '.elegy-copilot-codex-subagents.json'), JSON.stringify({
+    routingMode: 'not-a-real-mode',
+  }), 'utf8');
+
+  const result = codexSubagents.listCodexSubagents({
+    codexHome: tmp,
+    engineRoot: path.resolve(__dirname, '..', '..'),
+  });
+
+  assert.equal(result.settings.routingMode, 'manual');
+  assert.equal(result.summary.routingMode, 'manual');
+});
+
+test('legacy off routing remains informational and does not disable installed agents', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-codex-subagents-'));
+  const engineRoot = path.resolve(__dirname, '..', '..');
+  codexSubagents.resetCodexSubagent('explorer', { codexHome: tmp, engineRoot });
+  fs.writeFileSync(path.join(tmp, '.elegy-copilot-codex-subagents.json'), JSON.stringify({
+    routingMode: 'off',
+    agentRouting: { explorer: 'off' },
+  }), 'utf8');
+
+  const result = codexSubagents.listCodexSubagents({ codexHome: tmp, engineRoot });
+  const explorer = result.agents.find((agent) => agent.name === 'explorer');
+  assert.equal(explorer.routingMode, 'off');
+  assert.equal(explorer.operationalStatus, 'ready');
+  assert.equal(explorer.usable, true);
+  assert.equal(result.summary.disabled, 0);
 });
 
 test('Codex subagent settings do not persist when native config patching fails', () => {

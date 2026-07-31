@@ -1,6 +1,6 @@
 ---
 created: 2026-06-09
-updated: 2026-07-30
+updated: 2026-07-31
 category: system
 status: current
 doc_kind: node
@@ -205,7 +205,7 @@ A runtime asset drift guard in `copilot-ui/scripts/tauri-node-sidecar-layout.js`
 | **Instructions** | `copilot-instructions.md` | `AGENTS.md` | `AGENTS.md` | `GEMINI.md` | `CLAUDE.md` | `copilot-instructions.md` |
 | **Contract** | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+appendix |
 | **Agents** | 6 | 15 | 6 | 0 | 0 | 6 |
-| **Skills** | 26 | 31 | 6 | 15 | 10 | 0 |
+| **Skills** | 26 | 31 | 7 | 15 | 10 | 0 |
 | **Plugins** | 0 | 4 | 0 | 0 | 0 | 0 |
 | **Managed block** | No | No | No | Yes | No | No |
 | **Profile injection** | Yes | Yes | Yes | Yes | Yes | No |

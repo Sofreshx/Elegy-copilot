@@ -46,6 +46,8 @@ async function main() {
     assert.strictEqual(instructions.source, 'catalog-assets/instructions/agent-session-defaults.md');
     assert.strictEqual(instructions.appendix, 'codex-assets/home/AGENTS-appendix.md');
     assert.strictEqual(instructions.destination, 'AGENTS.md');
+    const planningSkill = manifest.assets.find((asset) => asset.id === 'codex-elegy-planning-skill');
+    assert.strictEqual(planningSkill.loadMode, 'on-demand');
   });
 
   await test('installer creates lean Codex assets and reruns idempotently', async () => {
@@ -61,14 +63,15 @@ async function main() {
       assert.ok(fs.existsSync(path.join(codexHome, 'AGENTS.md')));
       const agentsInstructions = fs.readFileSync(path.join(codexHome, 'AGENTS.md'), 'utf8');
       assert.ok(!agentsInstructions.includes('## Code Mode Batching'));
-      assert.ok(agentsInstructions.includes('explicitly requests subagents and parallel agent work'));
-      assert.ok(agentsInstructions.includes('separate user request'));
-      assert.ok(agentsInstructions.includes('about five meaningful tool'));
-      assert.ok(agentsInstructions.includes('Keep smaller,'));
-      assert.ok(agentsInstructions.includes('Bypass only for user-requested'));
-      assert.ok(agentsInstructions.includes('Independence determines whether review should be delegated'));
-      assert.ok(agentsInstructions.includes('complexity and consequence determine whether the reviewer should be Luna or Sol'));
-      assert.ok(!agentsInstructions.includes('at least one safe Luna delegation'));
+      assert.ok(agentsInstructions.includes('Direct work: do not delegate unless the user asks'));
+      assert.ok(agentsInstructions.includes('Planned work:'));
+      assert.match(agentsInstructions, /explicitly\s+marked tasks/);
+      assert.match(agentsInstructions, /checks\s+results/i);
+      assert.ok(agentsInstructions.includes('## Plan execution'));
+      assert.match(agentsInstructions, /Acceptance\s+Criteria/);
+      assert.ok(!agentsInstructions.includes('about five meaningful tool'));
+      assert.ok(!agentsInstructions.includes('explicitly requests subagents and parallel agent work'));
+      assert.ok(!agentsInstructions.includes('Default mode: `governed-automatic`'));
       assert.ok(fs.existsSync(path.join(codexHome, 'agents', 'explorer.toml')));
       assert.ok(fs.existsSync(path.join(codexHome, 'agents', 'reviewer.toml')));
       assert.ok(fs.existsSync(path.join(codexHome, 'agents', 'reviewer_strong.toml')));
@@ -82,6 +85,7 @@ async function main() {
         'repo-quality-setup',
         'agents-md-authoring',
         'tdd',
+        'elegy-planning',
       ]) {
         assert.ok(fs.existsSync(path.join(skillsHome, retainedSkill, 'SKILL.md')), retainedSkill);
       }
@@ -94,7 +98,6 @@ async function main() {
         'spec-authoring',
         'spec-review',
         'spec-planning-bridge',
-        'elegy-planning',
         'commit-check-setup',
         'brainstorming',
       ]) {
@@ -121,6 +124,8 @@ async function main() {
       assert.ok(workerAgent.includes('model = "gpt-5.6-luna"'));
       assert.ok(!workerAgent.includes('model_reasoning_effort ='));
       assert.ok(workerAgent.includes('Work only within the file or module ownership'));
+      assert.match(workerAgent, /Never commit, push, publish, change permissions, or spawn/i);
+      assert.doesNotMatch(workerAgent, /commits, pushes[\s\S]*unless the parent explicitly authorizes/i);
 
       const configToml = fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8');
       const profileToml = fs.readFileSync(path.join(codexHome, 'instruction_engine_plan_review.config.toml'), 'utf8');

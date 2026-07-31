@@ -1,11 +1,11 @@
 ---
 created: 2026-07-06
-updated: 2026-07-06
+updated: 2026-07-31
 category: system
 status: current
 doc_kind: node
 id: git-checkpoint-governance
-summary: Canonical contract for atomic git checkpoints during goal, planning, and non-goal agent sessions.
+summary: Canonical contract for atomic commits, reviewable pull requests, and checkpoints during agent sessions.
 tags: [git, commit, checkpoint, goals, planning, governance]
 related: [goal-contract-governance, commit-validation-governance, project-conventions-governance, harness-asset-flow]
 ---
@@ -52,6 +52,23 @@ the failure summary.
 
 If the diff cannot be separated into an atomic commit, pause and ask rather than making a mixed
 commit.
+
+## Pull-request handoff
+
+A pull request is ready for review only when it has one coherent purpose, a
+clean diff, meaningful commit boundaries, and recorded validation. Its
+description should state:
+
+- the problem and user-visible outcome
+- the approach and important scope decisions
+- acceptance criteria and validation commands/results
+- known limitations, follow-up work, and any reviewer focus areas
+
+Keep unrelated cleanup, generated files, and formatting churn out of the PR.
+Use a draft PR while implementation or required checks are incomplete; mark it
+ready only after the main agent has reconciled review findings and verified the
+acceptance criteria. Creating a PR does not authorize merge, auto-merge, or
+protected-branch promotion.
 
 ## Validation
 
