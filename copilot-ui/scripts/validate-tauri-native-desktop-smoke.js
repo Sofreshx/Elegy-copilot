@@ -494,6 +494,33 @@ function httpGetJson(url) {
   });
 }
 
+function httpPostJson(url) {
+  return new Promise((resolve, reject) => {
+    const request = http.request(url, { method: 'POST', timeout: 10_000, headers: { 'content-length': '0' } }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => {
+        const rawBody = Buffer.concat(chunks).toString('utf8');
+        let body = null;
+        try {
+          body = rawBody ? JSON.parse(rawBody) : null;
+        } catch {
+          body = rawBody;
+        }
+        resolve({
+          status: response.statusCode,
+          body,
+          rawBody,
+        });
+      });
+    });
+
+    request.on('error', reject);
+    request.on('timeout', () => request.destroy(new Error(`Timed out requesting ${url}`)));
+    request.end();
+  });
+}
+
 function buildIsolatedLaunchEnv(serverPort) {
   const isolatedHome = path.join(stateRoot, 'home');
   const isolatedAppData = path.join(stateRoot, 'appdata');
@@ -568,6 +595,29 @@ async function launchAndValidateInstalledApp(appPath, expectedTitle, expectedRes
       `Running desktop runtime root drifted from installed resource root. health.engineRoot=${runtimeRoot}; installedResourcesRoot=${expectedResourcesRoot}`,
     );
     console.log(`[tauri-native-smoke] runtime root matches installed resources root ${expectedResourcesRoot}`);
+
+    const mcpStartResponse = await httpPostJson(`http://127.0.0.1:${serverPort}/api/local-repo-mcp/start`);
+    assert(
+      mcpStartResponse.status === 200,
+      `POST /api/local-repo-mcp/start returned ${mcpStartResponse.status}; expected 200. Body: ${typeof mcpStartResponse.body === 'string' ? mcpStartResponse.body : JSON.stringify(mcpStartResponse.body)}`,
+    );
+    const mcpStartBody = mcpStartResponse.body && typeof mcpStartResponse.body === 'object' ? mcpStartResponse.body : {};
+    assert(
+      mcpStartBody.server && mcpStartBody.server.running === true,
+      `MCP start response did not report server.running=true: ${JSON.stringify(mcpStartBody.server || null)}`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const mcpStatusAfterSettle = await httpGetJson(`http://127.0.0.1:${serverPort}/api/local-repo-mcp/status`);
+    assert(mcpStatusAfterSettle.status === 200, `GET /api/local-repo-mcp/status returned ${mcpStatusAfterSettle.status} after start.`);
+    const mcpStatusBody = mcpStatusAfterSettle.body && typeof mcpStatusAfterSettle.body === 'object' ? mcpStatusAfterSettle.body : {};
+    assert(
+      mcpStatusBody.server && mcpStatusBody.server.running === true,
+      `Local Repo MCP server exited immediately after start. server=${JSON.stringify(mcpStatusBody.server || null)}`,
+    );
+    console.log('[tauri-native-smoke] local-repo-mcp server started and stayed running');
+    const mcpStopResponse = await httpPostJson(`http://127.0.0.1:${serverPort}/api/local-repo-mcp/stop`);
+    assert(mcpStopResponse.status === 200, `POST /api/local-repo-mcp/stop returned ${mcpStopResponse.status}; expected 200.`);
+    console.log('[tauri-native-smoke] local-repo-mcp server stopped');
 
     await waitForCondition(
       'desktop main window',

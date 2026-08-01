@@ -244,7 +244,9 @@ The manifest bundles:
 
 - `engine-assets` and `catalog-assets` (shared sources)
 - All five harness-specific asset directories: `codex-assets`, `opencode-assets`, `claude-assets`, `antigravity-assets`, `ghcp-assets`
-A runtime asset drift guard in `copilot-ui/scripts/tauri-node-sidecar-layout.js` scans `copilot-ui/{server.js,lib,routes}` for harness-asset path references, then asserts each referenced root has a matching `resourceCopies` entry. This guard runs as part of `validate:tauri-node-sidecar-layout` and `desktop:check`.
+- The `local-repo-mcp` runtime package (`dist`, `node_modules`, `package.json`), which the local MCP server spawns against at runtime. Because the repo uses npm workspaces, `local-repo-mcp`'s runtime dependencies (`@modelcontextprotocol/sdk`, `jose`, `zod` and transitives) are hoisted to the root `node_modules/` in development. The bundle preparation script (`prepare-tauri-windows-bundle.js`) stages this hoisted closure from the root `node_modules/` into `resources/local-repo-mcp/node_modules/` at package time so the spawned MCP server process has a complete dependency tree.
+
+A runtime asset drift guard in `copilot-ui/scripts/tauri-node-sidecar-layout.js` scans `copilot-ui/{server.js,lib,routes}` for harness-asset path references and `resolveMcpPackageRoot` usage, then asserts each referenced root has a matching `resourceCopies` entry. This guard runs as part of `validate:tauri-node-sidecar-layout` and `desktop:check`. The native desktop smoke lane additionally probes `POST /api/local-repo-mcp/start` to verify the bundled MCP package actually launches.
 
 ## Harness Comparison
 

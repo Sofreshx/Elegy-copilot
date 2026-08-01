@@ -39,6 +39,18 @@ test('bundles every harness-specific asset directory referenced by runtime code'
   }
 });
 
+test('bundles the local-repo-mcp runtime package', () => {
+  const { manifest } = loadTauriNodeSidecarLayout();
+  for (const id of ['local-repo-mcp-dist', 'local-repo-mcp-node-modules', 'local-repo-mcp-package-json']) {
+    const entry = manifest.resourceCopies.find((resource) => resource && resource.id === id);
+    assert.ok(entry, `Expected resourceCopies to include ${id}`);
+  }
+  const distEntry = manifest.resourceCopies.find((resource) => resource && resource.id === 'local-repo-mcp-dist');
+  assert.equal(distEntry.kind, 'directory');
+  assert.equal(distEntry.source, '../local-repo-mcp/dist');
+  assert.equal(distEntry.target, 'local-repo-mcp/dist');
+});
+
 test('runtime asset drift guard passes against the real repo', () => {
   const result = validateRuntimeAssetReferences();
   assert.ok(result.scannedFileCount > 0, 'Expected the drift guard to scan at least one runtime file');
@@ -49,6 +61,7 @@ test('runtime asset drift guard passes against the real repo', () => {
       && result.harnessRefs.includes('antigravity-assets'),
     'Expected drift guard to detect codex/opencode/claude/antigravity asset references in runtime code',
   );
+  assert.equal(result.referencesLocalRepoMcpPackage, true, 'Expected drift guard to detect resolveMcpPackageRoot usage');
 });
 
 test('drift guard detects a missing harness-assets manifest entry', () => {
