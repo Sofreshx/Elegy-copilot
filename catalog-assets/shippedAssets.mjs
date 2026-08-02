@@ -81,6 +81,8 @@ export const SHIPPED_ASSETS = [
   agent('codex-test-runner-agent', 'codex-assets/agents/test-runner.toml'),
   agent('codex-sweeper-agent', 'codex-assets/agents/sweeper.toml'),
   skill('codex-repo-setup-skill', 'codex-assets/skills/repo-setup'),
+  skill('codex-goal-session-workflow-skill', 'codex-assets/skills/goal-session-workflow', { loadMode: 'on-demand' }),
+  skill('codex-evaluate-task-workflow-skill', 'codex-assets/skills/evaluate-task-workflow', { loadMode: 'on-demand' }),
 
   instructions('opencode-global-instructions', 'catalog-assets/instructions/agent-session-defaults.md', {
     appendix: 'opencode-assets/home/AGENTS-appendix.md',

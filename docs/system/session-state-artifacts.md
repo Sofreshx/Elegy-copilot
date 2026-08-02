@@ -1,12 +1,13 @@
 ---
 created: 2026-02-23
-updated: 2026-06-29
+updated: 2026-08-01
 category: system
 status: current
 doc_kind: node
 id: session-state-artifacts
 summary: Canonical contract for session-state workflow artifacts (plan.md, execution-state.json, handoff.md, proposition.md, verification-guide.md) and progress tracker structure.
 tags: [session-state, workflow-artifacts]
+related: [session-retrospective-governance, structured-output-contracts, workflow-planning-contract]
 ---
 
 # Session State Artifacts
@@ -37,6 +38,19 @@ These artifacts are canonical **when a persisted session workflow or host-manage
 The orchestrator's normalized **Session Intent Frame** and **Session Closure Summary** are conceptual
 summary surfaces that may live in chat-first state, host/runtime state, or persisted artifacts when a
 workflow chooses to write them. They do **not** introduce new required files in this directory.
+
+The Codex `evaluate-task-workflow` skill's `session-retrospective-v2` response
+is likewise a response-only diagnostic surface. Its `SESSION_RETROSPECTIVE`
+block does not add a required file, UI projection, or persistence authority;
+any requested materialization must use the existing host/orchestrator writing
+lanes and preserve the runtime-over-artifact precedence below.
+
+Codex goal-session checkpoint state uses the separate governed runtime
+namespace `~/.elegy/codex-workflow-improvement/sessions/<canonical-thread-id>/`.
+It is not part of this artifact tree and cannot replace the canonical plan.
+Native hooks may persist and reinject only a schema-valid, redacted, unexpired
+checkpoint with an explicitly verified binding between hook session identity
+and app-server thread identity. Unverified identity fails open to manual mode.
 
 All session state lives under:
 
@@ -282,17 +296,17 @@ are defined in [[planning-backlog-roadmap-contract]] [planning-backlog-roadmap-c
 Session artifacts are authoritative for active in-flight work. Unresolved goal carryover persistence
 is a separate docs surface:
 
-- canonical carryover path: `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`
+- canonical carryover path: `~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md`
 
 Boundary rules:
 
 1. Active in-flight goals remain in session artifacts (for example `plan.md`, `handoff.md`,
    `proposition.md`) until no longer active.
-2. Only unresolved and non-active goals are eligible to persist in `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`.
-3. Resolved goals should be removed from `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` without an archive
+2. Only unresolved and non-active goals are eligible to persist in `~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md`.
+3. Resolved goals should be removed from `~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md` without an archive
    requirement.
 4. Goal review remains read-only; workflows should route any persistence/removal for
-   `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` through an explicit docs-writing lane.
+   `~/.elegy/backlogs/{repo-name}/issues/unresolved-goals.md` through an explicit docs-writing lane.
 5. `GOAL_REVIEW.status = NEEDS_REVISION` keeps active goals in session artifacts and sends execution
    back to revision work. `BLOCKED` pauses carryover sync until the missing evidence/context is
    supplied.
@@ -305,6 +319,12 @@ An append-only file that accumulates guidance at key milestones:
 - **after-execution** — Retrospective notes after execution completes
 
 Use durable structured sections so resumptions and downstream planning can extract the next move without re-reading the entire session.
+
+An explicitly requested `SESSION_RETROSPECTIVE` response may inform an
+`after-execution` entry, but it does not write or promote that entry. The
+orchestrator/host remains responsible for deciding whether to materialize
+`proposition.md`, and any resulting guidance remains a bridge summary rather
+than a new planning or memory authority.
 
 This remains an optional persisted artifact for the chat-first default path. The orchestrator may instead keep the equivalent guidance in concise chat/host state summaries until an explicit persisted workflow or host/runtime artifact flow writes it out.
 

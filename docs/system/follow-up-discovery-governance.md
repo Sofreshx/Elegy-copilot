@@ -1,13 +1,13 @@
 ---
 created: 2026-03-13
-updated: 2026-06-28
+updated: 2026-08-01
 category: system
 status: current
 doc_kind: node
 id: follow-up-discovery-governance
 summary: Canonical contract for discovering remaining work, gaps, and research follow-ups.
 tags: [follow-up, research, governance, routing]
-related: [reviewer-lane-governance, search-execute-workflow, project-conventions-governance, goal-contract-governance]
+related: [reviewer-lane-governance, search-execute-workflow, project-conventions-governance, goal-contract-governance, session-retrospective-governance]
 ---
 
 # Follow-Up Discovery Governance
@@ -24,6 +24,11 @@ This workflow has one responsibility:
 - remaining-work judgment, session-close follow-up discovery, and durable carryover routing
 
 There is no separate shipped `remaining-work` or `final-reviewer` lane.
+
+The Codex `evaluate-task-workflow` skill may provide a manual
+`SESSION_RETROSPECTIVE` response as diagnostic input. That response is not a
+follow-up decision, persistence instruction, or promotion trigger; normalize
+any accepted finding through the categories and durable handoff rules below.
 
 ## Primary Responsibilities
 
@@ -46,6 +51,11 @@ Use two questions before final handoff:
 - What am I least confident about right now?
 
 Report answers only when they materially affect confidence, follow-up, validation, or user decision-making. For tiny command-answer tasks, factual lookups, or no-op reviews, omit the check.
+
+When a retrospective is explicitly requested, preserve its source,
+completeness, perspective, confidence, and uncertainty fields. Do not infer
+missing work from an unavailable or partial source, and do not auto-create a
+backlog, roadmap, memory, or issue entry from the response.
 
 ## Normalized Finding Intake
 

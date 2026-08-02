@@ -30,6 +30,8 @@ const REQUIRED_COMPATIBILITY_SKILL_IDS = [
   'codex-repo-quality-setup-skill',
   'codex-agents-md-authoring-skill',
   'codex-tdd-skill',
+  'codex-goal-session-workflow-skill',
+  'codex-evaluate-task-workflow-skill',
 ];
 
 function parseTomlScalar(content, key) {

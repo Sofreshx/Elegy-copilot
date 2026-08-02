@@ -1,13 +1,13 @@
 ---
 created: 2026-02-23
-updated: 2026-07-31
+updated: 2026-08-01
 category: system
 status: current
 doc_kind: index
 id: system-docs-index
 summary: Short entrypoint map for the current canonical docs.
 tags: [documentation, index]
-related: [catalog-control-plane, copilot-ui-guide, opencode-guide, ghcp-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, sweeper-cleanup-lane, collaboration-profile-adr, commit-check-setup, check-taxonomy-governance, git-checkpoint-governance, windows-shell-optimization, ui-development-governance, ui-check-adoption]
+related: [catalog-control-plane, copilot-ui-guide, opencode-guide, ghcp-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, session-retrospective-governance, codex-workflow-improvement-governance, sweeper-cleanup-lane, collaboration-profile-adr, commit-check-setup, check-taxonomy-governance, git-checkpoint-governance, windows-shell-optimization, ui-development-governance, ui-check-adoption]
 ---
 
 # Docs Index
@@ -39,6 +39,8 @@ Use docs in this order:
 - [[commit-check-setup]] [commit-check-setup.md](commit-check-setup.md) [commit-check-setup](docs/system/commit-check-setup.md)
 - [[concise-instruction-governance]] [concise-instruction-governance.md](concise-instruction-governance.md) [concise-instruction-governance](docs/system/concise-instruction-governance.md)
 - [[harness-asset-flow]] [harness-asset-flow.md](harness-asset-flow.md) [harness-asset-flow](docs/system/harness-asset-flow.md)
+- [[session-retrospective-governance]] [session-retrospective-governance.md](session-retrospective-governance.md) [session-retrospective-governance](docs/system/session-retrospective-governance.md)
+- [[codex-workflow-improvement-governance]] [codex-workflow-improvement-governance.md](codex-workflow-improvement-governance.md) [codex-workflow-improvement-governance](docs/system/codex-workflow-improvement-governance.md)
 - [[codex-subagent-control-plane]] [codex-subagent-control-plane.md](codex-subagent-control-plane.md) [codex-subagent-control-plane](docs/system/codex-subagent-control-plane.md)
 - [[sweeper-cleanup-lane]] [sweeper-cleanup-lane.md](docs/system/sweeper-cleanup-lane.md)
 - [[collaboration-profile-adr]] [collaboration-profile-adr.md](collaboration-profile-adr.md) [collaboration-profile-adr](docs/system/collaboration-profile-adr.md)

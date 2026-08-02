@@ -17,7 +17,7 @@
     "preferExplicitDestinations": true,
     "agentsAreFlat": true,
     "skillsRequireFolderName": true,
-    "notes": "Install the six native Codex role agents and six Elegy compatibility skills under ~/.codex. Native agents and Codex configuration remain harness-owned; Elegy plugins are installed through the Codex marketplace."
+    "notes": "Install the six native Codex role agents and eight Elegy compatibility skills under ~/.codex. Native agents and Codex configuration remain harness-owned; Elegy plugins are installed through the Codex marketplace."
   },
   "governance": {
     "g05": {
@@ -215,6 +215,32 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/tdd",
       "destination": "skills/tdd",
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global",
+        "readOnly": false
+      }
+    },
+    {
+      "id": "codex-goal-session-workflow-skill",
+      "type": "skill",
+      "source": "codex-assets/skills/goal-session-workflow",
+      "destination": "skills/goal-session-workflow",
+      "loadMode": "on-demand",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global",
+        "readOnly": false
+      }
+    },
+    {
+      "id": "codex-evaluate-task-workflow-skill",
+      "type": "skill",
+      "source": "codex-assets/skills/evaluate-task-workflow",
+      "destination": "skills/evaluate-task-workflow",
       "loadMode": "on-demand",
       "management": {
         "owner": "elegy",

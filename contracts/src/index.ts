@@ -2,6 +2,8 @@ export * from './workflow';
 export * from './planning';
 export * from './orchestrator';
 export * from './roadmapWorkflow';
+export * from './sessionRetrospective';
+export * from './goalSession';
 export * from './continuation';
 export * from './bridge';
 export * from './agentic';

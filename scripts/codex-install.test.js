@@ -66,9 +66,11 @@ async function main() {
         'codex-repo-quality-setup-skill',
         'codex-agents-md-authoring-skill',
         'codex-tdd-skill',
+        'codex-goal-session-workflow-skill',
+        'codex-evaluate-task-workflow-skill',
       ],
     );
-    assert.ok(!manifest.assets.some((asset) => /planning|repo-checks|openai|go/i.test(asset.id)));
+    assert.ok(!manifest.assets.some((asset) => /(?:^|-)planning(?:$|-)|repo-checks|openai|(?:^|-)go(?:$|-)/i.test(asset.id)));
   });
 
   await test('installer creates lean Codex assets and reruns idempotently', async () => {
@@ -106,6 +108,8 @@ async function main() {
         'repo-quality-setup',
         'agents-md-authoring',
         'tdd',
+        'goal-session-workflow',
+        'evaluate-task-workflow',
       ]) {
         assert.ok(fs.existsSync(path.join(skillsHome, retainedSkill, 'SKILL.md')), retainedSkill);
       }
@@ -126,6 +130,13 @@ async function main() {
       assert.ok(!fs.existsSync(path.join(codexHome, 'agents', 'code-reviewer.toml')));
       assert.ok(!fs.existsSync(path.join(skillsHome, 'core-guardrails', 'SKILL.md')));
       assert.strictEqual(firstSummary.generatedRoles, 0, 'Codex install should not generate engine role wrappers');
+      assert.deepStrictEqual(firstSummary.workflowAutomation, {
+        status: 'disabled',
+        scheduledTaskCreated: false,
+        queueEnabled: false,
+        reason: 'release_gates_pending',
+        requiredGates: ['manual_v2', 'identity_binding', 'hook_trust', 'scheduled_permissions', 'self_exclusion'],
+      });
       const explorerAgent = fs.readFileSync(path.join(codexHome, 'agents', 'explorer.toml'), 'utf8');
       assert.ok(explorerAgent.includes('model = "gpt-5.6-luna"'));
       assert.ok(!explorerAgent.includes('model_reasoning_effort ='));
@@ -137,12 +148,13 @@ async function main() {
       assert.ok(!reviewerAgent.includes('complex plans'));
       const strongReviewerAgent = fs.readFileSync(path.join(codexHome, 'agents', 'reviewer_strong.toml'), 'utf8');
       assert.ok(strongReviewerAgent.includes('model = "gpt-5.6-sol"'));
+      assert.ok(strongReviewerAgent.includes('model_reasoning_effort = "medium"'));
       assert.ok(strongReviewerAgent.includes('sandbox_mode = "read-only"'));
       assert.ok(strongReviewerAgent.includes('architecture'));
       assert.ok(strongReviewerAgent.includes('security'));
       const workerAgent = fs.readFileSync(path.join(codexHome, 'agents', 'worker.toml'), 'utf8');
       assert.ok(workerAgent.includes('model = "gpt-5.6-luna"'));
-      assert.ok(!workerAgent.includes('model_reasoning_effort ='));
+      assert.ok(workerAgent.includes('model_reasoning_effort = "max"'));
       assert.ok(workerAgent.includes('Work only within the file or module ownership'));
       assert.match(workerAgent, /Never commit, push, publish, change permissions, or spawn/i);
       assert.doesNotMatch(workerAgent, /commits, pushes[\s\S]*unless the parent explicitly authorizes/i);
@@ -187,6 +199,165 @@ async function main() {
       assert.ok(!fs.existsSync(codexHome));
       assert.ok(!fs.existsSync(skillsHome));
       assert.ok(summary.counts.wouldCreate > 0 || summary.counts.wouldUpdate > 0);
+    });
+  });
+
+  await test('installer merges the managed hook definitions without replacing user hooks', async () => {
+    withTempDir((root) => {
+      const codexHome = path.join(root, 'Codex Home');
+      const skillsHome = path.join(codexHome, 'skills');
+      fs.mkdirSync(codexHome, { recursive: true });
+      const hooksPath = path.join(codexHome, 'hooks.json');
+      fs.writeFileSync(hooksPath, `${JSON.stringify({
+        description: 'User-managed hooks remain here.',
+        hooks: {
+          Stop: [{
+            hooks: [{ type: 'command', command: 'node "C:\\User Hooks\\stop.mjs"' }],
+          }],
+        },
+        userMetadata: { preserve: true },
+      }, null, 2)}\n`);
+
+      const first = installer.runInstall({ force: true, codexHome, skillsHome });
+      assert.ok(fs.existsSync(path.join(codexHome, 'hooks', 'elegy-workflow-improvement', 'elegy-codex-hook.mjs')));
+      const merged = JSON.parse(fs.readFileSync(hooksPath, 'utf8'));
+      assert.strictEqual(merged.userMetadata.preserve, true);
+      assert.ok(merged.hooks.Stop[0].hooks.some((hook) => hook.command === 'node "C:\\User Hooks\\stop.mjs"'));
+      const managedStopHandlers = merged.hooks.Stop
+        .flatMap((group) => group.hooks)
+        .filter((hook) => hook.commandWindows && hook.commandWindows.includes('Codex Home\\hooks\\elegy-workflow-improvement'));
+      assert.strictEqual(managedStopHandlers.length, 1);
+      assert.strictEqual(first.hooks.valid, true);
+      assert.match(first.hooks.trustVerification.command, /^\/hooks$/);
+      const firstHooksText = fs.readFileSync(hooksPath, 'utf8');
+
+      installer.runInstall({ codexHome, skillsHome });
+      const rerun = JSON.parse(fs.readFileSync(hooksPath, 'utf8'));
+      assert.strictEqual(
+        rerun.hooks.Stop.flatMap((group) => group.hooks)
+          .filter((hook) => hook.commandWindows && hook.commandWindows.includes('Codex Home\\hooks\\elegy-workflow-improvement')).length,
+        1,
+      );
+      assert.strictEqual(fs.readFileSync(hooksPath, 'utf8'), firstHooksText, 'reinstall must not grow hooks.json');
+    });
+  });
+
+  await test('hook status is local-only and keeps app-server hooks/list verification pending', async () => {
+    withTempDir((root) => {
+      const codexHome = path.join(root, 'Codex Home');
+      const skillsHome = path.join(codexHome, 'skills');
+      const parsed = installer.parseArgs(['--hooks-status', '--codex-home', codexHome]);
+      assert.strictEqual(parsed.hooksStatus, true);
+      const status = installer.runInstall({ hooksStatus: true, codexHome, skillsHome });
+      assert.strictEqual(status.hooks.localStatus.method, 'hooks.json');
+      assert.deepStrictEqual(status.hooks.discoveryVerification, {
+        method: 'hooks/list',
+        status: 'pending',
+        required: true,
+      });
+      assert.strictEqual(status.hooks.verified, false);
+      assert.strictEqual(typeof status.hooks.runtimeStatus.stateRootExists, 'boolean');
+      assert.strictEqual(typeof status.hooks.runtimeStatus.bindingsObserved, 'boolean');
+      assert.match(status.hooks.runtimeStatus.note, /hooks\/list.*trust/i);
+      assert.ok(!fs.existsSync(codexHome), 'status must not install or modify a hook surface');
+    });
+  });
+
+  await test('hook dry-run emits a receipt and uninstall removes only exact managed commands', async () => {
+    withTempDir((root) => {
+      const codexHome = path.join(root, 'Codex Home');
+      const skillsHome = path.join(codexHome, 'skills');
+      const dryRun = installer.runInstall({ dryRun: true, codexHome, skillsHome });
+      assert.strictEqual(dryRun.hooks.receipt.action, 'would_create');
+      assert.ok(!fs.existsSync(codexHome));
+
+      installer.runInstall({ force: true, codexHome, skillsHome });
+      const hooksPath = path.join(codexHome, 'hooks.json');
+      const hooks = JSON.parse(fs.readFileSync(hooksPath, 'utf8'));
+      hooks.hooks.SessionEnd.push({ hooks: [{ type: 'command', command: 'node "C:\\User Hooks\\archive.mjs"' }] });
+      const managedStop = hooks.hooks.Stop.flatMap((group) => group.hooks)
+        .find((hook) => hook.commandWindows && hook.commandWindows.includes('elegy-workflow-improvement'));
+      hooks.hooks.Stop.push({
+        hooks: [{
+          ...managedStop,
+          commandWindows: 'node "C:\\User Hooks\\custom-stop.mjs" Stop',
+        }],
+      });
+      fs.writeFileSync(hooksPath, `${JSON.stringify(hooks, null, 2)}\n`);
+
+      const removed = installer.runInstall({ uninstallHooks: true, codexHome, skillsHome });
+      const after = JSON.parse(fs.readFileSync(hooksPath, 'utf8'));
+      assert.ok(after.hooks.SessionEnd.flatMap((group) => group.hooks)
+        .some((hook) => hook.command === 'node "C:\\User Hooks\\archive.mjs"'));
+      assert.ok(!after.hooks.Stop.flatMap((group) => group.hooks)
+        .some((hook) => hook.commandWindows && hook.commandWindows.includes('elegy-workflow-improvement')));
+      assert.ok(after.hooks.Stop.flatMap((group) => group.hooks)
+        .some((hook) => hook.commandWindows === 'node "C:\\User Hooks\\custom-stop.mjs" Stop'));
+      assert.strictEqual(removed.hooks.action, 'uninstalled');
+      assert.ok(!fs.existsSync(path.join(codexHome, 'hooks', 'elegy-workflow-improvement')));
+      assert.ok(!fs.existsSync(path.join(codexHome, '.elegy-codex-hooks.json')));
+    });
+  });
+
+  await test('hook runtime drift fails closed without configuring commands or rewriting its receipt', async () => {
+    withTempDir((root) => {
+      const codexHome = path.join(root, 'Codex Home');
+      const skillsHome = path.join(codexHome, 'skills');
+      const runtimePath = path.join(codexHome, 'hooks', 'elegy-workflow-improvement');
+      fs.mkdirSync(runtimePath, { recursive: true });
+      fs.writeFileSync(path.join(runtimePath, 'elegy-codex-hook.mjs'), 'user-modified runtime', 'utf8');
+
+      const result = installer.runInstall({ codexHome, skillsHome });
+
+      assert.strictEqual(result.hooks.enabled, false);
+      assert.strictEqual(result.hooks.action, 'skipped_conflict');
+      assert.ok(!fs.existsSync(path.join(codexHome, 'hooks.json')));
+      assert.ok(!fs.existsSync(path.join(codexHome, '.elegy-codex-hooks.json')));
+      assert.strictEqual(fs.readFileSync(path.join(runtimePath, 'elegy-codex-hook.mjs'), 'utf8'), 'user-modified runtime');
+    });
+  });
+
+  await test('hook runtime drift after installation preserves existing hook config and receipt byte-for-byte', async () => {
+    withTempDir((root) => {
+      const codexHome = path.join(root, 'Codex Home');
+      const skillsHome = path.join(codexHome, 'skills');
+      installer.runInstall({ force: true, codexHome, skillsHome });
+      const runtimeFile = path.join(codexHome, 'hooks', 'elegy-workflow-improvement', 'elegy-codex-hook.mjs');
+      const hooksPath = path.join(codexHome, 'hooks.json');
+      const receiptPath = path.join(codexHome, '.elegy-codex-hooks.json');
+      const hooksBefore = fs.readFileSync(hooksPath, 'utf8');
+      const receiptBefore = fs.readFileSync(receiptPath, 'utf8');
+      fs.appendFileSync(runtimeFile, '\n// user drift\n', 'utf8');
+
+      const result = installer.runInstall({ codexHome, skillsHome });
+
+      assert.strictEqual(result.hooks.enabled, false);
+      assert.strictEqual(result.hooks.action, 'skipped_conflict');
+      assert.strictEqual(fs.readFileSync(hooksPath, 'utf8'), hooksBefore);
+      assert.strictEqual(fs.readFileSync(receiptPath, 'utf8'), receiptBefore);
+    });
+  });
+
+  await test('uninstall ignores unvalidated receipt signatures and preserves their unrelated hook', async () => {
+    withTempDir((root) => {
+      const codexHome = path.join(root, 'Codex Home');
+      const skillsHome = path.join(codexHome, 'skills');
+      installer.runInstall({ force: true, codexHome, skillsHome });
+      const hooksPath = path.join(codexHome, 'hooks.json');
+      const receiptPath = path.join(codexHome, '.elegy-codex-hooks.json');
+      const hooks = JSON.parse(fs.readFileSync(hooksPath, 'utf8'));
+      const unrelated = { type: 'command', command: 'node "C:\\User Hooks\\keep.mjs"', commandWindows: 'node "C:\\User Hooks\\keep.mjs"' };
+      hooks.hooks.Stop.push({ hooks: [unrelated] });
+      fs.writeFileSync(hooksPath, `${JSON.stringify(hooks, null, 2)}\n`);
+      const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+      receipt.runtimeDirectory = path.join(root, 'not-the-managed-runtime');
+      receipt.managedHandlers.push({ event: 'Stop', ...unrelated });
+      fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
+
+      installer.runInstall({ uninstallHooks: true, codexHome, skillsHome });
+      const after = JSON.parse(fs.readFileSync(hooksPath, 'utf8'));
+      assert.ok(after.hooks.Stop.flatMap((group) => group.hooks)
+        .some((hook) => hook.command === unrelated.command && hook.commandWindows === unrelated.commandWindows));
     });
   });
 
@@ -307,6 +478,29 @@ async function main() {
       assert.equal(configToml, fs.readFileSync(configPath, 'utf8'));
       assert.equal(profileToml, fs.readFileSync(path.join(codexHome, 'instruction_engine_plan_review.config.toml'), 'utf8'));
       assert.ok(fs.existsSync(path.join(skillsHome, 'repo-setup', 'SKILL.md')));
+    });
+  });
+
+  await test('skip-config preserves the existing managed profile while updating native agent assets', async () => {
+    withTempDir((root) => {
+      const codexHome = path.join(root, '.codex');
+      const skillsHome = path.join(codexHome, 'skills');
+
+      installer.runInstall({ force: true, skipHooks: true, codexHome, skillsHome });
+      const profilePath = path.join(codexHome, 'instruction_engine_plan_review.config.toml');
+      const profileBefore = fs.readFileSync(profilePath, 'utf8');
+      fs.writeFileSync(profilePath, `${profileBefore}\n# Preserve this profile while installing workflow assets.\n`, 'utf8');
+
+      const summary = installer.runInstall({ force: true, skipHooks: true, skipConfig: true, codexHome, skillsHome });
+
+      assert.match(fs.readFileSync(profilePath, 'utf8'), /Preserve this profile/);
+      assert.ok(!summary.cleanup.pruneResults.some(
+        (entry) => entry.path === profilePath,
+      ));
+      const inventory = JSON.parse(fs.readFileSync(path.join(codexHome, '.elegy-copilot-codex-managed.json'), 'utf8'));
+      assert.ok(inventory.configFiles['instruction_engine_plan_review.config.toml']);
+      assert.ok(fs.existsSync(path.join(skillsHome, 'goal-session-workflow', 'SKILL.md')));
+      assert.ok(fs.readFileSync(path.join(codexHome, 'agents', 'reviewer_strong.toml'), 'utf8').includes('AGENT_CONTEXT_PACKET'));
     });
   });
 
