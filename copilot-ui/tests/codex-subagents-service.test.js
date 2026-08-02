@@ -31,7 +31,7 @@ test('Codex subagent service lists the six native Codex roles', () => {
   assert.equal(testRunner.missing, true);
   assert.ok(worker);
   assert.equal(worker.model, 'gpt-5.6-luna');
-  assert.equal(worker.modelReasoningEffort, null);
+  assert.equal(worker.modelReasoningEffort, 'max');
   assert.equal(worker.sandboxMode, 'workspace-write');
   assert.equal(worker.missing, true);
   assert.ok(strongReviewer);

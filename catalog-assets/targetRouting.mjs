@@ -188,7 +188,7 @@ export const COMPATIBILITY_MANIFESTS = [
       agentsAreFlat: true,
       skillsRequireFolderName: true,
       notes:
-        'Install the six native Codex role agents and six Elegy compatibility skills under ~/.codex. Native agents and Codex configuration remain harness-owned; Elegy plugins are installed through the Codex marketplace.',
+        'Install the six native Codex role agents and eight Elegy compatibility skills under ~/.codex. Native agents and Codex configuration remain harness-owned; Elegy plugins are installed through the Codex marketplace.',
     },
     governance: SHARED_G05_GOVERNANCE,
     assetRoutes: [
@@ -205,6 +205,8 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-repo-quality-setup-skill', { sourceAssetId: 'skill-repo-quality-setup', management: CODEX_ELEGY_MANAGEMENT }),
       route('codex-agents-md-authoring-skill', { sourceAssetId: 'skill-agents-md-authoring', management: CODEX_ELEGY_MANAGEMENT }),
       route('codex-tdd-skill', { sourceAssetId: 'skill-tdd', management: CODEX_ELEGY_MANAGEMENT }),
+      route('codex-goal-session-workflow-skill', { management: CODEX_ELEGY_MANAGEMENT }),
+      route('codex-evaluate-task-workflow-skill', { management: CODEX_ELEGY_MANAGEMENT }),
     ],
   },
   {

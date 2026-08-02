@@ -1,0 +1,6 @@
+interface:
+  display_name: "Evaluate Task Workflow"
+  short_description: "Review task workflow evidence without making changes."
+  default_prompt: "Use $evaluate-task-workflow to produce a bounded, evidence-linked retrospective for this completed task."
+policy:
+  allow_implicit_invocation: false

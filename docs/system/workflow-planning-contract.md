@@ -1,12 +1,13 @@
 ---
 created: 2026-02-28
-updated: 2026-06-30
+updated: 2026-08-01
 category: system
 status: current
 doc_kind: node
 id: workflow-planning-contract
 summary: Shared contracts for workflow definitions, roadmap workflow artifacts, and planning compatibility payloads in `@elegy-copilot/contracts`.
 tags: [contracts, planning, workflow]
+related: [session-retrospective-governance, session-state-artifacts, follow-up-discovery-governance, planning-backlog-roadmap-contract, codex-workflow-improvement-governance]
 ---
 
 # Workflow-Planning Contract
@@ -30,6 +31,7 @@ A shared package that emits CommonJS plus `.d.ts` declarations for use across th
 | `roadmapWorkflow` | `ROADMAP_WORKFLOW_ARTIFACT_SCHEMA_VERSION`, `ROADMAP_WORKFLOW_ARTIFACT_KINDS`, `RoadmapWorkflowStructuredArtifact`, `parseRoadmapWorkflowMarkdownArtifact`, `computeRoadmapWorkflowArtifactChecksum` | Live workflow-artifact contract consumed by `/api/planning/workflow-artifacts` |
 | `planning` | `PlanningRecord`, `ResearchNote`, `PlanningDiagram`, `PlanningPersistenceHealth`, `PlanningIntakeArtifact`, synced-note and Obsidian types, `PLANNING_API_CONTRACT_VERSION` | Compatibility and admin planning payloads still used by `copilot-ui` |
 | `bridge` | `WorkflowPlanningBridge`, `ExecutorPolicyRequest`, `ExecutorPolicyResponse` | Legacy workflow-to-planning-record bridge types plus executor policy payloads |
+| `goalSession` | `GOAL_SESSION_FRAME_SCHEMA_VERSION`, `GOAL_SESSION_CHECKPOINT_SCHEMA_VERSION`, `normalizeGoalSessionFrame`, `normalizeGoalSessionCheckpoint` | Root-owned long-goal identity, wave, repository-boundary, resume, and git-checkpoint contract |
 
 This document focuses on the planning-adjacent modules. The package also exports non-planning
 contracts such as catalog, provider-catalog, and agentic types.
@@ -105,6 +107,65 @@ Deprecated compatibility fields that remain exported for older data:
 
 New live planning flows should use workflow-artifact sync into `elegy-planning`. Session execution
 state still lives in `~/.copilot/session-state/<SESSION_ID>/plan.md`.
+
+The Codex `session-retrospective-v2` contract is an adjacent response-only
+diagnostic surface, not a planning artifact kind. A retrospective may suggest
+follow-up work, but it cannot create or update roadmap/work-point artifacts,
+planning records, or memory. Any bridge from a retrospective to this planning
+contract requires an explicit user-approved workflow and the normal
+`elegy-planning` authority checks.
+
+For long Codex goals, `goal-session-workflow` prepares a root-owned
+`GOAL_SESSION_FRAME` and bounded `SESSION_CHECKPOINT` records. The frame links
+the explicit `elegy-planning` `scopeKey`, `goalRef`, `roadmapRef`, `planRef`,
+`workPointRefs`, and `projectRunRef`; each checkpoint repeats the planning
+links and records repository branch/base/head, worktree state, owned and
+changed paths, validation evidence, resume drift, and the git boundary. These
+are continuation and coordination state, not a second roadmap authority. The
+canonical program/repository plan remains authoritative for execution intent.
+
+The native wrapper preserves the latest checkpoint at `checkpoint.json` and a
+bounded ordered history with runtime-generated identity and predecessor links.
+On compact resume it can compare the checkpoint to Git observed from the
+session `cwd`; that `RUNTIME_RECONCILIATION` evidence remains separate from the
+agent-authored checkpoint. Schema-v2 checkpoints may carry structured
+validation, blocker, and gate records alongside compatibility string summaries.
+
+New sessions emit checkpoint schema `2`; the native hook accepts the legacy
+schema `1` for compatibility. A continuation must reconcile planning
+references, project-run context, branch/head/worktree state, validation, and
+external gates before continuing. A mismatch is `drifted` or `blocked` and
+stops the run until the root/user resolves it. Delegates receive a bounded
+`AGENT_CONTEXT_PACKET` derived from the current frame/checkpoint rather than
+raw transcript history.
+
+Even `planning_surface: plan-pack` carries an explicit `scopeKey` so a
+continuation can resolve the repository/session mapping without silently using
+the default planning scope. `roadmap` and `both` additionally require the
+durable goal, roadmap, and selected plan references before fan-out.
+
+### Optional assurance and attention signals
+
+Goal-session records carry an additive `assurancePolicy` and bounded `attentionSignals` ledger.
+The policy includes `gateRef`, `evidenceRefs`, and `decisionRef` so a strict outcome is tied to a
+named gate, observed proof, and (when blocked) an explicit user decision. The default policy is
+`{ mode: 'normal', verificationStatus: 'not-requested', gateRef: null, evidenceRefs: [], decisionRef: null }`: it adds no
+independent verifier or delivery gate. `advisory` permits an explicitly chosen manual reasoning or
+result check and remains non-blocking. `strict` is reserved for an explicit user or risk-policy
+request that requires evidence at a named merge or deployment gate; its status must be `requested`,
+`passed`, `blocked`, or `stale`. A strict `blocked` result requires the named gate, evidence, and
+explicit user decision in the checkpoint. `normal` is only `not-requested`; `advisory` may use any
+status. The policy is per goal and is never promoted globally or used to create scheduled evaluation.
+
+An attention signal is an evidence-linked reminder (`signalId`, `signalKey`, `severity`, `summary`,
+`evidenceRefs`, `whyItMatters`, `whenToRevisit`, and `status`) capped at twelve per frame/checkpoint,
+eight evidence references per signal, and bounded text lengths. The shared contract and native hook
+use the same 16 KiB frame and 18 KiB schema-v2 checkpoint limits.
+The root should promote existing agent residual risks, blockers, validation failures, or external
+gates instead of creating duplicate tracking. Open signals may be mirrored to an existing
+`elegy-planning` work point or project-run follow-up when that authority is active; otherwise they
+remain session-local. They are surfaced on relevant continuation or review, but do not block normal
+work and do not create a second planning database.
 
 ## Consumption
 

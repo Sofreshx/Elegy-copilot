@@ -1,6 +1,6 @@
 ---
 created: 2026-07-04
-updated: 2026-07-31
+updated: 2026-08-02
 category: system
 status: current
 doc_kind: node
@@ -89,17 +89,16 @@ flowchart TD
 |---|---|---|---|---|
 | `explorer` | `gpt-5.6-luna` | inherited (`high`) | `read-only` | Noisy repo mapping and non-trivial investigation |
 | `reviewer` | `gpt-5.6-luna` | inherited (`high`) | `read-only` | Bounded implementation review |
-| `reviewer_strong` | `gpt-5.6-sol` | inherited (`high`) | `read-only` | Complex or consequential independent review |
-| `worker` | `gpt-5.6-luna` | inherited (`high`) | `workspace-write` | Bounded implementation with explicit ownership |
+| `reviewer_strong` | `gpt-5.6-sol` | `medium` | `read-only` | Complex or consequential independent review |
+| `worker` | `gpt-5.6-luna` | `max` | `workspace-write` | Bounded implementation with explicit ownership |
 | `test-runner` | `gpt-5.6-luna` | inherited (`high`) | `workspace-write` | Bounded validation output |
 | `sweeper` | `gpt-5.6-luna` | inherited (`high`) | `workspace-write` | Bounded cleanup |
 
-The bounded utility lane is capped to Luna and defaults to `high`, including
-exploration, implementation, and routine review. `reviewer_strong` is the
-explicit Sol exception for judgment-heavy review. Role files intentionally omit
-`model_reasoning_effort`, so Sol may choose `xhigh` or `max` for a complex
-delegation. Use `low` only for trivial discovery and `medium` only for routine
-mechanical work.
+The bounded utility lane is capped to Luna and defaults to `high`, except the
+implementation worker is pinned to `max`. `reviewer_strong` is the explicit Sol
+exception for judgment-heavy review and is pinned to `medium`. Other role files
+may inherit the configured subagent effort. Use `low` only for trivial discovery
+and `medium` only for routine mechanical work.
 
 ## Review routing
 
@@ -123,7 +122,8 @@ is intentionally small and is the source of truth for the Codex manifest:
 
 - Six native, harness-owned agents: `explorer`, `reviewer`, `reviewer_strong`,
   `worker`, `test-runner`, and `sweeper`.
-- Six Elegy-managed compatibility skills retained for fallback workflows.
+- Eight Elegy-managed compatibility skills, including the root-only
+  `goal-session-workflow` and explicit `evaluate-task-workflow` lanes.
 - Four Codex marketplace plugins: `elegy-documentation`, `elegy-mcp`,
   `elegy-checks`, and `elegy-planning`.
 
@@ -131,6 +131,22 @@ is intentionally small and is the source of truth for the Codex manifest:
 not use a native-Go lane, OpenAI fallback agent variants, Moon Bridge, or a
 Codex-side OpenCode Worker relay. OpenCode Go and OpenCode Worker features remain
 OpenCode-only.
+
+Every native role returns an `AGENT_RESULT` envelope containing task and agent
+identity, role, terminal status, owned scope, repository/base/head refs,
+outcomes, evidence, validation, dependencies, blockers, and residual risks,
+plus its role-specific payload. `SubagentStart` may inject this common receipt
+requirement into managed roles and stores a redacted receipt only after exact
+identity, role, status, repository refs, and payload-kind validation. Receipt
+context is bounded to the same verified session; it is supporting evidence,
+not a substitute for checking the repository. The root goal skill also sends
+each delegate an `AGENT_CONTEXT_PACKET` containing the goal ID, explicit
+planning refs, active wave, owned scope, validation, checkpoint reference, and
+context hash. The role payload echoes the goal ID, active wave, and hash so the
+receipt can be filtered when a goal or wave is replaced. The first-release
+`SubagentStop` hook only observes compliance;
+it does not continue or mutate subagent execution. Keep the strong-review lane for architecture, security, privacy,
+migrations, cross-repository plans, data-loss risk, and disputed findings.
 
 The installed `[agents]` policy is:
 

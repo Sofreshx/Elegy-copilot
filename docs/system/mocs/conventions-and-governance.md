@@ -1,13 +1,13 @@
 ---
 created: 2026-03-18
-updated: 2026-07-06
+updated: 2026-08-01
 category: system
 status: current
 doc_kind: moc
 id: moc-conventions-and-governance
 summary: Map of content for canonical conventions, governance routing, and follow-up handoff entrypoints.
 tags: [governance, conventions, routing]
-related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, follow-up-discovery-governance, concise-instruction-governance, harness-asset-flow, check-taxonomy-governance, git-checkpoint-governance]
+related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, follow-up-discovery-governance, concise-instruction-governance, harness-asset-flow, codex-workflow-improvement-governance, check-taxonomy-governance, git-checkpoint-governance]
 ---
 
 # MOC — Conventions & Governance
@@ -37,6 +37,8 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
   [[concise-instruction-governance]] [../concise-instruction-governance.md](../concise-instruction-governance.md) [concise-instruction-governance](docs/system/concise-instruction-governance.md)
 - Harness asset flow, install architecture, and per-repo deployment model:
   [[harness-asset-flow]] [../harness-asset-flow.md](../harness-asset-flow.md) [harness-asset-flow](docs/system/harness-asset-flow.md)
+- Codex-native retrospective, hook, checkpoint, and automation gates:
+  [[codex-workflow-improvement-governance]] [../codex-workflow-improvement-governance.md](../codex-workflow-improvement-governance.md) [codex-workflow-improvement-governance](docs/system/codex-workflow-improvement-governance.md)
 - Planning-ready follow-up when convention gaps become next tasks:
   [[follow-up-discovery-governance]] [../follow-up-discovery-governance.md](../follow-up-discovery-governance.md) [follow-up-discovery-governance](docs/system/follow-up-discovery-governance.md)
 - Check classes, determinism, and gate-strength ownership:
@@ -74,6 +76,7 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
 - "Make the rules easier to discover" -> `docs/system/documentation-structure-governance.md`
 - "Write or enforce concise instruction standards" -> `docs/system/concise-instruction-governance.md`
 - "Turn convention gaps into follow-up tasks" -> `docs/system/follow-up-discovery-governance.md`
+- "Improve long Codex sessions or retrospective automation" -> `docs/system/codex-workflow-improvement-governance.md`
 - "Decide what kind of check should exist and how strong it should be" -> `docs/system/check-taxonomy-governance.md`
 - "Define when agents should commit work during goals or plans" -> `docs/system/git-checkpoint-governance.md`
 - "Review this implementation for correctness" -> `docs/system/reviewer-lane-governance.md`

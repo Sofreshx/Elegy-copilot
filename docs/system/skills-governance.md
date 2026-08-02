@@ -1,12 +1,13 @@
 ---
 created: 2026-02-23
-updated: 2026-07-31
+updated: 2026-08-01
 category: system
 status: current
 doc_kind: node
 id: skills-governance
 summary: Rules and practices to keep skills high-signal and prevent drift.
 tags: [skills, governance]
+related: [session-retrospective-governance, structured-output-contracts, harness-asset-flow]
 ---
 
 # Skill Governance and Drift Prevention
@@ -34,11 +35,17 @@ Installed harness surfaces and shared skills must therefore stay thin and consis
 ## Codex operating model
 
 Codex should stay leaner than the legacy Copilot fleet:
-- Global Codex install contains six compatibility skills: `repo-setup`,
+- Global Codex install contains eight compatibility skills: `repo-setup`,
   `repo-backed-obsidian-docs`, `sweeper-cleanup`, `repo-quality-setup`,
-  `agents-md-authoring`, and `tdd`. Native Codex handles discovery, review,
-  implementation handoff, and routine spec work without duplicate global
-  skills.
+  `agents-md-authoring`, `tdd`, `goal-session-workflow`, and
+  `evaluate-task-workflow`. Native Codex
+  handles discovery, review, implementation handoff, and routine spec work
+  without duplicate global skills. `evaluate-task-workflow` is an explicit,
+  on-demand Codex skill for the response-only `session-retrospective-v2`
+  contract; it is manual-only and never promotes findings into planning or
+  memory surfaces. `goal-session-workflow` is the root-only preparation and
+  checkpoint procedure for multi-repository, multi-wave, delegated, or
+  architecture-to-deployment goals.
 - Codex's current Elegy marketplace receipt contains four read-only plugin
   statuses: `elegy-documentation`, `elegy-mcp`, `elegy-checks`, and
   `elegy-planning`. `elegy-planning` is the direct Codex subagent/workflow

@@ -24,6 +24,14 @@ import {
   syncText,
 } from './install-surface-utils.mjs';
 import { buildProfileContent, composeInstructionsFromAsset } from './instruction-compose-utils.mjs';
+import {
+  buildElegyHookDefinitions,
+  createHookReceipt,
+  mergeElegyHooksDocument,
+  parseHooksDocument,
+  serializeHooksDocument,
+  uninstallElegyHooksDocument,
+} from './codex-hook-merge.mjs';
 const require = createRequire(import.meta.url);
 const { getCollaborationProfile } = require('../copilot-ui/lib/copilotConfig.js');
 
@@ -33,6 +41,25 @@ const repoRoot = path.resolve(__dirname, '..');
 const codexAssetsRoot = path.join(repoRoot, 'codex-assets');
 const manifestPath = path.join(codexAssetsRoot, 'manifest.json');
 const INVENTORY_FILE = '.elegy-copilot-codex-managed.json';
+const HOOK_RECEIPT_FILE = '.elegy-codex-hooks.json';
+const HOOK_RUNTIME_RELATIVE_PATH = path.join('hooks', 'elegy-workflow-improvement');
+
+function pendingHookVerification(note) {
+  return {
+    verified: false,
+    discoveryVerification: {
+      method: 'hooks/list',
+      status: 'pending',
+      required: true,
+    },
+    trustVerification: {
+      command: '/hooks',
+      status: 'pending',
+      required: true,
+      note,
+    },
+  };
+}
 
 function toPosixJoin(...parts) {
   return normalizeRel(path.posix.join(...parts.filter(Boolean)));
@@ -341,6 +368,186 @@ function readManagedInventory(inventoryPath) {
   }
 }
 
+function normalizeComparablePath(value) {
+  const resolved = path.resolve(String(value || ''));
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function isValidHookReceipt(receipt, runtimePath, definitions) {
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) return false;
+  if (receipt.schemaVersion !== 1) return false;
+  if (normalizeComparablePath(receipt.runtimeDirectory) !== normalizeComparablePath(runtimePath)) return false;
+  if (typeof receipt.runtimeHash !== 'string' || !/^[a-f0-9]{64}$/.test(receipt.runtimeHash)) return false;
+  if (!Array.isArray(receipt.managedHandlers) || receipt.managedHandlers.length !== definitions.length) return false;
+
+  const expected = new Set(definitions.map((definition) => JSON.stringify({
+    event: definition.event,
+    command: definition.group.hooks[0].command,
+    commandWindows: definition.group.hooks[0].commandWindows,
+  })));
+  const actual = new Set(receipt.managedHandlers.map((handler) => JSON.stringify({
+    event: handler?.event,
+    command: handler?.command,
+    commandWindows: handler?.commandWindows,
+  })));
+  return actual.size === expected.size && [...actual].every((signature) => expected.has(signature));
+}
+
+function readHookReceipt(receiptPath, runtimePath, definitions) {
+  if (!fs.existsSync(receiptPath)) return {};
+  try {
+    const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+    return isValidHookReceipt(receipt, runtimePath, definitions) ? receipt : {};
+  } catch {
+    return {};
+  }
+}
+
+function removeManagedHookRuntime(runtimePath, receipt, options = {}) {
+  if (!fs.existsSync(runtimePath)) {
+    return { action: 'skipped', path: runtimePath };
+  }
+  const currentHash = dirHash(runtimePath);
+  if (!receipt?.runtimeHash || receipt.runtimeHash !== currentHash) {
+    return { action: 'skipped_conflict', path: runtimePath, currentHash };
+  }
+  if (options.dryRun) {
+    console.log(`[DRY-RUN] PRUNE ${runtimePath} (managed hook runtime)`);
+    return { action: 'would_prune', path: runtimePath, currentHash };
+  }
+  fs.rmSync(runtimePath, { recursive: true, force: true });
+  console.log(`[PRUNE]  ${runtimePath} (managed hook runtime)`);
+  return { action: 'pruned', path: runtimePath, currentHash };
+}
+
+function updateHookReceipt(receiptPath, receipt, options = {}) {
+  return syncText(`${JSON.stringify(receipt, null, 2)}\n`, receiptPath, {
+    dryRun: options.dryRun,
+    force: true,
+  });
+}
+
+function manageCodexHooks(args, codexHome) {
+  const runtimeSource = path.join(codexAssetsRoot, 'hooks', 'elegy-workflow-improvement');
+  const runtimePath = path.join(codexHome, HOOK_RUNTIME_RELATIVE_PATH);
+  const runtimeFile = path.join(runtimePath, 'elegy-codex-hook.mjs');
+  const hooksPath = path.join(codexHome, 'hooks.json');
+  const receiptPath = path.join(codexHome, HOOK_RECEIPT_FILE);
+  const definitions = buildElegyHookDefinitions(runtimeFile);
+  const receipt = readHookReceipt(receiptPath, runtimePath, definitions);
+  const existingText = fs.existsSync(hooksPath) ? fs.readFileSync(hooksPath, 'utf8') : '';
+
+  let mergedDocument;
+  try {
+    mergedDocument = args.uninstallHooks
+      ? (fs.existsSync(hooksPath) ? uninstallElegyHooksDocument(existingText, definitions, receipt) : null)
+      : mergeElegyHooksDocument(existingText, definitions, receipt);
+  } catch (error) {
+    console.warn(`[HOOKS] Existing ${hooksPath} was left unchanged: ${error.message || String(error)}`);
+    return {
+      enabled: false,
+      valid: false,
+      action: 'skipped_invalid',
+      runtimePath,
+      hooksPath,
+      receiptPath,
+      error: error.message || String(error),
+      ...pendingHookVerification('Review and trust the exact command hooks in Codex; this installer never bypasses hook trust.'),
+    };
+  }
+
+  if (args.hooksStatus) {
+    const existing = parseHooksDocument(existingText);
+    const workflowStateRoot = process.env.ELEGY_CODEX_WORKFLOW_HOME
+      ? path.resolve(process.env.ELEGY_CODEX_WORKFLOW_HOME)
+      : path.join(os.homedir(), '.elegy', 'codex-workflow-improvement');
+    return {
+      enabled: !args.uninstallHooks,
+      valid: true,
+      runtimePath,
+      hooksPath,
+      receiptPath,
+      managedEvents: definitions.map((definition) => definition.event),
+      localStatus: {
+        method: 'hooks.json',
+        configuredEvents: Object.keys(existing.hooks || {}).sort(),
+      },
+      runtimeStatus: {
+        stateRoot: workflowStateRoot,
+        stateRootExists: fs.existsSync(workflowStateRoot),
+        bindingsObserved: fs.existsSync(path.join(workflowStateRoot, 'bindings.json')),
+        sessionsObserved: fs.existsSync(path.join(workflowStateRoot, 'sessions')),
+        note: 'Runtime files show observed execution only; hooks/list discovery and /hooks trust remain separate gates.',
+      },
+      ...pendingHookVerification('Local hooks.json status is not app-server hooks/list evidence. Review and trust the exact commands with /hooks.'),
+    };
+  }
+
+  if (args.uninstallHooks) {
+    const hooksResult = mergedDocument
+      ? syncText(serializeHooksDocument(mergedDocument), hooksPath, { dryRun: args.dryRun, force: true })
+      : { action: 'skipped', path: hooksPath };
+    const runtimeResult = removeManagedHookRuntime(runtimePath, receipt, args);
+    const receiptResult = fs.existsSync(receiptPath)
+      ? (args.dryRun
+        ? { action: 'would_prune', path: receiptPath }
+        : (() => {
+          fs.rmSync(receiptPath, { force: true });
+          return { action: 'pruned', path: receiptPath };
+        })())
+      : { action: 'skipped', path: receiptPath };
+    return {
+      enabled: false,
+      valid: true,
+      action: 'uninstalled',
+      runtimePath,
+      hooksPath,
+      receiptPath,
+      runtime: runtimeResult,
+      config: hooksResult,
+      receipt: receiptResult,
+      ...pendingHookVerification('Use /hooks to confirm the managed entries are gone; the installer never bypasses hook trust.'),
+    };
+  }
+
+  const runtime = syncDirectory(runtimeSource, runtimePath, {
+    dryRun: args.dryRun,
+    force: args.force,
+    previousHash: receipt.runtimeHash || '',
+  });
+  if (runtime.action === 'skipped_conflict') {
+    return {
+      enabled: false,
+      valid: true,
+      action: 'skipped_conflict',
+      runtimePath,
+      hooksPath,
+      receiptPath,
+      runtime,
+      ...pendingHookVerification('The managed hook runtime has local changes. Resolve the conflict before configuring or trusting its commands.'),
+    };
+  }
+  const config = syncText(serializeHooksDocument(mergedDocument), hooksPath, {
+    dryRun: args.dryRun,
+    force: true,
+  });
+  const nextReceipt = createHookReceipt(runtimePath, definitions, runtime.sourceHash);
+  const receiptResult = updateHookReceipt(receiptPath, nextReceipt, args);
+  return {
+    enabled: true,
+    valid: true,
+    action: 'merged',
+    runtimePath,
+    hooksPath,
+    receiptPath,
+    runtime,
+    config,
+    receipt: receiptResult,
+    managedEvents: definitions.map((definition) => definition.event),
+    ...pendingHookVerification('Review and trust the exact command hooks in Codex; this installer never bypasses hook trust.'),
+  };
+}
+
 function isSafeManagedEntryName(entryName) {
   return Boolean(entryName) && path.basename(entryName) === entryName && !normalizeRel(entryName).includes('/');
 }
@@ -459,6 +666,9 @@ export function parseArgs(argv) {
     setupProfile: '',
     managedOnly: false,
     skipConfig: false,
+    skipHooks: false,
+    uninstallHooks: false,
+    hooksStatus: false,
     printEnvOnly: false,
   };
 
@@ -478,6 +688,18 @@ export function parseArgs(argv) {
     }
     if (value === '--skip-config') {
       args.skipConfig = true;
+      continue;
+    }
+    if (value === '--skip-hooks') {
+      args.skipHooks = true;
+      continue;
+    }
+    if (value === '--uninstall-hooks') {
+      args.uninstallHooks = true;
+      continue;
+    }
+    if (value === '--hooks-status') {
+      args.hooksStatus = true;
       continue;
     }
     if (value.startsWith('--codex-home=')) {
@@ -556,7 +778,7 @@ export function parseArgs(argv) {
       args.printEnvOnly = true;
       continue;
     }
-    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --managed-only, --skip-config, --codex-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --profile-name <name>, --setup-profile <key>, --print-env-only)`);
+    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --managed-only, --skip-config, --skip-hooks, --uninstall-hooks, --hooks-status, --codex-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --profile-name <name>, --setup-profile <key>, --print-env-only)`);
   }
 
   if (args.repoRoot && !args.setupProfile) {
@@ -588,6 +810,11 @@ export function resolveSkillsHome(explicit, codexHome = '') {
 export function runInstall(args = {}) {
   const codexHome = resolveCodexHome(args.codexHome);
   const skillsHome = resolveSkillsHome(args.skillsHome, codexHome);
+  if (args.hooksStatus) {
+    const hooks = manageCodexHooks({ ...args, hooksStatus: true }, codexHome);
+    console.log(JSON.stringify(hooks, null, 2));
+    return { surface: 'codex', ok: hooks.valid, hooks };
+  }
   const repoSetupRoot = args.repoRoot ? path.resolve(args.repoRoot) : '';
   const manifest = readManifest();
   const allAssets = expandManifestAssets(manifest);
@@ -647,6 +874,26 @@ export function runInstall(args = {}) {
       managedHash: syncResult.action === 'skipped_conflict' ? previousHash : syncResult.sourceHash,
     });
   }
+
+  const hooks = args.skipHooks
+    ? {
+      enabled: false,
+      valid: true,
+      action: 'skipped',
+      trustVerification: {
+        command: '/hooks',
+        status: 'pending',
+        required: true,
+        note: 'No hooks were installed because --skip-hooks was requested.',
+      },
+      verified: false,
+      discoveryVerification: {
+        method: 'hooks/list',
+        status: 'pending',
+        required: true,
+      },
+    }
+    : manageCodexHooks(args, codexHome);
 
   const configPath = path.join(codexHome, 'config.toml');
   let configResult;
@@ -718,6 +965,10 @@ export function runInstall(args = {}) {
   const desiredInventory = args.managedOnly
     ? mergeManagedInventories(previousInventory, buildManagedInventory(assetResults))
     : buildManagedInventory([...assetResults, ...configInventoryResults]);
+  if (!args.managedOnly && args.skipConfig) {
+    // Skipping config writes also preserves the previous config ownership ledger.
+    desiredInventory.configFiles = toStringMap(previousInventory.configFiles);
+  }
 
   const pruneResults = [
     ...(args.managedOnly ? [] : [
@@ -731,7 +982,9 @@ export function runInstall(args = {}) {
   const instructionsRoot = codexHome;
   if (!args.managedOnly) {
     pruneResults.push(...pruneManagedEntries(instructionsRoot, previousInventory.instructions, desiredInventory.instructions, 'instructions', shaFile, args));
-    pruneResults.push(...pruneManagedEntries(instructionsRoot, previousInventory.configFiles, desiredInventory.configFiles, 'config', shaFile, args));
+    if (!args.skipConfig) {
+      pruneResults.push(...pruneManagedEntries(instructionsRoot, previousInventory.configFiles, desiredInventory.configFiles, 'config', shaFile, args));
+    }
   }
 
   const inventoryResult = syncText(`${JSON.stringify(desiredInventory, null, 2)}\n`, inventoryPath, {
@@ -774,6 +1027,9 @@ export function runInstall(args = {}) {
       inventoryResult,
       { action: configAction },
       { action: profileAction },
+      hooks.runtime || {},
+      hooks.config || {},
+      hooks.receipt || {},
     ]),
     assets: assetResults,
     generatedRoles: assetResults.filter((asset) => asset.generated === true).length,
@@ -789,6 +1045,14 @@ export function runInstall(args = {}) {
       profileChanged: Boolean(profileResult.changed),
       profilePath: profileResult.path,
     },
+    hooks,
+    workflowAutomation: {
+      status: 'disabled',
+      scheduledTaskCreated: false,
+      queueEnabled: false,
+      reason: 'release_gates_pending',
+      requiredGates: ['manual_v2', 'identity_binding', 'hook_trust', 'scheduled_permissions', 'self_exclusion'],
+    },
     repoSetup,
   };
 
@@ -796,6 +1060,11 @@ export function runInstall(args = {}) {
     console.warn(
       `[WARN]   ${overridePath} suppresses the managed AGENTS.md; merge or remove the override to activate Instruction Engine global policy.`,
     );
+  }
+
+  if (summary.hooks.valid) {
+    console.log(`[HOOKS] ${summary.hooks.action}: ${summary.hooks.hooksPath || 'not configured'}`);
+    console.warn(`[HOOKS] ${summary.hooks.trustVerification.note} Run /hooks to verify the installed entries.`);
   }
 
   // Keep planning session discovery pinned to the shared Elegy home.

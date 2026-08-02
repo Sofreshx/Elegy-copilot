@@ -4,7 +4,9 @@
 
 Load only matching skills: `agents-md-authoring`;
 `repo-setup`/`repo-quality-setup`; `sweeper-cleanup`;
-`repo-backed-obsidian-docs`; and `tdd` for explicit test-first work.
+`repo-backed-obsidian-docs`; `tdd` for explicit test-first work; and
+`goal-session-workflow` for root-owned long-goal preparation/checkpoints; and
+`evaluate-task-workflow` for an explicit, bounded task retrospective.
 
 ## Sol/Luna Routing
 

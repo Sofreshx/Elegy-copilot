@@ -1,13 +1,13 @@
 ---
 created: 2026-06-09
-updated: 2026-07-31
+updated: 2026-08-01
 category: system
 status: current
 doc_kind: node
 id: harness-asset-flow
 summary: How central assets from Elegy Copilot are set up, synchronized to harness homes, and discovered in per-repo contexts. Includes architecture diagram and per-harness comparison.
 tags: [architecture, install, harness, assets, sync]
-related: [catalog-control-plane, copilot-ui-guide, opencode-guide, ghcp-guide, repo-setup-governance, concise-instruction-governance]
+related: [catalog-control-plane, copilot-ui-guide, opencode-guide, ghcp-guide, repo-setup-governance, concise-instruction-governance, codex-workflow-improvement-governance]
 ---
 
 # Harness Asset Flow
@@ -26,7 +26,7 @@ Central assets live in the elegy-copilot repo under these directories:
 | `catalog-assets/shared-skills/` | Shared skills referenced by multiple harness manifests |
 | `vendor-assets/` | License-approved vendor skills copied from pinned upstream refs |
 | `opencode-assets/` | OpenCode-specific instructions, agents, skills, plugins |
-| `codex-assets/` | Codex-specific instructions, agents, skills |
+| `codex-assets/` | Codex-specific instructions, agents, skills, and managed hook runtime |
 | `antigravity-assets/` | Antigravity-specific instructions and skills |
 | `claude-assets/` | Claude Code-specific instructions and skills |
 | `ghcp-assets/` | GitHub Copilot CLI instructions, lane agents, profiles, and wrapper |
@@ -173,10 +173,33 @@ Codex also gets one native configuration surface. The installer maintains the
 expected `[agents]` receipt in `~/.codex/config.toml`: `enabled = true`,
 concurrency `6`, model `gpt-5.6-luna`, reasoning `high`, depth `1`, and runtime
 `1800` seconds. Codex-native agents and configuration are harness-owned and
-read-only in the catalog. The six shared compatibility skills remain
+read-only in the catalog. The eight shared compatibility skills remain
 Elegy-managed; Codex marketplace plugin installation and updates stay in the
 Maintenance marketplace, with `elegy-planning` providing direct Codex
 subagent/workflow integration.
+
+The `goal-session-workflow` compatibility skill owns root-only preparation and
+bounded checkpoints for long, multi-wave work. The `evaluate-task-workflow`
+compatibility skill is an explicit, on-demand manual lane. It emits the
+response-only `session-retrospective-v2` contract;
+it does not materialize UI/session artifacts and cannot auto-promote findings
+into `elegy-planning`, backlog, roadmap, or memory authorities.
+
+The Codex installer also performs a structured merge of the Elegy workflow
+hooks into `~/.codex/hooks.json`. It identifies only exact managed command
+paths, preserves unrelated hooks, deduplicates reinstall, supports dry-run and
+managed uninstall, and installs the handler under
+`~/.codex/hooks/elegy-workflow-improvement/`. Hook discovery through app-server
+`hooks/list`, `/hooks` trust review, and session/thread identity binding remain
+explicit pending gates; the installer never treats local JSON presence as
+activation or bypasses trust. `--hooks-status` reports this distinction, while
+`--skip-hooks` leaves the hook surface untouched.
+
+`--hooks-status` also reports whether the workflow state root, binding file,
+and session directory have been observed. For a bound session, the installed
+runtime's `status [session-id]` command reports frame/checkpoint validity,
+history count, and current Git reconciliation. Neither diagnostic substitutes
+for `hooks/list` discovery or `/hooks` trust evidence.
 
 Installer writes now use temp-sibling replace semantics for file and directory updates so managed
 refreshes do not rely on delete-then-copy for normal overwrite paths.
@@ -231,7 +254,7 @@ A runtime asset drift guard in `copilot-ui/scripts/tauri-node-sidecar-layout.js`
 | **Instructions** | `copilot-instructions.md` | `AGENTS.md` | `AGENTS.md` | `GEMINI.md` | `CLAUDE.md` | `copilot-instructions.md` |
 | **Contract** | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+profile+appendix | Composed baseline+appendix |
 | **Agents** | 6 | 15 | 6 | 0 | 0 | 6 |
-| **Skills** | 26 | 31 | 6 | 15 | 10 | 0 |
+| **Skills** | 26 | 31 | 8 | 15 | 10 | 0 |
 | **Plugins** | 0 | 4 | 4 (marketplace receipt) | 0 | 0 | 0 |
 | **Managed block** | No | No | No | Yes | No | No |
 | **Profile injection** | Yes | Yes | Yes | Yes | Yes | No |
@@ -247,14 +270,14 @@ The instruction writing contract lives in a single shared portable baseline at `
   harness appendix ownership, shared skill routes, and retired-reference removal
 - `node scripts/validate-manifest.js` — validates manifest IDs, destinations, source paths, required
   assets, and generated-manifest parity
-- `node scripts/validate-codex-assets.js` — validates the six native-agent/six compatibility-skill
+- `node scripts/validate-codex-assets.js` — validates the six native-agent/eight compatibility-skill
   Codex receipt and rejects obsolete fallback lanes
 - Run the changed harness's focused check:
 
 | Harness | Focused check |
 |---|---|
 | Elegy Copilot | `node --test scripts/cli-install.test.js` |
-| Codex | `node --test scripts/codex-install.test.js scripts/codex-config-patch.test.js` |
+| Codex | `node --test scripts/codex-install.test.js scripts/codex-config-patch.test.js scripts/inspect-codex-workflow.test.js scripts/codex-agent-receipts.test.js`; then `node scripts/codex-hook-runtime.test.js` |
 | OpenCode | `node --test scripts/opencode-install.test.js` |
 | Antigravity | `node --test scripts/antigravity-install.test.js` |
 | Claude Code | `node scripts/claude-install.mjs --dry-run` |
@@ -266,4 +289,6 @@ The instruction writing contract lives in a single shared portable baseline at `
 - `docs/system/repo-setup-governance.md` — per-repo overlay and bootstrap governance
 - `scripts/install-surface-utils.mjs` — shared sync primitives (SHA-256, copy, mkdir)
 - `scripts/codex-config-patch.mjs` — Codex root-config patching plus named profile overlay generation
+- `scripts/codex-hook-merge.mjs` — merge/uninstall and local-status handling for managed native hooks
+- `docs/system/codex-workflow-improvement-governance.md` — hook identity, checkpoint, queue, and automation gates
 - `docs/system/collaboration-profile-adr.md` — collaboration profile architecture and composition decision

@@ -1,13 +1,13 @@
 ---
 created: 2026-04-12
-updated: 2026-06-30
+updated: 2026-08-01
 category: system
 status: current
 doc_kind: node
 id: structured-output-contracts
 summary: Convention for when and how agents must define structured output contracts.
 tags: [conventions, output, agents]
-related: [project-conventions-governance]
+related: [project-conventions-governance, session-retrospective-governance]
 ---
 
 # Structured Output Contracts
@@ -63,8 +63,30 @@ The following blocks are defined in the shipped subagent prompts:
 | `REVIEW_RESULT` | `reviewer` | Same |
 | `SCOUT_RESULT` | `scout` | Same |
 | `PLANNING_RUN_SUMMARY` | `planning.js` plugin tool | Same |
+| `SESSION_RETROSPECTIVE` | Codex `evaluate-task-workflow` skill | New output uses `session-retrospective-v2` (`schemaVersion: "2"`); v1 remains parse-compatible; response-only Markdown with fenced `Structured State` JSON |
+| `GOAL_SESSION_FRAME` | Codex `goal-session-workflow` skill | Root-owned preparation frame for authority, readiness, dependency waves, validation, and checkpoint policy |
+| `SESSION_CHECKPOINT` | Codex `goal-session-workflow` skill | Bounded root-session continuation state; hook persistence is observational and same-session bound |
+| `AGENT_RESULT` | Codex native subagents | Common receipt envelope with role-specific payload |
 
 Refer to each agent's frontmatter description and `## Output` section for field-level contracts.
+
+### `SESSION_RETROSPECTIVE` contract
+
+The Codex `evaluate-task-workflow` skill emits a `SESSION_RETROSPECTIVE` block
+only when explicitly requested. The block contains the human-readable
+assessment followed by a fenced JSON object labelled `Structured State`. New
+results use `schemaVersion: "2"` under `session-retrospective-v2`; v1 remains
+accepted for existing results. The JSON is the machine-readable
+contract; prose is explanatory and must not be parsed as authority.
+
+For this contract-specific block, `requiresUserDecision` is the action gate.
+The v2 state includes an evidence-backed customization inventory and typed
+proposal targets; it does not add a generic `next_action` field.
+
+This is a response-only skill surface. It does not write session artifacts, create
+UI projections, mutate planning records, or promote improvement candidates.
+Any persistence or promotion requires a separate user-approved workflow and
+the owning materialization/roadmap authority.
 
 ## Canonical References
 
