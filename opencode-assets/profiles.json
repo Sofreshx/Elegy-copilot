@@ -3,44 +3,44 @@
   "profiles": {
     "opencode-go-balanced": {
       "label": "OpenCode Go Balanced",
-      "description": "Go provider with DeepSeek defaults",
+      "description": "Go provider with DeepSeek V4 Flash (New) on all lanes",
       "tags": [
         "go",
         "deepseek",
         "balanced"
       ],
       "roleModels": {
-        "planning": "opencode-go/deepseek-v4-pro",
+        "planning": "opencode-go/deepseek-v4-flash",
         "implementation": "opencode-go/deepseek-v4-flash",
         "exploration": "opencode-go/deepseek-v4-flash",
-        "review": "opencode-go/deepseek-v4-pro",
-        "research": "opencode-go/deepseek-v4-pro"
+        "review": "opencode-go/deepseek-v4-flash",
+        "research": "opencode-go/deepseek-v4-flash"
       },
       "small": "opencode-go/deepseek-v4-flash",
-      "big": "opencode-go/deepseek-v4-pro",
-      "review": "opencode-go/deepseek-v4-pro",
+      "big": "opencode-go/deepseek-v4-flash",
+      "review": "opencode-go/deepseek-v4-flash",
       "smallLabel": "DeepSeek V4 Flash",
-      "bigLabel": "DeepSeek V4 Pro",
-      "reviewLabel": "DeepSeek V4 Pro"
+      "bigLabel": "DeepSeek V4 Flash",
+      "reviewLabel": "DeepSeek V4 Flash"
     },
     "opencode-go-fast": {
       "label": "OpenCode Go Fast",
-      "description": "Go provider with cheaper exploration models",
+      "description": "Go provider with DeepSeek V4 Flash (New) on all lanes",
       "tags": [
         "go",
         "deepseek",
         "fast"
       ],
       "roleModels": {
-        "planning": "opencode-go/deepseek-v4-pro",
+        "planning": "opencode-go/deepseek-v4-flash",
         "implementation": "opencode-go/deepseek-v4-flash",
         "exploration": "opencode-go/deepseek-v4-flash",
-        "review": "opencode-go/deepseek-v4-pro",
+        "review": "opencode-go/deepseek-v4-flash",
         "research": "opencode-go/deepseek-v4-flash"
       },
       "small": "opencode-go/deepseek-v4-flash",
-      "big": "opencode-go/deepseek-v4-pro",
-      "review": "opencode-go/deepseek-v4-pro"
+      "big": "opencode-go/deepseek-v4-flash",
+      "review": "opencode-go/deepseek-v4-flash"
     },
     "opencode-zen-free": {
       "label": "OpenCode Zen Free",
@@ -60,17 +60,17 @@
     },
     "opencode-zen-mixed": {
       "label": "OpenCode Zen Mixed",
-      "description": "Zen free models for exploration, stronger models for planning/review",
+      "description": "Zen free-tier models on all lanes",
       "tags": [
         "zen",
         "mixed",
         "cost-optimized"
       ],
       "roleModels": {
-        "planning": "opencode/deepseek-v4-pro",
+        "planning": "opencode/deepseek-v4-flash-free",
         "implementation": "opencode/deepseek-v4-flash-free",
         "exploration": "opencode/deepseek-v4-flash-free",
-        "review": "opencode/deepseek-v4-pro",
+        "review": "opencode/deepseek-v4-flash-free",
         "research": "opencode/deepseek-v4-flash-free"
       }
     },
@@ -98,52 +98,51 @@
     },
     "opencode-go-flash": {
       "label": "OpenCode Go Flash",
-      "description": "Paid Flash for execution, GLM-5.2 for planning: the cost-first default for delegated work",
+      "description": "DeepSeek V4 Flash (New) on all lanes: the cost-first default for delegated work",
       "tags": [
         "go",
         "deepseek",
         "flash",
         "cost-first"
       ],
-      "notes": "opencode-go is a flat subscription; cost is expressed as requests per 5h (flash 31650, glm-5.2 50). Planning is rare enough to afford the scarce model; everything else stays on Flash.",
+      "notes": "opencode-go is a flat subscription; DeepSeek V4 Flash (New) offers ~31,650 requests per 5h, so all lanes stay on Flash.",
       "roleModels": {
-        "planning": "opencode-go/glm-5.2",
+        "planning": "opencode-go/deepseek-v4-flash",
         "implementation": "opencode-go/deepseek-v4-flash",
         "exploration": "opencode-go/deepseek-v4-flash",
         "review": "opencode-go/deepseek-v4-flash",
         "research": "opencode-go/deepseek-v4-flash"
       },
       "small": "opencode-go/deepseek-v4-flash",
-      "big": "opencode-go/glm-5.2",
+      "big": "opencode-go/deepseek-v4-flash",
       "review": "opencode-go/deepseek-v4-flash",
       "smallLabel": "DeepSeek V4 Flash",
-      "bigLabel": "GLM-5.2",
+      "bigLabel": "DeepSeek V4 Flash",
       "reviewLabel": "DeepSeek V4 Flash"
     },
     "opencode-cross-review": {
-      "label": "OpenCode Deep Cross-Family Review",
-      "description": "Escalation profile for important reviews: GLM-5.2 reviews Flash-produced work, across model families",
+      "label": "OpenCode Cross-Family Review",
+      "description": "DeepSeek V4 Flash (New) on all lanes for review-gated work",
       "tags": [
         "go",
         "zen",
         "flash",
-        "cross-family",
-        "review-independence"
+        "review"
       ],
-      "notes": "Use explicitly via --model-profile for reviews that gate a release. GLM-5.2 is a different family from DeepSeek, so it avoids same-family self-preference, and is capped at 50 requests per 5h. Zero-quota fallback: opencode/mimo-v2.5-free (free, non-DeepSeek, but availability varies - nemotron-3-ultra-free was observed stalling on 2026-07-25).",
+      "notes": "Unified Flash routing via the Go provider; kept for explicit review-gate invocation. GLM-5.2 cross-family review was retired when all lanes moved to DeepSeek V4 Flash (New).",
       "roleModels": {
-        "planning": "opencode-go/glm-5.2",
+        "planning": "opencode-go/deepseek-v4-flash",
         "implementation": "opencode-go/deepseek-v4-flash",
         "exploration": "opencode-go/deepseek-v4-flash",
-        "review": "opencode-go/glm-5.2",
+        "review": "opencode-go/deepseek-v4-flash",
         "research": "opencode-go/deepseek-v4-flash"
       },
       "small": "opencode-go/deepseek-v4-flash",
-      "big": "opencode-go/glm-5.2",
-      "review": "opencode-go/glm-5.2",
+      "big": "opencode-go/deepseek-v4-flash",
+      "review": "opencode-go/deepseek-v4-flash",
       "smallLabel": "DeepSeek V4 Flash",
-      "bigLabel": "GLM-5.2",
-      "reviewLabel": "GLM-5.2 (non-DeepSeek)"
+      "bigLabel": "DeepSeek V4 Flash",
+      "reviewLabel": "DeepSeek V4 Flash"
     }
   },
   "roleToAgent": {

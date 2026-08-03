@@ -15429,6 +15429,16 @@ textarea:focus-visible,
   white-space: pre-wrap;
 }
 
+.workspace-execution-output-link {
+  color: var(--color-brand-600);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.workspace-execution-output-link:hover {
+  color: var(--color-brand-700);
+}
+
 .workspace-execution-workers-toggle button {
   display: inline-flex;
   align-items: center;
@@ -16235,6 +16245,402 @@ textarea:focus-visible,
 
 @media (max-width: 900px) {
   .collab-style-guidance-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Global Repo Operations surface */
+.repo-operations-view .page-container {
+  max-width: 1600px;
+}
+
+.repo-operations-view h1 {
+  margin: 0;
+  font-size: var(--text-2xl);
+  line-height: 1.15;
+}
+
+.repo-operations-lede {
+  max-width: 58rem;
+  margin: var(--space-xs) 0 0;
+  color: var(--fg-muted);
+  line-height: 1.5;
+}
+
+.repo-operations-toolbar-actions,
+.repo-operations-controls,
+.repo-operations-actions,
+.repo-operations-badge-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.repo-operations-toolbar-actions {
+  justify-content: flex-end;
+}
+
+.repo-operations-last-scan,
+.repo-operations-muted,
+.repo-operations-secondary-cell {
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+}
+
+.repo-operations-controls {
+  margin: var(--space-md) 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.repo-operations-controls label {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.repo-operations-controls input,
+.repo-operations-controls select {
+  min-height: 2.25rem;
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-default);
+  color: var(--fg-default);
+}
+
+.repo-operations-controls input {
+  flex: 1 1 18rem;
+}
+
+.repo-operations-controls input:focus-visible,
+.repo-operations-controls select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.repo-operations-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.repo-operations-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  min-height: 5.5rem;
+  padding: var(--space-md);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.repo-operations-summary-card span {
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.repo-operations-summary-card strong {
+  color: var(--fg-default);
+  font-size: var(--text-2xl);
+  line-height: 1;
+}
+
+.repo-operations-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-warning, var(--border-default));
+  border-radius: var(--radius-md);
+  background: var(--bg-warning, var(--bg-secondary));
+  color: var(--fg-default);
+}
+
+.repo-operations-warning p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.repo-operations-warning p + p {
+  margin-top: var(--space-2xs);
+}
+
+.repo-operations-table-wrap {
+  overflow-x: auto;
+}
+
+.repo-operations-table-wrap table {
+  min-width: 54rem;
+}
+
+.repo-operations-table-wrap th,
+.repo-operations-table-wrap td {
+  vertical-align: top;
+}
+
+.repo-operations-primary-cell {
+  color: var(--fg-default);
+  font-weight: 600;
+}
+
+.repo-operations-secondary-cell {
+  margin-top: var(--space-2xs);
+  overflow-wrap: anywhere;
+}
+
+.repo-operations-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.repo-operations-link:hover,
+.repo-operations-link:focus-visible {
+  text-decoration: underline;
+}
+
+.repo-operations-actions {
+  align-items: flex-start;
+}
+
+.repo-operations-actions .button[disabled] {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.repo-operations-action-note {
+  max-width: 34rem;
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.repo-operations-row-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2xs);
+  min-width: 11rem;
+}
+
+.repo-operations-result {
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-success, var(--border-default));
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--fg-default);
+  font-size: var(--text-sm);
+}
+
+.repo-operations-dialog-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-lg);
+  background: rgb(0 0 0 / 58%);
+}
+
+.repo-operations-dialog {
+  width: min(42rem, 100%);
+  max-height: min(42rem, 90vh);
+  overflow: auto;
+  padding: var(--space-lg);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-default);
+  box-shadow: var(--shadow-lg, 0 18px 60px rgb(0 0 0 / 28%));
+}
+
+.repo-operations-dialog-header,
+.repo-operations-dialog-actions,
+.repo-operations-run-card-header,
+.repo-operations-run-actions,
+.repo-operations-pr-picker-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.repo-operations-dialog-header h2 {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+.repo-operations-dialog-header p {
+  max-width: 34rem;
+  margin: var(--space-xs) 0 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.repo-operations-dialog-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin: var(--space-lg) 0 var(--space-sm);
+}
+
+.repo-operations-dialog-summary span {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+.repo-operations-dialog-list {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.repo-operations-dialog-list li,
+.repo-operations-pr-picker-row {
+  padding: var(--space-sm);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
+
+.repo-operations-dialog-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+}
+
+.repo-operations-dialog-actions {
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: var(--space-lg);
+}
+
+.repo-operations-pr-picker-row {
+  align-items: center;
+}
+
+.repo-operations-pr-picker-row + .repo-operations-pr-picker-row {
+  margin-top: var(--space-xs);
+}
+
+.repo-operations-run-list {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.repo-operations-run-card {
+  display: grid;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.repo-operations-run-card-header {
+  align-items: center;
+}
+
+.repo-operations-run-proposal,
+.repo-operations-run-error {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.repo-operations-run-error {
+  color: var(--fg-danger, var(--fg-default));
+}
+
+.repo-operations-run-card details {
+  font-size: var(--text-xs);
+}
+
+.repo-operations-run-card pre {
+  max-height: 14rem;
+  overflow: auto;
+  margin: var(--space-xs) 0 0;
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: var(--bg-default);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.repo-operations-view .state-message {
+  min-height: 18rem;
+}
+
+@media (max-width: 1100px) {
+  .repo-operations-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .repo-operations-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .repo-operations-toolbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .repo-operations-controls {
+    align-items: stretch;
+  }
+
+  .repo-operations-controls input,
+  .repo-operations-controls select {
+    flex-basis: 100%;
+    width: 100%;
+  }
+
+  .repo-operations-dialog-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .repo-operations-dialog {
+    width: 100%;
+    max-height: 88vh;
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .repo-operations-dialog-header,
+  .repo-operations-pr-picker-row,
+  .repo-operations-run-card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .repo-operations-row-actions,
+  .repo-operations-row-actions .button,
+  .repo-operations-run-actions,
+  .repo-operations-run-actions .button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .repo-operations-summary-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -14,6 +14,7 @@ export const SIDEBAR_IDS = [
   'remote',
   'mcp',
   'repositories',
+  'repo-operations',
   'notes',
   'settings',
 ] as const;
@@ -118,6 +119,7 @@ export type SidebarNavItem = {
 
 export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
   { id: 'repositories', label: 'Repositories', icon: 'repo', description: 'Browse and open registered repositories' },
+  { id: 'repo-operations', label: 'Repo Operations', icon: 'git-branch', description: 'See sync blockers, branch hygiene, and open pull requests across repositories' },
   { id: 'notes', label: 'Notes', icon: 'file-text', description: 'Read, write, import, export, and sync workspace notes' },
   { id: 'remote', label: 'Remote', icon: 'hexagon', description: 'Manage Discord-driven remote sessions via Kimaki' },
   { id: 'mcp', label: 'MCP', icon: 'mcp', description: 'Expose selected local MCP servers to web chatbots' },

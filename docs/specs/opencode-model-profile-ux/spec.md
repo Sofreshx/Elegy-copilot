@@ -3,7 +3,7 @@ spec_id: opencode-model-profile-ux
 title: OpenCode Model & Profile Switching UX
 status: implemented
 type: feature
-updated: 2026-07-31
+updated: 2026-08-01
 ---
 
 # OpenCode Model & Profile Switching UX
@@ -15,7 +15,7 @@ The OpenCode settings UI in Elegy Copilot offers profile switching and per-role 
 ## Context Evidence
 
 - `scripts/codex-config-patch.mjs` — Patches only the native `[agents]` receipt and removes known legacy provider references; it has no provider-switch argument.
-- `scripts/codex-install.mjs` — Installs six native agents and six Elegy compatibility skills; Codex plugins are installed through the marketplace.
+- `scripts/codex-install.mjs` — Installs six native agents and seven Elegy compatibility skills; Codex plugins are installed through the marketplace.
 - `copilot-ui/lib/codexConfig.js` — Reports native Codex status and performs the idempotent, backup-writing legacy migration.
 - `scripts/opencode-profile-switch.mjs` — Edits only OpenCode agent files and OpenCode configuration. It must not touch Codex configuration.
 - `copilot-ui/routes/opencode.js` — Owns OpenCode provider/profile routes and retains no Codex provider mutation path.
@@ -55,7 +55,7 @@ The OpenCode settings UI in Elegy Copilot offers profile switching and per-role 
 ### R0 — Codex Config Must Be Isolated from OpenCode Profile Changes
 
 - `scripts/codex-config-patch.mjs` writes the native `[agents]` settings and never writes an OpenCode provider route. Codex falls back to its native provider.
-- `scripts/codex-install.mjs` installs the native six-agent/six-skill receipt and does not accept provider-switch arguments.
+- `scripts/codex-install.mjs` installs the native six-agent/seven-skill receipt and does not accept provider-switch arguments.
 - The OpenCode profile switching UI (`POST /api/opencode/config`) does NOT write to Codex config under any circumstances. The separation is absolute.
 - Codex settings expose native CLI health, agent policy, usage, asset ownership, and marketplace plugin status; OpenCode provider routing remains in OpenCode settings.
 
@@ -133,7 +133,7 @@ The OpenCode settings UI in Elegy Copilot offers profile switching and per-role 
 - `scripts/opencode-profile-switch.mjs` — CLI profile switch (invoked by backend via child_process)
 - `scripts/frontmatter-utils.mjs` — YAML frontmatter parsing (fixed CRLF line ending handling)
 - `scripts/codex-config-patch.mjs` — native `[agents]` patching and known-legacy cleanup
-- `scripts/codex-install.mjs` — six-agent/six-skill receipt installer
+- `scripts/codex-install.mjs` — six-agent/seven-skill receipt installer
 
 ## Validation Evidence
 

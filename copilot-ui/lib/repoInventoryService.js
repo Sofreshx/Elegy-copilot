@@ -659,16 +659,22 @@ function compareRepos(left, right) {
 function listKnownRepos(options = {}) {
   const elegyHome = resolveElegyHome(options.elegyHome || options.elegyHomeAbs || options.copilotHome || options.copilotHomeAbs);
   let state = loadRepoInventoryState(elegyHome);
-  const validManualRepos = state.manualRepos.filter((entry) => isCanonicalGitRepository(entry.repoPath));
-  const selectedIsValid = !state.selectedRepoPath || isCanonicalGitRepository(state.selectedRepoPath);
+  const includeUnavailable = Boolean(options.includeUnavailable);
+  const validManualRepos = includeUnavailable
+    ? state.manualRepos
+    : state.manualRepos.filter((entry) => isCanonicalGitRepository(entry.repoPath));
+  const selectedIsValid = !state.selectedRepoPath
+    || includeUnavailable
+    || isCanonicalGitRepository(state.selectedRepoPath);
   if (validManualRepos.length !== state.manualRepos.length || !selectedIsValid) {
-    state = saveRepoInventoryState(elegyHome, {
+    const nextState = {
       ...state,
       manualRepos: validManualRepos,
       selectedRepoId: selectedIsValid ? state.selectedRepoId : null,
       selectedRepoPath: selectedIsValid ? state.selectedRepoPath : null,
       selectedAt: selectedIsValid ? state.selectedAt : null,
-    });
+    };
+    state = options.readOnly ? nextState : saveRepoInventoryState(elegyHome, nextState);
   }
   const repos = new Map();
   const projectionHints = readProjectionHints(elegyHome);
@@ -755,7 +761,9 @@ function listKnownRepos(options = {}) {
         selected,
       }, { elegyHome });
     })
-    .filter((repo) => repo.gitRootKind === 'directory')
+    .filter((repo) => includeUnavailable
+      ? Boolean(repo.repoPath)
+      : repo.gitRootKind === 'directory')
     .sort(compareRepos);
 
   const selectedRepo = repoList.find((repo) => repo.selected) || null;

@@ -8,7 +8,7 @@ const path = require('path');
 // scripts, and Makefile targets. Dedupe keeps the package.json variant as
 // canonical; README-only commands carry source refs.
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const CATEGORY_ORDER = Object.freeze([
   { id: 'setup', label: 'Setup' },
@@ -162,6 +162,30 @@ const SKIP_MAKE_TARGETS = new Set(['.PHONY', 'help', '.DEFAULT', 'all', 'clean',
 const SETUP_PRIORITY_INSTALL = 1;
 const SETUP_PRIORITY_BUILD = 2;
 
+// Deterministic within-group importance hints: server-starting (long-running)
+// commands rank first, then commands whose label or args hint at a UI-facing
+// surface (web app, dashboard, desktop shell). Scores are additive and kept
+// small so stable-name ordering still dominates ties.
+const UI_HINT_TOKENS = Object.freeze([
+  'ui', 'web', 'app', 'frontend', 'dashboard', 'desktop', 'tauri', 'electron', 'gui',
+]);
+
+function commandImportance(cmd) {
+  let score = 0;
+  if (cmd.longRunning) score += 10;
+  const hint = `${cmd.label} ${(cmd.args || []).join(' ')}`.toLowerCase();
+  const tokens = new Set(hint.split(/[^a-z0-9]+/).filter(Boolean));
+  if (UI_HINT_TOKENS.some((token) => tokens.has(token))) score += 5;
+  return score;
+}
+
+function compareByImportance(a, b) {
+  const diff = commandImportance(b) - commandImportance(a);
+  if (diff !== 0) return diff;
+  if (a.label === b.label) return 0;
+  return a.label < b.label ? -1 : 1;
+}
+
 function validateCommandShape(command, args) {
   if (typeof command !== 'string' || command.trim().length === 0) {
     return { ok: false, error: 'command is empty' };
@@ -196,7 +220,8 @@ function isLongRunningScript(name) {
   const key = String(name || '').toLowerCase();
   if (LONG_RUNNING_SCRIPTS.has(key)) return true;
   if (key.endsWith(':watch')) return true;
-  return false;
+  const base = key.split(':')[0];
+  return LONG_RUNNING_SCRIPTS.has(base);
 }
 
 function formatCommand(command, args) {
@@ -559,7 +584,9 @@ function discover(repoRoot) {
     .map((group) => ({
       id: group.id,
       label: group.label,
-      commands: commands.filter((cmd) => cmd.category === group.id),
+      commands: commands
+        .filter((cmd) => cmd.category === group.id)
+        .sort(compareByImportance),
     }))
     .filter((group) => group.commands.length > 0);
 

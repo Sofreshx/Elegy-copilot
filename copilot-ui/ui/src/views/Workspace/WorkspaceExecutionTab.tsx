@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AppIcon,
   Badge,
@@ -139,6 +139,38 @@ function flattenCommands(overview: ExecutionOverview | null): ExecutionCommand[]
     }
   }
   return out;
+}
+
+const OUTPUT_URL_RE = /(https?:\/\/[^\s<>"']+)/gi;
+const OUTPUT_URL_TRAILING_RE = /[.,;!?)\]}\s]+$/;
+
+// Render run output with http(s) addresses (e.g. "Local: http://localhost:5173")
+// as clickable links. Pure React nodes — no dangerouslySetInnerHTML.
+function renderOutputLinks(text: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  for (const match of text.matchAll(OUTPUT_URL_RE)) {
+    const raw = match[0];
+    const href = raw.replace(OUTPUT_URL_TRAILING_RE, '');
+    if (href.length === 0) continue;
+    nodes.push(text.slice(lastIndex, match.index));
+    nodes.push(
+      <a
+        key={match.index}
+        className="workspace-execution-output-link"
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        data-testid={`workspace-execution-output-link-${match.index}`}
+      >
+        {href}
+      </a>,
+    );
+    if (href.length < raw.length) nodes.push(raw.slice(href.length));
+    lastIndex = match.index + raw.length;
+  }
+  nodes.push(text.slice(lastIndex));
+  return nodes;
 }
 
 export default function WorkspaceExecutionTab({
@@ -513,6 +545,11 @@ export default function WorkspaceExecutionTab({
                       {sourceLabel(command) && (
                         <Badge tone="accent">{sourceLabel(command)}</Badge>
                       )}
+                      {command.longRunning && (
+                        <Badge tone="brand" testId={`workspace-execution-server-${command.id}`}>
+                          Server
+                        </Badge>
+                      )}
                       <div className="workspace-execution-command-actions">
                         {lastOutcome && (
                           <StatusBadge
@@ -549,7 +586,7 @@ export default function WorkspaceExecutionTab({
                     </div>
                     {expanded && (
                       <pre className="workspace-execution-output" data-testid={`workspace-execution-output-${command.id}`}>
-                        {outputText || (isActive ? 'Waiting for output…' : 'Run this command to see its output.')}
+                        {outputText ? renderOutputLinks(outputText) : (isActive ? 'Waiting for output…' : 'Run this command to see its output.')}
                       </pre>
                     )}
                   </div>

@@ -94,6 +94,7 @@ export async function refreshExecutionCommands(repoPath: string): Promise<Execut
 export async function runExecutionCommand(repoPath: string, commandId: string): Promise<ExecutionRunResponse> {
   return apiRequest('/api/execution/run', {
     method: 'POST',
+    query: { repoPath },
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ repoPath, commandId }),
   });
@@ -102,6 +103,7 @@ export async function runExecutionCommand(repoPath: string, commandId: string): 
 export async function startExecutionSetup(repoPath: string): Promise<ExecutionRunResponse> {
   return apiRequest('/api/execution/setup', {
     method: 'POST',
+    query: { repoPath },
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ repoPath }),
   });

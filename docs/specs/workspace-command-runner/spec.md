@@ -3,7 +3,7 @@ spec_id: workspace-command-runner
 title: Workspace Command Runner
 status: implemented
 type: feature
-updated: 2026-07-31
+updated: 2026-08-01
 ---
 
 # Workspace Command Runner
@@ -55,8 +55,8 @@ Make the copilot-ui Workspace Execute tab a practical per-repository command run
 ### R2 — Categorization and ordering
 
 - Group order MUST be fixed: Setup, Start/Dev, Test, Lint/Check, Build, Docs, Other.
-- Within a group, package.json scripts sort before Makefile targets before README-only commands, then by stable name.
-- Commands classified into Start/Dev, Docs, or known server classes (serve/watch/preview/storybook/docs:dev) MUST be flagged `longRunning: true`.
+- Within a group, commands MUST be ordered deterministically by importance, not source declaration order: server-starting (long-running) commands first, then commands whose label or args hint at a UI-facing surface (tokens: `ui`, `web`, `app`, `frontend`, `dashboard`, `desktop`, `tauri`, `electron`, `gui`), then by stable name. Dedupe still keeps the package.json variant canonical for identical (command, args) pairs.
+- Commands classified into Start/Dev, Docs, or known server classes (serve/watch/preview/storybook/docs:dev) MUST be flagged `longRunning: true`; the Execute tab MUST render a Server badge on long-running rows.
 
 ### R3 — Background setup
 
@@ -68,14 +68,15 @@ Make the copilot-ui Workspace Execute tab a practical per-repository command run
 
 - New route module `copilot-ui/routes/execution.js` registered in `routes/index.js`:
   - `GET /api/execution/overview?repoPath=` — cached discovery + setup status + active run + last-run map
-  - `POST /api/execution/refresh` — re-run discovery, persist cache, return result
-  - `POST /api/execution/run` — start a discovered command, return `runId`
-  - `POST /api/execution/setup` — start the setup command (404 when none)
+  - `POST /api/execution/refresh?repoPath=` — re-run discovery, persist cache, return result
+  - `POST /api/execution/run?repoPath=` — start a discovered command, return `runId`; the JSON body must echo `repoPath` and `commandId`
+  - `POST /api/execution/setup?repoPath=` — start the setup command (404 when none); the JSON body must echo `repoPath`
   - `GET /api/execution/runs/:runId` — status, exit code, capped stdout/stderr, timestamps
   - `POST /api/execution/runs/:runId/stop` — terminate the process tree
+  - `repoPath` MUST be sent as a query parameter on overview/refresh/run/setup; a missing query parameter returns 400 before the body is read.
 - Only commands returned by discovery are runnable via `POST /api/execution/run`.
 - At most one active run per repository; a second start MUST return 409.
-- Spawn MUST use `shell: false` with the workspace.js command/cwd validation rules; output ring buffer capped (~50k chars).
+- Spawn MUST use `shell: false` (except on win32, where `npm`/`yarn`/`pnpm`/`bun` are `.cmd` shims that require `shell: true`; commands remain metachar-free via the workspace.js validation rules, and `windowsHide: true` keeps execution in the background); output ring buffer capped (~50k chars).
 - Run registry MAY be in-memory (runs are not durable across server restarts); last-run outcomes (`lastRunAt`, `lastExitCode`) MUST persist per command id.
 
 ### R5 — Execute tab composition
@@ -88,7 +89,7 @@ Make the copilot-ui Workspace Execute tab a practical per-repository command run
 ### R6 — Persistence
 
 - Discovery cache and last-run outcomes MUST live under `~/.elegy/repo-state/<repoId>/execution/` (`discovery.json`, `runs.json`).
-- Cache MUST be invalidated when any scanned source file's mtime changes; `GET /api/execution/overview` MUST re-run discovery on stale cache or missing cache.
+- Cache MUST be invalidated when any scanned source file's mtime changes or when the cached `schemaVersion` differs from the current `SCHEMA_VERSION`; `GET /api/execution/overview` MUST re-run discovery on stale cache or missing cache.
 - File writes MUST be atomic (tmp + rename), matching the `pinnedCommands.js` pattern.
 
 ## Non-Goals
@@ -106,6 +107,9 @@ Make the copilot-ui Workspace Execute tab a practical per-repository command run
 
 - Discovery classifies, dedupes, and orders fixture repos deterministically
   → verify: `node --test copilot-ui/lib/commandDiscovery.test.js` — fixture READMEs (dev server, tests, docs, install commands), package.json scripts, and Makefile targets produce the fixed group order (Setup, Start/Dev, Test, Lint/Check, Build, Docs, Other), package.json wins dedupe, README-only commands carry `source` refs, and shell-metachar candidates are skipped
+
+- Within-group ordering ranks server-starting and UI-facing commands first
+  → verify: `node --test copilot-ui/lib/commandDiscovery.test.js` — a fixture with `dev` / `dev:server` / `dev:ui` / `start` / `build` / `build:ui` / `test` / `test:ui` scripts yields `dev:ui` first in Start/Dev, UI-hinting commands first in Build/Test/Other, and stable-name tiebreak; the setup group keeps package.json install precedence
 
 - Setup detection returns at most one entry across sources
   → verify: `node --test copilot-ui/lib/commandDiscovery.test.js` — fixtures with `npm install`, `bundle install`, `make install`, and `cargo build` each yield a single `setup` entry; no fixture yields more than one
@@ -145,7 +149,11 @@ Make the copilot-ui Workspace Execute tab a practical per-repository command run
 - 2026-07-31: Backend — `node --test copilot-ui/lib/commandDiscovery.test.js copilot-ui/routes/execution.test.js copilot-ui/routes/workspace.test.js` → 100/100 pass; `node --test copilot-ui/tests/api-contract.test.js` → pass (snapshots regenerated with `UPDATE_API_SNAPSHOT=1`; route inventory 158 → 164 with the six execution routes).
 - 2026-07-31: Frontend — `npm --prefix copilot-ui run test:vitest -- workspace-execution-tab` → 21/21 pass; `npm run quality:typecheck` → clean; `npm run ui:check` → all suites PASS (settings, catalog, repositories, workspace, workspace-git, workspace-checks, workspace-assets); `npm --prefix copilot-ui test` → 58 files / 519 tests pass.
 - 2026-07-31: Docs — `npm run docs:check:links` → OK (162 files); `node scripts/validate-specs.js --strict docs/specs/workspace-command-runner/spec.md` → specs ok.
+- 2026-08-01: Importance ordering + run/setup fix — `node --test copilot-ui/lib/commandDiscovery.test.js copilot-ui/routes/execution.test.js` → all pass; `npm --prefix copilot-ui run test:vitest` → api client + execution tab suites pass; `npm run quality:typecheck` → clean; `npm run ui:check` → all suites PASS; `node scripts/validate-specs.js --strict docs/specs/workspace-command-runner/spec.md` → specs ok; `npm run docs:check:links` → OK.
+- 2026-08-01: Windows spawn fix — `npm run compile`-style `.cmd` shims run through the shell with correct quoting (repro: `node -e` startRun smoke → `done` exit 0, output captured; long-running run → stop → `stopped`); `node --test copilot-ui/lib/commandDiscovery.test.js copilot-ui/routes/execution.test.js copilot-ui/routes/workspace.test.js` → 105/105 pass incl. the new completion regression test; `npm --prefix copilot-ui run test:vitest` → 58 files / 519 tests pass; `npm run quality:typecheck` → clean.
+- 2026-08-01: Output linkification — `http(s)` addresses detected in run output render as clickable links (pure React nodes, no `dangerouslySetInnerHTML`); `npm --prefix copilot-ui run test:vitest` → 58 files / 520 tests pass; `npm run quality:typecheck` → clean; `node scripts/validate-specs.js --strict docs/specs/workspace-command-runner/spec.md` → specs ok.
 
 ## Drift Notes
 
-- None.
+- 2026-08-01: Within-group ordering supersedes the earlier source-precedence order (package.json > Makefile > README) with deterministic importance scoring (long-running server commands first, then UI-hinting commands, then stable name); package.json remains canonical for duplicate dedupe. Discovery schema bumped to `schemaVersion: 2` with schema-mismatch cache invalidation (mtime-only invalidation in R6 as originally written was insufficient for ordering changes). `POST /api/execution/run` and `POST /api/execution/setup` require `repoPath` as a query parameter (validated before the body) plus a body echo; the UI client sends both.
+- 2026-08-01: On Windows the runner spawns through the shell (`shell: true`) because `npm`/`yarn`/`pnpm`/`bun` resolve to `.cmd` shims that cannot spawn with `shell: false`, and hand-built `cmd.exe /c` lines broke quoting (`"C:\Program Files\nodejs\npm.cmd run compile" is not recognized`). Commands still pass `validateCommandShape` (metachar-free) before spawn, and `windowsHide: true` keeps the process in the background at the repository root; R4's "spawn MUST use `shell: false`" is therefore superseded on win32 only.

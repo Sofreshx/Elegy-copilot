@@ -37,6 +37,7 @@ describe('sidebar', () => {
     expect(screen.getByText('data-pipeline')).toBeInTheDocument();
     expect(screen.getByText('Global tools')).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-item-repositories')).toHaveTextContent('Repositories');
+    expect(screen.getByTestId('sidebar-item-repo-operations')).toHaveTextContent('Repo Operations');
     expect(screen.queryByText('Pattern Atlas')).not.toBeInTheDocument();
     expect(screen.getByTestId('sidebar-item-settings')).toHaveTextContent('Settings');
     expect(screen.getByTestId('sidebar-item-settings').closest('.sidebar-footer')).not.toBeNull();

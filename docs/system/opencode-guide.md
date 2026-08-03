@@ -43,6 +43,28 @@ bash scripts/opencode-install.sh
 - Use OpenCode `/init` only when repo-local guidance actually needs to be created or refreshed.
 - Prefer the installer-based `spec-driven` profile for repeatable repo-local spec scaffolding instead of inventing a separate OpenCode-specific bootstrap path.
 
+### Repo Operations preparation agent
+
+The Copilot Repo Operations surface launches the dedicated `repo-operations`
+agent for one canonical repository and one existing GitHub pull request at a
+time. It uses `opencode-go/deepseek-v4-flash` and is intentionally separate
+from the legacy note-only agent route.
+
+The agent is read/check/dry-run only. It may inspect the repository and PR,
+run checks, and perform non-mutating merge analysis, but it must not push,
+merge, checkout, rebase, commit, stash, prune, delete branches, modify
+worktrees, or change GitHub state. It returns strict structured evidence and a
+proposed squash merge or manual-session blockers.
+
+The backend owns the mutation boundary. A run must retain the observed PR
+head/base SHAs, pass non-draft/default-branch/mergeability/check/review and
+local-worktree gates, and reach explicit approval before the server refetches
+metadata and invokes the GitHub CLI squash merge with head-SHA matching.
+Changed SHAs or checks, conflicts, dirty trees, active sessions/worktrees,
+protected policy, missing authentication, and local-only branches block the
+run and require a manually launched and followed session. Branch deletion and
+auto-merge are never part of this action.
+
 ## Agentic Lanes
 
 Elegy Copilot ships two primary lane agents for matching effort to task scope. Select the agent
@@ -101,11 +123,11 @@ Profiles configure model routing across five task roles. Each profile maps model
 
 | Profile | Description |
 |---|---|
-| `opencode-go-balanced` | Go provider with DeepSeek defaults — Pro for planning/review/research, Flash for implementation/exploration |
-| `opencode-go-fast` | Go provider with cheaper models — Pro for planning/review, Flash for all others |
-| `opencode-zen-free` | Zen provider using free-tier models — best-effort curated IDs |
-| `opencode-zen-mixed` | Zen free models for exploration/research, stronger models for planning/review |
-| `deepseek-direct` | Direct DeepSeek API fallback route |
+| `opencode-go-balanced` | Go provider — DeepSeek V4 Flash (New) on all lanes |
+| `opencode-go-fast` | Go provider — DeepSeek V4 Flash (New) on all lanes |
+| `opencode-zen-free` | Zen provider — `deepseek-v4-flash-free` on all lanes (best-effort curated IDs) |
+| `opencode-zen-mixed` | Zen provider — `deepseek-v4-flash-free` on all lanes |
+| `deepseek-direct` | Direct DeepSeek API fallback route (paid; Pro for planning/review/research, Flash for implementation/exploration) |
 
 Profiles are defined in `opencode-assets/profiles.json` and applied at install time or via the profile switch command:
 

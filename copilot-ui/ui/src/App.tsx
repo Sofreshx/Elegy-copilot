@@ -21,6 +21,7 @@ const AssetCreationWizard = lazy(() => import('./views/Catalog/AssetCreationWiza
 const AddProjectWizard = lazy(() => import('./views/Project/AddProjectWizard'));
 const WorkspaceView = lazy(() => import('./views/Workspace/WorkspaceView'));
 const RepositoriesView = lazy(() => import('./views/Repositories/RepositoriesView'));
+const RepoOperationsView = lazy(() => import('./views/RepoOperations/RepoOperationsView'));
 const RemoteView = lazy(() => import('./tabs/Remote/RemoteView'));
 const McpView = lazy(() => import('./tabs/Mcp/McpView'));
 const WorkspaceNotesTab = lazy(() => import('./views/Workspace/WorkspaceNotesTab'));
@@ -103,6 +104,8 @@ export default function App() {
         return <McpView />;
       case 'repositories':
         return <RepositoriesView />;
+      case 'repo-operations':
+        return <RepoOperationsView />;
       case 'notes':
         return (
           <div className="view-shell notes-view" data-testid="notes-view">

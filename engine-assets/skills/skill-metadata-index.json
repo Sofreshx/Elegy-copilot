@@ -236,7 +236,7 @@
     {
       "skill": "roadmap-authoring",
       "name": "roadmap-authoring",
-      "description": "Canonical authoring and maintenance rules for Planning Bullets, Repository Backlog, and Roadmaps. A Roadmap is the durable multi-session planning artifact above Plan Packs. For the current Planning app/API compatibility surface in this repo, use docs/roadmaps/<slug>.md for repo-visible roadmaps. Triggers on: planning bullets, repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio.",
+      "description": "Authoring and compatibility rules for Planning Bullets, Repository Backlog, and Roadmaps. The live durable authority is elegy-planning; file-backed forms are import, projection, or migration surfaces only. Triggers on: planning bullets, repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio.",
       "triggersOn": [
         "backlog item",
         "phased planning",

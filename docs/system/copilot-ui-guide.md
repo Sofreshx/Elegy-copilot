@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-07-31
+updated: 2026-08-03
 category: system
 status: current
 doc_kind: node
@@ -35,6 +35,7 @@ node copilot-ui/server.js
 | Item | View |
 |------|------|
 | Repositories | Browse and open registered repositories |
+| Repo Operations | Global safe sync and repository-scoped OpenCode preparation: local sync blockers, branch hygiene, and open GitHub pull requests |
 | Notes | Global notes, vault Git snapshots, import/export, and Google Drive sync |
 | Remote | Kimaki onboarding, projects, Discord sessions, prompts, and logs |
 | Workspace | Appears when a repository is opened; shows docs, git (stash management, force commit, worktree checks/merge), checks, health, planning, execution, and assets tabs |
@@ -76,6 +77,7 @@ refreshes status; a managed view offers `Sync Elegy assets` when supported.
 ## Current Responsibilities
 
 - **Catalog control plane**: repo registration, asset install/search, external-source management, skill preview.
+- **Repo Operations**: global repository maintenance at `GET /api/repo-operations/overview`, with confirmed safe sync at `POST /api/repo-operations/sync` and repository-scoped OpenCode preparation/approval routes. It scans catalog-inventory repositories with bounded Git/GitHub checks, preserves per-repository failures, and is separate from the external Tracker integration and legacy note-only agent route.
 - **Workspace**: per-repo docs, git operations, planning graph, and execution surface.
 - **Sessions**: session browse, detail view with activity stream, artifacts, task board, skill usage.
 - **Settings**: app info, catalog, OpenCode/Codex/Claude Code configuration.
@@ -87,9 +89,9 @@ refreshes status; a managed view offers `Sync Elegy assets` when supported.
 
 The Workspace "Execute" local tab (`WorkspaceExecutionTab.tsx`) is the command runner surface for the opened repository:
 
-- **Discovered commands**: deterministic discovery from `package.json` scripts, README shell instructions (`README.md`, `README`, `CONTRIBUTING.md`, `GETTING_STARTED.md`), and `Makefile` targets, grouped into fixed categories (Setup, Start/Dev, Test, Lint/Check, Build, Docs, Other). Shell-metacharacter commands are rejected, not executed. Press **Refresh** to re-scan.
+- **Discovered commands**: deterministic discovery from `package.json` scripts, README shell instructions (`README.md`, `README`, `CONTRIBUTING.md`, `GETTING_STARTED.md`), and `Makefile` targets, grouped into fixed categories (Setup, Start/Dev, Test, Lint/Check, Build, Docs, Other). Within each group, server-starting (long-running) commands rank first, then commands whose name or args hint at a UI surface, then stable name — so the command that starts the app UI sits near the top. Long-running rows carry a **Server** badge. Shell-metacharacter commands are rejected, not executed. Press **Refresh** to re-scan.
 - **Setup card**: one-click run of the highest-priority install/build command with a persisted status (`not-started` / `running` / `done` / `failed`) and exit code.
-- **Run / Stop**: one active run per repository; output tail is captured (50k chars cap) and expandable per command row; last exit status per command persists across sessions.
+- **Run / Stop**: one active run per repository; output tail is captured (50k chars cap) and expandable per command row; `http(s)` addresses in the output (e.g. `http://localhost:5173`) render as clickable links; last exit status per command persists across sessions.
 - **Persistence**: discovery cache and run outcomes live under `~/.elegy/repo-state/<repoId>/execution/` (`discovery.json`, `runs.json`), keyed by the repository state id.
 - **Workers section**: a collapsible panel below the commands list hosts the orchestrator session controls (pilot-gated by `ELEGY_ORCHESTRATOR_EXPERIMENTAL`). Backend: `copilot-ui/routes/execution.js` + `copilot-ui/lib/commandDiscovery.js` / `executionRunner.js`.
 
@@ -109,6 +111,34 @@ The Workspace "Execute" local tab (`WorkspaceExecutionTab.tsx`) is the command r
 
 The public route inventory is snapshotted by `copilot-ui/tests/api-contract.test.js`.
 
+### Repo Operations boundary
+
+Repo Operations refreshes when its global sidebar tab opens and when the user
+selects **Refresh all**; it does not poll in the background. The overview scan
+reads local Git refs/worktrees and open GitHub PR metadata. Missing paths,
+unavailable remotes, unsupported providers, GitHub CLI/authentication failures,
+and command timeouts remain visible as repository-level issues.
+
+**Sync eligible repositories** requires explicit confirmation and immediately
+re-checks every repository. It fetches the configured remote with pruning
+disabled and applies fast-forward-only updates to the current branch. It
+requires a clean tree, an available upstream, no ahead/diverged commits, and no
+active managed session/worktree conflict. It never pushes, performs a normal
+merge, rebases, checks out another branch, stashes, prunes, deletes, or hides a
+partial result; a stale remote/state check fails that repository without retry.
+
+OpenCode preparation is per repository and per existing GitHub PR. The
+dedicated `repo-operations` agent uses `opencode-go/deepseek-v4-flash` for
+read/check/dry-run analysis only. It reports evidence and a proposed squash
+merge through `repo-operations.action.v2`, then waits for explicit approval and
+a fresh head/base SHA check. Only non-draft, cleanly mergeable PRs targeting the
+default branch with approved review and no failed or pending checks can reach
+the approval control. The approval service owns the final GitHub CLI squash
+merge and never deletes branches or enables auto-merge. Dirty trees, conflicts,
+active sessions/worktrees, stale SHAs, protected policy, failed checks, missing
+authentication, and local-only branches require a manually launched and
+followed session. Branch cleanup remains disabled.
+
 ## Tooling Updates API
 
 Maintenance tooling update routes expose Elegy Codex plugin state as
@@ -120,7 +150,7 @@ Elegy Codex marketplace under `<CODEX_HOME>/marketplaces/elegy`. The route
 delegates to the generic Elegy plugin marketplace service, which runs Codex
 marketplace registration before plugin installation.
 
-Codex's six shared skills remain compatibility fallback assets. They are not
+Codex's eight shared skills remain compatibility fallback assets. They are not
 the primary install lane for the four current Elegy Codex plugins:
 `elegy-documentation`, `elegy-mcp`, `elegy-checks`, and `elegy-planning`.
 `elegy-planning` is the direct Codex subagent/workflow plugin. Plugin

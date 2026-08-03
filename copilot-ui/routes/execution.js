@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
-const { discover, isDiscoveryStale } = require('../lib/commandDiscovery');
+const { discover, isDiscoveryStale, SCHEMA_VERSION } = require('../lib/commandDiscovery');
 const {
   startRun,
   stopRun,
@@ -48,7 +48,8 @@ function writeDiscovery(repoPath, discovery) {
 
 function resolveDiscovery(repoPath, force) {
   const cached = readCachedDiscovery(repoPath);
-  if (!force && cached && !isDiscoveryStale(cached)) {
+  const schemaMismatch = cached !== null && cached.schemaVersion !== SCHEMA_VERSION;
+  if (!force && cached && !schemaMismatch && !isDiscoveryStale(cached)) {
     return { discovery: cached, fromCache: true };
   }
   const discovery = discover(repoPath);

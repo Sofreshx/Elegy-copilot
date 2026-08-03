@@ -310,6 +310,8 @@ describe('WorkspaceExecutionTab', () => {
     expect(screen.getByTestId('workspace-execution-category-test')).toHaveTextContent('Run tests');
     expect(screen.getByTestId('workspace-execution-command-npm:test')).toHaveTextContent('npm run test');
     expect(screen.getByTestId('workspace-execution-command-readme:start')).toHaveTextContent('README.md');
+    expect(screen.getByTestId('workspace-execution-server-readme:start')).toHaveTextContent('Server');
+    expect(screen.queryByTestId('workspace-execution-server-npm:test')).not.toBeInTheDocument();
     expect(screen.getByTestId('workspace-execution-outcome-npm:test')).toHaveTextContent('done');
     expect(screen.getByTestId('workspace-execution-repo-label')).toHaveTextContent('Repo One');
     expect(screen.getByTestId('workspace-execution-scan-time')).toHaveTextContent('Scanned');
@@ -361,6 +363,30 @@ describe('WorkspaceExecutionTab', () => {
     await waitFor(() => {
       expect(executionApi.stopExecutionRun).toHaveBeenCalledWith('run-1');
     });
+  });
+
+  it('renders http(s) addresses in run output as clickable links', async () => {
+    const activeRun = run({
+      runId: 'run-1',
+      status: 'running',
+      stdout: 'Local: http://localhost:5173\nNetwork: http://192.168.0.10:5173, see it.\n',
+    });
+    vi.mocked(executionApi.getExecutionOverview).mockResolvedValue(overview({ activeRun }));
+    vi.mocked(executionApi.getExecutionRun).mockResolvedValue(activeRun);
+    render(<WorkspaceExecutionTab repoPath="/repo" repoId="repo-1" repoLabel="Repo One" />);
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-execution-run-npm:test')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId('workspace-execution-expand-npm:test'));
+
+    const localLink = screen.getByRole('link', { name: 'http://localhost:5173' });
+    expect(localLink).toHaveAttribute('href', 'http://localhost:5173');
+    expect(localLink).toHaveAttribute('target', '_blank');
+    expect(localLink).toHaveAttribute('rel', 'noreferrer');
+
+    const networkLink = screen.getByRole('link', { name: 'http://192.168.0.10:5173' });
+    expect(networkLink).toHaveAttribute('href', 'http://192.168.0.10:5173');
+    expect(screen.getByTestId('workspace-execution-output-npm:test')).toHaveTextContent('see it.');
   });
 
   it('renders the empty state when nothing is discovered', async () => {

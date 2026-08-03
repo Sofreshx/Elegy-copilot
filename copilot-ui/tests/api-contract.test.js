@@ -326,6 +326,13 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/git/pull-request' },
   { method: 'GET', path: '/api/git/quality/status' },
   { method: 'POST', path: '/api/git/quality/setup-task' },
+  // Repo Operations (6)
+  { method: 'GET', path: '/api/repo-operations/overview' },
+  { method: 'POST', path: '/api/repo-operations/sync' },
+  { method: 'POST', path: '/api/repo-operations/agent-runs' },
+  { method: 'GET', path: '/api/repo-operations/agent-runs/test-run-id' },
+  { method: 'POST', path: '/api/repo-operations/agent-runs/test-run-id/approve' },
+  { method: 'POST', path: '/api/repo-operations/agent-runs/test-run-id/cancel' },
 ];
 async function run() {
   console.log(`\nAPI Contract Tests — ${ROUTE_INVENTORY.length} routes\n`);
@@ -475,7 +482,7 @@ async function run() {
     }
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 164, `Expected 164 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 170, `Expected 170 routes, got ${ROUTE_INVENTORY.length}`);
   });
   } finally {
     if (runningServer) {

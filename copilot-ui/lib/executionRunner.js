@@ -112,38 +112,15 @@ function isWindows() {
   return process.platform === 'win32';
 }
 
-function quoteCmdArg(arg) {
-  return /[\s"]/.test(arg) ? `"${arg.replace(/"/g, '""')}"` : arg;
-}
-
 // On Windows, npm/yarn/pnpm/bun are .cmd/.bat shims that cannot be spawned
-// directly with shell:false. Resolve the shim and run it through cmd.exe
-// (args are already validated metachar-free by validateCommandShape).
-function resolveWindowsExecutable(command) {
-  try {
-    const out = childProcess.execFileSync('where.exe', [command], {
-      stdio: ['ignore', 'pipe', 'ignore'],
-      windowsHide: true,
-    }).toString();
-    const candidates = out.split(/\r?\n/).map((c) => c.trim()).filter(Boolean);
-    const shim = candidates.find((c) => /\.(cmd|bat)$/i.test(c));
-    const exe = candidates.find((c) => /\.exe$/i.test(c));
-    if (shim) return { kind: 'cmd', path: shim };
-    if (exe) return { kind: 'exe', path: exe };
-    return { kind: 'exe', path: command };
-  } catch {
-    return { kind: 'exe', path: command };
-  }
-}
-
+// directly with shell:false, and cmd.exe /c quote handling breaks pre-built
+// command lines. Run through the shell (cmd.exe) instead: Node quotes each
+// arg and the shell resolves the shim from PATH. Commands are already
+// validated metachar-free by validateCommandShape, so shell expansion cannot
+// escape the intended invocation.
 function buildSpawnTarget(command, args) {
-  if (!isWindows()) return { command, args };
-  const resolved = resolveWindowsExecutable(command);
-  if (resolved.kind === 'cmd') {
-    const line = [resolved.path, ...args.map(quoteCmdArg)].join(' ');
-    return { command: process.env.ComSpec || 'cmd.exe', args: ['/d', '/s', '/c', `"${line}"`] };
-  }
-  return { command: resolved.path, args };
+  if (!isWindows()) return { command, args, shell: false };
+  return { command, args, shell: true };
 }
 
 function buildRunRecord({ repoPath, commandId, command, args, cwd, kind }) {
@@ -180,8 +157,9 @@ function startRun({ repoPath, commandId, command, args, cwd, kind }) {
   const target = buildSpawnTarget(command, args);
   const child = childProcess.spawn(target.command, target.args, {
     cwd,
-    shell: false,
+    shell: target.shell,
     detached: !isWindows(),
+    windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env },
   });

@@ -96,6 +96,32 @@
       "evidenceRoot": "./evidence/ui/repositories",
       "runtimeReport": "runtime-report.json"
     },
+    "repo-operations": {
+      "lane": "browser",
+      "workingDirectory": "./",
+      "validationCommands": [
+        { "id": "build", "command": "npm --prefix copilot-ui run ui:build", "description": "Build the copilot-ui renderer" },
+        { "id": "evidence", "command": "node scripts/ui-check-copilot-ui.mjs", "timeout": 180000 }
+      ],
+      "routes": [
+        {
+          "id": "repo-operations-default",
+          "path": "navigation:repo-operations",
+          "viewports": ["desktop", "mobile"],
+          "states": ["default"],
+          "excludedStates": [
+            { "state": "loading", "reason": "The initial aggregate scan is asynchronous; loading is covered by the Repo Operations view test and the browser adapter captures the settled surface." },
+            { "state": "empty", "reason": "The evidence runner uses the canonical catalog inventory; empty and no-results behavior is covered by the view tests." },
+            { "state": "error", "reason": "The browser runner does not inject API failures; the view test covers the full error state." },
+            { "state": "disabled", "reason": "Branch cleanup remains disabled and global PR handling is intentionally absent; safe sync and repository-scoped OpenCode controls are captured on the default surface." },
+            { "state": "focus", "reason": "Focus-visible behavior is covered by shared controls and the view test." }
+          ],
+          "description": "Global repository maintenance surface for confirmed fast-forward-only sync, local branch hygiene, and per-repository OpenCode preparation for easy GitHub pull requests."
+        }
+      ],
+      "evidenceRoot": "./evidence/ui/repo-operations",
+      "runtimeReport": "runtime-report.json"
+    },
     "workspace": {
       "lane": "browser",
       "workingDirectory": "./",

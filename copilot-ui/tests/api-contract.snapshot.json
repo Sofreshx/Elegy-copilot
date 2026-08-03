@@ -1553,5 +1553,73 @@
     "bodyKeys": [
       "error"
     ]
+  },
+  "GET /api/repo-operations/overview": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "actionContract",
+      "activeRuns",
+      "branches",
+      "capabilities",
+      "contractVersion",
+      "generatedAt",
+      "pullRequests",
+      "repositories",
+      "schemaVersion",
+      "summary",
+      "warnings"
+    ]
+  },
+  "POST /api/repo-operations/sync": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "ok"
+    ]
+  },
+  "POST /api/repo-operations/agent-runs": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "ok"
+    ]
+  },
+  "GET /api/repo-operations/agent-runs/test-run-id": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "ok"
+    ]
+  },
+  "POST /api/repo-operations/agent-runs/test-run-id/approve": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "ok"
+    ]
+  },
+  "POST /api/repo-operations/agent-runs/test-run-id/cancel": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "ok"
+    ]
   }
 }

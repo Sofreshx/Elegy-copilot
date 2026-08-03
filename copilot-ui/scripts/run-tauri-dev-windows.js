@@ -45,7 +45,7 @@ function runCommand(command, args, options = {}) {
 
 function hasWindowsFileLockError(result) {
   const combined = `${String(result.stdout || '')}\n${String(result.stderr || '')}`.toLowerCase();
-  return combined.includes('os error 32') || combined.includes('used by another process');
+  return combined.includes('os error 5') || combined.includes('os error 32') || combined.includes('used by another process');
 }
 
 function killTauriDevProcesses() {

@@ -86,6 +86,7 @@ function fixtureRepo(overrides = {}) {
         test: 'vitest run',
         build: 'tsc -p tsconfig.json',
         long: 'node -e "setTimeout(function(){}, 30000)"',
+        quick: 'node -e "console.log(42)"',
       },
     }, null, 2),
     'README.md': [
@@ -253,6 +254,33 @@ test('setup status derivation transitions with outcomes', async () => {
 
   const none = deriveSetupStatus(repoPath, discovery, null, {});
   assert.equal(none.status, 'not-started');
+});
+
+test('runs a discovered command to completion with exit code 0 and output', async () => {
+  // Regression: on Windows, npm/yarn shims (npm.cmd) must spawn through the
+  // shell; the earlier cmd.exe /c line building produced
+  // '\\"C:\\Program Files\\nodejs\\npm.cmd run compile\\"' is not recognized.
+  const ctx = makeCtx('POST', '/api/execution/run', {
+    query: { repoPath },
+    body: { repoPath, commandId: 'npm:quick' },
+  });
+  const started = await dispatch(ctx);
+  assert.equal(started.code, 200);
+
+  let final = null;
+  for (let i = 0; i < 50; i += 1) {
+    const status = await dispatch(makeCtx('GET', `/api/execution/runs/${started.body.runId}`));
+    if (status.body.run.status !== 'running') {
+      final = status.body.run;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.ok(final, 'run finished within timeout');
+  assert.equal(final.status, 'done');
+  assert.equal(final.exitCode, 0);
+  assert.match(final.stdout, /42/);
+  assert.equal(final.stderr, '');
 });
 
 test('last run outcomes persist after completion', async () => {

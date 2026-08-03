@@ -7,6 +7,7 @@ import {
   buildWorkspaceStorageSeed,
   getWorkspaceTabTarget,
   deriveSurfaceStatus,
+  getRepoOperationsSurfaceSelectors,
   resolveWorkspaceEvidenceRepoPath,
 } from './ui-check-copilot-ui.mjs';
 
@@ -65,7 +66,7 @@ test('workspace tab targets map to the expected selectors', () => {
     tabSelector: '[data-testid="workspace-local-tab-checks"]',
     surfaceSelectors: [
       '[data-testid="workspace-checks-tab"]',
-      '[data-testid="workspace-operation-banner"]',
+      '[data-testid="workspace-checks-readiness"]',
     ],
   });
   assert.deepEqual(getWorkspaceTabTarget('workspace-assets'), {
@@ -100,4 +101,17 @@ test('surface status fails unless readiness and diagnostics are clean', () => {
   assert.equal(deriveSurfaceStatus({ ready: true, consoleErrors: ['boom'], pageErrors: [], networkFailures: [] }), 'fail');
   assert.equal(deriveSurfaceStatus({ ready: true, consoleErrors: [], pageErrors: ['boom'], networkFailures: [] }), 'fail');
   assert.equal(deriveSurfaceStatus({ ready: true, consoleErrors: [], pageErrors: [], networkFailures: [{ url: '/api', status: 0 }] }), 'fail');
+});
+
+test('repo operations evidence requires the settled action surface and per-repository controls', () => {
+  assert.deepEqual(getRepoOperationsSurfaceSelectors(), {
+    required: [
+      '[data-testid="repo-operations-view"]',
+      '[data-testid="repo-operations-toolbar"]',
+      '[data-testid="repo-operations-planned-actions"]',
+      '[data-testid="repo-operations-sync-panel"]',
+    ],
+    repositoryActions: '[data-testid^="repo-operations-repository-actions-"]',
+    empty: '[data-testid="repo-operations-empty"]',
+  });
 });

@@ -8,7 +8,7 @@
 
 ## Overview
 
-This plan implements R0–R5 of the OpenCode profile UX spec. The profile, model-selector, and permissions work remains OpenCode-only. The historical R0 provider-switch steps are superseded by the native Codex settings modernization: Codex installation uses the six-agent/six-skill receipt and the safe legacy migration, with no `--provider-id` path.
+This plan implements R0–R5 of the OpenCode profile UX spec. The profile, model-selector, and permissions work remains OpenCode-only. The historical R0 provider-switch steps are superseded by the native Codex settings modernization: Codex installation uses the six-agent/seven-skill receipt and the safe legacy migration, with no `--provider-id` path.
 
 The work is ordered into 4 phases. Phase 1 (quick fixes) addresses the crash, the broken props, and the Codex contamination — these are independent and can run in parallel. Phase 2 (backend integration) makes profile activation actually work by invoking the CLI switch script, which depends on Phase 1's props fix for correct save behavior. Phase 3 (UX enhancement) adds the model selector drawer, which depends on Phase 2's model resolution infrastructure. Phase 4 (drift detection) adds the mismatch warning system, which depends on Phase 2's agent file access.
 
@@ -67,7 +67,7 @@ Phase 4: Drift Detection (R5)
 
 **1.3 R0 — Verify native Codex isolation (35 min)**
 - **Strategy:** Keep Codex native-provider configuration owned by Codex and make the OpenCode profile route read/write only OpenCode files. Known legacy root references are removed by the idempotent migration with a backup.
-- Verify: Run the native Codex patcher and migration tests. Confirm the six-agent/six-skill install leaves unrelated Codex configuration intact, removes only known legacy provider references, and never adds an OpenCode provider route. Switching an OpenCode profile does not rewrite Codex config.
+- Verify: Run the native Codex patcher and migration tests. Confirm the six-agent/seven-skill install leaves unrelated Codex configuration intact, removes only known legacy provider references, and never adds an OpenCode provider route. Switching an OpenCode profile does not rewrite Codex config.
 
 ---
 
@@ -179,7 +179,7 @@ R0 (Codex isolation) ───── independent ──────┤
 | P1 R4 | `copilot-ui/ui/src/tabs/OpenCode/OpenCodeView.tsx` | Update SectionProps, fix type casts, thread saving |
 | P1 R4 | `copilot-ui/ui/src/stores/opencodeStore.ts` | No changes needed (saving already in state) |
 | P1 R0 | `scripts/codex-config-patch.mjs` | Keep native `[agents]` patching and remove only known legacy provider references |
-| P1 R0 | `scripts/codex-install.mjs` | Install the six-agent/six-skill Codex receipt without provider switching |
+| P1 R0 | `scripts/codex-install.mjs` | Install the six-agent/seven-skill Codex receipt without provider switching |
 | P1 R0 | `scripts/codex-config-patch.test.js` | Cover native defaults, idempotence, and root-only legacy cleanup |
 | P2 R2 | `copilot-ui/routes/opencode.js` | POST handler invokes opencode-profile-switch.mjs via child_process; reorder state file update; add existence check + timeout |
 | P2 R2 | `copilot-ui/ui/src/stores/opencodeStore.ts` | Handle structured API errors in saveConfig |

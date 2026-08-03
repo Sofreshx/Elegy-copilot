@@ -82,6 +82,19 @@ function deriveSurfaceStatus({ ready, consoleErrors, pageErrors, networkFailures
     : 'fail';
 }
 
+function getRepoOperationsSurfaceSelectors() {
+  return {
+    required: [
+      '[data-testid="repo-operations-view"]',
+      '[data-testid="repo-operations-toolbar"]',
+      '[data-testid="repo-operations-planned-actions"]',
+      '[data-testid="repo-operations-sync-panel"]',
+    ],
+    repositoryActions: '[data-testid^="repo-operations-repository-actions-"]',
+    empty: '[data-testid="repo-operations-empty"]',
+  };
+}
+
 // ---------------------------------------------------------------------------
 // HELPERS
 // ---------------------------------------------------------------------------
@@ -321,14 +334,15 @@ async function setupBrowser() {
  *   workspace-checks → seeded opened workspace Checks tab
  *   workspace-notes → seeded opened workspace Notes tab
  *   repositories   → sidebar-item-repositories
+ *   repo-operations → sidebar-item-repo-operations
  *   remote         → sidebar-item-remote
  *
  * @param {import('@playwright/test').Page} page
- * @param {string}   viewId  - One of: settings, catalog, workspace, workspace-git, workspace-checks, workspace-notes, repositories, remote
+ * @param {string}   viewId  - One of: settings, catalog, workspace, workspace-git, workspace-checks, workspace-notes, repositories, repo-operations, remote
  * @returns {Promise<void>}
  */
 async function navigateToView(page, viewId) {
-  const validViews = new Set(['settings', 'catalog', 'workspace', 'workspace-git', 'workspace-checks', 'workspace-assets', 'repositories', 'remote']);
+  const validViews = new Set(['settings', 'catalog', 'workspace', 'workspace-git', 'workspace-checks', 'workspace-assets', 'repositories', 'repo-operations', 'remote']);
   if (!validViews.has(viewId)) {
     throw new Error(`Unknown viewId: "${viewId}". Valid: ${[...validViews].join(', ')}`);
   }
@@ -388,7 +402,7 @@ async function navigateToView(page, viewId) {
       }
     }
   } else {
-    // repositories, remote
+    // repositories, repo-operations, remote
     await page.click(`[data-testid="sidebar-item-${viewId}"]`);
     await page.waitForSelector('[data-testid="app-layout"]', {
       timeout: PAGE_READY_TIMEOUT_MS,
@@ -399,7 +413,8 @@ async function navigateToView(page, viewId) {
 
 async function waitForTargetReadiness(page, targetId) {
   try {
-    await page.waitForFunction((id) => {
+    const repoOperationsSelectors = getRepoOperationsSurfaceSelectors();
+    await page.waitForFunction(({ id, repoOperations }) => {
       const exists = (selector) => Boolean(document.querySelector(selector));
       const text = (selector) => document.querySelector(selector)?.textContent || '';
 
@@ -416,8 +431,13 @@ async function waitForTargetReadiness(page, targetId) {
           && !exists('[data-testid="catalog-actionable-error"]');
       }
       if (id === 'settings') return exists('[data-testid="settings-view"]');
+      if (id === 'repo-operations') {
+        return repoOperations.required.every(exists)
+          && !exists('[data-testid="repo-operations-loading"]')
+          && (exists(repoOperations.repositoryActions) || exists(repoOperations.empty));
+      }
       return exists('[data-testid="app-layout"]');
-    }, targetId, { timeout: PAGE_READY_TIMEOUT_MS });
+    }, { id: targetId, repoOperations: repoOperationsSelectors }, { timeout: PAGE_READY_TIMEOUT_MS });
     return { ready: true, reason: null };
   } catch (error) {
     return { ready: false, reason: error.message };
@@ -547,6 +567,7 @@ function generateRuntimeReport(targetId, surfaceResults, evidenceDir) {
  *   catalog    → settings → Assets & Tools, default state
  *   workspace  → seeded opened workspace
  *   workspace-git/checks/notes → seeded opened workspace local tabs
+ *   repo-operations → global repository operations surface
  *
  * @param {string} targetId    - Target identifier
  * @param {object} browserHandle - Object with { page, consoleErrors, pageErrors, networkFailures }
@@ -616,11 +637,12 @@ async function runTarget(targetId, browserHandle, evidenceDir) {
       pageErrors: resultPageErrors,
       networkFailures: [...networkFailures],
     });
-  } else if (['repositories', 'remote'].includes(targetId)) {
+  } else if (['repositories', 'repo-operations', 'remote'].includes(targetId)) {
     await navigateToView(page, targetId);
     const readiness = await waitForTargetReadiness(page, targetId);
-    if (targetId === 'repositories') {
-      surfaceResults.push(...await captureApprovedViewports(page, 'repositories-default', evidenceDir, 'repositories-default', {
+    if (targetId === 'repositories' || targetId === 'repo-operations') {
+      const routeId = `${targetId}-default`;
+      surfaceResults.push(...await captureApprovedViewports(page, routeId, evidenceDir, routeId, {
         consoleErrors, pageErrors, networkFailures,
       }, readiness));
       return surfaceResults;
@@ -641,7 +663,7 @@ async function runTarget(targetId, browserHandle, evidenceDir) {
       networkFailures: [...networkFailures],
     });
   } else {
-    throw new Error(`Unknown targetId: "${targetId}". Supported: settings, catalog, workspace, workspace-git, workspace-checks, workspace-assets, repositories, remote`);
+    throw new Error(`Unknown targetId: "${targetId}". Supported: settings, catalog, workspace, workspace-git, workspace-checks, workspace-assets, repositories, repo-operations, remote`);
   }
 
   return surfaceResults;
@@ -807,6 +829,7 @@ export {
   isWorkspaceTabTarget,
   getEvidenceViewports,
   deriveSurfaceStatus,
+  getRepoOperationsSurfaceSelectors,
   main,
 };
 

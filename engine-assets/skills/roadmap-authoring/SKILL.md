@@ -1,26 +1,28 @@
 ---
 name: roadmap-authoring
-description: "Canonical authoring and maintenance rules for Planning Bullets, Repository Backlog, and Roadmaps. A Roadmap is the durable multi-session planning artifact above Plan Packs. For the current Planning app/API compatibility surface in this repo, use docs/roadmaps/<slug>.md for repo-visible roadmaps. Triggers on: planning bullets, repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio."
+description: "Authoring and compatibility rules for Planning Bullets, Repository Backlog, and Roadmaps. The live durable authority is elegy-planning; file-backed forms are import, projection, or migration surfaces only. Triggers on: planning bullets, repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio."
 ---
 
 # Roadmap Authoring
 
 ## Purpose
 
-Author and maintain repo-backed planning artifacts that define **what matters next** before work is
-decomposed into a Plan Pack.
+Author and maintain planning inputs that define **what matters next** before work is decomposed
+into a Plan Pack. In the live path, durable goals, roadmaps, plans, work points, and project runs
+belong to the explicit `elegy-planning` scope. This skill preserves file-shaped compatibility
+formats for import, export, migration, and human review; it must not silently create a second
+roadmap authority.
 
 A **Roadmap** is the durable multi-session planning artifact above execution. It captures goals,
 main targets, sequencing, and explicit `RM-*` roadmap item state. It is not an active task list and
 not a Plan Pack; a Plan Pack selects one roadmap slice for execution.
 
 This skill governs:
-- **Planning Bullets** at `~/.elegy/backlogs/{repo-name}/planning/bullets.md` as the canonical pre-backlog seed surface
-- the **Repository Backlog** under `~/.elegy/backlogs/{repo-name}/backlogs/*.md` as the primary artifact family
-- `~/.elegy/backlogs/{repo-name}/backlog.md` as a legacy compatibility Repository Backlog surface
-- **Roadmap** folders at `~/.elegy/backlogs/{repo-name}/roadmaps/<slug>/`
-- repo-persisted roadmaps under `<repo>/docs/roadmaps/<slug>.md` for the current Planning app/API compatibility surface in this repo
-- the explicit ID/linking discipline required for future **Roadmap Sync** and direct plan handoff
+- the stable ID/linking discipline required for `elegy-planning` goal → roadmap → plan → work-point
+  records and direct plan handoff;
+- file-shaped Planning Bullets, Repository Backlog, and Roadmap projections when a caller explicitly
+  requests import, export, migration, or human review;
+- compatibility checks that prevent a file projection from being mistaken for live authority.
 
 `{repo-name}` is the basename of the repository directory.
 
@@ -37,45 +39,50 @@ Do not rename these concepts in canonical planning artifacts.
 
 ## Authority Boundaries
 
-- **Planning Bullets** are the browse-first pre-backlog seed surface.
-- **Repository Backlog** is the repo-wide intake and queued-work surface.
-- **Roadmap** is the phased outcome and sequencing surface above execution.
-- **Plan Pack** remains the execution artifact for a selected slice of work.
+- **elegy-planning** is the live durable authority for goals, roadmaps, plans, work points, todos,
+  issues, review points, and project runs. Always pass an explicit `--scope <scope-key>`.
+- **Planning Bullets**, **Repository Backlog**, and file-backed **Roadmap** forms are compatibility
+  inputs/projections, not live authority. Preserve IDs when importing or rendering them.
+- **Plan Pack** remains the active session execution artifact for a selected slice of work.
 
 Rules:
-- Bullets capture seed ideas before backlog acceptance.
-- Backlog captures candidate work and queued items.
-- Roadmap organizes selected work into phases or outcomes.
+- Bullets capture seed ideas before backlog acceptance when a compatibility file is requested.
+- Backlog captures candidate work and queued items when importing or projecting compatibility data.
+- Roadmap organizes selected work into phases or outcomes in `elegy-planning`.
 - Plan Pack breaks one selected slice into executable work units.
 - Plans may be seeded directly from bullets, backlog items, or roadmap items when linked IDs are preserved.
 - Do not let Roadmap drift into work-unit detail.
 - Do not let Plan Pack become the authoritative backlog or roadmap.
 
-## Canonical Locations
+## Live Authority and Compatibility Locations
 
-For the selected repository root:
-- Planning Bullets: `~/.elegy/backlogs/{repo-name}/planning/bullets.md`
-- Repository Backlog (primary): `~/.elegy/backlogs/{repo-name}/backlogs/<session-slug>.md`
-- Repository Backlog (legacy compatibility): `~/.elegy/backlogs/{repo-name}/backlog.md`
-- Roadmaps: `~/.elegy/backlogs/{repo-name}/roadmaps/<slug>/index.md`
-- Roadmap section files: `~/.elegy/backlogs/{repo-name}/roadmaps/<slug>/<section-slug>.md`
-- Roadmap reevaluation log: `~/.elegy/backlogs/{repo-name}/roadmaps/<slug>/reevaluation-log.md`
-- Repo-persisted roadmaps: `<repo>/docs/roadmaps/<slug>.md`
+For live work, resolve the explicit `elegy-planning` scope and use its CLI/API for goal, roadmap,
+plan, work-point, and project-run references. The default `default` scope must never be selected
+implicitly. The following paths are historical compatibility forms only:
+
+- `~/.elegy/backlogs/{repo-name}/planning/bullets.md`
+- `~/.elegy/backlogs/{repo-name}/backlogs/<session-slug>.md`
+- `~/.elegy/backlogs/{repo-name}/roadmaps/<slug>/index.md`
+- `<repo>/docs/roadmaps/<slug>.md`
+
+Do not create or update these paths as a substitute for the live planning authority. If a caller
+requests a file projection, label it `compatibility` and include the durable entity IDs and scope.
 
 Backlog filenames should use lowercase kebab-case session slugs, for example:
 - `~/.elegy/backlogs/{repo-name}/backlogs/2026-04-03-session-close.md`
 - `~/.elegy/backlogs/{repo-name}/backlogs/platform-audit-follow-up.md`
 
-If `~/.elegy/backlogs/{repo-name}/roadmaps/` does not exist, create it only when roadmap work is actually requested.
+If a compatibility projection directory does not exist, create it only when the caller explicitly
+requests a projection or migration, and never during ordinary roadmap planning.
 
 Roadmap folder and section filenames should use lowercase kebab-case slugs, for example:
 - `~/.elegy/backlogs/{repo-name}/roadmaps/platform-foundation/index.md`
 - `~/.elegy/backlogs/{repo-name}/roadmaps/q2-delivery/runtime-contracts.md`
 - `<repo>/docs/roadmaps/platform-foundation.md`
 
-Legacy single-file roadmaps remain readable at `~/.elegy/backlogs/{repo-name}/roadmaps/<slug>.md`
-and compatibility-era repo docs under `<repo>/docs/planning/<slug>.md`. Convert only the targeted roadmap when it is
-substantially edited or explicitly migrated.
+Legacy single-file roadmaps remain readable as compatibility input. Convert only the targeted
+roadmap when the caller explicitly requests migration, and record the resulting `elegy-planning`
+IDs rather than treating the converted file as authority.
 
 ## Stable ID Rules
 
@@ -89,8 +96,9 @@ Examples:
 - `RM-platform-foundation-001`
 
 Rules:
-- IDs must remain stable after creation.
-- Continue the highest existing sequence across the Repository Backlog artifact family (`~/.elegy/backlogs/{repo-name}/backlogs/*.md` plus legacy `~/.elegy/backlogs/{repo-name}/backlog.md` when present) or the targeted roadmap family.
+- IDs must remain stable after creation in the `elegy-planning` records and any derived projection.
+- For a compatibility import, continue the highest existing sequence in the targeted input family;
+  never use a file projection to overwrite or fork live graph IDs.
 - Never reuse or renumber existing IDs just to make the file look cleaner.
 - The roadmap slug portion must match the roadmap folder slug.
 
@@ -109,13 +117,15 @@ Required behavior:
 ## When to Use
 
 Use this skill when the request is primarily about:
+- resolving or preparing a durable roadmap handoff to an explicit `elegy-planning` scope (use the
+  `elegy-planning` workflow for graph writes and `goal-session-workflow` for long execution runs)
 - shaping roadmap or direct-plan inputs from Planning Bullets
 - adding or triaging work in the Repository Backlog
 - creating a roadmap from selected backlog work
-- creating a repo-persisted roadmap from raw or mixed user instructions
+- importing or projecting a repo/file roadmap from raw or mixed user instructions
 - selecting one roadmap slice for execution across coding sessions
 - splitting roadmap outcomes across phases
-- keeping roadmap/backlog links explicit and deterministic
+- keeping roadmap/backlog links explicit and deterministic across the durable graph and any projection
 - preparing planning artifacts before execution planning begins
 
 ## When NOT to Use
@@ -159,9 +169,11 @@ Recommended minimum for each roadmap item:
 - acceptance or evidence field when the roadmap lives in `docs/planning/`
 - optional plan/session references once execution exists
 
-## Roadmap Folder Model
+## Roadmap Projection Model
 
-New or substantially edited roadmaps should be folders, not single large Markdown files.
+New or substantially edited compatibility projections should be folders, not single large Markdown
+files. Create the corresponding live goal/roadmap/work-point records first or label the projection
+as an unimported draft.
 
 `index.md` is the overview and progress surface. It should include:
 - roadmap title and concise description
@@ -182,9 +194,11 @@ roadmap-invalidating discoveries. Entries that imply future action must link to 
 `RM-*` ID, create the needed durable item, or explicitly state that no durable action item was created.
 Do not create a new ID family for reevaluation entries.
 
-## Repo-Persisted Roadmap Rules
+## Compatibility Projection Rules
 
-Use `<repo>/docs/planning/<slug>/` for durable roadmaps that should survive across Codex, Copilot, and other coding-agent sessions.
+Use `<repo>/docs/planning/<slug>/` only for an explicitly requested compatibility projection that
+should be reviewable across Codex, Copilot, and other coding-agent sessions. The durable graph
+record remains in `elegy-planning`.
 
 Core rules:
 - Work one slice at a time; avoid broad "continue the roadmap" execution.
@@ -201,7 +215,7 @@ When raw mixed instructions are dumped into chat:
 6. Convert vague items into concrete outcomes and acceptance checks.
 7. Put unclear items under questions.
 
-Repo-persisted roadmap minimum index shape:
+Compatibility roadmap projection minimum index shape:
 
 ```markdown
 # <Roadmap Title>
@@ -232,7 +246,7 @@ Repo-persisted roadmap minimum index shape:
 - Log: [reevaluation-log.md](reevaluation-log.md)
 ```
 
-Repo-persisted roadmap minimum section shape:
+Compatibility roadmap projection minimum section shape:
 
 ```markdown
 # <Section Title>
@@ -313,15 +327,19 @@ contract.
 
 ## Maintenance Workflow
 
-1. Read the existing Repository Backlog artifact family (`~/.elegy/backlogs/{repo-name}/backlogs/*.md` first, `~/.elegy/backlogs/{repo-name}/backlog.md` when compatibility requires it) and relevant roadmap `index.md` plus section file(s).
-2. Read `~/.elegy/backlogs/{repo-name}/planning/bullets.md` when the request starts from seed ideas or needs `PB-*` linkage.
-3. If the target roadmap is a legacy single file and will be substantially edited, convert only that
-   roadmap into `<slug>/index.md` plus section files before adding new structure.
-4. Decide whether the request belongs in bullets, backlog, roadmap, reevaluation log, or future Plan Pack.
-5. Allocate new IDs only where needed.
-6. Add or repair explicit cross-links.
-7. Keep `index.md` concise and move detailed item content into section files.
-8. If the request is now execution-ready, stop and recommend a Plan Pack handoff rather than adding
+1. Resolve the explicit `elegy-planning` scope and inspect the live goal/roadmap/plan/work-point
+   context before authoring or recommending a slice. Never let an omitted scope select `default`.
+2. If the caller explicitly requests a compatibility import or projection, read only the named
+   file family (`~/.elegy/backlogs/...` or `<repo>/docs/...`) and label every result `compatibility`.
+   Ordinary live roadmap work must not read or edit those files as authority.
+3. For an import, preserve or map stable IDs into the live graph first; for a projection, render the
+   live IDs and scope. Convert a legacy single file only when the caller explicitly requests
+   migration, and never edit the converted files as a substitute for graph writes.
+4. Decide whether the live request belongs in a goal, roadmap, plan, work point, issue, or future
+   Plan Pack. Keep the root goal/session workflow responsible for execution waves and checkpoints.
+5. Allocate new IDs only where needed in the live graph, then add or repair explicit cross-links.
+6. Keep any requested `index.md` concise and move detailed projection content into section files.
+7. If the request is now execution-ready, stop and recommend a Plan Pack handoff rather than adding
    implementation detail here.
 
 ## Roadmap Sync Readiness Checklist

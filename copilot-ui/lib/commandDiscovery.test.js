@@ -109,8 +109,11 @@ test('isLongRunningScript flags server/watch scripts', () => {
   assert.equal(isLongRunningScript('start'), true);
   assert.equal(isLongRunningScript('docs:dev'), true);
   assert.equal(isLongRunningScript('test:watch'), true);
+  assert.equal(isLongRunningScript('dev:ui'), true);
+  assert.equal(isLongRunningScript('start:prod'), true);
   assert.equal(isLongRunningScript('test'), false);
   assert.equal(isLongRunningScript('build'), false);
+  assert.equal(isLongRunningScript('build:prod'), false);
 });
 
 test('validateCommandShape rejects shell metacharacters', () => {
@@ -134,6 +137,64 @@ test('discover groups commands in fixed order with key categories first', () => 
   assert.ok(byId.check.some((c) => c.id === 'npm:lint'));
   assert.ok(byId.docs.some((c) => c.id === 'npm:docs'));
   assert.ok(byId.other.some((c) => c.id === 'npm:db:migrate'));
+});
+
+test('within-group order ranks long-running and UI-facing commands first', () => {
+  const discovery = discover(buildFixture({
+    'package.json': JSON.stringify({
+      name: 'fixture',
+      scripts: {
+        dev: 'vite',
+        'dev:server': 'tsx src/server.ts',
+        'dev:ui': 'vite',
+        start: 'node server.js',
+        build: 'vite build',
+        'build:ui': 'vite build',
+        test: 'vitest run',
+        'test:ui': 'vitest run',
+        gen: 'tsc',
+        'gen:ui': 'tsc',
+      },
+    }, null, 2),
+    'README.md': '',
+    'Makefile': '',
+  }));
+  const byId = categoriesById(discovery);
+
+  assert.deepEqual(
+    byId.dev.map((c) => c.id),
+    ['npm:dev:ui', 'npm:dev', 'npm:dev:server', 'npm:start'],
+    'dev group: UI-hinting server first, then long-running scripts by stable name',
+  );
+  assert.deepEqual(
+    byId.build.map((c) => c.id),
+    ['npm:build:ui', 'npm:build'],
+    'build group: UI-hinting command before plain build',
+  );
+  assert.deepEqual(
+    byId.test.map((c) => c.id),
+    ['npm:test:ui', 'npm:test'],
+    'test group: UI-hinting command before plain test',
+  );
+  assert.deepEqual(
+    byId.other.map((c) => c.id),
+    ['npm:gen:ui', 'npm:gen'],
+    'other group: UI-hinting command before plain gen',
+  );
+});
+
+test('importance ordering keeps stable name tiebreak and does not leak to setup', () => {
+  const discovery = discover(buildFixture());
+  const setup = categoriesById(discovery).setup;
+  assert.deepEqual(
+    setup.map((c) => c.label),
+    ['npm install', 'npm run install'],
+    'same-score commands order by stable name; README variant precedes npm:install label',
+  );
+  assert.equal(discovery.setup.id, 'npm:install', 'setup selection stays priority-based');
+  const dev = categoriesById(discovery).dev;
+  const labels = dev.map((c) => c.label);
+  assert.deepEqual(labels, [...labels].sort(), 'non-importance commands fall back to stable-name order');
 });
 
 test('package.json wins dedupe over README duplicates', () => {
