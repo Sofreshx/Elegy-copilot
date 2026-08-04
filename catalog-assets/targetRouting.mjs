@@ -235,6 +235,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('opencode-agent-reviewer'),
       route('opencode-agent-runner'),
       route('opencode-agent-runner-flash'),
+      route('opencode-agent-repo-operations'),
       route('opencode-agent-scout'),
       route('opencode-agent-sweeper'),
       route('notes-enhance'),
