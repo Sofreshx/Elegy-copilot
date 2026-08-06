@@ -272,12 +272,12 @@ function ReviewStep({ state }: { state: AssetCreationState }) {
             <Button
               onClick={() => {
                 navigationStore.closeWizard();
-                navigationStore.setSettingsSection('catalog');
+                navigationStore.setSettingsSection('codex');
                 assetCreationStore.reset();
               }}
               testId="asset-wizard-view-catalog"
             >
-              View in Catalog
+              View in Codex Assets
             </Button>
           </div>
         </Panel>

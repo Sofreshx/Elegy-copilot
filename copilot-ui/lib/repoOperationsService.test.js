@@ -159,7 +159,7 @@ async function testOverviewAggregation() {
   });
 
   const overview = await overviewService.getOverview();
-  assert.strictEqual(overview.schemaVersion, 2);
+  assert.strictEqual(overview.schemaVersion, 3);
   assert.strictEqual(overview.generatedAt, '2026-08-03T10:00:00.000Z');
   assert.deepStrictEqual(overview.repositories.map((repo) => repo.repoId), ['alpha', 'missing']);
   assert.strictEqual(overview.summary.trackedRepos, 2);
@@ -173,8 +173,137 @@ async function testOverviewAggregation() {
   assert.strictEqual(overview.capabilities.branchCleanup.enabled, false);
   assert.strictEqual(overview.capabilities.pullRequestHandling.enabled, false);
   assert.strictEqual(overview.capabilities.pullRequestHandling.scope, 'per-repository');
-  assert.strictEqual(overview.actionContract.version, 'repo-operations.action.v2');
+  assert.strictEqual(overview.actionContract.version, 'repo-operations.action.v3');
   assert.strictEqual(overview.actionContract.requiresExplicitApproval, true);
+}
+
+async function testSafeMergedWorktreeCleanup() {
+  const candidates = [{
+    repoId: 'alpha',
+    repoLabel: 'Alpha',
+    repoPath: 'C:/work/alpha',
+    worktreePath: 'C:/work/alpha-feature',
+    branch: 'feature/merged',
+    observedBranchSha: 'feature-sha-1',
+    observedDefaultSha: 'main-sha-1',
+    clean: true,
+    mergedIntoDefault: true,
+    active: false,
+    eligible: true,
+    blockerCodes: [],
+  }];
+  const calls = [];
+  let scanCount = 0;
+  const service = createRepoOperationsService({
+    inventory: async () => ({ repos: [{ repoId: 'alpha', repoPath: 'C:/work/alpha', repoLabel: 'Alpha', isWorktreeCheckout: false }] }),
+    scanRepository: async () => {
+      scanCount += 1;
+      return {
+        repoId: 'alpha',
+        repoPath: 'C:/work/alpha',
+        repoLabel: 'Alpha',
+        available: true,
+        provider: 'github',
+        sync: { branch: 'main', headSha: 'main-sha-1', issueCodes: [] },
+        branches: [],
+        pullRequests: [],
+        issues: [],
+        cleanupCandidates: candidates,
+      };
+    },
+    git: {
+      removeWorktree: async (repoPath, worktreePath) => {
+        calls.push(['remove-worktree', repoPath, worktreePath]);
+      },
+      deleteLocalBranch: async (repoPath, branch) => {
+        calls.push(['delete-branch', repoPath, branch]);
+        return { deleted: false, error: new Error('branch changed after worktree removal') };
+      },
+    },
+  });
+
+  const result = await service.cleanupWorktrees({}, {
+    confirmed: true,
+    candidates: [{
+      repoId: 'alpha',
+      worktreePath: 'C:/work/alpha-feature',
+      branch: 'feature/merged',
+      observedBranchSha: 'feature-sha-1',
+      observedDefaultSha: 'main-sha-1',
+    }],
+  });
+
+  assert.strictEqual(scanCount, 1, 'cleanup must re-scan before mutating');
+  assert.strictEqual(result.contractVersion, 'repo-operations.action.v3');
+  assert.strictEqual(result.summary.eligible, 1);
+  assert.strictEqual(result.summary.partial, 1);
+  assert.strictEqual(result.summary.removedWorktrees, 1);
+  assert.strictEqual(result.summary.deletedBranches, 0);
+  assert.strictEqual(result.repositories[0].status, 'partial');
+  assert.deepStrictEqual(calls, [
+    ['remove-worktree', 'C:/work/alpha', 'C:/work/alpha-feature'],
+    ['delete-branch', 'C:/work/alpha', 'feature/merged'],
+  ]);
+}
+
+async function testCleanupSafetyGates() {
+  const repos = [
+    { repoId: 'eligible', repoPath: 'C:/work/eligible', repoLabel: 'Eligible', isWorktreeCheckout: false },
+    { repoId: 'blocked', repoPath: 'C:/work/blocked', repoLabel: 'Blocked', isWorktreeCheckout: false },
+  ];
+  const freshCandidates = new Map([
+    ['eligible', {
+      repoId: 'eligible', repoPath: 'C:/work/eligible', repoLabel: 'Eligible',
+      worktreePath: 'C:/work/eligible-feature', branch: 'feature/merged',
+      observedBranchSha: 'feature-sha', observedDefaultSha: 'main-sha',
+      clean: true, mergedIntoDefault: true, active: false, eligible: true, blockerCodes: [],
+    }],
+    ['blocked', {
+      repoId: 'blocked', repoPath: 'C:/work/blocked', repoLabel: 'Blocked',
+      worktreePath: 'C:/work/blocked-feature', branch: 'feature/dirty',
+      observedBranchSha: 'blocked-sha-new', observedDefaultSha: 'main-sha',
+      clean: false, mergedIntoDefault: false, active: true, eligible: false,
+      blockerCodes: ['worktree-dirty', 'active-session-or-worktree', 'not-merged'],
+    }],
+  ]);
+  const calls = [];
+  const service = createRepoOperationsService({
+    inventory: async () => ({ repos }),
+    scanRepository: async (repo) => ({
+      ...repo,
+      available: true,
+      provider: 'github',
+      sync: { branch: 'main', issueCodes: [] },
+      branches: [],
+      pullRequests: [],
+      issues: [],
+      cleanupCandidates: [freshCandidates.get(repo.repoId)],
+    }),
+    git: {
+      removeWorktree: async (...args) => calls.push(['remove', ...args]),
+      deleteLocalBranch: async (...args) => calls.push(['branch', ...args]),
+    },
+  });
+  const result = await service.cleanupWorktrees({}, {
+    confirmed: true,
+    candidates: [
+      { repoId: 'eligible', worktreePath: 'C:/work/eligible-feature', branch: 'feature/merged', observedBranchSha: 'feature-sha', observedDefaultSha: 'main-sha' },
+      { repoId: 'blocked', worktreePath: 'C:/work/blocked-feature', branch: 'feature/dirty', observedBranchSha: 'blocked-sha-old', observedDefaultSha: 'main-sha' },
+      { repoId: 'missing', worktreePath: 'C:/work/missing-feature', branch: 'feature/missing', observedBranchSha: 'missing-sha', observedDefaultSha: 'main-sha' },
+      { repoId: 'eligible', worktreePath: null, branch: 'feature/invalid', observedBranchSha: 'x', observedDefaultSha: 'main-sha' },
+    ],
+  });
+  assert.strictEqual(result.summary.removed, 1);
+  assert.strictEqual(result.summary.eligible, 1);
+  assert.strictEqual(result.summary.skipped, 3);
+  assert.deepStrictEqual(calls, [
+    ['remove', 'C:/work/eligible', 'C:/work/eligible-feature'],
+    ['branch', 'C:/work/eligible', 'feature/merged'],
+  ]);
+  const blocked = result.repositories.find((entry) => entry.repoId === 'blocked');
+  assert.deepStrictEqual(blocked.blockerCodes, ['stale-cleanup-candidate']);
+  assert.deepStrictEqual(result.repositories.find((entry) => entry.repoId === 'missing').blockerCodes, ['repository-not-in-catalog']);
+  assert.deepStrictEqual(result.repositories.find((entry) => entry.branch === 'feature/invalid').blockerCodes, ['invalid-cleanup-candidate']);
 }
 
 async function testSafeMassSync() {
@@ -228,7 +357,7 @@ async function testSafeMassSync() {
   });
 
   const result = await service.syncRepositories({ elegyHome: 'C:/home/.elegy' }, { confirmed: true });
-  assert.strictEqual(result.contractVersion, 'repo-operations.action.v2');
+  assert.strictEqual(result.contractVersion, 'repo-operations.action.v3');
   assert.strictEqual(result.operation, 'sync');
   assert.strictEqual(result.summary.requested, 6);
   assert.strictEqual(result.summary.synced, 1);
@@ -457,6 +586,8 @@ async function main() {
   await testRepositoryScan();
   await testGithubUnavailableRemainsVisible();
   await testOverviewAggregation();
+  await testSafeMergedWorktreeCleanup();
+  await testCleanupSafetyGates();
   await testSafeMassSync();
   await testConfirmationAndStaleSync();
   await testPerRepositoryAgentRunAndFreshApproval();

@@ -1,11 +1,11 @@
 ---
 created: 2026-08-01
-updated: 2026-08-01
+updated: 2026-08-06
 category: system
 status: current
 doc_kind: node
 id: codex-workflow-improvement-governance
-summary: Native Codex hook, checkpoint, identity-binding, and guarded retrospective automation policy.
+summary: Native Codex hook, compact long-work state, identity-binding, and guarded retrospective automation policy.
 tags: [codex, hooks, checkpoint, retrospective, automation]
 related: [session-retrospective-governance, codex-subagent-control-plane, harness-asset-flow, workflow-planning-contract]
 ---
@@ -14,7 +14,7 @@ related: [session-retrospective-governance, codex-subagent-control-plane, harnes
 
 ## Purpose
 
-Govern the deterministic runtime around goal checkpoints and later retrospective
+Govern the deterministic runtime around compact long-work continuation and later retrospective
 evaluation. Skills perform judgment; hooks observe lifecycle events; a scheduled
 host may eventually execute a validated manual-equivalent evaluation. None of
 these surfaces may promote a proposal or replace planning authority.
@@ -22,7 +22,7 @@ these surfaces may promote a proposal or replace planning authority.
 ## Runtime and identity authority
 
 Managed runtime state lives under
-`~/.elegy/codex-workflow-improvement/`. Checkpoints live at
+`~/.elegy/codex-workflow-improvement/`. Session state lives at
 `sessions/<canonical-thread-id>/`; queue jobs use atomic one-file records. Hook
 scripts and merged hook configuration may live under the Codex home, but
 runtime state does not.
@@ -31,21 +31,20 @@ Never assume hook `session_id`, app-server `thread.id`, and
 `thread.sessionId` are interchangeable. Checkpoint injection and automatic
 evaluation require an explicit verified binding produced by forward tests for
 root, resumed, forked, archived, and deleted threads. A missing or conflicting
-binding leaves evaluation manual/unavailable. Deleted-thread automatic
+binding leaves continuation and evaluation manual/unavailable. Deleted-thread automatic
 evaluation is unsupported in the first release; do not retain an unstable raw
 transcript snapshot to simulate support.
 
-State writes are atomic, schema-validated, redacted, and bound to one verified
-session. A frame/checkpoint pair must share goal, planning, repository, and
-wave identity; mismatches are ignored rather than injected. Checkpoints expire
-after seven days. Queue jobs expire after 30 days.
+State writes are atomic, schema-validated, redacted, and bound to one verified session. One compact
+baseline establishes goal, scope, protected boundaries, waves, and repository ownership; later
+updates must share its goal identity and satisfy its dependency graph. State expires after seven
+days. Queue jobs expire after 30 days.
 
-`checkpoint.json` remains the latest-record compatibility surface. The runtime
-also retains immutable ordered wrappers under `checkpoints/`, capped at 64
-valid records per bound session and governed by the same seven-day TTL. Each
-wrapper carries a runtime-generated checkpoint ID, sequence, and predecessor;
-goal-specific IDs prevent a new goal in the same thread from overwriting older
-history. History never becomes planning authority.
+`session-state.json` contains the latest materialized state. Immutable differential wrappers live
+under `session-updates/` with runtime-generated sequence and predecessor identity. Legacy
+`goal-session.json`, `checkpoint.json`, and `checkpoints/` records remain untouched but are
+`legacy-unsupported`; the runtime never adopts or deletes them. History never becomes planning
+authority.
 
 ## Hook behavior
 
@@ -59,19 +58,17 @@ require normal Codex review/trust. Discovery is verified through app-server
 
 First-release events are bounded as follows:
 
-- `Stop` observes `last_assistant_message` and atomically persists only a valid
-  `GOAL_SESSION_FRAME` and/or `SESSION_CHECKPOINT`; new goal sessions emit
-  checkpoint schema `2`, while schema `1` remains readable for compatibility.
+- `Stop` observes `last_assistant_message` and atomically persists exactly one valid hidden
+  `ELEGY_SESSION_STATE` baseline or update. It materializes updates and observes every declared Git
+  repository; malformed, cross-goal, dependency-invalid, and legacy records are ignored explicitly.
   It never blocks or continues the turn.
-- `PreCompact` records the event and checks for a valid same-session checkpoint;
+- `PreCompact` refreshes runtime-owned repository observations without changing semantic progress;
   it never parses rollout/transcript JSON or blocks compaction.
-- `SessionStart` with `source=compact` injects the latest valid same-session
-  goal frame and checkpoint with a 1,500-token ceiling. When `cwd` resolves to
-  the recorded repository, it also observes Git branch, HEAD, worktree state,
-  exact changed paths, and a deterministic worktree digest. Drift is surfaced
-  separately as `RUNTIME_RECONCILIATION`; pattern/directory scopes skip only
-  exact path comparison. Missing, expired, malformed, unbound, or uninspectable
-  state fails open with an explicit status rather than a fabricated match.
+- `SessionStart` with `source=compact` injects one bounded materialized state plus independent
+  `RUNTIME_RECONCILIATION` under a 1,500-token ceiling. Reconciliation compares branch, HEAD, and
+  changed-path digest for every declared repository. Pre-existing dirty state is safe when captured
+  in the baseline or latest meaningful update. Missing, expired, malformed, unbound, or
+  uninspectable state fails open with an explicit status rather than a fabricated match.
 - `SubagentStart` injects the common `AGENT_RESULT` requirement plus a bounded
   same-session goal/planning summary and recent verified receipts. The root
   still owns the full `AGENT_CONTEXT_PACKET`; hook context is advisory. A
@@ -82,28 +79,18 @@ First-release events are bounded as follows:
 - `SessionEnd` enqueues a minimal bound session reference. It does not invoke
   an LLM or parse transcript contents.
 
-Goal assurance is opt-in and local to a goal session. `normal` is the default and requests no
-independent verification. `advisory` allows the root/user to ask for a manual reasoning or result
-check without blocking delivery. `strict` is allowed only when the user or an explicit risk policy
-names a required evidence gate and uses `requested`, `passed`, `blocked`, or `stale` status. Its
-`gateRef`, `evidenceRefs`, and `decisionRef` fields bind that state to the named gate, proof, and
-decision. A strict `blocked` result must include the named gate, evidence, and explicit user decision. The goal
-skill may carry up to twelve evidence-linked attention
-signals, promoting existing receipt residual risks, blockers, failed checks, or external gates so a
-later relevant session can surface them. Signals are reminders, not automatic stop conditions, and
-do not create a second planning store.
-
-Schema-v2 checkpoints keep the legacy string summaries and add optional structured
-`validationReceipts`, `blockerRecords`, and `externalGateRecords`. New emitters populate both:
-strings remain compact human/legacy summaries, while records carry stable IDs, status, ownership,
-blocking semantics, evidence references, timing, and observed HEAD where applicable. Neither form
-may contain secrets or raw logs.
+Goal assurance is opt-in and local to a session. Normal assurance is omitted. `advisory` permits a
+chosen non-blocking manual check. `strict` requires a named gate; passed or blocked outcomes require
+evidence, and blocked also requires an explicit user decision. Current risks, blockers, and gates
+are optional replacement fields in differential updates. External restrictions stay protected
+boundaries until they prevent the next action. Neither semantic nor runtime state may contain
+secrets, transcripts, or raw logs.
 
 The installed hook exposes a read-only `status [session-id]` command that distinguishes unbound,
-bound, frame-persisted, and checkpoint-persisted states and reports reconciliation availability.
+bound, and compact-state-persisted sessions; reports legacy state as unsupported; and reports reconciliation availability.
 Installer `--hooks-status` also reports whether runtime files have ever been observed. These are
 diagnostics only: `hooks/list` discovery and `/hooks` trust remain separate required evidence.
-The session-specific result includes a compact derived operator view (goal, phase/wave, validation,
+The session-specific result includes a compact derived operator view (goal, active wave, validation,
 blocking count, reconciliation, changed-path count, and next action); it is read-only projection,
 not another progress authority.
 

@@ -1,6 +1,6 @@
 ---
 created: 2026-06-09
-updated: 2026-08-01
+updated: 2026-08-06
 category: system
 status: current
 doc_kind: node
@@ -48,9 +48,11 @@ retain source activation/deactivation controls. The overview groups and filters
 by harness, owner, scope, kind, and status, and its attention metric excludes
 non-actionable read-only drift.
 
-`Assets & Tools` remains the cross-harness overview. Codex, OpenCode, and
-Claude Code settings each also expose an `Assets` tab using the same inventory
-component; Antigravity remains central-only in this pass.
+The global `Assets & Tools` settings page is retired. Codex, OpenCode, and
+Claude Code settings expose an `Assets` tab using the same inventory component;
+catalog APIs, installation services, maintenance integrations, and shared
+inventory stores remain available to those tabs and to internal maintenance
+flows. Antigravity remains catalog-backed without a new global settings entry.
 
 ## Architecture Diagram
 
@@ -178,8 +180,20 @@ Elegy-managed; Codex marketplace plugin installation and updates stay in the
 Maintenance marketplace, with `elegy-planning` providing direct Codex
 subagent/workflow integration.
 
-The `goal-session-workflow` compatibility skill owns root-only preparation and
-bounded checkpoints for long, multi-wave work. The `evaluate-task-workflow`
+The Codex portability ledger lives at `codex-assets/portability.json` and is
+copied to `.elegy-codex-portability.json` during installation. It includes the
+eight manifest-managed compatibility skills, the pinned Context7 CLI skill
+receipt, and the pinned Microsoft Playwright CLI receipt. Complete license
+material is copied to `.elegy-codex-licenses/`; local-only or incomplete folders
+are listed as excluded, and `operate-comfyui` remains explicitly broken until
+an authoritative `SKILL.md` is restored. The installer writes a deterministic
+marketplace handoff receipt when no authoritative install receipt exists; it is
+marked `external-install-required` and never claims that plugin artifacts are
+installed. Maintenance → Updates replaces that handoff with the verified
+marketplace install receipt.
+
+The `goal-session-workflow` compatibility skill owns root-only compact baselines and
+meaningful differential checkpoints for long or repository-risky work. The `evaluate-task-workflow`
 compatibility skill is an explicit, on-demand manual lane. It emits the
 response-only `session-retrospective-v2` contract;
 it does not materialize UI/session artifacts and cannot auto-promote findings
@@ -197,8 +211,8 @@ activation or bypasses trust. `--hooks-status` reports this distinction, while
 
 `--hooks-status` also reports whether the workflow state root, binding file,
 and session directory have been observed. For a bound session, the installed
-runtime's `status [session-id]` command reports frame/checkpoint validity,
-history count, and current Git reconciliation. Neither diagnostic substitutes
+runtime's `status [session-id]` command reports compact-state validity, update
+history, legacy-state presence, and current multi-repository Git reconciliation. Neither diagnostic substitutes
 for `hooks/list` discovery or `/hooks` trust evidence.
 
 Installer writes now use temp-sibling replace semantics for file and directory updates so managed

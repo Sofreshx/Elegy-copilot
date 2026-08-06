@@ -97,6 +97,66 @@
       ]
     },
     {
+      "sourceId": "context7-cli-skill",
+      "title": "Context7 CLI Codex skill",
+      "description": "Pinned upstream Context7 CLI skill receipt. The skill is installed from the official source rather than an anonymous local folder.",
+      "url": "https://github.com/upstash/context7/blob/8d52608e4e27557e6c1e807c8241cffb5544a9a3/skills/context7-cli/SKILL.md",
+      "sourceType": "github-file",
+      "owner": "upstash",
+      "repo": "context7",
+      "defaultRef": "8d52608e4e27557e6c1e807c8241cffb5544a9a3",
+      "includeMcp": false,
+      "metadata": {
+        "kind": "skill",
+        "path": "skills/context7-cli/SKILL.md",
+        "sha256": "d7b70ba126d9f55d7dc014f95a8264c6c402f351574317909b8c6d14b85c829d",
+        "license": "MIT",
+        "portableReceipt": true
+      },
+      "installables": [
+        {
+          "installableId": "skill:context7-cli",
+          "kind": "external-skill",
+          "name": "context7-cli",
+          "title": "Context7 CLI",
+          "description": "Official Context7 CLI skill for documentation and skill-management commands.",
+          "sourcePath": "skills/context7-cli/SKILL.md",
+          "targetSupport": ["codex"],
+          "runtimeChecks": ["Pinned upstream commit is available.", "The downloaded SKILL.md matches the recorded SHA-256."]
+        }
+      ]
+    },
+    {
+      "sourceId": "playwright-cli-skill",
+      "title": "Microsoft Playwright CLI skill",
+      "description": "External Playwright CLI skill receipt. Codex-specific local adaptations stay out of the portable catalog until their upstream source is verified.",
+      "url": "https://github.com/microsoft/playwright-cli",
+      "sourceType": "github-repo",
+      "owner": "microsoft",
+      "repo": "playwright-cli",
+      "defaultRef": "ca196c297169a494ee5517584883eada60dc8d0e",
+      "includeMcp": false,
+      "metadata": {
+        "kind": "skill",
+        "path": "skills/playwright-cli/SKILL.md",
+        "license": "Apache-2.0",
+        "notice": "Derived Codex adaptations must preserve the Microsoft copyright and Apache notice.",
+        "portableReceipt": true
+      },
+      "installables": [
+        {
+          "installableId": "skill:playwright-cli",
+          "kind": "external-skill",
+          "name": "playwright",
+          "title": "Playwright CLI",
+          "description": "Microsoft Playwright CLI skill with Apache-2.0 notice preservation.",
+          "sourcePath": "skills/playwright-cli/SKILL.md",
+          "targetSupport": ["codex"],
+          "runtimeChecks": ["The upstream source and license notice are available.", "No anonymous local folder is used as the source of truth."]
+        }
+      ]
+    },
+    {
       "sourceId": "ghidra-mcp",
       "title": "GhidraMCP",
       "description": "Bridge-based MCP for Ghidra reverse-engineering sessions.",

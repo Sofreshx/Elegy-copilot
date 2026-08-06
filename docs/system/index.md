@@ -1,13 +1,13 @@
 ---
 created: 2026-02-23
-updated: 2026-08-01
+updated: 2026-08-06
 category: system
 status: current
 doc_kind: index
 id: system-docs-index
 summary: Short entrypoint map for the current canonical docs.
 tags: [documentation, index]
-related: [catalog-control-plane, copilot-ui-guide, opencode-guide, ghcp-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, session-retrospective-governance, codex-workflow-improvement-governance, sweeper-cleanup-lane, collaboration-profile-adr, commit-check-setup, check-taxonomy-governance, git-checkpoint-governance, windows-shell-optimization, ui-development-governance, ui-check-adoption]
+related: [catalog-control-plane, copilot-ui-guide, elegy-local-operations, opencode-guide, ghcp-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance, concise-instruction-governance, harness-asset-flow, session-retrospective-governance, codex-workflow-improvement-governance, sweeper-cleanup-lane, collaboration-profile-adr, commit-check-setup, check-taxonomy-governance, git-checkpoint-governance, windows-shell-optimization, ui-development-governance, ui-check-adoption]
 ---
 
 # Docs Index
@@ -21,6 +21,7 @@ Use docs in this order:
 ## Most Useful Entry Docs
 
 - [[copilot-ui-guide]] [copilot-ui-guide.md](copilot-ui-guide.md) [copilot-ui-guide](docs/system/copilot-ui-guide.md)
+- [[elegy-local-operations]] [elegy-local-operations.md](elegy-local-operations.md) [elegy-local-operations](docs/system/elegy-local-operations.md)
 - [[ui-development-governance]] [ui-development-governance.md](ui-development-governance.md) [ui-development-governance](docs/system/ui-development-governance.md)
 - [[ui-check-adoption]] [ui-check-adoption.md](ui-check-adoption.md) [ui-check-adoption](docs/system/ui-check-adoption.md)
 - [[catalog-control-plane]] [catalog-control-plane.md](catalog-control-plane.md) [catalog-control-plane](docs/system/catalog-control-plane.md)

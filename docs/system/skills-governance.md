@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-08-01
+updated: 2026-08-06
 category: system
 status: current
 doc_kind: node
@@ -43,9 +43,9 @@ Codex should stay leaner than the legacy Copilot fleet:
   without duplicate global skills. `evaluate-task-workflow` is an explicit,
   on-demand Codex skill for the response-only `session-retrospective-v2`
   contract; it is manual-only and never promotes findings into planning or
-  memory surfaces. `goal-session-workflow` is the root-only preparation and
-  checkpoint procedure for multi-repository, multi-wave, delegated, or
-  architecture-to-deployment goals.
+  memory surfaces. `goal-session-workflow` is the root-only compact continuation
+  procedure for multi-repository, dirty-worktree, multi-wave, resumable, externally
+  gated, or genuinely long work; routine bounded tasks skip it.
 - Codex's current Elegy marketplace receipt contains four read-only plugin
   statuses: `elegy-documentation`, `elegy-mcp`, `elegy-checks`, and
   `elegy-planning`. `elegy-planning` is the direct Codex subagent/workflow

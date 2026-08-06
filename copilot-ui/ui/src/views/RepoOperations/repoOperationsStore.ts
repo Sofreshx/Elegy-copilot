@@ -2,11 +2,14 @@ import { createStore } from '../../lib/store';
 import {
   approveRepoOperationsAgentRun,
   cancelRepoOperationsAgentRun,
+  cleanupRepoOperations,
   getRepoOperationsOverview,
   getRepoOperationsAgentRun,
   startRepoOperationsAgentRun,
   syncRepoOperations,
   type RepoOperationsAgentRun,
+  type RepoOperationsCleanupCandidate,
+  type RepoOperationsCleanupResult,
   type RepoOperationsSyncResult,
   type RepoOperationsOverview,
 } from '../../lib/api/repoOperations';
@@ -21,6 +24,8 @@ export interface RepoOperationsState {
   filter: RepoOperationsFilter;
   syncing: boolean;
   syncResult: RepoOperationsSyncResult | null;
+  cleaning: boolean;
+  cleanupResult: RepoOperationsCleanupResult | null;
   actionError: string | null;
   agentRuns: Record<string, RepoOperationsAgentRun>;
 }
@@ -33,6 +38,8 @@ const INITIAL_STATE: RepoOperationsState = {
   filter: 'all',
   syncing: false,
   syncResult: null,
+  cleaning: false,
+  cleanupResult: null,
   actionError: null,
   agentRuns: {},
 };
@@ -64,6 +71,30 @@ function createRepoOperationsStore() {
       store.setState((state) => ({
         ...state,
         syncing: false,
+        actionError: error instanceof Error ? error.message : String(error),
+      }));
+    }
+  }
+
+  async function cleanupMergedWorktrees(candidates: RepoOperationsCleanupCandidate[]): Promise<void> {
+    store.setState((state) => ({ ...state, cleaning: true, actionError: null, cleanupResult: null }));
+    try {
+      const result = await cleanupRepoOperations({
+        confirmed: true,
+        candidates: candidates.map((candidate) => ({
+          repoId: candidate.repoId,
+          worktreePath: candidate.worktreePath,
+          branch: candidate.branch,
+          observedBranchSha: candidate.observedBranchSha,
+          observedDefaultSha: candidate.observedDefaultSha,
+        })),
+      });
+      store.setState((state) => ({ ...state, cleaning: false, cleanupResult: result }));
+      await loadOverview();
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        cleaning: false,
         actionError: error instanceof Error ? error.message : String(error),
       }));
     }
@@ -135,6 +166,7 @@ function createRepoOperationsStore() {
     setSearchQuery,
     setFilter,
     syncEligibleRepositories,
+    cleanupMergedWorktrees,
     prepareAgentRun,
     refreshAgentRun,
     approveAgentRun,

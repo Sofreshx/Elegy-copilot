@@ -24,6 +24,7 @@ const RepositoriesView = lazy(() => import('./views/Repositories/RepositoriesVie
 const RepoOperationsView = lazy(() => import('./views/RepoOperations/RepoOperationsView'));
 const RemoteView = lazy(() => import('./tabs/Remote/RemoteView'));
 const McpView = lazy(() => import('./tabs/Mcp/McpView'));
+const IntelligenceSurfaceView = lazy(() => import('./views/Intelligence/IntelligenceSurfaceView'));
 const WorkspaceNotesTab = lazy(() => import('./views/Workspace/WorkspaceNotesTab'));
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
@@ -102,6 +103,10 @@ export default function App() {
         return <RemoteView />;
       case 'mcp':
         return <McpView />;
+      case 'overseer':
+        return <IntelligenceSurfaceView surfaceId="overseer" />;
+      case 'world-model':
+        return <IntelligenceSurfaceView surfaceId="opportunity-world-model" />;
       case 'repositories':
         return <RepositoriesView />;
       case 'repo-operations':

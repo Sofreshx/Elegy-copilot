@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "profile": "codex-portable/v1",
+  "description": "Provenance ledger for Codex assets. Only complete, source-verified entries are portable.",
+  "approvedPortable": [
+    {
+      "id": "codex-compatibility-skills",
+      "kind": "managed-bundle",
+      "manifestAssetIds": [
+        "codex-repo-setup-skill",
+        "codex-repo-backed-obsidian-docs-skill",
+        "codex-sweeper-cleanup-skill",
+        "codex-repo-quality-setup-skill",
+        "codex-agents-md-authoring-skill",
+        "codex-tdd-skill",
+        "codex-goal-session-workflow-skill",
+        "codex-evaluate-task-workflow-skill"
+      ],
+      "receipt": ".elegy-copilot-codex-managed.json",
+      "sourceOfTruth": "repo-manifest",
+      "licenseFiles": [
+        { "source": "LICENSE", "destination": "elegy/LICENSE.txt" }
+      ],
+      "status": "portable"
+    },
+    {
+      "id": "context7-cli",
+      "kind": "external-skill",
+      "sourceId": "context7-cli-skill",
+      "pinnedRef": "8d52608e4e27557e6c1e807c8241cffb5544a9a3",
+      "sha256": "d7b70ba126d9f55d7dc014f95a8264c6c402f351574317909b8c6d14b85c829d",
+      "license": "MIT",
+      "status": "portable-via-external-receipt"
+    },
+    {
+      "id": "playwright-cli",
+      "kind": "external-skill",
+      "sourceId": "playwright-cli-skill",
+      "pinnedRef": "ca196c297169a494ee5517584883eada60dc8d0e",
+      "sourcePath": "skills/playwright-cli/SKILL.md",
+      "license": "Apache-2.0",
+      "licenseFiles": [
+        { "source": "codex-assets/licenses/playwright-cli/LICENSE.txt", "destination": "playwright-cli/LICENSE.txt" },
+        { "source": "codex-assets/licenses/playwright-cli/NOTICE.txt", "destination": "playwright-cli/NOTICE.txt" }
+      ],
+      "notice": "Microsoft Playwright CLI copyright and Apache-2.0 notice must travel with any adapted copy.",
+      "status": "portable-via-external-receipt"
+    }
+  ],
+  "requiredReceipts": [
+    {
+      "id": "codex-managed-inventory",
+      "path": ".elegy-copilot-codex-managed.json",
+      "producedBy": "scripts/codex-install.mjs",
+      "status": "required"
+    },
+    {
+      "id": "codex-config",
+      "path": "config.toml",
+      "producedBy": "scripts/codex-install.mjs",
+      "status": "required"
+    },
+    {
+      "id": "elegy-marketplace",
+      "path": "marketplaces/elegy/elegy-codex-marketplace.install.json",
+      "producedBy": "scripts/codex-install.mjs handoff or copilot-ui/lib/elegyPluginMarketplace.js verified install",
+      "status": "required"
+    },
+    {
+      "id": "portable-license-material",
+      "path": ".elegy-codex-licenses/",
+      "producedBy": "scripts/codex-install.mjs",
+      "status": "required"
+    }
+  ],
+  "reviewedLocalFolders": [
+    {
+      "name": "create-game-assets",
+      "status": "local-only",
+      "reason": "Complete locally, but no authoritative redistribution source is recorded."
+    },
+    {
+      "name": "create-unity-2d-characters",
+      "status": "local-only",
+      "reason": "Complete locally, but no authoritative redistribution source is recorded."
+    },
+    {
+      "name": "find-game-assets",
+      "status": "local-only",
+      "reason": "Complete locally, but no authoritative redistribution source is recorded."
+    },
+    {
+      "name": "hatch-pet",
+      "status": "local-only",
+      "reason": "An Apache license is present, but the authoritative source and exact revision are not established."
+    },
+    {
+      "name": "operate-comfyui",
+      "status": "broken",
+      "reason": "SKILL.md is missing; excluded from portable counts until restored and validated."
+    },
+    {
+      "name": "operate-unity-editor",
+      "status": "local-only",
+      "reason": "Complete locally, but no authoritative redistribution source is recorded."
+    },
+    {
+      "name": "quiz-question-quality",
+      "status": "local-only",
+      "reason": "Complete locally, but no authoritative redistribution source is recorded."
+    }
+  ]
+}

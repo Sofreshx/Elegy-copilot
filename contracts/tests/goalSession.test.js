@@ -2,370 +2,143 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const {
-  GOAL_SESSION_CHECKPOINT_SCHEMA_VERSION,
-  GOAL_SESSION_FRAME_SCHEMA_VERSION,
-  GOAL_SESSION_ASSURANCE_MODES,
-  GOAL_SESSION_ASSURANCE_STATUSES,
-  GOAL_SESSION_ATTENTION_SEVERITIES,
-  GOAL_SESSION_ATTENTION_STATUSES,
-  normalizeGoalSessionCheckpoint,
-  normalizeGoalSessionFrame,
+  GOAL_SESSION_RECORD_SCHEMA_VERSION,
+  GOAL_SESSION_GIT_STATUSES,
+  materializeGoalSessionState,
+  normalizeGoalSessionBaseline,
+  normalizeGoalSessionRecord,
+  normalizeGoalSessionUpdate,
 } = require('../dist');
 
-function frameInput(overrides = {}) {
+function baseline(overrides = {}) {
   return {
-    schemaVersion: GOAL_SESSION_FRAME_SCHEMA_VERSION,
-    kind: 'goal-session.frame',
-    goalId: 'goal-self-improvement',
-    successCriteria: ['Persist the plan across compaction.'],
-    canonicalAuthority: 'instruction-engine/docs/system',
-    planning: {
-      surface: 'both',
-      scopeKey: 'instruction-engine',
-      goalRef: 'goal-self-improvement',
-      roadmapRef: 'roadmap-self-improvement',
-      planRef: 'plan:self-improvement',
-      workPointRefs: ['wave-1'],
-      projectRunRef: 'run-self-improvement',
-      authorityStatus: 'resolved',
-    },
+    schemaVersion: GOAL_SESSION_RECORD_SCHEMA_VERSION,
+    kind: 'baseline',
+    goalId: 'compact-goal-session',
+    goal: 'Replace heavy session snapshots with compact resumability records.',
+    successCriteria: ['Persist scope and next action.', 'Detect repository drift.'],
+    authority: 'instruction-engine/docs/system',
+    scope: ['contracts', 'Codex hook', 'goal-session skill'],
+    protected: ['Preserve unrelated dirty changes.', 'No publication or installation.'],
+    dependencyWaves: [
+      { waveId: 'contract', dependsOn: [], deliverable: 'Compact shared contract' },
+      { waveId: 'runtime', dependsOn: ['contract'], deliverable: 'Materializing runtime' },
+    ],
+    current: { activeWave: 'contract', nextAction: 'Implement the contract.' },
     repositories: [{
       repositoryId: 'instruction-engine',
-      branch: 'main',
-      baseRef: 'abc123',
-      headRef: 'def456',
-      worktreeStatus: 'clean',
-      ownedPaths: ['codex-assets/**'],
-      changedPaths: [],
-      commitRef: null,
+      root: 'C:/repo/instruction-engine',
+      ownedPaths: ['contracts/**', 'codex-assets/**'],
+      protectedPaths: ['package.json', 'scripts/start-local.ps1'],
+      preserveExistingChanges: true,
     }],
-    dependencyWaves: [{
-      waveId: 'wave-1',
-      dependsOn: [],
-      status: 'active',
-      workPointRef: 'wave-1',
-      planRef: 'plan:self-improvement',
-      projectRunRef: 'run-self-improvement',
-    }],
-    integrationOwner: 'root',
-    readiness: {
-      codeReadiness: ['Repository authority confirmed.'],
-      environmentReadiness: ['No external gate required.'],
-    },
-    validation: [{
-      waveId: 'wave-1',
-      owner: 'test-runner',
-      expectedEvidence: ['node --test'],
-      status: 'pending',
-    }],
-    stopEscalationContinuation: {
-      stop: ['Authority conflict'],
-      escalate: ['Credential gate'],
-      continueWhen: ['Validation passes'],
-    },
-    checkpointPolicy: {
-      beforeFanOut: true,
-      afterEachWave: true,
-      beforePhaseTransition: true,
-    },
-    retrospectiveEligibility: 'manual_after_closure',
     ...overrides,
   };
 }
 
-function checkpointInput(overrides = {}) {
+function update(overrides = {}) {
   return {
-    schemaVersion: GOAL_SESSION_CHECKPOINT_SCHEMA_VERSION,
-    goalId: 'goal-self-improvement',
-    phase: 'implementation',
-    planning: frameInput().planning,
-    completedWaveIds: [],
-    activeWaveId: 'wave-1',
-    decisions: ['Keep scheduled automation disabled.'],
-    repositories: frameInput().repositories,
-    validationEvidence: ['pending: node --test'],
-    blockers: [],
-    externalGates: [],
-    nextAction: 'Run focused tests.',
-    resume: {
-      status: 'fresh',
-      checkedAt: null,
-      drift: [],
-    },
-    gitCheckpoint: {
-      status: 'clean-no-commit',
-      commitSha: null,
-      reason: 'No commit requested.',
-      validationRefs: [],
-    },
-    updatedAt: '2026-08-01T10:00:00.000Z',
+    schemaVersion: GOAL_SESSION_RECORD_SCHEMA_VERSION,
+    kind: 'update',
+    goalId: 'compact-goal-session',
+    event: 'wave-complete',
+    completedWaveIds: ['contract'],
+    activeWave: 'runtime',
+    changed: ['Compact contract and tests'],
+    validated: ['contracts goal-session tests passed'],
+    nextAction: 'Implement runtime persistence.',
+    git: { status: 'uncommitted', reason: 'Commit not requested.' },
     ...overrides,
   };
 }
 
-test('normalizes a goal frame with durable roadmap and repository references', () => {
-  const normalized = normalizeGoalSessionFrame(frameInput());
+test('normalizes a compact baseline and omits inactive optional modules', () => {
+  const normalized = normalizeGoalSessionBaseline(baseline());
   assert.equal(normalized.schemaVersion, '1');
-  assert.equal(normalized.planning.scopeKey, 'instruction-engine');
-  assert.equal(normalized.planning.projectRunRef, 'run-self-improvement');
-  assert.deepEqual(normalized.repositories[0].ownedPaths, ['codex-assets/**']);
-  assert.deepEqual(normalized.assurancePolicy, { mode: 'normal', verificationStatus: 'not-requested', gateRef: null, evidenceRefs: [], decisionRef: null });
-  assert.deepEqual(normalized.attentionSignals, []);
+  assert.equal(normalized.current.activeWave, 'contract');
+  assert.equal(normalized.repositories[0].preserveExistingChanges, true);
+  assert.equal('planning' in normalized, false);
+  assert.equal('assurance' in normalized, false);
 });
 
-test('normalizes a v2 checkpoint with resume and git-boundary evidence', () => {
-  const normalized = normalizeGoalSessionCheckpoint(checkpointInput());
-  assert.equal(normalized.schemaVersion, '2');
-  assert.equal(normalized.resume.status, 'fresh');
-  assert.equal(normalized.gitCheckpoint.status, 'clean-no-commit');
-  assert.deepEqual(normalized.assurancePolicy, { mode: 'normal', verificationStatus: 'not-requested', gateRef: null, evidenceRefs: [], decisionRef: null });
-  assert.deepEqual(normalized.attentionSignals, []);
-  assert.deepEqual(normalized.validationReceipts, []);
-  assert.deepEqual(normalized.blockerRecords, []);
-  assert.deepEqual(normalized.externalGateRecords, []);
-});
-
-test('normalizes structured validation, blocker, and external-gate receipts', () => {
-  const normalized = normalizeGoalSessionCheckpoint(checkpointInput({
-    validationReceipts: [{
-      receiptId: 'validation-1',
-      check: 'Focused goal-session tests',
-      kind: 'test',
-      status: 'passed',
-      command: 'node --test contracts/tests/goalSession.test.js',
-      exitCode: 0,
-      durationMs: 125,
-      artifactRef: null,
-      observedAt: '2026-08-02T12:00:00.000Z',
-      headRef: 'def456',
-    }],
-    blockerRecords: [{
-      blockerId: 'environment-node',
-      code: 'node-runtime-drift',
-      severity: 'medium',
-      owner: 'environment',
-      blocking: false,
-      status: 'accepted',
-      evidenceRefs: ['node --version'],
-      nextDecision: 'Upgrade at the next environment checkpoint.',
-    }],
-    externalGateRecords: [{
-      gateId: 'hook-trust',
-      owner: 'user',
-      blocking: true,
-      status: 'pending',
-      evidenceRefs: ['hooks/list'],
-      continueWhen: 'The installed hook is reviewed and trusted.',
-    }],
+test('keeps only supplied planning references and non-default assurance', () => {
+  const normalized = normalizeGoalSessionBaseline(baseline({
+    planning: { scopeKey: 'instruction-engine', planRef: 'plan:compact-session' },
+    assurance: { mode: 'advisory', status: 'suggested' },
   }));
-
-  assert.equal(normalized.validationReceipts[0].exitCode, 0);
-  assert.equal(normalized.blockerRecords[0].blocking, false);
-  assert.equal(normalized.externalGateRecords[0].status, 'pending');
+  assert.deepEqual(normalized.planning, { scopeKey: 'instruction-engine', planRef: 'plan:compact-session' });
+  assert.deepEqual(normalized.assurance, { mode: 'advisory', status: 'suggested' });
 });
 
-test('rejects malformed structured checkpoint receipts', () => {
-  assert.throws(
-    () => normalizeGoalSessionCheckpoint(checkpointInput({
-      validationReceipts: [{
-        receiptId: 'validation-1',
-        check: 'Focused tests',
-        kind: 'test',
-        status: 'passed',
-        command: null,
-        exitCode: 0,
-        durationMs: -1,
-        artifactRef: null,
-        observedAt: 'not-a-date',
-        headRef: null,
-      }],
-    })),
-    /durationMs|observedAt/,
-  );
+test('normalizes a differential update without timestamps or repeated baseline state', () => {
+  const normalized = normalizeGoalSessionUpdate(update());
+  assert.equal(normalized.event, 'wave-complete');
+  assert.equal(normalized.git.status, 'uncommitted');
+  assert.equal('authority' in normalized, false);
+  assert.equal('updatedAt' in normalized, false);
+  assert.deepEqual(GOAL_SESSION_GIT_STATUSES, ['committed', 'clean', 'uncommitted', 'not-applicable']);
 });
 
-test('rejects a roadmap goal checkpoint without durable planning identity', () => {
-  assert.throws(
-    () => normalizeGoalSessionCheckpoint(checkpointInput({
-      planning: { ...frameInput().planning, roadmapRef: null, planRef: null },
-    })),
-    /roadmapRef|planRef/,
-  );
-});
-
-test('rejects repository drift states that omit a head or owned paths', () => {
-  assert.throws(
-    () => normalizeGoalSessionCheckpoint(checkpointInput({
-      repositories: [{
-        ...frameInput().repositories[0],
-        headRef: '',
-        ownedPaths: [],
-      }],
-    })),
-    /headRef|ownedPaths/,
-  );
-});
-
-test('rejects frames that the native hook would not persist', () => {
-  assert.throws(
-    () => normalizeGoalSessionFrame(frameInput({ successCriteria: [] })),
-    /successCriteria/,
-  );
-  assert.throws(
-    () => normalizeGoalSessionFrame(frameInput({ checkpointPolicy: { beforeFanOut: true, afterEachWave: true, beforePhaseTransition: false } })),
-    /checkpointPolicy/,
-  );
-});
-
-test('rejects cyclic waves and validation references to unknown waves', () => {
-  assert.throws(
-    () => normalizeGoalSessionFrame(frameInput({
-      dependencyWaves: [{ ...frameInput().dependencyWaves[0], dependsOn: ['wave-1'] }],
-    })),
-    /cycle|dependsOn|itself/,
-  );
-  assert.throws(
-    () => normalizeGoalSessionFrame(frameInput({
-      validation: [{ ...frameInput().validation[0], waveId: 'missing-wave' }],
-    })),
-    /validation.*wave|unknown wave/,
-  );
-});
-
-test('defaults assurance to low-friction normal mode and preserves bounded attention signals', () => {
-  const normalized = normalizeGoalSessionFrame(frameInput({
-    assurancePolicy: {
-      mode: 'advisory',
-      verificationStatus: 'suggested',
-    },
-    attentionSignals: [{
-      signalId: 'risk-1',
-      signalKey: 'unverified-assumption',
-      severity: 'medium',
-      summary: 'Deployment ownership is not yet confirmed.',
-      evidenceRefs: ['frame:readiness.environmentReadiness[0]'],
-      whyItMatters: 'The deployment wave may stop at an external gate.',
-      whenToRevisit: 'Before entering deployment.',
-      status: 'open',
-    }],
-  }));
-
-  assert.deepEqual(normalized.assurancePolicy, { mode: 'advisory', verificationStatus: 'suggested', gateRef: null, evidenceRefs: [], decisionRef: null });
-  assert.equal(normalized.attentionSignals[0].signalKey, 'unverified-assumption');
-  assert.deepEqual(GOAL_SESSION_ASSURANCE_MODES, ['normal', 'advisory', 'strict']);
-  assert.deepEqual(GOAL_SESSION_ASSURANCE_STATUSES, ['not-requested', 'suggested', 'requested', 'passed', 'blocked', 'stale']);
-  assert.deepEqual(GOAL_SESSION_ATTENTION_SEVERITIES, ['critical', 'high', 'medium', 'low']);
-  assert.deepEqual(GOAL_SESSION_ATTENTION_STATUSES, ['open', 'accepted', 'resolved', 'stale']);
-});
-
-test('rejects unbounded or evidence-free attention signals', () => {
-  assert.throws(
-    () => normalizeGoalSessionFrame(frameInput({
-      attentionSignals: [{
-        signalId: 'risk-1',
-        signalKey: 'scope-drift',
-        severity: 'high',
-        summary: 'Changed paths need review.',
-        evidenceRefs: [],
-        whyItMatters: 'The merge scope may be wrong.',
-        whenToRevisit: 'Before merge.',
-        status: 'open',
-      }],
-    })),
-    /evidenceRefs/,
-  );
-  assert.throws(
-    () => normalizeGoalSessionFrame(frameInput({
-      attentionSignals: Array.from({ length: 13 }, (_, index) => ({
-        signalId: `risk-${index}`,
-        signalKey: 'repeated-risk',
-        severity: 'low',
-        summary: 'Repeated signal.',
-        evidenceRefs: [`evidence:${index}`],
-        whyItMatters: 'It may matter later.',
-        whenToRevisit: 'At the next relevant goal.',
-        status: 'open',
-      })),
-    })),
-    /at most 12/,
-  );
-  assert.throws(
-    () => normalizeGoalSessionFrame(frameInput({
-      assurancePolicy: { mode: 'normal', verificationStatus: 'blocked' },
-    })),
-    /normal assurance/,
-  );
-  assert.throws(
-    () => normalizeGoalSessionFrame(frameInput({
-      assurancePolicy: { mode: 'strict', verificationStatus: 'suggested' },
-    })),
-    /strict assurance/,
-  );
-  assert.throws(
-    () => normalizeGoalSessionFrame(frameInput({
-      assurancePolicy: { mode: 'strict', verificationStatus: 'passed', gateRef: 'deploy:production' },
-    })),
-    /evidenceRefs/,
-  );
-  assert.throws(
-    () => normalizeGoalSessionFrame(frameInput({
-      assurancePolicy: { mode: 'strict', verificationStatus: 'blocked', gateRef: 'deploy:production', evidenceRefs: ['check:deployment-readiness'] },
-    })),
-    /decisionRef/,
-  );
-  assert.throws(
-    () => normalizeGoalSessionFrame(frameInput({
-      attentionSignals: [{
-        signalId: 'risk-1',
-        signalKey: 'scope-drift',
-        severity: 'high',
-        summary: 'Changed paths need review.',
-        evidenceRefs: ['   '],
-        whyItMatters: 'The merge scope may be wrong.',
-        whenToRevisit: 'Before merge.',
-        status: 'open',
-      }],
-    })),
-    /evidenceRefs/,
-  );
-  assert.throws(
-    () => normalizeGoalSessionFrame(frameInput({
-      attentionSignals: [{
-        signalId: 'risk-1',
-        signalKey: 'scope-drift',
-        severity: 'high',
-        summary: 'x'.repeat(513),
-        evidenceRefs: ['evidence:1'],
-        whyItMatters: 'The merge scope may be wrong.',
-        whenToRevisit: 'Before merge.',
-        status: 'open',
-      }],
-    })),
-    /exceeds 512/,
-  );
-  assert.throws(
-    () => normalizeGoalSessionFrame(frameInput({
-      successCriteria: Array.from({ length: 80 }, (_, index) => `criterion-${index}-${'x'.repeat(300)}`),
-    })),
-    /frame exceeds the size limit/,
-  );
-});
-
-test('normalizes explicit strict assurance evidence and user decision references', () => {
-  const normalized = normalizeGoalSessionFrame(frameInput({
-    assurancePolicy: {
-      mode: 'strict',
-      verificationStatus: 'blocked',
-      gateRef: 'deploy:production',
-      evidenceRefs: ['check:deployment-readiness'],
-      decisionRef: 'user:accepted-blocked',
-    },
-  }));
-  assert.deepEqual(normalized.assurancePolicy, {
-    mode: 'strict',
-    verificationStatus: 'blocked',
-    gateRef: 'deploy:production',
-    evidenceRefs: ['check:deployment-readiness'],
-    decisionRef: 'user:accepted-blocked',
+test('materializes ordered updates and lets empty current-state arrays clear blockers and gates', () => {
+  const blocked = update({
+    event: 'blocked',
+    completedWaveIds: undefined,
+    activeWave: 'contract',
+    changed: undefined,
+    validated: undefined,
+    blockers: [{ blockerId: 'decision', owner: 'user', summary: 'Choose a contract.', blocking: true }],
+    gates: [{ gateId: 'approval', owner: 'user', blocking: true, status: 'pending' }],
+    risks: ['Contract decision is pending.'],
+    nextAction: 'Wait for the decision.',
+    git: undefined,
   });
+  const cleared = update({ blockers: [], gates: [], risks: [], decisions: ['User approved compact records.'] });
+  const state = materializeGoalSessionState(baseline(), [blocked, cleared]);
+  assert.deepEqual(state.completedWaveIds, ['contract']);
+  assert.equal(state.activeWave, 'runtime');
+  assert.deepEqual(state.blockers, []);
+  assert.deepEqual(state.gates, []);
+  assert.deepEqual(state.risks, []);
+  assert.deepEqual(state.decisions, ['User approved compact records.']);
+});
+
+test('rejects empty updates, obsolete git status, and fabricated closure state', () => {
+  assert.throws(() => normalizeGoalSessionUpdate({
+    schemaVersion: '1', kind: 'update', goalId: 'compact-goal-session', event: 'decision',
+  }), /state change/);
+  assert.throws(() => normalizeGoalSessionUpdate(update({ git: { status: 'blocked-uncommitted' } })), /git.status/);
+  assert.throws(() => normalizeGoalSessionUpdate(update({ event: 'closure', activeWave: 'runtime' })), /closure/);
+  assert.throws(() => normalizeGoalSessionUpdate(update({ event: 'decision', activeWave: null })), /only for closure/);
+});
+
+test('rejects null/default ceremony and invalid wave graphs', () => {
+  assert.throws(() => normalizeGoalSessionBaseline(baseline({ planning: {} })), /planning/);
+  assert.throws(() => normalizeGoalSessionBaseline(baseline({ assurance: { mode: 'normal', status: 'not-requested' } })), /assurance.mode/);
+  assert.throws(() => normalizeGoalSessionBaseline(baseline({
+    dependencyWaves: [{ waveId: 'contract', dependsOn: ['contract'], deliverable: 'Invalid' }],
+  })), /itself|cycle/);
+});
+
+test('requires strict assurance evidence only when it is operationally relevant', () => {
+  assert.throws(() => normalizeGoalSessionBaseline(baseline({
+    assurance: { mode: 'strict', status: 'passed', gateRef: 'deploy' },
+  })), /evidenceRefs/);
+  const normalized = normalizeGoalSessionBaseline(baseline({
+    assurance: { mode: 'strict', status: 'blocked', gateRef: 'deploy', evidenceRefs: ['check:deploy'], decisionRef: 'user:accept' },
+  }));
+  assert.equal(normalized.assurance.status, 'blocked');
+  const state = materializeGoalSessionState(baseline({
+    assurance: { mode: 'strict', status: 'requested', gateRef: 'deploy' },
+  }), [update({ assurance: { mode: 'strict', status: 'passed', gateRef: 'deploy', evidenceRefs: ['check:deploy'] } })]);
+  assert.equal(state.assurance.status, 'passed');
+});
+
+test('materialization rejects cross-goal updates and dependency violations', () => {
+  assert.throws(() => materializeGoalSessionState(baseline(), [update({ goalId: 'other' })]), /goalId/);
+  assert.throws(() => materializeGoalSessionState(baseline(), [update({ completedWaveIds: ['runtime'] })]), /dependencies/);
+});
+
+test('normalizes either record kind through the union entrypoint', () => {
+  assert.equal(normalizeGoalSessionRecord(baseline()).kind, 'baseline');
+  assert.equal(normalizeGoalSessionRecord(update()).kind, 'update');
 });

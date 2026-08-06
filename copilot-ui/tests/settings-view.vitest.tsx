@@ -279,6 +279,33 @@ describe('SettingsView', () => {
       expect(navItem).toBeInTheDocument();
       expect(navItem.textContent).toContain(item.label);
     }
+    expect(screen.queryByTestId('settings-nav-catalog')).not.toBeInTheDocument();
+  });
+
+  it('keeps long Codex details inspectable and usage values compact', async () => {
+    navigationStore.setSettingsSection('codex');
+    const { default: SettingsView } = await import('../ui/src/views/Settings/SettingsView');
+
+    await act(async () => {
+      render(<SettingsView />);
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'Subagents' }));
+    await waitFor(() => expect(screen.getByTestId('codex-agent-explorer')).toBeInTheDocument());
+    expect(screen.getByTestId('codex-agent-explorer').querySelector('details')).toBeInTheDocument();
+    expect(screen.getByTestId('codex-agent-explorer')).toHaveTextContent('Read-only exploration agent.');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Usage' }));
+    await waitFor(() => expect(screen.getByTestId('codex-usage-section')).toBeInTheDocument());
+    expect(screen.getByTestId('codex-subagent-usage')).toHaveTextContent(/1[,.]2\s*k/i);
+    const exactTitles = Array.from(screen.getByTestId('codex-subagent-usage').querySelectorAll<HTMLElement>('.provider-metric-value'))
+      .map((element) => element.title.replace(/\D/g, ''));
+    expect(exactTitles).toContain('1200');
+  });
+
+  it('redirects legacy catalog navigation to the Codex Assets tab', async () => {
+    navigationStore.setCatalogSectionId('global');
+    expect(navigationStore.getState().settingsSection).toBe('codex');
+    await waitFor(() => expect(codexProviderStore.getState().activeSection).toBe('assets'));
   });
 
   it('renders telemetry settings with harness tabs', async () => {

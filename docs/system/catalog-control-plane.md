@@ -32,9 +32,11 @@ related: [copilot-ui-guide, repo-skill-sync-governance, domain-authorities-freez
 
 ## Ownership and Scope
 
-The central Assets & Tools view is a cross-harness projection. Each harness
-state carries its own management metadata so one conceptual asset can be
-Elegy-managed in one harness and harness- or repository-owned in another.
+The catalog remains a cross-harness backend projection, but the global Assets
+& Tools settings page is retired. Each harness `Assets` tab renders the
+applicable projection and carries its own management metadata so one
+conceptual asset can be Elegy-managed in one harness and harness- or
+repository-owned in another.
 Metadata includes:
 
 - `owner`: `elegy`, `harness`, `repository`, or `external`;
@@ -54,18 +56,22 @@ Action rules are deliberately asymmetric:
 - External-source assets expose activation/deactivation through their source;
   they are not copied into an Elegy-managed manifest lane.
 
-`Needs attention` counts only actionable issues. The overview also groups and
-filters by harness, owner, scope, kind, and status. Codex, OpenCode, and Claude
-Code each expose a dedicated `Assets` settings tab backed by the same inventory
-component; Antigravity remains visible in the central overview only for this
-pass. Read-only harness assets use status refresh, while managed targets expose
-Elegy synchronization only when permitted.
+`Needs attention` counts only actionable issues. Catalog APIs continue to group
+and filter by harness, owner, scope, kind, and status. Codex, OpenCode, and
+Claude Code each expose a dedicated `Assets` settings tab backed by the same
+inventory component; Antigravity remains available through catalog-backed
+maintenance surfaces. Read-only harness assets use status refresh, while
+managed targets expose Elegy synchronization only when permitted. Internal
+catalog actions redirect to the applicable harness tab instead of a global
+inventory route.
 
 ## Status UI
 
-- `Catalog > Status` is the primary status page.
-- It shows supported install targets, configured MCP/CLI integrations, installed inventory, and recent runtime-used skills.
-- Older overlapping status blocks were removed from `Assets`.
+- There is no user-facing global catalog inventory page.
+- Each harness `Assets` tab is the primary status page for that harness and
+  shows its managed, harness-owned, repository-owned, and external inventory.
+- Catalog summary, search, maintenance, and installation routes remain backend
+  projections consumed by those harness surfaces.
 
 ## External MCP, CLI, and Plugin Integrations
 

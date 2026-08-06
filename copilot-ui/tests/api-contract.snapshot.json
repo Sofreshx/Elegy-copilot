@@ -1563,6 +1563,7 @@
       "activeRuns",
       "branches",
       "capabilities",
+      "cleanupCandidates",
       "contractVersion",
       "generatedAt",
       "pullRequests",
@@ -1573,6 +1574,16 @@
     ]
   },
   "POST /api/repo-operations/sync": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "ok"
+    ]
+  },
+  "POST /api/repo-operations/cleanup": {
     "status": 400,
     "contentType": "application/json",
     "bodyType": "json",

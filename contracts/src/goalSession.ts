@@ -1,185 +1,114 @@
-export const GOAL_SESSION_FRAME_SCHEMA_VERSION = '1' as const;
-export const GOAL_SESSION_CHECKPOINT_SCHEMA_VERSION = '2' as const;
+export const GOAL_SESSION_RECORD_SCHEMA_VERSION = '1' as const;
+export const GOAL_SESSION_RECORD_KINDS = ['baseline', 'update'] as const;
+export const GOAL_SESSION_UPDATE_EVENTS = ['wave-complete', 'blocked', 'decision', 'handoff', 'interrupted', 'closure'] as const;
+export const GOAL_SESSION_GIT_STATUSES = ['committed', 'clean', 'uncommitted', 'not-applicable'] as const;
+export const GOAL_SESSION_GATE_STATUSES = ['pending', 'passed', 'failed', 'waived', 'unavailable'] as const;
+export const GOAL_SESSION_MAX_BASELINE_BYTES = 8 * 1024;
+export const GOAL_SESSION_MAX_UPDATE_BYTES = 4 * 1024;
 
-export const GOAL_SESSION_PLANNING_SURFACES = ['none', 'plan-pack', 'roadmap', 'both'] as const;
-export type GoalSessionPlanningSurface = typeof GOAL_SESSION_PLANNING_SURFACES[number];
-export const GOAL_SESSION_AUTHORITY_STATUSES = ['resolved', 'manual', 'required', 'unavailable'] as const;
-export type GoalSessionAuthorityStatus = typeof GOAL_SESSION_AUTHORITY_STATUSES[number];
-export const GOAL_SESSION_WORKTREE_STATES = ['clean', 'dirty', 'unknown'] as const;
-export type GoalSessionWorktreeState = typeof GOAL_SESSION_WORKTREE_STATES[number];
-export const GOAL_SESSION_WAVE_STATUSES = ['pending', 'active', 'completed', 'blocked', 'skipped'] as const;
-export type GoalSessionWaveStatus = typeof GOAL_SESSION_WAVE_STATUSES[number];
-export const GOAL_SESSION_PHASES = ['planning', 'implementation', 'review', 'deployment'] as const;
-export type GoalSessionPhase = typeof GOAL_SESSION_PHASES[number];
-export const GOAL_SESSION_RESUME_STATUSES = ['fresh', 'reconciled', 'drifted', 'blocked'] as const;
-export type GoalSessionResumeStatus = typeof GOAL_SESSION_RESUME_STATUSES[number];
-export const GOAL_SESSION_GIT_CHECKPOINT_STATUSES = ['not-applicable', 'committed', 'clean-no-commit', 'blocked-uncommitted'] as const;
-export type GoalSessionGitCheckpointStatus = typeof GOAL_SESSION_GIT_CHECKPOINT_STATUSES[number];
-export const GOAL_SESSION_ASSURANCE_MODES = ['normal', 'advisory', 'strict'] as const;
-export type GoalSessionAssuranceMode = typeof GOAL_SESSION_ASSURANCE_MODES[number];
-export const GOAL_SESSION_ASSURANCE_STATUSES = ['not-requested', 'suggested', 'requested', 'passed', 'blocked', 'stale'] as const;
-export type GoalSessionAssuranceStatus = typeof GOAL_SESSION_ASSURANCE_STATUSES[number];
-export const GOAL_SESSION_ATTENTION_SEVERITIES = ['critical', 'high', 'medium', 'low'] as const;
-export type GoalSessionAttentionSeverity = typeof GOAL_SESSION_ATTENTION_SEVERITIES[number];
-export const GOAL_SESSION_ATTENTION_STATUSES = ['open', 'accepted', 'resolved', 'stale'] as const;
-export const GOAL_SESSION_VALIDATION_RECEIPT_KINDS = ['command', 'test', 'build', 'lint', 'manual', 'other'] as const;
-export const GOAL_SESSION_VALIDATION_RECEIPT_STATUSES = ['pending', 'passed', 'failed', 'blocked', 'skipped'] as const;
-export const GOAL_SESSION_BLOCKER_STATUSES = ['open', 'accepted', 'resolved'] as const;
-export const GOAL_SESSION_EXTERNAL_GATE_STATUSES = ['pending', 'passed', 'failed', 'waived', 'unavailable'] as const;
-export type GoalSessionAttentionStatus = typeof GOAL_SESSION_ATTENTION_STATUSES[number];
-export const GOAL_SESSION_MAX_ATTENTION_SIGNALS = 12 as const;
-export const GOAL_SESSION_MAX_SIGNAL_ID_LENGTH = 96 as const;
-export const GOAL_SESSION_MAX_SIGNAL_KEY_LENGTH = 96 as const;
-export const GOAL_SESSION_MAX_SIGNAL_TEXT_LENGTH = 512 as const;
-export const GOAL_SESSION_MAX_SIGNAL_EVIDENCE_REFS = 8 as const;
-export const GOAL_SESSION_MAX_SIGNAL_EVIDENCE_REF_LENGTH = 256 as const;
-export const GOAL_SESSION_MAX_FRAME_BYTES = 16 * 1024;
-export const GOAL_SESSION_MAX_CHECKPOINT_V1_BYTES = 6 * 1024;
-export const GOAL_SESSION_MAX_CHECKPOINT_V2_BYTES = 18 * 1024;
+export type GoalSessionUpdateEvent = typeof GOAL_SESSION_UPDATE_EVENTS[number];
+export type GoalSessionGitStatus = typeof GOAL_SESSION_GIT_STATUSES[number];
 
 export interface GoalSessionPlanningRefs {
-	surface: GoalSessionPlanningSurface;
-	scopeKey: string | null;
-	goalRef: string | null;
-	roadmapRef: string | null;
-	planRef: string | null;
-	workPointRefs: string[];
-	projectRunRef: string | null;
-	authorityStatus: GoalSessionAuthorityStatus;
+	scopeKey?: string;
+	goalRef?: string;
+	roadmapRef?: string;
+	planRef?: string;
+	workPointRefs?: string[];
+	projectRunRef?: string;
 }
 
-export interface GoalSessionRepositoryState {
-	repositoryId: string;
-	branch: string;
-	baseRef: string;
-	headRef: string;
-	worktreeStatus: GoalSessionWorktreeState;
-	ownedPaths: string[];
-	changedPaths: string[];
-	commitRef: string | null;
+export interface GoalSessionAssurance {
+	mode: 'advisory' | 'strict';
+	status: 'suggested' | 'requested' | 'passed' | 'blocked' | 'stale';
+	gateRef?: string;
+	evidenceRefs?: string[];
+	decisionRef?: string;
 }
 
 export interface GoalSessionWave {
 	waveId: string;
 	dependsOn: string[];
-	status: GoalSessionWaveStatus;
-	workPointRef: string | null;
-	planRef: string | null;
-	projectRunRef: string | null;
+	deliverable: string;
 }
 
-export interface GoalSessionValidationExpectation {
-	waveId: string | null;
-	owner: string;
-	expectedEvidence: string[];
-	status: 'pending' | 'passed' | 'failed' | 'blocked';
+export interface GoalSessionRepository {
+	repositoryId: string;
+	root: string;
+	ownedPaths: string[];
+	protectedPaths: string[];
+	preserveExistingChanges: boolean;
 }
 
-export interface GoalSessionAssurancePolicy {
-	mode: GoalSessionAssuranceMode;
-	verificationStatus: GoalSessionAssuranceStatus;
-	gateRef: string | null;
-	evidenceRefs: string[];
-	decisionRef: string | null;
+export interface GoalSessionBaseline {
+	schemaVersion: typeof GOAL_SESSION_RECORD_SCHEMA_VERSION;
+	kind: 'baseline';
+	goalId: string;
+	goal: string;
+	successCriteria: string[];
+	authority: string;
+	scope: string[];
+	protected: string[];
+	dependencyWaves: GoalSessionWave[];
+	current: { activeWave: string; nextAction: string };
+	repositories: GoalSessionRepository[];
+	planning?: GoalSessionPlanningRefs;
+	assurance?: GoalSessionAssurance;
 }
 
-export interface GoalSessionAttentionSignal {
-	signalId: string;
-	signalKey: string;
-	severity: GoalSessionAttentionSeverity;
-	summary: string;
-	evidenceRefs: string[];
-	whyItMatters: string;
-	whenToRevisit: string;
-	status: GoalSessionAttentionStatus;
-}
-
-export interface GoalSessionValidationReceipt {
-	receiptId: string;
-	check: string;
-	kind: typeof GOAL_SESSION_VALIDATION_RECEIPT_KINDS[number];
-	status: typeof GOAL_SESSION_VALIDATION_RECEIPT_STATUSES[number];
-	command: string | null;
-	exitCode: number | null;
-	durationMs: number | null;
-	artifactRef: string | null;
-	observedAt: string;
-	headRef: string | null;
-}
-
-export interface GoalSessionBlockerRecord {
+export interface GoalSessionBlocker {
 	blockerId: string;
-	code: string;
-	severity: GoalSessionAttentionSeverity;
 	owner: string;
+	summary: string;
 	blocking: boolean;
-	status: typeof GOAL_SESSION_BLOCKER_STATUSES[number];
-	evidenceRefs: string[];
-	nextDecision: string | null;
+	nextDecision?: string;
 }
 
-export interface GoalSessionExternalGateRecord {
+export interface GoalSessionGate {
 	gateId: string;
 	owner: string;
 	blocking: boolean;
-	status: typeof GOAL_SESSION_EXTERNAL_GATE_STATUSES[number];
-	evidenceRefs: string[];
-	continueWhen: string | null;
+	status: typeof GOAL_SESSION_GATE_STATUSES[number];
+	continueWhen?: string;
 }
 
-export interface GoalSessionFrame {
-	schemaVersion: typeof GOAL_SESSION_FRAME_SCHEMA_VERSION;
-	kind: 'goal-session.frame';
+export interface GoalSessionGitBoundary {
+	status: GoalSessionGitStatus;
+	commitRef?: string;
+	reason?: string;
+}
+
+export interface GoalSessionUpdate {
+	schemaVersion: typeof GOAL_SESSION_RECORD_SCHEMA_VERSION;
+	kind: 'update';
 	goalId: string;
-	successCriteria: string[];
-	canonicalAuthority: string;
-	planning: GoalSessionPlanningRefs;
-	repositories: GoalSessionRepositoryState[];
-	dependencyWaves: GoalSessionWave[];
-	integrationOwner: string;
-	readiness: { codeReadiness: string[]; environmentReadiness: string[] };
-	validation: GoalSessionValidationExpectation[];
-	stopEscalationContinuation: { stop: string[]; escalate: string[]; continueWhen: string[] };
-	checkpointPolicy: { beforeFanOut: boolean; afterEachWave: boolean; beforePhaseTransition: boolean };
-	retrospectiveEligibility: 'manual_after_closure' | 'not_eligible';
-	assurancePolicy: GoalSessionAssurancePolicy;
-	attentionSignals: GoalSessionAttentionSignal[];
+	event: GoalSessionUpdateEvent;
+	completedWaveIds?: string[];
+	activeWave?: string | null;
+	changed?: string[];
+	validated?: string[];
+	decisions?: string[];
+	risks?: string[];
+	blockers?: GoalSessionBlocker[];
+	gates?: GoalSessionGate[];
+	assurance?: GoalSessionAssurance;
+	nextAction?: string;
+	git?: GoalSessionGitBoundary;
 }
 
-export interface GoalSessionResumeState {
-	status: GoalSessionResumeStatus;
-	checkedAt: string | null;
-	drift: string[];
-}
+export type GoalSessionRecord = GoalSessionBaseline | GoalSessionUpdate;
 
-export interface GoalSessionGitCheckpoint {
-	status: GoalSessionGitCheckpointStatus;
-	commitSha: string | null;
-	reason: string | null;
-	validationRefs: string[];
-}
-
-export interface GoalSessionCheckpoint {
-	schemaVersion: typeof GOAL_SESSION_CHECKPOINT_SCHEMA_VERSION;
-	goalId: string;
-	phase: GoalSessionPhase;
-	planning: GoalSessionPlanningRefs;
+export interface GoalSessionMaterializedState extends GoalSessionBaseline {
 	completedWaveIds: string[];
-	activeWaveId: string | null;
-	decisions: string[];
-	repositories: GoalSessionRepositoryState[];
-	validationEvidence: string[];
-	blockers: string[];
-	externalGates: string[];
-	validationReceipts: GoalSessionValidationReceipt[];
-	blockerRecords: GoalSessionBlockerRecord[];
-	externalGateRecords: GoalSessionExternalGateRecord[];
+	activeWave: string | null;
 	nextAction: string;
-	resume: GoalSessionResumeState;
-	gitCheckpoint: GoalSessionGitCheckpoint;
-	assurancePolicy: GoalSessionAssurancePolicy;
-	attentionSignals: GoalSessionAttentionSignal[];
-	updatedAt: string;
+	changed: string[];
+	validated: string[];
+	decisions: string[];
+	risks: string[];
+	blockers: GoalSessionBlocker[];
+	gates: GoalSessionGate[];
+	git?: GoalSessionGitBoundary;
 }
 
 export class GoalSessionContractError extends Error {
@@ -194,12 +123,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function exactKeys(value: unknown, keys: readonly string[], fieldName: string, optionalKeys: readonly string[] = []): asserts value is Record<string, unknown> {
-	const actualKeys = isRecord(value) ? Object.keys(value) : [];
-	const allowedKeys = new Set([...keys, ...optionalKeys]);
-	if (!isRecord(value)
-		|| actualKeys.some((key) => !allowedKeys.has(key))
-		|| keys.some((key) => !actualKeys.includes(key))) {
+function exactKeys(value: unknown, required: readonly string[], optional: readonly string[] = [], fieldName = 'record'): asserts value is Record<string, unknown> {
+	if (!isRecord(value)) throw new GoalSessionContractError(`${fieldName} must be an object`);
+	const keys = Object.keys(value);
+	const allowed = new Set([...required, ...optional]);
+	if (required.some((key) => !keys.includes(key)) || keys.some((key) => !allowed.has(key))) {
 		throw new GoalSessionContractError(`${fieldName} contains unsupported or missing fields`);
 	}
 }
@@ -209,21 +137,15 @@ function requiredString(value: unknown, fieldName: string): string {
 	return value.trim();
 }
 
-function nullableString(value: unknown, fieldName: string): string | null {
-	if (value === null || value === undefined) return null;
-	if (typeof value !== 'string') throw new GoalSessionContractError(`${fieldName} must be a string or null`);
-	return value.trim() || null;
-}
-
-function stringList(value: unknown, fieldName: string): string[] {
+function stringList(value: unknown, fieldName: string, requireItem = false): string[] {
 	if (!Array.isArray(value)) throw new GoalSessionContractError(`${fieldName} must be an array`);
-	return [...new Set(value.map((entry) => requiredString(entry, `${fieldName}[]`)))];
+	const result = [...new Set(value.map((entry) => requiredString(entry, `${fieldName}[]`)))];
+	if (requireItem && result.length === 0) throw new GoalSessionContractError(`${fieldName} must contain at least one item`);
+	return result;
 }
 
-function nonEmptyStringList(value: unknown, fieldName: string): string[] {
-	const list = stringList(value, fieldName);
-	if (list.length === 0) throw new GoalSessionContractError(`${fieldName} must contain at least one item`);
-	return list;
+function optionalStringList(value: unknown, fieldName: string): string[] | undefined {
+	return value === undefined ? undefined : stringList(value, fieldName);
 }
 
 function enumValue<T extends readonly string[]>(value: unknown, values: T, fieldName: string): T[number] {
@@ -231,77 +153,52 @@ function enumValue<T extends readonly string[]>(value: unknown, values: T, field
 	return value as T[number];
 }
 
-function boundedString(value: unknown, fieldName: string, maximumLength: number): string {
-	const normalized = requiredString(value, fieldName);
-	if (normalized.length > maximumLength) throw new GoalSessionContractError(`${fieldName} exceeds ${maximumLength} characters`);
+function uniqueBy<T>(items: T[], key: (item: T) => string, fieldName: string): T[] {
+	if (new Set(items.map(key)).size !== items.length) throw new GoalSessionContractError(`${fieldName} must have unique identifiers`);
+	return items;
+}
+
+function normalizePlanning(value: unknown): GoalSessionPlanningRefs | undefined {
+	if (value === undefined) return undefined;
+	exactKeys(value, [], ['scopeKey', 'goalRef', 'roadmapRef', 'planRef', 'workPointRefs', 'projectRunRef'], 'planning');
+	const normalized: GoalSessionPlanningRefs = {};
+	for (const field of ['scopeKey', 'goalRef', 'roadmapRef', 'planRef', 'projectRunRef'] as const) {
+		if (value[field] !== undefined) normalized[field] = requiredString(value[field], `planning.${field}`);
+	}
+	if (value.workPointRefs !== undefined) normalized.workPointRefs = stringList(value.workPointRefs, 'planning.workPointRefs', true);
+	if (Object.keys(normalized).length === 0) throw new GoalSessionContractError('planning must contain at least one durable reference');
 	return normalized;
 }
 
-function boundedStringList(value: unknown, fieldName: string, maximumItems: number, maximumLength: number): string[] {
-	const list = stringList(value, fieldName);
-	if (list.length === 0) throw new GoalSessionContractError(`${fieldName} must contain at least one item`);
-	if (list.length > maximumItems) throw new GoalSessionContractError(`${fieldName} must contain at most ${maximumItems} items`);
-	if (list.some((entry) => entry.length > maximumLength)) throw new GoalSessionContractError(`${fieldName} entries exceed ${maximumLength} characters`);
-	return list;
-}
-
-function normalizePlanningRefs(value: unknown): GoalSessionPlanningRefs {
-	exactKeys(value, ['surface', 'scopeKey', 'goalRef', 'roadmapRef', 'planRef', 'workPointRefs', 'projectRunRef', 'authorityStatus'], 'planning');
-	const surface = enumValue(value.surface, GOAL_SESSION_PLANNING_SURFACES, 'planning.surface');
-	const refs = {
-		surface,
-		scopeKey: nullableString(value.scopeKey, 'planning.scopeKey'),
-		goalRef: nullableString(value.goalRef, 'planning.goalRef'),
-		roadmapRef: nullableString(value.roadmapRef, 'planning.roadmapRef'),
-		planRef: nullableString(value.planRef, 'planning.planRef'),
-		workPointRefs: stringList(value.workPointRefs, 'planning.workPointRefs'),
-		projectRunRef: nullableString(value.projectRunRef, 'planning.projectRunRef'),
-		authorityStatus: enumValue(value.authorityStatus, GOAL_SESSION_AUTHORITY_STATUSES, 'planning.authorityStatus'),
-	};
-	if (surface !== 'none' && !refs.scopeKey) throw new GoalSessionContractError('planning.scopeKey is required for a durable planning surface');
-	if ((surface === 'roadmap' || surface === 'both') && (!refs.goalRef || !refs.roadmapRef || !refs.planRef)) {
-		throw new GoalSessionContractError('planning.goalRef, planning.roadmapRef, and planning.planRef are required for roadmap planning');
-	}
-	return refs;
-}
-
-function normalizeRepositories(value: unknown): GoalSessionRepositoryState[] {
-	if (!Array.isArray(value) || value.length === 0) throw new GoalSessionContractError('repositories must contain at least one repository');
-	const repositories = value.map((entry, index) => {
-		exactKeys(entry, ['repositoryId', 'branch', 'baseRef', 'headRef', 'worktreeStatus', 'ownedPaths', 'changedPaths', 'commitRef'], `repositories[${index}]`);
-		return {
-			repositoryId: requiredString(entry.repositoryId, `repositories[${index}].repositoryId`),
-			branch: requiredString(entry.branch, `repositories[${index}].branch`),
-			baseRef: requiredString(entry.baseRef, `repositories[${index}].baseRef`),
-			headRef: requiredString(entry.headRef, `repositories[${index}].headRef`),
-			worktreeStatus: enumValue(entry.worktreeStatus, GOAL_SESSION_WORKTREE_STATES, `repositories[${index}].worktreeStatus`),
-			ownedPaths: stringList(entry.ownedPaths, `repositories[${index}].ownedPaths`),
-			changedPaths: stringList(entry.changedPaths, `repositories[${index}].changedPaths`),
-			commitRef: nullableString(entry.commitRef, `repositories[${index}].commitRef`),
-		};
-	});
-	if (new Set(repositories.map((repository) => repository.repositoryId)).size !== repositories.length) throw new GoalSessionContractError('repositories must have unique repositoryId values');
-	return repositories;
+function normalizeAssurance(value: unknown): GoalSessionAssurance | undefined {
+	if (value === undefined) return undefined;
+	exactKeys(value, ['mode', 'status'], ['gateRef', 'evidenceRefs', 'decisionRef'], 'assurance');
+	const mode = enumValue(value.mode, ['advisory', 'strict'] as const, 'assurance.mode');
+	const status = enumValue(value.status, ['suggested', 'requested', 'passed', 'blocked', 'stale'] as const, 'assurance.status');
+	const gateRef = value.gateRef === undefined ? undefined : requiredString(value.gateRef, 'assurance.gateRef');
+	const evidenceRefs = optionalStringList(value.evidenceRefs, 'assurance.evidenceRefs');
+	const decisionRef = value.decisionRef === undefined ? undefined : requiredString(value.decisionRef, 'assurance.decisionRef');
+	if (mode === 'strict' && status === 'suggested') throw new GoalSessionContractError('strict assurance cannot be suggested');
+	if (mode === 'strict' && !gateRef) throw new GoalSessionContractError('strict assurance requires gateRef');
+	if (mode === 'strict' && ['passed', 'blocked'].includes(status) && !evidenceRefs?.length) throw new GoalSessionContractError(`strict ${status} assurance requires evidenceRefs`);
+	if (mode === 'strict' && status === 'blocked' && !decisionRef) throw new GoalSessionContractError('strict blocked assurance requires decisionRef');
+	return { mode, status, ...(gateRef ? { gateRef } : {}), ...(evidenceRefs ? { evidenceRefs } : {}), ...(decisionRef ? { decisionRef } : {}) };
 }
 
 function normalizeWaves(value: unknown): GoalSessionWave[] {
 	if (!Array.isArray(value) || value.length === 0) throw new GoalSessionContractError('dependencyWaves must contain at least one wave');
-	const waves = value.map((entry, index) => {
-		exactKeys(entry, ['waveId', 'dependsOn', 'status', 'workPointRef', 'planRef', 'projectRunRef'], `dependencyWaves[${index}]`);
+	const waves = uniqueBy(value.map((entry, index) => {
+		exactKeys(entry, ['waveId', 'dependsOn', 'deliverable'], [], `dependencyWaves[${index}]`);
 		return {
 			waveId: requiredString(entry.waveId, `dependencyWaves[${index}].waveId`),
 			dependsOn: stringList(entry.dependsOn, `dependencyWaves[${index}].dependsOn`),
-			status: enumValue(entry.status, GOAL_SESSION_WAVE_STATUSES, `dependencyWaves[${index}].status`),
-			workPointRef: nullableString(entry.workPointRef, `dependencyWaves[${index}].workPointRef`),
-			planRef: nullableString(entry.planRef, `dependencyWaves[${index}].planRef`),
-			projectRunRef: nullableString(entry.projectRunRef, `dependencyWaves[${index}].projectRunRef`),
+			deliverable: requiredString(entry.deliverable, `dependencyWaves[${index}].deliverable`),
 		};
-	});
-	if (new Set(waves.map((wave) => wave.waveId)).size !== waves.length) throw new GoalSessionContractError('dependencyWaves must have unique waveId values');
-	const knownIds = new Set(waves.map((wave) => wave.waveId));
+	}), (wave) => wave.waveId, 'dependencyWaves');
+	const ids = new Set(waves.map((wave) => wave.waveId));
 	for (const wave of waves) {
-		if (wave.dependsOn.includes(wave.waveId)) throw new GoalSessionContractError(`dependencyWaves.${wave.waveId} cannot depend on itself`);
-		if (wave.dependsOn.some((dependency) => !knownIds.has(dependency))) throw new GoalSessionContractError(`dependencyWaves.${wave.waveId} references an unknown dependency`);
+		if (wave.dependsOn.includes(wave.waveId)) throw new GoalSessionContractError(`${wave.waveId} cannot depend on itself`);
+		if (wave.dependsOn.some((dependency) => !ids.has(dependency))) throw new GoalSessionContractError(`${wave.waveId} references an unknown dependency`);
 	}
 	const visiting = new Set<string>();
 	const visited = new Set<string>();
@@ -318,225 +215,163 @@ function normalizeWaves(value: unknown): GoalSessionWave[] {
 	return waves;
 }
 
-function normalizeValidation(value: unknown): GoalSessionValidationExpectation[] {
-	if (!Array.isArray(value)) throw new GoalSessionContractError('validation must be an array');
-	return value.map((entry, index) => {
-		exactKeys(entry, ['waveId', 'owner', 'expectedEvidence', 'status'], `validation[${index}]`);
+function normalizeRepositories(value: unknown): GoalSessionRepository[] {
+	if (!Array.isArray(value) || value.length === 0) throw new GoalSessionContractError('repositories must contain at least one repository');
+	return uniqueBy(value.map((entry, index) => {
+		exactKeys(entry, ['repositoryId', 'root', 'ownedPaths', 'protectedPaths', 'preserveExistingChanges'], [], `repositories[${index}]`);
+		if (entry.preserveExistingChanges !== true && entry.preserveExistingChanges !== false) throw new GoalSessionContractError(`repositories[${index}].preserveExistingChanges must be boolean`);
 		return {
-			waveId: nullableString(entry.waveId, `validation[${index}].waveId`),
-			owner: requiredString(entry.owner, `validation[${index}].owner`),
-			expectedEvidence: stringList(entry.expectedEvidence, `validation[${index}].expectedEvidence`),
-			status: enumValue(entry.status, ['pending', 'passed', 'failed', 'blocked'] as const, `validation[${index}].status`),
+			repositoryId: requiredString(entry.repositoryId, `repositories[${index}].repositoryId`),
+			root: requiredString(entry.root, `repositories[${index}].root`),
+			ownedPaths: stringList(entry.ownedPaths, `repositories[${index}].ownedPaths`, true),
+			protectedPaths: stringList(entry.protectedPaths, `repositories[${index}].protectedPaths`),
+			preserveExistingChanges: entry.preserveExistingChanges,
 		};
-	});
+	}), (repository) => repository.repositoryId, 'repositories');
 }
 
-function normalizeAssurancePolicy(value: unknown): GoalSessionAssurancePolicy {
-	if (value === undefined) return { mode: 'normal', verificationStatus: 'not-requested', gateRef: null, evidenceRefs: [], decisionRef: null };
-	exactKeys(value, ['mode', 'verificationStatus'], 'assurancePolicy', ['gateRef', 'evidenceRefs', 'decisionRef']);
-	const mode = enumValue(value.mode, GOAL_SESSION_ASSURANCE_MODES, 'assurancePolicy.mode');
-	const verificationStatus = enumValue(value.verificationStatus, GOAL_SESSION_ASSURANCE_STATUSES, 'assurancePolicy.verificationStatus');
-	const gateRef = nullableString(value.gateRef, 'assurancePolicy.gateRef');
-	const evidenceRefs = value.evidenceRefs === undefined ? [] : stringList(value.evidenceRefs, 'assurancePolicy.evidenceRefs');
-	const decisionRef = nullableString(value.decisionRef, 'assurancePolicy.decisionRef');
-	if (mode === 'normal' && verificationStatus !== 'not-requested') throw new GoalSessionContractError('normal assurance must remain not-requested');
-	if (mode === 'normal' && (gateRef || evidenceRefs.length || decisionRef)) throw new GoalSessionContractError('normal assurance cannot carry gate, evidence, or decision references');
-	if (mode === 'strict' && !['requested', 'passed', 'blocked', 'stale'].includes(verificationStatus)) throw new GoalSessionContractError('strict assurance must be requested, passed, blocked, or stale');
-	if (mode === 'strict' && !gateRef) throw new GoalSessionContractError('strict assurance requires a gateRef');
-	if (mode === 'strict' && ['passed', 'blocked'].includes(verificationStatus) && evidenceRefs.length === 0) throw new GoalSessionContractError(`strict ${verificationStatus} assurance requires evidenceRefs`);
-	if (mode === 'strict' && verificationStatus === 'blocked' && !decisionRef) throw new GoalSessionContractError('strict blocked assurance requires a decisionRef');
-	return {
-		mode,
-		verificationStatus,
-		gateRef,
-		evidenceRefs,
-		decisionRef,
-	};
-}
-
-function normalizeAttentionSignals(value: unknown): GoalSessionAttentionSignal[] {
-	if (value === undefined) return [];
-	if (!Array.isArray(value)) throw new GoalSessionContractError('attentionSignals must be an array');
-	if (value.length > GOAL_SESSION_MAX_ATTENTION_SIGNALS) throw new GoalSessionContractError(`attentionSignals must contain at most ${GOAL_SESSION_MAX_ATTENTION_SIGNALS} items`);
-	const signals = value.map((entry, index) => {
-		exactKeys(entry, ['signalId', 'signalKey', 'severity', 'summary', 'evidenceRefs', 'whyItMatters', 'whenToRevisit', 'status'], `attentionSignals[${index}]`);
+function normalizeBlockers(value: unknown): GoalSessionBlocker[] | undefined {
+	if (value === undefined) return undefined;
+	if (!Array.isArray(value)) throw new GoalSessionContractError('blockers must be an array');
+	return uniqueBy(value.map((entry, index) => {
+		exactKeys(entry, ['blockerId', 'owner', 'summary', 'blocking'], ['nextDecision'], `blockers[${index}]`);
+		if (typeof entry.blocking !== 'boolean') throw new GoalSessionContractError(`blockers[${index}].blocking must be boolean`);
 		return {
-			signalId: boundedString(entry.signalId, `attentionSignals[${index}].signalId`, GOAL_SESSION_MAX_SIGNAL_ID_LENGTH),
-			signalKey: boundedString(entry.signalKey, `attentionSignals[${index}].signalKey`, GOAL_SESSION_MAX_SIGNAL_KEY_LENGTH),
-			severity: enumValue(entry.severity, GOAL_SESSION_ATTENTION_SEVERITIES, `attentionSignals[${index}].severity`),
-			summary: boundedString(entry.summary, `attentionSignals[${index}].summary`, GOAL_SESSION_MAX_SIGNAL_TEXT_LENGTH),
-			evidenceRefs: boundedStringList(entry.evidenceRefs, `attentionSignals[${index}].evidenceRefs`, GOAL_SESSION_MAX_SIGNAL_EVIDENCE_REFS, GOAL_SESSION_MAX_SIGNAL_EVIDENCE_REF_LENGTH),
-			whyItMatters: boundedString(entry.whyItMatters, `attentionSignals[${index}].whyItMatters`, GOAL_SESSION_MAX_SIGNAL_TEXT_LENGTH),
-			whenToRevisit: boundedString(entry.whenToRevisit, `attentionSignals[${index}].whenToRevisit`, GOAL_SESSION_MAX_SIGNAL_TEXT_LENGTH),
-			status: enumValue(entry.status, GOAL_SESSION_ATTENTION_STATUSES, `attentionSignals[${index}].status`),
-		};
-	});
-	if (new Set(signals.map((signal) => signal.signalId)).size !== signals.length) throw new GoalSessionContractError('attentionSignals must have unique signalId values');
-	return signals;
-}
-
-function nullableInteger(value: unknown, fieldName: string, minimum?: number): number | null {
-	if (value === null || value === undefined) return null;
-	if (!Number.isInteger(value) || (minimum !== undefined && (value as number) < minimum)) {
-		throw new GoalSessionContractError(`${fieldName} must be an integer${minimum !== undefined ? ` greater than or equal to ${minimum}` : ''} or null`);
-	}
-	return value as number;
-}
-
-function normalizeValidationReceipts(value: unknown): GoalSessionValidationReceipt[] {
-	if (value === undefined) return [];
-	if (!Array.isArray(value)) throw new GoalSessionContractError('validationReceipts must be an array');
-	const receipts = value.map((entry, index) => {
-		exactKeys(entry, ['receiptId', 'check', 'kind', 'status', 'command', 'exitCode', 'durationMs', 'artifactRef', 'observedAt', 'headRef'], `validationReceipts[${index}]`);
-		const observedAt = requiredString(entry.observedAt, `validationReceipts[${index}].observedAt`);
-		if (Number.isNaN(Date.parse(observedAt))) throw new GoalSessionContractError(`validationReceipts[${index}].observedAt must be an ISO timestamp`);
-		return {
-			receiptId: requiredString(entry.receiptId, `validationReceipts[${index}].receiptId`),
-			check: requiredString(entry.check, `validationReceipts[${index}].check`),
-			kind: enumValue(entry.kind, GOAL_SESSION_VALIDATION_RECEIPT_KINDS, `validationReceipts[${index}].kind`),
-			status: enumValue(entry.status, GOAL_SESSION_VALIDATION_RECEIPT_STATUSES, `validationReceipts[${index}].status`),
-			command: nullableString(entry.command, `validationReceipts[${index}].command`),
-			exitCode: nullableInteger(entry.exitCode, `validationReceipts[${index}].exitCode`),
-			durationMs: nullableInteger(entry.durationMs, `validationReceipts[${index}].durationMs`, 0),
-			artifactRef: nullableString(entry.artifactRef, `validationReceipts[${index}].artifactRef`),
-			observedAt,
-			headRef: nullableString(entry.headRef, `validationReceipts[${index}].headRef`),
-		};
-	});
-	if (new Set(receipts.map((receipt) => receipt.receiptId)).size !== receipts.length) throw new GoalSessionContractError('validationReceipts must have unique receiptId values');
-	return receipts;
-}
-
-function normalizeBlockerRecords(value: unknown): GoalSessionBlockerRecord[] {
-	if (value === undefined) return [];
-	if (!Array.isArray(value)) throw new GoalSessionContractError('blockerRecords must be an array');
-	const records = value.map((entry, index) => {
-		exactKeys(entry, ['blockerId', 'code', 'severity', 'owner', 'blocking', 'status', 'evidenceRefs', 'nextDecision'], `blockerRecords[${index}]`);
-		if (typeof entry.blocking !== 'boolean') throw new GoalSessionContractError(`blockerRecords[${index}].blocking must be a boolean`);
-		return {
-			blockerId: requiredString(entry.blockerId, `blockerRecords[${index}].blockerId`),
-			code: requiredString(entry.code, `blockerRecords[${index}].code`),
-			severity: enumValue(entry.severity, GOAL_SESSION_ATTENTION_SEVERITIES, `blockerRecords[${index}].severity`),
-			owner: requiredString(entry.owner, `blockerRecords[${index}].owner`),
+			blockerId: requiredString(entry.blockerId, `blockers[${index}].blockerId`),
+			owner: requiredString(entry.owner, `blockers[${index}].owner`),
+			summary: requiredString(entry.summary, `blockers[${index}].summary`),
 			blocking: entry.blocking,
-			status: enumValue(entry.status, GOAL_SESSION_BLOCKER_STATUSES, `blockerRecords[${index}].status`),
-			evidenceRefs: stringList(entry.evidenceRefs, `blockerRecords[${index}].evidenceRefs`),
-			nextDecision: nullableString(entry.nextDecision, `blockerRecords[${index}].nextDecision`),
+			...(entry.nextDecision === undefined ? {} : { nextDecision: requiredString(entry.nextDecision, `blockers[${index}].nextDecision`) }),
 		};
-	});
-	if (new Set(records.map((record) => record.blockerId)).size !== records.length) throw new GoalSessionContractError('blockerRecords must have unique blockerId values');
-	return records;
+	}), (blocker) => blocker.blockerId, 'blockers');
 }
 
-function normalizeExternalGateRecords(value: unknown): GoalSessionExternalGateRecord[] {
-	if (value === undefined) return [];
-	if (!Array.isArray(value)) throw new GoalSessionContractError('externalGateRecords must be an array');
-	const records = value.map((entry, index) => {
-		exactKeys(entry, ['gateId', 'owner', 'blocking', 'status', 'evidenceRefs', 'continueWhen'], `externalGateRecords[${index}]`);
-		if (typeof entry.blocking !== 'boolean') throw new GoalSessionContractError(`externalGateRecords[${index}].blocking must be a boolean`);
+function normalizeGates(value: unknown): GoalSessionGate[] | undefined {
+	if (value === undefined) return undefined;
+	if (!Array.isArray(value)) throw new GoalSessionContractError('gates must be an array');
+	return uniqueBy(value.map((entry, index) => {
+		exactKeys(entry, ['gateId', 'owner', 'blocking', 'status'], ['continueWhen'], `gates[${index}]`);
+		if (typeof entry.blocking !== 'boolean') throw new GoalSessionContractError(`gates[${index}].blocking must be boolean`);
 		return {
-			gateId: requiredString(entry.gateId, `externalGateRecords[${index}].gateId`),
-			owner: requiredString(entry.owner, `externalGateRecords[${index}].owner`),
+			gateId: requiredString(entry.gateId, `gates[${index}].gateId`),
+			owner: requiredString(entry.owner, `gates[${index}].owner`),
 			blocking: entry.blocking,
-			status: enumValue(entry.status, GOAL_SESSION_EXTERNAL_GATE_STATUSES, `externalGateRecords[${index}].status`),
-			evidenceRefs: stringList(entry.evidenceRefs, `externalGateRecords[${index}].evidenceRefs`),
-			continueWhen: nullableString(entry.continueWhen, `externalGateRecords[${index}].continueWhen`),
+			status: enumValue(entry.status, GOAL_SESSION_GATE_STATUSES, `gates[${index}].status`),
+			...(entry.continueWhen === undefined ? {} : { continueWhen: requiredString(entry.continueWhen, `gates[${index}].continueWhen`) }),
 		};
-	});
-	if (new Set(records.map((record) => record.gateId)).size !== records.length) throw new GoalSessionContractError('externalGateRecords must have unique gateId values');
-	return records;
+	}), (gate) => gate.gateId, 'gates');
 }
 
-export function normalizeGoalSessionFrame(input: unknown): GoalSessionFrame {
-	exactKeys(input, ['schemaVersion', 'kind', 'goalId', 'successCriteria', 'canonicalAuthority', 'planning', 'repositories', 'dependencyWaves', 'integrationOwner', 'readiness', 'validation', 'stopEscalationContinuation', 'checkpointPolicy', 'retrospectiveEligibility'], 'goal session frame', ['assurancePolicy', 'attentionSignals']);
-	if (input.schemaVersion !== GOAL_SESSION_FRAME_SCHEMA_VERSION || input.kind !== 'goal-session.frame') throw new GoalSessionContractError('goal session frame schemaVersion or kind is invalid');
-	exactKeys(input.readiness, ['codeReadiness', 'environmentReadiness'], 'readiness');
-	exactKeys(input.stopEscalationContinuation, ['stop', 'escalate', 'continueWhen'], 'stopEscalationContinuation');
-	exactKeys(input.checkpointPolicy, ['beforeFanOut', 'afterEachWave', 'beforePhaseTransition'], 'checkpointPolicy');
-	if (input.checkpointPolicy.beforeFanOut !== true || input.checkpointPolicy.afterEachWave !== true || input.checkpointPolicy.beforePhaseTransition !== true) throw new GoalSessionContractError('checkpointPolicy must require every checkpoint boundary');
+function normalizeGit(value: unknown): GoalSessionGitBoundary | undefined {
+	if (value === undefined) return undefined;
+	exactKeys(value, ['status'], ['commitRef', 'reason'], 'git');
+	const status = enumValue(value.status, GOAL_SESSION_GIT_STATUSES, 'git.status');
+	const commitRef = value.commitRef === undefined ? undefined : requiredString(value.commitRef, 'git.commitRef');
+	const reason = value.reason === undefined ? undefined : requiredString(value.reason, 'git.reason');
+	if (status === 'committed' && !commitRef) throw new GoalSessionContractError('git.commitRef is required when committed');
+	return { status, ...(commitRef ? { commitRef } : {}), ...(reason ? { reason } : {}) };
+}
+
+export function normalizeGoalSessionBaseline(input: unknown): GoalSessionBaseline {
+	exactKeys(input, ['schemaVersion', 'kind', 'goalId', 'goal', 'successCriteria', 'authority', 'scope', 'protected', 'dependencyWaves', 'current', 'repositories'], ['planning', 'assurance'], 'goal session baseline');
+	if (input.schemaVersion !== GOAL_SESSION_RECORD_SCHEMA_VERSION || input.kind !== 'baseline') throw new GoalSessionContractError('goal session baseline schemaVersion or kind is invalid');
 	const dependencyWaves = normalizeWaves(input.dependencyWaves);
-	const knownWaveIds = new Set(dependencyWaves.map((wave) => wave.waveId));
-	const validation = normalizeValidation(input.validation);
-	if (validation.some((entry) => entry.waveId !== null && !knownWaveIds.has(entry.waveId))) throw new GoalSessionContractError('validation references an unknown wave');
-	const normalized = {
-		schemaVersion: GOAL_SESSION_FRAME_SCHEMA_VERSION,
-		kind: 'goal-session.frame' as const,
+	exactKeys(input.current, ['activeWave', 'nextAction'], [], 'current');
+	const activeWave = requiredString(input.current.activeWave, 'current.activeWave');
+	if (!dependencyWaves.some((wave) => wave.waveId === activeWave)) throw new GoalSessionContractError('current.activeWave references an unknown wave');
+	const normalized: GoalSessionBaseline = {
+		schemaVersion: GOAL_SESSION_RECORD_SCHEMA_VERSION,
+		kind: 'baseline',
 		goalId: requiredString(input.goalId, 'goalId'),
-		successCriteria: nonEmptyStringList(input.successCriteria, 'successCriteria'),
-		canonicalAuthority: requiredString(input.canonicalAuthority, 'canonicalAuthority'),
-		planning: normalizePlanningRefs(input.planning),
-		repositories: normalizeRepositories(input.repositories),
+		goal: requiredString(input.goal, 'goal'),
+		successCriteria: stringList(input.successCriteria, 'successCriteria', true),
+		authority: requiredString(input.authority, 'authority'),
+		scope: stringList(input.scope, 'scope', true),
+		protected: stringList(input.protected, 'protected'),
 		dependencyWaves,
-		integrationOwner: requiredString(input.integrationOwner, 'integrationOwner'),
-		readiness: {
-			codeReadiness: stringList(input.readiness.codeReadiness, 'readiness.codeReadiness'),
-			environmentReadiness: stringList(input.readiness.environmentReadiness, 'readiness.environmentReadiness'),
-		},
-		validation,
-		stopEscalationContinuation: {
-			stop: stringList(input.stopEscalationContinuation.stop, 'stopEscalationContinuation.stop'),
-			escalate: stringList(input.stopEscalationContinuation.escalate, 'stopEscalationContinuation.escalate'),
-			continueWhen: stringList(input.stopEscalationContinuation.continueWhen, 'stopEscalationContinuation.continueWhen'),
-		},
-		checkpointPolicy: {
-			beforeFanOut: true,
-			afterEachWave: true,
-			beforePhaseTransition: true,
-		},
-		retrospectiveEligibility: enumValue(input.retrospectiveEligibility, ['manual_after_closure', 'not_eligible'] as const, 'retrospectiveEligibility'),
-		assurancePolicy: normalizeAssurancePolicy(input.assurancePolicy),
-		attentionSignals: normalizeAttentionSignals(input.attentionSignals),
-	};
-	if (Buffer.byteLength(JSON.stringify(normalized), 'utf8') > GOAL_SESSION_MAX_FRAME_BYTES) throw new GoalSessionContractError('goal session frame exceeds the size limit');
-	return normalized;
-}
-
-function normalizeResume(value: unknown): GoalSessionResumeState {
-	exactKeys(value, ['status', 'checkedAt', 'drift'], 'resume');
-	const checkedAt = nullableString(value.checkedAt, 'resume.checkedAt');
-	if (checkedAt && Number.isNaN(Date.parse(checkedAt))) throw new GoalSessionContractError('resume.checkedAt must be an ISO timestamp');
-	return { status: enumValue(value.status, GOAL_SESSION_RESUME_STATUSES, 'resume.status'), checkedAt, drift: stringList(value.drift, 'resume.drift') };
-}
-
-function normalizeGitCheckpoint(value: unknown): GoalSessionGitCheckpoint {
-	exactKeys(value, ['status', 'commitSha', 'reason', 'validationRefs'], 'gitCheckpoint');
-	const status = enumValue(value.status, GOAL_SESSION_GIT_CHECKPOINT_STATUSES, 'gitCheckpoint.status');
-	const commitSha = nullableString(value.commitSha, 'gitCheckpoint.commitSha');
-	if (status === 'committed' && !commitSha) throw new GoalSessionContractError('gitCheckpoint.commitSha is required when status is committed');
-	return { status, commitSha, reason: nullableString(value.reason, 'gitCheckpoint.reason'), validationRefs: stringList(value.validationRefs, 'gitCheckpoint.validationRefs') };
-}
-
-export function normalizeGoalSessionCheckpoint(input: unknown): GoalSessionCheckpoint {
-	exactKeys(input, ['schemaVersion', 'goalId', 'phase', 'planning', 'completedWaveIds', 'activeWaveId', 'decisions', 'repositories', 'validationEvidence', 'blockers', 'externalGates', 'nextAction', 'resume', 'gitCheckpoint', 'updatedAt'], 'goal session checkpoint', ['assurancePolicy', 'attentionSignals', 'validationReceipts', 'blockerRecords', 'externalGateRecords']);
-	if (input.schemaVersion !== GOAL_SESSION_CHECKPOINT_SCHEMA_VERSION) throw new GoalSessionContractError('goal session checkpoint schemaVersion is invalid');
-	const updatedAt = requiredString(input.updatedAt, 'updatedAt');
-	if (Number.isNaN(Date.parse(updatedAt))) throw new GoalSessionContractError('updatedAt must be an ISO timestamp');
-	const completedWaveIds = stringList(input.completedWaveIds, 'completedWaveIds');
-	const activeWaveId = nullableString(input.activeWaveId, 'activeWaveId');
-	if (activeWaveId && completedWaveIds.includes(activeWaveId)) throw new GoalSessionContractError('activeWaveId cannot be completed');
-	const normalized = {
-		schemaVersion: GOAL_SESSION_CHECKPOINT_SCHEMA_VERSION,
-		goalId: requiredString(input.goalId, 'goalId'),
-		phase: enumValue(input.phase, GOAL_SESSION_PHASES, 'phase'),
-		planning: normalizePlanningRefs(input.planning),
-		completedWaveIds,
-		activeWaveId,
-		decisions: stringList(input.decisions, 'decisions'),
+		current: { activeWave, nextAction: requiredString(input.current.nextAction, 'current.nextAction') },
 		repositories: normalizeRepositories(input.repositories),
-		validationEvidence: stringList(input.validationEvidence, 'validationEvidence'),
-		blockers: stringList(input.blockers, 'blockers'),
-		externalGates: stringList(input.externalGates, 'externalGates'),
-		validationReceipts: normalizeValidationReceipts(input.validationReceipts),
-		blockerRecords: normalizeBlockerRecords(input.blockerRecords),
-		externalGateRecords: normalizeExternalGateRecords(input.externalGateRecords),
-		nextAction: requiredString(input.nextAction, 'nextAction'),
-		resume: normalizeResume(input.resume),
-		gitCheckpoint: normalizeGitCheckpoint(input.gitCheckpoint),
-		assurancePolicy: normalizeAssurancePolicy(input.assurancePolicy),
-		attentionSignals: normalizeAttentionSignals(input.attentionSignals),
-		updatedAt,
+		...(input.planning === undefined ? {} : { planning: normalizePlanning(input.planning) }),
+		...(input.assurance === undefined ? {} : { assurance: normalizeAssurance(input.assurance) }),
 	};
-	const maximumBytes = GOAL_SESSION_MAX_CHECKPOINT_V2_BYTES;
-	if (Buffer.byteLength(JSON.stringify(normalized), 'utf8') > maximumBytes) throw new GoalSessionContractError('goal session checkpoint exceeds the size limit');
+	if (Buffer.byteLength(JSON.stringify(normalized), 'utf8') > GOAL_SESSION_MAX_BASELINE_BYTES) throw new GoalSessionContractError('goal session baseline exceeds the size limit');
 	return normalized;
+}
+
+export function normalizeGoalSessionUpdate(input: unknown): GoalSessionUpdate {
+	exactKeys(input, ['schemaVersion', 'kind', 'goalId', 'event'], ['completedWaveIds', 'activeWave', 'changed', 'validated', 'decisions', 'risks', 'blockers', 'gates', 'assurance', 'nextAction', 'git'], 'goal session update');
+	if (input.schemaVersion !== GOAL_SESSION_RECORD_SCHEMA_VERSION || input.kind !== 'update') throw new GoalSessionContractError('goal session update schemaVersion or kind is invalid');
+	const optionalFields = ['completedWaveIds', 'activeWave', 'changed', 'validated', 'decisions', 'risks', 'blockers', 'gates', 'assurance', 'nextAction', 'git'];
+	if (!optionalFields.some((field) => Object.prototype.hasOwnProperty.call(input, field))) throw new GoalSessionContractError('goal session update must contain a state change');
+	const activeWave = input.activeWave === undefined ? undefined : input.activeWave === null ? null : requiredString(input.activeWave, 'activeWave');
+	const nextAction = input.nextAction === undefined ? undefined : requiredString(input.nextAction, 'nextAction');
+	const normalized: GoalSessionUpdate = {
+		schemaVersion: GOAL_SESSION_RECORD_SCHEMA_VERSION,
+		kind: 'update',
+		goalId: requiredString(input.goalId, 'goalId'),
+		event: enumValue(input.event, GOAL_SESSION_UPDATE_EVENTS, 'event'),
+		...(input.completedWaveIds === undefined ? {} : { completedWaveIds: stringList(input.completedWaveIds, 'completedWaveIds', true) }),
+		...(activeWave === undefined ? {} : { activeWave }),
+		...(input.changed === undefined ? {} : { changed: stringList(input.changed, 'changed') }),
+		...(input.validated === undefined ? {} : { validated: stringList(input.validated, 'validated') }),
+		...(input.decisions === undefined ? {} : { decisions: stringList(input.decisions, 'decisions') }),
+		...(input.risks === undefined ? {} : { risks: stringList(input.risks, 'risks') }),
+		...(input.blockers === undefined ? {} : { blockers: normalizeBlockers(input.blockers) }),
+		...(input.gates === undefined ? {} : { gates: normalizeGates(input.gates) }),
+		...(input.assurance === undefined ? {} : { assurance: normalizeAssurance(input.assurance) }),
+		...(nextAction === undefined ? {} : { nextAction }),
+		...(input.git === undefined ? {} : { git: normalizeGit(input.git) }),
+	};
+	if (normalized.event === 'closure' && normalized.activeWave !== null) throw new GoalSessionContractError('closure must set activeWave to null');
+	if (normalized.event !== 'closure' && normalized.activeWave === null) throw new GoalSessionContractError('activeWave may be null only for closure');
+	if (Buffer.byteLength(JSON.stringify(normalized), 'utf8') > GOAL_SESSION_MAX_UPDATE_BYTES) throw new GoalSessionContractError('goal session update exceeds the size limit');
+	return normalized;
+}
+
+export function normalizeGoalSessionRecord(input: unknown): GoalSessionRecord {
+	if (!isRecord(input)) throw new GoalSessionContractError('goal session record must be an object');
+	if (input.kind === 'baseline') return normalizeGoalSessionBaseline(input);
+	if (input.kind === 'update') return normalizeGoalSessionUpdate(input);
+	throw new GoalSessionContractError('goal session record kind is invalid');
+}
+
+export function materializeGoalSessionState(baselineInput: unknown, updateInputs: unknown[] = []): GoalSessionMaterializedState {
+	const baseline = normalizeGoalSessionBaseline(baselineInput);
+	const waveById = new Map(baseline.dependencyWaves.map((wave) => [wave.waveId, wave]));
+	const completed = new Set<string>();
+	const state: GoalSessionMaterializedState = {
+		...baseline,
+		completedWaveIds: [],
+		activeWave: baseline.current.activeWave,
+		nextAction: baseline.current.nextAction,
+		changed: [],
+		validated: [],
+		decisions: [],
+		risks: [],
+		blockers: [],
+		gates: [],
+	};
+	for (const input of updateInputs) {
+		const update = normalizeGoalSessionUpdate(input);
+		if (update.goalId !== baseline.goalId) throw new GoalSessionContractError('goal session update goalId does not match baseline');
+		for (const waveId of update.completedWaveIds || []) {
+			const wave = waveById.get(waveId);
+			if (!wave) throw new GoalSessionContractError(`completedWaveIds references unknown wave ${waveId}`);
+			if (wave.dependsOn.some((dependency) => !completed.has(dependency))) throw new GoalSessionContractError(`wave ${waveId} completed before its dependencies`);
+			completed.add(waveId);
+		}
+		if (update.activeWave !== undefined && update.activeWave !== null && !waveById.has(update.activeWave)) throw new GoalSessionContractError(`activeWave references unknown wave ${update.activeWave}`);
+		if (update.activeWave !== undefined) state.activeWave = update.activeWave;
+		if (update.nextAction !== undefined) state.nextAction = update.nextAction;
+		state.changed = [...new Set([...state.changed, ...(update.changed || [])])];
+		state.validated = [...new Set([...state.validated, ...(update.validated || [])])];
+		state.decisions = [...new Set([...state.decisions, ...(update.decisions || [])])];
+		if (update.risks !== undefined) state.risks = update.risks;
+		if (update.blockers !== undefined) state.blockers = update.blockers;
+		if (update.gates !== undefined) state.gates = update.gates;
+		if (update.assurance !== undefined) state.assurance = update.assurance;
+		if (update.git !== undefined) state.git = update.git;
+	}
+	state.completedWaveIds = [...completed];
+	return state;
 }

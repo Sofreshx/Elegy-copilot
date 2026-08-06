@@ -102,6 +102,7 @@ const { createExecutorService } = require('./lib/executorService');
 const { createSessionHooks } = require('./lib/sessionHooks');
 const { createWorkflowLayerService } = require('./lib/workflowLayerService');
 const { createUiRuntimeOverlayService } = require('./lib/uiRuntimeOverlayService');
+const { createServiceHost } = require('./lib/serviceHost');
 const {
   isNonLoopback,
   checkAuth,
@@ -4527,7 +4528,7 @@ function serveProjectsDashboardRoute({ req, res, pathname, elegyHome }) {
   return false;
 }
 
-function handleApi({ req, res, u, env = process.env, elegyHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry, elegyDb, sessionHooks }) {
+function handleApi({ req, res, u, env = process.env, elegyHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry, elegyDb, sessionHooks, serviceHost }) {
   // Auth scope: single-session only. Multi-session aggregate views are deferred.
   // All API endpoints serve one session at a time. No cross-session auth tokens.
   const pathname = u.pathname;
@@ -5023,6 +5024,14 @@ async function startServer(options = {}) {
       env,
     });
 
+  const serviceHost = options.serviceHost || createServiceHost({
+    engineRoot,
+    env,
+    repositoryPaths: options.intelligenceSurfaceRepositoryPaths,
+    execFile: options.intelligenceSurfaceExecFile,
+    request: options.intelligenceSurfaceRequest,
+  });
+
   let routeRegistry;
   try {
     routeRegistry = createRegistry({
@@ -5034,6 +5043,7 @@ async function startServer(options = {}) {
       sessions,
       assets,
       engineRoot,
+      serviceHost,
       getPolicyPreflight,
       getRuntimeHealth,
       trackerUrl,
@@ -5173,6 +5183,7 @@ async function startServer(options = {}) {
           planningDurabilityDependencyGate,
           startupManagedAssetSync,
           autonomousDecisionLog,
+          serviceHost,
           routeRegistry,
           elegyDb,
           sessionHooks,
@@ -5297,6 +5308,7 @@ async function startServer(options = {}) {
         managedAssetSyncSummary,
         startupManagedAssetSync,
         autonomousDecisionLog: autonomousDecisionLog.getSummary(),
+        serviceHost,
         close: () => new Promise((closeResolve) => {
           Promise.resolve()
             .then(() => stopDesktopUpdaterBackgroundWork())

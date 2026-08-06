@@ -1,6 +1,6 @@
 ---
 created: 2026-02-28
-updated: 2026-08-01
+updated: 2026-08-06
 category: system
 status: current
 doc_kind: node
@@ -31,7 +31,7 @@ A shared package that emits CommonJS plus `.d.ts` declarations for use across th
 | `roadmapWorkflow` | `ROADMAP_WORKFLOW_ARTIFACT_SCHEMA_VERSION`, `ROADMAP_WORKFLOW_ARTIFACT_KINDS`, `RoadmapWorkflowStructuredArtifact`, `parseRoadmapWorkflowMarkdownArtifact`, `computeRoadmapWorkflowArtifactChecksum` | Live workflow-artifact contract consumed by `/api/planning/workflow-artifacts` |
 | `planning` | `PlanningRecord`, `ResearchNote`, `PlanningDiagram`, `PlanningPersistenceHealth`, `PlanningIntakeArtifact`, synced-note and Obsidian types, `PLANNING_API_CONTRACT_VERSION` | Compatibility and admin planning payloads still used by `copilot-ui` |
 | `bridge` | `WorkflowPlanningBridge`, `ExecutorPolicyRequest`, `ExecutorPolicyResponse` | Legacy workflow-to-planning-record bridge types plus executor policy payloads |
-| `goalSession` | `GOAL_SESSION_FRAME_SCHEMA_VERSION`, `GOAL_SESSION_CHECKPOINT_SCHEMA_VERSION`, `normalizeGoalSessionFrame`, `normalizeGoalSessionCheckpoint` | Root-owned long-goal identity, wave, repository-boundary, resume, and git-checkpoint contract |
+| `goalSession` | `GOAL_SESSION_RECORD_SCHEMA_VERSION`, `normalizeGoalSessionBaseline`, `normalizeGoalSessionUpdate`, `normalizeGoalSessionRecord`, `materializeGoalSessionState` | Compact baseline, differential update, materialized continuation, and repository-boundary contract for long work |
 
 This document focuses on the planning-adjacent modules. The package also exports non-planning
 contracts such as catalog, provider-catalog, and agentic types.
@@ -115,57 +115,34 @@ planning records, or memory. Any bridge from a retrospective to this planning
 contract requires an explicit user-approved workflow and the normal
 `elegy-planning` authority checks.
 
-For long Codex goals, `goal-session-workflow` prepares a root-owned
-`GOAL_SESSION_FRAME` and bounded `SESSION_CHECKPOINT` records. The frame links
-the explicit `elegy-planning` `scopeKey`, `goalRef`, `roadmapRef`, `planRef`,
-`workPointRefs`, and `projectRunRef`; each checkpoint repeats the planning
-links and records repository branch/base/head, worktree state, owned and
-changed paths, validation evidence, resume drift, and the git boundary. These
-are continuation and coordination state, not a second roadmap authority. The
+For long or repository-risky Codex work, `goal-session-workflow` emits one hidden
+`ELEGY_SESSION_STATE` baseline and later differential updates only at meaningful boundaries. The
+baseline owns goal, success, authority, scope, protected boundaries, dependency waves, current
+action, and repository roots/ownership. Durable planning references are optional and include only
+verified non-empty values. The records are continuation state, not a second roadmap authority; the
 canonical program/repository plan remains authoritative for execution intent.
 
-The native wrapper preserves the latest checkpoint at `checkpoint.json` and a
-bounded ordered history with runtime-generated identity and predecessor links.
-On compact resume it can compare the checkpoint to Git observed from the
-session `cwd`; that `RUNTIME_RECONCILIATION` evidence remains separate from the
-agent-authored checkpoint. Schema-v2 checkpoints may carry structured
-validation, blocker, and gate records alongside compatibility string summaries.
+The native runtime materializes baseline plus ordered updates at `session-state.json` and retains
+bounded update wrappers under `session-updates/`. Runtime wrappers—not agents—own timestamps,
+sequence identity, and Git observations. On persistence and `PreCompact`, the runtime observes every
+declared repository's branch, HEAD, dirty state, changed-path digest, and bounded path evidence. On
+resume, `RUNTIME_RECONCILIATION` remains independent of the agent-authored semantic state.
 
-New sessions emit checkpoint schema `2`; the native hook accepts the legacy
-schema `1` for compatibility. A continuation must reconcile planning
-references, project-run context, branch/head/worktree state, validation, and
-external gates before continuing. A mismatch is `drifted` or `blocked` and
-stops the run until the root/user resolves it. Delegates receive a bounded
-`AGENT_CONTEXT_PACKET` derived from the current frame/checkpoint rather than
-raw transcript history.
+Legacy `GOAL_SESSION_FRAME` and `SESSION_CHECKPOINT` records are unsupported and remain untouched on
+disk. A qualifying legacy continuation reconciles the conversation and repositories before creating
+a fresh compact baseline. A branch, HEAD, or changed-path mismatch is `drifted` and stops writes
+until the root/user resolves it. Delegates receive a compact packet derived from materialized state,
+never the raw transcript or full baseline.
 
-Even `planning_surface: plan-pack` carries an explicit `scopeKey` so a
-continuation can resolve the repository/session mapping without silently using
-the default planning scope. `roadmap` and `both` additionally require the
-durable goal, roadmap, and selected plan references before fan-out.
+### Optional assurance and current risks
 
-### Optional assurance and attention signals
-
-Goal-session records carry an additive `assurancePolicy` and bounded `attentionSignals` ledger.
-The policy includes `gateRef`, `evidenceRefs`, and `decisionRef` so a strict outcome is tied to a
-named gate, observed proof, and (when blocked) an explicit user decision. The default policy is
-`{ mode: 'normal', verificationStatus: 'not-requested', gateRef: null, evidenceRefs: [], decisionRef: null }`: it adds no
-independent verifier or delivery gate. `advisory` permits an explicitly chosen manual reasoning or
-result check and remains non-blocking. `strict` is reserved for an explicit user or risk-policy
-request that requires evidence at a named merge or deployment gate; its status must be `requested`,
-`passed`, `blocked`, or `stale`. A strict `blocked` result requires the named gate, evidence, and
-explicit user decision in the checkpoint. `normal` is only `not-requested`; `advisory` may use any
-status. The policy is per goal and is never promoted globally or used to create scheduled evaluation.
-
-An attention signal is an evidence-linked reminder (`signalId`, `signalKey`, `severity`, `summary`,
-`evidenceRefs`, `whyItMatters`, `whenToRevisit`, and `status`) capped at twelve per frame/checkpoint,
-eight evidence references per signal, and bounded text lengths. The shared contract and native hook
-use the same 16 KiB frame and 18 KiB schema-v2 checkpoint limits.
-The root should promote existing agent residual risks, blockers, validation failures, or external
-gates instead of creating duplicate tracking. Open signals may be mirrored to an existing
-`elegy-planning` work point or project-run follow-up when that authority is active; otherwise they
-remain session-local. They are surfaced on relevant continuation or review, but do not block normal
-work and do not create a second planning database.
+Normal assurance is represented by omission. An optional `assurance` module carries only advisory or
+strict posture; strict state is tied to a named gate, evidence for passed/blocked outcomes, and an
+explicit decision for blocked outcomes. A differential update may advance that non-default
+assurance state without repeating the baseline. Differential updates may replace the bounded current
+`risks`, `blockers`, or `gates` arrays; omission preserves the prior value and an empty array clears
+it. External restrictions remain protected boundaries until they actually block the next action.
+The shared contract limits baselines to 8 KiB and updates to 4 KiB.
 
 ## Consumption
 

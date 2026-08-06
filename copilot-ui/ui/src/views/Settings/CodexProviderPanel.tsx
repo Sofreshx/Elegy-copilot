@@ -5,6 +5,7 @@ import type { CodexSubagentRecord } from '../../lib/api/codexConfig';
 import { codexProviderStore } from '../../stores/codexProviderStore';
 import { toolingUpdatesStore } from '../../stores/toolingUpdatesStore';
 import HarnessAssetsPanel from '../Catalog/HarnessAssetsPanel';
+import { MetricValue, ProviderDefinitionGrid, ProviderPath } from './ProviderData';
 
 const CODEX_PLUGIN_NAMES = [
   'elegy-documentation',
@@ -101,14 +102,14 @@ function NativeCodexOverview() {
         subtitle="The current Codex subagent policy is visible for verification, not edited by Elegy."
         testId="codex-agents-expectations"
       >
-        <div className="codex-config-expectations" data-testid="codex-agents-expectation-values">
-          <div><span>enabled</span><strong>{String(CODEX_EXPECTATIONS.enabled)}</strong></div>
-          <div><span>concurrency</span><strong>{nativeSettings?.maxThreads ?? CODEX_EXPECTATIONS.concurrency}</strong></div>
-          <div><span>model</span><strong>{CODEX_EXPECTATIONS.model}</strong></div>
-          <div><span>reasoning</span><strong>{CODEX_EXPECTATIONS.reasoning}</strong></div>
-          <div><span>depth</span><strong>{nativeSettings?.maxDepth ?? CODEX_EXPECTATIONS.depth}</strong></div>
-          <div><span>runtime</span><strong>{nativeSettings?.jobMaxRuntimeSeconds ?? CODEX_EXPECTATIONS.runtime}s</strong></div>
-        </div>
+        <ProviderDefinitionGrid className="codex-config-expectations" testId="codex-agents-expectation-values" items={[
+          { label: 'Enabled', value: <strong>{String(CODEX_EXPECTATIONS.enabled)}</strong> },
+          { label: 'Concurrency', value: <strong>{nativeSettings?.maxThreads ?? CODEX_EXPECTATIONS.concurrency}</strong> },
+          { label: 'Model', value: <strong>{CODEX_EXPECTATIONS.model}</strong> },
+          { label: 'Reasoning', value: <strong>{CODEX_EXPECTATIONS.reasoning}</strong> },
+          { label: 'Depth', value: <strong>{nativeSettings?.maxDepth ?? CODEX_EXPECTATIONS.depth}</strong> },
+          { label: 'Runtime', value: <strong>{nativeSettings?.jobMaxRuntimeSeconds ?? CODEX_EXPECTATIONS.runtime}s</strong> },
+        ]} />
         <p className="codex-readonly-note">
           Native Codex agents and this configuration are harness-owned. Use the Codex configuration surface when a native value must change.
         </p>
@@ -149,8 +150,16 @@ function AgentRow({ agent, project }: { agent: CodexSubagentRecord; project?: bo
     <div className="codex-agent-row" data-testid={`codex-agent-${agent.name}`}>
       <div className="codex-agent-main">
         <strong>{agent.name}</strong>
-        <span>{agent.description || 'Codex subagent definition'}</span>
-        <code>{agent.sourcePath || agent.installedPath || 'path unavailable'}</code>
+        <details className="codex-agent-details">
+          <summary>{agent.description || 'Codex subagent definition'}</summary>
+          <div className="codex-agent-detail-grid">
+            <span>Model</span><strong>{agent.model || 'Inherited'}</strong>
+            <span>Reasoning</span><strong>{agent.modelReasoningEffort || 'Default'}</strong>
+            <span>Sandbox</span><strong>{agent.sandboxMode || 'Default'}</strong>
+            <span>Source</span><ProviderPath value={agent.sourcePath || agent.installedPath} />
+          </div>
+          {agent.content ? <pre>{agent.content}</pre> : null}
+        </details>
       </div>
       <div className="codex-agent-state">
         <Badge tone={statusTone(status)}>{status}</Badge>
@@ -197,17 +206,21 @@ function CodexUsageSection() {
         {!usage ? <p className="state-message">No usage data is available.</p> : null}
         {usage ? (
           <>
-            <div className="codex-config-expectations">
-              <div><span>runs</span><strong>{usage.summary.runs}</strong></div>
-              <div><span>tokens</span><strong>{usage.summary.tokens}</strong></div>
-              <div><span>tool events</span><strong>{usage.summary.toolEvents}</strong></div>
-              <div><span>errors</span><strong>{usage.summary.errors}</strong></div>
-            </div>
+            <ProviderDefinitionGrid className="codex-config-expectations" items={[
+              { label: 'Runs', value: <MetricValue value={usage.summary.runs} /> },
+              { label: 'Tokens', value: <MetricValue value={usage.summary.tokens} /> },
+              { label: 'Tool events', value: <MetricValue value={usage.summary.toolEvents} /> },
+              { label: 'Errors', value: <MetricValue value={usage.summary.errors} /> },
+            ]} />
             <div className="codex-usage-list">
               {usage.byAgent.map((entry) => (
                 <div className="codex-usage-row" key={entry.name}>
                   <strong>{entry.name}</strong>
-                  <span>{entry.count} runs · {entry.tokens} tokens · {entry.errors} errors</span>
+                  <span className="provider-inline-metrics">
+                    <span><MetricValue value={entry.count} /> runs</span>
+                    <span><MetricValue value={entry.tokens} /> tokens</span>
+                    <span><MetricValue value={entry.errors} /> errors</span>
+                  </span>
                 </div>
               ))}
             </div>

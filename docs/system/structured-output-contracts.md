@@ -1,6 +1,6 @@
 ---
 created: 2026-04-12
-updated: 2026-08-01
+updated: 2026-08-06
 category: system
 status: current
 doc_kind: node
@@ -64,8 +64,7 @@ The following blocks are defined in the shipped subagent prompts:
 | `SCOUT_RESULT` | `scout` | Same |
 | `PLANNING_RUN_SUMMARY` | `planning.js` plugin tool | Same |
 | `SESSION_RETROSPECTIVE` | Codex `evaluate-task-workflow` skill | New output uses `session-retrospective-v2` (`schemaVersion: "2"`); v1 remains parse-compatible; response-only Markdown with fenced `Structured State` JSON |
-| `GOAL_SESSION_FRAME` | Codex `goal-session-workflow` skill | Root-owned preparation frame for authority, readiness, dependency waves, validation, and checkpoint policy |
-| `SESSION_CHECKPOINT` | Codex `goal-session-workflow` skill | Bounded root-session continuation state; hook persistence is observational and same-session bound |
+| `ELEGY_SESSION_STATE` | Codex `goal-session-workflow` skill | Hidden compact baseline or differential update for root-owned long-work continuation; the visible response remains concise |
 | `AGENT_RESULT` | Codex native subagents | Common receipt envelope with role-specific payload |
 
 Refer to each agent's frontmatter description and `## Output` section for field-level contracts.

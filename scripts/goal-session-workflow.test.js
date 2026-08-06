@@ -7,46 +7,49 @@ const test = require('node:test');
 const skillPath = path.resolve(__dirname, '..', 'codex-assets', 'skills', 'goal-session-workflow', 'SKILL.md');
 const skill = fs.readFileSync(skillPath, 'utf8');
 
-test('goal session skill emits a machine-readable durable frame with planning identities', () => {
-  assert.match(skill, /GOAL_SESSION_FRAME\s*```json/);
-  for (const field of ['scopeKey', 'goalRef', 'roadmapRef', 'planRef', 'workPointRefs', 'projectRunRef', 'authorityStatus']) {
-    assert.match(skill, new RegExp(`"${field}"`), `missing planning identity ${field}`);
+test('activates only for meaningful long-work or repository risk', () => {
+  for (const trigger of ['multiple repositories', 'dirty-worktree', 'dependency wave', 'context compaction', 'external cost', 'genuinely long work']) {
+    assert.match(skill, new RegExp(trigger, 'i'), `missing risk trigger: ${trigger}`);
   }
-  assert.match(skill, /planning_surface: roadmap\|both/);
-  assert.match(skill, /"assurancePolicy"/);
-  assert.match(skill, /"attentionSignals"/);
-  for (const field of ['gateRef', 'evidenceRefs', 'decisionRef']) {
-    assert.match(skill, new RegExp(`"${field}"`), `missing assurance evidence field ${field}`);
-  }
-  assert.match(skill, /normal.*advisory.*strict/s);
+  assert.match(skill, /Skip it for routine bounded work/i);
+  assert.match(skill, /Never create a native goal.*explicit user request/is);
 });
 
-test('goal session skill defines resume reconciliation and git checkpoint evidence', () => {
-  assert.match(skill, /Resume from checkpoint/i);
-  for (const field of ['worktreeStatus', 'ownedPaths', 'changedPaths', 'commitRef', 'resume', 'gitCheckpoint']) {
-    assert.match(skill, new RegExp(`"${field}"`), `missing resume field ${field}`);
+test('defines one concise visible baseline and one hidden machine record', () => {
+  for (const label of ['Goal:', 'Success:', 'Scope:', 'Protected:', 'Waves:', 'Current:']) assert.match(skill, new RegExp(label));
+  assert.match(skill, /<!-- ELEGY_SESSION_STATE\s*\n\{[\s\S]*"kind": "baseline"/);
+  for (const field of ['goalId', 'goal', 'successCriteria', 'authority', 'scope', 'protected', 'dependencyWaves', 'current', 'repositories']) {
+    assert.match(skill, new RegExp(`"${field}"`), `missing baseline field ${field}`);
   }
-  assert.match(skill, /drift/i);
-  assert.match(skill, /clean-no-commit/);
-  assert.match(skill, /blocked-uncommitted/);
+  assert.match(skill, /Emit the baseline once/i);
+  assert.match(skill, /Do not follow it with an initial checkpoint/i);
 });
 
-test('goal session skill requires a bounded context packet for every delegate', () => {
-  assert.match(skill, /AGENT_CONTEXT_PACKET/);
-  assert.match(skill, /AGENT_CONTEXT_PACKET\s*```json/);
-  for (const field of ['goalId', 'planningRefs', 'activeWaveId', 'ownedScope', 'validation', 'checkpointRef', 'contextHash']) {
-    assert.match(skill, new RegExp(field), `missing context packet field ${field}`);
-  }
-  assert.match(skill, /"repositories"/);
-  assert.match(skill, /SHA-256/);
-  assert.match(skill, /same-session checkpoint|verified checkpoint/i);
+test('uses differential checkpoints only at meaningful boundaries', () => {
+  assert.match(skill, /wave completed/i);
+  assert.match(skill, /real blocker or user decision/i);
+  assert.match(skill, /deliberate interruption or handoff/i);
+  assert.match(skill, /final closure/i);
+  assert.match(skill, /Do not checkpoint merely because fan-out began/i);
+  assert.match(skill, /"kind": "update"/);
+  assert.match(skill, /Omission means unchanged/i);
+  assert.match(skill, /empty array explicitly clears/i);
 });
 
-test('goal session skill keeps assurance optional and attention signals non-blocking', () => {
-  assert.match(skill, /optional manual reasoning or result check/i);
-  assert.match(skill, /never blocks delivery/i);
-  assert.match(skill, /at most 12 signals/i);
-  assert.match(skill, /evidenceRefs/);
-  assert.match(skill, /Signals never generate a review loop/i);
-  assert.match(skill, /never.*scheduler|scheduled evaluation/s);
+test('keeps defaults and runtime-owned observations out of agent records', () => {
+  assert.match(skill, /Omit inactive modules entirely/i);
+  assert.match(skill, /Normal assurance is omission/i);
+  assert.match(skill, /runtime owns timestamps/i);
+  assert.match(skill, /Git branch\/HEAD\/worktree observations/i);
+  assert.doesNotMatch(skill, /blocked-uncommitted/);
+  assert.match(skill, /uncommitted.*does not imply blocked/is);
+});
+
+test('defines compact resume, legacy, and optional delegation behavior', () => {
+  assert.match(skill, /RUNTIME_RECONCILIATION/);
+  assert.match(skill, /Stop before editing on\s+`drifted`/i);
+  assert.match(skill, /Legacy `GOAL_SESSION_FRAME` and `SESSION_CHECKPOINT` blocks are unsupported/i);
+  assert.match(skill, /fresh compact baseline/i);
+  assert.match(skill, /compact context packet/i);
+  assert.match(skill, /SHA-256/i);
 });

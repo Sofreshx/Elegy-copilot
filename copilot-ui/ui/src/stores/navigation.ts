@@ -8,6 +8,7 @@ export const CATALOG_SECTION_IDS = [
 ] as const;
 
 export type CatalogSectionId = (typeof CATALOG_SECTION_IDS)[number];
+export type HarnessAssetsTarget = 'codex' | 'opencode';
 
 export const SIDEBAR_IDS = [
   'workspace',
@@ -16,6 +17,8 @@ export const SIDEBAR_IDS = [
   'repositories',
   'repo-operations',
   'notes',
+  'overseer',
+  'world-model',
   'settings',
 ] as const;
 
@@ -26,7 +29,7 @@ export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | '
 export type MaintenanceSection = 'updates' | 'diagnostics' | 'assets';
 export type WizardType = 'project' | 'asset' | null;
 
-export type SettingsSection = 'app' | 'catalog' | 'opencode' | 'telemetry' | 'maintenance' | 'runtime' | 'codex' | 'claude-code' | 'github' | 'shell' | 'notes';
+export type SettingsSection = 'app' | 'opencode' | 'telemetry' | 'maintenance' | 'runtime' | 'codex' | 'claude-code' | 'github' | 'shell' | 'notes';
 
 export interface SettingsNavItem {
   id: SettingsSection;
@@ -37,7 +40,6 @@ export interface SettingsNavItem {
 
 export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
   { id: 'app', label: 'App Settings', icon: 'settings', description: 'Keyboard shortcuts and application information.' },
-  { id: 'catalog', label: 'Assets & Tools', icon: 'layout', description: 'Manage shared skills, agents, prompts, and instructions.' },
   { id: 'opencode', label: 'OpenCode', icon: 'opencode', description: 'OpenCode readiness, provider routing, and active warnings.' },
   { id: 'telemetry', label: 'Telemetry', icon: 'runtime', description: 'Session and event telemetry collected by the dashboard.' },
   { id: 'maintenance', label: 'Maintenance', icon: 'maintenance', description: 'Updates and diagnostics for the desktop runtime.' },
@@ -70,7 +72,6 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
     id: 'providers',
     label: 'AI Providers',
     items: [
-      SETTINGS_NAV_ITEMS.find((i) => i.id === 'catalog')!,
       SETTINGS_NAV_ITEMS.find((i) => i.id === 'opencode')!,
       SETTINGS_NAV_ITEMS.find((i) => i.id === 'codex')!,
       SETTINGS_NAV_ITEMS.find((i) => i.id === 'claude-code')!,
@@ -121,6 +122,8 @@ export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
   { id: 'repositories', label: 'Repositories', icon: 'repo', description: 'Browse and open registered repositories' },
   { id: 'repo-operations', label: 'Repo Operations', icon: 'git-branch', description: 'See sync blockers, branch hygiene, and open pull requests across repositories' },
   { id: 'notes', label: 'Notes', icon: 'file-text', description: 'Read, write, import, export, and sync workspace notes' },
+  { id: 'overseer', label: 'Overseer', icon: 'diamond', description: 'Portfolio context, decisions, and work-brain intelligence' },
+  { id: 'world-model', label: 'World Model', icon: 'tree', description: 'Evidence-backed opportunity research and provenance inspection' },
   { id: 'remote', label: 'Remote', icon: 'hexagon', description: 'Manage Discord-driven remote sessions via Kimaki' },
   { id: 'mcp', label: 'MCP', icon: 'mcp', description: 'Expose selected local MCP servers to web chatbots' },
   { id: 'settings', label: 'Settings', icon: 'settings', description: 'App configuration and preferences' },
@@ -178,13 +181,18 @@ function createNavigationStore() {
   };
   const store = createStore<NavigationState>(initialState);
 
-  function setCatalogSectionId(catalogSectionId: CatalogSectionId): void {
+  function setCatalogSectionId(catalogSectionId: CatalogSectionId, harnessId: HarnessAssetsTarget = 'codex'): void {
     store.setState((state) => ({
       ...state,
       activeSidebarItem: 'settings',
-      settingsSection: 'catalog',
+      settingsSection: harnessId,
       catalogSectionId,
     }));
+    if (harnessId === 'opencode') {
+      void import('./opencodeStore').then(({ opencodeStore }) => opencodeStore.setActiveSection('assets'));
+    } else {
+      void import('./codexProviderStore').then(({ codexProviderStore }) => codexProviderStore.setActiveSection('assets'));
+    }
   }
 
   function navigate(sidebarItem: SidebarItemId): void {

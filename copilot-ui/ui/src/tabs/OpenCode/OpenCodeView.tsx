@@ -15,6 +15,7 @@ import type {
 } from '../../lib/types';
 import { opencodeStore } from '../../stores/opencodeStore';
 import HarnessAssetsPanel from '../../views/Catalog/HarnessAssetsPanel';
+import { ProviderPath } from '../../views/Settings/ProviderData';
 
 const TAB_SECTIONS: Array<{ id: OpenCodeTabSectionId; label: string }> = [
   { id: 'overview', label: 'Overview' },
@@ -62,11 +63,11 @@ function OverviewSection({ status }: SectionProps) {
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">OpenCode Home</span>
-            <code className="opencode-readiness-value">{status.opencodeHome ?? 'Not found'}</code>
+            <ProviderPath value={status.opencodeHome} fallback="Not found" />
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Config Path</span>
-            <code className="opencode-readiness-value">{status.configPath ?? 'Not found'}</code>
+            <ProviderPath value={status.configPath} fallback="Not found" />
           </div>
           <div className="opencode-readiness-card">
             <span className="opencode-readiness-label">Effective Profile</span>

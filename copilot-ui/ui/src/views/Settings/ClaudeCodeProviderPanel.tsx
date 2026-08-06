@@ -3,6 +3,7 @@ import { Badge, Button, Panel } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import type { ClaudeCodeProviderMode } from '../../lib/types';
 import { claudeCodeProviderStore, type ClaudeCodeProviderState } from '../../stores/claudeCodeProviderStore';
+import { ProviderDefinitionGrid, ProviderPath } from './ProviderData';
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -118,19 +119,11 @@ export default function ClaudeCodeProviderPanel() {
       {status && (
         <div className="settings-row">
           <div className="settings-row-label">
-            <span className="settings-row-description">
-              Settings: <code>{status.settingsPath}</code>
-            </span>
-            {status.baseUrl && (
-              <span className="settings-row-description">
-                Endpoint: <code>{status.baseUrl}</code>
-              </span>
-            )}
-            {status.model && (
-              <span className="settings-row-description">
-                Model: <code>{status.model}</code>
-              </span>
-            )}
+            <ProviderDefinitionGrid items={[
+              { label: 'Settings', value: <ProviderPath value={status.settingsPath} /> },
+              ...(status.baseUrl ? [{ label: 'Endpoint', value: <ProviderPath value={status.baseUrl} /> }] : []),
+              ...(status.model ? [{ label: 'Model', value: <code>{status.model}</code> }] : []),
+            ]} />
           </div>
           <div className="settings-row-action">
             {status.hasBackup && <Badge tone="brand" testId="claude-provider-backup-badge">Backup Ready</Badge>}

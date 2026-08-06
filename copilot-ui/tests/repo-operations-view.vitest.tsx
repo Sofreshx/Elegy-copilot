@@ -5,12 +5,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 const {
   getRepoOperationsOverview,
   syncRepoOperations,
+  cleanupRepoOperations,
   startRepoOperationsAgentRun,
   approveRepoOperationsAgentRun,
   cancelRepoOperationsAgentRun,
 } = vi.hoisted(() => ({
   getRepoOperationsOverview: vi.fn(),
   syncRepoOperations: vi.fn(),
+  cleanupRepoOperations: vi.fn(),
   startRepoOperationsAgentRun: vi.fn(),
   approveRepoOperationsAgentRun: vi.fn(),
   cancelRepoOperationsAgentRun: vi.fn(),
@@ -19,6 +21,7 @@ const {
 vi.mock('../ui/src/lib/api/repoOperations', () => ({
   getRepoOperationsOverview,
   syncRepoOperations,
+  cleanupRepoOperations,
   startRepoOperationsAgentRun,
   approveRepoOperationsAgentRun,
   cancelRepoOperationsAgentRun,
@@ -28,8 +31,8 @@ import RepoOperationsView from '../ui/src/views/RepoOperations/RepoOperationsVie
 import { repoOperationsStore } from '../ui/src/views/RepoOperations/repoOperationsStore';
 
 const overview = {
-  schemaVersion: 2,
-  contractVersion: 'repo-operations.overview.v2',
+  schemaVersion: 3,
+  contractVersion: 'repo-operations.overview.v3',
   generatedAt: '2026-08-03T10:00:00.000Z',
   summary: {
     trackedRepos: 2,
@@ -41,7 +44,7 @@ const overview = {
   warnings: [],
   capabilities: {
     sync: { enabled: true, label: 'Sync eligible repositories', reason: 'Explicit confirmation required.' },
-    branchCleanup: { enabled: false, label: 'Prepare branch cleanup', reason: 'Preparation and approval support is planned.' },
+    branchCleanup: { enabled: false, label: 'Clean merged worktrees', reason: 'No eligible merged worktrees were found.' },
     pullRequestHandling: { enabled: false, label: 'Prepare PR handling', scope: 'per-repository', reason: 'PR handling is per repository.' },
     prAgent: { enabled: true, label: 'Prepare merge with OpenCode', model: 'opencode-go/deepseek-v4-flash' },
   },
@@ -122,9 +125,17 @@ describe('RepoOperationsView', () => {
   beforeEach(() => {
     getRepoOperationsOverview.mockResolvedValue(overview);
     syncRepoOperations.mockResolvedValue({
-      contractVersion: 'repo-operations.action.v2',
+      contractVersion: 'repo-operations.action.v3',
       operation: 'sync',
       summary: { requested: 2, eligible: 1, synced: 1, unchanged: 0, skipped: 1, failed: 0 },
+      repositories: [],
+    });
+    cleanupRepoOperations.mockResolvedValue({
+      contractVersion: 'repo-operations.action.v3',
+      operation: 'cleanup',
+      startedAt: '2026-08-03T10:00:00.000Z',
+      completedAt: '2026-08-03T10:00:01.000Z',
+      summary: { requested: 1, eligible: 1, removed: 1, partial: 0, skipped: 0, failed: 0, removedWorktrees: 1, deletedBranches: 1 },
       repositories: [],
     });
     startRepoOperationsAgentRun.mockResolvedValue({
@@ -168,9 +179,11 @@ describe('RepoOperationsView', () => {
     await waitFor(() => expect(screen.getByTestId('repo-operations-view')).toBeInTheDocument());
     expect(screen.getAllByText('Alpha').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Beta').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Working tree clean')).toBeInTheDocument();
+    expect(screen.getByLabelText('Remote available')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Feature one/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sync eligible repositories' })).not.toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Prepare branch cleanup' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Clean merged worktrees' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Prepare PR handling' })).not.toBeInTheDocument();
     expect(screen.getByTestId('repo-operations-prepare-alpha')).toBeInTheDocument();
 
@@ -186,6 +199,56 @@ describe('RepoOperationsView', () => {
     });
     expect(screen.getByText('Beta')).toBeInTheDocument();
     expect(screen.queryByText('Feature one')).not.toBeInTheDocument();
+  });
+
+  it('uses severity counts with human-readable issue details', async () => {
+    render(<RepoOperationsView />);
+    await waitFor(() => expect(screen.getByTestId('repo-operations-view')).toBeInTheDocument());
+
+    const issueSummary = screen.getByTestId('repo-operations-issues-beta-issues');
+    expect(issueSummary).toBeInTheDocument();
+    fireEvent.click(issueSummary.querySelector('summary')!);
+    expect(screen.getByText('Working tree is dirty')).toBeInTheDocument();
+    expect(screen.getByText('Provider not supported')).toBeInTheDocument();
+    expect(screen.queryByText('unsupported-provider')).not.toBeInTheDocument();
+  });
+
+  it('previews and confirms only eligible merged worktrees', async () => {
+    const cleanupOverview = {
+      ...overview,
+      capabilities: {
+        ...overview.capabilities,
+        branchCleanup: { enabled: true, label: 'Clean merged worktrees', reason: 'Clean merged worktrees are ready.' },
+      },
+      cleanupCandidates: [
+        {
+          repoId: 'alpha', repoLabel: 'Alpha', repoPath: 'C:/work/alpha', worktreePath: 'C:/work/alpha-feature', branch: 'feature/one',
+          defaultBranch: 'main', observedBranchSha: 'feature-sha', observedDefaultSha: 'main-sha', clean: true, mergedIntoDefault: true,
+          active: false, eligible: true, blockerCodes: [],
+        },
+        {
+          repoId: 'beta', repoLabel: 'Beta', repoPath: 'C:/work/beta', worktreePath: 'C:/work/beta-feature', branch: 'feature/dirty',
+          defaultBranch: 'main', observedBranchSha: 'dirty-sha', observedDefaultSha: 'main-sha', clean: false, mergedIntoDefault: false,
+          active: true, eligible: false, blockerCodes: ['worktree-dirty', 'active-session-or-worktree'],
+        },
+      ],
+    };
+    getRepoOperationsOverview.mockResolvedValueOnce(cleanupOverview);
+
+    render(<RepoOperationsView />);
+    await waitFor(() => expect(screen.getByTestId('repo-operations-view')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Clean merged worktrees' }));
+    expect(screen.getByRole('dialog', { name: 'Confirm merged worktree cleanup' })).toBeInTheDocument();
+    expect(screen.getByText('C:/work/alpha-feature')).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Show protected candidates/));
+    expect(screen.getByText('Worktree is dirty · Active session or worktree')).toBeInTheDocument();
+    expect(screen.queryByText('worktree-dirty · active-session-or-worktree')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('repo-operations-confirm-cleanup'));
+    await waitFor(() => expect(cleanupRepoOperations).toHaveBeenCalledWith({
+      confirmed: true,
+      candidates: [{ repoId: 'alpha', worktreePath: 'C:/work/alpha-feature', branch: 'feature/one', observedBranchSha: 'feature-sha', observedDefaultSha: 'main-sha' }],
+    }));
+    expect(await screen.findByText(/Cleanup finished: 1 worktree removed/)).toBeInTheDocument();
   });
 
   it('opens a repository-scoped PR picker and exposes approval/cancel states', async () => {

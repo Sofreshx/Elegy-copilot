@@ -2,6 +2,7 @@ import { apiRequest } from './core';
 
 export interface RepoOperationsIssue {
   code: string;
+  title?: string;
   message: string;
   severity?: 'error' | 'warning' | 'info' | string;
   details?: Record<string, unknown> | null;
@@ -113,7 +114,7 @@ export interface RepoOperationsAgentRun extends RepoOperationsRunSummary {
 }
 
 export interface RepoOperationsSyncResult {
-  contractVersion: 'repo-operations.action.v2' | string;
+  contractVersion: 'repo-operations.action.v3' | string;
   operation: 'sync';
   startedAt: string;
   completedAt: string;
@@ -136,6 +137,53 @@ export interface RepoOperationsSyncResult {
   }>;
 }
 
+export interface RepoOperationsCleanupCandidate {
+  repoId: string | null;
+  repoLabel?: string;
+  repoPath?: string | null;
+  worktreePath: string | null;
+  branch: string;
+  defaultBranch?: string | null;
+  observedBranchSha: string | null;
+  observedDefaultSha: string | null;
+  clean: boolean;
+  mergedIntoDefault: boolean;
+  active: boolean;
+  eligible: boolean;
+  blockerCodes: string[];
+  details?: Record<string, unknown> | null;
+}
+
+export interface RepoOperationsCleanupResult {
+  contractVersion: 'repo-operations.action.v3' | string;
+  operation: 'cleanup';
+  startedAt: string;
+  completedAt: string;
+  summary: {
+    requested: number;
+    eligible: number;
+    removed: number;
+    partial: number;
+    skipped: number;
+    failed: number;
+    removedWorktrees: number;
+    deletedBranches: number;
+  };
+  repositories: Array<{
+    index: number;
+    repoId: string | null;
+    repoLabel?: string;
+    worktreePath: string | null;
+    branch: string;
+    status: 'removed' | 'partial' | 'skipped' | 'failed';
+    removedWorktree: boolean;
+    deletedBranch: boolean;
+    blockerCodes: string[];
+    error?: string | null;
+    details?: Record<string, unknown> | null;
+  }>;
+}
+
 export interface RepoOperationsRepository {
   repoId: string | null;
   repoPath: string | null;
@@ -155,7 +203,9 @@ export interface RepoOperationsRepository {
   actionCapabilities?: {
     sync?: RepoOperationsCapability;
     prAgent?: RepoOperationsCapability;
+    branchCleanup?: RepoOperationsCapability;
   };
+  cleanupCandidates?: RepoOperationsCleanupCandidate[];
 }
 
 export interface RepoOperationsOverview {
@@ -179,6 +229,7 @@ export interface RepoOperationsOverview {
     blockedConditions: string[];
     sync?: Record<string, unknown>;
     pullRequest?: Record<string, unknown>;
+    cleanup?: Record<string, unknown>;
   };
   capabilities: {
     readOnlyScan?: RepoOperationsCapability;
@@ -191,6 +242,7 @@ export interface RepoOperationsOverview {
   repositories: RepoOperationsRepository[];
   branches?: RepoOperationsBranch[];
   pullRequests?: RepoOperationsPullRequest[];
+  cleanupCandidates?: RepoOperationsCleanupCandidate[];
   activeRuns?: RepoOperationsRunSummary[];
 }
 
@@ -200,6 +252,17 @@ export async function getRepoOperationsOverview(): Promise<RepoOperationsOvervie
 
 export async function syncRepoOperations(input: { confirmed: true }): Promise<RepoOperationsSyncResult> {
   return apiRequest<RepoOperationsSyncResult>('/api/repo-operations/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function cleanupRepoOperations(input: {
+  confirmed: true;
+  candidates: Array<Pick<RepoOperationsCleanupCandidate, 'repoId' | 'worktreePath' | 'branch' | 'observedBranchSha' | 'observedDefaultSha'>>;
+}): Promise<RepoOperationsCleanupResult> {
+  return apiRequest<RepoOperationsCleanupResult>('/api/repo-operations/cleanup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

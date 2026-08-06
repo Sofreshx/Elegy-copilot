@@ -190,6 +190,19 @@ export const COMPATIBILITY_MANIFESTS = [
       notes:
         'Install the six native Codex role agents and eight Elegy compatibility skills under ~/.codex. Native agents and Codex configuration remain harness-owned; Elegy plugins are installed through the Codex marketplace.',
     },
+    portability: {
+      profile: 'codex-portable/v1',
+      ledger: 'codex-assets/portability.json',
+      externalSources: 'engine-assets/external-sources.json',
+      receipts: [
+        '.elegy-copilot-codex-managed.json',
+        '.elegy-codex-portability.json',
+        '.elegy-codex-licenses/',
+        'config.toml',
+        'marketplaces/elegy/elegy-codex-marketplace.install.json',
+      ],
+      policy: 'Only complete and provenance-approved skills are portable. Local-only, broken, or unprovenanced folders remain explicitly excluded.',
+    },
     governance: SHARED_G05_GOVERNANCE,
     assetRoutes: [
       route('codex-global-instructions', { destination: 'AGENTS.md', management: CODEX_ELEGY_MANAGEMENT }),

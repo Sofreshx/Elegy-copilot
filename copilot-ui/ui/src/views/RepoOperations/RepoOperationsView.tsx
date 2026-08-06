@@ -10,6 +10,8 @@ import {
 import type {
   RepoOperationsBranch,
   RepoOperationsCapability,
+  RepoOperationsCleanupCandidate,
+  RepoOperationsIssue,
   RepoOperationsPullRequest,
   RepoOperationsRepository,
 } from '../../lib/api/repoOperations';
@@ -31,11 +33,80 @@ function display(value: unknown, fallback = '—'): string {
   return String(value);
 }
 
+const ISSUE_COPY: Record<string, { severity: 'error' | 'warning' | 'info'; title: string; message: string }> = {
+  'dirty-worktree': { severity: 'error', title: 'Working tree is dirty', message: 'Uncommitted changes are present.' },
+  'no-upstream': { severity: 'warning', title: 'No upstream configured', message: 'This branch is not tracking a remote branch.' },
+  'upstream-gone': { severity: 'warning', title: 'Upstream is gone', message: 'The configured upstream branch is no longer available.' },
+  diverged: { severity: 'error', title: 'Branch diverged', message: 'Local and upstream history have diverged.' },
+  ahead: { severity: 'info', title: 'Ahead of upstream', message: 'Local commits have not been pushed.' },
+  'ahead-of-upstream': { severity: 'info', title: 'Ahead of upstream', message: 'Local commits have not been pushed.' },
+  behind: { severity: 'info', title: 'Behind upstream', message: 'Remote commits are available to fast-forward.' },
+  'active-worktree': { severity: 'info', title: 'Worktree exists', message: 'This branch is checked out in a linked worktree.' },
+  merged: { severity: 'info', title: 'Merged worktree', message: 'This branch is merged into the default branch.' },
+  'active-session-or-worktree': { severity: 'warning', title: 'Active session or worktree', message: 'Managed activity is using this repository or worktree.' },
+  'remote-unavailable': { severity: 'warning', title: 'Remote unavailable', message: 'The configured remote could not be reached.' },
+  'no-remote': { severity: 'warning', title: 'No remote configured', message: 'No Git remote is configured for this repository.' },
+  'unsupported-provider': { severity: 'warning', title: 'Provider not supported', message: 'Pull request reporting is only available for GitHub remotes.' },
+  'missing-github-cli': { severity: 'warning', title: 'GitHub CLI unavailable', message: 'The GitHub CLI is not installed or could not be started.' },
+  'github-authentication-unavailable': { severity: 'warning', title: 'GitHub authentication unavailable', message: 'GitHub CLI authentication could not be verified.' },
+  'github-query-failed': { severity: 'warning', title: 'GitHub query failed', message: 'Open GitHub pull requests could not be loaded.' },
+  'invalid-merge-request': { severity: 'warning', title: 'Invalid merge request', message: 'The merge request is missing a squash operation or expected head SHA.' },
+  'stale-repository-state': { severity: 'warning', title: 'Repository state changed', message: 'The repository changed during the safe sync operation.' },
+  'fast-forward-verification-failed': { severity: 'error', title: 'Fast-forward verification failed', message: 'The resulting branch was not clean and up to date.' },
+  'sync-command-failed': { severity: 'error', title: 'Safe sync failed', message: 'The fetch or fast-forward operation could not complete.' },
+  'missing-path': { severity: 'error', title: 'Repository unavailable', message: 'The repository path is unavailable.' },
+  'linked-worktree-checkout': { severity: 'info', title: 'Linked worktree checkout', message: 'This checkout is represented by its canonical repository.' },
+  'scan-failed': { severity: 'error', title: 'Repository scan failed', message: 'The repository could not be scanned.' },
+  'git-command-failed': { severity: 'warning', title: 'Git command failed', message: 'A Git command could not complete.' },
+  'command-timeout': { severity: 'warning', title: 'Command timed out', message: 'A repository command exceeded its time limit.' },
+  'activity-state-unavailable': { severity: 'warning', title: 'Activity state unavailable', message: 'Managed session activity could not be verified.' },
+  'repository-unavailable': { severity: 'error', title: 'Repository unavailable', message: 'The repository could not be opened.' },
+  'branch-delete-failed': { severity: 'warning', title: 'Local branch retained', message: 'The worktree was removed, but Git kept the branch.' },
+  'worktree-remove-failed': { severity: 'error', title: 'Worktree removal failed', message: 'Git could not remove the linked worktree.' },
+  'cleanup-operation-unavailable': { severity: 'error', title: 'Cleanup unavailable', message: 'Safe Git cleanup operations are unavailable.' },
+  'repository-not-in-catalog': { severity: 'error', title: 'Repository not in catalog', message: 'The repository is not in the canonical inventory.' },
+  'invalid-cleanup-candidate': { severity: 'warning', title: 'Invalid cleanup candidate', message: 'A worktree path, branch, and observed Git SHAs are required.' },
+  'not-merged': { severity: 'info', title: 'Not merged', message: 'The branch is not fully merged into the default branch.' },
+  'worktree-dirty': { severity: 'error', title: 'Worktree is dirty', message: 'Uncommitted changes prevent safe cleanup.' },
+  'current-worktree': { severity: 'warning', title: 'Primary worktree protected', message: 'The primary worktree is never removed.' },
+  'current-branch': { severity: 'warning', title: 'Current branch protected', message: 'The active branch is never removed.' },
+  'default-branch': { severity: 'warning', title: 'Default branch protected', message: 'The default branch is never removed.' },
+  'worktree-state-unavailable': { severity: 'warning', title: 'Worktree state unavailable', message: 'The linked worktree could not be revalidated.' },
+  'stale-cleanup-candidate': { severity: 'warning', title: 'State changed', message: 'The candidate no longer matches the confirmed scan.' },
+};
+
 function issueCodesForRepo(repo: RepoOperationsRepository): string[] {
   return Array.from(new Set([
     ...(repo.sync?.issueCodes || []),
     ...(repo.issues || []).map((entry) => entry.code),
   ]));
+}
+
+function issueTitle(code: string): string {
+  return ISSUE_COPY[code]?.title || 'Repository state needs attention';
+}
+
+function issuesForCodes(codes: string[], context: Record<string, unknown> = {}): RepoOperationsIssue[] {
+  return Array.from(new Map(codes.map((code) => {
+    const fallback = ISSUE_COPY[code] || { severity: 'warning' as const, title: issueTitle(code), message: 'Repository state needs attention.' };
+    return [code, { code, ...fallback, details: context }];
+  })).values());
+}
+
+function issuesForRepo(repo: RepoOperationsRepository): RepoOperationsIssue[] {
+  const known = Array.isArray(repo.issues) ? repo.issues : [];
+  const knownCodes = new Set(known.map((issue) => issue.code));
+  const normalizedKnown = known.map((issue) => {
+    const fallback = ISSUE_COPY[issue.code];
+    return {
+      ...issue,
+      severity: issue.severity || fallback?.severity || 'warning',
+      title: issue.title || fallback?.title || issue.code,
+      message: issue.message || fallback?.message || 'Repository state needs attention.',
+      details: issue.details || { repository: repo.repoLabel },
+    };
+  });
+  return [...normalizedKnown, ...issuesForCodes(issueCodesForRepo(repo).filter((code) => !knownCodes.has(code)), { repository: repo.repoLabel })];
 }
 
 function matchesQuery(values: unknown[], query: string): boolean {
@@ -51,11 +122,48 @@ function branchTone(state: string): 'neutral' | 'brand' | 'accent' | 'success' |
   return 'neutral';
 }
 
-function IssueBadges({ codes }: { codes: string[] }) {
-  if (codes.length === 0) return <span className="repo-operations-muted">None</span>;
+function IssueCluster({ issues, label }: { issues: RepoOperationsIssue[]; label: string }) {
+  if (issues.length === 0) {
+    return <span aria-label={`${label}: no issues`} className="repo-operations-status-icon repo-operations-status-icon-success" role="img" title="No issues"><AppIcon name="check" size={15} /></span>;
+  }
+  const counts = issues.reduce<Record<string, number>>((result, issue) => {
+    const severity = issue.severity === 'error' || issue.severity === 'warning' ? issue.severity : 'info';
+    result[severity] = (result[severity] || 0) + 1;
+    return result;
+  }, {});
   return (
-    <span className="repo-operations-badge-list">
-      {codes.map((code) => <Badge key={code} tone="accent">{code}</Badge>)}
+    <details className="repo-operations-issue-details" data-testid={`repo-operations-issues-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+      <summary aria-label={`${label}: ${issues.length} issue${issues.length === 1 ? '' : 's'}`} className="repo-operations-issue-summary">
+        {(['error', 'warning', 'info'] as const).map((severity) => counts[severity] ? (
+          <span className={`repo-operations-issue-count repo-operations-issue-count-${severity}`} key={severity} title={`${counts[severity]} ${severity} issue${counts[severity] === 1 ? '' : 's'}`}>
+            <AppIcon name={severity === 'error' ? 'error' : severity === 'warning' ? 'warning' : 'info'} size={14} />
+            <span>{counts[severity]}</span>
+          </span>
+        ) : null)}
+      </summary>
+      <div className="repo-operations-issue-popover" role="list">
+        {issues.map((issue, index) => (
+          <div className="repo-operations-issue-item" key={`${issue.code}-${index}`} role="listitem">
+            <span className={`repo-operations-issue-dot repo-operations-issue-dot-${issue.severity === 'error' || issue.severity === 'warning' ? issue.severity : 'info'}`} aria-hidden="true" />
+            <div>
+              <strong>{issue.title || issueTitle(issue.code)}</strong>
+              <span>{issue.message}</span>
+              {issue.details && Object.entries(issue.details).filter(([, value]) => value !== null && value !== undefined && value !== '').map(([key, value]) => (
+                <small key={key}>{key}: {String(value)}</small>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function SemanticStatus({ icon, label, tone = 'neutral', value }: { icon: 'check' | 'warning' | 'error' | 'info' | 'sync'; label: string; tone?: string; value?: string }) {
+  return (
+    <span aria-label={label} className={`repo-operations-semantic-status repo-operations-semantic-status-${tone}`} data-tooltip={label} role="img" tabIndex={0} title={label}>
+      <AppIcon name={icon} size={16} />
+      {value ? <span>{value}</span> : null}
     </span>
   );
 }
@@ -142,7 +250,16 @@ function SyncTable({ repositories, onPrepare }: { repositories: RepoOperationsRe
           {repositories.length === 0 ? (
             <tr><td className="empty-cell" colSpan={9}>No repositories match this filter.</td></tr>
           ) : repositories.map((repo) => {
-            const issueCodes = issueCodesForRepo(repo);
+            const issues = issuesForRepo(repo);
+            const sync = repo.sync;
+            const workingTreeLabel = !repo.available || sync?.clean === null
+              ? 'Working tree state unavailable'
+              : sync?.clean === true ? 'Working tree clean' : 'Working tree has uncommitted changes';
+            const remoteLabel = sync?.remoteAvailable ? 'Remote available' : 'Remote unavailable';
+            const syncBlocker = sync?.blockerCodes?.[0];
+            const syncLabel = sync?.syncEligible
+              ? 'Eligible for safe fast-forward sync'
+              : `Sync blocked: ${syncBlocker ? issueTitle(syncBlocker) : 'Repository state needs attention'}`;
             return (
               <tr key={repo.repoId || repo.repoPath || repo.repoLabel}>
                 <td>
@@ -152,22 +269,25 @@ function SyncTable({ repositories, onPrepare }: { repositories: RepoOperationsRe
                 <td>{display(repo.sync?.branch)}</td>
                 <td>{display(repo.sync?.upstream)}</td>
                 <td>
-                  <Badge tone={repo.sync?.clean === true ? 'success' : repo.sync?.clean === false ? 'danger' : 'neutral'}>
-                    {repo.available ? repo.sync?.clean === true ? 'clean' : repo.sync?.clean === false ? 'dirty' : 'unavailable' : 'unavailable'}
-                  </Badge>
-                </td>
-                <td>{repo.sync ? `+${repo.sync.ahead || 0} / -${repo.sync.behind || 0}` : '—'}</td>
-                <td>
-                  <Badge tone={repo.sync?.remoteAvailable ? 'success' : 'danger'}>
-                    {repo.sync?.remoteAvailable ? 'available' : 'unavailable'}
-                  </Badge>
+                  <SemanticStatus
+                    icon={!repo.available || sync?.clean === null ? 'warning' : sync?.clean ? 'check' : 'error'}
+                    label={workingTreeLabel}
+                    tone={!repo.available || sync?.clean === null ? 'warning' : sync?.clean ? 'success' : 'danger'}
+                  />
                 </td>
                 <td>
-                  <Badge tone={repo.sync?.syncEligible ? 'success' : 'accent'}>
-                    {repo.sync?.syncEligible ? 'eligible' : display(repo.sync?.blockerCodes?.[0], 'blocked')}
-                  </Badge>
+                  <span className="repo-operations-ahead-behind" title={`Ahead ${sync?.ahead || 0}, behind ${sync?.behind || 0}`}>
+                    <SemanticStatus icon={sync?.ahead ? 'warning' : 'check'} label={`${sync?.ahead || 0} commits ahead`} value={`+${sync?.ahead || 0}`} tone={sync?.ahead ? 'accent' : 'success'} />
+                    <SemanticStatus icon={sync?.behind ? 'info' : 'check'} label={`${sync?.behind || 0} commits behind`} value={`−${sync?.behind || 0}`} tone={sync?.behind ? 'accent' : 'success'} />
+                  </span>
                 </td>
-                <td><IssueBadges codes={issueCodes} /></td>
+                <td>
+                  <SemanticStatus icon={sync?.remoteAvailable ? 'check' : 'warning'} label={remoteLabel} tone={sync?.remoteAvailable ? 'success' : 'warning'} />
+                </td>
+                <td>
+                  <SemanticStatus icon={sync?.syncEligible ? 'check' : 'warning'} label={syncLabel} tone={sync?.syncEligible ? 'success' : 'accent'} />
+                </td>
+                <td><IssueCluster issues={issues} label={`${repo.repoLabel} issues`} /></td>
                 <td><RepositoryAction onPrepare={onPrepare} repo={repo} /></td>
               </tr>
             );
@@ -208,7 +328,7 @@ function BranchTable({ branches }: { branches: RepoOperationsBranch[] }) {
               <td><Badge tone={branchTone(branch.state)}>{branch.state}</Badge></td>
               <td>{display(branch.worktree || (branch.activeWorktree ? 'active' : null))}</td>
               <td>{branch.cleanupEligible ? <Badge tone="accent">eligible</Badge> : <span className="repo-operations-muted">blocked</span>}</td>
-              <td><IssueBadges codes={branch.issueCodes || []} /></td>
+              <td><IssueCluster issues={issuesForCodes(branch.issueCodes || [], { branch: branch.name, repository: branch.repoLabel || branch.repoId })} label={`${branch.name} issues`} /></td>
             </tr>
           ))}
         </tbody>
@@ -306,7 +426,7 @@ function SyncConfirmationDialog({
         ) : <p className="repo-operations-muted">There are no eligible repositories to sync right now.</p>}
         {Object.keys(reasonCounts).length > 0 ? (
           <div className="repo-operations-dialog-reasons">
-            {Object.entries(reasonCounts).map(([reason, count]) => <Badge key={reason} tone="accent">{count} {reason}</Badge>)}
+            {Object.entries(reasonCounts).map(([reason, count]) => <Badge key={reason} tone="accent">{count} {issueTitle(reason)}</Badge>)}
           </div>
         ) : null}
         <div className="repo-operations-dialog-actions">
@@ -358,6 +478,64 @@ function PullRequestPickerDialog({
   );
 }
 
+function CleanupConfirmationDialog({
+  candidates,
+  onCancel,
+  onConfirm,
+  loading,
+}: {
+  candidates: RepoOperationsCleanupCandidate[];
+  onCancel: () => void;
+  onConfirm: () => void;
+  loading: boolean;
+}) {
+  const eligible = candidates.filter((candidate) => candidate.eligible);
+  const skipped = candidates.filter((candidate) => !candidate.eligible);
+  return (
+    <div className="repo-operations-dialog-backdrop" role="presentation">
+      <div aria-label="Confirm merged worktree cleanup" aria-modal="true" className="repo-operations-dialog repo-operations-cleanup-dialog" role="dialog">
+        <div className="repo-operations-dialog-header">
+          <div>
+            <div className="eyebrow">Safe cleanup preview</div>
+            <h2>Clean merged worktrees</h2>
+            <p>Each candidate is freshly revalidated before mutation. Only clean, inactive linked worktrees merged into the default branch are removed, followed by a non-force local branch delete. Remote branches and the primary worktree are never touched.</p>
+          </div>
+          <Button onClick={onCancel} size="sm" variant="ghost">Cancel</Button>
+        </div>
+        <div className="repo-operations-dialog-summary">
+          <strong>{eligible.length} eligible candidate{eligible.length === 1 ? '' : 's'}</strong>
+          <span>{skipped.length} shown but protected or blocked</span>
+        </div>
+        {eligible.length > 0 ? (
+          <ul className="repo-operations-dialog-list">
+            {eligible.map((candidate) => <li key={`${candidate.repoId}-${candidate.worktreePath}-${candidate.branch}`}><strong>{candidate.repoLabel}</strong><span>{candidate.branch}</span><small>{candidate.worktreePath}</small></li>)}
+          </ul>
+        ) : <p className="repo-operations-muted">No candidate is currently eligible. Refresh the overview and try again.</p>}
+        {skipped.length > 0 ? (
+          <details className="repo-operations-cleanup-skipped">
+            <summary>Show protected candidates ({skipped.length})</summary>
+            <ul className="repo-operations-dialog-list">
+              {skipped.map((candidate) => <li key={`${candidate.repoId}-${candidate.worktreePath}-${candidate.branch}`}><strong>{candidate.repoLabel}</strong><span>{candidate.branch}</span><small>{candidate.blockerCodes.length ? candidate.blockerCodes.map(issueTitle).join(' · ') : 'Not eligible'}</small></li>)}
+            </ul>
+          </details>
+        ) : null}
+        <div className="repo-operations-dialog-actions">
+          <Button onClick={onCancel} variant="ghost">Cancel</Button>
+          <Button disabled={eligible.length === 0} loading={loading} loadingLabel="Cleaning" onClick={onConfirm} testId="repo-operations-confirm-cleanup" variant="primary">Confirm cleanup</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CleanupResult({ result }: { result: { summary: { removedWorktrees: number; deletedBranches: number; partial: number; skipped: number; failed: number } } }) {
+  return (
+    <div className="repo-operations-result" role="status">
+      Cleanup finished: {result.summary.removedWorktrees} worktree{result.summary.removedWorktrees === 1 ? '' : 's'} removed · {result.summary.deletedBranches} local branch{result.summary.deletedBranches === 1 ? '' : 'es'} deleted · {result.summary.partial} partial · {result.summary.skipped} skipped · {result.summary.failed} failed.
+    </div>
+  );
+}
+
 function AgentRunsPanel() {
   const runs = Object.values(repoOperationsStore.getState().agentRuns);
   if (runs.length === 0) return null;
@@ -376,7 +554,7 @@ function AgentRunsPanel() {
                 </div>
                 <Badge tone={approvalReady ? 'accent' : run.status === 'completed' ? 'success' : run.status === 'failed' || run.status === 'blocked' || run.status === 'needs-manual-session' ? 'danger' : 'neutral'}>{run.status}</Badge>
               </div>
-              {run.blockerCodes?.length ? <IssueBadges codes={run.blockerCodes} /> : null}
+              {run.blockerCodes?.length ? <IssueCluster issues={issuesForCodes(run.blockerCodes, { run: run.id })} label={`${run.repoLabel || run.repoId} run blockers`} /> : null}
               {run.proposedOperation ? <p className="repo-operations-run-proposal">Proposed: squash merge PR #{run.prNumber}; approval re-checks the current head SHA.</p> : null}
               {run.evidence ? <details><summary>Evidence</summary><pre>{JSON.stringify(run.evidence, null, 2)}</pre></details> : null}
               {run.error ? <p className="repo-operations-run-error">{run.error}</p> : null}
@@ -397,6 +575,7 @@ function AgentRunsPanel() {
 export default function RepoOperationsView() {
   const state = useStoreValue(repoOperationsStore);
   const [syncConfirmOpen, setSyncConfirmOpen] = useState(false);
+  const [cleanupConfirmOpen, setCleanupConfirmOpen] = useState(false);
   const [prPickerRepo, setPrPickerRepo] = useState<RepoOperationsRepository | null>(null);
 
   useEffect(() => {
@@ -518,12 +697,18 @@ export default function RepoOperationsView() {
                 onClick={() => setSyncConfirmOpen(true)}
                 testId="repo-operations-action-sync-eligible-repositories"
               />
-              <ActionButton capability={branchCleanupCapability} />
+              <ActionButton
+                capability={branchCleanupCapability}
+                loading={state.cleaning}
+                onClick={() => setCleanupConfirmOpen(true)}
+                testId="repo-operations-action-clean-merged-worktrees"
+              />
               <span className="repo-operations-action-note">PR preparation is intentionally per repository; conflicts, dirty trees, failed checks, and stale approvals require a manual session.</span>
             </div>
           </Panel>
 
           {state.syncResult ? <div className="repo-operations-result" role="status">Sync finished: {state.syncResult.summary.synced} synced · {state.syncResult.summary.unchanged} unchanged · {state.syncResult.summary.skipped} skipped · {state.syncResult.summary.failed} failed.</div> : null}
+          {state.cleanupResult ? <CleanupResult result={state.cleanupResult} /> : null}
 
           <AgentRunsPanel />
 
@@ -548,6 +733,15 @@ export default function RepoOperationsView() {
           void repoOperationsStore.syncEligibleRepositories();
         }}
         repositories={overview.repositories}
+      /> : null}
+      {cleanupConfirmOpen ? <CleanupConfirmationDialog
+        candidates={overview.cleanupCandidates || []}
+        loading={state.cleaning}
+        onCancel={() => setCleanupConfirmOpen(false)}
+        onConfirm={() => {
+          setCleanupConfirmOpen(false);
+          void repoOperationsStore.cleanupMergedWorktrees((overview.cleanupCandidates || []).filter((candidate) => candidate.eligible));
+        }}
       /> : null}
       {prPickerRepo ? <PullRequestPickerDialog
         onCancel={() => setPrPickerRepo(null)}

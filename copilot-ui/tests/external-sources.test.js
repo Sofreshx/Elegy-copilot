@@ -1,6 +1,7 @@
 'use strict';
 const assert = require('assert');
 const childProcess = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -417,6 +418,66 @@ async function run() {
         [expectedBridgePath, '--ghidra-server', 'http://127.0.0.1:8080/'],
       );
     });
+    await test('external skills materialize into Codex with a verified provenance receipt', async () => {
+      const homes = createTargetHomes('external-skill-target');
+      const skillText = '---\nname: demo-skill\n---\n# Demo skill\n';
+      const sha256 = crypto.createHash('sha256').update(skillText).digest('hex');
+      writeCatalog([{
+        sourceId: 'demo-skill-source',
+        title: 'Demo skill source',
+        url: 'https://github.com/example/demo-skill',
+        sourceType: 'github-repo',
+        owner: 'example',
+        repo: 'demo-skill',
+        defaultRef: 'pinned-ref',
+        metadata: { sha256 },
+        installables: [{
+          installableId: 'skill:demo-skill',
+          kind: 'external-skill',
+          name: 'demo-skill',
+          sourcePath: 'skills/demo-skill/SKILL.md',
+          targetSupport: ['codex'],
+        }],
+      }]);
+      const sourceCacheRoot = path.join(externalSources.resolveCacheRoot(homes.elegyHome), 'demo-skill-source');
+      writeJson(path.join(sourceCacheRoot, 'snapshot.json'), {
+        schemaVersion: 1,
+        sourceId: 'demo-skill-source',
+        fetchedAt: '2026-08-06T00:00:00.000Z',
+        resolvedRef: 'pinned-ref',
+        installables: [{
+          installableId: 'skill:demo-skill', kind: 'external-skill', name: 'demo-skill',
+          sourcePath: 'skills/demo-skill/SKILL.md', targetSupport: ['codex'],
+        }],
+      });
+      writeText(path.join(sourceCacheRoot, 'extracted', 'demo-skill-pinned', 'skills', 'demo-skill', 'SKILL.md'), skillText);
+
+      const activated = await externalSources.activateInstallable({ engineRoot, ...homes }, {
+        sourceId: 'demo-skill-source', installableId: 'skill:demo-skill', target: 'codex',
+      });
+      const installedPath = path.join(homes.codexHome, 'skills', 'demo-skill');
+      assert.strictEqual(activated.materialized.path, installedPath);
+      assert.strictEqual(fs.readFileSync(path.join(installedPath, 'SKILL.md'), 'utf8'), skillText);
+      assert.deepStrictEqual(
+        JSON.parse(fs.readFileSync(path.join(installedPath, '.elegy-external-skill.json'), 'utf8')),
+        { schemaVersion: 1, sourceId: 'demo-skill-source', installableId: 'skill:demo-skill', sourcePath: 'skills/demo-skill/SKILL.md', sourceSha256: sha256 },
+      );
+
+      const removed = await externalSources.deactivateInstallable({ engineRoot, ...homes }, {
+        sourceId: 'demo-skill-source', installableId: 'skill:demo-skill', target: 'codex',
+      });
+      assert.strictEqual(removed.removed.changed, true);
+      assert.strictEqual(fs.existsSync(installedPath), false);
+
+      writeText(path.join(sourceCacheRoot, 'extracted', 'demo-skill-pinned', 'skills', 'demo-skill', 'SKILL.md'), `${skillText}\ncorrupted\n`);
+      await assert.rejects(
+        externalSources.activateInstallable({ engineRoot, ...homes }, {
+          sourceId: 'demo-skill-source', installableId: 'skill:demo-skill', target: 'codex',
+        }),
+        /pinned SHA-256/,
+      );
+    });
+
     await test('Spec Kit install prefers uv when available and uses uv reinstall under force', async () => {
       writeCatalog([
         {

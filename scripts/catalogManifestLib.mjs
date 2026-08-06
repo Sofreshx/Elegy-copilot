@@ -309,6 +309,7 @@ export function buildCompatibilityManifest(manifestId, options = {}) {
     installDefaults: cloneJson(manifestDefinition.installDefaults),
     ...(manifestDefinition.installerHints ? { installerHints: cloneJson(manifestDefinition.installerHints) } : {}),
     ...(manifestDefinition.skillPointer ? { skillPointer: cloneJson(manifestDefinition.skillPointer) } : {}),
+    ...(manifestDefinition.portability ? { portability: cloneJson(manifestDefinition.portability) } : {}),
     ...(manifestDefinition.governance ? { governance: cloneJson(manifestDefinition.governance) } : {}),
     ...(bundles.length > 0 ? { bundles } : {}),
     assets,

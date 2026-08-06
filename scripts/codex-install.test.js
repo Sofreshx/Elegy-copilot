@@ -73,6 +73,48 @@ async function main() {
     assert.ok(!manifest.assets.some((asset) => /(?:^|-)planning(?:$|-)|repo-checks|openai|(?:^|-)go(?:$|-)/i.test(asset.id)));
   });
 
+  await test('portable Codex install writes an explicit provenance receipt', async () => {
+    withTempDir((root) => {
+      const codexHome = path.join(root, '.codex');
+      const summary = installer.runInstall({ force: true, skipHooks: true, codexHome });
+      const receiptPath = path.join(codexHome, '.elegy-codex-portability.json');
+      const marketplaceReceiptPath = path.join(codexHome, 'marketplaces', 'elegy', 'elegy-codex-marketplace.install.json');
+      assert.ok(fs.existsSync(receiptPath));
+      assert.ok(fs.existsSync(marketplaceReceiptPath));
+      assert.ok(fs.existsSync(path.join(codexHome, '.elegy-codex-licenses', 'elegy', 'LICENSE.txt')));
+      assert.ok(fs.existsSync(path.join(codexHome, '.elegy-codex-licenses', 'playwright-cli', 'LICENSE.txt')));
+      assert.ok(fs.existsSync(path.join(codexHome, '.elegy-codex-licenses', 'playwright-cli', 'NOTICE.txt')));
+      const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+      assert.strictEqual(receipt.profile, 'codex-portable/v1');
+      assert.ok(receipt.approvedPortable.some((entry) => entry.id === 'context7-cli' && entry.pinnedRef));
+      assert.ok(receipt.reviewedLocalFolders.some((entry) => entry.name === 'operate-comfyui' && entry.status === 'broken'));
+      assert.strictEqual(summary.portability.receiptPath, receiptPath);
+      assert.strictEqual(summary.portability.approvedPortable, 3);
+      assert.strictEqual(summary.portability.licenseMaterials, 3);
+      assert.strictEqual(summary.portability.marketplaceReceipt.status, 'external-install-required');
+      assert.strictEqual(JSON.parse(fs.readFileSync(marketplaceReceiptPath, 'utf8')).status, 'external-install-required');
+      const rerun = installer.runInstall({ force: true, skipHooks: true, codexHome });
+      assert.strictEqual(rerun.portability.marketplaceReceipt.action, 'skipped');
+      assert.strictEqual(rerun.portability.marketplaceReceipt.status, 'external-install-required');
+    });
+  });
+
+  await test('portable Codex install recognizes only a verified marketplace-service receipt as installed', async () => {
+    withTempDir((root) => {
+      const codexHome = path.join(root, '.codex');
+      const marketplaceReceiptPath = path.join(codexHome, 'marketplaces', 'elegy', 'elegy-codex-marketplace.install.json');
+      fs.mkdirSync(path.dirname(marketplaceReceiptPath), { recursive: true });
+      fs.writeFileSync(marketplaceReceiptPath, JSON.stringify({
+        schemaVersion: 'elegy-codex-marketplace-install/v1',
+        marketplaceName: 'elegy',
+        archiveSha256: 'a'.repeat(64),
+        installedAt: '2026-08-06T00:00:00.000Z',
+      }), 'utf8');
+      const summary = installer.runInstall({ force: true, skipHooks: true, codexHome });
+      assert.strictEqual(summary.portability.marketplaceReceipt.status, 'installed-receipt');
+    });
+  });
+
   await test('installer creates lean Codex assets and reruns idempotently', async () => {
     withTempDir((root) => {
       const codexHome = path.join(root, '.codex');

@@ -91,6 +91,32 @@ async function handleSync(ctx, service, sendJson, readJsonBody) {
   }
 }
 
+async function handleCleanup(ctx, service, sendJson, readJsonBody) {
+  try {
+    const body = await readBody(ctx, readJsonBody);
+    if (body.confirmed !== true) {
+      sendJson(ctx.res, 400, {
+        ok: false,
+        error: 'Explicit confirmation is required to clean merged worktrees.',
+        code: 'confirmation-required',
+      });
+      return;
+    }
+    if (!Array.isArray(body.candidates)) {
+      sendJson(ctx.res, 400, {
+        ok: false,
+        error: 'A cleanup candidate list is required.',
+        code: 'candidate-list-required',
+      });
+      return;
+    }
+    const result = await service.cleanupWorktrees(requestContext(ctx), { ...body, confirmed: true });
+    sendJson(ctx.res, 200, result);
+  } catch (error) {
+    sendRouteError(ctx.res, error, sendJson, 'repo_operations_cleanup_failed');
+  }
+}
+
 async function handleStartAgentRun(ctx, service, sendJson, readJsonBody) {
   try {
     const body = await readBody(ctx, readJsonBody);
@@ -150,6 +176,11 @@ function register(deps = {}) {
     },
     {
       method: 'POST',
+      path: '/api/repo-operations/cleanup',
+      handler: (ctx) => handleCleanup(ctx, service, sendJson, readJsonBody),
+    },
+    {
+      method: 'POST',
       path: '/api/repo-operations/agent-runs',
       handler: (ctx) => handleStartAgentRun(ctx, service, sendJson, readJsonBody),
     },
@@ -175,6 +206,7 @@ module.exports = {
   createDefaultService,
   handleOverview,
   handleSync,
+  handleCleanup,
   handleStartAgentRun,
   handleGetAgentRun,
   handleApproveAgentRun,

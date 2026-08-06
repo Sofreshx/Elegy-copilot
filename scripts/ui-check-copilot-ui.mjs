@@ -4,7 +4,7 @@
  *
  * Environment variables (set by the ui-check runner):
  *   UI_CHECK_RUN_ID        — unique run identifier
- *   UI_CHECK_TARGET_ID     — target being executed (settings, catalog, workspace, etc.)
+ *   UI_CHECK_TARGET_ID     — target being executed (settings, workspace, repo-operations, etc.)
  *   UI_CHECK_EVIDENCE_DIR  — directory to write evidence into
  *
  * Writes: <UI_CHECK_EVIDENCE_DIR>/runtime-report.json
@@ -328,7 +328,6 @@ async function setupBrowser() {
  *
  * View mapping:
  *   settings       → sidebar-item-settings, then app-layout
- *   catalog        → sidebar-item-settings, then settings-nav-catalog
  *   workspace      → seeded opened workspace docs tab
  *   workspace-git  → seeded opened workspace Git tab
  *   workspace-checks → seeded opened workspace Checks tab
@@ -338,11 +337,11 @@ async function setupBrowser() {
  *   remote         → sidebar-item-remote
  *
  * @param {import('@playwright/test').Page} page
- * @param {string}   viewId  - One of: settings, catalog, workspace, workspace-git, workspace-checks, workspace-notes, repositories, repo-operations, remote
+ * @param {string}   viewId  - One of: settings, workspace, workspace-git, workspace-checks, workspace-assets, repositories, repo-operations, remote
  * @returns {Promise<void>}
  */
 async function navigateToView(page, viewId) {
-  const validViews = new Set(['settings', 'catalog', 'workspace', 'workspace-git', 'workspace-checks', 'workspace-assets', 'repositories', 'repo-operations', 'remote']);
+  const validViews = new Set(['settings', 'workspace', 'workspace-git', 'workspace-checks', 'workspace-assets', 'repositories', 'repo-operations', 'remote']);
   if (!validViews.has(viewId)) {
     throw new Error(`Unknown viewId: "${viewId}". Valid: ${[...validViews].join(', ')}`);
   }
@@ -371,15 +370,6 @@ async function navigateToView(page, viewId) {
     await page.waitForSelector('[data-testid="app-layout"]', {
       timeout: PAGE_READY_TIMEOUT_MS,
     });
-  } else if (viewId === 'catalog') {
-    // Click the settings sidebar item first
-    await page.click('[data-testid="sidebar-item-settings"]');
-    await page.waitForSelector('[data-testid="app-layout"]', {
-      timeout: PAGE_READY_TIMEOUT_MS,
-    });
-    // Then click the Assets & Tools section within settings
-    await page.click('[data-testid="settings-nav-catalog"]');
-    await page.waitForTimeout(500); // Allow content transition
   } else if (viewId === 'workspace' || isWorkspaceTabTarget(viewId)) {
     if (!workspaceSeed) {
       throw new Error(`Workspace navigation for "${viewId}" did not receive a workspace seed.`);
@@ -425,10 +415,6 @@ async function waitForTargetReadiness(page, targetId) {
           && !exists('[data-testid="github-auth-checking"]')
           && !text('.workspace-context-status').includes('Checking status')
           && !loadingMessage;
-      }
-      if (id === 'catalog') {
-        return exists('[data-testid="catalog-shell-view"]')
-          && !exists('[data-testid="catalog-actionable-error"]');
       }
       if (id === 'settings') return exists('[data-testid="settings-view"]');
       if (id === 'repo-operations') {
@@ -525,7 +511,7 @@ async function captureApprovedViewports(page, routeId, evidenceDir, prefix, diag
  *   - Each surfaceResult: routeId, viewport, state, status, screenshot,
  *     consoleErrors, pageErrors, networkFailures
  *
- * @param {string}   targetId       - Target identifier (e.g. 'settings', 'catalog')
+ * @param {string}   targetId       - Target identifier (e.g. 'settings', 'repo-operations')
  * @param {Array}    surfaceResults - Array of surface result objects
  * @param {string}   evidenceDir    - Evidence directory path
  * @returns {{ reportPath: string }}  Path to the written report
@@ -564,7 +550,6 @@ function generateRuntimeReport(targetId, surfaceResults, evidenceDir) {
  *
  * Target mapping:
  *   settings   → settings view, default state
- *   catalog    → settings → Assets & Tools, default state
  *   workspace  → seeded opened workspace
  *   workspace-git/checks/notes → seeded opened workspace local tabs
  *   repo-operations → global repository operations surface
@@ -587,23 +572,6 @@ async function runTarget(targetId, browserHandle, evidenceDir) {
 
     surfaceResults.push({
       routeId: 'settings-default',
-      viewport: 'desktop',
-      state: 'default',
-      status: deriveSurfaceStatus({ ready: readiness.ready, consoleErrors, pageErrors: resultPageErrors, networkFailures }),
-      ready: readiness.ready,
-      screenshot,
-      consoleErrors: [...consoleErrors],
-      pageErrors: resultPageErrors,
-      networkFailures: [...networkFailures],
-    });
-  } else if (targetId === 'catalog') {
-    await navigateToView(page, 'catalog');
-    const readiness = await waitForTargetReadiness(page, targetId);
-    const screenshot = await captureState(page, 'desktop', 'default', evidenceDir, `catalog-default`);
-    const resultPageErrors = [...pageErrors, ...(readiness.reason ? [`Readiness failed: ${readiness.reason}`] : [])];
-
-    surfaceResults.push({
-      routeId: 'catalog-default',
       viewport: 'desktop',
       state: 'default',
       status: deriveSurfaceStatus({ ready: readiness.ready, consoleErrors, pageErrors: resultPageErrors, networkFailures }),
@@ -663,7 +631,7 @@ async function runTarget(targetId, browserHandle, evidenceDir) {
       networkFailures: [...networkFailures],
     });
   } else {
-    throw new Error(`Unknown targetId: "${targetId}". Supported: settings, catalog, workspace, workspace-git, workspace-checks, workspace-assets, repositories, repo-operations, remote`);
+    throw new Error(`Unknown targetId: "${targetId}". Supported: settings, workspace, workspace-git, workspace-checks, workspace-assets, repositories, repo-operations, remote`);
   }
 
   return surfaceResults;

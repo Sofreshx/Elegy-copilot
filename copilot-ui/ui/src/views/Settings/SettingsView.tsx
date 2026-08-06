@@ -3,7 +3,6 @@ import { Button, IconButton, PageContainer, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { navigationStore, SETTINGS_NAV_GROUPS } from '../../stores/navigation';
 import CodexProviderPanel from './CodexProviderPanel';
-import CatalogShellView from '../Catalog/CatalogShellView';
 import OpenCodeView from '../../tabs/OpenCode/OpenCodeView';
 import MaintenanceView from '../Maintenance/MaintenanceView';
 import DashboardView from '../DashboardView';
@@ -66,8 +65,6 @@ export default function SettingsView() {
 
   function renderSection() {
     switch (activeSection) {
-      case 'catalog':
-        return <CatalogShellView />;
       case 'opencode':
         return <OpenCodeView />;
       case 'telemetry':

@@ -44,32 +44,6 @@
       "evidenceRoot": "./evidence/ui/settings",
       "runtimeReport": "runtime-report.json"
     },
-    "catalog": {
-      "lane": "browser",
-      "workingDirectory": "./",
-      "validationCommands": [
-        { "id": "build", "command": "npm --prefix copilot-ui run ui:build", "description": "Build the copilot-ui renderer" },
-        { "id": "evidence", "command": "node scripts/ui-check-copilot-ui.mjs", "timeout": 180000 }
-      ],
-      "routes": [
-        {
-          "id": "catalog-default",
-          "path": "navigation:catalog",
-          "viewports": ["desktop"],
-          "states": ["default"],
-          "excludedStates": [
-            { "state": "loading", "reason": "Catalog panel is a statically-rendered section within the Settings view." },
-            { "state": "empty", "reason": "Catalog always shows installed skills/agents — empty is not a reachable state." },
-            { "state": "error", "reason": "Catalog fetch errors surface as inline status text, not a distinct error surface." },
-            { "state": "disabled", "reason": "Catalog has no disabled mode." },
-            { "state": "focus", "reason": "Focus state is a CSS concern covered by component-level testing." }
-          ],
-          "description": "Catalog (Assets & Tools) view: reached via Settings → Assets & Tools section"
-        }
-      ],
-      "evidenceRoot": "./evidence/ui/catalog",
-      "runtimeReport": "runtime-report.json"
-    },
     "repositories": {
       "lane": "browser",
       "workingDirectory": "./",

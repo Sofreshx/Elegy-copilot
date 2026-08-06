@@ -7,9 +7,9 @@ const path = require('node:path');
 const repoInventoryLib = require('./repoInventoryService');
 const sessionLib = require('./sessions');
 
-const REPO_OPERATIONS_SCHEMA_VERSION = 2;
-const REPO_OPERATIONS_CONTRACT_VERSION = 'repo-operations.overview.v2';
-const REPO_OPERATIONS_ACTION_CONTRACT_VERSION = 'repo-operations.action.v2';
+const REPO_OPERATIONS_SCHEMA_VERSION = 3;
+const REPO_OPERATIONS_CONTRACT_VERSION = 'repo-operations.overview.v3';
+const REPO_OPERATIONS_ACTION_CONTRACT_VERSION = 'repo-operations.action.v3';
 const REPO_OPERATIONS_AGENT = 'repo-operations';
 const REPO_OPERATIONS_MODEL = 'opencode-go/deepseek-v4-flash';
 const DEFAULT_COMMAND_TIMEOUT_MS = 3000;
@@ -53,9 +53,12 @@ const CAPABILITIES = Object.freeze({
   },
   branchCleanup: {
     enabled: false,
-    label: 'Prepare branch cleanup',
-    reason: FUTURE_ACTION_REASON,
+    label: 'Clean merged worktrees',
+    description: 'Remove clean, inactive worktrees whose local branch is already merged into the default branch, then delete that local branch safely.',
+    reason: 'No eligible merged worktrees were found.',
     contract: REPO_OPERATIONS_ACTION_CONTRACT_VERSION,
+    requiresConfirmation: true,
+    mutation: 'remove-worktree-and-delete-local-branch',
   },
   pullRequestHandling: {
     enabled: false,
@@ -100,6 +103,13 @@ const ACTION_CONTRACT = Object.freeze({
     deletesBranches: false,
     autoMerge: false,
   },
+  cleanup: {
+    operation: 'remove-worktree-and-delete-local-branch',
+    remotes: false,
+    force: false,
+    requiresCandidateList: true,
+    revalidatesEachCandidate: true,
+  },
   blockedConditions: [
     'active-session-or-worktree',
     'dirty-worktree',
@@ -111,6 +121,12 @@ const ACTION_CONTRACT = Object.freeze({
     'remote-unavailable',
     'protected-or-default-branch',
     'stale-approval',
+    'current-worktree',
+    'current-branch',
+    'default-branch',
+    'worktree-dirty',
+    'not-merged',
+    'stale-cleanup-candidate',
   ],
 });
 
@@ -123,6 +139,59 @@ const ATTENTION_BRANCH_STATES = new Set([
   'merged',
   'active-worktree',
 ]);
+
+const ISSUE_DEFINITIONS = Object.freeze({
+  'dirty-worktree': { severity: 'error', title: 'Working tree is dirty', message: 'Uncommitted changes are present.' },
+  'no-upstream': { severity: 'warning', title: 'No upstream configured', message: 'This branch is not tracking a remote branch.' },
+  'upstream-gone': { severity: 'warning', title: 'Upstream is gone', message: 'The configured upstream branch is no longer available.' },
+  diverged: { severity: 'error', title: 'Branch diverged', message: 'Local and upstream history have diverged.' },
+  ahead: { severity: 'info', title: 'Ahead of upstream', message: 'Local commits have not been pushed.' },
+  'ahead-of-upstream': { severity: 'info', title: 'Ahead of upstream', message: 'Local commits have not been pushed.' },
+  behind: { severity: 'info', title: 'Behind upstream', message: 'Remote commits are available to fast-forward.' },
+  'active-worktree': { severity: 'info', title: 'Worktree exists', message: 'This branch is checked out in a linked worktree.' },
+  merged: { severity: 'info', title: 'Merged worktree', message: 'This branch is merged into the default branch and may be eligible for cleanup.' },
+  'active-session-or-worktree': { severity: 'warning', title: 'Active session or worktree', message: 'Managed activity is using this repository or worktree.' },
+  'remote-unavailable': { severity: 'warning', title: 'Remote unavailable', message: 'The configured remote could not be reached.' },
+  'no-remote': { severity: 'warning', title: 'No remote configured', message: 'No Git remote is configured for this repository.' },
+  'unsupported-provider': { severity: 'warning', title: 'Provider not supported', message: 'Pull request reporting is only available for GitHub remotes.' },
+  'linked-worktree-checkout': { severity: 'info', title: 'Linked worktree checkout', message: 'This checkout is represented by its canonical repository.' },
+  'missing-path': { severity: 'error', title: 'Repository unavailable', message: 'The repository path is unavailable.' },
+  'scan-failed': { severity: 'error', title: 'Repository scan failed', message: 'The repository could not be scanned.' },
+  'command-timeout': { severity: 'warning', title: 'Command timed out', message: 'A repository command exceeded its time limit.' },
+  'git-command-failed': { severity: 'warning', title: 'Git command failed', message: 'A Git command could not complete.' },
+  'worktree-dirty': { severity: 'error', title: 'Worktree is dirty', message: 'Uncommitted changes prevent safe cleanup.' },
+  'worktree-state-unavailable': { severity: 'warning', title: 'Worktree state unavailable', message: 'The linked worktree could not be revalidated.' },
+  'current-worktree': { severity: 'warning', title: 'Primary worktree protected', message: 'The repository’s primary worktree is never removed by cleanup.' },
+  'not-merged': { severity: 'info', title: 'Not merged', message: 'The branch is not fully merged into the default branch.' },
+  'default-branch': { severity: 'warning', title: 'Default branch protected', message: 'The default branch is never removed by cleanup.' },
+  'current-branch': { severity: 'warning', title: 'Current branch protected', message: 'The active branch is never removed by cleanup.' },
+  'stale-cleanup-candidate': { severity: 'warning', title: 'State changed', message: 'The candidate no longer matches the confirmed scan.' },
+  'repository-not-in-catalog': { severity: 'error', title: 'Repository not in catalog', message: 'The repository is not in the canonical catalog inventory.' },
+  'cleanup-operation-unavailable': { severity: 'error', title: 'Cleanup unavailable', message: 'Safe Git cleanup operations are unavailable.' },
+  'invalid-cleanup-candidate': { severity: 'warning', title: 'Invalid cleanup candidate', message: 'A worktree path, branch, and observed Git SHAs are required.' },
+  'activity-state-unavailable': { severity: 'warning', title: 'Activity state unavailable', message: 'Managed session or worktree activity could not be verified.' },
+  'missing-github-cli': { severity: 'warning', title: 'GitHub CLI unavailable', message: 'The GitHub CLI is not installed or could not be started.' },
+  'github-authentication-unavailable': { severity: 'warning', title: 'GitHub authentication unavailable', message: 'GitHub CLI authentication could not be verified.' },
+  'github-query-failed': { severity: 'warning', title: 'GitHub query failed', message: 'Open GitHub pull requests could not be loaded.' },
+  'invalid-merge-request': { severity: 'warning', title: 'Invalid merge request', message: 'The merge request is missing a squash operation or expected head SHA.' },
+  'stale-repository-state': { severity: 'warning', title: 'Repository state changed', message: 'The repository changed during the safe sync operation.' },
+  'fast-forward-verification-failed': { severity: 'error', title: 'Fast-forward verification failed', message: 'The resulting branch was not clean and up to date.' },
+  'sync-command-failed': { severity: 'error', title: 'Safe sync failed', message: 'The fetch or fast-forward operation could not complete.' },
+  'worktree-remove-failed': { severity: 'error', title: 'Worktree removal failed', message: 'Git could not remove the linked worktree.' },
+  'branch-delete-failed': { severity: 'warning', title: 'Local branch retained', message: 'The worktree was removed, but Git kept the local branch.' },
+});
+
+function issueForCode(code, details = null, fallbackMessage = null) {
+  const definition = ISSUE_DEFINITIONS[code] || {
+    severity: 'warning',
+    title: code || 'Repository issue',
+    message: fallbackMessage || 'Repository state needs attention.',
+  };
+  return issue(code, fallbackMessage || definition.message, definition.severity, {
+    title: definition.title,
+    ...(details && typeof details === 'object' ? details : {}),
+  });
+}
 
 function asString(value, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback;
@@ -162,11 +231,16 @@ function nowIso(now) {
 }
 
 function issue(code, message, severity = 'warning', details = null) {
+  const definition = ISSUE_DEFINITIONS[code];
+  const normalizedDetails = details && typeof details === 'object' ? { ...details } : null;
+  const title = asString(normalizedDetails?.title, definition?.title || code || 'Repository issue');
+  if (normalizedDetails) delete normalizedDetails.title;
   return {
     code,
     message,
     severity,
-    ...(details ? { details } : {}),
+    title,
+    ...(normalizedDetails ? { details: normalizedDetails } : {}),
   };
 }
 
@@ -611,6 +685,14 @@ function createGitOperations({ runCommand, childProcessImpl = childProcess, comm
     return run('git', ['merge', '--ff-only', upstream], repoPath, commandTimeoutMs);
   }
 
+  async function removeWorktree(repoPath, worktreePath) {
+    return run('git', ['worktree', 'remove', worktreePath], repoPath, commandTimeoutMs);
+  }
+
+  async function deleteLocalBranch(repoPath, branch) {
+    return run('git', ['branch', '-d', branch], repoPath, commandTimeoutMs);
+  }
+
   return {
     readStatus,
     readRemote,
@@ -621,6 +703,8 @@ function createGitOperations({ runCommand, childProcessImpl = childProcess, comm
     listMergedBranches,
     fetch,
     fastForwardOnly,
+    removeWorktree,
+    deleteLocalBranch,
   };
 }
 
@@ -766,6 +850,76 @@ function addIssue(issues, nextIssue) {
   issues.push(nextIssue);
 }
 
+function normalizeIssueRecord(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const code = asString(entry.code, 'repository-issue');
+  const definition = ISSUE_DEFINITIONS[code];
+  return {
+    ...entry,
+    code,
+    severity: asString(entry.severity, definition?.severity || 'warning'),
+    title: asString(entry.title, definition?.title || code),
+    message: asString(entry.message, definition?.message || 'Repository state needs attention.'),
+    details: entry.details && typeof entry.details === 'object' ? entry.details : null,
+  };
+}
+
+function addStructuredIssueForCode(issues, code, details = null) {
+  const normalizedCode = asString(code);
+  if (!normalizedCode) return;
+  addIssue(issues, issueForCode(normalizedCode, details));
+}
+
+function cleanupCandidateKey(candidate) {
+  return `${normalizePathForComparison(candidate?.worktreePath)}\u0000${asString(candidate?.branch)}`;
+}
+
+function normalizeCleanupCandidate(candidate, defaults = {}) {
+  const branch = asString(candidate?.branch);
+  const worktreePath = asNullableString(candidate?.worktreePath);
+  const blockerCodes = unique(Array.isArray(candidate?.blockerCodes) ? candidate.blockerCodes : []);
+  return {
+    repoId: asNullableString(candidate?.repoId || defaults.repoId),
+    repoLabel: asString(candidate?.repoLabel || defaults.repoLabel, 'Unknown repository'),
+    repoPath: asNullableString(candidate?.repoPath || defaults.repoPath),
+    worktreePath,
+    branch,
+    defaultBranch: asNullableString(candidate?.defaultBranch || defaults.defaultBranch),
+    observedBranchSha: normalizeSha(candidate?.observedBranchSha),
+    observedDefaultSha: normalizeSha(candidate?.observedDefaultSha),
+    clean: candidate?.clean === true,
+    mergedIntoDefault: candidate?.mergedIntoDefault === true,
+    active: candidate?.active === true,
+    eligible: candidate?.eligible === true && blockerCodes.length === 0,
+    blockerCodes,
+    details: candidate?.details && typeof candidate.details === 'object' ? candidate.details : null,
+  };
+}
+
+function cleanupEligibilityForCandidate({
+  repoPath,
+  defaultBranch,
+  syncBranch,
+  branch,
+  worktreePath,
+  worktreeStatus,
+  mergedIntoDefault,
+  active,
+  observedBranchSha,
+  observedDefaultSha,
+} = {}) {
+  const blockerCodes = [];
+  if (!worktreePath || normalizePathForComparison(worktreePath) === normalizePathForComparison(repoPath)) blockerCodes.push('current-worktree');
+  if (!branch) blockerCodes.push('worktree-state-unavailable');
+  if (branch === defaultBranch) blockerCodes.push('default-branch');
+  if (branch === syncBranch) blockerCodes.push('current-branch');
+  if (worktreeStatus?.clean !== true) blockerCodes.push(worktreeStatus?.clean === false ? 'worktree-dirty' : 'worktree-state-unavailable');
+  if (!mergedIntoDefault) blockerCodes.push('not-merged');
+  if (active) blockerCodes.push('active-session-or-worktree');
+  if (!observedBranchSha || !observedDefaultSha) blockerCodes.push('worktree-state-unavailable');
+  return { eligible: blockerCodes.length === 0, blockerCodes: unique(blockerCodes) };
+}
+
 async function scanRepository(repo, options = {}) {
   const git = options.git || createGitOperations(options);
   const github = options.github || createGithubOperations(options);
@@ -891,6 +1045,27 @@ async function scanRepository(repo, options = {}) {
       .filter((worktree) => asString(worktree?.branch))
       .map((worktree) => [asString(worktree.branch), asNullableString(worktree.path)]),
   );
+  const worktreeStateByPath = new Map();
+  for (const worktree of worktrees) {
+    const worktreePath = asNullableString(worktree?.path);
+    if (!worktreePath) continue;
+    if (normalizePathForComparison(worktreePath) === normalizePathForComparison(repoPath)) {
+      worktreeStateByPath.set(normalizePathForComparison(worktreePath), status);
+      continue;
+    }
+    try {
+      const worktreeStatus = typeof git.readStatus === 'function'
+        ? await git.readStatus(worktreePath)
+        : null;
+      worktreeStateByPath.set(normalizePathForComparison(worktreePath), worktreeStatus || null);
+    } catch (error) {
+      worktreeStateByPath.set(normalizePathForComparison(worktreePath), null);
+      addIssue(issues, issueForCode('worktree-state-unavailable', {
+        worktreePath,
+        error: errorMessage(error, 'Linked worktree state could not be read.'),
+      }));
+    }
+  }
 
   let activity = options.activity && typeof options.activity === 'object' ? options.activity : null;
   if (typeof options.activityReader === 'function') {
@@ -981,6 +1156,80 @@ async function scanRepository(repo, options = {}) {
     };
   });
 
+  const cleanupCandidates = [];
+  for (const worktree of worktrees) {
+    const worktreePath = asNullableString(worktree?.path);
+    const branchName = asString(worktree?.branch);
+    if (!worktreePath || !branchName) continue;
+    const branch = branches.find((entry) => entry.name === branchName) || null;
+    const worktreeStatus = worktreeStateByPath.get(normalizePathForComparison(worktreePath)) || null;
+    let observedBranchSha = normalizeSha(worktreeStatus?.headSha);
+    if (!observedBranchSha && typeof git.readRefSha === 'function') {
+      try {
+        observedBranchSha = await git.readRefSha(repoPath, branchName);
+      } catch (error) {
+        addIssue(issues, issueForCode('worktree-state-unavailable', {
+          worktreePath,
+          branch: branchName,
+          error: errorMessage(error, 'Branch SHA could not be read.'),
+        }));
+      }
+    }
+    let observedDefaultSha = null;
+    if (defaultBranch && typeof git.readRefSha === 'function') {
+      try {
+        observedDefaultSha = await git.readRefSha(repoPath, defaultBranch);
+      } catch (error) {
+        addIssue(issues, issueForCode('worktree-state-unavailable', {
+          worktreePath,
+          branch: defaultBranch,
+          error: errorMessage(error, 'Default branch SHA could not be read.'),
+        }));
+      }
+    }
+    if (!observedDefaultSha && defaultBranch === sync.branch) observedDefaultSha = normalizeSha(sync.headSha);
+    const active = normalizedActivity.active
+      || worktree?.active === true
+      || asString(worktree?.status).toLowerCase() === 'active'
+      || asString(worktree?.opencodeSessionStatus).toLowerCase() === 'running'
+      || Boolean(worktree?.sessionId);
+    const eligibility = cleanupEligibilityForCandidate({
+      repoPath,
+      defaultBranch,
+      syncBranch: sync.branch,
+      branch: branchName,
+      worktreePath,
+      worktreeStatus,
+      mergedIntoDefault: branch?.mergedIntoDefault === true,
+      active,
+      observedBranchSha,
+      observedDefaultSha,
+    });
+    cleanupCandidates.push(normalizeCleanupCandidate({
+      repoId: repo.repoId,
+      repoLabel: repo.repoLabel,
+      repoPath,
+      worktreePath,
+      branch: branchName,
+      defaultBranch,
+      observedBranchSha,
+      observedDefaultSha,
+      clean: worktreeStatus?.clean === true,
+      mergedIntoDefault: branch?.mergedIntoDefault === true,
+      active,
+      eligible: eligibility.eligible,
+      blockerCodes: eligibility.blockerCodes,
+      details: { worktreePath, branch: branchName },
+    }, repo));
+    for (const code of eligibility.blockerCodes) addStructuredIssueForCode(issues, code, { branch: branchName, worktreePath });
+  }
+  for (const code of unique([
+    ...sync.issueCodes,
+    ...branches.flatMap((branch) => branch.issueCodes),
+  ])) {
+    addStructuredIssueForCode(issues, code, { branch: sync.branch, repository: repo.repoLabel });
+  }
+
   const normalizedProvider = provider;
   let pullRequests = [];
   if (provider === 'github' && sync.remoteAvailable) {
@@ -1016,6 +1265,7 @@ async function scanRepository(repo, options = {}) {
     activity: normalizedActivity,
     defaultBranch,
     branches,
+    cleanupCandidates,
     pullRequests,
     issues,
     errors: issues.filter((entry) => entry.severity === 'error' || [
@@ -1837,9 +2087,21 @@ function createRepoOperationsService(options = {}) {
       activity,
       available: repository?.available !== false,
     });
-    const issues = Array.isArray(repository?.issues) ? repository.issues : [];
+    const issues = Array.isArray(repository?.issues) ? repository.issues.map(normalizeIssueRecord).filter(Boolean) : [];
     const branches = Array.isArray(repository?.branches) ? repository.branches : [];
     const pullRequests = Array.isArray(repository?.pullRequests) ? repository.pullRequests : [];
+    for (const code of unique([
+      ...sync.issueCodes,
+      ...branches.flatMap((branch) => Array.isArray(branch?.issueCodes) ? branch.issueCodes : []),
+    ])) {
+      if (!issues.some((entry) => entry.code === code)) {
+        addStructuredIssueForCode(issues, code, { repository: repository?.repoLabel || repository?.repoId || null });
+      }
+    }
+    const cleanupCandidates = Array.isArray(repository?.cleanupCandidates)
+      ? repository.cleanupCandidates.map((candidate) => normalizeCleanupCandidate(candidate, repository)).filter((candidate) => candidate.worktreePath && candidate.branch)
+      : [];
+    const cleanupEligible = cleanupCandidates.some((candidate) => candidate.eligible);
     const githubUnavailable = issues.some((entry) => [
       'missing-github-cli',
       'github-authentication-unavailable',
@@ -1856,6 +2118,7 @@ function createRepoOperationsService(options = {}) {
       branches,
       pullRequests,
       issues,
+      cleanupCandidates,
       errors: Array.isArray(repository?.errors) ? repository.errors : [],
       actionCapabilities: {
         sync: {
@@ -1870,6 +2133,12 @@ function createRepoOperationsService(options = {}) {
           reason: prAgentAvailable
             ? (pullRequests.length > 0 ? PR_AGENT_REASON : 'No open GitHub pull requests are currently available.')
             : 'GitHub pull request preparation is unavailable for this repository.',
+        },
+        branchCleanup: {
+          ...CAPABILITIES.branchCleanup,
+          enabled: cleanupEligible,
+          reason: cleanupEligible ? CAPABILITIES.branchCleanup.description : 'No clean, inactive, merged worktrees are eligible for cleanup.',
+          blockerCodes: cleanupEligible ? [] : unique(cleanupCandidates.flatMap((candidate) => candidate.blockerCodes)),
         },
       },
     };
@@ -2002,6 +2271,183 @@ function createRepoOperationsService(options = {}) {
     }
   }
 
+  async function cleanupWorktrees(context = {}, input = {}) {
+    if (input.confirmed !== true) {
+      throw Object.assign(new Error('Explicit confirmation is required to clean merged worktrees.'), {
+        statusCode: 400,
+        code: 'confirmation-required',
+      });
+    }
+    if (!Array.isArray(input.candidates)) {
+      throw Object.assign(new Error('A cleanup candidate list is required.'), {
+        statusCode: 400,
+        code: 'candidate-list-required',
+      });
+    }
+
+    const startedAt = now();
+    let inventory;
+    try {
+      inventory = await readCatalogInventory(context);
+    } catch (error) {
+      throw Object.assign(new Error(`Repository inventory could not be loaded: ${errorMessage(error, 'unknown error')}`), {
+        statusCode: 503,
+        code: 'repository-inventory-unavailable',
+      });
+    }
+    const catalogRepos = (Array.isArray(inventory?.repos) ? inventory.repos : [])
+      .filter((repo) => !repo?.isWorktreeCheckout && repo?.gitRootKind !== 'file');
+    const reposById = new Map(catalogRepos.map((repo) => [asString(repo?.repoId), repo]));
+    const requested = input.candidates.map((candidate, index) => ({
+      index,
+      ...normalizeCleanupCandidate(candidate),
+      requestedBranchSha: normalizeSha(candidate?.observedBranchSha),
+      requestedDefaultSha: normalizeSha(candidate?.observedDefaultSha),
+    }));
+    const repositories = [];
+    let eligibleCount = 0;
+
+    for (const request of requested) {
+      const baseResult = {
+        index: request.index,
+        repoId: request.repoId,
+        repoLabel: request.repoLabel,
+        worktreePath: request.worktreePath,
+        branch: request.branch,
+        status: 'skipped',
+        removedWorktree: false,
+        deletedBranch: false,
+        blockerCodes: [],
+        error: null,
+      };
+      if (!request.repoId || !request.worktreePath || !request.branch || !request.requestedBranchSha || !request.requestedDefaultSha) {
+        baseResult.blockerCodes = ['invalid-cleanup-candidate'];
+        repositories.push(baseResult);
+        continue;
+      }
+      const repo = reposById.get(request.repoId);
+      if (!repo || !repo.repoPath) {
+        baseResult.blockerCodes = ['repository-not-in-catalog'];
+        repositories.push(baseResult);
+        continue;
+      }
+
+      let scanned;
+      try {
+        // Every candidate gets its own scan immediately before any mutation. This
+        // deliberately trades a little throughput for a small, auditable safety
+        // boundary around worktree removal and local branch deletion.
+        scanned = await withTimeout(
+          Promise.resolve(scanner(repo, context)),
+          options.repositoryTimeoutMs || DEFAULT_REPOSITORY_TIMEOUT_MS,
+        );
+      } catch (error) {
+        baseResult.status = 'failed';
+        baseResult.blockerCodes = [isTimeoutError(error) ? 'command-timeout' : 'scan-failed'];
+        baseResult.error = errorMessage(error, 'Repository state could not be revalidated.');
+        repositories.push(baseResult);
+        continue;
+      }
+
+      const freshRepository = normalizeRepository(scanned || buildUnavailableRepository(repo, new Error('Repository scan returned no result')));
+      const freshCandidate = freshRepository.cleanupCandidates.find((candidate) => (
+        cleanupCandidateKey(candidate) === cleanupCandidateKey(request)
+      ));
+      if (!freshCandidate) {
+        baseResult.blockerCodes = ['stale-cleanup-candidate'];
+        repositories.push(baseResult);
+        continue;
+      }
+      const stale = freshCandidate.observedBranchSha !== request.requestedBranchSha
+        || freshCandidate.observedDefaultSha !== request.requestedDefaultSha;
+      if (stale) {
+        baseResult.blockerCodes = ['stale-cleanup-candidate'];
+        baseResult.details = {
+          observedBranchSha: freshCandidate.observedBranchSha,
+          observedDefaultSha: freshCandidate.observedDefaultSha,
+        };
+        repositories.push(baseResult);
+        continue;
+      }
+      const recheckedEligibility = cleanupEligibilityForCandidate({
+        repoPath: repo.repoPath,
+        defaultBranch: freshCandidate.defaultBranch,
+        syncBranch: freshRepository.sync?.branch,
+        branch: freshCandidate.branch,
+        worktreePath: freshCandidate.worktreePath,
+        worktreeStatus: { clean: freshCandidate.clean },
+        mergedIntoDefault: freshCandidate.mergedIntoDefault,
+        active: freshCandidate.active,
+        observedBranchSha: freshCandidate.observedBranchSha,
+        observedDefaultSha: freshCandidate.observedDefaultSha,
+      });
+      if (!freshCandidate.eligible || !recheckedEligibility.eligible) {
+        baseResult.blockerCodes = unique([
+          ...freshCandidate.blockerCodes,
+          ...recheckedEligibility.blockerCodes,
+        ]);
+        if (baseResult.blockerCodes.length === 0) baseResult.blockerCodes = ['stale-cleanup-candidate'];
+        repositories.push(baseResult);
+        continue;
+      }
+      eligibleCount += 1;
+      if (typeof git.removeWorktree !== 'function' || typeof git.deleteLocalBranch !== 'function') {
+        baseResult.status = 'failed';
+        baseResult.blockerCodes = ['cleanup-operation-unavailable'];
+        baseResult.error = 'Safe Git cleanup operations are unavailable.';
+        repositories.push(baseResult);
+        continue;
+      }
+
+      try {
+        const removeResult = await withTimeout(git.removeWorktree(repo.repoPath, freshCandidate.worktreePath), actionTimeoutMs);
+        if (removeResult?.ok === false) {
+          throw Object.assign(new Error(errorMessage(removeResult?.error, 'The worktree could not be removed.')), { code: 'worktree-remove-failed' });
+        }
+        baseResult.removedWorktree = true;
+        try {
+          const branchResult = await withTimeout(git.deleteLocalBranch(repo.repoPath, freshCandidate.branch), actionTimeoutMs);
+          if (branchResult?.deleted === false || branchResult?.ok === false) {
+            baseResult.status = 'partial';
+            baseResult.blockerCodes = ['branch-delete-failed'];
+            baseResult.error = errorMessage(branchResult?.error, 'The worktree was removed, but the local branch was not deleted.');
+          } else {
+            baseResult.deletedBranch = true;
+            baseResult.status = 'removed';
+          }
+        } catch (error) {
+          baseResult.status = 'partial';
+          baseResult.blockerCodes = ['branch-delete-failed'];
+          baseResult.error = errorMessage(error, 'The worktree was removed, but the local branch was not deleted.');
+        }
+      } catch (error) {
+        baseResult.status = 'failed';
+        baseResult.blockerCodes = [isTimeoutError(error) ? 'command-timeout' : 'worktree-remove-failed'];
+        baseResult.error = errorMessage(error, 'The worktree could not be removed.');
+      }
+      repositories.push(baseResult);
+    }
+
+    const summary = {
+      requested: repositories.length,
+      eligible: eligibleCount,
+      removed: repositories.filter((entry) => entry.status === 'removed').length,
+      partial: repositories.filter((entry) => entry.status === 'partial').length,
+      skipped: repositories.filter((entry) => entry.status === 'skipped').length,
+      failed: repositories.filter((entry) => entry.status === 'failed').length,
+      removedWorktrees: repositories.filter((entry) => entry.removedWorktree).length,
+      deletedBranches: repositories.filter((entry) => entry.deletedBranch).length,
+    };
+    return {
+      contractVersion: REPO_OPERATIONS_ACTION_CONTRACT_VERSION,
+      operation: 'cleanup',
+      startedAt,
+      completedAt: now(),
+      summary,
+      repositories,
+    };
+  }
+
   return {
     async getOverview(context = {}) {
       let inventory;
@@ -2037,6 +2483,12 @@ function createRepoOperationsService(options = {}) {
         repoLabel: repository.repoLabel,
         repoPath: repository.repoPath,
       })));
+      const allCleanupCandidates = normalizedRepositories.flatMap((repository) => repository.cleanupCandidates.map((candidate) => ({
+        ...candidate,
+        repoId: repository.repoId,
+        repoLabel: repository.repoLabel,
+        repoPath: repository.repoPath,
+      })));
       const summary = {
         trackedRepos: normalizedRepositories.length,
         reposNeedingAttention: normalizedRepositories.filter(hasAttention).length,
@@ -2051,12 +2503,25 @@ function createRepoOperationsService(options = {}) {
         generatedAt: now(),
         summary,
         warnings,
-        capabilities: CAPABILITIES,
+        capabilities: {
+          ...CAPABILITIES,
+          branchCleanup: {
+            ...CAPABILITIES.branchCleanup,
+            enabled: allCleanupCandidates.some((candidate) => candidate.eligible),
+            reason: allCleanupCandidates.some((candidate) => candidate.eligible)
+              ? CAPABILITIES.branchCleanup.description
+              : 'No clean, inactive, merged worktrees are eligible for cleanup.',
+            blockerCodes: allCleanupCandidates.some((candidate) => candidate.eligible)
+              ? []
+              : unique(allCleanupCandidates.flatMap((candidate) => candidate.blockerCodes)),
+          },
+        },
         actionContract: ACTION_CONTRACT,
         activeRuns: agentService.listActiveRuns(context),
         repositories: normalizedRepositories,
         branches: allBranches,
         pullRequests: allPullRequests,
+        cleanupCandidates: allCleanupCandidates,
       };
     },
     async syncRepositories(context = {}, input = {}) {
@@ -2104,6 +2569,7 @@ function createRepoOperationsService(options = {}) {
         repositories,
       };
     },
+    cleanupWorktrees,
     async startAgentRun(input = {}) {
       return agentService.startAgentRun(input);
     },

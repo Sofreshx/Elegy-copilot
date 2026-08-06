@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-08-03
+updated: 2026-08-06
 category: system
 status: current
 doc_kind: node
@@ -28,6 +28,27 @@ node copilot-ui/server.js
 - The local backend binds to `127.0.0.1`.
 - Raw server mode is for `/api` work and debugging. The normal app UI is launched through the desktop shell.
 
+### Intelligence surfaces
+
+The desktop shell also exposes two source-owned local consoles as dedicated
+sidebar tabs:
+
+| Tab | Source service | Console origin |
+|-----|----------------|----------------|
+| Overseer | `../Overseer` | `http://127.0.0.1:4173` |
+| World Model | `../opportunity-world-model` | `http://127.0.0.1:7400` |
+
+Each tab reads a redacted readiness projection from
+`/api/intelligence-surfaces`, then requires an explicit user action before
+invoking the service repository's fixed operator script. Elegy resolves only
+the known sibling checkout, package marker, and fixed status/start/stop script;
+it does not accept arbitrary commands or remote URLs. A ready tab embeds the
+service URL directly in an isolated frame with `embed=elegy`; API requests,
+session cookies, session tokens, databases, and private records remain inside
+the source service origin. Switching tabs does not stop a service, and Stop is
+always explicit. See [Elegy local operations](elegy-local-operations.md) for
+the lifecycle and failure boundary.
+
 ## Main UI
 
 ### Sidebar (left navigation)
@@ -35,7 +56,7 @@ node copilot-ui/server.js
 | Item | View |
 |------|------|
 | Repositories | Browse and open registered repositories |
-| Repo Operations | Global safe sync and repository-scoped OpenCode preparation: local sync blockers, branch hygiene, and open GitHub pull requests |
+| Repo Operations | Global safe sync, structured branch issues, merged-worktree cleanup preview, and repository-scoped OpenCode preparation |
 | Notes | Global notes, vault Git snapshots, import/export, and Google Drive sync |
 | Remote | Kimaki onboarding, projects, Discord sessions, prompts, and logs |
 | Workspace | Appears when a repository is opened; shows docs, git (stash management, force commit, worktree checks/merge), checks, health, planning, execution, and assets tabs |
@@ -48,7 +69,6 @@ Settings is a rich view with these tabs:
 | Section | Content |
 |---------|---------|
 | App Settings | Keyboard shortcuts, about/about info |
-| Assets & Tools | Catalog control plane (CatalogShellView) — repo registration, asset install, surface management |
 | OpenCode Setup | OpenCode configuration, CLI tooling, provider stats |
 | Maintenance | Updates and diagnostics (LSP, stats) |
 | Runtime | Dashboard health view (DashboardView) |
@@ -59,12 +79,12 @@ The sidebar and settings structure are defined in `copilot-ui/ui/src/stores/navi
 
 ### Asset views
 
-`Assets & Tools` is the cross-harness inventory and repair overview. Its
-merged rows retain per-harness management metadata: owner (`Elegy-managed`,
-`Harness-owned`, `Repository-owned`, or `External`), source of truth, normalized
-scope (`global`, `repo`, `user`, or `external`), read-only state, and an
-optional explanation. Paths are provenance only. Owner and scope are shown as
-text and badges in addition to color.
+The former global `Assets & Tools` settings page is retired. Catalog APIs,
+installation services, maintenance integrations, and the shared inventory
+remain active, while users inspect managed and unmanaged assets from the
+applicable harness `Assets` tab. Every harness row retains management metadata:
+owner, source of truth, normalized scope, read-only state, and an explanation.
+Paths are provenance only.
 
 Codex, OpenCode, and Claude Code settings each have a dedicated `Assets` tab;
 Antigravity remains central-only for now. Harness-owned native assets and
@@ -76,14 +96,20 @@ refreshes status; a managed view offers `Sync Elegy assets` when supported.
 
 ## Current Responsibilities
 
-- **Catalog control plane**: repo registration, asset install/search, external-source management, skill preview.
-- **Repo Operations**: global repository maintenance at `GET /api/repo-operations/overview`, with confirmed safe sync at `POST /api/repo-operations/sync` and repository-scoped OpenCode preparation/approval routes. It scans catalog-inventory repositories with bounded Git/GitHub checks, preserves per-repository failures, and is separate from the external Tracker integration and legacy note-only agent route.
+- **Catalog control plane**: repo registration, asset install/search, external-source management, skill preview, and per-harness inventory projections. The global settings page is not a user-facing route.
+- **Repo Operations**: global repository maintenance at `GET /api/repo-operations/overview` (`repo-operations.overview.v3`), confirmed safe sync at `POST /api/repo-operations/sync`, and confirmed cleanup at `POST /api/repo-operations/cleanup`. Statuses and issues are structured records; cleanup revalidates every candidate, removes only clean inactive merged linked worktrees, then uses `git branch -d` locally.
 - **Workspace**: per-repo docs, git operations, planning graph, and execution surface.
 - **Sessions**: session browse, detail view with activity stream, artifacts, task board, skill usage.
-- **Settings**: app info, catalog, OpenCode/Codex/Claude Code configuration.
+- **Settings**: app info, OpenCode/Codex/Claude Code configuration, and per-harness Assets tabs.
 - **Remote**: Kimaki-backed Discord session management.
 - **Maintenance**: desktop updates, Elegy plugin marketplace status, shared-skill fallback status, and LSP diagnostics.
 - **Local API delivery**: all of the above served as HTTP routes for the desktop app.
+
+Codex portability is receipt-driven: the installer copies the approved managed
+bundle, agents, configuration, and license material, then records pinned
+external Context7/Playwright sources in `.elegy-codex-portability.json`.
+Unprovenanced local folders are reported as excluded; the Codex marketplace
+receipt remains owned by the Maintenance marketplace service.
 
 ## Workspace Execute Tab
 
@@ -130,14 +156,19 @@ partial result; a stale remote/state check fails that repository without retry.
 OpenCode preparation is per repository and per existing GitHub PR. The
 dedicated `repo-operations` agent uses `opencode-go/deepseek-v4-flash` for
 read/check/dry-run analysis only. It reports evidence and a proposed squash
-merge through `repo-operations.action.v2`, then waits for explicit approval and
+merge through `repo-operations.action.v3`, then waits for explicit approval and
 a fresh head/base SHA check. Only non-draft, cleanly mergeable PRs targeting the
 default branch with approved review and no failed or pending checks can reach
 the approval control. The approval service owns the final GitHub CLI squash
 merge and never deletes branches or enables auto-merge. Dirty trees, conflicts,
 active sessions/worktrees, stale SHAs, protected policy, failed checks, missing
 authentication, and local-only branches require a manually launched and
-followed session. Branch cleanup remains disabled.
+followed session. Cleanup previews show eligible and protected candidates.
+Confirmation sends the candidate path, branch, and observed branch/default
+SHAs; the service scans each candidate again immediately before mutation. It
+never removes the primary worktree, uses force flags, deletes remote branches,
+prunes, or recursively deletes files. A removed worktree with a failed local
+branch delete is reported as partial success.
 
 ## Tooling Updates API
 

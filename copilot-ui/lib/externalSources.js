@@ -843,7 +843,86 @@ function describeInstallableLifecycle(installable) {
   if (kind === 'opencode-plugin') {
     return 'opencode-plugin';
   }
+  if (kind === 'external-skill') {
+    return 'external-skill';
+  }
   return 'unknown';
+}
+
+function externalSkillReceiptPath(skillPath) {
+  return path.join(skillPath, '.elegy-external-skill.json');
+}
+
+function readExternalSkillReceipt(skillPath) {
+  return readJsonIfExists(externalSkillReceiptPath(skillPath));
+}
+
+function resolveExternalSkillDestination(target, installable, targetHomes) {
+  if (target !== 'codex') {
+    throw Object.assign(new Error(`Target ${target} does not support external skill materialization.`), { statusCode: 400 });
+  }
+  const skillName = normalizeString(installable?.name);
+  if (!/^[a-z0-9][a-z0-9._-]*$/i.test(skillName)) {
+    throw Object.assign(new Error(`External skill ${installable?.installableId || '(unknown)'} has an invalid name.`), { statusCode: 400 });
+  }
+  return path.join(targetHomes.codexHome, 'skills', skillName);
+}
+
+function hashFile(absPath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(absPath)).digest('hex');
+}
+
+function applyExternalSkillInstallable(target, source, installable, cached, targetHomes) {
+  const sourceFile = resolveCachedInstallableSourceFile(source.sourceId, installable, cached, installable.sourcePath);
+  const sourceDirectory = path.dirname(sourceFile);
+  const destination = resolveExternalSkillDestination(target, installable, targetHomes);
+  const expectedHash = normalizeString(source?.metadata?.sha256).toLowerCase();
+  const actualHash = hashFile(sourceFile);
+  if (expectedHash && actualHash !== expectedHash) {
+    throw Object.assign(new Error(`External skill ${installable.installableId} did not match its pinned SHA-256 digest.`), { statusCode: 409 });
+  }
+
+  const existingReceipt = readExternalSkillReceipt(destination);
+  if (fs.existsSync(destination) && (!existingReceipt
+    || existingReceipt.sourceId !== source.sourceId
+    || existingReceipt.installableId !== installable.installableId)) {
+    throw Object.assign(new Error(`Refusing to replace unmanaged Codex skill at ${destination}.`), { statusCode: 409 });
+  }
+
+  ensureDir(path.dirname(destination));
+  const stagingPath = `${destination}.elegy-${process.pid}-${Date.now()}`;
+  safeRemove(stagingPath);
+  fs.cpSync(sourceDirectory, stagingPath, { recursive: true, errorOnExist: true });
+  writeJsonAtomic(externalSkillReceiptPath(stagingPath), {
+    schemaVersion: 1,
+    sourceId: source.sourceId,
+    installableId: installable.installableId,
+    sourcePath: normalizeRelativePath(installable.sourcePath),
+    sourceSha256: actualHash,
+  });
+  if (fs.existsSync(destination)) safeRemove(destination);
+  fs.renameSync(stagingPath, destination);
+  return {
+    kind: 'external-skill',
+    target,
+    path: destination,
+    managedName: installable.name,
+    changed: true,
+    sourceSha256: actualHash,
+  };
+}
+
+function removeExternalSkillInstallable(target, source, installable, targetHomes) {
+  const destination = resolveExternalSkillDestination(target, installable, targetHomes);
+  if (!fs.existsSync(destination)) {
+    return { kind: 'external-skill', target, path: destination, managedName: installable.name, changed: false };
+  }
+  const receipt = readExternalSkillReceipt(destination);
+  if (!receipt || receipt.sourceId !== source.sourceId || receipt.installableId !== installable.installableId) {
+    throw Object.assign(new Error(`Refusing to remove unmanaged Codex skill at ${destination}.`), { statusCode: 409 });
+  }
+  safeRemove(destination);
+  return { kind: 'external-skill', target, path: destination, managedName: installable.name, changed: true };
 }
 
 function resolveInstallableLabel(installable) {
@@ -2066,6 +2145,9 @@ function resolveSupportedTargets(installable) {
 
 function resolveMaterializeInstallable(options, source, installable, target, cached) {
   const targetHomes = resolveTargetHomes(options);
+  if (installable.kind === 'external-skill') {
+    return Promise.resolve(applyExternalSkillInstallable(target, source, installable, cached, targetHomes));
+  }
   if (installable.kind === 'mcp-server') {
     return Promise.resolve(applyMcpInstallable(target, source.sourceId, installable, cached, targetHomes));
   }
@@ -2080,6 +2162,9 @@ function resolveMaterializeInstallable(options, source, installable, target, cac
 
 async function resolveRemoveInstallable(options, source, installable, target) {
   const targetHomes = resolveTargetHomes(options);
+  if (installable.kind === 'external-skill') {
+    return removeExternalSkillInstallable(target, source, installable, targetHomes);
+  }
   if (installable.kind === 'mcp-server') {
     return removeMcpInstallable(target, source.sourceId, installable, targetHomes);
   }
@@ -2487,6 +2572,29 @@ async function verifyInstallableTarget(options, source, installable, target) {
         ));
       }
     }
+  } else if (kind === 'external-skill') {
+    const installedPath = normalizeString(installableState.installedPath)
+      || resolveExternalSkillDestination(target, installable, resolveTargetHomes(options));
+    const skillFile = path.join(installedPath, 'SKILL.md');
+    const receipt = readExternalSkillReceipt(installedPath);
+    const expectedHash = normalizeString(source?.metadata?.sha256).toLowerCase();
+    const actualHash = fs.existsSync(skillFile) ? hashFile(skillFile) : null;
+    const receiptMatches = receipt?.sourceId === source.sourceId
+      && receipt?.installableId === installable.installableId
+      && receipt?.sourceSha256 === actualHash;
+    const digestMatches = !expectedHash || actualHash === expectedHash;
+    const ready = installableState.enabled === true && Boolean(actualHash) && receiptMatches && digestMatches;
+    checks.push(createCheck(
+      'installed',
+      `${resolveInstallableLabel(installable)} Codex skill`,
+      ready ? 'ready' : installableState.enabled === true ? 'error' : 'inactive',
+      ready
+        ? `Managed skill verified at ${installedPath}.`
+        : installableState.enabled === true
+          ? `Managed skill contents or provenance receipt are invalid at ${installedPath}.`
+          : 'External skill is not active for Codex.',
+      { target, installedPath, expectedHash: expectedHash || null, actualHash }
+    ));
   } else if (kind === 'cli-tool') {
     const prerequisites = [
       ['git', ['--version'], 'Git is required for Spec Kit installs.'],

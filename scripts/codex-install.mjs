@@ -41,6 +41,9 @@ const repoRoot = path.resolve(__dirname, '..');
 const codexAssetsRoot = path.join(repoRoot, 'codex-assets');
 const manifestPath = path.join(codexAssetsRoot, 'manifest.json');
 const INVENTORY_FILE = '.elegy-copilot-codex-managed.json';
+const PORTABILITY_RECEIPT_FILE = '.elegy-codex-portability.json';
+const PORTABILITY_LICENSE_ROOT = '.elegy-codex-licenses';
+const MARKETPLACE_RECEIPT_RELATIVE_PATH = path.join('marketplaces', 'elegy', 'elegy-codex-marketplace.install.json');
 const HOOK_RECEIPT_FILE = '.elegy-codex-hooks.json';
 const HOOK_RUNTIME_RELATIVE_PATH = path.join('hooks', 'elegy-workflow-improvement');
 
@@ -134,6 +137,112 @@ function buildCounts(results) {
 
 function readManifest() {
   return JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+}
+
+function readPortabilityLedger() {
+  const ledgerPath = path.join(repoRoot, 'codex-assets', 'portability.json');
+  if (!fs.existsSync(ledgerPath)) {
+    throw new Error(`Codex portability ledger is missing: ${ledgerPath}`);
+  }
+  const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+  if (!ledger || ledger.profile !== 'codex-portable/v1' || !Array.isArray(ledger.approvedPortable)) {
+    throw new Error('Codex portability ledger is incomplete or invalid.');
+  }
+  return ledger;
+}
+
+function portabilityLicenseMaterials(ledger) {
+  const materials = [];
+  const seen = new Set();
+  for (const entry of Array.isArray(ledger?.approvedPortable) ? ledger.approvedPortable : []) {
+    for (const material of Array.isArray(entry?.licenseFiles) ? entry.licenseFiles : []) {
+      if (!material || typeof material !== 'object') continue;
+      const source = normalizeRel(material.source || '');
+      const destination = normalizeRel(material.destination || '');
+      if (!source || !destination || source.startsWith('../') || destination.startsWith('../')) {
+        throw new Error(`Invalid Codex portability license material: ${JSON.stringify(material)}`);
+      }
+      const key = `${source}\u0000${destination}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      materials.push({ source, destination });
+    }
+  }
+  return materials;
+}
+
+function installPortabilityLicenseMaterials(ledger, codexHome, options = {}) {
+  const materials = portabilityLicenseMaterials(ledger);
+  return materials.map((material) => {
+    const sourcePath = path.resolve(repoRoot, material.source);
+    const repoRelative = path.relative(repoRoot, sourcePath);
+    if (!repoRelative || repoRelative.startsWith('..') || path.isAbsolute(repoRelative) || !fs.existsSync(sourcePath)) {
+      throw new Error(`Codex portability license material is missing: ${material.source}`);
+    }
+    const destination = path.join(codexHome, PORTABILITY_LICENSE_ROOT, material.destination);
+    const result = syncFile(sourcePath, destination, { ...options, force: true });
+    return {
+      source: material.source,
+      destination: path.relative(codexHome, destination).replace(/\\/g, '/'),
+      ...result,
+    };
+  });
+}
+
+function installMarketplaceReceipt(ledger, codexHome, options = {}) {
+  const receiptPath = path.join(codexHome, MARKETPLACE_RECEIPT_RELATIVE_PATH);
+  if (fs.existsSync(receiptPath)) {
+    let existingReceipt;
+    try {
+      existingReceipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+    } catch {
+      throw new Error(`Existing Elegy marketplace receipt is invalid JSON: ${receiptPath}`);
+    }
+    let status;
+    if (existingReceipt?.schemaVersion === 'elegy-codex-marketplace-receipt/v1') {
+      if (existingReceipt.status !== 'external-install-required' || existingReceipt.marketplaceName !== 'elegy') {
+        throw new Error(`Existing Elegy marketplace handoff receipt is incomplete: ${receiptPath}`);
+      }
+      status = 'external-install-required';
+    } else if (existingReceipt?.schemaVersion === 'elegy-codex-marketplace-install/v1') {
+      if (existingReceipt.marketplaceName !== 'elegy'
+        || typeof existingReceipt.archiveSha256 !== 'string'
+        || !/^[a-f0-9]{64}$/i.test(existingReceipt.archiveSha256)
+        || typeof existingReceipt.installedAt !== 'string'
+        || Number.isNaN(Date.parse(existingReceipt.installedAt))) {
+        throw new Error(`Existing Elegy marketplace install receipt is incomplete: ${receiptPath}`);
+      }
+      status = 'installed-receipt';
+    } else {
+      throw new Error(`Existing Elegy marketplace receipt has an unsupported schema: ${receiptPath}`);
+    }
+    return {
+      action: 'skipped',
+      path: receiptPath,
+      status,
+      reason: 'existing-authoritative-marketplace-receipt-preserved',
+    };
+  }
+
+  const marketplaceEntry = (Array.isArray(ledger?.requiredReceipts) ? ledger.requiredReceipts : [])
+    .find((entry) => entry?.id === 'elegy-marketplace');
+  const content = `${JSON.stringify({
+    schemaVersion: 'elegy-codex-marketplace-receipt/v1',
+    marketplaceName: 'elegy',
+    status: 'external-install-required',
+    installOwner: 'Maintenance marketplace service',
+    producedBy: 'scripts/codex-install.mjs',
+    authoritativeInstaller: 'copilot-ui/lib/elegyPluginMarketplace.js',
+    requiredReceipt: marketplaceEntry?.path || MARKETPLACE_RECEIPT_RELATIVE_PATH.replace(/\\/g, '/'),
+    pluginNames: ['elegy-documentation', 'elegy-mcp', 'elegy-checks', 'elegy-planning'],
+    note: 'This deterministic handoff receipt does not claim that plugin artifacts are installed. Maintenance → Updates can replace it with the verified marketplace install receipt.',
+  }, null, 2)}\n`;
+  const result = syncText(content, receiptPath, { ...options, force: true });
+  return {
+    ...result,
+    path: receiptPath,
+    status: 'external-install-required',
+  };
 }
 
 function isElegyManagedAsset(asset) {
@@ -817,6 +926,7 @@ export function runInstall(args = {}) {
   }
   const repoSetupRoot = args.repoRoot ? path.resolve(args.repoRoot) : '';
   const manifest = readManifest();
+  const portabilityLedger = readPortabilityLedger();
   const allAssets = expandManifestAssets(manifest);
   const assets = args.managedOnly ? allAssets.filter(isElegyManagedAsset) : allAssets;
 
@@ -834,6 +944,8 @@ export function runInstall(args = {}) {
   ensureDir(codexHome, args.dryRun);
   ensureDir(path.join(codexHome, 'agents'), args.dryRun);
   ensureDir(skillsHome, args.dryRun);
+  const portabilityLicenseResults = installPortabilityLicenseMaterials(portabilityLedger, codexHome, args);
+  const marketplaceReceiptResult = installMarketplaceReceipt(portabilityLedger, codexHome, args);
 
   const assetResults = [];
   for (const asset of assets) {
@@ -874,6 +986,27 @@ export function runInstall(args = {}) {
       managedHash: syncResult.action === 'skipped_conflict' ? previousHash : syncResult.sourceHash,
     });
   }
+
+  const portabilityReceiptPath = path.join(codexHome, PORTABILITY_RECEIPT_FILE);
+  const portabilityReceipt = {
+    ...portabilityLedger,
+    generatedBy: 'scripts/codex-install.mjs',
+    manifest: {
+      path: path.relative(repoRoot, manifestPath).replace(/\\/g, '/'),
+      sourceCommitSha: manifest.package?.sourceCommitSha || null,
+      installedAssetIds: assetResults.map((asset) => asset.id),
+    },
+    licenseMaterials: portabilityLicenseResults.map((material) => ({
+      source: material.source,
+      destination: material.destination,
+      action: material.action,
+      sourceHash: material.sourceHash,
+    })),
+  };
+  const portabilityReceiptResult = syncText(`${JSON.stringify(portabilityReceipt, null, 2)}\n`, portabilityReceiptPath, {
+    dryRun: args.dryRun,
+    force: true,
+  });
 
   const hooks = args.skipHooks
     ? {
@@ -1030,6 +1163,9 @@ export function runInstall(args = {}) {
       hooks.runtime || {},
       hooks.config || {},
       hooks.receipt || {},
+      portabilityReceiptResult,
+      ...portabilityLicenseResults,
+      marketplaceReceiptResult,
     ]),
     assets: assetResults,
     generatedRoles: assetResults.filter((asset) => asset.generated === true).length,
@@ -1044,6 +1180,25 @@ export function runInstall(args = {}) {
       profileAction,
       profileChanged: Boolean(profileResult.changed),
       profilePath: profileResult.path,
+    },
+    portability: {
+      profile: portabilityLedger.profile,
+      receiptPath: portabilityReceiptPath,
+      receiptAction: portabilityReceiptResult.action,
+      marketplaceReceipt: {
+        path: path.relative(codexHome, marketplaceReceiptResult.path).replace(/\\/g, '/'),
+        action: marketplaceReceiptResult.action,
+        status: marketplaceReceiptResult.status || 'installed-receipt',
+      },
+      approvedPortable: portabilityLedger.approvedPortable.length,
+      licenseMaterials: portabilityLicenseResults.length,
+      licenseMaterialResults: portabilityLicenseResults,
+      excludedLocalFolders: Array.isArray(portabilityLedger.reviewedLocalFolders)
+        ? portabilityLedger.reviewedLocalFolders.length
+        : 0,
+      requiredReceipts: Array.isArray(portabilityLedger.requiredReceipts)
+        ? portabilityLedger.requiredReceipts.map((entry) => entry.path)
+        : [],
     },
     hooks,
     workflowAutomation: {
