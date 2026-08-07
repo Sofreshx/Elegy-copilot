@@ -16,6 +16,7 @@ const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const result = spawnSync(npmCommand, ['--prefix', 'local-repo-mcp', 'run', 'build'], {
   cwd: repoRoot,
   stdio: 'inherit',
+  shell: process.platform === 'win32',
 });
 
 if (result.error) throw result.error;

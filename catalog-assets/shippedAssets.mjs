@@ -101,6 +101,7 @@ export const SHIPPED_ASSETS = [
   agent('opencode-agent-project', 'opencode-assets/agents/project.md'),
   agent('opencode-agent-runner', 'opencode-assets/agents/runner.md'),
   agent('opencode-agent-runner-flash', 'opencode-assets/agents/runner-flash.md'),
+  agent('opencode-agent-repo-operations', 'opencode-assets/agents/repo-operations.md'),
   agent('opencode-agent-impl', 'opencode-assets/agents/impl.md'),
   agent('opencode-agent-impl-pro', 'opencode-assets/agents/impl-pro.md'),
   agent('opencode-agent-reviewer', 'opencode-assets/agents/reviewer.md'),
@@ -112,7 +113,6 @@ export const SHIPPED_ASSETS = [
   agent('notes-research', 'opencode-assets/agents/notes-research.md'),
   agent('notes-deduplicate', 'opencode-assets/agents/notes-deduplicate.md'),
   agent('opencode-agent-session-analytics', 'opencode-assets/agents/session-analytics.md'),
-  agent('opencode-agent-repo-operations', 'opencode-assets/agents/repo-operations.md'),
   // OpenCode plugins and skills
   plugin('opencode-plugins-package-json', 'opencode-assets/plugins/package.json'),
   plugin('opencode-planning-plugin', 'opencode-assets/plugins/planning.js'),

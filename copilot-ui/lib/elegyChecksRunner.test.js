@@ -48,6 +48,75 @@ function makeRepo() {
 async function run() {
   console.log('\nElegy Checks Runner Tests\n');
 
+  await test('resolves elegy-checks under an absolute CARGO_TARGET_DIR', () => {
+    const repo = makeRepo();
+    const previousBinary = process.env.ELEGY_CHECKS_BIN;
+    const previousTarget = process.env.CARGO_TARGET_DIR;
+    const targetDir = fs.mkdtempSync(path.join(os.tmpdir(), 'elegy-checks-target-abs-'));
+    const debugDir = path.join(targetDir, 'debug');
+    fs.mkdirSync(debugDir, { recursive: true });
+    const exe = process.platform === 'win32' ? 'elegy-checks.exe' : 'elegy-checks';
+    fs.writeFileSync(path.join(debugDir, exe), '');
+    delete process.env.ELEGY_CHECKS_BIN;
+    process.env.CARGO_TARGET_DIR = targetDir;
+    try {
+      assert.equal(elegyChecks.resolveBinary(repo), path.join(debugDir, exe));
+    } finally {
+      if (previousBinary === undefined) delete process.env.ELEGY_CHECKS_BIN;
+      else process.env.ELEGY_CHECKS_BIN = previousBinary;
+      if (previousTarget === undefined) delete process.env.CARGO_TARGET_DIR;
+      else process.env.CARGO_TARGET_DIR = previousTarget;
+      fs.rmSync(targetDir, { recursive: true, force: true });
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  await test('resolves a relative CARGO_TARGET_DIR against the repo root', () => {
+    const repo = makeRepo();
+    const previousBinary = process.env.ELEGY_CHECKS_BIN;
+    const previousTarget = process.env.CARGO_TARGET_DIR;
+    const debugDir = path.join(repo, 'shared-target', 'debug');
+    fs.mkdirSync(debugDir, { recursive: true });
+    const exe = process.platform === 'win32' ? 'elegy-checks.exe' : 'elegy-checks';
+    fs.writeFileSync(path.join(debugDir, exe), '');
+    delete process.env.ELEGY_CHECKS_BIN;
+    process.env.CARGO_TARGET_DIR = 'shared-target';
+    try {
+      assert.equal(elegyChecks.resolveBinary(repo), path.join(debugDir, exe));
+    } finally {
+      if (previousBinary === undefined) delete process.env.ELEGY_CHECKS_BIN;
+      else process.env.ELEGY_CHECKS_BIN = previousBinary;
+      if (previousTarget === undefined) delete process.env.CARGO_TARGET_DIR;
+      else process.env.CARGO_TARGET_DIR = previousTarget;
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  await test('prefers ELEGY_CHECKS_BIN over a CARGO_TARGET_DIR binary', () => {
+    const repo = makeRepo();
+    const previousBinary = process.env.ELEGY_CHECKS_BIN;
+    const previousTarget = process.env.CARGO_TARGET_DIR;
+    const explicit = path.join(repo, 'explicit-elegy-checks' + (process.platform === 'win32' ? '.exe' : ''));
+    fs.writeFileSync(explicit, '');
+    const targetDir = fs.mkdtempSync(path.join(os.tmpdir(), 'elegy-checks-target-bin-'));
+    const debugDir = path.join(targetDir, 'debug');
+    fs.mkdirSync(debugDir, { recursive: true });
+    const exe = process.platform === 'win32' ? 'elegy-checks.exe' : 'elegy-checks';
+    fs.writeFileSync(path.join(debugDir, exe), '');
+    process.env.ELEGY_CHECKS_BIN = explicit;
+    process.env.CARGO_TARGET_DIR = targetDir;
+    try {
+      assert.equal(elegyChecks.resolveBinary(repo), explicit);
+    } finally {
+      if (previousBinary === undefined) delete process.env.ELEGY_CHECKS_BIN;
+      else process.env.ELEGY_CHECKS_BIN = previousBinary;
+      if (previousTarget === undefined) delete process.env.CARGO_TARGET_DIR;
+      else process.env.CARGO_TARGET_DIR = previousTarget;
+      fs.rmSync(targetDir, { recursive: true, force: true });
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   await test('discovers checks from .elegy/checks.json', () => {
     const repo = makeRepo();
     const checks = elegyChecks.discoverChecks(repo);

@@ -53,6 +53,10 @@ const NON_INVOCABLE_CONTRACT_ROUTES = new Set([
   'POST /api/tooling-updates/update/elegy-planning',
   'POST /api/tooling-updates/update/elegy-plugins',
   'POST /api/tooling-updates/update/elegy-skills',
+  // The overview performs bounded git and GitHub scans across every locally
+  // registered repository. Dedicated route/service tests cover its response;
+  // the registry contract must not depend on machine-specific inventory size.
+  'GET /api/repo-operations/overview',
   // Overseer mutations are covered by dedicated proxy/lifecycle tests; avoid
   // creating or applying real local records from the contract snapshot run.
   'POST /api/overseer/runs/v1/items',

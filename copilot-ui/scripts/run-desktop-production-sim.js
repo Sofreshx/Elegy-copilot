@@ -311,6 +311,7 @@ async function main() {
     const buildSteps = [
       { label: 'UI', command: 'npm', args: ['run', 'ui:build'] },
       { label: 'local-tracker', command: 'npm', args: ['run', 'build:local-tracker:desktop'] },
+      { label: 'local-repo-mcp', command: 'npm', args: ['run', 'build:local-repo-mcp:desktop'] },
       { label: 'runtime host', command: 'npm', args: ['run', 'build:tauri-runtime-host'] },
       { label: 'bundle staging', command: 'npm', args: ['run', 'prepare:tauri:win-bundle'] },
     ];

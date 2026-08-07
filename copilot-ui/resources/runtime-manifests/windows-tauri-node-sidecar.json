@@ -119,6 +119,24 @@
       "target": "local-tracker/package.json"
     },
     {
+      "id": "local-repo-mcp-dist",
+      "kind": "directory",
+      "source": "../local-repo-mcp/dist",
+      "target": "local-repo-mcp/dist"
+    },
+    {
+      "id": "local-repo-mcp-node-modules",
+      "kind": "directory",
+      "source": "../local-repo-mcp/node_modules",
+      "target": "local-repo-mcp/node_modules"
+    },
+    {
+      "id": "local-repo-mcp-package-json",
+      "kind": "file",
+      "source": "../local-repo-mcp/package.json",
+      "target": "local-repo-mcp/package.json"
+    },
+    {
       "id": "scripts",
       "kind": "directory",
       "source": "../scripts",

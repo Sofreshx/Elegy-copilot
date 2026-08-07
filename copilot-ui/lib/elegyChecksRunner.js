@@ -18,6 +18,16 @@ function readConfig(repoRoot) {
   }
 }
 
+function resolveCargoTargetDir(repoRoot) {
+  const raw = process.env.CARGO_TARGET_DIR && process.env.CARGO_TARGET_DIR.trim()
+    ? process.env.CARGO_TARGET_DIR.trim()
+    : '';
+  if (!raw) return '';
+  // Cargo resolves a relative CARGO_TARGET_DIR against the current working
+  // directory (the repository root when the runner invokes the binary).
+  return path.isAbsolute(raw) ? raw : path.join(repoRoot, raw);
+}
+
 function resolveBinary(repoRoot) {
   if (process.env.ELEGY_CHECKS_BIN && process.env.ELEGY_CHECKS_BIN.trim()) {
     return process.env.ELEGY_CHECKS_BIN.trim();
@@ -25,7 +35,11 @@ function resolveBinary(repoRoot) {
   const exe = process.platform === 'win32' ? 'elegy-checks.exe' : 'elegy-checks';
   const homeDir = process.env.HOME || process.env.USERPROFILE || '';
   const elegyBin = homeDir ? path.join(homeDir, '.elegy', 'bin') : '';
+  const cargoTargetDir = resolveCargoTargetDir(repoRoot);
   const candidates = [
+    // Shared Cargo target directory (CARGO_TARGET_DIR) for in-tree development
+    cargoTargetDir ? path.join(cargoTargetDir, 'debug', exe) : null,
+    cargoTargetDir ? path.join(cargoTargetDir, 'release', exe) : null,
     // Installed via marketplace installer (standard location)
     elegyBin ? path.join(elegyBin, exe) : null,
     // In-tree source (transition period, active development)

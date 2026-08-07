@@ -137,6 +137,17 @@
       }
     },
     {
+      "id": "opencode-agent-repo-operations",
+      "type": "agent",
+      "source": "opencode-assets/agents/repo-operations.md",
+      "destination": "agents/repo-operations.md",
+      "management": {
+        "owner": "elegy",
+        "sourceOfTruth": "elegy-catalog",
+        "scope": "global"
+      }
+    },
+    {
       "id": "opencode-agent-scout",
       "type": "agent",
       "source": "opencode-assets/agents/scout.md",
@@ -207,17 +218,6 @@
       "type": "agent",
       "source": "opencode-assets/agents/session-analytics.md",
       "destination": "agents/session-analytics.md",
-      "management": {
-        "owner": "elegy",
-        "sourceOfTruth": "elegy-catalog",
-        "scope": "global"
-      }
-    },
-    {
-      "id": "opencode-agent-repo-operations",
-      "type": "agent",
-      "source": "opencode-assets/agents/repo-operations.md",
-      "destination": "agents/repo-operations.md",
       "management": {
         "owner": "elegy",
         "sourceOfTruth": "elegy-catalog",

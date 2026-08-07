@@ -1,0 +1,144 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const test = require('node:test');
+const {
+  CloudflareConfigError,
+  createManagedTunnelProvisioningPreview,
+  executeManagedTunnelProvisioning,
+  inspectNamedTunnelConfiguration,
+  repairManagedTunnelConfig,
+  validateIngress,
+} = require('./localRepoMcpCloudflare');
+
+function fixture(overrides = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'local-repo-mcp-cloudflare-'));
+  const credentialsPath = path.join(root, 'tunnel.json');
+  const configPath = path.join(root, 'config.yml');
+  fs.writeFileSync(credentialsPath, '{}', 'utf8');
+  fs.writeFileSync(configPath, [
+    'tunnel: tunnel-id',
+    `credentials-file: ${JSON.stringify(credentialsPath)}`,
+    'ingress:',
+    '  - hostname: repo-mcp.example.com',
+    '    service: http://127.0.0.1:3333',
+    '  - service: http_status:404',
+    '',
+  ].join('\n'), 'utf8');
+  return {
+    config: {
+      port: 3333,
+      publicBaseUrl: 'https://repo-mcp.example.com',
+      cloudflareTunnelName: 'local-repo-mcp',
+      cloudflareConfigPath: configPath,
+      stableTunnel: {
+        publicOrigin: 'https://repo-mcp.example.com',
+        cloudflareTunnelName: 'local-repo-mcp',
+        cloudflareConfigPath: configPath,
+        cloudflareCredentialsPath: credentialsPath,
+      },
+      ...overrides,
+    },
+    exec: (_command, args) => args[0] === '--version'
+      ? 'cloudflared version 2026.7.0'
+      : JSON.stringify([{ id: 'tunnel-id', name: 'local-repo-mcp' }]),
+  };
+}
+
+test('validates a matching named tunnel, credentials, and ingress configuration', () => {
+  const ctx = fixture();
+  const result = inspectNamedTunnelConfiguration(ctx.config, 'cloudflared', { exec: ctx.exec });
+  assert.equal(result.ok, true);
+  assert.equal(result.tunnel.id, 'tunnel-id');
+  assert.equal(result.hostname, 'repo-mcp.example.com');
+  assert.equal(result.canonicalResource, 'https://repo-mcp.example.com/mcp');
+});
+
+test('rejects a named tunnel config routed to the wrong local port', () => {
+  assert.throws(
+    () => validateIngress({
+      ingress: [
+        { hostname: 'repo-mcp.example.com', service: 'http://127.0.0.1:9999' },
+        { service: 'http_status:404' },
+      ],
+    }, 'repo-mcp.example.com', 'http://127.0.0.1:3333'),
+    (error) => error instanceof CloudflareConfigError && error.code === 'cloudflare_service_mismatch',
+  );
+});
+
+test('rejects a config without a final catch-all rule', () => {
+  assert.throws(
+    () => validateIngress({
+      ingress: [
+        { hostname: 'repo-mcp.example.com', service: 'http://127.0.0.1:3333' },
+        { hostname: 'other.example.com', service: 'http://127.0.0.1:4444' },
+      ],
+    }, 'repo-mcp.example.com', 'http://127.0.0.1:3333'),
+    (error) => error instanceof CloudflareConfigError && error.code === 'cloudflare_catch_all_missing',
+  );
+});
+
+test('preserves a created tunnel and reports repairable state when DNS routing fails', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'local-repo-mcp-provisioning-'));
+  const configPath = path.join(root, 'elegy-local-repo-mcp.yml');
+  const preview = createManagedTunnelProvisioningPreview({
+    zone: 'example.com',
+    previewId: 'preview-1',
+    nowMs: 0,
+    configDir: root,
+    cloudflaredPath: 'cloudflared',
+    exec: () => '[]',
+  });
+  let created = false;
+  const exec = (_command, args) => {
+    if (args[0] === 'tunnel' && args[1] === 'create') {
+      created = true;
+      fs.writeFileSync(path.join(root, 'tunnel-id.json'), '{}', 'utf8');
+      return '';
+    }
+    if (args[0] === 'tunnel' && args[1] === 'list') {
+      return JSON.stringify([{ id: 'tunnel-id', name: 'elegy-local-repo-mcp' }]);
+    }
+    if (args[0] === 'tunnel' && args[1] === 'route') {
+      throw new Error('DNS record already exists');
+    }
+    return '';
+  };
+
+  assert.throws(
+    () => executeManagedTunnelProvisioning(preview, { exec }),
+    (error) =>
+      error instanceof CloudflareConfigError
+      && error.code === 'cloudflare_dns_route_failed'
+      && error.partial?.tunnelCreated === true
+      && error.partial?.tunnelId === 'tunnel-id',
+  );
+  assert.equal(created, true);
+  assert.equal(fs.existsSync(path.join(root, 'tunnel-id.json')), true);
+  assert.equal(fs.existsSync(configPath), false);
+});
+
+test('managed config repair creates a current backup and rewrites only the dedicated ingress file', () => {
+  const ctx = fixture();
+  ctx.config.stableTunnel.managementMode = 'managed';
+  ctx.config.stableTunnel.hostname = 'repo-mcp.example.com';
+  ctx.config.stableTunnel.cloudflareTunnelId = 'tunnel-id';
+  const configPath = ctx.config.stableTunnel.cloudflareConfigPath;
+  const original = fs.readFileSync(configPath, 'utf8');
+
+  const result = repairManagedTunnelConfig(ctx.config);
+  const repaired = fs.readFileSync(configPath, 'utf8');
+
+  assert.equal(fs.readFileSync(result.backupPath, 'utf8'), original);
+  assert.match(repaired, /tunnel: tunnel-id/);
+  assert.match(repaired, /hostname: repo-mcp\.example\.com/);
+  assert.match(repaired, /service: http:\/\/127\.0\.0\.1:3333/);
+
+  fs.writeFileSync(configPath, 'broken: second-repair\n', 'utf8');
+  const second = repairManagedTunnelConfig(ctx.config);
+  assert.notEqual(second.backupPath, result.backupPath);
+  assert.equal(fs.readFileSync(second.backupPath, 'utf8'), 'broken: second-repair\n');
+});

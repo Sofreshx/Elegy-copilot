@@ -91,6 +91,7 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./kimaki'), context);
   registry.registerModule(require('./desktopUpdater'), context);
   registry.registerModule(require('./toolingUpdates'), context);
+  registry.registerModule(require('./localRepoMcp'), context);
   registry.registerModule(require('./cliTooling'), context);
   registry.registerModule(require('./dashboard'), context);
   registry.registerModule(require('./telemetry'), context);

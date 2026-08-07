@@ -13,6 +13,8 @@ import type {
   CatalogRepoMutationResponse,
   CatalogRepoScanRootsMutationResponse,
   CatalogReposListResponse,
+  LocalRepoReaderAccessResponse,
+  LocalRepoReaderMutationResponse,
   CatalogSourceDetailResponse,
   CatalogSourceInstallableMutationResponse,
   CatalogSourceMutationResponse,
@@ -388,6 +390,40 @@ export function saveCatalogRepoScanRoots(
     },
     body: JSON.stringify(payload),
   }).then((response) => normalizeCatalogRepoScanRootsMutationResponse(response));
+}
+
+export function getLocalRepoReaderAccess(baseUrl?: string): Promise<LocalRepoReaderAccessResponse> {
+  return apiRequest<LocalRepoReaderAccessResponse>('/api/catalog/local-repo-reader', {
+    baseUrl,
+  });
+}
+
+export function enableLocalRepoReaderRepo(
+  payload: CatalogRepoMutationPayload & { alias?: string },
+  baseUrl?: string
+): Promise<LocalRepoReaderMutationResponse> {
+  return apiRequest<LocalRepoReaderMutationResponse>('/api/catalog/local-repo-reader/enable', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function disableLocalRepoReaderRepo(
+  payload: CatalogRepoMutationPayload & { alias?: string },
+  baseUrl?: string
+): Promise<LocalRepoReaderMutationResponse> {
+  return apiRequest<LocalRepoReaderMutationResponse>('/api/catalog/local-repo-reader/disable', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
 }
 
 export function getCatalogAssets(query: CatalogAssetsQuery = {}, baseUrl?: string): Promise<CatalogAssetsResponse> {
