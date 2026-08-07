@@ -55,6 +55,8 @@ test('exposes only the two fixed intelligence service descriptors', () => {
   assert.deepEqual(host.listDescriptors().map((item) => item.id), SERVICE_IDS);
   assert.equal(host.getDescriptor('overseer').consoleUrl, 'http://127.0.0.1:4173/dashboard/?embed=elegy#/work-brain');
   assert.equal(host.getDescriptor('opportunity-world-model').healthUrl, 'http://127.0.0.1:7400/healthz');
+  assert.equal(host.getDescriptor('opportunity-world-model').name, 'Opportunity Intelligence Engine');
+  assert.equal(host.getDescriptor('opportunity-world-model').consoleUrl, 'http://127.0.0.1:7400/?embed=elegy&view=oie');
 });
 
 test('inspect reports stopped service without exposing repository paths', async () => {

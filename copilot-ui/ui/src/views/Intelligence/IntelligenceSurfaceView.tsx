@@ -21,7 +21,7 @@ interface IntelligenceSurfaceStatus {
 
 const LABELS: Record<IntelligenceSurfaceId, string> = {
   overseer: 'Overseer',
-  'opportunity-world-model': 'World Model',
+  'opportunity-world-model': 'Opportunity Intelligence Engine',
 };
 
 function statusTone(status: SurfaceStatus): 'neutral' | 'brand' | 'success' | 'danger' {
