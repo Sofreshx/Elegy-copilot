@@ -57,8 +57,8 @@ jobs:
       - name: Check docs dead links
         run: node scripts/check-docs-dead-links.mjs
 
-      - name: Validate guidelines wiring
-        run: node scripts/validate-guidelines-wiring.mjs
+      - name: Validate instruction wiring
+        run: node scripts/validate-instruction-wiring.mjs
 
       - name: Build UI (produces ui-dist for sidecar validation)
         run: npm --prefix copilot-ui run ui:build

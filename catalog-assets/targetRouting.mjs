@@ -255,6 +255,7 @@ export const COMPATIBILITY_MANIFESTS = [
       route('notes-research'),
       route('notes-deduplicate'),
       route('opencode-agent-session-analytics'),
+      route('opencode-agent-repo-operations'),
       route('opencode-code-review-skill'),
       route('opencode-github-workflow-skill'),
       route('opencode-commit-check-setup-skill', { sourceAssetId: 'skill-commit-check-setup' }),

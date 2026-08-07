@@ -41,7 +41,7 @@ function findTests(dir, fileList = []) {
             if (file !== 'node_modules') {
                 findTests(filePath, fileList);
             }
-        } else if (filePath.endsWith('.test.js')) {
+        } else if (filePath.endsWith('.test.js') || filePath.endsWith('.test.mjs')) {
             fileList.push(filePath);
         }
     }

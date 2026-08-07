@@ -30,24 +30,23 @@ node copilot-ui/server.js
 
 ### Intelligence surfaces
 
-The desktop shell also exposes two source-owned local consoles as dedicated
+The desktop shell exposes two source-owned local intelligence surfaces as dedicated
 sidebar tabs:
 
 | Tab | Source service | Console origin |
 |-----|----------------|----------------|
-| Overseer | `../Overseer` | `http://127.0.0.1:4173` |
-| World Model | `../opportunity-world-model` | `http://127.0.0.1:7400` |
+| Overseer | Native Elegy shell backed by fixed loopback proxy routes | `../Overseer` at `http://127.0.0.1:4173` |
+| World Model | Isolated embedded console | `../opportunity-world-model` at `http://127.0.0.1:7400` |
 
-Each tab reads a redacted readiness projection from
-`/api/intelligence-surfaces`, then requires an explicit user action before
-invoking the service repository's fixed operator script. Elegy resolves only
-the known sibling checkout, package marker, and fixed status/start/stop script;
-it does not accept arbitrary commands or remote URLs. A ready tab embeds the
-service URL directly in an isolated frame with `embed=elegy`; API requests,
-session cookies, session tokens, databases, and private records remain inside
-the source service origin. Switching tabs does not stop a service, and Stop is
-always explicit. See [Elegy local operations](elegy-local-operations.md) for
-the lifecycle and failure boundary.
+Both surfaces read a redacted readiness projection from `/api/intelligence-surfaces`
+and require an explicit user action before invoking a fixed operator script. Elegy
+resolves only the known sibling checkout, package marker, and fixed status/start/stop
+script; it does not accept arbitrary commands or remote URLs. World Model embeds its
+console in an isolated frame with `embed=elegy`. Overseer renders native views and uses
+fixed `/api/overseer/**` loopback proxy routes; its session credential remains on the
+backend and proxy responses are redacted before reaching the UI. Switching tabs does
+not stop a service, and Stop is always explicit. See [Elegy local operations](elegy-local-operations.md)
+for the lifecycle and failure boundary.
 
 ## Main UI
 

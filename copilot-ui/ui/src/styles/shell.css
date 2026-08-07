@@ -158,6 +158,7 @@
 .sidebar-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-item-icon,
 .sidebar-workspace-button svg { flex: 0 0 auto; }
+.sidebar-item-attention { align-items: center; background: var(--color-brand-600); border-radius: 99px; color: var(--color-surface-0); display: inline-flex; font-size: .65rem; height: 1.1rem; justify-content: center; min-width: 1.1rem; padding: 0 .25rem; }
 .sidebar-workspace-close { width: 1.65rem; height: 1.65rem; opacity: 0; }
 .sidebar-workspace-row:hover .sidebar-workspace-close,
 .sidebar-workspace-close:focus-visible { opacity: 1; }
@@ -182,6 +183,7 @@
 .sidebar[data-collapsed="true"] .sidebar-brand-label,
 .sidebar[data-collapsed="true"] .sidebar-section-label,
 .sidebar[data-collapsed="true"] .sidebar-item-label,
+.sidebar[data-collapsed="true"] .sidebar-item-attention,
 .sidebar[data-collapsed="true"] .sidebar-workspace-button span,
 .sidebar[data-collapsed="true"] .sidebar-workspace-close { display: none; }
 .sidebar[data-collapsed="true"] .sidebar-scroll { padding-inline: 0.4rem; }

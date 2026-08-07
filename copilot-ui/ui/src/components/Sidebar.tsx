@@ -21,6 +21,7 @@ interface SidebarProps {
   onToggleCollapsed: () => void;
   onFocusWorkspace: (repoPath: string) => void;
   onCloseWorkspace: (repoPath: string) => void;
+  attentionCounts?: Partial<Record<SidebarItemId, number>>;
 }
 
 function workspaceTestId(label: string): string {
@@ -37,6 +38,7 @@ export default function Sidebar({
   onToggleCollapsed,
   onFocusWorkspace,
   onCloseWorkspace,
+  attentionCounts = {},
 }: SidebarProps) {
   const settingsItem = items.find((item) => item.id === 'settings');
   const globalItems = items.filter((item) => item.id !== 'settings');
@@ -52,6 +54,7 @@ export default function Sidebar({
     >
       <AppIcon name={item.icon} size={18} className="sidebar-item-icon" />
       <span className="sidebar-item-label">{item.label}</span>
+      {attentionCounts[item.id] ? <span className="sidebar-item-attention" aria-label={`${attentionCounts[item.id]} items need attention`}>{attentionCounts[item.id]}</span> : null}
     </button>
   );
 

@@ -116,6 +116,13 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./codeReview'), context);
   registry.registerModule(require('./shell'), context);
   registry.registerModule(require('./intelligenceSurfaces'), context);
+  registry.registerModule(require('./overseerWork'), context);
+  registry.registerModule(require('./overseerFocus'), context);
+  registry.registerModule(require('./overseerEvidence'), context);
+  registry.registerModule(require('./overseerSystem'), context);
+  registry.registerModule(require('./overseerTopics'), context);
+  registry.registerModule(require('./overseerAssistantRuntime'), context);
+  registry.registerModule(require('./overseerCompanion'), context);
 
   return registry;
 }

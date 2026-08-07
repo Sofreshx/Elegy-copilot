@@ -82,6 +82,7 @@ copilot-ui/kimaki.cmd
 copilot-ui/kimaki.ps1
 
 .instructions/
+.instructions-output/
 
 # Instruction Engine task logs (tasks belong to target repos)
 .instructions/tasks/

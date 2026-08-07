@@ -98,6 +98,7 @@ const {
 const { createPostgresPlanningPersistenceClient } = require('./lib/planningPersistenceClient');
 const { createDesktopUpdaterController } = require('./lib/desktopUpdaterController');
 const { createRegistry } = require('./routes');
+const { sendJson, sendText, readJsonBody } = require('./routes/_helpers');
 const { createExecutorService } = require('./lib/executorService');
 const { createSessionHooks } = require('./lib/sessionHooks');
 const { createWorkflowLayerService } = require('./lib/workflowLayerService');
@@ -530,46 +531,6 @@ function extractTriggers(absPath) {
   } catch {
     return '';
   }
-}
-
-function sendJson(res, code, obj) {
-  const body = JSON.stringify(obj, null, 2);
-  res.writeHead(code, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'no-store',
-  });
-  res.end(body);
-}
-
-function sendText(res, code, text, contentType = 'text/plain; charset=utf-8') {
-  res.writeHead(code, { 'Content-Type': contentType, 'Cache-Control': 'no-store' });
-  res.end(text || '');
-}
-
-async function readJsonBody(req, maxBytes = 256 * 1024) {
-  return new Promise((resolve, reject) => {
-    let size = 0;
-    const chunks = [];
-    req.on('data', (c) => {
-      size += c.length;
-      if (size > maxBytes) {
-        reject(Object.assign(new Error('Request body too large'), { statusCode: 413 }));
-        req.destroy();
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on('end', () => {
-      const raw = Buffer.concat(chunks).toString('utf8');
-      if (!raw.trim()) return resolve({});
-      try {
-        resolve(JSON.parse(raw));
-      } catch (e) {
-        reject(Object.assign(new Error('Invalid JSON body'), { statusCode: 400, cause: e }));
-      }
-    });
-    req.on('error', reject);
-  });
 }
 
 async function initializePlanningPersistenceAuthority(planningPersistenceConfig, planningPersistenceState) {

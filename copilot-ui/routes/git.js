@@ -1596,14 +1596,22 @@ function resolveOpenCodeBin() {
   if (process.env.OPENCODE_BIN) return process.env.OPENCODE_BIN;
   const { execSync } = require('node:child_process');
   if (process.platform === 'win32') {
-    try { return execSync('where.exe opencode.cmd', { encoding: 'utf8', stdio: 'pipe', windowsHide: true }).trim().split('\n')[0].trim(); } catch (_) {}
-    try { return execSync('where.exe opencode', { encoding: 'utf8', stdio: 'pipe', windowsHide: true }).trim().split('\n')[0].trim(); } catch (_) {}
+    // Prefer a native binary so the prompt can be passed without cmd.exe
+    // arg quoting/length issues (diffs contain > | & ^ % " chars).
+    try { return execSync('where.exe opencode.exe', { encoding: 'utf8', stdio: 'pipe', windowsHide: true }).trim().split('\n')[0].trim(); } catch (_) {}
     const appData = process.env.APPDATA || '';
     if (appData) {
+      // npm global install: the .cmd shim points at the real exe under node_modules.
+      const shim = `${appData}\\npm\\opencode.cmd`;
+      if (fs.existsSync(shim)) {
+        const exe = `${appData}\\npm\\node_modules\\opencode-ai\\bin\\opencode.exe`;
+        if (fs.existsSync(exe)) return exe;
+      }
       const candidate = `${appData}\\npm\\opencode.cmd`;
-      const { existsSync } = require('node:fs');
-      if (existsSync(candidate)) return candidate;
+      if (fs.existsSync(candidate)) return candidate;
     }
+    try { return execSync('where.exe opencode.cmd', { encoding: 'utf8', stdio: 'pipe', windowsHide: true }).trim().split('\n')[0].trim(); } catch (_) {}
+    try { return execSync('where.exe opencode', { encoding: 'utf8', stdio: 'pipe', windowsHide: true }).trim().split('\n')[0].trim(); } catch (_) {}
     return null;
   }
   try { return execSync('which opencode', { encoding: 'utf8', stdio: 'pipe' }).trim(); } catch (_) {}
@@ -1613,44 +1621,10 @@ function resolveOpenCodeBin() {
 const FALLBACK_OPENCODE_COMMIT_MODELS = [
   'opencode/deepseek-v4-flash-free',
   'opencode-go/deepseek-v4-flash',
-  'deepseek/deepseek-v4-flash',
 ];
 
 function uniqueStrings(values) {
   return [...new Set(values.filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim()))];
-}
-
-function readOpenCodeProfileCommitModels(engineRoot = path.resolve(__dirname, '..', '..')) {
-  try {
-    const profilesPath = path.resolve(engineRoot, 'opencode-assets', 'profiles.json');
-    const parsed = JSON.parse(fs.readFileSync(profilesPath, 'utf8'));
-    const profiles = parsed && parsed.profiles && typeof parsed.profiles === 'object' ? parsed.profiles : {};
-    const activeProfileId = typeof parsed.activeProfile === 'string' ? parsed.activeProfile : '';
-    const orderedProfileIds = uniqueStrings([
-      'opencode-zen-free',
-      activeProfileId,
-      'opencode-go-fast',
-      'opencode-go-balanced',
-      ...Object.keys(profiles),
-    ]);
-
-    const models = [];
-    for (const profileId of orderedProfileIds) {
-      const profile = profiles[profileId];
-      if (!profile || typeof profile !== 'object') continue;
-      const roleModels = profile.roleModels && typeof profile.roleModels === 'object' ? profile.roleModels : {};
-      models.push(
-        roleModels.implementation,
-        roleModels.exploration,
-        roleModels.planning,
-        profile.small,
-        profile.big,
-      );
-    }
-    return uniqueStrings(models);
-  } catch (_) {
-    return [];
-  }
 }
 
 function resolveCommitMessageModels(body, deps = {}) {
@@ -1659,7 +1633,9 @@ function resolveCommitMessageModels(body, deps = {}) {
   }
   const configuredModels = typeof deps.getOpenCodeCommitModels === 'function'
     ? deps.getOpenCodeCommitModels()
-    : readOpenCodeProfileCommitModels(deps.engineRoot);
+    : [];
+  // Zen free tier first; fall back to the Go subscription model when the
+  // free tier is unavailable or unresponsive.
   return uniqueStrings([...configuredModels, ...FALLBACK_OPENCODE_COMMIT_MODELS]);
 }
 
@@ -1846,19 +1822,20 @@ ${diffText}`;
         const result = await new Promise((resolve, reject) => {
           const execOpts = {
             cwd: repoPath,
-            timeout: 30000,
+            // Free-tier models can hang silently; give the first attempt a
+            // tighter bound so the Go fallback kicks in without a long wait.
+            timeout: i === 0 ? 20000 : 30000,
             windowsHide: true,
             maxBuffer: 1024 * 1024,
           };
           if (useShell) execOpts.shell = true;
-          childProcessImpl.execFile(openCodeBin, [
+          const child = childProcessImpl.execFile(openCodeBin, [
             'run',
             '--model', model,
             '--format', 'json',
             '--no-replay',
             '--dangerously-skip-permissions',
             '--dir', repoPath,
-            prompt,
           ], execOpts, (error, stdout, stderr) => {
             if (error) {
               reject(Object.assign(error, { stdout, stderr }));
@@ -1866,6 +1843,9 @@ ${diffText}`;
             }
             resolve({ stdout: String(stdout || ''), stderr: String(stderr || '') });
           });
+          // Send the prompt via stdin: keeps the diff out of the command line
+          // so cmd.exe cannot mangle `> | & ^ " %` characters or hit length limits.
+          if (child && child.stdin) child.stdin.end(prompt);
         });
 
         let messageContent = parseOpenCodeCommitMessage(result.stdout);

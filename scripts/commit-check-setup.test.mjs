@@ -49,7 +49,7 @@ describe('commit-check-setup protocol', () => {
     assert.equal(onDisk.schemaVersion, 3);
     assert.equal(validation.valid, true, validation.errors.join('; '));
     assert.equal(onDisk.lanes.test.blocking, true);
-    assert.deepEqual(onDisk.lanes.test.defaultProfiles, ['commit']);
+    assert.deepEqual(onDisk.lanes.test.defaultProfiles, ['push']);
     assert.equal(onDisk.lanes.typecheck.blocking, true);
   });
 

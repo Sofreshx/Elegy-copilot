@@ -13,6 +13,7 @@ import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
 import { runtimeHealthStore } from './stores/runtimeHealthStore';
 import { toolingUpdatesStore } from './stores/toolingUpdatesStore';
 import { shellPreferencesStore } from './stores/shellPreferences';
+import { overseerWorkStore } from './views/Overseer/overseerWorkStore';
 
 const StandaloneGraphWindow = lazy(() => import('./tabs/Planning/StandaloneGraphWindow'));
 const SessionDetailView = lazy(() => import('./views/Sessions/SessionDetailView'));
@@ -25,11 +26,13 @@ const RepoOperationsView = lazy(() => import('./views/RepoOperations/RepoOperati
 const RemoteView = lazy(() => import('./tabs/Remote/RemoteView'));
 const McpView = lazy(() => import('./tabs/Mcp/McpView'));
 const IntelligenceSurfaceView = lazy(() => import('./views/Intelligence/IntelligenceSurfaceView'));
+const OverseerShell = lazy(() => import('./views/Overseer/OverseerShell'));
 const WorkspaceNotesTab = lazy(() => import('./views/Workspace/WorkspaceNotesTab'));
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
   const desktopUpdaterState = useStoreValue(desktopUpdaterStore);
   const shellPreferences = useStoreValue(shellPreferencesStore);
+  const overseerWorkState = useStoreValue(overseerWorkStore);
 
   useEffect(() => {
     desktopUpdaterStore.startListening();
@@ -104,7 +107,7 @@ export default function App() {
       case 'mcp':
         return <McpView />;
       case 'overseer':
-        return <IntelligenceSurfaceView surfaceId="overseer" />;
+        return <OverseerShell />;
       case 'world-model':
         return <IntelligenceSurfaceView surfaceId="opportunity-world-model" />;
       case 'repositories':
@@ -160,6 +163,7 @@ export default function App() {
           onNavigate={(id: SidebarItemId) => navigationStore.navigate(id)}
           onFocusWorkspace={(repoPath) => navigationStore.focusWorkspace(repoPath)}
           onCloseWorkspace={(repoPath) => navigationStore.closeWorkspace(repoPath)}
+          attentionCounts={{ overseer: overseerWorkState.attentionCount }}
         />
       }
     >

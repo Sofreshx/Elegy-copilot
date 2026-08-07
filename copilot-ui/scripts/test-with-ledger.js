@@ -46,7 +46,7 @@ function findTests(dir, fileList = []) {
             if (!ignoredDirectories.has(file)) {
                 findTests(filePath, fileList);
             }
-        } else if (filePath.endsWith('.test.js')) {
+        } else if (filePath.endsWith('.test.js') || filePath.endsWith('.test.mjs')) {
             const source = fs.readFileSync(filePath, 'utf8');
             if (!/(?:from\s+['"]vitest['"]|require\(['"]vitest['"]\))/.test(source)) {
                 fileList.push(filePath);

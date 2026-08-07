@@ -208,13 +208,14 @@ try {
       'planning_project_run_release',
       'planning_project_run_list',
       'planning_project_run_show',
+      'planning_project_run_summary',
     ];
     for (const name of expectedTools) {
       assert.ok(plugin.tool[name], `tool ${name} should be registered`);
       assert.strictEqual(typeof plugin.tool[name].execute, 'function', `tool ${name} should have execute function`);
       assert.strictEqual(typeof plugin.tool[name].description, 'string', `tool ${name} should have description`);
     }
-    assert.strictEqual(Object.keys(plugin.tool).length, 30, `should have exactly 30 tools`);
+    assert.strictEqual(Object.keys(plugin.tool).length, 31, `should have exactly 31 tools`);
   });
 
   await test('tools have proper args schemas', async () => {

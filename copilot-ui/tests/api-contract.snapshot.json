@@ -46,17 +46,6 @@
       "config"
     ]
   },
-  "POST /api/lsp/install": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error",
-      "ok",
-      "stderr",
-      "stdout"
-    ]
-  },
   "GET /api/planning/task-board": {
     "status": 400,
     "contentType": "application/json",

@@ -182,7 +182,7 @@ function buildSpecsIndexText() {
     '- Use `spec-authoring` to create or refine durable specs and `spec-review` before implementation planning when the spec will drive the work.',
     '- Narrow candidate constraints to the minimum hard constraints needed for the active step.',
     '- Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions.',
-    '- Spec validation is not enforced as repo policy. `scripts/validate-specs.js` is kept as dormant research tooling.',
+    '- Spec validation is not enforced as repo policy. `docs/specs/index.md` is the optional spec catalog; regenerate it with `npm run generate:spec-index`.',
     '',
     '## Index',
     '',

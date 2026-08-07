@@ -25,6 +25,27 @@ const VOLATILE_CONTRACT_ROUTES = new Set([
   'POST /api/tooling-updates/update/elegy-planning',
   'POST /api/tooling-updates/update/elegy-skills',
   'GET /api/opencode/status',
+  // Overseer loopback proxies depend on the locally running Overseer build;
+  // dispatch is verified without snapshotting its external availability.
+  'GET /api/overseer/briefing/v1/summary',
+  'GET /api/overseer/projects/v1/summary',
+  'GET /api/overseer/projects/v1/demo-project',
+  'GET /api/overseer/knowledge/v1/summary',
+  'GET /api/overseer/tasks/v1/summary',
+  'GET /api/overseer/assistants/v1/summary',
+  'GET /api/overseer/assistants/v1/operations',
+  'GET /api/overseer/assistants/v1/models',
+  'GET /api/overseer/assistants/v1/settings',
+  'GET /api/overseer/runs/v1/items',
+  'GET /api/overseer/runs/v1/items/test-run-id',
+  'GET /api/overseer/chat/v1/conversations/test-conversation-id',
+  'GET /api/overseer/chat/v1/conversations/test-conversation-id/events',
+  'GET /api/overseer/focus/v1/summary',
+  'GET /api/overseer/focus/v1/ideas/test-idea-id',
+  'GET /api/overseer/evidence/v1/summary',
+  'GET /api/overseer/system/v1/summary',
+  'GET /api/overseer/work/v1/items',
+  'GET /api/overseer/work/v1/items/test-work-id',
 ]);
 const NON_INVOCABLE_CONTRACT_ROUTES = new Set([
   // Installation is an external mutation; contract tests verify registration without invoking it.
@@ -32,6 +53,19 @@ const NON_INVOCABLE_CONTRACT_ROUTES = new Set([
   'POST /api/tooling-updates/update/elegy-planning',
   'POST /api/tooling-updates/update/elegy-plugins',
   'POST /api/tooling-updates/update/elegy-skills',
+  // Overseer mutations are covered by dedicated proxy/lifecycle tests; avoid
+  // creating or applying real local records from the contract snapshot run.
+  'POST /api/overseer/runs/v1/items',
+  'POST /api/overseer/runs/v1/intake-file',
+  'POST /api/overseer/runs/v1/items/test-run-id/cancel',
+  'POST /api/overseer/context/v1/resolve',
+  'POST /api/overseer/chat/v1/conversations',
+  'POST /api/overseer/chat/v1/conversations/test-conversation-id/turns',
+  'POST /api/overseer/chat/v1/conversations/test-conversation-id/cancel',
+  'POST /api/overseer/work/v1/items',
+  'POST /api/overseer/work/v1/items/test-work-id/review',
+  'POST /api/overseer/work/v1/intake-file',
+  'PUT /api/overseer/assistants/v1/settings',
 ]);
 let passed = 0;
 let failed = 0;
@@ -334,6 +368,38 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/repo-operations/agent-runs/test-run-id' },
   { method: 'POST', path: '/api/repo-operations/agent-runs/test-run-id/approve' },
   { method: 'POST', path: '/api/repo-operations/agent-runs/test-run-id/cancel' },
+  // Overseer topic and execution facades (23)
+  { method: 'GET', path: '/api/overseer/briefing/v1/summary' },
+  { method: 'GET', path: '/api/overseer/projects/v1/summary' },
+  { method: 'GET', path: '/api/overseer/projects/v1/demo-project' },
+  { method: 'GET', path: '/api/overseer/knowledge/v1/summary' },
+  { method: 'GET', path: '/api/overseer/tasks/v1/summary' },
+  { method: 'GET', path: '/api/overseer/assistants/v1/summary' },
+  { method: 'GET', path: '/api/overseer/assistants/v1/operations' },
+  { method: 'GET', path: '/api/overseer/assistants/v1/models' },
+  { method: 'GET', path: '/api/overseer/assistants/v1/settings' },
+  { method: 'PUT', path: '/api/overseer/assistants/v1/settings' },
+  { method: 'GET', path: '/api/overseer/runs/v1/items' },
+  { method: 'GET', path: '/api/overseer/runs/v1/items/test-run-id' },
+  { method: 'POST', path: '/api/overseer/runs/v1/items' },
+  { method: 'POST', path: '/api/overseer/runs/v1/items/test-run-id/cancel' },
+  { method: 'POST', path: '/api/overseer/runs/v1/intake-file' },
+  { method: 'POST', path: '/api/overseer/context/v1/resolve' },
+  { method: 'POST', path: '/api/overseer/chat/v1/conversations' },
+  { method: 'GET', path: '/api/overseer/chat/v1/conversations/test-conversation-id' },
+  { method: 'POST', path: '/api/overseer/chat/v1/conversations/test-conversation-id/turns' },
+  { method: 'GET', path: '/api/overseer/chat/v1/conversations/test-conversation-id/events' },
+  { method: 'POST', path: '/api/overseer/chat/v1/conversations/test-conversation-id/cancel' },
+  // Compatibility facades retained during the native migration.
+  { method: 'GET', path: '/api/overseer/focus/v1/summary' },
+  { method: 'GET', path: '/api/overseer/focus/v1/ideas/test-idea-id' },
+  { method: 'GET', path: '/api/overseer/evidence/v1/summary' },
+  { method: 'GET', path: '/api/overseer/system/v1/summary' },
+  { method: 'GET', path: '/api/overseer/work/v1/items' },
+  { method: 'GET', path: '/api/overseer/work/v1/items/test-work-id' },
+  { method: 'POST', path: '/api/overseer/work/v1/items' },
+  { method: 'POST', path: '/api/overseer/work/v1/items/test-work-id/review' },
+  { method: 'POST', path: '/api/overseer/work/v1/intake-file' },
 ];
 async function run() {
   console.log(`\nAPI Contract Tests — ${ROUTE_INVENTORY.length} routes\n`);
@@ -431,7 +497,11 @@ async function run() {
           const key = `${route.method} ${route.path}`;
           if (NON_INVOCABLE_CONTRACT_ROUTES.has(key)) {
             await test(`${key} — is registered without executing the external mutation`, async () => {
-              assert.ok(registeredRouteDescriptors.includes(key), `${key} is missing from the route registry`);
+              assert.ok(
+                registeredRouteDescriptors.includes(key)
+                  || registeredRoutes.some((registeredRoute) => routeDescriptorMatchesSample(registeredRoute, route)),
+                `${key} is missing from the route registry`,
+              );
             });
             continue;
           }
@@ -483,7 +553,7 @@ async function run() {
     }
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 171, `Expected 171 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 201, `Expected 201 routes, got ${ROUTE_INVENTORY.length}`);
   });
   } finally {
     if (runningServer) {

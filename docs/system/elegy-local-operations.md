@@ -3,7 +3,7 @@ created: 2026-08-06
 updated: 2026-08-06
 category: system
 status: current
-doc_kind: runbook
+doc_kind: node
 id: elegy-local-operations
 summary: Fixed local operator boundary for Copilot, tracker, Overseer, and OWM.
 tags: [operations, local, tracker, copilot-ui, overseer, opportunity-world-model]
