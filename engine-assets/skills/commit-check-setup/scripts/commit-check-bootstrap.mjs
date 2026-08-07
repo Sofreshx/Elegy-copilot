@@ -21,7 +21,9 @@ const hookSourceDir = path.join(sourceDir, '..', 'hooks');
 
 function normalizePath(value) {
   const resolved = path.resolve(value);
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  return process.platform === 'win32'
+    ? resolved.replaceAll('\\', '/').toLowerCase()
+    : resolved;
 }
 
 function run(command, args, cwd) {
