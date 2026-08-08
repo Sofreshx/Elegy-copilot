@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { afterEach, describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,24 +8,18 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { orchestrate } from '../engine-assets/skills/commit-check-setup/scripts/commit-check-bootstrap.mjs';
 
-const tempRoots = [];
-
-function makeRepo(packageJson = { name: 'fixture', private: true }) {
+function makeRepo(t, packageJson = { name: 'fixture', private: true }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'commit-check-bootstrap-'));
-  tempRoots.push(root);
+  t.after(() => fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   const init = spawnSync('git', ['init', root], { encoding: 'utf8', windowsHide: true });
   assert.equal(init.status, 0, init.stderr);
   fs.writeFileSync(path.join(root, 'package.json'), `${JSON.stringify(packageJson, null, 2)}\n`);
   return root;
 }
 
-afterEach(() => {
-  while (tempRoots.length > 0) fs.rmSync(tempRoots.pop(), { recursive: true, force: true });
-});
-
 describe('commit-check skill bootstrap coordinator', () => {
-  it('bootstraps missing runtime files and reports repository health separately', () => {
-    const root = makeRepo({
+  it('bootstraps missing runtime files and reports repository health separately', (t) => {
+    const root = makeRepo(t, {
       name: 'fixture',
       private: true,
       devDependencies: { prettier: '^3.0.0' },
@@ -42,8 +36,8 @@ describe('commit-check skill bootstrap coordinator', () => {
     assert.ok(result.checks.blockingFailures.length > 0);
   });
 
-  it('updates with a backup and preserves user customizations', () => {
-    const root = makeRepo();
+  it('updates with a backup and preserves user customizations', (t) => {
+    const root = makeRepo(t);
     orchestrate(root);
     const configPath = path.join(root, '.copilot', 'commit-checks.json');
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -62,8 +56,8 @@ describe('commit-check skill bootstrap coordinator', () => {
     assert.equal(fs.readFileSync(`${configPath}.bak`, 'utf8'), beforeUpdate);
   });
 
-  it('repairs only missing scripts and preserves existing script bytes', () => {
-    const root = makeRepo();
+  it('repairs only missing scripts and preserves existing script bytes', (t) => {
+    const root = makeRepo(t);
     orchestrate(root);
     const preservedPath = path.join(root, 'scripts', 'commit-check-defaults.mjs');
     const missingPath = path.join(root, 'scripts', 'commit-check-run.mjs');
@@ -78,8 +72,8 @@ describe('commit-check skill bootstrap coordinator', () => {
     assert.equal(fs.existsSync(missingPath), true);
   });
 
-  it('rolls back copied files when the preserved setup runtime is invalid', () => {
-    const root = makeRepo();
+  it('rolls back copied files when the preserved setup runtime is invalid', (t) => {
+    const root = makeRepo(t);
     const scriptsDir = path.join(root, 'scripts');
     fs.mkdirSync(scriptsDir);
     const invalidSetup = path.join(scriptsDir, 'commit-check-setup.mjs');
