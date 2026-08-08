@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
@@ -24,9 +25,18 @@ test('Elegy local operator scripts expose a fixed, user-local lifecycle boundary
 });
 
 test('status operator is safe when no user-local state exists', { skip: process.platform !== 'win32' }, () => {
-  const pwsh = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(root, 'scripts', 'status-local.ps1'), '-Json'], { cwd: root, encoding: 'utf8' });
-  assert.equal(pwsh.status, 0, pwsh.stderr);
-  const status = JSON.parse(pwsh.stdout);
-  assert.equal(status.schema, 'elegy.local.operator-status.v1');
-  assert.equal(status.status, 'stopped');
+  const isolatedLocalAppData = mkdtempSync(path.join(tmpdir(), 'elegy-local-operator-test-'));
+  try {
+    const pwsh = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(root, 'scripts', 'status-local.ps1'), '-Json'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, LOCALAPPDATA: isolatedLocalAppData },
+    });
+    assert.equal(pwsh.status, 0, pwsh.stderr);
+    const status = JSON.parse(pwsh.stdout);
+    assert.equal(status.schema, 'elegy.local.operator-status.v1');
+    assert.equal(status.status, 'stopped');
+  } finally {
+    rmSync(isolatedLocalAppData, { recursive: true, force: true });
+  }
 });
