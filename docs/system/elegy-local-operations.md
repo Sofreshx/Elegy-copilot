@@ -46,7 +46,7 @@ two fixed descriptors only:
 
 | Service | Checkout marker | Origin | Fixed scripts |
 |---------|-----------------|--------|---------------|
-| Overseer | `../Overseer/package.json` | `http://127.0.0.1:4173` | `scripts/status-overseer.ps1`, `scripts/start-overseer.ps1`, `scripts/stop-overseer.ps1` |
+| Overseer | `../../overseer/package.json` | `http://127.0.0.1:4173` | `scripts/status-overseer.ps1`, `scripts/start-overseer.ps1`, `scripts/stop-overseer.ps1` |
 | Opportunity World Model | `../opportunity-world-model/Cargo.toml` | `http://127.0.0.1:7400` | `scripts/status-local.ps1`, `scripts/start-local.ps1`, `scripts/stop-local.ps1` |
 
 The tab first reports `stopped`, `starting`, `ready`, `degraded`,

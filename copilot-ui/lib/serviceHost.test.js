@@ -34,7 +34,7 @@ function createHost(overrides = {}) {
   const host = createServiceHost({
     engineRoot: 'C:/Users/test/GitHub/instruction-engine',
     repositoryPaths: {
-      overseer: 'C:/Users/test/GitHub/Overseer',
+      overseer: 'C:/Users/test/overseer',
       'opportunity-world-model': 'C:/Users/test/GitHub/opportunity-world-model',
     },
     directoryExists: () => true,
@@ -54,6 +54,7 @@ test('exposes only the two fixed intelligence service descriptors', () => {
   assert.deepEqual(SERVICE_IDS, ['overseer', 'opportunity-world-model']);
   assert.deepEqual(host.listDescriptors().map((item) => item.id), SERVICE_IDS);
   assert.equal(host.getDescriptor('overseer').consoleUrl, 'http://127.0.0.1:4173/dashboard/?embed=elegy#/work-brain');
+  assert.equal(host.getDescriptor('overseer').repositoryPath.replaceAll('\\', '/'), 'C:/Users/test/overseer');
   assert.equal(host.getDescriptor('opportunity-world-model').healthUrl, 'http://127.0.0.1:7400/healthz');
   assert.equal(host.getDescriptor('opportunity-world-model').name, 'Opportunity Intelligence Engine');
   assert.equal(host.getDescriptor('opportunity-world-model').consoleUrl, 'http://127.0.0.1:7400/?embed=elegy&view=oie');

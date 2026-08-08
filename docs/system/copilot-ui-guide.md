@@ -35,7 +35,7 @@ sidebar tabs:
 
 | Tab | Source service | Console origin |
 |-----|----------------|----------------|
-| Overseer | Native Elegy shell backed by fixed loopback proxy routes | `../Overseer` at `http://127.0.0.1:4173` |
+| Overseer | Native Elegy shell backed by fixed loopback proxy routes | `../../overseer` at `http://127.0.0.1:4173` |
 | World Model | Isolated embedded console | `../opportunity-world-model` at `http://127.0.0.1:7400` |
 
 Both surfaces read a redacted readiness projection from `/api/intelligence-surfaces`

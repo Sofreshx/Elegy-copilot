@@ -22,7 +22,9 @@ function normalizeId(value) {
 function createDescriptors(engineRoot, repositoryPaths) {
   const root = path.resolve(engineRoot);
   const resolveRepo = (id, directory) => {
-    const canonical = path.resolve(root, '..', directory);
+    const canonical = id === 'overseer'
+      ? path.resolve(root, '..', '..', 'overseer')
+      : path.resolve(root, '..', directory);
     const requested = repositoryPaths && repositoryPaths[id] ? path.resolve(repositoryPaths[id]) : canonical;
     return { path: requested, canonical };
   };
