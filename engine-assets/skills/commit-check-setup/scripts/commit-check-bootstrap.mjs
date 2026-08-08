@@ -63,26 +63,29 @@ function snapshot(paths) {
     : { exists: false, data: null }]));
 }
 
+function retryWindowsMutation(mutation) {
+  for (let attempt = 0; attempt <= 10; attempt += 1) {
+    try {
+      return mutation();
+    } catch (error) {
+      if (!['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(error.code) || attempt === 10) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    }
+  }
+}
+
 function restore(files, removableDirs) {
   for (const [filePath, state] of files) {
     if (state.exists) {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, state.data);
+      retryWindowsMutation(() => fs.writeFileSync(filePath, state.data));
     } else if (fs.existsSync(filePath)) {
-      fs.rmSync(filePath, { force: true });
+      retryWindowsMutation(() => fs.rmSync(filePath, { force: true }));
     }
   }
   for (const dir of removableDirs.reverse()) {
     if (!fs.existsSync(dir) || fs.readdirSync(dir).length !== 0) continue;
-    for (let attempt = 0; attempt <= 10; attempt += 1) {
-      try {
-        fs.rmdirSync(dir);
-        break;
-      } catch (error) {
-        if (!['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(error.code) || attempt === 10) throw error;
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
-      }
-    }
+    retryWindowsMutation(() => fs.rmdirSync(dir));
   }
 }
 
