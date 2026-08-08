@@ -179,7 +179,12 @@ async function run() {
     if (running && !closedInTest) {
       await running.close();
     }
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    await fs.promises.rm(tmpRoot, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 200,
+    });
   }
   console.log(`\n  ${passed} passed, ${failed} failed (${passed + failed} total)\n`);
 }
