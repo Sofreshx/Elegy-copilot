@@ -117,6 +117,47 @@ async function handleAction(ctx, deps) {
   }
 }
 
+function providerError(error) {
+  const code = String(error && error.code || 'oie_proxy_request_failed');
+  const status = code === 'invalid_provider_configuration' ? 400 : 503;
+  return { status, body: { error: code, code, message: 'Opportunity Intelligence provider setup is unavailable.' } };
+}
+
+async function handleOieProviders(ctx, deps) {
+  try {
+    deps.sendJson(ctx.res, 200, await deps.serviceHost.listOieProviders());
+  } catch (error) {
+    const response = providerError(error);
+    deps.sendJson(ctx.res, response.status, response.body);
+  }
+}
+
+async function handleConfigureBrave(ctx, deps) {
+  let body;
+  try {
+    body = await deps.readJsonBody(ctx.req);
+  } catch {
+    deps.sendJson(ctx.res, 400, { error: 'invalid_json', code: 'invalid_json', message: 'A JSON provider configuration body is required.' });
+    return;
+  }
+  try {
+    const result = await deps.serviceHost.configureBraveSearch(body && body.api_key);
+    deps.sendJson(ctx.res, 200, result);
+  } catch (error) {
+    const response = providerError(error);
+    deps.sendJson(ctx.res, response.status, response.body);
+  }
+}
+
+async function handleRemoveBrave(ctx, deps) {
+  try {
+    deps.sendJson(ctx.res, 200, await deps.serviceHost.removeBraveSearch());
+  } catch (error) {
+    const response = providerError(error);
+    deps.sendJson(ctx.res, response.status, response.body);
+  }
+}
+
 function register(deps = {}) {
   const resolved = {
     sendJson: deps.sendJson || defaultSendJson,
@@ -139,6 +180,21 @@ function register(deps = {}) {
       method: 'POST',
       path: /^\/api\/intelligence-surfaces\/([^/]+)\/(start|stop)$/,
       handler: (ctx) => handleAction(ctx, resolved),
+    },
+    {
+      method: 'GET',
+      path: /^\/api\/intelligence-surfaces\/(opportunity-world-model)\/providers$/,
+      handler: (ctx) => handleOieProviders(ctx, resolved),
+    },
+    {
+      method: 'POST',
+      path: /^\/api\/intelligence-surfaces\/(opportunity-world-model)\/providers\/brave\/configure$/,
+      handler: (ctx) => handleConfigureBrave(ctx, resolved),
+    },
+    {
+      method: 'DELETE',
+      path: /^\/api\/intelligence-surfaces\/(opportunity-world-model)\/providers\/brave\/configure$/,
+      handler: (ctx) => handleRemoveBrave(ctx, resolved),
     },
   ];
 }

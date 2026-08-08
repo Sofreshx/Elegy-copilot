@@ -15,6 +15,9 @@ test('registers the intelligence surface API', () => {
     'GET /api/intelligence-surfaces',
     'GET /^\\/api\\/intelligence-surfaces\\/([^/]+)$/',
     'POST /^\\/api\\/intelligence-surfaces\\/([^/]+)\\/(start|stop)$/',
+    'GET /^\\/api\\/intelligence-surfaces\\/(opportunity-world-model)\\/providers$/',
+    'POST /^\\/api\\/intelligence-surfaces\\/(opportunity-world-model)\\/providers\\/brave\\/configure$/',
+    'DELETE /^\\/api\\/intelligence-surfaces\\/(opportunity-world-model)\\/providers\\/brave\\/configure$/',
   ]);
 });
 

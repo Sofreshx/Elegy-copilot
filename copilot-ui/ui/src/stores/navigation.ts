@@ -123,7 +123,7 @@ export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
   { id: 'repo-operations', label: 'Repo Operations', icon: 'git-branch', description: 'See sync blockers, branch hygiene, and open pull requests across repositories' },
   { id: 'notes', label: 'Notes', icon: 'file-text', description: 'Read, write, import, export, and sync workspace notes' },
   { id: 'overseer', label: 'Overseer', icon: 'diamond', description: 'Portfolio context, decisions, and work-brain intelligence' },
-  { id: 'world-model', label: 'World Model', icon: 'tree', description: 'Evidence-backed opportunity research and provenance inspection' },
+  { id: 'world-model', label: 'Opportunity Intelligence', icon: 'tree', description: 'Evidence-backed opportunity intelligence research and provenance inspection' },
   { id: 'remote', label: 'Remote', icon: 'hexagon', description: 'Manage Discord-driven remote sessions via Kimaki' },
   { id: 'mcp', label: 'MCP', icon: 'mcp', description: 'Expose selected local MCP servers to web chatbots' },
   { id: 'settings', label: 'Settings', icon: 'settings', description: 'App configuration and preferences' },

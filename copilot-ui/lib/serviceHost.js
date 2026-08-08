@@ -258,6 +258,59 @@ function createServiceHost(options = {}) {
     }
   }
 
+  function publicOieProviders(payload) {
+    const providers = Array.isArray(payload && payload.providers) ? payload.providers : [];
+    const allowedIds = new Set(['local_searxng', 'public_http_capture', 'playwright_browser', 'brave_web_search']);
+    return {
+      research_ready: payload && payload.research_ready === true,
+      monetary_cost_ceiling_minor: payload && payload.monetary_cost_ceiling_minor === 0 ? 0 : null,
+      providers: providers
+        .filter((provider) => provider && allowedIds.has(provider.id))
+        .map((provider) => ({
+          id: provider.id,
+          name: typeof provider.name === 'string' ? provider.name : provider.id,
+          configured: provider.configured === true,
+          required: provider.required === true,
+          status: ['ready', 'setup_required', 'setup_optional'].includes(provider.status) ? provider.status : 'unavailable',
+          reason_code: typeof provider.reason_code === 'string' ? provider.reason_code : 'provider_status_unknown',
+          credential_storage: provider.credential_storage === 'windows_dpapi' || provider.credential_storage === 'none' ? provider.credential_storage : 'unavailable',
+          external_setup_required: provider.external_setup_required === true,
+        })),
+    };
+  }
+
+  async function oieRequest(pathname, init = {}) {
+    const descriptor = descriptorFor('opportunity-world-model');
+    if (typeof requestImpl !== 'function') {
+      const error = new Error('oie_proxy_unavailable');
+      error.code = 'oie_proxy_unavailable';
+      throw error;
+    }
+    const session = await requestImpl('http://127.0.0.1:7400/api/v1/session', { headers: { Accept: 'application/json' } });
+    const cookie = session && session.headers && typeof session.headers.get === 'function' ? session.headers.get('set-cookie') : null;
+    if (!session || session.status !== 200 || typeof cookie !== 'string' || !cookie.startsWith('owm_session=')) {
+      const error = new Error('oie_session_unavailable');
+      error.code = 'oie_session_unavailable';
+      throw error;
+    }
+    const url = new URL(pathname, descriptor.consoleUrl).toString();
+    const headers = {
+      Accept: 'application/json',
+      Origin: 'http://127.0.0.1:7400',
+      Cookie: cookie.split(';', 1)[0],
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(init.headers || {}),
+    };
+    const response = await requestImpl(url, { ...init, headers });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload || typeof payload !== 'object') {
+      const error = new Error('oie_proxy_request_failed');
+      error.code = 'oie_proxy_request_failed';
+      throw error;
+    }
+    return payload;
+  }
+
   function baseResult(descriptor, extra = {}) {
     return {
       schema: SERVICE_SCHEMA,
@@ -403,6 +456,23 @@ function createServiceHost(options = {}) {
         }
         return inspect(id, { ignoreOperation: true });
       });
+    },
+    async listOieProviders() {
+      return publicOieProviders(await oieRequest('/api/v1/oie/providers'));
+    },
+    async configureBraveSearch(apiKey) {
+      if (typeof apiKey !== 'string' || !apiKey.trim() || apiKey.length > 4096 || /[\r\n]/.test(apiKey)) {
+        const error = new Error('invalid_provider_configuration');
+        error.code = 'invalid_provider_configuration';
+        throw error;
+      }
+      return publicOieProviders(await oieRequest('/api/v1/oie/providers/brave/configure', {
+        method: 'POST',
+        body: JSON.stringify({ api_key: apiKey.trim() }),
+      }));
+    },
+    async removeBraveSearch() {
+      return publicOieProviders(await oieRequest('/api/v1/oie/providers/brave/configure', { method: 'DELETE' }));
     },
   };
 }

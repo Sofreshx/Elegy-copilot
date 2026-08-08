@@ -41,13 +41,13 @@ integration, and repository/worktree operations.
 
 ## Hosted intelligence consoles
 
-Elegy has dedicated **Overseer** and **World Model** tabs. Their host API uses
+Elegy has dedicated **Overseer** and **Opportunity Intelligence (OIE)** tabs. Their host API uses
 two fixed descriptors only:
 
 | Service | Checkout marker | Origin | Fixed scripts |
 |---------|-----------------|--------|---------------|
 | Overseer | `../../overseer/package.json` | `http://127.0.0.1:4173` | `scripts/status-overseer.ps1`, `scripts/start-overseer.ps1`, `scripts/stop-overseer.ps1` |
-| Opportunity World Model | `../opportunity-world-model/Cargo.toml` | `http://127.0.0.1:7400` | `scripts/status-local.ps1`, `scripts/start-local.ps1`, `scripts/stop-local.ps1` |
+| Opportunity Intelligence (OIE) | `../opportunity-world-model/Cargo.toml` | `http://127.0.0.1:7400` | `scripts/status-local.ps1`, `scripts/start-local.ps1`, `scripts/stop-local.ps1` |
 
 The tab first reports `stopped`, `starting`, `ready`, `degraded`,
 `unavailable`, or `prerequisite_missing`. Start and Stop require the exact
@@ -61,6 +61,7 @@ responses, timeouts, and crashes stay visible as recoverable diagnostics.
 When ready, the service console is framed directly at its loopback origin with
 the `embed=elegy` hint. The source service retains its navigation, approvals,
 warnings, provenance, session token/cookie, PostgreSQL state, and release or
-research gates. Only the known Elegy loopback origin (`127.0.0.1:3210`) may
-frame these pages. Switching tabs unmounts a frame but does not stop the
+research gates. The embedding parent must use a loopback origin, but that
+parent origin may be ephemeral rather than fixed to a specific port. Switching
+tabs unmounts a frame but does not stop the
 underlying process; Stop is always explicit.

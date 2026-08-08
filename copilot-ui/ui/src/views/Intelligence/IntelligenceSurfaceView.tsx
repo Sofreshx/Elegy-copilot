@@ -19,6 +19,23 @@ interface IntelligenceSurfaceStatus {
   health?: Record<string, unknown>;
 }
 
+interface OieProviderStatus {
+  id: 'local_searxng' | 'public_http_capture' | 'playwright_browser' | 'brave_web_search';
+  name: string;
+  configured: boolean;
+  required: boolean;
+  status: 'ready' | 'setup_required' | 'setup_optional' | 'unavailable';
+  reason_code: string;
+  credential_storage: 'windows_dpapi' | 'none' | 'unavailable';
+  external_setup_required: boolean;
+}
+
+interface OieProviderProjection {
+  research_ready: boolean;
+  monetary_cost_ceiling_minor: 0 | null;
+  providers: OieProviderStatus[];
+}
+
 const LABELS: Record<IntelligenceSurfaceId, string> = {
   overseer: 'Overseer',
   'opportunity-world-model': 'Opportunity Intelligence Engine',
@@ -72,12 +89,25 @@ async function readStatus(surfaceId: IntelligenceSurfaceId): Promise<Intelligenc
   };
 }
 
+async function readOieProviders(): Promise<OieProviderProjection> {
+  const response = await fetch('/api/intelligence-surfaces/opportunity-world-model/providers', { headers: { Accept: 'application/json' } });
+  const payload = await response.json().catch(() => null) as Partial<OieProviderProjection> | null;
+  if (!response.ok || !payload) throw new Error('Unable to read zero-cost web research readiness.');
+  return {
+    research_ready: payload.research_ready === true,
+    monetary_cost_ceiling_minor: payload.monetary_cost_ceiling_minor === 0 ? 0 : null,
+    providers: Array.isArray(payload.providers) ? payload.providers : [],
+  };
+}
+
 export default function IntelligenceSurfaceView({ surfaceId }: { surfaceId: IntelligenceSurfaceId }) {
   const label = LABELS[surfaceId];
   const [surface, setSurface] = useState<IntelligenceSurfaceStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<'start' | 'stop' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [providerProjection, setProviderProjection] = useState<OieProviderProjection | null>(null);
+  const [providerError, setProviderError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,6 +126,18 @@ export default function IntelligenceSurfaceView({ surfaceId }: { surfaceId: Inte
     const timer = window.setInterval(() => void load(), 5000);
     return () => window.clearInterval(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (surfaceId !== 'opportunity-world-model' || surface?.status !== 'ready') {
+      setProviderProjection(null);
+      return;
+    }
+    let cancelled = false;
+    void readOieProviders()
+      .then((value) => { if (!cancelled) { setProviderProjection(value); setProviderError(null); } })
+      .catch((cause) => { if (!cancelled) setProviderError(cause instanceof Error ? cause.message : String(cause)); });
+    return () => { cancelled = true; };
+  }, [surface?.status, surfaceId]);
 
   const canEmbed = useMemo(
     () => surface?.status === 'ready' && isSafeConsoleUrl(surface.consoleUrl),
@@ -162,6 +204,17 @@ export default function IntelligenceSurfaceView({ surfaceId }: { surfaceId: Inte
       {error ? <p className="intelligence-surface-error" role="alert">{error}</p> : null}
 
       <div className="view-scroll intelligence-surface-content">
+        {surfaceId === 'opportunity-world-model' && surface?.status === 'ready' ? (
+          <Panel title="Zero-cost web research" subtitle={providerProjection?.research_ready ? 'Ready for autonomous search and evidence capture.' : 'Checking local research routes.'} testId="oie-provider-setup">
+            {providerError ? <p className="intelligence-surface-error" role="alert">{providerError}</p> : null}
+            <div className="intelligence-surface-provider-actions">
+              <p className="state-message">Local SearXNG discovers leads, direct HTTP captures efficient public reads, and a read-only headless browser handles pages that require rendering. Monetary cost ceiling: {providerProjection?.monetary_cost_ceiling_minor === 0 ? '0' : 'unavailable'}.</p>
+              {providerProjection?.providers.filter((item) => item.id !== 'brave_web_search').map((item) => (
+                <span key={item.id}><Badge tone={item.status === 'ready' ? 'success' : 'neutral'}>{item.name}: {item.status.replace('_', ' ')}</Badge></span>
+              ))}
+            </div>
+          </Panel>
+        ) : null}
         {loading && !surface ? (
           <Panel title={`Checking ${label}`} subtitle="Reading the source-owned service status." testId="intelligence-surface-loading">
             <p className="state-message">The service host is checking its fixed health and operator contracts.</p>

@@ -22,6 +22,32 @@
     "patternDocs": []
   },
   "targets": {
+    "intelligence": {
+      "lane": "browser",
+      "workingDirectory": "./",
+      "validationCommands": [
+        { "id": "build", "command": "npm --prefix copilot-ui run ui:build", "description": "Build the copilot-ui renderer" },
+        { "id": "evidence", "command": "node scripts/ui-check-copilot-ui.mjs", "timeout": 180000 }
+      ],
+      "routes": [
+        {
+          "id": "intelligence-default",
+          "path": "navigation:world-model",
+          "viewports": ["desktop"],
+          "states": ["default"],
+          "excludedStates": [
+            { "state": "loading", "reason": "Service polling and provider loading are covered by the focused intelligence component test; rendered evidence captures the settled live service." },
+            { "state": "empty", "reason": "The intelligence surface always renders either service status or the embedded console." },
+            { "state": "error", "reason": "Service and provider error states are covered by focused component and service-host tests." },
+            { "state": "disabled", "reason": "Start and stop gating is covered by focused intelligence component tests." },
+            { "state": "focus", "reason": "Focus behavior is covered by shared control styling and component tests." }
+          ],
+          "description": "Opportunity Intelligence host surface with live zero-cost provider readiness and embedded OIE console."
+        }
+      ],
+      "evidenceRoot": "./evidence/ui/intelligence",
+      "runtimeReport": "runtime-report.json"
+    },
     "settings": {
       "lane": "browser",
       "workingDirectory": "./",

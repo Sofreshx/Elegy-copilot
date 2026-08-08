@@ -38,6 +38,7 @@ const VOLATILE_CONTRACT_ROUTES = new Set([
   'GET /api/overseer/assistants/v1/settings',
   'GET /api/overseer/runs/v1/items',
   'GET /api/overseer/runs/v1/items/test-run-id',
+  'GET /api/overseer/chat/v1/conversations',
   'GET /api/overseer/chat/v1/conversations/test-conversation-id',
   'GET /api/overseer/chat/v1/conversations/test-conversation-id/events',
   'GET /api/overseer/focus/v1/summary',
@@ -374,7 +375,7 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/repo-operations/agent-runs/test-run-id' },
   { method: 'POST', path: '/api/repo-operations/agent-runs/test-run-id/approve' },
   { method: 'POST', path: '/api/repo-operations/agent-runs/test-run-id/cancel' },
-  // Overseer topic and execution facades (23)
+  // Overseer topic and execution facades
   { method: 'GET', path: '/api/overseer/briefing/v1/summary' },
   { method: 'GET', path: '/api/overseer/projects/v1/summary' },
   { method: 'GET', path: '/api/overseer/projects/v1/demo-project' },
@@ -391,6 +392,7 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/overseer/runs/v1/items/test-run-id/cancel' },
   { method: 'POST', path: '/api/overseer/runs/v1/intake-file' },
   { method: 'POST', path: '/api/overseer/context/v1/resolve' },
+  { method: 'GET', path: '/api/overseer/chat/v1/conversations' },
   { method: 'POST', path: '/api/overseer/chat/v1/conversations' },
   { method: 'GET', path: '/api/overseer/chat/v1/conversations/test-conversation-id' },
   { method: 'POST', path: '/api/overseer/chat/v1/conversations/test-conversation-id/turns' },
@@ -559,7 +561,7 @@ async function run() {
     }
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 203, `Expected 203 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 204, `Expected 204 routes, got ${ROUTE_INVENTORY.length}`);
   });
   } finally {
     if (runningServer) {

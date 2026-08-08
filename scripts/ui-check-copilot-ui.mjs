@@ -334,14 +334,15 @@ async function setupBrowser() {
  *   workspace-notes → seeded opened workspace Notes tab
  *   repositories   → sidebar-item-repositories
  *   repo-operations → sidebar-item-repo-operations
+ *   intelligence    → sidebar-item-world-model
  *   remote         → sidebar-item-remote
  *
  * @param {import('@playwright/test').Page} page
- * @param {string}   viewId  - One of: settings, workspace, workspace-git, workspace-checks, workspace-assets, repositories, repo-operations, remote
+ * @param {string}   viewId  - One of: settings, workspace, workspace-git, workspace-checks, workspace-assets, repositories, repo-operations, remote, intelligence
  * @returns {Promise<void>}
  */
 async function navigateToView(page, viewId) {
-  const validViews = new Set(['settings', 'workspace', 'workspace-git', 'workspace-checks', 'workspace-assets', 'repositories', 'repo-operations', 'remote']);
+  const validViews = new Set(['settings', 'workspace', 'workspace-git', 'workspace-checks', 'workspace-assets', 'repositories', 'repo-operations', 'remote', 'intelligence']);
   if (!validViews.has(viewId)) {
     throw new Error(`Unknown viewId: "${viewId}". Valid: ${[...validViews].join(', ')}`);
   }
@@ -391,6 +392,27 @@ async function navigateToView(page, viewId) {
         });
       }
     }
+  } else if (viewId === 'intelligence') {
+    await page.click('[data-testid="sidebar-item-world-model"]');
+    await page.waitForSelector('[data-testid="intelligence-surface-opportunity-world-model"]', {
+      timeout: PAGE_READY_TIMEOUT_MS,
+    });
+    await page.waitForSelector('iframe[title="Opportunity Intelligence Engine console"]', {
+      timeout: PAGE_READY_TIMEOUT_MS,
+    });
+    let oieFrame = page.frames().find((frame) => frame.url().startsWith('http://127.0.0.1:7400/'));
+    if (!oieFrame) {
+      oieFrame = await page.waitForEvent('framenavigated', {
+        predicate: (frame) => frame.url().startsWith('http://127.0.0.1:7400/'),
+        timeout: PAGE_READY_TIMEOUT_MS,
+      });
+    }
+    await oieFrame.waitForLoadState('domcontentloaded', { timeout: PAGE_READY_TIMEOUT_MS });
+    await oieFrame.waitForFunction(
+      () => Boolean(document.body && document.body.innerText.trim().length > 20),
+      undefined,
+      { timeout: PAGE_READY_TIMEOUT_MS },
+    );
   } else {
     // repositories, repo-operations, remote
     await page.click(`[data-testid="sidebar-item-${viewId}"]`);
@@ -417,6 +439,12 @@ async function waitForTargetReadiness(page, targetId) {
           && !loadingMessage;
       }
       if (id === 'settings') return exists('[data-testid="settings-view"]');
+      if (id === 'intelligence') {
+        return exists('[data-testid="intelligence-surface-opportunity-world-model"]')
+          && exists('[data-testid="oie-provider-setup"]')
+          && exists('iframe[title="Opportunity Intelligence Engine console"]')
+          && !exists('[data-testid="intelligence-surface-loading"]');
+      }
       if (id === 'repo-operations') {
         return repoOperations.required.every(exists)
           && !exists('[data-testid="repo-operations-loading"]')
@@ -605,6 +633,22 @@ async function runTarget(targetId, browserHandle, evidenceDir) {
       pageErrors: resultPageErrors,
       networkFailures: [...networkFailures],
     });
+  } else if (targetId === 'intelligence') {
+    await navigateToView(page, targetId);
+    const readiness = await waitForTargetReadiness(page, targetId);
+    const screenshot = await captureState(page, 'desktop', 'default', evidenceDir, 'intelligence-default');
+    const resultPageErrors = [...pageErrors, ...(readiness.reason ? [`Readiness failed: ${readiness.reason}`] : [])];
+    surfaceResults.push({
+      routeId: 'intelligence-default',
+      viewport: 'desktop',
+      state: 'default',
+      status: deriveSurfaceStatus({ ready: readiness.ready, consoleErrors, pageErrors: resultPageErrors, networkFailures }),
+      ready: readiness.ready,
+      screenshot,
+      consoleErrors: [...consoleErrors],
+      pageErrors: resultPageErrors,
+      networkFailures: [...networkFailures],
+    });
   } else if (['repositories', 'repo-operations', 'remote'].includes(targetId)) {
     await navigateToView(page, targetId);
     const readiness = await waitForTargetReadiness(page, targetId);
@@ -631,7 +675,7 @@ async function runTarget(targetId, browserHandle, evidenceDir) {
       networkFailures: [...networkFailures],
     });
   } else {
-    throw new Error(`Unknown targetId: "${targetId}". Supported: settings, workspace, workspace-git, workspace-checks, workspace-assets, repositories, repo-operations, remote`);
+    throw new Error(`Unknown targetId: "${targetId}". Supported: settings, workspace, workspace-git, workspace-checks, workspace-assets, repositories, repo-operations, remote, intelligence`);
   }
 
   return surfaceResults;

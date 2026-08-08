@@ -49,4 +49,28 @@ describe('IntelligenceSurfaceView', () => {
     const startCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
     expect(startCall?.[1]?.body).toContain('observedAt');
   });
+
+  it('shows the zero-cost search, direct capture, and browser readiness beside the embedded console', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/providers')) {
+        return new Response(JSON.stringify({ research_ready: true, monetary_cost_ceiling_minor: 0, providers: [
+          { id: 'local_searxng', name: 'Local SearXNG metasearch', configured: true, required: true, status: 'ready', reason_code: 'zero_cost_local_metasearch', credential_storage: 'none', external_setup_required: false },
+          { id: 'public_http_capture', name: 'Policy-bounded public HTTP capture', configured: true, required: true, status: 'ready', reason_code: 'zero_cost_direct_capture', credential_storage: 'none', external_setup_required: false },
+          { id: 'playwright_browser', name: 'Headless browser fallback', configured: true, required: false, status: 'ready', reason_code: 'zero_cost_read_only_browser', credential_storage: 'none', external_setup_required: false },
+        ] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        id: 'opportunity-world-model', name: 'Opportunity Intelligence Engine', status: 'ready', reasonCode: 'health_ready',
+        consoleUrl: 'http://127.0.0.1:7400/?embed=elegy&view=oie', healthUrl: 'http://127.0.0.1:7400/healthz', prerequisites: [],
+      }), { status: 200 });
+    }));
+
+    render(<IntelligenceSurfaceView surfaceId="opportunity-world-model" />);
+    expect(await screen.findByText('Zero-cost web research')).toBeInTheDocument();
+    expect(screen.getByText(/Monetary cost ceiling: 0/i)).toBeInTheDocument();
+    expect(screen.getByText(/Local SearXNG metasearch: ready/i)).toBeInTheDocument();
+    expect(screen.getByText(/Headless browser fallback: ready/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Brave Search API key')).not.toBeInTheDocument();
+  });
 });
