@@ -21,9 +21,15 @@ const hookSourceDir = path.join(sourceDir, '..', 'hooks');
 
 function normalizePath(value) {
   const resolved = path.resolve(value);
+  let canonical = resolved;
+  try {
+    canonical = fs.realpathSync.native(resolved);
+  } catch {
+    // Preserve validation behavior for paths that do not exist yet.
+  }
   return process.platform === 'win32'
-    ? resolved.replaceAll('\\', '/').toLowerCase()
-    : resolved;
+    ? canonical.replaceAll('\\', '/').toLowerCase()
+    : canonical;
 }
 
 function run(command, args, cwd) {
