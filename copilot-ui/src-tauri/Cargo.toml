@@ -17,3 +17,7 @@ tauri-plugin-updater = "2"
 url = "2.5.4"
 
 [workspace]
+
+[dev-dependencies]
+base64 = "0.22.1"
+minisign-verify = "0.2.5"

@@ -349,6 +349,17 @@ function resolveSmokeInstallerOverride() {
   return installerPath;
 }
 
+function resolveLocalBundleInstaller({
+  bundleRoot = path.join(workspaceRoot, 'src-tauri', 'target', 'release', 'bundle', 'nsis'),
+} = {}) {
+  assert(fs.existsSync(bundleRoot), `Local Tauri NSIS bundle directory does not exist: ${bundleRoot}`);
+  const installers = fs.readdirSync(bundleRoot, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && path.extname(entry.name).toLowerCase() === '.exe')
+    .map((entry) => path.join(bundleRoot, entry.name));
+  assert(installers.length === 1, `Expected exactly one local Tauri NSIS installer under ${bundleRoot}, found ${installers.length}.`);
+  return path.resolve(installers[0]);
+}
+
 function resolveInstalledExecutables(productName) {
   const executableFiles = collectFiles(installRoot)
     .filter((relativePath) => path.extname(relativePath).toLowerCase() === '.exe')
@@ -799,7 +810,8 @@ async function main() {
   const installerRegistryState = snapshotInstallerRegistryState();
 
   try {
-    const installerOverride = resolveSmokeInstallerOverride();
+    const installerOverride = resolveSmokeInstallerOverride()
+      || (process.argv.includes('--local-bundle') ? resolveLocalBundleInstaller() : null);
     const releaseValidation = installerOverride
       ? { installerPath: installerOverride }
       : validateTauriWindowsReleaseArtifacts({ workspaceRoot });
@@ -853,6 +865,7 @@ module.exports = {
   formatStartupDiagnostics,
   listConsoleDescendants,
   resolveSmokeInstallerOverride,
+  resolveLocalBundleInstaller,
   resolveUserShortcutPaths,
   resolveInstallerRegistryKey,
   resolveInstallerUninstallRegistryKey,

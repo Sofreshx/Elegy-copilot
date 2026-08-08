@@ -1,10 +1,14 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const test = require('node:test');
 
 const {
   formatStartupDiagnostics,
+  resolveLocalBundleInstaller,
   resolveSmokeInstallerOverride,
   resolveUserShortcutPaths,
   resolveInstallerRegistryKey,
@@ -13,6 +17,8 @@ const {
   snapshotPathStates,
   restorePathStates,
 } = require('./validate-tauri-native-desktop-smoke');
+
+const packageJson = require('../package.json');
 
 test('does not require a local installer override by default', () => {
   const previous = process.env.ELEGY_TAURI_NATIVE_SMOKE_INSTALLER;
@@ -26,6 +32,25 @@ test('does not require a local installer override by default', () => {
     } else {
       process.env.ELEGY_TAURI_NATIVE_SMOKE_INSTALLER = previous;
     }
+  }
+});
+
+test('local native smoke builds one unsigned installer without weakening release signing', () => {
+  assert.match(packageJson.scripts['desktop:smoke:native'], /package:tauri:win:smoke/);
+  assert.match(packageJson.scripts['desktop:smoke:native'], /validate:tauri:native-smoke:local/);
+  assert.match(packageJson.scripts['tauri:build:win:unsigned'], /--no-sign/);
+  assert.doesNotMatch(packageJson.scripts['package:tauri:win:preview'], /--no-sign|tauri:build:win:unsigned/);
+});
+
+test('resolves exactly one locally built NSIS installer', () => {
+  const bundleRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'elegy-tauri-smoke-bundle-'));
+  try {
+    const installerPath = path.join(bundleRoot, 'Elegy Copilot_test_x64-setup.exe');
+    fs.writeFileSync(installerPath, 'fixture');
+    fs.writeFileSync(path.join(bundleRoot, 'ignored.txt'), 'fixture');
+    assert.equal(resolveLocalBundleInstaller({ bundleRoot }), installerPath);
+  } finally {
+    fs.rmSync(bundleRoot, { recursive: true, force: true });
   }
 });
 

@@ -149,6 +149,15 @@ Checkpoint rules:
 
 - No private signing keys may be committed to the repo or stored on CI runners.
 - Signing custody remains external through the managed signing service / HSM / KMS posture already frozen in [[security-model]] [security-model.md](security-model.md). [security-model](docs/system/security-model.md)
+- Local native smoke builds use Tauri's unsigned packaging mode and an explicit
+  local-installer override. They validate the installed runtime, not updater
+  provenance. Preview/release packaging remains signed and fails closed when
+  the externally held updater key is unavailable.
+- `.github/workflows/desktop-signing-check.yml` is the explicit non-publishing
+  custody check. It requires the repository signing secrets, builds signed
+  updater artifacts, and cryptographically verifies the installer signature
+  against the public key committed in `tauri.conf.json`; it has read-only
+  repository permission and neither stages, uploads, nor publishes artifacts.
 - The current implemented checkpoint seam is a Windows-first NSIS packaging lane that emits signed updater release metadata with fail-closed channel pairing; it performs automatic matching-channel release checks, calls `download_and_install`, and supports relaunch via `tauri-plugin-process` with feed parity live.
 - The active Tauri shell exposes the signed GitHub-release-backed updater through a shell bridge that supports check, download, install, and relaunch to apply signed updates in place.
 - Public GitHub semver tags such as `1.2.3` and `1.2.3-rc.1` remain preview/evaluation releases and should stay marked as prerelease, while stable desktop downloads come from promoted non-prerelease `desktop-v*` releases.
