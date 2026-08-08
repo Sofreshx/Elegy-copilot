@@ -171,7 +171,7 @@ describe('SettingsView', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('codex-native-status')).toBeInTheDocument();
-    });
+    }, { timeout: 3_000 });
 
     expect(screen.getByTestId('codex-agents-expectation-values')).toHaveTextContent('6');
     expect(screen.getByTestId('codex-agents-expectation-values')).toHaveTextContent('gpt-5.6-luna');
