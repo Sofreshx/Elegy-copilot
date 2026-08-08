@@ -159,7 +159,7 @@ async function testOverviewAggregation() {
   });
 
   const overview = await overviewService.getOverview();
-  assert.strictEqual(overview.schemaVersion, 3);
+  assert.strictEqual(overview.schemaVersion, 4);
   assert.strictEqual(overview.generatedAt, '2026-08-03T10:00:00.000Z');
   assert.deepStrictEqual(overview.repositories.map((repo) => repo.repoId), ['alpha', 'missing']);
   assert.strictEqual(overview.summary.trackedRepos, 2);
@@ -173,7 +173,7 @@ async function testOverviewAggregation() {
   assert.strictEqual(overview.capabilities.branchCleanup.enabled, false);
   assert.strictEqual(overview.capabilities.pullRequestHandling.enabled, false);
   assert.strictEqual(overview.capabilities.pullRequestHandling.scope, 'per-repository');
-  assert.strictEqual(overview.actionContract.version, 'repo-operations.action.v3');
+  assert.strictEqual(overview.actionContract.version, 'repo-operations.action.v4');
   assert.strictEqual(overview.actionContract.requiresExplicitApproval, true);
 }
 
@@ -234,7 +234,7 @@ async function testSafeMergedWorktreeCleanup() {
   });
 
   assert.strictEqual(scanCount, 1, 'cleanup must re-scan before mutating');
-  assert.strictEqual(result.contractVersion, 'repo-operations.action.v3');
+  assert.strictEqual(result.contractVersion, 'repo-operations.action.v4');
   assert.strictEqual(result.summary.eligible, 1);
   assert.strictEqual(result.summary.partial, 1);
   assert.strictEqual(result.summary.removedWorktrees, 1);
@@ -357,7 +357,7 @@ async function testSafeMassSync() {
   });
 
   const result = await service.syncRepositories({ elegyHome: 'C:/home/.elegy' }, { confirmed: true });
-  assert.strictEqual(result.contractVersion, 'repo-operations.action.v3');
+  assert.strictEqual(result.contractVersion, 'repo-operations.action.v4');
   assert.strictEqual(result.operation, 'sync');
   assert.strictEqual(result.summary.requested, 6);
   assert.strictEqual(result.summary.synced, 1);
@@ -581,6 +581,191 @@ async function testCancellationDoesNotGetOverwritten() {
   fs.rmSync(tempHome, { recursive: true, force: true });
 }
 
+async function testBatchFetchAnalysisAndComparedCleanup() {
+  const repo = { repoId: 'alpha', repoPath: 'C:/work/alpha', repoLabel: 'Alpha', isWorktreeCheckout: false };
+  const fetched = [];
+  const deleted = [];
+  const scanner = async () => ({
+    ...repo,
+    available: true,
+    provider: 'github',
+    defaultBranch: 'main',
+    activity: { active: false, issueCodes: [] },
+    sync: { branch: 'main', headSha: 'main-sha', upstream: 'origin/main', remoteAvailable: true, clean: true, issueCodes: [], blockerCodes: [], syncEligible: true },
+    branches: [
+      { name: 'main', default: true, current: true, state: 'default', sha: 'main-sha', issueCodes: [] },
+      { name: 'content-equivalent', default: false, current: false, state: 'diverged', sha: 'feature-sha', issueCodes: ['diverged'] },
+    ],
+    remoteBranches: [], pullRequests: [], cleanupCandidates: [], issues: [],
+  });
+  const service = createRepoOperationsService({
+    inventory: async () => ({ repos: [repo] }),
+    scanRepository: scanner,
+    git: {
+      listRemotes: async () => ['origin', 'backup'],
+      fetchPrune: async (repoPath, remoteName) => { fetched.push([repoPath, remoteName]); },
+      isAncestor: async () => false,
+      countUniqueCommits: async () => 2,
+      hasTreeDelta: async () => false,
+      deleteLocalRef: async (repoPath, branch, expectedSha) => { deleted.push([repoPath, branch, expectedSha]); },
+    },
+  });
+  const fetch = await service.fetchRemotes({}, { confirmed: true });
+  assert.strictEqual(fetch.summary.fetched, 1);
+  assert.deepStrictEqual(fetched, [['C:/work/alpha', 'origin'], ['C:/work/alpha', 'backup']]);
+
+  const analysis = await service.analyzeEntities({}, { entities: [{ repoId: 'alpha', entityId: 'local:content-equivalent' }] });
+  assert.strictEqual(analysis.summary.safe, 1);
+  assert.strictEqual(analysis.entities[0].evidence.classification, 'analyzed-safe');
+  assert.strictEqual(analysis.entities[0].evidence.treeDelta, false);
+
+  const cleanup = await service.cleanupEntities({}, { confirmed: true, mode: 'analyzed', entities: [{ repoId: 'alpha', entityId: 'local:content-equivalent', observedSha: 'feature-sha' }] });
+  assert.strictEqual(cleanup.summary.removed, 1);
+  assert.deepStrictEqual(deleted, [['C:/work/alpha', 'content-equivalent', 'feature-sha']]);
+
+  const stale = await service.cleanupEntities({}, { confirmed: true, mode: 'analyzed', entities: [{ repoId: 'alpha', entityId: 'local:content-equivalent', observedSha: 'stale-sha' }] });
+  assert.strictEqual(stale.entities[0].status, 'skipped');
+  assert.ok(stale.entities[0].blockerCodes.includes('stale-cleanup-candidate'));
+  assert.strictEqual(deleted.length, 1, 'stale cleanup must not call compared deletion');
+}
+
+async function testCleanupStopsWhenFreshSafetyChangesWithoutAShaChange() {
+  const repo = { repoId: 'alpha', repoPath: 'C:/work/alpha', repoLabel: 'Alpha', isWorktreeCheckout: false };
+  let scanCount = 0;
+  let deleted = 0;
+  const scanner = async () => {
+    scanCount += 1;
+    return {
+      ...repo,
+      available: true,
+      provider: 'github',
+      defaultBranch: 'main',
+      activity: { active: scanCount > 1, issueCodes: scanCount > 1 ? ['active-session-or-worktree'] : [] },
+      sync: { branch: 'main', headSha: 'main-sha', upstream: 'origin/main', remoteAvailable: true, clean: true, issueCodes: [], blockerCodes: [], syncEligible: true },
+      branches: [
+        { name: 'main', default: true, current: true, state: 'default', sha: 'main-sha', issueCodes: [] },
+        { name: 'candidate', default: false, current: false, state: 'diverged', sha: 'candidate-sha', issueCodes: ['diverged'] },
+      ],
+      remoteBranches: [], pullRequests: [], cleanupCandidates: [], issues: [],
+    };
+  };
+  const service = createRepoOperationsService({
+    inventory: async () => ({ repos: [repo] }),
+    scanRepository: scanner,
+    git: {
+      isAncestor: async () => false,
+      countUniqueCommits: async () => 1,
+      hasTreeDelta: async () => false,
+      readRefSha: async (_repoPath, ref) => ref === 'main' ? 'main-sha' : null,
+      deleteLocalRef: async () => { deleted += 1; },
+    },
+  });
+  const result = await service.cleanupEntities({}, { confirmed: true, mode: 'analyzed', entities: [{ repoId: 'alpha', entityId: 'local:candidate', observedSha: 'candidate-sha' }] });
+  assert.strictEqual(result.entities[0].status, 'skipped');
+  assert.deepStrictEqual(result.entities[0].blockerCodes, ['stale-cleanup-candidate']);
+  assert.strictEqual(deleted, 0, 'a fresh activity/protection change must stop compared deletion even when the branch SHA is unchanged');
+}
+
+async function testMergeRepairUsesIsolatedWorktreeAndSeparateApprovals() {
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'repo-ops-repair-test-'));
+  const repo = { repoId: 'repair', repoPath: 'C:/work/repair', repoLabel: 'Repair', exists: true, gitRootKind: 'directory', isWorktreeCheckout: false };
+  const calls = [];
+  let headSha = 'source-sha';
+  let merged = 0;
+  const service = createRepoOperationsService({
+    inventory: async () => ({ repos: [repo] }), fsImpl: fs, pathImpl: path,
+    git: {
+      readStatus: async () => ({ branch: 'main', upstream: 'origin/main', ahead: 0, behind: 0, clean: true, headSha: 'base-sha', upstreamSha: 'base-sha' }),
+      readRemote: async () => ({ name: 'origin', available: true, url: 'https://github.com/acme/repair.git' }),
+      createRepairWorktree: async (repoPath, worktreePath, branch, sha) => { calls.push(['create', repoPath, worktreePath, branch, sha]); },
+      mergeIntoWorktree: async (worktreePath, targetBranch) => { calls.push(['merge', worktreePath, targetBranch]); return { conflicted: false }; },
+      readRefSha: async (repoPath, branch) => branch.startsWith('elegy/repair/') ? 'repair-sha' : 'base-sha',
+      pushRepair: async (repoPath, remote, repairBranch, sourceBranch) => { calls.push(['push', repoPath, remote, repairBranch, sourceBranch]); headSha = 'repair-sha'; },
+      removeWorktree: async (repoPath, worktreePath) => { calls.push(['remove-worktree', repoPath, worktreePath]); },
+      deleteLocalRef: async (repoPath, branch, sha) => { calls.push(['delete-ref', repoPath, branch, sha]); },
+    },
+    github: {
+      getPullRequest: async () => ({ number: 7, title: 'Repairable', state: 'OPEN', baseRefName: 'main', headRefName: 'feature/repairable', baseSha: 'base-sha', headSha, isDraft: false, reviewDecision: 'APPROVED', mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', statusCheckRollup: [{ conclusion: 'SUCCESS' }] }),
+      mergePullRequest: async (repoPath, number, input) => { merged += 1; assert.strictEqual(repoPath, repo.repoPath); assert.strictEqual(number, 7); assert.strictEqual(input.expectedHeadSha, 'repair-sha'); return { ok: true }; },
+    },
+    agentRunner: async (input) => { assert.strictEqual(input.kind, 'merge-repair'); assert.notStrictEqual(input.repairWorktreePath, repo.repoPath); return { stdout: JSON.stringify({ type: 'assistant', content: JSON.stringify({ schemaVersion: 1, evidence: { checks: { failed: 0, pending: 0 } }, proposedOperation: null, blockerCodes: [] }) }) }; },
+  });
+  try {
+    const started = await service.startAgentRun({ context: { elegyHome: tempHome }, kind: 'merge-repair', repoId: 'repair', prNumber: 7, targetBranch: 'main', observedHeadSha: 'source-sha', observedBaseSha: 'base-sha' });
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    const prepared = await service.getAgentRun({ context: { elegyHome: tempHome }, runId: started.run.id });
+    assert.strictEqual(prepared.status, 'awaiting-push-approval', prepared.error || JSON.stringify(prepared.blockerCodes));
+    assert.ok(calls[0][2].includes(path.join('repo-state', 'repo-operations', 'repair-worktrees')));
+    assert.deepStrictEqual(calls.find((entry) => entry[0] === 'merge').slice(-1), ['base-sha'], 'repair must merge the exact observed base SHA');
+    assert.strictEqual(calls.some((entry) => entry[0] === 'push'), false);
+    const pushed = await service.approveAgentRun({ context: { elegyHome: tempHome }, runId: started.run.id });
+    assert.strictEqual(pushed.status, 'awaiting-merge-approval');
+    assert.strictEqual(merged, 0, 'pushing a repair must not merge it');
+    const completed = await service.approveAgentRun({ context: { elegyHome: tempHome }, runId: started.run.id });
+    assert.strictEqual(completed.status, 'completed');
+    assert.strictEqual(merged, 1);
+    assert.strictEqual(completed.repairCleanup.completed, true);
+    assert.ok(calls.some((entry) => entry[0] === 'remove-worktree'));
+    assert.ok(calls.some((entry) => entry[0] === 'delete-ref' && entry[3] === 'repair-sha'));
+  } finally {
+    fs.rmSync(tempHome, { recursive: true, force: true });
+  }
+}
+
+async function testMergeRepairBlocksForkHeadsAndPreservesCancellation() {
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'repo-ops-repair-safety-test-'));
+  const repo = { repoId: 'repair', repoPath: 'C:/work/repair', repoLabel: 'Repair', exists: true, gitRootKind: 'directory', isWorktreeCheckout: false };
+  const baseGit = {
+    readStatus: async () => ({ branch: 'main', upstream: 'origin/main', ahead: 0, behind: 0, clean: true, headSha: 'base-sha', upstreamSha: 'base-sha' }),
+    readRemote: async () => ({ name: 'origin', available: true, url: 'https://github.com/acme/repair.git' }),
+    readRefSha: async (_repoPath, ref) => ref.startsWith('elegy/repair/') ? 'repair-sha' : 'base-sha',
+  };
+  try {
+    let created = 0;
+    const forkService = createRepoOperationsService({
+      inventory: async () => ({ repos: [repo] }), fsImpl: fs, pathImpl: path,
+      git: { ...baseGit, createRepairWorktree: async () => { created += 1; }, mergeIntoWorktree: async () => ({ conflicted: false }) },
+      github: { getPullRequest: async () => ({ number: 8, state: 'OPEN', baseRefName: 'main', headRefName: 'feature/fork', baseSha: 'base-sha', headSha: 'source-sha', isCrossRepository: true }) },
+    });
+    const forkRun = await forkService.startAgentRun({ context: { elegyHome: tempHome }, kind: 'merge-repair', repoId: 'repair', prNumber: 8, targetBranch: 'main', observedHeadSha: 'source-sha', observedBaseSha: 'base-sha' });
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    const forkResult = await forkService.getAgentRun({ context: { elegyHome: tempHome }, runId: forkRun.run.id });
+    assert.strictEqual(forkResult.status, 'blocked');
+    assert.ok(forkResult.blockerCodes.includes('unwritable-pr-head'));
+    assert.strictEqual(created, 0, 'fork PR heads must stop before a repair worktree is created');
+
+    let releaseAgent;
+    const agentStarted = new Promise((resolve) => { releaseAgent = resolve; });
+    let continueAgent;
+    const agentGate = new Promise((resolve) => { continueAgent = resolve; });
+    const cleanupCalls = [];
+    const cancellationService = createRepoOperationsService({
+      inventory: async () => ({ repos: [repo] }), fsImpl: fs, pathImpl: path,
+      git: {
+        ...baseGit,
+        createRepairWorktree: async () => {},
+        mergeIntoWorktree: async () => ({ conflicted: false }),
+        removeWorktree: async (_repoPath, worktreePath) => { cleanupCalls.push(['worktree', worktreePath]); },
+        deleteLocalRef: async (_repoPath, branch, sha) => { cleanupCalls.push(['branch', branch, sha]); },
+      },
+      github: { getPullRequest: async () => ({ number: 9, state: 'OPEN', baseRefName: 'main', headRefName: 'feature/cancel', baseSha: 'base-sha', headSha: 'source-sha', isCrossRepository: false }) },
+      agentRunner: async () => { releaseAgent(); await agentGate; return { stdout: JSON.stringify({ type: 'assistant', content: JSON.stringify({ schemaVersion: 1, evidence: {}, blockerCodes: [] }) }) }; },
+    });
+    const cancellationRun = await cancellationService.startAgentRun({ context: { elegyHome: tempHome }, kind: 'merge-repair', repoId: 'repair', prNumber: 9, targetBranch: 'main', observedHeadSha: 'source-sha', observedBaseSha: 'base-sha' });
+    await agentStarted;
+    const cancelled = await cancellationService.cancelAgentRun({ context: { elegyHome: tempHome }, runId: cancellationRun.run.id });
+    assert.strictEqual(cancelled.status, 'cancelled');
+    continueAgent();
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    const finalRun = await cancellationService.getAgentRun({ context: { elegyHome: tempHome }, runId: cancellationRun.run.id });
+    assert.strictEqual(finalRun.status, 'cancelled', 'agent completion must not overwrite cancellation');
+    assert.strictEqual(finalRun.repairCleanup.completed, true);
+    assert.ok(cleanupCalls.some((entry) => entry[0] === 'worktree'));
+  } finally {
+    fs.rmSync(tempHome, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   testBranchClassification();
   await testRepositoryScan();
@@ -592,6 +777,10 @@ async function main() {
   await testConfirmationAndStaleSync();
   await testPerRepositoryAgentRunAndFreshApproval();
   await testCancellationDoesNotGetOverwritten();
+  await testBatchFetchAnalysisAndComparedCleanup();
+  await testCleanupStopsWhenFreshSafetyChangesWithoutAShaChange();
+  await testMergeRepairUsesIsolatedWorktreeAndSeparateApprovals();
+  await testMergeRepairBlocksForkHeadsAndPreservesCancellation();
   console.log('repoOperationsService.test.js: ok');
 }
 

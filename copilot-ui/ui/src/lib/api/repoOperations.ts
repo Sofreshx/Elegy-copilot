@@ -59,6 +59,37 @@ export interface RepoOperationsBranch {
   worktree: string | null;
   cleanupEligible: boolean;
   issueCodes: string[];
+  sha?: string | null;
+  activityAt?: number | null;
+}
+
+export interface RepoOperationsEntity {
+  id: string;
+  kind: 'local-branch' | 'remote-branch' | 'worktree' | string;
+  branch: string;
+  worktreePath: string | null;
+  remoteName: string | null;
+  observedSha: string | null;
+  observedDefaultSha: string | null;
+  activityAt: number | null;
+  localState: string | null;
+  remoteState: string | null;
+  safety: 'strict-safe' | 'analyzed-safe' | 'analysis-required' | 'protected' | 'blocked' | string;
+  cleanupEligible: boolean;
+  blockerCodes: string[];
+  analysis?: RepoOperationsAnalysisEvidence | null;
+}
+
+export interface RepoOperationsAnalysisEvidence {
+  analysisId: string;
+  analyzedAt: string;
+  branchTipReachableFromDefault: boolean;
+  uniqueCommits: number | null;
+  treeDelta: boolean | null;
+  openPullRequests: number[];
+  active: boolean;
+  protected: boolean;
+  classification: string;
 }
 
 export interface RepoOperationsPullRequest {
@@ -195,7 +226,10 @@ export interface RepoOperationsRepository {
   provider: 'github' | 'unsupported' | 'none' | string;
   sync: RepoOperationsSync;
   defaultBranch?: string | null;
+  lastActivityMs?: number | null;
   branches: RepoOperationsBranch[];
+  remoteBranches?: Array<{ name: string; remoteName: string; sha: string | null; activityAt: number | null }>;
+  entities?: RepoOperationsEntity[];
   pullRequests: RepoOperationsPullRequest[];
   issues: RepoOperationsIssue[];
   errors?: RepoOperationsIssue[];
@@ -218,6 +252,8 @@ export interface RepoOperationsOverview {
     syncIssues: number;
     staleBranches: number;
     openPullRequests: number;
+    cleanupCandidates?: number;
+    needsAnalysis?: number;
   };
   warnings: string[];
   actionContract?: {
@@ -243,6 +279,7 @@ export interface RepoOperationsOverview {
   branches?: RepoOperationsBranch[];
   pullRequests?: RepoOperationsPullRequest[];
   cleanupCandidates?: RepoOperationsCleanupCandidate[];
+  entities?: RepoOperationsEntity[];
   activeRuns?: RepoOperationsRunSummary[];
 }
 
@@ -250,11 +287,46 @@ export async function getRepoOperationsOverview(): Promise<RepoOperationsOvervie
   return apiRequest<RepoOperationsOverview>('/api/repo-operations/overview');
 }
 
-export async function syncRepoOperations(input: { confirmed: true }): Promise<RepoOperationsSyncResult> {
+export async function syncRepoOperations(input: { confirmed: true; repoIds?: string[] }): Promise<RepoOperationsSyncResult> {
   return apiRequest<RepoOperationsSyncResult>('/api/repo-operations/sync', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
+  });
+}
+
+export interface RepoOperationsActionResult {
+  contractVersion: string;
+  operation: string;
+  startedAt: string;
+  completedAt: string;
+  summary: Record<string, number>;
+  repositories?: Array<{
+    repoId: string | null;
+    repoLabel?: string | null;
+    status: string;
+    issueCodes?: string[];
+    error?: string | null;
+    remotes?: Array<{ name: string; status: string; error?: string | null }>;
+  }>;
+  entities?: Array<{ repoId: string | null; entityId: string; status: string; blockerCodes: string[]; evidence?: RepoOperationsAnalysisEvidence | null; error?: string | null }>;
+}
+
+export async function fetchRepoOperations(input: { confirmed: true; repoIds?: string[] }): Promise<RepoOperationsActionResult> {
+  return apiRequest<RepoOperationsActionResult>('/api/repo-operations/fetch', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  });
+}
+
+export async function analyzeRepoOperations(input: { entities: Array<{ repoId: string; entityId: string }> }): Promise<RepoOperationsActionResult> {
+  return apiRequest<RepoOperationsActionResult>('/api/repo-operations/analyze', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  });
+}
+
+export async function cleanupRepoOperationEntities(input: { confirmed: true; mode: 'strict' | 'analyzed'; entities: Array<{ repoId: string; entityId: string; observedSha: string | null }> }): Promise<RepoOperationsActionResult> {
+  return apiRequest<RepoOperationsActionResult>('/api/repo-operations/cleanup', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
   });
 }
 
@@ -275,6 +347,7 @@ export interface StartRepoOperationsAgentRunInput {
   targetBranch: string;
   observedHeadSha: string;
   observedBaseSha: string;
+  kind?: 'pr-analysis' | 'branch-analysis' | 'merge-repair';
   allowedOperationScope?: Record<string, boolean>;
 }
 

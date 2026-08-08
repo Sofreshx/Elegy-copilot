@@ -364,9 +364,11 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/git/pull-request' },
   { method: 'GET', path: '/api/git/quality/status' },
   { method: 'POST', path: '/api/git/quality/setup-task' },
-  // Repo Operations (6)
+  // Repo Operations (9)
   { method: 'GET', path: '/api/repo-operations/overview' },
   { method: 'POST', path: '/api/repo-operations/sync' },
+  { method: 'POST', path: '/api/repo-operations/fetch' },
+  { method: 'POST', path: '/api/repo-operations/analyze' },
   { method: 'POST', path: '/api/repo-operations/cleanup' },
   { method: 'POST', path: '/api/repo-operations/agent-runs' },
   { method: 'GET', path: '/api/repo-operations/agent-runs/test-run-id' },
@@ -557,7 +559,7 @@ async function run() {
     }
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 201, `Expected 201 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 203, `Expected 203 routes, got ${ROUTE_INVENTORY.length}`);
   });
   } finally {
     if (runningServer) {

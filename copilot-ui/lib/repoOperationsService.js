@@ -7,9 +7,9 @@ const path = require('node:path');
 const repoInventoryLib = require('./repoInventoryService');
 const sessionLib = require('./sessions');
 
-const REPO_OPERATIONS_SCHEMA_VERSION = 3;
-const REPO_OPERATIONS_CONTRACT_VERSION = 'repo-operations.overview.v3';
-const REPO_OPERATIONS_ACTION_CONTRACT_VERSION = 'repo-operations.action.v3';
+const REPO_OPERATIONS_SCHEMA_VERSION = 4;
+const REPO_OPERATIONS_CONTRACT_VERSION = 'repo-operations.overview.v4';
+const REPO_OPERATIONS_ACTION_CONTRACT_VERSION = 'repo-operations.action.v4';
 const REPO_OPERATIONS_AGENT = 'repo-operations';
 const REPO_OPERATIONS_MODEL = 'opencode-go/deepseek-v4-flash';
 const DEFAULT_COMMAND_TIMEOUT_MS = 3000;
@@ -24,13 +24,15 @@ const AGENT_RUN_STATUSES = new Set([
   'queued',
   'running',
   'awaiting-approval',
+  'awaiting-push-approval',
+  'awaiting-merge-approval',
   'blocked',
   'needs-manual-session',
   'completed',
   'failed',
   'cancelled',
 ]);
-const ACTIVE_AGENT_RUN_STATUSES = new Set(['queued', 'running', 'awaiting-approval']);
+const ACTIVE_AGENT_RUN_STATUSES = new Set(['queued', 'running', 'awaiting-approval', 'awaiting-push-approval', 'awaiting-merge-approval']);
 const TERMINAL_AGENT_RUN_STATUSES = new Set(['completed', 'failed', 'cancelled', 'needs-manual-session', 'blocked']);
 
 const FUTURE_ACTION_REASON = 'This action is intentionally disabled until a safe, explicit preparation flow is available.';
@@ -50,6 +52,22 @@ const CAPABILITIES = Object.freeze({
     contract: REPO_OPERATIONS_ACTION_CONTRACT_VERSION,
     requiresConfirmation: true,
     mutation: 'fetch-and-fast-forward-only',
+  },
+  fetch: {
+    enabled: true,
+    label: 'Fetch all remotes',
+    description: 'Fetch every configured remote and prune stale remote-tracking refs without changing a checkout.',
+    reason: 'Requires explicit confirmation. Fetch failures stay visible per remote.',
+    contract: REPO_OPERATIONS_ACTION_CONTRACT_VERSION,
+    requiresConfirmation: true,
+    mutation: 'fetch-and-prune-remote-tracking-refs',
+  },
+  analysis: {
+    enabled: true,
+    label: 'Analyze uncertain',
+    description: 'Collect deterministic Git and GitHub evidence without modifying repositories.',
+    contract: REPO_OPERATIONS_ACTION_CONTRACT_VERSION,
+    mutation: 'read-only-analysis',
   },
   branchCleanup: {
     enabled: false,
@@ -104,8 +122,8 @@ const ACTION_CONTRACT = Object.freeze({
     autoMerge: false,
   },
   cleanup: {
-    operation: 'remove-worktree-and-delete-local-branch',
-    remotes: false,
+    operation: 'typed-fresh-state-cleanup',
+    remotes: 'github-only-with-pr-and-protection-evidence',
     force: false,
     requiresCandidateList: true,
     revalidatesEachCandidate: true,
@@ -179,6 +197,11 @@ const ISSUE_DEFINITIONS = Object.freeze({
   'sync-command-failed': { severity: 'error', title: 'Safe sync failed', message: 'The fetch or fast-forward operation could not complete.' },
   'worktree-remove-failed': { severity: 'error', title: 'Worktree removal failed', message: 'Git could not remove the linked worktree.' },
   'branch-delete-failed': { severity: 'warning', title: 'Local branch retained', message: 'The worktree was removed, but Git kept the local branch.' },
+  'remote-branch-delete-failed': { severity: 'warning', title: 'Remote branch retained', message: 'The remote branch could not be deleted safely.' },
+  'remote-cleanup-unsupported': { severity: 'warning', title: 'Remote cleanup unavailable', message: 'Remote cleanup requires available GitHub pull-request and protection evidence.' },
+  'analysis-required': { severity: 'info', title: 'Analysis required', message: 'Run deterministic analysis before this candidate can be considered for cleanup.' },
+  'analysis-not-high-confidence': { severity: 'warning', title: 'Analysis is not high confidence', message: 'The evidence does not support automated analyzed cleanup.' },
+  'protected-branch': { severity: 'warning', title: 'Protected branch', message: 'Default, current, or active branches are never deleted.' },
 });
 
 function issueForCode(code, details = null, fallbackMessage = null) {
@@ -392,6 +415,8 @@ function normalizeBranchRecord(branch) {
     upstreamGone: Boolean(branch?.upstreamGone),
     ahead: asCount(branch?.ahead),
     behind: asCount(branch?.behind),
+    sha: normalizeSha(branch?.sha),
+    activityAt: Number.isFinite(Number(branch?.activityAt)) ? Number(branch.activityAt) * 1000 : null,
   };
 }
 
@@ -434,7 +459,7 @@ function parseBranchRecords(output) {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [name, upstream, tracking] = line.split('\t');
+      const [name, upstream, tracking, sha, activityAt] = line.split('\t');
       const trackingText = asString(tracking);
       const upstreamGone = /gone/i.test(trackingText);
       const aheadMatch = trackingText.match(/ahead\s+(\d+)/i);
@@ -445,9 +470,25 @@ function parseBranchRecords(output) {
         upstreamGone,
         ahead: aheadMatch ? aheadMatch[1] : trackingText === '>' ? 1 : 0,
         behind: behindMatch ? behindMatch[1] : trackingText === '<' ? 1 : 0,
+        sha,
+        activityAt,
       });
     })
     .filter((branch) => branch.name);
+}
+
+function parseRemoteBranchRecords(output, remoteName) {
+  const prefix = `${asString(remoteName)}/`;
+  return String(output || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [ref, sha, activityAt] = line.split('\t');
+      const name = asString(ref).startsWith(prefix) ? asString(ref).slice(prefix.length) : asString(ref);
+      return { name, remoteName: asString(remoteName), sha: normalizeSha(sha), activityAt: Number.isFinite(Number(activityAt)) ? Number(activityAt) * 1000 : null };
+    })
+    .filter((branch) => branch.name && branch.name !== 'HEAD');
 }
 
 function parseWorktreeRecords(output) {
@@ -516,6 +557,8 @@ function normalizePullRequest(pr, branches) {
     headRefName: headRefName || null,
     baseSha: normalizeSha(pr?.baseSha || pr?.baseRefOid || pr?.base?.oid),
     headSha: normalizeSha(pr?.headSha || pr?.headRefOid || pr?.head?.oid),
+    isCrossRepository: pr?.isCrossRepository === true,
+    headRepositoryOwner: asNullableString(pr?.headRepositoryOwner?.login || pr?.headRepositoryOwner),
     isDraft: Boolean(pr?.isDraft),
     author: pr?.author && typeof pr.author === 'object'
       ? { login: asNullableString(pr.author.login), name: asNullableString(pr.author.name) }
@@ -620,11 +663,27 @@ function createGitOperations({ runCommand, childProcessImpl = childProcess, comm
   async function listBranches(repoPath) {
     const result = await run(
       'git',
-      ['for-each-ref', '--format=%(refname:short)\t%(upstream:short)\t%(upstream:track)', 'refs/heads'],
+      ['for-each-ref', '--format=%(refname:short)\t%(upstream:short)\t%(upstream:track)\t%(objectname)\t%(committerdate:unix)', 'refs/heads'],
       repoPath,
       commandTimeoutMs,
     );
     return parseBranchRecords(result.stdout);
+  }
+
+  async function listRemoteBranches(repoPath, remoteName) {
+    if (!remoteName) return [];
+    const result = await run(
+      'git',
+      ['for-each-ref', '--format=%(refname:short)\t%(objectname)\t%(committerdate:unix)', `refs/remotes/${remoteName}`],
+      repoPath,
+      commandTimeoutMs,
+    );
+    return parseRemoteBranchRecords(result.stdout, remoteName);
+  }
+
+  async function listRemotes(repoPath) {
+    const result = await run('git', ['remote'], repoPath, commandTimeoutMs);
+    return String(result.stdout || '').split(/\r?\n/).map((name) => asString(name)).filter(Boolean);
   }
 
   async function readDefaultBranch(repoPath, remoteName, branches) {
@@ -677,8 +736,19 @@ function createGitOperations({ runCommand, childProcessImpl = childProcess, comm
     }
   }
 
+  async function readRemoteBranchSha(repoPath, remoteName, branch) {
+    if (!remoteName || !branch) return null;
+    const result = await run('git', ['ls-remote', '--heads', remoteName, `refs/heads/${branch}`], repoPath, commandTimeoutMs);
+    const match = String(result.stdout || '').match(/^([0-9a-f]+)\s+refs\/heads\/[^\s]+/im);
+    return normalizeSha(match?.[1]);
+  }
+
   async function fetch(repoPath, remoteName) {
     return run('git', ['fetch', '--no-prune', remoteName], repoPath, commandTimeoutMs);
+  }
+
+  async function fetchPrune(repoPath, remoteName) {
+    return run('git', ['fetch', '--prune', remoteName], repoPath, commandTimeoutMs);
   }
 
   async function fastForwardOnly(repoPath, upstream) {
@@ -693,18 +763,80 @@ function createGitOperations({ runCommand, childProcessImpl = childProcess, comm
     return run('git', ['branch', '-d', branch], repoPath, commandTimeoutMs);
   }
 
+  async function deleteLocalRef(repoPath, branch, expectedSha) {
+    return run('git', ['update-ref', '-d', `refs/heads/${branch}`, expectedSha], repoPath, commandTimeoutMs);
+  }
+
+  async function deleteRemoteBranch(repoPath, remoteName, branch) {
+    return run('git', ['push', remoteName, '--delete', branch], repoPath, commandTimeoutMs);
+  }
+
+  async function createRepairWorktree(repoPath, worktreePath, repairBranch, headSha) {
+    return run('git', ['worktree', 'add', '-b', repairBranch, worktreePath, headSha], repoPath, commandTimeoutMs);
+  }
+
+  async function mergeIntoWorktree(worktreePath, targetBranch) {
+    try {
+      await run('git', ['merge', '--no-edit', targetBranch], worktreePath, commandTimeoutMs);
+      return { conflicted: false };
+    } catch (error) {
+      const status = await run('git', ['status', '--porcelain'], worktreePath, commandTimeoutMs).catch(() => ({ stdout: '' }));
+      return { conflicted: String(status.stdout || '').trim().length > 0, error };
+    }
+  }
+
+  async function pushRepair(repoPath, remoteName, repairBranch, sourceBranch) {
+    return run('git', ['push', remoteName, `${repairBranch}:refs/heads/${sourceBranch}`], repoPath, commandTimeoutMs);
+  }
+
+  async function isAncestor(repoPath, ancestor, descendant) {
+    try {
+      await run('git', ['merge-base', '--is-ancestor', ancestor, descendant], repoPath, commandTimeoutMs);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function countUniqueCommits(repoPath, base, ref) {
+    const result = await run('git', ['rev-list', '--count', `${base}..${ref}`], repoPath, commandTimeoutMs);
+    return asCount(result.stdout);
+  }
+
+  async function hasTreeDelta(repoPath, base, ref) {
+    try {
+      await run('git', ['diff', '--quiet', base, ref], repoPath, commandTimeoutMs);
+      return false;
+    } catch (error) {
+      if (Number(error?.code) === 1) return true;
+      throw error;
+    }
+  }
+
   return {
     readStatus,
     readRemote,
     readRefSha,
+    readRemoteBranchSha,
     listBranches,
+    listRemoteBranches,
+    listRemotes,
     readDefaultBranch,
     listWorktrees,
     listMergedBranches,
     fetch,
+    fetchPrune,
     fastForwardOnly,
     removeWorktree,
     deleteLocalBranch,
+    deleteLocalRef,
+    deleteRemoteBranch,
+    createRepairWorktree,
+    mergeIntoWorktree,
+    pushRepair,
+    isAncestor,
+    countUniqueCommits,
+    hasTreeDelta,
   };
 }
 
@@ -748,7 +880,7 @@ function createGithubOperations({ runCommand, childProcessImpl = childProcess, g
             'gh',
             [
               'pr', 'list', '--state', 'open', '--limit', '1000',
-            '--json', 'number,title,url,state,baseRefName,headRefName,baseRefOid,headRefOid,isDraft,author,updatedAt,statusCheckRollup,reviewDecision,mergeable,mergeStateStatus',
+            '--json', 'number,title,url,state,baseRefName,headRefName,baseRefOid,headRefOid,isDraft,author,updatedAt,statusCheckRollup,reviewDecision,mergeable,mergeStateStatus,isCrossRepository,headRepositoryOwner',
           ],
           repoPath,
           githubTimeoutMs,
@@ -785,7 +917,7 @@ function createGithubOperations({ runCommand, childProcessImpl = childProcess, g
           'gh',
           [
             'pr', 'view', String(number),
-            '--json', 'number,title,url,state,baseRefName,headRefName,baseRefOid,headRefOid,isDraft,author,updatedAt,statusCheckRollup,reviewDecision,mergeable,mergeStateStatus',
+            '--json', 'number,title,url,state,baseRefName,headRefName,baseRefOid,headRefOid,isDraft,author,updatedAt,statusCheckRollup,reviewDecision,mergeable,mergeStateStatus,isCrossRepository,headRepositoryOwner',
           ],
           repoPath,
           githubTimeoutMs,
@@ -803,6 +935,25 @@ function createGithubOperations({ runCommand, childProcessImpl = childProcess, g
           pullRequest: null,
           issue: commandIssue(error, 'github-query-failed', 'The GitHub pull request could not be loaded.'),
         };
+      }
+    },
+    async isBranchProtected(repoPath, branch) {
+      const auth = await resolveAuthentication(repoPath);
+      if (!auth.available || !auth.authenticated || !branch) return { available: false, protected: null };
+      try {
+        await run(
+          'gh',
+          ['api', `repos/{owner}/{repo}/branches/${encodeURIComponent(branch)}/protection`],
+          repoPath,
+          githubTimeoutMs,
+        );
+        return { available: true, protected: true };
+      } catch (error) {
+        // GitHub returns 404 for a branch without protection. Any other error
+        // leaves protection unknown and therefore ineligible for deletion.
+        const response = `${error?.stdout || ''}\n${error?.stderr || ''}\n${error?.message || ''}`;
+        if (/\b404\b|not found/i.test(response)) return { available: true, protected: false };
+        return { available: false, protected: null, error };
       }
     },
     async mergePullRequest(repoPath, number, input = {}) {
@@ -920,6 +1071,80 @@ function cleanupEligibilityForCandidate({
   return { eligible: blockerCodes.length === 0, blockerCodes: unique(blockerCodes) };
 }
 
+function buildRepositoryEntities(repository) {
+  const branches = Array.isArray(repository?.branches) ? repository.branches : [];
+  const remoteBranches = Array.isArray(repository?.remoteBranches) ? repository.remoteBranches : [];
+  const pullRequests = Array.isArray(repository?.pullRequests) ? repository.pullRequests : [];
+  const worktrees = Array.isArray(repository?.cleanupCandidates) ? repository.cleanupCandidates : [];
+  const defaultBranch = asString(repository?.defaultBranch);
+  const currentBranch = asString(repository?.sync?.branch);
+  const entities = [];
+  for (const branch of branches) {
+    const protectedBranch = Boolean(branch.default || branch.current || branch.activeWorktree || branch.name === defaultBranch || branch.name === currentBranch);
+    const strictSafe = branch.cleanupEligible === true && !protectedBranch;
+    entities.push({
+      id: `local:${branch.name}`,
+      kind: 'local-branch',
+      branch: branch.name,
+      worktreePath: null,
+      remoteName: null,
+      observedSha: normalizeSha(branch.sha),
+      observedDefaultSha: normalizeSha(repository?.sync?.headSha),
+      activityAt: branch.activityAt || null,
+      localState: branch.state,
+      remoteState: branch.upstreamGone ? 'gone' : branch.upstream ? 'tracked' : 'none',
+      safety: protectedBranch ? 'protected' : strictSafe ? 'strict-safe' : 'analysis-required',
+      cleanupEligible: strictSafe,
+      blockerCodes: protectedBranch ? ['protected-branch'] : strictSafe ? [] : ['analysis-required'],
+      analysis: null,
+    });
+  }
+  for (const branch of remoteBranches) {
+    const local = branches.find((entry) => entry.name === branch.name) || null;
+    const protectedBranch = branch.name === defaultBranch || branch.name === currentBranch;
+    const hasOpenPullRequest = pullRequests.some((pullRequest) => pullRequest.headRefName === branch.name);
+    const strictSafe = repository?.provider === 'github'
+      && local?.mergedIntoDefault === true
+      && !hasOpenPullRequest
+      && !protectedBranch;
+    entities.push({
+      id: `remote:${branch.remoteName}:${branch.name}`,
+      kind: 'remote-branch',
+      branch: branch.name,
+      worktreePath: null,
+      remoteName: branch.remoteName,
+      observedSha: normalizeSha(branch.sha),
+      observedDefaultSha: normalizeSha(repository?.sync?.headSha),
+      activityAt: branch.activityAt || null,
+      localState: local?.state || 'remote-only',
+      remoteState: 'present',
+      safety: protectedBranch ? 'protected' : strictSafe ? 'strict-safe' : 'analysis-required',
+      cleanupEligible: strictSafe,
+      blockerCodes: protectedBranch ? ['protected-branch'] : strictSafe ? [] : ['analysis-required'],
+      analysis: null,
+    });
+  }
+  for (const candidate of worktrees) {
+    entities.push({
+      id: `worktree:${normalizePathForComparison(candidate.worktreePath)}`,
+      kind: 'worktree',
+      branch: candidate.branch,
+      worktreePath: candidate.worktreePath,
+      remoteName: null,
+      observedSha: candidate.observedBranchSha,
+      observedDefaultSha: candidate.observedDefaultSha,
+      activityAt: null,
+      localState: candidate.clean ? 'clean' : 'dirty',
+      remoteState: null,
+      safety: candidate.eligible ? 'strict-safe' : 'blocked',
+      cleanupEligible: candidate.eligible,
+      blockerCodes: candidate.blockerCodes,
+      analysis: null,
+    });
+  }
+  return entities;
+}
+
 async function scanRepository(repo, options = {}) {
   const git = options.git || createGitOperations(options);
   const github = options.github || createGithubOperations(options);
@@ -958,6 +1183,8 @@ async function scanRepository(repo, options = {}) {
       details: null,
     },
     branches: [],
+    remoteBranches: [],
+    entities: [],
     pullRequests: [],
     issues,
     errors: [],
@@ -1032,6 +1259,22 @@ async function scanRepository(repo, options = {}) {
     defaultBranch = await git.readDefaultBranch(repoPath, sync.remoteName, branchRecords);
   } catch (error) {
     addIssue(issues, commandIssue(error, 'git-command-failed', 'The repository default branch could not be determined.'));
+  }
+
+  let remoteBranches = [];
+  if (sync.remoteName && typeof git.listRemoteBranches === 'function') {
+    try {
+      remoteBranches = (await git.listRemoteBranches(repoPath, sync.remoteName))
+        .filter((branch) => branch.name !== defaultBranch)
+        .map((branch) => ({
+          name: branch.name,
+          remoteName: sync.remoteName,
+          sha: normalizeSha(branch.sha),
+          activityAt: branch.activityAt || null,
+        }));
+    } catch (error) {
+      addIssue(issues, commandIssue(error, 'git-command-failed', 'Remote branch state could not be read.'));
+    }
   }
 
   let worktrees = [];
@@ -1147,6 +1390,8 @@ async function scanRepository(repo, options = {}) {
       upstreamGone: branch.upstreamGone,
       ahead: branch.ahead,
       behind: branch.behind,
+      sha: branch.sha,
+      activityAt: branch.activityAt || null,
       state,
       mergedIntoDefault,
       activeWorktree,
@@ -1252,6 +1497,11 @@ async function scanRepository(repo, options = {}) {
     ...branches.flatMap((branch) => branch.issueCodes),
   ]);
   const syncEligibility = buildSyncEligibility(sync, normalizedActivity, true);
+  const localActivityAt = branchRecords.reduce((latest, branch) => Math.max(latest, Number(branch.activityAt) || 0), 0);
+  const remoteActivityAt = remoteBranches.reduce((latest, branch) => Math.max(latest, Number(branch.activityAt) || 0), 0);
+  const pullRequestActivityAt = pullRequests.reduce((latest, pullRequest) => Math.max(latest, Date.parse(pullRequest.updatedAt || '') || 0), 0);
+  const managedActivityAt = Number(activity?.details?.lastActivityMs) || 0;
+  const lastActivityMs = Math.max(Number(repo?.lastActivityMs) || 0, localActivityAt, remoteActivityAt, pullRequestActivityAt, managedActivityAt) || null;
   return {
     ...base,
     available: true,
@@ -1264,7 +1514,9 @@ async function scanRepository(repo, options = {}) {
     },
     activity: normalizedActivity,
     defaultBranch,
+    lastActivityMs,
     branches,
+    remoteBranches,
     cleanupCandidates,
     pullRequests,
     issues,
@@ -1448,8 +1700,13 @@ function normalizeAgentRun(run) {
     repoId: asNullableString(run.repoId),
     repoPath: asNullableString(run.repoPath),
     repoLabel: asString(run.repoLabel, 'Unknown repository'),
+    kind: ['pr-analysis', 'branch-analysis', 'merge-repair'].includes(asString(run.kind)) ? asString(run.kind) : 'pr-analysis',
     prNumber: Number.isFinite(Number(run.prNumber)) ? Number(run.prNumber) : null,
     targetBranch: asNullableString(run.targetBranch),
+    sourceBranch: asNullableString(run.sourceBranch),
+    repairBranch: asNullableString(run.repairBranch),
+    repairWorktreePath: asNullableString(run.repairWorktreePath),
+    repairHeadSha: normalizeSha(run.repairHeadSha),
     observedHeadSha: normalizeSha(run.observedHeadSha),
     observedBaseSha: normalizeSha(run.observedBaseSha),
     model: asString(run.model, REPO_OPERATIONS_MODEL),
@@ -1540,14 +1797,19 @@ function runOpenCodeRepoOperationsAgent(input, deps = {}) {
   if (!openCodeBin) {
     throw Object.assign(new Error('OpenCode CLI is not available.'), { code: 'opencode-cli-unavailable' });
   }
+  const repairMode = input.kind === 'merge-repair';
   const prompt = [
-    'You are the dedicated repo-operations agent. Inspect and analyze one GitHub pull request.',
+    repairMode ? 'You are the dedicated repo-operations merge-repair agent.' : 'You are the dedicated repo-operations agent. Inspect and analyze one GitHub pull request.',
     'Return one strict JSON object only; do not wrap it in Markdown.',
-    'You may inspect files, Git refs, PR metadata, and run read-only checks or dry-runs.',
-    'You must not push, merge, checkout, rebase, commit, stash, prune, delete branches, or modify worktrees.',
-    'A final merge is performed only by an explicit approval service after a fresh SHA check.',
+    repairMode
+      ? 'You may modify and commit only inside the supplied isolated repair worktree. You must not push, modify the primary worktree, delete branches, stash, rebase, or run destructive cleanup.'
+      : 'You may inspect files, Git refs, PR metadata, and run read-only checks or dry-runs.',
+    repairMode
+      ? 'A separate explicit approval service pushes the repair and later performs the final merge after fresh SHA checks.'
+      : 'You must not push, merge, checkout, rebase, commit, stash, prune, delete branches, or modify worktrees. A final merge is performed only by an explicit approval service after a fresh SHA check.',
     '',
     `Repository: ${input.repoPath}`,
+    repairMode ? `Repair worktree: ${input.repairWorktreePath}` : '',
     `Repository id: ${input.repoId}`,
     `Pull request: #${input.prNumber}`,
     `Target branch: ${input.targetBranch}`,
@@ -1556,7 +1818,9 @@ function runOpenCodeRepoOperationsAgent(input, deps = {}) {
     `Allowed scope: ${JSON.stringify(input.allowedOperationScope)}`,
     '',
     'Required JSON shape:',
-    '{"schemaVersion":1,"evidence":{"summary":"...","mergeable":true,"checks":{"failed":0,"pending":0},"review":"APPROVED","conflicts":[]},"proposedOperation":{"kind":"squash-merge","pullRequest":0}|null,"blockerCodes":[]}',
+    repairMode
+      ? '{"schemaVersion":1,"evidence":{"summary":"...","checks":{"failed":0,"pending":0},"repairCommit":"...","conflicts":[]},"proposedOperation":{"kind":"push-repair","pullRequest":0}|null,"blockerCodes":[]}'
+      : '{"schemaVersion":1,"evidence":{"summary":"...","mergeable":true,"checks":{"failed":0,"pending":0},"review":"APPROVED","conflicts":[]},"proposedOperation":{"kind":"squash-merge","pullRequest":0}|null,"blockerCodes":[]}',
     'Use blockerCodes for conflicts, dirty state, failed/pending checks, missing approval, stale metadata, or anything needing a manual session.',
   ].join('\n');
   const args = [
@@ -1565,7 +1829,7 @@ function runOpenCodeRepoOperationsAgent(input, deps = {}) {
     '--model', REPO_OPERATIONS_MODEL,
     '--format', 'json',
     '--no-replay',
-    '--dir', input.repoPath,
+    '--dir', repairMode ? input.repairWorktreePath : input.repoPath,
     prompt,
   ];
   return new Promise((resolve, reject) => {
@@ -1807,6 +2071,99 @@ function createRepoOperationsAgentService(options = {}) {
     return persisted?.status === 'cancelled' ? persisted : null;
   }
 
+  async function cleanupRepairArtifacts(context, run, repo) {
+    const current = loadRun(context, run.id) || run;
+    if (current.kind !== 'merge-repair' || current.repairCleanup?.completed === true) return current;
+    const errors = [];
+    if (current.repairWorktreePath && typeof git.removeWorktree === 'function') {
+      try {
+        await git.removeWorktree(repo.repoPath, current.repairWorktreePath);
+      } catch (error) {
+        errors.push({ artifact: 'worktree', error: errorMessage(error, 'Repair worktree cleanup failed.') });
+      }
+    }
+    if (current.repairBranch && current.repairHeadSha && typeof git.deleteLocalRef === 'function') {
+      try {
+        await git.deleteLocalRef(repo.repoPath, current.repairBranch, current.repairHeadSha);
+      } catch (error) {
+        errors.push({ artifact: 'branch', error: errorMessage(error, 'Repair branch cleanup failed.') });
+      }
+    }
+    current.repairCleanup = {
+      attemptedAt: nowIso(now),
+      completed: errors.length === 0,
+      errors,
+    };
+    appendLog(context, current, errors.length ? 'Repair artifact cleanup completed with blockers.' : 'Repair worktree and temporary branch cleaned up.', errors.length ? { errors } : null);
+    return loadRun(context, current.id);
+  }
+
+  async function executeMergeRepair(context, run, repo, pr, defaultBranch, localState) {
+    const blockers = [];
+    if (asString(pr?.state, 'OPEN').toUpperCase() !== 'OPEN') blockers.push('pr-not-open');
+    if (pr?.isDraft) blockers.push('draft-pr');
+    if (asString(pr?.baseRefName) !== asString(defaultBranch) || asString(run.targetBranch) !== asString(defaultBranch)) blockers.push('wrong-target-branch');
+    if (!normalizeSha(pr?.headSha) || normalizeSha(pr.headSha) !== normalizeSha(run.observedHeadSha)) blockers.push('stale-head-sha');
+    if (!normalizeSha(pr?.baseSha) || normalizeSha(pr.baseSha) !== normalizeSha(run.observedBaseSha)) blockers.push('stale-base-sha');
+    if (localState?.sync?.clean === false) blockers.push('dirty-worktree');
+    if (localState?.activity?.active) blockers.push('active-session-or-worktree');
+    if (!asString(pr?.headRefName)) blockers.push('local-only-branch');
+    if (pr?.isCrossRepository === true) blockers.push('unwritable-pr-head');
+    if (blockers.length > 0) {
+      setRunStatus(context, run, 'blocked', { blockerCodes: unique(blockers), evidence: { preflight: true, pullRequest: pr } });
+      appendLog(context, run, 'Merge repair stopped during preflight.', { blockerCodes: blockers });
+      return loadRun(context, run.id);
+    }
+    if (typeof git.createRepairWorktree !== 'function' || typeof git.mergeIntoWorktree !== 'function' || typeof git.readRefSha !== 'function') {
+      setRunStatus(context, run, 'blocked', { blockerCodes: ['repair-worktree-unavailable'] });
+      return loadRun(context, run.id);
+    }
+    const repairBranch = `elegy/repair/${run.id}`;
+    const repairWorktreePath = pathImpl.join(pathImpl.resolve(String(context.elegyHome || repo.repoPath)), 'repo-state', 'repo-operations', 'repair-worktrees', run.id);
+    try {
+      await git.createRepairWorktree(repo.repoPath, repairWorktreePath, repairBranch, run.observedHeadSha);
+      run.repairBranch = repairBranch;
+      run.repairWorktreePath = repairWorktreePath;
+      saveRun(context, run);
+      const observedBaseObject = await git.readRefSha(repo.repoPath, run.observedBaseSha);
+      if (observedBaseObject !== run.observedBaseSha) {
+        setRunStatus(context, run, 'blocked', { blockerCodes: ['target-object-unavailable'] });
+        return cleanupRepairArtifacts(context, run, repo);
+      }
+      const mergeResult = await git.mergeIntoWorktree(repairWorktreePath, run.observedBaseSha);
+      const cancelledAfterMerge = getCancelledRun(context, run);
+      if (cancelledAfterMerge) return cleanupRepairArtifacts(context, cancelledAfterMerge, repo);
+      const agentResult = await agentRunner({
+        kind: 'merge-repair', agent: run.agent, model: run.model, repoId: run.repoId, repoPath: repo.repoPath,
+        repoLabel: repo.repoLabel, prNumber: run.prNumber, targetBranch: defaultBranch, observedHeadSha: run.observedHeadSha,
+        observedBaseSha: run.observedBaseSha, repairWorktreePath, allowedOperationScope: { ...run.allowedOperationScope, modifyWorktree: true, commit: true },
+      });
+      const cancelledAfterAgent = getCancelledRun(context, run);
+      if (cancelledAfterAgent) return cleanupRepairArtifacts(context, cancelledAfterAgent, repo);
+      const evidence = parseAgentEvidence(agentResult?.stdout || agentResult);
+      const agentBlockers = unique([...(evidence.blockerCodes || []), ...(evidence.evidence?.blockerCodes || [])]);
+      const repairHeadSha = await git.readRefSha(repo.repoPath, repairBranch);
+      if (agentBlockers.length || !repairHeadSha) {
+        setRunStatus(context, run, 'blocked', { blockerCodes: unique([...agentBlockers, ...(repairHeadSha ? [] : ['repair-head-unavailable'])]), evidence: { ...evidence, mergeResult } });
+        run.repairHeadSha = repairHeadSha;
+        saveRun(context, run);
+        return cleanupRepairArtifacts(context, run, repo);
+      }
+      setRunStatus(context, run, 'awaiting-push-approval', {
+        blockerCodes: [], evidence: { ...evidence, mergeResult }, sourceBranch: pr.headRefName,
+        repairBranch, repairWorktreePath, repairHeadSha,
+        proposedOperation: { kind: 'push-repair', pullRequest: run.prNumber, sourceBranch: pr.headRefName, repairBranch },
+      });
+      appendLog(context, run, 'Merge repair is ready; explicit approval is required to push the isolated repair.');
+    } catch (error) {
+      const cancelledAfterError = getCancelledRun(context, run);
+      if (cancelledAfterError) return cleanupRepairArtifacts(context, cancelledAfterError, repo);
+      setRunStatus(context, run, 'failed', { blockerCodes: [asString(error?.code, 'merge-repair-failed')], error: errorMessage(error, 'Merge repair failed.') });
+      return cleanupRepairArtifacts(context, run, repo);
+    }
+    return loadRun(context, run.id);
+  }
+
   async function executeRun(context, run) {
     const persistedRun = loadRun(context, run.id);
     if (!persistedRun || persistedRun.status === 'cancelled') return persistedRun || run;
@@ -1825,6 +2182,7 @@ function createRepoOperationsAgentService(options = {}) {
         appendLog(context, run, 'Pull request was not found or is no longer open.');
         return loadRun(context, run.id);
       }
+      if (run.kind === 'merge-repair') return executeMergeRepair(context, run, repo, pr, defaultBranch, localState);
       const initialBlockers = buildAgentPreflight(pr, repo, run, defaultBranch, localState);
       if (initialBlockers.length > 0) {
         const status = classifyManualHandoff(initialBlockers) ? 'needs-manual-session' : 'blocked';
@@ -1833,6 +2191,7 @@ function createRepoOperationsAgentService(options = {}) {
         return loadRun(context, run.id);
       }
       const agentResult = await agentRunner({
+        kind: run.kind,
         agent: run.agent,
         model: run.model,
         repoId: run.repoId,
@@ -1910,6 +2269,7 @@ function createRepoOperationsAgentService(options = {}) {
       repoId,
       repoPath: repo.repoPath,
       repoLabel: repo.repoLabel,
+      kind: ['pr-analysis', 'branch-analysis', 'merge-repair'].includes(asString(input.kind)) ? asString(input.kind) : 'pr-analysis',
       prNumber,
       targetBranch: asString(input.targetBranch),
       observedHeadSha: normalizeSha(input.observedHeadSha),
@@ -1960,7 +2320,7 @@ function createRepoOperationsAgentService(options = {}) {
     const context = input.context || input;
     const run = loadRun(context, asString(input.runId));
     if (!run) throw Object.assign(new Error('Repo Operations agent run not found.'), { statusCode: 404, code: 'agent-run-not-found' });
-    if (run.status !== 'awaiting-approval') {
+    if (!['awaiting-approval', 'awaiting-push-approval', 'awaiting-merge-approval'].includes(run.status)) {
       throw Object.assign(new Error('Only a run awaiting approval can be approved.'), { statusCode: 409, code: 'approval-not-available' });
     }
     const repo = await resolveRepo(context, run.repoId);
@@ -1973,15 +2333,33 @@ function createRepoOperationsAgentService(options = {}) {
       setRunStatus(context, run, 'blocked', { blockerCodes: [asString(error?.code, 'github-query-failed')], error: errorMessage(error, 'Fresh GitHub state could not be read.') });
       return loadRun(context, run.id);
     }
+    if (run.kind === 'merge-repair' && run.status === 'awaiting-push-approval') {
+      const stale = !pr || normalizeSha(pr.headSha) !== normalizeSha(run.observedHeadSha)
+        || normalizeSha(pr.baseSha) !== normalizeSha(run.observedBaseSha)
+        || asString(pr.headRefName) !== asString(run.sourceBranch);
+      if (stale || !run.repairBranch || !run.sourceBranch || !run.repairHeadSha || typeof git.pushRepair !== 'function') {
+        setRunStatus(context, run, 'blocked', { blockerCodes: [stale ? 'stale-approval' : 'repair-push-unavailable'] });
+        return cleanupRepairArtifacts(context, run, repo);
+      }
+      try {
+        await git.pushRepair(repo.repoPath, localState.sync.remoteName, run.repairBranch, run.sourceBranch);
+        setRunStatus(context, run, 'awaiting-merge-approval', { blockerCodes: [], observedHeadSha: run.repairHeadSha, result: { operation: 'push-repair', repairHeadSha: run.repairHeadSha } });
+        appendLog(context, run, 'Approved repair push completed; wait for refreshed checks before approving the final merge.');
+      } catch (error) {
+        setRunStatus(context, run, 'blocked', { blockerCodes: ['repair-push-failed'], error: errorMessage(error, 'Repair push was rejected.') });
+        return cleanupRepairArtifacts(context, run, repo);
+      }
+      return loadRun(context, run.id);
+    }
     const blockers = buildAgentPreflight(pr, repo, run, defaultBranch, localState);
     if (blockers.length > 0) {
       setRunStatus(context, run, 'blocked', { blockerCodes: unique(['stale-approval', ...blockers]) });
       appendLog(context, run, 'Approval rejected because fresh repository or PR state is no longer eligible.', { blockerCodes: blockers });
-      return loadRun(context, run.id);
+      return run.kind === 'merge-repair' ? cleanupRepairArtifacts(context, run, repo) : loadRun(context, run.id);
     }
     if (typeof github?.mergePullRequest !== 'function') {
       setRunStatus(context, run, 'failed', { blockerCodes: ['github-merge-unavailable'], error: 'The GitHub merge operation is unavailable.' });
-      return loadRun(context, run.id);
+      return run.kind === 'merge-repair' ? cleanupRepairArtifacts(context, run, repo) : loadRun(context, run.id);
     }
     const mergeResult = await github.mergePullRequest(repo.repoPath, run.prNumber, {
       method: 'squash',
@@ -1991,7 +2369,7 @@ function createRepoOperationsAgentService(options = {}) {
       const code = asString(mergeResult?.issue?.code, 'github-merge-failed');
       setRunStatus(context, run, 'blocked', { blockerCodes: unique(['stale-approval', code]), error: mergeResult?.issue?.message || 'The GitHub merge was not performed.' });
       appendLog(context, run, 'GitHub rejected the fresh-SHA squash merge.', { code });
-      return loadRun(context, run.id);
+      return run.kind === 'merge-repair' ? cleanupRepairArtifacts(context, run, repo) : loadRun(context, run.id);
     }
     setRunStatus(context, run, 'completed', {
       blockerCodes: [],
@@ -1999,7 +2377,7 @@ function createRepoOperationsAgentService(options = {}) {
       result: { operation: 'squash-merge', pullRequest: run.prNumber, headSha: run.observedHeadSha },
     });
     appendLog(context, run, 'Approved squash merge completed; branch deletion and auto-merge were not requested.');
-    return loadRun(context, run.id);
+    return run.kind === 'merge-repair' ? cleanupRepairArtifacts(context, run, repo) : loadRun(context, run.id);
   }
 
   async function cancelAgentRun(input = {}) {
@@ -2009,7 +2387,14 @@ function createRepoOperationsAgentService(options = {}) {
     if (run.status === 'completed') throw Object.assign(new Error('Completed runs cannot be cancelled.'), { statusCode: 409, code: 'run-already-completed' });
     setRunStatus(context, run, 'cancelled', { error: null, blockerCodes: [] });
     appendLog(context, run, 'Run cancelled by the user.');
-    return loadRun(context, run.id);
+    if (run.kind !== 'merge-repair' || !run.repairWorktreePath) return loadRun(context, run.id);
+    try {
+      const repo = await resolveRepo(context, run.repoId);
+      return cleanupRepairArtifacts(context, run, repo);
+    } catch (error) {
+      appendLog(context, run, 'Repair artifact cleanup could not resolve the repository.', { error: errorMessage(error, 'Repository unavailable.') });
+      return loadRun(context, run.id);
+    }
   }
 
   return {
@@ -2089,6 +2474,7 @@ function createRepoOperationsService(options = {}) {
     });
     const issues = Array.isArray(repository?.issues) ? repository.issues.map(normalizeIssueRecord).filter(Boolean) : [];
     const branches = Array.isArray(repository?.branches) ? repository.branches : [];
+    const remoteBranches = Array.isArray(repository?.remoteBranches) ? repository.remoteBranches : [];
     const pullRequests = Array.isArray(repository?.pullRequests) ? repository.pullRequests : [];
     for (const code of unique([
       ...sync.issueCodes,
@@ -2110,12 +2496,13 @@ function createRepoOperationsService(options = {}) {
     const prAgentAvailable = repository?.provider === 'github'
       && sync.remoteAvailable === true
       && !githubUnavailable;
-    return {
+    const normalized = {
       ...repository,
       available: repository?.available !== false,
       sync,
       activity,
       branches,
+      remoteBranches,
       pullRequests,
       issues,
       cleanupCandidates,
@@ -2141,6 +2528,10 @@ function createRepoOperationsService(options = {}) {
           blockerCodes: cleanupEligible ? [] : unique(cleanupCandidates.flatMap((candidate) => candidate.blockerCodes)),
         },
       },
+    };
+    return {
+      ...normalized,
+      entities: buildRepositoryEntities(normalized),
     };
   }
 
@@ -2448,6 +2839,210 @@ function createRepoOperationsService(options = {}) {
     };
   }
 
+  async function fetchRemotes(context = {}, input = {}) {
+    if (input.confirmed !== true) {
+      throw Object.assign(new Error('Explicit confirmation is required to fetch repository remotes.'), { statusCode: 400, code: 'confirmation-required' });
+    }
+    const inventory = await readCatalogInventory(context);
+    const selected = new Set((Array.isArray(input.repoIds) ? input.repoIds : []).map((repoId) => asString(repoId)).filter(Boolean));
+    const catalogRepos = (Array.isArray(inventory?.repos) ? inventory.repos : [])
+      .filter((repo) => !repo?.isWorktreeCheckout && repo?.gitRootKind !== 'file')
+      .filter((repo) => selected.size === 0 || selected.has(asString(repo.repoId)));
+    const startedAt = now();
+    const repositories = await mapWithConcurrency(catalogRepos, async (repo) => {
+      const result = { repoId: repo.repoId || null, repoLabel: repo.repoLabel || repo.repoPath, status: 'skipped', remotes: [], issueCodes: [], error: null };
+      try {
+        const remotes = typeof git.listRemotes === 'function'
+          ? await git.listRemotes(repo.repoPath)
+          : (() => [])();
+        if (!remotes.length) {
+          result.issueCodes = ['no-remote'];
+          return result;
+        }
+        for (const remoteName of remotes) {
+          try {
+            if (typeof git.fetchPrune === 'function') await withTimeout(git.fetchPrune(repo.repoPath, remoteName), actionTimeoutMs);
+            else if (typeof git.fetch === 'function') await withTimeout(git.fetch(repo.repoPath, remoteName), actionTimeoutMs);
+            else throw Object.assign(new Error('Fetch operation is unavailable.'), { code: 'fetch-operation-unavailable' });
+            result.remotes.push({ name: remoteName, status: 'fetched' });
+          } catch (error) {
+            result.remotes.push({ name: remoteName, status: 'failed', error: errorMessage(error, 'Fetch failed.') });
+            result.issueCodes.push(isTimeoutError(error) ? 'command-timeout' : 'remote-unavailable');
+          }
+        }
+        result.status = result.remotes.some((entry) => entry.status === 'failed')
+          ? (result.remotes.some((entry) => entry.status === 'fetched') ? 'partial' : 'failed')
+          : 'fetched';
+      } catch (error) {
+        result.status = 'failed';
+        result.error = errorMessage(error, 'Repository remotes could not be fetched.');
+        result.issueCodes = [isTimeoutError(error) ? 'command-timeout' : 'git-command-failed'];
+      }
+      return result;
+    }, Math.min(concurrency, 8));
+    return {
+      contractVersion: REPO_OPERATIONS_ACTION_CONTRACT_VERSION,
+      operation: 'fetch',
+      startedAt,
+      completedAt: now(),
+      summary: {
+        requested: repositories.length,
+        fetched: repositories.filter((entry) => entry.status === 'fetched').length,
+        partial: repositories.filter((entry) => entry.status === 'partial').length,
+        skipped: repositories.filter((entry) => entry.status === 'skipped').length,
+        failed: repositories.filter((entry) => entry.status === 'failed').length,
+      },
+      repositories,
+    };
+  }
+
+  async function analyzeEntity(repo, requested, context = {}) {
+    const scanned = await withTimeout(Promise.resolve(scanner(repo, context)), options.repositoryTimeoutMs || DEFAULT_REPOSITORY_TIMEOUT_MS);
+    const fresh = normalizeRepository(scanned || buildUnavailableRepository(repo, new Error('Repository scan returned no result')));
+    const entity = fresh.entities.find((entry) => entry.id === asString(requested.entityId)) || null;
+    if (!entity) return { repoId: repo.repoId || null, entityId: asString(requested.entityId), status: 'stale', blockerCodes: ['stale-cleanup-candidate'], evidence: null };
+    const branch = asString(entity.branch);
+    const defaultBranch = asString(fresh.defaultBranch);
+    const observedDefaultSha = branch && defaultBranch && typeof git.readRefSha === 'function'
+      ? await git.readRefSha(repo.repoPath, defaultBranch)
+      : entity.observedDefaultSha;
+    let protectionKnown = entity.kind !== 'remote-branch';
+    let remotelyProtected = false;
+    if (entity.kind === 'remote-branch') {
+      if (fresh.provider === 'github' && typeof github.isBranchProtected === 'function') {
+        try {
+          const protection = await github.isBranchProtected(repo.repoPath, entity.branch);
+          protectionKnown = protection?.available === true && typeof protection?.protected === 'boolean';
+          remotelyProtected = protection?.protected === true;
+        } catch {
+          protectionKnown = false;
+        }
+      }
+    }
+    const protectedBranch = entity.safety === 'protected' || remotelyProtected;
+    const active = fresh.activity?.active === true || entity.kind === 'worktree' && entity.localState !== 'clean';
+    const hasOpenPullRequest = fresh.pullRequests.some((pullRequest) => pullRequest.headRefName === branch);
+    let ancestor = entity.cleanupEligible === true;
+    let uniqueCommits = null;
+    let treeDelta = null;
+    const ref = entity.kind === 'remote-branch' ? `${entity.remoteName}/${branch}` : branch;
+    try {
+      if (branch && defaultBranch && typeof git.isAncestor === 'function') ancestor = await git.isAncestor(repo.repoPath, ref, defaultBranch);
+      if (branch && defaultBranch && typeof git.countUniqueCommits === 'function') uniqueCommits = await git.countUniqueCommits(repo.repoPath, defaultBranch, ref);
+      if (branch && defaultBranch && typeof git.hasTreeDelta === 'function') treeDelta = await git.hasTreeDelta(repo.repoPath, defaultBranch, ref);
+    } catch (error) {
+      return { repoId: repo.repoId || null, entityId: entity.id, status: 'failed', blockerCodes: [isTimeoutError(error) ? 'command-timeout' : 'git-command-failed'], evidence: { error: errorMessage(error, 'Analysis could not read Git evidence.') } };
+    }
+    const strictSafe = Boolean(observedDefaultSha) && !protectedBranch && !active && !hasOpenPullRequest && ancestor === true;
+    const highConfidence = Boolean(observedDefaultSha) && !protectedBranch && !active && !hasOpenPullRequest && treeDelta === false
+      && (entity.kind !== 'remote-branch' || (fresh.provider === 'github' && protectionKnown));
+    const classification = strictSafe ? 'strict-safe' : highConfidence ? 'analyzed-safe' : protectedBranch ? 'protected' : 'blocked';
+    const evidence = {
+      analyzedAt: now(),
+      repoId: fresh.repoId,
+      entityId: entity.id,
+      branch,
+      kind: entity.kind,
+      observedSha: entity.observedSha,
+      observedDefaultSha,
+      branchTipReachableFromDefault: ancestor === true,
+      uniqueCommits,
+      treeDelta,
+      openPullRequests: hasOpenPullRequest ? fresh.pullRequests.filter((pullRequest) => pullRequest.headRefName === branch).map((pullRequest) => pullRequest.number) : [],
+      active,
+      protected: protectedBranch,
+      protectionKnown,
+      provider: fresh.provider,
+      classification,
+    };
+    evidence.analysisId = crypto.createHash('sha256').update(JSON.stringify(evidence)).digest('hex').slice(0, 16);
+    return { repoId: fresh.repoId, repoLabel: fresh.repoLabel, entityId: entity.id, status: 'completed', blockerCodes: classification === 'blocked' ? ['analysis-not-high-confidence'] : [], evidence };
+  }
+
+  async function analyzeEntities(context = {}, input = {}) {
+    if (!Array.isArray(input.entities) || input.entities.length === 0) {
+      throw Object.assign(new Error('At least one entity is required for analysis.'), { statusCode: 400, code: 'entity-list-required' });
+    }
+    const inventory = await readCatalogInventory(context);
+    const reposById = new Map((Array.isArray(inventory?.repos) ? inventory.repos : []).map((repo) => [asString(repo.repoId), repo]));
+    const startedAt = now();
+    const entities = await mapWithConcurrency(input.entities, async (requested) => {
+      const repo = reposById.get(asString(requested?.repoId));
+      if (!repo || !repo.repoPath) return { repoId: asString(requested?.repoId) || null, entityId: asString(requested?.entityId), status: 'skipped', blockerCodes: ['repository-not-in-catalog'], evidence: null };
+      return analyzeEntity(repo, requested, context);
+    }, Math.min(concurrency, 8));
+    return {
+      contractVersion: REPO_OPERATIONS_ACTION_CONTRACT_VERSION,
+      operation: 'analyze',
+      startedAt,
+      completedAt: now(),
+      summary: { requested: entities.length, completed: entities.filter((entry) => entry.status === 'completed').length, safe: entities.filter((entry) => entry.evidence?.classification === 'strict-safe' || entry.evidence?.classification === 'analyzed-safe').length, blocked: entities.filter((entry) => entry.status !== 'completed' || entry.evidence?.classification === 'blocked').length },
+      entities,
+    };
+  }
+
+  async function cleanupEntities(context = {}, input = {}) {
+    if (input.confirmed !== true) throw Object.assign(new Error('Explicit confirmation is required to clean repository entities.'), { statusCode: 400, code: 'confirmation-required' });
+    if (!Array.isArray(input.entities) || input.entities.length === 0) throw Object.assign(new Error('A cleanup entity list is required.'), { statusCode: 400, code: 'entity-list-required' });
+    const inventory = await readCatalogInventory(context);
+    const reposById = new Map((Array.isArray(inventory?.repos) ? inventory.repos : []).map((repo) => [asString(repo.repoId), repo]));
+    const startedAt = now();
+    const entities = [];
+    for (const request of input.entities) {
+      const repo = reposById.get(asString(request?.repoId));
+      const base = { repoId: asString(request?.repoId) || null, entityId: asString(request?.entityId), status: 'skipped', blockerCodes: [], error: null };
+      if (!repo || !repo.repoPath) { base.blockerCodes = ['repository-not-in-catalog']; entities.push(base); continue; }
+      const analysis = await analyzeEntity(repo, request, context);
+      if (analysis.status !== 'completed') { entities.push({ ...base, blockerCodes: analysis.blockerCodes, error: analysis.evidence?.error || null }); continue; }
+      const evidence = analysis.evidence;
+      const requestedSha = normalizeSha(request?.observedSha);
+      if (!requestedSha || requestedSha !== evidence.observedSha) { entities.push({ ...base, blockerCodes: ['stale-cleanup-candidate'] }); continue; }
+      const allowed = evidence.classification === 'strict-safe' || (input.mode === 'analyzed' && evidence.classification === 'analyzed-safe');
+      if (!allowed) { entities.push({ ...base, blockerCodes: [input.mode === 'analyzed' ? 'analysis-not-high-confidence' : 'analysis-required'] }); continue; }
+      try {
+        const fresh = normalizeRepository(await scanner(repo, context));
+        const entity = fresh.entities.find((entry) => entry.id === request.entityId);
+        if (!entity || entity.observedSha !== requestedSha) { entities.push({ ...base, blockerCodes: ['stale-cleanup-candidate'] }); continue; }
+        const freshDefaultBranch = asString(fresh.defaultBranch);
+        const freshDefaultSha = freshDefaultBranch && typeof git.readRefSha === 'function'
+          ? await git.readRefSha(repo.repoPath, freshDefaultBranch)
+          : entity.observedDefaultSha;
+        const freshActive = fresh.activity?.active === true || (entity.kind === 'worktree' && entity.localState !== 'clean');
+        const freshHasOpenPullRequest = fresh.pullRequests.some((pullRequest) => pullRequest.headRefName === entity.branch);
+        if (entity.safety === 'protected' || freshActive || freshHasOpenPullRequest || freshDefaultSha !== evidence.observedDefaultSha) {
+          entities.push({ ...base, blockerCodes: ['stale-cleanup-candidate'] });
+          continue;
+        }
+        if (entity.kind === 'worktree') {
+          const legacy = await cleanupWorktrees(context, { confirmed: true, candidates: [{ repoId: repo.repoId, worktreePath: entity.worktreePath, branch: entity.branch, observedBranchSha: entity.observedSha, observedDefaultSha: entity.observedDefaultSha }] });
+          const result = legacy.repositories[0];
+          entities.push({ ...base, status: result.status, blockerCodes: result.blockerCodes, error: result.error || null });
+        } else if (entity.kind === 'local-branch') {
+          if (input.mode === 'analyzed' && evidence.classification === 'analyzed-safe' && typeof git.deleteLocalRef === 'function') await git.deleteLocalRef(repo.repoPath, entity.branch, entity.observedSha);
+          else if (typeof git.deleteLocalBranch === 'function') await git.deleteLocalBranch(repo.repoPath, entity.branch);
+          else throw Object.assign(new Error('Local branch deletion is unavailable.'), { code: 'cleanup-operation-unavailable' });
+          entities.push({ ...base, status: 'removed', blockerCodes: [] });
+        } else if (entity.kind === 'remote-branch') {
+          if (fresh.provider !== 'github' || typeof git.deleteRemoteBranch !== 'function') { entities.push({ ...base, blockerCodes: ['remote-cleanup-unsupported'] }); continue; }
+          const protection = typeof github.isBranchProtected === 'function'
+            ? await github.isBranchProtected(repo.repoPath, entity.branch)
+            : { available: false, protected: null };
+          if (protection?.available !== true || protection?.protected !== false) {
+            entities.push({ ...base, blockerCodes: [protection?.protected === true ? 'protected-branch' : 'remote-cleanup-unsupported'] });
+            continue;
+          }
+          const remoteSha = typeof git.readRemoteBranchSha === 'function' ? await git.readRemoteBranchSha(repo.repoPath, entity.remoteName, entity.branch) : null;
+          if (!remoteSha || remoteSha !== entity.observedSha) { entities.push({ ...base, blockerCodes: ['stale-cleanup-candidate'] }); continue; }
+          await git.deleteRemoteBranch(repo.repoPath, entity.remoteName, entity.branch);
+          entities.push({ ...base, status: 'removed', blockerCodes: [] });
+        } else entities.push({ ...base, blockerCodes: ['invalid-cleanup-candidate'] });
+      } catch (error) {
+        entities.push({ ...base, status: 'failed', blockerCodes: [isTimeoutError(error) ? 'command-timeout' : 'cleanup-operation-unavailable'], error: errorMessage(error, 'Cleanup failed.') });
+      }
+    }
+    return { contractVersion: REPO_OPERATIONS_ACTION_CONTRACT_VERSION, operation: 'cleanup-entities', startedAt, completedAt: now(), summary: { requested: entities.length, removed: entities.filter((entry) => entry.status === 'removed').length, skipped: entities.filter((entry) => entry.status === 'skipped').length, failed: entities.filter((entry) => entry.status === 'failed').length }, entities };
+  }
+
   return {
     async getOverview(context = {}) {
       let inventory;
@@ -2470,7 +3065,10 @@ function createRepoOperationsService(options = {}) {
           return buildUnavailableRepository(repo, error);
         }
       }, concurrency);
-      const normalizedRepositories = repositories.filter(Boolean).map(normalizeRepository);
+      const normalizedRepositories = repositories
+        .filter(Boolean)
+        .map(normalizeRepository)
+        .sort((left, right) => (Number(right.lastActivityMs) || 0) - (Number(left.lastActivityMs) || 0));
       const allBranches = normalizedRepositories.flatMap((repository) => repository.branches.map((branch) => ({
         ...branch,
         repoId: repository.repoId,
@@ -2489,12 +3087,20 @@ function createRepoOperationsService(options = {}) {
         repoLabel: repository.repoLabel,
         repoPath: repository.repoPath,
       })));
+      const allEntities = normalizedRepositories.flatMap((repository) => repository.entities.map((entity) => ({
+        ...entity,
+        repoId: repository.repoId,
+        repoLabel: repository.repoLabel,
+        repoPath: repository.repoPath,
+      })));
       const summary = {
         trackedRepos: normalizedRepositories.length,
         reposNeedingAttention: normalizedRepositories.filter(hasAttention).length,
         syncIssues: normalizedRepositories.reduce((count, repository) => count + repository.sync.issueCodes.length, 0),
         staleBranches: allBranches.filter((branch) => ATTENTION_BRANCH_STATES.has(branch.state)).length,
         openPullRequests: allPullRequests.length,
+        cleanupCandidates: allEntities.filter((entity) => entity.cleanupEligible).length,
+        needsAnalysis: allEntities.filter((entity) => entity.safety === 'analysis-required').length,
       };
 
       return {
@@ -2540,8 +3146,10 @@ function createRepoOperationsService(options = {}) {
           code: 'repository-inventory-unavailable',
         });
       }
+      const selectedRepoIds = new Set((Array.isArray(input.repoIds) ? input.repoIds : []).map((repoId) => asString(repoId)).filter(Boolean));
       const catalogRepos = (Array.isArray(inventory?.repos) ? inventory.repos : [])
-        .filter((repo) => !repo?.isWorktreeCheckout && repo?.gitRootKind !== 'file');
+        .filter((repo) => !repo?.isWorktreeCheckout && repo?.gitRootKind !== 'file')
+        .filter((repo) => selectedRepoIds.size === 0 || selectedRepoIds.has(asString(repo.repoId)));
       const startedAt = now();
       const repositories = await mapWithConcurrency(catalogRepos, async (repo) => {
         try {
@@ -2569,6 +3177,9 @@ function createRepoOperationsService(options = {}) {
         repositories,
       };
     },
+    fetchRemotes,
+    analyzeEntities,
+    cleanupEntities,
     cleanupWorktrees,
     async startAgentRun(input = {}) {
       return agentService.startAgentRun(input);

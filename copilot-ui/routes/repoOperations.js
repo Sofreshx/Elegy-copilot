@@ -91,6 +91,34 @@ async function handleSync(ctx, service, sendJson, readJsonBody) {
   }
 }
 
+async function handleFetch(ctx, service, sendJson, readJsonBody) {
+  try {
+    const body = await readBody(ctx, readJsonBody);
+    if (body.confirmed !== true) {
+      sendJson(ctx.res, 400, { ok: false, error: 'Explicit confirmation is required to fetch repository remotes.', code: 'confirmation-required' });
+      return;
+    }
+    const result = await service.fetchRemotes(requestContext(ctx), { ...body, confirmed: true });
+    sendJson(ctx.res, 200, result);
+  } catch (error) {
+    sendRouteError(ctx.res, error, sendJson, 'repo_operations_fetch_failed');
+  }
+}
+
+async function handleAnalyze(ctx, service, sendJson, readJsonBody) {
+  try {
+    const body = await readBody(ctx, readJsonBody);
+    if (!Array.isArray(body.entities) || body.entities.length === 0) {
+      sendJson(ctx.res, 400, { ok: false, error: 'At least one entity is required for analysis.', code: 'entity-list-required' });
+      return;
+    }
+    const result = await service.analyzeEntities(requestContext(ctx), body);
+    sendJson(ctx.res, 200, result);
+  } catch (error) {
+    sendRouteError(ctx.res, error, sendJson, 'repo_operations_analysis_failed');
+  }
+}
+
 async function handleCleanup(ctx, service, sendJson, readJsonBody) {
   try {
     const body = await readBody(ctx, readJsonBody);
@@ -102,15 +130,17 @@ async function handleCleanup(ctx, service, sendJson, readJsonBody) {
       });
       return;
     }
-    if (!Array.isArray(body.candidates)) {
+    if (!Array.isArray(body.candidates) && !Array.isArray(body.entities)) {
       sendJson(ctx.res, 400, {
         ok: false,
-        error: 'A cleanup candidate list is required.',
+        error: 'A cleanup candidate or entity list is required.',
         code: 'candidate-list-required',
       });
       return;
     }
-    const result = await service.cleanupWorktrees(requestContext(ctx), { ...body, confirmed: true });
+    const result = Array.isArray(body.entities)
+      ? await service.cleanupEntities(requestContext(ctx), { ...body, confirmed: true })
+      : await service.cleanupWorktrees(requestContext(ctx), { ...body, confirmed: true });
     sendJson(ctx.res, 200, result);
   } catch (error) {
     sendRouteError(ctx.res, error, sendJson, 'repo_operations_cleanup_failed');
@@ -176,6 +206,16 @@ function register(deps = {}) {
     },
     {
       method: 'POST',
+      path: '/api/repo-operations/fetch',
+      handler: (ctx) => handleFetch(ctx, service, sendJson, readJsonBody),
+    },
+    {
+      method: 'POST',
+      path: '/api/repo-operations/analyze',
+      handler: (ctx) => handleAnalyze(ctx, service, sendJson, readJsonBody),
+    },
+    {
+      method: 'POST',
       path: '/api/repo-operations/cleanup',
       handler: (ctx) => handleCleanup(ctx, service, sendJson, readJsonBody),
     },
@@ -206,6 +246,8 @@ module.exports = {
   createDefaultService,
   handleOverview,
   handleSync,
+  handleFetch,
+  handleAnalyze,
   handleCleanup,
   handleStartAgentRun,
   handleGetAgentRun,

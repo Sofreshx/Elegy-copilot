@@ -1543,26 +1543,27 @@
       "error"
     ]
   },
-  "GET /api/repo-operations/overview": {
-    "status": 200,
+  "POST /api/repo-operations/sync": {
+    "status": 400,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "actionContract",
-      "activeRuns",
-      "branches",
-      "capabilities",
-      "cleanupCandidates",
-      "contractVersion",
-      "generatedAt",
-      "pullRequests",
-      "repositories",
-      "schemaVersion",
-      "summary",
-      "warnings"
+      "code",
+      "error",
+      "ok"
     ]
   },
-  "POST /api/repo-operations/sync": {
+  "POST /api/repo-operations/fetch": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "ok"
+    ]
+  },
+  "POST /api/repo-operations/analyze": {
     "status": 400,
     "contentType": "application/json",
     "bodyType": "json",

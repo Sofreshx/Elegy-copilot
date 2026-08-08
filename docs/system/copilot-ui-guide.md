@@ -96,7 +96,7 @@ refreshes status; a managed view offers `Sync Elegy assets` when supported.
 ## Current Responsibilities
 
 - **Catalog control plane**: repo registration, asset install/search, external-source management, skill preview, and per-harness inventory projections. The global settings page is not a user-facing route.
-- **Repo Operations**: global repository maintenance at `GET /api/repo-operations/overview` (`repo-operations.overview.v3`), confirmed safe sync at `POST /api/repo-operations/sync`, and confirmed cleanup at `POST /api/repo-operations/cleanup`. Statuses and issues are structured records; cleanup revalidates every candidate, removes only clean inactive merged linked worktrees, then uses `git branch -d` locally.
+- **Repo Operations**: global repository maintenance at `GET /api/repo-operations/overview` (`repo-operations.overview.v4`), confirmed fetch/sync/typed cleanup actions, deterministic entity analysis, and isolated merge-repair runs. The v4 boundary is detailed below; legacy v3 worktree-cleanup requests remain accepted during migration.
 - **Workspace**: per-repo docs, git operations, planning graph, and execution surface.
 - **Sessions**: session browse, detail view with activity stream, artifacts, task board, skill usage.
 - **Settings**: app info, OpenCode/Codex/Claude Code configuration, and per-harness Assets tabs.
@@ -138,36 +138,15 @@ The public route inventory is snapshotted by `copilot-ui/tests/api-contract.test
 
 ### Repo Operations boundary
 
-Repo Operations refreshes when its global sidebar tab opens and when the user
-selects **Refresh all**; it does not poll in the background. The overview scan
-reads local Git refs/worktrees and open GitHub PR metadata. Missing paths,
-unavailable remotes, unsupported providers, GitHub CLI/authentication failures,
-and command timeouts remain visible as repository-level issues.
+Repo Operations is a manually refreshed command center (`repo-operations.overview.v4`), not a polling or scheduled mutation surface. Repositories are ordered by derived recent activity: inventory activity, ref commit timestamps, PR updates, or managed-session activity. Clicking a repository opens its specialized workspace. The overview exposes local refs, remote refs, linked worktrees, observed SHAs, protection/active state, action capabilities, and bounded issue evidence; missing paths, unavailable remotes, unsupported providers, GitHub CLI/authentication failures, and command timeouts remain visible per repository/entity.
 
-**Sync eligible repositories** requires explicit confirmation and immediately
-re-checks every repository. It fetches the configured remote with pruning
-disabled and applies fast-forward-only updates to the current branch. It
-requires a clean tree, an available upstream, no ahead/diverged commits, and no
-active managed session/worktree conflict. It never pushes, performs a normal
-merge, rebases, checks out another branch, stashes, prunes, deletes, or hides a
-partial result; a stale remote/state check fails that repository without retry.
+**Fetch all remotes** is an explicit, separately confirmed `fetch --prune` operation. It runs each configured remote independently with bounded concurrency and returns per-remote/per-repository results; it never changes a checkout. **Fast-forward eligible** is also explicitly confirmed and may be scoped to selected repositories. It re-checks fresh state and only advances a clean, inactive, non-diverged current branch with an available upstream. Dirty or diverged repositories may fetch refs, but are skipped for fast-forward; no lane pushes, rebases, normal-merges, checks out another branch, stashes, or hides partial failure.
 
-OpenCode preparation is per repository and per existing GitHub PR. The
-dedicated `repo-operations` agent uses `opencode-go/deepseek-v4-flash` for
-read/check/dry-run analysis only. It reports evidence and a proposed squash
-merge through `repo-operations.action.v3`, then waits for explicit approval and
-a fresh head/base SHA check. Only non-draft, cleanly mergeable PRs targeting the
-default branch with approved review and no failed or pending checks can reach
-the approval control. The approval service owns the final GitHub CLI squash
-merge and never deletes branches or enables auto-merge. Dirty trees, conflicts,
-active sessions/worktrees, stale SHAs, protected policy, failed checks, missing
-authentication, and local-only branches require a manually launched and
-followed session. Cleanup previews show eligible and protected candidates.
-Confirmation sends the candidate path, branch, and observed branch/default
-SHAs; the service scans each candidate again immediately before mutation. It
-never removes the primary worktree, uses force flags, deletes remote branches,
-prunes, or recursively deletes files. A removed worktree with a failed local
-branch delete is reported as partial success.
+Cleanup has separate safety lanes. **Clean safe** removes only freshly revalidated, inactive, unprotected, provably merged local refs or linked worktrees. **Analyze** is read-only deterministic evidence: ancestry, unique commits, tree/patch delta, PRs, active work, protection, provider capability, observed SHAs, and a durable analysis identifier. **Delete analyzed** requires explicit entity selection and a stronger confirmation; it accepts only high-confidence content-equivalent candidates after exact-SHA rechecks and no open PR/session/worktree. Local analyzed deletion uses compare-and-delete ref semantics; remote deletion first confirms the SHA with `ls-remote` and is GitHub-only in v1. Unsupported providers are analysis/manual-only. The primary worktree/default/current branches are never cleanup targets, and every partial result remains visible.
+
+Agent runs support `pr-analysis`, `branch-analysis`, and `merge-repair`. A repair creates a managed worktree at the observed source SHA, merges the exact observed current-target SHA into that isolated worktree, resolves conflicts and runs checks there, then reports diff, commits, checks, and blockers. It never mutates the primary checkout or automatically pushes/merges. A fresh-SHA approval is required to push the repair; a later, separate approval is required for the final GitHub merge. Stale SHAs, unwriteable/fork PR heads, protection, failed checks, conflicts, cancellation, and unavailable providers stop safely. Terminal completion, cancellation, or failure removes the managed repair worktree and compare-deletes its temporary local ref while retaining durable run evidence.
+
+The command center keeps entity tables horizontally scrollable, selection/batch actions sticky, detail/issue rails independently bounded and scrollable, and result/audit surfaces visible after batch completion. On narrow screens the detail rail becomes a bounded overlay/bottom sheet instead of expanding the viewport.
 
 ## Tooling Updates API
 
