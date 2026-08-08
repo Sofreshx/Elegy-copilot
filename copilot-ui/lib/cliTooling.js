@@ -1,6 +1,7 @@
 'use strict';
 
 const { isNpmAvailable } = require('./toolCliInstallers');
+const { getDefaultAsyncProcessService } = require('./asyncProcessService');
 
 const CLI_TOOLING_CATALOG = Object.freeze([
   { id: 'opencode-cli', title: 'OpenCode CLI', npmPackage: 'opencode-ai', version: 'latest' },
@@ -186,11 +187,139 @@ function detectCliTool(toolId, options = {}) {
   };
 }
 
+function cliStatusCacheKey(toolId, probe) {
+  return `cli-status:${toolId}:${probe}`;
+}
+
+async function detectElegyPlanningCliAsync(processService, signal) {
+  try {
+    const resolver = require('./elegyPlanningCliResolver');
+    const cliPath = resolver.resolveElegyPlanningCliPath();
+    if (!cliPath) {
+      return { installed: false, lastError: 'Not installed. Use managed install from Tooling Updates.' };
+    }
+    const result = await processService.run(cliPath, ['--version'], {
+      timeoutMs: 10_000,
+      maxOutputBytes: 64 * 1024,
+      cacheTtlMs: 30_000,
+      dedupeKey: cliStatusCacheKey('elegy-planning', 'version'),
+      signal,
+    });
+    const match = result.stdout.match(/(\d+\.\d+\.\d+)/);
+    return {
+      installed: true,
+      version: match ? match[1] : null,
+      path: cliPath,
+      ...(result.status === 0 ? {} : { lastError: result.error || result.stderr.trim() || 'version probe failed' }),
+    };
+  } catch (err) {
+    return { installed: false, lastError: err.message };
+  }
+}
+
+async function detectCliToolAsync(toolId, options = {}) {
+  const processService = options.processService || getDefaultAsyncProcessService();
+  const tool = CLI_TOOLING_CATALOG.find((entry) => entry.id === toolId);
+  if (!tool) {
+    return { id: toolId, title: null, installed: false, path: null, version: null, error: `Unknown CLI tool: ${toolId}` };
+  }
+  if (tool.managed) {
+    return detectElegyPlanningCliAsync(processService, options.signal);
+  }
+
+  const versionProbe = await processService.run('npx', [tool.npmPackage, '--version'], {
+    timeoutMs: 10_000,
+    maxOutputBytes: 128 * 1024,
+    cacheTtlMs: 30_000,
+    dedupeKey: cliStatusCacheKey(tool.id, 'version'),
+    shell: process.platform === 'win32',
+    signal: options.signal,
+  });
+  if (versionProbe.status === 0 && versionProbe.stdout) {
+    return {
+      id: tool.id,
+      title: tool.title,
+      installed: true,
+      path: tool.npmPackage,
+      version: versionProbe.stdout.trim() || null,
+      lastError: null,
+    };
+  }
+
+  const probeCmd = process.platform === 'win32' ? 'where' : 'which';
+  const pathProbe = await processService.run(probeCmd, [tool.npmPackage], {
+    timeoutMs: 5_000,
+    maxOutputBytes: 64 * 1024,
+    cacheTtlMs: 30_000,
+    dedupeKey: cliStatusCacheKey(tool.id, 'path'),
+    signal: options.signal,
+  });
+  if (pathProbe.status === 0 && pathProbe.stdout) {
+    return {
+      id: tool.id,
+      title: tool.title,
+      installed: true,
+      path: pathProbe.stdout.trim().split(/\r?\n/)[0] || null,
+      version: null,
+      lastError: null,
+    };
+  }
+
+  return {
+    id: tool.id,
+    title: tool.title,
+    installed: false,
+    path: null,
+    version: null,
+    lastError: `${tool.npmPackage} not found on PATH and npx probe failed`,
+  };
+}
+
+async function probeAftClangdAsync(options = {}) {
+  const processService = options.processService || getDefaultAsyncProcessService();
+  const probeCmd = process.platform === 'win32' ? 'where' : 'which';
+  const pathResult = await processService.run(probeCmd, ['clangd'], {
+    timeoutMs: 5_000,
+    maxOutputBytes: 64 * 1024,
+    cacheTtlMs: 30_000,
+    dedupeKey: 'cli-status:clangd:path',
+    signal: options.signal,
+  });
+  if (pathResult.status === 0 && pathResult.stdout) {
+    const clangdPath = pathResult.stdout.trim().split(/\r?\n/)[0];
+    const versionResult = await processService.run(clangdPath || 'clangd', ['--version'], {
+      timeoutMs: 5_000,
+      maxOutputBytes: 64 * 1024,
+      cacheTtlMs: 30_000,
+      dedupeKey: 'cli-status:clangd:version',
+      signal: options.signal,
+    });
+    return {
+      installed: true,
+      version: versionResult.status === 0 ? versionResult.stdout.trim().split(/\r?\n/)[0] : null,
+      path: clangdPath,
+    };
+  }
+  return {
+    installed: false,
+    lastError: 'clangd not found on system PATH',
+    remediation: [
+      'Install clangd: https://clangd.llvm.org/installation.html',
+      'Check plugin log for LSP install errors',
+      'Set lsp.auto_install to false if auto-install is failing',
+      'Check lsp.versions.clangd in your OpenCode/Codex config',
+      'Use /aft-status in your AI agent to check AFT health',
+    ],
+  };
+}
+
 module.exports = {
   CLI_TOOLING_CATALOG,
   resolveCliToolingCommand,
   runCliInstall,
   detectCliTool,
+  detectCliToolAsync,
   detectElegyPlanningCli,
   probeAftClangd,
+  probeAftClangdAsync,
 };

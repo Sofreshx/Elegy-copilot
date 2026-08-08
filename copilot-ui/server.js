@@ -116,6 +116,8 @@ const {
   resolveSessionsHome,
 } = require('./lib/server/paths');
 const { createRuntimeHealthResolver } = require('./lib/server/runtimeHealth');
+const { createPerformanceDiagnostics } = require('./lib/server/performanceDiagnostics');
+const { createAsyncProcessService } = require('./lib/asyncProcessService');
 const { createRoadmapWorkflowMemoryBridge } = require('./lib/roadmapWorkflowMemoryBridge');
 const { createRoadmapWorkflowPlanningBridge } = require('./lib/roadmapWorkflowPlanningBridge');
 const { resolveElegyPlanningCliPath, installLatestElegyPlanningCli, downloadElegyPlanningCli } = require('./lib/elegyPlanningCliResolver');
@@ -3720,6 +3722,14 @@ function denyDesktopUiAccess(res) {
   );
 }
 
+function cacheControlForStaticPath(urlPath) {
+  const normalizedPath = String(urlPath || '').split('\\').join('/');
+  const isHashedAsset = /^\/?assets\/[^/]+-[A-Za-z0-9_-]{8}\.[^/]+$/.test(normalizedPath);
+  return isHashedAsset
+    ? 'public, max-age=31536000, immutable'
+    : 'no-store';
+}
+
 function serveStatic(staticDir, urlPath, res) {
   let rel = urlPath || '/';
   if (rel === '/') rel = '/index.html';
@@ -3741,7 +3751,7 @@ function serveStatic(staticDir, urlPath, res) {
 
   res.writeHead(200, {
     'Content-Type': contentTypeFor(abs),
-    'Cache-Control': 'no-store',
+    'Cache-Control': cacheControlForStaticPath(rel),
   });
   fs.createReadStream(abs).pipe(res);
 }
@@ -4660,6 +4670,12 @@ async function startServer(options = {}) {
   };
 
   const quiet = options.quiet === true;
+  const asyncProcessService = options.asyncProcessService || createAsyncProcessService({
+    childProcess: options.childProcess || childProcess,
+  });
+  const performanceDiagnostics = options.performanceDiagnostics || createPerformanceDiagnostics({
+    processService: asyncProcessService,
+  });
   const managedAssetSyncOnStart = options.managedAssetSyncOnStart !== false
     && String(env.INSTRUCTION_ENGINE_DISABLE_STARTUP_ASSET_SYNC || '').trim() !== '1';
   const engineRoot =
@@ -5002,6 +5018,8 @@ async function startServer(options = {}) {
       os,
       process,
       childProcess,
+      processService: asyncProcessService,
+      asyncProcessService,
       sessions,
       assets,
       engineRoot,
@@ -5095,6 +5113,7 @@ async function startServer(options = {}) {
       sqliteReader: require('./lib/remote/sqliteReader'),
       logReader: require('./lib/remote/logReader'),
     });
+    routeRegistry.registerModule(performanceDiagnostics, { sendJson });
   } catch (error) {
     stopDesktopUpdaterBackgroundWork();
     await shutdownWorkflowLayerServiceSafely(workflowLayerService);
@@ -5107,12 +5126,13 @@ async function startServer(options = {}) {
   }
 
   const server = http.createServer((req, res) => {
+    const u = new URL(req.url || '/', 'http://127.0.0.1');
+    performanceDiagnostics.beginRequest(req, res, u.pathname);
     if (!checkAuth(req, token, { allowLoopbackBypass: !isNonLoopback(host) })) {
       res.writeHead(401);
       res.end();
       return;
     }
-    const u = new URL(req.url || '/', 'http://127.0.0.1');
     const startMs = Date.now();
     res.on('finish', () => {
       const ms = Date.now() - startMs;
@@ -5325,6 +5345,7 @@ if (require.main === module) {
 
 module.exports = {
   startServer,
+  cacheControlForStaticPath,
   readDefaultDesktopRollbackPolicy,
   resolveRetiredRepoFilePlanningSurface,
   parseArgs,

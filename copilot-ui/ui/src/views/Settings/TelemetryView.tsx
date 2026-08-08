@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Badge, Button, Panel, Toolbar } from '../../components';
+import Badge from '../../components/Badge';
+import Button from '../../components/Button';
+import Panel from '../../components/Panel';
+import Toolbar from '../../components/Toolbar';
 import { getHarnessTelemetry } from '../../lib/api/telemetry';
 import type { HarnessTelemetryData, HarnessTelemetryEvent, HarnessTelemetryResponse } from '../../lib/types';
 

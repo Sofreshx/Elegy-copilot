@@ -281,10 +281,20 @@ export interface RepoOperationsOverview {
   cleanupCandidates?: RepoOperationsCleanupCandidate[];
   entities?: RepoOperationsEntity[];
   activeRuns?: RepoOperationsRunSummary[];
+  cache?: {
+    mode: 'fresh' | 'cached';
+    requestedMode: 'fresh' | 'cached';
+    hit: boolean;
+    persisted: boolean;
+    persistedAt: string | null;
+    fallbackReason?: 'cache-missing' | 'cache-corrupt' | 'cache-incompatible' | 'cache-unavailable' | null;
+    persistenceError?: string | null;
+  };
 }
 
-export async function getRepoOperationsOverview(): Promise<RepoOperationsOverview> {
-  return apiRequest<RepoOperationsOverview>('/api/repo-operations/overview');
+export async function getRepoOperationsOverview(mode: 'fresh' | 'cached' = 'fresh'): Promise<RepoOperationsOverview> {
+  const query = mode === 'cached' ? '?mode=cached' : '';
+  return apiRequest<RepoOperationsOverview>(`/api/repo-operations/overview${query}`);
 }
 
 export async function syncRepoOperations(input: { confirmed: true; repoIds?: string[] }): Promise<RepoOperationsSyncResult> {

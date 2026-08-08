@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useCallback, useRef, useSyncExternalStore } from 'react';
 
 type Listener = () => void;
 
@@ -35,4 +35,44 @@ export function createStore<T>(initialState: T): Store<T> {
 
 export function useStoreValue<T>(store: ReadableStore<T>): T {
   return useSyncExternalStore(store.subscribe, store.getState, store.getState);
+}
+
+export function shallowEqual<T>(left: T, right: T): boolean {
+  if (Object.is(left, right)) return true;
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const keys = Object.keys(leftRecord);
+  return keys.length === Object.keys(rightRecord).length
+    && keys.every((key) => Object.prototype.hasOwnProperty.call(rightRecord, key)
+      && Object.is(leftRecord[key], rightRecord[key]));
+}
+
+export function useStoreSelector<T, Selected>(
+  store: ReadableStore<T>,
+  selector: (state: T) => Selected,
+  isEqual: (left: Selected, right: Selected) => boolean = Object.is,
+): Selected {
+  const selectorRef = useRef(selector);
+  const equalityRef = useRef(isEqual);
+  const cacheRef = useRef<{ state: T; selector: typeof selector; selected: Selected } | null>(null);
+  selectorRef.current = selector;
+  equalityRef.current = isEqual;
+
+  const getSnapshot = useCallback(() => {
+    const state = store.getState();
+    const cached = cacheRef.current;
+    if (cached && Object.is(cached.state, state) && cached.selector === selectorRef.current) {
+      return cached.selected;
+    }
+    const selected = selectorRef.current(state);
+    if (cached && equalityRef.current(cached.selected, selected)) {
+      cacheRef.current = { state, selector: selectorRef.current, selected: cached.selected };
+      return cached.selected;
+    }
+    cacheRef.current = { state, selector: selectorRef.current, selected };
+    return selected;
+  }, [store]);
+
+  return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 }

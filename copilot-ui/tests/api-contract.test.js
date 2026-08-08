@@ -192,6 +192,7 @@ const ROUTE_INVENTORY = [
   // Lifecycle/Misc (5)
   { method: 'GET', path: '/api/policy/preflight' },
   { method: 'GET', path: '/api/health' },
+  { method: 'GET', path: '/api/diagnostics/performance' },
   { method: 'GET', path: '/api/version' },
   { method: 'GET', path: '/api/lsp/config' },
   { method: 'POST', path: '/api/lsp/install' },
@@ -262,6 +263,8 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/assets/delete' },
   // Catalog/Search/Audit/Runtime (33)
   { method: 'GET', path: '/api/dashboard/harness-sessions' },
+  { method: 'GET', path: '/api/dashboard/harness-sessions/summary' },
+  { method: 'GET', path: '/api/dashboard/harness-sessions/codex' },
   { method: 'GET', path: '/api/catalog/repos' },
   { method: 'POST', path: '/api/catalog/repos/register' },
   { method: 'POST', path: '/api/catalog/repos/scan-roots' },
@@ -364,9 +367,11 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/git/push' },
   { method: 'POST', path: '/api/git/pull-request' },
   { method: 'GET', path: '/api/git/quality/status' },
+  { method: 'GET', path: '/api/git/quality/local-status' },
   { method: 'POST', path: '/api/git/quality/setup-task' },
   // Repo Operations (9)
   { method: 'GET', path: '/api/repo-operations/overview' },
+  { method: 'GET', path: '/api/repo-operations/overview?mode=cached' },
   { method: 'POST', path: '/api/repo-operations/sync' },
   { method: 'POST', path: '/api/repo-operations/fetch' },
   { method: 'POST', path: '/api/repo-operations/analyze' },
@@ -561,7 +566,7 @@ async function run() {
     }
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 204, `Expected 204 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 209, `Expected 209 routes, got ${ROUTE_INVENTORY.length}`);
   });
   } finally {
     if (runningServer) {

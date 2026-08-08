@@ -60,10 +60,18 @@ function sendRouteError(res, error, sendJson, fallbackCode) {
 
 async function handleOverview(ctx, service, sendJson) {
   try {
+    const mode = String(ctx.u?.searchParams?.get('mode') || 'fresh').trim().toLowerCase();
+    if (!['fresh', 'cached'].includes(mode)) {
+      sendJson(ctx.res, 400, {
+        error: 'Repo Operations overview mode must be fresh or cached.',
+        code: 'invalid-overview-mode',
+      });
+      return;
+    }
     const overview = await service.getOverview({
       elegyHome: ctx.elegyHomeAbs || ctx.elegyHome || null,
       engineRoot: ctx.engineRoot || null,
-    });
+    }, { mode });
     sendJson(ctx.res, 200, overview);
   } catch (error) {
     sendJson(ctx.res, 500, {

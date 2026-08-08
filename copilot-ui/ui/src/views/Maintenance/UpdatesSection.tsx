@@ -352,6 +352,12 @@ export default function UpdatesSection() {
   const [activeSessionCount, setActiveSessionCount] = useState(0);
 
   useEffect(() => {
+    void toolingUpdatesStore.refresh();
+    toolingUpdatesStore.startPolling();
+    return () => toolingUpdatesStore.stopPolling();
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function fetchSessions() {

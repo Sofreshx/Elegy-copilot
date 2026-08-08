@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Panel, PageContainer } from '../components';
 import HealthDot from '../components/HealthDot';
 import { navigationStore } from '../stores/navigation';
@@ -23,12 +23,23 @@ interface DashboardHarnessSummary {
   inventoryReason?: string | null;
   sessionCount: number;
   latestUpdatedAtMs?: number | null;
-  sessions: DashboardHarnessSession[];
+  sessions?: DashboardHarnessSession[];
 }
 
-interface DashboardHarnessSessionsResponse {
+interface DashboardHarnessSessionsSummaryResponse {
+  snapshotId: string;
   totalSessionCount: number;
   harnesses: DashboardHarnessSummary[];
+}
+
+interface DashboardHarnessSessionsPageResponse {
+  snapshotId: string;
+  harness: DashboardHarnessSummary;
+  sessions: DashboardHarnessSession[];
+  page: {
+    hasMore: boolean;
+    nextCursor: string | null;
+  };
 }
 
 interface DashboardSummary {
@@ -80,50 +91,165 @@ export default function DashboardView() {
   const [selectedHarnessId, setSelectedHarnessId] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [visibleSessions, setVisibleSessions] = useState<DashboardHarnessSession[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const selectedHarnessIdRef = useRef<string | null>(null);
+  const refreshControllerRef = useRef<AbortController | null>(null);
+  const pageControllerRef = useRef<AbortController | null>(null);
+  const refreshInFlightRef = useRef(false);
+  const pageRequestIdRef = useRef(0);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const loadPage = useCallback(async (
+    harnessId: string,
+    cursor: string | null,
+    append: boolean,
+    parentSignal?: AbortSignal,
+  ) => {
+    const requestId = pageRequestIdRef.current + 1;
+    pageRequestIdRef.current = requestId;
+    pageControllerRef.current?.abort();
+    const controller = new AbortController();
+    pageControllerRef.current = controller;
+    const abortFromParent = () => controller.abort();
+    if (parentSignal) {
+      if (parentSignal.aborted) controller.abort();
+      else parentSignal.addEventListener('abort', abortFromParent, { once: true });
+    }
+    setPageLoading(true);
+    setPageError(null);
     try {
-      const [harnessesRes, summaryRes] = await Promise.allSettled([
-        fetch('/api/dashboard/harness-sessions', { signal }).then((r) =>
-          r.ok ? r.json() : { totalSessionCount: 0, harnesses: [] },
-        ),
-        fetch('/api/dashboard/summary', { signal }).then((r) => (r.ok ? r.json() : null)),
-      ]);
-
-      if (signal?.aborted) return;
-
-      const nextHarnesses = harnessesRes.status === 'fulfilled'
-        ? (Array.isArray((harnessesRes.value as DashboardHarnessSessionsResponse).harnesses)
-          ? (harnessesRes.value as DashboardHarnessSessionsResponse).harnesses
-          : [])
-        : [];
-
-      setHarnesses(nextHarnesses);
-      setSelectedHarnessId((currentSelectedHarnessId) => resolveSelectedHarnessId(currentSelectedHarnessId, nextHarnesses));
-      setSummary(summaryRes.status === 'fulfilled' ? summaryRes.value : null);
-    } catch {
-      // API not available yet — show empty state
+      let requestedCursor = cursor;
+      let shouldAppend = append;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const params = new URLSearchParams({ limit: '100' });
+        if (requestedCursor) params.set('cursor', requestedCursor);
+        const response = await fetch(`/api/dashboard/harness-sessions/${encodeURIComponent(harnessId)}?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        const body = await response.json().catch(() => null) as (DashboardHarnessSessionsPageResponse & { error?: string; message?: string }) | null;
+        if (response.status === 409 && body?.error === 'stale_cursor' && requestedCursor) {
+          requestedCursor = null;
+          shouldAppend = false;
+          continue;
+        }
+        if (!response.ok || !body || !Array.isArray(body.sessions)) {
+          throw new Error(body?.message || 'Session page could not be loaded.');
+        }
+        if (controller.signal.aborted || requestId !== pageRequestIdRef.current) return;
+        setVisibleSessions((current) => shouldAppend ? [...current, ...body.sessions] : body.sessions);
+        setNextCursor(body.page?.nextCursor || null);
+        return;
+      }
+    } catch (error) {
+      if (!controller.signal.aborted && requestId === pageRequestIdRef.current) {
+        setPageError(error instanceof Error ? error.message : 'Session page could not be loaded.');
+      }
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (parentSignal) parentSignal.removeEventListener('abort', abortFromParent);
+      if (requestId === pageRequestIdRef.current) {
+        setPageLoading(false);
+        if (pageControllerRef.current === controller) pageControllerRef.current = null;
+      }
     }
   }, []);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
+    if (refreshInFlightRef.current || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) {
+      return;
+    }
+    refreshInFlightRef.current = true;
+    refreshControllerRef.current?.abort();
     const controller = new AbortController();
+    refreshControllerRef.current = controller;
+    try {
+      const [harnessesRes, summaryRes] = await Promise.allSettled([
+        fetch('/api/dashboard/harness-sessions/summary', { signal: controller.signal }).then(async (response) => {
+          if (!response.ok) throw new Error('Harness session summary could not be loaded.');
+          return response.json() as Promise<DashboardHarnessSessionsSummaryResponse>;
+        }),
+        fetch('/api/dashboard/summary', { signal: controller.signal }).then((response) => (
+          response.ok ? response.json() as Promise<DashboardSummary> : null
+        )),
+      ]);
+      if (controller.signal.aborted) return;
 
-    void load(controller.signal);
-    const interval = setInterval(() => void load(controller.signal), 10000);
+      if (summaryRes.status === 'fulfilled' && summaryRes.value) setSummary(summaryRes.value);
+      if (harnessesRes.status === 'rejected') {
+        setInventoryError(harnessesRes.reason instanceof Error
+          ? harnessesRes.reason.message
+          : 'Harness session summary could not be loaded.');
+        return;
+      }
+
+      const nextHarnesses = Array.isArray(harnessesRes.value.harnesses)
+        ? harnessesRes.value.harnesses
+        : [];
+      setInventoryError(null);
+      const nextSelectedHarnessId = resolveSelectedHarnessId(selectedHarnessIdRef.current, nextHarnesses);
+      selectedHarnessIdRef.current = nextSelectedHarnessId;
+      setHarnesses(nextHarnesses);
+      setSelectedHarnessId(nextSelectedHarnessId);
+
+      const nextSelectedHarness = nextHarnesses.find((harness) => harness.harnessId === nextSelectedHarnessId);
+      if (nextSelectedHarness?.inventoryAvailable) {
+        await loadPage(nextSelectedHarness.harnessId, null, false, controller.signal);
+      } else {
+        setVisibleSessions([]);
+        setNextCursor(null);
+        setPageError(null);
+      }
+    } catch {
+      // The Runtime view keeps its last successful snapshot during transient failures.
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+      if (refreshControllerRef.current === controller) refreshControllerRef.current = null;
+      refreshInFlightRef.current = false;
+    }
+  }, [loadPage]);
+
+  useEffect(() => {
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const clearTimer = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    };
+    const run = async () => {
+      clearTimer();
+      await load();
+      if (!disposed && document.visibilityState !== 'hidden') {
+        timer = setTimeout(() => void run(), 30_000);
+      }
+    };
+    const handleVisibilityChange = () => {
+      clearTimer();
+      if (document.visibilityState === 'hidden') {
+        refreshControllerRef.current?.abort();
+        pageControllerRef.current?.abort();
+        return;
+      }
+      void run();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    void run();
 
     return () => {
-      controller.abort();
-      clearInterval(interval);
+      disposed = true;
+      clearTimer();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      refreshControllerRef.current?.abort();
+      pageControllerRef.current?.abort();
     };
   }, [load]);
 
   const totalCount = summary?.totalSessionCount ?? harnesses.reduce((sum, harness) => sum + harness.sessionCount, 0);
   const selectedHarness = harnesses.find((harness) => harness.harnessId === selectedHarnessId) ?? harnesses[0] ?? null;
   const selectedHarnessSessions = selectedHarness
-    ? [...(Array.isArray(selectedHarness.sessions) ? selectedHarness.sessions : [])].sort(
+    ? [...visibleSessions].sort(
       (left, right) => (right.updatedAtMs || right.startedAtMs || 0) - (left.updatedAtMs || left.startedAtMs || 0),
     )
     : [];
@@ -133,6 +259,17 @@ export default function DashboardView() {
       return;
     }
     navigationStore.selectSession(session.sessionId, 'activity', { source: session.source || 'cli' });
+  }
+
+  function handleSelectHarness(harness: DashboardHarnessSummary) {
+    selectedHarnessIdRef.current = harness.harnessId;
+    setSelectedHarnessId(harness.harnessId);
+    setVisibleSessions([]);
+    setNextCursor(null);
+    setPageError(null);
+    if (harness.inventoryAvailable) {
+      void loadPage(harness.harnessId, null, false);
+    }
   }
 
   return (
@@ -157,6 +294,11 @@ export default function DashboardView() {
         subtitle="Browse stored sessions by harness, then inspect each harness inventory newest-first."
         testId="execution-hub-harness-sessions"
       >
+        {inventoryError ? (
+          <p className="active-sessions-empty" role="status" data-testid="execution-hub-refresh-error">
+            {inventoryError} Showing the last successful snapshot.
+          </p>
+        ) : null}
         {loading ? (
           <p className="active-sessions-empty" data-testid="execution-hub-loading">Loading sessions…</p>
         ) : harnesses.length === 0 ? (
@@ -173,7 +315,7 @@ export default function DashboardView() {
                   type="button"
                   className={`execution-hub-harness-card ${selectedHarness?.harnessId === harness.harnessId ? 'is-selected' : ''}`}
                   data-testid={`execution-hub-harness-${harness.harnessId}`}
-                  onClick={() => setSelectedHarnessId(harness.harnessId)}
+                  onClick={() => handleSelectHarness(harness)}
                 >
                   <span className="execution-hub-harness-title">{harness.title}</span>
                   <span className="execution-hub-harness-count">{harness.sessionCount} session{harness.sessionCount !== 1 ? 's' : ''}</span>
@@ -200,6 +342,10 @@ export default function DashboardView() {
                     <p className="active-sessions-empty" data-testid="execution-hub-harness-unavailable">
                       Session inventory is not available for {selectedHarness.title} yet.
                     </p>
+                  ) : pageLoading && selectedHarnessSessions.length === 0 ? (
+                    <p className="active-sessions-empty" data-testid="execution-hub-page-loading">Loading session page…</p>
+                  ) : pageError && selectedHarnessSessions.length === 0 ? (
+                    <p className="active-sessions-empty" data-testid="execution-hub-page-error">{pageError}</p>
                   ) : selectedHarnessSessions.length === 0 ? (
                     <p className="active-sessions-empty" data-testid="execution-hub-harness-empty">
                       No sessions were found for {selectedHarness.title}.
@@ -255,6 +401,18 @@ export default function DashboardView() {
                           </button>
                         );
                       })}
+                      {nextCursor ? (
+                        <button
+                          type="button"
+                          className="execution-hub-harness-session-card is-openable"
+                          data-testid="execution-hub-load-more"
+                          disabled={pageLoading}
+                          onClick={() => void loadPage(selectedHarness.harnessId, nextCursor, true)}
+                        >
+                          {pageLoading ? 'Loading…' : 'Load more sessions'}
+                        </button>
+                      ) : null}
+                      {pageError ? <p className="active-sessions-empty" role="alert">{pageError}</p> : null}
                     </div>
                   )}
                 </>

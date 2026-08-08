@@ -238,7 +238,8 @@ export default function IntelligenceSurfaceView({ surfaceId }: { surfaceId: Inte
             className="intelligence-surface-frame"
             title={`${label} console`}
             src={surface.consoleUrl}
-            sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts"
+            sandbox={`allow-forms allow-modals allow-popups allow-same-origin allow-scripts${surfaceId === 'opportunity-world-model' ? ' allow-downloads' : ''}`}
+            allow={surfaceId === 'opportunity-world-model' ? 'clipboard-write' : undefined}
             referrerPolicy="no-referrer"
           />
         ) : null}

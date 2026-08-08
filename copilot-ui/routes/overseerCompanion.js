@@ -18,6 +18,7 @@ function register(deps = {}) {
   } });
   return [
     { method: 'POST', path: '/api/overseer/context/v1/resolve', handler: client.handler },
+    { method: 'GET', path: '/api/overseer/chat/v1/conversations', handler: client.handler },
     { method: 'POST', path: '/api/overseer/chat/v1/conversations', handler: client.handler },
     { method: 'GET', path: /^\/api\/overseer\/chat\/v1\/conversations\/([^/]+)$/, handler: client.handler },
     { method: 'POST', path: /^\/api\/overseer\/chat\/v1\/conversations\/([^/]+)\/turns$/, handler: client.handler },

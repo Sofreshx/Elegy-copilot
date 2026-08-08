@@ -56,6 +56,29 @@ export interface GitState {
   checkFailed: boolean;
   unsafeOverrideReason: string;
   showOverrideInput: boolean;
+  sections: Record<GitReadSection, GitReadSectionState>;
+}
+
+export type GitReadSection = 'summary' | 'log' | 'branches';
+
+export interface GitReadSectionState {
+  loading: boolean;
+  error: string | null;
+  updatedAt: string | null;
+}
+
+const EMPTY_READ_SECTION: GitReadSectionState = {
+  loading: false,
+  error: null,
+  updatedAt: null,
+};
+
+function createReadSections(): GitState['sections'] {
+  return {
+    summary: { ...EMPTY_READ_SECTION },
+    log: { ...EMPTY_READ_SECTION },
+    branches: { ...EMPTY_READ_SECTION },
+  };
 }
 
 const INITIAL_STATE: GitState = {
@@ -87,6 +110,7 @@ const INITIAL_STATE: GitState = {
   checkFailed: false,
   unsafeOverrideReason: '',
   showOverrideInput: false,
+  sections: createReadSections(),
 };
 
 function createGitStore() {
@@ -95,18 +119,42 @@ function createGitStore() {
 
   async function loadRepoState(repoPath: string): Promise<void> {
     const nextVersion = ++requestVersion;
-    store.setState((s) => ({ ...s, repoPath, loading: true, error: null }));
+    store.setState((s) => {
+      const repoChanged = s.repoPath !== repoPath;
+      const sections = createReadSections();
+      for (const section of Object.keys(sections) as GitReadSection[]) sections[section].loading = true;
+      return {
+        ...s,
+        repoPath,
+        loading: true,
+        error: null,
+        status: repoChanged ? null : s.status,
+        log: repoChanged ? null : s.log,
+        branches: repoChanged ? null : s.branches,
+        summary: repoChanged ? null : s.summary,
+        pullRequest: repoChanged ? null : s.pullRequest,
+        selectedBranch: repoChanged ? '' : s.selectedBranch,
+        sections,
+      };
+    });
 
-    try {
-      const [summary, log, branches] = await Promise.all([
-        getGitSummary(repoPath),
-        getGitLog(repoPath),
-        getGitBranches(repoPath),
-      ]);
-
+    const publishFailure = (section: GitReadSection, error: unknown) => {
       if (nextVersion !== requestVersion) return;
+      store.setState((s) => ({
+        ...s,
+        sections: {
+          ...s.sections,
+          [section]: {
+            ...s.sections[section],
+            loading: false,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        },
+      }));
+    };
 
-      // Derive status from summary (single source of truth)
+    const summaryRequest = getGitSummary(repoPath).then((summary) => {
+      if (nextVersion !== requestVersion) return;
       const status: GitStatusResponse = {
         branch: summary.branch || undefined as unknown as string,
         files: summary.files,
@@ -118,29 +166,65 @@ function createGitStore() {
         upstream: summary.upstream,
         remoteName: summary.remoteName,
       };
-
       store.setState((s) => ({
         ...s,
-        repoPath,
         status,
-        log,
-        branches,
         summary,
         pullRequest: summary.pullRequest
           ? { available: true, tool: 'gh' as const, authenticated: true, pullRequest: summary.pullRequest }
           : null,
-        selectedBranch: summary.branch || branches.currentBranch || '',
-        loading: false,
+        selectedBranch: summary.branch || s.selectedBranch,
+        sections: {
+          ...s.sections,
+          summary: { loading: false, error: null, updatedAt: new Date().toISOString() },
+        },
       }));
-    } catch (err) {
-      if (nextVersion !== requestVersion) return;
+    }).catch((error) => {
+      publishFailure('summary', error);
+      throw error;
+    });
 
+    const logRequest = getGitLog(repoPath).then((log) => {
+      if (nextVersion !== requestVersion) return;
       store.setState((s) => ({
         ...s,
-        loading: false,
-        error: err instanceof Error ? err.message : String(err),
+        log,
+        sections: {
+          ...s.sections,
+          log: { loading: false, error: null, updatedAt: new Date().toISOString() },
+        },
       }));
-    }
+    }).catch((error) => {
+      publishFailure('log', error);
+      throw error;
+    });
+
+    const branchesRequest = getGitBranches(repoPath).then((branches) => {
+      if (nextVersion !== requestVersion) return;
+      store.setState((s) => ({
+        ...s,
+        branches,
+        selectedBranch: s.selectedBranch || branches.currentBranch || '',
+        sections: {
+          ...s.sections,
+          branches: { loading: false, error: null, updatedAt: new Date().toISOString() },
+        },
+      }));
+    }).catch((error) => {
+      publishFailure('branches', error);
+      throw error;
+    });
+
+    await Promise.allSettled([summaryRequest, logRequest, branchesRequest]);
+    if (nextVersion !== requestVersion) return;
+    store.setState((s) => ({
+      ...s,
+      loading: false,
+      error: (Object.values(s.sections) as GitReadSectionState[])
+        .map((section) => section.error)
+        .filter((value): value is string => Boolean(value))
+        .join('; ') || null,
+    }));
   }
 
   async function loadStatus(repoPath: string): Promise<void> {

@@ -204,8 +204,42 @@ describe('RepoOperationsView', () => {
     await waitFor(() => expect(startRepoOperationsAgentRun).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'merge-repair', repoId: 'alpha', prNumber: 12 })));
   });
 
+  it('shows cached results while a fresh scan runs and keeps cached actions read-only', async () => {
+    let resolveFresh: (value: unknown) => void = () => undefined;
+    const freshPromise = new Promise<unknown>((resolve) => { resolveFresh = resolve; });
+    getRepoOperationsOverview.mockImplementation((mode: 'fresh' | 'cached') => {
+      if (mode === 'cached') {
+        return Promise.resolve({
+          ...overview,
+          cache: { mode: 'cached', requestedMode: 'cached', hit: true, persisted: true, persistedAt: overview.generatedAt, fallbackReason: null },
+        });
+      }
+      return freshPromise;
+    });
+
+    render(<RepoOperationsView />);
+    await waitFor(() => expect(screen.getByTestId('repo-operations-view')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Alpha' })).toBeInTheDocument();
+    expect(screen.getByTestId('repo-operations-refreshing')).toHaveTextContent('Cached results are read-only');
+    expect(screen.getByRole('button', { name: 'Fetch all remotes' })).toBeDisabled();
+    expect(screen.getByTestId('repo-operations-prepare-alpha')).toBeDisabled();
+    expect(getRepoOperationsOverview).toHaveBeenNthCalledWith(1, 'cached');
+    expect(getRepoOperationsOverview).toHaveBeenNthCalledWith(2, 'fresh');
+
+    resolveFresh({
+      ...overview,
+      generatedAt: '2026-08-08T12:00:00.000Z',
+      cache: { mode: 'fresh', requestedMode: 'fresh', hit: false, persisted: true, persistedAt: '2026-08-08T12:00:00.000Z', fallbackReason: null },
+    });
+    await waitFor(() => expect(screen.queryByTestId('repo-operations-refreshing')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Fetch all remotes' })).toBeEnabled();
+    expect(screen.getByTestId('repo-operations-prepare-alpha')).toBeEnabled();
+  });
+
   it('renders an explicit scan error and a tab-specific empty state', async () => {
-    getRepoOperationsOverview.mockRejectedValueOnce(new Error('scanner unavailable'));
+    getRepoOperationsOverview
+      .mockRejectedValueOnce(new Error('cache unavailable'))
+      .mockRejectedValueOnce(new Error('scanner unavailable'));
     render(<RepoOperationsView />);
     await waitFor(() => expect(screen.getByTestId('repo-operations-error')).toBeInTheDocument());
     expect(screen.getByText('scanner unavailable')).toBeInTheDocument();

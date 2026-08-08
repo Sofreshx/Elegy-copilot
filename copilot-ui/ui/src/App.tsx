@@ -1,9 +1,10 @@
 import { Suspense, useCallback, useEffect, lazy } from 'react';
 import AppLayout from './components/AppLayout';
-import { PageContainer } from './components';
+import PageContainer from './components/PageContainer';
+import RouteLoading from './components/RouteLoading';
 import Sidebar from './components/Sidebar';
 import ToastContainer from './components/ToastContainer';
-import { useStoreValue } from './lib/store';
+import { shallowEqual, useStoreSelector } from './lib/store';
 import {
   navigationStore,
   SIDEBAR_NAV_ITEMS,
@@ -11,38 +12,73 @@ import {
 } from './stores/navigation';
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
 import { runtimeHealthStore } from './stores/runtimeHealthStore';
-import { toolingUpdatesStore } from './stores/toolingUpdatesStore';
 import { shellPreferencesStore } from './stores/shellPreferences';
 import { overseerWorkStore } from './views/Overseer/overseerWorkStore';
 
-const StandaloneGraphWindow = lazy(() => import('./tabs/Planning/StandaloneGraphWindow'));
-const SessionDetailView = lazy(() => import('./views/Sessions/SessionDetailView'));
-const SettingsView = lazy(() => import('./views/Settings/SettingsView'));
-const AssetCreationWizard = lazy(() => import('./views/Catalog/AssetCreationWizard'));
-const AddProjectWizard = lazy(() => import('./views/Project/AddProjectWizard'));
-const WorkspaceView = lazy(() => import('./views/Workspace/WorkspaceView'));
-const RepositoriesView = lazy(() => import('./views/Repositories/RepositoriesView'));
-const RepoOperationsView = lazy(() => import('./views/RepoOperations/RepoOperationsView'));
-const RemoteView = lazy(() => import('./tabs/Remote/RemoteView'));
-const McpView = lazy(() => import('./tabs/Mcp/McpView'));
-const IntelligenceSurfaceView = lazy(() => import('./views/Intelligence/IntelligenceSurfaceView'));
-const OverseerShell = lazy(() => import('./views/Overseer/OverseerShell'));
-const WorkspaceNotesTab = lazy(() => import('./views/Workspace/WorkspaceNotesTab'));
+const loadStandaloneGraphWindow = () => import('./tabs/Planning/StandaloneGraphWindow');
+const loadSessionDetailView = () => import('./views/Sessions/SessionDetailView');
+const loadSettingsView = () => import('./views/Settings/SettingsView');
+const loadAssetCreationWizard = () => import('./views/Catalog/AssetCreationWizard');
+const loadAddProjectWizard = () => import('./views/Project/AddProjectWizard');
+const loadWorkspaceView = () => import('./views/Workspace/WorkspaceView');
+const loadRepositoriesView = () => import('./views/Repositories/RepositoriesView');
+const loadRepoOperationsView = () => import('./views/RepoOperations/RepoOperationsView');
+const loadRemoteView = () => import('./tabs/Remote/RemoteView');
+const loadMcpView = () => import('./tabs/Mcp/McpView');
+const loadIntelligenceSurfaceView = () => import('./views/Intelligence/IntelligenceSurfaceView');
+const loadOverseerShell = () => import('./views/Overseer/OverseerShell');
+const loadWorkspaceNotesTab = () => import('./views/Workspace/WorkspaceNotesTab');
+
+const StandaloneGraphWindow = lazy(loadStandaloneGraphWindow);
+const SessionDetailView = lazy(loadSessionDetailView);
+const SettingsView = lazy(loadSettingsView);
+const AssetCreationWizard = lazy(loadAssetCreationWizard);
+const AddProjectWizard = lazy(loadAddProjectWizard);
+const WorkspaceView = lazy(loadWorkspaceView);
+const RepositoriesView = lazy(loadRepositoriesView);
+const RepoOperationsView = lazy(loadRepoOperationsView);
+const RemoteView = lazy(loadRemoteView);
+const McpView = lazy(loadMcpView);
+const IntelligenceSurfaceView = lazy(loadIntelligenceSurfaceView);
+const OverseerShell = lazy(loadOverseerShell);
+const WorkspaceNotesTab = lazy(loadWorkspaceNotesTab);
+
+const sidebarRouteLoaders: Partial<Record<SidebarItemId, () => Promise<unknown>>> = {
+  workspace: loadWorkspaceView,
+  remote: loadRemoteView,
+  mcp: loadMcpView,
+  repositories: loadRepositoriesView,
+  'repo-operations': loadRepoOperationsView,
+  notes: loadWorkspaceNotesTab,
+  overseer: loadOverseerShell,
+  'world-model': loadIntelligenceSurfaceView,
+  settings: loadSettingsView,
+};
+
+function preloadSidebarRoute(id: SidebarItemId) {
+  void sidebarRouteLoaders[id]?.().catch(() => {
+    // Navigation still owns error handling if a prefetched chunk is unavailable.
+  });
+}
 export default function App() {
-  const navigationState = useStoreValue(navigationStore);
-  const desktopUpdaterState = useStoreValue(desktopUpdaterStore);
-  const shellPreferences = useStoreValue(shellPreferencesStore);
-  const overseerWorkState = useStoreValue(overseerWorkStore);
+  const navigationState = useStoreSelector(navigationStore, (state) => ({
+    activeSidebarItem: state.activeSidebarItem,
+    activeWorkspaceId: state.activeWorkspaceId,
+    openWorkspaces: state.openWorkspaces,
+    selectedSessionId: state.selectedSessionId,
+    wizardOpen: state.wizardOpen,
+  }), shallowEqual);
+  const currentVersion = useStoreSelector(desktopUpdaterStore, (state) => state.currentVersion);
+  const sidebarCollapsed = useStoreSelector(shellPreferencesStore, (state) => state.sidebarCollapsed);
+  const overseerAttentionCount = useStoreSelector(overseerWorkStore, (state) => state.attentionCount);
 
   useEffect(() => {
     desktopUpdaterStore.startListening();
     runtimeHealthStore.startWatching();
-    toolingUpdatesStore.startPolling();
     const stopThemeSync = shellPreferencesStore.startThemeSync();
     return () => {
       desktopUpdaterStore.stopListening();
       runtimeHealthStore.stopWatching();
-      toolingUpdatesStore.stopPolling();
       stopThemeSync();
     };
   }, []);
@@ -139,7 +175,7 @@ export default function App() {
       return (
         <>
           <ToastContainer />
-          <Suspense>
+          <Suspense fallback={<RouteLoading label="Loading planning graph…" />}>
             <StandaloneGraphWindow />
           </Suspense>
         </>
@@ -151,23 +187,24 @@ export default function App() {
     <>
       <ToastContainer />
       <AppLayout
-      appVersion={desktopUpdaterState.currentVersion}
+      appVersion={currentVersion}
       sidebar={
         <Sidebar
           items={SIDEBAR_NAV_ITEMS}
           activeItem={navigationState.activeSidebarItem}
           openWorkspaces={navigationState.openWorkspaces}
           activeWorkspaceId={navigationState.activeWorkspaceId}
-          collapsed={shellPreferences.sidebarCollapsed}
+          collapsed={sidebarCollapsed}
           onToggleCollapsed={() => shellPreferencesStore.toggleSidebar()}
           onNavigate={(id: SidebarItemId) => navigationStore.navigate(id)}
+          onPrefetchNavigate={preloadSidebarRoute}
           onFocusWorkspace={(repoPath) => navigationStore.focusWorkspace(repoPath)}
           onCloseWorkspace={(repoPath) => navigationStore.closeWorkspace(repoPath)}
-          attentionCounts={{ overseer: overseerWorkState.attentionCount }}
+          attentionCounts={{ overseer: overseerAttentionCount }}
         />
       }
     >
-      <Suspense>
+      <Suspense fallback={<RouteLoading />}>
         {renderContent()}
       </Suspense>
       </AppLayout>

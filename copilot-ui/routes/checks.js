@@ -9,8 +9,21 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 const { discoverCheckPlan } = require('../lib/checkPlanService');
+const { createAsyncProcessService, getDefaultAsyncProcessService } = require('../lib/asyncProcessService');
 
 const backgroundCheckRuns = new Map();
+
+function requestAbortSignal(req, res) {
+  if (!req || typeof req.once !== 'function') return undefined;
+  const controller = new AbortController();
+  req.once('aborted', () => controller.abort());
+  if (res && typeof res.once === 'function') {
+    res.once('close', () => {
+      if (!res.writableEnded) controller.abort();
+    });
+  }
+  return controller.signal;
+}
 
 function persistCheckResults(repoPath, results) {
   // The SQLite-backed Elegy runner is the canonical local evidence authority.
@@ -135,9 +148,9 @@ function handleChecksPlan(ctx, deps) {
   }
 }
 
-function handleChecksGitHubHistory(ctx, deps) {
+async function handleChecksGitHubHistory(ctx, deps) {
   const { res, u } = ctx;
-  const { sendJson, qualityService } = deps;
+  const { sendJson, qualityService, processService } = deps;
   const repoPath = resolveRepoPath(ctx);
 
   if (!repoPath) {
@@ -152,8 +165,10 @@ function handleChecksGitHubHistory(ctx, deps) {
       limit: u.searchParams.get('limit') || undefined,
       branch: requestedBranch === 'all' ? null : requestedBranch || undefined,
     };
-    const remote = reader(repoPath, {
+    const remote = await reader(repoPath, {
       ...historyOptions,
+      processService: deps.processService,
+      signal: requestAbortSignal(ctx.req, ctx.res),
     }) || {};
     sendJson(res, 200, {
       source: 'github',
@@ -475,14 +490,40 @@ function handlePackShow(ctx, deps) {
 
 function handleQualityStatus(ctx, deps) {
   const { res } = ctx;
-  const { sendJson, qualityService } = deps;
+  const { sendJson, qualityService, processService } = deps;
   const repoPath = resolveRepoPath(ctx);
   if (!repoPath) {
     sendJson(res, 400, { error: 'repoPath query parameter is required' });
     return;
   }
 
-  return Promise.resolve(qualityService.buildRepoQualityStatus(repoPath))
+  return Promise.resolve(qualityService.buildRepoQualityStatus(repoPath, {
+    processService,
+    signal: requestAbortSignal(ctx.req, ctx.res),
+  }))
+    .then((status) => sendJson(res, 200, status))
+    .catch((error) => sendJson(res, 500, { error: String(error.message || error) }));
+}
+
+function handleQualityLocalStatus(ctx, deps) {
+  const { res } = ctx;
+  const { sendJson, qualityService, processService } = deps;
+  const repoPath = resolveRepoPath(ctx);
+  if (!repoPath) {
+    sendJson(res, 400, { error: 'repoPath query parameter is required' });
+    return;
+  }
+
+  const deferredRemote = {
+    available: false,
+    reason: 'Remote GitHub status loads separately.',
+    deferred: true,
+  };
+  return Promise.resolve(qualityService.buildRepoQualityStatus(repoPath, {
+    processService,
+    signal: requestAbortSignal(ctx.req, ctx.res),
+    github: () => deferredRemote,
+  }))
     .then((status) => sendJson(res, 200, status))
     .catch((error) => sendJson(res, 500, { error: String(error.message || error) }));
 }
@@ -509,7 +550,7 @@ function handleQualitySetupTask(ctx, deps) {
     });
 }
 
-function handleHooksState(ctx, deps) {
+async function handleHooksState(ctx, deps) {
   const { res } = ctx;
   const { sendJson } = deps;
   const repoPath = resolveRepoPath(ctx);
@@ -529,10 +570,11 @@ function handleHooksState(ctx, deps) {
       return;
     }
 
-    const result = spawnSync(process.execPath, [hooksScript, '--status', '--json', repoPath], {
-      encoding: 'utf8',
-      windowsHide: true,
-      timeout: 10000,
+    const result = await deps.processService.run(process.execPath, [hooksScript, '--status', '--json', repoPath], {
+      cwd: repoPath,
+      timeoutMs: 10_000,
+      maxOutputBytes: 256 * 1024,
+      cacheTtlMs: 2_000,
     });
 
     if (result.status !== 0) {
@@ -585,7 +627,10 @@ function register(context = {}) {
   const readJsonBody = context.readJsonBody || require('./_helpers').readJsonBody;
   const qualityService = context.qualityService || defaultQualityService;
   const launchRepoQualityTask = context.launchRepoQualityTask;
-  const deps = { sendJson, readJsonBody, qualityService, launchRepoQualityTask };
+  const processService = context.processService || context.asyncProcessService || (context.childProcess
+    ? createAsyncProcessService({ childProcess: context.childProcess })
+    : getDefaultAsyncProcessService());
+  const deps = { sendJson, readJsonBody, qualityService, launchRepoQualityTask, processService };
 
   return [
     { method: 'GET', path: '/api/git/checks/discover', handler: (ctx) => handleChecksDiscover(ctx, deps) },
@@ -602,6 +647,7 @@ function register(context = {}) {
     { method: 'POST', path: '/api/git/checks/apply', handler: (ctx) => handleChecksApply(ctx, deps) },
     { method: 'GET', path: '/api/git/checks/packs', handler: (ctx) => handlePacksList(ctx, deps) },
     { method: 'GET', path: /^\/api\/git\/checks\/packs\/([^/]+)$/, handler: (ctx) => handlePackShow(ctx, deps) },
+    { method: 'GET', path: '/api/git/quality/local-status', handler: (ctx) => handleQualityLocalStatus(ctx, deps) },
     { method: 'GET', path: '/api/git/quality/status', handler: (ctx) => handleQualityStatus(ctx, deps) },
     { method: 'POST', path: '/api/git/quality/setup-task', handler: (ctx) => handleQualitySetupTask(ctx, deps) },
     { method: 'GET', path: '/api/git/hooks/state', handler: (ctx) => handleHooksState(ctx, deps) },

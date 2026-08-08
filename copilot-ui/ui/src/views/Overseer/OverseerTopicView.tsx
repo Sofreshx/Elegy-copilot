@@ -5,7 +5,7 @@ import './overseerTopic.css';
 export type OverseerTopic = 'briefing' | 'projects' | 'knowledge' | 'tasks';
 export type OverseerEntity = { kind: string; id?: string; name?: string; summary?: string; [key: string]: unknown };
 
-type TopicAction = { key: string; label: string; description: string; operation: string; enabled: boolean };
+type TopicAction = { key: string; label: string; description: string; operation: string | null; mode: 'queue' | 'navigate'; requires?: string[]; section?: string | null; enabled: boolean };
 type TopicSnapshot = {
   topic: OverseerTopic;
   state: Record<string, any>;

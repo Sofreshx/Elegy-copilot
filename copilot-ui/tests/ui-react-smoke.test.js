@@ -53,14 +53,15 @@ async function run() {
     const brandIconPath = path.join(uiRoot, 'public', 'elegy-copilot-icon.svg');
     const sidebarSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'Sidebar.tsx'), 'utf8');
     const settingsSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Settings', 'SettingsView.tsx'), 'utf8');
+    const appSettingsSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Settings', 'SettingsAppSection.tsx'), 'utf8');
     const bootstrapHtml = fs.readFileSync(path.join(repoRoot, 'src-tauri', 'bootstrap', 'index.html'), 'utf8');
 
     assert.ok(fs.existsSync(brandIconPath), 'Expected branded svg icon asset in ui/public');
     assert.ok(sidebarSource.includes('sidebar-brand-icon'), 'Expected Sidebar to render the branded icon');
     assert.ok(settingsSource.includes('settings-view'), 'Expected SettingsView to have settings-view data-testid');
     assert.ok(settingsSource.includes('settings-toolbar'), 'Expected SettingsView to have settings-toolbar element');
-    assert.ok(settingsSource.includes('settings-about-brand'), 'Expected Settings about panel to render branded app identity');
-    assert.ok(settingsSource.includes('elegy-copilot-icon.svg'), 'Expected Settings to use the shared branded svg asset');
+    assert.ok(appSettingsSource.includes('settings-about-brand'), 'Expected Settings about panel to render branded app identity');
+    assert.ok(appSettingsSource.includes('elegy-copilot-icon.svg'), 'Expected Settings to use the shared branded svg asset');
     assert.ok(bootstrapHtml.includes('boot-mark'), 'Expected Tauri bootstrap shell to render the brand mark');
     assert.ok(bootstrapHtml.includes('Starting workspace...'), 'Expected Tauri bootstrap shell to expose branded startup copy');
   });

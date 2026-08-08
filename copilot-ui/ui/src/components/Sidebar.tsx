@@ -21,6 +21,7 @@ interface SidebarProps {
   onToggleCollapsed: () => void;
   onFocusWorkspace: (repoPath: string) => void;
   onCloseWorkspace: (repoPath: string) => void;
+  onPrefetchNavigate?: (id: SidebarItemId) => void;
   attentionCounts?: Partial<Record<SidebarItemId, number>>;
 }
 
@@ -38,6 +39,7 @@ export default function Sidebar({
   onToggleCollapsed,
   onFocusWorkspace,
   onCloseWorkspace,
+  onPrefetchNavigate,
   attentionCounts = {},
 }: SidebarProps) {
   const settingsItem = items.find((item) => item.id === 'settings');
@@ -49,6 +51,8 @@ export default function Sidebar({
       className={`sidebar-item${activeItem === item.id ? ' sidebar-item-active' : ''}`}
       data-testid={`sidebar-item-${item.id}`}
       onClick={() => onNavigate(item.id)}
+      onMouseEnter={() => onPrefetchNavigate?.(item.id)}
+      onFocus={() => onPrefetchNavigate?.(item.id)}
       aria-label={item.label}
       title={item.description || item.label}
     >
@@ -97,6 +101,8 @@ export default function Sidebar({
                     aria-current={active ? 'page' : undefined}
                     title={workspace.repoPath}
                     onClick={() => onFocusWorkspace(workspace.repoPath)}
+                    onMouseEnter={() => onPrefetchNavigate?.('workspace')}
+                    onFocus={() => onPrefetchNavigate?.('workspace')}
                   >
                     <AppIcon name="folder" size={16} />
                     <span>{workspace.repoLabel}</span>

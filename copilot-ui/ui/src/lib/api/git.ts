@@ -726,6 +726,7 @@ export interface RepoQualityStatus {
   remote: {
     available: boolean;
     reason?: string;
+    deferred?: boolean;
     provider?: 'github';
     repository?: string;
     branch?: string | null;
@@ -748,6 +749,11 @@ export interface RepoQualitySetupTaskResult {
 
 export async function getRepoQualityStatus(repoPath: string, baseUrl?: string): Promise<RepoQualityStatus> {
   const url = `/api/git/quality/status?repoPath=${encodeURIComponent(repoPath)}`;
+  return apiRequest<RepoQualityStatus>(url, { baseUrl });
+}
+
+export async function getRepoQualityLocalStatus(repoPath: string, baseUrl?: string): Promise<RepoQualityStatus> {
+  const url = `/api/git/quality/local-status?repoPath=${encodeURIComponent(repoPath)}`;
   return apiRequest<RepoQualityStatus>(url, { baseUrl });
 }
 

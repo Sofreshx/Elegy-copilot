@@ -72,5 +72,8 @@ describe('IntelligenceSurfaceView', () => {
     expect(screen.getByText(/Local SearXNG metasearch: ready/i)).toBeInTheDocument();
     expect(screen.getByText(/Headless browser fallback: ready/i)).toBeInTheDocument();
     expect(screen.queryByLabelText('Brave Search API key')).not.toBeInTheDocument();
+    const frame = screen.getByTitle('Opportunity Intelligence Engine console');
+    expect(frame).toHaveAttribute('sandbox', expect.stringContaining('allow-downloads'));
+    expect(frame).toHaveAttribute('allow', 'clipboard-write');
   });
 });

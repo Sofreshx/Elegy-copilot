@@ -20,6 +20,9 @@ const DEFAULT_AGENT_TIMEOUT_MS = 15 * 60 * 1000;
 const DEFAULT_CONCURRENCY = 16;
 const DEFAULT_AGENT_RUN_LIMIT = 100;
 const AGENT_RUN_STATE_VERSION = 1;
+const OVERVIEW_CACHE_VERSION = 1;
+const OVERVIEW_CACHE_DIRECTORY = ['repo-state', 'repo-operations'];
+const OVERVIEW_CACHE_FILENAME = 'overview-v4.json';
 const AGENT_RUN_STATUSES = new Set([
   'queued',
   'running',
@@ -37,6 +40,59 @@ const TERMINAL_AGENT_RUN_STATUSES = new Set(['completed', 'failed', 'cancelled',
 
 const FUTURE_ACTION_REASON = 'This action is intentionally disabled until a safe, explicit preparation flow is available.';
 const PR_AGENT_REASON = 'Runs per repository and per pull request; preparation is read-only until a user approves a fresh-SHA merge.';
+
+function overviewCachePath(context, pathImpl = path) {
+  const elegyHome = asString(context?.elegyHome);
+  if (!elegyHome) return null;
+  return pathImpl.join(pathImpl.resolve(elegyHome), ...OVERVIEW_CACHE_DIRECTORY, OVERVIEW_CACHE_FILENAME);
+}
+
+function validateOverviewCacheEnvelope(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return 'cache-corrupt';
+  if (value.cacheVersion !== OVERVIEW_CACHE_VERSION
+    || value.contractVersion !== REPO_OPERATIONS_CONTRACT_VERSION
+    || value.schemaVersion !== REPO_OPERATIONS_SCHEMA_VERSION) return 'cache-incompatible';
+  const overview = value.overview;
+  if (!overview || typeof overview !== 'object' || Array.isArray(overview)
+    || overview.contractVersion !== REPO_OPERATIONS_CONTRACT_VERSION
+    || overview.schemaVersion !== REPO_OPERATIONS_SCHEMA_VERSION
+    || typeof overview.generatedAt !== 'string'
+    || !overview.summary || typeof overview.summary !== 'object' || Array.isArray(overview.summary)
+    || !Array.isArray(overview.warnings)
+    || !overview.capabilities || typeof overview.capabilities !== 'object' || Array.isArray(overview.capabilities)
+    || !Array.isArray(overview.repositories)) return 'cache-corrupt';
+  return null;
+}
+
+async function readFileUtf8(fsImpl, filePath) {
+  if (fsImpl.promises?.readFile) return fsImpl.promises.readFile(filePath, 'utf8');
+  return fsImpl.readFileSync(filePath, 'utf8');
+}
+
+async function writeOverviewCacheAtomically(fsImpl, pathImpl, cachePath, envelope) {
+  const cacheDirectory = pathImpl.dirname(cachePath);
+  const temporaryPath = pathImpl.join(
+    cacheDirectory,
+    `.${pathImpl.basename(cachePath)}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`,
+  );
+  const serialized = `${JSON.stringify(envelope, null, 2)}\n`;
+  try {
+    if (fsImpl.promises?.mkdir) await fsImpl.promises.mkdir(cacheDirectory, { recursive: true });
+    else fsImpl.mkdirSync(cacheDirectory, { recursive: true });
+    if (fsImpl.promises?.writeFile) await fsImpl.promises.writeFile(temporaryPath, serialized, 'utf8');
+    else fsImpl.writeFileSync(temporaryPath, serialized, 'utf8');
+    if (fsImpl.promises?.rename) await fsImpl.promises.rename(temporaryPath, cachePath);
+    else fsImpl.renameSync(temporaryPath, cachePath);
+  } catch (error) {
+    try {
+      if (fsImpl.promises?.unlink) await fsImpl.promises.unlink(temporaryPath);
+      else if (fsImpl.existsSync(temporaryPath)) fsImpl.unlinkSync(temporaryPath);
+    } catch {
+      // The cache is optional presentation state; preserve the original write error.
+    }
+    throw error;
+  }
+}
 
 const CAPABILITIES = Object.freeze({
   readOnlyScan: {
@@ -339,7 +395,7 @@ function normalizeSyncState(sync, defaults = {}) {
     upstreamSha: normalizeSha(sync?.upstreamSha),
     remoteAvailable: Boolean(sync?.remoteAvailable),
     remoteName: asNullableString(sync?.remoteName),
-    remoteUrl: asNullableString(sync?.remoteUrl),
+    remoteUrl: asNullableString(normalizeRemoteUrl(sync?.remoteUrl)),
     state: asString(sync?.state, 'unavailable'),
     issueCodes: unique(Array.isArray(sync?.issueCodes) ? sync.issueCodes : []),
     activeWorktreeConflict: Boolean(sync?.activeWorktreeConflict),
@@ -523,7 +579,19 @@ function parseRemoteRecords(output) {
 }
 
 function normalizeRemoteUrl(url) {
-  return asString(url).replace(/[\/]\.git$/, '').replace(/\.git$/, '');
+  let value = asString(url);
+  if (!value) return '';
+  try {
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) {
+      const parsed = new URL(value);
+      parsed.username = '';
+      parsed.password = '';
+      value = parsed.toString();
+    }
+  } catch {
+    value = value.replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/@]+@/i, '$1');
+  }
+  return value.replace(/\/$/, '').replace(/[\/]\.git$/, '').replace(/\.git$/, '');
 }
 
 function resolveProvider(url) {
@@ -1237,7 +1305,7 @@ async function scanRepository(repo, options = {}) {
   try {
     remote = await git.readRemote(repoPath, status?.upstream || null);
     sync.remoteName = asNullableString(remote?.name);
-    sync.remoteUrl = asNullableString(remote?.url);
+    sync.remoteUrl = asNullableString(normalizeRemoteUrl(remote?.url));
     sync.remoteAvailable = Boolean(remote?.available);
     if (!remote?.name) addIssue(issues, issue('no-remote', 'No Git remote is configured.'));
     else if (!remote.available) addIssue(issues, commandIssue(remote.error, 'remote-unavailable', 'The configured Git remote is unavailable.'));
@@ -2004,7 +2072,7 @@ function createRepoOperationsAgentService(options = {}) {
         ...status,
         remoteAvailable: Boolean(remote?.available),
         remoteName: remote?.name || null,
-        remoteUrl: remote?.url || null,
+        remoteUrl: asNullableString(normalizeRemoteUrl(remote?.url)),
         state: status?.clean === false ? 'dirty' : 'clean',
       }, { activity, available: true }),
       activity,
@@ -2407,6 +2475,8 @@ function createRepoOperationsAgentService(options = {}) {
 }
 
 function createRepoOperationsService(options = {}) {
+  const fsImpl = options.fsImpl || fs;
+  const pathImpl = options.pathImpl || path;
   const inventorySource = options.inventory || options.repoInventory || (async (context) => (
     repoInventoryLib.listKnownRepos({
       elegyHome: context.elegyHome,
@@ -2441,12 +2511,13 @@ function createRepoOperationsService(options = {}) {
   const now = options.now || (() => new Date().toISOString());
   const concurrency = Number.isFinite(Number(options.concurrency)) ? Number(options.concurrency) : DEFAULT_CONCURRENCY;
   const actionTimeoutMs = Number(options.actionTimeoutMs) > 0 ? Number(options.actionTimeoutMs) : DEFAULT_ACTION_TIMEOUT_MS;
+  const freshOverviewFlights = new Map();
   const agentService = createRepoOperationsAgentService({
     inventory: inventorySource,
     git,
     github,
-    fsImpl: options.fsImpl,
-    pathImpl: options.pathImpl,
+    fsImpl,
+    pathImpl,
     childProcessImpl: options.childProcessImpl,
     env: options.env,
     detectOpenCodeBin: options.detectOpenCodeBin,
@@ -2462,6 +2533,30 @@ function createRepoOperationsService(options = {}) {
     return typeof inventorySource === 'function'
       ? inventorySource(context)
       : inventorySource.listKnownRepos(context);
+  }
+
+  async function readCachedOverview(context = {}) {
+    const cachePath = overviewCachePath(context, pathImpl);
+    if (!cachePath) return { overview: null, reason: 'cache-unavailable', persistedAt: null };
+    let serialized;
+    try {
+      serialized = await readFileUtf8(fsImpl, cachePath);
+    } catch (error) {
+      return {
+        overview: null,
+        reason: error?.code === 'ENOENT' ? 'cache-missing' : 'cache-unavailable',
+        persistedAt: null,
+      };
+    }
+    let envelope;
+    try {
+      envelope = JSON.parse(serialized);
+    } catch {
+      return { overview: null, reason: 'cache-corrupt', persistedAt: null };
+    }
+    const reason = validateOverviewCacheEnvelope(envelope);
+    if (reason) return { overview: null, reason, persistedAt: null };
+    return { overview: envelope.overview, reason: null, persistedAt: asString(envelope.persistedAt) || null };
   }
 
   function normalizeRepository(repository) {
@@ -2546,7 +2641,7 @@ function createRepoOperationsService(options = {}) {
         ...status,
         remoteAvailable: Boolean(remote?.available),
         remoteName: remote?.name || null,
-        remoteUrl: remote?.url || null,
+        remoteUrl: asNullableString(normalizeRemoteUrl(remote?.url)),
         state: status?.clean === false ? 'dirty' : 'clean',
       }, { activity, available: true });
       return { available: true, sync, remoteHeadSha: normalizeSha(remote?.headSha), activity };
@@ -3043,8 +3138,7 @@ function createRepoOperationsService(options = {}) {
     return { contractVersion: REPO_OPERATIONS_ACTION_CONTRACT_VERSION, operation: 'cleanup-entities', startedAt, completedAt: now(), summary: { requested: entities.length, removed: entities.filter((entry) => entry.status === 'removed').length, skipped: entities.filter((entry) => entry.status === 'skipped').length, failed: entities.filter((entry) => entry.status === 'failed').length }, entities };
   }
 
-  return {
-    async getOverview(context = {}) {
+  async function buildFreshOverview(context = {}) {
       let inventory;
       const warnings = [];
       try {
@@ -3103,7 +3197,7 @@ function createRepoOperationsService(options = {}) {
         needsAnalysis: allEntities.filter((entity) => entity.safety === 'analysis-required').length,
       };
 
-      return {
+    return {
         contractVersion: REPO_OPERATIONS_CONTRACT_VERSION,
         schemaVersion: REPO_OPERATIONS_SCHEMA_VERSION,
         generatedAt: now(),
@@ -3128,8 +3222,94 @@ function createRepoOperationsService(options = {}) {
         branches: allBranches,
         pullRequests: allPullRequests,
         cleanupCandidates: allCleanupCandidates,
+    };
+  }
+
+  async function scanAndPersistOverview(context = {}) {
+    const cachePath = overviewCachePath(context, pathImpl);
+    const flightKey = `${cachePath || ''}\u0000${asString(context.engineRoot)}`;
+    let flight = freshOverviewFlights.get(flightKey);
+    if (!flight) {
+      flight = (async () => {
+        const overview = await buildFreshOverview(context);
+        const persistedAt = now();
+        let persisted = false;
+        let persistenceError = null;
+        const inventoryUnavailable = overview.warnings.some((warning) => warning.startsWith('Repository inventory could not be loaded:'));
+        if (cachePath && !inventoryUnavailable) {
+          try {
+            await writeOverviewCacheAtomically(fsImpl, pathImpl, cachePath, {
+              cacheVersion: OVERVIEW_CACHE_VERSION,
+              contractVersion: REPO_OPERATIONS_CONTRACT_VERSION,
+              schemaVersion: REPO_OPERATIONS_SCHEMA_VERSION,
+              persistedAt,
+              overview,
+            });
+            persisted = true;
+          } catch (error) {
+            persistenceError = errorMessage(error, 'Overview cache could not be persisted.');
+          }
+        } else if (inventoryUnavailable) {
+          persistenceError = 'Repository inventory was unavailable; the last successful overview cache was preserved.';
+        }
+        return { overview, persisted, persistedAt: persisted ? persistedAt : null, persistenceError };
+      })();
+      freshOverviewFlights.set(flightKey, flight);
+      flight.finally(() => {
+        if (freshOverviewFlights.get(flightKey) === flight) freshOverviewFlights.delete(flightKey);
+      }).catch(() => {});
+    }
+    return flight;
+  }
+
+  async function getOverview(context = {}, input = {}) {
+    const requestedMode = input?.mode === 'cached' ? 'cached' : 'fresh';
+    if (requestedMode === 'cached') {
+      const cached = await readCachedOverview(context);
+      if (cached.overview) {
+        return {
+          ...cached.overview,
+          cache: {
+            mode: 'cached',
+            requestedMode,
+            hit: true,
+            persisted: true,
+            persistedAt: cached.persistedAt,
+            fallbackReason: null,
+          },
+        };
+      }
+      const fresh = await scanAndPersistOverview(context);
+      return {
+        ...fresh.overview,
+        cache: {
+          mode: 'fresh',
+          requestedMode,
+          hit: false,
+          persisted: fresh.persisted,
+          persistedAt: fresh.persistedAt,
+          fallbackReason: cached.reason,
+          persistenceError: fresh.persistenceError,
+        },
       };
-    },
+    }
+    const fresh = await scanAndPersistOverview(context);
+    return {
+      ...fresh.overview,
+      cache: {
+        mode: 'fresh',
+        requestedMode,
+        hit: false,
+        persisted: fresh.persisted,
+        persistedAt: fresh.persistedAt,
+        fallbackReason: null,
+        persistenceError: fresh.persistenceError,
+      },
+    };
+  }
+
+  return {
+    getOverview,
     async syncRepositories(context = {}, input = {}) {
       if (input.confirmed !== true) {
         throw Object.assign(new Error('Explicit confirmation is required to sync eligible repositories.'), {

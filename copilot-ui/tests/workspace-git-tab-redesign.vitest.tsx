@@ -32,6 +32,7 @@ vi.mock('../ui/src/lib/api/git', () => ({
   discoverGitChecks: vi.fn(),
   getGitCheckPlan: vi.fn(),
   getGitHubCheckHistory: vi.fn(),
+  getRepoQualityLocalStatus: vi.fn(),
   getRepoQualityStatus: vi.fn(),
   getGitCheckState: vi.fn(),
   getGitCiSync: vi.fn(),
@@ -235,6 +236,21 @@ describe('WorkspaceGitTab', () => {
         freshness: { fresh: false, reason: 'No recorded proof.' },
       },
       remote: { available: false, reason: 'GitHub unavailable.' },
+      drift: [],
+    });
+    vi.mocked(gitApi.getRepoQualityLocalStatus).mockResolvedValue({
+      schemaVersion: 'repo-quality-status/v1',
+      repoPath: '/test/repo',
+      readiness: 'ready',
+      nextAction: { id: 'refresh', label: 'Refresh' },
+      support: { supported: true, adapter: 'node', reason: null },
+      local: {
+        config: { elegy: true, legacyCommitCheck: false },
+        hooks: { manager: 'lefthook', configured: true, active: true, configPath: 'lefthook.yml', coreHooksPath: null },
+        lastProof: null,
+        freshness: { fresh: false, reason: 'No proof.' },
+      },
+      remote: { available: false, reason: 'Remote GitHub status loads separately.', deferred: true },
       drift: [],
     });
     vi.mocked(gitApi.getGitCheckState).mockResolvedValue({

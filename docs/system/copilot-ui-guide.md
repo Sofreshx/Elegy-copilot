@@ -25,6 +25,12 @@ npm --prefix copilot-ui run desktop:smoke:native
 node copilot-ui/server.js
 ```
 
+`desktop:smoke:native` builds and exercises an unsigned, local-only NSIS
+installer. It deliberately skips updater-artifact signing because the smoke
+validates installation, packaged resources, startup, single-instance behavior,
+and uninstall—not release provenance. `desktop:preview` remains the signed
+release lane and requires the externally held Tauri updater private key.
+
 - The local backend binds to `127.0.0.1`.
 - Raw server mode is for `/api` work and debugging. The normal app UI is launched through the desktop shell.
 
@@ -36,17 +42,26 @@ sidebar tabs:
 | Tab | Source service | Console origin |
 |-----|----------------|----------------|
 | Overseer | Native Elegy shell backed by fixed loopback proxy routes | `../../overseer` at `http://127.0.0.1:4173` |
-| World Model | Isolated embedded console | `../opportunity-world-model` at `http://127.0.0.1:7400` |
+| Opportunity Intelligence (OIE) | Isolated embedded console | `../opportunity-world-model` at `http://127.0.0.1:7400` |
 
 Both surfaces read a redacted readiness projection from `/api/intelligence-surfaces`
 and require an explicit user action before invoking a fixed operator script. Elegy
 resolves only the known sibling checkout, package marker, and fixed status/start/stop
-script; it does not accept arbitrary commands or remote URLs. World Model embeds its
+script; it does not accept arbitrary commands or remote URLs. Opportunity Intelligence
+(OIE) embeds its
 console in an isolated frame with `embed=elegy`. Overseer renders native views and uses
 fixed `/api/overseer/**` loopback proxy routes; its session credential remains on the
 backend and proxy responses are redacted before reaching the UI. Switching tabs does
 not stop a service, and Stop is always explicit. See [Elegy local operations](elegy-local-operations.md)
 for the lifecycle and failure boundary.
+
+Overseer's native **Work** panel combines resumable local companion chat,
+Needs You/Active Runs, and recent conversations and Run history. Closing it
+does not discard the selected conversation; chat history is redacted,
+operational state owned by Overseer and is never canonical knowledge or Hermes
+memory. Topic action cards declare whether they navigate or queue a typed Run;
+queueing always shows the operation, context, output, and effect for explicit
+confirmation before the existing Runs ledger accepts it.
 
 ## Main UI
 
@@ -135,6 +150,40 @@ The Workspace "Execute" local tab (`WorkspaceExecutionTab.tsx`) is the command r
 - `~/.elegy/planning-db` in packaged mode
 
 The public route inventory is snapshotted by `copilot-ui/tests/api-contract.test.js`.
+
+### Responsiveness and cached reads
+
+The desktop backend keeps read/status work off the Node event loop. CLI and
+GitHub probes use bounded asynchronous child processes with output caps,
+timeouts, cancellation, short-lived result caches, and in-flight
+deduplication. `GET /api/diagnostics/performance` exposes only local,
+in-memory aggregates grouped by registered API area; it never records request
+values, repository paths, command arguments, or external telemetry.
+
+Runtime session inventory is built in a worker-backed 30-second snapshot.
+`GET /api/dashboard/harness-sessions/summary` returns counts without session
+rows, and `GET /api/dashboard/harness-sessions/:harnessId` returns an opaque,
+snapshot-scoped cursor page (100 rows by default, 200 maximum). The legacy
+full-inventory route remains available for compatibility but is not used by
+the active UI. Runtime polling pauses when hidden and never overlaps.
+
+Git summary, log, and branch reads publish independently. Local check
+readiness comes from `GET /api/git/quality/local-status`; GitHub readiness and
+all-branch history remain deferred to the Checks surface. A failed section
+keeps its last successful data visible while reporting its own error.
+
+Repo Operations uses a presentation-only last-successful snapshot at
+`~/.elegy/repo-state/repo-operations/overview-v4.json`. The command center
+loads that snapshot immediately through `mode=cached`, starts one shared fresh
+scan in the background, labels cached/refreshing state, and disables actions
+until fresh data arrives. The cache never participates in authorization:
+every repository mutation still performs the canonical fresh-state recheck.
+
+Lazy routes and Settings panels have visible Suspense fallbacks and may
+prefetch on navigation hover/focus. Mermaid stays outside the startup graph.
+Hashed Vite assets use immutable browser caching; HTML and unhashed resources
+remain `no-store`. Heavy tooling update polling starts only while its
+Maintenance surface is mounted and visible.
 
 ### Repo Operations boundary
 

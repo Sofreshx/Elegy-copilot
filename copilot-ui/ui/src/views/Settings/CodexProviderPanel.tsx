@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
-import { Badge, Button, Panel } from '../../components';
+import Badge from '../../components/Badge';
+import Button from '../../components/Button';
+import Panel from '../../components/Panel';
 import { useStoreValue } from '../../lib/store';
 import type { CodexSubagentRecord } from '../../lib/api/codexConfig';
 import { codexProviderStore } from '../../stores/codexProviderStore';

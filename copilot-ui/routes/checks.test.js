@@ -82,7 +82,7 @@ async function run() {
 
   await test('register returns check route descriptors', async () => {
     const routes = registerWithMocks();
-    assert.equal(routes.length, 18);
+    assert.equal(routes.length, 19);
   });
 
   await test('GET /api/git/quality/status requires repoPath', async () => {
@@ -108,6 +108,28 @@ async function run() {
     assert.equal(body.repoPath, testRepo);
     assert.equal(body.readiness, 'setup-required');
     assert.equal(body.nextAction.id, 'setup-quality');
+  });
+
+  await test('GET /api/git/quality/local-status defers GitHub work', async () => {
+    const testRepo = path.resolve(__dirname, '..');
+    let receivedDependencies = null;
+    const qualityService = {
+      buildRepoQualityStatus: async (repoPath, dependencies) => {
+        receivedDependencies = dependencies;
+        return {
+          schemaVersion: 'repo-quality-status/v1',
+          repoPath,
+          readiness: 'ready',
+          remote: await dependencies.github(),
+        };
+      },
+    };
+    const routes = registerWithMocks({ qualityService });
+    const { res, body } = await invoke(routes, 'GET', `/api/git/quality/local-status?repoPath=${encodeURIComponent(testRepo)}`);
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.repoPath, testRepo);
+    assert.equal(body.remote.deferred, true);
+    assert.equal(typeof receivedDependencies.processService.run, 'function');
   });
 
   await test('POST /api/git/quality/setup-task requires repoPath', async () => {

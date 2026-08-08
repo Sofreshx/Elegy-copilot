@@ -101,4 +101,16 @@ describe('sidebar', () => {
     const activeBtn = screen.getByTestId('sidebar-item-repositories');
     expect(activeBtn.className).toContain('sidebar-item-active');
   });
+
+  it('prefetches a route when its navigation control shows pointer or keyboard intent', async () => {
+    const onPrefetchNavigate = vi.fn();
+    await renderSidebar({ onPrefetchNavigate });
+    const settingsButton = screen.getByTestId('sidebar-item-settings');
+
+    fireEvent.mouseEnter(settingsButton);
+    fireEvent.focus(settingsButton);
+
+    expect(onPrefetchNavigate).toHaveBeenNthCalledWith(1, 'settings');
+    expect(onPrefetchNavigate).toHaveBeenNthCalledWith(2, 'settings');
+  });
 });

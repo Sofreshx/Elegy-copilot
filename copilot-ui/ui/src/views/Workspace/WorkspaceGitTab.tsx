@@ -807,6 +807,7 @@ export default function WorkspaceGitTab({
   const localBranches: GitBranchEntry[] = (gitState.branches?.branches ?? []).filter((b) => !b.remote);
   const remoteBranches: GitBranchEntry[] = (gitState.branches?.branches ?? []).filter((b) => b.remote);
   const allBranches: GitBranchEntry[] = (gitState.branches?.branches ?? []);
+  const gitSections = gitState.sections;
 
 
   // ─── Worktrees display ─────────────────────────────────────────────────────
@@ -975,6 +976,12 @@ export default function WorkspaceGitTab({
       {/* SECTION 1 — Slim Status Strip                                    */}
       {/* ================================================================ */}
       <div className="workspace-git-summary" data-testid="workspace-git-summary">
+        {!summary && gitState.sections?.summary.loading ? (
+          <span className="state-message" data-testid="workspace-git-summary-loading">Loading repository status…</span>
+        ) : null}
+        {!summary && gitState.sections?.summary.error ? (
+          <span className="state-message" data-testid="workspace-git-summary-error">{gitState.sections.summary.error}</span>
+        ) : null}
         {/* Branch name with dropdown trigger */}
         {branch ? (
           <span className="workspace-git-summary-branch-wrap" data-testid="workspace-summary-branch">
@@ -1030,7 +1037,7 @@ export default function WorkspaceGitTab({
         ) : null}
 
         {/* Dirty count */}
-        {changeCount > 0 ? (
+        {summary && changeCount > 0 ? (
           <span className="workspace-git-summary-clean-badge workspace-git-summary-dirty" data-testid="workspace-summary-clean">
             {stagedCount > 0 && unstagedCount > 0
               ? `dirty(${stagedCount} staged, ${unstagedCount} unstaged)`
@@ -1038,11 +1045,11 @@ export default function WorkspaceGitTab({
                 ? `dirty(${stagedCount} staged)`
                 : `dirty(${unstagedCount} unstaged)`}
           </span>
-        ) : (
+        ) : summary ? (
           <span className="workspace-git-summary-clean-badge workspace-git-summary-clean" data-testid="workspace-summary-clean">
             clean
           </span>
-        )}
+        ) : null}
 
         {/* Ahead/Behind */}
         {(summary?.ahead ?? 0) > 0 ? (
@@ -1141,7 +1148,11 @@ export default function WorkspaceGitTab({
         {branchTab === 'local' ? (
           <div data-testid="workspace-git-branches-pane">
             {localBranches.length === 0 ? (
-              <div className="state-message" data-testid="workspace-git-no-branches">No local branches found.</div>
+              <div className="state-message" data-testid="workspace-git-no-branches">
+                {gitSections?.branches.loading
+                  ? 'Loading branches…'
+                  : gitSections?.branches.error || 'No local branches found.'}
+              </div>
             ) : (
               <table className="workspace-git-table" data-testid="workspace-git-branches-list">
                 <thead>
@@ -1259,7 +1270,11 @@ export default function WorkspaceGitTab({
         ) : (
           <div data-testid="workspace-git-branches-remote-pane">
             {remoteBranches.length === 0 ? (
-              <div className="state-message">No remote branches found.</div>
+              <div className="state-message">
+                {gitSections?.branches.loading
+                  ? 'Loading branches…'
+                  : gitSections?.branches.error || 'No remote branches found.'}
+              </div>
             ) : (
               <table className="workspace-git-table" data-testid="workspace-git-remote-branches-list">
                 <thead>
@@ -2182,7 +2197,9 @@ export default function WorkspaceGitTab({
             ))}
           </div>
         ) : (
-          <div className="state-message" data-testid="workspace-commit-log-empty">No commits found.</div>
+          <div className="state-message" data-testid="workspace-commit-log-empty">
+            {gitSections?.log.loading ? 'Loading recent commits…' : gitSections?.log.error || 'No commits found.'}
+          </div>
         )}
       </div>
     </div>

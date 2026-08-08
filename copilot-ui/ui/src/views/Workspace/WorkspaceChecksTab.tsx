@@ -431,12 +431,16 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
     githubHistory: githubHistoryResponse,
     error,
     loading,
+    remoteLoading,
+    remoteError,
+    sections,
   } = storeState;
 
   // ─── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!repoPath) return;
     void checksStore.load(repoPath);
+    void checksStore.loadRemote(repoPath, { allBranches: true });
   }, [repoPath]);
 
   // ─── Derived data ──────────────────────────────────────────────────────────
@@ -575,6 +579,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
 
   const handleRefresh = useCallback(() => {
     void checksStore.refresh(repoPath);
+    void checksStore.loadRemote(repoPath, { allBranches: true });
   }, [repoPath]);
 
   function handleProfileClick(profile: string) {
@@ -636,6 +641,7 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
       return;
     }
     void checksStore.refresh(repoPath);
+    void checksStore.loadRemote(repoPath, { allBranches: true });
   }
 
   function renderReadiness() {
@@ -652,7 +658,9 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
     const hooksLabel = qualityStatus.local.hooks.configured && qualityStatus.local.hooks.active
       ? qualityStatus.local.hooks.manager
       : 'Not configured';
-    const githubLabel = qualityStatus.remote.available
+    const githubLabel = sections.githubStatus.loading && qualityStatus.remote.deferred
+      ? 'Loading…'
+      : qualityStatus.remote.available
       ? qualityStatus.remote.latestConclusion || 'Connected'
       : 'Unavailable';
     return (
@@ -689,6 +697,11 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
             {ciGapCount} GitHub job(s) have no local lane mapping. Local proof remains separate from remote evidence.
           </div>
         )}
+        {sections.githubStatus.error && (
+          <div style={{ marginTop: 12, color: WARNING }} data-testid="workspace-checks-github-status-error">
+            GitHub status refresh failed: {sections.githubStatus.error}
+          </div>
+        )}
         {setupTaskPrompt && (
           <pre data-testid="workspace-checks-setup-prompt" style={{ margin: '12px 0 0', padding: 10, background: DARK_BG, whiteSpace: 'pre-wrap' }}>
             {setupTaskPrompt}
@@ -699,11 +712,12 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   }
 
   function renderRecommendation() {
-    if (error) {
+    const recommendationError = sections.checkPlan.error;
+    if (recommendationError) {
       return (
         <section style={{ ...s.hooksStatus, border: `1px solid ${FAILURE}`, marginBottom: 12 }} data-testid="workspace-checks-error">
           <div style={s.label}>Checks unavailable</div>
-          <div style={{ color: FAILURE, marginTop: 4 }}>{error}</div>
+          <div style={{ color: FAILURE, marginTop: 4 }}>{recommendationError}</div>
           <div style={{ marginTop: 8 }}>
             <Button variant="ghost" size="sm" onClick={handleRefresh}>
               Retry discovery
@@ -1188,6 +1202,8 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   function renderRunHistory() {
     const showingLocal = historySource === 'local';
     const hasRows = showingLocal ? filteredLocalHistory.length > 0 : filteredGithubHistory.length > 0;
+    const githubHistoryLoading = sections.githubHistory.loading;
+    const githubHistoryError = sections.githubHistory.error;
 
     return (
       <div style={{ marginBottom: 16 }} data-testid="workspace-checks-run-history">
@@ -1230,17 +1246,26 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
         <div style={{ color: TEXT_MUTED, fontSize: 11, marginBottom: 8 }}>
           {showingLocal
             ? 'Local runs are the repository proof source; GitHub results are never merged into this pass/fail state.'
-            : githubHistoryAvailable
+            : githubHistoryLoading && !hasRows
+              ? 'Loading GitHub history…'
+              : githubHistoryAvailable
               ? `Read-only GitHub runs for ${historyBranch === 'all' ? 'all branches' : currentBranch || 'the current branch'}.`
-              : githubHistoryReason || 'GitHub history is unavailable.'}
+              : githubHistoryError || githubHistoryReason || 'GitHub history is unavailable.'}
         </div>
+        {!showingLocal && githubHistoryError && hasRows && (
+          <div style={{ color: WARNING, fontSize: 11, marginBottom: 8 }} data-testid="workspace-checks-github-history-error">
+            Showing the last successful GitHub history. Refresh failed: {githubHistoryError}
+          </div>
+        )}
         {!hasRows && (
           <div style={{ color: TEXT_MUTED, fontStyle: 'italic', padding: '8px 0' }} data-testid="workspace-checks-history-empty">
             {showingLocal
               ? 'No local evidence runs recorded.'
-              : githubHistoryAvailable
+              : githubHistoryLoading
+                ? 'Loading GitHub history…'
+                : githubHistoryAvailable
                 ? `No GitHub runs recorded for ${historyBranch === 'all' ? 'these branches' : 'this branch'}.`
-                : 'GitHub history is unavailable.'}
+                : githubHistoryError || 'GitHub history is unavailable.'}
           </div>
         )}
         {!showingLocal && filteredGithubHistory.length > 0 && (
@@ -1462,6 +1487,17 @@ export default function WorkspaceChecksTab({ repoPath, repoId }: WorkspaceChecks
   // ─── Render: Main ──────────────────────────────────────────────────────────
   return (
     <div style={s.container} className="workspace-checks-tab" data-testid="workspace-checks-tab">
+      {error && !sections.checkPlan.error && (
+        <div style={{ color: WARNING, marginBottom: 12 }} data-testid="workspace-checks-local-section-error">
+          Some local check details could not refresh: {error}
+        </div>
+      )}
+      {remoteLoading && qualityStatus && (
+        <span className="sr-only" data-testid="workspace-checks-remote-loading">Refreshing GitHub sections</span>
+      )}
+      {remoteError && !sections.githubStatus.error && !sections.githubHistory.error && (
+        <span className="sr-only">{remoteError}</span>
+      )}
       {renderReadiness()}
       {renderRecommendation()}
       {renderTopStrip()}

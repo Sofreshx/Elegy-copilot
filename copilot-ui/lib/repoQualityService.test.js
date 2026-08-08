@@ -18,7 +18,7 @@ function makeRepo() {
   return root;
 }
 
-test('dual check authorities require migration even when hooks are active', () => {
+test('dual check authorities require migration even when hooks are active', async () => {
   const root = makeRepo();
   fs.mkdirSync(path.join(root, '.elegy'));
   fs.mkdirSync(path.join(root, '.copilot'));
@@ -27,7 +27,7 @@ test('dual check authorities require migration even when hooks are active', () =
   fs.writeFileSync(path.join(root, '.copilot', 'commit-checks.json'), '{"schemaVersion":3,"lanes":{}}');
   fs.writeFileSync(path.join(root, '.githooks', 'pre-commit'), '#!/bin/sh\n');
 
-  const status = buildRepoQualityStatus(root, {
+  const status = await buildRepoQualityStatus(root, {
     git: () => ({ status: 0, stdout: '.githooks\n', stderr: '' }),
     github: () => ({ available: false, reason: 'offline' }),
   });
@@ -39,13 +39,13 @@ test('dual check authorities require migration even when hooks are active', () =
   assert.ok(status.drift.some((entry) => entry.id === 'dual-check-authority'));
 });
 
-test('existing lefthook setup is detected without requiring legacy hooks', () => {
+test('existing lefthook setup is detected without requiring legacy hooks', async () => {
   const root = makeRepo();
   fs.mkdirSync(path.join(root, '.elegy'));
   fs.writeFileSync(path.join(root, '.elegy', 'checks.json'), '{"schemaVersion":2,"checks":{}}');
   fs.writeFileSync(path.join(root, 'lefthook.yml'), 'pre-commit:\n  jobs: []\n');
 
-  const status = buildRepoQualityStatus(root, {
+  const status = await buildRepoQualityStatus(root, {
     git: () => ({ status: 0, stdout: '.git/hooks\n', stderr: '' }),
     github: () => ({ available: false, reason: 'offline' }),
   });
@@ -90,13 +90,13 @@ test('setup task uses an available launcher and returns its task id', async () =
   assert.match(calls[0].prompt, /audit.*preview.*approval/i);
 });
 
-test('remote failure stays separate from local readiness', () => {
+test('remote failure stays separate from local readiness', async () => {
   const root = makeRepo();
   fs.mkdirSync(path.join(root, '.elegy'));
   fs.writeFileSync(path.join(root, '.elegy', 'checks.json'), '{"schemaVersion":2,"checks":{}}');
   fs.writeFileSync(path.join(root, 'lefthook.yml'), 'pre-commit:\n  jobs: []\n');
 
-  const status = buildRepoQualityStatus(root, {
+  const status = await buildRepoQualityStatus(root, {
     git: () => ({ status: 0, stdout: '.git/hooks\n', stderr: '' }),
     github: () => ({ available: true, latestConclusion: 'failure', runs: [] }),
   });

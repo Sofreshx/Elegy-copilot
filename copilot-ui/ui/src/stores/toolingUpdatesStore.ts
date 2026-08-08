@@ -39,10 +39,23 @@ function toErrorMessage(error: unknown): string {
   return 'Unable to load tooling update status.';
 }
 
-function createToolingUpdatesStore() {
+function sameStatus(left: ToolingUpdatesStatusResponse | null, right: ToolingUpdatesStatusResponse): boolean {
+  if (left === null) return false;
+  const { checkedAtMs: _leftCheckedAt, ...leftSemantic } = left;
+  const { checkedAtMs: _rightCheckedAt, ...rightSemantic } = right;
+  return JSON.stringify(leftSemantic) === JSON.stringify(rightSemantic);
+}
+
+export function createToolingUpdatesStore(deps: {
+  getStatus?: typeof getToolingUpdatesStatus;
+  checkUpdates?: typeof checkToolingUpdates;
+} = {}) {
+  const getStatus = deps.getStatus ?? getToolingUpdatesStatus;
+  const checkUpdates = deps.checkUpdates ?? checkToolingUpdates;
   const store = createStore<ToolingUpdatesState>(INITIAL_STATE);
   let requestVersion = 0;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let checkInFlight: Promise<void> | null = null;
 
   async function refresh(): Promise<void> {
     const nextVersion = ++requestVersion;
@@ -53,7 +66,7 @@ function createToolingUpdatesStore() {
     }));
 
     try {
-      const status = await getToolingUpdatesStatus();
+      const status = await getStatus();
       store.setState((state) => {
         if (nextVersion !== requestVersion) {
           return state;
@@ -82,22 +95,29 @@ function createToolingUpdatesStore() {
     }
   }
 
-  async function checkNow(): Promise<void> {
-    store.setState((state) => ({
-      ...state,
-      checking: true,
-      error: null,
-    }));
-
-    try {
-      const status = await checkToolingUpdates();
+  async function checkNow(options: { silent?: boolean } = {}): Promise<void> {
+    if (checkInFlight) return checkInFlight;
+    checkInFlight = (async () => {
+    if (!options.silent) {
       store.setState((state) => ({
         ...state,
-        status,
-        checking: false,
+        checking: true,
         error: null,
-        lastUpdatedAtMs: Date.now(),
       }));
+    }
+
+    try {
+      const status = await checkUpdates();
+      store.setState((state) => {
+        if (options.silent && sameStatus(state.status, status) && state.error === null) return state;
+        return {
+          ...state,
+          status,
+          checking: false,
+          error: null,
+          lastUpdatedAtMs: Date.now(),
+        };
+      });
     } catch (error) {
       store.setState((state) => ({
         ...state,
@@ -106,6 +126,10 @@ function createToolingUpdatesStore() {
         lastUpdatedAtMs: Date.now(),
       }));
     }
+    })().finally(() => {
+      checkInFlight = null;
+    });
+    return checkInFlight;
   }
 
   async function updatePlanning(): Promise<void> {
@@ -219,9 +243,10 @@ function createToolingUpdatesStore() {
       return;
     }
 
-    void checkNow();
     pollTimer = setInterval(() => {
-      void checkNow();
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        void checkNow({ silent: true });
+      }
     }, TOOLING_UPDATES_POLL_INTERVAL_MS);
   }
 

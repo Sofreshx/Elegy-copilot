@@ -16,8 +16,8 @@ async function main() {
   const calls = [];
   const routes = register({
     service: {
-      getOverview: async (context) => {
-        calls.push(['overview', context]);
+      getOverview: async (context, input) => {
+        calls.push(['overview', context, input]);
         return payload;
       },
       syncRepositories: async (context, input) => {
@@ -77,7 +77,7 @@ async function main() {
   await routes[0].handler({ res: response, elegyHomeAbs: 'C:/home/.elegy', engineRoot: 'C:/work/engine' });
   assert.strictEqual(response.status, 200);
   assert.deepStrictEqual(response.body, payload);
-  assert.deepStrictEqual(calls[0], ['overview', { elegyHome: 'C:/home/.elegy', engineRoot: 'C:/work/engine' }]);
+  assert.deepStrictEqual(calls[0], ['overview', { elegyHome: 'C:/home/.elegy', engineRoot: 'C:/work/engine' }, { mode: 'fresh' }]);
 
   const syncWithoutConfirmation = {};
   bodyQueue.push({});
@@ -140,6 +140,38 @@ async function main() {
   assert.strictEqual(calls[6][0], 'agent-get');
   assert.strictEqual(calls[7][0], 'agent-approve');
   assert.strictEqual(calls[8][0], 'agent-cancel');
+
+  const modeCalls = [];
+  const modeRoutes = register({
+    service: {
+      getOverview: async (context, input) => {
+        modeCalls.push([context, input]);
+        return payload;
+      },
+    },
+    sendJson: (res, status, body) => {
+      res.status = status;
+      res.body = body;
+    },
+  });
+  const cachedResponse = {};
+  await modeRoutes[0].handler({
+    res: cachedResponse,
+    u: new URL('http://127.0.0.1/api/repo-operations/overview?mode=cached'),
+    elegyHomeAbs: 'C:/home/.elegy',
+    engineRoot: 'C:/work/engine',
+  });
+  assert.strictEqual(cachedResponse.status, 200);
+  assert.deepStrictEqual(modeCalls[0], [{ elegyHome: 'C:/home/.elegy', engineRoot: 'C:/work/engine' }, { mode: 'cached' }]);
+
+  const invalidModeResponse = {};
+  await modeRoutes[0].handler({
+    res: invalidModeResponse,
+    u: new URL('http://127.0.0.1/api/repo-operations/overview?mode=unsafe'),
+  });
+  assert.strictEqual(invalidModeResponse.status, 400);
+  assert.strictEqual(invalidModeResponse.body.code, 'invalid-overview-mode');
+  assert.strictEqual(modeCalls.length, 1, 'invalid modes must stop before the overview service');
 
   const errorResponse = {};
   const errorRoutes = register({

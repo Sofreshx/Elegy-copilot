@@ -24,6 +24,8 @@ export type RepoOperationsTab = 'repositories' | 'entities' | 'pull-requests' | 
 export interface RepoOperationsState {
   overview: RepoOperationsOverview | null;
   loading: boolean;
+  refreshing: boolean;
+  authorizationFresh: boolean;
   error: string | null;
   searchQuery: string;
   filter: RepoOperationsFilter;
@@ -39,7 +41,7 @@ export interface RepoOperationsState {
 }
 
 const INITIAL_STATE: RepoOperationsState = {
-  overview: null, loading: false, error: null, searchQuery: '', filter: 'all', activeTab: 'repositories', selectedEntityKeys: [],
+  overview: null, loading: false, refreshing: false, authorizationFresh: false, error: null, searchQuery: '', filter: 'all', activeTab: 'repositories', selectedEntityKeys: [],
   syncing: false, syncResult: null, cleaning: false, cleanupResult: null, actionResult: null, actionError: null, agentRuns: {},
 };
 
@@ -47,13 +49,44 @@ function createRepoOperationsStore() {
   const store = createStore<RepoOperationsState>(INITIAL_STATE);
   const setError = (error: unknown) => store.setState((state) => ({ ...state, actionError: error instanceof Error ? error.message : String(error) }));
 
-  async function loadOverview(): Promise<void> {
-    store.setState((state) => ({ ...state, loading: true, error: null }));
+  async function loadOverview(options: { cachedFirst?: boolean } = {}): Promise<void> {
+    const cachedFirst = options.cachedFirst ?? store.getState().overview === null;
+    const initialOverview = store.getState().overview;
+    store.setState((state) => ({
+      ...state,
+      loading: initialOverview === null,
+      refreshing: initialOverview !== null,
+      error: null,
+    }));
+
+    if (cachedFirst) {
+      try {
+        const cachedOverview = await getRepoOperationsOverview('cached');
+        const cacheHit = cachedOverview.cache?.mode === 'cached';
+        store.setState((state) => ({
+          ...state,
+          overview: cachedOverview,
+          loading: false,
+          refreshing: cacheHit,
+          authorizationFresh: !cacheHit,
+          error: null,
+        }));
+        if (!cacheHit) return;
+      } catch {
+        // A missing or unreadable presentation cache must not prevent the canonical fresh scan.
+      }
+    }
+
+    store.setState((state) => ({
+      ...state,
+      loading: state.overview === null,
+      refreshing: state.overview !== null,
+    }));
     try {
-      const overview = await getRepoOperationsOverview();
-      store.setState((state) => ({ ...state, overview, loading: false }));
+      const overview = await getRepoOperationsOverview('fresh');
+      store.setState((state) => ({ ...state, overview, loading: false, refreshing: false, authorizationFresh: true, error: null }));
     } catch (error) {
-      store.setState((state) => ({ ...state, loading: false, error: error instanceof Error ? error.message : String(error) }));
+      store.setState((state) => ({ ...state, loading: false, refreshing: false, error: error instanceof Error ? error.message : String(error) }));
     }
   }
 

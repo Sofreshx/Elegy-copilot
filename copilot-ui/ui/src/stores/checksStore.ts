@@ -5,6 +5,7 @@ import {
   getGitCheckState,
   getGitCiSync,
   getGitHubCheckHistory,
+  getRepoQualityLocalStatus,
   getRepoQualityStatus,
   runGitChecksWithProfile,
 } from '../lib/api/git';
@@ -57,6 +58,36 @@ export interface ChecksStoreState {
   error: string | null;
   /** Initial load in progress */
   loading: boolean;
+  /** Remote GitHub status/history refresh in progress. */
+  remoteLoading: boolean;
+  /** Remote-only refresh failure; local evidence remains usable. */
+  remoteError: string | null;
+  /** Independent read state so one failed section does not hide successful siblings. */
+  sections: Record<ChecksReadSection, ChecksReadSectionState>;
+}
+
+export type ChecksReadSection =
+  | 'checkState'
+  | 'ciSync'
+  | 'discoveredChecks'
+  | 'localQuality'
+  | 'checkPlan'
+  | 'githubStatus'
+  | 'githubHistory';
+
+export interface ChecksReadSectionState {
+  loading: boolean;
+  error: string | null;
+  updatedAt: string | null;
+}
+
+const LOCAL_SECTIONS: ChecksReadSection[] = ['checkState', 'ciSync', 'discoveredChecks', 'localQuality', 'checkPlan'];
+const REMOTE_SECTIONS: ChecksReadSection[] = ['githubStatus', 'githubHistory'];
+
+function createReadSections(): ChecksStoreState['sections'] {
+  return Object.fromEntries(
+    [...LOCAL_SECTIONS, ...REMOTE_SECTIONS].map((section) => [section, { loading: false, error: null, updatedAt: null }]),
+  ) as ChecksStoreState['sections'];
 }
 
 const INITIAL_STATE: ChecksStoreState = {
@@ -72,37 +103,96 @@ const INITIAL_STATE: ChecksStoreState = {
   githubHistory: null,
   error: null,
   loading: false,
+  remoteLoading: false,
+  remoteError: null,
+  sections: createReadSections(),
 };
 
 function createChecksStore() {
   const store = createStore<ChecksStoreState>(INITIAL_STATE);
   let loadVersion = 0;
+  let remoteVersion = 0;
+
+  function beginSections(repoPath: string, sectionNames: ChecksReadSection[], remote: boolean): void {
+    store.setState((s) => {
+      const repoChanged = s.repoPath !== repoPath;
+      const sections = repoChanged ? createReadSections() : { ...s.sections };
+      for (const section of sectionNames) {
+        sections[section] = { ...sections[section], loading: true, error: null };
+      }
+      return {
+        ...s,
+        repoPath,
+        runSession: repoChanged ? null : s.runSession,
+        checkResults: repoChanged ? null : s.checkResults,
+        checkState: repoChanged ? null : s.checkState,
+        ciSync: repoChanged ? null : s.ciSync,
+        discoveredChecks: repoChanged ? null : s.discoveredChecks,
+        qualityStatus: repoChanged ? null : s.qualityStatus,
+        checkPlan: repoChanged ? null : s.checkPlan,
+        githubHistory: repoChanged ? null : s.githubHistory,
+        error: remote ? s.error : null,
+        loading: remote ? s.loading : true,
+        remoteError: remote ? null : repoChanged ? null : s.remoteError,
+        remoteLoading: remote ? true : repoChanged ? false : s.remoteLoading,
+        sections,
+      };
+    });
+  }
+
+  function publishSection<T>(
+    version: number,
+    remote: boolean,
+    section: ChecksReadSection,
+    loadSection: () => Promise<T>,
+    apply: (state: ChecksStoreState, value: T) => ChecksStoreState,
+  ): Promise<void> {
+    return loadSection().then((value) => {
+      if (version !== (remote ? remoteVersion : loadVersion)) return;
+      store.setState((s) => {
+        const next = apply(s, value);
+        return {
+          ...next,
+          sections: {
+            ...next.sections,
+            [section]: { loading: false, error: null, updatedAt: new Date().toISOString() },
+          },
+        };
+      });
+    }).catch((reason) => {
+      if (version !== (remote ? remoteVersion : loadVersion)) return;
+      const message = reason instanceof Error ? reason.message : String(reason);
+      store.setState((s) => ({
+        ...s,
+        sections: {
+          ...s.sections,
+          [section]: { ...s.sections[section], loading: false, error: message },
+        },
+      }));
+      throw reason;
+    });
+  }
+
+  function finishSections(version: number, remote: boolean): void {
+    if (version !== (remote ? remoteVersion : loadVersion)) return;
+    const names = remote ? REMOTE_SECTIONS : LOCAL_SECTIONS;
+    store.setState((s) => {
+      const error = names.map((section) => s.sections[section].error).filter(Boolean).join('; ') || null;
+      return remote
+        ? { ...s, remoteLoading: false, remoteError: error }
+        : { ...s, loading: false, error };
+    });
+  }
 
   /** Load persisted state, discovery, and CI sync for a repo. */
   async function load(repoPath: string): Promise<void> {
     const version = ++loadVersion;
-    store.setState((s) => ({ ...s, repoPath, loading: true }));
-    try {
-      const [stateResult, ciSyncResult, discoveryResult, qualityStatus, checkPlan, githubHistory] = await Promise.all([
-        getGitCheckState(repoPath),
-        getGitCiSync(repoPath),
-        discoverGitChecks(repoPath),
-        getRepoQualityStatus(repoPath),
-        getGitCheckPlan(repoPath, 'commit'),
-        getGitHubCheckHistory(repoPath, { branch: null }),
-      ]);
-      if (version !== loadVersion) return;
-      store.setState((s) => ({
+    if (store.getState().repoPath !== repoPath) remoteVersion++;
+    beginSections(repoPath, LOCAL_SECTIONS, false);
+    const requests = [
+      publishSection(version, false, 'checkState', () => getGitCheckState(repoPath), (s, stateResult) => ({
         ...s,
         checkState: stateResult,
-        ciSync: ciSyncResult,
-        discoveredChecks: discoveryResult,
-        qualityStatus,
-        checkPlan,
-        githubHistory,
-        error: null,
-        loading: false,
-        // Seed checkResults from persisted state if a prior run exists
         checkResults: s.checkResults ?? (stateResult.lastRun?.overallPass !== undefined
           ? {
               repoRoot: stateResult.repoPath,
@@ -117,50 +207,56 @@ function createChecksStore() {
               message: stateResult.lastRun?.overallPass ? 'All checks passed' : 'Some checks failed',
             }
           : null),
-      }));
-    } catch (error) {
-      if (version !== loadVersion) return;
-      store.setState((s) => ({
+      })),
+      publishSection(version, false, 'ciSync', () => getGitCiSync(repoPath), (s, ciSync) => ({ ...s, ciSync })),
+      publishSection(version, false, 'discoveredChecks', () => discoverGitChecks(repoPath), (s, discoveredChecks) => ({ ...s, discoveredChecks })),
+      publishSection(version, false, 'localQuality', () => getRepoQualityLocalStatus(repoPath), (s, qualityStatus) => ({
         ...s,
-        loading: false,
-        error: error instanceof Error ? error.message : String(error),
-      }));
-    }
+        qualityStatus: s.qualityStatus && !s.qualityStatus.remote.deferred
+          ? {
+              ...qualityStatus,
+              remote: s.qualityStatus.remote,
+              remoteStatus: s.qualityStatus.remoteStatus,
+            }
+          : qualityStatus,
+      })),
+      publishSection(version, false, 'checkPlan', () => getGitCheckPlan(repoPath, 'commit'), (s, checkPlan) => ({ ...s, checkPlan })),
+    ];
+    await Promise.allSettled(requests);
+    finishSections(version, false);
   }
 
   /** Refresh persisted state, discovery, and CI sync without resetting run session. */
   async function refresh(repoPath: string): Promise<void> {
-    const version = ++loadVersion;
-    store.setState((s) => ({ ...s, loading: true }));
-    try {
-      const [stateResult, ciSyncResult, discoveryResult, qualityStatus, checkPlan, githubHistory] = await Promise.all([
-        getGitCheckState(repoPath),
-        getGitCiSync(repoPath),
-        discoverGitChecks(repoPath),
-        getRepoQualityStatus(repoPath),
-        getGitCheckPlan(repoPath, 'commit'),
-        getGitHubCheckHistory(repoPath, { branch: null }),
-      ]);
-      if (version !== loadVersion) return;
-      store.setState((s) => ({
+    await load(repoPath);
+  }
+
+  /** Load GitHub-only readiness and history. Call from the Checks view or explicit background work. */
+  async function loadRemote(repoPath: string, options: { allBranches?: boolean } = {}): Promise<void> {
+    const version = ++remoteVersion;
+    if (store.getState().repoPath !== repoPath) loadVersion++;
+    beginSections(repoPath, REMOTE_SECTIONS, true);
+    const requests = [
+      publishSection(version, true, 'githubStatus', () => getRepoQualityStatus(repoPath), (s, remoteQuality) => ({
         ...s,
-        checkState: stateResult,
-        ciSync: ciSyncResult,
-        discoveredChecks: discoveryResult,
-        qualityStatus,
-        checkPlan,
-        githubHistory,
-        error: null,
-        loading: false,
-      }));
-    } catch (error) {
-      if (version !== loadVersion) return;
-      store.setState((s) => ({
-        ...s,
-        loading: false,
-        error: error instanceof Error ? error.message : String(error),
-      }));
-    }
+        qualityStatus: s.qualityStatus
+          ? {
+              ...s.qualityStatus,
+              remote: remoteQuality.remote,
+              remoteStatus: remoteQuality.remoteStatus,
+            }
+          : remoteQuality,
+      })),
+      publishSection(
+        version,
+        true,
+        'githubHistory',
+        () => getGitHubCheckHistory(repoPath, { branch: options.allBranches ? null : undefined }),
+        (s, githubHistory) => ({ ...s, githubHistory }),
+      ),
+    ];
+    await Promise.allSettled(requests);
+    finishSections(version, true);
   }
 
   /**
@@ -267,6 +363,7 @@ function createChecksStore() {
   /** Reset all state for a new repo. */
   function reset(): void {
     loadVersion++;
+    remoteVersion++;
     store.setState(INITIAL_STATE);
   }
 
@@ -274,6 +371,7 @@ function createChecksStore() {
     store,
     load,
     refresh,
+    loadRemote,
     startRun,
     clearRunSession,
     reset,

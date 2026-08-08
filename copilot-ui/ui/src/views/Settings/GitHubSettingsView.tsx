@@ -1,5 +1,8 @@
 import React, { useEffect } from 'react';
-import { Badge, Button, Panel, Toolbar } from '../../components';
+import Badge from '../../components/Badge';
+import Button from '../../components/Button';
+import Panel from '../../components/Panel';
+import Toolbar from '../../components/Toolbar';
 import { useStoreValue } from '../../lib/store';
 import { githubStore } from '../../stores/githubStore';
 

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Badge, Button, Panel } from '../../components';
+import Badge from '../../components/Badge';
+import Button from '../../components/Button';
+import Panel from '../../components/Panel';
 import { useStoreValue } from '../../lib/store';
 import type { ClaudeCodeProviderMode } from '../../lib/types';
 import { claudeCodeProviderStore, type ClaudeCodeProviderState } from '../../stores/claudeCodeProviderStore';

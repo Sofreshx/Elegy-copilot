@@ -29,6 +29,19 @@
       "startupManagedAssetSync"
     ]
   },
+  "GET /api/diagnostics/performance": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "generatedAt",
+      "processes",
+      "redaction",
+      "requests",
+      "schemaVersion",
+      "uptimeSeconds"
+    ]
+  },
   "GET /api/version": {
     "status": 200,
     "contentType": "application/json",
@@ -674,6 +687,36 @@
       "harnesses",
       "inventorySummary",
       "totalSessionCount"
+    ]
+  },
+  "GET /api/dashboard/harness-sessions/summary": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "expiresAtMs",
+      "generatedAtMs",
+      "harnesses",
+      "inventorySummary",
+      "snapshotId",
+      "totalSessionCount"
+    ]
+  },
+  "GET /api/dashboard/harness-sessions/codex": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "expiresAtMs",
+      "generatedAtMs",
+      "harness",
+      "harnessId",
+      "hasMore",
+      "limit",
+      "nextCursor",
+      "page",
+      "sessions",
+      "snapshotId"
     ]
   },
   "GET /api/catalog/repos": {
@@ -1535,12 +1578,40 @@
       "error"
     ]
   },
+  "GET /api/git/quality/local-status": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
   "POST /api/git/quality/setup-task": {
     "status": 400,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "error"
+    ]
+  },
+  "GET /api/repo-operations/overview?mode=cached": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "actionContract",
+      "activeRuns",
+      "branches",
+      "cache",
+      "capabilities",
+      "cleanupCandidates",
+      "contractVersion",
+      "generatedAt",
+      "pullRequests",
+      "repositories",
+      "schemaVersion",
+      "summary",
+      "warnings"
     ]
   },
   "POST /api/repo-operations/sync": {

@@ -1,14 +1,24 @@
 ---
 created: 2026-08-08
+updated: 2026-08-08
 category: system
 status: current
-doc_kind: decision
+doc_kind: node
 id: repo-operations-safety-adr
 summary: Authority boundary for Repo Operations v4 fetch, cleanup, and merge-repair actions.
-related: [copilot-ui-guide, repo-operations-command-center]
+tags: [adr, repo-operations, safety, git]
+related: [copilot-ui-guide]
 ---
 
 # Repo Operations Safety ADR
+
+## Context
+
+Repo Operations aggregates local and remote state across many repositories and
+offers maintenance actions whose safety can change after an overview is read.
+Fetch, fast-forward updates, cleanup, and merge repair therefore need distinct
+authority boundaries, fresh-state checks, and explicit confirmation instead
+of treating a cached inventory as permission to mutate Git state.
 
 ## Decision
 

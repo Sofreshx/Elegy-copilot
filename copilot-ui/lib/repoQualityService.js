@@ -2,19 +2,21 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
 const elegyChecks = require('./elegyChecksRunner');
+const { getDefaultAsyncProcessService } = require('./asyncProcessService');
 
 function exists(repoRoot, relativePath) {
   return fs.existsSync(path.join(repoRoot, relativePath));
 }
 
-function run(command, args, cwd, timeout = 15000) {
-  const result = spawnSync(command, args, {
+async function run(command, args, cwd, timeout = 15000, options = {}) {
+  const processService = options.processService || getDefaultAsyncProcessService();
+  const result = await processService.run(command, args, {
     cwd,
-    encoding: 'utf8',
-    windowsHide: true,
-    timeout,
+    timeoutMs: timeout,
+    maxOutputBytes: options.maxOutputBytes || 1024 * 1024,
+    cacheTtlMs: options.cacheTtlMs || 0,
+    signal: options.signal,
   });
   return {
     status: result.status,
@@ -63,27 +65,37 @@ function parseGitHubRepo(remoteUrl) {
   return match ? `${match[1]}/${match[2]}` : null;
 }
 
-function readGitHubState(repoRoot, options = {}) {
-  const auth = run('gh', ['auth', 'status'], repoRoot);
+async function readGitHubState(repoRoot, options = {}) {
+  const processService = options.processService || getDefaultAsyncProcessService();
+  const runRead = (command, args, timeout = 15_000, cacheTtlMs = 10_000) => run(command, args, repoRoot, timeout, {
+    processService,
+    cacheTtlMs,
+    signal: options.signal,
+  });
+  const [auth, remote, branchResult] = await Promise.all([
+    runRead('gh', ['auth', 'status'], 15_000, 30_000),
+    runRead('git', ['remote', 'get-url', 'origin'], 10_000, 30_000),
+    runRead('git', ['branch', '--show-current'], 10_000, 2_000),
+  ]);
   if (auth.status !== 0) return { available: false, reason: 'GitHub CLI is unavailable or unauthenticated.' };
 
-  const remote = run('git', ['remote', 'get-url', 'origin'], repoRoot);
   const repository = parseGitHubRepo(remote.stdout);
   if (!repository) return { available: false, reason: 'Origin is not a GitHub repository.' };
 
-  const branchResult = run('git', ['branch', '--show-current'], repoRoot);
   const hasBranchOverride = options.branch !== undefined;
   const branch = hasBranchOverride
     ? (options.branch ? String(options.branch).trim() || null : null)
     : (String(branchResult.stdout || '').trim() || null);
-  const prResult = run('gh', ['pr', 'view', '--json', 'number,url,state,isDraft,statusCheckRollup'], repoRoot);
   const requestedLimit = Number(options.limit);
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(Math.floor(requestedLimit), 50) : 5;
   const runsArgs = ['run', 'list'];
   if (branch) runsArgs.push('--branch', branch);
   runsArgs.push('--limit', String(limit), '--json', 'databaseId,workflowName,status,conclusion,url,headSha,headBranch,createdAt');
-  const runsResult = run('gh', runsArgs, repoRoot);
-  const rulesResult = run('gh', ['api', `repos/${repository}/rulesets`], repoRoot);
+  const [prResult, runsResult, rulesResult] = await Promise.all([
+    runRead('gh', ['pr', 'view', '--json', 'number,url,state,isDraft,statusCheckRollup'], 20_000),
+    runRead('gh', runsArgs, 20_000),
+    runRead('gh', ['api', `repos/${repository}/rulesets`], 20_000, 30_000),
+  ]);
 
   const runs = runsResult.status === 0 ? parseJson(runsResult.stdout, []) : [];
   const pr = prResult.status === 0 ? parseJson(prResult.stdout, null) : null;
@@ -111,18 +123,21 @@ function safeElegyState(repoRoot) {
   }
 }
 
-function buildRepoQualityStatus(repoRoot, dependencies = {}) {
+async function buildRepoQualityStatus(repoRoot, dependencies = {}) {
   const absoluteRoot = path.resolve(repoRoot);
-  const git = dependencies.git || ((args) => run('git', args, absoluteRoot));
-  const github = dependencies.github || (() => readGitHubState(absoluteRoot));
-  const hooksPathResult = git(['config', '--get', 'core.hooksPath']);
+  const processService = dependencies.processService || getDefaultAsyncProcessService();
+  const git = dependencies.git || ((args) => run('git', args, absoluteRoot, 10_000, { processService, cacheTtlMs: 2_000, signal: dependencies.signal }));
+  const github = dependencies.github || (() => readGitHubState(absoluteRoot, { processService, signal: dependencies.signal }));
+  const [hooksPathResult, remote] = await Promise.all([
+    Promise.resolve(git(['config', '--get', 'core.hooksPath'])),
+    Promise.resolve(github()),
+  ]);
   const hooksPath = String(hooksPathResult.stdout || '').trim();
   const support = detectSupport(absoluteRoot);
   const hooks = detectHookManager(absoluteRoot, hooksPath);
   const hasElegyConfig = exists(absoluteRoot, '.elegy/checks.json');
   const hasCopilotConfig = exists(absoluteRoot, '.copilot/commit-checks.json');
   const state = safeElegyState(absoluteRoot);
-  const remote = github();
   const drift = [];
 
   if (hasElegyConfig && hasCopilotConfig) {

@@ -2690,6 +2690,28 @@ textarea:focus-visible,
   margin: 0;
 }
 
+.intelligence-surface-provider-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.intelligence-surface-provider-field {
+  display: grid;
+  gap: 6px;
+  max-width: 420px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.intelligence-surface-provider-field input {
+  min-height: 34px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  padding: 6px 8px;
+}
+
 @media (max-width: 760px) {
   .intelligence-surface-hostbar {
     align-items: flex-start;

@@ -766,6 +766,162 @@ async function testMergeRepairBlocksForkHeadsAndPreservesCancellation() {
   }
 }
 
+function cacheScanResult(repo, candidateOverrides = {}) {
+  const candidate = {
+    repoId: repo.repoId,
+    repoLabel: repo.repoLabel,
+    repoPath: repo.repoPath,
+    worktreePath: `${repo.repoPath}-feature`,
+    branch: 'feature/cached',
+    observedBranchSha: 'feature-sha',
+    observedDefaultSha: 'main-sha',
+    clean: true,
+    mergedIntoDefault: true,
+    active: false,
+    eligible: true,
+    blockerCodes: [],
+    ...candidateOverrides,
+  };
+  return {
+    ...repo,
+    available: true,
+    provider: 'github',
+    defaultBranch: 'main',
+    lastActivityMs: 1,
+    sync: { branch: 'main', upstream: 'origin/main', clean: true, ahead: 0, behind: 0, remoteAvailable: true, issueCodes: [] },
+    branches: [],
+    remoteBranches: [],
+    pullRequests: [],
+    issues: [],
+    cleanupCandidates: [candidate],
+  };
+}
+
+async function testOverviewCachePersistenceFallbackAndSingleFlight() {
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'repo-ops-cache-test-'));
+  const repo = { repoId: 'cached', repoPath: 'C:/work/cached', repoLabel: 'Cached', isWorktreeCheckout: false };
+  let scanCount = 0;
+  let inventoryAvailable = true;
+  let releaseFirstScan;
+  const firstScanGate = new Promise((resolve) => { releaseFirstScan = resolve; });
+  const service = createRepoOperationsService({
+    inventory: async () => {
+      if (!inventoryAvailable) throw new Error('inventory offline');
+      return { repos: [repo] };
+    },
+    scanRepository: async () => {
+      scanCount += 1;
+      if (scanCount === 1) await firstScanGate;
+      const result = cacheScanResult(repo);
+      return {
+        ...result,
+        sync: { ...result.sync, remoteUrl: 'https://cache-user:SENTINEL_PAT@github.com/example/cached.git' },
+      };
+    },
+    fsImpl: fs,
+    pathImpl: path,
+    now: () => '2026-08-08T12:00:00.000Z',
+  });
+  const context = { elegyHome: tempHome, engineRoot: 'C:/work/engine' };
+  const cachePath = path.join(tempHome, 'repo-state', 'repo-operations', 'overview-v4.json');
+  try {
+    const first = service.getOverview(context, { mode: 'fresh' });
+    const second = service.getOverview(context, { mode: 'fresh' });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.strictEqual(scanCount, 1, 'concurrent fresh overviews must share one scan');
+    releaseFirstScan();
+    const [firstOverview, secondOverview] = await Promise.all([first, second]);
+    assert.strictEqual(firstOverview.cache.mode, 'fresh');
+    assert.strictEqual(secondOverview.generatedAt, firstOverview.generatedAt);
+    assert.strictEqual(fs.existsSync(cachePath), true, 'fresh overview must be persisted at the v4 cache path');
+    const envelope = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+    assert.strictEqual(JSON.stringify(envelope).includes('SENTINEL_PAT'), false, 'persisted overview must redact remote credentials');
+    assert.strictEqual(envelope.cacheVersion, 1);
+    assert.strictEqual(envelope.contractVersion, 'repo-operations.overview.v4');
+    assert.strictEqual(envelope.overview.cache, undefined, 'cache provenance must not be persisted as canonical overview data');
+    assert.deepStrictEqual(fs.readdirSync(path.dirname(cachePath)), ['overview-v4.json'], 'atomic write must not leave temporary files');
+
+    const cachedStartedAt = Date.now();
+    const cached = await service.getOverview(context, { mode: 'cached' });
+    const cachedDurationMs = Date.now() - cachedStartedAt;
+    assert.strictEqual(scanCount, 1, 'a valid cached overview must not scan repositories');
+    assert.strictEqual(cached.cache.mode, 'cached');
+    assert.strictEqual(cached.cache.hit, true);
+    assert.ok(cachedDurationMs < 500, `cached Repo Operations overview took ${cachedDurationMs}ms`);
+
+    fs.writeFileSync(cachePath, JSON.stringify({ ...envelope, cacheVersion: 99 }), 'utf8');
+    const incompatibleFallback = await service.getOverview(context, { mode: 'cached' });
+    assert.strictEqual(scanCount, 2);
+    assert.strictEqual(incompatibleFallback.cache.mode, 'fresh');
+    assert.strictEqual(incompatibleFallback.cache.fallbackReason, 'cache-incompatible');
+
+    fs.writeFileSync(cachePath, '{not-json', 'utf8');
+    const corruptFallback = await service.getOverview(context, { mode: 'cached' });
+    assert.strictEqual(scanCount, 3);
+    assert.strictEqual(corruptFallback.cache.mode, 'fresh');
+    assert.strictEqual(corruptFallback.cache.fallbackReason, 'cache-corrupt');
+
+    const lastSuccessfulSnapshot = fs.readFileSync(cachePath, 'utf8');
+    inventoryAvailable = false;
+    const unavailableInventory = await service.getOverview(context, { mode: 'fresh' });
+    assert.strictEqual(unavailableInventory.cache.persisted, false);
+    assert.match(unavailableInventory.cache.persistenceError, /last successful overview cache was preserved/i);
+    assert.strictEqual(fs.readFileSync(cachePath, 'utf8'), lastSuccessfulSnapshot, 'an unavailable inventory must not overwrite the last successful snapshot');
+  } finally {
+    fs.rmSync(tempHome, { recursive: true, force: true });
+  }
+}
+
+async function testCachedOverviewCannotAuthorizeCleanup() {
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'repo-ops-cache-safety-test-'));
+  const repo = { repoId: 'safe-cache', repoPath: 'C:/work/safe-cache', repoLabel: 'Safe cache', isWorktreeCheckout: false };
+  let freshSafe = true;
+  let scanCount = 0;
+  const mutationCalls = [];
+  const service = createRepoOperationsService({
+    inventory: async () => ({ repos: [repo] }),
+    scanRepository: async () => {
+      scanCount += 1;
+      return cacheScanResult(repo, freshSafe ? {} : {
+        clean: false,
+        mergedIntoDefault: false,
+        active: true,
+        eligible: false,
+        blockerCodes: ['worktree-dirty', 'active-session-or-worktree', 'not-merged'],
+      });
+    },
+    git: {
+      removeWorktree: async (...args) => mutationCalls.push(['remove', ...args]),
+      deleteLocalBranch: async (...args) => mutationCalls.push(['delete', ...args]),
+    },
+    fsImpl: fs,
+    pathImpl: path,
+  });
+  const context = { elegyHome: tempHome };
+  try {
+    await service.getOverview(context, { mode: 'fresh' });
+    const cached = await service.getOverview(context, { mode: 'cached' });
+    assert.strictEqual(cached.cache.mode, 'cached');
+    assert.strictEqual(cached.cleanupCandidates[0].eligible, true);
+    freshSafe = false;
+    const cleanup = await service.cleanupWorktrees(context, {
+      confirmed: true,
+      candidates: [{
+        repoId: repo.repoId,
+        worktreePath: `${repo.repoPath}-feature`,
+        branch: 'feature/cached',
+        observedBranchSha: 'feature-sha',
+        observedDefaultSha: 'main-sha',
+      }],
+    });
+    assert.strictEqual(scanCount, 2, 'cleanup must perform its own fresh scan after a cached read');
+    assert.strictEqual(cleanup.repositories[0].status, 'skipped');
+    assert.deepStrictEqual(mutationCalls, [], 'cached eligibility must never authorize a mutation');
+  } finally {
+    fs.rmSync(tempHome, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   testBranchClassification();
   await testRepositoryScan();
@@ -781,6 +937,8 @@ async function main() {
   await testCleanupStopsWhenFreshSafetyChangesWithoutAShaChange();
   await testMergeRepairUsesIsolatedWorktreeAndSeparateApprovals();
   await testMergeRepairBlocksForkHeadsAndPreservesCancellation();
+  await testOverviewCachePersistenceFallbackAndSingleFlight();
+  await testCachedOverviewCannotAuthorizeCleanup();
   console.log('repoOperationsService.test.js: ok');
 }
 

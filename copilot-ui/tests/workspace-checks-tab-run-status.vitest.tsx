@@ -7,6 +7,7 @@ vi.mock('../ui/src/lib/api/git', () => ({
   getGitCheckState: vi.fn(),
   getGitCiSync: vi.fn(),
   getGitHubCheckHistory: vi.fn(),
+  getRepoQualityLocalStatus: vi.fn(),
   getRepoQualityStatus: vi.fn(),
   createRepoQualitySetupTask: vi.fn(),
   runGitChecksWithProfile: vi.fn(),
@@ -128,6 +129,46 @@ describe('WorkspaceChecksTab run status', () => {
       remote: { available: false, reason: 'GitHub CLI is unavailable.' },
       drift: [],
     });
+    vi.mocked(gitApi.getRepoQualityLocalStatus).mockResolvedValue({
+      schemaVersion: 'repo-quality-status/v1',
+      repoPath: '/test/repo',
+      readiness: 'setup-required',
+      nextAction: { id: 'setup-quality-workflow', label: 'Set up quality workflow' },
+      support: { supported: true, adapter: 'node', reason: null },
+      local: {
+        config: { elegy: false, legacyCommitCheck: false },
+        hooks: { manager: 'none', configured: false, active: false, configPath: null, coreHooksPath: null },
+        lastProof: null,
+        freshness: { fresh: false, reason: 'No recorded proof.' },
+      },
+      remote: { available: false, reason: 'Remote GitHub status loads separately.', deferred: true },
+      drift: [],
+    });
+  });
+
+  it('renders local readiness while delayed GitHub sections remain independent', async () => {
+    const remoteStatus = deferred<any>();
+    const remoteHistory = deferred<any>();
+    vi.mocked(gitApi.getRepoQualityStatus).mockReturnValue(remoteStatus.promise);
+    vi.mocked(gitApi.getGitHubCheckHistory).mockReturnValue(remoteHistory.promise);
+
+    render(<WorkspaceChecksTab repoPath="/test/repo" repoId="repo-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-checks-readiness')).toHaveTextContent('Setup required');
+    });
+    expect(screen.getByTestId('workspace-checks-readiness')).toHaveTextContent('GitHubLoading');
+    expect(screen.getByTestId('workspace-checks-remote-loading')).toBeInTheDocument();
+
+    remoteStatus.reject(new Error('GitHub status timed out'));
+    remoteHistory.reject(new Error('GitHub history timed out'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-checks-github-status-error')).toHaveTextContent('GitHub status timed out');
+    });
+    fireEvent.click(screen.getByTestId('workspace-checks-history-github'));
+    expect(screen.getByTestId('workspace-checks-history-empty')).toHaveTextContent('GitHub history timed out');
+    expect(screen.getByTestId('workspace-checks-readiness')).toHaveTextContent('Setup required');
   });
 
   it('leads with repository readiness and the recommended next action', async () => {
