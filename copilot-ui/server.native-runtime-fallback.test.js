@@ -11,12 +11,12 @@ function withTempDir(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-native-runtime-fallback-'));
   return Promise.resolve()
     .then(() => fn(dir))
-    .finally(() => {
-      fs.rmSync(dir, {
+    .finally(async () => {
+      await fs.promises.rm(dir, {
         recursive: true,
         force: true,
         maxRetries: 10,
-        retryDelay: 100,
+        retryDelay: 200,
       });
     });
 }
