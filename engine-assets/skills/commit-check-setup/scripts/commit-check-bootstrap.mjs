@@ -73,7 +73,16 @@ function restore(files, removableDirs) {
     }
   }
   for (const dir of removableDirs.reverse()) {
-    if (fs.existsSync(dir) && fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+    if (!fs.existsSync(dir) || fs.readdirSync(dir).length !== 0) continue;
+    for (let attempt = 0; attempt <= 10; attempt += 1) {
+      try {
+        fs.rmdirSync(dir);
+        break;
+      } catch (error) {
+        if (!['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(error.code) || attempt === 10) throw error;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+      }
+    }
   }
 }
 
